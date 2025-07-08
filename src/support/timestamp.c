@@ -509,18 +509,30 @@ __wt_time_value_validate(
               __wt_time_window_to_string(tw, time_string[0]));
 
         if (WT_TIME_WINDOW_HAS_STOP(tw)) {
-            /* Validate that prepared timestamp field is valid */
-            if (tw->stop_ts != WT_TS_MAX || tw->durable_stop_ts != WT_TS_NONE)
+            if (tw->stop_ts != tw->prepare_ts)
                 WT_TIME_VALIDATE_RET(session,
-                  "value time window is prepared but has a stop timestamp or durable stop "
-                  "timestamp; time window %s",
+                  "value time window is stop prepared but has different stop_ts and prepared_ts; "
+                  "time window %s",
                   __wt_time_window_to_string(tw, time_string[0]));
+            
+            if (tw->durable_stop_ts != WT_TS_NONE)
+                  WT_TIME_VALIDATE_RET(session,
+                  "value time window is stop prepared but has non-empty durable_stop_ts; "
+                  "time window %s",
+                  __wt_time_window_to_string(tw, time_string[0]));
+
             if (tw->start_txn == tw->stop_txn) {
-                if (tw->start_ts != WT_TS_NONE || tw->durable_start_ts != WT_TS_NONE)
+              /* both start and stop are prepared, they must be in the same transaction */
+                if (tw->durable_start_ts != WT_TS_NONE)
                     WT_TIME_VALIDATE_RET(session,
-                      "value time window is prepared but has a start timestamp or "
-                      "durable start timestamps; time window %s",
+                      "value time window is start and stop prepared but has non-empty durable start timestamps; time window %s",
                       __wt_time_window_to_string(tw, time_string[0]));
+                if (tw->start_ts != tw->prepare_ts)
+                WT_TIME_VALIDATE_RET(session,
+                  "value time window is start prepared but has different start_ts and prepared_ts; "
+                  "time window %s",
+                  __wt_time_window_to_string(tw, time_string[0]));
+
             } else if (tw->start_ts >= tw->prepare_ts) {
                 WT_TIME_VALIDATE_RET(session,
                   "value time window is prepared delete but has a start timestamp greater "
@@ -528,9 +540,15 @@ __wt_time_value_validate(
                   __wt_time_window_to_string(tw, time_string[0]));
             }
         } else {
-            if (tw->start_ts != WT_TS_NONE || tw->durable_start_ts != WT_TS_NONE)
+          /* this means time window is start prepared */
+            if (tw->start_ts != tw->prepare_ts)
                 WT_TIME_VALIDATE_RET(session,
-                  "value time window is prepared but has a start or durable start timestamps; "
+                  "value time window is start prepared but has different start_ts and prepared_ts; "
+                  "time window %s",
+                  __wt_time_window_to_string(tw, time_string[0]));
+            if (tw->durable_start_ts != WT_TS_NONE)
+                  WT_TIME_VALIDATE_RET(session,
+                  "value time window is start prepared but has non-empty durable_start_ts; "
                   "time window %s",
                   __wt_time_window_to_string(tw, time_string[0]));
         }

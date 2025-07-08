@@ -58,7 +58,7 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
      *  - transaction is in delete prepared (meaning it has stop_txn defined)
      */
     const bool pack_prepare_info_to_stop =
-      F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && tw->prepare && WT_TIME_WINDOW_HAS_STOP(tw);
+      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) && tw->prepare && WT_TIME_WINDOW_HAS_STOP(tw);
 
     /* We pack prepared txn info to start_ts and durable start_ts when:
      *  - disagg is on
@@ -66,7 +66,7 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
      *  - transaction is in start prepared (no stop), or both start and delete are prepared, which
      * means both start and stop transactions are the same
      */
-    const bool pack_prepare_info_to_start = F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+    const bool pack_prepare_info_to_start = F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
       tw->prepare && (!WT_TIME_WINDOW_HAS_STOP(tw) || tw->stop_txn == tw->start_txn);
 
     /*
@@ -925,7 +925,7 @@ copy_cell_restart:
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_durable_stop_ts));
 
         /* Load temporary values to the right fields */
-        if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && tw->prepare) {
+        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) && tw->prepare) {
             if (tw->start_txn == tw->stop_txn) {
                 /*
                  * This is a special case where both transaction start and stop are in prepared
@@ -939,6 +939,8 @@ copy_cell_restart:
                     LF_ISSET(WT_CELL_TS_STOP) && LF_ISSET(WT_CELL_TS_DURABLE_STOP));
                 tw->prepare_ts = temp_start_ts;
                 tw->prepared_id = temp_durable_start_ts;
+                tw->start_ts = tw->prepare_ts;
+                tw->stop_ts = tw->prepare_ts;
             } else if (tw->stop_txn != WT_TXN_MAX) {
                 /*
                  * This case happens where the transaction is done, but the transaction stop is
@@ -953,6 +955,7 @@ copy_cell_restart:
                 tw->durable_start_ts = temp_durable_start_ts + tw->start_ts;
                 tw->prepare_ts = tw->start_ts + temp_stop_ts;
                 tw->prepared_id = temp_durable_stop_ts;
+                tw->stop_ts = tw->prepare_ts;
             } else {
                 /*
                  * This case happens when only transaction start is prepared, and there is no
@@ -964,6 +967,7 @@ copy_cell_restart:
                     !LF_ISSET(WT_CELL_TS_STOP) && !LF_ISSET(WT_CELL_TS_DURABLE_STOP));
                 tw->prepare_ts = temp_start_ts;
                 tw->prepared_id = temp_durable_start_ts;
+                tw->start_ts = tw->prepare_ts;
             }
         } else {
             if (LF_ISSET(WT_CELL_TS_START))
