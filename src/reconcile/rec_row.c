@@ -634,7 +634,7 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONC
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
-    WT_UPDATE *first_upd, *tombstone, **upd_entry;
+    WT_UPDATE *first_upd, *tombstone, *upd, **upd_entry;
 
     btree = S2BT(session);
     page = r->page;
@@ -642,27 +642,29 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONC
 
     if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || !F_ISSET(r, WT_REC_EVICT))
         return (0);
+
     if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
         return (0);
 
-    if (first_upd->type == WT_UPDATE_TOMBSTONE)
+    for (upd = first_upd; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = first_upd->next)
+        ;
+
+    if (upd == NULL)
         return (0);
 
-    if (WT_TXNID_LT(first_upd->txnid, r->last_running) && r->rec_prune_timestamp != WT_TS_NONE &&
-      first_upd->durable_ts <= r->rec_prune_timestamp) {
+    if (upd->type == WT_UPDATE_TOMBSTONE)
+        return (0);
+
+    if (WT_TXNID_LT(upd->txnid, r->last_running) && r->rec_prune_timestamp != WT_TS_NONE &&
+      upd->durable_ts <= r->rec_prune_timestamp) {
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
-        /*
-         * Use the transaction ID of the prior update to avoid out-of-order IDs, we know that update
-         * selection further into reconciliation will choose this tombstone and cause the record to
-         * be skipped when creating a page image.
-         */
-        tombstone->txnid = first_upd->txnid;
         tombstone->next = first_upd;
         upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
         *upd_entry = tombstone;
 
         WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
     }
+
     return (0);
 }
 
@@ -676,33 +678,35 @@ __rec_row_garbage_collect_fixup_insert_list(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins)
 {
     WT_BTREE *btree;
-    WT_UPDATE *first_upd, *tombstone;
+    WT_UPDATE *first_upd, *tombstone, *upd;
 
     btree = S2BT(session);
 
     if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || !F_ISSET(r, WT_REC_EVICT))
         return (0);
+
     /* The insert list should have an update, but be paranoid */
     if ((first_upd = ins->upd) == NULL)
         return (0);
 
-    if (first_upd->type == WT_UPDATE_TOMBSTONE)
+    for (upd = first_upd; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
+        ;
+
+    if (upd == NULL)
         return (0);
 
-    if (WT_TXNID_LT(first_upd->txnid, r->last_running) && r->rec_prune_timestamp != WT_TS_NONE &&
-      first_upd->durable_ts <= r->rec_prune_timestamp) {
+    if (upd->type == WT_UPDATE_TOMBSTONE)
+        return (0);
+
+    if (WT_TXNID_LT(upd->txnid, r->last_running) && r->rec_prune_timestamp != WT_TS_NONE &&
+      upd->durable_ts <= r->rec_prune_timestamp) {
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
-        /*
-         * Use the transaction ID of the prior update to avoid out-of-order IDs, we know that update
-         * selection further into reconciliation will choose this tombstone and cause the record to
-         * be skipped when creating a page image.
-         */
-        tombstone->txnid = first_upd->txnid;
         tombstone->next = first_upd;
         ins->upd = tombstone;
 
         WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
     }
+
     return (0);
 }
 
@@ -997,12 +1001,22 @@ __wti_rec_row_leaf(
         if (upd == NULL) {
             if (__wt_txn_tw_stop_visible_all(session, twp))
                 upd = &upd_tombstone;
-            else if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
-              WT_TXNID_LT(twp->start_txn, r->last_running) &&
-              r->rec_prune_timestamp != WT_TS_NONE &&
-              twp->durable_start_ts <= r->rec_prune_timestamp) {
-                upd = &upd_tombstone;
-                WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
+            else if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
+                if (WT_TIME_WINDOW_HAS_STOP(twp)) {
+                    if (WT_TXNID_LT(twp->stop_txn, r->last_running) &&
+                      r->rec_prune_timestamp != WT_TS_NONE &&
+                      twp->durable_stop_ts <= r->rec_prune_timestamp) {
+                        upd = &upd_tombstone;
+                        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
+                    }
+                } else {
+                    if (WT_TXNID_LT(twp->start_txn, r->last_running) &&
+                      r->rec_prune_timestamp != WT_TS_NONE &&
+                      twp->durable_start_ts <= r->rec_prune_timestamp) {
+                        upd = &upd_tombstone;
+                        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
+                    }
+                }
             }
         }
 

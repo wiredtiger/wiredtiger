@@ -660,6 +660,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     size_t parent_decr, size;
     uint64_t split_gen;
     uint32_t deleted_entries, *deleted_refs, hint, i, j, parent_entries, result_entries;
+    uint16_t ref_changes;
     bool empty_parent;
 
 #ifdef HAVE_DIAGNOSTIC
@@ -709,8 +710,12 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
              * which seems like asking for trouble.) Don't discard any ref has the prefetch flag,
              * the prefetch thread would crash if it sees a freed ref.
              */
-            if ((!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || next_ref->ref_changes == 0) &&
-              next_ref != ref && WT_REF_GET_STATE(next_ref) == WT_REF_DELETED &&
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                WT_ACQUIRE_READ(ref_changes, next_ref->ref_changes);
+            else
+                ref_changes = 0;
+            if (ref_changes == 0 && next_ref != ref &&
+              WT_REF_GET_STATE(next_ref) == WT_REF_DELETED &&
               (btree->type != BTREE_COL_VAR || i != 0) &&
               !F_ISSET_ATOMIC_8(next_ref, WT_REF_FLAG_PREFETCH) &&
               __wti_delete_page_skip(session, next_ref, true) &&
@@ -1605,6 +1610,14 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
     WT_SAVE_UPD *supd;
     WT_UPDATE **tmp;
     uint32_t i, slot;
+
+    /*
+     * If we have saved updates, we must have decided to restore them to the new page except for
+     * disaggregated storage.
+     */
+    WT_ASSERT(session,
+      F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) || multi->supd_entries == 0 ||
+        multi->supd_restore);
 
     if (!multi->supd_restore)
         return;

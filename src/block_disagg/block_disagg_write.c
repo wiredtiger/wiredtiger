@@ -189,6 +189,7 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     put_args.base_lsn = block_meta->base_lsn;
     put_args.backlink_checkpoint_id = block_meta->backlink_checkpoint_id;
     put_args.base_checkpoint_id = block_meta->base_checkpoint_id;
+    put_args.encryption = block_meta->encryption;
 
     if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED))
         F_SET(&put_args, WT_PAGE_LOG_COMPRESSED);
