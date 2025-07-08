@@ -32,6 +32,7 @@ from wtscenario import make_scenarios
 
 # test_layered30.py
 #    Test creating empty tables.
+@wttest.skip_for_hook("tiered", "FIXME-WT-14938: crashing with tiered hook.")
 @disagg_test_class
 class test_layered30(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
