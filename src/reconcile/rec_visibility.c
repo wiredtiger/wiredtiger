@@ -654,21 +654,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             continue;
         }
 
-        /*
-         * Only checkpoint should ever encounter resolving prepared transactions. If it does, then
-         * it needs to wait to see whether they should be included or not.
-         */
         WT_READ_ONCE(prepare_state, upd->prepare_state);
-        while (prepare_state == WT_PREPARE_LOCKED) {
-            WT_ASSERT_ALWAYS(session, F_ISSET(r, WT_REC_CHECKPOINT),
-              "Eviction should never occur on a page that has resolving prepared records.");
-            /*
-             * FIXME: WT-14897. This while loop can be removed if we start to use the new prepared
-             * timestamp field.
-             */
-            __wt_sleep(0, 100);
-            WT_READ_ONCE(prepare_state, upd->prepare_state);
-        }
 
         /*
          * An interesting case this code will need to deal with is the case where a prepare (start)
@@ -691,7 +677,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
              */
             if (F_ISSET(r, WT_REC_CHECKPOINT) &&
               (!F_ISSET_ATOMIC_32(conn, WT_CONN_PRESERVE_PREPARED) ||
-                upd->start_ts > conn->txn_global.checkpoint_timestamp)) {
+                upd->prepare_ts > conn->txn_global.checkpoint_timestamp)) {
                 *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                 *has_newer_updatesp = true;
                 seen_prepare = true;
