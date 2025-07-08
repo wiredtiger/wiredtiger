@@ -33,10 +33,10 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_checkpoint34.py
+# test_checkpoint37.py
 #
 # Test that reconciliation removes obsolete updates on the page.
-class test_checkpoint34(wttest.WiredTigerTestCase):
+class test_checkpoint37(wttest.WiredTigerTestCase):
 
     format_values = [
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
@@ -74,7 +74,7 @@ class test_checkpoint34(wttest.WiredTigerTestCase):
         return val
 
     def test_checkpoint(self):
-        uri = 'table:checkpoint33'
+        uri = 'table:checkpoint37'
         nrows = 1000
 
         # Create a table.
