@@ -32,6 +32,7 @@ from wtscenario import make_scenarios
 
 # test_layered25.py
 #    Start without local files and test historical reads.
+@wttest.skip_for_hook("tiered", "FIXME-WT-14938: crashing with tiered hook.")
 @disagg_test_class
 class test_layered25(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
