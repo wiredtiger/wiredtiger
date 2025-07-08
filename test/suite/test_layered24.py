@@ -61,7 +61,6 @@ class test_layered24(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Part 1: Create a layered table and a follower that also has that data.
         #
         self.session.create(self.uri, session_config)
-        # TODO figure out self.extensionsConfig()
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, session_config)

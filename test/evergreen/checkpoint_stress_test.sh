@@ -5,7 +5,7 @@ set -o verbose
 
 if [ $# -ne 5 ]; then
     echo "Error: invalid number of arguments."
-    echo "Usage: format_test_predictable.sh ${tiered} ${times} ${no_of_procs} ${wt_config}"
+    echo "Usage: format_test_predictable.sh ${tiered} ${times} ${no_of_procs} ${wt_config} ${timestamp_config}"
     echo "Current args: $@"
     exit 1
 fi
@@ -13,7 +13,7 @@ fi
 tiered=$1
 times=$2
 no_of_procs=$3
-wiredtiger_config=$4
+wt_config=$4
 timestamp_config=$5
 
 export WIREDTIGER_CONFIG='checkpoint_sync=0,transaction_sync=(method=none)'

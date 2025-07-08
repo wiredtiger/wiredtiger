@@ -93,6 +93,7 @@ class test_tiered18(wttest.WiredTigerTestCase, TieredConfigMixin):
         self.assertTrue(val_str in val or val_str_alt in val)
 
     # Test calling the create API with shared enabled.
+    # FIXME-WT-14939: this should be reinstated at some point.
     def test_tiered_shared(self):
 #        self.pr("create tiered shared with default")
         base_create = 'key_format=S,value_format=S'

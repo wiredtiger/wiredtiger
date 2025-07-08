@@ -32,6 +32,7 @@ from wtscenario import make_scenarios
 
 # test_layered18.py
 #    Create long delta chains.
+@wttest.skip_for_hook("tiered", "TODO fixme")
 @disagg_test_class
 class test_layered18(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500

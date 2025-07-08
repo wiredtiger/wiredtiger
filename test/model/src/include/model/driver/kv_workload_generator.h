@@ -74,6 +74,7 @@ struct kv_workload_generator_spec {
 
     /* Probabilities of operations within a transaction. */
     float finish_transaction; /* Commit, prepare, or rollback. */
+    float get;
     float insert;
     float remove;
     float set_commit_timestamp; /* If allowed. */
@@ -90,6 +91,7 @@ struct kv_workload_generator_spec {
     float set_stable_timestamp;
 
     /* The probabilities for choosing an existing key, if available. */
+    float get_existing;
     float remove_existing;
     float update_existing;
 
@@ -138,6 +140,7 @@ protected:
     enum class op_category {
         none,
         evict,
+        get,
         remove,
         update,
     };
