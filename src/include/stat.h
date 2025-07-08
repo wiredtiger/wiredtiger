@@ -1045,6 +1045,7 @@ struct __wt_connection_stats {
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
+    int64_t rec_hs_wrapup_next_prev_calls;
     int64_t rec_page_delete_fast;
     int64_t rec_overflow_key_leaf;
     int64_t rec_maximum_milliseconds;
@@ -1140,6 +1141,8 @@ struct __wt_connection_stats {
     int64_t page_sleep;
     int64_t page_del_rollback_blocked;
     int64_t child_modify_blocked_page;
+    int64_t page_split_restart;
+    int64_t page_read_skip_deleted;
     int64_t txn_prepared_updates;
     int64_t txn_prepared_updates_committed;
     int64_t txn_prepared_updates_key_repeated;
@@ -1459,6 +1462,7 @@ struct __wt_dsrc_stats {
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
+    int64_t rec_hs_wrapup_next_prev_calls;
     int64_t rec_dictionary;
     int64_t rec_page_delete_fast;
     int64_t rec_suffix_compression;
