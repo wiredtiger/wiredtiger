@@ -35,7 +35,7 @@ race:__sweep_mark
 # FIXME-WT-14948 Figure out concurrency control expectations around reconfigure
 race:conn_reconfig.c
 
-# FIXME-WT-13074 This Work has been split out into a separate ticket to keep PR sizes down.
+# FIXME-WT-14958 This Work has been split out into a separate ticket to keep PR sizes down.
 race:__wt_free_int
 race:__wt_free_update_list
 race:__wt_page_out
