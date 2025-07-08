@@ -431,9 +431,8 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
                  * transaction by comparing both the transaction and timestamps as the transaction
                  * information gets lost after restart.
                  */
-                if ((unpack.tw.prepare && unpack.tw.start_ts == unpack.tw.stop_ts &&
-                      unpack.tw.durable_start_ts == unpack.tw.durable_stop_ts &&
-                      unpack.tw.start_txn == unpack.tw.stop_txn)) {
+                if ((unpack.tw.prepare && unpack.tw.start_txn == unpack.tw.stop_txn)) {
+                    WT_ASSERT(session, unpack.tw.prepared_id != WT_PREPARED_ID_NONE && unpack.tw.prepare_ts != WT_TS_NONE);
                     tombstone->prepared_id = unpack.tw.prepared_id;
                     tombstone->prepare_ts = unpack.tw.prepare_ts;
                     tombstone->durable_ts = WT_TS_NONE;
@@ -446,10 +445,12 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
                 upd = tombstone;
             } else {
                 if (unpack.tw.prepare) {
+                    WT_ASSERT(session, unpack.tw.prepared_id != WT_PREPARED_ID_NONE && unpack.tw.prepare_ts != WT_TS_NONE);
                     standard_value->prepared_id = unpack.tw.prepared_id;
                     standard_value->prepare_ts = unpack.tw.prepare_ts;
                     standard_value->durable_ts = WT_TS_NONE;
                     standard_value->prepare_state = WT_PREPARE_INPROGRESS;
+                    F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
                 }
                 upd = standard_value;
             }
