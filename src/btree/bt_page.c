@@ -428,12 +428,14 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
                 tombstone->durable_ts = unpack.tw.durable_stop_ts;
 
                 if (unpack.tw.prepare) {
-                    WT_ASSERT(session, unpack.tw.prepared_id != WT_PREPARED_ID_NONE && unpack.tw.prepare_ts != WT_TS_NONE);
+                    WT_ASSERT(session,
+                      unpack.tw.prepared_id != WT_PREPARED_ID_NONE &&
+                        unpack.tw.prepare_ts != WT_TS_NONE);
                     tombstone->prepared_id = unpack.tw.prepared_id;
                     tombstone->prepare_ts = unpack.tw.prepare_ts;
                     tombstone->prepare_state = WT_PREPARE_INPROGRESS;
-                    
-                    F_SET(tombstone, WT_UPDATE_PREPARE_RESTORED_FROM_DS); 
+
+                    F_SET(tombstone, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
                     if (unpack.tw.start_txn == unpack.tw.stop_txn) {
                         standard_value->prepared_id = unpack.tw.prepared_id;
                         standard_value->prepare_ts = unpack.tw.prepare_ts;
@@ -447,7 +449,9 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
                 upd = tombstone;
             } else {
                 if (unpack.tw.prepare) {
-                    WT_ASSERT(session, unpack.tw.prepared_id != WT_PREPARED_ID_NONE && unpack.tw.prepare_ts != WT_TS_NONE);
+                    WT_ASSERT(session,
+                      unpack.tw.prepared_id != WT_PREPARED_ID_NONE &&
+                        unpack.tw.prepare_ts != WT_TS_NONE);
                     standard_value->prepared_id = unpack.tw.prepared_id;
                     standard_value->prepare_ts = unpack.tw.prepare_ts;
                     standard_value->prepare_state = WT_PREPARE_INPROGRESS;
