@@ -75,7 +75,7 @@ __wti_log_slot_activate(WT_SESSION_IMPL *session, WTI_LOGSLOT *slot)
     WT_ASSIGN_LSN(&slot->slot_end_lsn, &slot->slot_start_lsn);
     __wt_atomic_storei64(&slot->slot_start_offset, __wt_lsn_offset(&log->alloc_lsn));
     __wt_atomic_storei64(&slot->slot_last_offset, __wt_lsn_offset(&log->alloc_lsn));
-    slot->slot_fh = log->log_fh;
+    __wt_atomic_store_pointer(&slot->slot_fh, log->log_fh);
     __wt_atomic_storei32(&slot->slot_error, 0);
     WT_DIAGNOSTIC_YIELD;
     /*

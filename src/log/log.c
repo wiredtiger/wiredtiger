@@ -276,7 +276,7 @@ __log_fsync_file(WT_SESSION_IMPL *session, WT_LSN *min_lsn, const char *method, 
         if (use_own_fh)
             WT_ERR(__log_openfile(session, min_lsn->l.file, 0, &log_fh));
         else
-            log_fh = log->log_fh;
+            log_fh = __wt_atomic_load_pointer(&log->log_fh);
         __wt_verbose(session, WT_VERB_LOG, "%s: sync %s to LSN %" PRIu32 "/%" PRIu32, method,
           log_fh->name, min_lsn->l.file, __wt_lsn_offset(min_lsn));
         time_start = __wt_clock(session);
@@ -1145,7 +1145,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
      * one is closed. Wait for that to close.
      */
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
-    for (yield_cnt = 0; log->log_close_fh != NULL;) {
+    for (yield_cnt = 0; __wt_atomic_load_pointer(&log->log_close_fh) != NULL;) {
         WT_STAT_CONN_INCR(session, log_close_yields);
         /*
          * Processing slots will conditionally signal the file close server thread. But if we've
@@ -1165,8 +1165,10 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
      * Note, the file server worker thread requires the LSN be set once the close file handle is
      * set, force that ordering.
      */
-    if (log->log_fh == NULL)
-        log->log_close_fh = NULL;
+    WT_FH *log_fh_tmp;
+    WT_ACQUIRE_READ(log_fh_tmp, log->log_fh);
+    if (log_fh_tmp == NULL)
+        __wt_atomic_store_pointer(&log->log_close_fh, NULL);
     else {
         WT_ASSIGN_LSN(&log->log_close_lsn, &log->alloc_lsn);
         /* Paired with an acquire read in the log file server path. */
@@ -1180,7 +1182,8 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
      * can copy the files in any way they choose, and a log file rename might confuse things.
      */
     create_log = true;
-    if (__wt_atomic_load32(&log_mgr->prealloc) > 0 && __wt_atomic_load64(&conn->hot_backup_start) == 0) {
+    if (__wt_atomic_load32(&log_mgr->prealloc) > 0 &&
+      __wt_atomic_load64(&conn->hot_backup_start) == 0) {
         WT_WITH_HOTBACKUP_READ_LOCK(
           session, ret = __log_alloc_prealloc(session, log->fileid), &skipp);
 
@@ -1240,7 +1243,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
         WT_SET_LSN(&log->alloc_lsn, log->fileid, log->first_record);
     }
     WT_ASSIGN_LSN(&end_lsn, &log->alloc_lsn);
-    WT_RELEASE_WRITE_WITH_BARRIER(log->log_fh, log_fh);
+    WT_RELEASE_WRITE(log->log_fh, log_fh);
 
     /*
      * If we're called from connection creation code, we need to update the LSNs since we're the
@@ -1364,7 +1367,7 @@ __wti_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WTI_LOGSLOT *slot)
     if (F_ISSET(log, WTI_LOG_FORCE_NEWFILE) || !__log_size_fit(session, &log->alloc_lsn, recsize)) {
         WT_RET(__log_newfile(session, false, &created_log));
         F_CLR(log, WTI_LOG_FORCE_NEWFILE);
-        if (log->log_close_fh != NULL)
+        if (__wt_atomic_load_pointer(&log->log_close_fh) != NULL)
             F_SET_ATOMIC_16(slot, WTI_SLOT_CLOSEFH);
     }
 
@@ -1373,7 +1376,7 @@ __wti_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WTI_LOGSLOT *slot)
      * pre-allocated).
      */
     if (__wt_lsn_offset(&log->alloc_lsn) == log->first_record && created_log)
-        WT_RET(__log_prealloc(session, log->log_fh));
+        WT_RET(__log_prealloc(session, __wt_atomic_load_pointer(&log->log_fh)));
     /*
      * Initialize the slot for activation.
      */
@@ -1748,22 +1751,26 @@ __wti_log_close(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WTI_LOG *log;
+    WT_FH *log_close_fh, *log_fh;
 
     conn = S2C(session);
     log = conn->log_mgr.log;
+    log_close_fh = __wt_atomic_load_pointer(&log->log_close_fh);
+    log_fh = __wt_atomic_load_pointer(&log->log_fh);
 
-    if (log->log_close_fh != NULL && log->log_close_fh != log->log_fh) {
-        __wt_verbose(session, WT_VERB_LOG, "closing old log %s", log->log_close_fh->name);
+    if (log_close_fh != NULL && log_close_fh != log_fh) {
+        __wt_verbose(session, WT_VERB_LOG, "closing old log %s", log_close_fh->name);
         if (!F_ISSET_ATOMIC_32(conn, WT_CONN_READONLY))
-            WT_RET(__wt_fsync(session, log->log_close_fh, true));
-        WT_RET(__wt_close(session, &log->log_close_fh));
+            WT_RET(__wt_fsync(session, log_close_fh, true));
+        WT_RET(__wt_close(session, &log_close_fh));
     }
-    if (log->log_fh != NULL) {
-        __wt_verbose(session, WT_VERB_LOG, "closing log %s", log->log_fh->name);
+    if (log_fh != NULL) {
+        __wt_verbose(session, WT_VERB_LOG, "closing log %s", log_fh->name);
         if (!F_ISSET_ATOMIC_32(conn, WT_CONN_READONLY))
-            WT_RET(__wt_fsync(session, log->log_fh, true));
-        WT_RET(__wt_close(session, &log->log_fh));
-        log->log_fh = NULL;
+            WT_RET(__wt_fsync(session, log_fh, true));
+        WT_RET(__wt_close(session, &log_fh));
+        log_fh = NULL;
+        __wt_atomic_store_pointer(&log->log_fh, log_fh);
     }
     if (log->log_dir_fh != NULL) {
         __wt_verbose(session, WT_VERB_LOG, "closing log directory %s", log->log_dir_fh->name);
