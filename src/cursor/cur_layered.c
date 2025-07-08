@@ -131,16 +131,19 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update, bool iter
 
     for (;;) {
         /*
-         * Continue on to open if the state of the world just got updated.
-         * Otherwise stop when we are up-to-date, as long as this is:
-         *   - an update operation with a ingest cursor, or
-         *   - a read operation and the cursor is open for reading.
+         * Ensure that the cursor has the correct state and configuration. If the conditions are
+         * met, avoid taking the schema lock and early exit.
          */
-        if (!external_state_change &&
-          ((update && clayered->ingest_cursor != NULL) ||
-            (!update && F_ISSET(clayered, WT_CLAYERED_OPEN_READ))))
-            break;
-
+        if (!external_state_change) {
+            if ((!update && F_ISSET(clayered, WT_CLAYERED_OPEN_READ)))
+                break;
+            else if (update && clayered->ingest_cursor != NULL) {
+                if (F_ISSET(clayered, WT_CLAYERED_OPEN_READ))
+                    break;
+                else if (F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE))
+                    break;
+            }
+        }
         WT_WITH_SCHEMA_LOCK(session, ret = __clayered_open_cursors(session, clayered, update));
 
         /*
@@ -1682,15 +1685,19 @@ __clayered_reserve(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_ITEM value;
     WT_SESSION_IMPL *session;
+    bool overwrite;
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
+    overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, reserve, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
     WT_ERR(__wt_txn_context_check(session, true));
-    WT_ERR(__clayered_enter(clayered, false, true, false));
 
+    /* WT_CURSOR.reserve is update-without-overwrite and a special value. */
+    F_CLR(cursor, WT_CURSTD_OVERWRITE);
+    WT_ERR(__clayered_enter(clayered, false, true, false));
     WT_ERR(__clayered_lookup(session, clayered, &value));
     /*
      * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may have
@@ -1700,6 +1707,8 @@ __clayered_reserve(WT_CURSOR *cursor)
     ret = __clayered_put(session, clayered, &cursor->key, NULL, true, true);
 
 err:
+    if (overwrite)
+        F_SET(cursor, WT_CURSTD_OVERWRITE);
     __clayered_leave(clayered);
     CURSOR_UPDATE_API_END(session, ret);
 
