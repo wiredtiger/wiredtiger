@@ -1165,8 +1165,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
      * Note, the file server worker thread requires the LSN be set once the close file handle is
      * set, force that ordering.
      */
-    WT_FH *log_fh_tmp;
-    if (log_fh_tmp == NULL)
+    if (log->log_fh == NULL)
         __wt_atomic_store_pointer(&log->log_close_fh, NULL);
     else {
         WT_ASSIGN_LSN(&log->log_close_lsn, &log->alloc_lsn);
