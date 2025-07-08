@@ -911,7 +911,9 @@ conn_stats = [
     YieldStat('page_index_slot_ref_blocked', 'get reference for page index and slot time sleeping (usecs)'),
     YieldStat('page_locked_blocked', 'page acquire locked blocked'),
     YieldStat('page_read_blocked', 'page acquire read blocked'),
+    YieldStat('page_read_skip_deleted', 'pages skipped during read due to deleted state'),
     YieldStat('page_sleep', 'page acquire time sleeping (usecs)'),
+    YieldStat('page_split_restart', 'page split and restart read'),
     YieldStat('prepared_transition_blocked_page', 'page access yielded due to prepare state change'),
     YieldStat('txn_release_blocked', 'connection close blocked waiting for transaction state stabilization'),
 ]
@@ -1291,6 +1293,7 @@ conn_dsrc_stats = [
     ##########################################
     RecStat('rec_average_internal_page_delta_chain_length', 'average length of delta chain on internal page with deltas'),
     RecStat('rec_average_leaf_page_delta_chain_length', 'average length of delta chain on leaf page with deltas'),
+    RecStat('rec_hs_wrapup_next_prev_calls', 'cursor next/prev calls during HS wrapup search_near'),
     RecStat('rec_ingest_garbage_collection_keys', 'number of keys that are garbage collected in the ingest table for disaggregated storage'),
     RecStat('rec_max_internal_page_deltas', 'max deltas seen on internal page during reconciliation'),
     RecStat('rec_max_leaf_page_deltas', 'max deltas seen on leaf page during reconciliation'),
