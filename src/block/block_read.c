@@ -288,6 +288,9 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
     /* Panic if a checksum fails during an ordinary read. */
     F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
 
+    if (block->verify || F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
+        return (WT_ERROR);
+
     /*
      * Dump the extent lists associated with all available checkpoints in the system. Viewing the
      * state of the extent lists in the event of a read error can help pinpoint the reason for the
@@ -308,7 +311,5 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
         F_CLR(session, WT_SESSION_DUMPING_EXTLIST);
     }
 
-    if (block->verify || F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-        return (WT_ERROR);
     WT_RET_PANIC(session, WT_ERROR, "%s: fatal read error", block->name);
 }
