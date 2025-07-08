@@ -64,4 +64,9 @@ race:hazard.c
 race:__wt_tree_modify_set
 race:__wt_cond_auto_wait_signal
 race:__wt_ref_addr_copy
-
+race:__wt_row_leaf_key_info
+race:__wt_row_leaf_key
+race:__evict_force_check
+race:__wt_page_evict_clean
+race:__wt_evict_touch_page
+race:__wt_row_search
