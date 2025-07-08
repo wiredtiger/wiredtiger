@@ -426,23 +426,17 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
                 tombstone->txnid = unpack.tw.stop_txn;
                 tombstone->start_ts = unpack.tw.stop_ts;
                 tombstone->durable_ts = unpack.tw.durable_stop_ts;
-                /*
-                 * Mark the update also as in-progress if the update and tombstone are from same
-                 * transaction by comparing both the transaction and timestamps as the transaction
-                 * information gets lost after restart.
-                 */
+
                 if (unpack.tw.prepare) {
                     WT_ASSERT(session, unpack.tw.prepared_id != WT_PREPARED_ID_NONE && unpack.tw.prepare_ts != WT_TS_NONE);
                     tombstone->prepared_id = unpack.tw.prepared_id;
                     tombstone->prepare_ts = unpack.tw.prepare_ts;
-                    tombstone->durable_ts = WT_TS_NONE;
                     tombstone->prepare_state = WT_PREPARE_INPROGRESS;
                     
                     F_SET(tombstone, WT_UPDATE_PREPARE_RESTORED_FROM_DS); 
                     if (unpack.tw.start_txn == unpack.tw.stop_txn) {
                         standard_value->prepared_id = unpack.tw.prepared_id;
                         standard_value->prepare_ts = unpack.tw.prepare_ts;
-                        standard_value->durable_ts = WT_TS_NONE;
                         standard_value->prepare_state = WT_PREPARE_INPROGRESS;
                         F_SET(standard_value, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
                     }
@@ -456,7 +450,6 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
                     WT_ASSERT(session, unpack.tw.prepared_id != WT_PREPARED_ID_NONE && unpack.tw.prepare_ts != WT_TS_NONE);
                     standard_value->prepared_id = unpack.tw.prepared_id;
                     standard_value->prepare_ts = unpack.tw.prepare_ts;
-                    standard_value->durable_ts = WT_TS_NONE;
                     standard_value->prepare_state = WT_PREPARE_INPROGRESS;
                     F_SET(standard_value, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
                 }
