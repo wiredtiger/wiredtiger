@@ -16,7 +16,7 @@
  */
 static WT_INLINE int
 __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
-  WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, bool supd_restore, size_t upd_memsize)
+  WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, bool supd_restore, bool prepare, size_t upd_memsize)
 {
     WT_SAVE_UPD *supd;
 
@@ -36,6 +36,7 @@ __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT
     supd->onpage_upd = onpage_upd;
     supd->onpage_tombstone = tombstone;
     supd->restore = supd_restore;
+    supd->prepare = prepare;
     ++r->supd_next;
     r->supd_memsize += upd_memsize;
     return (0);
@@ -310,12 +311,25 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
         return (true);
 
-    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
-        if (upd_select->upd != NULL && !F_ISSET(upd_select->upd, WT_UPDATE_DURABLE))
-            return (true);
+    if (WT_BUILD_DELTA_LEAF(session, r)) {
+        if (upd_select->tombstone != NULL) {
+            if (!F_ISSET(upd_select->tombstone, WT_UPDATE_DURABLE | WT_UPDATE_PREPARE_DURABLE))
+                return (true);
 
-        if (upd_select->tombstone != NULL && !F_ISSET(upd_select->tombstone, WT_UPDATE_DURABLE))
-            return (true);
+            /* Save the update if we overwrite the previous prepared update. */
+            if (F_ISSET(upd_select->tombstone, WT_UPDATE_PREPARE_DURABLE) &&
+              !upd_select->tw.prepare)
+                return (true);
+        }
+
+        if (upd_select->upd != NULL) {
+            if (!F_ISSET(upd_select->upd, WT_UPDATE_DURABLE | WT_UPDATE_PREPARE_DURABLE))
+                return (true);
+
+            /* Save the update if we overwrite the previous prepared update. */
+            if (F_ISSET(upd_select->upd, WT_UPDATE_PREPARE_DURABLE) && !upd_select->tw.prepare)
+                return (true);
+        }
     }
 
     /* No need to save the update chain if we want to delete the key from the disk image. */
@@ -1083,8 +1097,8 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
             F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY));
 
         upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
-        WT_RET(__rec_update_save(
-          session, r, ins, rip, onpage_upd, upd_select->tombstone, supd_restore, upd_memsize));
+        WT_RET(__rec_update_save(session, r, ins, rip, onpage_upd, upd_select->tombstone,
+          supd_restore, upd_select->tw.prepare, upd_memsize));
         upd_saved = upd_select->upd_saved = true;
     }
 

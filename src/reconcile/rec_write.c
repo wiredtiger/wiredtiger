@@ -2370,11 +2370,27 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
         if (supd->onpage_upd == NULL)
             continue;
 
-        if (supd->onpage_tombstone != NULL && F_ISSET(supd->onpage_tombstone, WT_UPDATE_DURABLE))
-            continue;
+        if (supd->onpage_upd->type == WT_UPDATE_TOMBSTONE) {
+            if (F_ISSET(supd->onpage_upd, WT_UPDATE_DELETE_DURABLE)) {
+                continue;
+            }
+        } else {
+            if (supd->onpage_tombstone != NULL) {
+                if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_DURABLE))
+                    continue;
 
-        if (supd->onpage_tombstone == NULL && F_ISSET(supd->onpage_upd, WT_UPDATE_DURABLE))
-            continue;
+                /* Skip writing the prepared update that has already been written. */
+                if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_PREPARE_DURABLE) && supd->prepare)
+                    continue;
+            }
+
+            if (F_ISSET(supd->onpage_upd, WT_UPDATE_DURABLE))
+                continue;
+
+            /* Skip writing the prepared update that has already been written. */
+            if (F_ISSET(supd->onpage_upd, WT_UPDATE_PREPARE_DURABLE) && supd->prepare)
+                continue;
+        }
 
         WT_RET(__rec_pack_delta_leaf(session, r, supd));
         ++count;
@@ -2408,7 +2424,7 @@ __rec_build_delta(
 
     *build_deltap = false;
     if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
-        if (WT_BUILD_DELTA_LEAF(session, r)) {
+        if (WT_BUILD_DELTA_LEAF_AFTER_RECONCILIATION(session, r)) {
             WT_RET(__rec_build_delta_leaf(session, full_image, r));
             *build_deltap = true;
         }
@@ -2449,10 +2465,27 @@ __rec_set_updates_durable(WT_BTREE *btree, WT_MULTI *multi)
         if (supd->onpage_upd == NULL)
             continue;
 
-        if (supd->onpage_tombstone != NULL)
-            F_SET(supd->onpage_tombstone, WT_UPDATE_DURABLE);
+        if (supd->onpage_upd->type == WT_UPDATE_TOMBSTONE)
+            F_SET(supd->onpage_upd, WT_UPDATE_DELETE_DURABLE);
+        else {
+            if (supd->onpage_tombstone != NULL) {
+                if (supd->prepare) {
+                    F_SET(supd->onpage_tombstone, WT_UPDATE_PREPARE_DURABLE);
 
-        F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
+                    /* The on page value is also a prepared update from the same transaction. */
+                    if (supd->onpage_tombstone->txnid == supd->onpage_upd->txnid)
+                        F_SET(supd->onpage_upd, WT_UPDATE_PREPARE_DURABLE);
+                    else
+                        F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
+                } else
+                    F_SET(supd->onpage_tombstone, WT_UPDATE_DURABLE);
+            } else {
+                if (supd->prepare)
+                    F_SET(supd->onpage_upd, WT_UPDATE_PREPARE_DURABLE);
+                else
+                    F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
+            }
+        }
     }
 }
 

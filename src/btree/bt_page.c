@@ -738,10 +738,12 @@ static int
 __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
   WT_UPDATE **updp, size_t *sizep)
 {
+    WT_BTREE *btree;
     WT_DECL_RET;
     WT_UPDATE *upd, *tombstone;
     size_t size, total_size;
 
+    btree = S2BT(session);
     size = 0;
     *sizep = 0;
 
@@ -769,6 +771,8 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         tombstone->prepare_ts = unpack->tw.prepare_ts;
         tombstone->prepared_id = unpack->tw.prepared_id;
         F_SET(tombstone, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            F_SET(tombstone, WT_UPDATE_PREPARE_DURABLE);
 
         /*
          * Mark the update also as in-progress if the update and tombstone are from same transaction
@@ -783,9 +787,11 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
             upd->durable_ts = WT_TS_NONE;
             upd->prepare_state = WT_PREPARE_INPROGRESS;
             F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                F_SET(tombstone, WT_UPDATE_PREPARE_DURABLE);
         } else {
             F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
-            if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
                 F_SET(upd, WT_UPDATE_DURABLE);
         }
 
@@ -797,6 +803,8 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         upd->durable_ts = WT_TS_NONE;
         upd->prepare_state = WT_PREPARE_INPROGRESS;
         F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            F_SET(tombstone, WT_UPDATE_PREPARE_DURABLE);
         *updp = upd;
     }
 
