@@ -9,7 +9,6 @@
 #include "wt_internal.h"
 
 #define WT_CHECKPOINT_CLEANUP_DEFAULT_WAKE_UP_INTERVAL 5 /* 5 seconds */
-#define WT_CHECKPOINT_CLEANUP_FILE_INTERVAL 1            /* 1 second */
 #define WT_URI_FILE_PREFIX "file:"
 
 /*
@@ -577,8 +576,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      * dhandles that are already opened.
      */
     WT_WITHOUT_DHANDLE(session,
-      WT_WITH_HANDLE_LIST_READ_LOCK(
-        session, (ret = __wt_conn_dhandle_find(session, uri, NULL))));
+      WT_WITH_HANDLE_LIST_READ_LOCK(session, (ret = __wt_conn_dhandle_find(session, uri, NULL))));
     if (ret == WT_NOTFOUND)
         return (false);
 
@@ -727,13 +725,6 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
             continue;
         }
         WT_ERR(ret);
-
-        /*
-         * Wait here for some time before proceeding with another table to minimize the impact of
-         * checkpoint cleanup on the regular workload.
-         */
-        __wt_cond_wait(session, S2C(session)->cc_cleanup.cond,
-          WT_CHECKPOINT_CLEANUP_FILE_INTERVAL * WT_MILLION, __checkpoint_cleanup_run_chk);
 
         /* Check if we're quitting. */
         if (!__checkpoint_cleanup_run_chk(session))
