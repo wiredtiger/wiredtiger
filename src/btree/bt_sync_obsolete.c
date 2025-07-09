@@ -497,16 +497,6 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     ref = NULL;
     flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL;
 
-    /*
-     * To reduce the impact of checkpoint cleanup on the running database, it operates only on the
-     * dhandles that are already opened.
-     */
-    WT_WITHOUT_DHANDLE(session,
-      WT_WITH_HANDLE_LIST_READ_LOCK(
-        session, (ret = __wt_conn_dhandle_find(session, uri->data, NULL))));
-    if (ret == WT_NOTFOUND)
-        return (0);
-
     /* Open a handle for processing. */
     ret = __wt_session_get_dhandle(session, uri->data, NULL, NULL, 0);
     if (ret != 0) {
@@ -581,6 +571,16 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      */
     if (strcmp(uri, WT_HS_URI) == 0)
         return (true);
+
+    /*
+     * To reduce the impact of checkpoint cleanup on the running database, it operates only on the
+     * dhandles that are already opened.
+     */
+    WT_WITHOUT_DHANDLE(session,
+      WT_WITH_HANDLE_LIST_READ_LOCK(
+        session, (ret = __wt_conn_dhandle_find(session, uri, NULL))));
+    if (ret == WT_NOTFOUND)
+        return (false);
 
     /*
      * Logged table. The logged tables do not support timestamps, so we need to check for obsolete
