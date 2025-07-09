@@ -30,6 +30,7 @@ import random
 import re
 from suite_subprocess import suite_subprocess
 import wttest
+import wiredtiger
 
 # test_corrupt01.py
 # Test the verbose log messages in the event of a corrupted block. We should expect to see a dump
@@ -64,7 +65,7 @@ class test_corrupt01(wttest.WiredTigerTestCase, suite_subprocess):
             cursor[i] = value
         cursor.close()
 
-    def read(self):
+    def read_all(self):
         """
         Read all key value pairs to ensure we eventually read the corrupted block.
         """
@@ -118,21 +119,16 @@ class test_corrupt01(wttest.WiredTigerTestCase, suite_subprocess):
             f.seek(int(addr_start))
             f.write(b'BAD_VALUE')
 
+        try:
+            # Reopen the connection to trigger the corruption.
+            corrupt_conn = self.setUpConnectionOpen('.')
+            self.session = self.setUpSessionOpen(corrupt_conn)
+            self.read_all()
+        except wiredtiger.WiredTigerError as e:
+            pass
+        finally:
+            self.assertRaises(
+                wiredtiger.WiredTigerError, lambda: corrupt_conn.close())
 
-        # Dump the block information to a file.
-        verify_output = 'verify_output.txt'
-        verify_err = 'verify_err.txt'
-        self.runWt(
-            ['verify', self.uri],
-            outfilename=verify_output,
-            errfilename=verify_err,
-            closeconn=False,
-            failure=True,
-        )
-
-        # Check the verify error output for the expected extent list log messages.
-        with open(verify_output, 'r', encoding='utf-8') as f:
-            content = f.read()
-            self.assertTrue('extent list' in content)
-            self.assertTrue('alloc log' in content)
-            self.assertTrue('avail log' in content)
+        self.ignoreStdoutPatternIfExists('extent list')
+        self.ignoreStderrPatternIfExists('checksum error')

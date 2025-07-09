@@ -265,7 +265,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             "Read failure while accessing a page from the "), 1)
         self.runWt(["-p", "verify", "-c", "table:" + self.tablename], outfilename="verifyerr.out",
             errfilename="verifyerr.err", failure=True)
-        self.check_non_empty_file("verifyerr.out")
+        self.check_non_empty_file("verifyerr.err")
         self.assertGreaterEqual(self.count_file_contains("verifyerr.err", "read checksum error"), 1)
 
     def test_verify_process_25pct_junk(self):
