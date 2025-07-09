@@ -311,7 +311,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
         return (true);
 
-    if (WT_BUILD_DELTA_LEAF(session, r)) {
+    if (upd_select->upd != NULL && WT_BUILD_DELTA_LEAF(session, r)) {
         if (upd_select->tombstone != NULL) {
             if (!F_ISSET(upd_select->tombstone, WT_UPDATE_DURABLE | WT_UPDATE_PREPARE_DURABLE))
                 return (true);
@@ -322,7 +322,11 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
                 return (true);
         }
 
-        if (upd_select->upd != NULL) {
+        if (upd_select->upd->type == WT_UPDATE_TOMBSTONE) {
+            /* Save the update if we haven't deleted the key from the disk image. */
+            if (!F_ISSET(upd_select->upd, WT_UPDATE_DELETE_DURABLE))
+                return (true);
+        } else {
             if (!F_ISSET(upd_select->upd, WT_UPDATE_DURABLE | WT_UPDATE_PREPARE_DURABLE))
                 return (true);
 
