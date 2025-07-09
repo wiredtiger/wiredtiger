@@ -317,8 +317,8 @@ struct __wt_save_upd {
     WT_UPDATE *onpage_tombstone;
 
     /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_SAVED_UPDATE_PREPARE 0x1u
-#define WT_SAVED_UPDATE_RESTORE 0x2u
+#define WT_SAVE_UPDATE_PREPARE 0x1u
+#define WT_SAVE_UPDATE_RESTORE 0x2u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };

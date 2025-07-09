@@ -2381,7 +2381,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
 
                 /* Skip writing the prepared update that has already been written. */
                 if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_PREPARE_DURABLE) &&
-                  F_ISSET(supd, WT_SAVED_UPDATE_PREPARE))
+                  F_ISSET(supd, WT_SAVE_UPDATE_PREPARE))
                     continue;
             }
 
@@ -2390,7 +2390,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
 
             /* Skip writing the prepared update that has already been written. */
             if (F_ISSET(supd->onpage_upd, WT_UPDATE_PREPARE_DURABLE) &&
-              F_ISSET(supd, WT_SAVED_UPDATE_PREPARE))
+              F_ISSET(supd, WT_SAVE_UPDATE_PREPARE))
                 continue;
         }
 
@@ -2426,7 +2426,7 @@ __rec_build_delta(
 
     *build_deltap = false;
     if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
-        if (WT_BUILD_DELTA_LEAF_AFTER_RECONCILIATION(session, r)) {
+        if (WT_BUILD_DELTA_LEAF(session, r)) {
             WT_RET(__rec_build_delta_leaf(session, full_image, r));
             *build_deltap = true;
         }
@@ -2471,7 +2471,7 @@ __rec_set_updates_durable(WT_BTREE *btree, WT_MULTI *multi)
             F_SET(supd->onpage_upd, WT_UPDATE_DELETE_DURABLE);
         else {
             if (supd->onpage_tombstone != NULL) {
-                if (F_ISSET(supd, WT_SAVED_UPDATE_PREPARE)) {
+                if (F_ISSET(supd, WT_SAVE_UPDATE_PREPARE)) {
                     F_SET(supd->onpage_tombstone, WT_UPDATE_PREPARE_DURABLE);
 
                     /* The on page value is also a prepared update from the same transaction. */
@@ -2482,7 +2482,7 @@ __rec_set_updates_durable(WT_BTREE *btree, WT_MULTI *multi)
                 } else
                     F_SET(supd->onpage_tombstone, WT_UPDATE_DURABLE);
             } else {
-                if (F_ISSET(supd, WT_SAVED_UPDATE_PREPARE))
+                if (F_ISSET(supd, WT_SAVE_UPDATE_PREPARE))
                     F_SET(supd->onpage_upd, WT_UPDATE_PREPARE_DURABLE);
                 else
                     F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);

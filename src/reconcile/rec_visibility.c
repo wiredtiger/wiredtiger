@@ -20,7 +20,8 @@ __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT
 {
     WT_SAVE_UPD *supd;
 
-    WT_ASSERT_ALWAYS(session, onpage_upd != NULL || tombstone != NULL || supd_restore,
+    WT_ASSERT_ALWAYS(session,
+      onpage_upd != NULL || tombstone != NULL || LF_ISSET(WT_SAVE_UPDATE_RESTORE),
       "If nothing is committed, the update chain must be restored");
     WT_ASSERT_ALWAYS(session,
       onpage_upd == NULL || onpage_upd->type == WT_UPDATE_STANDARD ||
@@ -1105,7 +1106,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
         if (supd_restore)
             flags |= WT_SAVE_UPDATE_RESTORE;
         if (upd_select->tw.prepare)
-            flags |= WT_SAVED_UPDATE_PREPARE;
+            flags |= WT_SAVE_UPDATE_PREPARE;
         WT_RET(__rec_update_save(
           session, r, ins, rip, onpage_upd, upd_select->tombstone, flags, upd_memsize));
         upd_saved = upd_select->upd_saved = true;
