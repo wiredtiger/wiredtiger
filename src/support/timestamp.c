@@ -496,20 +496,21 @@ __wt_time_value_validate(
           "value time window has a durable start time after its durable stop time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
 
-    if (tw->prepare && F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED)) {
+    if (tw->prepare) {
         if (tw->prepare_ts == WT_TS_NONE)
             WT_TIME_VALIDATE_RET(session,
               "value time window is prepared and has preserve_prepared enabled but has no prepare "
               "timestamp; time window %s",
               __wt_time_window_to_string(tw, time_string[0]));
-        if (tw->prepared_id == WT_PREPARED_ID_NONE)
+        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+          tw->prepared_id == WT_PREPARED_ID_NONE)
             WT_TIME_VALIDATE_RET(session,
               "value time window is prepared and has preserve_prepared enabled but has no prepared "
               "id; time window %s",
               __wt_time_window_to_string(tw, time_string[0]));
 
         if (WT_TIME_WINDOW_HAS_STOP(tw)) {
-            if (tw->stop_ts != tw->prepare_ts)
+            if (tw->stop_ts != WT_TS_NONE)
                 WT_TIME_VALIDATE_RET(session,
                   "value time window is stop prepared but has different stop_ts and prepared_ts; "
                   "time window %s",
@@ -528,7 +529,7 @@ __wt_time_value_validate(
                       "value time window is start and stop prepared but has non-empty durable "
                       "start timestamps; time window %s",
                       __wt_time_window_to_string(tw, time_string[0]));
-                if (tw->start_ts != tw->prepare_ts)
+                if (tw->start_ts != WT_TS_NONE)
                     WT_TIME_VALIDATE_RET(session,
                       "value time window is start prepared but has different start_ts and "
                       "prepared_ts; time window %s",
@@ -542,7 +543,7 @@ __wt_time_value_validate(
             }
         } else {
             /* this means time window is start prepared */
-            if (tw->start_ts != tw->prepare_ts)
+            if (tw->start_ts != WT_TS_NONE)
                 WT_TIME_VALIDATE_RET(session,
                   "value time window is start prepared but has different start_ts and prepared_ts; "
                   "time window %s",

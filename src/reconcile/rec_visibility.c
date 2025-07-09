@@ -691,7 +691,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
              */
             if (F_ISSET(r, WT_REC_CHECKPOINT) &&
               (!F_ISSET_ATOMIC_32(conn, WT_CONN_PRESERVE_PREPARED) ||
-                upd->start_ts > conn->txn_global.checkpoint_timestamp)) {
+                upd->prepare_ts > conn->txn_global.checkpoint_timestamp)) {
                 *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                 *has_newer_updatesp = true;
                 seen_prepare = true;
