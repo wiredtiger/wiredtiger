@@ -315,8 +315,12 @@ struct __wt_save_upd {
     WT_ROW *rip;    /* Original on-page reference */
     WT_UPDATE *onpage_upd;
     WT_UPDATE *onpage_tombstone;
-    bool prepare;
-    bool restore; /* Whether to restore this saved update chain */
+
+    /* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_SAVED_UPDATE_PREPARE 0x1u
+#define WT_SAVED_UPDATE_RESTORE 0x2u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
 };
 
 /*

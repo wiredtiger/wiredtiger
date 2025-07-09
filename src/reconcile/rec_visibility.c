@@ -16,7 +16,7 @@
  */
 static WT_INLINE int
 __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
-  WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, bool supd_restore, bool prepare, size_t upd_memsize)
+  WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, uint8_t flags, size_t upd_memsize)
 {
     WT_SAVE_UPD *supd;
 
@@ -35,8 +35,7 @@ __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT
     supd->rip = rip;
     supd->onpage_upd = onpage_upd;
     supd->onpage_tombstone = tombstone;
-    supd->restore = supd_restore;
-    supd->prepare = prepare;
+    supd->flags = flags;
     ++r->supd_next;
     r->supd_memsize += upd_memsize;
     return (0);
@@ -1102,8 +1101,13 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
             F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY));
 
         upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
-        WT_RET(__rec_update_save(session, r, ins, rip, onpage_upd, upd_select->tombstone,
-          supd_restore, upd_select->tw.prepare, upd_memsize));
+        uint8_t flags = 0;
+        if (supd_restore)
+            flags |= WT_SAVE_UPDATE_RESTORE;
+        if (upd_select->tw.prepare)
+            flags |= WT_SAVED_UPDATE_PREPARE;
+        WT_RET(__rec_update_save(
+          session, r, ins, rip, onpage_upd, upd_select->tombstone, flags, upd_memsize));
         upd_saved = upd_select->upd_saved = true;
     }
 

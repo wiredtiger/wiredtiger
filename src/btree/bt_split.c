@@ -1477,7 +1477,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     /* Re-create each modification we couldn't write. */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
         /* Ignore update chains that don't need to be restored. */
-        if (!supd->restore)
+        if (!F_ISSET(supd, WT_SAVE_UPDATE_RESTORE))
             continue;
 
         if (supd->ins == NULL) {
@@ -1630,7 +1630,7 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
      */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
         /* We have finished restoration. Discard the update chains that aren't restored. */
-        if (!supd->restore)
+        if (!F_ISSET(supd, WT_SAVE_UPDATE_RESTORE))
             continue;
 
         if (supd->ins == NULL) {
@@ -1675,7 +1675,7 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mult
              * We don't need to do anything for update chains that are not restored, or restored
              * without an onpage value.
              */
-            if (!supd->restore || supd->onpage_upd == NULL)
+            if (!F_ISSET(supd, WT_SAVE_UPDATE_RESTORE) || supd->onpage_upd == NULL)
                 continue;
 
             if (supd->ins == NULL) {
