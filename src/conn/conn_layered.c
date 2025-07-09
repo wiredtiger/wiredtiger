@@ -511,11 +511,11 @@ __layered_table_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD *t
 }
 
 /*
- * __wt_layered_table_manager_start --
+ * __layered_table_manager_start --
  *     Start the layered table manager thread
  */
-int
-__wt_layered_table_manager_start(WT_SESSION_IMPL *session)
+static int
+__layered_table_manager_start(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -545,7 +545,7 @@ __wt_layered_table_manager_start(WT_SESSION_IMPL *session)
 
     WT_STAT_CONN_SET(session, layered_table_manager_running, 1);
     __wt_verbose_level(
-      session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s", "__wt_layered_table_manager_start");
+      session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s", "__layered_table_manager_start");
     FLD_SET(conn->server_flags, WT_CONN_SERVER_LAYERED);
 
     manager->state = WT_LAYERED_TABLE_MANAGER_RUNNING;
@@ -764,6 +764,7 @@ __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
     __wt_atomic_store32(&manager->state, WT_LAYERED_TABLE_MANAGER_OFF);
     WT_STAT_CONN_SET(session, layered_table_manager_running, 0);
     __wt_spin_unlock(session, &manager->layered_table_lock);
+    __wt_spin_destroy(session, &manager->layered_table_lock);
 
     return (0);
 }
@@ -1059,6 +1060,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
     /* FIXME-WT-14965: Exit the function immediately if this check returns false. */
     if (__wt_conn_is_disagg(session)) {
+        WT_ERR(__layered_table_manager_start(session));
 
         /* Initialize the shared metadata table. */
         WT_ERR(__disagg_metadata_table_init(session));
@@ -1123,9 +1125,6 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.lose_all_my_data", &cval));
         if (cval.val != 0)
             F_SET(&conn->disaggregated_storage, WT_DISAGG_NO_SYNC);
-
-        /* Start the layered table manager thread. */
-        WT_ERR(__wt_layered_table_manager_start(session));
     }
 
 err:
