@@ -623,8 +623,9 @@ err:
          * normally closed.
          */
         ret = __wti_cursor_cache_release(session, cursor, &released);
-        if (released)
+        if (released) {
             goto done;
+        }
     }
 
     dead = F_ISSET(cursor, WT_CURSTD_DEAD);

@@ -248,7 +248,6 @@ __session_clear(WT_SESSION_IMPL *session)
     __wt_atomic_store32(&session->hazards.inuse, 0);
     session->hazards.num_active = 0;
 }
-
 /*
  * __session_close_cursors --
  *     Close all cursors in a list.
@@ -276,6 +275,8 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
             WT_TRET(session->event_handler->handle_close(
               session->event_handler, &session->iface, cursor));
 
+        if (WT_PREFIX_MATCH(cursor->uri, "layered:"))
+            F_SET(cursor, WT_CURSTD_CONSTITUENT_DEAD);
         WT_TRET(cursor->close(cursor));
     }
     WT_TAILQ_SAFE_REMOVE_END
@@ -522,9 +523,10 @@ __session_config_int(WT_SESSION_IMPL *session, const char *config)
     WT_RET_NOTFOUND_OK(ret);
 
     if ((ret = __wt_config_getones(session, config, "cache_cursors", &cval)) == 0) {
-        if (cval.val)
+        if (cval.val) {
             F_SET(session, WT_SESSION_CACHE_CURSORS);
-        else {
+        } else {
+            printf("testing cleared\n");
             F_CLR(session, WT_SESSION_CACHE_CURSORS);
             WT_RET(__session_close_cached_cursors(session));
         }
@@ -732,6 +734,15 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
     if (*cursorp == NULL)
         return (__wt_bad_object_type(session, uri));
 
+    if (owner != NULL && !WT_PREFIX_MATCH(uri, "layered:")) {
+        /*
+         * We support caching simple cursors that have no children. If this cursor is a child, we're
+         * not going to cache this child or its parent.
+         */
+        F_CLR(owner, WT_CURSTD_CACHEABLE);
+        F_CLR(*cursorp, WT_CURSTD_CACHEABLE);
+    }
+
     /*
      * When opening simple tables, the table code calls this function on the underlying data source,
      * in which case the application's URI has been copied.
@@ -786,10 +797,11 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
         session->hs_cursor_counter == 0 || F_ISSET(session, WT_SESSION_INTERNAL) ||
         (S2BT_SAFE(session) != NULL && F_ISSET(S2BT(session), WT_BTREE_VERIFY)));
 
-    /* We do not cache any subordinate tables/files cursors. */
-    __wt_cursor_get_hash(session, uri, NULL, &hash_value);
-    WT_ERR_NOTFOUND_OK(
-      __wt_cursor_cache_get(session, uri, hash_value, NULL, cfg, cursorp), false);
+    /* Try to find the cursor in the cache. */
+    if (owner == NULL || WT_PREFIX_MATCH(uri, "layered:")) {
+        __wt_cursor_get_hash(session, uri, NULL, &hash_value);
+        WT_ERR_NOTFOUND_OK(__wt_cursor_cache_get(session, uri, hash_value, NULL, cfg, cursorp), false);
+    }
 
     /* Open a new cursor if no cached cursor was found. */
     if (*cursorp == NULL)
@@ -819,7 +831,7 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t hash_value, time_diff_usec;
-    bool dup_backup, cursor_timing, statjoin;
+    bool dup_backup, cursor_timing;
 
     cursor_timing = false;
     cursor = *cursorp = NULL;
