@@ -526,8 +526,8 @@ __wt_layered_table_manager_start(WT_SESSION_IMPL *session)
     manager = &conn->layered_table_manager;
 
     WT_ASSERT_ALWAYS(session, manager->state == WT_LAYERED_TABLE_MANAGER_OFF,
-            "Layered table manager initialization conflict");
-    manager->state = WT_LAYERED_TABLE_MANAGER_STARTING; 
+      "Layered table manager initialization conflict");
+    manager->state = WT_LAYERED_TABLE_MANAGER_STARTING;
 
     WT_RET(__wt_spin_init(session, &manager->layered_table_lock, "layered table manager"));
 
@@ -1547,7 +1547,6 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
     min_ckpt_inuse = ds->ckpt_track_cnt;
     uri_at_checkpoint = NULL;
     uri_alloc = 0;
-
 
     WT_ASSERT(session, manager->state == WT_LAYERED_TABLE_MANAGER_RUNNING);
 
