@@ -525,19 +525,9 @@ __wt_layered_table_manager_start(WT_SESSION_IMPL *session)
     conn = S2C(session);
     manager = &conn->layered_table_manager;
 
-    /* It's possible to race - only start the manager if we are the winner */
-    if (!__wt_atomic_cas32(
-          &manager->state, WT_LAYERED_TABLE_MANAGER_OFF, WT_LAYERED_TABLE_MANAGER_STARTING)) {
-        /* This isn't optimal, but it'll do. It's uncommon for multiple threads to be trying to
-         * start the layered table manager at the same time.
-         * It's probably fine for any "loser" to proceed without waiting, but be conservative
-         * and have a semantic where a return from this function indicates a running layered table
-         * manager->
-         */
-        while (__wt_atomic_load32(&manager->state) != WT_LAYERED_TABLE_MANAGER_RUNNING)
-            __wt_sleep(0, 1000);
-        return (0);
-    }
+    WT_ASSERT_ALWAYS(session, manager->state == WT_LAYERED_TABLE_MANAGER_OFF,
+            "Layered table manager initialization conflict");
+    manager->state = WT_LAYERED_TABLE_MANAGER_STARTING; 
 
     WT_RET(__wt_spin_init(session, &manager->layered_table_lock, "layered table manager"));
 
@@ -558,8 +548,7 @@ __wt_layered_table_manager_start(WT_SESSION_IMPL *session)
       session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s", "__wt_layered_table_manager_start");
     FLD_SET(conn->server_flags, WT_CONN_SERVER_LAYERED);
 
-    /* Now that everything is setup, allow the manager to be used. */
-    __wt_atomic_store32(&manager->state, WT_LAYERED_TABLE_MANAGER_RUNNING);
+    manager->state = WT_LAYERED_TABLE_MANAGER_RUNNING;
     return (0);
 
 err:
@@ -588,8 +577,7 @@ __wt_layered_table_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_i
       "Adding a layered tree to tracking without the right dhandle context.");
     layered = (WT_LAYERED_TABLE *)session->dhandle;
 
-    WT_ASSERT_ALWAYS(session,
-      __wt_atomic_load32(&manager->state) == WT_LAYERED_TABLE_MANAGER_RUNNING,
+    WT_ASSERT_ALWAYS(session, manager->state == WT_LAYERED_TABLE_MANAGER_RUNNING,
       "Adding a layered table, but the manager isn't running");
     __wt_spin_lock(session, &manager->layered_table_lock);
 
@@ -668,19 +656,16 @@ void
 __wt_layered_table_manager_remove_table(WT_SESSION_IMPL *session, uint32_t ingest_id)
 {
     WT_LAYERED_TABLE_MANAGER *manager;
-    uint32_t manager_state;
 
     manager = &S2C(session)->layered_table_manager;
 
-    manager_state = __wt_atomic_load32(&manager->state);
-
     /* Shutdown calls this redundantly - ignore cases when the manager is already closed. */
-    if (manager_state == WT_LAYERED_TABLE_MANAGER_OFF)
+    if (manager->state == WT_LAYERED_TABLE_MANAGER_OFF)
         return;
 
     WT_ASSERT_ALWAYS(session,
-      manager_state == WT_LAYERED_TABLE_MANAGER_RUNNING ||
-        manager_state == WT_LAYERED_TABLE_MANAGER_STOPPING,
+      manager->state == WT_LAYERED_TABLE_MANAGER_RUNNING ||
+        manager->state == WT_LAYERED_TABLE_MANAGER_STOPPING,
       "Adding a layered table, but the manager isn't running");
     __wt_spin_lock(session, &manager->layered_table_lock);
     __layered_table_manager_remove_table_inlock(session, ingest_id);
@@ -745,6 +730,7 @@ __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
      * Spin until exclusive access is gained. If we got here from the startup path seeing an error,
      * the state might still be "starting" rather than "running".
      */
+    /* FIXME-WT-14963: Check whether we need atomics here. */
     while (!__wt_atomic_cas32(&manager->state, WT_LAYERED_TABLE_MANAGER_RUNNING,
              WT_LAYERED_TABLE_MANAGER_STOPPING) &&
       !__wt_atomic_cas32(
@@ -1071,6 +1057,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
           WT_DISAGG_METADATA_TABLE_ID, &conn->disaggregated_storage.page_log_meta));
     }
 
+    /* FIXME-WT-14965: Exit the function immediately if this check returns false. */
     if (__wt_conn_is_disagg(session)) {
 
         /* Initialize the shared metadata table. */
@@ -1136,6 +1123,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.lose_all_my_data", &cval));
         if (cval.val != 0)
             F_SET(&conn->disaggregated_storage, WT_DISAGG_NO_SYNC);
+
+        /* Start the layered table manager thread. */
+        WT_ERR(__wt_layered_table_manager_start(session));
     }
 
 err:
@@ -1557,6 +1547,9 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
     min_ckpt_inuse = ds->ckpt_track_cnt;
     uri_at_checkpoint = NULL;
     uri_alloc = 0;
+
+
+    WT_ASSERT(session, manager->state == WT_LAYERED_TABLE_MANAGER_RUNNING);
 
     __wt_spin_lock(session, &manager->layered_table_lock);
 
