@@ -311,7 +311,8 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
         return (true);
 
-    if (upd_select->upd != NULL && WT_BUILD_DELTA_LEAF(session, r)) {
+    if (upd_select->upd != NULL && F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+      F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_LEAF_PAGE_DELTA)) {
         if (upd_select->tombstone != NULL) {
             if (!F_ISSET(upd_select->tombstone, WT_UPDATE_DURABLE | WT_UPDATE_PREPARE_DURABLE))
                 return (true);
