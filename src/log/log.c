@@ -1145,7 +1145,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
      * one is closed. Wait for that to close.
      */
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
-    for (yield_cnt = 0; log->log_close_fh != NULL;) {
+    for (yield_cnt = 0; __wt_atomic_load_pointer(&log->log_close_fh) != NULL;) {
         WT_STAT_CONN_INCR(session, log_close_yields);
         /*
          * Processing slots will conditionally signal the file close server thread. But if we've
@@ -1180,7 +1180,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
      * can copy the files in any way they choose, and a log file rename might confuse things.
      */
     create_log = true;
-    if (log_mgr->prealloc > 0 && __wt_atomic_load64(&conn->hot_backup_start) == 0) {
+    if (__wt_atomic_load32(&log_mgr->prealloc) > 0 && __wt_atomic_load64(&conn->hot_backup_start) == 0) {
         WT_WITH_HOTBACKUP_READ_LOCK(
           session, ret = __log_alloc_prealloc(session, log->fileid), &skipp);
 
@@ -1364,7 +1364,7 @@ __wti_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WTI_LOGSLOT *slot)
     if (F_ISSET(log, WTI_LOG_FORCE_NEWFILE) || !__log_size_fit(session, &log->alloc_lsn, recsize)) {
         WT_RET(__log_newfile(session, false, &created_log));
         F_CLR(log, WTI_LOG_FORCE_NEWFILE);
-        if (log->log_close_fh != NULL)
+        if (__wt_atomic_load_pointer(&log->log_close_fh) != NULL)
             F_SET_ATOMIC_16(slot, WTI_SLOT_CLOSEFH);
     }
 

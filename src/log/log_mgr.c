@@ -523,12 +523,14 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
     WTI_LOG *log;
     WT_LOG_MANAGER *log_mgr;
     u_int i, reccount;
+    uint32_t log_prealloc;
     char **recfiles;
 
     log_mgr = &S2C(session)->log_mgr;
     log = log_mgr->log;
     reccount = 0;
     recfiles = NULL;
+    log_prealloc = __wt_atomic_load32(&log_mgr->prealloc);
 
     /*
      * Allocate up to the maximum number, accounting for any existing files that may not have been
@@ -542,25 +544,25 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
      * them since we last ran.
      */
     if (log->prep_missed > 0) {
-        log_mgr->prealloc += log->prep_missed;
+        log_prealloc += log->prep_missed;
         __wt_verbose(session, WT_VERB_LOG, "Missed %" PRIu32 ". Now pre-allocating up to %" PRIu32,
-          log->prep_missed, log_mgr->prealloc);
-    } else if (reccount > log_mgr->prealloc / 2 &&
-      log_mgr->prealloc > log_mgr->prealloc_init_count) {
+          log->prep_missed, log_prealloc);
+    } else if (reccount > log_prealloc / 2 &&
+      log_prealloc > log_mgr->prealloc_init_count) {
         /*
          * If we used less than half, then start adjusting down.
          */
-        --log_mgr->prealloc;
+        --log_prealloc;
         __wt_verbose(session, WT_VERB_LOG,
           "Adjust down. Did not use %" PRIu32 ". Now pre-allocating %" PRIu32, reccount,
-          log_mgr->prealloc);
+          log_prealloc);
     }
 
-    WT_STAT_CONN_SET(session, log_prealloc_max, log_mgr->prealloc);
+    WT_STAT_CONN_SET(session, log_prealloc_max, log_prealloc);
     /*
      * Allocate up to the maximum number that we just computed and detected.
      */
-    for (i = reccount; i < (u_int)log_mgr->prealloc; i++) {
+    for (i = reccount; i < (u_int)log_prealloc; i++) {
         WT_ERR(__wti_log_allocfile(session, ++log->prep_fileid, WTI_LOG_PREPNAME));
         WT_STAT_CONN_INCR(session, log_prealloc_files);
     }
@@ -570,7 +572,7 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
      * keep adding in more.
      */
     log->prep_missed = 0;
-
+    __wt_atomic_store32(&log_mgr->prealloc, log_prealloc);
     if (0)
 err:
         __wt_err(session, ret, "log pre-alloc server error");
@@ -648,7 +650,7 @@ __log_file_server(void *arg)
             /*
              * The closing file handle should have a correct close LSN.
              */
-            WT_ASSERT(session, log->log_close_lsn.l.file == filenum);
+            WT_ASSERT(session, __wt_atomic_loadv32(&log->log_close_lsn.l.file) == filenum);
 
             if (__wt_log_cmp(&log->write_lsn, &log->log_close_lsn) >= 0) {
                 /*
@@ -658,7 +660,7 @@ __log_file_server(void *arg)
                  */
                 WT_ASSIGN_LSN(&close_end_lsn, &log->log_close_lsn);
                 WT_FULL_BARRIER();
-                log->log_close_fh = NULL;
+                __wt_atomic_store_pointer(&log->log_close_fh, NULL);
                 /*
                  * Set the close_end_lsn to the LSN immediately after ours. That is, the beginning
                  * of the next log file. We need to know the LSN file number of our own close in
