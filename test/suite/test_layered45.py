@@ -33,7 +33,7 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_stora
 from wtscenario import make_scenarios
 
 # test_layered45.py
-# Entires have been durable is not included in the new delta
+# Entires have been durable are not included in the new delta
 
 @disagg_test_class
 class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
@@ -91,7 +91,7 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor = self.session.open_cursor('statistics:')
         self.assertEqual(stat_cursor[stat.conn.rec_page_delta_leaf][2], 1)
         stat_cursor.close()
-
+    
     def test_delete(self):
         self.session.create(self.uri, self.session_create_config())
 
@@ -144,7 +144,7 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor = self.session.open_cursor('statistics:')
         self.assertEqual(stat_cursor[stat.conn.rec_page_delta_leaf][2], 2)
         stat_cursor.close()
-
+    
     def test_prepare_update(self):
         self.session.create(self.uri, self.session_create_config())
 
@@ -200,7 +200,7 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor = session2.open_cursor('statistics:')
         self.assertEqual(stat_cursor[stat.conn.rec_page_delta_leaf][2], 2)
         stat_cursor.close()
-
+    
     def test_prepare_delete(self):
         self.session.create(self.uri, self.session_create_config())
 
@@ -257,7 +257,7 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor = session2.open_cursor('statistics:')
         self.assertEqual(stat_cursor[stat.conn.rec_page_delta_leaf][2], 2)
         stat_cursor.close()
-
+    
     def test_prepare_update_delete(self):
         self.session.create(self.uri, self.session_create_config())
 
