@@ -132,11 +132,9 @@ struct __wt_layered_table_manager_entry {
  */
 struct __wt_layered_table_manager {
 
-#define WT_LAYERED_TABLE_MANAGER_OFF 0      /* The layered table manager is not running */
-#define WT_LAYERED_TABLE_MANAGER_RUNNING 1  /* The layered table manager is running */
-#define WT_LAYERED_TABLE_MANAGER_STARTING 2 /* The layered table manager is being started */
-#define WT_LAYERED_TABLE_MANAGER_STOPPING 3 /* The layered table manager is being shut down */
-    wt_shared uint32_t state;               /* Atomic: Indicating the manager is already running */
+#define WT_LAYERED_TABLE_MANAGER_OFF 0     /* The layered table manager is not running */
+#define WT_LAYERED_TABLE_MANAGER_RUNNING 1 /* The layered table manager is running */
+    uint32_t state;                        /* Indicating the manager is already running */
 
     WT_SPINLOCK
     layered_table_lock; /* Lock used for managing changes to global layered table state */
