@@ -115,7 +115,7 @@ class test_truncate_fast_delete(test_truncate_base):
     # Trigger fast delete and test cursor counts.
     def test_truncate_fast_delete(self):
         # Make the test more reliable.
-        # TODO: remove this constraint once disaggregated storage behaves properly (see other TODO in the test).
+        # FIXME-WT-14977 Remove this constraint once disaggregated storage can handle checkpoint id after restart.
         if self.type == 'layered:' and (self.keyfmt == 'r' or wttest.islongtest()):
             return
 
@@ -145,7 +145,7 @@ class test_truncate_fast_delete(test_truncate_base):
                 cursor.update()
             cursor.close()
 
-        # TODO: disaggregated storage cannot handle checkpoint id after restart.
+        # FIXME-WT-14977 Remove the conditional for layered tables once disaggregated storage can handle checkpoint id after restart.
         if self.type != 'layered:':
             self.session.checkpoint()
         # Close and re-open it so we get a disk image, not an insert skiplist.
