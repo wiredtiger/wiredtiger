@@ -71,7 +71,8 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
      * Assert that a prepare timestamp is set if and only if we're packing prepare info (either to
      * start or stop)
      */
-    WT_ASSERT(session, (tw->prepare) == (pack_prepare_info_to_start || pack_prepare_info_to_stop));
+    if (tw->prepare && F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED))
+        WT_ASSERT(session, pack_prepare_info_to_start || pack_prepare_info_to_stop);
 
     if (pack_prepare_info_to_start && pack_prepare_info_to_stop) {
         WT_ASSERT(session, tw->start_prepared_id == tw->stop_prepared_id);
