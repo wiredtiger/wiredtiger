@@ -2244,19 +2244,24 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
 
     WT_ERR(__rec_delta_pack_key(session, S2BT(session), r, supd->ins, supd->rip, key));
 
-    if (supd->onpage_upd->type == WT_UPDATE_MODIFY) {
-        if (supd->rip != NULL)
-            cbt->slot = WT_ROW_SLOT(r->ref->page, supd->rip);
-        else
-            cbt->slot = UINT32_MAX;
-        WT_ERR(__wt_modify_reconstruct_from_upd_list(
-          session, cbt, supd->onpage_upd, cbt->upd_value, WT_OPCTX_RECONCILATION));
-        __wt_value_return(cbt, cbt->upd_value);
-        value.data = cbt->upd_value->buf.data;
-        value.size = cbt->upd_value->buf.size;
+    if (supd->onpage_upd != NULL) {
+        if (supd->onpage_upd->type == WT_UPDATE_MODIFY) {
+            if (supd->rip != NULL)
+                cbt->slot = WT_ROW_SLOT(r->ref->page, supd->rip);
+            else
+                cbt->slot = UINT32_MAX;
+            WT_ERR(__wt_modify_reconstruct_from_upd_list(
+              session, cbt, supd->onpage_upd, cbt->upd_value, WT_OPCTX_RECONCILATION));
+            __wt_value_return(cbt, cbt->upd_value);
+            value.data = cbt->upd_value->buf.data;
+            value.size = cbt->upd_value->buf.size;
+        } else {
+            value.data = supd->onpage_upd->data;
+            value.size = supd->onpage_upd->size;
+        }
     } else {
-        value.data = supd->onpage_upd->data;
-        value.size = supd->onpage_upd->size;
+        value.data = NULL;
+        value.size = 0;
     }
 
     /*
@@ -2277,7 +2282,10 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
     head = (uint8_t *)r->delta.data + r->delta.size;
     p = head + 1;
 
-    if (supd->onpage_upd->type == WT_UPDATE_TOMBSTONE) {
+    if (supd->onpage_upd == NULL) {
+        WT_ASSERT(session,
+          supd->onpage_tombstone != NULL &&
+            __wt_txn_upd_visible_all(session, supd->onpage_tombstone));
         LF_SET(WT_DELTA_LEAF_IS_DELETE);
         WT_ERR(__wt_vpack_uint(&p, 0, key->size));
         memcpy(p, key->data, key->size);
@@ -2367,13 +2375,14 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
     WT_RET(__wti_rec_build_delta_init(session, r));
 
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
-        if (supd->onpage_upd == NULL)
+        if (supd->onpage_upd == NULL && supd->onpage_tombstone == NULL)
             continue;
 
-        if (supd->onpage_upd->type == WT_UPDATE_TOMBSTONE) {
-            if (F_ISSET(supd->onpage_upd, WT_UPDATE_DELETE_DURABLE))
+        if (supd->onpage_upd == NULL) {
+            if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_DELETE_DURABLE))
                 continue;
         } else {
+            WT_ASSERT(session, supd->onpage_upd->type != WT_UPDATE_TOMBSTONE);
             if (supd->onpage_tombstone != NULL) {
                 if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_DURABLE))
                     continue;
@@ -2463,11 +2472,11 @@ __rec_set_updates_durable(WT_BTREE *btree, WT_MULTI *multi)
      * in the next reconciliation if this reconciliation fail.
      */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
-        if (supd->onpage_upd == NULL)
+        if (supd->onpage_upd == NULL && supd->onpage_tombstone == NULL)
             continue;
 
-        if (supd->onpage_upd->type == WT_UPDATE_TOMBSTONE)
-            F_SET(supd->onpage_upd, WT_UPDATE_DELETE_DURABLE);
+        if (supd->onpage_upd == NULL)
+            F_SET(supd->onpage_tombstone, WT_UPDATE_DELETE_DURABLE);
         else {
             if (supd->onpage_tombstone != NULL) {
                 if (F_ISSET(supd, WT_SAVE_UPDATE_PREPARE)) {

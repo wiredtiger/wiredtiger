@@ -833,7 +833,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         upd->prepare_state = WT_PREPARE_INPROGRESS;
         F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
         if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-            F_SET(tombstone, WT_UPDATE_PREPARE_DURABLE);
+            F_SET(upd, WT_UPDATE_PREPARE_DURABLE);
         *updp = upd;
     }
 
