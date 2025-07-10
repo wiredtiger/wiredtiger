@@ -31,6 +31,7 @@ from suite_subprocess import suite_subprocess
 from wiredtiger import stat
 import os
 import time
+import wttest
 
 # test_checkpoint33.py
 #
