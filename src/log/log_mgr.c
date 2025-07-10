@@ -547,8 +547,7 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
         log_prealloc += log->prep_missed;
         __wt_verbose(session, WT_VERB_LOG, "Missed %" PRIu32 ". Now pre-allocating up to %" PRIu32,
           log->prep_missed, log_prealloc);
-    } else if (reccount > log_prealloc / 2 &&
-      log_prealloc > log_mgr->prealloc_init_count) {
+    } else if (reccount > log_prealloc / 2 && log_prealloc > log_mgr->prealloc_init_count) {
         /*
          * If we used less than half, then start adjusting down.
          */
