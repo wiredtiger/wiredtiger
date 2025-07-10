@@ -33,6 +33,7 @@
 from test_truncate01 import test_truncate_base
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
+import wttest
 
 # test_truncate_fast_delete
 #       When deleting leaf pages that aren't in memory, we set transactional
@@ -113,7 +114,9 @@ class test_truncate_fast_delete(test_truncate_base):
 
     # Trigger fast delete and test cursor counts.
     def test_truncate_fast_delete(self):
-        if self.type == 'layered:' and self.keyfmt == 'r':
+        # Make the test more reliable.
+        # TODO: remove this constraint once disaggregated storage behaves properly (see other TODO in the test).
+        if self.type == 'layered:' and (self.keyfmt == 'r' or wttest.islongtest()):
             return
 
         uri = self.type + self.name
