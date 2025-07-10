@@ -6,7 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
-// Unit tests for cell packing/unpacking of prepared time windows
+/* Unit tests for cell packing/unpacking of prepared time windows */
 #include <catch2/catch.hpp>
 #include <vector>
 #include "../wrappers/mock_session.h"
@@ -57,7 +57,7 @@ create_test_time_window(wt_timestamp_t start_ts, uint64_t start_txn, wt_timestam
 static std::vector<uint8_t>
 pack_time_window(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    // Allocate enough space for the packed data (conservative estimate)
+    /* Allocate enough space for the packed data (conservative estimate) */
     std::vector<uint8_t> buffer(256, 0);
     uint8_t *p = buffer.data();
     uint8_t *start_p = p;
@@ -65,7 +65,7 @@ pack_time_window(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
     int ret = __cell_pack_value_validity(session, &p, tw);
     REQUIRE(ret == 0);
 
-    // Resize buffer to actual used size
+    /* Resize buffer to actual used size */
     size_t used_size = p - start_p;
     buffer.resize(used_size);
 
@@ -78,7 +78,7 @@ pack_time_window(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 static WT_TIME_WINDOW
 unpack_time_window(WT_SESSION_IMPL *session, const std::vector<uint8_t> &packed_data)
 {
-    // Create a mock cell and page header for unpacking
+    /* Create a mock cell and page header for unpacking */
     WT_CELL cell;
     WT_PAGE_HEADER dsk;
     WT_CELL_UNPACK_KV unpack;
@@ -87,39 +87,43 @@ unpack_time_window(WT_SESSION_IMPL *session, const std::vector<uint8_t> &packed_
     memset(&dsk, 0, sizeof(dsk));
     memset(&unpack, 0, sizeof(unpack));
 
-    // Initialize the page header with a reasonable write generation
-    // This is needed because the unpacking code checks dsk->write_gen
-    dsk.write_gen = 2; // Set to a value > base_write_gen to avoid cleanup
+    /*
+     * Initialize the page header with a reasonable write generation. This is needed because the
+     * unpacking code checks dsk->write_gen.
+     */
+    dsk.write_gen = 2; /* Set to a value > base_write_gen to avoid cleanup */
 
-    // The packed_data contains the validity window packed by __cell_pack_value_validity
-    // We need to create a proper WT_CELL_VALUE with this validity window
+    /*
+     * The packed_data contains the validity window packed by __cell_pack_value_validity. We need to
+     * create a proper WT_CELL_VALUE with this validity window.
+     */
 
     uint8_t *p = cell.__chunk;
     int ret = 0;
     if (packed_data.size() <= 1) {
-        // Empty time window case
+        /* Empty time window case */
         cell.__chunk[0] = WT_CELL_VALUE;
         p = &cell.__chunk[1];
-        // Pack zero data length
+        /* Pack zero data length */
         ret = __wt_vpack_uint(&p, 0, 0);
     } else {
-        // Has validity window
+        /* Has validity window */
         cell.__chunk[0] = WT_CELL_VALUE | WT_CELL_SECOND_DESC;
 
-        // Copy the validity window data (skip the first byte which was the descriptor increment)
+        /* Copy the validity window data (skip the first byte which was the descriptor increment) */
         memcpy(&cell.__chunk[1], packed_data.data() + 1, packed_data.size() - 1);
 
-        // Set pointer to after the validity window data
+        /* Set pointer to after the validity window data */
         p = &cell.__chunk[packed_data.size()];
 
-        // Pack zero data length (WT_CELL_VALUE always expects a data length)
+        /* Pack zero data length (WT_CELL_VALUE always expects a data length) */
         ret = __wt_vpack_uint(&p, 0, 0);
     }
     if (ret != 0) {
         throw std::runtime_error("Failed to pack zero data length");
     }
 
-    // Unpack the cell
+    /* Unpack the cell */
     __wt_cell_unpack_kv(session, &dsk, &cell, &unpack);
 
     return unpack.tw;
@@ -153,17 +157,17 @@ TEST_CASE("Cell Time Window: Empty time window", "[cell][time_window]")
     conn = S2C(session_mock->get_wt_session_impl());
     F_SET_ATOMIC_32(conn, WT_CONN_PRESERVE_PREPARED);
 
-    // Set up the btree structure that the cell unpacking code needs
+    /* Set up the btree structure that the cell unpacking code needs */
     session_mock->setup_block_manager_file_operations();
     WT_BTREE *btree = (WT_BTREE *)session_mock->get_wt_session_impl()->dhandle->handle;
-    btree->base_write_gen = 1; // Initialize to a reasonable value
+    btree->base_write_gen = 1; /* Initialize to a reasonable value */
 
     WT_TIME_WINDOW tw;
     WT_TIME_WINDOW_INIT(&tw);
 
-    // Empty time window should pack to minimal size
+    /* Empty time window should pack to minimal size */
     auto packed = pack_time_window(session_mock->get_wt_session_impl(), &tw);
-    CHECK(packed.size() == 1); // Just the increment for empty window
+    CHECK(packed.size() == 1); /* Just the increment for empty window */
 }
 
 TEST_CASE("Cell Time Window: Start prepared only", "[cell][time_window]")
@@ -173,21 +177,21 @@ TEST_CASE("Cell Time Window: Start prepared only", "[cell][time_window]")
     conn = S2C(session_mock->get_wt_session_impl());
     F_SET_ATOMIC_32(conn, WT_CONN_PRESERVE_PREPARED);
 
-    // Set up the btree structure that the cell unpacking code needs
+    /* Set up the btree structure that the cell unpacking code needs */
     session_mock->setup_block_manager_file_operations();
     WT_BTREE *btree = S2BT(session_mock->get_wt_session_impl());
-    btree->base_write_gen = 1; // Initialize to a reasonable value
+    btree->base_write_gen = 1; /* Initialize to a reasonable value */
 
     SECTION("Basic start prepared")
     {
-        auto tw = create_test_time_window(0, // start_ts
-          10,                                // start_txn
-          WT_TS_MAX,                         // stop_ts
-          WT_TXN_MAX,                        // stop_txn
-          true,                              // has_start_prepare
-          false,                             // has_stop_prepare
-          100,                               // start_prepare_ts
-          1                                  // start_prepared_id
+        auto tw = create_test_time_window(0, /* start_ts */
+          10,                                /* start_txn */
+          WT_TS_MAX,                         /* stop_ts */
+          WT_TXN_MAX,                        /* stop_txn */
+          true,                              /* has_start_prepare */
+          false,                             /* has_stop_prepare */
+          100,                               /* start_prepare_ts */
+          1                                  /* start_prepared_id */
         );
 
         auto packed = pack_time_window(session_mock->get_wt_session_impl(), &tw);
@@ -204,23 +208,23 @@ TEST_CASE("Cell Time Window: Stop prepared only", "[cell][time_window]")
     conn = S2C(session_mock->get_wt_session_impl());
     F_SET_ATOMIC_32(conn, WT_CONN_PRESERVE_PREPARED);
 
-    // Set up the btree structure that the cell unpacking code needs
+    /* Set up the btree structure that the cell unpacking code needs */
     session_mock->setup_block_manager_file_operations();
     WT_BTREE *btree = (WT_BTREE *)session_mock->get_wt_session_impl()->dhandle->handle;
-    btree->base_write_gen = 1; // Initialize to a reasonable value
+    btree->base_write_gen = 1; /* Initialize to a reasonable value */
 
     SECTION("Basic stop prepared")
     {
-        auto tw = create_test_time_window(50, // start_ts
-          10,                                 // start_txn
-          WT_TS_MAX,                          // stop_ts
-          20,                                 // stop_txn
-          false,                              // has_start_prepare
-          true,                               // has_stop_prepare
-          0,                                  // start_prepare_ts (unused)
-          0,                                  // start_prepared_id (unused)
-          200,                                // stop_prepare_ts
-          3                                   // stop_prepared_id
+        auto tw = create_test_time_window(50, /* start_ts */
+          10,                                 /* start_txn */
+          WT_TS_MAX,                          /* stop_ts */
+          20,                                 /* stop_txn */
+          false,                              /* has_start_prepare */
+          true,                               /* has_stop_prepare */
+          0,                                  /* start_prepare_ts (unused) */
+          0,                                  /* start_prepared_id (unused) */
+          200,                                /* stop_prepare_ts */
+          3                                   /* stop_prepared_id */
         );
 
         auto packed = pack_time_window(session_mock->get_wt_session_impl(), &tw);
@@ -237,23 +241,23 @@ TEST_CASE("Cell Time Window: Both start and stop prepared", "[cell][time_window]
     conn = S2C(session_mock->get_wt_session_impl());
     F_SET_ATOMIC_32(conn, WT_CONN_PRESERVE_PREPARED);
 
-    // Set up the btree structure that the cell unpacking code needs
+    /* Set up the btree structure that the cell unpacking code needs */
     session_mock->setup_block_manager_file_operations();
     WT_BTREE *btree = (WT_BTREE *)session_mock->get_wt_session_impl()->dhandle->handle;
-    btree->base_write_gen = 1; // Initialize to a reasonable value
+    btree->base_write_gen = 1; /* Initialize to a reasonable value */
 
     SECTION("Same transaction - both prepared")
     {
-        auto tw = create_test_time_window(0, // start_ts
-          10,                                // start_txn
-          WT_TS_MAX,                         // stop_ts
-          10,                                // stop_txn (same as start)
-          true,                              // has_start_prepare
-          true,                              // has_stop_prepare
-          150,                               // start_prepare_ts
-          2,                                 // start_prepared_id
-          150,                               // stop_prepare_ts (same as start)
-          2                                  // stop_prepared_id (same as start)
+        auto tw = create_test_time_window(0, /* start_ts */
+          10,                                /* start_txn */
+          WT_TS_MAX,                         /* stop_ts */
+          10,                                /* stop_txn (same as start) */
+          true,                              /* has_start_prepare */
+          true,                              /* has_stop_prepare */
+          150,                               /* start_prepare_ts */
+          2,                                 /* start_prepared_id */
+          150,                               /* stop_prepare_ts (same as start) */
+          2                                  /* stop_prepared_id (same as start) */
         );
 
         auto packed = pack_time_window(session_mock->get_wt_session_impl(), &tw);
@@ -264,16 +268,16 @@ TEST_CASE("Cell Time Window: Both start and stop prepared", "[cell][time_window]
 
     SECTION("Both start and stop are prepared - invalid time window")
     {
-        auto tw = create_test_time_window(50, // start_ts
-          10,                                 // start_txn
-          100,                                // stop_ts
-          20,                                 // stop_txn (different from start)
-          true,                               // has_start_prepare
-          true,                               // has_stop_prepare
-          150,                                // start_prepare_ts
-          2,                                  // start_prepared_id
-          200,                                // stop_prepare_ts (different from start)
-          3                                   // stop_prepared_id (different from start)
+        auto tw = create_test_time_window(50, /* start_ts */
+          10,                                 /* start_txn */
+          100,                                /* stop_ts */
+          20,                                 /* stop_txn (different from start) */
+          true,                               /* has_start_prepare */
+          true,                               /* has_stop_prepare */
+          150,                                /* start_prepare_ts */
+          2,                                  /* start_prepared_id */
+          200,                                /* stop_prepare_ts (different from start) */
+          3                                   /* stop_prepared_id (different from start) */
         );
 
         CHECK(
@@ -288,17 +292,17 @@ TEST_CASE("Cell Time Window: Regular (non-prepared) time window", "[cell][time_w
     conn = S2C(session_mock->get_wt_session_impl());
     F_SET_ATOMIC_32(conn, WT_CONN_PRESERVE_PREPARED);
 
-    // Set up the btree structure that the cell unpacking code needs
+    /* Set up the btree structure that the cell unpacking code needs */
     session_mock->setup_block_manager_file_operations();
     WT_BTREE *btree = (WT_BTREE *)session_mock->get_wt_session_impl()->dhandle->handle;
-    btree->base_write_gen = 1; // Initialize to a reasonable value
+    btree->base_write_gen = 1; /* Initialize to a reasonable value */
 
-    auto tw = create_test_time_window(50, // start_ts
-      10,                                 // start_txn
-      100,                                // stop_ts
-      20,                                 // stop_txn
-      false,                              // has_start_prepare
-      false                               // has_stop_prepare
+    auto tw = create_test_time_window(50, /* start_ts */
+      10,                                 /* start_txn */
+      100,                                /* stop_ts */
+      20,                                 /* stop_txn */
+      false,                              /* has_start_prepare */
+      false                               /* has_stop_prepare */
     );
 
     auto packed = pack_time_window(session_mock->get_wt_session_impl(), &tw);
