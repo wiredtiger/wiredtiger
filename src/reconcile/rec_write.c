@@ -2479,8 +2479,10 @@ __rec_set_updates_durable(WT_BTREE *btree, WT_MULTI *multi)
                         F_SET(supd->onpage_upd, WT_UPDATE_PREPARE_DURABLE);
                     else
                         F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
-                } else
+                } else {
                     F_SET(supd->onpage_tombstone, WT_UPDATE_DURABLE);
+                    F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
+                }
             } else {
                 if (F_ISSET(supd, WT_SAVE_UPDATE_PREPARE))
                     F_SET(supd->onpage_upd, WT_UPDATE_PREPARE_DURABLE);
