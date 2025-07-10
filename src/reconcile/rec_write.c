@@ -2371,9 +2371,8 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
             continue;
 
         if (supd->onpage_upd->type == WT_UPDATE_TOMBSTONE) {
-            if (F_ISSET(supd->onpage_upd, WT_UPDATE_DELETE_DURABLE)) {
+            if (F_ISSET(supd->onpage_upd, WT_UPDATE_DELETE_DURABLE))
                 continue;
-            }
         } else {
             if (supd->onpage_tombstone != NULL) {
                 if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_DURABLE))
@@ -2383,15 +2382,15 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
                 if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_PREPARE_DURABLE) &&
                   F_ISSET(supd, WT_SAVE_UPDATE_PREPARE))
                     continue;
+            } else {
+                if (F_ISSET(supd->onpage_upd, WT_UPDATE_DURABLE))
+                    continue;
+
+                /* Skip writing the prepared update that has already been written. */
+                if (F_ISSET(supd->onpage_upd, WT_UPDATE_PREPARE_DURABLE) &&
+                  F_ISSET(supd, WT_SAVE_UPDATE_PREPARE))
+                    continue;
             }
-
-            if (F_ISSET(supd->onpage_upd, WT_UPDATE_DURABLE))
-                continue;
-
-            /* Skip writing the prepared update that has already been written. */
-            if (F_ISSET(supd->onpage_upd, WT_UPDATE_PREPARE_DURABLE) &&
-              F_ISSET(supd, WT_SAVE_UPDATE_PREPARE))
-                continue;
         }
 
         WT_RET(__rec_pack_delta_leaf(session, r, supd));
