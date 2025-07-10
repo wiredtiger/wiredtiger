@@ -115,9 +115,21 @@ connection_disaggregated_config_common = [
     Config('checkpoint_meta', '', r'''
         the checkpoint metadata from which to start (or restart) the node''',
         undoc=True),
+    Config('flatten_leaf_page_delta', 'false', r'''
+        When enabled, page read rewrites the leaf pages with deltas to a new
+        disk image if successful''',
+        type='boolean', undoc=True),
+    Config('internal_page_delta', 'true', r'''
+        When enabled, reconciliation may write deltas for internal pages
+        instead of writing entire pages every time''',
+        type='boolean', undoc=True),
     Config('last_materialized_lsn', '', r'''
         the page LSN indicating that all pages up until this LSN are available for reading''',
         type='int', undoc=True),
+    Config('leaf_page_delta', 'true', r'''
+        When enabled, reconciliation may write deltas for leaf pages
+        instead of writing entire pages every time''',
+        type='boolean', undoc=True),
     Config('lose_all_my_data', 'false', r'''
         This setting skips file system syncs, and will cause data loss outside of a
         disaggregated storage context.''',
@@ -145,6 +157,18 @@ file_disaggregated_config = [
     Config('disaggregated', '', r'''
         configure disaggregated storage for this file''',
         type='category', subconfig=disaggregated_config_common + [
+            Config('delta_pct', '20', r'''
+                the size threshold (as a percentage) at which a delta will cease to be emitted
+                when reconciling a page. For example, if this is set to 20, the size of a delta
+                is 20 bytes, and the size of the full page image is 100 bytes, reconciliation
+                can emit a delta for the page (if various other preconditions are met).
+                Conversely, if the delta came to 21 bytes, reconciliation would not emit a
+                delta. Deltas larger than full pages are permitted for measurement and testing
+                reasons, and may be disallowed in future.''', min='1', max='1000'),
+            Config('max_consecutive_delta', '32', r'''
+                the max consecutive deltas allowed for a single page. The maximum value is set
+                at 32 (WT_DELTA_LIMIT). If we need to change that, please change WT_DELTA_LIMIT
+                as well.''', min='1', max='32')
         ]
     ),
 ]
@@ -543,6 +567,12 @@ connection_runtime_config = [
             A database can configure both log_size and wait to set an upper bound for checkpoints;
             setting this value above 0 configures periodic checkpoints''',
             min='0', max='2GB'),
+        Config('precise', 'false', r'''
+            Only write data with timestamps that are smaller or equal to the stable timestamp to the
+            checkpoint. Rollback to stable after restart is a no-op if enabled. However, it leads to
+            extra cache pressure. The user must have set the stable timestamp. It is not compatible
+            with use_timestamp=false config.''',
+            type='boolean'),
         Config('wait', '0', r'''
             seconds to wait between each checkpoint; setting this value above 0 configures
             periodic checkpoints''',
@@ -864,13 +894,14 @@ connection_runtime_config = [
         choices=[
         'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
-        'compact_slow', 'evict_reposition', 'failpoint_eviction_split',
-        'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
-        'history_store_search', 'history_store_sweep_race', 'live_restore_clean_up',
-        'open_index_slow', 'prefetch_1', 'prefetch_2', 'prefetch_3', 'prefix_compare',
-        'prepare_checkpoint_delay', 'prepare_resolution_1', 'prepare_resolution_2',
-        'session_alter_slow', 'sleep_before_read_overflow_onpage', 'split_1', 'split_2',
-        'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8', 'tiered_flush_finish']),
+        'compact_slow', 'conn_close_stress_log_printf', 'evict_reposition', 
+        'failpoint_eviction_split', 'failpoint_history_store_delete_key_from_ts',
+        'history_store_checkpoint_delay', 'history_store_search', 'history_store_sweep_race',
+        'live_restore_clean_up', 'open_index_slow', 'prefetch_1', 'prefetch_2', 'prefetch_3',
+        'prefix_compare', 'prepare_checkpoint_delay', 'prepare_resolution_1',
+        'prepare_resolution_2', 'session_alter_slow', 'sleep_before_read_overflow_onpage',
+        'split_1', 'split_2', 'split_3', 'split_4', 'split_5', 'split_6', 'split_7',
+        'split_8','tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
@@ -907,6 +938,7 @@ connection_runtime_config = [
             'mutex',
             'out_of_order',
             'overflow',
+            'page_delta',
             'prefetch',
             'read',
             'reconcile',

@@ -554,11 +554,11 @@ err:
 }
 
 /*
- * __wti_blkcache_remove --
+ * __wt_blkcache_remove --
  *     Remove a block from the cache.
  */
 void
-__wti_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+__wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ITEM *blkcache_item;

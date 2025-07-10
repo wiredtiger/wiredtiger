@@ -147,13 +147,17 @@ __wt_page_is_reconciling(WT_PAGE *page)
  *     Helper function to free a block from the current tree.
  */
 static WT_INLINE int
-__wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+__wt_btree_block_free(
+  WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool page_replacement)
 {
     WT_BM *bm;
     WT_BTREE *btree;
 
     btree = S2BT(session);
     bm = btree->bm;
+
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && page_replacement)
+        return (0);
 
     return (bm->free(bm, session, addr, addr_size));
 }
@@ -320,6 +324,49 @@ __wt_btree_shared_base_name(
         *checkpointp = suffix + 1;
 
     return (0);
+}
+
+/*
+ * __wt_cache_page_inmem_incr_delta_updates --
+ *     Increment a page's delta updates in the cache.
+ */
+static WT_INLINE void
+__wt_cache_page_inmem_incr_delta_updates(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
+{
+    WT_BTREE *btree;
+    WT_CACHE *cache;
+
+    WT_ASSERT(session, size < WT_EXABYTE);
+    btree = S2BT(session);
+    cache = S2C(session)->cache;
+
+    (void)__wt_atomic_add64(&cache->bytes_delta_updates, size);
+    (void)__wt_atomic_add64(&btree->bytes_delta_updates, size);
+    (void)__wt_atomic_add64(&page->modify->bytes_delta_updates, size);
+}
+
+/*
+ * __wt_cache_page_inmem_decr_delta_updates --
+ *     Decrease a page's delta updates in the cache.
+ */
+static WT_INLINE void
+__wt_cache_page_inmem_decr_delta_updates(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
+{
+    WT_BTREE *btree;
+    WT_CACHE *cache;
+
+    WT_ASSERT(session, size < WT_EXABYTE);
+    btree = S2BT(session);
+    cache = S2C(session)->cache;
+
+    if (__wt_atomic_load64(&page->modify->bytes_delta_updates) > 0) {
+        __wt_cache_decr_check_uint64(
+          session, &page->modify->bytes_delta_updates, size, "WT_PAGE_MODIFY.bytes_delta_updates");
+        __wt_cache_decr_check_uint64(
+          session, &btree->bytes_delta_updates, size, "WT_BTREE.bytes_delta_updates");
+        __wt_cache_decr_check_uint64(
+          session, &cache->bytes_delta_updates, size, "WT_CACHE.bytes_delta_updates");
+    }
 }
 
 /*
@@ -696,8 +743,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      * The page state can only ever be incremented above dirty by the number of concurrently running
      * threads, so the counter will never approach the point where it would wrap.
      */
-    if (__wt_atomic_load32(&page->modify->page_state) < WT_PAGE_DIRTY &&
-      __wt_atomic_add32(&page->modify->page_state, 1) == WT_PAGE_DIRTY_FIRST) {
+    if (__wt_atomic_add32(&page->modify->page_state, 1) == WT_PAGE_DIRTY_FIRST) {
         __wt_cache_dirty_incr(session, page);
 
         __wt_evict_page_first_dirty(session, page);
@@ -1588,7 +1634,7 @@ __wt_get_page_modify_ta(WT_SESSION_IMPL *session, WT_PAGE *page, WT_TIME_AGGREGA
  *     Free the on-disk block for a reference and clear the address.
  */
 static WT_INLINE int
-__wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool page_replacement)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
@@ -1597,7 +1643,10 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
     if (!__wt_ref_addr_copy(session, ref, &addr))
         goto err;
 
-    WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
+    WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size, page_replacement));
+
+    if (!page_replacement && ref->page != NULL)
+        ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
     /* Clear the address (so we don't free it twice). */
     __wt_ref_addr_free(session, ref);

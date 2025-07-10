@@ -42,6 +42,7 @@
     "WT_VERB_METADATA", \
     "WT_VERB_OUT_OF_ORDER", \
     "WT_VERB_OVERFLOW", \
+    "WT_VERB_PAGE_DELTA", \
     "WT_VERB_PREFETCH", \
     "WT_VERB_READ", \
     "WT_VERB_RECONCILE", \
@@ -49,9 +50,9 @@
     "WT_VERB_RECOVERY_PROGRESS", \
     "WT_VERB_RTS", \
     "WT_VERB_SALVAGE", \
-    "WT_VERB_SWEEP", \
     "WT_VERB_SHARED_CACHE", \
     "WT_VERB_SPLIT", \
+    "WT_VERB_SWEEP", \
     "WT_VERB_TEMPORARY", \
     "WT_VERB_THREAD_GROUP", \
     "WT_VERB_TIERED", \

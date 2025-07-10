@@ -177,6 +177,7 @@ __conn_page_history_report(WT_SESSION_IMPL *session)
 
 err:
     __wt_free(session, most_reads);
+    __wt_free(session, most_evicts);
     return (ret);
 }
 

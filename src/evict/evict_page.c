@@ -458,18 +458,25 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          */
         if (mod->mod_multi_entries == 1) {
             WT_ASSERT(session, closing == false);
-            WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0]));
+            WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0], true));
         } else
             WT_RET(__wt_split_multi(session, ref, closing));
         break;
     case WT_PM_REC_REPLACE:
-        /* 1-for-1 page swap: Update the parent to reference the replacement page. */
-        WT_ASSERT(session, mod->mod_replace.block_cookie != NULL);
-        WT_RET(__wt_calloc_one(session, &addr));
-        *addr = mod->mod_replace;
-        mod->mod_replace.block_cookie = NULL;
-        mod->mod_replace.block_cookie_size = 0;
-        ref->addr = addr;
+        /*
+         * 1-for-1 page swap: Update the parent to reference the replacement page.
+         *
+         * It's possible to see an empty disk address if the previous reconciliation skipped writing
+         * an empty delta.
+         */
+        if (mod->mod_replace.block_cookie != NULL) {
+            WT_RET(__wt_calloc_one(session, &addr));
+            *addr = mod->mod_replace;
+            mod->mod_replace.block_cookie = NULL;
+            mod->mod_replace.block_cookie_size = 0;
+            ref->addr = addr;
+        } else
+            WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && ref->addr != NULL);
 
         /*
          * Eviction wants to keep this page if we have a disk image, re-instantiate the page in
@@ -491,7 +498,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
              */
             tmp = mod->mod_disk_image;
             mod->mod_disk_image = NULL;
-            ret = __wt_split_rewrite(session, ref, &multi);
+            ret = __wt_split_rewrite(session, ref, &multi, true);
             if (ret != 0) {
                 mod->mod_disk_image = tmp;
                 return (ret);
@@ -775,7 +782,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
-    /* wt_timestamp_t checkpoint_timestamp; */
+    wt_timestamp_t checkpoint_timestamp;
     bool closing, modified;
 
     *inmem_splitp = false;
@@ -860,14 +867,12 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * services the checkpoint, don't try again. Reconciling the page again without the timestamp
      * moving would result in the same page being written out as last time.
      */
-    /*
     WT_ACQUIRE_READ(checkpoint_timestamp, conn->txn_global.checkpoint_timestamp);
     if (F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT) && checkpoint_timestamp != WT_TS_NONE &&
       page->modify->rec_pinned_stable_timestamp >= checkpoint_timestamp) {
         WT_STAT_CONN_INCR(session, cache_eviction_blocked_checkpoint_precise);
         return (__wt_set_return(session, EBUSY));
     }
-     */
 
     /*
      * If reconciliation is disabled for this thread (e.g., during an eviction that writes to the
@@ -979,7 +984,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     use_snapshot_for_app_thread = !F_ISSET(session, WT_SESSION_INTERNAL) &&
       !WT_IS_METADATA(session->dhandle) &&
       __wt_atomic_loadv64(&WT_SESSION_TXN_SHARED(session)->id) != WT_TXN_NONE &&
-      F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT);
+      F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) &&
+      !F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT);
     is_eviction_thread = F_ISSET(session, WT_SESSION_EVICTION);
 
     /* Make sure that both conditions above are not true at the same time. */
@@ -1000,7 +1006,10 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          * being processed. Therefore, we use snapshot API that doesn't publish shared IDs to the
          * outside world.
          */
-        __wt_txn_bump_snapshot(session);
+        if (F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT))
+            LF_SET(WT_REC_VISIBLE_ALL);
+        else
+            __wt_txn_bump_snapshot(session);
     } else if (use_snapshot_for_app_thread) {
         /*
          * If we couldn't make progress with the application thread's existing snapshot, save the

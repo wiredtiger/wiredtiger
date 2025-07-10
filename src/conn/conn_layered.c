@@ -230,8 +230,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor, *md_cursor;
-    WT_DECL_ITEM(item);
     WT_DECL_RET;
+    WT_ITEM item;
     WT_SESSION_IMPL *internal_session, *shared_metadata_session;
     size_t len, metadata_value_cfg_len;
     uint64_t checkpoint_timestamp, global_checkpoint_id;
@@ -250,6 +250,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
     layered_ingest_uri = NULL;
     shared_metadata_session = NULL;
     cfg_ret = NULL;
+    WT_CLEAR(item);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -257,8 +258,6 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
 
     if (checkpoint_id == WT_DISAGG_CHECKPOINT_ID_NONE)
         return (EINVAL);
-
-    WT_RET(__wt_scr_alloc(session, 16 * WT_KILOBYTE, &item));
 
     /* Check the checkpoint ID to ensure that we are not going backwards. */
     if (checkpoint_id + 1 < global_checkpoint_id)
@@ -271,12 +270,12 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
 
     /* Read the checkpoint metadata of the shared metadata table from the special metadata page. */
     WT_ERR(
-      __disagg_get_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, meta_lsn, checkpoint_id, item));
+      __disagg_get_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, meta_lsn, checkpoint_id, &item));
 
     /* Add the terminating zero byte to the end of the buffer. */
-    len = item->size + 1;
+    len = item.size + 1;
     WT_ERR(__wt_calloc_def(session, len, &buf)); /* This already zeroes out the buffer. */
-    memcpy(buf, item->data, item->size);
+    memcpy(buf, item.data, item.size);
 
     /* Parse out the checkpoint config string. */
     checkpoint_config = strchr(buf, '\n');
@@ -430,6 +429,9 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
     WT_ERR(__layered_update_gc_ingest_tables_prune_timestamps(internal_session));
 
 err:
+    /* Free memory allocated by the page log interface */
+    __wt_free(session, item.mem);
+
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
     if (md_cursor != NULL)
@@ -445,7 +447,6 @@ err:
     __wt_free(session, layered_ingest_uri);
     __wt_free(session, cfg_ret);
 
-    __wt_scr_free(session, &item);
     return (ret);
 }
 

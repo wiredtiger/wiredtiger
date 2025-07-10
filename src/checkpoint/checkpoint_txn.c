@@ -811,6 +811,16 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_ERR(__wt_config_gets(session, cfg, "flush_tier.force", &cval));
     flush_force = cval.val;
 
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+        /* Precise checkpoint doesn't support non-timestamped checkpoint. */
+        if (!use_timestamp)
+            return (EINVAL);
+
+        /* Precise checkpoint needs the stable timestamp. */
+        if (txn_global->stable_timestamp == WT_TS_NONE)
+            return (EINVAL);
+    }
+
     /*
      * Start a snapshot transaction for the checkpoint.
      *
@@ -1193,6 +1203,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     conn->rec_maximum_hs_wrapup_milliseconds = 0;
     conn->rec_maximum_image_build_milliseconds = 0;
     conn->rec_maximum_milliseconds = 0;
+    conn->disaggregated_storage.max_internal_delta_count = 0;
+    conn->disaggregated_storage.max_leaf_delta_count = 0;
 
     /* Initialize the verbose tracking timer */
     __wt_epoch(session, &conn->ckpt.ckpt_api.timer_start);

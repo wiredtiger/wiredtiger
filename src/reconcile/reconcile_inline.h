@@ -156,6 +156,10 @@ __wti_rec_need_split(WTI_RECONCILE *r, size_t len)
 {
     uint32_t page_items;
 
+    /* We cannot split a page that is restored from deltas. */
+    if (F_ISSET(r, WT_REC_REWRITE_DELTA))
+        return (false);
+
     page_items = r->entries + r->supd_next;
 
     /*
@@ -210,14 +214,14 @@ __wti_rec_incr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint32_t v, size_t si
 }
 
 /*
- * __wti_rec_image_copy --
- *     Copy a key/value cell and buffer pair into the new image.
+ * __wti_rec_kv_copy --
+ *     Copy a key/value cell and buffer pair. FIXME-WT-14887: ensure memory safety on the pointer.
  */
 static WT_INLINE void
-__wti_rec_image_copy(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *kv)
+__wti_rec_kv_copy(WT_SESSION_IMPL *session, uint8_t *p, WTI_REC_KV *kv)
 {
     size_t len;
-    uint8_t *p, *t;
+    uint8_t *t;
 
     /*
      * If there's only one chunk of data to copy (because the cell and data are being copied from
@@ -226,7 +230,7 @@ __wti_rec_image_copy(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *kv)
      *
      * WT_CELLs are typically small, 1 or 2 bytes -- don't call memcpy, do the copy in-line.
      */
-    for (p = r->first_free, t = (uint8_t *)&kv->cell, len = kv->cell_len; len > 0; --len)
+    for (t = (uint8_t *)&kv->cell, len = kv->cell_len; len > 0; --len)
         *p++ = *t++;
 
     /* The data can be quite large -- call memcpy. */
@@ -234,6 +238,16 @@ __wti_rec_image_copy(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *kv)
         memcpy(p, kv->buf.data, kv->buf.size);
 
     WT_ASSERT(session, kv->len == kv->cell_len + kv->buf.size);
+}
+
+/*
+ * __wti_rec_image_copy --
+ *     Copy a key/value cell and buffer pair into the new image.
+ */
+static WT_INLINE void
+__wti_rec_image_copy(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *kv)
+{
+    __wti_rec_kv_copy(session, r->first_free, kv);
     __wti_rec_incr(session, r, 1, kv->len);
 }
 
@@ -477,7 +491,8 @@ __wti_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WTI_UPDATE_SELECT
      * create an extra update on the end of the chain later in reconciliation as we'll re-append the
      * disk image value to the update chain.
      */
-    if (!tw->prepare && !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY)) {
+    if (!tw->prepare && !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY) &&
+      !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) {
         /*
          * Check if the start of the time window is globally visible, and if so remove unnecessary
          * values.

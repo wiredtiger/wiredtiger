@@ -142,7 +142,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
-    /* WT_ITEM *deltas; */
+    WT_ITEM *deltas;
     WT_ITEM *tmp;
     WT_PAGE *notused;
     WT_PAGE_BLOCK_META block_meta;
@@ -235,12 +235,10 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
     WT_ASSERT(session, tmp != NULL && count > 0);
 
-    /*
     if (count > 1)
         deltas = &tmp[1];
     else
         deltas = NULL;
-     */
 
     /*
      * Build the in-memory version of the page. Clear our local reference to the allocated copy of
@@ -256,10 +254,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
     if (LF_ISSET(WT_READ_PREFETCH))
         FLD_SET(page_flags, WT_PAGE_PREFETCH);
-    /*
     if (deltas != NULL)
         FLD_SET(page_flags, WT_PAGE_WITH_DELTAS);
-     */
     WT_ERR(__wti_page_inmem(session, ref, tmp[0].data, page_flags, &notused, &instantiate_upd));
     tmp[0].mem = NULL;
     ref->page->block_meta = block_meta;
@@ -267,14 +263,12 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     ref->page->rec_lsn_max = block_meta.disagg_lsn;
 
     /* Reconstruct deltas*/
-    /*
     if (count > 1) {
         ret = __wti_page_reconstruct_deltas(session, ref, deltas, count - 1);
         for (i = 0; i < count - 1; ++i)
             __wt_buf_free(session, &deltas[i]);
         WT_ERR(ret);
     }
-     */
 
     __wt_free(session, tmp);
 
@@ -398,8 +392,10 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
             if (LF_ISSET(WT_READ_CACHE | WT_READ_NO_WAIT))
                 return (WT_NOTFOUND);
             if (LF_ISSET(WT_READ_SKIP_DELETED) &&
-              __wti_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)))
+              __wti_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))) {
+                WT_STAT_CONN_INCR(session, page_read_skip_deleted);
                 return (WT_NOTFOUND);
+            }
             goto read;
         case WT_REF_DISK:
             /* Optionally limit reads to cache-only. */
@@ -447,6 +443,7 @@ read:
             stalled = true;
             break;
         case WT_REF_SPLIT:
+            WT_STAT_CONN_INCR(session, page_split_restart);
             return (WT_RESTART);
         case WT_REF_MEM:
             /*
