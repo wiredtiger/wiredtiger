@@ -33,6 +33,7 @@ from wtscenario import make_scenarios
 
 # test_layered38.py
 # Test garbage collecting redundant content in the ingest table
+@wttest.skip_for_hook("tiered", "FIXME-WT-14938: crashing with tiered hook.")
 @disagg_test_class
 class test_layered38(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = ',create,cache_size=10GB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \

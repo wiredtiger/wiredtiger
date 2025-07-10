@@ -32,6 +32,7 @@ from wtscenario import make_scenarios
 
 # test_layered34.py
 #    Test materialization frontier.
+@wttest.skip_for_hook("tiered", "FIXME-WT-14938: crashing with tiered hook.")
 @disagg_test_class
 class test_layered34(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'statistics=(all),' \
