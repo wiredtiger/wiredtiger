@@ -420,6 +420,7 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
             standard_value->start_ts = unpack.tw.start_ts;
             standard_value->durable_ts = unpack.tw.durable_start_ts;
             if (WT_TIME_WINDOW_HAS_START_PREPARE(&unpack.tw)) {
+                /* FIXME-WT-14899: Remove prepare flag when we align the code between preserve_prepared and non-preserve_prepared connections */
                 WT_ASSERT(session, unpack.tw.prepare);
                 standard_value->prepared_id = unpack.tw.start_prepared_id;
                 standard_value->prepare_ts = unpack.tw.start_prepare_ts;

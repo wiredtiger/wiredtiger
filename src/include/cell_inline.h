@@ -57,7 +57,7 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
      *  - txn is prepared
      *  - transaction is in delete prepared (meaning it has stop_txn defined)
      */
-    bool pack_prepare_info_to_stop = WT_TIME_WINDOW_HAS_STOP_PREPARE(tw);
+    bool pack_prepare_info_to_stop = F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) && WT_TIME_WINDOW_HAS_STOP_PREPARE(tw);
 
     /* We pack prepared txn info to start_ts and durable start_ts when:
      *  - disagg is on
@@ -65,11 +65,13 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
      *  - transaction is in start prepared (no stop), or both start and delete are prepared, which
      * means both start and stop transactions are the same
      */
-    bool pack_prepare_info_to_start = WT_TIME_WINDOW_HAS_START_PREPARE(tw);
+    bool pack_prepare_info_to_start = F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) && WT_TIME_WINDOW_HAS_START_PREPARE(tw);
 
     /*
      * Assert that a prepare timestamp is set if and only if we're packing prepare info (either to
      * start or stop)
+     * FIXME-WT-14899: Can remove this check when prepare flag is removed from the time
+     * window structure.
      */
     if (tw->prepare && F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED))
         WT_ASSERT(session, pack_prepare_info_to_start || pack_prepare_info_to_stop);
@@ -927,7 +929,10 @@ copy_cell_restart:
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_durable_stop_ts));
 
         /* Load temporary values to the right fields */
-        if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) && tw->prepare) {
+        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) && tw->prepare) {
+            /* We can compare the txn_id only here, but cannot do it everywhere else because when recovering, all transactions id are reset
+             * to WT_TXN_MAX, so we cannot compare the transaction ids.
+             */
             if (tw->start_txn == tw->stop_txn) {
                 /*
                  * This is a special case where both transaction start and stop are in prepared

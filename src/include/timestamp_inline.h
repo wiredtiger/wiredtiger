@@ -71,6 +71,7 @@
 /*
  * Set the start values of a time window from those in an update structure. Durable timestamp can be
  * 0 for prepared updates, in those cases use the prepared timestamp as durable timestamp.
+ * FIXME-WT-14899: Can remove preserve_prepared check when we align the code between preserve_prepared and non-preserve_prepared connections.
  */
 #define WT_TIME_WINDOW_SET_START(session, tw, upd)                        \
     do {                                                                  \
@@ -88,6 +89,7 @@
 /*
  * Set the start values of a time window from those in an update structure. Durable timestamp can be
  * 0 for prepared updates, in those cases use the prepared timestamp as durable timestamp.
+ * FIXME-WT-14899: Can remove preserve_prepared check when we align the code between preserve_prepared and non-preserve_prepared connections.
  */
 #define WT_TIME_WINDOW_SET_STOP(session, tw, upd)                         \
     do {                                                                  \
