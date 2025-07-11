@@ -757,8 +757,7 @@ __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *sizep)
     }
 
     /* Make sure the field size we calculated matches the adjusted size. */
-    if (field_size != __wt_vsize_uint(curr_size))
-        WT_RET_MSG(session, EINVAL, "field size mismatch in wt_struct_size_adjust");
+    WT_ASSERT(session, field_size == __wt_vsize_uint(curr_size));
 
     *sizep = curr_size;
 }
