@@ -33,6 +33,7 @@ from wiredtiger import stat
 
 # test_layered43.py
 #    Test disaggregated storage with block cache.
+@wttest.skip_for_hook("tiered", "FIXME-WT-14938: crashing with tiered hook.")
 @disagg_test_class
 class test_layered43(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500

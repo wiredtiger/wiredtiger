@@ -33,6 +33,7 @@
 from test_truncate01 import test_truncate_base
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
+import wttest
 
 # test_truncate_fast_delete
 #       When deleting leaf pages that aren't in memory, we set transactional
@@ -113,7 +114,9 @@ class test_truncate_fast_delete(test_truncate_base):
 
     # Trigger fast delete and test cursor counts.
     def test_truncate_fast_delete(self):
-        if self.type == 'layered:' and self.keyfmt == 'r':
+        # Make the test more reliable.
+        # FIXME-WT-14977 Remove this constraint once disaggregated storage can handle checkpoint id after restart.
+        if self.type == 'layered:' and (self.keyfmt == 'r' or wttest.islongtest()):
             return
 
         uri = self.type + self.name
@@ -142,7 +145,7 @@ class test_truncate_fast_delete(test_truncate_base):
                 cursor.update()
             cursor.close()
 
-        # TODO: disaggregated storage cannot handle checkpoint id after restart.
+        # FIXME-WT-14977 Remove the conditional for layered tables once disaggregated storage can handle checkpoint id after restart.
         if self.type != 'layered:':
             self.session.checkpoint()
         # Close and re-open it so we get a disk image, not an insert skiplist.

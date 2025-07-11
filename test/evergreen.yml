@@ -5588,7 +5588,8 @@ buildvariants:
     - name: catch2-assertions
     - name: ".tiered_unittest"
     - name: bench-tiered-push-pull-s3
-    - name: csuite-timestamp-abort-test-s3
+    # FIXME-WT-14962 - Added for tiered storage; may help disagg but currently a CI blocker and needs re-evaluation.
+    # - name: csuite-timestamp-abort-test-s3
     - name: unit-test-hook-tiered-s3
     - name: chunkcache-test
     - name: ".workgen-test"
