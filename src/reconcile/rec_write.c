@@ -2378,7 +2378,12 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
         if (supd->onpage_upd == NULL && supd->onpage_tombstone == NULL)
             continue;
 
+        /*
+         * No need to include the key in the delta if the selected value is already written by
+         * previous reconciliations.
+         */
         if (supd->onpage_upd == NULL) {
+            /* Skip writing if the key has already been deleted in the previous reconciliation. */
             if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_DELETE_DURABLE))
                 continue;
         } else {
@@ -2475,6 +2480,10 @@ __rec_set_updates_durable(WT_BTREE *btree, WT_MULTI *multi)
         if (supd->onpage_upd == NULL && supd->onpage_tombstone == NULL)
             continue;
 
+        /*
+         * Mark the update that has been written to prevent it from being included in a future
+         * delta.
+         */
         if (supd->onpage_upd == NULL)
             F_SET(supd->onpage_tombstone, WT_UPDATE_DELETE_DURABLE);
         else {

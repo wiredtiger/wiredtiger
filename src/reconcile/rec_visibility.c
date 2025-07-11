@@ -311,6 +311,10 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
         return (true);
 
+    /*
+     * We need to save the update chain to build the delta. Don't save the update chain if the
+     * selected update is already durable.
+     */
     if (upd_select->upd != NULL && F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
       F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_LEAF_PAGE_DELTA)) {
         if (upd_select->tombstone != NULL) {
@@ -324,7 +328,11 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
         }
 
         if (upd_select->upd->type == WT_UPDATE_TOMBSTONE) {
-            /* Save the update if we haven't deleted the key from the disk image. */
+            /*
+             * Save the update if we haven't deleted the key from the disk image. We may have
+             * written the tombstone to disk already but we still need to do another delta to remove
+             * it from disk.
+             */
             if (!F_ISSET(upd_select->upd, WT_UPDATE_DELETE_DURABLE))
                 return (true);
         } else {
