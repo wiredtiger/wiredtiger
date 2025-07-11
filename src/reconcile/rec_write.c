@@ -2379,7 +2379,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
             continue;
 
         /*
-         * No need to include the key in the delta if the selected value is already written by
+         * No need to include the key in the delta if the selected value is already written by the
          * previous reconciliations.
          */
         if (supd->onpage_upd == NULL) {
