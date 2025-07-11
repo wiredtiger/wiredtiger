@@ -491,6 +491,7 @@ struct __wt_connection_stats {
     int64_t block_byte_map_read;
     int64_t block_remap_file_resize;
     int64_t block_remap_file_write;
+    int64_t block_first_srch_walk_time;
     int64_t eviction_interupted_by_app;
     int64_t eviction_app_time;
     int64_t cache_eviction_app_threads_fill_ratio_lt_25;
