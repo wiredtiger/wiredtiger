@@ -420,8 +420,10 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
             standard_value->start_ts = unpack.tw.start_ts;
             standard_value->durable_ts = unpack.tw.durable_start_ts;
             if (WT_TIME_WINDOW_HAS_START_PREPARE(&unpack.tw)) {
-                /* FIXME-WT-14899: Remove prepare flag when we align the code between
-                 * preserve_prepared and non-preserve_prepared connections */
+                /*
+                 * FIXME-WT-14899: Remove prepare flag when we align the code between
+                 * preserve_prepared and non-preserve_prepared connections
+                 */
                 WT_ASSERT(session, unpack.tw.prepare);
                 standard_value->prepared_id = unpack.tw.start_prepared_id;
                 standard_value->prepare_ts = unpack.tw.start_prepare_ts;
@@ -792,7 +794,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
          * Mark the update also as in-progress if the update and tombstone are from same transaction
          * by comparing both the transaction and timestamps as the transaction information gets lost
          * after restart. FIXME-WT-14899: Simplify this check when we align the code between
-         * reserve_prepare vs non-repserve_prepare connection.
+         * reserve_prepare vs non-reserve_prepare connection.
          */
         if (WT_TIME_WINDOW_HAS_START_PREPARE(&(unpack->tw)) ||
           (unpack->tw.start_ts == unpack->tw.stop_ts &&

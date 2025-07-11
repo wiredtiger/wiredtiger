@@ -932,7 +932,7 @@ copy_cell_restart:
         /* Load temporary values to the right fields */
         if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) && tw->prepare) {
             /* We can compare the txn_id only here, but cannot do it everywhere else because when
-             * recovering, all transactions id are reset to WT_TXN_MAX, so we cannot compare the
+             * recovering, all transaction ids are reset to WT_TXN_NONE, so we cannot compare the
              * transaction ids.
              */
             if (tw->start_txn == tw->stop_txn) {
@@ -957,9 +957,7 @@ copy_cell_restart:
                  * in WT_CELL_TS_START and WT_CELL_TS_DURABLE_START, prepare ts in WT_CELL_TS_STOP
                  * prepared id in WT_CELL_TS_DURABLE_STOP.
                  */
-                WT_ASSERT(session,
-                  LF_ISSET(WT_CELL_TS_START) && LF_ISSET(WT_CELL_TS_STOP) &&
-                    LF_ISSET(WT_CELL_TS_DURABLE_STOP));
+                WT_ASSERT(session, LF_ISSET(WT_CELL_TS_STOP) && LF_ISSET(WT_CELL_TS_DURABLE_STOP));
                 tw->start_ts = temp_start_ts;
                 tw->durable_start_ts = temp_durable_start_ts + tw->start_ts;
                 tw->stop_prepare_ts = tw->start_ts + temp_stop_ts;
