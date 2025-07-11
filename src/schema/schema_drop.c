@@ -64,8 +64,8 @@ __drop_file(
      * connection is not ready for history store operations.
      */
     WT_ERR(ret);
-    if (id_found && !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY) &&
-      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_READY))
+    if (id_found && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
+      F_ISSET(S2C(session), WT_CONN_READY))
         if (__wt_hs_btree_truncate(session, id) != 0)
             __wt_verbose_warning(
               session, WT_VERB_HS, "Failed to truncate history store for the file: %s", uri);
@@ -462,7 +462,7 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool
     if (ret == WT_NOTFOUND || ret == ENOENT)
         ret = force ? 0 : ENOENT;
 
-    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_BACKUP_PARTIAL_RESTORE))
+    if (F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL_RESTORE))
         WT_TRET(__wt_meta_track_off(session, false, ret != 0));
     else
         WT_TRET(__wt_meta_track_off(session, true, ret != 0));
