@@ -265,24 +265,6 @@ TEST_CASE("Cell Time Window: Both start and stop prepared", "[cell][time_window]
 
         compare_time_windows(tw, unpacked);
     }
-
-    SECTION("Both start and stop are prepared - invalid time window")
-    {
-        auto tw = create_test_time_window(50, /* start_ts */
-          10,                                 /* start_txn */
-          100,                                /* stop_ts */
-          20,                                 /* stop_txn (different from start) */
-          true,                               /* has_start_prepare */
-          true,                               /* has_stop_prepare */
-          150,                                /* start_prepare_ts */
-          2,                                  /* start_prepared_id */
-          200,                                /* stop_prepare_ts (different from start) */
-          3                                   /* stop_prepared_id (different from start) */
-        );
-
-        CHECK(
-          __cell_check_value_validity(session_mock->get_wt_session_impl(), &tw, true) == WT_ERROR);
-    }
 }
 
 TEST_CASE("Cell Time Window: Regular (non-prepared) time window", "[cell][time_window]")

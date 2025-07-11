@@ -790,8 +790,9 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
          * Mark the update also as in-progress if the update and tombstone are from same transaction
          * by comparing both the transaction and timestamps as the transaction information gets lost
          * after restart.
+         * FIXME-WT-14899: Simplify this check when we align the code between reserve_prepare vs non-prepserve_prepare connection.
          */
-        if ((unpack->tw.start_ts == unpack->tw.stop_ts &&
+        if (WT_TIME_WINDOW_HAS_START_PREPARE(&(unpack->tw)) || (unpack->tw.start_ts == unpack->tw.stop_ts &&
               unpack->tw.durable_start_ts == unpack->tw.durable_stop_ts &&
               unpack->tw.start_txn == unpack->tw.stop_txn)) {
             upd->prepared_id = unpack->tw.start_prepared_id;
