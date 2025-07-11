@@ -146,10 +146,6 @@ compare_time_windows(const WT_TIME_WINDOW &expected, const WT_TIME_WINDOW &actua
     CHECK(expected.stop_prepared_id == actual.stop_prepared_id);
 }
 
-/*
- * TEST CASES
- */
-
 TEST_CASE("Cell Time Window: Empty time window", "[cell][time_window]")
 {
     std::shared_ptr<mock_session> session_mock = mock_session::build_test_mock_session();

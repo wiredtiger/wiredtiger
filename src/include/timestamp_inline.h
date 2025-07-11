@@ -28,12 +28,13 @@
 #define WT_TIME_WINDOW_COPY(dest, source) (*(dest) = *(source))
 
 /* Return true if the time window is equivalent to the default time window. */
-#define WT_TIME_WINDOW_IS_EMPTY(tw)                                                             \
-    ((tw)->durable_start_ts == WT_TS_NONE && (tw)->start_ts == WT_TS_NONE &&                    \
-      (tw)->start_txn == WT_TXN_NONE && (tw)->durable_stop_ts == WT_TS_NONE &&                  \
-      (tw)->start_prepare_ts == WT_TS_NONE && (tw)->start_prepared_id == WT_PREPARED_ID_NONE && \
-      (tw)->stop_ts == WT_TS_MAX && (tw)->stop_txn == WT_TXN_MAX && (tw)->prepare == 0 &&       \
-      (tw)->stop_prepare_ts == WT_TS_NONE && (tw)->stop_prepared_id == WT_PREPARED_ID_NONE)
+#define WT_TIME_WINDOW_IS_EMPTY(tw)                                                           \
+    ((tw)->durable_start_ts == WT_TS_NONE && (tw)->start_ts == WT_TS_NONE &&                  \
+      (tw)->start_txn == WT_TXN_NONE && (tw)->start_prepare_ts == WT_TS_NONE &&               \
+      (tw)->start_prepared_id == WT_PREPARED_ID_NONE && (tw)->stop_ts == WT_TS_MAX &&         \
+      (tw)->stop_txn == WT_TXN_MAX && (tw)->durable_stop_ts == WT_TS_NONE &&                  \
+      (tw)->stop_prepare_ts == WT_TS_NONE && (tw)->stop_prepared_id == WT_PREPARED_ID_NONE && \
+      (tw)->prepare == 0)
 
 /* Check if the start time window is set. */
 #define WT_TIME_WINDOW_HAS_START(tw) \
@@ -51,15 +52,14 @@
     ((tw)->stop_prepared_id != WT_PREPARED_ID_NONE || (tw)->stop_prepare_ts != WT_TS_NONE)
 
 /* Return true if the time windows are the same. */
-#define WT_TIME_WINDOWS_EQUAL(tw1, tw2)                                                           \
-    ((tw1)->durable_start_ts == (tw2)->durable_start_ts && (tw1)->start_ts == (tw2)->start_ts &&  \
-      (tw1)->start_txn == (tw2)->start_txn && (tw1)->start_prepare_ts == (tw2)->start_prepare_ts  \
-    && (tw1)->start_prepared_id == (tw2)->start_prepared_id &&                                     \
-      (tw1)->durable_stop_ts == (tw2)->durable_stop_ts && \
-      (tw1)->stop_ts == (tw2)->stop_ts && (tw1)->stop_txn == (tw2)->stop_txn &&                   \
-      (tw1)->prepare == (tw2)->prepare &&   \
-      (tw1)->stop_prepare_ts == (tw2)->stop_prepare_ts &&                                         \
-      (tw1)->stop_prepared_id == (tw2)->stop_prepared_id)
+#define WT_TIME_WINDOWS_EQUAL(tw1, tw2)                                                          \
+    ((tw1)->durable_start_ts == (tw2)->durable_start_ts && (tw1)->start_ts == (tw2)->start_ts && \
+      (tw1)->start_txn == (tw2)->start_txn &&                                                    \
+      (tw1)->start_prepare_ts == (tw2)->start_prepare_ts &&                                      \
+      (tw1)->start_prepared_id == (tw2)->start_prepared_id &&                                    \
+      (tw1)->durable_stop_ts == (tw2)->durable_stop_ts && (tw1)->stop_ts == (tw2)->stop_ts &&    \
+      (tw1)->stop_txn == (tw2)->stop_txn && (tw1)->stop_prepare_ts == (tw2)->stop_prepare_ts &&  \
+      (tw1)->stop_prepared_id == (tw2)->stop_prepared_id && (tw1)->prepare == (tw2)->prepare)
 
 /* Return true if the stop time windows are the same. */
 #define WT_TIME_WINDOWS_STOP_EQUAL(tw1, tw2)                                                 \
@@ -71,7 +71,8 @@
 /*
  * Set the start values of a time window from those in an update structure. Durable timestamp can be
  * 0 for prepared updates, in those cases use the prepared timestamp as durable timestamp.
- * FIXME-WT-14899: Can remove preserve_prepared check when we align the code between preserve_prepared and non-preserve_prepared connections.
+ * FIXME-WT-14899: Can remove preserve_prepared check when we align the code between
+ * preserve_prepared and non-preserve_prepared connections.
  */
 #define WT_TIME_WINDOW_SET_START(session, tw, upd)                        \
     do {                                                                  \
@@ -89,7 +90,8 @@
 /*
  * Set the start values of a time window from those in an update structure. Durable timestamp can be
  * 0 for prepared updates, in those cases use the prepared timestamp as durable timestamp.
- * FIXME-WT-14899: Can remove preserve_prepared check when we align the code between preserve_prepared and non-preserve_prepared connections.
+ * FIXME-WT-14899: Can remove preserve_prepared check when we align the code between
+ * preserve_prepared and non-preserve_prepared connections.
  */
 #define WT_TIME_WINDOW_SET_STOP(session, tw, upd)                         \
     do {                                                                  \
