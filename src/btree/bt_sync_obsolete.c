@@ -726,6 +726,16 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
         }
         WT_ERR(ret);
 
+        /* Check if we need to wait before continuing with the next file to minimize impact. */
+        if (S2C(session)->cc_cleanup.file_wait_ms > 0) {
+            __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
+              "waiting for %" PRIu64 " milliseconds before continuing",
+              S2C(session)->cc_cleanup.file_wait_ms);
+
+            __wt_cond_wait(session, S2C(session)->cc_cleanup.cond,
+              S2C(session)->cc_cleanup.file_wait_ms * WT_THOUSAND, __checkpoint_cleanup_run_chk);
+        }
+
         /* Check if we're quitting. */
         if (!__checkpoint_cleanup_run_chk(session))
             break;
@@ -812,6 +822,9 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.wait", &cval));
     conn->cc_cleanup.interval = (uint64_t)cval.val;
+
+    WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.file_wait_ms", &cval));
+    conn->cc_cleanup.file_wait_ms = (uint64_t)cval.val;
 
     /*
      * Checkpoint cleanup does enough I/O it may be called upon to perform slow operations for the
