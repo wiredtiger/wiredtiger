@@ -1783,6 +1783,8 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: number of times the file was remapped because it changed size via fallocate or "
   "truncate",
   "block-manager: number of times the region was remapped via write",
+  "block-manager: time spent(usecs) on the most recent linear walk of extents during first-fit "
+  "allocation",
   "cache: application requested eviction interrupt",
   "cache: application thread time evicting (usecs)",
   "cache: application threads eviction requested with cache fill ratio < 25%",
@@ -2756,6 +2758,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_write_leaf_delta_gt100 = 0;
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
+    /* not clearing block_first_srch_walk_time */
     stats->eviction_interupted_by_app = 0;
     stats->eviction_app_time = 0;
     stats->cache_eviction_app_threads_fill_ratio_lt_25 = 0;
@@ -3693,6 +3696,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, block_byte_write_leaf_delta_gt100);
     to->block_remap_file_resize += WT_STAT_CONN_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_CONN_READ(from, block_remap_file_write);
+    to->block_first_srch_walk_time += WT_STAT_CONN_READ(from, block_first_srch_walk_time);
     to->eviction_interupted_by_app += WT_STAT_CONN_READ(from, eviction_interupted_by_app);
     to->eviction_app_time += WT_STAT_CONN_READ(from, eviction_app_time);
     to->cache_eviction_app_threads_fill_ratio_lt_25 +=

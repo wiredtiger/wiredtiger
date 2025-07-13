@@ -279,6 +279,7 @@ conn_stats = [
     BlockStat('block_byte_write_saved_delta_intl', 'bytes saved from being written when using internal page deltas', 'size'),
     BlockStat('block_byte_write_saved_delta_leaf', 'bytes saved from being written when using leaf page deltas', 'size'),
     BlockStat('block_byte_write_syscall', 'bytes written via system call API', 'size'),
+    BlockStat('block_first_srch_walk_time', 'time spent(usecs) on the most recent linear walk of extents during first-fit allocation', 'no_clear,no_scale'),
     BlockStat('block_map_read', 'mapped blocks read'),
     BlockStat('block_preload', 'blocks pre-loaded'),
     BlockStat('block_read', 'blocks read'),
