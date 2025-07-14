@@ -271,7 +271,7 @@ struct __wt_name_flag {
  * WT_CONN_CHECK_PANIC --
  *	Check if we've panicked and return the appropriate error.
  */
-#define WT_CONN_CHECK_PANIC(conn) (F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC) ? WT_PANIC : 0)
+#define WT_CONN_CHECK_PANIC(conn) (F_ISSET(conn, WT_CONN_PANIC) ? WT_PANIC : 0)
 #define WT_SESSION_CHECK_PANIC(session) WT_CONN_CHECK_PANIC(S2C(session))
 
 /*
@@ -338,7 +338,7 @@ struct __wt_name_flag {
  */
 #define WT_CONN_SET_INCR_BACKUP(conn)                     \
     do {                                                  \
-        F_SET_ATOMIC_32((conn), WT_CONN_INCR_BACKUP);     \
+        F_SET((conn), WT_CONN_INCR_BACKUP);               \
         F_SET(&(conn)->log_mgr, WT_LOG_INCR_BACKUP);      \
         WT_STAT_CONN_SET(session, backup_incremental, 1); \
     } while (0)
@@ -836,7 +836,7 @@ struct __wt_connection_impl {
 #define WT_CONN_TIERED_FIRST_FLUSH 0x10000000u
 #define WT_CONN_WAS_BACKUP 0x20000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-    wt_shared uint32_t flags_atomic;
+    wt_shared uint32_t flags;
 };
 
 /*
@@ -862,6 +862,6 @@ struct __wt_sweep_cookie {
  *      Whenever conn->close encounters a non-zero return code, abort the process to track where it
  * came from. This is strictly to be used for debugging purposes.
  */
-#define WT_CONN_CLOSE_ABORT(s, ret)                                                    \
-    if (F_ISSET_ATOMIC_32(S2C(s), WT_CONN_CLOSING) && (ret != 0) && (ret != WT_PANIC)) \
+#define WT_CONN_CLOSE_ABORT(s, ret)                                          \
+    if (F_ISSET(S2C(s), WT_CONN_CLOSING) && (ret != 0) && (ret != WT_PANIC)) \
         __wt_abort(s);
