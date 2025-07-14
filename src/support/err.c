@@ -7,9 +7,35 @@
  */
 
 #include "wt_internal.h"
+#include <stdint.h>
 
 /* Define the string representation of each verbose category. */
 static const char *verbose_category_strings[] = WT_VERBOSE_CATEGORY_STR_INIT;
+
+/*
+ * Definition of the static array holding component IDs for each verbose category. This array is
+ * initialized using the WT_VERB_CATEGORY_IDS macro.
+ *
+ * IMPORTANT: The order of these component IDs MUST precisely match the order of the
+ * WT_VERBOSE_CATEGORY enum values defined in verbose.h.
+ */
+const uint32_t __wt_verbose_category_component_ids[] = WT_VERB_CATEGORY_IDS;
+
+/*
+ * __concatenate_log_id --
+ *     Combines a category and level ID to create a complete log identifier. The resulting ID
+ *     follows the format "XXXXXXX" where: The first two digits (05) are reserved for the base log
+ *     ID. The next two digits identify the WiredTiger component (WT_COMPONENT_*). The final three
+ *     digits denote the specific message ID within that component.
+ */
+static int
+__concatenate_log_id(char *wt_log_id, uint32_t category_id, uint32_t log_id)
+{
+    WT_RET(__wt_snprintf(
+      wt_log_id, WT_MAX_LOG_ID_LENGTH, "%02d%02u%03u", WT_BASE_LOG_ID, category_id, log_id));
+
+    return (0);
+}
 
 /*
  * __handle_error_default --
@@ -229,8 +255,8 @@ __eventv_append_error(const char *err, char *start, char *p, size_t *remainp)
  *     Report a message to an event handler.
  */
 static int
-__eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, int line,
-  WT_VERBOSE_CATEGORY category, WT_VERBOSE_LEVEL level, const char *fmt, va_list ap)
+__eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *wt_log_id, const char *func,
+  int line, WT_VERBOSE_CATEGORY category, WT_VERBOSE_LEVEL level, const char *fmt, va_list ap)
   WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     struct timespec ts;
@@ -316,6 +342,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
     if (is_json) {
         /* Category and verbosity level. */
         WT_ERROR_APPEND(p, remain, "\"category\":\"%s\",", verbose_category_strings[category]);
+        WT_ERROR_APPEND(p, remain, "\"wt_log_id\":\"%s\",", wt_log_id);
         WT_ERROR_APPEND(p, remain, "\"category_id\":%" PRIu32 ",", category);
         WT_ERROR_APPEND(p, remain, "\"verbose_level\":\"%s\",", verbosity_level_tag);
         WT_ERROR_APPEND(p, remain, "\"verbose_level_id\":%d,", level);
@@ -473,7 +500,12 @@ __wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
   WT_VERBOSE_CATEGORY category, const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((cold))
   WT_GCC_FUNC_ATTRIBUTE((format(printf, 6, 7))) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
+    char concatenated_id_str[WT_MAX_LOG_ID_LENGTH];
     va_list ap;
+
+    /* Use log ID '000' as default identifier for category-specific error messages */
+    WT_IGNORE_RET(
+      __concatenate_log_id(concatenated_id_str, WT_GET_VERBOSE_COMPONENT_ID(category), 000));
 
     /*
      * Ignore error returns from underlying event handlers, we already have an error value to
@@ -481,8 +513,8 @@ __wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      */
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session,
-      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, error, func,
-      line, category, WT_VERBOSE_ERROR, fmt, ap));
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, error,
+      concatenated_id_str, func, line, category, WT_VERBOSE_ERROR, fmt, ap));
     va_end(ap);
 }
 
@@ -495,7 +527,12 @@ __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, WT_VERBOSE_
   const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((cold)) WT_GCC_FUNC_ATTRIBUTE((format(printf, 5, 6)))
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
+    char concatenated_id_str[WT_MAX_LOG_ID_LENGTH];
     va_list ap;
+
+    /* Use log ID '000' as default identifier for category-specific error messages */
+    WT_IGNORE_RET(
+      __concatenate_log_id(concatenated_id_str, WT_GET_VERBOSE_COMPONENT_ID(category), 000));
 
     /*
      * Ignore error returns from underlying event handlers, we already have an error value to
@@ -503,8 +540,8 @@ __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, WT_VERBOSE_
      */
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session,
-      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0, func, line,
-      category, WT_VERBOSE_ERROR, fmt, ap));
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0,
+      concatenated_id_str, func, line, category, WT_VERBOSE_ERROR, fmt, ap));
     va_end(ap);
 }
 
@@ -518,7 +555,12 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
   WT_GCC_FUNC_ATTRIBUTE((format(printf, 6, 7))) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     WT_CONNECTION_IMPL *conn;
+    char concatenated_id_str[WT_MAX_LOG_ID_LENGTH];
     va_list ap;
+
+    /* Use log ID '000' as default identifier for category-specific error messages */
+    WT_IGNORE_RET(
+      __concatenate_log_id(concatenated_id_str, WT_GET_VERBOSE_COMPONENT_ID(category), 000));
 
     /*
      * !!!
@@ -535,7 +577,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
     va_start(ap, fmt);
     WT_IGNORE_RET(
       __eventv(session, conn != NULL ? FLD_ISSET(conn->json_output, WT_JSON_OUTPUT_ERROR) : false,
-        error, func, line, category, WT_VERBOSE_ERROR, fmt, ap));
+        error, concatenated_id_str, func, line, category, WT_VERBOSE_ERROR, fmt, ap));
     va_end(ap);
 
     /* If the connection has already panicked, just return the error. */
@@ -551,7 +593,8 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
     va_start(ap, fmt);
     WT_IGNORE_RET(
       __eventv(session, conn != NULL ? FLD_ISSET(conn->json_output, WT_JSON_OUTPUT_ERROR) : false,
-        WT_PANIC, func, line, category, WT_VERBOSE_ERROR, "the process must exit and restart", ap));
+        WT_PANIC, concatenated_id_str, func, line, category, WT_VERBOSE_ERROR,
+        "the process must exit and restart", ap));
     va_end(ap);
 
 #ifdef HAVE_DIAGNOSTIC
@@ -611,15 +654,18 @@ __wt_ext_err_printf(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    char concatenated_id_str[WT_MAX_LOG_ID_LENGTH];
     va_list ap;
+
+    WT_IGNORE_RET(__concatenate_log_id(concatenated_id_str, 00, 000));
 
     if ((session = (WT_SESSION_IMPL *)wt_session) == NULL)
         session = ((WT_CONNECTION_IMPL *)wt_api->conn)->default_session;
 
     va_start(ap, fmt);
     ret = __eventv(session,
-      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0, NULL, 0,
-      WT_VERB_EXTENSION, WT_VERBOSE_ERROR, fmt, ap);
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0, NULL,
+      concatenated_id_str, 0, WT_VERB_EXTENSION, WT_VERBOSE_ERROR, fmt, ap);
     va_end(ap);
     return (ret);
 }
@@ -632,12 +678,39 @@ void
 __wt_verbose_worker(WT_SESSION_IMPL *session, WT_VERBOSE_CATEGORY category, WT_VERBOSE_LEVEL level,
   const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((format(printf, 4, 5))) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
+    char concatenated_id_str[WT_MAX_LOG_ID_LENGTH];
     va_list ap;
+
+    /* Use log ID '000' as default identifier for category-specific error messages */
+    WT_IGNORE_RET(
+      __concatenate_log_id(concatenated_id_str, WT_GET_VERBOSE_COMPONENT_ID(category), 000));
 
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session,
-      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_MESSAGE) : false, 0, NULL, 0,
-      category, level, fmt, ap));
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_MESSAGE) : false, 0,
+      concatenated_id_str, NULL, 0, category, level, fmt, ap));
+    va_end(ap);
+}
+
+/*
+ * __wt_verbose_worker_id --
+ *     Verbose message that takes the verbose info structure.
+ */
+void
+__wt_verbose_worker_id(WT_SESSION_IMPL *session, WT_VERBOSE_MESSAGE_INFO *verb_info,
+  const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((format(printf, 3, 4))) WT_GCC_FUNC_ATTRIBUTE((cold))
+{
+    char concatenated_id_str[WT_MAX_LOG_ID_LENGTH];
+    va_list ap;
+
+    /* Use log ID '000' as default identifier for category-specific error messages */
+    WT_IGNORE_RET(__concatenate_log_id(concatenated_id_str,
+      WT_GET_VERBOSE_COMPONENT_ID(verb_info->verb_category), verb_info->verb_log_id));
+
+    va_start(ap, fmt);
+    WT_IGNORE_RET(__eventv(session,
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_MESSAGE) : false, 0,
+      concatenated_id_str, NULL, 0, verb_info->verb_category, verb_info->verb_level, fmt, ap));
     va_end(ap);
 }
 
