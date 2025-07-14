@@ -255,10 +255,8 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
          * be in the wrong buffer and the buffer may be the wrong size. If needed, get the page into
          * the destination buffer.
          */
-        if (ip != buf) {
-            fprintf(stderr, "found=%s buf=%p ip->data=%p dsk->mem_size=%" PRIu32 "\n", found ? "true" : "false", buf, ip->data, dsk->mem_size);
+        if (ip != buf)
             WT_ERR(__wt_buf_set(session, buf, ip->data, dsk->mem_size));
-        }
     }
 
     /*
