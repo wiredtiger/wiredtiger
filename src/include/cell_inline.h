@@ -57,9 +57,8 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
      *  - txn is prepared
      *  - transaction is in delete prepared (meaning it has stop_txn defined)
      */
-    const bool pack_prepare_info_to_stop =
-      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) && tw->prepare &&
-      WT_TIME_WINDOW_HAS_STOP(tw);
+    const bool pack_prepare_info_to_stop = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+      tw->prepare && WT_TIME_WINDOW_HAS_STOP(tw);
 
     /* We pack prepared txn info to start_ts and durable start_ts when:
      *  - disagg is on
@@ -67,9 +66,8 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
      *  - transaction is in start prepared (no stop), or both start and delete are prepared, which
      * means both start and stop transactions are the same
      */
-    const bool pack_prepare_info_to_start =
-      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) && tw->prepare &&
-      (!WT_TIME_WINDOW_HAS_STOP(tw) || tw->stop_txn == tw->start_txn);
+    const bool pack_prepare_info_to_start = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+      tw->prepare && (!WT_TIME_WINDOW_HAS_STOP(tw) || tw->stop_txn == tw->start_txn);
 
     /*
      * Assert that a prepare timestamp is set if and only if we're packing prepare info (either to
@@ -927,7 +925,7 @@ copy_cell_restart:
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_durable_stop_ts));
 
         /* Load temporary values to the right fields */
-        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) && tw->prepare) {
+        if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) && tw->prepare) {
             if (tw->start_txn == tw->stop_txn) {
                 /*
                  * This is a special case where both transaction start and stop are in prepared
