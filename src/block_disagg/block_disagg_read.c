@@ -228,12 +228,10 @@ reread:
                  * Swap the page-header as needed; this doesn't belong here, but it's the best place
                  * to catch all callers.
                  */
-                /*
                 if (is_delta)
                     __wt_delta_header_byteswap((void *)current->data);
                 else
                     __wt_page_header_byteswap((void *)current->data);
-                 */
                 checksum = swap.previous_checksum;
                 continue;
             }
