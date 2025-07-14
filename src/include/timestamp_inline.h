@@ -186,7 +186,7 @@
             (ta)->newest_txn = WT_MAX((tw)->stop_txn, (ta)->newest_txn);       \
         (ta)->newest_stop_ts = WT_MAX((tw)->stop_ts, (ta)->newest_stop_ts);    \
         if ((tw)->stop_prepare_ts != WT_TS_NONE)  \
-            (ta)->newest_stop_txn = WT_MAX((tw)->stop_prepare_ts, (ta)->newest_stop_ts); \
+            (ta)->newest_stop_ts = WT_MAX((tw)->stop_prepare_ts, (ta)->newest_stop_ts); \
         (ta)->newest_stop_txn = WT_MAX((tw)->stop_txn, (ta)->newest_stop_txn); \
         if ((tw)->prepare != 0)                                                \
             (ta)->prepare = 1;                                                 \
