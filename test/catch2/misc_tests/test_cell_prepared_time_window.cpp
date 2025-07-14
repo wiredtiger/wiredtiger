@@ -151,7 +151,7 @@ TEST_CASE("Cell Time Window: Empty time window", "[cell][time_window]")
     std::shared_ptr<mock_session> session_mock = mock_session::build_test_mock_session();
     WT_CONNECTION_IMPL *conn;
     conn = S2C(session_mock->get_wt_session_impl());
-    F_SET_ATOMIC_32(conn, WT_CONN_PRESERVE_PREPARED);
+    F_SET(conn, WT_CONN_PRESERVE_PREPARED);
 
     /* Set up the btree structure that the cell unpacking code needs */
     session_mock->setup_block_manager_file_operations();
@@ -171,7 +171,7 @@ TEST_CASE("Cell Time Window: Start prepared only", "[cell][time_window]")
     std::shared_ptr<mock_session> session_mock = mock_session::build_test_mock_session();
     WT_CONNECTION_IMPL *conn;
     conn = S2C(session_mock->get_wt_session_impl());
-    F_SET_ATOMIC_32(conn, WT_CONN_PRESERVE_PREPARED);
+    F_SET(conn, WT_CONN_PRESERVE_PREPARED);
 
     /* Set up the btree structure that the cell unpacking code needs */
     session_mock->setup_block_manager_file_operations();
@@ -202,7 +202,7 @@ TEST_CASE("Cell Time Window: Stop prepared only", "[cell][time_window]")
     std::shared_ptr<mock_session> session_mock = mock_session::build_test_mock_session();
     WT_CONNECTION_IMPL *conn;
     conn = S2C(session_mock->get_wt_session_impl());
-    F_SET_ATOMIC_32(conn, WT_CONN_PRESERVE_PREPARED);
+    F_SET(conn, WT_CONN_PRESERVE_PREPARED);
 
     /* Set up the btree structure that the cell unpacking code needs */
     session_mock->setup_block_manager_file_operations();
@@ -235,7 +235,7 @@ TEST_CASE("Cell Time Window: Both start and stop prepared", "[cell][time_window]
     std::shared_ptr<mock_session> session_mock = mock_session::build_test_mock_session();
     WT_CONNECTION_IMPL *conn;
     conn = S2C(session_mock->get_wt_session_impl());
-    F_SET_ATOMIC_32(conn, WT_CONN_PRESERVE_PREPARED);
+    F_SET(conn, WT_CONN_PRESERVE_PREPARED);
 
     /* Set up the btree structure that the cell unpacking code needs */
     session_mock->setup_block_manager_file_operations();
@@ -268,7 +268,7 @@ TEST_CASE("Cell Time Window: Regular (non-prepared) time window", "[cell][time_w
     std::shared_ptr<mock_session> session_mock = mock_session::build_test_mock_session();
     WT_CONNECTION_IMPL *conn;
     conn = S2C(session_mock->get_wt_session_impl());
-    F_SET_ATOMIC_32(conn, WT_CONN_PRESERVE_PREPARED);
+    F_SET(conn, WT_CONN_PRESERVE_PREPARED);
 
     /* Set up the btree structure that the cell unpacking code needs */
     session_mock->setup_block_manager_file_operations();
