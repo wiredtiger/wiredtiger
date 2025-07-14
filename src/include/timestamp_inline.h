@@ -193,12 +193,11 @@
             (ta)->newest_stop_ts = WT_MAX((tw)->stop_prepare_ts, (ta)->newest_stop_ts);    \
             (ta)->newest_stop_durable_ts =                                                 \
               WT_MAX((tw)->stop_prepare_ts, (ta)->newest_stop_durable_ts);                 \
-        }
-(ta)->newest_stop_txn = WT_MAX((tw)->stop_txn, (ta)->newest_stop_txn);
-if ((tw)->prepare != 0)
-    (ta)->prepare = 1;
-}
-while (0)
+        }                                                                                  \
+        (ta)->newest_stop_txn = WT_MAX((tw)->stop_txn, (ta)->newest_stop_txn);             \
+        if ((tw)->prepare != 0)                                                            \
+            (ta)->prepare = 1;                                                             \
+    } while (0)
 
 /*
  * Update a time aggregate from a page deleted structure. A page delete is equivalent to an entire
