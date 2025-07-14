@@ -15,12 +15,7 @@
 static void
 __block_disagg_header_byteswap(WT_BLOCK_DISAGG_HEADER *blk)
 {
-#ifdef WORDS_BIGENDIAN
-    blk->checksum = __wt_bswap32(blk->checksum);
-    blk->previous_checksum = __wt_bswap32(blk->previous_checksum);
-#else
     WT_UNUSED(blk);
-#endif
 }
 
 /*
@@ -31,10 +26,6 @@ void
 __wti_block_disagg_header_byteswap_copy(WT_BLOCK_DISAGG_HEADER *from, WT_BLOCK_DISAGG_HEADER *to)
 {
     *to = *from;
-#ifdef WORDS_BIGENDIAN
-    to->checksum = __wt_bswap32(to->checksum);
-    to->previous_checksum = __wt_bswap32(to->previous_checksum);
-#endif
 }
 
 /*
