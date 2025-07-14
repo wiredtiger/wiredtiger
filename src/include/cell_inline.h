@@ -77,9 +77,8 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
     if (tw->prepare && F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED))
         WT_ASSERT(session, pack_prepare_info_to_start || pack_prepare_info_to_stop);
 
-    if (pack_prepare_info_to_start && pack_prepare_info_to_stop) {
+    if (pack_prepare_info_to_start && pack_prepare_info_to_stop)
         WT_ASSERT(session, tw->start_prepared_id == tw->stop_prepared_id);
-    }
 
     wt_timestamp_t reference_ts = tw->start_ts;
 
@@ -931,7 +930,8 @@ copy_cell_restart:
 
         /* Load temporary values to the right fields */
         if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) && tw->prepare) {
-            /* We can compare the txn_id only here, but cannot do it everywhere else because when
+            /*
+             * We can compare the txn_id only here, but cannot do it everywhere else because when
              * recovering, all transaction ids are reset to WT_TXN_NONE, so we cannot compare the
              * transaction ids.
              */
