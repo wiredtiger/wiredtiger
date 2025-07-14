@@ -177,8 +177,8 @@
             (ta)->oldest_start_ts = WT_MIN((tw)->start_prepare_ts, (ta)->oldest_start_ts); \
             (ta)->newest_start_durable_ts =                                                \
               WT_MAX((tw)->start_prepare_ts, (ta)->newest_start_durable_ts);               \
-            (ta)->newest_txn = WT_MAX((tw)->start_txn, (ta)->newest_txn);                  \
         }                                                                                  \
+        (ta)->newest_txn = WT_MAX((tw)->start_txn, (ta)->newest_txn);                      \
         /*                                                                                 \
          * Aggregation of newest transaction is calculated from both start and             \
          * stop transactions. Consider only valid stop transactions.                       \
