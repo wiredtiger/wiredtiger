@@ -1288,6 +1288,10 @@ __curhs_btree_id_to_hs_id(WT_SESSION_IMPL *session, uint32_t btree_id)
 {
     WT_ASSERT(session, btree_id != 0);
 
+    /* No table ID namespaces. */
+    if (!__wt_conn_is_disagg(session))
+        return (1);
+
     /*
      * Map the history store ID into the URI. The current implementation does this simply using
      * table ID namespaces, but keep the notion of HS ID and namespace ID separate to ensure that we
