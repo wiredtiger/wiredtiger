@@ -173,7 +173,10 @@
           WT_MAX((tw)->durable_start_ts, (ta)->newest_start_durable_ts);       \
         (ta)->newest_stop_durable_ts =                                         \
           WT_MAX((tw)->durable_stop_ts, (ta)->newest_stop_durable_ts);         \
-        (ta)->oldest_start_ts = WT_MIN((tw)->start_ts, (ta)->oldest_start_ts); \
+        if ((tw)->start_ts != WT_TS_NONE) \
+            (ta)->oldest_start_ts = WT_MIN((tw)->start_ts, (ta)->oldest_start_ts); \
+        if ((tw)->start_prepare_ts != WT_TS_NONE)  \
+            (ta)->oldest_start_ts = WT_MIN((tw)->start_prepare_ts, (ta)->oldest_start_ts); \
         (ta)->newest_txn = WT_MAX((tw)->start_txn, (ta)->newest_txn);          \
         /*                                                                     \
          * Aggregation of newest transaction is calculated from both start and \
@@ -182,6 +185,8 @@
         if ((tw)->stop_txn != WT_TXN_MAX)                                      \
             (ta)->newest_txn = WT_MAX((tw)->stop_txn, (ta)->newest_txn);       \
         (ta)->newest_stop_ts = WT_MAX((tw)->stop_ts, (ta)->newest_stop_ts);    \
+        if ((tw)->stop_prepare_ts != WT_TS_NONE)  \
+            (ta)->newest_start_durable_ts = WT_MAX((tw)->stop_prepare_ts, (ta)->newest_stop_ts); \
         (ta)->newest_stop_txn = WT_MAX((tw)->stop_txn, (ta)->newest_stop_txn); \
         if ((tw)->prepare != 0)                                                \
             (ta)->prepare = 1;                                                 \
