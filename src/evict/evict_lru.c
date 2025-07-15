@@ -708,12 +708,13 @@ __evict_update_work(WT_SESSION_IMPL *session)
                 (void)ret; /* Keep the assignment to 0 just in case, but suppress clang warnings. */
                 break;
             }
-            if (__wt_hs_get_btree(session, hs_id, &hs_tree) == 0) {
+            if ((ret = __wt_hs_get_cached_btree(session, hs_id, &hs_tree)) == 0) {
                 total_inmem += __wt_atomic_load64(&hs_tree->bytes_inmem);
                 total_dirty += __wt_atomic_load64(&hs_tree->bytes_dirty_intl) +
                   __wt_atomic_load64(&hs_tree->bytes_dirty_leaf);
                 total_updates += __wt_atomic_load64(&hs_tree->bytes_updates);
             }
+            WT_RET_NOTFOUND_OK(ret);
         }
         __wt_atomic_store64(&cache->bytes_hs, total_inmem);
         __wt_atomic_store64(&cache->bytes_hs_dirty, total_dirty);

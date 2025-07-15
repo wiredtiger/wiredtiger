@@ -1391,19 +1391,9 @@ __wt_curhs_open_ext(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t btree_id,
 
     cursor = NULL;
     *cursorp = NULL;
+    uri = NULL;
 
-    switch (hs_id) {
-    case 1:
-        uri = WT_HS_URI;
-        break;
-
-    case 2:
-        uri = WT_HS_URI_SHARED;
-        break;
-
-    default:
-        WT_ERR_MSG(session, EINVAL, "No such History Store ID: %" PRIu32, hs_id);
-    }
+    WT_ERR(__wt_hs_id_to_uri(session, hs_id, &uri));
 
     WT_ERR(__wt_calloc_one(session, &hs_cursor));
     ++session->hs_cursor_counter;

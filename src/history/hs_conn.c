@@ -33,11 +33,57 @@ __hs_cleanup_las(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_hs_get_btree --
+ * __wt_hs_id_to_uri --
+ *     Convert HS ID to URI name.
+ */
+int
+__wt_hs_id_to_uri(WT_SESSION_IMPL *session, uint32_t hs_id, const char **uri)
+{
+    const char *tmp_uri;
+    WT_ASSERT(session, uri != NULL);
+
+    switch (hs_id) {
+    case 1:
+        tmp_uri = WT_HS_URI;
+        break;
+
+    case 2:
+        tmp_uri = WT_HS_URI_SHARED;
+        break;
+
+    default:
+        WT_RET_MSG(session, EINVAL, "No such History Store ID: %" PRIu32, hs_id);
+    }
+    *uri = tmp_uri;
+    return (0);
+}
+
+/*
+ * __wt_hs_get_cached_btree --
+ *     Get the history store btree from the connection dhandle cache.
+ */
+int
+__wt_hs_get_cached_btree(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_btreep)
+{
+    WT_DECL_RET;
+    const char *uri;
+
+    uri = NULL;
+    WT_RET(__wt_hs_id_to_uri(session, hs_id, &uri));
+
+    WT_WITH_HANDLE_LIST_READ_LOCK(session, (ret = __wt_conn_dhandle_find(session, uri, NULL)));
+
+    if (ret == 0)
+        *hs_btreep = S2BT(session);
+    return (ret);
+}
+
+/*
+ * __wti_hs_get_btree --
  *     Get the history store btree by opening a history store cursor.
  */
 int
-__wt_hs_get_btree(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_btreep)
+__wti_hs_get_btree(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_btreep)
 {
     WT_CURSOR *hs_cursor;
 
@@ -80,7 +126,7 @@ __hs_config(WT_SESSION_IMPL *session, uint32_t hs_id, const char **cfg)
     WT_ERR(__wt_open_internal_session(conn, "hs_access", true, 0, 0, &tmp_setup_session));
 
     /* Retrieve the btree from the history store cursor. */
-    WT_ERR(__wt_hs_get_btree(tmp_setup_session, hs_id, &btree));
+    WT_ERR(__wti_hs_get_btree(tmp_setup_session, hs_id, &btree));
 
     /* Track the history store file ID. */
     if (conn->cache->hs_fileid == 0)
