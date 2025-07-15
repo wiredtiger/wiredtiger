@@ -212,3 +212,4 @@ class test_import12(test_import_base):
             self.pr("Close connection - end of loop")
             self.conn.close()
 
+            self.ignoreStdoutPatternIfExists('extent list')
