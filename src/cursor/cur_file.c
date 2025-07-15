@@ -378,7 +378,7 @@ __curfile_insert(WT_CURSOR *cursor)
     uint64_t time_start, time_stop;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, cbt->dhandle);
+    CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, insert);
     WT_ERR(__cursor_copy_release(cursor));
 
     if (!F_ISSET(cursor, WT_CURSTD_APPEND))
@@ -1202,7 +1202,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
     /*
      * Decode the bulk configuration settings. In memory databases ignore bulk load.
      */
-    if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY)) {
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
         WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
         if (cval.type == WT_CONFIG_ITEM_BOOL ||
           (cval.type == WT_CONFIG_ITEM_NUM && (cval.val == 0 || cval.val == 1))) {
