@@ -917,6 +917,30 @@ err:
     }
 
 static int
+palm_handle_get_page_ids(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t checkpoint_id){
+    PALM_KV_CONTEXT context;
+    PALM_HANDLE *palm_handle = (PALM_HANDLE *)plh;
+    PALM *palm = palm_handle->palm;
+    palm_delay(palm, session);
+    size_t num_pages = 0;
+    int ret;
+
+    palm_init_context(palm, &context);
+
+    ret = palm_kv_get_page_ids(&context, NULL, &num_pages);
+
+    uint64_t *page_ids = malloc(num_pages * sizeof(uint64_t));
+    if (page_ids == NULL) {
+        ret = palm_err(palm, session, errno, "malloc");
+        return (ret);
+    }
+
+    ret = palm_kv_get_page_ids(&context, page_ids, &num_pages);
+
+    return page_ids;
+}
+
+static int
 palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
   uint64_t checkpoint_id, WT_PAGE_LOG_GET_ARGS *get_args, WT_ITEM *results_array,
   uint32_t *results_count)
@@ -1079,6 +1103,7 @@ palm_open_handle(
     palm_handle->iface.plh_discard = palm_handle_discard;
     palm_handle->iface.plh_put = palm_handle_put;
     palm_handle->iface.plh_get = palm_handle_get;
+    palm_handle->iface.plh_get_page_ids = palm_handle_get_page_ids;
     palm_handle->iface.plh_close = palm_handle_close;
     palm_handle->palm = palm;
     palm_handle->table_id = table_id;

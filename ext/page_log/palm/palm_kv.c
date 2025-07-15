@@ -384,6 +384,52 @@ palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id, 
 }
 
 int
+palm_kv_get_page_ids(PALM_KV_CONTEXT *context, uint64_t *page_ids, size_t *num_pages, uint64_t checkpoint_id){
+
+    MDB_cursor *cursor;
+    MDB_val kval;
+    MDB_val vval;
+    int ret;
+    size_t count = 0;
+
+    memset(&kval, 0, sizeof(kval));
+    memset(&vval, 0, sizeof(kval));
+
+
+    if ((ret = mdb_cursor_open(
+        context->lmdb_txn, context->env->lmdb_pages_dbi, &cursor)) != 0)
+        return (ret);
+
+    ret = mdb_cursor_get(cursor, &kval, &vval, MDB_FIRST);
+
+    /*
+    * Iterate through the pages table, looking for pages that match the checkpoint ID.
+    */
+    while (ret == 0) {
+        if (kval.mv_size == sizeof(PAGE_KEY)) {
+            PAGE_KEY *key = (PAGE_KEY *)kval.mv_data;
+            PAGE_KEY decoded_key;
+            swap_page_key(key, &decoded_key);
+
+            /*
+            * If tombstone detected, skip it.
+            */
+            if (page_ids && (!(decoded_key.flags & WT_PALM_KV_TOMBSTONE))) {
+                if (decoded_key.checkpoint_id == checkpoint_id) {
+                    page_ids[count++] = decoded_key.page_id;
+                }
+            }
+        }
+        ret = mdb_cursor_get(cursor, &kval, &vval, MDB_NEXT);
+    }
+
+    if (num_pages)
+        *num_pages = count;
+
+    return (0);
+}
+
+int
 palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
   uint64_t lsn, uint64_t checkpoint_id, PALM_KV_PAGE_MATCHES *matches)
 {
