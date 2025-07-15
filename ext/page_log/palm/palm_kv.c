@@ -384,11 +384,12 @@ palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id, 
 }
 
 int
-palm_kv_get_page_ids(PALM_KV_CONTEXT *context, uint64_t *page_ids, size_t *num_pages, uint64_t checkpoint_id){
+palm_kv_get_page_ids(PALM_KV_CONTEXT *context, WT_ITEM *item, uint64_t checkpoint_id){
 
     MDB_cursor *cursor;
     MDB_val kval;
     MDB_val vval;
+    MDB_stat *stat;
     int ret;
     size_t count = 0;
 
@@ -399,6 +400,13 @@ palm_kv_get_page_ids(PALM_KV_CONTEXT *context, uint64_t *page_ids, size_t *num_p
     if ((ret = mdb_cursor_open(
         context->lmdb_txn, context->env->lmdb_pages_dbi, &cursor)) != 0)
         return (ret);
+
+    // Get maximum size for page ids
+    ret = mdb_stat(context->lmdb_txn, context->env->lmdb_pages_dbi, stat);
+    if (ret != 0)
+        return (ret);
+        
+    item->data = malloc(stat->ms_entries * sizeof(uint64_t));
 
     ret = mdb_cursor_get(cursor, &kval, &vval, MDB_FIRST);
 
@@ -414,17 +422,18 @@ palm_kv_get_page_ids(PALM_KV_CONTEXT *context, uint64_t *page_ids, size_t *num_p
             /*
             * If tombstone detected, skip it.
             */
-            if (page_ids && (!(decoded_key.flags & WT_PALM_KV_TOMBSTONE))) {
-                if (decoded_key.checkpoint_id == checkpoint_id) {
-                    page_ids[count++] = decoded_key.page_id;
+            if (item->data && (!(decoded_key.flags & WT_PALM_KV_TOMBSTONE))) {
+                if (decoded_key.checkpoint_id == checkpoint_id && !decoded_key.is_delta) {
+                    item->data[count++] = decoded_key.page_id;
                 }
             }
         }
         ret = mdb_cursor_get(cursor, &kval, &vval, MDB_NEXT);
+        if (ret != 0 && ret != MDB_NOTFOUND)
+            return (ret);
     }
 
-    if (num_pages)
-        *num_pages = count;
+    item->size = count;
 
     return (0);
 }
