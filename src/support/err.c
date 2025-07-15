@@ -695,13 +695,12 @@ __wt_verbose_worker_id(WT_SESSION_IMPL *session, const WT_VERBOSE_MESSAGE_INFO *
     char concatenated_id_str[WT_MAX_LOG_ID_LENGTH];
     va_list ap;
 
-    WT_IGNORE_RET(
-      __concatenate_log_id(concatenated_id_str, verb_info->verb_category, verb_info->verb_log_id));
+    WT_IGNORE_RET(__concatenate_log_id(concatenated_id_str, verb_info->category, verb_info->id));
 
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session,
       session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_MESSAGE) : false, 0,
-      concatenated_id_str, NULL, 0, verb_info->verb_category, verb_info->verb_level, fmt, ap));
+      concatenated_id_str, NULL, 0, verb_info->category, verb_info->level, fmt, ap));
     va_end(ap);
 }
 
