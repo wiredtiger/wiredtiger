@@ -24,14 +24,17 @@ extern "C" {
 /*******************************************
  * Required includes
  *******************************************/
-@wiredtiger_includes_decl@
+#include <sys/types.h>
+#include <inttypes.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
 
 /*******************************************
  * Portable type names
  *******************************************/
-@off_t_decl@
-@uintmax_t_decl@
-@uintptr_t_decl@
+typedef int64_t wt_off_t;
 
 #if defined(DOXYGEN) || defined(SWIG)
 #define __F(func) func

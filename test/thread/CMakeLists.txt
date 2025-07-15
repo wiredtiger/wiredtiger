@@ -1,4 +1,3 @@
-project(test_thread C)
 
 create_test_executable(test_thread
     SOURCES

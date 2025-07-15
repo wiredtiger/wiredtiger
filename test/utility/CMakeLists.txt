@@ -1,4 +1,3 @@
-project(libtest C)
 
 set(sources
     backup.c

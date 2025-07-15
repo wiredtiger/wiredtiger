@@ -1,4 +1,3 @@
-project(test_syscall C)
 
 create_test_executable(test_wt2336_base
     SOURCES wt2336_base/main.c

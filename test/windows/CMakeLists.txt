@@ -1,4 +1,3 @@
-project(libwinshim C)
 
 set(sources
     windows_shim.c
