@@ -69,41 +69,27 @@
       (tw1)->stop_prepare_ts == (tw2)->stop_prepare_ts)
 
 /*
- * Set the start values of a time window from those in an update structure. Durable timestamp can be
- * 0 for prepared updates, in those cases use the prepared timestamp as durable timestamp.
- * FIXME-WT-14899: Can remove preserve_prepared check when we align the code between
- * preserve_prepared and non-preserve_prepared connections.
+ * Set the start values of a time window from those in an update structure.
  */
-#define WT_TIME_WINDOW_SET_START(session, tw, upd)                 \
-    do {                                                           \
-        (tw)->durable_start_ts = (tw)->start_ts = (upd)->start_ts; \
-        if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {    \
-            (tw)->start_prepare_ts = (upd)->prepare_ts;            \
-            (tw)->start_prepared_id = (upd)->prepared_id;          \
-        }                                                          \
-                                                                   \
-        if ((upd)->durable_ts != WT_TS_NONE)                       \
-            (tw)->durable_start_ts = (upd)->durable_ts;            \
-        (tw)->start_txn = (upd)->txnid;                            \
+#define WT_TIME_WINDOW_SET_START(session, tw, upd)    \
+    do {                                              \
+        (tw)->start_txn = (upd)->txnid;               \
+        (tw)->start_ts = (upd)->start_ts;             \
+        (tw)->durable_start_ts = (upd)->durable_ts;   \
+        (tw)->start_prepare_ts = (upd)->prepare_ts;   \
+        (tw)->start_prepared_id = (upd)->prepared_id; \
     } while (0)
 
 /*
- * Set the start values of a time window from those in an update structure. Durable timestamp can be
- * 0 for prepared updates, in those cases use the prepared timestamp as durable timestamp.
- * FIXME-WT-14899: Can remove preserve_prepared check when we align the code between
- * preserve_prepared and non-preserve_prepared connections.
+ * Set the start values of a time window from those in an update structure.
  */
-#define WT_TIME_WINDOW_SET_STOP(session, tw, upd)                \
-    do {                                                         \
-        (tw)->durable_stop_ts = (tw)->stop_ts = (upd)->start_ts; \
-        if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {  \
-            (tw)->stop_prepare_ts = (upd)->prepare_ts;           \
-            (tw)->stop_prepared_id = (upd)->prepared_id;         \
-        }                                                        \
-                                                                 \
-        if ((upd)->durable_ts != WT_TS_NONE)                     \
-            (tw)->durable_stop_ts = (upd)->durable_ts;           \
-        (tw)->stop_txn = (upd)->txnid;                           \
+#define WT_TIME_WINDOW_SET_STOP(session, tw, upd)    \
+    do {                                             \
+        (tw)->stop_txn = (upd)->txnid;               \
+        (tw)->stop_ts = (upd)->start_ts;             \
+        (tw)->durable_stop_ts = (upd)->durable_ts;   \
+        (tw)->stop_prepare_ts = (upd)->prepare_ts;   \
+        (tw)->stop_prepared_id = (upd)->prepared_id; \
     } while (0)
 
 /* Copy the start values of a time window from another time window. */

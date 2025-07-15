@@ -496,7 +496,7 @@ __wt_time_value_validate(
           "value time window has a durable start time after its durable stop time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
 
-    if (tw->prepare && F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {
+    if (tw->prepare) {
         if (!WT_TIME_WINDOW_HAS_START_PREPARE(tw) && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw)) {
             WT_TIME_VALIDATE_RET(session,
               "Prepared value time window has neither start or stop prepared information; time "
@@ -511,7 +511,8 @@ __wt_time_value_validate(
                       "window %s",
                       __wt_time_window_to_string(tw, time_string[0]));
                 }
-                if (tw->start_prepared_id == WT_PREPARED_ID_NONE) {
+                if (tw->start_prepared_id == WT_PREPARED_ID_NONE &&
+                  F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {
                     WT_TIME_VALIDATE_RET(session,
                       "Start prepared value time window has no start prepared id; time "
                       "window %s",
@@ -537,7 +538,8 @@ __wt_time_value_validate(
                       "window %s",
                       __wt_time_window_to_string(tw, time_string[0]));
                 }
-                if (tw->stop_prepared_id == WT_PREPARED_ID_NONE) {
+                if (tw->stop_prepared_id == WT_PREPARED_ID_NONE &&
+                  F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {
                     WT_TIME_VALIDATE_RET(session,
                       "Stop prepared value time window has no stop prepared id; time "
                       "window %s",

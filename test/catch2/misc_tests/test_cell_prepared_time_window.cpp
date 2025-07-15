@@ -288,3 +288,88 @@ TEST_CASE("Cell Time Window: Regular (non-prepared) time window", "[cell][time_w
 
     compare_time_windows(tw, unpacked);
 }
+
+TEST_CASE("Cell Time Window: Regular (non-prepared) time window with not-preserve prepare flag set",
+  "[cell][time_window]")
+{
+    std::shared_ptr<mock_session> session_mock = mock_session::build_test_mock_session();
+
+    /* Set up the btree structure that the cell unpacking code needs */
+    session_mock->setup_block_manager_file_operations();
+    WT_BTREE *btree = (WT_BTREE *)session_mock->get_wt_session_impl()->dhandle->handle;
+    btree->base_write_gen = 1; /* Initialize to a reasonable value */
+
+    auto tw = create_test_time_window(50, /* start_ts */
+      10,                                 /* start_txn */
+      100,                                /* stop_ts */
+      20,                                 /* stop_txn */
+      false,                              /* has_start_prepare */
+      false                               /* has_stop_prepare */
+    );
+
+    auto packed = pack_time_window(session_mock->get_wt_session_impl(), &tw);
+    auto unpacked = unpack_time_window(session_mock->get_wt_session_impl(), packed);
+
+    compare_time_windows(tw, unpacked);
+}
+
+TEST_CASE("Cell Time Window: Start prepared time window with not-preserve prepare flag set",
+  "[cell_2][time_window]")
+{
+    std::shared_ptr<mock_session> session_mock = mock_session::build_test_mock_session();
+
+    /* Set up the btree structure that the cell unpacking code needs */
+    session_mock->setup_block_manager_file_operations();
+    WT_BTREE *btree = (WT_BTREE *)session_mock->get_wt_session_impl()->dhandle->handle;
+    btree->base_write_gen = 1; /* Initialize to a reasonable value */
+
+    auto tw = create_test_time_window(0, /* start_ts */
+      10,                                /* start_txn */
+      WT_TS_MAX,                         /* stop_ts */
+      WT_TXN_MAX,                        /* stop_txn */
+      true,                              /* has_start_prepare */
+      false,                             /* has_stop_prepare */
+      100,                               /* start_prepare_ts */
+      1                                  /* start_prepared_id */
+    );
+
+    auto packed = pack_time_window(session_mock->get_wt_session_impl(), &tw);
+    auto unpacked = unpack_time_window(session_mock->get_wt_session_impl(), packed);
+    /* since preserve_prepared config is off, stop_prepared_id is none */
+    CHECK(unpacked.start_prepared_id == WT_PREPARED_ID_NONE);
+
+    /* other fields should be the same */
+    unpacked.start_prepared_id = tw.start_prepared_id;
+    compare_time_windows(tw, unpacked);
+}
+
+TEST_CASE("Cell Time Window: Stop prepared time window with not-preserve prepare flag set",
+  "[cell_2][time_window]")
+{
+    std::shared_ptr<mock_session> session_mock = mock_session::build_test_mock_session();
+
+    /* Set up the btree structure that the cell unpacking code needs */
+    session_mock->setup_block_manager_file_operations();
+    WT_BTREE *btree = (WT_BTREE *)session_mock->get_wt_session_impl()->dhandle->handle;
+    btree->base_write_gen = 1; /* Initialize to a reasonable value */
+
+    auto tw = create_test_time_window(50, /* start_ts */
+      10,                                 /* start_txn */
+      WT_TS_MAX,                          /* stop_ts */
+      20,                                 /* stop_txn */
+      false,                              /* has_start_prepare */
+      true,                               /* has_stop_prepare */
+      0,                                  /* start_prepare_ts (unused) */
+      0,                                  /* start_prepared_id (unused) */
+      200,                                /* stop_prepare_ts */
+      3                                   /* stop_prepared_id */
+    );
+    auto packed = pack_time_window(session_mock->get_wt_session_impl(), &tw);
+    auto unpacked = unpack_time_window(session_mock->get_wt_session_impl(), packed);
+    /* since preserve_prepared config is off, stop_prepared_id is none */
+    CHECK(unpacked.stop_prepared_id == WT_PREPARED_ID_NONE);
+
+    /* other fields should be the same */
+    unpacked.stop_prepared_id = tw.stop_prepared_id;
+    compare_time_windows(tw, unpacked);
+}
