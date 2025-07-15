@@ -50,7 +50,7 @@ __rec_cell_tw_stats(WTI_RECONCILE *r, WT_TIME_WINDOW *tw)
         ++r->count_stop_ts;
     if (tw->stop_txn != WT_TXN_MAX)
         ++r->count_stop_txn;
-    if (tw->prepare)
+    if (WT_TIME_WINDOW_HAS_PREPARE(tw))
         ++r->count_prepare;
 }
 

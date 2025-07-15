@@ -823,13 +823,6 @@ __rec_fill_tw_from_upd_select(
      */
 
     /*
-     * Mark the prepare flag if the selected update is an uncommitted prepare. As tombstone updates
-     * are never returned to write, set this flag before we move into the previous update to write.
-     */
-    if (upd->prepare_state == WT_PREPARE_INPROGRESS)
-        select_tw->prepare = 1;
-
-    /*
      * If the newest is a tombstone then select the update before it and set the end of the
      * visibility window to its time point as appropriate to indicate that we should return "not
      * found" for reads after this point.

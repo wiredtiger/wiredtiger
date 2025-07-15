@@ -65,14 +65,6 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
      */
     bool pack_prepare_info_to_start = WT_TIME_WINDOW_HAS_START_PREPARE(tw);
 
-    /*
-     * Assert that a prepare timestamp is set if and only if we're packing prepare info (either to
-     * start or stop) FIXME-WT-14899: Can remove this check when prepare flag is removed from the
-     * time window structure.
-     */
-    if (tw->prepare && F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED))
-        WT_ASSERT(session, pack_prepare_info_to_start || pack_prepare_info_to_stop);
-
     if (pack_prepare_info_to_start && pack_prepare_info_to_stop)
         WT_ASSERT(session, tw->start_prepared_id == tw->stop_prepared_id);
 
@@ -147,7 +139,7 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
             LF_SET(WT_CELL_TS_DURABLE_STOP);
         }
     }
-    if (tw->prepare)
+    if (pack_prepare_info_to_stop || pack_prepare_info_to_start)
         LF_SET(WT_CELL_PREPARE);
     *flagsp = flags;
 
@@ -914,8 +906,6 @@ copy_cell_restart:
         temp_start_ts = temp_durable_start_ts = temp_durable_stop_ts = WT_TS_NONE;
         temp_stop_ts = WT_TS_MAX;
 
-        if (LF_ISSET(WT_CELL_PREPARE))
-            tw->prepare = 1;
         if (LF_ISSET(WT_CELL_TS_START)) {
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_start_ts));
         }
@@ -937,7 +927,7 @@ copy_cell_restart:
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_durable_stop_ts));
 
         /* Load temporary values to the right fields */
-        if (tw->prepare) {
+        if (LF_ISSET(WT_CELL_PREPARE)) {
             /*
              * We can compare the txn_id only here, but cannot do it everywhere else because when
              * recovering, all transaction ids are reset to WT_TXN_NONE, so we cannot compare the

@@ -681,7 +681,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     /* Retrieve the time window from the unpacked value cell. */
     __wt_cell_get_tw(vpack, &tw);
 
-    prepared = tw->prepare;
+    prepared = WT_TIME_WINDOW_HAS_PREPARE(tw);
     if (WT_IS_HS(session->dhandle)) {
         /*
          * Abort the history store update with stop durable timestamp greater than the stable

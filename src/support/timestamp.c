@@ -51,7 +51,7 @@ __wt_time_window_to_string(WT_TIME_WINDOW *tw, char *tw_string)
       __wt_timestamp_to_string(tw->start_ts, ts_string[1]), tw->start_txn,
       __wt_timestamp_to_string(tw->durable_stop_ts, ts_string[2]),
       __wt_timestamp_to_string(tw->stop_ts, ts_string[3]), tw->stop_txn,
-      tw->prepare ? ", prepared" : ""));
+      WT_TIME_WINDOW_HAS_PREPARE(tw) ? ", prepared" : "")); /* TODO: edit this println? */
     return (tw_string);
 }
 
@@ -442,7 +442,7 @@ __time_value_validate_parent(
           __wt_time_window_to_string(tw, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
-    if (tw->prepare && !parent->prepare)
+    if (WT_TIME_WINDOW_HAS_PREPARE(tw) && !parent->prepare)
         WT_TIME_VALIDATE_RET(session,
           "value time window is prepared but its parent is not; time window %s, parent %s",
           __wt_time_window_to_string(tw, time_string[0]),

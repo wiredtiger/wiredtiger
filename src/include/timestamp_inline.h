@@ -21,7 +21,6 @@
         (tw)->stop_txn = WT_TXN_MAX;                   \
         (tw)->stop_prepare_ts = WT_TS_NONE;            \
         (tw)->stop_prepared_id = WT_PREPARED_ID_NONE;  \
-        (tw)->prepare = 0;                             \
     } while (0)
 
 /* Copy the values from one time window structure to another. */
@@ -33,8 +32,7 @@
       (tw)->start_txn == WT_TXN_NONE && (tw)->start_prepare_ts == WT_TS_NONE &&               \
       (tw)->start_prepared_id == WT_PREPARED_ID_NONE && (tw)->stop_ts == WT_TS_MAX &&         \
       (tw)->stop_txn == WT_TXN_MAX && (tw)->durable_stop_ts == WT_TS_NONE &&                  \
-      (tw)->stop_prepare_ts == WT_TS_NONE && (tw)->stop_prepared_id == WT_PREPARED_ID_NONE && \
-      (tw)->prepare == 0)
+      (tw)->stop_prepare_ts == WT_TS_NONE && (tw)->stop_prepared_id == WT_PREPARED_ID_NONE)
 
 /* Check if the start time window is set. */
 #define WT_TIME_WINDOW_HAS_START(tw) \
@@ -51,6 +49,8 @@
 #define WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) \
     ((tw)->stop_prepared_id != WT_PREPARED_ID_NONE || (tw)->stop_prepare_ts != WT_TS_NONE)
 
+#define WT_TIME_WINDOW_HAS_PREPARE(tw) \
+    (WT_TIME_WINDOW_HAS_START_PREPARE)(tw) || WT_TIME_WINDOW_HAS_STOP_PREPARE(tw)
 /* Return true if the time windows are the same. */
 #define WT_TIME_WINDOWS_EQUAL(tw1, tw2)                                                          \
     ((tw1)->durable_start_ts == (tw2)->durable_start_ts && (tw1)->start_ts == (tw2)->start_ts && \
@@ -59,12 +59,12 @@
       (tw1)->start_prepared_id == (tw2)->start_prepared_id &&                                    \
       (tw1)->durable_stop_ts == (tw2)->durable_stop_ts && (tw1)->stop_ts == (tw2)->stop_ts &&    \
       (tw1)->stop_txn == (tw2)->stop_txn && (tw1)->stop_prepare_ts == (tw2)->stop_prepare_ts &&  \
-      (tw1)->stop_prepared_id == (tw2)->stop_prepared_id && (tw1)->prepare == (tw2)->prepare)
+      (tw1)->stop_prepared_id == (tw2)->stop_prepared_id)
 
 /* Return true if the stop time windows are the same. */
 #define WT_TIME_WINDOWS_STOP_EQUAL(tw1, tw2)                                                 \
     ((tw1)->durable_stop_ts == (tw2)->durable_stop_ts && (tw1)->stop_ts == (tw2)->stop_ts && \
-      (tw1)->stop_txn == (tw2)->stop_txn && (tw1)->prepare == (tw2)->prepare &&              \
+      (tw1)->stop_txn == (tw2)->stop_txn &&             \
       (tw1)->stop_prepared_id == (tw2)->stop_prepared_id &&                                  \
       (tw1)->stop_prepare_ts == (tw2)->stop_prepare_ts)
 
@@ -98,7 +98,6 @@
         (dest)->durable_start_ts = (source)->durable_start_ts;   \
         (dest)->start_ts = (source)->start_ts;                   \
         (dest)->start_txn = (source)->start_txn;                 \
-        (dest)->prepare = (source)->prepare;                     \
         (dest)->start_prepare_ts = (source)->start_prepare_ts;   \
         (dest)->start_prepared_id = (source)->start_prepared_id; \
     } while (0)
@@ -109,7 +108,6 @@
         (dest)->durable_stop_ts = (source)->durable_stop_ts;   \
         (dest)->stop_ts = (source)->stop_ts;                   \
         (dest)->stop_txn = (source)->stop_txn;                 \
-        (dest)->prepare = (source)->prepare;                   \
         (dest)->stop_prepare_ts = (source)->stop_prepare_ts;   \
         (dest)->stop_prepared_id = (source)->stop_prepared_id; \
     } while (0)
