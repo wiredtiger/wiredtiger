@@ -1601,9 +1601,13 @@ struct __wt_update {
         } prepare_rollback;
     } u;
 
+#undef upd_durable_ts
 #define upd_durable_ts u.commit.durable_ts
+#undef upd_start_ts
 #define upd_start_ts u.commit.start_ts
+#undef upd_rollback_ts
 #define upd_rollback_ts u.prepare_rollback.rollback_ts
+#undef upd_saved_txnid
 #define upd_saved_txnid u.prepare_rollback.saved_txnid
 
     /* Prepared transaction fields */
