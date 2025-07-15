@@ -74,17 +74,17 @@
  * FIXME-WT-14899: Can remove preserve_prepared check when we align the code between
  * preserve_prepared and non-preserve_prepared connections.
  */
-#define WT_TIME_WINDOW_SET_START(session, tw, upd)                 \
-    do {                                                           \
-        (tw)->durable_start_ts = (tw)->start_ts = (upd)->start_ts; \
-        if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {    \
-            (tw)->start_prepare_ts = (upd)->prepare_ts;            \
-            (tw)->start_prepared_id = (upd)->prepared_id;          \
-        }                                                          \
-                                                                   \
-        if ((upd)->durable_ts != WT_TS_NONE)                       \
-            (tw)->durable_start_ts = (upd)->durable_ts;            \
-        (tw)->start_txn = (upd)->txnid;                            \
+#define WT_TIME_WINDOW_SET_START(session, tw, upd)                     \
+    do {                                                               \
+        (tw)->durable_start_ts = (tw)->start_ts = (upd)->upd_start_ts; \
+        if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {        \
+            (tw)->start_prepare_ts = (upd)->prepare_ts;                \
+            (tw)->start_prepared_id = (upd)->prepared_id;              \
+        }                                                              \
+                                                                       \
+        if ((upd)->upd_durable_ts != WT_TS_NONE)                       \
+            (tw)->durable_start_ts = (upd)->upd_durable_ts;            \
+        (tw)->start_txn = (upd)->txnid;                                \
     } while (0)
 
 /*
@@ -93,17 +93,17 @@
  * FIXME-WT-14899: Can remove preserve_prepared check when we align the code between
  * preserve_prepared and non-preserve_prepared connections.
  */
-#define WT_TIME_WINDOW_SET_STOP(session, tw, upd)                \
-    do {                                                         \
-        (tw)->durable_stop_ts = (tw)->stop_ts = (upd)->start_ts; \
-        if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {  \
-            (tw)->stop_prepare_ts = (upd)->prepare_ts;           \
-            (tw)->stop_prepared_id = (upd)->prepared_id;         \
-        }                                                        \
-                                                                 \
-        if ((upd)->durable_ts != WT_TS_NONE)                     \
-            (tw)->durable_stop_ts = (upd)->durable_ts;           \
-        (tw)->stop_txn = (upd)->txnid;                           \
+#define WT_TIME_WINDOW_SET_STOP(session, tw, upd)                    \
+    do {                                                             \
+        (tw)->durable_stop_ts = (tw)->stop_ts = (upd)->upd_start_ts; \
+        if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {      \
+            (tw)->stop_prepare_ts = (upd)->prepare_ts;               \
+            (tw)->stop_prepared_id = (upd)->prepared_id;             \
+        }                                                            \
+                                                                     \
+        if ((upd)->upd_durable_ts != WT_TS_NONE)                     \
+            (tw)->durable_stop_ts = (upd)->upd_durable_ts;           \
+        (tw)->stop_txn = (upd)->txnid;                               \
     } while (0)
 
 /* Copy the start values of a time window from another time window. */
@@ -208,14 +208,14 @@
  * page of identical tombstones; this operation is equivalent to applying WT_TIME_AGGREGATE_UPDATE
  * for each tombstone. Note that it does not affect the start times.
  */
-#define WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, ta, page_del)                    \
-    do {                                                                            \
-        WT_ASSERT(session, (ta)->init_merge == 1);                                  \
-        (ta)->newest_stop_durable_ts =                                              \
-          WT_MAX((page_del)->durable_timestamp, (ta)->newest_stop_durable_ts);      \
-        (ta)->newest_txn = WT_MAX((page_del)->txnid, (ta)->newest_txn);             \
-        (ta)->newest_stop_ts = WT_MAX((page_del)->timestamp, (ta)->newest_stop_ts); \
-        (ta)->newest_stop_txn = WT_MAX((page_del)->txnid, (ta)->newest_stop_txn);   \
+#define WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, ta, page_del)                          \
+    do {                                                                                  \
+        WT_ASSERT(session, (ta)->init_merge == 1);                                        \
+        (ta)->newest_stop_durable_ts =                                                    \
+          WT_MAX((page_del)->pg_del_durable_ts, (ta)->newest_stop_durable_ts);            \
+        (ta)->newest_txn = WT_MAX((page_del)->txnid, (ta)->newest_txn);                   \
+        (ta)->newest_stop_ts = WT_MAX((page_del)->pg_del_start_ts, (ta)->newest_stop_ts); \
+        (ta)->newest_stop_txn = WT_MAX((page_del)->txnid, (ta)->newest_stop_txn);         \
     } while (0)
 
 /* Merge an aggregated time window into another - choosing the most conservative value from each. */

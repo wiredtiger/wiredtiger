@@ -2294,14 +2294,14 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->txnid));
             }
 
-            if (supd->onpage_upd->start_ts != WT_TS_NONE) {
+            if (supd->onpage_upd->upd_start_ts != WT_TS_NONE) {
                 LF_SET(WT_DELTA_LEAF_HAS_START_TS);
-                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->start_ts));
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->upd_start_ts));
             }
 
-            if (supd->onpage_upd->durable_ts != WT_TS_NONE) {
+            if (supd->onpage_upd->upd_durable_ts != WT_TS_NONE) {
                 LF_SET(WT_DELTA_LEAF_HAS_START_DURABLE_TS);
-                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->durable_ts));
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->upd_durable_ts));
             }
         }
 
@@ -2311,14 +2311,14 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->txnid));
             }
 
-            if (supd->onpage_tombstone->start_ts != WT_TS_MAX) {
+            if (supd->onpage_tombstone->upd_start_ts != WT_TS_MAX) {
                 LF_SET(WT_DELTA_LEAF_HAS_STOP_TS);
-                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->start_ts));
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->upd_start_ts));
             }
 
-            if (supd->onpage_tombstone->durable_ts != WT_TS_NONE) {
+            if (supd->onpage_tombstone->upd_durable_ts != WT_TS_NONE) {
                 LF_SET(WT_DELTA_LEAF_HAS_STOP_DURABLE_TS);
-                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->durable_ts));
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->upd_durable_ts));
             }
         }
 
