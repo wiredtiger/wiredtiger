@@ -16,7 +16,8 @@
  */
 static WT_INLINE int
 __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
-  WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, bool supd_restore, size_t upd_memsize)
+  WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, WT_TIME_WINDOW *tw, bool supd_restore,
+  size_t upd_memsize)
 {
     WT_SAVE_UPD *supd;
 
@@ -35,6 +36,7 @@ __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT
     supd->rip = rip;
     supd->onpage_upd = onpage_upd;
     supd->onpage_tombstone = tombstone;
+    supd->tw = *tw;
     supd->restore = supd_restore;
     ++r->supd_next;
     r->supd_memsize += upd_memsize;
@@ -309,12 +311,45 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
         return (true);
 
-    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
-        if (upd_select->upd != NULL && !F_ISSET(upd_select->upd, WT_UPDATE_DURABLE))
-            return (true);
+    /*
+     * We need to save the update chain to build the delta. Don't save the update chain if the
+     * selected update is already durable.
+     */
+    if (upd_select->upd != NULL && F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+      F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_LEAF_PAGE_DELTA)) {
+        if (upd_select->tombstone != NULL) {
+            if (!F_ISSET(upd_select->tombstone, WT_UPDATE_DURABLE | WT_UPDATE_PREPARE_DURABLE))
+                return (true);
 
-        if (upd_select->tombstone != NULL && !F_ISSET(upd_select->tombstone, WT_UPDATE_DURABLE))
-            return (true);
+            /* Save the update if we overwrite the previous prepared update. */
+            if (F_ISSET(upd_select->tombstone, WT_UPDATE_PREPARE_DURABLE) &&
+              !WT_TIME_WINDOW_HAS_STOP_PREPARE(&upd_select->tw))
+                return (true);
+        }
+
+        if (upd_select->upd->type == WT_UPDATE_TOMBSTONE) {
+            /*
+             * Save the update if we haven't deleted the key from the disk image. We may have
+             * written the tombstone to disk already but we still need to do another delta to remove
+             * it from disk.
+             *
+             * Deleting the key with a stop timestamp in the delta is not saving disk space but
+             * actually increases our disk usage. We need to write a full image to really delete
+             * these keys. But if we don't do that, we will have a lot of deleted keys in memory and
+             * search will be less efficient. Particularly it will be a problem for the history
+             * store.
+             */
+            if (!F_ISSET(upd_select->upd, WT_UPDATE_DELETE_DURABLE))
+                return (true);
+        } else {
+            if (!F_ISSET(upd_select->upd, WT_UPDATE_DURABLE | WT_UPDATE_PREPARE_DURABLE))
+                return (true);
+
+            /* Save the update if we overwrite the previous prepared update. */
+            if (F_ISSET(upd_select->upd, WT_UPDATE_PREPARE_DURABLE) &&
+              !WT_TIME_WINDOW_HAS_START_PREPARE(&upd_select->tw))
+                return (true);
+        }
     }
 
     /* No need to save the update chain if we want to delete the key from the disk image. */
@@ -1098,8 +1133,8 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
             F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY));
 
         upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
-        WT_RET(__rec_update_save(
-          session, r, ins, rip, onpage_upd, upd_select->tombstone, supd_restore, upd_memsize));
+        WT_RET(__rec_update_save(session, r, ins, rip, onpage_upd, upd_select->tombstone,
+          &upd_select->tw, supd_restore, upd_memsize));
         upd_saved = upd_select->upd_saved = true;
     }
 
