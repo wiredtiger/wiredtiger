@@ -187,19 +187,6 @@ struct __wt_verbose_multi_category {
     } while (0)
 
 /*
- * __wt_verbose_level_id --
- *     Display a verbose message considering the verbose info.
- */
-#define __wt_verbose_level_id(session, verbose_info, fmt, ...)                       \
-    do {                                                                             \
-        /* Ensure all arguments are properly parenthesized for macro safety */       \
-        if (WT_VERBOSE_LEVEL_ISSET(                                                  \
-              (session), (verbose_info)->verb_category, (verbose_info)->verb_level)) { \
-            __wt_verbose_worker_id((session), (verbose_info), (fmt), __VA_ARGS__);   \
-        }                                                                            \
-    } while (0)
-
-/*
  * __wt_verbose_error --
  *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_ERROR.
  */
@@ -232,14 +219,15 @@ struct __wt_verbose_multi_category {
  *     Wrapper to __wt_verbose_info_id defaulting the verbosity level to WT_VERBOSE_INFO with a log
  *     id.
  */
-#define __wt_verbose_info_id(session, category, log_id, fmt, ...)                 \
-    do {                                                                          \
-        WT_VERBOSE_MESSAGE_INFO verb_message_info = {                             \
-          .verb_log_id = log_id,        /* Unique ID for this specific message */ \
-          .verb_category = category,    /* The category of the message */         \
-          .verb_level = WT_VERBOSE_INFO /* The verbosity level */                 \
-        };                                                                        \
-        __wt_verbose_level_id(session, &verb_message_info, fmt, __VA_ARGS__);      \
+#define __wt_verbose_info_id(session, category, log_id, fmt, ...)                    \
+    do {                                                                             \
+        WT_VERBOSE_MESSAGE_INFO verb_message_info = {                                \
+          .verb_log_id = log_id,        /* Unique ID for this specific message */    \
+          .verb_category = category,    /* The category of the message */            \
+          .verb_level = WT_VERBOSE_INFO /* The verbosity level */                    \
+        };                                                                           \
+        /* Ensure all arguments are properly parenthesized for macro safety */       \
+        __wt_verbose_worker_id((session), (&verb_message_info), (fmt), __VA_ARGS__); \
     } while (0)
 
 /*
@@ -322,7 +310,7 @@ struct __wt_verbose_multi_category {
                     __multi_category.categories[__v_idx], /* The category of the message */       \
                   .verb_level = level                     /* The verbosity level */               \
                 };                                                                                \
-                __wt_verbose_worker_id(session, &verb_message_info, fmt, __VA_ARGS__);             \
+                __wt_verbose_worker_id(session, &verb_message_info, fmt, __VA_ARGS__);            \
                 break;                                                                            \
             }                                                                                     \
         }                                                                                         \
