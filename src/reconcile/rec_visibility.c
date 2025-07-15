@@ -334,9 +334,9 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
              * it from disk.
              *
              * Deleting the key with a stop timestamp in the delta is not saving disk space but
-             * actually increases of our disk usage. We need to write a full image to really delete
+             * actually increases our disk usage. We need to write a full image to really delete
              * these keys. But if we don't do that, we will have a lot of deleted keys in memory and
-             * search will be less efficient. Particularly it will be a problem in the history
+             * search will be less efficient. Particularly it will be a problem for the history
              * store.
              */
             if (!F_ISSET(upd_select->upd, WT_UPDATE_DELETE_DURABLE))
