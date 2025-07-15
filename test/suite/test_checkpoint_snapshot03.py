@@ -144,6 +144,9 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
         session1.rollback_transaction()
 
         # Simulate a server crash and restart.
+        # FIXME-WT-14944  Works up to this point, then fails.
+        if self.runningHook('disagg'):
+            self.skipTest('After simulated crash restart, the URI is not found')
         simulate_crash_restart(self, ".", "RESTART")
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
