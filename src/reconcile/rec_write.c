@@ -2393,7 +2393,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
 
                 /* Skip writing the prepared update that has already been written. */
                 if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_PREPARE_DURABLE) &&
-                  !WT_TIME_WINDOW_HAS_STOP_PREPARE(&supd->tw))
+                  WT_TIME_WINDOW_HAS_STOP_PREPARE(&supd->tw))
                     continue;
             } else {
                 if (F_ISSET(supd->onpage_upd, WT_UPDATE_DURABLE))
@@ -2401,7 +2401,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
 
                 /* Skip writing the prepared update that has already been written. */
                 if (F_ISSET(supd->onpage_upd, WT_UPDATE_PREPARE_DURABLE) &&
-                  !WT_TIME_WINDOW_HAS_START_PREPARE(&supd->tw))
+                  WT_TIME_WINDOW_HAS_START_PREPARE(&supd->tw))
                     continue;
             }
         }
