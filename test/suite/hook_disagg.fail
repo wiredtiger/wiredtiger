@@ -153,7 +153,6 @@ test_timestamp10.py
 test_timestamp12.py
 test_timestamp20.py
 test_timestamp26.py
-test_truncate02.py
 test_truncate05.py
 test_truncate11.py
 test_truncate12.py
