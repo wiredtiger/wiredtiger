@@ -16,12 +16,12 @@
  */
 static WT_INLINE int
 __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
-  WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, uint8_t flags, size_t upd_memsize)
+  WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, WT_TIME_WINDOW *tw, bool supd_restore,
+  size_t upd_memsize)
 {
     WT_SAVE_UPD *supd;
 
-    WT_ASSERT_ALWAYS(session,
-      onpage_upd != NULL || tombstone != NULL || LF_ISSET(WT_SAVE_UPDATE_RESTORE),
+    WT_ASSERT_ALWAYS(session, onpage_upd != NULL || tombstone != NULL || supd_restore,
       "If nothing is committed, the update chain must be restored");
     WT_ASSERT_ALWAYS(session,
       onpage_upd == NULL || onpage_upd->type == WT_UPDATE_STANDARD ||
@@ -36,7 +36,8 @@ __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT
     supd->rip = rip;
     supd->onpage_upd = onpage_upd;
     supd->onpage_tombstone = tombstone;
-    supd->flags = flags;
+    supd->tw = *tw;
+    supd->restore = supd_restore;
     ++r->supd_next;
     r->supd_memsize += upd_memsize;
     return (0);
@@ -322,7 +323,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
 
             /* Save the update if we overwrite the previous prepared update. */
             if (F_ISSET(upd_select->tombstone, WT_UPDATE_PREPARE_DURABLE) &&
-              !upd_select->tw.prepare)
+              !WT_TIME_WINDOW_HAS_STOP_PREPARE(&upd_select->tw))
                 return (true);
         }
 
@@ -339,7 +340,8 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
                 return (true);
 
             /* Save the update if we overwrite the previous prepared update. */
-            if (F_ISSET(upd_select->upd, WT_UPDATE_PREPARE_DURABLE) && !upd_select->tw.prepare)
+            if (F_ISSET(upd_select->upd, WT_UPDATE_PREPARE_DURABLE) &&
+              !WT_TIME_WINDOW_HAS_START_PREPARE(&upd_select->tw))
                 return (true);
         }
     }
@@ -1125,13 +1127,8 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
             F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY));
 
         upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
-        uint8_t flags = 0;
-        if (supd_restore)
-            flags |= WT_SAVE_UPDATE_RESTORE;
-        if (upd_select->tw.prepare)
-            flags |= WT_SAVE_UPDATE_PREPARE;
-        WT_RET(__rec_update_save(
-          session, r, ins, rip, onpage_upd, upd_select->tombstone, flags, upd_memsize));
+        WT_RET(__rec_update_save(session, r, ins, rip, onpage_upd, upd_select->tombstone,
+          &upd_select->tw, supd_restore, upd_memsize));
         upd_saved = upd_select->upd_saved = true;
     }
 

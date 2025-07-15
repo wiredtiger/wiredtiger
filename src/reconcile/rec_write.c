@@ -1888,7 +1888,7 @@ __rec_supd_move(WT_SESSION_IMPL *session, WT_MULTI *multi, WT_SAVE_UPD *supd, ui
     WT_RET(__wt_calloc_def(session, n, &multi->supd));
 
     for (i = 0; i < n; ++i) {
-        if (F_ISSET(supd, WT_SAVE_UPDATE_RESTORE))
+        if (supd->restore)
             multi->supd_restore = true;
         multi->supd[i] = *supd++;
     }
@@ -2393,7 +2393,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
 
                 /* Skip writing the prepared update that has already been written. */
                 if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_PREPARE_DURABLE) &&
-                  F_ISSET(supd, WT_SAVE_UPDATE_PREPARE))
+                  !WT_TIME_WINDOW_HAS_STOP_PREPARE(&supd->tw))
                     continue;
             } else {
                 if (F_ISSET(supd->onpage_upd, WT_UPDATE_DURABLE))
@@ -2401,7 +2401,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
 
                 /* Skip writing the prepared update that has already been written. */
                 if (F_ISSET(supd->onpage_upd, WT_UPDATE_PREPARE_DURABLE) &&
-                  F_ISSET(supd, WT_SAVE_UPDATE_PREPARE))
+                  !WT_TIME_WINDOW_HAS_START_PREPARE(&supd->tw))
                     continue;
             }
         }
@@ -2487,11 +2487,11 @@ __rec_set_updates_durable(WT_BTREE *btree, WT_MULTI *multi)
             F_SET(supd->onpage_tombstone, WT_UPDATE_DELETE_DURABLE);
         else {
             if (supd->onpage_tombstone != NULL) {
-                if (F_ISSET(supd, WT_SAVE_UPDATE_PREPARE)) {
+                if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&supd->tw)) {
                     F_SET(supd->onpage_tombstone, WT_UPDATE_PREPARE_DURABLE);
 
                     /* The on page value is also a prepared update from the same transaction. */
-                    if (supd->onpage_tombstone->txnid == supd->onpage_upd->txnid)
+                    if (WT_TIME_WINDOW_HAS_START_PREPARE(&supd->tw))
                         F_SET(supd->onpage_upd, WT_UPDATE_PREPARE_DURABLE);
                     else
                         F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
@@ -2500,7 +2500,7 @@ __rec_set_updates_durable(WT_BTREE *btree, WT_MULTI *multi)
                     F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
                 }
             } else {
-                if (F_ISSET(supd, WT_SAVE_UPDATE_PREPARE))
+                if (WT_TIME_WINDOW_HAS_START_PREPARE(&supd->tw))
                     F_SET(supd->onpage_upd, WT_UPDATE_PREPARE_DURABLE);
                 else
                     F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
