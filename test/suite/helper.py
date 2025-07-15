@@ -147,6 +147,7 @@ def copy_wiredtiger_home(testcase, olddir, newdir, aligned=True):
 
 # Simulate a crash from olddir and restart in newdir.
 def simulate_crash_restart(testcase, olddir, newdir):
+
     # With the connection still open, copy files to new directory.
     copy_wiredtiger_home(testcase, olddir, newdir)
     # Close the original connection and open to new directory.
