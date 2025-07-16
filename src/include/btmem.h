@@ -194,7 +194,7 @@ __wt_delta_header_byteswap(WT_DELTA_HEADER *dsk)
 {
 #ifdef WORDS_BIGENDIAN
     dsk->write_gen = __wt_bswap64(dsk->write_gen);
-    dsk->mem_size = __wt_bswap64(dsk->mem_size);
+    dsk->mem_size = __wt_bswap32(dsk->mem_size);
     dsk->u.entries = __wt_bswap32(dsk->u.entries);
 #else
     WT_UNUSED(dsk);
@@ -1155,8 +1155,22 @@ struct __wt_page_deleted {
      */
     wt_shared volatile uint64_t txnid; /* Transaction ID */
 
-    wt_timestamp_t timestamp; /* Timestamps */
-    wt_timestamp_t durable_timestamp;
+    union {
+        struct {
+            wt_timestamp_t durable_ts; /* timestamps */
+            wt_timestamp_t start_ts;
+        } commit;
+
+        struct {
+            wt_timestamp_t rollback_ts; /* rollback timestamp */
+            uint64_t saved_txnid;       /* transaction id before rollback */
+        } prepare_rollback;
+    } u;
+
+#define pg_del_durable_ts u.commit.durable_ts
+#define pg_del_start_ts u.commit.start_ts
+#define pg_del_rollback_ts u.prepare_rollback.rollback_ts
+#define pg_del_saved_txnid u.prepare_rollback.saved_txnid
 
     /* Prepared transaction fields */
     uint64_t prepared_id;
@@ -1575,8 +1589,26 @@ struct __wt_update {
      */
     wt_shared volatile uint64_t txnid; /* transaction ID */
 
-    wt_timestamp_t durable_ts; /* timestamps */
-    wt_timestamp_t start_ts;
+    union {
+        struct {
+            wt_timestamp_t durable_ts; /* timestamps */
+            wt_timestamp_t start_ts;
+        } commit;
+
+        struct {
+            wt_timestamp_t rollback_ts; /* rollback timestamp */
+            uint64_t saved_txnid;       /* transaction id before rollback */
+        } prepare_rollback;
+    } u;
+
+#undef upd_durable_ts
+#define upd_durable_ts u.commit.durable_ts
+#undef upd_start_ts
+#define upd_start_ts u.commit.start_ts
+#undef upd_rollback_ts
+#define upd_rollback_ts u.prepare_rollback.rollback_ts
+#undef upd_saved_txnid
+#define upd_saved_txnid u.prepare_rollback.saved_txnid
 
     /* Prepared transaction fields */
     uint64_t prepared_id;
