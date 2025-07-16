@@ -705,21 +705,22 @@ __evict_update_work(WT_SESSION_IMPL *session)
         for (;;) {
             ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id);
             WT_ASSERT(session, ret == 0 || ret == WT_NOTFOUND);
-            if (ret == WT_NOTFOUND) {
-                ret = 0;
-                (void)ret; /* Keep the assignment to 0 just in case, but suppress clang warnings. */
+            if (ret == WT_NOTFOUND)
                 break;
-            }
+
             if ((ret = __wt_hs_btree_get_cached(session, hs_id, &hs_tree)) == 0) {
                 total_inmem += __wt_atomic_load64(&hs_tree->bytes_inmem);
                 total_dirty += __wt_atomic_load64(&hs_tree->bytes_dirty_intl) +
                   __wt_atomic_load64(&hs_tree->bytes_dirty_leaf);
                 total_updates += __wt_atomic_load64(&hs_tree->bytes_updates);
             }
-            if (ret == WT_NOTFOUND)
-                WT_STAT_CONN_INCR(session, cache_eviction_hs_not_cached_in_cursor);
-
             WT_ASSERT(session, ret == 0 || ret == WT_NOTFOUND);
+            if (ret == WT_NOTFOUND) {
+                if (hs_id == 1)
+                    WT_STAT_CONN_INCR(session, cache_eviction_hs_not_cached_in_cursor);
+                else if (hs_id == 2)
+                    WT_STAT_CONN_INCR(session, cache_eviction_shared_hs_not_cached_in_cursor);
+            }
         }
         __wt_atomic_store64(&cache->bytes_hs, total_inmem);
         __wt_atomic_store64(&cache->bytes_hs_dirty, total_dirty);
