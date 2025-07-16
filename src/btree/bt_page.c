@@ -798,12 +798,12 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
     if (WT_TIME_WINDOW_HAS_START_PREPARE(&unpack->tw)) {
         upd->prepared_id = unpack->tw.start_prepared_id;
         upd->prepare_ts = unpack->tw.start_prepare_ts;
-        upd->durable_ts = WT_TS_NONE;
+        upd->upd_durable_ts = WT_TS_NONE;
         upd->prepare_state = WT_PREPARE_INPROGRESS;
         F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
     } else {
         F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
-        if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
             F_SET(upd, WT_UPDATE_DURABLE);
     }
     if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&unpack->tw)) {
@@ -816,35 +816,6 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         tombstone->prepare_ts = unpack->tw.stop_prepare_ts;
         tombstone->prepared_id = unpack->tw.stop_prepared_id;
         F_SET(tombstone, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
-        tombstone->next = upd;
-        *updp = tombstone;
-    } else
-        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-            F_SET(tombstone, WT_UPDATE_PREPARE_DURABLE);
-
-        /*
-         * Mark the update also as in-progress if the update and tombstone are from same transaction
-         * by comparing both the transaction and timestamps as the transaction information gets lost
-         * after restart. FIXME-WT-14899: Simplify this check when we align the code between
-         * reserve_prepare vs non-reserve_prepare connection.
-         */
-        if (WT_TIME_WINDOW_HAS_START_PREPARE(&(unpack->tw)) ||
-          (unpack->tw.start_ts == unpack->tw.stop_ts &&
-            unpack->tw.durable_start_ts == unpack->tw.durable_stop_ts &&
-            unpack->tw.start_txn == unpack->tw.stop_txn)) {
-            upd->prepared_id = unpack->tw.start_prepared_id;
-            upd->prepare_ts = unpack->tw.start_prepare_ts;
-            upd->upd_durable_ts = WT_TS_NONE;
-            upd->prepare_state = WT_PREPARE_INPROGRESS;
-            F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
-            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                F_SET(tombstone, WT_UPDATE_PREPARE_DURABLE);
-        } else {
-            F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
-            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                F_SET(upd, WT_UPDATE_DURABLE);
-        }
-
         tombstone->next = upd;
         *updp = tombstone;
     } else

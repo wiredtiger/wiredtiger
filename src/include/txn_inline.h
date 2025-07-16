@@ -1482,7 +1482,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
           !WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
             cbt->upd_value->tw.stop_txn = upd->txnid;
             if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
-                WT_ASSERT(session, upd->durable_ts == WT_TS_NONE);
+                WT_ASSERT(session, upd->upd_durable_ts == WT_TS_NONE);
                 cbt->upd_value->tw.stop_prepare_ts = upd->upd_start_ts;
             } else {
                 cbt->upd_value->tw.durable_stop_ts = upd->upd_durable_ts;

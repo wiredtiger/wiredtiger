@@ -77,25 +77,25 @@
 /*
  * Set the start values of a time window from those in an update structure.
  */
-#define WT_TIME_WINDOW_SET_START(session, tw, upd)    \
-    do {                                              \
-        (tw)->start_txn = (upd)->txnid;               \
-        (tw)->start_ts = (upd)->upd_start_ts;             \
-        (tw)->durable_start_ts = (upd)->upd_durable_ts;   \
-        (tw)->start_prepare_ts = (upd)->prepare_ts;   \
-        (tw)->start_prepared_id = (upd)->prepared_id; \
+#define WT_TIME_WINDOW_SET_START(session, tw, upd)      \
+    do {                                                \
+        (tw)->start_txn = (upd)->txnid;                 \
+        (tw)->start_ts = (upd)->upd_start_ts;           \
+        (tw)->durable_start_ts = (upd)->upd_durable_ts; \
+        (tw)->start_prepare_ts = (upd)->prepare_ts;     \
+        (tw)->start_prepared_id = (upd)->prepared_id;   \
     } while (0)
 
 /*
  * Set the start values of a time window from those in an update structure.
  */
-#define WT_TIME_WINDOW_SET_STOP(session, tw, upd)    \
-    do {                                             \
-        (tw)->stop_txn = (upd)->txnid;               \
-        (tw)->stop_ts = (upd)->upd_start_ts;             \
-        (tw)->durable_stop_ts = (upd)->upd_durable_ts;   \
-        (tw)->stop_prepare_ts = (upd)->prepare_ts;   \
-        (tw)->stop_prepared_id = (upd)->prepared_id; \
+#define WT_TIME_WINDOW_SET_STOP(session, tw, upd)      \
+    do {                                               \
+        (tw)->stop_txn = (upd)->txnid;                 \
+        (tw)->stop_ts = (upd)->upd_start_ts;           \
+        (tw)->durable_stop_ts = (upd)->upd_durable_ts; \
+        (tw)->stop_prepare_ts = (upd)->prepare_ts;     \
+        (tw)->stop_prepared_id = (upd)->prepared_id;   \
     } while (0)
 
 /* Copy the start values of a time window from another time window. */
