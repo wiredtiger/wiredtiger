@@ -194,7 +194,7 @@ __wt_delta_header_byteswap(WT_DELTA_HEADER *dsk)
 {
 #ifdef WORDS_BIGENDIAN
     dsk->write_gen = __wt_bswap64(dsk->write_gen);
-    dsk->mem_size = __wt_bswap64(dsk->mem_size);
+    dsk->mem_size = __wt_bswap32(dsk->mem_size);
     dsk->u.entries = __wt_bswap32(dsk->u.entries);
 #else
     WT_UNUSED(dsk);
