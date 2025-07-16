@@ -1186,7 +1186,7 @@ struct __wt_page_deleted {
  * they must fit onto the minimum size page because a reference to an overflow page is itself a
  * location.)
  */
-#define WT_ADDR_MAX_COOKIE 255 /* Maximum address cookie */
+#define WT_ADDR_MAX_COOKIE 500 /* Maximum address cookie */
 
 /*
  * WT_ADDR_COPY --
