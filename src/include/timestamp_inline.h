@@ -27,11 +27,11 @@
 #define WT_TIME_WINDOW_COPY(dest, source) (*(dest) = *(source))
 
 /* Return true if the time window is equivalent to the default time window. */
-#define WT_TIME_WINDOW_IS_EMPTY(tw)                                                           \
-    ((tw)->durable_start_ts == WT_TS_NONE && (tw)->start_ts == WT_TS_NONE &&                  \
-      (tw)->start_txn == WT_TXN_NONE && (tw)->start_prepare_ts == WT_TS_NONE &&               \
-      (tw)->start_prepared_id == WT_PREPARED_ID_NONE && (tw)->stop_ts == WT_TS_MAX &&         \
-      (tw)->stop_txn == WT_TXN_MAX && (tw)->durable_stop_ts == WT_TS_NONE &&                  \
+#define WT_TIME_WINDOW_IS_EMPTY(tw)                                                   \
+    ((tw)->durable_start_ts == WT_TS_NONE && (tw)->start_ts == WT_TS_NONE &&          \
+      (tw)->start_txn == WT_TXN_NONE && (tw)->start_prepare_ts == WT_TS_NONE &&       \
+      (tw)->start_prepared_id == WT_PREPARED_ID_NONE && (tw)->stop_ts == WT_TS_MAX && \
+      (tw)->stop_txn == WT_TXN_MAX && (tw)->durable_stop_ts == WT_TS_NONE &&          \
       (tw)->stop_prepare_ts == WT_TS_NONE && (tw)->stop_prepared_id == WT_PREPARED_ID_NONE)
 
 /* Check if the start time window is set. */
@@ -69,10 +69,9 @@
       (tw1)->stop_prepared_id == (tw2)->stop_prepared_id)
 
 /* Return true if the stop time windows are the same. */
-#define WT_TIME_WINDOWS_STOP_EQUAL(tw1, tw2)                                                 \
-    ((tw1)->durable_stop_ts == (tw2)->durable_stop_ts && (tw1)->stop_ts == (tw2)->stop_ts && \
-      (tw1)->stop_txn == (tw2)->stop_txn &&             \
-      (tw1)->stop_prepared_id == (tw2)->stop_prepared_id &&                                  \
+#define WT_TIME_WINDOWS_STOP_EQUAL(tw1, tw2)                                                      \
+    ((tw1)->durable_stop_ts == (tw2)->durable_stop_ts && (tw1)->stop_ts == (tw2)->stop_ts &&      \
+      (tw1)->stop_txn == (tw2)->stop_txn && (tw1)->stop_prepared_id == (tw2)->stop_prepared_id && \
       (tw1)->stop_prepare_ts == (tw2)->stop_prepare_ts)
 
 /*
@@ -202,7 +201,7 @@
               WT_MAX((tw)->stop_prepare_ts, (ta)->newest_stop_durable_ts);                 \
         }                                                                                  \
         (ta)->newest_stop_txn = WT_MAX((tw)->stop_txn, (ta)->newest_stop_txn);             \
-        if (WT_TIME_WINDOW_HAS_PREPARE(tw) != 0)                                                            \
+        if (WT_TIME_WINDOW_HAS_PREPARE(tw))                                                \
             (ta)->prepare = 1;                                                             \
     } while (0)
 

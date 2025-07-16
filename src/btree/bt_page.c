@@ -796,7 +796,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         F_SET(tombstone, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
         tombstone->next = upd;
         *updp = tombstone;
-    } else 
+    } else
         *updp = upd;
 
     *sizep = total_size;
@@ -817,7 +817,7 @@ static int
 __page_inmem_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
   WT_UPDATE **updp, size_t *sizep)
 {
-    if ( WT_TIME_WINDOW_HAS_PREPARE(&(unpack->tw)))
+    if (WT_TIME_WINDOW_HAS_PREPARE(&(unpack->tw)))
         return (__page_inmem_prepare_update(session, value, unpack, updp, sizep));
 
     return (__page_inmem_tombstone(session, unpack, updp, sizep));

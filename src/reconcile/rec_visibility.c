@@ -84,7 +84,8 @@ __rec_append_orig_value(
     conn = S2C(session);
 
     WT_ASSERT_ALWAYS(session,
-      upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL && !WT_TIME_WINDOW_HAS_PREPARE(&(unpack->tw)),
+      upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL &&
+        !WT_TIME_WINDOW_HAS_PREPARE(&(unpack->tw)),
       "__rec_append_orig_value requires an onpage, non-prepared update");
 
     append = oldest_upd = tombstone = NULL;
@@ -865,7 +866,8 @@ __rec_fill_tw_from_upd_select(
 
         WT_ASSERT_ALWAYS(
           session, vpack != NULL && vpack->type != WT_CELL_DEL, "No on-disk value is found");
-        WT_ASSERT_ALWAYS(session, ! WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)), "On-disk value is a prepared update");
+        WT_ASSERT_ALWAYS(
+          session, !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)), "On-disk value is a prepared update");
 
         /* Move the pointer to the last update on the update chain. */
         for (last_upd = tombstone; last_upd->next != NULL; last_upd = last_upd->next)
@@ -1132,7 +1134,8 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      * appended to the update chain when the page is read into memory.
      */
     if (upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
-      !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)) && (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
+      !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)) &&
+      (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
         WT_RET(__rec_append_orig_value(session, page, upd_select->upd, vpack));
 
     __wti_rec_time_window_clear_obsolete(session, upd_select, NULL, r);
