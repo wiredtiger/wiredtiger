@@ -656,7 +656,7 @@ __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
 
 /*
  * __evict_update_work --
- *     Configure eviction work state.
+ *     Configure eviction work state. Do not return error code from this function.
  */
 static bool
 __evict_update_work(WT_SESSION_IMPL *session)
@@ -664,6 +664,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
     WT_BTREE *hs_tree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
+    /* !!! Do not return error code from this func. */
     WT_DECL_RET;
     WT_EVICT *evict;
     double dirty_target, dirty_trigger, target, trigger, updates_target, updates_trigger;
@@ -702,7 +703,8 @@ __evict_update_work(WT_SESSION_IMPL *session)
         total_dirty = total_inmem = total_updates = 0;
         hs_id = 0;
         for (;;) {
-            WT_RET_NOTFOUND_OK(ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id));
+            ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id);
+            WT_ASSERT(session, ret == 0 || ret == WT_NOTFOUND);
             if (ret == WT_NOTFOUND) {
                 ret = 0;
                 (void)ret; /* Keep the assignment to 0 just in case, but suppress clang warnings. */
@@ -717,7 +719,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
             if (ret == WT_NOTFOUND)
                 WT_STAT_CONN_INCR(session, cache_eviction_hs_not_cached_in_cursor);
 
-            WT_RET_NOTFOUND_OK(ret);
+            WT_ASSERT(session, ret == 0 || ret == WT_NOTFOUND);
         }
         __wt_atomic_store64(&cache->bytes_hs, total_inmem);
         __wt_atomic_store64(&cache->bytes_hs_dirty, total_dirty);
