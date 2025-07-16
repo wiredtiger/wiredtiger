@@ -87,6 +87,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: eviction walk target pages histogram - 64-128",
   "cache: eviction walk target pages reduced due to history store cache pressure",
   "cache: hazard pointer blocked page eviction",
+  "cache: history store btree not cached in cursor during eviction",
   "cache: history store table insert calls",
   "cache: history store table insert calls that returned restart",
   "cache: history store table reads",
@@ -513,6 +514,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_target_page_lt128 = 0;
     stats->cache_eviction_target_page_reduced = 0;
     stats->cache_eviction_blocked_hazard = 0;
+    stats->cache_eviction_hs_not_cached_in_cursor = 0;
     stats->cache_hs_insert = 0;
     stats->cache_hs_insert_restart = 0;
     stats->cache_hs_read = 0;
@@ -915,6 +917,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_target_page_lt128 += from->cache_eviction_target_page_lt128;
     to->cache_eviction_target_page_reduced += from->cache_eviction_target_page_reduced;
     to->cache_eviction_blocked_hazard += from->cache_eviction_blocked_hazard;
+    to->cache_eviction_hs_not_cached_in_cursor += from->cache_eviction_hs_not_cached_in_cursor;
     to->cache_hs_insert += from->cache_hs_insert;
     to->cache_hs_insert_restart += from->cache_hs_insert_restart;
     to->cache_hs_read += from->cache_hs_read;
@@ -1336,6 +1339,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_target_page_reduced +=
       WT_STAT_DSRC_READ(from, cache_eviction_target_page_reduced);
     to->cache_eviction_blocked_hazard += WT_STAT_DSRC_READ(from, cache_eviction_blocked_hazard);
+    to->cache_eviction_hs_not_cached_in_cursor +=
+      WT_STAT_DSRC_READ(from, cache_eviction_hs_not_cached_in_cursor);
     to->cache_hs_insert += WT_STAT_DSRC_READ(from, cache_hs_insert);
     to->cache_hs_insert_restart += WT_STAT_DSRC_READ(from, cache_hs_insert_restart);
     to->cache_hs_read += WT_STAT_DSRC_READ(from, cache_hs_read);
@@ -1895,6 +1900,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: hazard pointer check calls",
   "cache: hazard pointer check entries walked",
   "cache: hazard pointer maximum array length",
+  "cache: history store btree not cached in cursor during eviction",
   "cache: history store table insert calls",
   "cache: history store table insert calls that returned restart",
   "cache: history store table max on-disk size",
@@ -2858,6 +2864,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_hazard_checks = 0;
     stats->cache_hazard_walks = 0;
     stats->cache_hazard_max = 0;
+    stats->cache_eviction_hs_not_cached_in_cursor = 0;
     stats->cache_hs_insert = 0;
     stats->cache_hs_insert_restart = 0;
     /* not clearing cache_hs_ondisk_max */
@@ -3834,6 +3841,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_hazard_walks += WT_STAT_CONN_READ(from, cache_hazard_walks);
     if ((v = WT_STAT_CONN_READ(from, cache_hazard_max)) > to->cache_hazard_max)
         to->cache_hazard_max = v;
+    to->cache_eviction_hs_not_cached_in_cursor +=
+      WT_STAT_CONN_READ(from, cache_eviction_hs_not_cached_in_cursor);
     to->cache_hs_insert += WT_STAT_CONN_READ(from, cache_hs_insert);
     to->cache_hs_insert_restart += WT_STAT_CONN_READ(from, cache_hs_insert_restart);
     to->cache_hs_ondisk_max += WT_STAT_CONN_READ(from, cache_hs_ondisk_max);

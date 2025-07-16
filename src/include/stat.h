@@ -610,6 +610,7 @@ struct __wt_connection_stats {
     int64_t cache_hazard_checks;
     int64_t cache_hazard_walks;
     int64_t cache_hazard_max;
+    int64_t cache_eviction_hs_not_cached_in_cursor;
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
     int64_t cache_hs_ondisk_max;
@@ -1405,6 +1406,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_target_page_lt128;
     int64_t cache_eviction_target_page_reduced;
     int64_t cache_eviction_blocked_hazard;
+    int64_t cache_eviction_hs_not_cached_in_cursor;
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
     int64_t cache_hs_read;

@@ -33,11 +33,11 @@ __hs_cleanup_las(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_hs_get_cached_btree --
- *     Get the history store btree from the cursor cache.
+ * __wt_hs_btree_get_cached --
+ *     Retrieve the history store btree from the cursors dhandle cache.
  */
 int
-__wt_hs_get_cached_btree(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_btreep)
+__wt_hs_btree_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_btreep)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
