@@ -33,32 +33,6 @@ __hs_cleanup_las(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_hs_id_to_uri --
- *     Convert HS ID to URI name.
- */
-int
-__wt_hs_id_to_uri(WT_SESSION_IMPL *session, uint32_t hs_id, const char **uri)
-{
-    const char *tmp_uri;
-    WT_ASSERT(session, uri != NULL);
-
-    switch (hs_id) {
-    case 1:
-        tmp_uri = WT_HS_URI;
-        break;
-
-    case 2:
-        tmp_uri = WT_HS_URI_SHARED;
-        break;
-
-    default:
-        WT_RET_MSG(session, EINVAL, "No such History Store ID: %" PRIu32, hs_id);
-    }
-    *uri = tmp_uri;
-    return (0);
-}
-
-/*
  * __wt_hs_get_cached_btree --
  *     Get the history store btree from the cursor cache.
  */
@@ -70,8 +44,7 @@ __wt_hs_get_cached_btree(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs
     uint64_t hash_value;
     const char *uri;
 
-    uri = NULL;
-    WT_RET(__wt_hs_id_to_uri(session, hs_id, &uri));
+    WT_HS_ID_TO_URI(session, hs_id, uri);
 
     __wt_cursor_get_hash(session, uri, NULL, &hash_value);
     if ((ret = __wt_cursor_cache_get(session, uri, hash_value, NULL, NULL, &cursor)) == 0)

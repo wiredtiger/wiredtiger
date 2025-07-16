@@ -1392,9 +1392,8 @@ __wt_curhs_open_ext(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t btree_id,
 
     cursor = NULL;
     *cursorp = NULL;
-    uri = NULL;
 
-    WT_ERR(__wt_hs_id_to_uri(session, hs_id, &uri));
+    WT_HS_ID_TO_URI(session, hs_id, uri);
 
     WT_ERR(__wt_calloc_one(session, &hs_cursor));
     ++session->hs_cursor_counter;
