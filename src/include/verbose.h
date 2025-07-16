@@ -6,8 +6,6 @@
  * See the file LICENSE for redistribution information.
  */
 
-#include <stdint.h>
-
 #pragma once
 
 /**

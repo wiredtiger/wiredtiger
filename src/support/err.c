@@ -7,7 +7,6 @@
  */
 
 #include "wt_internal.h"
-#include <stdint.h>
 
 /* Define the string representation of each verbose category. */
 static const char *verbose_category_strings[] = WT_VERBOSE_CATEGORY_STR_INIT;
