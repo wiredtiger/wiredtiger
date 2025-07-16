@@ -1059,10 +1059,10 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 static WT_INLINE bool
 __wt_txn_upd_value_visible_all(WT_SESSION_IMPL *session, WT_UPDATE_VALUE *upd_value)
 {
-    WT_ASSERT(session, upd_value->tw.prepare == 0);
+    WT_ASSERT(session, WT_TIME_WINDOW_HAS_PREPARE(&(upd_value->tw)) == 0);
     return (upd_value->type == WT_UPDATE_TOMBSTONE ?
-        __wt_txn_visible_all(session, upd_value->tw.stop_txn, upd_value->tw.durable_stop_ts) :
-        __wt_txn_visible_all(session, upd_value->tw.start_txn, upd_value->tw.durable_start_ts));
+        __wt_txn_visible_all(session, upd_value->tw.stop_txn, WT_TIME_WINDOW_USE_STOP_PREPARE_TS_OR(&(upd_value->tw), upd_value->tw.durable_stop_ts)) :
+        __wt_txn_visible_all(session, upd_value->tw.start_txn,  WT_TIME_WINDOW_USE_START_PREPARE_TS_OR(&(upd_value->tw), upd_value->tw.durable_start_ts)));
 }
 
 /*
@@ -1084,14 +1084,22 @@ static WT_INLINE bool
 __wt_txn_tw_start_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
     /*
-     * Check the prepared flag if there is no stop time point or the start and stop time points are
-     * from the same transaction.
+     * If time window is stop prepared/stop timestamp & from the same transaction, return false
+     * Otherwise check if the start time window is visible.
+     * If the start time window is prepared, use the start prepare timestamp, otherwise use the
+     * start timestamp.
      */
-    return (((WT_TIME_WINDOW_HAS_STOP(tw) &&
-               (tw->start_txn != tw->stop_txn || tw->start_ts != tw->stop_ts ||
-                 tw->durable_start_ts != tw->durable_stop_ts)) ||
-              !tw->prepare) &&
-      __wt_txn_visible(session, tw->start_txn, tw->start_ts, tw->durable_start_ts));
+    if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) && tw->stop_prepared_id && tw->start_prepared_id &&
+               tw->stop_prepare_ts && tw->start_prepare_ts && tw->stop_txn == tw->start_txn)
+        return false;
+     
+    if (WT_TIME_WINDOW_HAS_STOP(tw) &&
+               (tw->start_txn == tw->stop_txn && tw->start_ts == tw->stop_ts &&
+                 tw->durable_start_ts == tw->durable_stop_ts))
+        return false;
+        
+    return __wt_txn_visible(session, tw->start_txn, WT_TIME_WINDOW_USE_START_PREPARE_TS_OR(tw, tw->start_ts),
+            WT_TIME_WINDOW_USE_START_PREPARE_TS_OR(tw, tw->durable_start_ts));
 }
 
 /*
@@ -1102,14 +1110,20 @@ static WT_INLINE bool
 __wt_txn_tw_start_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
     /*
-     * Check the prepared flag if there is no stop time point or the start and stop time points are
-     * from the same transaction.
+     * If time window is stop prepared/stop timestamp & from the same transaction, return false
+     * Otherwise check if the start time window is visible.
+     * If the start time window is prepared, use the start prepare timestamp, otherwise use the
+     * start timestamp.
      */
-    return (((WT_TIME_WINDOW_HAS_STOP(tw) &&
-               (tw->start_txn != tw->stop_txn || tw->start_ts != tw->stop_ts ||
-                 tw->durable_start_ts != tw->durable_stop_ts)) ||
-              !tw->prepare) &&
-      __wt_txn_visible_all(session, tw->start_txn, tw->durable_start_ts));
+    if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) && tw->stop_prepared_id && tw->start_prepared_id &&
+               tw->stop_prepare_ts && tw->start_prepare_ts && tw->stop_txn == tw->start_txn)
+        return false;
+     
+    if (WT_TIME_WINDOW_HAS_STOP(tw) &&
+               (tw->start_txn == tw->stop_txn && tw->start_ts == tw->stop_ts &&
+                 tw->durable_start_ts == tw->durable_stop_ts))
+        return false;
+      return __wt_txn_visible_all(session, tw->start_txn, WT_TIME_WINDOW_USE_START_PREPARE_TS_OR(tw, tw->durable_start_ts));
 }
 
 /*
@@ -1462,11 +1476,14 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
          */
         if (upd->type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
           !WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
-            cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
-            cbt->upd_value->tw.stop_ts = upd->start_ts;
             cbt->upd_value->tw.stop_txn = upd->txnid;
-            cbt->upd_value->tw.prepare =
-              prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
+            if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
+                 WT_ASSERT(session,  upd->durable_ts == WT_TS_NONE);
+                cbt->upd_value->tw.stop_prepare_ts = upd->start_ts;
+            } else {
+                cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
+                cbt->upd_value->tw.stop_ts = upd->start_ts;
+            }
             continue;
         }
 
@@ -2335,16 +2352,22 @@ __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
         upd_value->buf.size = upd->size;
     }
     if (upd->type == WT_UPDATE_TOMBSTONE) {
-        upd_value->tw.durable_stop_ts = upd->durable_ts;
-        upd_value->tw.stop_ts = upd->start_ts;
         upd_value->tw.stop_txn = upd->txnid;
+        if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
+            upd_value->tw.stop_prepare_ts = upd->start_ts;
+        else {
+            upd_value->tw.durable_stop_ts = upd->durable_ts;
+            upd_value->tw.stop_ts = upd->start_ts;
+        }
     } else {
-        upd_value->tw.durable_start_ts = upd->durable_ts;
-        upd_value->tw.start_ts = upd->start_ts;
         upd_value->tw.start_txn = upd->txnid;
+        if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
+            upd_value->tw.start_prepare_ts = upd->start_ts;
+        else {
+            upd_value->tw.durable_start_ts = upd->durable_ts;
+            upd_value->tw.start_ts = upd->start_ts;
+        }
     }
-    upd_value->tw.prepare =
-      prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
     upd_value->type = upd->type;
 }
 

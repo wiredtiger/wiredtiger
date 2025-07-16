@@ -434,7 +434,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
          * the written proper timestamp, so comparing against it with history store shouldn't have
          * any problem.
          */
-        if (hs_tw->start_ts <= tw->start_ts || tw->prepare) {
+        if (hs_tw->start_ts <= tw->start_ts || WT_TIME_WINDOW_HAS_PREPARE(tw)) {
             if (type == WT_UPDATE_MODIFY) {
                 __wt_modify_max_memsize_format(
                   hs_value->data, S2BT(session)->value_format, full_value->size, &max_memsize);
@@ -502,7 +502,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
               "history store update valid with time_window=%s, type=%s and stable_timestamp=%s",
               __wt_time_window_to_string(hs_tw, tw_string), __wt_update_type_str(type),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[0]));
-            WT_ASSERT(session, tw->prepare || hs_tw->start_ts <= tw->start_ts);
+            WT_ASSERT(session,  WT_TIME_WINDOW_HAS_PREPARE(tw) || hs_tw->start_ts <= tw->start_ts);
             valid_update_found = true;
             break;
         }
@@ -574,7 +574,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
              */
             WT_ASSERT(session,
               hs_stop_durable_ts == WT_TS_NONE || hs_stop_durable_ts < newer_hs_durable_ts ||
-                tw->prepare);
+                 WT_TIME_WINDOW_HAS_PREPARE(tw));
 
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
             /*

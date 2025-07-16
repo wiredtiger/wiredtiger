@@ -50,7 +50,14 @@
     ((tw)->stop_prepared_id != WT_PREPARED_ID_NONE || (tw)->stop_prepare_ts != WT_TS_NONE)
 
 #define WT_TIME_WINDOW_HAS_PREPARE(tw) \
-    (WT_TIME_WINDOW_HAS_START_PREPARE)(tw) || WT_TIME_WINDOW_HAS_STOP_PREPARE(tw)
+    (WT_TIME_WINDOW_HAS_START_PREPARE(tw) || WT_TIME_WINDOW_HAS_STOP_PREPARE(tw))
+
+#define WT_TIME_WINDOW_USE_STOP_PREPARE_TS_OR(tw, ts) \
+    ((tw)->stop_prepare_ts == WT_TS_NONE ? (tw)->stop_prepare_ts : ts)
+
+#define WT_TIME_WINDOW_USE_START_PREPARE_TS_OR(tw, ts) \
+    ((tw)->start_prepare_ts == WT_TS_NONE ? (tw)->start_prepare_ts : ts)
+
 /* Return true if the time windows are the same. */
 #define WT_TIME_WINDOWS_EQUAL(tw1, tw2)                                                          \
     ((tw1)->durable_start_ts == (tw2)->durable_start_ts && (tw1)->start_ts == (tw2)->start_ts && \
@@ -195,7 +202,7 @@
               WT_MAX((tw)->stop_prepare_ts, (ta)->newest_stop_durable_ts);                 \
         }                                                                                  \
         (ta)->newest_stop_txn = WT_MAX((tw)->stop_txn, (ta)->newest_stop_txn);             \
-        if ((tw)->prepare != 0)                                                            \
+        if (WT_TIME_WINDOW_HAS_PREPARE(tw) != 0)                                                            \
             (ta)->prepare = 1;                                                             \
     } while (0)
 

@@ -495,14 +495,6 @@ __wt_time_value_validate(
         WT_TIME_VALIDATE_RET(session,
           "value time window has a durable start time after its durable stop time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
-
-    if (tw->prepare) {
-        if (!WT_TIME_WINDOW_HAS_START_PREPARE(tw) && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw)) {
-            WT_TIME_VALIDATE_RET(session,
-              "Prepared value time window has neither start or stop prepared information; time "
-              "window %s",
-              __wt_time_window_to_string(tw, time_string[0]));
-        } else {
             /* Validate that if start prepare_ts is set, start_prepared_id must be set */
             if (WT_TIME_WINDOW_HAS_START_PREPARE(tw)) {
                 if (tw->start_prepare_ts == WT_TS_NONE) {
@@ -558,22 +550,6 @@ __wt_time_value_validate(
                       __wt_time_window_to_string(tw, time_string[0]));
                 }
             }
-        }
-    } else {
-        /* Validate that prepare_ts and prepared_id must be none */
-        if (WT_TIME_WINDOW_HAS_START_PREPARE(tw)) {
-            WT_TIME_VALIDATE_RET(session,
-              "Non-prepared value time window contains start prepared ts and prepared id; time "
-              "window %s",
-              __wt_time_window_to_string(tw, time_string[0]));
-        }
-        if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw)) {
-            WT_TIME_VALIDATE_RET(session,
-              "Non-prepared value time window contains stop prepared ts and prepared id; time "
-              "window %s",
-              __wt_time_window_to_string(tw, time_string[0]));
-        }
-    }
 
     /*
      * Optionally validate the time window against a parent's time window.

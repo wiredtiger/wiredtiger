@@ -84,7 +84,7 @@ __rec_append_orig_value(
     conn = S2C(session);
 
     WT_ASSERT_ALWAYS(session,
-      upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL && !unpack->tw.prepare,
+      upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL && !WT_TIME_WINDOW_HAS_PREPARE(&(unpack->tw)),
       "__rec_append_orig_value requires an onpage, non-prepared update");
 
     append = oldest_upd = tombstone = NULL;
@@ -303,7 +303,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
     if (F_ISSET(r, WT_REC_REWRITE_DELTA))
         return (false);
 
-    if (upd_select->tw.prepare)
+    if (WT_TIME_WINDOW_HAS_PREPARE(&(upd_select->tw)))
         return (true);
 
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
@@ -514,7 +514,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
      * the update chain but checkpoint won't replace the page image as such it will be the previous
      * reconciliations ondisk value that we will be comparing against.
      */
-    if (vpack != NULL && !vpack->tw.prepare) {
+    if (vpack != NULL && !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw))) {
         char ts_string[3][WT_TS_INT_STRING_SIZE];
         if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw))
             WT_ASSERT_ALWAYS(session,
@@ -865,7 +865,7 @@ __rec_fill_tw_from_upd_select(
 
         WT_ASSERT_ALWAYS(
           session, vpack != NULL && vpack->type != WT_CELL_DEL, "No on-disk value is found");
-        WT_ASSERT_ALWAYS(session, !vpack->tw.prepare, "On-disk value is a prepared update");
+        WT_ASSERT_ALWAYS(session, ! WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)), "On-disk value is a prepared update");
 
         /* Move the pointer to the last update on the update chain. */
         for (last_upd = tombstone; last_upd->next != NULL; last_upd = last_upd->next)
@@ -1132,7 +1132,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      * appended to the update chain when the page is read into memory.
      */
     if (upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
-      !vpack->tw.prepare && (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
+      !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)) && (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
         WT_RET(__rec_append_orig_value(session, page, upd_select->upd, vpack));
 
     __wti_rec_time_window_clear_obsolete(session, upd_select, NULL, r);
