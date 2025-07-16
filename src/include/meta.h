@@ -83,18 +83,18 @@
 #define WT_IS_URI_METADATA(uri) \
     (strcmp(uri, WT_METAFILE_URI) == 0 || strcmp(uri, WT_DISAGG_METADATA_URI) == 0)
 
-#define WT_HS_ID_TO_URI(session, hs_id, uri)                                               \
-    do {                                                                                   \
-        switch ((hs_id)) {                                                                 \
-        case 1:                                                                            \
-            (uri) = WT_HS_URI;                                                             \
-            break;                                                                         \
-        case 2:                                                                            \
-            (uri) = WT_HS_URI_SHARED;                                                      \
-            break;                                                                         \
-        default:                                                                           \
-            WT_ASSERT_ALWAYS(session, false, "No such History Store ID: %" PRIu32, hs_id); \
-        }                                                                                  \
+#define WT_HS_ID_TO_URI(session, hs_id, uri)                                                   \
+    do {                                                                                       \
+        switch ((hs_id)) {                                                                     \
+        case 1:                                                                                \
+            (uri) = WT_HS_URI;                                                                 \
+            break;                                                                             \
+        case 2:                                                                                \
+            (uri) = WT_HS_URI_SHARED;                                                          \
+            break;                                                                             \
+        default:                                                                               \
+            WT_ASSERT_ALWAYS((session), false, "No such History Store ID: %" PRIu32, (hs_id)); \
+        }                                                                                      \
     } while (0)
 
 /*
