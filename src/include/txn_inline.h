@@ -1102,7 +1102,7 @@ __wt_txn_tw_start_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 
     return (__wt_txn_visible(session, tw->start_txn,
       WT_TIME_WINDOW_USE_START_PREPARE_TS_OR(tw, tw->start_ts),
-      WT_TIME_WINDOW_USE_START_PREPARE_TS_OR(tw, tw->durable_start_ts));
+      WT_TIME_WINDOW_USE_START_PREPARE_TS_OR(tw, tw->durable_start_ts)));
 }
 
 /*
@@ -1126,7 +1126,7 @@ __wt_txn_tw_start_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
         tw->durable_start_ts == tw->durable_stop_ts))
         return (false);
     return (__wt_txn_visible_all(
-      session, tw->start_txn, WT_TIME_WINDOW_USE_START_PREPARE_TS_OR(tw, tw->durable_start_ts));
+      session, tw->start_txn, WT_TIME_WINDOW_USE_START_PREPARE_TS_OR(tw, tw->durable_start_ts)));
 }
 
 /*

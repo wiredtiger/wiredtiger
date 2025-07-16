@@ -702,11 +702,15 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
             WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_sweep_hs_keys);
         } else
             return (0);
+        /*
+         * Otherwise, remove all transactions that are either:
+         * - durable start is after table timestamp
+         * - start transaction id is not visible
+         * - time window has no stop and is prepared, which means it is a start prepared only
+         */
     } else if (tw->durable_start_ts > rollback_timestamp ||
       !__wti_rts_visibility_txn_visible_id(session, tw->start_txn) ||
-      (!WT_TIME_WINDOW_HAS_STOP(tw) && prepared &&
-        (!F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) ||
-          tw->stop_prepare_ts > rollback_timestamp))) {
+      (!WT_TIME_WINDOW_HAS_STOP(tw) && WT_TIME_WINDOW_HAS_START_PREPARE(tw))) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_ONDISK_ABORT_TW
           "on-disk update aborted with time_window=%s. "
@@ -732,15 +736,16 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
         }
     } else if (WT_TIME_WINDOW_HAS_STOP(tw) &&
       (tw->durable_stop_ts > rollback_timestamp ||
-        !__wti_rts_visibility_txn_visible_id(session, tw->stop_txn) || prepared)) {
+        !__wti_rts_visibility_txn_visible_id(session, tw->stop_txn) ||
+        WT_TIME_WINDOW_HAS_STOP_PREPARE(tw))) {
         /*
          * For prepared transactions, it is possible that both the on-disk key start and stop time
          * windows can be the same. To abort these updates, check for any stable update from history
          * store or remove the key.
          */
-        if (tw->start_ts == tw->stop_ts && tw->durable_start_ts == tw->durable_stop_ts &&
-          tw->start_txn == tw->stop_txn) {
-            WT_ASSERT(session, prepared == true);
+        if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) &&
+          (tw->start_prepare_ts == tw->stop_prepare_ts &&
+            tw->start_prepared_id == tw->stop_prepared_id && tw->start_txn == tw->stop_txn)) {
             if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
               !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
                 return (__rts_btree_ondisk_fixup_key(
