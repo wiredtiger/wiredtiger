@@ -23,10 +23,8 @@ static const char *verbose_category_strings[] = WT_VERBOSE_CATEGORY_STR_INIT;
 static int
 __concatenate_log_id(char *wt_log_id, uint32_t category_id, uint32_t log_id)
 {
-    WT_RET(__wt_snprintf(
+    return (__wt_snprintf(
       wt_log_id, WT_MAX_LOG_ID_LENGTH, "%02d%02u%03u", WT_BASE_LOG_ID, category_id, log_id));
-
-    return (0);
 }
 
 /*
@@ -495,8 +493,10 @@ __wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
     char concatenated_id_str[WT_MAX_LOG_ID_LENGTH];
     va_list ap;
 
-    /* Use the default WT_DEFAULT_LOG_ID log ID '000' as default identifier for category-specific
-     * error messages */
+    /*
+     * Use the default WT_DEFAULT_LOG_ID log ID '000' as default identifier for category-specific
+     * error messages.
+     */
     WT_IGNORE_RET(__concatenate_log_id(concatenated_id_str, category, WT_DEFAULT_LOG_ID));
 
     /*
@@ -522,8 +522,10 @@ __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, WT_VERBOSE_
     char concatenated_id_str[WT_MAX_LOG_ID_LENGTH];
     va_list ap;
 
-    /* Use the default WT_DEFAULT_LOG_ID log ID '000' as default identifier for category-specific
-     * error messages */
+    /*
+     * Use the default WT_DEFAULT_LOG_ID log ID '000' as default identifier for category-specific
+     * error messages.
+     */
     WT_IGNORE_RET(__concatenate_log_id(concatenated_id_str, category, WT_DEFAULT_LOG_ID));
 
     /*
@@ -550,8 +552,10 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
     char concatenated_id_str[WT_MAX_LOG_ID_LENGTH];
     va_list ap;
 
-    /* Use the default WT_DEFAULT_LOG_ID log ID '000' as default identifier for category-specific
-     * error messages */
+    /*
+     * Use the default WT_DEFAULT_LOG_ID log ID '000' as default identifier for category-specific
+     * error messages.
+     */
     WT_IGNORE_RET(__concatenate_log_id(concatenated_id_str, category, WT_DEFAULT_LOG_ID));
 
     /*
@@ -673,8 +677,10 @@ __wt_verbose_worker(WT_SESSION_IMPL *session, WT_VERBOSE_CATEGORY category, WT_V
     char concatenated_id_str[WT_MAX_LOG_ID_LENGTH];
     va_list ap;
 
-    /* Use the default WT_DEFAULT_LOG_ID log ID '000' as default identifier for category-specific
-     * error messages */
+    /*
+     * Use the default WT_DEFAULT_LOG_ID log ID '000' as default identifier for category-specific
+     * error messages.
+     */
     WT_IGNORE_RET(__concatenate_log_id(concatenated_id_str, category, WT_DEFAULT_LOG_ID));
 
     va_start(ap, fmt);
