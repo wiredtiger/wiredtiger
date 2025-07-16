@@ -60,21 +60,23 @@ __wt_hs_id_to_uri(WT_SESSION_IMPL *session, uint32_t hs_id, const char **uri)
 
 /*
  * __wt_hs_get_cached_btree --
- *     Get the history store btree from the connection dhandle cache.
+ *     Get the history store btree from the cursor cache.
  */
 int
 __wt_hs_get_cached_btree(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_btreep)
 {
+    WT_CURSOR *cursor;
     WT_DECL_RET;
+    uint64_t hash_value;
     const char *uri;
 
     uri = NULL;
     WT_RET(__wt_hs_id_to_uri(session, hs_id, &uri));
 
-    WT_WITH_HANDLE_LIST_READ_LOCK(session, (ret = __wt_conn_dhandle_find(session, uri, NULL)));
+    __wt_cursor_get_hash(session, uri, NULL, &hash_value);
+    if ((ret = __wt_cursor_cache_get(session, uri, hash_value, NULL, NULL, &cursor)) == 0)
+        *hs_btreep = CUR2BT(cursor);
 
-    if (ret == 0)
-        *hs_btreep = S2BT(session);
     return (ret);
 }
 
