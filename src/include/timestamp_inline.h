@@ -53,10 +53,10 @@
     (WT_TIME_WINDOW_HAS_START_PREPARE(tw) || WT_TIME_WINDOW_HAS_STOP_PREPARE(tw))
 
 #define WT_TIME_WINDOW_USE_STOP_PREPARE_TS_OR(tw, ts) \
-    ((tw)->stop_prepare_ts == WT_TS_NONE ? (tw)->stop_prepare_ts : ts)
+    ((tw)->stop_prepare_ts != WT_TS_NONE ? (tw)->stop_prepare_ts : ts)
 
 #define WT_TIME_WINDOW_USE_START_PREPARE_TS_OR(tw, ts) \
-    ((tw)->start_prepare_ts == WT_TS_NONE ? (tw)->start_prepare_ts : ts)
+    ((tw)->start_prepare_ts != WT_TS_NONE ? (tw)->start_prepare_ts : ts)
 
 /* Return true if the time windows are the same. */
 #define WT_TIME_WINDOWS_EQUAL(tw1, tw2)                                                          \
