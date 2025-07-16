@@ -402,13 +402,22 @@ palm_kv_get_page_ids(PALM_KV_CONTEXT *context, WT_ITEM *item, uint64_t checkpoin
         return (ret);
 
     // Get maximum size for page ids
-    ret = mdb_stat(context->lmdb_txn, context->env->lmdb_pages_dbi, stat);
-    if (ret != 0)
+    if ((ret = mdb_stat(context->lmdb_txn, context->env->lmdb_pages_dbi, stat)) != 0)
         return (ret);
+    
+    // If no entries found, return an error.
+    if (stat->ms_entries == 0) {
+        item->size = 0;
+        item->data = NULL;
+        return (EINVAL);
+    }
         
     item->data = malloc(stat->ms_entries * sizeof(uint64_t));
+    if (item->data == NULL)
+        return (ENOMEM);
 
-    ret = mdb_cursor_get(cursor, &kval, &vval, MDB_FIRST);
+    if ((ret = mdb_cursor_get(cursor, &kval, &vval, MDB_FIRST)) != 0)
+        return (ret);
 
     /*
     * Iterate through the pages table, looking for pages that match the checkpoint ID.
@@ -423,6 +432,8 @@ palm_kv_get_page_ids(PALM_KV_CONTEXT *context, WT_ITEM *item, uint64_t checkpoin
             * If tombstone detected, skip it.
             */
             if (item->data && (!(decoded_key.flags & WT_PALM_KV_TOMBSTONE))) {
+                // If the checkpoint ID matches, add the page ID to the result.
+                // Make sure we are only adding full pages, not deltas.
                 if (decoded_key.checkpoint_id == checkpoint_id && !decoded_key.is_delta) {
                     item->data[count++] = decoded_key.page_id;
                 }
