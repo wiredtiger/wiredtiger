@@ -1486,8 +1486,6 @@ extern int __wti_heuristic_controls_config(WT_SESSION_IMPL *session, const char 
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_hex2byte(const u_char *from, u_char *to)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_hs_get_btree(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_btreep)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
