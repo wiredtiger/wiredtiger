@@ -389,7 +389,7 @@ palm_kv_get_page_ids(PALM_KV_CONTEXT *context, WT_ITEM *item, uint64_t checkpoin
     MDB_cursor *cursor;
     MDB_val kval;
     MDB_val vval;
-    MDB_stat *stat;
+    MDB_stat stat;
     int ret;
     size_t count = 0;
 
@@ -402,17 +402,19 @@ palm_kv_get_page_ids(PALM_KV_CONTEXT *context, WT_ITEM *item, uint64_t checkpoin
         return (ret);
 
     // Get maximum size for page ids
-    if ((ret = mdb_stat(context->lmdb_txn, context->env->lmdb_pages_dbi, stat)) != 0)
+    if ((ret = mdb_stat(context->lmdb_txn, context->env->lmdb_pages_dbi, &stat)) != 0)
         return (ret);
     
     // If no entries found, return an error.
-    if (stat->ms_entries == 0) {
+    if (stat.ms_entries == 0) {
         item->size = 0;
         item->data = NULL;
         return (EINVAL);
     }
+
+    // TO-DO: Clarify if we should at least one page (root page) in the database.
         
-    item->data = malloc(stat->ms_entries * sizeof(uint64_t));
+    item->data = malloc(stat.ms_entries * sizeof(uint64_t));
     if (item->data == NULL)
         return (ENOMEM);
 
@@ -435,7 +437,7 @@ palm_kv_get_page_ids(PALM_KV_CONTEXT *context, WT_ITEM *item, uint64_t checkpoin
                 // If the checkpoint ID matches, add the page ID to the result.
                 // Make sure we are only adding full pages, not deltas.
                 if (decoded_key.checkpoint_id == checkpoint_id && !decoded_key.is_delta) {
-                    item->data[count++] = decoded_key.page_id;
+                    ((uint64_t *)item->data)[count++] = decoded_key.page_id;
                 }
             }
         }
@@ -444,6 +446,7 @@ palm_kv_get_page_ids(PALM_KV_CONTEXT *context, WT_ITEM *item, uint64_t checkpoin
             return (ret);
     }
 
+    // Track the number of page IDs found.
     item->size = count;
 
     return (0);

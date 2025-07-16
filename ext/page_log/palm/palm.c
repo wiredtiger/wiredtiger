@@ -922,7 +922,6 @@ palm_handle_get_page_ids(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t 
     PALM_HANDLE *palm_handle = (PALM_HANDLE *)plh;
     PALM *palm = palm_handle->palm;
     palm_delay(palm, session);
-    size_t num_pages = 0;
     int ret;
 
     palm_init_context(palm, &context);
