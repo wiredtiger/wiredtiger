@@ -80,8 +80,8 @@
 #define WT_TIME_WINDOW_SET_START(session, tw, upd)    \
     do {                                              \
         (tw)->start_txn = (upd)->txnid;               \
-        (tw)->start_ts = (upd)->start_ts;             \
-        (tw)->durable_start_ts = (upd)->durable_ts;   \
+        (tw)->start_ts = (upd)->upd_start_ts;             \
+        (tw)->durable_start_ts = (upd)->upd_durable_ts;   \
         (tw)->start_prepare_ts = (upd)->prepare_ts;   \
         (tw)->start_prepared_id = (upd)->prepared_id; \
     } while (0)
@@ -92,8 +92,8 @@
 #define WT_TIME_WINDOW_SET_STOP(session, tw, upd)    \
     do {                                             \
         (tw)->stop_txn = (upd)->txnid;               \
-        (tw)->stop_ts = (upd)->start_ts;             \
-        (tw)->durable_stop_ts = (upd)->durable_ts;   \
+        (tw)->stop_ts = (upd)->upd_start_ts;             \
+        (tw)->durable_stop_ts = (upd)->upd_durable_ts;   \
         (tw)->stop_prepare_ts = (upd)->prepare_ts;   \
         (tw)->stop_prepared_id = (upd)->prepared_id; \
     } while (0)
@@ -210,14 +210,14 @@
  * page of identical tombstones; this operation is equivalent to applying WT_TIME_AGGREGATE_UPDATE
  * for each tombstone. Note that it does not affect the start times.
  */
-#define WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, ta, page_del)                    \
-    do {                                                                            \
-        WT_ASSERT(session, (ta)->init_merge == 1);                                  \
-        (ta)->newest_stop_durable_ts =                                              \
-          WT_MAX((page_del)->durable_timestamp, (ta)->newest_stop_durable_ts);      \
-        (ta)->newest_txn = WT_MAX((page_del)->txnid, (ta)->newest_txn);             \
-        (ta)->newest_stop_ts = WT_MAX((page_del)->timestamp, (ta)->newest_stop_ts); \
-        (ta)->newest_stop_txn = WT_MAX((page_del)->txnid, (ta)->newest_stop_txn);   \
+#define WT_TIME_AGGREGATE_UPDATE_PAGE_DEL(session, ta, page_del)                          \
+    do {                                                                                  \
+        WT_ASSERT(session, (ta)->init_merge == 1);                                        \
+        (ta)->newest_stop_durable_ts =                                                    \
+          WT_MAX((page_del)->pg_del_durable_ts, (ta)->newest_stop_durable_ts);            \
+        (ta)->newest_txn = WT_MAX((page_del)->txnid, (ta)->newest_txn);                   \
+        (ta)->newest_stop_ts = WT_MAX((page_del)->pg_del_start_ts, (ta)->newest_stop_ts); \
+        (ta)->newest_stop_txn = WT_MAX((page_del)->txnid, (ta)->newest_stop_txn);         \
     } while (0)
 
 /* Merge an aggregated time window into another - choosing the most conservative value from each. */
