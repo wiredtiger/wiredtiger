@@ -705,8 +705,11 @@ __evict_update_work(WT_SESSION_IMPL *session)
         for (;;) {
             ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id);
             WT_ASSERT(session, ret == 0 || ret == WT_NOTFOUND);
-            if (ret == WT_NOTFOUND)
+            if (ret == WT_NOTFOUND) {
+                ret = 0;
+                (void)ret; /* Keep the assignment to 0 just in case, but suppress clang warnings. */
                 break;
+            }
 
             if ((ret = __wt_curhs_get_cached(session, hs_id, &hs_tree)) == 0) {
                 total_inmem += __wt_atomic_load64(&hs_tree->bytes_inmem);

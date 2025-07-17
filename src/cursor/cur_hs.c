@@ -77,7 +77,7 @@ __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_bt
     __wt_cursor_get_hash(session, uri, NULL, &hash_value);
     if ((ret = __wt_cursor_cache_get(session, uri, hash_value, NULL, NULL, &cursor)) == 0) {
         *hs_btreep = CUR2BT(cursor);
-        cursor->close(cursor);
+        WT_RET(cursor->close(cursor));
     }
 
     return (ret);
