@@ -1146,7 +1146,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
      */
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
     WT_ACQUIRE_READ(close_fh, log->log_close_fh);
-    for (yield_cnt = 0; log->log_close_fh != NULL;) {
+    for (yield_cnt = 0; close_fh != NULL;) {
         WT_STAT_CONN_INCR(session, log_close_yields);
         /*
          * Processing slots will conditionally signal the file close server thread. But if we've
@@ -1161,6 +1161,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
         if (++yield_cnt > WT_THOUSAND * 10)
             return (__wt_set_return(session, EBUSY));
         __wt_yield();
+        WT_ACQUIRE_READ(close_fh, log->log_close_fh);
     }
     /*
      * Note, the file server worker thread requires the LSN be set once the close file handle is
