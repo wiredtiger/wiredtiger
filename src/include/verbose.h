@@ -204,7 +204,7 @@ struct __wt_verbose_multi_category {
  * __wt_verbose_level_worker --
  *     Check for the verbosity level and invoke the worker with an id.
  */
-#define __wt_verbose_level_worker(session, verb_category, verb_level, log_id, fmt, ...)  \
+#define __wt_verbose_level_worker(session, log_id, verb_category, verb_level, fmt, ...)  \
     do {                                                                                 \
         if (WT_VERBOSE_LEVEL_ISSET((session), verb_category, verb_level)) {              \
             WT_VERBOSE_MESSAGE_INFO verb_message_info = {                                \
@@ -215,11 +215,11 @@ struct __wt_verbose_multi_category {
 
 /*
  * __wt_verbose_info_id --
- *     Wrapper to __wt_verbose_level_worker defaulting the verbosity level to WT_VERBOSE_INFO with a log
- *     id.
+ *     Wrapper to __wt_verbose_level_worker defaulting the verbosity level to WT_VERBOSE_INFO with a
+ *     log id.
  */
-#define __wt_verbose_info_id(session, category, log_id, fmt, ...) \
-    __wt_verbose_level_worker(session, category, WT_VERBOSE_INFO, log_id, fmt, __VA_ARGS__)
+#define __wt_verbose_info_id(session, log_id, category, fmt, ...) \
+    __wt_verbose_level_worker(session, log_id, category, WT_VERBOSE_INFO, fmt, __VA_ARGS__)
 
 /*
  * __wt_verbose_debug1 --
@@ -257,7 +257,7 @@ struct __wt_verbose_multi_category {
  * __wt_verbose_level_multi_id --
  *     Refer to __wt_verbose_level_multi for details.
  */
-#define __wt_verbose_level_multi_id(session, multi_category, level, log_id, fmt, ...)             \
+#define __wt_verbose_level_multi_id(session, log_id, multi_category, level, fmt, ...)             \
     do {                                                                                          \
         uint32_t __v_idx;                                                                         \
         /*                                                                                        \
@@ -269,7 +269,7 @@ struct __wt_verbose_multi_category {
         WT_VERBOSE_MULTI_CATEGORY __multi_category = multi_category;                              \
         for (__v_idx = 0; __v_idx < __multi_category.cnt; __v_idx++) {                            \
             __wt_verbose_level_worker(                                                            \
-              session, __multi_category.categories[__v_idx], level, log_id, fmt, __VA_ARGS__);    \
+              session, log_id, __multi_category.categories[__v_idx], level, fmt, __VA_ARGS__);    \
         }                                                                                         \
     } while (0)
 
