@@ -815,7 +815,7 @@ __txn_release(WT_SESSION_IMPL *session)
      */
     txn->flags = 0;
     txn->prepare_timestamp = WT_TS_NONE;
-
+    txn->prepared_id = WT_PREPARED_ID_NONE;
     /* Clear operation timer. */
     txn->operation_timeout_us = 0;
 }

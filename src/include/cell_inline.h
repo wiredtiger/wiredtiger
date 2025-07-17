@@ -85,15 +85,19 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
     }
 
     if (pack_prepare_info_to_start) {
-        /* If the preserve prepared config is enabled, we write prepared_id to durable_start_ts as
-         * well */
+        /*
+         * If the preserve prepared config is enabled, we write prepared_id to durable_start_ts as
+         * well
+         */
         if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {
             WT_ASSERT(session, tw->start_prepared_id != WT_PREPARED_ID_NONE);
             WT_RET(__wt_vpack_uint(pp, 0, tw->start_prepared_id));
-        } else
+            LF_SET(WT_CELL_TS_DURABLE_START);
+        } else {
             /* Write the start_prepare_ts for backward compatibility. */
             WT_RET(__wt_vpack_uint(pp, 0, tw->start_prepare_ts - reference_ts));
-        LF_SET(WT_CELL_TS_DURABLE_START);
+            LF_SET(WT_CELL_TS_DURABLE_START);
+        }
     } else if (tw->durable_start_ts != WT_TS_NONE) {
         WT_ASSERT(session, reference_ts <= tw->durable_start_ts);
         /* Store differences if any, not absolutes. */
@@ -121,16 +125,19 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
      * should not pack the difference.
      */
     if (pack_prepare_info_to_stop) {
-        /* If the preserve prepared config is enabled, we write prepared_id to durable_start_ts as
-         * well */
+        /*
+         * If the preserve prepared config is enabled, we write prepared_id to durable_start_ts as
+         * well
+         */
         if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {
             WT_ASSERT(session, tw->stop_prepared_id != WT_PREPARED_ID_NONE);
             WT_RET(__wt_vpack_uint(pp, 0, pack_prepare_info_to_start ? 0 : tw->stop_prepared_id));
+            LF_SET(WT_CELL_TS_DURABLE_STOP);
         } else {
             /* pack stop_prepare_ts to stop_durable_ts for backward compatibility */
             WT_RET(__wt_vpack_uint(pp, 0, 0));
+            LF_SET(WT_CELL_TS_DURABLE_STOP);
         }
-        LF_SET(WT_CELL_TS_DURABLE_STOP);
     } else if (tw->durable_stop_ts != WT_TS_NONE) {
         WT_ASSERT(session, tw->stop_ts <= tw->durable_stop_ts);
         /* Store differences if any, not absolutes. */

@@ -786,15 +786,12 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
 
     WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, &size));
     total_size += size;
-    upd->upd_durable_ts = unpack->tw.durable_start_ts;
-    upd->upd_start_ts = unpack->tw.start_ts;
-    upd->txnid = unpack->tw.start_txn;
-
     /*
      * Instantiate both update and tombstone if the prepared update is a tombstone. This is required
      * to ensure that written prepared delete operation must be removed from the data store, when
      * the prepared transaction gets rollback.
      */
+    upd->txnid = unpack->tw.start_txn;
     if (WT_TIME_WINDOW_HAS_START_PREPARE(&unpack->tw)) {
         upd->prepared_id = unpack->tw.start_prepared_id;
         upd->prepare_ts = unpack->tw.start_prepare_ts;
@@ -802,6 +799,8 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         upd->prepare_state = WT_PREPARE_INPROGRESS;
         F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
     } else {
+        upd->upd_durable_ts = unpack->tw.durable_start_ts;
+        upd->upd_start_ts = unpack->tw.start_ts;
         F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
         if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
             F_SET(upd, WT_UPDATE_DURABLE);

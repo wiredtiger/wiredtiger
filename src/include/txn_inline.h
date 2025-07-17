@@ -210,6 +210,7 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
          */
         upd->prepare_state = WT_PREPARE_LOCKED;
         WT_RELEASE_BARRIER();
+        /* do we need to reset prepare_ts and prepaed_id here? */
         upd->upd_start_ts = txn->commit_timestamp;
         upd->upd_durable_ts = txn->durable_timestamp;
         WT_RELEASE_WRITE_WITH_BARRIER(upd->prepare_state, WT_PREPARE_RESOLVED);
@@ -1060,13 +1061,10 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 static WT_INLINE bool
 __wt_txn_upd_value_visible_all(WT_SESSION_IMPL *session, WT_UPDATE_VALUE *upd_value)
 {
-    WT_ASSERT(session, WT_TIME_WINDOW_HAS_PREPARE(&(upd_value->tw)) == 0);
+    WT_ASSERT(session, !WT_TIME_WINDOW_HAS_PREPARE(&(upd_value->tw)));
     return (upd_value->type == WT_UPDATE_TOMBSTONE ?
-        __wt_txn_visible_all(session, upd_value->tw.stop_txn,
-          WT_TIME_WINDOW_USE_STOP_PREPARE_TS_OR(&(upd_value->tw), upd_value->tw.durable_stop_ts)) :
-        __wt_txn_visible_all(session, upd_value->tw.start_txn,
-          WT_TIME_WINDOW_USE_START_PREPARE_TS_OR(
-            &(upd_value->tw), upd_value->tw.durable_start_ts)));
+        __wt_txn_visible_all(session, upd_value->tw.stop_txn, upd_value->tw.durable_stop_ts) :
+        __wt_txn_visible_all(session, upd_value->tw.start_txn, upd_value->tw.durable_start_ts));
 }
 
 /*
@@ -1483,7 +1481,8 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
             cbt->upd_value->tw.stop_txn = upd->txnid;
             if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
                 WT_ASSERT(session, upd->upd_durable_ts == WT_TS_NONE);
-                cbt->upd_value->tw.stop_prepare_ts = upd->upd_start_ts;
+                cbt->upd_value->tw.stop_prepare_ts = upd->prepare_ts;
+                cbt->upd_value->tw.stop_prepared_id = upd->prepared_id;
             } else {
                 cbt->upd_value->tw.durable_stop_ts = upd->upd_durable_ts;
                 cbt->upd_value->tw.stop_ts = upd->upd_start_ts;
@@ -2357,17 +2356,19 @@ __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
     }
     if (upd->type == WT_UPDATE_TOMBSTONE) {
         upd_value->tw.stop_txn = upd->txnid;
-        if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
-            upd_value->tw.stop_prepare_ts = upd->upd_start_ts;
-        else {
+        if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
+            upd_value->tw.stop_prepare_ts = upd->prepare_ts;
+            upd_value->tw.stop_prepared_id = upd->prepared_id;
+        } else {
             upd_value->tw.durable_stop_ts = upd->upd_durable_ts;
             upd_value->tw.stop_ts = upd->upd_start_ts;
         }
     } else {
         upd_value->tw.start_txn = upd->txnid;
-        if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
-            upd_value->tw.start_prepare_ts = upd->upd_start_ts;
-        else {
+        if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
+            upd_value->tw.start_prepare_ts = upd->prepare_ts;
+            upd_value->tw.start_prepared_id = upd->prepared_id;
+        } else {
             upd_value->tw.durable_start_ts = upd->upd_durable_ts;
             upd_value->tw.start_ts = upd->upd_start_ts;
         }
