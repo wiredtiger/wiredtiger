@@ -210,7 +210,7 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
          */
         upd->prepare_state = WT_PREPARE_LOCKED;
         WT_RELEASE_BARRIER();
-        /* do we need to reset prepare_ts and prepaed_id here? */
+        /* do we need to reset prepare_ts and prepared_id here? */
         upd->upd_start_ts = txn->commit_timestamp;
         upd->upd_durable_ts = txn->durable_timestamp;
         WT_RELEASE_WRITE_WITH_BARRIER(upd->prepare_state, WT_PREPARE_RESOLVED);
@@ -1086,22 +1086,13 @@ static WT_INLINE bool
 __wt_txn_tw_start_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
     /*
-     * If time window is stop prepared/stop timestamp & from the same transaction, return false
-     * Otherwise check if the start time window is visible. If the start time window is prepared,
-     * use the start prepare timestamp, otherwise use the start timestamp.
+     * If time window is start prepare, return false Otherwise check if the start time window is
+     * visible.
      */
-    if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) && tw->stop_prepared_id && tw->start_prepared_id &&
-      tw->stop_prepare_ts && tw->start_prepare_ts && tw->stop_txn == tw->start_txn)
+    if (WT_TIME_WINDOW_HAS_START_PREPARE(tw))
         return (false);
 
-    if (WT_TIME_WINDOW_HAS_STOP(tw) &&
-      (tw->start_txn == tw->stop_txn && tw->start_ts == tw->stop_ts &&
-        tw->durable_start_ts == tw->durable_stop_ts))
-        return (false);
-
-    return (__wt_txn_visible(session, tw->start_txn,
-      WT_TIME_WINDOW_USE_START_PREPARE_TS_OR(tw, tw->start_ts),
-      WT_TIME_WINDOW_USE_START_PREPARE_TS_OR(tw, tw->durable_start_ts)));
+    return (__wt_txn_visible(session, tw->start_txn, tw->start_ts, tw->durable_start_ts));
 }
 
 /*
@@ -1112,20 +1103,13 @@ static WT_INLINE bool
 __wt_txn_tw_start_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
     /*
-     * If time window is stop prepared/stop timestamp & from the same transaction, return false
-     * Otherwise check if the start time window is visible. If the start time window is prepared,
-     * use the start prepare timestamp, otherwise use the start timestamp.
+     * If time window is start prepare, return false Otherwise check if the start time window is
+     * visible.
      */
-    if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) && tw->stop_prepared_id && tw->start_prepared_id &&
-      tw->stop_prepare_ts && tw->start_prepare_ts && tw->stop_txn == tw->start_txn)
+    if (WT_TIME_WINDOW_HAS_START_PREPARE(tw))
         return (false);
 
-    if (WT_TIME_WINDOW_HAS_STOP(tw) &&
-      (tw->start_txn == tw->stop_txn && tw->start_ts == tw->stop_ts &&
-        tw->durable_start_ts == tw->durable_stop_ts))
-        return (false);
-    return (__wt_txn_visible_all(
-      session, tw->start_txn, WT_TIME_WINDOW_USE_START_PREPARE_TS_OR(tw, tw->durable_start_ts)));
+    return (__wt_txn_visible_all(session, tw->start_txn, tw->durable_start_ts));
 }
 
 /*
@@ -1135,7 +1119,7 @@ __wt_txn_tw_start_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 static WT_INLINE bool
 __wt_txn_tw_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    return (WT_TIME_WINDOW_HAS_STOP(tw) && !WT_TIME_WINDOW_HAS_PREPARE(tw) &&
+    return (WT_TIME_WINDOW_HAS_STOP(tw) && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) &&
       __wt_txn_visible_all(session, tw->stop_txn, tw->durable_stop_ts));
 }
 
