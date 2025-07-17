@@ -1969,26 +1969,28 @@ __clayered_close(WT_CURSOR *cursor)
      */
     clayered = (WT_CURSOR_LAYERED *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, clayered->dhandle);
-    /*
-     * If releasing the cursor fails in any way, it will be left in a state that allows it to be
-     * normally closed.
-     */
-    bool released = false;
-    ret = __wti_cursor_cache_release(session, cursor, &released);
-
-    if (released) {
+err:
+    if (ret == 0) {
         /*
-         * If this close is via a connection close the constituent cursors will be closed by a scan
-         * of cursors in the session.
-         */
-        if (!F_ISSET(cursor, WT_CURSTD_CONSTITUENT_DEAD))
-            WT_TRET(__clayered_close_cursors(clayered));
+        * If releasing the cursor fails in any way, it will be left in a state that allows it to be
+        * normally closed.
+        */
+        bool released = false;
+        ret = __wti_cursor_cache_release(session, cursor, &released);
 
-        /* In case we were somehow left positioned, clear that. */
-        __clayered_leave(clayered);
-        goto done;
+        if (released) {
+            /*
+            * If this close is via a connection close the constituent cursors will be closed by a scan
+            * of cursors in the session.
+            */
+            if (!F_ISSET(cursor, WT_CURSTD_CONSTITUENT_DEAD))
+                WT_TRET(__clayered_close_cursors(clayered));
+
+            /* In case we were somehow left positioned, clear that. */
+            __clayered_leave(clayered);
+            goto done;
+        }
     }
-
     /* For cached cursors, free any extra buffers retained now. */
     __wt_cursor_free_cached_memory(cursor);
     cursor->internal_uri = NULL;
