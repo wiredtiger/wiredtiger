@@ -85,8 +85,8 @@
             (tw)->start_prepare_ts = (upd)->prepare_ts;      \
             (tw)->start_prepared_id = (upd)->prepared_id;    \
         } else {                                             \
-            (tw)->start_prepare_ts = WT_TS_NONE;             \
-            (tw)->start_prepared_id = WT_PREPARED_ID_NONE;   \
+            (tw)->start_ts = (upd)->upd_start_ts;            \
+            (tw)->durable_start_ts = (upd)->upd_durable_ts;  \
         }                                                    \
     } while (0)
 
