@@ -215,7 +215,7 @@ struct __wt_verbose_multi_category {
 
 /*
  * __wt_verbose_info_id --
- *     Wrapper to __wt_verbose_info_id defaulting the verbosity level to WT_VERBOSE_INFO with a log
+ *     Wrapper to __wt_verbose_level_worker defaulting the verbosity level to WT_VERBOSE_INFO with a log
  *     id.
  */
 #define __wt_verbose_info_id(session, category, log_id, fmt, ...) \
