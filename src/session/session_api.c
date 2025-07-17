@@ -793,13 +793,17 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
         session->hs_cursor_counter == 0 || F_ISSET(session, WT_SESSION_INTERNAL) ||
         (S2BT_SAFE(session) != NULL && F_ISSET(S2BT(session), WT_BTREE_VERIFY)));
 
-    /* Try to find the cursor in the cache. */
-    __wt_cursor_get_hash(session, uri, NULL, &hash_value);
-    WT_ERR_NOTFOUND_OK(__wt_cursor_cache_get(session, uri, hash_value, NULL, cfg, cursorp), false);
-
-    /* Open a new cursor if no cached cursor was found. */
-    if (*cursorp == NULL)
+    if (owner != NULL && !WT_PREFIX_MATCH(owner->internal_uri, "layered:")) {
         WT_ERR(__session_open_cursor_int(session, uri, owner, NULL, cfg, hash_value, cursorp));
+    } else {
+        /* Try to find the cursor in the cache. */
+        __wt_cursor_get_hash(session, uri, NULL, &hash_value);
+        WT_ERR_NOTFOUND_OK(__wt_cursor_cache_get(session, uri, hash_value, NULL, cfg, cursorp), false);
+
+        /* Open a new cursor if no cached cursor was found. */
+        if (*cursorp == NULL)
+            WT_ERR(__session_open_cursor_int(session, uri, owner, NULL, cfg, hash_value, cursorp));
+    }
 
 err:
     /* Always close out the timing information regardless of success. */
