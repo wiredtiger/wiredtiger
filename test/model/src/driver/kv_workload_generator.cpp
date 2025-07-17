@@ -72,6 +72,8 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     remove_existing = 0.9;
     update_existing = 0.1;
 
+    conn_logging = 0.1;
+
     prepared_transaction = 0.25;
     max_delay_after_prepare = 25; /* FIXME-WT-13232 This must be a small number until it's fixed. */
     use_set_commit_timestamp = 0.25;
@@ -336,6 +338,7 @@ kv_workload_generator::generate_connection_config()
     std::string wt_env_config;
     probability_switch(_random.next_float())
     {
+        probability_case(_spec.conn_logging) wt_env_config += "log=(enabled=true)";
         probability_case(_spec.timing_stress_ckpt_slow) wt_env_config +=
           "timing_stress_for_test=[checkpoint_slow]";
         probability_case(_spec.timing_stress_ckpt_evict_page) wt_env_config +=
