@@ -1972,17 +1972,17 @@ __clayered_close(WT_CURSOR *cursor)
 err:
     if (ret == 0) {
         /*
-        * If releasing the cursor fails in any way, it will be left in a state that allows it to be
-        * normally closed.
-        */
+         * If releasing the cursor fails in any way, it will be left in a state that allows it to be
+         * normally closed.
+         */
         bool released = false;
         ret = __wti_cursor_cache_release(session, cursor, &released);
 
         if (released) {
             /*
-            * If this close is via a connection close the constituent cursors will be closed by a scan
-            * of cursors in the session.
-            */
+             * If this close is via a connection close the constituent cursors will be closed by a
+             * scan of cursors in the session.
+             */
             if (!F_ISSET(cursor, WT_CURSTD_CONSTITUENT_DEAD))
                 WT_TRET(__clayered_close_cursors(clayered));
 
