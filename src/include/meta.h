@@ -80,9 +80,6 @@
  */
 #define WT_IS_URI_HS(uri) (strcmp(uri, WT_HS_URI) == 0 || strcmp(uri, WT_HS_URI_SHARED) == 0)
 
-#define WT_IS_URI_METADATA(uri) \
-    (strcmp(uri, WT_METAFILE_URI) == 0 || strcmp(uri, WT_DISAGG_METADATA_URI) == 0)
-
 #define WT_HS_ID_TO_URI(session, hs_id, uri)                                                   \
     do {                                                                                       \
         switch ((hs_id)) {                                                                     \
@@ -96,6 +93,11 @@
             WT_ASSERT_ALWAYS((session), false, "No such History Store ID: %" PRIu32, (hs_id)); \
         }                                                                                      \
     } while (0)
+
+typedef enum { WT_HS_NOTSET = 0, WT_HS, WT_SHARED_HS } WT_HS_TYPE;
+
+#define WT_IS_URI_METADATA(uri) \
+    (strcmp(uri, WT_METAFILE_URI) == 0 || strcmp(uri, WT_DISAGG_METADATA_URI) == 0)
 
 /*
  * As a result of a data format change WiredTiger is not able to start on versions below 3.2.0, as

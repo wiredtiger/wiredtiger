@@ -667,6 +667,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
     /* !!! Do not return error code from this func. */
     WT_DECL_RET;
     WT_EVICT *evict;
+    WT_HS_TYPE hs_id;
     double dirty_target, dirty_trigger, target, trigger, updates_target, updates_trigger;
     uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, total_dirty, total_inmem,
       total_updates;
@@ -710,7 +711,14 @@ __evict_update_work(WT_SESSION_IMPL *session)
                 (void)ret; /* Keep the assignment to 0 just in case, but suppress clang warnings. */
                 break;
             }
-
+            /*
+             * At this point, we are under the evict pass lock and should only attempt to read from
+             * the cursors dhandle cache to obtain the HS. If it is not present in the cursors
+             * dhandle cache, we bail out. We must not proceed to acquire a connection dhandle read
+             * lock or a schema lock to acquire the HS dhandle while holding the pass lock, as this
+             * could lead to a deadlock. There are several places in the code where a pass lock is
+             * taken after a schema lock, which makes this sequence unsafe.
+             */
             if ((ret = __wt_curhs_get_cached(session, hs_id, &hs_tree)) == 0) {
                 total_inmem += __wt_atomic_load64(&hs_tree->bytes_inmem);
                 total_dirty += __wt_atomic_load64(&hs_tree->bytes_dirty_intl) +
