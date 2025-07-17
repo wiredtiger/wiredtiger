@@ -59,8 +59,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
          */
         txn_id_visible = __wti_rts_visibility_txn_visible_id(session, upd->txnid);
         if (!txn_id_visible || rollback_timestamp < upd->upd_durable_ts ||
-          (upd->prepare_state == WT_PREPARE_INPROGRESS &&
-            (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || rollback_timestamp < upd->prepare_ts))) {
+          upd->prepare_state == WT_PREPARE_INPROGRESS) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               WT_RTS_VERB_TAG_UPDATE_ABORT "rollback to stable aborting update with txnid=%" PRIu64
                                            ", txnid_not_visible=%s"
