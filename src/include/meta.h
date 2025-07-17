@@ -94,8 +94,6 @@
         }                                                                                      \
     } while (0)
 
-typedef enum { WT_HS_NOTSET = 0, WT_HS, WT_SHARED_HS } WT_HS_TYPE;
-
 #define WT_IS_URI_METADATA(uri) \
     (strcmp(uri, WT_METAFILE_URI) == 0 || strcmp(uri, WT_DISAGG_METADATA_URI) == 0)
 

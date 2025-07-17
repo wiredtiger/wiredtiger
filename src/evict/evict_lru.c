@@ -656,7 +656,7 @@ __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
 
 /*
  * __evict_update_work --
- *     Configure eviction work state. Do not return error code from this function.
+ *     Configure eviction work state.
  */
 static bool
 __evict_update_work(WT_SESSION_IMPL *session)
@@ -664,10 +664,8 @@ __evict_update_work(WT_SESSION_IMPL *session)
     WT_BTREE *hs_tree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
-    /* !!! Do not return error code from this func. */
     WT_DECL_RET;
     WT_EVICT *evict;
-    WT_HS_TYPE hs_id;
     double dirty_target, dirty_trigger, target, trigger, updates_target, updates_trigger;
     uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, total_dirty, total_inmem,
       total_updates;
