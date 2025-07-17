@@ -658,8 +658,8 @@ __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
  * __evict_update_work --
  *     Configure eviction work state.
  */
-static bool
-__evict_update_work(WT_SESSION_IMPL *session)
+static int
+__evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
 {
     WT_BTREE *hs_tree;
     WT_CACHE *cache;
@@ -687,7 +687,8 @@ __evict_update_work(WT_SESSION_IMPL *session)
 
     if (!FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION)) {
         __wt_atomic_store32(&evict->flags, 0);
-        return (false);
+        *eviction_needed = false;
+        return (0);
     }
 
     if (!__evict_queue_empty(evict->evict_urgent_queue, false))
@@ -702,8 +703,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
         total_dirty = total_inmem = total_updates = 0;
         hs_id = 0;
         for (;;) {
-            ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id);
-            WT_ASSERT(session, ret == 0 || ret == WT_NOTFOUND);
+            WT_RET_NOTFOUND_OK(ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id));
             if (ret == WT_NOTFOUND) {
                 ret = 0;
                 (void)ret; /* Keep the assignment to 0 just in case, but suppress clang warnings. */
@@ -717,14 +717,13 @@ __evict_update_work(WT_SESSION_IMPL *session)
              * could lead to a deadlock. There are several places in the code where a pass lock is
              * taken after a schema lock, which makes this sequence unsafe.
              */
-            if ((ret = __wt_curhs_get_cached(session, hs_id, &hs_tree)) == 0) {
+            WT_RET_NOTFOUND_OK(ret = __wt_curhs_get_cached(session, hs_id, &hs_tree));
+            if (ret == 0) {
                 total_inmem += __wt_atomic_load64(&hs_tree->bytes_inmem);
                 total_dirty += __wt_atomic_load64(&hs_tree->bytes_dirty_intl) +
                   __wt_atomic_load64(&hs_tree->bytes_dirty_leaf);
                 total_updates += __wt_atomic_load64(&hs_tree->bytes_updates);
-            }
-            WT_ASSERT(session, ret == 0 || ret == WT_NOTFOUND);
-            if (ret == WT_NOTFOUND) {
+            } else if (ret == WT_NOTFOUND) {
                 if (hs_id == 1)
                     WT_STAT_CONN_INCR(session, cache_eviction_hs_not_cached_in_cursor);
                 else if (hs_id == 2)
@@ -826,7 +825,8 @@ __evict_update_work(WT_SESSION_IMPL *session)
     /* Update the global eviction state. */
     __wt_atomic_store32(&evict->flags, flags);
 
-    return (F_ISSET(evict, WT_EVICT_CACHE_ALL | WT_EVICT_CACHE_URGENT));
+    *eviction_needed = F_ISSET(evict, WT_EVICT_CACHE_ALL | WT_EVICT_CACHE_URGENT);
+    return (0);
 }
 
 /*
@@ -843,6 +843,7 @@ __evict_pass(WT_SESSION_IMPL *session)
     uint64_t eviction_progress, oldest_id, prev_oldest_id;
     uint64_t time_now, time_prev;
     u_int loop;
+    bool eviction_needed;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -880,7 +881,8 @@ __evict_pass(WT_SESSION_IMPL *session)
          */
         WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT));
 
-        if (!__evict_update_work(session))
+        WT_RET(__evict_update_work(session, &eviction_needed));
+        if (!eviction_needed)
             break;
 
         __wt_verbose_debug2(session, WT_VERB_EVICTION,
