@@ -1123,7 +1123,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_dirty', 'modified pages evicted'),
     CacheStat('cache_eviction_dirty_obsolete_tw', 'pages dirtied due to obsolete time window by eviction'),
     CacheStat('cache_eviction_hs_not_cached_in_cursor', 'history store btree not cached in cursor during eviction'),
-    CacheStat('cache_eviction_shared_hs_not_cached_in_cursor', 'Shared history store btree not cached in cursor during eviction'),
+    CacheStat('cache_eviction_hs_shared_not_cached_in_cursor', 'Shared history store btree not cached in cursor during eviction'),
     CacheStat('cache_eviction_internal', 'internal pages evicted'),
     CacheStat('cache_eviction_pages_queued_clean', 'eviction walk pages queued that were clean'),
     CacheStat('cache_eviction_pages_queued_dirty', 'eviction walk pages queued that were dirty'),

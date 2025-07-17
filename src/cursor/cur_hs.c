@@ -61,6 +61,29 @@ err:
 }
 
 /*
+ * __wt_curhs_get_cached --
+ *     Retrieve the history store btree from the cursors dhandle cache.
+ */
+int
+__wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_btreep)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    uint64_t hash_value;
+    const char *uri;
+
+    WT_HS_ID_TO_URI(session, hs_id, uri);
+
+    __wt_cursor_get_hash(session, uri, NULL, &hash_value);
+    if ((ret = __wt_cursor_cache_get(session, uri, hash_value, NULL, NULL, &cursor)) == 0) {
+        *hs_btreep = CUR2BT(cursor);
+        cursor->close(cursor);
+    }
+
+    return (ret);
+}
+
+/*
  * __wt_curhs_cache --
  *     Cache a new history store table cursor. Open and then close a history store cursor without
  *     saving it in the session.

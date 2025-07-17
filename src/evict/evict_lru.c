@@ -708,7 +708,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
             if (ret == WT_NOTFOUND)
                 break;
 
-            if ((ret = __wt_hs_btree_get_cached(session, hs_id, &hs_tree)) == 0) {
+            if ((ret = __wt_curhs_get_cached(session, hs_id, &hs_tree)) == 0) {
                 total_inmem += __wt_atomic_load64(&hs_tree->bytes_inmem);
                 total_dirty += __wt_atomic_load64(&hs_tree->bytes_dirty_intl) +
                   __wt_atomic_load64(&hs_tree->bytes_dirty_leaf);
@@ -718,8 +718,8 @@ __evict_update_work(WT_SESSION_IMPL *session)
             if (ret == WT_NOTFOUND) {
                 if (hs_id == 1)
                     WT_STAT_CONN_INCR(session, cache_eviction_hs_not_cached_in_cursor);
-                else if (hs_id == 2)
-                    WT_STAT_CONN_INCR(session, cache_eviction_shared_hs_not_cached_in_cursor);
+                else if (hs_id == 2) { 
+                    WT_STAT_CONN_INCR(session, cache_eviction_hs_shared_not_cached_in_cursor);
             }
         }
         __wt_atomic_store64(&cache->bytes_hs, total_inmem);

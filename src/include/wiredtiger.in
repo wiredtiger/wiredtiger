@@ -6103,7 +6103,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_CONN_BLOCK_FIRST_SRCH_WALK_TIME		1089
 /*! cache: Shared history store btree not cached in cursor during eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_SHARED_HS_NOT_CACHED_IN_CURSOR	1090
+#define	WT_STAT_CONN_CACHE_EVICTION_HS_SHARED_NOT_CACHED_IN_CURSOR	1090
 /*! cache: application requested eviction interrupt */
 #define	WT_STAT_CONN_EVICTION_INTERUPTED_BY_APP		1091
 /*! cache: application thread time evicting (usecs) */
@@ -8352,7 +8352,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_DSRC_BTREE_ROW_LEAF			2046
 /*! cache: Shared history store btree not cached in cursor during eviction */
-#define	WT_STAT_DSRC_CACHE_EVICTION_SHARED_HS_NOT_CACHED_IN_CURSOR	2047
+#define	WT_STAT_DSRC_CACHE_EVICTION_HS_SHARED_NOT_CACHED_IN_CURSOR	2047
 /*!
  * cache: application threads eviction requested with cache fill ratio <
  * 25%
