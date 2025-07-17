@@ -422,7 +422,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                 }
 
                 if (F_ISSET(version_cursor, WT_CURVERSION_VISIBLE_ONLY) &&
-                  WT_TIME_WINDOW_HAS_START_PREPARE(&(cbt->upd_value->tw))) {
+                  WT_TIME_WINDOW_HAS_PREPARE(&(cbt->upd_value->tw))) {
                     if (!WT_TIME_WINDOW_HAS_STOP_PREPARE(&cbt->upd_value->tw))
                         goto skip_on_page;
 

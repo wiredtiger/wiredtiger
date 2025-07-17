@@ -412,7 +412,6 @@ __time_value_validate_parent(
           "%s, parent %s",
           __wt_time_window_to_string(tw, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
-
     if (WT_TIME_WINDOW_HAS_START_PREPARE(tw) && tw->start_prepare_ts < parent->oldest_start_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a start prepare time before its parent's oldest start time; time "
