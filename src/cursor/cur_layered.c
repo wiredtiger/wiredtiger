@@ -1978,8 +1978,8 @@ __clayered_close(WT_CURSOR *cursor)
 
     if (released) {
         /*
-         * If this close is via a connection close the constituent cursors will be closed by a
-         * scan of cursors in the session. 
+         * If this close is via a connection close the constituent cursors will be closed by a scan
+         * of cursors in the session.
          */
         if (!F_ISSET(cursor, WT_CURSTD_CONSTITUENT_DEAD))
             WT_TRET(__clayered_close_cursors(clayered));
@@ -2199,7 +2199,7 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
         clayered->next_random_sample_size = (u_int)cval.val;
         cacheable = false;
     }
-    
+
     if (cacheable)
         F_SET(cursor, WT_CURSTD_CACHEABLE);
 

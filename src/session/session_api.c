@@ -733,11 +733,8 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
     if (*cursorp == NULL)
         return (__wt_bad_object_type(session, uri));
 
+    /* Support caching simple cursors that have no children or if the owner is a layered cursor. */
     if (owner != NULL && !WT_PREFIX_MATCH(owner->internal_uri, "layered:")) {
-        /*
-         * We support caching simple cursors that have no children. If this cursor is a child, we're
-         * not going to cache this child or its parent.
-         */
         F_CLR(owner, WT_CURSTD_CACHEABLE);
         F_CLR(*cursorp, WT_CURSTD_CACHEABLE);
     }
