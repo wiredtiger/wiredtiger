@@ -50,7 +50,6 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: row-store empty values",
   "btree: row-store internal pages",
   "btree: row-store leaf pages",
-  "cache: Shared history store btree not cached in cursor during eviction",
   "cache: application threads eviction requested with cache fill ratio < 25%",
   "cache: application threads eviction requested with cache fill ratio >= 25% and < 50%",
   "cache: application threads eviction requested with cache fill ratio >= 50% and < 75%",
@@ -88,7 +87,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: eviction walk target pages histogram - 64-128",
   "cache: eviction walk target pages reduced due to history store cache pressure",
   "cache: hazard pointer blocked page eviction",
-  "cache: history store btree not cached in cursor during eviction",
+  "cache: history store cursor not cached during eviction",
   "cache: history store table insert calls",
   "cache: history store table insert calls that returned restart",
   "cache: history store table reads",
@@ -155,6 +154,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: reconciled pages scrubbed and added back to the cache clean",
   "cache: reverse splits performed",
   "cache: reverse splits skipped because of VLCS namespace gap restrictions",
+  "cache: shared history store cursor not cached during eviction",
   "cache: size of delta updates reconstructed on the base page",
   "cache: size of tombstones restored when reading a page",
   "cache: the number of times full update inserted to history store",
@@ -483,7 +483,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->btree_row_empty_values = 0;
     stats->btree_row_internal = 0;
     stats->btree_row_leaf = 0;
-    stats->cache_eviction_hs_shared_not_cached_in_cursor = 0;
     stats->cache_eviction_app_threads_fill_ratio_lt_25 = 0;
     stats->cache_eviction_app_threads_fill_ratio_25_50 = 0;
     stats->cache_eviction_app_threads_fill_ratio_50_75 = 0;
@@ -516,7 +515,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_target_page_lt128 = 0;
     stats->cache_eviction_target_page_reduced = 0;
     stats->cache_eviction_blocked_hazard = 0;
-    stats->cache_eviction_hs_not_cached_in_cursor = 0;
+    stats->cache_eviction_hs_cursor_not_cached = 0;
     stats->cache_hs_insert = 0;
     stats->cache_hs_insert_restart = 0;
     stats->cache_hs_read = 0;
@@ -575,6 +574,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_scrub_restore = 0;
     stats->cache_reverse_splits = 0;
     stats->cache_reverse_splits_skipped_vlcs = 0;
+    stats->cache_eviction_hs_shared_cursor_not_cached = 0;
     stats->cache_read_delta_updates = 0;
     stats->cache_read_restored_tombstone_bytes = 0;
     stats->cache_hs_insert_full_update = 0;
@@ -877,8 +877,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_row_empty_values += from->btree_row_empty_values;
     to->btree_row_internal += from->btree_row_internal;
     to->btree_row_leaf += from->btree_row_leaf;
-    to->cache_eviction_hs_shared_not_cached_in_cursor +=
-      from->cache_eviction_hs_shared_not_cached_in_cursor;
     to->cache_eviction_app_threads_fill_ratio_lt_25 +=
       from->cache_eviction_app_threads_fill_ratio_lt_25;
     to->cache_eviction_app_threads_fill_ratio_25_50 +=
@@ -921,7 +919,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_target_page_lt128 += from->cache_eviction_target_page_lt128;
     to->cache_eviction_target_page_reduced += from->cache_eviction_target_page_reduced;
     to->cache_eviction_blocked_hazard += from->cache_eviction_blocked_hazard;
-    to->cache_eviction_hs_not_cached_in_cursor += from->cache_eviction_hs_not_cached_in_cursor;
+    to->cache_eviction_hs_cursor_not_cached += from->cache_eviction_hs_cursor_not_cached;
     to->cache_hs_insert += from->cache_hs_insert;
     to->cache_hs_insert_restart += from->cache_hs_insert_restart;
     to->cache_hs_read += from->cache_hs_read;
@@ -986,6 +984,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_scrub_restore += from->cache_scrub_restore;
     to->cache_reverse_splits += from->cache_reverse_splits;
     to->cache_reverse_splits_skipped_vlcs += from->cache_reverse_splits_skipped_vlcs;
+    to->cache_eviction_hs_shared_cursor_not_cached +=
+      from->cache_eviction_hs_shared_cursor_not_cached;
     to->cache_read_delta_updates += from->cache_read_delta_updates;
     to->cache_read_restored_tombstone_bytes += from->cache_read_restored_tombstone_bytes;
     to->cache_hs_insert_full_update += from->cache_hs_insert_full_update;
@@ -1291,8 +1291,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_row_empty_values += WT_STAT_DSRC_READ(from, btree_row_empty_values);
     to->btree_row_internal += WT_STAT_DSRC_READ(from, btree_row_internal);
     to->btree_row_leaf += WT_STAT_DSRC_READ(from, btree_row_leaf);
-    to->cache_eviction_hs_shared_not_cached_in_cursor +=
-      WT_STAT_DSRC_READ(from, cache_eviction_hs_shared_not_cached_in_cursor);
     to->cache_eviction_app_threads_fill_ratio_lt_25 +=
       WT_STAT_DSRC_READ(from, cache_eviction_app_threads_fill_ratio_lt_25);
     to->cache_eviction_app_threads_fill_ratio_25_50 +=
@@ -1345,8 +1343,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_target_page_reduced +=
       WT_STAT_DSRC_READ(from, cache_eviction_target_page_reduced);
     to->cache_eviction_blocked_hazard += WT_STAT_DSRC_READ(from, cache_eviction_blocked_hazard);
-    to->cache_eviction_hs_not_cached_in_cursor +=
-      WT_STAT_DSRC_READ(from, cache_eviction_hs_not_cached_in_cursor);
+    to->cache_eviction_hs_cursor_not_cached +=
+      WT_STAT_DSRC_READ(from, cache_eviction_hs_cursor_not_cached);
     to->cache_hs_insert += WT_STAT_DSRC_READ(from, cache_hs_insert);
     to->cache_hs_insert_restart += WT_STAT_DSRC_READ(from, cache_hs_insert_restart);
     to->cache_hs_read += WT_STAT_DSRC_READ(from, cache_hs_read);
@@ -1424,6 +1422,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_reverse_splits += WT_STAT_DSRC_READ(from, cache_reverse_splits);
     to->cache_reverse_splits_skipped_vlcs +=
       WT_STAT_DSRC_READ(from, cache_reverse_splits_skipped_vlcs);
+    to->cache_eviction_hs_shared_cursor_not_cached +=
+      WT_STAT_DSRC_READ(from, cache_eviction_hs_shared_cursor_not_cached);
     to->cache_read_delta_updates += WT_STAT_DSRC_READ(from, cache_read_delta_updates);
     to->cache_read_restored_tombstone_bytes +=
       WT_STAT_DSRC_READ(from, cache_read_restored_tombstone_bytes);
@@ -1792,7 +1792,6 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: number of times the region was remapped via write",
   "block-manager: time spent(usecs) on the most recent linear walk of extents during first-fit "
   "allocation",
-  "cache: Shared history store btree not cached in cursor during eviction",
   "cache: application requested eviction interrupt",
   "cache: application thread time evicting (usecs)",
   "cache: application threads eviction requested with cache fill ratio < 25%",
@@ -1907,7 +1906,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: hazard pointer check calls",
   "cache: hazard pointer check entries walked",
   "cache: hazard pointer maximum array length",
-  "cache: history store btree not cached in cursor during eviction",
+  "cache: history store cursor not cached during eviction",
   "cache: history store table insert calls",
   "cache: history store table insert calls that returned restart",
   "cache: history store table max on-disk size",
@@ -2007,6 +2006,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: reconciled pages scrubbed and added back to the cache clean",
   "cache: reverse splits performed",
   "cache: reverse splits skipped because of VLCS namespace gap restrictions",
+  "cache: shared history store cursor not cached during eviction",
   "cache: size of delta updates reconstructed on the base page",
   "cache: size of tombstones restored when reading a page",
   "cache: the number of times full update inserted to history store",
@@ -2768,7 +2768,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
     /* not clearing block_first_srch_walk_time */
-    stats->cache_eviction_hs_shared_not_cached_in_cursor = 0;
     stats->eviction_interupted_by_app = 0;
     stats->eviction_app_time = 0;
     stats->cache_eviction_app_threads_fill_ratio_lt_25 = 0;
@@ -2872,7 +2871,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_hazard_checks = 0;
     stats->cache_hazard_walks = 0;
     stats->cache_hazard_max = 0;
-    stats->cache_eviction_hs_not_cached_in_cursor = 0;
+    stats->cache_eviction_hs_cursor_not_cached = 0;
     stats->cache_hs_insert = 0;
     stats->cache_hs_insert_restart = 0;
     /* not clearing cache_hs_ondisk_max */
@@ -2962,6 +2961,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_scrub_restore = 0;
     stats->cache_reverse_splits = 0;
     stats->cache_reverse_splits_skipped_vlcs = 0;
+    stats->cache_eviction_hs_shared_cursor_not_cached = 0;
     stats->cache_read_delta_updates = 0;
     stats->cache_read_restored_tombstone_bytes = 0;
     stats->cache_hs_insert_full_update = 0;
@@ -3708,8 +3708,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_remap_file_resize += WT_STAT_CONN_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_CONN_READ(from, block_remap_file_write);
     to->block_first_srch_walk_time += WT_STAT_CONN_READ(from, block_first_srch_walk_time);
-    to->cache_eviction_hs_shared_not_cached_in_cursor +=
-      WT_STAT_CONN_READ(from, cache_eviction_hs_shared_not_cached_in_cursor);
     to->eviction_interupted_by_app += WT_STAT_CONN_READ(from, eviction_interupted_by_app);
     to->eviction_app_time += WT_STAT_CONN_READ(from, eviction_app_time);
     to->cache_eviction_app_threads_fill_ratio_lt_25 +=
@@ -3851,8 +3849,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_hazard_walks += WT_STAT_CONN_READ(from, cache_hazard_walks);
     if ((v = WT_STAT_CONN_READ(from, cache_hazard_max)) > to->cache_hazard_max)
         to->cache_hazard_max = v;
-    to->cache_eviction_hs_not_cached_in_cursor +=
-      WT_STAT_CONN_READ(from, cache_eviction_hs_not_cached_in_cursor);
+    to->cache_eviction_hs_cursor_not_cached +=
+      WT_STAT_CONN_READ(from, cache_eviction_hs_cursor_not_cached);
     to->cache_hs_insert += WT_STAT_CONN_READ(from, cache_hs_insert);
     to->cache_hs_insert_restart += WT_STAT_CONN_READ(from, cache_hs_insert_restart);
     to->cache_hs_ondisk_max += WT_STAT_CONN_READ(from, cache_hs_ondisk_max);
@@ -3966,6 +3964,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_reverse_splits += WT_STAT_CONN_READ(from, cache_reverse_splits);
     to->cache_reverse_splits_skipped_vlcs +=
       WT_STAT_CONN_READ(from, cache_reverse_splits_skipped_vlcs);
+    to->cache_eviction_hs_shared_cursor_not_cached +=
+      WT_STAT_CONN_READ(from, cache_eviction_hs_shared_cursor_not_cached);
     to->cache_read_delta_updates += WT_STAT_CONN_READ(from, cache_read_delta_updates);
     to->cache_read_restored_tombstone_bytes +=
       WT_STAT_CONN_READ(from, cache_read_restored_tombstone_bytes);
