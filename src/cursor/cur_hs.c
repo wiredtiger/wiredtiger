@@ -77,6 +77,13 @@ __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_bt
     __wt_cursor_get_hash(session, uri, NULL, &hash_value);
     if ((ret = __wt_cursor_cache_get(session, uri, hash_value, NULL, NULL, &cursor)) == 0) {
         *hs_btreep = CUR2BT(cursor);
+        /*
+         * The pattern of acquiring a cursor, obtaining its dhandle, and then closing the cursor is
+         * generally unsafe and can lead to undefined behavior. This is because the sweep server
+         * checks for references to dhandles, and closing the cursor may result in the dhandle being
+         * swept while still in use. However, history store dhandles are an exception as they are
+         * not subject to sweeping.
+         */
         WT_RET(cursor->close(cursor));
     }
 
@@ -123,6 +130,13 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
       session == conn->default_session)
         return (0);
 
+    /*
+     * The pattern of acquiring a cursor, obtaining its dhandle, and then closing the cursor is
+     * generally unsafe and can lead to undefined behavior. This is because the sweep server checks
+     * for references to dhandles, and closing the cursor may result in the dhandle being swept
+     * while still in use. However, history store dhandles are an exception as they are not subject
+     * to sweeping.
+     */
     WT_RET(__curhs_file_cursor_open(session, WT_HS_URI, NULL, &cursor));
     WT_RET(cursor->close(cursor));
 
