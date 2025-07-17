@@ -314,7 +314,7 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
         WT_RET(__wt_config_gets(session, cfg, "log.prealloc_init_count", &cval));
         log_mgr->prealloc = (uint32_t)cval.val;
         log_mgr->prealloc_init_count = (uint32_t)cval.val;
-        WT_ASSERT(session, log_mgr->prealloc > 0);
+        WT_ASSERT(session, log_mgr->prealloc_init_count > 0);
     }
 
     WT_RET(__wt_config_gets(session, cfg, "log.force_write_wait", &cval));
@@ -647,7 +647,7 @@ __log_file_server(void *arg)
             /*
              * The closing file handle should have a correct close LSN.
              */
-            WT_ASSERT(session, __wt_atomic_loadv32(&log->log_close_lsn.l.file) == filenum);
+            WT_ASSERT(session, log->log_close_lsn.l.file == filenum);
 
             if (__wt_log_cmp(&log->write_lsn, &log->log_close_lsn) >= 0) {
                 /*
@@ -657,7 +657,7 @@ __log_file_server(void *arg)
                  */
                 WT_ASSIGN_LSN(&close_end_lsn, &log->log_close_lsn);
                 WT_FULL_BARRIER();
-                __wt_atomic_store_pointer(&log->log_close_fh, NULL);
+                log->log_close_fh = NULL;
                 /*
                  * Set the close_end_lsn to the LSN immediately after ours. That is, the beginning
                  * of the next log file. We need to know the LSN file number of our own close in
@@ -960,7 +960,7 @@ __log_server(void *arg)
             /*
              * Perform log pre-allocation.
              */
-            if (log_mgr->prealloc > 0) {
+            if (log_mgr->prealloc_init_count > 0) {
                 /*
                  * Log file pre-allocation is disabled when a hot backup cursor is open because we
                  * have agreed not to rename or remove any files in the database directory.
