@@ -724,9 +724,9 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
                   __wt_atomic_load64(&hs_tree->bytes_dirty_leaf);
                 total_updates += __wt_atomic_load64(&hs_tree->bytes_updates);
             } else if (ret == WT_NOTFOUND) {
-                if (hs_id == 1)
+                if (hs_id == WT_HS_ID)
                     WT_STAT_CONN_INCR(session, cache_eviction_hs_not_cached_in_cursor);
-                else if (hs_id == 2)
+                else if (hs_id == WT_HS_SHARED_ID)
                     WT_STAT_CONN_INCR(session, cache_eviction_hs_shared_not_cached_in_cursor);
             }
         }

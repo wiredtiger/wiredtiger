@@ -1289,14 +1289,14 @@ __wt_curhs_next_hs_id(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t *next_h
     WT_UNUSED(session);
 
     if (hs_id == 0) {
-        *next_hs_idp = 1;
+        *next_hs_idp = WT_HS_ID;
         return (0);
     }
 
     if (hs_id == 1) {
         if (!__wt_conn_is_disagg(session))
             return (WT_NOTFOUND);
-        *next_hs_idp = 2;
+        *next_hs_idp = WT_HS_SHARED_ID;
         return (0);
     }
 
