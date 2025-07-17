@@ -718,7 +718,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
             if (ret == WT_NOTFOUND) {
                 if (hs_id == 1)
                     WT_STAT_CONN_INCR(session, cache_eviction_hs_not_cached_in_cursor);
-                else if (hs_id == 2) { 
+                else if (hs_id == 2)
                     WT_STAT_CONN_INCR(session, cache_eviction_hs_shared_not_cached_in_cursor);
             }
         }
