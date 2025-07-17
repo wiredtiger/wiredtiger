@@ -615,6 +615,24 @@ err:
 }
 
 /*
+ * __size_worth_compressing --
+ *     Whether it's likely to be worth the CPU cost of compressing a page with a given
+ *     pre-compression size.
+ *
+ * This works differently for disaggregated storage since we're writing to network-backed storage.
+ *     The network message itself doesn't have a notion of a minimum allocation size, and at the
+ *     same time compression is extra-valuable due to the added bandwidth constraint.
+ */
+static bool
+__size_worth_compressing(WT_BTREE *btree, size_t sz)
+{
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        return (sz > 2 * WT_BLOCK_COMPRESS_SKIP);
+
+    return (sz > btree->allocsize);
+}
+
+/*
  * __wt_blkcache_write --
  *     Write a buffer into a block, returning the block's address cookie.
  */
@@ -657,9 +675,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
      */
     if (btree->compressor == NULL || btree->compressor->compress == NULL || compressed)
         ip = buf;
-    else if (buf->size < 2 * WT_BLOCK_COMPRESS_SKIP) {
-        /* FIXME-WT-14609: the heuristic in the condition above was added for deltas and is likely
-         * to need tweaking. */
+    else if (!__size_worth_compressing(btree, buf->size)) {
         ip = buf;
         WT_STAT_DSRC_INCR(session, compress_write_too_small);
     } else {
@@ -700,7 +716,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
          * output requires), it just means the uncompressed version is as good as it gets, and
          * that's what we use.
          */
-        if (compression_failed || buf->size < 2 * WT_BLOCK_COMPRESS_SKIP) {
+        if (compression_failed || !__size_worth_compressing(btree, buf->size)) {
             /* FIXME-WT-14609: the heuristic in the condition above was added for deltas and is
              * likely to need tweaking. */
             ip = buf;
