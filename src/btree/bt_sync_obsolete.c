@@ -729,8 +729,9 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
         /* Check if we need to wait before continuing with the next file to minimize impact. */
         if (S2C(session)->cc_cleanup.file_wait_ms > 0) {
             __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
-              "waiting for %" PRIu64 " milliseconds before continuing",
-              S2C(session)->cc_cleanup.file_wait_ms);
+              "waiting for %" PRIu64
+              " milliseconds after %s cleanup before continuing with the next file",
+              S2C(session)->cc_cleanup.file_wait_ms, (char *)uri->data);
 
             __wt_cond_wait(session, S2C(session)->cc_cleanup.cond,
               S2C(session)->cc_cleanup.file_wait_ms * WT_THOUSAND, __checkpoint_cleanup_run_chk);
