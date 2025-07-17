@@ -604,11 +604,11 @@ __conn_get_page_log(WT_CONNECTION *wt_conn, const char *name, WT_PAGE_LOG **page
 }
 
 /*
- * __wt_conn_remove_page_log --
+ * __wti_conn_remove_page_log --
  *     Remove page_log added by WT_CONNECTION->add_page_log, only used internally.
  */
 int
-__wt_conn_remove_page_log(WT_SESSION_IMPL *session)
+__wti_conn_remove_page_log(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
