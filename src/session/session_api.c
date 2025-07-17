@@ -523,10 +523,9 @@ __session_config_int(WT_SESSION_IMPL *session, const char *config)
     WT_RET_NOTFOUND_OK(ret);
 
     if ((ret = __wt_config_getones(session, config, "cache_cursors", &cval)) == 0) {
-        if (cval.val) {
+        if (cval.val)
             F_SET(session, WT_SESSION_CACHE_CURSORS);
-        } else {
-            printf("testing cleared\n");
+        else {
             F_CLR(session, WT_SESSION_CACHE_CURSORS);
             WT_RET(__session_close_cached_cursors(session));
         }
@@ -734,7 +733,7 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
     if (*cursorp == NULL)
         return (__wt_bad_object_type(session, uri));
 
-    if (owner != NULL && !WT_PREFIX_MATCH(uri, "layered:")) {
+    if (owner != NULL && !WT_PREFIX_MATCH(owner->internal_uri, "layered:")) {
         /*
          * We support caching simple cursors that have no children. If this cursor is a child, we're
          * not going to cache this child or its parent.
@@ -798,10 +797,8 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
         (S2BT_SAFE(session) != NULL && F_ISSET(S2BT(session), WT_BTREE_VERIFY)));
 
     /* Try to find the cursor in the cache. */
-    if (owner == NULL || WT_PREFIX_MATCH(uri, "layered:")) {
-        __wt_cursor_get_hash(session, uri, NULL, &hash_value);
-        WT_ERR_NOTFOUND_OK(__wt_cursor_cache_get(session, uri, hash_value, NULL, cfg, cursorp), false);
-    }
+    __wt_cursor_get_hash(session, uri, NULL, &hash_value);
+    WT_ERR_NOTFOUND_OK(__wt_cursor_cache_get(session, uri, hash_value, NULL, cfg, cursorp), false);
 
     /* Open a new cursor if no cached cursor was found. */
     if (*cursorp == NULL)

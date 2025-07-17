@@ -88,15 +88,9 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
                 continue
             if hs_before[0] == hs_after[0] and hs_before[1] == hs_after[1]:
                 break
-
-
-
-
-
             # Fail if we haven't been able to get stable history store stats after too many attempts.
             # Seems impossible, but better to check than to have an accidental infinite loop.
             self.assertNotEqual(i, max_tries - 1)
-
 
         return [totals[0] - hs_after[0], totals[1] - hs_after[1]]
 
@@ -133,7 +127,7 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
         self.stat_cursor_reopen = stats[1]
 
 # Override other cursor tests with cursors cached.
-@wttest.skip_for_hook("disagg", "can't test")
+@wttest.skip_for_hook("disagg", "fails due to disagg behaviour")
 class test_cursor13_01(test_cursor01.test_cursor01, test_cursor13_base):
     pass
 
@@ -192,9 +186,9 @@ class test_cursor13_reopens(test_cursor13_base):
     # are not simple, so are not cached and not included in this test.
     types = [
         ('file', dict(uri='file:cursor13_reopen1', dstype=None)),
-        #('table', dict(uri='table:cursor13_reopen2', dstype=None)),
-        #('sfile', dict(uri='file:cursor13_reopen3', dstype=SimpleDataSet)),
-        #('stable', dict(uri='table:cursor13_reopen4', dstype=SimpleDataSet)),
+        ('table', dict(uri='table:cursor13_reopen2', dstype=None)),
+        ('sfile', dict(uri='file:cursor13_reopen3', dstype=SimpleDataSet)),
+        ('stable', dict(uri='table:cursor13_reopen4', dstype=SimpleDataSet)),
     ]
     connoptions = [
         ('none', dict(connoption='', conn_caching=None)),
