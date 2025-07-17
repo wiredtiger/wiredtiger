@@ -3174,10 +3174,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         WT_ERR_MSG(session, EINVAL,
           "pre-fetching cannot be enabled if pre-fetching is configured as unavailable");
 
-    WT_ERR(__wt_config_gets(session, cfg, "preserve_prepared", &cval));
-    if (cval.val)
-        F_SET(conn, WT_CONN_PRESERVE_PREPARED);
-
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     if (cval.val) {
         if (F_ISSET(conn, WT_CONN_READONLY))
@@ -3322,6 +3318,18 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Start the worker threads, run recovery, and initialize the disaggregated storage. */
     WT_ERR(__wti_connection_workers(session, cfg));
+
+    /*
+     * TODO: WT-15017 we can set this earlier after we have moved the precise checkpoint config
+     * outside the checkpoint server config.
+     */
+    WT_ERR(__wt_config_gets(session, cfg, "preserve_prepared", &cval));
+    if (cval.val) {
+        if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
+            WT_ERR_MSG(session, EINVAL,
+              "Preserve prepared configuration incompatible with fuzzy checkpoint");
+        F_SET(conn, WT_CONN_PRESERVE_PREPARED);
+    }
 
     /*
      * We want WiredTiger in a reasonably normal state - despite the salvage flag, this is a boring
