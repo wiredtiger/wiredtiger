@@ -1088,13 +1088,6 @@ __wt_txn_tw_start_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
     /* If time window is start prepare, return false. */
     if (WT_TIME_WINDOW_HAS_START_PREPARE(tw))
         return (false);
-    /*
-     * If time window has stop (not prepared), and both start and stops are from the same
-     * transaction, meaning this transaction is already deleted so no longer visible
-     */
-    if (!WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) && tw->stop_ts == tw->start_ts &&
-      tw->durable_stop_ts == tw->durable_start_ts && tw->stop_txn == tw->start_txn)
-        return (false);
     return (__wt_txn_visible(session, tw->start_txn, tw->start_ts, tw->durable_start_ts));
 }
 
@@ -1107,13 +1100,6 @@ __wt_txn_tw_start_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
     /* If time window is start prepare, return false. */
     if (WT_TIME_WINDOW_HAS_START_PREPARE(tw))
-        return (false);
-    /*
-     * If time window has stop (not prepared), and both start and stops are from the same
-     * transaction, meaning this transaction is already deleted so no longer visible
-     */
-    if (!WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) && tw->stop_ts == tw->start_ts &&
-      tw->durable_stop_ts == tw->durable_start_ts && tw->stop_txn == tw->start_txn)
         return (false);
     return (__wt_txn_visible_all(session, tw->start_txn, tw->durable_start_ts));
 }
