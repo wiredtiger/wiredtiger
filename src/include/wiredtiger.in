@@ -2146,12 +2146,15 @@ struct __wt_connection {
      * @config{ ),,}
      * @config{checkpoint_cleanup = (, periodically checkpoint cleanup the database., a set of
      * related configuration options defined as follows.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;method,
-     * control how aggressively obsolete content is removed by reading the internal pages.  Default
-     * to none\, which means no additional work is done to find obsolete content., a string\, chosen
-     * from the following options: \c "none"\, \c "reclaim_space"; default \c none.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each checkpoint cleanup., an
-     * integer between \c 1 and \c 100000; default \c 300.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+     * file_wait_ms, the number of milliseconds to wait between each file by the checkpoint
+     * cleanup\, 0 will not wait., an integer greater than or equal to \c 0; default \c 0.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;method, control how aggressively obsolete content is removed
+     * by reading the internal pages.  Default to none\, which means no additional work is done to
+     * find obsolete content., a string\, chosen from the following options: \c "none"\, \c
+     * "reclaim_space"; default \c none.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait
+     * between each checkpoint cleanup., an integer between \c 1 and \c 100000; default \c 300.}
      * @config{ ),,}
      * @config{chunk_cache = (, chunk cache reconfiguration options., a set of related configuration
      * options defined as follows.}
@@ -2976,13 +2979,15 @@ struct __wt_connection {
  * @config{ ),,}
  * @config{checkpoint_cleanup = (, periodically checkpoint cleanup the database., a set of related
  * configuration options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;method, control how
- * aggressively obsolete content is removed by reading the internal pages.  Default to none\, which
- * means no additional work is done to find obsolete content., a string\, chosen from the following
- * options: \c "none"\, \c "reclaim_space"; default \c none.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait,
- * seconds to wait between each checkpoint cleanup., an integer between \c 1 and \c 100000; default
- * \c 300.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_wait_ms, the
+ * number of milliseconds to wait between each file by the checkpoint cleanup\, 0 will not wait., an
+ * integer greater than or equal to \c 0; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;method,
+ * control how aggressively obsolete content is removed by reading the internal pages.  Default to
+ * none\, which means no additional work is done to find obsolete content., a string\, chosen from
+ * the following options: \c "none"\, \c "reclaim_space"; default \c none.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each checkpoint cleanup., an
+ * integer between \c 1 and \c 100000; default \c 300.}
  * @config{ ),,}
  * @config{checkpoint_sync, flush files to stable storage when closing or writing checkpoints., a
  * boolean flag; default \c true.}
