@@ -852,6 +852,9 @@ main(int argc, char *argv[])
         for (uint64_t iteration = 1;; iteration++) {
             uint64_t seed = next_seed;
             std::string wt_conn_config = conn_config;
+            wt_conn_config = model::join(
+              wt_conn_config, model::kv_workload_generator::generate_log_configurations(seed));
+
             next_seed = model::random::next_seed(next_seed);
 
             std::cout << "Iteration " << iteration << ", seed 0x" << std::hex << seed << std::dec
@@ -868,9 +871,10 @@ main(int argc, char *argv[])
 
             /* Generate random timing stress configurations and add it to the WiredTiger config. */
             if (generate_timing_stress_configurations) {
-                std::string rand_env_config;
-                rand_env_config = model::kv_workload_generator::generate_configurations(seed);
-                wt_conn_config = model::join(wt_conn_config, rand_env_config);
+                std::string rand_stress_config;
+                rand_stress_config =
+                  model::kv_workload_generator::generate_stress_configurations(seed);
+                wt_conn_config = model::join(wt_conn_config, rand_stress_config);
             }
 
             /* Add the connection and table configurations to the workload. */

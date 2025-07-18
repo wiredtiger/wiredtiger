@@ -329,16 +329,15 @@ kv_workload_generator::choose_table(kv_workload_sequence_ptr txn)
 }
 
 /*
- * kv_workload_generator::generate_connection_config --
- *     Generate random WiredTiger connection configurations.
+ * kv_workload_generator::generate_connection_stress_config --
+ *     Generate random time stress configurations.
  */
 std::string
-kv_workload_generator::generate_connection_config()
+kv_workload_generator::generate_connection_stress_config()
 {
     std::string wt_env_config;
     probability_switch(_random.next_float())
     {
-        probability_case(_spec.conn_logging) wt_env_config += "log=(enabled=true)";
         probability_case(_spec.timing_stress_ckpt_slow) wt_env_config +=
           "timing_stress_for_test=[checkpoint_slow]";
         probability_case(_spec.timing_stress_ckpt_evict_page) wt_env_config +=
@@ -359,6 +358,21 @@ kv_workload_generator::generate_connection_config()
           "timing_stress_for_test=[prepare_checkpoint_delay]";
         probability_case(_spec.timing_stress_commit_txn_slow) wt_env_config +=
           "timing_stress_for_test=[commit_transaction_slow]";
+    }
+    return wt_env_config;
+}
+
+/*
+ * kv_workload_generator::generate_connection_log_config --
+ *     Generate random WiredTiger log configurations.
+ */
+std::string
+kv_workload_generator::generate_connection_log_config()
+{
+    std::string wt_env_config;
+    probability_switch(_random.next_float())
+    {
+        probability_case(_spec.conn_logging) wt_env_config += "log=(enabled=true)";
     }
     return wt_env_config;
 }
