@@ -943,25 +943,28 @@ copy_cell_restart:
                 /*
                  * This is a special case where both transaction start and stop are in prepared
                  * state (same prepared id), so the same prepared id is packed to
-                 * WT_CELL_TS_DURABLE_START 
+                 * WT_CELL_TS_DURABLE_START
                  */
                 WT_ASSERT(session, temp_stop_ts == 0);
                 if (preserve_prepared) {
-                    WT_ASSERT(session, temp_durable_start_ts != 0 && temp_durable_stop_ts == WT_TS_NONE);
+                    WT_ASSERT(
+                      session, temp_durable_start_ts != 0 && temp_durable_stop_ts == WT_TS_NONE);
                     tw->start_prepare_ts = temp_start_ts;
                     tw->start_prepared_id = temp_durable_start_ts;
                     tw->stop_prepare_ts = temp_start_ts;
                     tw->stop_prepared_id = temp_durable_start_ts;
                 } else {
-                    WT_ASSERT(session, temp_durable_start_ts == temp_durable_stop_ts && temp_durable_stop_ts == WT_TS_NONE);
-                    tw->start_prepare_ts = tw->stop_prepare_ts = temp_start_ts; 
+                    WT_ASSERT(session,
+                      temp_durable_start_ts == temp_durable_stop_ts &&
+                        temp_durable_stop_ts == WT_TS_NONE);
+                    tw->start_prepare_ts = tw->stop_prepare_ts = temp_start_ts;
                 }
             } else if (tw->stop_txn != WT_TXN_MAX) {
                 /*
-                 * This case happens where the transaction start is committed, but the transaction stop is
-                 * prepared. In this case, we store the start timestamp and durable start timestamp
-                 * in WT_CELL_TS_START and WT_CELL_TS_DURABLE_START, prepare ts in WT_CELL_TS_STOP
-                 * prepared id in WT_CELL_TS_DURABLE_STOP.
+                 * This case happens where the transaction start is committed, but the transaction
+                 * stop is prepared. In this case, we store the start timestamp and durable start
+                 * timestamp in WT_CELL_TS_START and WT_CELL_TS_DURABLE_START, prepare ts in
+                 * WT_CELL_TS_STOP prepared id in WT_CELL_TS_DURABLE_STOP.
                  */
                 /* unpack start ts and durable start ts like normal */
                 tw->start_ts = temp_start_ts;
@@ -988,7 +991,7 @@ copy_cell_restart:
                 tw->start_prepare_ts = temp_start_ts;
                 if (preserve_prepared) {
                     tw->start_prepared_id = temp_durable_start_ts;
-                } else 
+                } else
                     WT_ASSERT(session, temp_durable_start_ts == WT_TS_NONE);
             }
         } else {
