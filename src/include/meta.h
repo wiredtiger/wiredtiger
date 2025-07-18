@@ -36,7 +36,7 @@
 #define WT_HS_URI "file:WiredTigerHS.wt"                     /* History store table URI */
 #define WT_HS_URI_SHARED "file:WiredTigerSharedHS.wt_stable" /* Shared history store URI */
 #define WT_HS_ID 1                                           /* ID for HS */
-#define WT_HS_SHARED_ID 2                                    /* ID for shared HS */
+#define WT_HS_ID_SHARED 2                                    /* ID for shared HS */
 
 #define WT_CC_METAFILE "WiredTigerCC.wt"          /* Chunk cache metadata table */
 #define WT_CC_METAFILE_URI "file:WiredTigerCC.wt" /* Chunk cache metadata table URI */
@@ -88,7 +88,7 @@
         case WT_HS_ID:                                                                         \
             (uri) = WT_HS_URI;                                                                 \
             break;                                                                             \
-        case WT_HS_SHARED_ID:                                                                  \
+        case WT_HS_ID_SHARED:                                                                  \
             (uri) = WT_HS_URI_SHARED;                                                          \
             break;                                                                             \
         default:                                                                               \

@@ -1307,10 +1307,10 @@ __wt_curhs_next_hs_id(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t *next_h
         return (0);
     }
 
-    if (hs_id == 1) {
+    if (hs_id == WT_HS_ID) {
         if (!__wt_conn_is_disagg(session))
             return (WT_NOTFOUND);
-        *next_hs_idp = WT_HS_SHARED_ID;
+        *next_hs_idp = WT_HS_ID_SHARED;
         return (0);
     }
 
