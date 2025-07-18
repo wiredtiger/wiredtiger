@@ -173,6 +173,8 @@ extern int __wt_block_disagg_manager_create(WT_SESSION_IMPL *session, WT_BUCKET_
 extern int __wt_block_disagg_manager_open(WT_SESSION_IMPL *session, const char *uri,
   const char *cfg[], bool forced_salvage, bool readonly, WT_BM **bmp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_disagg_read_page_ids(WT_BM *bm, WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr,
   size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename,

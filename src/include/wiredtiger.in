@@ -5687,7 +5687,7 @@ struct __wt_page_log_handle {
     int (*plh_get)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
         uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_GET_ARGS *args,
         WT_ITEM *results_array, uint32_t *results_count);
-    
+
     /*!
      * Get all page ids from the paging/logging service for a given checkpoint.
      *

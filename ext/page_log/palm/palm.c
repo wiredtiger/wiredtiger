@@ -917,7 +917,9 @@ err:
     }
 
 static int
-palm_handle_get_page_ids(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t checkpoint_id, WT_ITEM *item){
+palm_handle_get_page_ids(
+  WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t checkpoint_id, WT_ITEM *item)
+{
     PALM_KV_CONTEXT context;
     PALM_HANDLE *palm_handle = (PALM_HANDLE *)plh;
     PALM *palm = palm_handle->palm;
