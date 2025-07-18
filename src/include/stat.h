@@ -1156,7 +1156,9 @@ struct __wt_connection_stats {
     int64_t rec_page_full_image_internal;
     int64_t rec_page_full_image_leaf;
     int64_t rec_page_delta_internal;
+    int64_t rec_multiblock_internal;
     int64_t rec_page_delta_leaf;
+    int64_t rec_multiblock_leaf;
     int64_t rec_overflow_key_leaf;
     int64_t rec_max_internal_page_deltas;
     int64_t rec_max_leaf_page_deltas;
