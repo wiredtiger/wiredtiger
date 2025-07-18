@@ -2788,8 +2788,7 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
             WT_STAT_CONN_INCR(session, txn_rollback_oldest_id);
         else
             WT_STAT_CONN_INCR(session, txn_rollback_oldest_pinned);
-        WT_RET_SUB(
-          session, WT_ROLLBACK, WT_OLDEST_FOR_EVICTION, WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION);
+        return __wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION);
     }
     return (0);
 }

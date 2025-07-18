@@ -2523,9 +2523,8 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly)
             if (ret == WT_ROLLBACK) {
                 __wt_atomic_decrement_if_positive(&cache->evict_aggressive_score);
 
-                if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
-                    __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
-                      session->err_info.err_msg);
+                __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
+                  session->txn->rollback_reason);
             }
             WT_ERR(ret);
         }
