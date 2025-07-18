@@ -995,8 +995,6 @@ dsrc_stats = [
     # Reconciliation statistics
     ##########################################
     RecStat('rec_dictionary', 'dictionary matches'),
-    RecStat('rec_multiblock_internal', 'internal page multi-block writes'),
-    RecStat('rec_multiblock_leaf', 'leaf page multi-block writes'),
     RecStat('rec_multiblock_max', 'maximum blocks required for a page', 'max_aggregate,no_scale'),
     RecStat('rec_prefix_compression', 'leaf page key bytes discarded using prefix compression', 'size'),
     RecStat('rec_suffix_compression', 'internal page key bytes discarded using suffix compression', 'size'),
@@ -1194,6 +1192,8 @@ conn_dsrc_stats = [
     # Reconciliation statistics
     ##########################################
     RecStat('rec_hs_wrapup_next_prev_calls', 'cursor next/prev calls during HS wrapup search_near'),
+    RecStat('rec_multiblock_internal', 'internal page multi-block writes'),
+    RecStat('rec_multiblock_leaf', 'leaf page multi-block writes'),
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
     RecStat('rec_overflow_value', 'overflow values written'),
     RecStat('rec_page_delete', 'pages deleted'),

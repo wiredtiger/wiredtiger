@@ -2067,6 +2067,8 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: approximate byte size of transaction IDs in pages written",
   "reconciliation: cursor next/prev calls during HS wrapup search_near",
   "reconciliation: fast-path pages deleted",
+  "reconciliation: internal page multi-block writes",
+  "reconciliation: leaf page multi-block writes",
   "reconciliation: leaf-page overflow keys",
   "reconciliation: maximum milliseconds spent in a reconciliation call",
   "reconciliation: maximum milliseconds spent in building a disk image in a reconciliation",
@@ -2901,6 +2903,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_time_window_bytes_txn = 0;
     stats->rec_hs_wrapup_next_prev_calls = 0;
     stats->rec_page_delete_fast = 0;
+    stats->rec_multiblock_internal = 0;
+    stats->rec_multiblock_leaf = 0;
     stats->rec_overflow_key_leaf = 0;
     /* not clearing rec_maximum_milliseconds */
     /* not clearing rec_maximum_image_build_milliseconds */
@@ -3833,6 +3837,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_time_window_bytes_txn += WT_STAT_CONN_READ(from, rec_time_window_bytes_txn);
     to->rec_hs_wrapup_next_prev_calls += WT_STAT_CONN_READ(from, rec_hs_wrapup_next_prev_calls);
     to->rec_page_delete_fast += WT_STAT_CONN_READ(from, rec_page_delete_fast);
+    to->rec_multiblock_internal += WT_STAT_CONN_READ(from, rec_multiblock_internal);
+    to->rec_multiblock_leaf += WT_STAT_CONN_READ(from, rec_multiblock_leaf);
     to->rec_overflow_key_leaf += WT_STAT_CONN_READ(from, rec_overflow_key_leaf);
     to->rec_maximum_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_milliseconds);
     to->rec_maximum_image_build_milliseconds +=
