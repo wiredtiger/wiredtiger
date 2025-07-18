@@ -1324,7 +1324,7 @@ conn_dsrc_stats = [
     RecStat('rec_pages_with_leaf_deltas', 'pages written with at least one leaf page delta'),
     RecStat('rec_skip_empty_deltas', 'empty deltas skipped in disaggregated storage'),
     RecStat('rec_time_aggr_newest_start_durable_ts', 'pages written including an aggregated newest start durable timestamp '),
-    RecStat('rec_time_aggr_newest_stop_commit_ts', 'pages written including an aggregated newest stop commit_timestamp '),
+    RecStat('rec_time_aggr_newest_stop_commit_ts', 'pages written including an aggregated newest stop commit timestamp '),
     RecStat('rec_time_aggr_newest_stop_durable_ts', 'pages written including an aggregated newest stop durable timestamp '),
     RecStat('rec_time_aggr_newest_stop_txn', 'pages written including an aggregated newest stop transaction ID'),
     RecStat('rec_time_aggr_newest_txn', 'pages written including an aggregated newest transaction ID '),

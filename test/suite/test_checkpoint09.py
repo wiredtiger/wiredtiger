@@ -120,7 +120,7 @@ class test_checkpoint09(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
         self.session.checkpoint()
 
-        val = self.get_stat(stat.conn.rec_time_window_start_ts)
+        val = self.get_stat(stat.conn.rec_time_window_start_commit_ts)
         self.assertEqual(val, nrows)
 
         self.evict_cursor(uri, ds, nrows)
@@ -131,7 +131,7 @@ class test_checkpoint09(wttest.WiredTigerTestCase):
             ',stable_timestamp=' + self.timestamp_str(20))
         self.session.checkpoint(None)
 
-        val = self.get_stat(stat.conn.rec_time_window_start_ts)
+        val = self.get_stat(stat.conn.rec_time_window_start_commit_ts)
         self.assertEqual(val, nrows + nrows/10)
 
         self.evict_cursor(uri, ds, nrows)
@@ -142,7 +142,7 @@ class test_checkpoint09(wttest.WiredTigerTestCase):
             ',stable_timestamp=' + self.timestamp_str(30))
         self.session.checkpoint()
 
-        val = self.get_stat(stat.conn.rec_time_window_start_ts)
+        val = self.get_stat(stat.conn.rec_time_window_start_commit_ts)
         self.assertEqual(val, nrows + nrows/10 + nrows/100)
 
         self.session.close()

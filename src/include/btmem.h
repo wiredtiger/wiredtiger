@@ -1167,9 +1167,13 @@ struct __wt_page_deleted {
         } prepare_rollback;
     } u;
 
+#undef pg_del_durable_ts
 #define pg_del_durable_ts u.commit.durable_ts
+#undef pg_del_commit_ts
 #define pg_del_commit_ts u.commit.commit_ts
+#undef pg_del_rollback_ts
 #define pg_del_rollback_ts u.prepare_rollback.rollback_ts
+#undef pg_del_saved_txnid
 #define pg_del_saved_txnid u.prepare_rollback.saved_txnid
 
     /* Prepared transaction fields */

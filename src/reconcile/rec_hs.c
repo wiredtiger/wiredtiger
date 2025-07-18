@@ -74,7 +74,7 @@ __rec_hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor
     WT_DECL_RET;
     WT_ITEM hs_key, hs_value;
     WT_TIME_WINDOW hs_insert_tw, *twp;
-    wt_timestamp_t hs_durable_start_ts, hs_durable_stop_ts, hs_start_ts;
+    wt_timestamp_t hs_start_durable_ts, hs_stop_durable_ts, hs_start_commit_ts;
     uint64_t cache_hs_order_lose_durable_timestamp, cache_hs_order_reinsert, cache_hs_order_remove;
     uint64_t hs_counter, hs_upd_type;
     uint32_t hs_btree_id;
@@ -114,26 +114,26 @@ __rec_hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor
      * may need to see them after they've been moved due to their transaction id.
      *
      * For example, if we're inserting an update without a timestamp with value ddd:
-     * btree key ts counter value stop_ts
+     * btree key ts counter value stop_commit_ts
      * 2     foo 5  0       aaa    6
      * 2     foo 6  0       bbb    7
      * 2     foo 7  0       ccc    8
      *
      * We want to end up with this:
-     * btree key ts counter value stop_ts
+     * btree key ts counter value stop_commit_ts
      * 2     foo 0  0       aaa    0
      * 2     foo 0  1       bbb    0
      * 2     foo 0  2       ccc    0
      * 2     foo 0  3       ddd    0
      *
      * Another example, if we're inserting an update without a timestamp with value ddd:
-     * btree key ts counter value stop_ts
+     * btree key ts counter value stop_commit_ts
      * 2     foo 0  0       aaa     6
      * 2     foo 6  0       bbb     7
      * 2     foo 7  0       ccc     8
      *
      * We want to end up with this:
-     * btree key ts counter value stop_ts
+     * btree key ts counter value stop_commit_ts
      * 2     foo 0  1       aaa    0
      * 2     foo 0  2       bbb    0
      * 2     foo 0  3       ccc    0
@@ -141,7 +141,8 @@ __rec_hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor
      */
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         /* We shouldn't have crossed the btree and user key search space. */
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
+        WT_ERR(
+          hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_commit_ts, &hs_counter));
         WT_ASSERT(session, hs_btree_id == btree_id);
 #ifdef HAVE_DIAGNOSTIC
         WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
@@ -159,7 +160,7 @@ __rec_hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor
          * by ignoring them.
          */
         __wt_hs_upd_time_window(hs_cursor, &twp);
-        if (hs_start_ts < ts && twp->stop_commit_ts < ts)
+        if (hs_start_commit_ts < ts && twp->stop_commit_ts < ts)
             continue;
 
         if (reinsert) {
@@ -180,9 +181,8 @@ __rec_hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor
                 ++cache_hs_order_lose_durable_timestamp;
 
             __wt_verbose(session, WT_VERB_TIMESTAMP,
-              "fixing existing updates by moving them; start_ts=%s, "
-              "durable_start_ts=%s, "
-              "stop_ts=%s, durable_stop_ts=%s, new_ts=%s",
+              "fixing existing updates by moving them; start_commit_ts=%s, start_durable_ts=%s, "
+              "stop_durable_ts=%s, stop_durable_ts=%s, new_commit_ts=%s",
               __wt_timestamp_to_string(hs_cbt->upd_value->tw.start_commit_ts, ts_string[0]),
               __wt_timestamp_to_string(hs_cbt->upd_value->tw.start_durable_ts, ts_string[1]),
               __wt_timestamp_to_string(hs_cbt->upd_value->tw.stop_commit_ts, ts_string[2]),
@@ -214,10 +214,10 @@ __rec_hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor
 
             /* Extract the underlying value for reinsertion. */
             WT_ERR(hs_cursor->get_value(
-              hs_cursor, &hs_durable_stop_ts, &hs_durable_start_ts, &hs_upd_type, &hs_value));
+              hs_cursor, &hs_stop_durable_ts, &hs_start_durable_ts, &hs_upd_type, &hs_value));
 
             /* Reinsert the update with corrected timestamps. */
-            if (no_ts_tombstone && hs_start_ts == ts)
+            if (no_ts_tombstone && hs_start_commit_ts == ts)
                 *counter = hs_counter;
 
             /* Insert the value back with different timestamps. */
@@ -260,7 +260,7 @@ __rec_hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btr
     WT_DECL_RET;
     WT_ITEM hs_key;
     WT_TIME_WINDOW *twp = NULL;
-    wt_timestamp_t hs_start_ts = WT_TS_NONE;
+    wt_timestamp_t hs_start_commit_ts = WT_TS_NONE;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
 #ifdef HAVE_DIAGNOSTIC
@@ -296,10 +296,10 @@ __rec_hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btr
          *
          * After all this operations the checkpoint content will be
          * Data store --
-         * table1 --> a=1 at start_ts=10, stop_ts=20
+         * table1 --> a=1 at start_commit_ts=10, stop_commit_ts=20
          *
          * History store --
-         * table1 --> a=1 at start_ts=10, stop_ts=20
+         * table1 --> a=1 at start_commit_ts=10, stop_commit_ts=20
          *
          * WiredTiger takes a backup of the checkpoint and use this backup to restore.
          * Note: In table1 of both data store and history store has the same content.
@@ -324,7 +324,8 @@ __rec_hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btr
             continue;
 
         /* We shouldn't have crossed the btree and user key search space. */
-        WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
+        WT_RET(
+          hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_commit_ts, &hs_counter));
         WT_ASSERT(session, hs_btree_id == btree_id);
 #ifdef HAVE_DIAGNOSTIC
         WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
@@ -336,8 +337,9 @@ __rec_hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btr
          * the cell. The cell's start timestamp can be cleared during reconciliation if it is
          * globally visible.
          */
-        if (hs_start_ts >= ts || twp->stop_commit_ts >= ts) {
-            if (hs_start_ts == WT_TS_NONE && twp->stop_commit_ts == WT_TS_NONE && ts == WT_TS_NONE)
+        if (hs_start_commit_ts >= ts || twp->stop_commit_ts >= ts) {
+            if (hs_start_commit_ts == WT_TS_NONE && twp->stop_commit_ts == WT_TS_NONE &&
+              ts == WT_TS_NONE)
                 *non_ts_updates = true;
             break;
         }
@@ -351,8 +353,9 @@ __rec_hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btr
     char ts_string[4][WT_TS_INT_STRING_SIZE];
     WT_ASSERT_ALWAYS(session, ts == 1 || ts == WT_TS_NONE,
       "out-of-order timestamp update detected, found an existing update with "
-      "hs_start_ts=%s, start_ts=%s, stop_ts=%s, that exists later than specified ts=%s",
-      __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
+      "hs_start_commit_ts=%s, start_commit_ts=%s, stop_commit_ts=%s, that exists later than "
+      "specified ts=%s",
+      __wt_timestamp_to_string(hs_start_commit_ts, ts_string[0]),
       __wt_timestamp_to_string(twp == NULL ? WT_TS_NONE : twp->start_commit_ts, ts_string[1]),
       __wt_timestamp_to_string(twp == NULL ? WT_TS_NONE : twp->stop_commit_ts, ts_string[2]),
       __wt_timestamp_to_string(ts, ts_string[3]));
@@ -373,7 +376,7 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
     wt_timestamp_t durable_timestamp_diag;
-    wt_timestamp_t hs_start_ts;
+    wt_timestamp_t hs_start_commit_ts;
     wt_timestamp_t hs_stop_durable_ts_diag;
     uint64_t counter, hs_counter;
     uint64_t upd_type_full_diag;
@@ -436,13 +439,13 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, cursor), true);
 
     if (ret == 0) {
-        WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
+        WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_commit_ts, &hs_counter));
 
         if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_HS_VALIDATE)) {
             /* Allocate buffer for the existing history store value for the same key. */
             WT_ERR(__wt_scr_alloc(session, 0, &existing_val));
 
-            if (tw->start_commit_ts == hs_start_ts) {
+            if (tw->start_commit_ts == hs_start_commit_ts) {
                 WT_ERR(cursor->get_value(cursor, &hs_stop_durable_ts_diag, &durable_timestamp_diag,
                   &upd_type_full_diag, existing_val));
                 WT_ERR(__wt_compare(session, NULL, existing_val, hs_value, &cmp));
@@ -477,7 +480,7 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
                 counter = hs_counter + 1;
             }
         } else {
-            if (tw->start_commit_ts == hs_start_ts)
+            if (tw->start_commit_ts == hs_start_commit_ts)
                 counter = hs_counter + 1;
         }
     }
@@ -537,8 +540,8 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
      * the key we are about to insert.
      */
     if (F_ISSET(cursor, WT_CURSTD_KEY_SET)) {
-        WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
-        if (hs_btree_id == btree->id && tw->start_commit_ts == hs_start_ts &&
+        WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_commit_ts, &hs_counter));
+        if (hs_btree_id == btree->id && tw->start_commit_ts == hs_start_commit_ts &&
           hs_counter == counter) {
             WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
             WT_ASSERT(session, cmp != 0);
@@ -1111,7 +1114,7 @@ __wti_rec_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t
 {
     WT_DECL_RET;
     WT_ITEM hs_key;
-    wt_timestamp_t hs_start_ts;
+    wt_timestamp_t hs_start_commit_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
     bool hs_read_all_flag, non_ts_updates;
@@ -1131,7 +1134,8 @@ __wti_rec_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t
         ret = 0;
         goto done;
     } else {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
+        WT_ERR(
+          hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_commit_ts, &hs_counter));
         ++hs_counter;
     }
     /* Get the history store cursor position */

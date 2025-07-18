@@ -328,7 +328,7 @@ class Cell(object):
     WT_CELL_TS_START_DURABLE: typing.Final[int] = 0x02
     WT_CELL_TS_STOP_DURABLE: typing.Final[int] = 0x04
     WT_CELL_TS_START: typing.Final[int] = 0x08
-    WT_CELL_TS_STOP_COMMIT: typing.Final[int] = 0x10
+    WT_CELL_TS_STOP: typing.Final[int] = 0x10
     WT_CELL_TXN_START: typing.Final[int] = 0x20
     WT_CELL_TXN_STOP: typing.Final[int] = 0x40
 
@@ -373,7 +373,7 @@ class Cell(object):
         if self.extra_descriptor & Cell.WT_CELL_TS_START_DURABLE != 0:
             self.start_durable_ts, self.size_durable_start_ts = b.read_packed_uint64_with_size()
 
-        if self.extra_descriptor & Cell.WT_CELL_TS_STOP_COMMIT != 0:
+        if self.extra_descriptor & Cell.WT_CELL_TS_STOP != 0:
             self.stop_commit_ts, self.size_stop_ts = b.read_packed_uint64_with_size()
         if self.extra_descriptor & Cell.WT_CELL_TXN_STOP != 0:
             self.stop_txn, self.size_stop_txn = b.read_packed_uint64_with_size()

@@ -7832,7 +7832,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	1756
 /*!
  * reconciliation: pages written including an aggregated newest stop
- * commit_timestamp
+ * commit timestamp
  */
 #define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_STOP_COMMIT_TS	1757
 /*!
@@ -9207,7 +9207,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	2324
 /*!
  * reconciliation: pages written including an aggregated newest stop
- * commit_timestamp
+ * commit timestamp
  */
 #define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_COMMIT_TS	2325
 /*!

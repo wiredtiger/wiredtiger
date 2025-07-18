@@ -91,7 +91,7 @@
 #define WT_CELL_TS_START_DURABLE 0x02 /* Start durable timestamp */
 #define WT_CELL_TS_STOP_DURABLE 0x04  /* Stop durable timestamp */
 #define WT_CELL_TS_START 0x08         /* Oldest-start timestamp */
-#define WT_CELL_TS_STOP_COMMIT 0x10   /* Newest-stop timestamp */
+#define WT_CELL_TS_STOP 0x10          /* Newest-stop timestamp */
 #define WT_CELL_TXN_START 0x20        /* Oldest-start txn ID */
 #define WT_CELL_TXN_STOP 0x40         /* Newest-stop txn ID */
 
