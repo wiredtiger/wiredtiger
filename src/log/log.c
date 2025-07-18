@@ -1366,7 +1366,7 @@ __wti_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WTI_LOGSLOT *slot)
     if (F_ISSET(log, WTI_LOG_FORCE_NEWFILE) || !__log_size_fit(session, &log->alloc_lsn, recsize)) {
         WT_RET(__log_newfile(session, false, &created_log));
         F_CLR(log, WTI_LOG_FORCE_NEWFILE);
-        if (__wt_atomic_load_pointer(&log->log_close_fh) != NULL)
+        if (log->log_close_fh != NULL)
             F_SET_ATOMIC_16(slot, WTI_SLOT_CLOSEFH);
     }
 
