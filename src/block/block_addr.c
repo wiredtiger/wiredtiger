@@ -20,7 +20,7 @@ __block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t **p
   uint32_t *objectidp, wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump)
 {
     uint64_t c, i, o, s;
-    uint64_t x1, x2, x3;
+    uint64_t x1, x2, x3, x4, x5, x6;
     uint8_t flags;
     const uint8_t *begin;
 
@@ -44,6 +44,9 @@ __block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t **p
     WT_RET(__wt_vunpack_uint(pp, 0, &x1));
     WT_RET(__wt_vunpack_uint(pp, 0, &x2));
     WT_RET(__wt_vunpack_uint(pp, 0, &x3));
+    WT_RET(__wt_vunpack_uint(pp, 0, &x4));
+    WT_RET(__wt_vunpack_uint(pp, 0, &x5));
+    WT_RET(__wt_vunpack_uint(pp, 0, &x6));
 
     i = 0;
     flags = 0;
@@ -96,11 +99,14 @@ __wt_block_addr_pack(WT_BLOCK *block, uint8_t **pp, uint32_t objectid, wt_off_t 
   uint32_t size, uint32_t checksum)
 {
     uint64_t c, i, o, s;
-    uint64_t x1, x2, x3;
+    uint64_t x1, x2, x3, x4, x5, x6;
 
     x1 = 0x1234567890abcd;
     x2 = 0x19980727abcdef;
     x3 = 0xdeadbeef000;
+    x4 = 0x1234567890abcd;
+    x5 = 0x19980727abcdef;
+    x6 = 0xdeadbeef000;
 
     /* See the comment above about storing large offsets: this is the reverse operation. */
     if (size == 0) {
@@ -121,6 +127,9 @@ __wt_block_addr_pack(WT_BLOCK *block, uint8_t **pp, uint32_t objectid, wt_off_t 
     WT_RET(__wt_vpack_uint(pp, 0, x1));
     WT_RET(__wt_vpack_uint(pp, 0, x2));
     WT_RET(__wt_vpack_uint(pp, 0, x3));
+    WT_RET(__wt_vpack_uint(pp, 0, x4));
+    WT_RET(__wt_vpack_uint(pp, 0, x5));
+    WT_RET(__wt_vpack_uint(pp, 0, x6));
 
     /*
      * Don't store object IDs of zero, the function that cracks the cookie defaults IDs to 0.

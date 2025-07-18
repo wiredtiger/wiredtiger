@@ -158,7 +158,7 @@ typedef struct {
  * Maximum buffer required to store a checkpoint: 1 version byte followed by
  * 14 packed 8B values.
  */
-#define WT_BLOCK_CHECKPOINT_BUFFER (1 + 14 * WT_INTPACK64_MAXSIZE)
+#define WT_BLOCK_CHECKPOINT_BUFFER 500
 
 struct __wt_block_ckpt {
     uint8_t version; /* Version */
