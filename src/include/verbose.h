@@ -201,10 +201,10 @@ struct __wt_verbose_multi_category {
     __wt_verbose_level(session, category, WT_VERBOSE_INFO, fmt, __VA_ARGS__)
 
 /*
- * __wt_verbose_level_worker --
+ * __wt_verbose_level_id --
  *     Check for the verbosity level and invoke the worker with an id.
  */
-#define __wt_verbose_level_worker(session, log_id, verb_category, verb_level, fmt, ...)  \
+#define __wt_verbose_level_id(session, log_id, verb_category, verb_level, fmt, ...)      \
     do {                                                                                 \
         if (WT_VERBOSE_LEVEL_ISSET((session), verb_category, verb_level)) {              \
             WT_VERBOSE_MESSAGE_INFO verb_message_info = {                                \
@@ -215,11 +215,11 @@ struct __wt_verbose_multi_category {
 
 /*
  * __wt_verbose_info_id --
- *     Wrapper to __wt_verbose_level_worker defaulting the verbosity level to WT_VERBOSE_INFO with a
- *     log id.
+ *     Wrapper to __wt_verbose_level_id defaulting the verbosity level to WT_VERBOSE_INFO with a log
+ *     id.
  */
 #define __wt_verbose_info_id(session, log_id, category, fmt, ...) \
-    __wt_verbose_level_worker(session, log_id, category, WT_VERBOSE_INFO, fmt, __VA_ARGS__)
+    __wt_verbose_level_id(session, log_id, category, WT_VERBOSE_INFO, fmt, __VA_ARGS__)
 
 /*
  * __wt_verbose_debug1 --
@@ -257,20 +257,14 @@ struct __wt_verbose_multi_category {
  * __wt_verbose_level_multi_id --
  *     Refer to __wt_verbose_level_multi for details.
  */
-#define __wt_verbose_level_multi_id(session, log_id, multi_category, level, fmt, ...)             \
-    do {                                                                                          \
-        uint32_t __v_idx;                                                                         \
-        /*                                                                                        \
-         * multi_category can be a ternary expression that returns one of two structs. If we call \
-         * it 3 times in this macro then we're evaluating that ternary 3 times and could return a \
-         * different value on a second call. Save it into a local variable to make sure we're     \
-         * working with a constant value.                                                         \
-         */                                                                                       \
-        WT_VERBOSE_MULTI_CATEGORY __multi_category = multi_category;                              \
-        for (__v_idx = 0; __v_idx < __multi_category.cnt; __v_idx++) {                            \
-            __wt_verbose_level_worker(                                                            \
-              session, log_id, __multi_category.categories[__v_idx], level, fmt, __VA_ARGS__);    \
-        }                                                                                         \
+#define __wt_verbose_level_multi_id(session, log_id, multi_category, level, fmt, ...)          \
+    do {                                                                                       \
+        uint32_t __v_idx;                                                                      \
+        WT_VERBOSE_MULTI_CATEGORY __multi_category = multi_category;                           \
+        for (__v_idx = 0; __v_idx < __multi_category.cnt; __v_idx++) {                         \
+            __wt_verbose_level_id(                                                             \
+              session, log_id, __multi_category.categories[__v_idx], level, fmt, __VA_ARGS__); \
+        }                                                                                      \
     } while (0)
 
 /*
