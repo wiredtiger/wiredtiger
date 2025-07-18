@@ -905,7 +905,8 @@ err:
          * It's considered a user open if it comes via a top-level API call. This could
          * alternatively decide the statistic based on whether it's a user or internal session.
          */
-        if (API_USER_ENTRY(session) && (ret == EBUSY && !F_ISSET(S2BT(session), WT_BTREE_SPECIAL_FLAGS)))
+        if (API_USER_ENTRY(session) &&
+          (ret == EBUSY && !F_ISSET(S2BT(session), WT_BTREE_SPECIAL_FLAGS)))
             WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_user_usecs, time_diff_usec);
         else
             WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
