@@ -148,11 +148,11 @@ Time <i>windows</i> are handled in memory using the struct type
 This contains a start time and a stop time.
 The type actually has seven members:
 
-- \c start_ts (the start time)
-- \c durable_start_ts (also the start time)
+- \c start_commit_ts (the start time)
+- \c start_durable_ts (also the start time)
 - \c start_txn (the transaction ID that committed the start of the value)
-- \c stop_ts (the stop time)
-- \c durable_stop_ts (also the stop time)
+- \c stop_commit_ts (the stop time)
+- \c stop_durable_ts (also the stop time)
 - \c stop_txn (the transaction ID that committed the stop/end of the value)
 - \c prepare (the transaction-prepare state of the value)
 
@@ -162,8 +162,8 @@ the same points, and in particular also needs to be stored on disk
 along with the time information, so is kept in the time window
 structure for convenience.
 
-The distinction between \c start_ts and \c durable_start_ts (and
-between \c stop_ts and \c durable_stop_ts) is the same as the
+The distinction between \c start_commit_ts and \c start_durable_ts (and
+between \c stop_commit_ts and \c stop_durable_ts) is the same as the
 distinction between a transaction's commit timestamp and its durable
 timestamp.
 See @ref arch-timestamp-prepare.
@@ -175,8 +175,8 @@ retained and are represented as \c WT_TXN_NONE.
 
 A value that is current and has not been overwritten or deleted has no
 stop time.
-This is represented with \c WT_TS_NONE in \c durable_stop_ts but
-\c WT_TS_MAX in \c stop_ts, and \c WT_TS_MAX in \c stop_txn.
+This is represented with \c WT_TS_NONE in \c stop_durable_ts but
+\c WT_TS_MAX in \c stop_commit_ts, and \c WT_TS_MAX in \c stop_txn.
 
 The on-disk representation of the time window of the current on-disk
 value is an optional part of a value cell.

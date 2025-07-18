@@ -7827,17 +7827,17 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_PAGE_DELETE			1755
 /*!
  * reconciliation: pages written including an aggregated newest start
- * durable timestamp
+ * durable/prepare timestamp
  */
 #define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	1756
 /*!
  * reconciliation: pages written including an aggregated newest stop
- * commit timestamp
+ * commit/prepare timestamp
  */
-#define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_STOP_COMMIT_TS	1757
+#define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_STOP_TS	1757
 /*!
  * reconciliation: pages written including an aggregated newest stop
- * durable timestamp
+ * durable/prepare timestamp
  */
 #define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	1758
 /*!
@@ -7852,9 +7852,9 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_TXN		1760
 /*!
  * reconciliation: pages written including an aggregated oldest start
- * commit timestamp
+ * commit/prepare timestamp
  */
-#define	WT_STAT_CONN_REC_TIME_AGGR_OLDEST_START_COMMIT_TS	1761
+#define	WT_STAT_CONN_REC_TIME_AGGR_OLDEST_START_TS	1761
 /*! reconciliation: pages written including an aggregated prepare */
 #define	WT_STAT_CONN_REC_TIME_AGGR_PREPARED		1762
 /*! reconciliation: pages written including at least one prepare state */
@@ -9202,17 +9202,17 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_PAGE_DELETE			2323
 /*!
  * reconciliation: pages written including an aggregated newest start
- * durable timestamp
+ * durable/prepare timestamp
  */
 #define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	2324
 /*!
  * reconciliation: pages written including an aggregated newest stop
- * commit timestamp
+ * commit/prepare timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_COMMIT_TS	2325
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TS	2325
 /*!
  * reconciliation: pages written including an aggregated newest stop
- * durable timestamp
+ * durable/prepare timestamp
  */
 #define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	2326
 /*!
@@ -9227,9 +9227,9 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_TXN		2328
 /*!
  * reconciliation: pages written including an aggregated oldest start
- * commit timestamp
+ * commit/prepare timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_COMMIT_TS	2329
+#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TS	2329
 /*! reconciliation: pages written including an aggregated prepare */
 #define	WT_STAT_DSRC_REC_TIME_AGGR_PREPARED		2330
 /*! reconciliation: pages written including at least one prepare state */

@@ -19,12 +19,12 @@ __rec_cell_addr_stats(WTI_RECONCILE *r, WT_TIME_AGGREGATE *ta)
         FLD_SET(r->ts_usage_flags, WTI_REC_TIME_NEWEST_START_DURABLE_TS);
     if (ta->newest_stop_durable_ts != WT_TS_NONE)
         FLD_SET(r->ts_usage_flags, WTI_REC_TIME_NEWEST_STOP_DURABLE_TS);
-    if (ta->oldest_start_commit_ts != WT_TS_NONE)
-        FLD_SET(r->ts_usage_flags, WTI_REC_TIME_OLDEST_START_COMMIT_TS);
+    if (ta->oldest_start_ts != WT_TS_NONE)
+        FLD_SET(r->ts_usage_flags, WTI_REC_TIME_OLDEST_START_TS);
     if (ta->newest_txn != WT_TXN_NONE)
         FLD_SET(r->ts_usage_flags, WTI_REC_TIME_NEWEST_TXN);
-    if (ta->newest_stop_commit_ts != WT_TS_MAX)
-        FLD_SET(r->ts_usage_flags, WTI_REC_TIME_NEWEST_STOP_COMMIT_TS);
+    if (ta->newest_stop_ts != WT_TS_MAX)
+        FLD_SET(r->ts_usage_flags, WTI_REC_TIME_NEWEST_STOP_TS);
     if (ta->newest_stop_txn != WT_TXN_MAX)
         FLD_SET(r->ts_usage_flags, WTI_REC_TIME_NEWEST_STOP_TXN);
     if (ta->prepare != 0)
@@ -135,12 +135,12 @@ __rec_page_time_stats(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         WT_STAT_CONN_DSRC_INCR(session, rec_time_aggr_newest_start_durable_ts);
     if (FLD_ISSET(r->ts_usage_flags, WTI_REC_TIME_NEWEST_STOP_DURABLE_TS))
         WT_STAT_CONN_DSRC_INCR(session, rec_time_aggr_newest_stop_durable_ts);
-    if (FLD_ISSET(r->ts_usage_flags, WTI_REC_TIME_OLDEST_START_COMMIT_TS))
-        WT_STAT_CONN_DSRC_INCR(session, rec_time_aggr_oldest_start_commit_ts);
+    if (FLD_ISSET(r->ts_usage_flags, WTI_REC_TIME_OLDEST_START_TS))
+        WT_STAT_CONN_DSRC_INCR(session, rec_time_aggr_oldest_start_ts);
     if (FLD_ISSET(r->ts_usage_flags, WTI_REC_TIME_NEWEST_TXN))
         WT_STAT_CONN_DSRC_INCR(session, rec_time_aggr_newest_txn);
-    if (FLD_ISSET(r->ts_usage_flags, WTI_REC_TIME_NEWEST_STOP_COMMIT_TS))
-        WT_STAT_CONN_DSRC_INCR(session, rec_time_aggr_newest_stop_commit_ts);
+    if (FLD_ISSET(r->ts_usage_flags, WTI_REC_TIME_NEWEST_STOP_TS))
+        WT_STAT_CONN_DSRC_INCR(session, rec_time_aggr_newest_stop_ts);
     if (FLD_ISSET(r->ts_usage_flags, WTI_REC_TIME_NEWEST_STOP_TXN))
         WT_STAT_CONN_DSRC_INCR(session, rec_time_aggr_newest_stop_txn);
     if (FLD_ISSET(r->ts_usage_flags, WTI_REC_TIME_PREPARE))

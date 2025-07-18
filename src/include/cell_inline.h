@@ -85,37 +85,37 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
     if (pack_prepare_info_to_start) {
         WT_RET(__wt_vpack_uint(pp, 0, tw->start_prepare_ts));
         reference_ts = tw->start_prepare_ts;
-        LF_SET(WT_CELL_TS_START);
+        LF_SET(WT_CELL_TS_START_COMMIT);
     } else if (tw->start_commit_ts != WT_TS_NONE) {
         WT_RET(__wt_vpack_uint(pp, 0, tw->start_commit_ts));
         reference_ts = tw->start_commit_ts;
-        LF_SET(WT_CELL_TS_START);
+        LF_SET(WT_CELL_TS_START_COMMIT);
     }
     if (tw->start_txn != WT_TXN_NONE) {
         WT_RET(__wt_vpack_uint(pp, 0, tw->start_txn));
         LF_SET(WT_CELL_TXN_START);
     }
 
-    /* If we write prepare_ts to start_ts, we write prepared_id to durable_start_ts as well */
+    /* If we write prepare_ts to start_ts, we write prepared_id to start_durable_ts as well */
     if (pack_prepare_info_to_start) {
         WT_ASSERT(session, tw->start_prepared_id != WT_PREPARED_ID_NONE);
         WT_RET(__wt_vpack_uint(pp, 0, tw->start_prepared_id));
-        LF_SET(WT_CELL_TS_START_DURABLE);
+        LF_SET(WT_CELL_TS_START_COMMIT_DURABLE);
     } else if (tw->start_durable_ts != WT_TS_NONE) {
         WT_ASSERT(session, reference_ts <= tw->start_durable_ts);
         /* Store differences if any, not absolutes. */
         if (tw->start_durable_ts - reference_ts > 0) {
             WT_RET(__wt_vpack_uint(pp, 0, tw->start_durable_ts - reference_ts));
-            LF_SET(WT_CELL_TS_START_DURABLE);
+            LF_SET(WT_CELL_TS_START_COMMIT_DURABLE);
         }
     }
     if (pack_prepare_info_to_stop) {
         WT_RET(__wt_vpack_uint(pp, 0, tw->stop_prepare_ts - reference_ts));
-        LF_SET(WT_CELL_TS_STOP);
+        LF_SET(WT_CELL_TS_STOP_COMMIT);
     } else if (tw->stop_commit_ts != WT_TS_MAX) {
         /* Store differences, not absolutes. */
         WT_RET(__wt_vpack_uint(pp, 0, tw->stop_commit_ts - reference_ts));
-        LF_SET(WT_CELL_TS_STOP);
+        LF_SET(WT_CELL_TS_STOP_COMMIT);
     }
     if (tw->stop_txn != WT_TXN_MAX) {
         /* Store differences, not absolutes. */
@@ -130,13 +130,13 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
     if (pack_prepare_info_to_stop) {
         WT_ASSERT(session, tw->stop_prepared_id != WT_PREPARED_ID_NONE);
         WT_RET(__wt_vpack_uint(pp, 0, pack_prepare_info_to_start ? 0 : tw->stop_prepared_id));
-        LF_SET(WT_CELL_TS_STOP_DURABLE);
+        LF_SET(WT_CELL_TS_STOP_COMMIT_DURABLE);
     } else if (tw->stop_durable_ts != WT_TS_NONE) {
         WT_ASSERT(session, tw->stop_commit_ts <= tw->stop_durable_ts);
         /* Store differences if any, not absolutes. */
         if (tw->stop_durable_ts - tw->stop_commit_ts > 0) {
             WT_RET(__wt_vpack_uint(pp, 0, tw->stop_durable_ts - tw->stop_commit_ts));
-            LF_SET(WT_CELL_TS_STOP_DURABLE);
+            LF_SET(WT_CELL_TS_STOP_COMMIT_DURABLE);
         }
     }
     if (tw->prepare)
@@ -191,9 +191,9 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
     ++*pp;
 
     flags = 0;
-    if (ta->oldest_start_commit_ts != WT_TS_NONE) {
-        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->oldest_start_commit_ts));
-        LF_SET(WT_CELL_TS_START);
+    if (ta->oldest_start_ts != WT_TS_NONE) {
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->oldest_start_ts));
+        LF_SET(WT_CELL_TS_START_COMMIT);
     }
     if (ta->newest_txn != WT_TXN_NONE) {
         WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->newest_txn));
@@ -201,7 +201,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
     }
     if (ta->newest_start_durable_ts != WT_TS_NONE) {
         /* Store differences, not absolutes. */
-        WT_ASSERT(session, ta->oldest_start_commit_ts <= ta->newest_start_durable_ts);
+        WT_ASSERT(session, ta->oldest_start_ts <= ta->newest_start_durable_ts);
 
         /*
          * Unlike value cell, we store the durable start timestamp even the difference is zero
@@ -210,15 +210,13 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
          * having that check to find out whether it is zero or not will unnecessarily add overhead
          * than benefit.
          */
-        WT_IGNORE_RET(
-          __wt_vpack_uint(pp, 0, ta->newest_start_durable_ts - ta->oldest_start_commit_ts));
-        LF_SET(WT_CELL_TS_START_DURABLE);
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->newest_start_durable_ts - ta->oldest_start_ts));
+        LF_SET(WT_CELL_TS_START_COMMIT_DURABLE);
     }
-    if (ta->newest_stop_commit_ts != WT_TS_MAX) {
+    if (ta->newest_stop_ts != WT_TS_MAX) {
         /* Store differences, not absolutes. */
-        WT_IGNORE_RET(
-          __wt_vpack_uint(pp, 0, ta->newest_stop_commit_ts - ta->oldest_start_commit_ts));
-        LF_SET(WT_CELL_TS_STOP);
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->newest_stop_ts - ta->oldest_start_ts));
+        LF_SET(WT_CELL_TS_STOP_COMMIT);
     }
     if (ta->newest_stop_txn != WT_TXN_MAX) {
         /* Store differences, not absolutes. */
@@ -227,8 +225,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
     }
     if (ta->newest_stop_durable_ts != WT_TS_NONE) {
         WT_ASSERT(session,
-          ta->newest_stop_commit_ts == WT_TS_MAX ||
-            ta->newest_stop_commit_ts <= ta->newest_stop_durable_ts);
+          ta->newest_stop_ts == WT_TS_MAX || ta->newest_stop_ts <= ta->newest_stop_durable_ts);
 
         /*
          * Store differences, not absolutes.
@@ -239,9 +236,8 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
          * having that check to find out whether it is zero or not will unnecessarily add overhead
          * than benefit.
          */
-        WT_IGNORE_RET(
-          __wt_vpack_uint(pp, 0, ta->newest_stop_durable_ts - ta->newest_stop_commit_ts));
-        LF_SET(WT_CELL_TS_STOP_DURABLE);
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->newest_stop_durable_ts - ta->newest_stop_ts));
+        LF_SET(WT_CELL_TS_STOP_COMMIT_DURABLE);
     }
     if (ta->prepare)
         LF_SET(WT_CELL_PREPARE);
@@ -372,13 +368,13 @@ __wt_cell_pack_value_match(
         if (validity) { /* Skip validity window */
             flags = *a;
             ++a;
-            if (LF_ISSET(WT_CELL_TS_START_DURABLE))
+            if (LF_ISSET(WT_CELL_TS_START_COMMIT_DURABLE))
                 WT_RET(__wt_vunpack_uint(&a, 0, &v));
-            if (LF_ISSET(WT_CELL_TS_STOP_DURABLE))
+            if (LF_ISSET(WT_CELL_TS_STOP_COMMIT_DURABLE))
                 WT_RET(__wt_vunpack_uint(&a, 0, &v));
-            if (LF_ISSET(WT_CELL_TS_START))
+            if (LF_ISSET(WT_CELL_TS_START_COMMIT))
                 WT_RET(__wt_vunpack_uint(&a, 0, &v));
-            if (LF_ISSET(WT_CELL_TS_STOP))
+            if (LF_ISSET(WT_CELL_TS_STOP_COMMIT))
                 WT_RET(__wt_vunpack_uint(&a, 0, &v));
             if (LF_ISSET(WT_CELL_TXN_START))
                 WT_RET(__wt_vunpack_uint(&a, 0, &v));
@@ -404,13 +400,13 @@ __wt_cell_pack_value_match(
         if (validity) { /* Skip validity window */
             flags = *b;
             ++b;
-            if (LF_ISSET(WT_CELL_TS_START_DURABLE))
+            if (LF_ISSET(WT_CELL_TS_START_COMMIT_DURABLE))
                 WT_RET(__wt_vunpack_uint(&b, 0, &v));
-            if (LF_ISSET(WT_CELL_TS_STOP_DURABLE))
+            if (LF_ISSET(WT_CELL_TS_STOP_COMMIT_DURABLE))
                 WT_RET(__wt_vunpack_uint(&b, 0, &v));
-            if (LF_ISSET(WT_CELL_TS_START))
+            if (LF_ISSET(WT_CELL_TS_START_COMMIT))
                 WT_RET(__wt_vunpack_uint(&b, 0, &v));
-            if (LF_ISSET(WT_CELL_TS_STOP))
+            if (LF_ISSET(WT_CELL_TS_STOP_COMMIT))
                 WT_RET(__wt_vunpack_uint(&b, 0, &v));
             if (LF_ISSET(WT_CELL_TXN_START))
                 WT_RET(__wt_vunpack_uint(&b, 0, &v));
@@ -865,31 +861,31 @@ copy_cell_restart:
 
         if (LF_ISSET(WT_CELL_PREPARE))
             ta->prepare = 1;
-        if (LF_ISSET(WT_CELL_TS_START))
-            WT_RET(__wt_vunpack_uint(
-              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->oldest_start_commit_ts));
+        if (LF_ISSET(WT_CELL_TS_START_COMMIT))
+            WT_RET(
+              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->oldest_start_ts));
         if (LF_ISSET(WT_CELL_TXN_START))
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_txn));
-        if (LF_ISSET(WT_CELL_TS_START_DURABLE)) {
+        if (LF_ISSET(WT_CELL_TS_START_COMMIT_DURABLE)) {
             WT_RET(__wt_vunpack_uint(
               &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_start_durable_ts));
-            ta->newest_start_durable_ts += ta->oldest_start_commit_ts;
+            ta->newest_start_durable_ts += ta->oldest_start_ts;
         }
 
-        if (LF_ISSET(WT_CELL_TS_STOP)) {
-            WT_RET(__wt_vunpack_uint(
-              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_stop_commit_ts));
-            ta->newest_stop_commit_ts += ta->oldest_start_commit_ts;
+        if (LF_ISSET(WT_CELL_TS_STOP_COMMIT)) {
+            WT_RET(
+              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_stop_ts));
+            ta->newest_stop_ts += ta->oldest_start_ts;
         }
         if (LF_ISSET(WT_CELL_TXN_STOP)) {
             WT_RET(
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_stop_txn));
             ta->newest_stop_txn += ta->newest_txn;
         }
-        if (LF_ISSET(WT_CELL_TS_STOP_DURABLE)) {
+        if (LF_ISSET(WT_CELL_TS_STOP_COMMIT_DURABLE)) {
             WT_RET(__wt_vunpack_uint(
               &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_stop_durable_ts));
-            ta->newest_stop_durable_ts += ta->newest_stop_commit_ts;
+            ta->newest_stop_durable_ts += ta->newest_stop_ts;
         }
         WT_RET(__wt_check_addr_validity(session, ta, end != NULL));
         break;
@@ -913,17 +909,17 @@ copy_cell_restart:
 
         if (LF_ISSET(WT_CELL_PREPARE))
             tw->prepare = 1;
-        if (LF_ISSET(WT_CELL_TS_START)) {
+        if (LF_ISSET(WT_CELL_TS_START_COMMIT)) {
             WT_RET(
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_start_commit_ts));
         }
         if (LF_ISSET(WT_CELL_TXN_START))
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->start_txn));
-        if (LF_ISSET(WT_CELL_TS_START_DURABLE))
+        if (LF_ISSET(WT_CELL_TS_START_COMMIT_DURABLE))
             WT_RET(
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_start_durable_ts));
 
-        if (LF_ISSET(WT_CELL_TS_STOP))
+        if (LF_ISSET(WT_CELL_TS_STOP_COMMIT))
             WT_RET(
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_stop_commit_ts));
 
@@ -931,7 +927,7 @@ copy_cell_restart:
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->stop_txn));
             tw->stop_txn += tw->start_txn;
         }
-        if (LF_ISSET(WT_CELL_TS_STOP_DURABLE))
+        if (LF_ISSET(WT_CELL_TS_STOP_COMMIT_DURABLE))
             WT_RET(
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_stop_durable_ts));
 
@@ -946,13 +942,13 @@ copy_cell_restart:
                 /*
                  * This is a special case where both transaction start and stop are in prepared
                  * state (same prepared id), so the same prepared id is packed to
-                 * WT_CELL_TS_START_DURABLE and 0 is packed into WT_CELL_TS_STOP_DURABLE since we
-                 * only store the difference.
+                 * WT_CELL_TS_START_COMMIT_DURABLE and 0 is packed into
+                 * WT_CELL_TS_STOP_COMMIT_DURABLE since we only store the difference.
                  */
                 WT_ASSERT(session, temp_stop_commit_ts == 0 && temp_stop_durable_ts == 0);
                 WT_ASSERT(session,
-                  LF_ISSET(WT_CELL_TS_START) && LF_ISSET(WT_CELL_TS_START_DURABLE) &&
-                    LF_ISSET(WT_CELL_TS_STOP) && LF_ISSET(WT_CELL_TS_STOP_DURABLE));
+                  LF_ISSET(WT_CELL_TS_START_COMMIT) && LF_ISSET(WT_CELL_TS_START_COMMIT_DURABLE) &&
+                    LF_ISSET(WT_CELL_TS_STOP_COMMIT) && LF_ISSET(WT_CELL_TS_STOP_COMMIT_DURABLE));
                 tw->start_prepare_ts = temp_start_commit_ts;
                 tw->start_prepared_id = temp_start_durable_ts;
                 tw->stop_prepare_ts = temp_start_commit_ts;
@@ -961,10 +957,11 @@ copy_cell_restart:
                 /*
                  * This case happens where the transaction is done, but the transaction stop is
                  * prepared. In this case, we store the start timestamp and durable start timestamp
-                 * in WT_CELL_TS_START and WT_CELL_TS_START_DURABLE, prepare ts in WT_CELL_TS_STOP
-                 * prepared id in WT_CELL_TS_STOP_DURABLE.
+                 * in WT_CELL_TS_START_COMMIT and WT_CELL_TS_START_COMMIT_DURABLE, prepare ts in
+                 * WT_CELL_TS_STOP_COMMIT prepared id in WT_CELL_TS_STOP_COMMIT_DURABLE.
                  */
-                WT_ASSERT(session, LF_ISSET(WT_CELL_TS_STOP) && LF_ISSET(WT_CELL_TS_STOP_DURABLE));
+                WT_ASSERT(session,
+                  LF_ISSET(WT_CELL_TS_STOP_COMMIT) && LF_ISSET(WT_CELL_TS_STOP_COMMIT_DURABLE));
                 tw->start_commit_ts = temp_start_commit_ts;
                 tw->start_durable_ts = temp_start_durable_ts + tw->start_commit_ts;
                 tw->stop_prepare_ts = tw->start_commit_ts + temp_stop_commit_ts;
@@ -972,26 +969,26 @@ copy_cell_restart:
             } else {
                 /*
                  * This case happens when only transaction start is prepared, and there is no
-                 * transaction stop. In this case, we store the prepare ts in WT_CELL_TS_START and
-                 * prepared id in WT_CELL_TS_START_DURABLE.
+                 * transaction stop. In this case, we store the prepare ts in
+                 * WT_CELL_TS_START_COMMIT and prepared id in WT_CELL_TS_START_COMMIT_DURABLE.
                  */
                 WT_ASSERT(session,
-                  LF_ISSET(WT_CELL_TS_START) && LF_ISSET(WT_CELL_TS_START_DURABLE) &&
-                    !LF_ISSET(WT_CELL_TS_STOP) && !LF_ISSET(WT_CELL_TS_STOP_DURABLE));
+                  LF_ISSET(WT_CELL_TS_START_COMMIT) && LF_ISSET(WT_CELL_TS_START_COMMIT_DURABLE) &&
+                    !LF_ISSET(WT_CELL_TS_STOP_COMMIT) && !LF_ISSET(WT_CELL_TS_STOP_COMMIT_DURABLE));
                 tw->start_prepare_ts = temp_start_commit_ts;
                 tw->start_prepared_id = temp_start_durable_ts;
             }
         } else {
-            if (LF_ISSET(WT_CELL_TS_START))
+            if (LF_ISSET(WT_CELL_TS_START_COMMIT))
                 tw->start_commit_ts = temp_start_commit_ts;
-            if (LF_ISSET(WT_CELL_TS_START_DURABLE))
+            if (LF_ISSET(WT_CELL_TS_START_COMMIT_DURABLE))
                 tw->start_durable_ts = temp_start_durable_ts + tw->start_commit_ts;
             else
                 tw->start_durable_ts = tw->start_commit_ts;
 
-            if (LF_ISSET(WT_CELL_TS_STOP))
+            if (LF_ISSET(WT_CELL_TS_STOP_COMMIT))
                 tw->stop_commit_ts = temp_stop_commit_ts + tw->start_commit_ts;
-            if (LF_ISSET(WT_CELL_TS_STOP_DURABLE))
+            if (LF_ISSET(WT_CELL_TS_STOP_COMMIT_DURABLE))
                 tw->stop_durable_ts = temp_stop_durable_ts + tw->stop_commit_ts;
             else if (tw->stop_commit_ts != WT_TS_MAX)
                 tw->stop_durable_ts = tw->stop_commit_ts;
@@ -1163,12 +1160,12 @@ __cell_addr_window_cleanup(
              * this scenario there shouldn't be any timestamp value as part of durable stop
              * timestamp other than the default value WT_TS_NONE.
              */
-            if (ta->newest_stop_commit_ts == WT_TS_MAX) {
-                ta->newest_stop_commit_ts = WT_TS_NONE;
+            if (ta->newest_stop_ts == WT_TS_MAX) {
+                ta->newest_stop_ts = WT_TS_NONE;
                 WT_ASSERT(session, ta->newest_stop_durable_ts == WT_TS_NONE);
             }
         } else
-            WT_ASSERT(session, ta->newest_stop_commit_ts == WT_TS_MAX);
+            WT_ASSERT(session, ta->newest_stop_ts == WT_TS_MAX);
 
         /* Also handle any fast-truncate information. */
         if (unpack_addr->raw == WT_CELL_ADDR_DEL && F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {

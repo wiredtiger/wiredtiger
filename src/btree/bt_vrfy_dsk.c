@@ -293,8 +293,8 @@ __verify_dsk_addr_page_del(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
           "; time aggregate %s",
           cell_num - 1, tag, unpack->page_del.txnid,
           __wt_time_aggregate_to_string(&unpack->ta, time_string));
-    if (unpack->ta.newest_stop_commit_ts != WT_TS_MAX &&
-      unpack->ta.newest_stop_commit_ts > unpack->page_del.pg_del_commit_ts)
+    if (unpack->ta.newest_stop_ts != WT_TS_MAX &&
+      unpack->ta.newest_stop_ts > unpack->page_del.pg_del_commit_ts)
         WT_RET_VRFY(session,
           "fast-delete cell %" PRIu32
           " on page at %s has invalid newest stop time; should be <= %" PRIu64
@@ -317,7 +317,7 @@ __verify_dsk_addr_page_del(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
     WT_TIME_AGGREGATE_COPY(&ta_with_delete, &unpack->ta);
     ta_with_delete.newest_stop_durable_ts = unpack->page_del.pg_del_durable_ts;
     ta_with_delete.newest_txn = unpack->page_del.txnid;
-    ta_with_delete.newest_stop_commit_ts = unpack->page_del.pg_del_commit_ts;
+    ta_with_delete.newest_stop_ts = unpack->page_del.pg_del_commit_ts;
     ta_with_delete.newest_stop_txn = unpack->page_del.txnid;
     ret = __wt_time_aggregate_validate(session, &ta_with_delete, addr != NULL ? &addr->ta : NULL,
       F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE));

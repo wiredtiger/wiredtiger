@@ -1174,11 +1174,11 @@ struct __wt_connection_stats {
     int64_t rec_pages_with_txn;
     int64_t rec_page_delete;
     int64_t rec_time_aggr_newest_start_durable_ts;
-    int64_t rec_time_aggr_newest_stop_commit_ts;
+    int64_t rec_time_aggr_newest_stop_ts;
     int64_t rec_time_aggr_newest_stop_durable_ts;
     int64_t rec_time_aggr_newest_stop_txn;
     int64_t rec_time_aggr_newest_txn;
-    int64_t rec_time_aggr_oldest_start_commit_ts;
+    int64_t rec_time_aggr_oldest_start_ts;
     int64_t rec_time_aggr_prepared;
     int64_t rec_time_window_pages_prepared;
     int64_t rec_time_window_pages_start_commit_ts;
@@ -1651,11 +1651,11 @@ struct __wt_dsrc_stats {
     int64_t rec_pages_size_1GB_plus;
     int64_t rec_page_delete;
     int64_t rec_time_aggr_newest_start_durable_ts;
-    int64_t rec_time_aggr_newest_stop_commit_ts;
+    int64_t rec_time_aggr_newest_stop_ts;
     int64_t rec_time_aggr_newest_stop_durable_ts;
     int64_t rec_time_aggr_newest_stop_txn;
     int64_t rec_time_aggr_newest_txn;
-    int64_t rec_time_aggr_oldest_start_commit_ts;
+    int64_t rec_time_aggr_oldest_start_ts;
     int64_t rec_time_aggr_prepared;
     int64_t rec_time_window_pages_prepared;
     int64_t rec_time_window_pages_start_commit_ts;

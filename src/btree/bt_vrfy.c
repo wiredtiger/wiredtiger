@@ -1193,8 +1193,8 @@ __verify_page_content_int(
                   __verify_addr_string(session, ref, vs->tmp1));
 
             if (vs->stable_timestamp != WT_TS_NONE)
-                WT_RET(__verify_ts_stable_cmp(session, NULL, ref, cell_num - 1,
-                  ta->oldest_start_commit_ts, ta->newest_stop_commit_ts, vs));
+                WT_RET(__verify_ts_stable_cmp(
+                  session, NULL, ref, cell_num - 1, ta->oldest_start_ts, ta->newest_stop_ts, vs));
             break;
         }
     }

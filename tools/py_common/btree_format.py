@@ -301,19 +301,19 @@ class Cell(object):
     is_value: bool
 
     # Timestamps & transactions
-    durable_start_ts: typing.Optional[int]
-    durable_stop_ts: typing.Optional[int]
-    start_ts: typing.Optional[int]
-    stop_ts: typing.Optional[int]
+    start_commit_ts: typing.Optional[int]
+    start_durable_ts: typing.Optional[int]
     start_txn: typing.Optional[int]
+    stop_commit_ts: typing.Optional[int]
+    stop_durable_ts: typing.Optional[int]
     stop_txn: typing.Optional[int]
 
     # Sizes of the various timestamp & transaction fields (track this for statistics)
-    size_durable_start_ts: int
-    size_durable_stop_ts: int
-    size_start_ts: int
-    size_stop_ts: int
+    size_start_commit_ts: int
+    size_start_durable_ts: int
     size_start_txn: int
+    size_stop_commit_ts: int
+    size_stop_durable_ts: int
     size_stop_txn: int
 
     # Constants and flags for the descriptor byte
@@ -325,10 +325,10 @@ class Cell(object):
 
     # Flags for the extra descriptor byte
     WT_CELL_PREPARE: typing.Final[int] = 0x01
-    WT_CELL_TS_START_DURABLE: typing.Final[int] = 0x02
-    WT_CELL_TS_STOP_DURABLE: typing.Final[int] = 0x04
-    WT_CELL_TS_START: typing.Final[int] = 0x08
-    WT_CELL_TS_STOP: typing.Final[int] = 0x10
+    WT_CELL_TS_START_COMMIT_DURABLE: typing.Final[int] = 0x02
+    WT_CELL_TS_STOP_COMMIT_DURABLE: typing.Final[int] = 0x04
+    WT_CELL_TS_START_COMMIT: typing.Final[int] = 0x08
+    WT_CELL_TS_STOP_COMMIT: typing.Final[int] = 0x10
     WT_CELL_TXN_START: typing.Final[int] = 0x20
     WT_CELL_TXN_STOP: typing.Final[int] = 0x40
 
@@ -366,19 +366,19 @@ class Cell(object):
         if self.extra_descriptor == 0:
             return
 
-        if self.extra_descriptor & Cell.WT_CELL_TS_START != 0:
-            self.start_commit_ts, self.size_start_ts = b.read_packed_uint64_with_size()
+        if self.extra_descriptor & Cell.WT_CELL_TS_START_COMMIT != 0:
+            self.start_commit_ts, self.size_start_commit_ts = b.read_packed_uint64_with_size()
         if self.extra_descriptor & Cell.WT_CELL_TXN_START != 0:
             self.start_txn, self.size_start_txn = b.read_packed_uint64_with_size()
-        if self.extra_descriptor & Cell.WT_CELL_TS_START_DURABLE != 0:
-            self.start_durable_ts, self.size_durable_start_ts = b.read_packed_uint64_with_size()
+        if self.extra_descriptor & Cell.WT_CELL_TS_START_COMMIT_DURABLE != 0:
+            self.start_durable_ts, self.size_start_durable_ts = b.read_packed_uint64_with_size()
 
-        if self.extra_descriptor & Cell.WT_CELL_TS_STOP != 0:
-            self.stop_commit_ts, self.size_stop_ts = b.read_packed_uint64_with_size()
+        if self.extra_descriptor & Cell.WT_CELL_TS_STOP_COMMIT != 0:
+            self.stop_commit_ts, self.size_stop_commit_ts = b.read_packed_uint64_with_size()
         if self.extra_descriptor & Cell.WT_CELL_TXN_STOP != 0:
             self.stop_txn, self.size_stop_txn = b.read_packed_uint64_with_size()
-        if self.extra_descriptor & Cell.WT_CELL_TS_STOP_DURABLE != 0:
-            self.stop_durable_ts, self.size_durable_stop_ts = b.read_packed_uint64_with_size()
+        if self.extra_descriptor & Cell.WT_CELL_TS_STOP_COMMIT_DURABLE != 0:
+            self.stop_durable_ts, self.size_stop_durable_commit_ts = b.read_packed_uint64_with_size()
 
         if self.start_durable_ts is not None:
             self.start_durable_ts += self.start_commit_ts if self.start_commit_ts is not None else 0
