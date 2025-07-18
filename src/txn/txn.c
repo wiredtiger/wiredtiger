@@ -856,8 +856,8 @@ __txn_prepare_rollback_restore_hs_update(
     __wt_hs_upd_time_window(hs_cursor, &hs_tw);
     WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
     upd->txnid = hs_tw->start_txn;
-    upd->upd_durable_ts = hs_tw->durable_start_ts;
-    upd->upd_start_ts = hs_tw->start_ts;
+    upd->upd_durable_ts = hs_tw->start_durable_ts;
+    upd->upd_commit_ts = hs_tw->start_commit_ts;
 
     /*
      * Set the flag to indicate that this update has been restored from history store for the
@@ -868,15 +868,15 @@ __txn_prepare_rollback_restore_hs_update(
 
     __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
       "update restored from history store (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
-      upd->txnid, __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
+      upd->txnid, __wt_timestamp_to_string(upd->upd_commit_ts, ts_string[0]),
       __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[1]));
 
     /* If the history store record has a valid stop time point, append it. */
     if (hs_stop_durable_ts != WT_TS_MAX) {
-        WT_ASSERT(session, hs_tw->stop_ts != WT_TS_MAX);
+        WT_ASSERT(session, hs_tw->stop_commit_ts != WT_TS_MAX);
         WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &tombstone, &size));
-        tombstone->upd_durable_ts = hs_tw->durable_stop_ts;
-        tombstone->upd_start_ts = hs_tw->stop_ts;
+        tombstone->upd_durable_ts = hs_tw->stop_durable_ts;
+        tombstone->upd_commit_ts = hs_tw->stop_commit_ts;
         tombstone->txnid = hs_tw->stop_txn;
         tombstone->next = upd;
         /*
@@ -888,7 +888,7 @@ __txn_prepare_rollback_restore_hs_update(
 
         __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
           "tombstone restored from history store (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
-          tombstone->txnid, __wt_timestamp_to_string(tombstone->upd_start_ts, ts_string[0]),
+          tombstone->txnid, __wt_timestamp_to_string(tombstone->upd_commit_ts, ts_string[0]),
           __wt_timestamp_to_string(tombstone->upd_durable_ts, ts_string[1]));
 
         upd = tombstone;
@@ -976,8 +976,8 @@ __txn_fixup_hs_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
      * Set the stop time point to be the committing transaction's time point and copy the start time
      * point from the current history store update.
      */
-    tw.stop_ts = txn->commit_timestamp;
-    tw.durable_stop_ts = txn->durable_timestamp;
+    tw.stop_commit_ts = txn->commit_timestamp;
+    tw.stop_durable_ts = txn->durable_timestamp;
     tw.stop_txn = txn->id;
     WT_TIME_WINDOW_COPY_START(&tw, hs_tw);
 
@@ -986,7 +986,7 @@ __txn_fixup_hs_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
      *
      * Pack the value using cursor api.
      */
-    hs_cursor->set_value(hs_cursor, &tw, tw.durable_stop_ts, tw.durable_start_ts,
+    hs_cursor->set_value(hs_cursor, &tw, tw.stop_durable_ts, tw.start_durable_ts,
       (uint64_t)WT_UPDATE_STANDARD, hs_value);
     WT_ERR(hs_cursor->update(hs_cursor));
 
@@ -1311,7 +1311,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     if (F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS) &&
       (upd->type != WT_UPDATE_TOMBSTONE ||
         (upd->next != NULL && upd->upd_durable_ts == upd->next->upd_durable_ts &&
-          upd->txnid == upd->next->txnid && upd->upd_start_ts == upd->next->upd_start_ts)))
+          upd->txnid == upd->next->txnid && upd->upd_commit_ts == upd->next->upd_commit_ts)))
         resolve_case = RESOLVE_PREPARE_ON_DISK;
     /*
      * If the first committed update older than the prepared update has already been marked to be

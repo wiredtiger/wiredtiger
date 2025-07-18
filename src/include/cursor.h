@@ -479,10 +479,10 @@ struct __wt_cursor_version {
      * debug metadata in the version cursor's key.
      */
     uint64_t upd_stop_txnid;
-    /* The previous traversed update's durable_ts will become the durable_stop_ts. */
-    wt_timestamp_t upd_durable_stop_ts;
-    /* The previous traversed update's start_ts will become the stop_ts. */
-    wt_timestamp_t upd_stop_ts;
+    /* The previous traversed update's durable_ts will become the stop_durable_ts. */
+    wt_timestamp_t upd_stop_durable_ts;
+    /* The previous traversed update's start_ts will become the stop_commit_ts. */
+    wt_timestamp_t upd_stop_commit_ts;
 
     /* Don't show the user any keys from before this time. */
     wt_timestamp_t start_timestamp;

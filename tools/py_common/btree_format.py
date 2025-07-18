@@ -325,10 +325,10 @@ class Cell(object):
 
     # Flags for the extra descriptor byte
     WT_CELL_PREPARE: typing.Final[int] = 0x01
-    WT_CELL_TS_DURABLE_START: typing.Final[int] = 0x02
-    WT_CELL_TS_DURABLE_STOP: typing.Final[int] = 0x04
+    WT_CELL_TS_START_DURABLE: typing.Final[int] = 0x02
+    WT_CELL_TS_STOP_DURABLE: typing.Final[int] = 0x04
     WT_CELL_TS_START: typing.Final[int] = 0x08
-    WT_CELL_TS_STOP: typing.Final[int] = 0x10
+    WT_CELL_TS_STOP_COMMIT: typing.Final[int] = 0x10
     WT_CELL_TXN_START: typing.Final[int] = 0x20
     WT_CELL_TXN_STOP: typing.Final[int] = 0x40
 
@@ -352,10 +352,10 @@ class Cell(object):
         self.is_unsupported = False
         self.is_value = False
 
-        self.durable_start_ts = None
-        self.durable_stop_ts = None
-        self.start_ts = None
-        self.stop_ts = None
+        self.start_durable_ts = None
+        self.stop_durable_ts = None
+        self.start_commit_ts = None
+        self.stop_commit_ts = None
         self.start_txn = None
         self.stop_txn = None
 
@@ -367,27 +367,27 @@ class Cell(object):
             return
 
         if self.extra_descriptor & Cell.WT_CELL_TS_START != 0:
-            self.start_ts, self.size_start_ts = b.read_packed_uint64_with_size()
+            self.start_commit_ts, self.size_start_ts = b.read_packed_uint64_with_size()
         if self.extra_descriptor & Cell.WT_CELL_TXN_START != 0:
             self.start_txn, self.size_start_txn = b.read_packed_uint64_with_size()
-        if self.extra_descriptor & Cell.WT_CELL_TS_DURABLE_START != 0:
-            self.durable_start_ts, self.size_durable_start_ts = b.read_packed_uint64_with_size()
+        if self.extra_descriptor & Cell.WT_CELL_TS_START_DURABLE != 0:
+            self.start_durable_ts, self.size_durable_start_ts = b.read_packed_uint64_with_size()
 
-        if self.extra_descriptor & Cell.WT_CELL_TS_STOP != 0:
-            self.stop_ts, self.size_stop_ts = b.read_packed_uint64_with_size()
+        if self.extra_descriptor & Cell.WT_CELL_TS_STOP_COMMIT != 0:
+            self.stop_commit_ts, self.size_stop_ts = b.read_packed_uint64_with_size()
         if self.extra_descriptor & Cell.WT_CELL_TXN_STOP != 0:
             self.stop_txn, self.size_stop_txn = b.read_packed_uint64_with_size()
-        if self.extra_descriptor & Cell.WT_CELL_TS_DURABLE_STOP != 0:
-            self.durable_stop_ts, self.size_durable_stop_ts = b.read_packed_uint64_with_size()
+        if self.extra_descriptor & Cell.WT_CELL_TS_STOP_DURABLE != 0:
+            self.stop_durable_ts, self.size_durable_stop_ts = b.read_packed_uint64_with_size()
 
-        if self.durable_start_ts is not None:
-            self.durable_start_ts += self.start_ts if self.start_ts is not None else 0
-        if self.stop_ts is not None:
-            self.stop_ts += self.start_ts if self.start_ts is not None else 0
+        if self.start_durable_ts is not None:
+            self.start_durable_ts += self.start_commit_ts if self.start_commit_ts is not None else 0
+        if self.stop_commit_ts is not None:
+            self.stop_commit_ts += self.start_commit_ts if self.start_commit_ts is not None else 0
         if self.stop_txn is not None:
             self.stop_txn += self.start_txn if self.start_txn is not None else 0
-        if self.durable_stop_ts is not None:
-            self.durable_stop_ts += self.stop_ts if self.stop_ts is not None else 0
+        if self.stop_durable_ts is not None:
+            self.stop_durable_ts += self.stop_commit_ts if self.stop_commit_ts is not None else 0
 
         if self.extra_descriptor & 0x80:
             raise ValueError('Junk in extra descriptor: ' + hex(self.extra_descriptor))

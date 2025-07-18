@@ -24,19 +24,19 @@ create_test_time_window(wt_timestamp_t start_ts, uint64_t start_txn, wt_timestam
     WT_TIME_WINDOW tw;
     WT_TIME_WINDOW_INIT(&tw);
 
-    tw.start_ts = start_ts;
+    tw.start_commit_ts = start_ts;
     tw.start_txn = start_txn;
-    tw.stop_ts = stop_ts;
+    tw.stop_commit_ts = stop_ts;
     tw.stop_txn = stop_txn;
 
     if (has_start_prepare || has_stop_prepare) {
         tw.prepare = 1;
     }
-    if (tw.start_ts != WT_TS_NONE)
-        tw.durable_start_ts = tw.start_ts;
+    if (tw.start_commit_ts != WT_TS_NONE)
+        tw.start_durable_ts = tw.start_commit_ts;
 
-    if (tw.stop_ts != WT_TS_MAX)
-        tw.durable_stop_ts = tw.stop_ts;
+    if (tw.stop_commit_ts != WT_TS_MAX)
+        tw.stop_durable_ts = tw.stop_commit_ts;
 
     if (has_start_prepare) {
         tw.start_prepare_ts = start_prepare_ts;
@@ -135,9 +135,9 @@ unpack_time_window(WT_SESSION_IMPL *session, const std::vector<uint8_t> &packed_
 static void
 compare_time_windows(const WT_TIME_WINDOW &expected, const WT_TIME_WINDOW &actual)
 {
-    CHECK(expected.start_ts == actual.start_ts);
+    CHECK(expected.start_commit_ts == actual.start_commit_ts);
     CHECK(expected.start_txn == actual.start_txn);
-    CHECK(expected.stop_ts == actual.stop_ts);
+    CHECK(expected.stop_commit_ts == actual.stop_commit_ts);
     CHECK(expected.stop_txn == actual.stop_txn);
     CHECK(expected.prepare == actual.prepare);
     CHECK(expected.start_prepare_ts == actual.start_prepare_ts);

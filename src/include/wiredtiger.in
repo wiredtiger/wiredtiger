@@ -7832,14 +7832,14 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	1756
 /*!
  * reconciliation: pages written including an aggregated newest stop
- * durable timestamp
+ * commit_timestamp
  */
-#define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	1757
+#define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_STOP_COMMIT_TS	1757
 /*!
  * reconciliation: pages written including an aggregated newest stop
- * timestamp
+ * durable timestamp
  */
-#define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_STOP_TS	1758
+#define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	1758
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * transaction ID
@@ -7852,32 +7852,38 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_TXN		1760
 /*!
  * reconciliation: pages written including an aggregated oldest start
- * timestamp
+ * commit timestamp
  */
-#define	WT_STAT_CONN_REC_TIME_AGGR_OLDEST_START_TS	1761
+#define	WT_STAT_CONN_REC_TIME_AGGR_OLDEST_START_COMMIT_TS	1761
 /*! reconciliation: pages written including an aggregated prepare */
 #define	WT_STAT_CONN_REC_TIME_AGGR_PREPARED		1762
 /*! reconciliation: pages written including at least one prepare state */
 #define	WT_STAT_CONN_REC_TIME_WINDOW_PAGES_PREPARED	1763
 /*!
+ * reconciliation: pages written including at least one start commit
+ * timestamp
+ */
+#define	WT_STAT_CONN_REC_TIME_WINDOW_PAGES_START_COMMIT_TS	1764
+/*!
  * reconciliation: pages written including at least one start durable
  * timestamp
  */
-#define	WT_STAT_CONN_REC_TIME_WINDOW_PAGES_DURABLE_START_TS	1764
-/*! reconciliation: pages written including at least one start timestamp */
-#define	WT_STAT_CONN_REC_TIME_WINDOW_PAGES_START_TS	1765
+#define	WT_STAT_CONN_REC_TIME_WINDOW_PAGES_START_DURABLE_TS	1765
 /*!
  * reconciliation: pages written including at least one start transaction
  * ID
  */
 #define	WT_STAT_CONN_REC_TIME_WINDOW_PAGES_START_TXN	1766
 /*!
+ * reconciliation: pages written including at least one stop commit
+ * timestamp
+ */
+#define	WT_STAT_CONN_REC_TIME_WINDOW_PAGES_STOP_COMMIT_TS	1767
+/*!
  * reconciliation: pages written including at least one stop durable
  * timestamp
  */
-#define	WT_STAT_CONN_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS	1767
-/*! reconciliation: pages written including at least one stop timestamp */
-#define	WT_STAT_CONN_REC_TIME_WINDOW_PAGES_STOP_TS	1768
+#define	WT_STAT_CONN_REC_TIME_WINDOW_PAGES_STOP_DURABLE_TS	1768
 /*!
  * reconciliation: pages written including at least one stop transaction
  * ID
@@ -7889,16 +7895,16 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_PAGES_WITH_LEAF_DELTAS		1771
 /*! reconciliation: records written including a prepare state */
 #define	WT_STAT_CONN_REC_TIME_WINDOW_PREPARED		1772
+/*! reconciliation: records written including a start commit timestamp */
+#define	WT_STAT_CONN_REC_TIME_WINDOW_START_COMMIT_TS	1773
 /*! reconciliation: records written including a start durable timestamp */
-#define	WT_STAT_CONN_REC_TIME_WINDOW_DURABLE_START_TS	1773
-/*! reconciliation: records written including a start timestamp */
-#define	WT_STAT_CONN_REC_TIME_WINDOW_START_TS		1774
+#define	WT_STAT_CONN_REC_TIME_WINDOW_START_DURABLE_TS	1774
 /*! reconciliation: records written including a start transaction ID */
 #define	WT_STAT_CONN_REC_TIME_WINDOW_START_TXN		1775
+/*! reconciliation: records written including a stop commit timestamp */
+#define	WT_STAT_CONN_REC_TIME_WINDOW_STOP_COMMIT_TS	1776
 /*! reconciliation: records written including a stop durable timestamp */
-#define	WT_STAT_CONN_REC_TIME_WINDOW_DURABLE_STOP_TS	1776
-/*! reconciliation: records written including a stop timestamp */
-#define	WT_STAT_CONN_REC_TIME_WINDOW_STOP_TS		1777
+#define	WT_STAT_CONN_REC_TIME_WINDOW_STOP_DURABLE_TS	1777
 /*! reconciliation: records written including a stop transaction ID */
 #define	WT_STAT_CONN_REC_TIME_WINDOW_STOP_TXN		1778
 /*! reconciliation: split bytes currently awaiting free */
@@ -9201,14 +9207,14 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	2324
 /*!
  * reconciliation: pages written including an aggregated newest stop
- * durable timestamp
+ * commit_timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	2325
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_COMMIT_TS	2325
 /*!
  * reconciliation: pages written including an aggregated newest stop
- * timestamp
+ * durable timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TS	2326
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	2326
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * transaction ID
@@ -9221,32 +9227,38 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_TXN		2328
 /*!
  * reconciliation: pages written including an aggregated oldest start
- * timestamp
+ * commit timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TS	2329
+#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_COMMIT_TS	2329
 /*! reconciliation: pages written including an aggregated prepare */
 #define	WT_STAT_DSRC_REC_TIME_AGGR_PREPARED		2330
 /*! reconciliation: pages written including at least one prepare state */
 #define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_PREPARED	2331
 /*!
+ * reconciliation: pages written including at least one start commit
+ * timestamp
+ */
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_COMMIT_TS	2332
+/*!
  * reconciliation: pages written including at least one start durable
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_START_TS	2332
-/*! reconciliation: pages written including at least one start timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TS	2333
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_DURABLE_TS	2333
 /*!
  * reconciliation: pages written including at least one start transaction
  * ID
  */
 #define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TXN	2334
 /*!
+ * reconciliation: pages written including at least one stop commit
+ * timestamp
+ */
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_COMMIT_TS	2335
+/*!
  * reconciliation: pages written including at least one stop durable
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS	2335
-/*! reconciliation: pages written including at least one stop timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TS	2336
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_DURABLE_TS	2336
 /*!
  * reconciliation: pages written including at least one stop transaction
  * ID
@@ -9258,16 +9270,16 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_PAGES_WITH_LEAF_DELTAS		2339
 /*! reconciliation: records written including a prepare state */
 #define	WT_STAT_DSRC_REC_TIME_WINDOW_PREPARED		2340
+/*! reconciliation: records written including a start commit timestamp */
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_COMMIT_TS	2341
 /*! reconciliation: records written including a start durable timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_START_TS	2341
-/*! reconciliation: records written including a start timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TS		2342
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_DURABLE_TS	2342
 /*! reconciliation: records written including a start transaction ID */
 #define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TXN		2343
+/*! reconciliation: records written including a stop commit timestamp */
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_COMMIT_TS	2344
 /*! reconciliation: records written including a stop durable timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_STOP_TS	2344
-/*! reconciliation: records written including a stop timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TS		2345
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_DURABLE_TS	2345
 /*! reconciliation: records written including a stop transaction ID */
 #define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN		2346
 /*! session: object compaction */

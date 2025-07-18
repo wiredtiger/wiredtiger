@@ -159,7 +159,7 @@ __rec_hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor
          * by ignoring them.
          */
         __wt_hs_upd_time_window(hs_cursor, &twp);
-        if (hs_start_ts < ts && twp->stop_ts < ts)
+        if (hs_start_ts < ts && twp->stop_commit_ts < ts)
             continue;
 
         if (reinsert) {
@@ -175,31 +175,31 @@ __rec_hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor
              * timestamps will be clobbered by our fix-up process. Keep track of how often this is
              * happening.
              */
-            if (hs_cbt->upd_value->tw.start_ts != hs_cbt->upd_value->tw.durable_start_ts ||
-              hs_cbt->upd_value->tw.stop_ts != hs_cbt->upd_value->tw.durable_stop_ts)
+            if (hs_cbt->upd_value->tw.start_commit_ts != hs_cbt->upd_value->tw.start_durable_ts ||
+              hs_cbt->upd_value->tw.stop_commit_ts != hs_cbt->upd_value->tw.stop_durable_ts)
                 ++cache_hs_order_lose_durable_timestamp;
 
             __wt_verbose(session, WT_VERB_TIMESTAMP,
               "fixing existing updates by moving them; start_ts=%s, "
               "durable_start_ts=%s, "
               "stop_ts=%s, durable_stop_ts=%s, new_ts=%s",
-              __wt_timestamp_to_string(hs_cbt->upd_value->tw.start_ts, ts_string[0]),
-              __wt_timestamp_to_string(hs_cbt->upd_value->tw.durable_start_ts, ts_string[1]),
-              __wt_timestamp_to_string(hs_cbt->upd_value->tw.stop_ts, ts_string[2]),
-              __wt_timestamp_to_string(hs_cbt->upd_value->tw.durable_stop_ts, ts_string[3]),
+              __wt_timestamp_to_string(hs_cbt->upd_value->tw.start_commit_ts, ts_string[0]),
+              __wt_timestamp_to_string(hs_cbt->upd_value->tw.start_durable_ts, ts_string[1]),
+              __wt_timestamp_to_string(hs_cbt->upd_value->tw.stop_commit_ts, ts_string[2]),
+              __wt_timestamp_to_string(hs_cbt->upd_value->tw.stop_durable_ts, ts_string[3]),
               __wt_timestamp_to_string(ts, ts_string[4]));
 
             /*
              * Use the original start time window's timestamps if its timestamp is less than the new
              * update.
              */
-            if (hs_cbt->upd_value->tw.start_ts >= ts ||
-              hs_cbt->upd_value->tw.durable_start_ts >= ts)
-                hs_insert_tw.start_ts = hs_insert_tw.durable_start_ts =
+            if (hs_cbt->upd_value->tw.start_commit_ts >= ts ||
+              hs_cbt->upd_value->tw.start_durable_ts >= ts)
+                hs_insert_tw.start_commit_ts = hs_insert_tw.start_durable_ts =
                   no_ts_tombstone ? ts : ts - 1;
             else {
-                hs_insert_tw.start_ts = hs_cbt->upd_value->tw.start_ts;
-                hs_insert_tw.durable_start_ts = hs_cbt->upd_value->tw.durable_start_ts;
+                hs_insert_tw.start_commit_ts = hs_cbt->upd_value->tw.start_commit_ts;
+                hs_insert_tw.start_durable_ts = hs_cbt->upd_value->tw.start_durable_ts;
             }
             hs_insert_tw.start_txn = hs_cbt->upd_value->tw.start_txn;
 
@@ -208,7 +208,8 @@ __rec_hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor
              * another moved update OR the update itself triggered the correction. In either case,
              * we should preserve the stop transaction id.
              */
-            hs_insert_tw.stop_ts = hs_insert_tw.durable_stop_ts = no_ts_tombstone ? ts : ts - 1;
+            hs_insert_tw.stop_commit_ts = hs_insert_tw.stop_durable_ts =
+              no_ts_tombstone ? ts : ts - 1;
             hs_insert_tw.stop_txn = hs_cbt->upd_value->tw.stop_txn;
 
             /* Extract the underlying value for reinsertion. */
@@ -221,9 +222,9 @@ __rec_hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor
 
             /* Insert the value back with different timestamps. */
             hs_insert_cursor->set_key(
-              hs_insert_cursor, 4, btree_id, &hs_key, hs_insert_tw.start_ts, *counter);
+              hs_insert_cursor, 4, btree_id, &hs_key, hs_insert_tw.start_commit_ts, *counter);
             hs_insert_cursor->set_value(hs_insert_cursor, &hs_insert_tw,
-              hs_insert_tw.durable_stop_ts, hs_insert_tw.durable_start_ts, (uint64_t)hs_upd_type,
+              hs_insert_tw.stop_durable_ts, hs_insert_tw.start_durable_ts, (uint64_t)hs_upd_type,
               &hs_value);
             WT_ERR(hs_insert_cursor->insert(hs_insert_cursor));
             ++(*counter);
@@ -335,8 +336,8 @@ __rec_hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btr
          * the cell. The cell's start timestamp can be cleared during reconciliation if it is
          * globally visible.
          */
-        if (hs_start_ts >= ts || twp->stop_ts >= ts) {
-            if (hs_start_ts == WT_TS_NONE && twp->stop_ts == WT_TS_NONE && ts == WT_TS_NONE)
+        if (hs_start_ts >= ts || twp->stop_commit_ts >= ts) {
+            if (hs_start_ts == WT_TS_NONE && twp->stop_commit_ts == WT_TS_NONE && ts == WT_TS_NONE)
                 *non_ts_updates = true;
             break;
         }
@@ -352,8 +353,8 @@ __rec_hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btr
       "out-of-order timestamp update detected, found an existing update with "
       "hs_start_ts=%s, start_ts=%s, stop_ts=%s, that exists later than specified ts=%s",
       __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
-      __wt_timestamp_to_string(twp == NULL ? WT_TS_NONE : twp->start_ts, ts_string[1]),
-      __wt_timestamp_to_string(twp == NULL ? WT_TS_NONE : twp->stop_ts, ts_string[2]),
+      __wt_timestamp_to_string(twp == NULL ? WT_TS_NONE : twp->start_commit_ts, ts_string[1]),
+      __wt_timestamp_to_string(twp == NULL ? WT_TS_NONE : twp->stop_commit_ts, ts_string[2]),
       __wt_timestamp_to_string(ts, ts_string[3]));
     return (ret);
 }
@@ -384,7 +385,8 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
     non_ts_updates = false;
 
     /* Verify that the timestamps are in increasing order. */
-    WT_ASSERT(session, tw->stop_ts >= tw->start_ts && tw->durable_stop_ts >= tw->durable_start_ts);
+    WT_ASSERT(session,
+      tw->stop_commit_ts >= tw->start_commit_ts && tw->stop_durable_ts >= tw->start_durable_ts);
 
     /*
      * We might be entering this code from application thread's context. We should make sure that we
@@ -430,7 +432,7 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
      * timestamp. Otherwise the newly inserting history store record may fall behind the existing
      * one can lead to wrong order.
      */
-    cursor->set_key(cursor, 4, btree->id, key, tw->start_ts, UINT64_MAX);
+    cursor->set_key(cursor, 4, btree->id, key, tw->start_commit_ts, UINT64_MAX);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, cursor), true);
 
     if (ret == 0) {
@@ -440,7 +442,7 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
             /* Allocate buffer for the existing history store value for the same key. */
             WT_ERR(__wt_scr_alloc(session, 0, &existing_val));
 
-            if (tw->start_ts == hs_start_ts) {
+            if (tw->start_commit_ts == hs_start_ts) {
                 WT_ERR(cursor->get_value(cursor, &hs_stop_durable_ts_diag, &durable_timestamp_diag,
                   &upd_type_full_diag, existing_val));
                 WT_ERR(__wt_compare(session, NULL, existing_val, hs_value, &cmp));
@@ -457,8 +459,8 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
                     if (!__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw) &&
                       tw->start_txn != WT_TXN_NONE &&
                       tw->start_txn == hs_cbt->upd_value->tw.start_txn &&
-                      tw->start_ts == hs_cbt->upd_value->tw.start_ts &&
-                      tw->start_ts != tw->stop_ts) {
+                      tw->start_commit_ts == hs_cbt->upd_value->tw.start_commit_ts &&
+                      tw->start_commit_ts != tw->stop_commit_ts) {
                         /*
                          * If we have issues with duplicate history store records, we want to be
                          * able to distinguish between modifies and full updates. Since modifies are
@@ -475,7 +477,7 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
                 counter = hs_counter + 1;
             }
         } else {
-            if (tw->start_ts == hs_start_ts)
+            if (tw->start_commit_ts == hs_start_ts)
                 counter = hs_counter + 1;
         }
     }
@@ -488,12 +490,12 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
      */
     if (ret == 0) {
         /* Check if the current history store update's stop timestamp is less than the update. */
-        if (hs_cbt->upd_value->tw.stop_ts <= tw->start_ts)
+        if (hs_cbt->upd_value->tw.stop_commit_ts <= tw->start_commit_ts)
             WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
         else
             counter = hs_counter + 1;
     } else {
-        cursor->set_key(cursor, 3, btree->id, key, tw->start_ts + 1);
+        cursor->set_key(cursor, 3, btree->id, key, tw->start_commit_ts + 1);
         WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, cursor), true);
     }
 
@@ -515,10 +517,10 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
     }
 
     if (ret == 0) {
-        WT_ASSERT(session, tw->start_ts + 1 > WT_TS_NONE);
+        WT_ASSERT(session, tw->start_commit_ts + 1 > WT_TS_NONE);
         /* Get the history store cursor position. */
-        WT_ERR_NOTFOUND_OK(__rec_hs_cursor_pos(session, cursor, btree->id, key, tw->start_ts + 1,
-                             tw, &non_ts_updates),
+        WT_ERR_NOTFOUND_OK(__rec_hs_cursor_pos(session, cursor, btree->id, key,
+                             tw->start_commit_ts + 1, tw, &non_ts_updates),
           true);
 
         /*
@@ -527,7 +529,7 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
          */
         if (!non_ts_updates && ret == 0)
             WT_ERR(__rec_hs_delete_reinsert_from_pos(session, cursor, btree->id, key,
-              tw->start_ts + 1, true, false, error_on_ts_ordering, &counter));
+              tw->start_commit_ts + 1, true, false, error_on_ts_ordering, &counter));
     }
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -536,7 +538,8 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
      */
     if (F_ISSET(cursor, WT_CURSTD_KEY_SET)) {
         WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
-        if (hs_btree_id == btree->id && tw->start_ts == hs_start_ts && hs_counter == counter) {
+        if (hs_btree_id == btree->id && tw->start_commit_ts == hs_start_ts &&
+          hs_counter == counter) {
             WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
             WT_ASSERT(session, cmp != 0);
         }
@@ -544,9 +547,9 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
 #endif
 
     /* Insert the new record now. */
-    cursor->set_key(cursor, 4, btree->id, key, tw->start_ts, counter);
+    cursor->set_key(cursor, 4, btree->id, key, tw->start_commit_ts, counter);
     cursor->set_value(
-      cursor, tw, tw->durable_stop_ts, tw->durable_start_ts, (uint64_t)type, hs_value);
+      cursor, tw, tw->stop_durable_ts, tw->start_durable_ts, (uint64_t)type, hs_value);
     WT_ERR(cursor->insert(cursor));
 
 err:
@@ -730,7 +733,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          * update to clear the timestamps of all the updates that are inserted into the history
          * store.
          */
-        if (list->onpage_tombstone != NULL && list->onpage_tombstone->upd_start_ts == WT_TS_NONE)
+        if (list->onpage_tombstone != NULL && list->onpage_tombstone->upd_commit_ts == WT_TS_NONE)
             no_ts_upd = list->onpage_tombstone;
 
         /*
@@ -770,8 +773,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS));
 
             /* Detect any update without a timestamp. */
-            if (prev_upd != NULL && prev_upd->upd_start_ts < upd->upd_start_ts) {
-                WT_ASSERT_ALWAYS(session, prev_upd->upd_start_ts == WT_TS_NONE,
+            if (prev_upd != NULL && prev_upd->upd_commit_ts < upd->upd_commit_ts) {
+                WT_ASSERT_ALWAYS(session, prev_upd->upd_commit_ts == WT_TS_NONE,
                   "out-of-order timestamp update detected");
                 /*
                  * Fail the eviction if we detect any timestamp ordering issue and the error flag is
@@ -804,7 +807,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
 
             /* Always insert full update to the history store if we need to squash the updates. */
             if (prev_upd != NULL && prev_upd->txnid == upd->txnid &&
-              prev_upd->upd_start_ts == upd->upd_start_ts)
+              prev_upd->upd_commit_ts == upd->upd_commit_ts)
                 enable_reverse_modify = false;
 
             /*
@@ -812,7 +815,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              * than the on-page value)
              */
             if (newest_hs == NULL) {
-                if (upd->txnid != ref_upd->txnid || upd->upd_start_ts != ref_upd->upd_start_ts) {
+                if (upd->txnid != ref_upd->txnid || upd->upd_commit_ts != ref_upd->upd_commit_ts) {
                     if (upd->type == WT_UPDATE_TOMBSTONE)
                         ref_upd = upd;
                     else
@@ -858,7 +861,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              * Save the first update without a timestamp in the update chain. This is used to remove
              * all the following updates' timestamps in the chain.
              */
-            if (no_ts_upd == NULL && upd->upd_start_ts == WT_TS_NONE) {
+            if (no_ts_upd == NULL && upd->upd_commit_ts == WT_TS_NONE) {
                 WT_ASSERT(session, upd->upd_durable_ts == WT_TS_NONE);
                 no_ts_upd = upd;
             }
@@ -880,7 +883,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          * deal with it here and skip the deletion as there is nothing to do
          */
         if (!hs_flag_set && oldest_upd->type == WT_UPDATE_TOMBSTONE &&
-          oldest_upd->upd_start_ts == WT_TS_NONE) {
+          oldest_upd->upd_commit_ts == WT_TS_NONE) {
             WT_ERR(__wti_rec_hs_delete_key(
               session, hs_cursor, btree->id, key, false, error_on_ts_ordering));
 
@@ -927,11 +930,11 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                 no_ts_upd = NULL;
 
             if (no_ts_upd != NULL) {
-                tw.durable_start_ts = WT_TS_NONE;
-                tw.start_ts = WT_TS_NONE;
+                tw.start_durable_ts = WT_TS_NONE;
+                tw.start_commit_ts = WT_TS_NONE;
             } else {
-                tw.durable_start_ts = upd->upd_durable_ts;
-                tw.start_ts = upd->upd_start_ts;
+                tw.start_durable_ts = upd->upd_durable_ts;
+                tw.start_commit_ts = upd->upd_commit_ts;
             }
             tw.start_txn = upd->txnid;
 
@@ -943,8 +946,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             if (prev_upd->prepare_state == WT_PREPARE_INPROGRESS) {
                 WT_ASSERT(session,
                   list->onpage_upd->txnid == prev_upd->txnid &&
-                    list->onpage_upd->upd_start_ts == prev_upd->upd_start_ts);
-                tw.durable_stop_ts = tw.stop_ts = WT_TS_MAX;
+                    list->onpage_upd->upd_commit_ts == prev_upd->upd_commit_ts);
+                tw.stop_durable_ts = tw.stop_commit_ts = WT_TS_MAX;
                 tw.stop_txn = WT_TXN_MAX;
             } else {
                 /*
@@ -952,14 +955,14 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                  * garbage collection of history store removes the history values once the stop
                  * timestamp is globally visible. i.e. durable timestamp of data store version.
                  */
-                WT_ASSERT(session, prev_upd->upd_start_ts <= prev_upd->upd_durable_ts);
+                WT_ASSERT(session, prev_upd->upd_commit_ts <= prev_upd->upd_durable_ts);
 
                 if (no_ts_upd != NULL) {
-                    tw.durable_stop_ts = WT_TS_NONE;
-                    tw.stop_ts = WT_TS_NONE;
+                    tw.stop_durable_ts = WT_TS_NONE;
+                    tw.stop_commit_ts = WT_TS_NONE;
                 } else {
-                    tw.durable_stop_ts = prev_upd->upd_durable_ts;
-                    tw.stop_ts = prev_upd->upd_start_ts;
+                    tw.stop_durable_ts = prev_upd->upd_durable_ts;
+                    tw.stop_commit_ts = prev_upd->upd_commit_ts;
                 }
                 tw.stop_txn = prev_upd->txnid;
 
@@ -978,7 +981,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
               session, &updates, full_value, prev_full_value, &prev_upd));
 
             /* Squash the updates from the same transaction. */
-            if (upd->upd_start_ts == prev_upd->upd_start_ts && upd->txnid == prev_upd->txnid) {
+            if (upd->upd_commit_ts == prev_upd->upd_commit_ts && upd->txnid == prev_upd->txnid) {
                 squashed = true;
                 continue;
             }
@@ -1212,7 +1215,7 @@ __rec_hs_delete_record(
          * it has a stop timestamp greater than the start timestamp of the update.
          */
         __wt_hs_upd_time_window(r->hs_cursor, &hs_tw);
-        if (hs_tw->stop_ts <= upd->upd_start_ts)
+        if (hs_tw->stop_commit_ts <= upd->upd_commit_ts)
             goto done;
 
         /*
@@ -1226,18 +1229,18 @@ __rec_hs_delete_record(
               hs_tw->start_txn == WT_TXN_NONE || hs_tw->start_txn == upd->txnid,
               "Retrieved wrong update from history store: start txn id mismatch");
             WT_ASSERT_ALWAYS(session,
-              hs_tw->start_ts == WT_TS_NONE || hs_tw->start_ts == upd->upd_start_ts,
+              hs_tw->start_commit_ts == WT_TS_NONE || hs_tw->start_commit_ts == upd->upd_commit_ts,
               "Retrieved wrong update from history store: start timestamp mismatch");
             WT_ASSERT_ALWAYS(session,
-              hs_tw->durable_start_ts == WT_TS_NONE ||
-                hs_tw->durable_start_ts == upd->upd_durable_ts,
+              hs_tw->start_durable_ts == WT_TS_NONE ||
+                hs_tw->start_durable_ts == upd->upd_durable_ts,
               "Retrieved wrong update from history store: durable start timestamp mismatch");
             if (tombstone != NULL) {
                 WT_ASSERT_ALWAYS(session, hs_tw->stop_txn == tombstone->txnid,
                   "Retrieved wrong update from history store: stop txn id mismatch");
-                WT_ASSERT_ALWAYS(session, hs_tw->stop_ts == tombstone->upd_start_ts,
+                WT_ASSERT_ALWAYS(session, hs_tw->stop_commit_ts == tombstone->upd_commit_ts,
                   "Retrieved wrong update from history store: stop timestamp mismatch");
-                WT_ASSERT_ALWAYS(session, hs_tw->durable_stop_ts == tombstone->upd_durable_ts,
+                WT_ASSERT_ALWAYS(session, hs_tw->stop_durable_ts == tombstone->upd_durable_ts,
                   "Retrieved wrong update from history store: durable stop timestamp mismatch");
             } else
                 WT_ASSERT_ALWAYS(session, !WT_TIME_WINDOW_HAS_STOP(hs_tw),

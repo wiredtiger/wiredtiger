@@ -27,14 +27,14 @@
 
 /* The time points that define a value's time window and associated prepare information. */
 struct __wt_time_window {
-    wt_timestamp_t durable_start_ts; /* default value: WT_TS_NONE */
-    wt_timestamp_t start_ts;         /* default value: WT_TS_NONE */
+    wt_timestamp_t start_durable_ts; /* default value: WT_TS_NONE */
+    wt_timestamp_t start_commit_ts;  /* default value: WT_TS_NONE */
     wt_timestamp_t start_prepare_ts; /* default value: WT_TS_NONE */
     uint64_t start_txn;              /* default value: WT_TXN_NONE */
     uint64_t start_prepared_id;      /* default value: WT_PREPARED_ID_NONE */
 
-    wt_timestamp_t durable_stop_ts; /* default value: WT_TS_NONE */
-    wt_timestamp_t stop_ts;         /* default value: WT_TS_MAX */
+    wt_timestamp_t stop_durable_ts; /* default value: WT_TS_NONE */
+    wt_timestamp_t stop_commit_ts;  /* default value: WT_TS_MAX */
     wt_timestamp_t stop_prepare_ts; /* default value: WT_TS_NONE */
     uint64_t stop_txn;              /* default value: WT_TXN_MAX */
     uint64_t stop_prepared_id;      /* default value: WT_PREPARED_ID_NONE */
@@ -48,12 +48,12 @@ struct __wt_time_window {
 /*
  * The time points that define an aggregated time window and associated prepare information.
  *
- * - newest_start_durable_ts - Newest valid start durable/commit timestamp
- * - newest_stop_durable_ts  - Newest valid stop durable/commit timestamp doesn't include WT_TS_MAX
- * - oldest_start_ts         - Oldest start commit timestamp
+ * - newest_start_durable_ts - Newest valid start durable timestamp
+ * - newest_stop_durable_ts  - Newest valid stop durable timestamp doesn't include WT_TS_MAX
+ * - oldest_start_commit_ts         - Oldest start commit timestamp
  * - newest_txn              - Newest valid start/stop commit transaction doesn't include
  *                             WT_TXN_MAX
- * - newest_stop_ts          - Newest stop commit timestamp include WT_TS_MAX
+ * - newest_stop_commit_ts          - Newest stop commit timestamp include WT_TS_MAX
  * - newest_stop_txn         - Newest stop commit transaction include WT_TXN_MAX
  * - prepare                 - Prepared updates
  */
@@ -61,10 +61,10 @@ struct __wt_time_aggregate {
     wt_timestamp_t newest_start_durable_ts; /* default value: WT_TS_NONE */
     wt_timestamp_t newest_stop_durable_ts;  /* default value: WT_TS_NONE */
 
-    wt_timestamp_t oldest_start_ts; /* default value: WT_TS_NONE */
-    uint64_t newest_txn;            /* default value: WT_TXN_NONE */
-    wt_timestamp_t newest_stop_ts;  /* default value: WT_TS_MAX */
-    uint64_t newest_stop_txn;       /* default value: WT_TXN_MAX */
+    wt_timestamp_t oldest_start_commit_ts; /* default value: WT_TS_NONE */
+    uint64_t newest_txn;                   /* default value: WT_TXN_NONE */
+    wt_timestamp_t newest_stop_commit_ts;  /* default value: WT_TS_MAX */
+    uint64_t newest_stop_txn;              /* default value: WT_TXN_MAX */
 
     uint8_t prepare;
 

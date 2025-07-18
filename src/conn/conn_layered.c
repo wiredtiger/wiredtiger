@@ -1364,9 +1364,9 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
             WT_ERR(__wt_buf_set(session, key, tmp_key->data, tmp_key->size));
         }
 
-        WT_ERR(version_cursor->get_value(version_cursor, &tw.start_txn, &tw.start_ts,
-          &tw.durable_start_ts, &tw.stop_txn, &tw.stop_ts, &tw.durable_stop_ts, &type, &prepare,
-          &flags, &location, value));
+        WT_ERR(version_cursor->get_value(version_cursor, &tw.start_txn, &tw.start_commit_ts,
+          &tw.start_durable_ts, &tw.stop_txn, &tw.stop_commit_ts, &tw.stop_durable_ts, &type,
+          &prepare, &flags, &location, value));
         /* We shouldn't see any prepared updates. */
         WT_ASSERT(session, prepare == 0);
 
@@ -1376,13 +1376,13 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
              * and should never be here. */
             WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
             WT_ASSERT(session,
-              tw.stop_txn <= prev_upd->txnid && tw.stop_ts <= prev_upd->upd_start_ts &&
-                tw.durable_stop_ts <= prev_upd->upd_durable_ts);
+              tw.stop_txn <= prev_upd->txnid && tw.stop_commit_ts <= prev_upd->upd_commit_ts &&
+                tw.stop_durable_ts <= prev_upd->upd_durable_ts);
             WT_ASSERT(session,
-              tw.start_txn <= prev_upd->txnid && tw.start_ts <= prev_upd->upd_start_ts &&
-                tw.durable_start_ts <= prev_upd->upd_durable_ts);
-            if (tw.stop_txn != prev_upd->txnid || tw.stop_ts != prev_upd->upd_start_ts ||
-              tw.durable_stop_ts != prev_upd->upd_durable_ts)
+              tw.start_txn <= prev_upd->txnid && tw.start_commit_ts <= prev_upd->upd_commit_ts &&
+                tw.start_durable_ts <= prev_upd->upd_durable_ts);
+            if (tw.stop_txn != prev_upd->txnid || tw.stop_commit_ts != prev_upd->upd_commit_ts ||
+              tw.stop_durable_ts != prev_upd->upd_durable_ts)
                 WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         } else if (WT_TIME_WINDOW_HAS_STOP(&tw))
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
@@ -1392,7 +1392,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
          * timestamp with a tombstone that is larger than the last checkpoint timestamp. Ignore the
          * update in this case.
          */
-        if (tw.durable_start_ts > last_checkpoint_timestamp) {
+        if (tw.start_durable_ts > last_checkpoint_timestamp) {
             /* FIXME-WT-14732: this is an ugly layering violation. But I can't think of a better way
              * now. */
             if (__wt_clayered_deleted(value)) {
@@ -1405,8 +1405,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
             } else
                 WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
             upd->txnid = tw.start_txn;
-            upd->upd_start_ts = tw.start_ts;
-            upd->upd_durable_ts = tw.durable_start_ts;
+            upd->upd_commit_ts = tw.start_commit_ts;
+            upd->upd_durable_ts = tw.start_durable_ts;
         } else
             WT_ASSERT(session, tombstone != NULL);
 
@@ -1414,8 +1414,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
          * ingest table. */
         if (tombstone != NULL) {
             tombstone->txnid = tw.stop_txn;
-            tombstone->upd_start_ts = tw.start_ts;
-            tombstone->upd_durable_ts = tw.durable_start_ts;
+            tombstone->upd_commit_ts = tw.start_commit_ts;
+            tombstone->upd_durable_ts = tw.start_durable_ts;
             tombstone->next = upd;
 
             WT_ASSERT(session, tombstone->upd_durable_ts > last_checkpoint_timestamp);

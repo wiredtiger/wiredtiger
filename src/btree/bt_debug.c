@@ -473,9 +473,10 @@ __debug_hs_cursor(WT_DBG *ds, WT_CURSOR *hs_cursor)
 
     WT_TIME_WINDOW_INIT(&tw);
 
-    WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, ds->hs_key, &tw.start_ts, &hs_counter));
+    WT_RET(
+      hs_cursor->get_key(hs_cursor, &hs_btree_id, ds->hs_key, &tw.start_commit_ts, &hs_counter));
     WT_RET(hs_cursor->get_value(
-      hs_cursor, &tw.stop_ts, &tw.durable_start_ts, &hs_upd_type, ds->hs_value));
+      hs_cursor, &tw.stop_commit_ts, &tw.start_durable_ts, &hs_upd_type, ds->hs_value));
 
     switch (hs_upd_type) {
     case WT_UPDATE_MODIFY:
@@ -569,7 +570,7 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
         if (F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
             page_del = &unpack->page_del;
             WT_RET(ds->f(ds, " | page_del : %s",
-              __wt_time_point_to_string(page_del->pg_del_start_ts, page_del->pg_del_durable_ts,
+              __wt_time_point_to_string(page_del->pg_del_commit_ts, page_del->pg_del_durable_ts,
                 page_del->txnid, time_string)));
         }
     /* FALLTHROUGH */
@@ -1667,7 +1668,7 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
               "txn_id %" PRIu64,
               upd->txnid));
 
-        WT_RET(ds->f(ds, ", start_ts %s", __wt_timestamp_to_string(upd->upd_start_ts, ts_string)));
+        WT_RET(ds->f(ds, ", start_ts %s", __wt_timestamp_to_string(upd->upd_commit_ts, ts_string)));
         if (upd->upd_durable_ts != WT_TS_NONE)
             WT_RET(ds->f(
               ds, ", durable_ts %s", __wt_timestamp_to_string(upd->upd_durable_ts, ts_string)));
@@ -1758,8 +1759,8 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
     if (ref->page_del != NULL) {
         page_del = ref->page_del;
         WT_RET(ds->f(ds, " | page_del: %s",
-          __wt_time_point_to_string(
-            page_del->pg_del_start_ts, page_del->pg_del_durable_ts, page_del->txnid, time_string)));
+          __wt_time_point_to_string(page_del->pg_del_commit_ts, page_del->pg_del_durable_ts,
+            page_del->txnid, time_string)));
     }
     return (ds->f(ds, "\n"));
 }

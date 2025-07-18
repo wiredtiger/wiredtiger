@@ -47,10 +47,10 @@ __wt_time_window_to_string(WT_TIME_WINDOW *tw, char *tw_string)
 
     WT_IGNORE_RET(__wt_snprintf(tw_string, WT_TIME_STRING_SIZE,
       "start: %s/%s/%" PRIu64 " | stop: %s/%s/%" PRIu64 "%s",
-      __wt_timestamp_to_string(tw->durable_start_ts, ts_string[0]),
-      __wt_timestamp_to_string(tw->start_ts, ts_string[1]), tw->start_txn,
-      __wt_timestamp_to_string(tw->durable_stop_ts, ts_string[2]),
-      __wt_timestamp_to_string(tw->stop_ts, ts_string[3]), tw->stop_txn,
+      __wt_timestamp_to_string(tw->start_durable_ts, ts_string[0]),
+      __wt_timestamp_to_string(tw->start_commit_ts, ts_string[1]), tw->start_txn,
+      __wt_timestamp_to_string(tw->stop_durable_ts, ts_string[2]),
+      __wt_timestamp_to_string(tw->stop_commit_ts, ts_string[3]), tw->stop_txn,
       tw->prepare ? ", prepared" : ""));
     return (tw_string);
 }
@@ -68,8 +68,8 @@ __wt_time_aggregate_to_string(WT_TIME_AGGREGATE *ta, char *ta_string)
       "newest_durable: %s/%s | oldest_start: %s/%" PRIu64 " | newest_stop: %s/%" PRIu64 "%s",
       __wt_timestamp_to_string(ta->newest_start_durable_ts, ts_string[0]),
       __wt_timestamp_to_string(ta->newest_stop_durable_ts, ts_string[1]),
-      __wt_timestamp_to_string(ta->oldest_start_ts, ts_string[2]), ta->newest_txn,
-      __wt_timestamp_to_string(ta->newest_stop_ts, ts_string[3]), ta->newest_stop_txn,
+      __wt_timestamp_to_string(ta->oldest_start_commit_ts, ts_string[2]), ta->newest_txn,
+      __wt_timestamp_to_string(ta->newest_stop_commit_ts, ts_string[3]), ta->newest_stop_txn,
       ta->prepare ? ", prepared" : ""));
     return (ta_string);
 }
@@ -166,9 +166,9 @@ __time_aggregate_validate_parent_stable(
         WT_TIME_ERROR("a newest start durable time after");
     if (ta->newest_stop_durable_ts > stable)
         WT_TIME_ERROR("a newest stop durable time after");
-    if (ta->oldest_start_ts > stable)
+    if (ta->oldest_start_commit_ts > stable)
         WT_TIME_ERROR("an oldest start time after");
-    if (ta->newest_stop_ts != WT_TS_MAX && ta->newest_stop_ts > stable)
+    if (ta->newest_stop_commit_ts != WT_TS_MAX && ta->newest_stop_commit_ts > stable)
         WT_TIME_ERROR("a newest stop time after");
 
     return (0);
@@ -198,7 +198,7 @@ __time_aggregate_validate_parent(
           __wt_time_aggregate_to_string(ta, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
-    if (ta->oldest_start_ts < parent->oldest_start_ts)
+    if (ta->oldest_start_commit_ts < parent->oldest_start_commit_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has an oldest start time before its parent's; time aggregate %s, "
           "parent %s",
@@ -212,7 +212,7 @@ __time_aggregate_validate_parent(
           __wt_time_aggregate_to_string(ta, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
-    if (ta->newest_stop_ts > parent->newest_stop_ts)
+    if (ta->newest_stop_commit_ts > parent->newest_stop_commit_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has a newest stop time after its parent's; time aggregate %s, "
           "parent %s",
@@ -296,7 +296,7 @@ __wt_time_aggregate_validate(
      *
      */
 
-    if (ta->oldest_start_ts > ta->newest_stop_ts)
+    if (ta->oldest_start_commit_ts > ta->newest_stop_commit_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has an oldest start time after its newest stop time; time "
           "aggregate %s",
@@ -308,13 +308,14 @@ __wt_time_aggregate_validate(
           "transaction; time aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
 
-    if (ta->oldest_start_ts > ta->newest_start_durable_ts)
+    if (ta->oldest_start_commit_ts > ta->newest_start_durable_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has an oldest start time after its newest start durable time; "
           "time aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
 
-    if (ta->newest_stop_ts != WT_TS_MAX && ta->newest_stop_ts > ta->newest_stop_durable_ts)
+    if (ta->newest_stop_commit_ts != WT_TS_MAX &&
+      ta->newest_stop_commit_ts > ta->newest_stop_durable_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has a newest stop time after its newest stop durable time; time "
           "aggregate %s",
@@ -327,7 +328,8 @@ __wt_time_aggregate_validate(
      * durable timestamp if all the data on the page are deleted.
      */
     if (ta->newest_start_durable_ts != ta->newest_stop_durable_ts &&
-      ta->newest_stop_ts != WT_TS_MAX && ta->newest_start_durable_ts > ta->newest_stop_durable_ts)
+      ta->newest_stop_commit_ts != WT_TS_MAX &&
+      ta->newest_start_durable_ts > ta->newest_stop_durable_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has a newest start durable time after its newest stop durable "
           "time; time "
@@ -335,7 +337,7 @@ __wt_time_aggregate_validate(
           __wt_time_aggregate_to_string(ta, time_string[0]));
 
     if (ta->newest_stop_durable_ts != WT_TS_NONE &&
-      ta->newest_stop_durable_ts < ta->oldest_start_ts)
+      ta->newest_stop_durable_ts < ta->oldest_start_commit_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has a newest stop durable time before its oldest start time; time "
           "aggregate %s",
@@ -376,13 +378,13 @@ __time_value_validate_parent_stable(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw
 
     stable = __time_stable(session);
 
-    if (tw->durable_start_ts > stable)
+    if (tw->start_durable_ts > stable)
         WT_TIME_ERROR("a durable start time after");
-    if (tw->start_ts > stable)
+    if (tw->start_commit_ts > stable)
         WT_TIME_ERROR("a start time after");
-    if (tw->durable_stop_ts > stable)
+    if (tw->stop_durable_ts > stable)
         WT_TIME_ERROR("a durable stop time after");
-    if (tw->stop_ts != WT_TS_MAX && tw->stop_ts > stable)
+    if (tw->stop_commit_ts != WT_TS_MAX && tw->stop_commit_ts > stable)
         WT_TIME_ERROR("a stop time after");
 
     return (0);
@@ -399,14 +401,14 @@ __time_value_validate_parent(
     char time_string[2][WT_TIME_STRING_SIZE];
 
     if (parent->newest_start_durable_ts != WT_TS_NONE &&
-      tw->durable_start_ts > parent->newest_start_durable_ts)
+      tw->start_durable_ts > parent->newest_start_durable_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a durable start time after its parent's newest durable start "
           "time; time window %s, parent %s",
           __wt_time_window_to_string(tw, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
-    if (tw->start_ts < parent->oldest_start_ts)
+    if (tw->start_commit_ts < parent->oldest_start_commit_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a start time before its parent's oldest start time; time window "
           "%s, parent %s",
@@ -421,14 +423,14 @@ __time_value_validate_parent(
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
     if (parent->newest_stop_durable_ts != WT_TS_NONE &&
-      tw->durable_stop_ts > parent->newest_stop_durable_ts)
+      tw->stop_durable_ts > parent->newest_stop_durable_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a durable stop time after its parent's newest durable stop time; "
           "time window %s, parent %s",
           __wt_time_window_to_string(tw, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
-    if (tw->stop_ts > parent->newest_stop_ts)
+    if (tw->stop_commit_ts > parent->newest_stop_commit_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a stop time after its parent's newest stop time; time window %s, "
           "parent %s",
@@ -461,7 +463,7 @@ __wt_time_value_validate(
 {
     char time_string[2][WT_TIME_STRING_SIZE];
 
-    if (tw->start_ts > tw->stop_ts)
+    if (tw->start_commit_ts > tw->stop_commit_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a start time after its stop time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
@@ -471,12 +473,12 @@ __wt_time_value_validate(
           "value time window has a start transaction after its stop transaction; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
 
-    if (tw->start_ts > tw->durable_start_ts)
+    if (tw->start_commit_ts > tw->start_durable_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a start time after its durable start time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
 
-    if (tw->stop_ts != WT_TS_MAX && tw->stop_ts > tw->durable_stop_ts)
+    if (tw->stop_commit_ts != WT_TS_MAX && tw->stop_commit_ts > tw->stop_durable_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a stop time after its durable stop time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
@@ -486,12 +488,12 @@ __wt_time_value_validate(
      * start timestamp may be larger than stop timestamp. Check whether start and stop are equal
      * first.
      */
-    if (tw->durable_start_ts != tw->durable_stop_ts && tw->durable_start_ts > tw->stop_ts)
+    if (tw->start_durable_ts != tw->stop_durable_ts && tw->start_durable_ts > tw->stop_commit_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a durable start time after its stop time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
 
-    if (tw->durable_stop_ts != WT_TS_NONE && tw->durable_start_ts > tw->durable_stop_ts)
+    if (tw->stop_durable_ts != WT_TS_NONE && tw->start_durable_ts > tw->stop_durable_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a durable start time after its durable stop time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
@@ -517,13 +519,13 @@ __wt_time_value_validate(
                       "window %s",
                       __wt_time_window_to_string(tw, time_string[0]));
                 }
-                if (tw->start_ts != WT_TS_NONE) {
+                if (tw->start_commit_ts != WT_TS_NONE) {
                     WT_TIME_VALIDATE_RET(session,
                       "Start prepared value time window has a start time set; time "
                       "window %s",
                       __wt_time_window_to_string(tw, time_string[0]));
                 }
-                if (tw->durable_start_ts != WT_TS_NONE) {
+                if (tw->start_durable_ts != WT_TS_NONE) {
                     WT_TIME_VALIDATE_RET(session,
                       "Start prepared value time window has a durable start time set; time "
                       "window %s",
@@ -543,13 +545,13 @@ __wt_time_value_validate(
                       "window %s",
                       __wt_time_window_to_string(tw, time_string[0]));
                 }
-                if (tw->stop_ts != WT_TS_MAX) {
+                if (tw->stop_commit_ts != WT_TS_MAX) {
                     WT_TIME_VALIDATE_RET(session,
                       "Stop prepared value time window has a stop time set; time "
                       "window %s",
                       __wt_time_window_to_string(tw, time_string[0]));
                 }
-                if (tw->durable_stop_ts != WT_TS_NONE) {
+                if (tw->stop_durable_ts != WT_TS_NONE) {
                     WT_TIME_VALIDATE_RET(session,
                       "Stop prepared value time window has a durable stop time set; time "
                       "window %s",

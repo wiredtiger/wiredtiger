@@ -346,27 +346,27 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: page reconciliation calls for pages over 1GB",
   "reconciliation: pages deleted",
   "reconciliation: pages written including an aggregated newest start durable timestamp ",
+  "reconciliation: pages written including an aggregated newest stop commit_timestamp ",
   "reconciliation: pages written including an aggregated newest stop durable timestamp ",
-  "reconciliation: pages written including an aggregated newest stop timestamp ",
   "reconciliation: pages written including an aggregated newest stop transaction ID",
   "reconciliation: pages written including an aggregated newest transaction ID ",
-  "reconciliation: pages written including an aggregated oldest start timestamp ",
+  "reconciliation: pages written including an aggregated oldest start commit timestamp ",
   "reconciliation: pages written including an aggregated prepare",
   "reconciliation: pages written including at least one prepare state",
+  "reconciliation: pages written including at least one start commit timestamp",
   "reconciliation: pages written including at least one start durable timestamp",
-  "reconciliation: pages written including at least one start timestamp",
   "reconciliation: pages written including at least one start transaction ID",
+  "reconciliation: pages written including at least one stop commit timestamp",
   "reconciliation: pages written including at least one stop durable timestamp",
-  "reconciliation: pages written including at least one stop timestamp",
   "reconciliation: pages written including at least one stop transaction ID",
   "reconciliation: pages written with at least one internal page delta",
   "reconciliation: pages written with at least one leaf page delta",
   "reconciliation: records written including a prepare state",
+  "reconciliation: records written including a start commit timestamp",
   "reconciliation: records written including a start durable timestamp",
-  "reconciliation: records written including a start timestamp",
   "reconciliation: records written including a start transaction ID",
+  "reconciliation: records written including a stop commit timestamp",
   "reconciliation: records written including a stop durable timestamp",
-  "reconciliation: records written including a stop timestamp",
   "reconciliation: records written including a stop transaction ID",
   "session: object compaction",
   "transaction: a reader raced with a prepared transaction commit and skipped an update or updates",
@@ -759,27 +759,27 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_pages_size_1GB_plus = 0;
     stats->rec_page_delete = 0;
     stats->rec_time_aggr_newest_start_durable_ts = 0;
+    stats->rec_time_aggr_newest_stop_commit_ts = 0;
     stats->rec_time_aggr_newest_stop_durable_ts = 0;
-    stats->rec_time_aggr_newest_stop_ts = 0;
     stats->rec_time_aggr_newest_stop_txn = 0;
     stats->rec_time_aggr_newest_txn = 0;
-    stats->rec_time_aggr_oldest_start_ts = 0;
+    stats->rec_time_aggr_oldest_start_commit_ts = 0;
     stats->rec_time_aggr_prepared = 0;
     stats->rec_time_window_pages_prepared = 0;
-    stats->rec_time_window_pages_durable_start_ts = 0;
-    stats->rec_time_window_pages_start_ts = 0;
+    stats->rec_time_window_pages_start_commit_ts = 0;
+    stats->rec_time_window_pages_start_durable_ts = 0;
     stats->rec_time_window_pages_start_txn = 0;
-    stats->rec_time_window_pages_durable_stop_ts = 0;
-    stats->rec_time_window_pages_stop_ts = 0;
+    stats->rec_time_window_pages_stop_commit_ts = 0;
+    stats->rec_time_window_pages_stop_durable_ts = 0;
     stats->rec_time_window_pages_stop_txn = 0;
     stats->rec_pages_with_internal_deltas = 0;
     stats->rec_pages_with_leaf_deltas = 0;
     stats->rec_time_window_prepared = 0;
-    stats->rec_time_window_durable_start_ts = 0;
-    stats->rec_time_window_start_ts = 0;
+    stats->rec_time_window_start_commit_ts = 0;
+    stats->rec_time_window_start_durable_ts = 0;
     stats->rec_time_window_start_txn = 0;
-    stats->rec_time_window_durable_stop_ts = 0;
-    stats->rec_time_window_stop_ts = 0;
+    stats->rec_time_window_stop_commit_ts = 0;
+    stats->rec_time_window_stop_durable_ts = 0;
     stats->rec_time_window_stop_txn = 0;
     stats->session_compact = 0;
     stats->txn_read_race_prepare_commit = 0;
@@ -1174,27 +1174,27 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_pages_size_1GB_plus += from->rec_pages_size_1GB_plus;
     to->rec_page_delete += from->rec_page_delete;
     to->rec_time_aggr_newest_start_durable_ts += from->rec_time_aggr_newest_start_durable_ts;
+    to->rec_time_aggr_newest_stop_commit_ts += from->rec_time_aggr_newest_stop_commit_ts;
     to->rec_time_aggr_newest_stop_durable_ts += from->rec_time_aggr_newest_stop_durable_ts;
-    to->rec_time_aggr_newest_stop_ts += from->rec_time_aggr_newest_stop_ts;
     to->rec_time_aggr_newest_stop_txn += from->rec_time_aggr_newest_stop_txn;
     to->rec_time_aggr_newest_txn += from->rec_time_aggr_newest_txn;
-    to->rec_time_aggr_oldest_start_ts += from->rec_time_aggr_oldest_start_ts;
+    to->rec_time_aggr_oldest_start_commit_ts += from->rec_time_aggr_oldest_start_commit_ts;
     to->rec_time_aggr_prepared += from->rec_time_aggr_prepared;
     to->rec_time_window_pages_prepared += from->rec_time_window_pages_prepared;
-    to->rec_time_window_pages_durable_start_ts += from->rec_time_window_pages_durable_start_ts;
-    to->rec_time_window_pages_start_ts += from->rec_time_window_pages_start_ts;
+    to->rec_time_window_pages_start_commit_ts += from->rec_time_window_pages_start_commit_ts;
+    to->rec_time_window_pages_start_durable_ts += from->rec_time_window_pages_start_durable_ts;
     to->rec_time_window_pages_start_txn += from->rec_time_window_pages_start_txn;
-    to->rec_time_window_pages_durable_stop_ts += from->rec_time_window_pages_durable_stop_ts;
-    to->rec_time_window_pages_stop_ts += from->rec_time_window_pages_stop_ts;
+    to->rec_time_window_pages_stop_commit_ts += from->rec_time_window_pages_stop_commit_ts;
+    to->rec_time_window_pages_stop_durable_ts += from->rec_time_window_pages_stop_durable_ts;
     to->rec_time_window_pages_stop_txn += from->rec_time_window_pages_stop_txn;
     to->rec_pages_with_internal_deltas += from->rec_pages_with_internal_deltas;
     to->rec_pages_with_leaf_deltas += from->rec_pages_with_leaf_deltas;
     to->rec_time_window_prepared += from->rec_time_window_prepared;
-    to->rec_time_window_durable_start_ts += from->rec_time_window_durable_start_ts;
-    to->rec_time_window_start_ts += from->rec_time_window_start_ts;
+    to->rec_time_window_start_commit_ts += from->rec_time_window_start_commit_ts;
+    to->rec_time_window_start_durable_ts += from->rec_time_window_start_durable_ts;
     to->rec_time_window_start_txn += from->rec_time_window_start_txn;
-    to->rec_time_window_durable_stop_ts += from->rec_time_window_durable_stop_ts;
-    to->rec_time_window_stop_ts += from->rec_time_window_stop_ts;
+    to->rec_time_window_stop_commit_ts += from->rec_time_window_stop_commit_ts;
+    to->rec_time_window_stop_durable_ts += from->rec_time_window_stop_durable_ts;
     to->rec_time_window_stop_txn += from->rec_time_window_stop_txn;
     to->session_compact += from->session_compact;
     to->txn_read_race_prepare_commit += from->txn_read_race_prepare_commit;
@@ -1624,31 +1624,35 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_page_delete += WT_STAT_DSRC_READ(from, rec_page_delete);
     to->rec_time_aggr_newest_start_durable_ts +=
       WT_STAT_DSRC_READ(from, rec_time_aggr_newest_start_durable_ts);
+    to->rec_time_aggr_newest_stop_commit_ts +=
+      WT_STAT_DSRC_READ(from, rec_time_aggr_newest_stop_commit_ts);
     to->rec_time_aggr_newest_stop_durable_ts +=
       WT_STAT_DSRC_READ(from, rec_time_aggr_newest_stop_durable_ts);
-    to->rec_time_aggr_newest_stop_ts += WT_STAT_DSRC_READ(from, rec_time_aggr_newest_stop_ts);
     to->rec_time_aggr_newest_stop_txn += WT_STAT_DSRC_READ(from, rec_time_aggr_newest_stop_txn);
     to->rec_time_aggr_newest_txn += WT_STAT_DSRC_READ(from, rec_time_aggr_newest_txn);
-    to->rec_time_aggr_oldest_start_ts += WT_STAT_DSRC_READ(from, rec_time_aggr_oldest_start_ts);
+    to->rec_time_aggr_oldest_start_commit_ts +=
+      WT_STAT_DSRC_READ(from, rec_time_aggr_oldest_start_commit_ts);
     to->rec_time_aggr_prepared += WT_STAT_DSRC_READ(from, rec_time_aggr_prepared);
     to->rec_time_window_pages_prepared += WT_STAT_DSRC_READ(from, rec_time_window_pages_prepared);
-    to->rec_time_window_pages_durable_start_ts +=
-      WT_STAT_DSRC_READ(from, rec_time_window_pages_durable_start_ts);
-    to->rec_time_window_pages_start_ts += WT_STAT_DSRC_READ(from, rec_time_window_pages_start_ts);
+    to->rec_time_window_pages_start_commit_ts +=
+      WT_STAT_DSRC_READ(from, rec_time_window_pages_start_commit_ts);
+    to->rec_time_window_pages_start_durable_ts +=
+      WT_STAT_DSRC_READ(from, rec_time_window_pages_start_durable_ts);
     to->rec_time_window_pages_start_txn += WT_STAT_DSRC_READ(from, rec_time_window_pages_start_txn);
-    to->rec_time_window_pages_durable_stop_ts +=
-      WT_STAT_DSRC_READ(from, rec_time_window_pages_durable_stop_ts);
-    to->rec_time_window_pages_stop_ts += WT_STAT_DSRC_READ(from, rec_time_window_pages_stop_ts);
+    to->rec_time_window_pages_stop_commit_ts +=
+      WT_STAT_DSRC_READ(from, rec_time_window_pages_stop_commit_ts);
+    to->rec_time_window_pages_stop_durable_ts +=
+      WT_STAT_DSRC_READ(from, rec_time_window_pages_stop_durable_ts);
     to->rec_time_window_pages_stop_txn += WT_STAT_DSRC_READ(from, rec_time_window_pages_stop_txn);
     to->rec_pages_with_internal_deltas += WT_STAT_DSRC_READ(from, rec_pages_with_internal_deltas);
     to->rec_pages_with_leaf_deltas += WT_STAT_DSRC_READ(from, rec_pages_with_leaf_deltas);
     to->rec_time_window_prepared += WT_STAT_DSRC_READ(from, rec_time_window_prepared);
-    to->rec_time_window_durable_start_ts +=
-      WT_STAT_DSRC_READ(from, rec_time_window_durable_start_ts);
-    to->rec_time_window_start_ts += WT_STAT_DSRC_READ(from, rec_time_window_start_ts);
+    to->rec_time_window_start_commit_ts += WT_STAT_DSRC_READ(from, rec_time_window_start_commit_ts);
+    to->rec_time_window_start_durable_ts +=
+      WT_STAT_DSRC_READ(from, rec_time_window_start_durable_ts);
     to->rec_time_window_start_txn += WT_STAT_DSRC_READ(from, rec_time_window_start_txn);
-    to->rec_time_window_durable_stop_ts += WT_STAT_DSRC_READ(from, rec_time_window_durable_stop_ts);
-    to->rec_time_window_stop_ts += WT_STAT_DSRC_READ(from, rec_time_window_stop_ts);
+    to->rec_time_window_stop_commit_ts += WT_STAT_DSRC_READ(from, rec_time_window_stop_commit_ts);
+    to->rec_time_window_stop_durable_ts += WT_STAT_DSRC_READ(from, rec_time_window_stop_durable_ts);
     to->rec_time_window_stop_txn += WT_STAT_DSRC_READ(from, rec_time_window_stop_txn);
     to->session_compact += WT_STAT_DSRC_READ(from, session_compact);
     to->txn_read_race_prepare_commit += WT_STAT_DSRC_READ(from, txn_read_race_prepare_commit);
@@ -2474,27 +2478,27 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: page reconciliation calls that resulted in values with transaction ids",
   "reconciliation: pages deleted",
   "reconciliation: pages written including an aggregated newest start durable timestamp ",
+  "reconciliation: pages written including an aggregated newest stop commit_timestamp ",
   "reconciliation: pages written including an aggregated newest stop durable timestamp ",
-  "reconciliation: pages written including an aggregated newest stop timestamp ",
   "reconciliation: pages written including an aggregated newest stop transaction ID",
   "reconciliation: pages written including an aggregated newest transaction ID ",
-  "reconciliation: pages written including an aggregated oldest start timestamp ",
+  "reconciliation: pages written including an aggregated oldest start commit timestamp ",
   "reconciliation: pages written including an aggregated prepare",
   "reconciliation: pages written including at least one prepare state",
+  "reconciliation: pages written including at least one start commit timestamp",
   "reconciliation: pages written including at least one start durable timestamp",
-  "reconciliation: pages written including at least one start timestamp",
   "reconciliation: pages written including at least one start transaction ID",
+  "reconciliation: pages written including at least one stop commit timestamp",
   "reconciliation: pages written including at least one stop durable timestamp",
-  "reconciliation: pages written including at least one stop timestamp",
   "reconciliation: pages written including at least one stop transaction ID",
   "reconciliation: pages written with at least one internal page delta",
   "reconciliation: pages written with at least one leaf page delta",
   "reconciliation: records written including a prepare state",
+  "reconciliation: records written including a start commit timestamp",
   "reconciliation: records written including a start durable timestamp",
-  "reconciliation: records written including a start timestamp",
   "reconciliation: records written including a start transaction ID",
+  "reconciliation: records written including a stop commit timestamp",
   "reconciliation: records written including a stop durable timestamp",
-  "reconciliation: records written including a stop timestamp",
   "reconciliation: records written including a stop transaction ID",
   "reconciliation: split bytes currently awaiting free",
   "reconciliation: split objects currently awaiting free",
@@ -3422,27 +3426,27 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_pages_with_txn = 0;
     stats->rec_page_delete = 0;
     stats->rec_time_aggr_newest_start_durable_ts = 0;
+    stats->rec_time_aggr_newest_stop_commit_ts = 0;
     stats->rec_time_aggr_newest_stop_durable_ts = 0;
-    stats->rec_time_aggr_newest_stop_ts = 0;
     stats->rec_time_aggr_newest_stop_txn = 0;
     stats->rec_time_aggr_newest_txn = 0;
-    stats->rec_time_aggr_oldest_start_ts = 0;
+    stats->rec_time_aggr_oldest_start_commit_ts = 0;
     stats->rec_time_aggr_prepared = 0;
     stats->rec_time_window_pages_prepared = 0;
-    stats->rec_time_window_pages_durable_start_ts = 0;
-    stats->rec_time_window_pages_start_ts = 0;
+    stats->rec_time_window_pages_start_commit_ts = 0;
+    stats->rec_time_window_pages_start_durable_ts = 0;
     stats->rec_time_window_pages_start_txn = 0;
-    stats->rec_time_window_pages_durable_stop_ts = 0;
-    stats->rec_time_window_pages_stop_ts = 0;
+    stats->rec_time_window_pages_stop_commit_ts = 0;
+    stats->rec_time_window_pages_stop_durable_ts = 0;
     stats->rec_time_window_pages_stop_txn = 0;
     stats->rec_pages_with_internal_deltas = 0;
     stats->rec_pages_with_leaf_deltas = 0;
     stats->rec_time_window_prepared = 0;
-    stats->rec_time_window_durable_start_ts = 0;
-    stats->rec_time_window_start_ts = 0;
+    stats->rec_time_window_start_commit_ts = 0;
+    stats->rec_time_window_start_durable_ts = 0;
     stats->rec_time_window_start_txn = 0;
-    stats->rec_time_window_durable_stop_ts = 0;
-    stats->rec_time_window_stop_ts = 0;
+    stats->rec_time_window_stop_commit_ts = 0;
+    stats->rec_time_window_stop_durable_ts = 0;
     stats->rec_time_window_stop_txn = 0;
     /* not clearing rec_split_stashed_bytes */
     /* not clearing rec_split_stashed_objects */
@@ -4529,31 +4533,35 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_page_delete += WT_STAT_CONN_READ(from, rec_page_delete);
     to->rec_time_aggr_newest_start_durable_ts +=
       WT_STAT_CONN_READ(from, rec_time_aggr_newest_start_durable_ts);
+    to->rec_time_aggr_newest_stop_commit_ts +=
+      WT_STAT_CONN_READ(from, rec_time_aggr_newest_stop_commit_ts);
     to->rec_time_aggr_newest_stop_durable_ts +=
       WT_STAT_CONN_READ(from, rec_time_aggr_newest_stop_durable_ts);
-    to->rec_time_aggr_newest_stop_ts += WT_STAT_CONN_READ(from, rec_time_aggr_newest_stop_ts);
     to->rec_time_aggr_newest_stop_txn += WT_STAT_CONN_READ(from, rec_time_aggr_newest_stop_txn);
     to->rec_time_aggr_newest_txn += WT_STAT_CONN_READ(from, rec_time_aggr_newest_txn);
-    to->rec_time_aggr_oldest_start_ts += WT_STAT_CONN_READ(from, rec_time_aggr_oldest_start_ts);
+    to->rec_time_aggr_oldest_start_commit_ts +=
+      WT_STAT_CONN_READ(from, rec_time_aggr_oldest_start_commit_ts);
     to->rec_time_aggr_prepared += WT_STAT_CONN_READ(from, rec_time_aggr_prepared);
     to->rec_time_window_pages_prepared += WT_STAT_CONN_READ(from, rec_time_window_pages_prepared);
-    to->rec_time_window_pages_durable_start_ts +=
-      WT_STAT_CONN_READ(from, rec_time_window_pages_durable_start_ts);
-    to->rec_time_window_pages_start_ts += WT_STAT_CONN_READ(from, rec_time_window_pages_start_ts);
+    to->rec_time_window_pages_start_commit_ts +=
+      WT_STAT_CONN_READ(from, rec_time_window_pages_start_commit_ts);
+    to->rec_time_window_pages_start_durable_ts +=
+      WT_STAT_CONN_READ(from, rec_time_window_pages_start_durable_ts);
     to->rec_time_window_pages_start_txn += WT_STAT_CONN_READ(from, rec_time_window_pages_start_txn);
-    to->rec_time_window_pages_durable_stop_ts +=
-      WT_STAT_CONN_READ(from, rec_time_window_pages_durable_stop_ts);
-    to->rec_time_window_pages_stop_ts += WT_STAT_CONN_READ(from, rec_time_window_pages_stop_ts);
+    to->rec_time_window_pages_stop_commit_ts +=
+      WT_STAT_CONN_READ(from, rec_time_window_pages_stop_commit_ts);
+    to->rec_time_window_pages_stop_durable_ts +=
+      WT_STAT_CONN_READ(from, rec_time_window_pages_stop_durable_ts);
     to->rec_time_window_pages_stop_txn += WT_STAT_CONN_READ(from, rec_time_window_pages_stop_txn);
     to->rec_pages_with_internal_deltas += WT_STAT_CONN_READ(from, rec_pages_with_internal_deltas);
     to->rec_pages_with_leaf_deltas += WT_STAT_CONN_READ(from, rec_pages_with_leaf_deltas);
     to->rec_time_window_prepared += WT_STAT_CONN_READ(from, rec_time_window_prepared);
-    to->rec_time_window_durable_start_ts +=
-      WT_STAT_CONN_READ(from, rec_time_window_durable_start_ts);
-    to->rec_time_window_start_ts += WT_STAT_CONN_READ(from, rec_time_window_start_ts);
+    to->rec_time_window_start_commit_ts += WT_STAT_CONN_READ(from, rec_time_window_start_commit_ts);
+    to->rec_time_window_start_durable_ts +=
+      WT_STAT_CONN_READ(from, rec_time_window_start_durable_ts);
     to->rec_time_window_start_txn += WT_STAT_CONN_READ(from, rec_time_window_start_txn);
-    to->rec_time_window_durable_stop_ts += WT_STAT_CONN_READ(from, rec_time_window_durable_stop_ts);
-    to->rec_time_window_stop_ts += WT_STAT_CONN_READ(from, rec_time_window_stop_ts);
+    to->rec_time_window_stop_commit_ts += WT_STAT_CONN_READ(from, rec_time_window_stop_commit_ts);
+    to->rec_time_window_stop_durable_ts += WT_STAT_CONN_READ(from, rec_time_window_stop_durable_ts);
     to->rec_time_window_stop_txn += WT_STAT_CONN_READ(from, rec_time_window_stop_txn);
     to->rec_split_stashed_bytes += WT_STAT_CONN_READ(from, rec_split_stashed_bytes);
     to->rec_split_stashed_objects += WT_STAT_CONN_READ(from, rec_split_stashed_objects);

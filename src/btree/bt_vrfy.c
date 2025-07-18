@@ -1193,8 +1193,8 @@ __verify_page_content_int(
                   __verify_addr_string(session, ref, vs->tmp1));
 
             if (vs->stable_timestamp != WT_TS_NONE)
-                WT_RET(__verify_ts_stable_cmp(
-                  session, NULL, ref, cell_num - 1, ta->oldest_start_ts, ta->newest_stop_ts, vs));
+                WT_RET(__verify_ts_stable_cmp(session, NULL, ref, cell_num - 1,
+                  ta->oldest_start_commit_ts, ta->newest_stop_commit_ts, vs));
             break;
         }
     }
@@ -1259,10 +1259,10 @@ __verify_page_content_fix(
                   __verify_addr_string(session, ref, vs->tmp1));
 
             if (vs->stable_timestamp != WT_TS_NONE)
-                WT_RET(__verify_ts_stable_cmp(
-                  session, NULL, ref, cell_num, unpack.tw.start_ts, unpack.tw.stop_ts, vs));
+                WT_RET(__verify_ts_stable_cmp(session, NULL, ref, cell_num,
+                  unpack.tw.start_commit_ts, unpack.tw.stop_commit_ts, vs));
 
-            start_ts = unpack.tw.start_ts;
+            start_ts = unpack.tw.start_commit_ts;
             tw++;
         } else
             start_ts = WT_TS_NONE;
@@ -1348,7 +1348,7 @@ __verify_page_content_leaf(
 
             if (vs->stable_timestamp != WT_TS_NONE)
                 WT_RET(__verify_ts_stable_cmp(
-                  session, NULL, ref, cell_num - 1, tw->start_ts, tw->stop_ts, vs));
+                  session, NULL, ref, cell_num - 1, tw->start_commit_ts, tw->stop_commit_ts, vs));
             break;
         }
 
@@ -1359,13 +1359,13 @@ __verify_page_content_leaf(
                 continue;
 
             WT_RET(__wt_row_leaf_key(session, page, rip++, vs->tmp1, false));
-            WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
+            WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_commit_ts, vs));
         } else if (page->type == WT_PAGE_COL_VAR) {
             rle = __wt_cell_rle(&unpack);
             p = vs->tmp1->mem;
             WT_RET(__wt_vpack_uint(&p, 0, recno));
             vs->tmp1->size = WT_PTRDIFF(p, vs->tmp1->mem);
-            WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
+            WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_commit_ts, vs));
 
             recno += rle;
             vs->records_so_far += rle;

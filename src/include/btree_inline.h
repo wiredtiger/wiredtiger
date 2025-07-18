@@ -1595,7 +1595,7 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
         else {
             /* It's a legacy page; create default delete information. */
             copy->del.txnid = WT_TXN_NONE;
-            copy->del.pg_del_start_ts = copy->del.pg_del_durable_ts = WT_TS_NONE;
+            copy->del.pg_del_commit_ts = copy->del.pg_del_durable_ts = WT_TS_NONE;
             copy->del.prepare_state = 0;
             copy->del.committed = true;
         }
@@ -1723,7 +1723,7 @@ __wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool 
     }
 
     return (__wt_txn_visible(
-      session, page_del->txnid, page_del->pg_del_start_ts, page_del->pg_del_durable_ts));
+      session, page_del->txnid, page_del->pg_del_commit_ts, page_del->pg_del_durable_ts));
 }
 
 /*
@@ -2445,14 +2445,14 @@ __wt_btcur_skip_page(
          * point added to the page during the last reconciliation.
          */
         if (WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) &&
-          __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
+          __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_commit_ts,
             addr.ta.newest_stop_durable_ts)) {
             *skipp = true;
             walk_skip_stats->total_del_pages_skipped++;
         }
     } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) &&
       __wt_txn_snap_min_visible(
-        session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
+        session, ta->newest_stop_txn, ta->newest_stop_commit_ts, ta->newest_stop_durable_ts)) {
         /*
          * If the reader can see all of the deleted content, they can skip a deleted clean page.
          * Before determining whether the deleted page is visible, copy the stop time aggregate

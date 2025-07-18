@@ -1158,7 +1158,7 @@ struct __wt_page_deleted {
     union {
         struct {
             wt_timestamp_t durable_ts; /* timestamps */
-            wt_timestamp_t start_ts;
+            wt_timestamp_t commit_ts;
         } commit;
 
         struct {
@@ -1168,7 +1168,7 @@ struct __wt_page_deleted {
     } u;
 
 #define pg_del_durable_ts u.commit.durable_ts
-#define pg_del_start_ts u.commit.start_ts
+#define pg_del_commit_ts u.commit.commit_ts
 #define pg_del_rollback_ts u.prepare_rollback.rollback_ts
 #define pg_del_saved_txnid u.prepare_rollback.saved_txnid
 
@@ -1592,7 +1592,7 @@ struct __wt_update {
     union {
         struct {
             wt_timestamp_t durable_ts; /* timestamps */
-            wt_timestamp_t start_ts;
+            wt_timestamp_t commit_ts;
         } commit;
 
         struct {
@@ -1603,8 +1603,8 @@ struct __wt_update {
 
 #undef upd_durable_ts
 #define upd_durable_ts u.commit.durable_ts
-#undef upd_start_ts
-#define upd_start_ts u.commit.start_ts
+#undef upd_commit_ts
+#define upd_commit_ts u.commit.commit_ts
 #undef upd_rollback_ts
 #define upd_rollback_ts u.prepare_rollback.rollback_ts
 #undef upd_saved_txnid

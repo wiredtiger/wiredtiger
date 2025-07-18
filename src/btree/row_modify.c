@@ -161,10 +161,10 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
                 (*upd_entry == NULL ||
                   ((*upd_entry)->type == WT_UPDATE_TOMBSTONE &&
                     (((*upd_entry)->txnid == WT_TXN_NONE &&
-                       (*upd_entry)->upd_start_ts == WT_TS_NONE) ||
+                       (*upd_entry)->upd_commit_ts == WT_TS_NONE) ||
                       ((*upd_entry)->txnid == WT_TXN_ABORTED &&
                         (*upd_entry)->next->txnid == WT_TXN_ABORTED)))) ||
-                (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->upd_start_ts == WT_TS_NONE &&
+                (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->upd_commit_ts == WT_TS_NONE &&
                   upd_arg->next == NULL) ||
                 (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->next != NULL &&
                   upd_arg->next->type == WT_UPDATE_STANDARD && upd_arg->next->next == NULL));
@@ -401,7 +401,7 @@ __wt_update_obsolete_check(
          * prepare transaction rollback and not from RTS, because there are no concurrent operations
          * run in parallel to the RTS to be affected.
          */
-        if (upd->txnid == WT_TXN_NONE && upd->upd_start_ts == WT_TS_NONE &&
+        if (upd->txnid == WT_TXN_NONE && upd->upd_commit_ts == WT_TS_NONE &&
           upd->type == WT_UPDATE_TOMBSTONE && upd->next != NULL &&
           upd->next->txnid == WT_TXN_ABORTED && upd->next->prepare_state == WT_PREPARE_INPROGRESS)
             continue;

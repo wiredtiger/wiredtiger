@@ -33,9 +33,9 @@
  */
 #define WTI_REC_TW_START_VISIBLE_ALL(r, tw)          \
     (((tw)->start_txn < (r)->rec_start_oldest_id) && \
-      ((tw)->durable_start_ts == WT_TS_NONE ||       \
+      ((tw)->start_durable_ts == WT_TS_NONE ||       \
         ((r)->rec_start_pinned_ts != WT_TS_NONE &&   \
-          (tw)->durable_start_ts <= (r)->rec_start_pinned_ts)))
+          (tw)->start_durable_ts <= (r)->rec_start_pinned_ts)))
 
 /*
  * WTI_CHILD_MODIFY_STATE --
@@ -290,21 +290,21 @@ struct __wti_reconcile {
      * is written to disk. The number of entries on a page is limited to a 32 bit number so these
      * counters can be too.
      */
-    uint32_t count_durable_start_ts;
-    uint32_t count_start_ts;
+    uint32_t count_start_durable_ts;
+    uint32_t count_start_commit_ts;
     uint32_t count_start_txn;
-    uint32_t count_durable_stop_ts;
-    uint32_t count_stop_ts;
+    uint32_t count_stop_durable_ts;
+    uint32_t count_stop_commit_ts;
     uint32_t count_stop_txn;
     uint32_t count_prepare;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WTI_REC_TIME_NEWEST_START_DURABLE_TS 0x01u
-#define WTI_REC_TIME_NEWEST_STOP_DURABLE_TS 0x02u
-#define WTI_REC_TIME_NEWEST_STOP_TS 0x04u
+#define WTI_REC_TIME_NEWEST_STOP_COMMIT_TS 0x02u
+#define WTI_REC_TIME_NEWEST_STOP_DURABLE_TS 0x04u
 #define WTI_REC_TIME_NEWEST_STOP_TXN 0x08u
 #define WTI_REC_TIME_NEWEST_TXN 0x10u
-#define WTI_REC_TIME_OLDEST_START_TS 0x20u
+#define WTI_REC_TIME_OLDEST_START_COMMIT_TS 0x20u
 #define WTI_REC_TIME_PREPARE 0x40u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t ts_usage_flags;

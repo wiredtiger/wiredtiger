@@ -756,9 +756,9 @@ __assert_ckpt_matches(WT_SESSION_IMPL *session, WT_CKPT *ckpt_a, WT_CKPT *ckpt_b
     WT_ASSERT_ALWAYS(session,
       ckpt_a->ta.newest_start_durable_ts == ckpt_b->ta.newest_start_durable_ts &&
         ckpt_a->ta.newest_stop_durable_ts == ckpt_b->ta.newest_stop_durable_ts &&
-        ckpt_a->ta.oldest_start_ts == ckpt_b->ta.oldest_start_ts &&
+        ckpt_a->ta.oldest_start_commit_ts == ckpt_b->ta.oldest_start_commit_ts &&
         ckpt_a->ta.newest_txn == ckpt_b->ta.newest_txn &&
-        ckpt_a->ta.newest_stop_ts == ckpt_b->ta.newest_stop_ts &&
+        ckpt_a->ta.newest_stop_commit_ts == ckpt_b->ta.newest_stop_commit_ts &&
         ckpt_a->ta.newest_stop_txn == ckpt_b->ta.newest_stop_txn &&
         ckpt_a->ta.prepare == ckpt_b->ta.prepare,
       "Checkpoint metadata mismatch in __assert_ckpt_matches");
@@ -972,7 +972,7 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     ret = __wt_config_subgets(session, v, "oldest_start_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
     if (ret != WT_NOTFOUND && a.len != 0)
-        ckpt->ta.oldest_start_ts = (uint64_t)a.val;
+        ckpt->ta.oldest_start_commit_ts = (uint64_t)a.val;
 
     ret = __wt_config_subgets(session, v, "newest_txn", &a);
     WT_RET_NOTFOUND_OK(ret);
@@ -997,7 +997,7 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     ret = __wt_config_subgets(session, v, "newest_stop_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
     if (ret != WT_NOTFOUND && a.len != 0)
-        ckpt->ta.newest_stop_ts = (uint64_t)a.val;
+        ckpt->ta.newest_stop_commit_ts = (uint64_t)a.val;
 
     ret = __wt_config_subgets(session, v, "newest_stop_txn", &a);
     WT_RET_NOTFOUND_OK(ret);
@@ -1180,8 +1180,8 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
           ",prepare=%d,write_gen=%" PRId64 ",run_write_gen=%" PRId64 ",next_page_id=%" PRId64 ")",
           (int)ckpt->addr.size, (char *)ckpt->addr.data, ckpt->order, ckpt->sec,
           (int64_t)ckpt->size, (int64_t)ckpt->ta.newest_start_durable_ts,
-          (int64_t)ckpt->ta.oldest_start_ts, (int64_t)ckpt->ta.newest_txn,
-          (int64_t)ckpt->ta.newest_stop_durable_ts, (int64_t)ckpt->ta.newest_stop_ts,
+          (int64_t)ckpt->ta.oldest_start_commit_ts, (int64_t)ckpt->ta.newest_txn,
+          (int64_t)ckpt->ta.newest_stop_durable_ts, (int64_t)ckpt->ta.newest_stop_commit_ts,
           (int64_t)ckpt->ta.newest_stop_txn, (int)ckpt->ta.prepare, (int64_t)ckpt->write_gen,
           (int64_t)ckpt->run_write_gen, (int64_t)ckpt->next_page_id));
     }

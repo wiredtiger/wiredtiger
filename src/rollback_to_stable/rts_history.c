@@ -56,7 +56,7 @@ __wti_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp
          * Remove all history store versions with a stop timestamp greater than the start/stop
          * timestamp of a stable update in the data store.
          */
-        if (hs_tw->stop_ts <= ts)
+        if (hs_tw->stop_commit_ts <= ts)
             break;
 
         if (!dryrun) {
@@ -64,7 +64,7 @@ __wti_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp
               WT_RTS_VERB_TAG_HS_UPDATE_REMOVE "deleting history store update for btree_id=%" PRIu32
                                                "with update stop_timestamp=%s greater than "
                                                "stable_timestamp=%s, time_window=%s",
-              btree_id, __wt_timestamp_to_string(hs_tw->stop_ts, ts_string[0]),
+              btree_id, __wt_timestamp_to_string(hs_tw->stop_commit_ts, ts_string[0]),
               __wt_timestamp_to_string(ts, ts_string[1]),
               __wt_time_window_to_string(hs_tw, tw_string));
             WT_ERR(hs_cursor->remove(hs_cursor));
@@ -76,7 +76,7 @@ __wti_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp
          * The globally visible start time windows are cleared during history store reconciliation.
          * Treat them also as a stable entry removal from the history store.
          */
-        if (hs_tw->start_ts == ts || hs_tw->start_ts == WT_TS_NONE)
+        if (hs_tw->start_commit_ts == ts || hs_tw->start_commit_ts == WT_TS_NONE)
             WT_RTS_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
         else
             WT_RTS_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_unstable);

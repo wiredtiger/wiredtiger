@@ -121,9 +121,9 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
         WT_RET(__wt_calloc_one(session, &addr));
         addr->ta.newest_start_durable_ts = unpack.ta.newest_start_durable_ts;
         addr->ta.newest_stop_durable_ts = unpack.ta.newest_stop_durable_ts;
-        addr->ta.oldest_start_ts = unpack.ta.oldest_start_ts;
+        addr->ta.oldest_start_commit_ts = unpack.ta.oldest_start_commit_ts;
         addr->ta.newest_txn = unpack.ta.newest_txn;
-        addr->ta.newest_stop_ts = unpack.ta.newest_stop_ts;
+        addr->ta.newest_stop_commit_ts = unpack.ta.newest_stop_commit_ts;
         addr->ta.newest_stop_txn = unpack.ta.newest_stop_txn;
         switch (unpack.raw) {
         case WT_CELL_ADDR_DEL:

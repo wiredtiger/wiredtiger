@@ -612,11 +612,11 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
      * tempted to check the time window against the default here - the check is subtly different due
      * to the grouping.
      *
-     * tw->start_ts == WT_TS_NONE && tw->start_txn == WT_TXN_NONE is a simpler check and can bypass
-     * evaluating the more expensive __wt_txn_tw_start_visible_all check.
+     * tw->start_commit_ts == WT_TS_NONE && tw->start_txn == WT_TXN_NONE is a simpler check and can
+     * bypass evaluating the more expensive __wt_txn_tw_start_visible_all check.
      */
     return (!WT_TIME_WINDOW_HAS_STOP(tw) &&
-      ((tw->start_ts == WT_TS_NONE && tw->start_txn == WT_TXN_NONE) ||
+      ((tw->start_commit_ts == WT_TS_NONE && tw->start_txn == WT_TXN_NONE) ||
         __wt_txn_tw_start_visible_all(session, tw)));
 }
 
@@ -1005,14 +1005,14 @@ __wti_rec_row_leaf(
                 if (WT_TIME_WINDOW_HAS_STOP(twp)) {
                     if (WT_TXNID_LT(twp->stop_txn, r->last_running) &&
                       r->rec_prune_timestamp != WT_TS_NONE &&
-                      twp->durable_stop_ts <= r->rec_prune_timestamp) {
+                      twp->stop_durable_ts <= r->rec_prune_timestamp) {
                         upd = &upd_tombstone;
                         WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
                     }
                 } else {
                     if (WT_TXNID_LT(twp->start_txn, r->last_running) &&
                       r->rec_prune_timestamp != WT_TS_NONE &&
-                      twp->durable_start_ts <= r->rec_prune_timestamp) {
+                      twp->start_durable_ts <= r->rec_prune_timestamp) {
                         upd = &upd_tombstone;
                         WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
                     }
@@ -1082,7 +1082,7 @@ __wti_rec_row_leaf(
                 (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
                   WT_TXNID_LT(twp->start_txn, r->last_running) &&
                   r->rec_prune_timestamp != WT_TS_NONE &&
-                  twp->durable_start_ts <= r->rec_prune_timestamp));
+                  twp->start_durable_ts <= r->rec_prune_timestamp));
 
             /* The first time we find an overflow record, discard the underlying blocks. */
             if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)
