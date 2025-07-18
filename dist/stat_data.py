@@ -1056,8 +1056,6 @@ dsrc_stats = [
     # Reconciliation statistics
     ##########################################
     RecStat('rec_dictionary', 'dictionary matches'),
-    RecStat('rec_multiblock_internal', 'internal page multi-block writes'),
-    RecStat('rec_multiblock_leaf', 'leaf page multi-block writes'),
     RecStat('rec_multiblock_max', 'maximum blocks required for a page', 'max_aggregate,no_scale'),
     RecStat('rec_prefix_compression', 'leaf page key bytes discarded using prefix compression', 'size'),
     RecStat('rec_suffix_compression', 'internal page key bytes discarded using suffix compression', 'size'),
@@ -1300,6 +1298,8 @@ conn_dsrc_stats = [
     RecStat('rec_ingest_garbage_collection_keys', 'number of keys that are garbage collected in the ingest table for disaggregated storage'),
     RecStat('rec_max_internal_page_deltas', 'max deltas seen on internal page during reconciliation'),
     RecStat('rec_max_leaf_page_deltas', 'max deltas seen on leaf page during reconciliation'),
+    RecStat('rec_multiblock_internal', 'internal page multi-block writes'),
+    RecStat('rec_multiblock_leaf', 'leaf page multi-block writes'),
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
     RecStat('rec_overflow_value', 'overflow values written'),
     RecStat('rec_page_delete', 'pages deleted'),
