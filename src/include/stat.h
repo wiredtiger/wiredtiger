@@ -609,6 +609,7 @@ struct __wt_connection_stats {
     int64_t cache_hazard_checks;
     int64_t cache_hazard_walks;
     int64_t cache_hazard_max;
+    int64_t cache_eviction_hs_cursor_not_cached;
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
     int64_t cache_hs_ondisk_max;
@@ -699,6 +700,7 @@ struct __wt_connection_stats {
     int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
+    int64_t cache_eviction_hs_shared_cursor_not_cached;
     int64_t cache_read_delta_updates;
     int64_t cache_read_restored_tombstone_bytes;
     int64_t cache_hs_insert_full_update;
@@ -1405,6 +1407,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_target_page_lt128;
     int64_t cache_eviction_target_page_reduced;
     int64_t cache_eviction_blocked_hazard;
+    int64_t cache_eviction_hs_cursor_not_cached;
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
     int64_t cache_hs_read;
@@ -1464,6 +1467,7 @@ struct __wt_dsrc_stats {
     int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
+    int64_t cache_eviction_hs_shared_cursor_not_cached;
     int64_t cache_read_delta_updates;
     int64_t cache_read_restored_tombstone_bytes;
     int64_t cache_hs_insert_full_update;

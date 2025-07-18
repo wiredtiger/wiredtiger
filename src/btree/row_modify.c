@@ -160,12 +160,13 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
               !WT_IS_HS(btree->dhandle) ||
                 (*upd_entry == NULL ||
                   ((*upd_entry)->type == WT_UPDATE_TOMBSTONE &&
-                    (((*upd_entry)->txnid == WT_TXN_NONE && (*upd_entry)->start_ts == WT_TS_NONE) ||
+                    (((*upd_entry)->txnid == WT_TXN_NONE &&
+                       (*upd_entry)->upd_start_ts == WT_TS_NONE) ||
                       __wt_txn_visible_all(
-                        session, (*upd_entry)->txnid, (*upd_entry)->durable_ts) ||
+                        session, (*upd_entry)->txnid, (*upd_entry)->upd_durable_ts) ||
                       ((*upd_entry)->txnid == WT_TXN_ABORTED &&
                         (*upd_entry)->next->txnid == WT_TXN_ABORTED)))) ||
-                (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->start_ts == WT_TS_NONE &&
+                (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->upd_start_ts == WT_TS_NONE &&
                   upd_arg->next == NULL) ||
                 (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->next != NULL &&
                   upd_arg->next->type == WT_UPDATE_STANDARD && upd_arg->next->next == NULL));
