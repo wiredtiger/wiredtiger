@@ -67,6 +67,39 @@ err:
 }
 
 /*
+ * __schema_layered_worker --
+ *     Run a schema worker operation on both ingest and stable tables.
+ */
+static int
+__schema_layered_worker(WT_SESSION_IMPL *session, const char *uri,
+  int (*file_func)(WT_SESSION_IMPL *, const char *[]),
+  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], uint32_t open_flags)
+{
+    WT_DECL_RET;
+    WT_LAYERED_TABLE *layered;
+
+    /* Q: SHOULD WE PASS NULL OR cfg AS AN ARG HERE? __wt_clayered_open passes cfg, but here we pass NULL in other places */
+    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags)); // -> RETURN NOT FOUND NOW !!! CHECK WHETHER IT ALWAYS CREATES A NEW HANDLE WHEN IT DOESN'T FOUND ONE
+    layered = (WT_LAYERED_TABLE *)session->dhandle;
+
+    WT_ASSERT_ALWAYS(session, layered->ingest_uri != NULL, "ingest URI is not set"); // REMOVE _ALWAYS
+    WT_ASSERT_ALWAYS(session, layered->stable_uri != NULL, "stable URI is not set"); // REMOVE _ALWAYS
+
+    WT_WITHOUT_DHANDLE(session,
+      ret = __wt_schema_worker(session, layered->stable_uri, file_func, name_func, cfg, open_flags));
+    WT_ERR(ret);
+
+    /* TODO-DON'T-MERGE: Disable ingest verification since it's always empty/dirty ??? */
+    WT_WITHOUT_DHANDLE(session,
+      ret = __wt_schema_worker(session, layered->ingest_uri, file_func, name_func, cfg, open_flags));
+    WT_ERR(ret);
+
+err:
+    WT_TRET(__wt_session_release_dhandle(session));
+    return (ret);
+}
+
+/*
  * __wt_schema_worker --
  *     Get Btree handles for the object and cycle through calls to an underlying worker function
  *     with each handle.
@@ -160,6 +193,9 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
                 WT_ERR(
                   __wt_schema_worker(session, idx->source, file_func, name_func, cfg, open_flags));
         }
+    } else if (WT_PREFIX_MATCH(uri, "layered:") && file_func == __wt_verify) {
+        /* Currently only the verify flow is supported for layered tables. */
+        WT_ERR(__schema_layered_worker(session, uri, file_func, name_func, cfg, open_flags));
     } else if (WT_PREFIX_MATCH(uri, "tiered:")) {
         WT_ERR(__schema_tiered_worker(session, uri, file_func, name_func, cfg, open_flags));
     } else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL) {
