@@ -38,16 +38,24 @@ __rec_cell_addr_stats(WTI_RECONCILE *r, WT_TIME_AGGREGATE *ta)
 static WT_INLINE void
 __rec_cell_tw_stats(WTI_RECONCILE *r, WT_TIME_WINDOW *tw)
 {
-    if (tw->start_durable_ts != WT_TS_NONE)
-        ++r->count_start_durable_ts;
     if (tw->start_commit_ts != WT_TS_NONE)
         ++r->count_start_commit_ts;
+    if (tw->start_durable_ts != WT_TS_NONE)
+        ++r->count_start_durable_ts;
+    if (tw->start_prepare_ts != WT_TS_NONE)
+        ++r->count_start_prepare_ts;
+    if (tw->start_prepared_id != WT_PREPARED_ID_NONE)
+        ++r->count_start_prepared_id;
     if (tw->start_txn != WT_TXN_NONE)
         ++r->count_start_txn;
-    if (tw->stop_durable_ts != WT_TS_NONE)
-        ++r->count_stop_durable_ts;
     if (tw->stop_commit_ts != WT_TS_MAX)
         ++r->count_stop_commit_ts;
+    if (tw->stop_durable_ts != WT_TS_NONE)
+        ++r->count_stop_durable_ts;
+    if (tw->stop_prepare_ts != WT_TS_NONE)
+        ++r->count_stop_prepare_ts;
+    if (tw->stop_prepared_id != WT_PREPARED_ID_NONE)
+        ++r->count_stop_prepared_id;
     if (tw->stop_txn != WT_TXN_MAX)
         ++r->count_stop_txn;
     if (tw->prepare)
@@ -61,11 +69,15 @@ __rec_cell_tw_stats(WTI_RECONCILE *r, WT_TIME_WINDOW *tw)
 static WT_INLINE void
 __rec_page_time_stats_clear(WTI_RECONCILE *r)
 {
-    r->count_start_durable_ts = 0;
     r->count_start_commit_ts = 0;
+    r->count_start_durable_ts = 0;
+    r->count_start_prepare_ts = 0;
+    r->count_start_prepared_id = 0;
     r->count_start_txn = 0;
-    r->count_stop_durable_ts = 0;
     r->count_stop_commit_ts = 0;
+    r->count_stop_durable_ts = 0;
+    r->count_stop_prepare_ts = 0;
+    r->count_stop_prepared_id = 0;
     r->count_stop_txn = 0;
     r->count_prepare = 0;
 
@@ -80,6 +92,13 @@ static WT_INLINE void
 __rec_page_time_stats(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     /* Time window statistics */
+    if (r->count_start_commit_ts != 0) {
+        WT_STAT_CONN_DSRC_INCRV(
+          session, rec_time_window_bytes_ts, r->count_start_commit_ts * sizeof(wt_timestamp_t));
+        WT_STAT_CONN_DSRC_INCRV(session, rec_time_window_start_commit_ts, r->count_start_commit_ts);
+        WT_STAT_CONN_DSRC_INCR(session, rec_time_window_pages_start_commit_ts);
+        r->rec_page_cell_with_ts = true;
+    }
     if (r->count_start_durable_ts != 0) {
         WT_STAT_CONN_DSRC_INCR(session, rec_time_window_pages_start_durable_ts);
         WT_STAT_CONN_DSRC_INCRV(
@@ -88,11 +107,20 @@ __rec_page_time_stats(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
           session, rec_time_window_start_durable_ts, r->count_start_durable_ts);
         r->rec_page_cell_with_ts = true;
     }
-    if (r->count_start_commit_ts != 0) {
+    if (r->count_start_prepare_ts != 0) {
         WT_STAT_CONN_DSRC_INCRV(
-          session, rec_time_window_bytes_ts, r->count_start_commit_ts * sizeof(wt_timestamp_t));
-        WT_STAT_CONN_DSRC_INCRV(session, rec_time_window_start_commit_ts, r->count_start_commit_ts);
-        WT_STAT_CONN_DSRC_INCR(session, rec_time_window_pages_start_commit_ts);
+          session, rec_time_window_bytes_ts, r->count_start_prepare_ts * sizeof(wt_timestamp_t));
+        WT_STAT_CONN_DSRC_INCRV(
+          session, rec_time_window_start_prepare_ts, r->count_start_prepare_ts);
+        WT_STAT_CONN_DSRC_INCR(session, rec_time_window_pages_start_prepare_ts);
+        r->rec_page_cell_with_ts = true;
+    }
+    if (r->count_start_prepared_id != 0) {
+        WT_STAT_CONN_DSRC_INCRV(
+          session, rec_time_window_bytes_ts, r->count_start_prepared_id * sizeof(uint64_t));
+        WT_STAT_CONN_DSRC_INCRV(
+          session, rec_time_window_start_prepared_id, r->count_start_prepared_id);
+        WT_STAT_CONN_DSRC_INCR(session, rec_time_window_pages_start_prepared_id);
         r->rec_page_cell_with_ts = true;
     }
     if (r->count_start_txn != 0) {
@@ -102,6 +130,13 @@ __rec_page_time_stats(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         WT_STAT_CONN_DSRC_INCR(session, rec_time_window_pages_start_txn);
         r->rec_page_cell_with_txn_id = true;
     }
+    if (r->count_stop_commit_ts != 0) {
+        WT_STAT_CONN_DSRC_INCRV(
+          session, rec_time_window_bytes_ts, r->count_stop_commit_ts * sizeof(wt_timestamp_t));
+        WT_STAT_CONN_DSRC_INCRV(session, rec_time_window_stop_commit_ts, r->count_stop_commit_ts);
+        WT_STAT_CONN_DSRC_INCR(session, rec_time_window_pages_stop_commit_ts);
+        r->rec_page_cell_with_ts = true;
+    }
     if (r->count_stop_durable_ts != 0) {
         WT_STAT_CONN_DSRC_INCRV(
           session, rec_time_window_bytes_ts, r->count_stop_durable_ts * sizeof(wt_timestamp_t));
@@ -109,11 +144,19 @@ __rec_page_time_stats(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         WT_STAT_CONN_DSRC_INCR(session, rec_time_window_pages_stop_durable_ts);
         r->rec_page_cell_with_ts = true;
     }
-    if (r->count_stop_commit_ts != 0) {
+    if (r->count_stop_prepare_ts != 0) {
         WT_STAT_CONN_DSRC_INCRV(
-          session, rec_time_window_bytes_ts, r->count_stop_commit_ts * sizeof(wt_timestamp_t));
-        WT_STAT_CONN_DSRC_INCRV(session, rec_time_window_stop_commit_ts, r->count_stop_commit_ts);
-        WT_STAT_CONN_DSRC_INCR(session, rec_time_window_pages_stop_commit_ts);
+          session, rec_time_window_bytes_ts, r->count_stop_prepare_ts * sizeof(wt_timestamp_t));
+        WT_STAT_CONN_DSRC_INCRV(session, rec_time_window_stop_prepare_ts, r->count_stop_prepare_ts);
+        WT_STAT_CONN_DSRC_INCR(session, rec_time_window_pages_stop_prepare_ts);
+        r->rec_page_cell_with_ts = true;
+    }
+    if (r->count_stop_prepared_id != 0) {
+        WT_STAT_CONN_DSRC_INCRV(
+          session, rec_time_window_bytes_ts, r->count_stop_prepared_id * sizeof(uint64_t));
+        WT_STAT_CONN_DSRC_INCRV(
+          session, rec_time_window_stop_prepared_id, r->count_stop_prepared_id);
+        WT_STAT_CONN_DSRC_INCR(session, rec_time_window_pages_stop_prepared_id);
         r->rec_page_cell_with_ts = true;
     }
     if (r->count_stop_txn != 0) {

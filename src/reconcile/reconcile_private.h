@@ -290,11 +290,15 @@ struct __wti_reconcile {
      * is written to disk. The number of entries on a page is limited to a 32 bit number so these
      * counters can be too.
      */
-    uint32_t count_start_durable_ts;
     uint32_t count_start_commit_ts;
+    uint32_t count_start_durable_ts;
+    uint32_t count_start_prepare_ts;
+    uint32_t count_start_prepared_id;
     uint32_t count_start_txn;
-    uint32_t count_stop_durable_ts;
     uint32_t count_stop_commit_ts;
+    uint32_t count_stop_durable_ts;
+    uint32_t count_stop_prepare_ts;
+    uint32_t count_stop_prepared_id;
     uint32_t count_stop_txn;
     uint32_t count_prepare;
 
