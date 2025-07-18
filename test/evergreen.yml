@@ -5354,6 +5354,26 @@ tasks:
           test-name: 500m-btree-50r50u-live-restore-no-server.wtperf
       - func: "cleanup"
 
+  - name: cache_workload_dirty_trigger
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          test_type: workgen
+          exec_path: ${python_binary|python3}
+          perf-test-path: ../../../bench/workgen/runner
+          perf-test-name: cache_workload_dirty_trigger.py
+          maxruns: 1
+          wtarg: -ops ['"block_read"']
+      - func: "upload stats to atlas"
+        vars:
+          test-name: cache_workload_dirty_trigger.py
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: cache_workload_dirty_trigger.py
+
   - name: many-dhandle-stress
     depends_on:
       - name: compile
@@ -5477,6 +5497,9 @@ tasks:
 
   - <<: *workgen-test
     name: "workgen-test-many-dhandle-stress"
+
+  - <<: *workgen-test
+    name: "workgen-test-cache_workload_dirty_trigger"
 
   - <<: *workgen-test
     name: "workgen-test-multi_btree_heavy_stress"
