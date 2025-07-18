@@ -69,7 +69,7 @@ struct kv_workload_generator_spec {
     /* The probability of allowing the use of "set commit timestamp" in a transaction. */
     float use_set_commit_timestamp;
 
-    /* The probabibility of running with connection level logging */
+    /* The probability of running with connection level logging */
     float conn_logging;
 
     /* Probabilities of operations within a transaction. */
