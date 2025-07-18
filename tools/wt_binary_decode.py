@@ -107,15 +107,15 @@ class PageStats:
         return [
             'num keys',
             'keys size',
-            'num durable start ts',
-            'durable start ts size',
-            'num durable stop ts',
-            'durable stop ts size',
-            'num start ts',
-            'start ts size',
+            'num start durable ts',
+            'start durable ts size',
+            'num stop durable ts',
+            'stop durable ts size',
+            'num start commit ts',
+            'start commit ts size',
             'num stop ts',
-            'stop ts size',
-            'num ts',
+            'stop commit ts size',
+            'num commit ts',
             'ts size',
             'num start txn',
             'start txn size',
@@ -312,7 +312,7 @@ def process_timestamps(p, cell: btree_format.Cell, pagestats: PageStats):
     if cell.start_commit_ts is not None:
         pagestats.start_commit_ts_sz += cell.size_start_ts
         pagestats.num_start_ts += 1
-        p.rint_v(' start ts: ' + ts(cell.start_commit_ts))
+        p.rint_v(' start commit ts: ' + ts(cell.start_commit_ts))
     if cell.start_txn is not None:
         pagestats.start_txn_sz += cell.size_start_txn
         pagestats.num_start_txn += 1
@@ -320,12 +320,12 @@ def process_timestamps(p, cell: btree_format.Cell, pagestats: PageStats):
     if cell.start_durable_ts is not None:
         pagestats.d_start_ts_sz += cell.size_start_durable_ts
         pagestats.num_d_start_ts += 1
-        p.rint_v(' durable start ts: ' + ts(cell.start_durable_ts))
+        p.rint_v(' start durable ts: ' + ts(cell.start_durable_ts))
 
     if cell.stop_commit_ts is not None:
         pagestats.stop_commit_ts_sz += cell.size_stop_ts
         pagestats.num_stop_ts += 1
-        p.rint_v(' stop ts: ' + ts(cell.stop_commit_ts))
+        p.rint_v(' stop commit ts: ' + ts(cell.stop_commit_ts))
     if cell.stop_txn is not None:
         pagestats.stop_txn_sz += cell.size_stop_txn
         pagestats.num_stop_txn += 1
@@ -333,7 +333,7 @@ def process_timestamps(p, cell: btree_format.Cell, pagestats: PageStats):
     if cell.stop_durable_ts is not None:
         pagestats.d_stop_ts_sz += cell.size_stop_durable_ts
         pagestats.num_d_stop_ts += 1
-        p.rint_v(' durable stop ts: ' + ts(cell.stop_durable_ts))
+        p.rint_v(' stop durable ts: ' + ts(cell.stop_durable_ts))
 
 def block_decode(p, b, nbytes, opts):
     disk_pos = b.tell()

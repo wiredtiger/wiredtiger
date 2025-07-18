@@ -368,7 +368,7 @@ __wti_rts_btree_walk_btree_apply(
     /*
      * The rollback operation should be performed on this file based on the following:
      * 1. The dhandle is present in the cache and tree is modified.
-     * 2. The checkpoint durable start/stop timestamp is greater than the rollback timestamp.
+     * 2. The checkpoint start/stop durable timestamp is greater than the rollback timestamp.
      * 3. The checkpoint has prepared updates written to disk.
      * 4. The checkpoint newest txn is greater than checkpoint snapshot min txn id.
      */

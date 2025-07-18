@@ -334,8 +334,8 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
              * written the tombstone to disk already but we still need to do another delta to remove
              * it from disk.
              *
-             * Deleting the key with a stop timestamp in the delta is not saving disk space but
-             * actually increases our disk usage. We need to write a full image to really delete
+             * Deleting the key with a stop commit timestamp in the delta is not saving disk space
+             * but actually increases our disk usage. We need to write a full image to really delete
              * these keys. But if we don't do that, we will have a lot of deleted keys in memory and
              * search will be less efficient. Particularly it will be a problem for the history
              * store.
@@ -481,7 +481,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
      */
     if (select_tw->stop_commit_ts < select_tw->start_commit_ts) {
         WT_ASSERT_ALWAYS(session, select_tw->stop_commit_ts == WT_TS_NONE,
-          "No stop timestamp found for selected update");
+          "No stop commit timestamp found for selected update");
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_2);
         return (EBUSY);
     }
@@ -521,7 +521,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
         /* Validate that the updates older than us have older timestamps. */
         if (prev_upd->upd_commit_ts < upd->upd_commit_ts) {
             WT_ASSERT_ALWAYS(session, prev_upd->upd_commit_ts == WT_TS_NONE,
-              "Previous update missing start timestamp");
+              "Previous update missing commit timestamp");
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_4);
             return (EBUSY);
         }
@@ -855,9 +855,9 @@ __rec_fill_tw_from_upd_select(
     select_tw = &upd_select->tw;
 
     /*
-     * The start timestamp is determined by the commit timestamp when the key is first inserted (or
-     * last updated). The end timestamp is set when a key/value pair becomes invalid, either because
-     * of a remove or a modify/update operation on the same key.
+     * The start commit timestamp is determined by the commit timestamp when the key is first
+     * inserted (or last updated). The stop commit timestamp is set when a key/value pair becomes
+     * invalid, either because of a remove or a modify/update operation on the same key.
      */
 
     /*

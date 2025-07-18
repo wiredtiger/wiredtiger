@@ -1807,7 +1807,7 @@ methods = {
         will skip past the corrupt block and continue with the verification process''',
         type='boolean'),
     Config('stable_timestamp', 'false', r'''
-        Ensure that no data has a start timestamp after the stable timestamp, to be run after
+        Ensure that no data has a durable timestamp after the stable timestamp, to be run after
         rollback_to_stable.''',
         type='boolean'),
     Config('strict', 'false', r'''

@@ -27,7 +27,7 @@
  *     reconciliation structure.
  *
  *     An update is considered to be globally visible when its transaction id is less than the
- *     pinned id, and when its start timestamp is less than or equal to the pinned timestamp.
+ *     pinned id, and when its durable timestamp is less than or equal to the pinned timestamp.
  *     Due to a difference in transaction id based visibility and timestamp visibility the timestamp
  *     comparison is inclusive whereas the transaction id comparison isn't.
  */

@@ -60,7 +60,7 @@ __rec_hs_verbose_cache_stats(WT_SESSION_IMPL *session, WT_BTREE *btree)
 
 /*
  * __rec_hs_delete_reinsert_from_pos --
- *     Delete updates in the history store if the start timestamp of the update is larger or equal
+ *     Delete updates in the history store if the commit timestamp of the update is larger or equal
  *     to the specified timestamp from a given cursor position (cursor position should be passed in)
  *     and optionally reinsert them with ts-1 timestamp.
  */
@@ -310,7 +310,7 @@ __rec_hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btr
          * 2. Checkpoint started, eviction started and sees the same content in data store and
          * history store while reconciling.
          *
-         * The start timestamp and transaction ids are checked to ensure for the global
+         * The commit timestamp and transaction ids are checked to ensure for the global
          * visibility because globally visible timestamps and transaction ids may be cleared to 0.
          * The time window of the inserting record and the history store record are
          * compared to make sure that the same record are not being inserted again.
@@ -333,8 +333,8 @@ __rec_hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btr
 #endif
         /*
          * We have found a key with a timestamp larger than or equal to the specified timestamp.
-         * Always use the start timestamp retrieved from the key instead of the start timestamp from
-         * the cell. The cell's start timestamp can be cleared during reconciliation if it is
+         * Always use the commit timestamp retrieved from the key instead of the commit timestamp
+         * from the cell. The cell's commit timestamp can be cleared during reconciliation if it is
          * globally visible.
          */
         if (hs_start_commit_ts >= ts || twp->stop_commit_ts >= ts) {
@@ -451,8 +451,8 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
                 WT_ERR(__wt_compare(session, NULL, existing_val, hs_value, &cmp));
                 /*
                  * The same value should not be inserted again unless:
-                 * 1. The previous entry is already deleted (i.e. the stop timestamp is globally
-                 * visible)
+                 * 1. The previous entry is already deleted (i.e. the stop durable timestamp is
+                 * globally visible)
                  * 2. It came from a different transaction
                  * 3. It came from the same transaction but with a different timestamp
                  * 4. The prepared rollback left the history store entry when checkpoint is in
@@ -492,7 +492,10 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
      * timestamp.
      */
     if (ret == 0) {
-        /* Check if the current history store update's stop timestamp is less than the update. */
+        /*
+         * Check if the current history store update's stop commit timestamp is less than the
+         * update's timestamp.
+         */
         if (hs_cbt->upd_value->tw.stop_commit_ts <= tw->start_commit_ts)
             WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
         else
@@ -750,7 +753,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          * The algorithm walks from the oldest update, or the most recently inserted into history
          * store update, to the newest update and builds full updates along the way. It sets the
          * stop time point of the update to the start time point of the next update, squashes the
-         * updates that are from the same transaction and of the same start timestamp, checks if the
+         * updates that are from the same transaction and of the commit timestamp, checks if the
          * update can be written as reverse modification, and inserts the update to the history
          * store either as a full update or a reverse modification.
          *
@@ -942,9 +945,10 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             tw.start_txn = upd->txnid;
 
             /*
-             * For any uncommitted prepared updates written to disk, the stop timestamp of the last
-             * update moved into the history store should be with max visibility to protect its
-             * removal by checkpoint garbage collection until the data store update is committed.
+             * For any uncommitted prepared updates written to disk, the stop commit timestamp of
+             * the last update moved into the history store should be with max visibility to protect
+             * its removal by checkpoint garbage collection until the data store update is
+             * committed.
              */
             if (prev_upd->prepare_state == WT_PREPARE_INPROGRESS) {
                 WT_ASSERT(session,
@@ -953,11 +957,6 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                 tw.stop_durable_ts = tw.stop_commit_ts = WT_TS_MAX;
                 tw.stop_txn = WT_TXN_MAX;
             } else {
-                /*
-                 * Set the stop timestamp from durable timestamp instead of commit timestamp. The
-                 * garbage collection of history store removes the history values once the stop
-                 * timestamp is globally visible. i.e. durable timestamp of data store version.
-                 */
                 WT_ASSERT(session, prev_upd->upd_commit_ts <= prev_upd->upd_durable_ts);
 
                 if (no_ts_upd != NULL) {
@@ -1216,7 +1215,7 @@ __rec_hs_delete_record(
     } else {
         /*
          * We have found a record that is not obsolete. However, we only want to delete a record if
-         * it has a stop timestamp greater than the start timestamp of the update.
+         * it has a stop commit timestamp greater than the start commit timestamp of the update.
          */
         __wt_hs_upd_time_window(r->hs_cursor, &hs_tw);
         if (hs_tw->stop_commit_ts <= upd->upd_commit_ts)
@@ -1234,21 +1233,22 @@ __rec_hs_delete_record(
               "Retrieved wrong update from history store: start txn id mismatch");
             WT_ASSERT_ALWAYS(session,
               hs_tw->start_commit_ts == WT_TS_NONE || hs_tw->start_commit_ts == upd->upd_commit_ts,
-              "Retrieved wrong update from history store: start timestamp mismatch");
+              "Retrieved wrong update from history store: start commit timestamp mismatch");
             WT_ASSERT_ALWAYS(session,
               hs_tw->start_durable_ts == WT_TS_NONE ||
                 hs_tw->start_durable_ts == upd->upd_durable_ts,
-              "Retrieved wrong update from history store: durable start timestamp mismatch");
+              "Retrieved wrong update from history store: start durable timestamp mismatch");
             if (tombstone != NULL) {
                 WT_ASSERT_ALWAYS(session, hs_tw->stop_txn == tombstone->txnid,
                   "Retrieved wrong update from history store: stop txn id mismatch");
                 WT_ASSERT_ALWAYS(session, hs_tw->stop_commit_ts == tombstone->upd_commit_ts,
-                  "Retrieved wrong update from history store: stop timestamp mismatch");
+                  "Retrieved wrong update from history store: stop commit timestamp mismatch");
                 WT_ASSERT_ALWAYS(session, hs_tw->stop_durable_ts == tombstone->upd_durable_ts,
-                  "Retrieved wrong update from history store: durable stop timestamp mismatch");
+                  "Retrieved wrong update from history store: stop durable timestamp mismatch");
             } else
                 WT_ASSERT_ALWAYS(session, !WT_TIME_WINDOW_HAS_STOP(hs_tw),
-                  "Retrieved wrong update from history store: empty tombstone with stop timestamp");
+                  "Retrieved wrong update from history store: empty tombstone with stop commit "
+                  "timestamp");
         }
         WT_ERR(r->hs_cursor->remove(r->hs_cursor));
     }

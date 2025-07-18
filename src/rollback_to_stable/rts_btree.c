@@ -308,7 +308,8 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     WT_PAGE *page;
     WT_TIME_WINDOW *hs_tw, *tw;
     WT_UPDATE *tombstone, *upd;
-    wt_timestamp_t hs_durable_ts, hs_start_ts, hs_stop_durable_ts, newer_hs_durable_ts, pinned_ts;
+    wt_timestamp_t hs_start_commit_ts, hs_start_durable_ts, hs_stop_durable_ts, newer_hs_durable_ts,
+      pinned_ts;
     size_t max_memsize;
     uint64_t hs_counter, type_full;
     uint32_t hs_btree_id;
@@ -323,7 +324,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
 
     hs_cursor = NULL;
     tombstone = upd = NULL;
-    hs_durable_ts = hs_start_ts = hs_stop_durable_ts = WT_TS_NONE;
+    hs_start_commit_ts = hs_start_durable_ts = hs_stop_durable_ts = WT_TS_NONE;
     hs_btree_id = S2BT(session)->id;
     valid_update_found = false;
     first_record = true;
@@ -382,7 +383,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     F_SET(hs_cursor, WT_CURSTD_HS_READ_ALL);
 
     /*
-     * Scan the history store for the given btree and key with maximum start timestamp to let the
+     * Scan the history store for the given btree and key with maximum commit timestamp to let the
      * search point to the last version of the key and start traversing backwards to find out the
      * satisfying record according the given timestamp. Any satisfying history store record is moved
      * into data store and removed from history store. If none of the history store records satisfy
@@ -391,11 +392,12 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     hs_cursor->set_key(hs_cursor, 4, hs_btree_id, key, WT_TS_MAX, UINT64_MAX);
     ret = __wt_curhs_search_near_before(session, hs_cursor);
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
+        WT_ERR(
+          hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_commit_ts, &hs_counter));
 
         /* Get current value and convert to full update if it is a modify. */
         WT_ERR(hs_cursor->get_value(
-          hs_cursor, &hs_stop_durable_ts, &hs_durable_ts, &type_full, hs_value));
+          hs_cursor, &hs_stop_durable_ts, &hs_start_durable_ts, &type_full, hs_value));
         type = (uint8_t)type_full;
 
         /* Retrieve the time window from the history cursor. */
@@ -453,26 +455,27 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
               __wt_time_window_to_string(hs_tw, tw_string), __wt_update_type_str(type));
 
         /*
-         * Verify the history store timestamps are in order. The start timestamp may be equal to the
-         * stop timestamp if the original update's commit timestamp is in order. We may see records
-         * newer than or equal to the onpage value if eviction runs concurrently with checkpoint. In
-         * that case, don't verify the first record.
+         * Verify the history store timestamps are in order. The start commit timestamp may be equal
+         * to the stop commit timestamp. We may see records newer than or equal to the onpage value
+         * if eviction runs concurrently with checkpoint. In that case, don't verify the first
+         * record.
          *
          * It is possible during a prepared transaction rollback, the history store update that have
-         * its own stop timestamp doesn't get removed leads to duplicate records in history store
-         * after further operations on that same key. Rollback to stable should ignore such records
-         * for timestamp ordering verification.
+         * its own stop commit timestamp doesn't get removed leads to duplicate records in history
+         * store after further operations on that same key. Rollback to stable should ignore such
+         * records for timestamp ordering verification.
          *
-         * It is possible that there can be an update in the history store with a max stop timestamp
-         * in the middle of the same key updates. This occurs when the checkpoint writes the
-         * committed prepared update and further updates on that key including the history store
+         * It is possible that there can be an update in the history store with a max stop commit
+         * timestamp in the middle of the same key updates. This occurs when the checkpoint writes
+         * the committed prepared update and further updates on that key including the history store
          * changes before the transaction fixes the history store update to have a proper stop
          * timestamp. It is a rare scenario.
          */
         WT_ASSERT_ALWAYS(session,
-          hs_stop_durable_ts <= newer_hs_durable_ts || hs_start_ts == hs_stop_durable_ts ||
-            hs_start_ts == newer_hs_durable_ts || newer_hs_durable_ts == hs_durable_ts ||
-            first_record || hs_stop_durable_ts == WT_TS_MAX,
+          hs_stop_durable_ts <= newer_hs_durable_ts || hs_start_commit_ts == hs_stop_durable_ts ||
+            hs_start_commit_ts == newer_hs_durable_ts ||
+            newer_hs_durable_ts == hs_start_durable_ts || first_record ||
+            hs_stop_durable_ts == WT_TS_MAX,
           "Out of order history store updates detected");
 
         if (hs_stop_durable_ts < newer_hs_durable_ts)
@@ -480,13 +483,14 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
 
         /*
          * Validate the timestamps in the key and the cell are same. This must be validated only
-         * after verifying it's stop time window is not globally visible. The start timestamps of
+         * after verifying it's stop time window is not globally visible. The commit timestamps of
          * the time window are cleared when they are globally visible and there will be no stop
          * timestamp in the history store whenever a prepared update is written to the data store.
          */
         WT_ASSERT(session,
-          (hs_tw->start_commit_ts == WT_TS_NONE || hs_tw->start_commit_ts == hs_start_ts) &&
-            (hs_tw->start_durable_ts == WT_TS_NONE || hs_tw->start_durable_ts == hs_durable_ts) &&
+          (hs_tw->start_commit_ts == WT_TS_NONE || hs_tw->start_commit_ts == hs_start_commit_ts) &&
+            (hs_tw->start_durable_ts == WT_TS_NONE ||
+              hs_tw->start_durable_ts == hs_start_durable_ts) &&
             ((hs_tw->stop_durable_ts == 0 && hs_stop_durable_ts == WT_TS_MAX) ||
               hs_tw->stop_durable_ts == hs_stop_durable_ts));
 
@@ -517,7 +521,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
          * record. Save it to verify against the previous record and check if we need to append the
          * stop time point as a tombstone when we rollback the history store record.
          */
-        newer_hs_durable_ts = hs_durable_ts;
+        newer_hs_durable_ts = hs_start_durable_ts;
         first_record = false;
 
         if (!dryrun)
@@ -685,8 +689,8 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     if (WT_IS_HS(session->dhandle)) {
         /*
          * Abort the history store update with stop durable timestamp greater than the stable
-         * timestamp or the updates with max stop timestamp which implies that they are associated
-         * with prepared transactions.
+         * timestamp or the updates with max stop commit timestamp which implies that they are
+         * associated with prepared transactions.
          */
         if (tw->stop_durable_ts > rollback_timestamp || tw->stop_commit_ts == WT_TS_MAX) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),

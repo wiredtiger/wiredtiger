@@ -325,8 +325,8 @@ class Cell(object):
 
     # Flags for the extra descriptor byte
     WT_CELL_PREPARE: typing.Final[int] = 0x01
-    WT_CELL_TS_START_COMMIT_DURABLE: typing.Final[int] = 0x02
-    WT_CELL_TS_STOP_COMMIT_DURABLE: typing.Final[int] = 0x04
+    WT_CELL_TS_START_DURABLE: typing.Final[int] = 0x02
+    WT_CELL_TS_STOP_DURABLE: typing.Final[int] = 0x04
     WT_CELL_TS_START_COMMIT: typing.Final[int] = 0x08
     WT_CELL_TS_STOP_COMMIT: typing.Final[int] = 0x10
     WT_CELL_TXN_START: typing.Final[int] = 0x20
@@ -370,14 +370,14 @@ class Cell(object):
             self.start_commit_ts, self.size_start_commit_ts = b.read_packed_uint64_with_size()
         if self.extra_descriptor & Cell.WT_CELL_TXN_START != 0:
             self.start_txn, self.size_start_txn = b.read_packed_uint64_with_size()
-        if self.extra_descriptor & Cell.WT_CELL_TS_START_COMMIT_DURABLE != 0:
+        if self.extra_descriptor & Cell.WT_CELL_TS_START_DURABLE != 0:
             self.start_durable_ts, self.size_start_durable_ts = b.read_packed_uint64_with_size()
 
         if self.extra_descriptor & Cell.WT_CELL_TS_STOP_COMMIT != 0:
             self.stop_commit_ts, self.size_stop_commit_ts = b.read_packed_uint64_with_size()
         if self.extra_descriptor & Cell.WT_CELL_TXN_STOP != 0:
             self.stop_txn, self.size_stop_txn = b.read_packed_uint64_with_size()
-        if self.extra_descriptor & Cell.WT_CELL_TS_STOP_COMMIT_DURABLE != 0:
+        if self.extra_descriptor & Cell.WT_CELL_TS_STOP_DURABLE != 0:
             self.stop_durable_ts, self.size_stop_durable_commit_ts = b.read_packed_uint64_with_size()
 
         if self.start_durable_ts is not None:

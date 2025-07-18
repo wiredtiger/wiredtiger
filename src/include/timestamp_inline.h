@@ -270,12 +270,12 @@
         (out_ta)->newest_stop_durable_ts =                                                       \
           WT_MAX((out_ta)->newest_stop_durable_ts, (in_ta)->newest_stop_durable_ts);             \
         /*                                                                                       \
-         * The durable and non-durable stop timestamps are interestingly different in that the   \
+         * The stop durable and non-durable timestamps are interestingly different in that the   \
          * non-durable version encodes whether all records are deleted by setting WT_TS_MAX in   \
          * there are non-deleted records (the common case), but durable doesn't and records the  \
          * largest timestamp associated with any deleted record. Use this copy-macro to abstract \
          * that subtlety away. Since obsolete checks always want to know whether all content was \
-         * removed, copy that semantic into the durable stop timestamp to make visibility        \
+         * removed, copy that semantic into the stop durable timestamp to make visibility        \
          * checking sensible.                                                                    \
          */                                                                                      \
         if (!WT_TIME_AGGREGATE_ALL_DELETED((in_ta)))                                             \

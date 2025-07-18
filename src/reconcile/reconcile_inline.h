@@ -498,7 +498,7 @@ __wti_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WTI_UPDATE_SELECT
          * values.
          */
         if (WTI_REC_TW_START_VISIBLE_ALL(r, tw)) {
-            /* The durable timestamp should never be less than the start timestamp. */
+            /* The durable timestamp should never be less than the commit timestamp. */
             WT_ASSERT(session, tw->start_commit_ts <= tw->start_durable_ts);
 
             tw->start_commit_ts = tw->start_durable_ts = WT_TS_NONE;

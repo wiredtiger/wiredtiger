@@ -529,7 +529,7 @@ skip_on_page:
 
         if (version_cursor->start_timestamp != WT_TS_NONE) {
             /*
-             * We are done if the durable stop timestamp is smaller or equal to the end timestamp.
+             * We are done if the stop durable timestamp is smaller or equal to the end timestamp.
              */
             if (twp->stop_durable_ts <= version_cursor->start_timestamp)
                 goto done;

@@ -374,8 +374,8 @@ static const char *const __stats_dsrc_desc[] = {
   "transaction: race to read prepared update retry",
   "transaction: rollback to stable history store keys that would have been swept in non-dryrun "
   "mode",
-  "transaction: rollback to stable history store records with stop timestamps older than newer "
-  "records",
+  "transaction: rollback to stable history store records with stop durable timestamps older than "
+  "newer records",
   "transaction: rollback to stable inconsistent checkpoint",
   "transaction: rollback to stable keys removed",
   "transaction: rollback to stable keys restored",
@@ -2579,8 +2579,8 @@ static const char *const __stats_connection_desc[] = {
   "transaction: rollback to stable calls",
   "transaction: rollback to stable history store keys that would have been swept in non-dryrun "
   "mode",
-  "transaction: rollback to stable history store records with stop timestamps older than newer "
-  "records",
+  "transaction: rollback to stable history store records with stop durable timestamps older than "
+  "newer records",
   "transaction: rollback to stable inconsistent checkpoint",
   "transaction: rollback to stable keys removed",
   "transaction: rollback to stable keys restored",

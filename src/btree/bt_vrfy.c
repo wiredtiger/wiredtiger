@@ -1025,12 +1025,12 @@ __verify_overflow(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
 
 /*
  * __verify_ts_stable_cmp --
- *     Verify that a pair of start and stop timestamps are valid against the global stable
+ *     Verify that a pair of start and stop commit timestamps are valid against the global stable
  *     timestamp. Takes in either a key for history store timestamps or a ref and cell number.
  */
 static int
 __verify_ts_stable_cmp(WT_SESSION_IMPL *session, WT_ITEM *key, WT_REF *ref, uint32_t cell_num,
-  wt_timestamp_t start_ts, wt_timestamp_t stop_ts, WT_VSTUFF *vs)
+  wt_timestamp_t start_commit_ts, wt_timestamp_t stop_commit_ts, WT_VSTUFF *vs)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -1040,10 +1040,10 @@ __verify_ts_stable_cmp(WT_SESSION_IMPL *session, WT_ITEM *key, WT_REF *ref, uint
     btree = S2BT(session);
     start = true;
 
-    if (start_ts != WT_TS_NONE && start_ts > vs->stable_timestamp)
+    if (start_commit_ts != WT_TS_NONE && start_commit_ts > vs->stable_timestamp)
         goto msg;
 
-    if (stop_ts != WT_TS_MAX && stop_ts > vs->stable_timestamp) {
+    if (stop_commit_ts != WT_TS_MAX && stop_commit_ts > vs->stable_timestamp) {
         start = false;
         goto msg;
     }
@@ -1060,10 +1060,11 @@ msg:
           __wt_key_string(session, key->data, key->size, btree->key_format, vs->tmp2)));
 
     WT_RET_MSG(session, WT_ERROR,
-      "%s has failed verification with a %s timestamp of %s greater than the stable_timestamp of "
+      "%s has failed verification with a %s commit timestamp of %s greater than the "
+      "stable_timestamp of "
       "%s",
       (char *)vs->tmp1->data, start ? "start" : "stop",
-      __wt_timestamp_to_string(start ? start_ts : stop_ts, tp_string[0]),
+      __wt_timestamp_to_string(start ? start_commit_ts : stop_commit_ts, tp_string[0]),
       __wt_timestamp_to_string(vs->stable_timestamp, tp_string[1]));
 }
 
@@ -1081,7 +1082,7 @@ __verify_key_hs(
     WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_DECL_RET;
-    wt_timestamp_t older_start_ts, older_stop_ts;
+    wt_timestamp_t older_start_commit_ts, older_stop_commit_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
@@ -1096,7 +1097,7 @@ __verify_key_hs(
      * transaction-ids are wiped out on start, we could possibly have a start txn-id of WT_TXN_NONE,
      * in which case we initialize our newest with the max txn-id.
      */
-    older_stop_ts = 0;
+    older_stop_commit_ts = 0;
 
     /*
      * Open a history store cursor positioned at the end of the data store key (the newest record)
@@ -1106,27 +1107,29 @@ __verify_key_hs(
     ret = __wt_curhs_search_near_before(session, hs_cursor);
 
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, vs->tmp2, &older_start_ts, &hs_counter));
+        WT_ERR(hs_cursor->get_key(
+          hs_cursor, &hs_btree_id, vs->tmp2, &older_start_commit_ts, &hs_counter));
         /* Verify the newer record's start is later than the older record's stop. */
-        if (newer_start_ts < older_stop_ts) {
+        if (newer_start_commit_ts < older_stop_commit_ts) {
             WT_ERR_MSG(session, WT_ERROR,
-              "key %s has a overlap of timestamp ranges between history store stop timestamp %s "
-              "being newer than a more recent timestamp range having start timestamp %s",
+              "key %s has a overlap of timestamp ranges between history store stop commit "
+              "timestamp %s "
+              "being newer than a more recent timestamp range having start commit timestamp %s",
               __wt_buf_set_printable_format(
                 session, tmp1->data, tmp1->size, btree->key_format, false, vs->tmp2),
-              __wt_timestamp_to_string(older_stop_ts, ts_string[0]),
-              __wt_timestamp_to_string(newer_start_ts, ts_string[1]));
+              __wt_timestamp_to_string(older_stop_commit_ts, ts_string[0]),
+              __wt_timestamp_to_string(newer_start_commit_ts, ts_string[1]));
         }
 
         if (vs->stable_timestamp != WT_TS_NONE)
-            WT_ERR(
-              __verify_ts_stable_cmp(session, tmp1, NULL, 0, older_start_ts, older_stop_ts, vs));
+            WT_ERR(__verify_ts_stable_cmp(
+              session, tmp1, NULL, 0, older_start_commit_ts, older_stop_commit_ts, vs));
 
         /*
          * Since we are iterating from newer to older, the current older record becomes the newer
          * for the next round of verification.
          */
-        newer_start_ts = older_start_ts;
+        newer_start_commit_ts = older_start_commit_ts;
     }
 err:
     WT_TRET(hs_cursor->close(hs_cursor));

@@ -214,7 +214,7 @@ class test_prepare15(wttest.WiredTigerTestCase):
         self.assertEqual(cursor2.get_value(), valuea)
         self.session.commit_transaction()
 
-        # Pin oldest and stable timestamps to 60.
+        # Pin oldest and stable timestamps to 70.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(70) +
             ',stable_timestamp=' + self.timestamp_str(70))
 
@@ -239,7 +239,7 @@ class test_prepare15(wttest.WiredTigerTestCase):
         self.session.commit_transaction()
 
         # The history store update should not be visible when the prepared transaction commits
-        # due to global visibility of the stop timestamp.
+        # due to global visibility of the stop durable timestamp.
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(70))
         cursor2 = self.session.open_cursor(uri)
         cursor2.set_key(1)

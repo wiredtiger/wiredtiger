@@ -377,13 +377,13 @@ __time_value_validate_parent_stable(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw
     stable = __time_stable(session);
 
     if (tw->start_durable_ts > stable)
-        WT_TIME_ERROR("a durable start time after");
+        WT_TIME_ERROR("a start durable time after");
     if (tw->start_commit_ts > stable)
-        WT_TIME_ERROR("a start time after");
+        WT_TIME_ERROR("a start commit time after");
     if (tw->stop_durable_ts > stable)
-        WT_TIME_ERROR("a durable stop time after");
+        WT_TIME_ERROR("a stop durable time after");
     if (tw->stop_commit_ts != WT_TS_MAX && tw->stop_commit_ts > stable)
-        WT_TIME_ERROR("a stop time after");
+        WT_TIME_ERROR("a stop commit time after");
 
     return (0);
 }
@@ -401,15 +401,15 @@ __time_value_validate_parent(
     if (parent->newest_start_durable_ts != WT_TS_NONE &&
       tw->start_durable_ts > parent->newest_start_durable_ts)
         WT_TIME_VALIDATE_RET(session,
-          "value time window has a durable start time after its parent's newest durable start "
+          "value time window has a start durable time after its parent's newest start durable "
           "time; time window %s, parent %s",
           __wt_time_window_to_string(tw, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
     if (tw->start_commit_ts < parent->oldest_start_ts)
         WT_TIME_VALIDATE_RET(session,
-          "value time window has a start time before its parent's oldest start time; time window "
-          "%s, parent %s",
+          "value time window has a start commit time before its parent's oldest start time; time "
+          "window %s, parent %s",
           __wt_time_window_to_string(tw, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
@@ -423,14 +423,15 @@ __time_value_validate_parent(
     if (parent->newest_stop_durable_ts != WT_TS_NONE &&
       tw->stop_durable_ts > parent->newest_stop_durable_ts)
         WT_TIME_VALIDATE_RET(session,
-          "value time window has a durable stop time after its parent's newest durable stop time; "
+          "value time window has a stop durable time after its parent's newest stop durable time; "
           "time window %s, parent %s",
           __wt_time_window_to_string(tw, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
 
     if (tw->stop_commit_ts > parent->newest_stop_ts)
         WT_TIME_VALIDATE_RET(session,
-          "value time window has a stop time after its parent's newest stop time; time window %s, "
+          "value time window has a stop commit time after its parent's newest stop time; time "
+          "window %s, "
           "parent %s",
           __wt_time_window_to_string(tw, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
@@ -463,7 +464,7 @@ __wt_time_value_validate(
 
     if (tw->start_commit_ts > tw->stop_commit_ts)
         WT_TIME_VALIDATE_RET(session,
-          "value time window has a start time after its stop time; time window %s",
+          "value time window has a start commit time after its stop commit time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
 
     if (tw->start_txn > tw->stop_txn)
@@ -473,27 +474,27 @@ __wt_time_value_validate(
 
     if (tw->start_commit_ts > tw->start_durable_ts)
         WT_TIME_VALIDATE_RET(session,
-          "value time window has a start time after its durable start time; time window %s",
+          "value time window has a start commit time after its start durable time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
 
     if (tw->stop_commit_ts != WT_TS_MAX && tw->stop_commit_ts > tw->stop_durable_ts)
         WT_TIME_VALIDATE_RET(session,
-          "value time window has a stop time after its durable stop time; time window %s",
+          "value time window has a stop commit time after its stop durable time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
 
     /*
-     * In the case of missing timestamps, we assign start time point to the stop point and durable
-     * start timestamp may be larger than stop timestamp. Check whether start and stop are equal
-     * first.
+     * In the case of missing timestamps, we assign start time point to the stop time point and
+     * start durable timestamp may be larger than stop commit timestamp. Check whether start durable
+     * and stop durable are equal first.
      */
     if (tw->start_durable_ts != tw->stop_durable_ts && tw->start_durable_ts > tw->stop_commit_ts)
         WT_TIME_VALIDATE_RET(session,
-          "value time window has a durable start time after its stop time; time window %s",
+          "value time window has a start durable time after its stop commit time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
 
     if (tw->stop_durable_ts != WT_TS_NONE && tw->start_durable_ts > tw->stop_durable_ts)
         WT_TIME_VALIDATE_RET(session,
-          "value time window has a durable start time after its durable stop time; time window %s",
+          "value time window has a start durable time after its stop durable time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
 
     if (tw->prepare && F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {
@@ -519,13 +520,13 @@ __wt_time_value_validate(
                 }
                 if (tw->start_commit_ts != WT_TS_NONE) {
                     WT_TIME_VALIDATE_RET(session,
-                      "Start prepared value time window has a start time set; time "
+                      "Start prepared value time window has a start commit time set; time "
                       "window %s",
                       __wt_time_window_to_string(tw, time_string[0]));
                 }
                 if (tw->start_durable_ts != WT_TS_NONE) {
                     WT_TIME_VALIDATE_RET(session,
-                      "Start prepared value time window has a durable start time set; time "
+                      "Start prepared value time window has a start durable time set; time "
                       "window %s",
                       __wt_time_window_to_string(tw, time_string[0]));
                 }
@@ -545,13 +546,13 @@ __wt_time_value_validate(
                 }
                 if (tw->stop_commit_ts != WT_TS_MAX) {
                     WT_TIME_VALIDATE_RET(session,
-                      "Stop prepared value time window has a stop time set; time "
+                      "Stop prepared value time window has a stop commit time set; time "
                       "window %s",
                       __wt_time_window_to_string(tw, time_string[0]));
                 }
                 if (tw->stop_durable_ts != WT_TS_NONE) {
                     WT_TIME_VALIDATE_RET(session,
-                      "Stop prepared value time window has a durable stop time set; time "
+                      "Stop prepared value time window has a stop durable time set; time "
                       "window %s",
                       __wt_time_window_to_string(tw, time_string[0]));
                 }
@@ -561,13 +562,13 @@ __wt_time_value_validate(
         /* Validate that prepare_ts and prepared_id must be none */
         if (WT_TIME_WINDOW_HAS_START_PREPARE(tw)) {
             WT_TIME_VALIDATE_RET(session,
-              "Non-prepared value time window contains start prepared ts and prepared id; time "
+              "Non-prepared value time window contains start prepare time and prepared id; time "
               "window %s",
               __wt_time_window_to_string(tw, time_string[0]));
         }
         if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw)) {
             WT_TIME_VALIDATE_RET(session,
-              "Non-prepared value time window contains stop prepared ts and prepared id; time "
+              "Non-prepared value time window contains stop prepare time and prepared id; time "
               "window %s",
               __wt_time_window_to_string(tw, time_string[0]));
         }

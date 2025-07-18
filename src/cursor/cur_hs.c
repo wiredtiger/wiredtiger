@@ -1160,8 +1160,8 @@ __curhs_update(WT_CURSOR *cursor)
     WT_ASSERT(session, F_ISSET(hs_cursor, WT_HS_CUR_COUNTER_SET | WT_HS_CUR_TS_SET));
 
     /*
-     * Only valid scenario to update the history store is to add the stop timestamp. Any other case
-     * should fail.
+     * Adding the stop commit and durable timestamps is the only valid scenario to update the
+     * history store. Any other case should fail.
      */
     WT_ASSERT(session, !WT_TIME_WINDOW_IS_EMPTY(&hs_cursor->time_window));
     WT_ASSERT(session, WT_TIME_WINDOW_HAS_STOP(&hs_cursor->time_window));

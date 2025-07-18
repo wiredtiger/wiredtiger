@@ -967,7 +967,7 @@ __txn_fixup_hs_update(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     WT_ERR(
       hs_cursor->get_value(hs_cursor, &hs_stop_durable_ts, &hs_durable_ts, &type_full, hs_value));
 
-    /* The old stop timestamp must be max. */
+    /* The old stop durable timestamp must be max. */
     WT_ASSERT(session, hs_stop_durable_ts == WT_TS_MAX);
     /* The value older than the prepared update in the history store must be a full value. */
     WT_ASSERT(session, (uint8_t)type_full == WT_UPDATE_STANDARD);
@@ -1280,10 +1280,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      *         rollback: delete the whole key.
      *
      *     If there are older updates written to the history store:
-     *         commit: fix the stop timestamp of the newest update in the history store if it has a
-     *                 max timestamp.
-     *         rollback: restore the newest update in the history store to the data store and mark
-     *                   it to be deleted from the history store in the future reconciliation.
+     *         commit: fix the stop commit timestamp of the newest update in the history store if it
+     * has a max timestamp. rollback: restore the newest update in the history store to the data
+     * store and mark it to be deleted from the history store in the future reconciliation.
      *
      * 3) Prepared updates are successfully reconciled to a new disk image in eviction but the
      *    eviction fails and the updates are restored back to the old disk image.
@@ -1292,11 +1291,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      *         rollback: delete the whole key.
      *
      *     If there are older updates written to the history store:
-     *          commit: fix the stop timestamp of the newest update in the history store if it has a
-     *                  max timestamp.
-     *          rollback: mark the data update (or tombstone and data update) that is older
-     *                    than the prepared updates to be deleted from the history store in the
-     *                    future reconciliation.
+     *          commit: fix the stop commit timestamp of the newest update in the history store if
+     * it has a max timestamp. rollback: mark the data update (or tombstone and data update) that is
+     * older than the prepared updates to be deleted from the history store in the future
+     * reconciliation.
      *
      * 4) We are running an in-memory database:
      *     commit: resolve the prepared updates in memory.
@@ -1374,7 +1372,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     case RESOLVE_PREPARE_ON_DISK:
         /*
          * Open a history store table cursor and scan the history store for the given btree and key
-         * with maximum start timestamp to let the search point to the last version of the key.
+         * with maximum commit timestamp to let the search point to the last version of the key.
          */
         WT_ERR(__wt_curhs_open(session, btree->id, NULL, &hs_cursor));
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);

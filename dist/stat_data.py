@@ -1361,7 +1361,7 @@ conn_dsrc_stats = [
     TxnStat('txn_rts_hs_restore_tombstones_dryrun', 'rollback to stable tombstones from history store that would have been restored in non-dryrun mode'),
     TxnStat('txn_rts_hs_restore_updates', 'rollback to stable restored updates from history store'),
     TxnStat('txn_rts_hs_restore_updates_dryrun', 'rollback to stable updates from history store that would have been restored in non-dryrun mode'),
-    TxnStat('txn_rts_hs_stop_older_than_newer_start', 'rollback to stable history store records with stop timestamps older than newer records'),
+    TxnStat('txn_rts_hs_stop_older_than_newer_start', 'rollback to stable history store records with stop durable timestamps older than newer records'),
     TxnStat('txn_rts_inconsistent_ckpt', 'rollback to stable inconsistent checkpoint'),
     TxnStat('txn_rts_keys_removed', 'rollback to stable keys removed'),
     TxnStat('txn_rts_keys_removed_dryrun', 'rollback to stable keys that would have been removed in non-dryrun mode'),

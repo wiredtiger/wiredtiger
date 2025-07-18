@@ -921,10 +921,10 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
          * repeatedly deleting from the beginning of a tree can have quadratic performance. Take
          * care not to force eviction of pages that are genuinely empty, in new trees.
          *
-         * A visible stop timestamp could have been treated as a tombstone and accounted in the
-         * deleted count. Such a page might not have any new updates and be clean, but could benefit
-         * from reconciliation getting rid of the obsolete content. Hence mark the page dirty to
-         * force it through reconciliation.
+         * A visible stop commit timestamp could have been treated as a tombstone and accounted in
+         * the deleted count. Such a page might not have any new updates and be clean, but could
+         * benefit from reconciliation getting rid of the obsolete content. Hence mark the page
+         * dirty to force it through reconciliation.
          */
         if (page != NULL &&
           (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||

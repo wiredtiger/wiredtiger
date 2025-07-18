@@ -87,13 +87,13 @@
 #define WT_CELL_64V 0x04         /* Associated value */
 #define WT_CELL_SECOND_DESC 0x08 /* Second descriptor byte */
 
-#define WT_CELL_PREPARE 0x01                 /* Part of prepared transaction */
-#define WT_CELL_TS_START_COMMIT_DURABLE 0x02 /* Start durable timestamp */
-#define WT_CELL_TS_STOP_COMMIT_DURABLE 0x04  /* Stop durable timestamp */
-#define WT_CELL_TS_START_COMMIT 0x08         /* Oldest-start timestamp */
-#define WT_CELL_TS_STOP_COMMIT 0x10          /* Newest-stop timestamp */
-#define WT_CELL_TXN_START 0x20               /* Oldest-start txn ID */
-#define WT_CELL_TXN_STOP 0x40                /* Newest-stop txn ID */
+#define WT_CELL_PREPARE 0x01          /* Part of prepared transaction */
+#define WT_CELL_TS_START_DURABLE 0x02 /* Start durable timestamp */
+#define WT_CELL_TS_STOP_DURABLE 0x04  /* Stop durable timestamp */
+#define WT_CELL_TS_START_COMMIT 0x08  /* Oldest-start timestamp */
+#define WT_CELL_TS_STOP_COMMIT 0x10   /* Newest-stop timestamp */
+#define WT_CELL_TXN_START 0x20        /* Oldest-start txn ID */
+#define WT_CELL_TXN_STOP 0x40         /* Newest-stop txn ID */
 
 /*
  * WT_CELL_ADDR_INT is an internal block location, WT_CELL_ADDR_LEAF is a leaf block location, and

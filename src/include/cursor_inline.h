@@ -286,10 +286,10 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
      * If we were scanning and saw a lot of deleted records on this page, try to evict the page when
      * we release it.
      *
-     * A visible stop timestamp could have been treated as a tombstone and accounted in the deleted
-     * count. Such a page might not have any new updates and be clean, but could benefit from
-     * reconciliation getting rid of the obsolete content. Hence mark the page dirty to force it
-     * through reconciliation.
+     * A visible stop commit timestamp could have been treated as a tombstone and accounted in the
+     * deleted count. Such a page might not have any new updates and be clean, but could benefit
+     * from reconciliation getting rid of the obsolete content. Hence mark the page dirty to force
+     * it through reconciliation.
      */
     if (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD) {
         WT_RET(__wt_page_dirty_and_evict_soon(session, cbt->ref));

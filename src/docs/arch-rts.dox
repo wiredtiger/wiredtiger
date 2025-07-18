@@ -122,8 +122,8 @@ to the stable timestamp.
 
 Timestamps of updates in the history store can have some non-obvious properties:
 
-* The start timestamp can be equal to the stop timestamp if the original update's commit timestamp
-  is in order.
+* The start commit timestamp can be equal to the stop commit timestamp if the original update's commit
+  timestamp is in order.
 * During rollback of a prepared transaction, a history store update with a stop timestamp may not
   get removed, leading to a duplicate record. RTS ignores the timestamps for these when checking
   ordering, and they're removed during the next reconciliation.
@@ -169,8 +169,8 @@ case where a new key can be added to a page, and then the page checkpointed, lea
 where we have updates to the key in the history store but not the disk image.
 
 History store deletions are done using a standard history store cursor, starting at the highest
-possible start timestamp, and removing keys from newest to oldest until we hit an update with a
-start timestamp less than or equal to the rollback timestamp.
+possible commit timestamp, and removing keys from newest to oldest until we hit an update with a
+commit timestamp less than or equal to the rollback timestamp.
 
 Note: in-memory databases don't have a history store, so none of this section will apply.
 

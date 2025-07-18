@@ -49,9 +49,9 @@ __check_imported_ts(
 
         /*
          * No need to check "newest stop" here as "newest stop durable" serves that purpose. When a
-         * file has at least one record without a stop timestamp, "newest stop" will be set to max
-         * whereas "newest stop durable" refers to the newest non-max timestamp which is more useful
-         * to us in terms of comparing with oldest.
+         * file has at least one record without a stop commit timestamp, "newest stop" will be set
+         * to max whereas "newest stop durable" refers to the newest non-max timestamp which is more
+         * useful to us in terms of comparing with oldest.
          */
         if (ckpt->ta.newest_stop_durable_ts > ts) {
             WT_ASSERT(session, ckpt->ta.newest_stop_durable_ts != WT_TS_MAX);

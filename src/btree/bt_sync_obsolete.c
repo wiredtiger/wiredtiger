@@ -250,7 +250,7 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
      */
     if (__wt_ref_addr_copy(session, ref, &addr) && addr.type == WT_ADDR_LEAF_NO) {
         /*
-         * Max stop timestamp is possible only when the prepared update is written to the data
+         * Max stop commit timestamp is only seen when the prepared update is written to the data
          * store.
          */
         WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &newest_ta, &addr.ta);
@@ -622,7 +622,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
     if (addr_size == 0)
         return (false);
 
-    /* The table has a durable stop timestamp. */
+    /* The table has a stop durable timestamp. */
     if (newest_stop_durable_ts != WT_TS_NONE)
         return (true);
 

@@ -267,7 +267,7 @@ struct __wt_ovfl_reuse {
  * counter to keep the key unique in the case where we have multiple transactions committing at the
  * same timestamp.
  * The value is the WT_UPDATE structure's:
- * 	- stop timestamp
+ * 	- stop commit timestamp
  * 	- durable timestamp
  *	- update type
  *	- value.

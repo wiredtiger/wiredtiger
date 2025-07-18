@@ -1050,7 +1050,7 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
     /*
      * This function is used to determine when an update is obsolete: that should take into account
-     * the durable timestamp which is greater than or equal to the start timestamp.
+     * the durable timestamp which is greater than or equal to the commit timestamp.
      */
     return (__wt_txn_visible_all(session, upd->txnid, upd->upd_durable_ts));
 }
@@ -1313,7 +1313,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
          * change, recheck visibility.
          *
          * We need to place an acquire barrier prior to the second read of prepare state as
-         * otherwise it could overlap with the reads of the transaction id and start timestamp.
+         * otherwise it could overlap with the reads of the transaction id and commit timestamp.
          * Which would invalidate this check.
          */
         WT_ACQUIRE_BARRIER();
@@ -1681,8 +1681,8 @@ retry:
      * value the reader should read may have been removed from the history store and appended to the
      * data store. If we race with prepared commit, imagine a case we read with timestamp 50 and we
      * have a prepared update with timestamp 30 and a history store record with timestamp 20,
-     * committing the prepared update will cause the stop timestamp of the history store record
-     * being updated to 30 and the reader not seeing it.
+     * committing the prepared update will cause the stop commit timestamp of the history store
+     * record being updated to 30 and the reader not seeing it.
      */
     if (prepare_upd != NULL) {
         WT_ASSERT(session, F_ISSET(prepare_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
@@ -1698,8 +1698,8 @@ retry:
              * When a prepared update/insert is rollback or committed, retrying it again should fix
              * concurrent modification of a prepared update. Other than prepared insert rollback,
              * rest of the cases, the history store update is either added to the end of the update
-             * chain or modified to set proper stop timestamp. In all the scenarios, retrying again
-             * will work to return a proper update.
+             * chain or modified to set proper stop commit timestamp. In all the scenarios, retrying
+             * again will work to return a proper update.
              */
             goto retry;
         }
@@ -2126,13 +2126,13 @@ __txn_modify_block(
                 rollback = !__wt_txn_tw_stop_visible(session, &tw);
                 if (rollback)
                     __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
-                      "Conflict with update %" PRIu64 " at stop timestamp: %s", tw.stop_txn,
+                      "Conflict with update %" PRIu64 " at stop commit timestamp: %s", tw.stop_txn,
                       __wt_timestamp_to_string(tw.stop_commit_ts, ts_string));
             } else {
                 rollback = !__wt_txn_tw_start_visible(session, &tw);
                 if (rollback)
                     __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
-                      "Conflict with update %" PRIu64 " at start timestamp: %s", tw.start_txn,
+                      "Conflict with update %" PRIu64 " at commit timestamp: %s", tw.start_txn,
                       __wt_timestamp_to_string(tw.start_commit_ts, ts_string));
             }
         }

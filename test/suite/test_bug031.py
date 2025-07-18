@@ -78,7 +78,7 @@ class test_bug_031(wttest.WiredTigerTestCase):
 
         # After eviction, we have:
         # - Nothing in memory.
-        # - A record with a start ts 10 and stop ts 20 in the DS.
+        # - A record with a start commit ts 10 and stop commit ts 20 in the DS.
         # - Nothing in the HS.
 
         # Insert an update.
@@ -94,7 +94,7 @@ class test_bug_031(wttest.WiredTigerTestCase):
         # The two updates U1 and U2 should have the flag WT_UPDATE_PREPARE_RESTORED_FROM_DS as they
         # were read back into memory from disk by the checkpoint.
         # - The most recent insertion U3 in the DS.
-        # - A record with a start ts 10 and stop ts 20 in the HS.
+        # - A record with a start commit ts 10 and stop commit ts 20 in the HS.
 
         # RTS.
         self.conn.rollback_to_stable()

@@ -54,9 +54,9 @@ __wti_rts_visibility_txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
  * __rts_visibility_get_ref_max_durable_timestamp --
  *     Returns the ref aggregated max durable timestamp. The max durable timestamp is calculated
  *     between both start and stop durable timestamps except for history store, because most of the
- *     history store updates have stop timestamp either greater or equal to the start timestamp
- *     except for the updates written for the prepared updates on the data store. To abort the
- *     updates with no stop timestamp, we must include the newest stop timestamp also into the
+ *     history store updates have stop commit timestamp either greater or equal to the start commit
+ *     timestamp except for the updates written for the prepared updates on the data store. To abort
+ *     the updates with no stop timestamp, we must include the newest stop timestamp also into the
  *     calculation of maximum durable timestamp of the history store.
  */
 static wt_timestamp_t

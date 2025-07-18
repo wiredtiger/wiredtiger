@@ -282,7 +282,7 @@ __verify_dsk_addr_page_del(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
     if (unpack->ta.newest_stop_durable_ts > unpack->page_del.pg_del_durable_ts)
         WT_RET_VRFY(session,
           "fast-delete cell %" PRIu32
-          " on page at %s has invalid newest durable stop time; should be <= %" PRIu64
+          " on page at %s has invalid newest stop durable time; should be <= %" PRIu64
           "; time aggregate %s",
           cell_num - 1, tag, unpack->page_del.pg_del_durable_ts,
           __wt_time_aggregate_to_string(&unpack->ta, time_string));

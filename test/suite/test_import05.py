@@ -71,7 +71,7 @@ class test_import05(test_import_base):
         self.session.checkpoint()
 
         # Place the last insert/delete.
-        # We also want to check that a stop timestamp later than oldest will prevent imports. In the
+        # We also want to check that a stop durable timestamp later than oldest will prevent imports. In the
         # delete case, we should use the last timestamp in our data set and use it delete the first
         # key we inserted.
         if self.op_type == 'insert':
@@ -143,7 +143,7 @@ class test_import05(test_import_base):
             self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.ts[-1] - 1))
 
         # If our latest operation was an insert, we're expecting it to complain about the aggregated
-        # start timestamp whereas if we did a delete, we should expect it to complain about stop.
+        # start durable timestamp whereas if we did a delete, we should expect it to complain about stop.
         error_msg = error_pattern.format(
             'newest start durable' if self.op_type == 'insert' else 'newest stop durable')
 

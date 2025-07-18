@@ -41,10 +41,10 @@ __wti_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
 
     /*
-     * Scan the history store for the given btree and key with maximum start timestamp to let the
+     * Scan the history store for the given btree and key with maximum commit timestamp to let the
      * search point to the last version of the key and start traversing backwards to delete all the
-     * records until the first update with the start timestamp larger than or equal to the specified
-     * timestamp.
+     * records until the first update with the commit timestamp larger than or equal to the
+     * specified timestamp.
      */
     hs_cursor->set_key(hs_cursor, 4, btree_id, key, WT_TS_MAX, UINT64_MAX);
     ret = __wt_curhs_search_near_before(session, hs_cursor);
@@ -53,8 +53,8 @@ __wti_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp
         __wt_hs_upd_time_window(hs_cursor, &hs_tw);
 
         /*
-         * Remove all history store versions with a stop timestamp greater than the start/stop
-         * timestamp of a stable update in the data store.
+         * Remove all history store versions with a stop commit timestamp greater than the
+         * start/stop commit timestamp of a stable update in the data store.
          */
         if (hs_tw->stop_commit_ts <= ts)
             break;
@@ -139,10 +139,10 @@ __wti_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
 
     /*
      * Find out the max durable timestamp of the history store from checkpoint. Most of the history
-     * store updates have stop timestamp either greater or equal to the start timestamp except for
-     * the updates written for the prepared updates on the data store. To abort the updates with no
-     * stop timestamp, we must include the newest stop timestamp also into the calculation of
-     * maximum timestamp of the history store.
+     * store updates have stop commit timestamp either greater or equal to the start commit
+     * timestamp except for the updates written for the prepared updates on the data store. To abort
+     * the updates with no stop timestamp, we must include the newest stop timestamp also into the
+     * calculation of maximum timestamp of the history store.
      */
     newest_stop_durable_ts = newest_stop_ts = WT_TS_NONE;
     WT_ERR(__wt_config_getones(session, config, "checkpoint", &cval));
@@ -165,7 +165,7 @@ __wti_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
      * The rollback operation should be skipped if there is no stable timestamp. Otherwise, it
      * should be performed if one of the following criteria is satisfied:
      * - The history store has dirty content.
-     * - The checkpoint durable start/stop timestamp is greater than the rollback timestamp.
+     * - The checkpoint start/stop durable timestamp is greater than the rollback timestamp.
      *
      * Note that the corresponding code for RTS btree apply also checks whether there _are_
      * timestamped updates by checking max_durable_ts; that check is redundant here for several
