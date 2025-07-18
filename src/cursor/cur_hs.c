@@ -72,6 +72,7 @@ __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_bt
     uint64_t hash_value;
     const char *uri;
 
+    uri = NULL;
     WT_HS_ID_TO_URI(session, hs_id, uri);
 
     __wt_cursor_get_hash(session, uri, NULL, &hash_value);
@@ -1429,6 +1430,7 @@ __wt_curhs_open_ext(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t btree_id,
 
     cursor = NULL;
     *cursorp = NULL;
+    uri = NULL;
 
     WT_HS_ID_TO_URI(session, hs_id, uri);
 
