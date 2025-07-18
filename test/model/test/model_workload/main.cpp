@@ -272,6 +272,7 @@ test_workload_crash(void)
              << model::operation::set_stable_timestamp(25);
 
     /* Run the workload in the model. */
+
     model::kv_database database;
     workload.run(database);
 
