@@ -798,7 +798,8 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
     } else {
         /* Try to find the cursor in the cache. */
         __wt_cursor_get_hash(session, uri, NULL, &hash_value);
-        WT_ERR_NOTFOUND_OK(__wt_cursor_cache_get(session, uri, hash_value, NULL, cfg, cursorp), false);
+        WT_ERR_NOTFOUND_OK(
+          __wt_cursor_cache_get(session, uri, hash_value, NULL, cfg, cursorp), false);
 
         /* Open a new cursor if no cached cursor was found. */
         if (*cursorp == NULL)
@@ -902,11 +903,9 @@ err:
         time_diff_usec = WT_TIMEDIFF_US(end_time, start_time);
         /*
          * It's considered a user open if it comes via a top-level API call. This could
-         * alternatively decide the statistic based on whether it's a user or internal session, but
-         * I'm most interested in knowing whether the user call open-session, or WiredTiger opened
-         * the session incidentally (even if that was within the purview of a user thread.
+         * alternatively decide the statistic based on whether it's a user or internal session.
          */
-        if (API_USER_ENTRY(session))
+        if (API_USER_ENTRY(session) && (ret == EBUSY && !F_ISSET(S2BT(session), WT_BTREE_SPECIAL_FLAGS)))
             WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_user_usecs, time_diff_usec);
         else
             WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
