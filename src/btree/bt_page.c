@@ -812,10 +812,9 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         total_size += size;
         tombstone->upd_durable_ts = WT_TS_NONE;
         tombstone->txnid = unpack->tw.stop_txn;
-        tombstone->prepare_state = WT_PREPARE_INPROGRESS;
-        tombstone->upd_start_ts = unpack->tw.stop_ts;
         tombstone->prepare_ts = unpack->tw.stop_prepare_ts;
         tombstone->prepared_id = unpack->tw.stop_prepared_id;
+        tombstone->prepare_state = WT_PREPARE_INPROGRESS;
         F_SET(tombstone, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
         if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
             F_SET(tombstone, WT_UPDATE_PREPARE_DURABLE);
