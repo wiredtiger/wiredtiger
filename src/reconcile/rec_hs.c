@@ -730,7 +730,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          * update to clear the timestamps of all the updates that are inserted into the history
          * store.
          */
-        if (list->onpage_tombstone != NULL && list->onpage_tombstone->upd_start_ts == WT_TS_NONE)
+        if (list->onpage_tombstone != NULL && list->onpage_tombstone->upd_start_ts == WT_TS_NONE &&
+          list->onpage_tombstone->prepare_ts == WT_TS_NONE)
             no_ts_upd = list->onpage_tombstone;
 
         /*
@@ -858,7 +859,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              * Save the first update without a timestamp in the update chain. This is used to remove
              * all the following updates' timestamps in the chain.
              */
-            if (no_ts_upd == NULL && upd->upd_start_ts == WT_TS_NONE) {
+            if (no_ts_upd == NULL && upd->upd_start_ts == WT_TS_NONE &&
+              upd->prepare_ts == WT_TS_NONE) {
                 WT_ASSERT(session, upd->upd_durable_ts == WT_TS_NONE);
                 no_ts_upd = upd;
             }
