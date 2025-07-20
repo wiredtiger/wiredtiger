@@ -72,7 +72,7 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     remove_existing = 0.9;
     update_existing = 0.1;
 
-    conn_logging = 0.1;
+    conn_logging = 0.5;
 
     prepared_transaction = 0.25;
     max_delay_after_prepare = 25; /* FIXME-WT-13232 This must be a small number until it's fixed. */
@@ -370,10 +370,10 @@ std::string
 kv_workload_generator::generate_connection_log_config()
 {
     std::string wt_env_config;
-    probability_switch(_random.next_float())
-    {
-        probability_case(_spec.conn_logging) wt_env_config += "log=(enabled=true)";
-    }
+
+    if (_spec.conn_logging < _random.next_float())
+        wt_env_config = model::join(wt_env_config, "log=(enabled=true)");
+
     return wt_env_config;
 }
 
