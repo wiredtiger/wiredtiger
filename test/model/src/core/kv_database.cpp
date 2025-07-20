@@ -311,7 +311,7 @@ kv_database::restart(bool crash)
     rollback_all_nolock();
 
     /* If we are not crashing, create a checkpoint. */
-    if (!crash && (!_config.disaggregated || _config.leader))
+    if (!crash)
         create_checkpoint();
 
     /* Start WiredTiger. */

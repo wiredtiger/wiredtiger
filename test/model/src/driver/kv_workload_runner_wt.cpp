@@ -37,6 +37,10 @@
 #include "model/driver/kv_workload_runner_wt.h"
 #include "model/util.h"
 
+#ifdef __unix__
+#include <dirent.h>
+#endif
+
 namespace model {
 
 /*
@@ -667,6 +671,10 @@ kv_workload_runner_wt::wiredtiger_open_nolock()
 
     kv_database_config database_config = kv_database_config::from_string(_state->database_config);
 
+    /* Disaggregated storage runs should not start with any local files. */
+    if (database_config.disaggregated)
+        remove_local_files();
+
     std::ostringstream config;
     config << k_config_base;
     if (database_config.disaggregated)
@@ -681,13 +689,29 @@ kv_workload_runner_wt::wiredtiger_open_nolock()
     if (ret != 0)
         throw wiredtiger_exception("Cannot open WiredTiger", ret);
 
-    /* If we're using disaggregated storage, pick up the latest checkpoint and step up. */
+    /*
+     * If we're using disaggregated storage, pick up the latest checkpoint, and step up, and set the
+     * stable timestamp.
+     */
     if (database_config.disaggregated) {
-        wt_disagg_pick_up_latest_checkpoint(_connection);
+        model::timestamp_t checkpoint_timestamp;
+        bool picked_up = wt_disagg_pick_up_latest_checkpoint(_connection, checkpoint_timestamp);
+
+        /* Step up. */
         if (database_config.leader) {
             ret = _connection->reconfigure(_connection, "disaggregated=(role=leader)");
             if (ret != 0)
                 throw wiredtiger_exception("Cannot reconfigure WiredTiger", ret);
+        }
+
+        /* Set the stable timestamp. */
+        if (picked_up) {
+            std::ostringstream stable_config;
+            stable_config << "stable_timestamp=" << std::hex << checkpoint_timestamp;
+            std::string stable_config_str = stable_config.str();
+            ret = _connection->set_timestamp(_connection, stable_config_str.c_str());
+            if (ret != 0)
+                throw wiredtiger_exception("Cannot set the stable timestamp", ret);
         }
     }
 }
@@ -711,6 +735,46 @@ kv_workload_runner_wt::wiredtiger_close_nolock()
         throw wiredtiger_exception("Cannot close WiredTiger", ret);
 
     _connection = nullptr;
+}
+
+/*
+ * kv_workload_runner_wt::remove_local_files --
+ *     Remove the local WiredTiger files.
+ */
+void
+kv_workload_runner_wt::remove_local_files()
+{
+    if (_connection != nullptr)
+        throw model_exception("WiredTiger is open");
+
+#ifndef __unix__
+    throw model_exception("Removing local files is not implemented on this platform");
+#else
+
+    /* List the directory and remove all files that belong to WiredTiger. */
+    DIR *dir = opendir(_home.c_str());
+    if (dir == nullptr)
+        throw model_exception(std::string("Could not open the test directory: ") + strerror(errno) +
+          " (" + std::to_string(errno) + ")");
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        std::string name(entry->d_name);
+
+        /* If it is a WiredTiger file, remove it. */
+        if (name.find("WiredTiger") == 0 || ends_with(name, ".wt") ||
+          ends_with(name, ".wt_ingest")) {
+            std::string path = _home + "/" + name;
+            if (unlink(path.c_str()) != 0)
+                throw model_exception(std::string("Could not remove file ") + path + ": " +
+                  strerror(errno) + " (" + std::to_string(errno) + ")");
+        }
+    }
+
+    if (closedir(dir) != 0)
+        throw model_exception(std::string("Could not close the test directory: ") +
+          strerror(errno) + " (" + std::to_string(errno) + ")");
+#endif
 }
 
 /*

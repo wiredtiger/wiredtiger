@@ -496,10 +496,11 @@ wt_disagg_config_string()
  * wt_disagg_pick_up_latest_checkpoint --
  *     Pick up the latest WiredTiger checkpoint.
  */
-void
-wt_disagg_pick_up_latest_checkpoint(WT_CONNECTION *conn)
+bool
+wt_disagg_pick_up_latest_checkpoint(WT_CONNECTION *conn, model::timestamp_t &checkpoint_timestamp)
 {
     int ret;
+    checkpoint_timestamp = model::k_timestamp_none;
 
     WT_PAGE_LOG *page_log;
     ret = conn->get_page_log(conn, "palm", &page_log);
@@ -513,10 +514,11 @@ wt_disagg_pick_up_latest_checkpoint(WT_CONNECTION *conn)
     wiredtiger_session_guard wiredtiger_session_guard(session);
 
     WT_ITEM metadata{};
+    uint64_t timestamp;
     ret = page_log->pl_get_complete_checkpoint_ext(
-      page_log, session, nullptr, nullptr, nullptr, &metadata);
+      page_log, session, nullptr, nullptr, &timestamp, &metadata);
     if (ret == WT_NOTFOUND)
-        return;
+        return false;
     if (ret != 0)
         throw wiredtiger_exception("Cannot get checkpoint metadata", ret);
     char *checkpoint_meta = strndup((const char *)metadata.data, metadata.size);
@@ -530,6 +532,9 @@ wt_disagg_pick_up_latest_checkpoint(WT_CONNECTION *conn)
     ret = conn->reconfigure(conn, config_str.c_str());
     if (ret != 0)
         throw wiredtiger_exception("Cannot reconfigure WiredTiger", ret);
+
+    checkpoint_timestamp = model::timestamp_t(timestamp);
+    return true;
 }
 
 /*

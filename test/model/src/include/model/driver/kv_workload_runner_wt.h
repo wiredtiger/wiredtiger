@@ -391,6 +391,12 @@ protected:
     void wiredtiger_close_nolock();
 
     /*
+     * kv_workload_runner_wt::remove_local_files --
+     *     Remove the local WiredTiger files.
+     */
+    void remove_local_files();
+
+    /*
      * kv_workload_runner_wt::add_table_uri --
      *     Add a table URI.
      */
