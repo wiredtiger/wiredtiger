@@ -39,7 +39,7 @@ namespace model {
  */
 kv_workload_generator_spec::kv_workload_generator_spec()
 {
-    disaggregated = 0.75;
+    disaggregated = 0; /* FIXME-WT-15042 Enable this when ready. */
 
     min_tables = 3;
     max_tables = 10;
