@@ -292,6 +292,8 @@ update_spec(model::kv_workload_generator_spec &spec, std::string &conn_config,
         UPDATE_SPEC(remove_existing, float);
         UPDATE_SPEC(update_existing, float);
 
+        UPDATE_SPEC(conn_logging, float);
+
         UPDATE_SPEC(prepared_transaction, float);
         UPDATE_SPEC(max_delay_after_prepare, uint64);
         UPDATE_SPEC(nonprepared_transaction_rollback, float);
