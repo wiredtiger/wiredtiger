@@ -769,13 +769,20 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          */
         if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
           !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA)) {
-            if (F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) &&
-              prepare_state == WT_PREPARE_INPROGRESS) {
+            if (prepare_state == WT_PREPARE_INPROGRESS) {
                 WT_ASSERT_ALWAYS(session,
                   upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid,
                   "Cannot have two different prepared transactions active on the same key");
 
                 if (upd->prepare_ts > r->rec_start_pinned_stable_ts) {
+                    WT_ASSERT(session, !is_hs_page);
+                    *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+                    *has_newer_updatesp = true;
+                    seen_prepare = true;
+                    continue;
+                }
+
+                if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED)) {
                     WT_ASSERT(session, !is_hs_page);
                     *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                     *has_newer_updatesp = true;
@@ -796,8 +803,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                 }
 
                 *write_preparep = true;
-            } else if (F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) &&
-              prepare_state == WT_PREPARE_RESOLVED) {
+            } else if (prepare_state == WT_PREPARE_RESOLVED) {
                 if (upd->prepare_ts > r->rec_start_pinned_stable_ts) {
                     WT_ASSERT(session, !is_hs_page);
                     *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
@@ -810,6 +816,14 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                  * timestamp is stable. In this case, leave the page dirty.
                  */
                 if (upd->upd_durable_ts > r->rec_start_pinned_stable_ts) {
+                    if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED)) {
+                        WT_ASSERT(session, !is_hs_page);
+                        *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+                        *has_newer_updatesp = true;
+                        seen_prepare = true;
+                        continue;
+                    }
+
                     WT_ASSERT(session, !is_hs_page);
                     *has_newer_updatesp = true;
                     *write_preparep = true;
