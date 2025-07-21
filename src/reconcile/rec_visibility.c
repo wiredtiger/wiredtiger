@@ -835,15 +835,15 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                     *write_preparep = true;
 
                     /*
-                     * If we are not in eviction, the preserve prepared config must be enabled or we
-                     * must be in salvage to reach here. Since salvage only works on data on-disk,
-                     * the prepared update must be restored from the disk. No need for us to
-                     * rollback the prepared update in salvage here. If there is still content for
-                     * that key left in the history store, rollback to stable will bring it back to
-                     * the data store later. Otherwise, it removes the key.
+                     * If we are not in eviction, we must be in salvage to reach here. Since salvage
+                     * only works on data on-disk, the prepared update must be restored from the
+                     * disk. No need for us to rollback the prepared update in salvage here. If
+                     * there is still content for that key left in the history store, rollback to
+                     * stable will bring it back to the data store later. Otherwise, it removes the
+                     * key.
                      */
                     WT_ASSERT_ALWAYS(session,
-                      F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || F_ISSET(r, WT_REC_EVICT) ||
+                      F_ISSET(r, WT_REC_EVICT) ||
                         (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
                           F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)),
                       "Should never salvage a prepared update not from disk.");
