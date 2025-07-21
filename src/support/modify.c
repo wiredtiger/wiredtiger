@@ -423,6 +423,7 @@ __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
     upd_value->tw.durable_start_ts = modify->upd_durable_ts;
     upd_value->tw.start_txn = modify->txnid;
     onpage_retry = true;
+    txnid = WT_TS_NONE;
 
     /*
      * It is possible that a read-uncommitted reader can not reconstruct a full value. This is
@@ -443,6 +444,8 @@ retry:
     __wt_update_vector_free(&modifies);
 
     prepare = false;
+    upd = modify;
+
     /*
      * Handle the case that modify is a prepared update and we race with prepared rollback. This can
      * happen if we read with the ignore prepared config or in reconciliation with the preserve
@@ -459,7 +462,7 @@ retry:
     }
 
     /* Find a complete update. */
-    for (upd = modify; upd != NULL; upd = upd->next) {
+    for (; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED) {
             /*
              * If the modify is a prepared update, we need to check if there is another prepared
