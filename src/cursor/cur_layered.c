@@ -1978,7 +1978,7 @@ err:
 
         if (released) {
             /*
-             * If the cursor has been cached, try to cache the consituent cursors by evoking a
+             * If the cursor has been cached, try to cache the constituent cursors by evoking a
              * cursor close.
              *
              * Note: There no need to close the constituent cursors if it has been already done
