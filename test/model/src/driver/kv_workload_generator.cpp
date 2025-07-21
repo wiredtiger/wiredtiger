@@ -63,7 +63,7 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     /*
      * FIXME-WT-14395 - The last crash point in the checkpoint code (used by test/model's
      * checkpoint_crash) triggers after the checkpoint txn commits but before the turtle file is
-     * updated. This causes inconsistent behaviour when logging is enabled. For now checkpoint_crash
+     * updated. This causes inconsistent behavior when logging is enabled. For now checkpoint_crash
      * has been disabled. Once resolved, return checkpoint_crash probability value to 0.002.
      */
     checkpoint_crash = 0;
