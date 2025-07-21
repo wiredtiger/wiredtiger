@@ -848,16 +848,16 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                           F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)),
                       "Should never salvage a prepared update not from disk.");
                     /* Prepared updates cannot be resolved concurrently to eviction and salvage. */
-                    WT_ASSERT_ALWAYS(session,
-                      F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) ||
-                        upd->prepare_state == WT_PREPARE_INPROGRESS,
-                      "Should never concurrently resolve a prepared update during reconciliation.");
+                    WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
+                      "Should never concurrently resolve a prepared update during reconciliation "
+                      "if we "
+                      "are not in a checkpoint.");
                 }
             }
         }
 
-        if (F_ISSET(upd, WT_UPDATE_PREPARE_ROLLBACK) && !F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) &&
-          F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
+        if (F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) && F_ISSET(upd, WT_UPDATE_PREPARE_ROLLBACK) &&
+          !F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS))
             prepare_rollback_tombstone = upd;
 
         /*
