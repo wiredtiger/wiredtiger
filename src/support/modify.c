@@ -412,7 +412,9 @@ __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
     WT_UPDATE *upd;
     WT_UPDATE_VECTOR modifies;
     size_t base_value_size, item_offset, max_memsize;
-    bool onpage_retry;
+    uint64_t txnid;
+    uint8_t prepare_state;
+    bool onpage_retry, prepare;
 
     WT_ASSERT(session, modify->type == WT_UPDATE_MODIFY);
 
@@ -440,10 +442,50 @@ retry:
     /* When retrying, the vector might already contain allocated memory that should be released. */
     __wt_update_vector_free(&modifies);
 
+    prepare = false;
+    /*
+     * Handle the case that modify is a prepared update and we race with prepared rollback. This can
+     * happen if we read with the ignore prepared config or in reconciliation with the preserve
+     * prepared config.
+     */
+    WT_READ_ONCE(prepare_state, modify->prepare_state);
+    if (prepare_state == WT_PREPARE_INPROGRESS) {
+        WT_ACQUIRE_READ(txnid, upd->txnid);
+        /* The update may be already aborted. Get the saved transaction id. */
+        if (txnid == WT_TXN_ABORTED)
+            txnid = modify->upd_saved_txnid;
+
+        prepare = true;
+    }
+
     /* Find a complete update. */
     for (upd = modify; upd != NULL; upd = upd->next) {
-        if (upd->txnid == WT_TXN_ABORTED)
-            continue;
+        if (upd->txnid == WT_TXN_ABORTED) {
+            /*
+             * If the modify is a prepared update, we need to check if there is another prepared
+             * modify from the same transaction before it.
+             */
+            if (!prepare)
+                continue;
+
+            /*
+             * If we have multiple prepared updates from the same transaction, there is no other
+             * updates in between them.
+             */
+            if (upd->prepare_state != WT_PREPARE_INPROGRESS) {
+                prepare = false;
+                continue;
+            }
+
+            /*
+             * No need to check other aborted updates if we have seen an update from another
+             * transaction.
+             */
+            if (upd->upd_saved_txnid != txnid) {
+                prepare = false;
+                continue;
+            }
+        }
 
         if (WT_UPDATE_DATA_VALUE(upd))
             break;

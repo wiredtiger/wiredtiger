@@ -1145,10 +1145,10 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
             upd->prepare_state = WT_PREPARE_LOCKED;
             WT_RELEASE_BARRIER();
             upd->upd_rollback_ts = txn->rollback_timestamp;
-            upd->upd_saved_txnid = upd->txnid;
-            WT_RELEASE_WRITE_WITH_BARRIER(upd->txnid, WT_TXN_ABORTED);
-        } else
-            upd->txnid = WT_TXN_ABORTED;
+        }
+
+        upd->upd_saved_txnid = upd->txnid;
+        WT_RELEASE_WRITE_WITH_BARRIER(upd->txnid, WT_TXN_ABORTED);
         WT_STAT_CONN_INCR(session, txn_prepared_updates_rolledback);
         return;
     }
