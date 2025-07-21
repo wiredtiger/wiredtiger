@@ -652,7 +652,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
     *write_preparep = false;
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
-        if ((txnid = upd->txnid) == WT_TXN_ABORTED) {
+        WT_ACQUIRE_READ(txnid, upd->txnid);
+        if (txnid == WT_TXN_ABORTED) {
             if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
                 continue;
 

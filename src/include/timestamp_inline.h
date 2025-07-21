@@ -81,8 +81,10 @@
         if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {        \
             (tw)->start_prepare_ts = (upd)->prepare_ts;                \
             (tw)->start_prepared_id = (upd)->prepared_id;              \
-            if (upd->txnid == WT_TXN_ABORTED)                          \
+            if ((tw)->start_txn == WT_TXN_ABORTED) {                   \
+                WT_ACQUIRE_BARRIER()                                   \
                 (tw)->start_txn = (upd)->upd_saved_txnid;              \
+            }                                                          \
         }                                                              \
                                                                        \
         if ((upd)->upd_durable_ts != WT_TS_NONE)                       \
@@ -102,8 +104,10 @@
         if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {      \
             (tw)->stop_prepare_ts = (upd)->prepare_ts;               \
             (tw)->stop_prepared_id = (upd)->prepared_id;             \
-            if (upd->txnid == WT_TXN_ABORTED)                        \
+            if ((tw)->stop_txn == WT_TXN_ABORTED) {                  \
+                WT_ACQUIRE_BARRIER()                                 \
                 (tw)->stop_txn = (upd)->upd_saved_txnid;             \
+            }                                                        \
         }                                                            \
                                                                      \
         if ((upd)->upd_durable_ts != WT_TS_NONE)                     \
