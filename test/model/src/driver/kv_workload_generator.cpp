@@ -371,7 +371,7 @@ kv_workload_generator::generate_connection_log_config()
 {
     std::string wt_env_config;
 
-    if (_spec.conn_logging < _random.next_float())
+    if (_spec.conn_logging > _random.next_float())
         wt_env_config = model::join(wt_env_config, "log=(enabled=true)");
 
     return wt_env_config;
