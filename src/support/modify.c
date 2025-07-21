@@ -446,8 +446,7 @@ retry:
     prepare = false;
     /*
      * Handle the case that modify is a prepared update and we race with prepared rollback. This can
-     * happen if we read with the ignore prepared config or in reconciliation with the preserve
-     * prepared config.
+     * happen in reconciliation with the preserve prepared config.
      */
     WT_READ_ONCE(prepare_state, modify->prepare_state);
     if (prepare_state == WT_PREPARE_INPROGRESS) {

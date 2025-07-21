@@ -648,7 +648,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
     max_txn = WT_TXN_NONE;
     is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
     session_txnid = __wt_atomic_loadv64(&WT_SESSION_TXN_SHARED(session)->id);
-    prepare_state = WT_PREPARE_INIT;
     seen_prepare = false;
     *write_preparep = false;
 
