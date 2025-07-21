@@ -757,50 +757,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             WT_READ_ONCE(prepare_state, upd->prepare_state);
         }
 
-        if (prepare_state == WT_PREPARE_INPROGRESS) {
-            WT_ASSERT_ALWAYS(session,
-              upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid,
-              "Cannot have two different prepared transactions active on the same key");
-            /*
-             * Don't save the record if it's prepare timestamp is greater than the pinned stable
-             * timestamp when preserve prepared is enabled or preserve prepared is not enabled.
-             */
-            if (F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) &&
-              upd->prepare_ts > r->rec_start_pinned_stable_ts) {
-                *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
-                *has_newer_updatesp = true;
-                seen_prepare = true;
-                continue;
-            } else if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) && F_ISSET(r, WT_REC_CHECKPOINT)) {
-                *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
-                *has_newer_updatesp = true;
-                seen_prepare = true;
-                continue;
-            } else {
-                *write_preparep = true;
-
-                /*
-                 * If we are not in eviction, the preserve prepared config must be enabled or we
-                 * must be in salvage to reach here. Since salvage only works on data on-disk, the
-                 * prepared update must be restored from the disk. No need for us to rollback the
-                 * prepared update in salvage here. If there is still content for that key left in
-                 * the history store, rollback to stable will bring it back to the data store later.
-                 * Otherwise, it removes the key.
-                 */
-                WT_ASSERT_ALWAYS(session,
-                  F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || F_ISSET(r, WT_REC_EVICT) ||
-                    (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
-                      F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)),
-                  "Should never salvage a prepared update not from disk.");
-                /* Prepared updates cannot be resolved concurrently to eviction and salvage. */
-                WT_ASSERT_ALWAYS(session,
-                  F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) ||
-                    upd->prepare_state == WT_PREPARE_INPROGRESS,
-                  "Should never concurrently resolve a prepared update during reconciliation if we "
-                  "are not in a checkpoint.");
-            }
-        }
-
         /*
          * Don't write any update that is not stable if precise checkpoint is enabled.
          *
@@ -814,7 +770,12 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          */
         if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
           !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA)) {
-            if (prepare_state == WT_PREPARE_INPROGRESS) {
+            if (F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) &&
+              prepare_state == WT_PREPARE_INPROGRESS) {
+                WT_ASSERT_ALWAYS(session,
+                  upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid,
+                  "Cannot have two different prepared transactions active on the same key");
+
                 if (upd->prepare_ts > r->rec_start_pinned_stable_ts) {
                     WT_ASSERT(session, !is_hs_page);
                     *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
@@ -836,7 +797,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                 }
 
                 *write_preparep = true;
-            } else if (prepare_state == WT_PREPARE_RESOLVED) {
+            } else if (F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) &&
+              prepare_state == WT_PREPARE_RESOLVED) {
                 if (upd->prepare_ts > r->rec_start_pinned_stable_ts) {
                     WT_ASSERT(session, !is_hs_page);
                     *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
@@ -852,6 +814,47 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                     WT_ASSERT(session, !is_hs_page);
                     *has_newer_updatesp = true;
                     *write_preparep = true;
+                }
+            } else if (upd->upd_durable_ts > r->rec_start_pinned_stable_ts) {
+                WT_ASSERT(session, !is_hs_page);
+                *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+                *has_newer_updatesp = true;
+                continue;
+            }
+        } else if (!F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA)) {
+            if (prepare_state == WT_PREPARE_INPROGRESS) {
+                WT_ASSERT_ALWAYS(session,
+                  upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid,
+                  "Cannot have two different prepared transactions active on the same key");
+
+                if (F_ISSET(r, WT_REC_CHECKPOINT)) {
+                    *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+                    *has_newer_updatesp = true;
+                    seen_prepare = true;
+                    continue;
+                } else {
+                    *write_preparep = true;
+
+                    /*
+                     * If we are not in eviction, the preserve prepared config must be enabled or we
+                     * must be in salvage to reach here. Since salvage only works on data on-disk,
+                     * the prepared update must be restored from the disk. No need for us to
+                     * rollback the prepared update in salvage here. If there is still content for
+                     * that key left in the history store, rollback to stable will bring it back to
+                     * the data store later. Otherwise, it removes the key.
+                     */
+                    WT_ASSERT_ALWAYS(session,
+                      F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || F_ISSET(r, WT_REC_EVICT) ||
+                        (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
+                          F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)),
+                      "Should never salvage a prepared update not from disk.");
+                    /* Prepared updates cannot be resolved concurrently to eviction and salvage. */
+                    WT_ASSERT_ALWAYS(session,
+                      F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) ||
+                        upd->prepare_state == WT_PREPARE_INPROGRESS,
+                      "Should never concurrently resolve a prepared update during reconciliation "
+                      "if we "
+                      "are not in a checkpoint.");
                 }
             }
         }
