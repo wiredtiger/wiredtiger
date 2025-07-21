@@ -76,15 +76,17 @@
  */
 #define WT_TIME_WINDOW_SET_START(session, tw, upd)                     \
     do {                                                               \
+        (tw)->start_txn = (upd)->txnid;                                \
         (tw)->durable_start_ts = (tw)->start_ts = (upd)->upd_start_ts; \
         if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {        \
             (tw)->start_prepare_ts = (upd)->prepare_ts;                \
             (tw)->start_prepared_id = (upd)->prepared_id;              \
+            if (upd->txnid == WT_TXN_ABORTED)                          \
+                (tw)->start_txn = (upd)->upd_saved_txnid;              \
         }                                                              \
                                                                        \
         if ((upd)->upd_durable_ts != WT_TS_NONE)                       \
             (tw)->durable_start_ts = (upd)->upd_durable_ts;            \
-        (tw)->start_txn = (upd)->txnid;                                \
     } while (0)
 
 /*
@@ -95,15 +97,17 @@
  */
 #define WT_TIME_WINDOW_SET_STOP(session, tw, upd)                    \
     do {                                                             \
+        (tw)->stop_txn = (upd)->txnid;                               \
         (tw)->durable_stop_ts = (tw)->stop_ts = (upd)->upd_start_ts; \
         if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {      \
             (tw)->stop_prepare_ts = (upd)->prepare_ts;               \
             (tw)->stop_prepared_id = (upd)->prepared_id;             \
+            if (upd->txnid == WT_TXN_ABORTED)                        \
+                (tw)->stop_txn = (upd)->upd_saved_txnid;             \
         }                                                            \
                                                                      \
         if ((upd)->upd_durable_ts != WT_TS_NONE)                     \
             (tw)->durable_stop_ts = (upd)->upd_durable_ts;           \
-        (tw)->stop_txn = (upd)->txnid;                               \
     } while (0)
 
 /* Copy the start values of a time window from another time window. */
