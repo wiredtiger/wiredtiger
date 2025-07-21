@@ -181,7 +181,7 @@ def replace_uri(uri):
     stat_prefix = 'statistics:'
     if uri.startswith(stat_prefix):
         return 'statistics:' + replace_uri(uri[len(stat_prefix):])
-    if is_layered(uri) and disagg_parameters.table_type != "layered":
+    if is_layered(uri) and disagg_parameters.table_prefix != "layered":
         return uri.replace("table:", "layered:")
     else:
         return uri
@@ -222,7 +222,7 @@ def session_create_replace(orig_session_create, session_self, uri, config):
        and not 'type=lsm' in config \
        and not marked_as_non_layered(uri):
         mark_as_layered(uri)
-        if (disagg_parameters.table_type == "layered"):
+        if (disagg_parameters.table_prefix == "layered"):
             WiredTigerTestCase.verbose(None, 1, f'    Replacing, old uri = "{uri}"')
             uri = replace_uri(uri)
             WiredTigerTestCase.verbose(None, 1, f'    Replacing, new uri = "{uri}"')
@@ -400,7 +400,7 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
         self.disagg_config = ''
         self.disagg_page_log = 'palm'
         self.disagg_role = 'leader'
-        self.table_type = 'layered'
+        self.table_prefix = 'layered'
 
         for param_key, param_value in params:
             if param_key == 'config':
@@ -409,8 +409,8 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
                 self.disagg_page_log = param_value
             elif param_key == 'role':
                 self.disagg_role = param_value
-            elif param_key == 'table_type':
-                self.table_type = param_value
+            elif param_key == 'table_prefix':
+                self.table_prefix = param_value
             else:
                 raise Exception('hook_disagg: unknown parameter {}'.format(param_key))
 
@@ -449,7 +449,7 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
         result.config = self.disagg_config
         result.role = self.disagg_role
         result.page_log = self.disagg_page_log
-        result.table_type = self.table_type
+        result.table_prefix = self.table_prefix
         return result
 
 # Every hook file must have a top level initialize function,
