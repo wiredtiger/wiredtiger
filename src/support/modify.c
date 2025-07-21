@@ -444,8 +444,6 @@ retry:
     __wt_update_vector_free(&modifies);
 
     prepare = false;
-    upd = modify;
-
     /*
      * Handle the case that modify is a prepared update and we race with prepared rollback. This can
      * happen if we read with the ignore prepared config or in reconciliation with the preserve
@@ -453,7 +451,7 @@ retry:
      */
     WT_READ_ONCE(prepare_state, modify->prepare_state);
     if (prepare_state == WT_PREPARE_INPROGRESS) {
-        WT_ACQUIRE_READ(txnid, upd->txnid);
+        WT_ACQUIRE_READ(txnid, modify->txnid);
         /* The update may be already aborted. Get the saved transaction id. */
         if (txnid == WT_TXN_ABORTED)
             txnid = modify->upd_saved_txnid;
@@ -462,7 +460,7 @@ retry:
     }
 
     /* Find a complete update. */
-    for (; upd != NULL; upd = upd->next) {
+    for (upd = modify; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED) {
             /*
              * If the modify is a prepared update, we need to check if there is another prepared
