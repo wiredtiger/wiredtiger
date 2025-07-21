@@ -1077,11 +1077,12 @@ __txn_search_prepared_op(
 }
 
 /*
- * __txn_append_tombstone --
- *     Append a tombstone to the end of a keys update chain.
+ * __txn_prepare_rollback_delete_key --
+ *     Prepend a global visible tombstone to the head of the update chain to delete the key for
+ *     prepare rollback.
  */
 static int
-__txn_append_tombstone(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR_BTREE *cbt)
+__txn_prepare_rollback_delete_key(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR_BTREE *cbt)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -1092,6 +1093,7 @@ __txn_append_tombstone(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR_BTREE 
     btree = S2BT(session);
 
     WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &not_used));
+    F_SET(tombstone, WT_UPDATE_TOMBSTONE_FOR_PREPARE_ROLLBACK);
     WT_WITH_BTREE(session, op->btree,
       ret = btree->type == BTREE_ROW ?
         __wt_row_modify(cbt, &cbt->iface.key, NULL, &tombstone, WT_UPDATE_INVALID, false, false) :
@@ -1419,24 +1421,23 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
              * and instead write nothing.
              */
             if (!commit)
-                WT_ERR(__txn_append_tombstone(session, op, cbt));
+                WT_ERR(__txn_prepare_rollback_delete_key(session, op, cbt));
         }
         break;
     case RESOLVE_IN_MEMORY:
         /*
          * For in-memory configurations of WiredTiger if a prepared update is reconciled and then
-         * rolled back the on-page value will not be marked as aborted until the next eviction. In
-         * the special case where this rollback results in the update chain being entirely comprised
-         * of aborted updates other transactions attempting to write to the same key will look at
-         * the on-page value, think the prepared transaction is still active, and falsely report a
-         * write conflict. To prevent this scenario append a tombstone to the update chain when
-         * rolling back a prepared reconciled update would result in only aborted updates on the
-         * update chain.
+         * rolled back, the on-page value will not be marked as aborted until the next eviction. In
+         * the special case where this rollback operation results in the update chain being entirely
+         * comprised of aborted updates, other transactions attempting to write to the same key will
+         * look at the on-page value, think the prepared transaction is still active, and falsely
+         * report a write conflict. To prevent this scenario, prepend a tombstone to the update
+         * chain.
          */
         if (!commit && first_committed_upd == NULL) {
             tw_found = __wt_read_cell_time_window(cbt, &tw);
             if (tw_found && tw.prepare == WT_PREPARE_INPROGRESS)
-                WT_ERR(__txn_append_tombstone(session, op, cbt));
+                WT_ERR(__txn_prepare_rollback_delete_key(session, op, cbt));
         }
         break;
     default:
