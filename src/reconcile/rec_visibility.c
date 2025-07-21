@@ -804,6 +804,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
 
         if (upd->upd_start_ts > max_ts)
             max_ts = upd->upd_start_ts;
+        if (upd->prepare_ts > max_ts)
+            max_ts = upd->prepare_ts;
 
         /*
          * We only need to walk the whole update chain if we are evicting metadata as it is written
