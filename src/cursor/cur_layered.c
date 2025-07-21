@@ -1154,8 +1154,8 @@ __clayered_reopen_int(WT_CURSOR *cursor)
     }
 
     /*
-     * The data handle may not be available, in which case handle it like a dead handle: fail the
-     * reopen, and flag the cursor so that the handle won't be unlocked when subsequently closed.
+     * The data handle may not be available, fail the reopen, and flag the cursor so that the handle
+     * won't be unlocked when subsequently closed.
      */
     if (is_dead || ret == EBUSY) {
         F_SET(cursor, WT_CURSTD_DEAD);
@@ -1164,11 +1164,10 @@ __clayered_reopen_int(WT_CURSOR *cursor)
     __wti_cursor_reopen(cursor, dhandle);
 
     /*
-     * The btree handle may have been reopened since we last accessed it. Reset fields in the cursor
-     * that point to memory owned by the btree handle.
+     * The layered handle may have been reopened since we last accessed it. Reset fields in the
+     * cursor that point to memory owned by the handle.
      */
     if (ret == 0) {
-
         WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)session->dhandle;
         cursor->internal_uri = session->dhandle->name;
         cursor->key_format = layered->key_format;
@@ -1181,7 +1180,7 @@ __clayered_reopen_int(WT_CURSOR *cursor)
 
 /*
  * __clayered_reopen --
- *     WT_CURSOR->reopen method for the btree cursor type.
+ *     WT_CURSOR->reopen method for the layered cursor type.
  */
 static int
 __clayered_reopen(WT_CURSOR *cursor, bool sweep_check_only)
@@ -1926,9 +1925,8 @@ __clayered_close_int(WT_CURSOR *cursor)
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     /*
-     * If this close is via a connection close the constituent cursors will be closed by a scan of
-     * cursors in the session. It might be better to keep them out of the session cursor list, but I
-     * don't know how to do that? Probably opening a file cursor directly instead of a table cursor?
+     * No need to close the constituent cursors if it has been already done during connection->close
+     * performing a close of all cursors in the session.
      */
     if (!F_ISSET(cursor, WT_CURSTD_CONSTITUENT_DEAD))
         WT_TRET(__clayered_close_cursors(clayered));
@@ -1980,8 +1978,11 @@ err:
 
         if (released) {
             /*
-             * If this close is via a connection close the constituent cursors will be closed by a
-             * scan of cursors in the session.
+             * If the cursor has been cached, try to cache the consituent cursors by evoking a
+             * cursor close.
+             *
+             * Note: There no need to close the constituent cursors if it has been already done
+             * during connection->close performing a close of all cursors in the session.
              */
             if (!F_ISSET(cursor, WT_CURSTD_CONSTITUENT_DEAD))
                 WT_TRET(__clayered_close_cursors(clayered));
@@ -2210,10 +2211,7 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
 
     if (0) {
 err:
-        /*
-         * Our caller expects to release the data handles if we fail. Disconnect both the main and
-         * any history store handle from the cursor before closing.
-         */
+        /* Our caller expects to release the data handles if we fail. */
         clayered->dhandle = NULL;
         __wt_cursor_dhandle_decr_use(session);
         if (clayered != NULL)
