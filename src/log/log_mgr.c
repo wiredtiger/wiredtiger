@@ -314,7 +314,7 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
         WT_RET(__wt_config_gets(session, cfg, "log.prealloc_init_count", &cval));
         log_mgr->prealloc = (uint32_t)cval.val;
         log_mgr->prealloc_init_count = (uint32_t)cval.val;
-        WT_ASSERT(session, WT_IS_LOG_PREALLOC_ENABLED(session));
+        WT_ASSERT(session, __wt_log_is_prealloc_enabled(session));
     }
 
     WT_RET(__wt_config_gets(session, cfg, "log.force_write_wait", &cval));
@@ -960,7 +960,7 @@ __log_server(void *arg)
             /*
              * Perform log pre-allocation.
              */
-            if (WT_IS_LOG_PREALLOC_ENABLED(session)) {
+            if (__wt_log_is_prealloc_enabled(session)) {
                 /*
                  * Log file pre-allocation is disabled when a hot backup cursor is open because we
                  * have agreed not to rename or remove any files in the database directory.

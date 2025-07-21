@@ -1182,7 +1182,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
      * can copy the files in any way they choose, and a log file rename might confuse things.
      */
     create_log = true;
-    if (WT_IS_LOG_PREALLOC_ENABLED(session) && __wt_atomic_load64(&conn->hot_backup_start) == 0) {
+    if (__wt_log_is_prealloc_enabled(session) && __wt_atomic_load64(&conn->hot_backup_start) == 0) {
         WT_WITH_HOTBACKUP_READ_LOCK(
           session, ret = __log_alloc_prealloc(session, log->fileid), &skipp);
 

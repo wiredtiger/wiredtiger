@@ -176,8 +176,6 @@ struct __wt_log_manager {
     uint32_t flags; /* Global logging configuration */
 };
 
-#define WT_IS_LOG_PREALLOC_ENABLED(session) S2C(session)->log_mgr.prealloc_init_count > 0
-
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern int __wt_curlog_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
@@ -326,6 +324,8 @@ extern void __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckpt_lsn);
 extern void __wt_log_written_reset(WT_SESSION_IMPL *session);
 extern void __wt_logmgr_compat_version(WT_SESSION_IMPL *session);
 extern void __wt_logrec_free(WT_SESSION_IMPL *session, WT_ITEM **logrecp);
+static WT_INLINE bool __wt_log_is_prealloc_enabled(WT_SESSION *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_log_cmp(WT_LSN *lsn1, WT_LSN *lsn2)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_lsn_string(WT_LSN *lsn, size_t len, char *buf)
