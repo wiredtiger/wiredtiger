@@ -851,9 +851,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                     WT_ASSERT_ALWAYS(session,
                       F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) ||
                         upd->prepare_state == WT_PREPARE_INPROGRESS,
-                      "Should never concurrently resolve a prepared update during reconciliation "
-                      "if we "
-                      "are not in a checkpoint.");
+                      "Should never concurrently resolve a prepared update during reconciliation.");
                 }
             }
         }
