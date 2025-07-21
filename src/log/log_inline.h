@@ -95,13 +95,13 @@ __wt_lsn_offset(WT_LSN *lsn)
 }
 
 /*
- * __wt_log_is_prealloc_enabled --
+ * __wti_log_is_prealloc_enabled --
  *     Check if pre-allocation is configured using log_mgr->prealloc_init_count. Use the
  *     log_mgr->prealloc_init_count variable because the log_mgr->prealloc variable performs
  *     concurrent writes/reads and may induce race conditions.
  */
 static WT_INLINE bool
-__wt_log_is_prealloc_enabled(WT_SESSION *session)
+__wti_log_is_prealloc_enabled(WT_SESSION_IMPL *session)
 {
     return (S2C(session)->log_mgr.prealloc_init_count > 0);
 }
