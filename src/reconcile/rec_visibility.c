@@ -633,7 +633,7 @@ __rec_calc_upd_memsize(WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, size_t upd_m
 static int
 __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_upd,
   WTI_UPDATE_SELECT *upd_select, WT_UPDATE **first_txn_updp, bool *has_newer_updatesp,
-  size_t *upd_memsizep)
+  bool *write_preparep, size_t *upd_memsizep)
 {
     WT_CONNECTION_IMPL *conn;
     WT_UPDATE *upd;
@@ -647,11 +647,27 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
     max_txn = WT_TXN_NONE;
     is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
     session_txnid = __wt_atomic_loadv64(&WT_SESSION_TXN_SHARED(session)->id);
+    prepare_state = WT_PREPARE_INIT;
     seen_prepare = false;
+    *write_preparep = false;
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
-        if ((txnid = upd->txnid) == WT_TXN_ABORTED)
-            continue;
+        if ((txnid = upd->txnid) == WT_TXN_ABORTED) {
+            if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
+                continue;
+
+            WT_READ_ONCE(prepare_state, upd->prepare_state);
+            if (prepare_state != WT_PREPARE_INPROGRESS)
+                continue;
+
+            /* Ignore the prepared update if the rollback timestamp is stable. */
+            if (upd->upd_rollback_ts <= r->rec_start_pinned_stable_ts) {
+                WT_ASSERT(session, upd->upd_rollback_ts != WT_TS_NONE);
+                continue;
+            }
+
+            txnid = upd->upd_saved_txnid;
+        }
 
         /*
          * Give up if the update is from this transaction and on the metadata file or disaggregated
@@ -724,47 +740,43 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             WT_READ_ONCE(prepare_state, upd->prepare_state);
         }
 
-        /*
-         * An interesting case this code will need to deal with is the case where a prepare (start)
-         * timestamp is old enough that it should be included in a checkpoint, but the commit
-         * timestamp is new enough that it should be excluded. If non-precise checkpoints are
-         * configured, the full record can be included and rollback-to-stable will fix up content on
-         * recovery (it will need to be able to do that for out-front evictions anyway). For precise
-         * checkpoints the reconciliation code will need to write a record as it was before it was
-         * committed, and also leave the page/update in a state that makes sense (i.e: we might need
-         * a new flag like WT_UPDATE_DS, but indicating that it's partially in the datastore).
-         * Question: does this become tricky if a prepare makes multiple changes to the same key?
-         */
         if (prepare_state == WT_PREPARE_INPROGRESS) {
             WT_ASSERT_ALWAYS(session,
               upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid,
               "Cannot have two different prepared transactions active on the same key");
             /*
-             * Don't save the record if it's prepare time is greater than the checkpoint timestamp
-             * when preserve prepared is enabled.
+             * Don't save the record if it's prepare timestamp is greater than the pinned stable
+             * timestamp when preserve prepared is enabled or preserve prepared is not enabled.
              */
-            if (F_ISSET(r, WT_REC_CHECKPOINT) &&
-              (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) ||
-                upd->upd_start_ts > conn->txn_global.checkpoint_timestamp)) {
+            if (F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) &&
+              upd->prepare_ts > r->rec_start_pinned_stable_ts) {
+                *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+                *has_newer_updatesp = true;
+                seen_prepare = true;
+                continue;
+            } else if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) && F_ISSET(r, WT_REC_CHECKPOINT)) {
                 *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                 *has_newer_updatesp = true;
                 seen_prepare = true;
                 continue;
             } else {
                 /*
-                 * If we are not in eviction, we must be in salvage to reach here. Since salvage
-                 * only works on data on-disk, the prepared update must be restored from the disk.
-                 * No need for us to rollback the prepared update in salvage here. If there is still
-                 * content for that key left in the history store, rollback to stable will bring it
-                 * back to the data store later. Otherwise, it removes the key.
+                 * If we are not in eviction, the preserve prepared config must be enabled or we
+                 * must be in salvage to reach here. Since salvage only works on data on-disk, the
+                 * prepared update must be restored from the disk. No need for us to rollback the
+                 * prepared update in salvage here. If there is still content for that key left in
+                 * the history store, rollback to stable will bring it back to the data store later.
+                 * Otherwise, it removes the key.
                  */
                 WT_ASSERT_ALWAYS(session,
-                  F_ISSET(r, WT_REC_CHECKPOINT) || F_ISSET(r, WT_REC_EVICT) ||
+                  F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || F_ISSET(r, WT_REC_EVICT) ||
                     (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
                       F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)),
                   "Should never salvage a prepared update not from disk.");
                 /* Prepared updates cannot be resolved concurrently to eviction and salvage. */
-                WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
+                WT_ASSERT_ALWAYS(session,
+                  F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) ||
+                    upd->prepare_state == WT_PREPARE_INPROGRESS,
                   "Should never concurrently resolve a prepared update during reconciliation if we "
                   "are not in a checkpoint.");
             }
@@ -782,12 +794,47 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          * we run the first checkpoint with the precise mode.
          */
         if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
-          !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA) &&
-          upd->upd_durable_ts > r->rec_start_pinned_stable_ts) {
-            WT_ASSERT(session, !is_hs_page);
-            *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
-            *has_newer_updatesp = true;
-            continue;
+          !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA)) {
+            if (prepare_state == WT_PREPARE_INPROGRESS) {
+                if (upd->prepare_ts > r->rec_start_pinned_stable_ts) {
+                    WT_ASSERT(session, !is_hs_page);
+                    *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+                    *has_newer_updatesp = true;
+                    seen_prepare = true;
+                    continue;
+                }
+
+                /*
+                 * If we write a prepared update in checkpoint, leave the page dirty. If we race
+                 * with prepared commit or rollback and we leave the page clean, we may miss writing
+                 * this update in the next reconciliation.
+                 *
+                 * If we write a prepared update that is aborted, leave the page dirty.
+                 */
+                if (F_ISSET(r, WT_REC_CHECKPOINT) || upd->txnid == WT_TXN_ABORTED) {
+                    WT_ASSERT(session, !is_hs_page);
+                    *has_newer_updatesp = true;
+                }
+
+                *write_preparep = true;
+            } else if (prepare_state == WT_PREPARE_RESOLVED) {
+                if (upd->prepare_ts > r->rec_start_pinned_stable_ts) {
+                    WT_ASSERT(session, !is_hs_page);
+                    *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+                    *has_newer_updatesp = true;
+                    continue;
+                }
+
+                /*
+                 * Write a prepared update if the durable timestamp is not stable but the prepared
+                 * timestamp is stable. In this case, leave the page dirty.
+                 */
+                if (upd->upd_durable_ts > r->rec_start_pinned_stable_ts) {
+                    WT_ASSERT(session, !is_hs_page);
+                    *has_newer_updatesp = true;
+                    *write_preparep = true;
+                }
+            }
         }
 
         /*
@@ -801,8 +848,13 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
         if (max_txn < txnid)
             max_txn = txnid;
 
-        if (upd->upd_start_ts > max_ts)
-            max_ts = upd->upd_start_ts;
+        if (*write_preparep) {
+            if (upd->prepare_ts > max_ts)
+                max_ts = upd->prepare_ts;
+        } else {
+            if (upd->upd_start_ts > max_ts)
+                max_ts = upd->upd_start_ts;
+        }
 
         /*
          * We only need to walk the whole update chain if we are evicting metadata as it is written
@@ -833,7 +885,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
     WT_ASSERT_ALWAYS(session,
       upd_select->upd == NULL || !F_ISSET(upd_select->upd, WT_UPDATE_HS) ||
         F_ISSET(upd_select->upd, WT_UPDATE_TO_DELETE_FROM_HS) ||
-        (!F_ISSET(r, WT_REC_EVICT) && seen_prepare),
+        (F_ISSET(r, WT_REC_CHECKPOINT) && seen_prepare),
       "Selected update that has already been written to the history store");
 
     return (0);
@@ -845,7 +897,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
  */
 static int
 __rec_fill_tw_from_upd_select(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_KV *vpack, WTI_UPDATE_SELECT *upd_select)
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_KV *vpack, WTI_UPDATE_SELECT *upd_select, bool write_prepare)
 {
     WT_TIME_WINDOW *select_tw;
     WT_UPDATE *last_upd, *tombstone, *upd;
@@ -864,7 +916,7 @@ __rec_fill_tw_from_upd_select(
      * Mark the prepare flag if the selected update is an uncommitted prepare. As tombstone updates
      * are never returned to write, set this flag before we move into the previous update to write.
      */
-    if (upd->prepare_state == WT_PREPARE_INPROGRESS)
+    if (write_prepare)
         select_tw->prepare = 1;
 
     /*
@@ -987,7 +1039,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
     WT_PAGE *page;
     WT_UPDATE *first_txn_upd, *first_upd, *onpage_upd, *upd;
     size_t upd_memsize;
-    bool has_newer_updates, supd_restore, upd_saved;
+    bool has_newer_updates, supd_restore, upd_saved, write_prepare;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -1014,8 +1066,8 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
             return (0);
     }
 
-    WT_RET(__rec_upd_select(
-      session, r, first_upd, upd_select, &first_txn_upd, &has_newer_updates, &upd_memsize));
+    WT_RET(__rec_upd_select(session, r, first_upd, upd_select, &first_txn_upd, &has_newer_updates,
+      &write_prepare, &upd_memsize));
 
     /* Keep track of the selected update. */
     upd = upd_select->upd;
@@ -1058,7 +1110,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
         r->update_used = true;
 
     if (upd != NULL)
-        WT_RET(__rec_fill_tw_from_upd_select(session, page, vpack, upd_select));
+        WT_RET(__rec_fill_tw_from_upd_select(session, page, vpack, upd_select, write_prepare));
 
     /* Mark the page dirty after reconciliation. */
     if (has_newer_updates)
