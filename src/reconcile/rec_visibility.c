@@ -777,6 +777,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                 seen_prepare = true;
                 continue;
             } else {
+                *write_preparep = true;
+
                 /*
                  * If we are not in eviction, the preserve prepared config must be enabled or we
                  * must be in salvage to reach here. Since salvage only works on data on-disk, the
