@@ -82,7 +82,7 @@
             (tw)->start_prepare_ts = (upd)->prepare_ts;                \
             (tw)->start_prepared_id = (upd)->prepared_id;              \
             if ((tw)->start_txn == WT_TXN_ABORTED) {                   \
-                WT_ACQUIRE_BARRIER()                                   \
+                WT_ACQUIRE_BARRIER();                                  \
                 (tw)->start_txn = (upd)->upd_saved_txnid;              \
             }                                                          \
         }                                                              \
@@ -105,7 +105,7 @@
             (tw)->stop_prepare_ts = (upd)->prepare_ts;               \
             (tw)->stop_prepared_id = (upd)->prepared_id;             \
             if ((tw)->stop_txn == WT_TXN_ABORTED) {                  \
-                WT_ACQUIRE_BARRIER()                                 \
+                WT_ACQUIRE_BARRIER();                                \
                 (tw)->stop_txn = (upd)->upd_saved_txnid;             \
             }                                                        \
         }                                                            \

@@ -902,6 +902,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
 {
     WT_TIME_WINDOW *select_tw;
     WT_UPDATE *last_upd, *tombstone, *upd;
+    uint64_t txnid;
 
     upd = upd_select->upd;
     last_upd = tombstone = NULL;
@@ -932,12 +933,40 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
         WT_TIME_WINDOW_SET_STOP(session, select_tw, upd);
         tombstone = upd_select->tombstone = upd;
 
-        /* Find the update this tombstone applies to. */
-        if (!__wt_txn_upd_visible_all(session, upd)) {
-            while (upd->next != NULL && upd->next->txnid == WT_TXN_ABORTED)
+        /*
+         * Find the update this tombstone applies to.
+         *
+         * We need to find the full update if the prepared tombstone is rollbacked.
+         */
+        if (write_prepare || !__wt_txn_upd_visible_all(session, upd)) {
+            while (upd->next != NULL && upd->next->txnid == WT_TXN_ABORTED) {
+                /*
+                 * We resolve prepare updates recursively from the oldest to the newest. If we write
+                 * a prepared tombstone, we may see a rollbacked prepared update from the same
+                 * transaction older than it. Ensure we also write it to the disk in this case.
+                 */
+                if (write_prepare && F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+                  upd->next->prepare_state == WT_PREPARE_INPROGRESS) {
+                    /*
+                     * Since we resolve prepared update from the oldest to newest, we may see a
+                     * tombstone still in prepared state but a rollbacked prepared update from the
+                     * same transaction here. Handle this case.
+                     */
+                    WT_ACQUIRE_READ(txnid, tombstone->txnid);
+                    if (txnid == WT_TXN_ABORTED)
+                        txnid = tombstone->upd_saved_txnid;
+                    if (upd->next->upd_saved_txnid == txnid) {
+                        WT_ASSERT(session, upd->next->prepare_ts == tombstone->prepare_ts);
+                        break;
+                    }
+                }
                 upd = upd->next;
+            }
 
-            WT_ASSERT(session, upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED);
+            WT_ASSERT(session,
+              upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED ||
+                (write_prepare && upd->next->prepare_state == WT_PREPARE_INPROGRESS &&
+                  upd->next->upd_saved_txnid == tombstone->upd_saved_txnid));
             upd_select->upd = upd = upd->next;
             /* We should not see multiple consecutive tombstones. */
             WT_ASSERT_ALWAYS(session, upd == NULL || upd->type != WT_UPDATE_TOMBSTONE,
