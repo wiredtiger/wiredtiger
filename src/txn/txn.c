@@ -1093,7 +1093,7 @@ __txn_prepare_rollback_delete_key(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CU
     btree = S2BT(session);
 
     WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &not_used));
-    F_SET(tombstone, WT_UPDATE_TOMBSTONE_FOR_PREPARE_ROLLBACK);
+    F_SET(tombstone, WT_UPDATE_PREPARE_ROLLBACK);
     WT_WITH_BTREE(session, op->btree,
       ret = btree->type == BTREE_ROW ?
         __wt_row_modify(cbt, &cbt->iface.key, NULL, &tombstone, WT_UPDATE_INVALID, false, false) :

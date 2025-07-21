@@ -854,8 +854,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             }
         }
 
-        if (F_ISSET(upd, WT_UPDATE_TOMBSTONE_FOR_PREPARE_ROLLBACK) &&
-          !F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) && F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
+        if (F_ISSET(upd, WT_UPDATE_PREPARE_ROLLBACK) && !F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) &&
+          F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
             prepare_rollback_tombstone = upd;
 
         /*

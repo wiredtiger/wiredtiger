@@ -1558,6 +1558,12 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                 key->size = WT_INSERT_KEY_SIZE(supd->ins);
             }
 
+            /*
+             * TODO: FIXME!!! currently if we write a prepared update to disk and we need to restore
+             * the prepared update, we will find we have already instantiated a prepared update from
+             * the page in-memory code.
+             */
+
             /* Search the page. */
             WT_ERR(__wt_row_search(&cbt, key, true, ref, true, NULL));
 
