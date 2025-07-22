@@ -365,8 +365,8 @@ def block_decode(p, b, nbytes, opts):
     if disagg_delta:
         # WT_BLOCK_HEADER in block.h (44 bytes)
         blockhead = btree_format.BlockHeader.parse(b_page, disagg=opts.disagg)
-        # WT_DELTA_HEADER in btmem.h (20 bytes)
-        deltahead = btree_format.DeltaHeader.parse(b_page)
+        # WT_PAGE_HEADER in btmem.h (28 bytes)
+        deltahead = btree_format.PageHeader.parse(b_page)
     else:
         # WT_PAGE_HEADER in btmem.h (28 bytes)
         pagehead = btree_format.PageHeader.parse(b_page)
