@@ -54,31 +54,42 @@ verify_one(WT_SESSION *session, char *config, char *uri)
 
 /*
  * skip_uri_verification --
- *     Filter out URIs that are not supported for verification.
+ *     Typically each WT file will have multiple entries, and so only run verify on table entries to
+ *     prevent unnecessary work. Skip over the double up entries and also any entries that are not
+ *     supported with verify.
+ *
+ * Also, skip entries that do not match the provided URI, if one is specified.
  */
-static bool skip_uri_verification(const char *uri, const char *name) {
+static bool
+skip_uri_verification(const char *uri, const char *name)
+{
     if (name != NULL && strstr(uri, name) == NULL)
-        return true;
+        return (true);
 
     if (WT_PREFIX_MATCH(uri, WT_SYSTEM_PREFIX))
-        return true;
+        return (true);
 
     /*
-     * Avoid duplication for layered tables verification. Verifying the `layered:` prefixed entry
-     * is enough.
+     * Avoid duplication for layered tables verification. Verifying the `layered:` prefixed entry is
+     * enough.
      */
     if (WT_PREFIX_MATCH(uri, "layered:"))
-        return false;
+        return (false);
 
     if (WT_PREFIX_MATCH(uri, "table:")) {
-        /* TODO-DONT-MERGE: Mention Ingest table verification ticket, add FIXME to skip stable table verification to avoid logic duplication */
-        if (WT_SUFFIX_MATCH(uri, ".wt_ingest"))
-            return true;
+        /*
+         * Skip verification of ingest and stable tables to avoid duplication, as all necessary
+         * verification will be performed as part of the layered: verification
+         *
+         * Could be possibly allowed later if there is a value in verifying these tables separately.
+         */
+        if (WT_SUFFIX_MATCH(uri, ".wt_ingest") || WT_SUFFIX_MATCH(uri, ".wt_stable"))
+            return (true);
 
-        return false;
+        return (false);
     }
 
-    return true;
+    return (true);
 }
 
 /*
@@ -164,51 +175,44 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     argv += __wt_optind;
 
     /* Verify specific URI */
-    /* TODO-DONT-MERGE adjust the docs according to a new logic */
     if (argc >= 1) {
         resource_name = *argv;
         notfound_is_error = true;
     }
 
-    /* Verify all the tables if no particular URI is specified. */
-    /* TODO-DONT-MERGE Fix indentation !!! HERE WAS if branch */
-        /* Open the metadata file and iterate through its entries, verifying each one. */
-        if ((ret = session->open_cursor(session, WT_METADATA_URI, NULL, NULL, &cursor)) != 0) {
-            /*
-             * If there is no metadata (yet), this will return ENOENT. Treat that the same as an
-             * empty metadata.
-             */
-            if (ret == ENOENT)
-                ret = 0;
+    /* Open the metadata file and iterate through its entries, verifying each one. */
+    if ((ret = session->open_cursor(session, WT_METADATA_URI, NULL, NULL, &cursor)) != 0) {
+        /*
+         * If there is no metadata (yet), this will return ENOENT. Treat that the same as an empty
+         * metadata.
+         */
+        if (ret == ENOENT)
+            ret = 0;
 
-            WT_ERR(util_err(session, ret, "%s: WT_SESSION.open_cursor", WT_METADATA_URI));
-        }
+        WT_ERR(util_err(session, ret, "%s: WT_SESSION.open_cursor", WT_METADATA_URI));
+    }
 
-        int cret;
-        while ((cret = cursor->next(cursor)) == 0) {
-            if ((cret = cursor->get_key(cursor, &key)) != 0)
-                WT_ERR(util_cerr(cursor, "get_key", cret));
+    /* Iterate over all the metadata entries and verify each of them separately. */
+    int cret;
+    while ((cret = cursor->next(cursor)) == 0) {
+        if ((cret = cursor->get_key(cursor, &key)) != 0)
+            WT_ERR(util_cerr(cursor, "get_key", cret));
 
-            /*
-             * Typically each WT file will have multiple entries, and so only run verify on table
-             * entries to prevent unnecessary work. Skip over the double up entries and also any
-             * entries that are not supported with verify.
-             */
-            if (skip_uri_verification(key, resource_name))
-                continue;
+        if (skip_uri_verification(key, resource_name))
+            continue;
 
-            ret = verify_one(session, (char *)config->data, key);
-            if (ret == 0)
-                entry_found = true;
-            if (ret == ENOTSUP || ret == WT_NOTFOUND)
-                ret = 0;
+        ret = verify_one(session, (char *)config->data, key);
+        if (ret == 0)
+            entry_found = true;
+        if (ret == ENOTSUP || ret == WT_NOTFOUND)
+            ret = 0;
 
-            if (abort_on_error)
-                WT_ERR(ret);
-        }
+        if (abort_on_error)
+            WT_ERR(ret);
+    }
 
-        if (ret == 0 && !entry_found && !notfound_is_error)
-            ret = EINVAL;
+    if (ret == 0 && !entry_found && !notfound_is_error)
+        ret = EINVAL;
 
 err:
     __wt_scr_free(session_impl, &config);
