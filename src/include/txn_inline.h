@@ -2251,6 +2251,21 @@ __wt_txn_read_last(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_txn_read_last_check --
+ *     Called when the last page for a session is released.
+ */
+static WT_INLINE bool
+__wt_txn_read_last_check(WT_SESSION_IMPL *session)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    /* Check if we can release the snap_min ID we put in the global table. */
+    return ((!F_ISSET(txn, WT_TXN_RUNNING) || txn->isolation != WT_ISO_SNAPSHOT) && txn->forced_iso == 0);
+}
+
+/*
  * __wt_txn_cursor_op --
  *     Called for each cursor operation.
  */
