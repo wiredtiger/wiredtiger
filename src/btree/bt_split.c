@@ -1558,17 +1558,28 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                 key->size = WT_INSERT_KEY_SIZE(supd->ins);
             }
 
-            /*
-             * TODO: FIXME!!! currently if we write a prepared update to disk and we need to restore
-             * the prepared update, we will find we have already instantiated a prepared update from
-             * the page in-memory code.
-             */
-
             /* Search the page. */
             WT_ERR(__wt_row_search(&cbt, key, true, ref, true, NULL));
 
+            /*
+             * If we write a prepared update to disk and we need to restore the update chain, we
+             * will find we have already instantiated a prepared update from the page in-memory
+             * code. Discard the re-instantiated prepared updates.
+             */
+            WT_UPDATE *last_upd = NULL;
+            if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED))
+                for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
+                    ;
+
             /* Apply the modification. */
             WT_ERR(__wt_row_modify(&cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
+
+            if (last_upd != NULL && last_upd->next != NULL) {
+                WT_ASSERT(session, F_ISSET(last_upd->next, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
+                tmp = last_upd->next;
+                last_upd->next = NULL;
+                __wt_free(session, tmp);
+            }
             break;
         default:
             WT_ERR(__wt_illegal_value(session, orig->type));
