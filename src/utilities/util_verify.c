@@ -53,6 +53,35 @@ verify_one(WT_SESSION *session, char *config, char *uri)
 }
 
 /*
+ * skip_uri_verification --
+ *     Filter out URIs that are not supported for verification.
+ */
+static bool skip_uri_verification(const char *uri, const char *name) {
+    if (name != NULL && strstr(uri, name) == NULL)
+        return true;
+
+    if (WT_PREFIX_MATCH(uri, WT_SYSTEM_PREFIX))
+        return true;
+
+    /*
+     * Avoid duplication for layered tables verification. Verifying the `layered:` prefixed entry
+     * is enough.
+     */
+    if (WT_PREFIX_MATCH(uri, "layered:"))
+        return false;
+
+    if (WT_PREFIX_MATCH(uri, "table:")) {
+        /* TODO-DONT-MERGE: Mention Ingest table verification ticket, add FIXME to skip stable table verification to avoid logic duplication */
+        if (WT_SUFFIX_MATCH(uri, ".wt_ingest"))
+            return true;
+
+        return false;
+    }
+
+    return true;
+}
+
+/*
  * util_verify --
  *     The verify command.
  */
@@ -64,11 +93,11 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     WT_DECL_RET;
     WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
     int ch;
-    char *dump_offsets, *key, *uri;
-    bool abort_on_error, dump_all_data, dump_key_data;
+    char *dump_offsets, *key, *resource_name;
+    bool abort_on_error, dump_all_data, dump_key_data, notfound_is_error, entry_found;
 
-    abort_on_error = dump_all_data = dump_key_data = false;
-    dump_offsets = uri = NULL;
+    abort_on_error = dump_all_data = dump_key_data = notfound_is_error = entry_found = false;
+    dump_offsets = resource_name = NULL;
 
     WT_RET(__wt_scr_alloc(session_impl, 0, &config));
 
@@ -134,8 +163,15 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     argc -= __wt_optind;
     argv += __wt_optind;
 
+    /* Verify specific URI */
+    /* TODO-DONT-MERGE adjust the docs according to a new logic */
+    if (argc >= 1) {
+        resource_name = *argv;
+        notfound_is_error = true;
+    }
+
     /* Verify all the tables if no particular URI is specified. */
-    if (argc < 1) {
+    /* TODO-DONT-MERGE Fix indentation !!! HERE WAS if branch */
         /* Open the metadata file and iterate through its entries, verifying each one. */
         if ((ret = session->open_cursor(session, WT_METADATA_URI, NULL, NULL, &cursor)) != 0) {
             /*
@@ -148,33 +184,33 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             WT_ERR(util_err(session, ret, "%s: WT_SESSION.open_cursor", WT_METADATA_URI));
         }
 
-        while ((ret = cursor->next(cursor)) == 0) {
-            if ((ret = cursor->get_key(cursor, &key)) != 0)
-                WT_ERR(util_cerr(cursor, "get_key", ret));
+        int cret;
+        while ((cret = cursor->next(cursor)) == 0) {
+            if ((cret = cursor->get_key(cursor, &key)) != 0)
+                WT_ERR(util_cerr(cursor, "get_key", cret));
 
             /*
              * Typically each WT file will have multiple entries, and so only run verify on table
              * entries to prevent unnecessary work. Skip over the double up entries and also any
              * entries that are not supported with verify.
              */
-            if (WT_PREFIX_MATCH(key, "table:") && !WT_PREFIX_MATCH(key, WT_SYSTEM_PREFIX)) {
-                if (abort_on_error)
-                    WT_ERR_ERROR_OK(verify_one(session, (char *)config->data, key), ENOTSUP, false);
-                else
-                    WT_TRET(verify_one(session, (char *)config->data, key));
-            }
-        }
-        if (ret == WT_NOTFOUND)
-            ret = 0;
-    } else {
-        if ((uri = util_uri(session, *argv, "table")) == NULL)
-            goto err;
+            if (skip_uri_verification(key, resource_name))
+                continue;
 
-        ret = verify_one(session, (char *)config->data, uri);
-    }
+            ret = verify_one(session, (char *)config->data, key);
+            if (ret == 0)
+                entry_found = true;
+            if (ret == ENOTSUP || ret == WT_NOTFOUND)
+                ret = 0;
+
+            if (abort_on_error)
+                WT_ERR(ret);
+        }
+
+        if (ret == 0 && !entry_found && !notfound_is_error)
+            ret = EINVAL;
 
 err:
     __wt_scr_free(session_impl, &config);
-    util_free(uri);
     return (ret);
 }

@@ -74,7 +74,6 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 else:
                     raise(e)
 
-
     def create_follower(self):
         self.conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
         self.session_follow = self.conn_follow.open_session('')

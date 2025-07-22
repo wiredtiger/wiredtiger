@@ -124,7 +124,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
         # Run verify with an empty table
-        self.runWt(["verify", "table:" + self.tablename])
+        self.runWt(["verify", self.tablename])
 
     def test_verify_process(self):
         """
@@ -133,7 +133,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
         self.populate(self.tablename)
-        self.runWt(["verify", "table:" + self.tablename])
+        self.runWt(["verify", self.tablename])
 
     def test_verify_api_empty(self):
         """
