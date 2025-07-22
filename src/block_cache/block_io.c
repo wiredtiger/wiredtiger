@@ -393,7 +393,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     WT_ITEM results[WT_DELTA_LIMIT + 1];
     WT_ITEM *tmp, *ip;
     WT_PAGE_BLOCK_META block_meta_tmp;
-    const WT_PAGE_HEADER *delta, *dsk;
+    const WT_PAGE_HEADER *dsk;
     uint32_t count, i;
     uint8_t type;
     bool blkcache_found, found, skip_cache_put;
@@ -570,9 +570,9 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
             ip = etmp;
         }
         if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED)) {
-            delta = ip->data;
+            dsk = ip->data;
             WT_ERR(__wt_scr_alloc(session, 0, &ctmp));
-            WT_ERR(__read_decompress(session, ip->data, delta->mem_size, ctmp, addr, addr_size));
+            WT_ERR(__read_decompress(session, ip->data, dsk->mem_size, ctmp, addr, addr_size));
             ip = ctmp;
         }
         if (ip != &results[i]) {
@@ -629,7 +629,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     WT_DECL_RET;
     WT_ITEM *ip;
     WT_KEYED_ENCRYPTOR *kencryptor;
-    WT_PAGE_HEADER *delta, *dsk;
+    WT_PAGE_HEADER *dsk;
     size_t compression_ratio, dst_len, len, result_len, size, src_len;
     uint64_t time_diff, time_start, time_stop;
     uint32_t delta_count, mem_size;
@@ -644,7 +644,6 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     btree = S2BT(session);
     bm = btree->bm;
     delta_count = (block_meta == NULL) ? 0 : block_meta->delta_count;
-    delta = NULL;
     dsk = NULL;
     encrypted = false;
 
@@ -715,13 +714,8 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
             ip = ctmp;
 
             /* Set the disk header flags. */
-            if (delta_count != 0) {
-                delta = ip->mem;
-                F_SET(delta, WT_PAGE_COMPRESSED);
-            } else {
-                dsk = ip->mem;
-                F_SET(dsk, WT_PAGE_COMPRESSED);
-            }
+            dsk = ip->mem;
+            F_SET(dsk, WT_PAGE_COMPRESSED);
 
             /* Optionally return the compressed size. */
             if (compressed_sizep != NULL)
@@ -748,18 +742,10 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
         ip = etmp;
 
         /* Set the disk header flags. */
-        if (delta_count != 0) {
-            delta = ip->mem;
-            if (compressed) {
-                F_SET(delta, WT_PAGE_COMPRESSED);
-            }
-            F_SET(delta, WT_PAGE_ENCRYPTED);
-        } else {
-            dsk = ip->mem;
-            if (compressed)
-                F_SET(dsk, WT_PAGE_COMPRESSED);
-            F_SET(dsk, WT_PAGE_ENCRYPTED);
-        }
+        dsk = ip->mem;
+        if (compressed)
+            F_SET(dsk, WT_PAGE_COMPRESSED);
+        F_SET(dsk, WT_PAGE_ENCRYPTED);
     }
 
     /* Determine if the data requires a checksum. */
@@ -798,38 +784,14 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
      * images that are created during recovery may have the write generation number less than the
      * btree base write generation number, so don't verify it.
      */
-    if (delta_count > 0) {
-        delta = ip->mem;
-        /* TODO assert on delta->write_gen once it exists. */
-        mem_size = delta->mem_size;
-    } else {
-        dsk = ip->mem;
-        WT_ASSERT(session, dsk->write_gen != 0);
-        mem_size = dsk->mem_size;
-    }
+    dsk = ip->mem;
+    WT_ASSERT(session, dsk->write_gen != 0);
+    mem_size = dsk->mem_size;
 
     WT_STAT_CONN_DSRC_INCR(session, cache_write);
     WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_write, mem_size);
     WT_STAT_SESSION_INCRV(session, bytes_write, mem_size);
     (void)__wt_atomic_add64(&S2C(session)->cache->bytes_written, mem_size);
-
-    if (delta_count > 0) {
-        if (delta->type == WT_PAGE_COL_INT || delta->type == WT_PAGE_ROW_INT) {
-            WT_STAT_CONN_INCRV(session, block_byte_write_intl, delta->mem_size);
-            WT_STAT_CONN_INCRV(session, block_byte_write_intl_disk, ip->size);
-        } else {
-            WT_STAT_CONN_INCRV(session, block_byte_write_leaf, delta->mem_size);
-            WT_STAT_CONN_INCRV(session, block_byte_write_leaf_disk, ip->size);
-        }
-    } else {
-        if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT) {
-            WT_STAT_CONN_INCRV(session, block_byte_write_intl, dsk->mem_size);
-            WT_STAT_CONN_INCRV(session, block_byte_write_intl_disk, ip->size);
-        } else {
-            WT_STAT_CONN_INCRV(session, block_byte_write_leaf, dsk->mem_size);
-            WT_STAT_CONN_INCRV(session, block_byte_write_leaf_disk, ip->size);
-        }
-    }
 
     if (dsk != NULL) {
         if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT) {
