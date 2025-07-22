@@ -629,8 +629,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     WT_DECL_RET;
     WT_ITEM *ip;
     WT_KEYED_ENCRYPTOR *kencryptor;
-    WT_PAGE_HEADER *delta;
-    WT_PAGE_HEADER *dsk;
+    WT_PAGE_HEADER *delta, *dsk;
     size_t compression_ratio, dst_len, len, result_len, size, src_len;
     uint64_t time_diff, time_start, time_stop;
     uint32_t delta_count, mem_size;

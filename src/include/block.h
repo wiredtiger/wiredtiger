@@ -532,9 +532,8 @@ struct __wt_block_disagg_header {
 };
 
 /*
- * WT_BLOCK_DISAGG_BASE_HEADER_SIZE is the number of bytes we allocate for a base page structure,
- * and WT_BLOCK_DISAGG_DELTA_HEADER_SIZE is the number of bytes we allocated for a delta: if the
- * compiler inserts padding it will break the world.
+ * WT_BLOCK_DISAGG_HEADER_SIZE is the number of bytes we allocate for a base page and delta
+ * structures: if the compiler inserts padding it will break the world.
  */
 #define WT_BLOCK_DISAGG_HEADER_SIZE 16
 #define WT_BLOCK_DISAGG_HEADER_BYTE_SIZE (WT_PAGE_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_SIZE)

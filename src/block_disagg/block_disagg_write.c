@@ -65,12 +65,11 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
 {
     WT_BLOCK_DISAGG_HEADER *blk;
     WT_CONNECTION_IMPL *conn;
-    WT_PAGE_HEADER *delta_header, *page_header;
+    WT_PAGE_HEADER *header;
     WT_PAGE_LOG_HANDLE *plhandle;
     WT_PAGE_LOG_PUT_ARGS put_args;
     uint64_t checkpoint_id, page_id, page_log_checkpoint_id, time_start, time_stop;
     uint32_t checksum;
-    bool is_delta;
 
     time_start = __wt_clock(session);
 
@@ -84,7 +83,6 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
 
     plhandle = block_disagg->plhandle;
     WT_CLEAR(put_args);
-    is_delta = (block_meta->delta_count != 0);
 
     WT_ASSERT_ALWAYS(session, plhandle != NULL, "Disaggregated block store requires page log");
 
@@ -143,28 +141,19 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
      * a unified set of flags for encrypt/compress, (only in the block header). But we can only do
      * that when the block header is always at the beginning of the data.
      */
-    if (!is_delta) {
-        page_header = (WT_PAGE_HEADER *)buf->mem;
-        if (F_ISSET(page_header, WT_PAGE_COMPRESSED))
-            F_SET(blk, WT_BLOCK_DISAGG_COMPRESSED);
-        if (F_ISSET(page_header, WT_PAGE_ENCRYPTED))
-            F_SET(blk, WT_BLOCK_DISAGG_ENCRYPTED);
-    } else {
-        delta_header = (WT_PAGE_HEADER *)buf->mem;
-        if (F_ISSET(delta_header, WT_PAGE_COMPRESSED))
-            F_SET(blk, WT_BLOCK_DISAGG_COMPRESSED);
-        if (F_ISSET(delta_header, WT_PAGE_ENCRYPTED))
-            F_SET(blk, WT_BLOCK_DISAGG_ENCRYPTED);
-    }
+    header = (WT_PAGE_HEADER *)buf->mem;
+    if (F_ISSET(header, WT_PAGE_COMPRESSED))
+        F_SET(blk, WT_BLOCK_DISAGG_COMPRESSED);
+    if (F_ISSET(header, WT_PAGE_ENCRYPTED))
+        F_SET(blk, WT_BLOCK_DISAGG_ENCRYPTED);
 
-    if (block_meta->delta_count == 0) {
+    if (block_meta->delta_count == 0)
         blk->magic = WT_BLOCK_DISAGG_MAGIC_BASE;
-        blk->header_size = WT_BLOCK_DISAGG_HEADER_BYTE_SIZE;
-    } else {
+    else {
         blk->magic = WT_BLOCK_DISAGG_MAGIC_DELTA;
-        blk->header_size = WT_BLOCK_DISAGG_HEADER_BYTE_SIZE;
         F_SET(&put_args, WT_PAGE_LOG_DELTA);
     }
+    blk->header_size = WT_BLOCK_DISAGG_HEADER_BYTE_SIZE;
     blk->version = WT_BLOCK_DISAGG_VERSION;
     blk->compatible_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
 
