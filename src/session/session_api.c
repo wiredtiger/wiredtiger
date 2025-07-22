@@ -920,11 +920,10 @@ err:
                 WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_user_usecs, time_diff_usec);
             else
                 WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
-        else 
-            if (API_USER_ENTRY(session))
-                WT_STAT_CONN_INCRV(session, cursor_open_time_user_usecs, time_diff_usec);
-            else
-                WT_STAT_CONN_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
+        else if (API_USER_ENTRY(session))
+            WT_STAT_CONN_INCRV(session, cursor_open_time_user_usecs, time_diff_usec);
+        else
+            WT_STAT_CONN_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
     }
     /*
      * Opening a cursor on a non-existent data source will set ret to either of ENOENT or
