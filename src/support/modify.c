@@ -468,6 +468,10 @@ retry:
             if (!prepare)
                 continue;
 
+            /* We may see aborted reserve updates in between the prepared updates. */
+            if (upd->type == WT_UPDATE_RESERVE)
+                continue;
+
             /*
              * If we have multiple prepared updates from the same transaction, there is no other
              * updates in between them.
