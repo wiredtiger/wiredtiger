@@ -1412,7 +1412,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_SAVE_UPD *supd;
-    WT_UPDATE *prev_onpage, *tmp, *upd;
+    WT_UPDATE *last_upd, *prev_onpage, *tmp, *upd;
     uint64_t recno;
     uint32_t i, slot;
     bool instantiate_upd;
@@ -1537,6 +1537,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             prev_onpage->next = NULL;
         }
 
+        last_upd = NULL;
+
         switch (orig->type) {
         case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
@@ -1563,10 +1565,9 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
 
             /*
              * If we write a prepared update to disk and we need to restore the update chain, we
-             * will find we have already instantiated a prepared update from the page in-memory
-             * code. Discard the re-instantiated prepared updates.
+             * will find we have already instantiated a prepared update (possibly with a prepared
+             * tombstone) by the page in-memory code. Discard the re-instantiated prepared updates.
              */
-            WT_UPDATE *last_upd = NULL;
             if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED))
                 for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
                     ;
