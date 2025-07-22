@@ -654,7 +654,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
     for (upd = first_upd; upd != NULL; upd = upd->next) {
         WT_ACQUIRE_READ(txnid, upd->txnid);
         /*
-         * If we have seen a globally visible tombstone that rollbacked a prepared update, we must
+         * If we have seen a globally visible tombstone that rolled back a prepared update, we must
          * now see an aborted prepared update.
          */
         WT_ASSERT(session,
@@ -671,14 +671,15 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             /* Ignore the prepared update if the rollback timestamp is stable. */
             if (upd->upd_rollback_ts <= r->rec_start_pinned_stable_ts) {
                 WT_ASSERT(session, upd->upd_rollback_ts != WT_TS_NONE);
-                /* If we have seen a tombstone that rollbacked the prepared update, skip the key. */
+                /* If we have seen a tombstone that rolled back the prepared update, skip the key.
+                 */
                 if (prepare_rollback_tombstone != NULL)
                     break;
                 continue;
             }
 
             /*
-             * If we have seen a tombstone that rollbacked the prepared update, this must be the
+             * If we have seen a tombstone that rolled back the prepared update, this must be the
              * prepared update. No need to walk further.
              */
             prepare_rollback_tombstone = NULL;
@@ -986,21 +987,21 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
         /*
          * Find the update this tombstone applies to.
          *
-         * We need to find the full update if the prepared tombstone is rollbacked.
+         * We need to find the full update if the prepared tombstone is rolled back.
          */
         if (write_prepare || !__wt_txn_upd_visible_all(session, upd)) {
             while (upd->next != NULL && upd->next->txnid == WT_TXN_ABORTED) {
                 /*
                  * We resolve prepare updates recursively from the oldest to the newest. If we write
-                 * a prepared tombstone, we may see a rollbacked prepared update from the same
-                 * transaction older than it. Ensure we also write it to the disk in this case.
+                 * a prepared tombstone, we may see a prepared update that is rolled back from the
+                 * same transaction. Ensure we also write it to the disk in this case.
                  */
                 if (write_prepare && F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
                   upd->next->prepare_state == WT_PREPARE_INPROGRESS) {
                     /*
                      * Since we resolve prepared update from the oldest to newest, we may see a
-                     * tombstone still in prepared state but a rollbacked prepared update from the
-                     * same transaction here. Handle this case.
+                     * tombstone still in prepared state but a prepared update that is rolled back
+                     * from the same transaction here. Handle this case.
                      */
                     WT_ACQUIRE_READ(txnid, tombstone->txnid);
                     if (txnid == WT_TXN_ABORTED)
