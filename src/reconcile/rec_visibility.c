@@ -86,7 +86,8 @@ __rec_append_orig_value(
     conn = S2C(session);
 
     WT_ASSERT_ALWAYS(session,
-      upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL && !unpack->tw.prepare,
+      upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL &&
+        !WT_TIME_WINDOW_HAS_PREPARE(&(unpack->tw)),
       "__rec_append_orig_value requires an onpage, non-prepared update");
 
     append = oldest_upd = tombstone = NULL;
@@ -306,7 +307,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
     if (F_ISSET(r, WT_REC_REWRITE_DELTA))
         return (false);
 
-    if (upd_select->tw.prepare)
+    if (WT_TIME_WINDOW_HAS_PREPARE(&(upd_select->tw)))
         return (true);
 
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
@@ -430,6 +431,7 @@ __timestamp_no_ts_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
 
         select_tw->durable_start_ts = select_tw->durable_stop_ts;
         select_tw->start_ts = select_tw->stop_ts;
+        select_tw->start_prepare_ts = select_tw->stop_prepare_ts;
         return (true);
     }
     return (false);
@@ -552,7 +554,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
      * the update chain but checkpoint won't replace the page image as such it will be the previous
      * reconciliations ondisk value that we will be comparing against.
      */
-    if (vpack != NULL && !vpack->tw.prepare) {
+    if (vpack != NULL && !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw))) {
         char ts_string[3][WT_TS_INT_STRING_SIZE];
         if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw))
             WT_ASSERT_ALWAYS(session,
@@ -861,13 +863,6 @@ __rec_fill_tw_from_upd_select(
      */
 
     /*
-     * Mark the prepare flag if the selected update is an uncommitted prepare. As tombstone updates
-     * are never returned to write, set this flag before we move into the previous update to write.
-     */
-    if (upd->prepare_state == WT_PREPARE_INPROGRESS)
-        select_tw->prepare = 1;
-
-    /*
      * If the newest is a tombstone then select the update before it and set the end of the
      * visibility window to its time point as appropriate to indicate that we should return "not
      * found" for reads after this point.
@@ -876,7 +871,7 @@ __rec_fill_tw_from_upd_select(
      * that the value is visible to any timestamp/transaction id ahead of it.
      */
     if (upd->type == WT_UPDATE_TOMBSTONE) {
-        WT_TIME_WINDOW_SET_STOP(session, select_tw, upd);
+        WT_TIME_WINDOW_SET_STOP(select_tw, upd, upd->prepare_state);
         tombstone = upd_select->tombstone = upd;
 
         /* Find the update this tombstone applies to. */
@@ -894,7 +889,7 @@ __rec_fill_tw_from_upd_select(
 
     if (upd != NULL)
         /* The beginning of the validity window is the selected update's time point. */
-        WT_TIME_WINDOW_SET_START(session, select_tw, upd);
+        WT_TIME_WINDOW_SET_START(select_tw, upd, upd->prepare_state);
     else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
         WT_ASSERT_ALWAYS(
           session, tombstone != NULL, "The only contents of the update list is a single tombstone");
@@ -910,7 +905,8 @@ __rec_fill_tw_from_upd_select(
 
         WT_ASSERT_ALWAYS(
           session, vpack != NULL && vpack->type != WT_CELL_DEL, "No on-disk value is found");
-        WT_ASSERT_ALWAYS(session, !vpack->tw.prepare, "On-disk value is a prepared update");
+        WT_ASSERT_ALWAYS(
+          session, !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)), "On-disk value is a prepared update");
 
         /* Move the pointer to the last update on the update chain. */
         for (last_upd = tombstone; last_upd->next != NULL; last_upd = last_upd->next)
@@ -954,7 +950,7 @@ __rec_fill_tw_from_upd_select(
               "Tombstone is globally visible, but the tombstoned update is on the update "
               "chain");
             upd_select->upd = last_upd->next;
-            WT_TIME_WINDOW_SET_START(session, select_tw, last_upd->next);
+            WT_TIME_WINDOW_SET_START(select_tw, last_upd->next, last_upd->next->prepare_state);
         } else {
             /*
              * It's possible that onpage value is not appended if the tombstone becomes globally
@@ -972,7 +968,6 @@ __rec_fill_tw_from_upd_select(
             upd_select->upd = tombstone;
         }
     }
-
     return (0);
 }
 
@@ -1177,7 +1172,8 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      * appended to the update chain when the page is read into memory.
      */
     if (upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
-      !vpack->tw.prepare && (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
+      !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)) &&
+      (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
         WT_RET(__rec_append_orig_value(session, page, upd_select->upd, vpack));
 
     __wti_rec_time_window_clear_obsolete(session, upd_select, NULL, r);

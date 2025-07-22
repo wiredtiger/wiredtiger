@@ -422,7 +422,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                 }
 
                 if (F_ISSET(version_cursor, WT_CURVERSION_VISIBLE_ONLY) &&
-                  cbt->upd_value->tw.prepare) {
+                  WT_TIME_WINDOW_HAS_PREPARE(&(cbt->upd_value->tw))) {
                     if (!WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw))
                         goto skip_on_page;
 
@@ -434,7 +434,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                     durable_stop_ts = WT_TS_MAX;
                     version_prepare_state = 0;
                 } else
-                    version_prepare_state = cbt->upd_value->tw.prepare;
+                    version_prepare_state = WT_TIME_WINDOW_HAS_PREPARE(&(cbt->upd_value->tw));
             }
 
             WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,

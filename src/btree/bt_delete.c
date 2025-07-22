@@ -479,6 +479,7 @@ __tombstone_update_alloc(
         upd->upd_durable_ts = page_del->pg_del_durable_ts;
         upd->upd_start_ts = page_del->pg_del_start_ts;
         upd->prepare_state = page_del->prepare_state;
+        upd->prepare_ts = page_del->prepare_ts;
     }
     *updp = upd;
     return (0);
