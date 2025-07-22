@@ -32,14 +32,25 @@ from wtscenario import make_scenarios
 
 # test_verify_disagg.py
 #    SESSION::verify() testing for disagg storage
+
+# FIXME-WT-15047: Implement tests for populated ingest tables verification
+#    (we already have an OpLog imitation in some tests for layered tables)
+
 @disagg_test_class
 class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    nitems = 500
+    hs = [
+        ('empty', dict(fill_hs=False)),
+        ('populated', dict(fill_hs=True)),
+    ]
+    disagg_storages = gen_disagg_storages('test_verify_disagg', disagg_only = True)
+    scenarios = make_scenarios(hs, disagg_storages)
 
-    # TODO-DONT-MERGE: CHECK WHETHER WE NEED ALL THESE CONFIGS AND VARIABLES !!!
-    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(page_log=palm),'
+    nitems = 10000
+    timestamp = 2
+
+    conn_base_config = 'disaggregated=(page_log=palm),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
+    conn_config_follower = conn_base_config + 'disaggregated=(role="follower")'
 
     table_cfg = 'key_format=S,value_format=S,block_manager=disagg,log=(enabled=false)'
 
@@ -48,20 +59,20 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     uri = 'layered:test_verify_disagg'
 
-    disagg_storages = gen_disagg_storages('test_verify_disagg', disagg_only = True)
-    # TODO-DONT-MERGE: DO WE NEED make_scenarios HERE ???
-    scenarios = make_scenarios(disagg_storages)
-
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def leader_put_data(self, value_prefix = '', low = 0, high = nitems):
+    def leader_put_data(self, ts, value_prefix = '', low = 1, high = nitems):
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(low, high):
+            self.session.begin_transaction()
             cursor[str(i)] = value_prefix + str(i)
+            self.timestamp += 1
+            ts_cfg = "commit_timestamp=" + self.timestamp_str(self.timestamp) if ts else None
+            self.session.commit_transaction(ts_cfg)
         cursor.close()
 
     def verify(self, sessions, err_msg = None):
@@ -75,12 +86,13 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
                     raise(e)
 
     def create_follower(self):
-        self.conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
+        self.conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
+                                                self.conn_config_follower)
         self.session_follow = self.conn_follow.open_session('')
 
     def test_verify_disagg(self):
-        # TODO-DONT-MERGE: Verify HS ???
-        # TODO-DONT-MERGE: Imitate Oplog to check dirty ingest table case for the follower ???
+        if self.fill_hs:
+            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.timestamp))
 
         # Create a table in the leader
         self.session.create(self.uri, self.table_cfg)
@@ -102,7 +114,10 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.verify([self.session, self.session_follow])
 
         # Put some data to the leader
-        self.leader_put_data()
+        self.leader_put_data(self.fill_hs)
+        # Perform update operations to fill HS
+        self.leader_put_data(self.fill_hs, value_prefix = 'aaa')
+        self.leader_put_data(self.fill_hs, value_prefix = 'bbb')
         # That's not allowed to perform verification if there is some dirty data
         self.verify([self.session], "Device or resource busy")
 

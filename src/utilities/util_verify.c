@@ -105,9 +105,9 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
     int ch;
     char *dump_offsets, *key, *resource_name;
-    bool abort_on_error, dump_all_data, dump_key_data, notfound_is_error, entry_found;
+    bool abort_on_error, dump_all_data, dump_key_data, entry_found;
 
-    abort_on_error = dump_all_data = dump_key_data = notfound_is_error = entry_found = false;
+    abort_on_error = dump_all_data = dump_key_data = entry_found = false;
     dump_offsets = resource_name = NULL;
 
     WT_RET(__wt_scr_alloc(session_impl, 0, &config));
@@ -177,7 +177,6 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     /* Verify specific URI */
     if (argc >= 1) {
         resource_name = *argv;
-        notfound_is_error = true;
     }
 
     /* Open the metadata file and iterate through its entries, verifying each one. */
@@ -211,8 +210,11 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             WT_ERR(ret);
     }
 
-    if (ret == 0 && !entry_found && !notfound_is_error)
-        ret = EINVAL;
+    if (cret != WT_NOTFOUND)
+        ret = util_err(session, cret, "session.verify");
+
+    if (ret == 0 && !entry_found && resource_name != NULL)
+        ret = util_err(session, EINVAL, "session.verify name was not found: %s", resource_name);
 
 err:
     __wt_scr_free(session_impl, &config);
