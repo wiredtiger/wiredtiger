@@ -812,7 +812,14 @@ err:
         session->cursor_open_timer_running = false;
         __wt_epoch(session, &end_time);
         time_diff_usec = WT_TIMEDIFF_US(end_time, start_time);
-        WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
+        /*
+         * We may not have a valid dhandle when EBUSY is returned. In that case only increment the
+         * connection statistics
+         */
+        if (ret != EBUSY)
+            WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
+        else
+            WT_STAT_CONN_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
     }
     return (ret);
 }
@@ -904,12 +911,20 @@ err:
         /*
          * It's considered a user open if it comes via a top-level API call. This could
          * alternatively decide the statistic based on whether it's a user or internal session.
+         *
+         * We may not have a valid dhandle when EBUSY is returned. In that case only increment the
+         * connection statistics
          */
-        if (API_USER_ENTRY(session) &&
-          (ret == EBUSY && !F_ISSET(S2BT(session), WT_BTREE_SPECIAL_FLAGS)))
-            WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_user_usecs, time_diff_usec);
-        else
-            WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
+        if (ret != EBUSY)
+            if (API_USER_ENTRY(session))
+                WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_user_usecs, time_diff_usec);
+            else
+                WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
+        else 
+            if (API_USER_ENTRY(session))
+                WT_STAT_CONN_INCRV(session, cursor_open_time_user_usecs, time_diff_usec);
+            else
+                WT_STAT_CONN_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
     }
     /*
      * Opening a cursor on a non-existent data source will set ret to either of ENOENT or
