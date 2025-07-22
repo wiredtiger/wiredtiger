@@ -2262,7 +2262,8 @@ __wt_txn_read_last_check(WT_SESSION_IMPL *session)
     txn = session->txn;
 
     /* Check if we can release the snap_min ID we put in the global table. */
-    return ((!F_ISSET(txn, WT_TXN_RUNNING) || txn->isolation != WT_ISO_SNAPSHOT) && txn->forced_iso == 0);
+    return (
+      (!F_ISSET(txn, WT_TXN_RUNNING) || txn->isolation != WT_ISO_SNAPSHOT) && txn->forced_iso == 0);
 }
 
 /*
