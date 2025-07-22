@@ -393,8 +393,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     WT_ITEM results[WT_DELTA_LIMIT + 1];
     WT_ITEM *tmp, *ip;
     WT_PAGE_BLOCK_META block_meta_tmp;
-    const WT_PAGE_HEADER *delta;
-    const WT_PAGE_HEADER *dsk;
+    const WT_PAGE_HEADER *delta, *dsk;
     uint32_t count, i;
     uint8_t type;
     bool blkcache_found, found, skip_cache_put;
