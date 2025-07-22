@@ -380,7 +380,8 @@ restart_read:
          */
         cbt->cip_saved = cip;
         if (rle > 1 &&
-          __wt_txn_visible_all(session, unpack.tw.start_txn, unpack.tw.durable_start_ts)) {
+          __wt_txn_visible_all(session, unpack.tw.start_txn,
+            WT_MAX(unpack.tw.durable_start_ts, unpack.tw.start_prepare_ts))) {
             /*
              * Copy the value into cbt->tmp to cache it. This is perhaps unfortunate, because
              * copying isn't free, but it's currently necessary. The memory we're copying might be

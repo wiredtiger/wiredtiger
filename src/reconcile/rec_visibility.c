@@ -431,7 +431,7 @@ __timestamp_no_ts_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
 
         select_tw->durable_start_ts = select_tw->durable_stop_ts;
         select_tw->start_ts = select_tw->stop_ts;
-        select_tw->start_prepare_ts = select_tw->stop_prepare_ts;
+        /* select_tw->start_prepare_ts = select_tw->stop_prepare_ts; */
         return (true);
     }
     return (false);
