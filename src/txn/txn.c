@@ -2121,7 +2121,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
              * be considered.
              */
             for (tmp = upd->next; tmp != NULL; tmp = tmp->next) {
-                /* We may see aborted reserved update in between the prepared updates. */
+                /* We may see aborted reserved updates in between the prepared updates. */
                 if (tmp->txnid == WT_TXN_ABORTED)
                     continue;
 
