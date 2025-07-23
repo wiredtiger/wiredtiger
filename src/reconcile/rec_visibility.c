@@ -423,7 +423,7 @@ __timestamp_no_ts_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
      */
     WT_ASSERT(session, select_tw->stop_txn >= select_tw->start_txn);
 
-    if (select_tw->stop_ts < select_tw->start_ts) {
+    if (!WT_TIME_WINDOW_HAS_STOP_PREPARE(select_tw) && select_tw->stop_ts < select_tw->start_ts) {
         WT_ASSERT(session, select_tw->stop_ts == WT_TS_NONE);
         __wt_verbose(session, WT_VERB_TIMESTAMP,
           "Warning: fixing remove without a timestamp earlier than value; time window %s",
@@ -431,7 +431,6 @@ __timestamp_no_ts_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
 
         select_tw->durable_start_ts = select_tw->durable_stop_ts;
         select_tw->start_ts = select_tw->stop_ts;
-        /* select_tw->start_prepare_ts = select_tw->stop_prepare_ts; */
         return (true);
     }
     return (false);

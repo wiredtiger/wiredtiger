@@ -2326,11 +2326,11 @@ __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
         upd_value->buf.data = upd->data;
         upd_value->buf.size = upd->size;
     }
-    if (upd->type == WT_UPDATE_TOMBSTONE) {
+    if (upd->type == WT_UPDATE_TOMBSTONE)
         WT_TIME_WINDOW_SET_STOP(&(upd_value->tw), upd, prepare_state);
-    } else {
+    else
         WT_TIME_WINDOW_SET_START(&(upd_value->tw), upd, prepare_state);
-    }
+        
     upd_value->type = upd->type;
 }
 

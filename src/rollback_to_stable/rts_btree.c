@@ -739,9 +739,9 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
          * windows can be the same. To abort these updates, check for any stable update from history
          * store or remove the key.
          */
-        if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) && tw->start_prepared_id == tw->stop_prepared_id &&
+        if (WT_TIME_WINDOW_HAS_START_PREPARE(tw) && tw->start_prepared_id == tw->stop_prepared_id &&
           tw->start_prepare_ts == tw->stop_prepare_ts && tw->start_txn == tw->stop_txn) {
-            WT_ASSERT(session, prepared == true);
+            WT_ASSERT(session, prepared);
             if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
               !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
                 return (__rts_btree_ondisk_fixup_key(

@@ -945,10 +945,10 @@ copy_cell_restart:
                  * state (same prepared id), so the same prepared id is packed to
                  * WT_CELL_TS_DURABLE_START
                  */
-                WT_ASSERT(session, temp_stop_ts == 0);
+                WT_ASSERT(session, temp_stop_ts == WT_TS_NONE);
                 if (preserve_prepared) {
                     WT_ASSERT(
-                      session, temp_durable_start_ts != 0 && temp_durable_stop_ts == WT_TS_NONE);
+                      session, temp_durable_start_ts != WT_TS_NONE && temp_durable_stop_ts == WT_TS_NONE);
                     tw->start_prepare_ts = temp_start_ts;
                     tw->start_prepared_id = temp_durable_start_ts;
                     tw->stop_prepare_ts = temp_start_ts;
@@ -966,13 +966,12 @@ copy_cell_restart:
                  * timestamp in WT_CELL_TS_START and WT_CELL_TS_DURABLE_START, prepare ts in
                  * WT_CELL_TS_STOP prepared id in WT_CELL_TS_DURABLE_STOP.
                  */
-                /* unpack start ts and durable start ts like normal */
                 tw->start_ts = temp_start_ts;
                 if (temp_durable_start_ts != WT_TS_NONE)
                     tw->durable_start_ts = temp_durable_start_ts + tw->start_ts;
-                else {
+                else
                     tw->durable_start_ts = tw->start_ts;
-                }
+
                 WT_ASSERT(session, temp_stop_ts != WT_TS_MAX);
                 tw->stop_prepare_ts = tw->start_ts + temp_stop_ts;
 
@@ -989,9 +988,9 @@ copy_cell_restart:
                  * prepared id in WT_CELL_TS_DURABLE_START.
                  */
                 tw->start_prepare_ts = temp_start_ts;
-                if (preserve_prepared) {
+                if (preserve_prepared)
                     tw->start_prepared_id = temp_durable_start_ts;
-                } else
+                else
                     WT_ASSERT(session, temp_durable_start_ts == WT_TS_NONE);
             }
         } else {
