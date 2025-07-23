@@ -205,7 +205,6 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                  * also need traverse to the next update to get the full value. If the tombstone was
                  * the last update in the update list, retrieve the ondisk value.
                  */
-                /* change here as well */
                 version_cursor->upd_stop_txnid = upd->txnid;
                 version_cursor->upd_durable_stop_ts = upd->upd_durable_ts;
                 version_cursor->upd_stop_ts =
@@ -393,7 +392,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                         goto skip_on_page;
                 }
                 durable_stop_ts = cbt->upd_value->tw.durable_stop_ts;
-                stop_ts = cbt->upd_value->tw.stop_prepare_ts != WT_TS_NONE ?
+                stop_ts = WT_TIME_WINDOW_HAS_STOP_PREPARE(&(cbt->upd_value->tw)) ?
                   cbt->upd_value->tw.stop_prepare_ts :
                   cbt->upd_value->tw.stop_ts;
                 stop_txn = cbt->upd_value->tw.stop_txn;
@@ -443,10 +442,10 @@ __curversion_next_single_key(WT_CURSOR *cursor)
 
             WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
               cbt->upd_value->tw.start_txn,
-              cbt->upd_value->tw.start_prepare_ts != WT_TS_NONE ?
+              WT_TIME_WINDOW_HAS_START_PREPARE(&(cbt->upd_value->tw)) ?
                 cbt->upd_value->tw.start_prepare_ts :
                 cbt->upd_value->tw.start_ts,
-              cbt->upd_value->tw.start_prepare_ts != WT_TS_NONE ?
+              WT_TIME_WINDOW_HAS_START_PREPARE(&(cbt->upd_value->tw)) ?
                 cbt->upd_value->tw.start_prepare_ts :
                 cbt->upd_value->tw.durable_start_ts,
               stop_txn, stop_ts, durable_stop_ts, WT_UPDATE_STANDARD, version_prepare_state, 0,
@@ -454,10 +453,10 @@ __curversion_next_single_key(WT_CURSOR *cursor)
 
             version_cursor->upd_stop_txnid = cbt->upd_value->tw.start_txn;
             version_cursor->upd_durable_stop_ts =
-              cbt->upd_value->tw.start_prepare_ts != WT_TS_NONE ?
+              WT_TIME_WINDOW_HAS_START_PREPARE(&(cbt->upd_value->tw)) ?
               cbt->upd_value->tw.start_prepare_ts :
               cbt->upd_value->tw.durable_start_ts;
-            version_cursor->upd_stop_ts = cbt->upd_value->tw.start_prepare_ts != WT_TS_NONE ?
+            version_cursor->upd_stop_ts = WT_TIME_WINDOW_HAS_START_PREPARE(&(cbt->upd_value->tw)) ?
               cbt->upd_value->tw.start_prepare_ts :
               cbt->upd_value->tw.start_ts;
 
@@ -559,19 +558,19 @@ skip_on_page:
                 goto done;
         }
 
-        WT_ERR(
-          __curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT, twp->start_txn,
-            twp->start_prepare_ts != WT_TS_NONE ? twp->start_prepare_ts : twp->start_ts,
-            twp->start_prepare_ts != WT_TS_NONE ? twp->start_prepare_ts : twp->durable_start_ts,
-            twp->stop_txn, twp->stop_prepare_ts != WT_TS_NONE ? twp->stop_prepare_ts : twp->stop_ts,
-            twp->stop_prepare_ts != WT_TS_NONE ? twp->stop_prepare_ts : twp->durable_stop_ts,
-            hs_upd_type, 0, 0, WT_CURVERSION_HISTORY_STORE));
+        WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
+          twp->start_txn,
+          WT_TIME_WINDOW_HAS_START_PREPARE(twp) ? twp->start_prepare_ts : twp->start_ts,
+          WT_TIME_WINDOW_HAS_START_PREPARE(twp) ? twp->start_prepare_ts : twp->durable_start_ts,
+          twp->stop_txn, WT_TIME_WINDOW_HAS_STOP_PREPARE(twp) ? twp->stop_prepare_ts : twp->stop_ts,
+          WT_TIME_WINDOW_HAS_STOP_PREPARE(twp) ? twp->stop_prepare_ts : twp->durable_stop_ts,
+          hs_upd_type, 0, 0, WT_CURVERSION_HISTORY_STORE));
 
         version_cursor->upd_stop_txnid = twp->start_txn;
         version_cursor->upd_durable_stop_ts =
-          twp->start_prepare_ts != WT_TS_NONE ? twp->start_prepare_ts : twp->durable_start_ts;
+          WT_TIME_WINDOW_HAS_START_PREPARE(twp) ? twp->start_prepare_ts : twp->durable_start_ts;
         version_cursor->upd_stop_ts =
-          twp->start_prepare_ts != WT_TS_NONE ? twp->start_prepare_ts : twp->start_ts;
+          WT_TIME_WINDOW_HAS_START_PREPARE(twp) ? twp->start_prepare_ts : twp->start_ts;
 
         upd_found = true;
     }

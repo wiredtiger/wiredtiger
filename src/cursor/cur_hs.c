@@ -1121,7 +1121,7 @@ __curhs_remove_int(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type
     hs_tombstone->txnid = WT_TXN_NONE;
     hs_tombstone->upd_start_ts = hs_tombstone->upd_durable_ts = hs_tombstone->prepare_ts =
       WT_TS_NONE;
-    hs_tombstone->prepare_ts = WT_PREPARED_ID_NONE;
+    hs_tombstone->prepared_id = WT_PREPARED_ID_NONE;
     while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART) {
         WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, false));
         WT_ERR(ret);

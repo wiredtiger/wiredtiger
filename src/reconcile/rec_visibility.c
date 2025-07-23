@@ -422,7 +422,9 @@ __timestamp_no_ts_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
      * start_txn, this is no longer true so assert that we don't encounter it.
      */
     WT_ASSERT(session, select_tw->stop_txn >= select_tw->start_txn);
-
+    WT_ASSERT(session,
+      !WT_TIME_WINDOW_HAS_STOP_PREPARE(select_tw) ||
+        select_tw->stop_prepare_ts >= select_tw->start_ts);
     if (!WT_TIME_WINDOW_HAS_STOP_PREPARE(select_tw) && select_tw->stop_ts < select_tw->start_ts) {
         WT_ASSERT(session, select_tw->stop_ts == WT_TS_NONE);
         __wt_verbose(session, WT_VERB_TIMESTAMP,
