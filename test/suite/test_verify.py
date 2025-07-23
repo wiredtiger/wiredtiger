@@ -79,6 +79,8 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             f.close()
         return count
 
+    # FIXME-WT-15064:
+    @wttest.skip_for_hook("disagg", " We cannot access shared tables data directly")
     def open_and_position(self, tablename, pct):
         """
         Open the file for the table, position it at a 4K page
@@ -100,6 +102,8 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         fp.seek(position)
         return fp
 
+    # FIXME-WT-15064:
+    @wttest.skip_for_hook("disagg", " We cannot access shared tables data directly")
     def open_and_offset(self, tablename, offset):
         """
         Open the file for the table, position it at the given offset.
