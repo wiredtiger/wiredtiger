@@ -275,7 +275,7 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
      * When the count of active cursors in the session goes to zero, there are no active cursors,
      * and we can release any snapshot we're holding for read committed isolation.
      */
-    if (session->ncursors == 0 || !WT_READING_CHECKPOINT(session))
+    if (session->ncursors == 0 && !WT_READING_CHECKPOINT(session))
         __wt_txn_read_last(session);
 
     /* If we're not holding a cursor reference, we're done. */
