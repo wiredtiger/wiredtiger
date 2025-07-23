@@ -2330,7 +2330,7 @@ __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
         WT_TIME_WINDOW_SET_STOP(&(upd_value->tw), upd, prepare_state);
     else
         WT_TIME_WINDOW_SET_START(&(upd_value->tw), upd, prepare_state);
-        
+
     upd_value->type = upd->type;
 }
 

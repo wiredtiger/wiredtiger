@@ -947,8 +947,8 @@ copy_cell_restart:
                  */
                 WT_ASSERT(session, temp_stop_ts == WT_TS_NONE);
                 if (preserve_prepared) {
-                    WT_ASSERT(
-                      session, temp_durable_start_ts != WT_TS_NONE && temp_durable_stop_ts == WT_TS_NONE);
+                    WT_ASSERT(session,
+                      temp_durable_start_ts != WT_TS_NONE && temp_durable_stop_ts == WT_TS_NONE);
                     tw->start_prepare_ts = temp_start_ts;
                     tw->start_prepared_id = temp_durable_start_ts;
                     tw->stop_prepare_ts = temp_start_ts;

@@ -406,15 +406,15 @@ __time_value_validate_parent(
           __wt_time_window_to_string(tw, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
     if (WT_TIME_WINDOW_HAS_START_PREPARE(tw)) {
-          if (tw->start_prepare_ts < parent->oldest_start_ts)
-        WT_TIME_VALIDATE_RET(session,
-          "value time window has a start prepare time before its parent's oldest start time; time "
-          "window "
-          "%s, parent %s",
-          __wt_time_window_to_string(tw, time_string[0]),
-          __wt_time_aggregate_to_string(parent, time_string[1]));
-        }
-    else if (tw->start_ts < parent->oldest_start_ts)
+        if (tw->start_prepare_ts < parent->oldest_start_ts)
+            WT_TIME_VALIDATE_RET(session,
+              "value time window has a start prepare time before its parent's oldest start time; "
+              "time "
+              "window "
+              "%s, parent %s",
+              __wt_time_window_to_string(tw, time_string[0]),
+              __wt_time_aggregate_to_string(parent, time_string[1]));
+    } else if (tw->start_ts < parent->oldest_start_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a start time before its parent's oldest start time; time window "
           "%s, parent %s",
@@ -435,16 +435,16 @@ __time_value_validate_parent(
           "time window %s, parent %s",
           __wt_time_window_to_string(tw, time_string[0]),
           __wt_time_aggregate_to_string(parent, time_string[1]));
-    
+
     if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw)) {
-      if (tw->stop_prepare_ts > parent->newest_stop_ts)
-        WT_TIME_VALIDATE_RET(session,
-          "value time window has a stop prepare time after its parent's newest stop time; time "
-          "window %s, "
-          "parent %s",
-          __wt_time_window_to_string(tw, time_string[0]),
-          __wt_time_aggregate_to_string(parent, time_string[1]));
-        } else if (tw->stop_ts > parent->newest_stop_ts)
+        if (tw->stop_prepare_ts > parent->newest_stop_ts)
+            WT_TIME_VALIDATE_RET(session,
+              "value time window has a stop prepare time after its parent's newest stop time; time "
+              "window %s, "
+              "parent %s",
+              __wt_time_window_to_string(tw, time_string[0]),
+              __wt_time_aggregate_to_string(parent, time_string[1]));
+    } else if (tw->stop_ts > parent->newest_stop_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a stop time after its parent's newest stop time; time window %s, "
           "parent %s",
