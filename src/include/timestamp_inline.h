@@ -68,9 +68,7 @@
       (tw1)->stop_txn == (tw2)->stop_txn && (tw1)->stop_prepared_id == (tw2)->stop_prepared_id && \
       (tw1)->stop_prepare_ts == (tw2)->stop_prepare_ts)
 
-/*
- * Set the start values of a time window from those in an update structure.
- */
+/* Set the start values of a time window from those in an update structure. */
 #define WT_TIME_WINDOW_SET_START(tw, upd, prepare_state)                                    \
     do {                                                                                    \
         (tw)->start_txn = (upd)->txnid;                                                     \
@@ -83,9 +81,7 @@
         }                                                                                   \
     } while (0)
 
-/*
- * Set the stop values of a time window from those in an update structure.
- */
+/* Set the stop values of a time window from those in an update structure. */
 #define WT_TIME_WINDOW_SET_STOP(tw, upd, prepare_state)                                     \
     do {                                                                                    \
         (tw)->stop_txn = (upd)->txnid;                                                      \

@@ -1030,7 +1030,6 @@ __curhs_insert(WT_CURSOR *cursor)
      * The actual record to be inserted into the history store. Set the current update start time
      * point as the commit time point to the history store record.
      */
-    /* assert that tw is not prepared? */
     WT_ERR(__wt_upd_alloc(session, &file_cursor->value, WT_UPDATE_STANDARD, &hs_upd, NULL));
     hs_upd->upd_start_ts = hs_cursor->time_window.start_ts;
     hs_upd->upd_durable_ts = hs_cursor->time_window.durable_start_ts;
