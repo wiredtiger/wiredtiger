@@ -38,11 +38,6 @@ struct __wt_time_window {
     wt_timestamp_t stop_prepare_ts; /* default value: WT_TS_NONE */
     uint64_t stop_txn;              /* default value: WT_TXN_MAX */
     uint64_t stop_prepared_id;      /* default value: WT_PREPARED_ID_NONE */
-    /*
-     * Prepare information isn't really part of a time window, but we need to aggregate it to the
-     * internal page information in reconciliation, and this is the simplest place to put it.
-     */
-    uint8_t prepare;
 };
 
 /*
