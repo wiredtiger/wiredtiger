@@ -7,7 +7,7 @@
  */
 
 #pragma once
-
+#include <assert.h>
 #define WT_RECNO_OOB 0 /* Illegal record number */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -1100,7 +1100,6 @@ struct __wt_page_deleted {
     } u;
 
 #define pg_del_durable_ts u.commit.durable_ts
-#define pg_del_start_ts u.commit.start_ts
 #define pg_del_rollback_ts u.prepare_rollback.rollback_ts
 #define pg_del_saved_txnid u.prepare_rollback.saved_txnid
 
@@ -1126,6 +1125,14 @@ struct __wt_page_deleted {
     bool selected_for_write;
 };
 
+
+static inline wt_timestamp_t get_page_del_start_ts(WT_PAGE_DELETED *page_del) {
+    if (page_del->prepare_state == WT_PREPARE_INPROGRESS || page_del->prepare_state == WT_PREPARE_LOCKED) {
+        // assert(page_del->prepare_ts != WT_TS_NONE);
+        return page_del->prepare_ts;
+    }
+    return page_del->u.commit.start_ts;
+};
 /*
  * A location in a file is a variable-length cookie, but it has a maximum size so it's easy to
  * create temporary space in which to store them. (Locations can't be much larger than this anyway,
@@ -1535,8 +1542,6 @@ struct __wt_update {
 
 #undef upd_durable_ts
 #define upd_durable_ts u.commit.durable_ts
-#undef upd_start_ts
-#define upd_start_ts u.commit.start_ts
 #undef upd_rollback_ts
 #define upd_rollback_ts u.prepare_rollback.rollback_ts
 #undef upd_saved_txnid
@@ -1621,6 +1626,14 @@ struct __wt_update {
      */
     uint8_t data[]; /* start of the data */
 };
+
+static inline uint64_t get_upd_start_ts(WT_UPDATE *upd) {
+    if (upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED) {
+        assert(upd->prepare_ts != 0);
+        return upd->prepare_ts;
+    }
+    return upd->u.commit.start_ts;
+}
 
 /*
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data -- we verify the build
