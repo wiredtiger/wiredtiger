@@ -2742,6 +2742,7 @@ static int
 __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chunk, bool last_block)
 {
     WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
     WT_DELTA_HEADER *header;
     WT_MULTI *multi;
     WT_PAGE *page;
@@ -2753,6 +2754,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     bool verify_image;
 #endif
 
+    conn = S2C(session);
     btree = S2BT(session);
     page = r->page;
     build_delta = false;
@@ -2885,13 +2887,14 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && last_block && r->multi_next == 1 &&
       block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
-      block_meta->delta_count < btree->max_consecutive_delta) {
+      block_meta->delta_count < conn->disaggregated_storage.max_consecutive_delta) {
         WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
         /*
          * Discard the delta if it is larger than the configured percentage of the size of the full
          * image.
          */
-        if (build_delta && ((r->delta.size * 100) / chunk->image.size) > btree->delta_pct)
+        if (build_delta &&
+          ((r->delta.size * 100) / chunk->image.size) > conn->disaggregated_storage.delta_pct)
             build_delta = false;
     }
 

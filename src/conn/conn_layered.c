@@ -1103,6 +1103,19 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.lose_all_my_data", &cval));
         if (cval.val != 0)
             F_SET(&conn->disaggregated_storage, WT_DISAGG_NO_SYNC);
+
+        /*
+         * Get the percentage of a page size that a delta must be less than in order to write that
+         * delta (instead of just giving up and writing the full page).
+         */
+        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.delta_pct", &cval));
+        if (cval.len > 0 && cval.val >= 0)
+            conn->disaggregated_storage.delta_pct = (uint32_t)cval.val;
+
+        /* Get the maximum number of consecutive deltas allowed for a single page. */
+        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.max_consecutive_delta", &cval));
+        if (cval.len > 0 && cval.val >= 0)
+            conn->disaggregated_storage.max_consecutive_delta = (uint32_t)cval.val;
     }
 
 err:

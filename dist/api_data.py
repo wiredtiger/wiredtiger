@@ -140,6 +140,18 @@ connection_disaggregated_config_common = [
     Config('role', '', r'''
         whether the stable table in a layered data store should lead or follow''',
         choices=['leader', 'follower'], undoc=True),
+    Config('delta_pct', '20', r'''
+        the size threshold (as a percentage) at which a delta will cease to be emitted
+        when reconciling a page. For example, if this is set to 20, the size of a delta
+        is 20 bytes, and the size of the full page image is 100 bytes, reconciliation
+        can emit a delta for the page (if various other preconditions are met).
+        Conversely, if the delta came to 21 bytes, reconciliation would not emit a
+        delta. Deltas larger than full pages are permitted for measurement and testing
+        reasons, and may be disallowed in future.''', min='1', max='1000', type='int', undoc=True),
+    Config('max_consecutive_delta', '32', r'''
+        the max consecutive deltas allowed for a single page. The maximum value is set
+        at 32 (WT_DELTA_LIMIT). If we need to change that, please change WT_DELTA_LIMIT
+        as well.''', min='1', max='32', type='int', undoc=True),
 ]
 disaggregated_config_common = [
     Config('page_log', '', r'''
@@ -156,20 +168,7 @@ connection_disaggregated_config = [
 file_disaggregated_config = [
     Config('disaggregated', '', r'''
         configure disaggregated storage for this file''',
-        type='category', subconfig=disaggregated_config_common + [
-            Config('delta_pct', '20', r'''
-                the size threshold (as a percentage) at which a delta will cease to be emitted
-                when reconciling a page. For example, if this is set to 20, the size of a delta
-                is 20 bytes, and the size of the full page image is 100 bytes, reconciliation
-                can emit a delta for the page (if various other preconditions are met).
-                Conversely, if the delta came to 21 bytes, reconciliation would not emit a
-                delta. Deltas larger than full pages are permitted for measurement and testing
-                reasons, and may be disallowed in future.''', min='1', max='1000'),
-            Config('max_consecutive_delta', '32', r'''
-                the max consecutive deltas allowed for a single page. The maximum value is set
-                at 32 (WT_DELTA_LIMIT). If we need to change that, please change WT_DELTA_LIMIT
-                as well.''', min='1', max='32')
-        ]
+        type='category', subconfig=disaggregated_config_common
     ),
 ]
 wiredtiger_open_disaggregated_storage_configuration = connection_disaggregated_config

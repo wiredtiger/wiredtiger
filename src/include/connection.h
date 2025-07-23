@@ -198,6 +198,9 @@ struct __wt_disaggregated_storage {
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
                                          /* Updates are protected by the checkpoint lock. */
 
+    u_int delta_pct;             /* Delta page percent (of full page size) */
+    u_int max_consecutive_delta; /* Max number of consecutive deltas */
+
     /* To copy at the next checkpoint. */
     TAILQ_HEAD(__wt_disagg_copy_metadata_qh, __wt_disagg_copy_metadata) copy_metadata_qh;
     WT_SPINLOCK copy_metadata_lock;
