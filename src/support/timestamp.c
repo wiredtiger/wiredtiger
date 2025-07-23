@@ -547,7 +547,7 @@ __wt_time_value_validate(
               "Stop prepared value time window has no stop prepare time "
               "window %s",
               __wt_time_window_to_string(tw, time_string[0]));
-        if F_ISSET (S2C(session), WT_CONN_PRESERVE_PREPARED) {
+        if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED)) {
             if (tw->stop_prepared_id == WT_PREPARED_ID_NONE)
                 WT_TIME_VALIDATE_RET(session,
                   "Stop prepared value time window has no stop prepared id; time "
