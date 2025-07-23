@@ -208,7 +208,8 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                 /* change here as well */
                 version_cursor->upd_stop_txnid = upd->txnid;
                 version_cursor->upd_durable_stop_ts = upd->upd_durable_ts;
-                version_cursor->upd_stop_ts = WT_MAX(upd->upd_start_ts, upd->prepare_ts);
+                version_cursor->upd_stop_ts =
+                  upd->prepare_ts != WT_TS_NONE ? upd->prepare_ts : upd->upd_start_ts;
 
                 /* No need to check the next update if the tombstone is globally visible. */
                 if (__wt_txn_upd_visible_all(session, upd))
@@ -442,15 +443,23 @@ __curversion_next_single_key(WT_CURSOR *cursor)
 
             WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
               cbt->upd_value->tw.start_txn,
-              WT_MAX(cbt->upd_value->tw.start_ts, cbt->upd_value->tw.start_prepare_ts),
-              WT_MAX(cbt->upd_value->tw.durable_start_ts, cbt->upd_value->tw.start_prepare_ts),
+              cbt->upd_value->tw.start_prepare_ts != WT_TS_NONE ?
+                cbt->upd_value->tw.start_prepare_ts :
+                cbt->upd_value->tw.start_ts,
+              cbt->upd_value->tw.start_prepare_ts != WT_TS_NONE ?
+                cbt->upd_value->tw.start_prepare_ts :
+                cbt->upd_value->tw.durable_start_ts,
               stop_txn, stop_ts, durable_stop_ts, WT_UPDATE_STANDARD, version_prepare_state, 0,
               WT_CURVERSION_DISK_IMAGE));
 
             version_cursor->upd_stop_txnid = cbt->upd_value->tw.start_txn;
-            version_cursor->upd_durable_stop_ts = cbt->upd_value->tw.durable_start_ts;
-            version_cursor->upd_stop_ts =
-              WT_MAX(cbt->upd_value->tw.start_ts, cbt->upd_value->tw.start_prepare_ts);
+            version_cursor->upd_durable_stop_ts =
+              cbt->upd_value->tw.start_prepare_ts != WT_TS_NONE ?
+              cbt->upd_value->tw.start_prepare_ts :
+              cbt->upd_value->tw.durable_start_ts;
+            version_cursor->upd_stop_ts = cbt->upd_value->tw.start_prepare_ts != WT_TS_NONE ?
+              cbt->upd_value->tw.start_prepare_ts :
+              cbt->upd_value->tw.start_ts;
 
             upd_found = true;
         } else
@@ -550,14 +559,19 @@ skip_on_page:
                 goto done;
         }
 
-        WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
-          twp->start_txn, WT_MAX(twp->start_ts, twp->start_prepare_ts),
-          WT_MAX(twp->durable_start_ts, twp->start_prepare_ts), twp->stop_txn, twp->stop_ts,
-          twp->durable_stop_ts, hs_upd_type, 0, 0, WT_CURVERSION_HISTORY_STORE));
+        WT_ERR(
+          __curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT, twp->start_txn,
+            twp->start_prepare_ts != WT_TS_NONE ? twp->start_prepare_ts : twp->start_ts,
+            twp->start_prepare_ts != WT_TS_NONE ? twp->start_prepare_ts : twp->durable_start_ts,
+            twp->stop_txn, twp->stop_prepare_ts != WT_TS_NONE ? twp->stop_prepare_ts : twp->stop_ts,
+            twp->stop_prepare_ts != WT_TS_NONE ? twp->stop_prepare_ts : twp->durable_stop_ts,
+            hs_upd_type, 0, 0, WT_CURVERSION_HISTORY_STORE));
 
         version_cursor->upd_stop_txnid = twp->start_txn;
-        version_cursor->upd_durable_stop_ts = twp->durable_start_ts;
-        version_cursor->upd_stop_ts = WT_MAX(twp->start_ts, twp->start_prepare_ts);
+        version_cursor->upd_durable_stop_ts =
+          twp->start_prepare_ts != WT_TS_NONE ? twp->start_prepare_ts : twp->durable_start_ts;
+        version_cursor->upd_stop_ts =
+          twp->start_prepare_ts != WT_TS_NONE ? twp->start_prepare_ts : twp->start_ts;
 
         upd_found = true;
     }
