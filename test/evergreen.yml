@@ -5366,13 +5366,33 @@ tasks:
           perf-test-path: ../../../bench/workgen/runner
           perf-test-name: cache_workload_dirty_trigger.py
           maxruns: 1
-          wtarg: -ops ['"block_read"']
+          wtarg: -ops ['"app_dirty_attempt", "app_attempt", "trigger_updates", "trigger_dirty"']
       - func: "upload stats to atlas"
         vars:
           test-name: cache_workload_dirty_trigger.py
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_workload_dirty_trigger.py
+  
+  - name: cache_workload_update_trigger
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          test_type: workgen
+          exec_path: ${python_binary|python3}
+          perf-test-path: ../../../bench/workgen/runner
+          perf-test-name: cache_workload_update_trigger.py
+          maxruns: 1
+          wtarg: -ops ['"app_dirty_attempt", "app_attempt", "trigger_updates", "trigger_dirty"']
+      - func: "upload stats to atlas"
+        vars:
+          test-name: cache_workload_update_trigger.py
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: cache_workload_update_trigger.py
 
   - name: many-dhandle-stress
     depends_on:
