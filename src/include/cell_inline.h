@@ -93,11 +93,9 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
             WT_ASSERT(session, tw->start_prepared_id != WT_PREPARED_ID_NONE);
             WT_RET(__wt_vpack_uint(pp, 0, tw->start_prepared_id));
             LF_SET(WT_CELL_TS_DURABLE_START);
-        } else if (tw->start_prepare_ts - reference_ts > 0) {
-            /* Write the start_prepare_ts for backward compatibility. */
-            WT_RET(__wt_vpack_uint(pp, 0, tw->start_prepare_ts - reference_ts));
-            LF_SET(WT_CELL_TS_DURABLE_START);
-        }
+        } else
+            /* For non preserve_prepared case, there's no durable ts to write here */
+            WT_ASSERT(session, tw->start_prepare_ts == reference_ts);
     } else if (tw->durable_start_ts != WT_TS_NONE) {
         WT_ASSERT(session, reference_ts <= tw->durable_start_ts);
         /* Store differences if any, not absolutes. */
