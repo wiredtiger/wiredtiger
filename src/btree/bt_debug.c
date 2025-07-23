@@ -569,7 +569,7 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
         if (F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
             page_del = &unpack->page_del;
             WT_RET(ds->f(ds, " | page_del : %s",
-              __wt_time_point_to_string(page_del->pg_del_start_ts, page_del->pg_del_durable_ts,
+              __wt_time_point_to_string(get_page_del_start_ts(page_del), page_del->pg_del_durable_ts,
                 page_del->txnid, time_string)));
         }
     /* FALLTHROUGH */
@@ -1667,7 +1667,7 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
               "txn_id %" PRIu64,
               upd->txnid));
 
-        WT_RET(ds->f(ds, ", start_ts %s", __wt_timestamp_to_string(upd->upd_start_ts, ts_string)));
+        WT_RET(ds->f(ds, ", start_ts %s", __wt_timestamp_to_string(get_upd_start_ts(upd), ts_string)));
         if (upd->upd_durable_ts != WT_TS_NONE)
             WT_RET(ds->f(
               ds, ", durable_ts %s", __wt_timestamp_to_string(upd->upd_durable_ts, ts_string)));
@@ -1759,7 +1759,7 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
         page_del = ref->page_del;
         WT_RET(ds->f(ds, " | page_del: %s",
           __wt_time_point_to_string(
-            page_del->pg_del_start_ts, page_del->pg_del_durable_ts, page_del->txnid, time_string)));
+            get_page_del_start_ts(page_del), page_del->pg_del_durable_ts, page_del->txnid, time_string)));
     }
     return (ds->f(ds, "\n"));
 }

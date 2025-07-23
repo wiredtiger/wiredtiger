@@ -76,7 +76,7 @@
             (tw)->start_prepare_ts = (upd)->prepare_ts;                                     \
             (tw)->start_prepared_id = (upd)->prepared_id;                                   \
         } else {                                                                            \
-            (tw)->start_ts = (upd)->upd_start_ts;                                           \
+            (tw)->start_ts = (upd)->u.commit.start_ts;                                           \
             (tw)->durable_start_ts = (upd)->upd_durable_ts;                                 \
         }                                                                                   \
     } while (0)
@@ -89,7 +89,7 @@
             (tw)->stop_prepare_ts = (upd)->prepare_ts;                                      \
             (tw)->stop_prepared_id = (upd)->prepared_id;                                    \
         } else {                                                                            \
-            (tw)->stop_ts = (upd)->upd_start_ts;                                            \
+            (tw)->stop_ts = (upd)->u.commit.start_ts;                                            \
             (tw)->durable_stop_ts = (upd)->upd_durable_ts;                                  \
         }                                                                                   \
     } while (0)
@@ -212,7 +212,7 @@
         (ta)->newest_stop_durable_ts =                                                    \
           WT_MAX((page_del)->pg_del_durable_ts, (ta)->newest_stop_durable_ts);            \
         (ta)->newest_txn = WT_MAX((page_del)->txnid, (ta)->newest_txn);                   \
-        (ta)->newest_stop_ts = WT_MAX((page_del)->pg_del_start_ts, (ta)->newest_stop_ts); \
+        (ta)->newest_stop_ts = WT_MAX(get_page_del_start_ts((page_del)), (ta)->newest_stop_ts); \
         (ta)->newest_stop_txn = WT_MAX((page_del)->txnid, (ta)->newest_stop_txn);         \
     } while (0)
 

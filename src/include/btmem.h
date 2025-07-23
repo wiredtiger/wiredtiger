@@ -1132,7 +1132,7 @@ static inline wt_timestamp_t get_page_del_start_ts(WT_PAGE_DELETED *page_del) {
         return page_del->prepare_ts;
     }
     return page_del->u.commit.start_ts;
-};
+}
 /*
  * A location in a file is a variable-length cookie, but it has a maximum size so it's easy to
  * create temporary space in which to store them. (Locations can't be much larger than this anyway,

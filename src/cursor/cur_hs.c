@@ -1031,7 +1031,7 @@ __curhs_insert(WT_CURSOR *cursor)
      * point as the commit time point to the history store record.
      */
     WT_ERR(__wt_upd_alloc(session, &file_cursor->value, WT_UPDATE_STANDARD, &hs_upd, NULL));
-    hs_upd->upd_start_ts = hs_cursor->time_window.start_ts;
+    hs_upd->u.commit.start_ts = hs_cursor->time_window.start_ts;
     hs_upd->upd_durable_ts = hs_cursor->time_window.durable_start_ts;
     hs_upd->txnid = hs_cursor->time_window.start_txn;
     hs_upd->prepare_ts = hs_cursor->time_window.start_prepare_ts;
@@ -1048,13 +1048,13 @@ __curhs_insert(WT_CURSOR *cursor)
          * Set the stop time point as the commit time point of the history store delete record.
          */
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_tombstone, NULL));
-        hs_tombstone->upd_start_ts = hs_cursor->time_window.stop_ts;
+        hs_tombstone->u.commit.start_ts = hs_cursor->time_window.stop_ts;
         hs_tombstone->upd_durable_ts = hs_cursor->time_window.durable_stop_ts;
         hs_tombstone->txnid = hs_cursor->time_window.stop_txn;
         hs_tombstone->prepare_ts = hs_cursor->time_window.stop_prepare_ts;
         hs_tombstone->prepared_id = hs_cursor->time_window.stop_prepared_id;
         WT_ASSERT(session,
-          hs_tombstone->upd_start_ts >= hs_upd->upd_start_ts &&
+          get_upd_start_ts(hs_tombstone) >= get_upd_start_ts(hs_upd) &&
             hs_tombstone->upd_durable_ts >= hs_upd->upd_durable_ts);
 
         hs_tombstone->next = hs_upd;
@@ -1119,7 +1119,7 @@ __curhs_remove_int(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type
     /* Add a tombstone with WT_TXN_NONE transaction id and WT_TS_NONE timestamps. */
     WT_ERR(__wt_upd_alloc_tombstone(session, &hs_tombstone, NULL));
     hs_tombstone->txnid = WT_TXN_NONE;
-    hs_tombstone->upd_start_ts = hs_tombstone->upd_durable_ts = hs_tombstone->prepare_ts =
+    hs_tombstone->u.commit.start_ts = hs_tombstone->upd_durable_ts = hs_tombstone->prepare_ts =
       WT_TS_NONE;
     hs_tombstone->prepared_id = WT_PREPARED_ID_NONE;
     while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART) {
@@ -1210,20 +1210,20 @@ __curhs_update(WT_CURSOR *cursor)
 
     /* The tombstone to represent the stop time window. */
     WT_ERR(__wt_upd_alloc_tombstone(session, &hs_tombstone, NULL));
-    hs_tombstone->upd_start_ts = hs_cursor->time_window.stop_ts;
+    hs_tombstone->u.commit.start_ts = hs_cursor->time_window.stop_ts;
     hs_tombstone->upd_durable_ts = hs_cursor->time_window.durable_stop_ts;
     hs_tombstone->txnid = hs_cursor->time_window.stop_txn;
     hs_tombstone->prepare_ts = hs_cursor->time_window.stop_prepare_ts;
     hs_tombstone->prepared_id = hs_cursor->time_window.stop_prepared_id;
 
     WT_ERR(__wt_upd_alloc(session, &file_cursor->value, WT_UPDATE_STANDARD, &hs_upd, NULL));
-    hs_upd->upd_start_ts = hs_cursor->time_window.start_ts;
+    hs_upd->u.commit.start_ts = hs_cursor->time_window.start_ts;
     hs_upd->upd_durable_ts = hs_cursor->time_window.durable_start_ts;
     hs_upd->txnid = hs_cursor->time_window.start_txn;
     hs_upd->prepare_ts = hs_cursor->time_window.start_prepare_ts;
     hs_upd->prepared_id = hs_cursor->time_window.start_prepared_id;
     WT_ASSERT(session,
-      hs_tombstone->upd_start_ts >= hs_upd->upd_start_ts &&
+      get_upd_start_ts(hs_tombstone) >= get_upd_start_ts(hs_upd) &&
         hs_tombstone->upd_durable_ts >= hs_upd->upd_durable_ts);
 
     /* Connect the tombstone to the update. */

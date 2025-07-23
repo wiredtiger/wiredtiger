@@ -417,7 +417,7 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
             value.size = unpack.value_size;
             WT_ERR(__wt_upd_alloc(session, &value, WT_UPDATE_STANDARD, &standard_value, &tmp_size));
             standard_value->txnid = unpack.tw.start_txn;
-            standard_value->upd_start_ts = unpack.tw.start_ts;
+            standard_value->u.commit.start_ts = unpack.tw.start_ts;
             standard_value->upd_durable_ts = unpack.tw.durable_start_ts;
             if (WT_TIME_WINDOW_HAS_START_PREPARE(&unpack.tw)) {
                 standard_value->prepared_id = unpack.tw.start_prepared_id;
@@ -432,7 +432,7 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
             if (WT_TIME_WINDOW_HAS_STOP(&unpack.tw)) {
                 WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &tmp_size));
                 tombstone->txnid = unpack.tw.stop_txn;
-                tombstone->upd_start_ts = unpack.tw.stop_ts;
+                tombstone->u.commit.start_ts = unpack.tw.stop_ts;
                 tombstone->upd_durable_ts = unpack.tw.durable_stop_ts;
 
                 if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&unpack.tw)) {
@@ -751,7 +751,7 @@ __page_inmem_tombstone(
     WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &size));
     total_size += size;
     tombstone->upd_durable_ts = unpack->tw.durable_stop_ts;
-    tombstone->upd_start_ts = unpack->tw.stop_ts;
+    tombstone->u.commit.start_ts = unpack->tw.stop_ts;
     tombstone->txnid = unpack->tw.stop_txn;
     F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
     if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
@@ -797,14 +797,15 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         upd->prepared_id = unpack->tw.start_prepared_id;
         upd->prepare_ts = unpack->tw.start_prepare_ts;
         upd->upd_durable_ts = WT_TS_NONE;
-        upd->upd_start_ts = unpack->tw.start_prepare_ts;
+        /* FIXME WT-14899*/
+        upd->u.commit.start_ts = unpack->tw.start_prepare_ts;
         upd->prepare_state = WT_PREPARE_INPROGRESS;
         F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
         if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
             F_SET(upd, WT_UPDATE_PREPARE_DURABLE);
     } else {
         upd->upd_durable_ts = unpack->tw.durable_start_ts;
-        upd->upd_start_ts = unpack->tw.start_ts;
+        upd->u.commit.start_ts = unpack->tw.start_ts;
         F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
         if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
             F_SET(upd, WT_UPDATE_DURABLE);
@@ -815,7 +816,8 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         tombstone->upd_durable_ts = WT_TS_NONE;
         tombstone->txnid = unpack->tw.stop_txn;
         tombstone->prepare_state = WT_PREPARE_INPROGRESS;
-        tombstone->upd_start_ts = unpack->tw.stop_prepare_ts;
+        /* FIXME WT-14899*/
+        tombstone->u.commit.start_ts = unpack->tw.stop_prepare_ts;
         tombstone->prepare_ts = unpack->tw.stop_prepare_ts;
         tombstone->prepared_id = unpack->tw.stop_prepared_id;
         tombstone->prepare_state = WT_PREPARE_INPROGRESS;

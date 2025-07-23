@@ -1376,12 +1376,12 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
              * and should never be here. */
             WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
             WT_ASSERT(session,
-              tw.stop_txn <= prev_upd->txnid && tw.stop_ts <= prev_upd->upd_start_ts &&
+              tw.stop_txn <= prev_upd->txnid && tw.stop_ts <= get_upd_start_ts(prev_upd) &&
                 tw.durable_stop_ts <= prev_upd->upd_durable_ts);
             WT_ASSERT(session,
-              tw.start_txn <= prev_upd->txnid && tw.start_ts <= prev_upd->upd_start_ts &&
+              tw.start_txn <= prev_upd->txnid && tw.start_ts <= get_upd_start_ts(prev_upd) &&
                 tw.durable_start_ts <= prev_upd->upd_durable_ts);
-            if (tw.stop_txn != prev_upd->txnid || tw.stop_ts != prev_upd->upd_start_ts ||
+            if (tw.stop_txn != prev_upd->txnid || tw.stop_ts != get_upd_start_ts(prev_upd) ||
               tw.durable_stop_ts != prev_upd->upd_durable_ts)
                 WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         } else if (WT_TIME_WINDOW_HAS_STOP(&tw))
@@ -1405,7 +1405,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
             } else
                 WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
             upd->txnid = tw.start_txn;
-            upd->upd_start_ts = tw.start_ts;
+            upd->u.commit.start_ts = tw.start_ts;
             upd->upd_durable_ts = tw.durable_start_ts;
             upd->prepare_ts = tw.start_prepare_ts;
             upd->prepared_id = tw.start_prepared_id;
@@ -1416,7 +1416,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
          * ingest table. */
         if (tombstone != NULL) {
             tombstone->txnid = tw.stop_txn;
-            tombstone->upd_start_ts = tw.stop_ts != WT_TS_MAX ? tw.stop_ts : tw.stop_prepare_ts;
+            tombstone->u.commit.start_ts = tw.stop_ts != WT_TS_MAX ? tw.stop_ts : tw.stop_prepare_ts;
             tombstone->upd_durable_ts = tw.durable_stop_ts;
             tombstone->prepare_ts = tw.stop_prepare_ts;
             tombstone->prepared_id = tw.stop_prepared_id;

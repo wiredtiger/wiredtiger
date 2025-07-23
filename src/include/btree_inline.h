@@ -1595,7 +1595,7 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
         else {
             /* It's a legacy page; create default delete information. */
             copy->del.txnid = WT_TXN_NONE;
-            copy->del.pg_del_start_ts = copy->del.pg_del_durable_ts = WT_TS_NONE;
+            copy->del.u.commit.start_ts = copy->del.pg_del_durable_ts = WT_TS_NONE;
             copy->del.prepare_state = 0;
             copy->del.committed = true;
         }
@@ -1723,7 +1723,7 @@ __wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool 
     }
 
     return (__wt_txn_visible(
-      session, page_del->txnid, page_del->pg_del_start_ts, page_del->pg_del_durable_ts));
+      session, page_del->txnid, get_page_del_start_ts(page_del), page_del->pg_del_durable_ts));
 }
 
 /*

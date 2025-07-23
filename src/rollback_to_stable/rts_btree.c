@@ -145,7 +145,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
              * case, it is enough to delete everything up until to the tombstone timestamp.
              */
             WT_RET(__wti_rts_history_delete_hs(session, key,
-              stable_upd == NULL ? tombstone->upd_start_ts : stable_upd->upd_start_ts));
+              stable_upd == NULL ? get_upd_start_ts(tombstone) : get_upd_start_ts(stable_upd)));
 
             /*
              * Clear the history store flags for the first stable update. Otherwise, it will not be
@@ -547,13 +547,13 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         else
             upd->txnid = hs_tw->start_txn;
         upd->upd_durable_ts = hs_tw->durable_start_ts;
-        upd->upd_start_ts = hs_tw->start_ts;
+        upd->u.commit.start_ts = hs_tw->start_ts;
         upd->prepare_ts = hs_tw->start_prepare_ts;
         upd->prepared_id = hs_tw->start_prepared_id;
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_HS_UPDATE_RESTORED "history store update restored txnid=%" PRIu64
                                              ", start_ts=%s and durable_ts=%s",
-          upd->txnid, __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
+          upd->txnid, __wt_timestamp_to_string(get_upd_start_ts(upd), ts_string[0]),
           __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[1]));
 
         /*
@@ -589,13 +589,13 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
             else
                 tombstone->txnid = hs_tw->stop_txn;
             tombstone->upd_durable_ts = hs_tw->durable_stop_ts;
-            tombstone->upd_start_ts = hs_tw->stop_ts;
+            tombstone->u.commit.start_ts = hs_tw->stop_ts;
             tombstone->prepare_ts = hs_tw->stop_prepare_ts;
             tombstone->prepared_id = hs_tw->stop_prepared_id;
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               WT_RTS_VERB_TAG_HS_RESTORE_TOMBSTONE
               "history store tombstone restored, txnid=%" PRIu64 ", start_ts=%s and durable_ts=%s",
-              tombstone->txnid, __wt_timestamp_to_string(tombstone->upd_start_ts, ts_string[0]),
+              tombstone->txnid, __wt_timestamp_to_string(get_upd_start_ts(tombstone), ts_string[0]),
               __wt_timestamp_to_string(tombstone->upd_durable_ts, ts_string[1]));
 
             /*
@@ -776,7 +776,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
             else
                 upd->txnid = tw->start_txn;
             upd->upd_durable_ts = tw->durable_start_ts;
-            upd->upd_start_ts = tw->start_ts;
+            upd->u.commit.start_ts = tw->start_ts;
             upd->prepare_ts = tw->start_prepare_ts;
             upd->prepared_id = tw->start_prepared_id;
             F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
@@ -789,7 +789,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
               "txnid=%" PRIu64
               " and removed commit_timestamp=%s, durable_timestamp=%s, txnid=%" PRIu64
               ", prepared=%s",
-              __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
+              __wt_timestamp_to_string(get_upd_start_ts(upd), ts_string[0]),
               __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[1]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[2]), upd->txnid,
               __wt_timestamp_to_string(tw->stop_ts, ts_string[3]),

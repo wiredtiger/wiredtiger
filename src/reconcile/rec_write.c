@@ -2296,18 +2296,19 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
          * still include the full value in the delta? We can omit it but it will make the rest of
          * the system more complicated. Include it for now to simplify the prototype.
          */
+        WT_ASSERT(session, supd->onpage_upd->prepare_state != WT_PREPARE_INPROGRESS);
         if (!__wt_txn_upd_visible_all(session, supd->onpage_upd)) {
             if (supd->onpage_upd->txnid != WT_TXN_NONE) {
                 LF_SET(WT_DELTA_LEAF_HAS_START_TXN_ID);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->txnid));
             }
 
-            if (supd->onpage_upd->upd_start_ts != WT_TS_NONE) {
+            if (supd->onpage_upd->u.commit.start_ts != WT_TS_NONE) {
                 LF_SET(WT_DELTA_LEAF_HAS_START_TS);
-                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->upd_start_ts));
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->u.commit.start_ts));
             }
 
-            if (supd->onpage_upd->upd_durable_ts != WT_TS_NONE) {
+            if ( supd->onpage_upd->upd_durable_ts != WT_TS_NONE) {
                 LF_SET(WT_DELTA_LEAF_HAS_START_DURABLE_TS);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->upd_durable_ts));
             }
@@ -2319,9 +2320,9 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->txnid));
             }
 
-            if (supd->onpage_tombstone->upd_start_ts != WT_TS_MAX) {
-                LF_SET(WT_DELTA_LEAF_HAS_STOP_TS);
-                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->upd_start_ts));
+            if (supd->onpage_tombstone->u.commit.start_ts != WT_TS_MAX) {
+            LF_SET(WT_DELTA_LEAF_HAS_STOP_TS);
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->u.commit.start_ts));
             }
 
             if (supd->onpage_tombstone->upd_durable_ts != WT_TS_NONE) {

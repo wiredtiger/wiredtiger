@@ -208,7 +208,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                 version_cursor->upd_stop_txnid = upd->txnid;
                 version_cursor->upd_durable_stop_ts = upd->upd_durable_ts;
                 version_cursor->upd_stop_ts =
-                  upd->prepare_ts != WT_TS_NONE ? upd->prepare_ts : upd->upd_start_ts;
+                  upd->prepare_ts != WT_TS_NONE ? upd->prepare_ts : get_upd_start_ts(upd);
 
                 /* No need to check the next update if the tombstone is globally visible. */
                 if (__wt_txn_upd_visible_all(session, upd))
@@ -246,14 +246,14 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                  * that particular version of the update.
                  */
                 WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
-                  upd->txnid, upd->upd_start_ts, upd->upd_durable_ts,
+                  upd->txnid, get_upd_start_ts(upd), upd->upd_durable_ts,
                   version_cursor->upd_stop_txnid, version_cursor->upd_stop_ts,
                   version_cursor->upd_durable_stop_ts, upd->type, version_prepare_state, upd->flags,
                   WT_CURVERSION_UPDATE_CHAIN));
 
                 version_cursor->upd_stop_txnid = upd->txnid;
                 version_cursor->upd_durable_stop_ts = upd->upd_durable_ts;
-                version_cursor->upd_stop_ts = upd->upd_start_ts;
+                version_cursor->upd_stop_ts = get_upd_start_ts(upd);
 
                 upd_found = true;
 
@@ -283,14 +283,14 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                           !__wt_txn_visible_all(session, version_cursor->upd_stop_txnid,
                             version_cursor->upd_durable_stop_ts));
                         if (next_upd->txnid > version_cursor->upd_stop_txnid ||
-                          next_upd->upd_start_ts > version_cursor->upd_stop_ts ||
+                          get_upd_start_ts(next_upd) > version_cursor->upd_stop_ts ||
                           next_upd->upd_durable_ts > version_cursor->upd_durable_stop_ts)
                             WT_ERR_PANIC(session, WT_PANIC, "out of order updates detected.");
 
                         /* Ignore the update with the same transaction id and timestamp. */
                         if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) &&
                           next_upd->txnid == version_cursor->upd_stop_txnid &&
-                          next_upd->upd_start_ts == version_cursor->upd_stop_ts &&
+                          get_upd_start_ts(next_upd) == version_cursor->upd_stop_ts &&
                           next_upd->upd_durable_ts == version_cursor->upd_durable_stop_ts)
                             continue;
                         break;

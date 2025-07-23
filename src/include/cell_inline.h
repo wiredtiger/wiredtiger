@@ -272,7 +272,7 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL);
 
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->pg_del_start_ts));
+        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->u.commit.start_ts));
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->pg_del_durable_ts));
     }
 
@@ -1017,7 +1017,7 @@ copy_cell_restart:
         WT_RET(__wt_vunpack_uint(
           &p, end == NULL ? 0 : WT_PTRDIFF(end, p), (uint64_t *)&page_del->txnid));
         WT_RET(
-          __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->pg_del_start_ts));
+          __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->u.commit.start_ts));
         WT_RET(__wt_vunpack_uint(
           &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->pg_del_durable_ts));
         page_del->prepare_state = 0; /* No prepare can have been in progress. */
@@ -1135,12 +1135,12 @@ __cell_page_del_window_cleanup(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_d
             *clearedp = true;
         page_del->txnid = WT_TXN_NONE;
         /* As above, only for non-timestamped tables. */
-        if (page_del->pg_del_start_ts == WT_TS_MAX) {
-            page_del->pg_del_start_ts = WT_TS_NONE;
+        if (get_page_del_start_ts(page_del) == WT_TS_MAX) {
+            page_del->u.commit.start_ts = WT_TS_NONE;
             WT_ASSERT(session, page_del->pg_del_durable_ts == WT_TS_NONE);
         }
     } else
-        WT_ASSERT(session, page_del->pg_del_start_ts == WT_TS_MAX);
+        WT_ASSERT(session, get_page_del_start_ts(page_del) == WT_TS_MAX);
 }
 
 /*
