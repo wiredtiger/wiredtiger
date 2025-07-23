@@ -5419,7 +5419,6 @@ tasks:
         vars:
           test-name: microbenchmark_prefetch_on_verify.py
 
-
     ########################################
     # Workgen Tests for cache and eviction #
     ########################################
@@ -5443,7 +5442,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_workload_dirty_trigger.py
-  
+
   - name: cache-workload-update-trigger
     depends_on:
       - name: compile

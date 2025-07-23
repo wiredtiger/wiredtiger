@@ -74,7 +74,7 @@ class PerfStatCollection:
                      input_offset=4,
                      output_label='Cache dirty trigger'),
             ]
-    
+
     @staticmethod
     def all_stats():
         return [
