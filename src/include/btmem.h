@@ -1128,11 +1128,10 @@ struct __wt_page_deleted {
 static inline wt_timestamp_t
 get_page_del_start_ts(WT_PAGE_DELETED *page_del)
 {
-    /*
-     * if (page_del->prepare_state == WT_PREPARE_INPROGRESS || page_del->prepare_state ==
-     * WT_PREPARE_LOCKED) { return page_del->prepare_ts;
-     * }
-     */
+    if (page_del->prepare_state == WT_PREPARE_INPROGRESS ||
+      page_del->prepare_state == WT_PREPARE_LOCKED) {
+        return (page_del->prepare_ts);
+    }
     return (page_del->u.commit.start_ts);
 }
 /*
@@ -1632,6 +1631,11 @@ struct __wt_update {
 static inline uint64_t
 get_upd_start_ts(WT_UPDATE *upd)
 {
+
+    if (upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED) {
+        assert(upd->prepare_ts != 0);
+        return (upd->prepare_ts);
+    }
     return (upd->u.commit.start_ts);
 }
 

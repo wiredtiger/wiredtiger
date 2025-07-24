@@ -1023,6 +1023,7 @@ copy_cell_restart:
         page_del->prepare_state = 0; /* No prepare can have been in progress. */
         page_del->committed = true;  /* There is no running transaction. */
         page_del->selected_for_write = true;
+        page_del->prepare_ts = WT_TS_NONE;
     }
 
     /*
