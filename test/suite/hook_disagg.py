@@ -213,10 +213,8 @@ def session_create_replace(orig_session_create, session_self, uri, config):
     # If the test isn't creating a table (i.e., it's a column store or lsm) create it as a
     # regular (not layered) object.  Otherwise we get disagg storage from the connection defaults.
     if uri.startswith("table:") \
-       and not 'colgroups=' in config \
-       and not 'import=' in config \
-       and not 'key_format=r' in config \
-       and not 'type=lsm' in config \
+       and (config == None or \
+            (not 'colgroups=' in config and not 'import=' in config and not 'key_format=r' in config and not 'type=lsm' in config)) \
        and not marked_as_non_layered(uri):
         mark_as_layered(uri)
         WiredTigerTestCase.verbose(None, 1, f'    Replacing, old uri = "{uri}"')
@@ -250,11 +248,14 @@ def session_drop_replace(orig_session_drop, session_self, uri, config):
     uri = replace_uri(uri)
     return orig_session_drop(session_self, uri, config)
 
+# Called to replace Session.open_cursor.  We skip calls that do backup
+# as that is not yet supported in disaggregated storage.
 def session_open_cursor_replace(orig_session_open_cursor, session_self, uri, dupcursor, config):
     if uri != None and uri.startswith("backup:"):
         skip_test("backup on disagg tables not yet implemented")
     uri = replace_uri(uri)
     return orig_session_open_cursor(session_self, uri, dupcursor, config)
+
 # Called to replace Session.salvage
 def session_salvage_replace(orig_session_salvage, session_self, uri, config):
     uri = replace_uri(uri)

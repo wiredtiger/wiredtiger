@@ -766,18 +766,19 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
     WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
     uint64_t hash_value, time_diff_usec;
-    bool cursor_timing;
 
-    cursor_timing = false;
     hash_value = 0;
     /* Don't require a NULL input cursor */
     *cursorp = NULL;
 
+#ifdef HAVE_DIAGNOSTIC
+    bool cursor_timing = false;
     if (session->cursor_open_timer_running == false) {
         session->cursor_open_timer_running = true;
         cursor_timing = true;
         __wt_epoch(session, &start_time);
     }
+#endif
     WT_NOT_READ(txn_global, &S2C(session)->txn_global);
 
     /*
@@ -808,6 +809,7 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
 
 err:
     /* Always close out the timing information regardless of success. */
+#ifdef HAVE_DIAGNOSTIC
     if (cursor_timing) {
         session->cursor_open_timer_running = false;
         __wt_epoch(session, &end_time);
@@ -821,6 +823,7 @@ err:
         else
             WT_STAT_CONN_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
     }
+#endif
     return (ret);
 }
 
@@ -837,20 +840,26 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t hash_value, time_diff_usec;
-    bool dup_backup, cursor_timing;
+    bool dup_backup;
+#ifdef HAVE_DIAGNOSTIC
+    bool cursor_timing;
 
     cursor_timing = false;
+#endif
     cursor = *cursorp = NULL;
+
     hash_value = 0;
     dup_backup = false;
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, ret, open_cursor, config, cfg);
 
+#ifdef HAVE_DIAGNOSTIC
     if (session->cursor_open_timer_running == false) {
         session->cursor_open_timer_running = true;
         cursor_timing = true;
         __wt_epoch(session, &start_time);
     }
+#endif
 
     /*
      * Check for early usage of a user session to collect statistics. If the connection is not fully
@@ -904,6 +913,7 @@ err:
             WT_TRET(cursor->close(cursor));
     }
     /* Always close out the timing information regardless of success. */
+#ifdef HAVE_DIAGNOSTIC
     if (cursor_timing) {
         session->cursor_open_timer_running = false;
         __wt_epoch(session, &end_time);
@@ -925,6 +935,7 @@ err:
         else
             WT_STAT_CONN_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
     }
+#endif
     /*
      * Opening a cursor on a non-existent data source will set ret to either of ENOENT or
      * WT_NOTFOUND at this point. However, applications may reasonably do this inside a transaction

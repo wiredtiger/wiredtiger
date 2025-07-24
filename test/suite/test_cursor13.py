@@ -127,20 +127,23 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
         self.stat_cursor_reopen = stats[1]
 
 # Override other cursor tests with cursors cached.
-@wttest.skip_for_hook("disagg", "fails due to disagg behaviour")
+
+# FIXME-WT-15072: Investigate failed to advance panic failure.
+@wttest.skip_for_hook("disagg", "Disabled due to checking expected table prefix")
 class test_cursor13_01(test_cursor01.test_cursor01, test_cursor13_base):
     pass
 
-
-@wttest.skip_for_hook("disagg", "uses cached cursors")
+# FIXME-WT-15072: Investigate failed to advance panic failure.
 class test_cursor13_02(test_cursor02.test_cursor02, test_cursor13_base):
     pass
 
-@wttest.skip_for_hook("disagg", "uses cached cursors")
+# FIXME-WT-15072: Investigate failed to advance panic failure.
+@wttest.skip_for_hook("disagg", "Fails to advance the checkpoint in disagg world")
 class test_cursor13_03(test_cursor03.test_cursor03, test_cursor13_base):
     pass
 
 @wttest.skip_for_hook("tiered", "uses cached cursors")
+@wttest.skip_for_hook("disagg", "disagg doesn't support opening checkpoint cursor")
 class test_cursor13_ckpt01(test_checkpoint01.test_checkpoint,
                            test_cursor13_base):
     pass
@@ -152,11 +155,13 @@ class test_cursor13_ckpt02(test_checkpoint01.test_checkpoint_cursor,
     pass
 
 @wttest.skip_for_hook("tiered", "uses cached cursors")
+@wttest.skip_for_hook("disagg", "disagg doesn't support opening checkpoint cursor")
 class test_cursor13_ckpt03(test_checkpoint01.test_checkpoint_target,
                            test_cursor13_base):
     pass
 
 @wttest.skip_for_hook("tiered", "uses cached cursors")
+@wttest.skip_for_hook("disagg", "disagg doesn't support opening checkpoint cursor")
 class test_cursor13_ckpt04(test_checkpoint01.test_checkpoint_cursor_update,
                            test_cursor13_base):
     pass
@@ -322,7 +327,7 @@ class test_cursor13_reopens(test_cursor13_base):
                 self.verifyUntilSuccess(s2, self.uri)
                 s2.close()
 
-@wttest.skip_for_hook("disagg", "layered cursor don't support duplicate currsors")
+@wttest.skip_for_hook("disagg", "layered cursor don't support duplicate cursors")
 class test_cursor13_drops(test_cursor13_base):
     def open_and_drop(self, uri, cursor_session, drop_session, nopens, ntrials):
         for i in range(0, ntrials):
@@ -439,7 +444,7 @@ class test_cursor13_big_base(test_cursor13_base):
         for i in range(0, self.nuris):
             uri = self.uriname(i)
             cursors = []
-            self.session.create(uri, 'key_format=S,value_format=S')
+            self.session.create(uri, None)
             for j in range(0, self.deep):
                 cursors.append(self.session.open_cursor(uri, None))
             for c in cursors:
@@ -594,7 +599,7 @@ class test_cursor13_sweep(test_cursor13_big_base):
         self.assertGreater(end_stats[1] - begin_stats[1], 0)
 
 @wttest.skip_for_hook("tiered", "uses cached cursors")
-@wttest.skip_for_hook("disagg", "layered cursor don't support duplicate currsors")
+@wttest.skip_for_hook("disagg", "layered cursor don't support duplicate cursors")
 class cursor13_dup(test_cursor13_base):
     def test_dup(self):
         self.cursor_stats_init()
