@@ -77,22 +77,19 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
   int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], uint32_t open_flags)
 {
     WT_DECL_RET;
-    WT_LAYERED_TABLE *layered;
 
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags));
-    layered = (WT_LAYERED_TABLE *)session->dhandle;
+    WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)session->dhandle;
+    const char *stable_uri = layered->stable_uri;
 
-    WT_ASSERT(session, layered->stable_uri != NULL);
+    WT_ASSERT(session, stable_uri != NULL);
     WT_ASSERT(session, file_func == __wt_verify);
 
     WT_WITHOUT_DHANDLE(session,
-      ret =
-        __wt_schema_worker(session, layered->stable_uri, file_func, name_func, cfg, open_flags));
-    WT_ERR(ret);
+      ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
 
     /* FIXME-WT-15047: Implement ingest table verification */
 
-err:
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
 }
