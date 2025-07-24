@@ -607,7 +607,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     double dirty_target, dirty_trigger, target, trigger, updates_target, updates_trigger;
-    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates;
+    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, cache_fill_ratio;
     uint32_t flags;
 
     conn = S2C(session);
@@ -671,13 +671,9 @@ __evict_update_work(WT_SESSION_IMPL *session)
         LF_SET(WT_CACHE_EVICT_UPDATES);
     }
 
-    /*
-     * If application threads are blocked by data in cache, track the fill ratio.
-     *
-     */
-    uint64_t cache_fill_ratio = bytes_inuse / bytes_max;
-    bool evict_is_hard = LF_ISSET(WT_CACHE_EVICT_HARD);
-    if (evict_is_hard) {
+    /* If application threads are blocked by data in cache, track the fill ratio. */
+    cache_fill_ratio = bytes_inuse / bytes_max;
+    if (LF_ISSET(WT_CACHE_EVICT_HARD)) {
         if (cache_fill_ratio < 0.25)
             WT_STAT_CONN_INCR(session, cache_eviction_app_threads_fill_ratio_lt_25);
         else if (cache_fill_ratio < 0.50)
