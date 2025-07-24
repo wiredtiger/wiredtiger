@@ -313,7 +313,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
          * return more updates.
          */
         if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) &&
-          !version_cursor->stop_prepared &&
+          !version_cursor->upd_stop_prepared &&
           __wt_txn_visible_all(
             session, version_cursor->upd_stop_txnid, version_cursor->upd_durable_stop_ts))
             goto done;
@@ -391,7 +391,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                 stop_prepare_ts = version_cursor->upd_stop_prepare_ts;
                 stop_ts = version_cursor->upd_stop_ts;
                 stop_txn = version_cursor->upd_stop_txnid;
-                stop_prepared = version_cursor->stop_prepared;
+                stop_prepared = version_cursor->upd_stop_prepared;
             } else {
                 if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER)) {
                     if (__wt_txn_tw_start_visible_all(session, &cbt->upd_value->tw))
@@ -503,7 +503,7 @@ skip_on_page:
          * return more updates.
          */
         if (F_ISSET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER) &&
-          !version_cursor->stop_prepared &&
+          !version_cursor->upd_stop_prepared &&
           __wt_txn_visible_all(
             session, version_cursor->upd_stop_txnid, version_cursor->upd_durable_stop_ts))
             goto done;
