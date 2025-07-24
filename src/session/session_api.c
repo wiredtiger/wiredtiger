@@ -762,16 +762,16 @@ int
 __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, const char *cfg[],
   WT_CURSOR **cursorp)
 {
-    struct timespec end_time, start_time;
     WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
-    uint64_t hash_value, time_diff_usec;
+    uint64_t hash_value;
 
     hash_value = 0;
     /* Don't require a NULL input cursor */
     *cursorp = NULL;
 
 #ifdef HAVE_DIAGNOSTIC
+    struct timespec end_time, start_time;
     bool cursor_timing = false;
     if (session->cursor_open_timer_running == false) {
         session->cursor_open_timer_running = true;
@@ -813,7 +813,7 @@ err:
     if (cursor_timing) {
         session->cursor_open_timer_running = false;
         __wt_epoch(session, &end_time);
-        time_diff_usec = WT_TIMEDIFF_US(end_time, start_time);
+        uint64_t time_diff_usec = WT_TIMEDIFF_US(end_time, start_time);
         /*
          * We may not have a valid dhandle when EBUSY is returned. In that case only increment the
          * connection statistics
@@ -835,13 +835,13 @@ static int
 __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup,
   const char *config, WT_CURSOR **cursorp)
 {
-    struct timespec end_time, start_time;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint64_t hash_value, time_diff_usec;
+    uint64_t hash_value;
     bool dup_backup;
 #ifdef HAVE_DIAGNOSTIC
+    struct timespec end_time, start_time;
     bool cursor_timing;
 
     cursor_timing = false;
@@ -917,7 +917,7 @@ err:
     if (cursor_timing) {
         session->cursor_open_timer_running = false;
         __wt_epoch(session, &end_time);
-        time_diff_usec = WT_TIMEDIFF_US(end_time, start_time);
+        uint64_t time_diff_usec = WT_TIMEDIFF_US(end_time, start_time);
         /*
          * It's considered a user open if it comes via a top-level API call. This could
          * alternatively decide the statistic based on whether it's a user or internal session.
