@@ -1250,20 +1250,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     CURSOR_API_CALL(cursor, session, ret, search_near, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
-
-    /*
-     * FIXME-WT-15058: When inside a read committed isolation, the file cursor code expects to
-     * release the snapshot when the count of active cursors is zero. Reset the constituent cursors
-     * to adhere to that behavior. Ideally we should not be changing the active cursors counter
-     * outside of the file cursor code.
-     */
-    if (__wt_txn_read_last_check(session)) {
-        WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT));
-        WT_ERR(__clayered_reset_cursors(clayered, false));
-    }
-
     WT_ERR(__clayered_enter(clayered, true, false, false));
-
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
     /*
