@@ -648,7 +648,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
      */
     bytes_max = conn->cache_size + 1;
     bytes_inuse = __wt_cache_bytes_inuse(cache);
-    if (__wt_evict_clean_needed(session, NULL)) {
+    if (__wt_eviction_clean_needed(session, NULL)) {
         LF_SET(WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_CLEAN_HARD);
         WT_STAT_CONN_INCR(session, cache_eviction_trigger_clean_reached);
     } else if (bytes_inuse > (target * bytes_max) / 100) {
@@ -656,7 +656,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
     }
 
     bytes_dirty = __wt_cache_dirty_leaf_inuse(cache);
-    if (__wt_evict_dirty_needed(session, NULL)) {
+    if (__wt_eviction_dirty_needed(session, NULL)) {
         LF_SET(WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_DIRTY_HARD);
         WT_STAT_CONN_INCR(session, cache_eviction_trigger_dirty_reached);
     } else if (bytes_dirty > (uint64_t)(dirty_target * bytes_max) / 100) {
@@ -664,7 +664,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
     }
 
     bytes_updates = __wt_cache_bytes_updates(cache);
-    if (__wt_evict_updates_needed(session, NULL)) {
+    if (__wt_eviction_updates_needed(session, NULL)) {
         LF_SET(WT_CACHE_EVICT_UPDATES | WT_CACHE_EVICT_UPDATES_HARD);
         WT_STAT_CONN_INCR(session, cache_eviction_trigger_updates_reached);
     } else if (bytes_updates > (uint64_t)(updates_target * bytes_max) / 100) {
