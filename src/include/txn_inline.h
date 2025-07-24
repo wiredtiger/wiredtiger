@@ -215,8 +215,6 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
         WT_RELEASE_WRITE_WITH_BARRIER(upd->prepare_state, WT_PREPARE_RESOLVED);
     } else {
         /* Set prepare timestamp and id. */
-        /* FIXME WT-14899*/
-        upd->u.commit.start_ts = txn->prepare_timestamp;
         upd->prepare_ts = txn->prepare_timestamp;
         upd->prepared_id = txn->prepared_id;
 
@@ -250,8 +248,6 @@ __txn_apply_prepare_state_page_del(WT_SESSION_IMPL *session, WT_PAGE_DELETED *pa
         page_del->pg_del_durable_ts = txn->durable_timestamp;
         WT_RELEASE_WRITE_WITH_BARRIER(page_del->prepare_state, WT_PREPARE_RESOLVED);
     } else {
-        /* FIXME-WT-14899 Set prepare timestamp. */
-        page_del->u.commit.start_ts = txn->prepare_timestamp;
         page_del->prepare_ts = txn->prepare_timestamp;
         page_del->prepared_id = txn->prepared_id;
         /*
