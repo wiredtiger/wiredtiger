@@ -1876,13 +1876,13 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
      * not looking for clean pages, search the tree for longer.
      */
     min_pages = 10 * (uint64_t)target_pages;
-    if (F_ISSET(evict, WT_CACHE_EVICT_CLEAN))
+    if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN))
         WT_STAT_CONN_INCR(session, cache_eviction_target_strategy_clean);
     else
         min_pages *= 10;
-    if (F_ISSET(evict, WT_CACHE_EVICT_UPDATES))
+    if (F_ISSET(cache, WT_CACHE_EVICT_UPDATES))
         WT_STAT_CONN_INCR(session, cache_eviction_target_strategy_updates);
-    if (F_ISSET(evict, WT_CACHE_EVICT_DIRTY))
+    if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY))
         WT_STAT_CONN_INCR(session, cache_eviction_target_strategy_dirty);
 
     if (btree->evict_ref == NULL) {
