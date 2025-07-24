@@ -462,7 +462,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                     stop_txn = WT_TXN_MAX;
                     stop_prepare_ts = WT_TS_MAX;
                     stop_ts = WT_TS_MAX;
-                    durable_stop_ts = WT_TS_MAX;
+                    durable_stop_ts = WT_TS_NONE;
                     stop_prepared = false;
                     version_prepared = false;
                 } else
@@ -575,7 +575,8 @@ skip_on_page:
             /*
              * We are done if the durable stop timestamp is smaller or equal to the end timestamp.
              */
-            if (twp->durable_stop_ts <= version_cursor->start_timestamp)
+            if (twp->stop_ts != WT_TS_MAX &&
+              twp->durable_stop_ts <= version_cursor->start_timestamp)
                 goto done;
 
             /*
@@ -583,7 +584,7 @@ skip_on_page:
              * from a tombstone or the previous full value. Always return the value for now if its
              * stop durable timestamp is larger than the end timestamp.
              */
-            if (twp->durable_stop_ts == WT_TS_MAX &&
+            if (twp->stop_ts == WT_TS_MAX &&
               twp->durable_start_ts <= version_cursor->start_timestamp)
                 goto done;
         }
@@ -638,8 +639,10 @@ __curversion_version_reset(WT_CURSOR_VERSION *version_cursor)
 
     /* Clear the information used to track update metadata. */
     version_cursor->upd_stop_txnid = WT_TXN_MAX;
-    version_cursor->upd_durable_stop_ts = WT_TS_MAX;
+    version_cursor->upd_durable_stop_ts = WT_TS_NONE;
     version_cursor->upd_stop_ts = WT_TS_MAX;
+    version_cursor->upd_stop_prepare_ts = WT_TS_MAX;
+    version_cursor->upd_stop_prepared = false;
 
     F_CLR(version_cursor,
       WT_CURVERSION_UPDATE_EXHAUSTED | WT_CURVERSION_ON_DISK_EXHAUSTED |
@@ -707,6 +710,11 @@ __curversion_skip_starting_updates(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *
     }
 
     version_cursor->next_upd = upd;
+    version_cursor->upd_stop_txnid = WT_TXN_MAX;
+    version_cursor->upd_durable_stop_ts = WT_TS_NONE;
+    version_cursor->upd_stop_ts = WT_TS_MAX;
+    version_cursor->upd_stop_prepare_ts = WT_TS_MAX;
+    version_cursor->upd_stop_prepared = false;
 
     if (version_cursor->next_upd == NULL)
         F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
