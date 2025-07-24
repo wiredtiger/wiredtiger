@@ -1444,22 +1444,21 @@ public:
     }
 
     /*
-     * kv_workload::assert_timestamps --
-     *     Assert that all timestamps in the entire workload are assigned correctly. Throw an
-     *     exception on error.
+     * kv_workload::verify --
+     *     Verify that the workload is valid. Throw an exception on error.
      */
-    void assert_timestamps();
+    void verify();
 
     /*
-     * kv_workload::verify_timestamps --
-     *     Verify that all timestamps in the entire workload are assigned correctly; just return
-     *     true or false instead of throwing an exception.
+     * kv_workload::verify_noexcept --
+     *     Verify that the workload is valid; just return true or false instead of throwing an
+     *     exception.
      */
     bool
-    verify_timestamps()
+    verify_noexcept()
     {
         try {
-            assert_timestamps();
+            verify();
             return true;
         } catch (...) {
             return false;
@@ -1485,7 +1484,8 @@ protected:
      *     Assert that the timestamps are assigned correctly. Call this function one sequence at a
      *     time.
      */
-    void assert_timestamps(const operation::any &op, timestamp_t &oldest, timestamp_t &stable);
+    void assert_timestamps(const kv_database_config &database_config, const operation::any &op,
+      timestamp_t &oldest, timestamp_t &stable);
 
 private:
     std::deque<kv_workload_operation> _operations;

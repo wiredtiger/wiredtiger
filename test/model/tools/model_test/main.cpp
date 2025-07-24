@@ -196,8 +196,11 @@ run_and_verify(std::shared_ptr<model::kv_workload> workload, const std::string &
               conn); /* Automatically close at the end. */
 
             /* If this is disaggregated storage, pick up the latest checkpoint. */
-            if (database.config().disaggregated)
-                model::wt_disagg_pick_up_latest_checkpoint(conn);
+            if (database.config().disaggregated) {
+                model::timestamp_t checkpoint_timestamp;
+                model::wt_disagg_pick_up_latest_checkpoint(
+                  conn, checkpoint_timestamp /* not used */);
+            }
 
             /* Get the list of tables. */
             std::vector<std::string> tables;
@@ -275,6 +278,8 @@ update_spec(model::kv_workload_generator_spec &spec, std::string &conn_config,
     for (std::string &k : keys) {
         UPDATE_SPEC_START;
 
+        UPDATE_SPEC(disaggregated, float);
+
         UPDATE_SPEC(min_tables, uint64);
         UPDATE_SPEC(max_tables, uint64);
         UPDATE_SPEC(min_sequences, uint64);
@@ -312,6 +317,17 @@ update_spec(model::kv_workload_generator_spec &spec, std::string &conn_config,
         UPDATE_SPEC(nonprepared_transaction_rollback, float);
         UPDATE_SPEC(prepared_transaction_rollback_after_prepare, float);
         UPDATE_SPEC(prepared_transaction_rollback_before_prepare, float);
+
+        UPDATE_SPEC(timing_stress_ckpt_slow, float);
+        UPDATE_SPEC(timing_stress_ckpt_evict_page, float);
+        UPDATE_SPEC(timing_stress_ckpt_handle, float);
+        UPDATE_SPEC(timing_stress_ckpt_stop, float);
+        UPDATE_SPEC(timing_stress_compact_slow, float);
+        UPDATE_SPEC(timing_stress_hs_ckpt_delay, float);
+        UPDATE_SPEC(timing_stress_hs_search, float);
+        UPDATE_SPEC(timing_stress_hs_sweep_race, float);
+        UPDATE_SPEC(timing_stress_prepare_ckpt_delay, float);
+        UPDATE_SPEC(timing_stress_commit_txn_slow, float);
 
         else if (k == "connection_config") conn_config += "," + m.get_string("connection_config");
 
@@ -489,12 +505,11 @@ reduce_counterexample_by_aspect(reduce_counterexample_context_t &context,
         /*
          * Validate that we didn't just produce a malformed workload.
          *
-         * The workload construction algorithm above already guarantees that the transactions are
-         * included or removed in their entirety and that the workload creates all of its tables, so
-         * we don't need to check for undefined transaction or table IDs.
+         * Note that the workload construction algorithm above already guarantees that the
+         * transactions are included or removed in their entirety.
          */
         bool skip = false;
-        if (!w->verify_timestamps())
+        if (!w->verify_noexcept())
             skip = true;
 
         /* Clean up the previous database directory, if it exists. */

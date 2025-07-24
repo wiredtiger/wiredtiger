@@ -525,6 +525,17 @@ std::string executable_path();
 std::string model_library_path();
 
 /*
+ * ends_with --
+ *     Check whether the string ends with the given suffix.
+ */
+inline bool
+ends_with(std::string_view str, std::string_view suffix)
+{
+    return str.size() >= suffix.size() &&
+      str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+/*
  * parse_uint64 --
  *     Parse the string into a number. Throw an exception on error.
  */
@@ -655,7 +666,8 @@ std::string wt_disagg_config_string();
  * wt_disagg_pick_up_latest_checkpoint --
  *     Pick up the latest disaggregated storage checkpoint.
  */
-void wt_disagg_pick_up_latest_checkpoint(WT_CONNECTION *conn);
+bool wt_disagg_pick_up_latest_checkpoint(
+  WT_CONNECTION *conn, model::timestamp_t &checkpoint_timestamp);
 
 /*
  * wt_evict --
