@@ -2375,6 +2375,9 @@ struct __wt_connection {
      * If the value is not an absolute path\, the path is relative to the database home (see @ref
      * absolute_path for more information)., a string; default \c ".".}
      * @config{ ),,}
+     * @config{page_delta = (, configure page delta settings for this connection., a set of related
+     * configuration options defined as follows.}
+     * @config{ ),,}
      * @config{rollback_to_stable = (, rollback tables to an earlier point in time\, discarding all
      * updates to checkpoint durable tables that have durable times more recent than the current
      * global stable timestamp., a set of related configuration options defined as follows.}
@@ -3309,6 +3312,9 @@ struct __wt_connection {
  * into which operation tracking files are written.  The directory must already exist.  If the value
  * is not an absolute path\, the path is relative to the database home (see @ref absolute_path for
  * more information)., a string; default \c ".".}
+ * @config{ ),,}
+ * @config{page_delta = (, configure page delta settings for this connection., a set of related
+ * configuration options defined as follows.}
  * @config{ ),,}
  * @config{prefetch = (, Enable automatic detection of scans by applications\, and attempt to
  * pre-fetch future content into the cache., a set of related configuration options defined as

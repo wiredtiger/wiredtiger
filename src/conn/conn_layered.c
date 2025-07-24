@@ -1088,17 +1088,17 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             WT_ERR(ret);
         }
 
-        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.flatten_leaf_page_delta", &cval));
+        WT_ERR(__wt_config_gets(session, cfg, "page_delta.flatten_leaf_page_delta", &cval));
         if (cval.val != 0)
-            F_SET(&conn->disaggregated_storage, WT_DISAGG_FLATTEN_LEAF_PAGE_DELTA);
+            F_SET(&conn->page_delta, WT_DISAGG_FLATTEN_LEAF_PAGE_DELTA);
 
-        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.internal_page_delta", &cval));
+        WT_ERR(__wt_config_gets(session, cfg, "page_delta.internal_page_delta", &cval));
         if (cval.val != 0)
-            F_SET(&conn->disaggregated_storage, WT_DISAGG_INTERNAL_PAGE_DELTA);
+            F_SET(&conn->page_delta, WT_DISAGG_INTERNAL_PAGE_DELTA);
 
-        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.leaf_page_delta", &cval));
+        WT_ERR(__wt_config_gets(session, cfg, "page_delta.leaf_page_delta", &cval));
         if (cval.val != 0)
-            F_SET(&conn->disaggregated_storage, WT_DISAGG_LEAF_PAGE_DELTA);
+            F_SET(&conn->page_delta, WT_DISAGG_LEAF_PAGE_DELTA);
 
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.lose_all_my_data", &cval));
         if (cval.val != 0)
@@ -1108,14 +1108,14 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
          * Get the percentage of a page size that a delta must be less than in order to write that
          * delta (instead of just giving up and writing the full page).
          */
-        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.delta_pct", &cval));
+        WT_ERR(__wt_config_gets(session, cfg, "page_delta.delta_pct", &cval));
         if (cval.len > 0 && cval.val >= 0)
-            conn->disaggregated_storage.delta_pct = (uint32_t)cval.val;
+            conn->page_delta.delta_pct = (uint32_t)cval.val;
 
         /* Get the maximum number of consecutive deltas allowed for a single page. */
-        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.max_consecutive_delta", &cval));
+        WT_ERR(__wt_config_gets(session, cfg, "page_delta.max_consecutive_delta", &cval));
         if (cval.len > 0 && cval.val >= 0)
-            conn->disaggregated_storage.max_consecutive_delta = (uint32_t)cval.val;
+            conn->page_delta.max_consecutive_delta = (uint32_t)cval.val;
     }
 
 err:

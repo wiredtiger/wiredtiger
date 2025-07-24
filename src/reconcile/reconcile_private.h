@@ -450,10 +450,10 @@ typedef struct {
         (r)->ref->page->modify->mod_multi_entries == 1))
 
 /* Called after building the disk image. */
-#define WT_BUILD_DELTA_LEAF(session, r)                                           \
-    F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&                             \
-      F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_LEAF_PAGE_DELTA) && \
-      (r)->multi_next == 1 && !r->ovfl_items && WT_REC_RESULT_SINGLE_PAGE((session), (r))
+#define WT_BUILD_DELTA_LEAF(session, r)                                                        \
+    F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&                                          \
+      F_ISSET(&S2C(session)->page_delta, WT_DISAGG_LEAF_PAGE_DELTA) && (r)->multi_next == 1 && \
+      !r->ovfl_items && WT_REC_RESULT_SINGLE_PAGE((session), (r))
 
 /*
  * Called when building the internal page image to indicate should we start to build a delta for the
@@ -461,7 +461,7 @@ typedef struct {
  */
 #define WT_BUILD_DELTA_INT(session, r)                                                   \
     F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&                                    \
-      F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_INTERNAL_PAGE_DELTA) &&    \
+      F_ISSET(&S2C(session)->page_delta, WT_DISAGG_INTERNAL_PAGE_DELTA) &&               \
       !__wt_ref_is_root(r->ref) && (r)->multi_next == 0 &&                               \
       !F_ISSET_ATOMIC_16(r->ref->page, WT_PAGE_REC_FAIL | WT_PAGE_INTL_PINDEX_UPDATE) && \
       WT_REC_RESULT_SINGLE_PAGE((session), (r))

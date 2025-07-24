@@ -41,7 +41,7 @@ class test_layered19(wttest.WiredTigerTestCase, DisaggConfigMixin):
     ]
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(page_log=palm,max_consecutive_delta=1),'
+                     + 'page_delta=(max_consecutive_delta=1),disaggregated=(page_log=palm),'
     disagg_storages = gen_disagg_storages('test_layered19', disagg_only = True)
 
     nitems = 1000

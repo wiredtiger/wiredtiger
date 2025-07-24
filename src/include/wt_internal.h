@@ -335,6 +335,8 @@ struct __wt_page_block_meta;
 typedef struct __wt_page_block_meta WT_PAGE_BLOCK_META;
 struct __wt_page_deleted;
 typedef struct __wt_page_deleted WT_PAGE_DELETED;
+struct __wt_page_delta;
+typedef struct __wt_page_delta WT_PAGE_DELTA;
 struct __wt_page_header;
 typedef struct __wt_page_header WT_PAGE_HEADER;
 struct __wt_page_history;
