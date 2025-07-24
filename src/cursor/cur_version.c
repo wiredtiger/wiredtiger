@@ -462,7 +462,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                     stop_txn = WT_TXN_MAX;
                     stop_prepare_ts = WT_TS_MAX;
                     stop_ts = WT_TS_MAX;
-                    durable_stop_ts = WT_TS_NONE;
+                    durable_stop_ts = WT_TS_MAX;
                     stop_prepared = false;
                     version_prepared = false;
                 } else
