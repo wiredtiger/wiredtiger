@@ -272,7 +272,8 @@ __verify_dsk_addr_page_del(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
         WT_RET_VRFY(session,
           "fast-delete cell %" PRIu32 " on page at %s has durable timestamp %" PRIu64
           " before its commit timestamp %" PRIu64,
-          cell_num - 1, tag, unpack->page_del.pg_del_durable_ts, unpack->page_del.u.commit.start_ts);
+          cell_num - 1, tag, unpack->page_del.pg_del_durable_ts,
+          unpack->page_del.u.commit.start_ts);
 
     /*
      * The timestamps in the page_delete information are a global stop time for the entire page.

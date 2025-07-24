@@ -730,7 +730,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          * update to clear the timestamps of all the updates that are inserted into the history
          * store.
          */
-        if (list->onpage_tombstone != NULL && get_upd_start_ts(list->onpage_tombstone) == WT_TS_NONE)
+        if (list->onpage_tombstone != NULL &&
+          get_upd_start_ts(list->onpage_tombstone) == WT_TS_NONE)
             no_ts_upd = list->onpage_tombstone;
 
         /*
@@ -812,7 +813,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              * than the on-page value)
              */
             if (newest_hs == NULL) {
-                if (upd->txnid != ref_upd->txnid || get_upd_start_ts(upd) != get_upd_start_ts(ref_upd)) {
+                if (upd->txnid != ref_upd->txnid ||
+                  get_upd_start_ts(upd) != get_upd_start_ts(ref_upd)) {
                     if (upd->type == WT_UPDATE_TOMBSTONE)
                         ref_upd = upd;
                     else
@@ -978,7 +980,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
               session, &updates, full_value, prev_full_value, &prev_upd));
 
             /* Squash the updates from the same transaction. */
-            if (get_upd_start_ts(upd) == get_upd_start_ts(prev_upd) && upd->txnid == prev_upd->txnid) {
+            if (get_upd_start_ts(upd) == get_upd_start_ts(prev_upd) &&
+              upd->txnid == prev_upd->txnid) {
                 squashed = true;
                 continue;
             }

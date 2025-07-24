@@ -1016,8 +1016,8 @@ copy_cell_restart:
         page_del = &unpack_addr->page_del;
         WT_RET(__wt_vunpack_uint(
           &p, end == NULL ? 0 : WT_PTRDIFF(end, p), (uint64_t *)&page_del->txnid));
-        WT_RET(
-          __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->u.commit.start_ts));
+        WT_RET(__wt_vunpack_uint(
+          &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->u.commit.start_ts));
         WT_RET(__wt_vunpack_uint(
           &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->pg_del_durable_ts));
         page_del->prepare_state = 0; /* No prepare can have been in progress. */

@@ -482,7 +482,7 @@ __wt_txn_op_delete_commit(
                     if (validate)
                         WT_ERR(__wt_txn_timestamp_usage_check(session, op,
                           get_upd_start_ts(*updp) != WT_TS_NONE ? get_upd_start_ts(*updp) :
-                                                                txn->commit_timestamp,
+                                                                  txn->commit_timestamp,
                           (*updp)->prev_durable_ts));
 
                     if (assign_timestamp && get_upd_start_ts(*updp) == WT_TS_NONE) {
@@ -505,7 +505,7 @@ __wt_txn_op_delete_commit(
         if (addr_found)
             ret = __wt_txn_timestamp_usage_check(session, op,
               get_page_del_start_ts(page_del) != WT_TS_NONE ? get_page_del_start_ts(page_del) :
-                                                        txn->commit_timestamp,
+                                                              txn->commit_timestamp,
               WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts));
         WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
         WT_ERR(ret);
@@ -668,7 +668,8 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
             upd = op->u.op_upd;
             if (validate)
                 WT_RET(__wt_txn_timestamp_usage_check(session, op,
-                  get_upd_start_ts(upd) != WT_TS_NONE ? get_upd_start_ts(upd) : txn->commit_timestamp,
+                  get_upd_start_ts(upd) != WT_TS_NONE ? get_upd_start_ts(upd) :
+                                                        txn->commit_timestamp,
                   upd->prev_durable_ts));
             if (get_upd_start_ts(upd) == WT_TS_NONE) {
                 upd->u.commit.start_ts = txn->commit_timestamp;

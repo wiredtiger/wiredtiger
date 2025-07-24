@@ -1125,13 +1125,15 @@ struct __wt_page_deleted {
     bool selected_for_write;
 };
 
-
-static inline wt_timestamp_t get_page_del_start_ts(WT_PAGE_DELETED *page_del) {
-    if (page_del->prepare_state == WT_PREPARE_INPROGRESS || page_del->prepare_state == WT_PREPARE_LOCKED) {
-        // assert(page_del->prepare_ts != WT_TS_NONE);
-        return page_del->prepare_ts;
-    }
-    return page_del->u.commit.start_ts;
+static inline wt_timestamp_t
+get_page_del_start_ts(WT_PAGE_DELETED *page_del)
+{
+    /*
+     * if (page_del->prepare_state == WT_PREPARE_INPROGRESS || page_del->prepare_state ==
+     * WT_PREPARE_LOCKED) { return page_del->prepare_ts;
+     * }
+     */
+    return (page_del->u.commit.start_ts);
 }
 /*
  * A location in a file is a variable-length cookie, but it has a maximum size so it's easy to
@@ -1627,12 +1629,10 @@ struct __wt_update {
     uint8_t data[]; /* start of the data */
 };
 
-static inline uint64_t get_upd_start_ts(WT_UPDATE *upd) {
-    if (upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED) {
-        assert(upd->prepare_ts != 0);
-        return upd->prepare_ts;
-    }
-    return upd->u.commit.start_ts;
+static inline uint64_t
+get_upd_start_ts(WT_UPDATE *upd)
+{
+    return (upd->u.commit.start_ts);
 }
 
 /*
