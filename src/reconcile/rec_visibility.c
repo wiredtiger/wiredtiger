@@ -508,7 +508,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
-        char ts_string[3][WT_TS_INT_STRING_SIZE];
+        char ts_string[4][WT_TS_INT_STRING_SIZE];
         WT_ASSERT_ALWAYS(session,
           prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
             prev_upd->upd_start_ts == prev_upd->upd_durable_ts ||
