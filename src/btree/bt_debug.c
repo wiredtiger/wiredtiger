@@ -1761,8 +1761,8 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
     if (ref->page_del != NULL) {
         page_del = ref->page_del;
         WT_RET(ds->f(ds, " | page_del: %s",
-          __wt_time_point_to_string(
-            page_del->pg_del_start_ts, page_del->pg_del_durable_ts, page_del->txnid, time_string)));
+          __wt_time_point_to_string(page_del->pg_del_durable_ts, page_del->pg_del_start_ts,
+            page_del->prepare_ts, page_del->prepared_id, page_del->txnid, time_string)));
     }
     return (ds->f(ds, "\n"));
 }
