@@ -845,9 +845,10 @@ static int
 __page_inmem_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
   WT_UPDATE **updp, size_t *sizep)
 {
-    if (WT_TIME_WINDOW_HAS_PREPARE(&(unpack->tw)))
+    if (WT_TIME_WINDOW_HAS_PREPARE(&unpack->tw))
         return (__page_inmem_prepare_update(session, value, unpack, updp, sizep));
 
+    WT_ASSERT(session, WT_TIME_WINDOW_HAS_STOP(&unpack->tw));
     return (__page_inmem_tombstone(session, unpack, updp, sizep));
 }
 
@@ -910,7 +911,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
             cell = WT_COL_PTR(page, cip);
             __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
             rle = __wt_cell_rle(&unpack);
-            if (!WT_TIME_WINDOW_HAS_PREPARE(&(unpack.tw))) {
+            if (!WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw)) {
                 recno += rle;
                 continue;
             }
@@ -936,7 +937,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
         for (tw = 0; tw < numtws; tw++) {
             cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[tw]);
             __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
-            if (!WT_TIME_WINDOW_HAS_PREPARE(&(unpack.tw)))
+            if (!WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw))
                 continue;
             recno = ref->ref_recno + page->pg_fix_tws[tw].recno_offset;
 
@@ -953,13 +954,19 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
     } else {
         WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF);
         WT_ERR(__wt_scr_alloc(session, 0, &key));
+        bool delta_enabled = F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+          F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_LEAF_PAGE_DELTA);
         WT_ROW_FOREACH (page, rip, i) {
-            /* Search for prepare records. */
+            /*
+             * Search for prepare records and records with a stop time point if we want to build
+             * delta.
+             */
             __wt_row_leaf_value_cell(session, page, rip, &unpack);
-            if (!WT_TIME_WINDOW_HAS_PREPARE(&(unpack.tw)))
+            if (!WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw) &&
+              (!delta_enabled || !WT_TIME_WINDOW_HAS_STOP(&unpack.tw)))
                 continue;
 
-            /* Get the key/value pair and create an update to resolve the prepare. */
+            /* Get the key/value pair and instantiate the update. */
             WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
             WT_ERR(__wt_page_cell_data_ref_kv(session, page, &unpack, value));
             WT_ASSERT_ALWAYS(session, __wt_cell_type_raw(unpack.cell) != WT_CELL_VALUE_OVFL_RM,
