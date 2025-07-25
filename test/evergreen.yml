@@ -786,8 +786,7 @@ functions:
       params:
         binary: bash
         args:
-          - .evergreen/perf_submission.sh
-        working_dir: src
+          - ./wiredtiger/test/evergreen/perf_submission.sh
         env:
           perf_file_path: ./wiredtiger/cmake_build/test/cppsuite/${test_name}.json
         include_expansions_in_env:
@@ -1209,8 +1208,7 @@ functions:
       params:
         binary: bash
         args:
-          - .evergreen/perf_submission.sh
-        working_dir: src
+          - ./wiredtiger/test/evergreen/perf_submission.sh
         env:
           perf_file_path: ./wiredtiger/cmake_build/${test_path}.json
         include_expansions_in_env:
@@ -1257,8 +1255,7 @@ functions:
       params:
         binary: bash
         args:
-          - .evergreen/perf_submission.sh
-        working_dir: src
+          - ./wiredtiger/test/evergreen/perf_submission.sh
         env:
           perf_file_path: ${stats_dir|./wiredtiger/cmake_build/bench/wtperf/test_stats}/evergreen_out_${test-name}.json
         include_expansions_in_env:
