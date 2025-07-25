@@ -3498,6 +3498,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     WT_DECL_RET;
     WT_MULTI *multi;
     uint32_t i;
+    bool delta_enabled;
 
     btree = S2BT(session);
 
@@ -3514,7 +3515,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      */
     WT_ERR(__wti_rec_hs_delete_updates(session, r));
 
-    bool delta_enabled = WT_DELTA_LEAF_ENABLED(session);
+    delta_enabled = WT_DELTA_LEAF_ENABLED(session);
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         if (multi->supd != NULL) {
             WT_ERR(__wti_rec_hs_insert_updates(session, r, multi));
