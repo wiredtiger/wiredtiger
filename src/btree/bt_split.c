@@ -1750,12 +1750,12 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
      * Set the WT_REF key before (optionally) building the page, underlying column-store functions
      * need the page's key space to search it.
      */
-    bool enable_delta = false;
+    bool delta_enabled = false;
     switch (page->type) {
     case WT_PAGE_ROW_INT:
     case WT_PAGE_ROW_LEAF:
-        enable_delta = WT_DELTA_ENABLED_FOR_PAGE(session, page->type);
-        if (enable_delta && first) {
+        delta_enabled = WT_DELTA_ENABLED_FOR_PAGE(session, page->type);
+        if (delta_enabled && first) {
             __wt_ref_key(old_ref->home, old_ref, &key, &key_size);
             WT_RET(__wti_row_ikey(session, 0, key, key_size, ref));
             if (incrp)
@@ -1804,7 +1804,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
         addr->type = multi->addr.type;
 
         WT_REF_SET_STATE(ref, WT_REF_DISK);
-    } else if (enable_delta && multi_entries == 1 && old_ref->addr != NULL) {
+    } else if (delta_enabled && multi_entries == 1 && old_ref->addr != NULL) {
         old_addr = (WT_ADDR *)old_ref->addr;
         if (!__wt_off_page(old_ref->home, old_addr))
             ref->addr = old_addr;
