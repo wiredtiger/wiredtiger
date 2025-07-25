@@ -247,7 +247,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
              * history store if we write a prepared update to the data store.
              */
             WT_ASSERT(session,
-              !WT_IS_HS(btree->dhandle) ||
+              !WT_IS_HS(S2BT(btree)->dhandle) ||
                 (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->next != NULL &&
                   upd_arg->next->type == WT_UPDATE_STANDARD && upd_arg->next->next == NULL) ||
                 (upd_arg->type == WT_UPDATE_STANDARD && upd_arg->next == NULL));
