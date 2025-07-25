@@ -1214,12 +1214,12 @@ __cell_kv_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack_kv)
              * there shouldn't be any timestamp value as part of durable stop timestamp other than
              * the default value WT_TS_NONE.
              */
-            if (tw->stop_ts == WT_TS_MAX) {
+            if (tw->stop_ts == WT_TS_MAX && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw)) {
                 tw->stop_ts = WT_TS_NONE;
                 WT_ASSERT(session, tw->durable_stop_ts == WT_TS_NONE);
             }
         } else
-            WT_ASSERT(session, tw->stop_ts == WT_TS_MAX);
+            WT_ASSERT(session, tw->stop_ts == WT_TS_MAX && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw));
     }
 }
 
@@ -1248,12 +1248,12 @@ __cell_delta_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_DELTA_LEAF 
              * there shouldn't be any timestamp value as part of durable stop timestamp other than
              * the default value WT_TS_NONE.
              */
-            if (tw->stop_ts == WT_TS_MAX) {
+            if (tw->stop_ts == WT_TS_MAX && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw)) {
                 tw->stop_ts = WT_TS_NONE;
                 WT_ASSERT(session, tw->durable_stop_ts == WT_TS_NONE);
             }
         } else
-            WT_ASSERT(session, tw->stop_ts == WT_TS_MAX);
+            WT_ASSERT(session, tw->stop_ts == WT_TS_MAX && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw));
     }
 }
 
@@ -1366,7 +1366,7 @@ __cell_unpack_window_cleanup_kv(
  */
 static WT_INLINE void
 __cell_unpack_window_cleanup_delta(
-  WT_SESSION_IMPL *session, const WT_DELTA_HEADER *dsk, WT_CELL_UNPACK_DELTA_LEAF *unpack_delta)
+  WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_DELTA_LEAF *unpack_delta)
 {
     if (__cell_unpack_window_need_cleanup(session, dsk->write_gen))
         __cell_delta_window_cleanup(session, unpack_delta);
@@ -1434,7 +1434,7 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
  */
 static WT_INLINE void
 __wt_cell_unpack_delta_int(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *page_dsk,
-  const WT_DELTA_HEADER *dsk, WT_DELTA_CELL_INT *cell, WT_CELL_UNPACK_DELTA_INT *unpack_delta)
+  const WT_PAGE_HEADER *dsk, WT_DELTA_CELL_INT *cell, WT_CELL_UNPACK_DELTA_INT *unpack_delta)
 {
     WT_DECL_RET;
     const uint8_t *p;
@@ -1464,7 +1464,7 @@ __wt_cell_unpack_delta_int(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *page_
  *     Unpack a leaf delta cell into a structure.
  */
 static WT_INLINE void
-__wt_cell_unpack_delta_leaf(WT_SESSION_IMPL *session, const WT_DELTA_HEADER *dsk,
+__wt_cell_unpack_delta_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
   WT_DELTA_CELL_LEAF *cell, WT_CELL_UNPACK_DELTA_LEAF *unpack)
 {
     WT_DECL_RET;
@@ -1629,22 +1629,22 @@ __wt_page_cell_data_ref_kv(
  * WT_CELL_FOREACH --
  *	Walk the cells on a page.
  */
-#define WT_CELL_FOREACH_DELTA_INT(session, page_dsk, dsk, unpack)                                \
-    do {                                                                                         \
-        uint32_t __i;                                                                            \
-        uint8_t *__cell;                                                                         \
-        for (__cell = WT_DELTA_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
-             --__i) {                                                                            \
-            __wt_cell_unpack_delta_int(                                                          \
-              session, page_dsk, dsk, (WT_DELTA_CELL_INT *)__cell, &(unpack));                   \
+#define WT_CELL_FOREACH_DELTA_INT(session, page_dsk, dsk, unpack)                               \
+    do {                                                                                        \
+        uint32_t __i;                                                                           \
+        uint8_t *__cell;                                                                        \
+        for (__cell = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
+             --__i) {                                                                           \
+            __wt_cell_unpack_delta_int(                                                         \
+              session, page_dsk, dsk, (WT_DELTA_CELL_INT *)__cell, &(unpack));                  \
             __cell += (unpack).__len;
 
-#define WT_CELL_FOREACH_DELTA_LEAF(session, dsk, unpack)                                         \
-    do {                                                                                         \
-        uint32_t __i;                                                                            \
-        uint8_t *__cell;                                                                         \
-        for (__cell = WT_DELTA_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
-             __cell += (unpack).__len, --__i) {                                                  \
+#define WT_CELL_FOREACH_DELTA_LEAF(session, dsk, unpack)                                        \
+    do {                                                                                        \
+        uint32_t __i;                                                                           \
+        uint8_t *__cell;                                                                        \
+        for (__cell = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
+             __cell += (unpack).__len, --__i) {                                                 \
             __wt_cell_unpack_delta_leaf(session, dsk, (WT_DELTA_CELL_LEAF *)__cell, &(unpack));
 
 #define WT_CELL_FOREACH_ADDR(session, dsk, unpack)                                              \
