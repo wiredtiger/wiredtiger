@@ -52,18 +52,12 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
     conn_config_follower = conn_base_config + 'disaggregated=(role="follower")'
 
-    table_cfg = 'key_format=S,value_format=S,block_manager=disagg,log=(enabled=false)'
+    table_cfg = 'key_format=S,value_format=S,block_manager=disagg'
 
     session_follow = None
     conn_follow = None
 
     uri = 'layered:test_verify_disagg'
-
-    # Load the page log extension, which has object storage support
-    def conn_extensions(self, extlist):
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
-        DisaggConfigMixin.conn_extensions(self, extlist)
 
     def leader_put_data(self, ts, value_prefix = '', low = 1, high = nitems):
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -134,4 +128,5 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session_follow.close()
         self.conn_follow.close()
 
-        self.verify([self.session]) # the leader is still alive
+        # The leader is still alive, verify it.
+        self.verify([self.session])

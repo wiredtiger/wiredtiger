@@ -70,6 +70,8 @@ err:
  * __schema_layered_worker_verify --
  *     Run a schema worker operation (which is verification) on the stable table; ingest is not
  *     supported currently.
+ *
+ * FIXME-WT-15047: Implement ingest table verification (and update the function description)
  */
 static int
 __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
@@ -87,8 +89,6 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
 
     WT_WITHOUT_DHANDLE(session,
       ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
-
-    /* FIXME-WT-15047: Implement ingest table verification */
 
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
