@@ -514,7 +514,7 @@ struct __wt_block_disagg_header {
     uint8_t flags;                      /* 13: flags */
 
     /*
-     * End the structure with 2 bytes of padding: it wastes space, but it leaves the structure
+     * End the structure with 3 bytes of padding: it wastes space, but it leaves the structure
      * 32-bit aligned and having an extra couple bytes to play with in the future can't hurt.
      */
     uint8_t unused[3]; /* 14-15: unused padding */
