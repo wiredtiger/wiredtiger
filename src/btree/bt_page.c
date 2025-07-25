@@ -772,12 +772,10 @@ static int
 __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
   WT_UPDATE **updp, size_t *sizep)
 {
-    WT_BTREE *btree;
     WT_DECL_RET;
     WT_UPDATE *upd, *tombstone;
     size_t size, total_size;
 
-    btree = S2BT(session);
     size = 0;
     *sizep = 0;
 
@@ -1646,7 +1644,6 @@ __inmem_row_leaf_entries(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, ui
 static int
 __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp)
 {
-    WT_BTREE *btree;
     WT_CELL_UNPACK_KV unpack;
     WT_DECL_RET;
     WT_ROW *rip;
@@ -1655,7 +1652,6 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp
     uint8_t smallest_prefix;
     bool instantiate_upd;
 
-    btree = S2BT(session);
     last_slot = 0;
     instantiate_upd = false;
 
