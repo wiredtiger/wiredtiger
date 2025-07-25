@@ -264,14 +264,18 @@ class Operation:
         self.type = OpType.ONDISK_ABORT_TW
         self.file = self.__extract_file(line)
 
-        matches = re.search('time_window=\((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)', line)
-        start_start = int(matches.group(1))
-        start_end = int(matches.group(2))
-        self.start = Timestamp(start_start, start_end)
-        durable_start_start = int(matches.group(3))
-        durable_start_end = int(matches.group(4))
+        matches = re.search('time_window=\((\d+), (\d+)\)/\((\d+), (\d+)\)/\((\d+), (\d+)\)/(\d+)/(\d+)', line)
+        durable_start_start = int(matches.group(1))
+        durable_start_end = int(matches.group(2))
         self.durable_start = Timestamp(durable_start_start, durable_start_end)
-        self.start_txn = int(matches.group(5))
+        start_start = int(matches.group(3))
+        start_end = int(matches.group(4))
+        self.start = Timestamp(start_start, start_end)
+        start_prepare_start = int(matches.group(5))
+        start_prepare_end = int(matches.group(6))
+        self.start_prepare = Timestamp(start_prepare_start, start_prepare_end)
+        self.start_prepared_id = int(matches.group(7))
+        self.start_txn = int(matches.group(8))
 
         matches = re.search('durable_timestamp > stable_timestamp: (\w+)', line)
         self.durable_gt_stable = matches.group(1).lower() == "true"

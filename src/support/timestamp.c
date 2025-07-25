@@ -25,14 +25,14 @@ __wt_timestamp_to_string(wt_timestamp_t ts, char *ts_string)
  *     Converts a time point to a standard string representation.
  */
 char *
-__wt_time_point_to_string(
-  wt_timestamp_t ts, wt_timestamp_t durable_ts, uint64_t txn_id, char *tp_string)
+__wt_time_point_to_string(wt_timestamp_t durable_ts, wt_timestamp_t ts, wt_timestamp_t prepare_ts,
+  uint64_t prepared_id, uint64_t txn_id, char *tp_string)
 {
     char ts_string[WT_TS_INT_STRING_SIZE];
 
-    WT_IGNORE_RET(__wt_snprintf(tp_string, WT_TIME_STRING_SIZE, "%s/%s/%" PRIu64,
-      __wt_timestamp_to_string(ts, ts_string), __wt_timestamp_to_string(durable_ts, ts_string),
-      txn_id));
+    WT_IGNORE_RET(__wt_snprintf(tp_string, WT_TIME_STRING_SIZE, "%s/%s/%s/%" PRIu64 "/%" PRIu64,
+      __wt_timestamp_to_string(durable_ts, ts_string), __wt_timestamp_to_string(ts, ts_string),
+      __wt_timestamp_to_string(prepare_ts, ts_string), prepared_id, txn_id));
     return (tp_string);
 }
 
