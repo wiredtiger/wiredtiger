@@ -2296,7 +2296,8 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
          * still include the full value in the delta? We can omit it but it will make the rest of
          * the system more complicated. Include it for now to simplify the prototype.
          */
-        WT_ASSERT(session, supd->onpage_upd->prepare_state != WT_PREPARE_INPROGRESS);
+        /* TODO - how do we handle prepare in this case? do we pack prepare ts in start_ts? How to
+         * differentiate prepare ts from start ts when unpacking?*/
         if (!__wt_txn_upd_visible_all(session, supd->onpage_upd)) {
             if (supd->onpage_upd->txnid != WT_TXN_NONE) {
                 LF_SET(WT_DELTA_LEAF_HAS_START_TXN_ID);

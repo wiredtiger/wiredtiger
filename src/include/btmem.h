@@ -1130,6 +1130,7 @@ get_page_del_start_ts(WT_PAGE_DELETED *page_del)
 {
     if (page_del->prepare_state == WT_PREPARE_INPROGRESS ||
       page_del->prepare_state == WT_PREPARE_LOCKED) {
+        assert(upd->prepare_ts != 0);
         return (page_del->prepare_ts);
     }
     return (page_del->u.commit.start_ts);
