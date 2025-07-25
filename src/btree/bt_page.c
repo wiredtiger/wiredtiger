@@ -754,7 +754,7 @@ __page_inmem_tombstone(
     tombstone->upd_start_ts = unpack->tw.stop_ts;
     tombstone->txnid = unpack->tw.stop_txn;
     F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
-    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+    if (WT_DELTA_LEAF_ENABLED(session))
         F_SET(tombstone, WT_UPDATE_DURABLE);
     *updp = tombstone;
     *sizep = total_size;
@@ -800,13 +800,13 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         upd->upd_start_ts = unpack->tw.start_prepare_ts;
         upd->prepare_state = WT_PREPARE_INPROGRESS;
         F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
-        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        if (WT_DELTA_LEAF_ENABLED(session))
             F_SET(upd, WT_UPDATE_PREPARE_DURABLE);
     } else {
         upd->upd_durable_ts = unpack->tw.durable_start_ts;
         upd->upd_start_ts = unpack->tw.start_ts;
         F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
-        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        if (WT_DELTA_LEAF_ENABLED(session))
             F_SET(upd, WT_UPDATE_DURABLE);
     }
     if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&(unpack->tw))) {
@@ -820,7 +820,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         tombstone->prepared_id = unpack->tw.stop_prepared_id;
         tombstone->prepare_state = WT_PREPARE_INPROGRESS;
         F_SET(tombstone, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
-        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        if (WT_DELTA_LEAF_ENABLED(session))
             F_SET(tombstone, WT_UPDATE_PREPARE_DURABLE);
         tombstone->next = upd;
         *updp = tombstone;
@@ -954,8 +954,6 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
     } else {
         WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF);
         WT_ERR(__wt_scr_alloc(session, 0, &key));
-        bool delta_enabled = F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
-          F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_LEAF_PAGE_DELTA);
         WT_ROW_FOREACH (page, rip, i) {
             /*
              * Search for prepare records and records with a stop time point if we want to build
@@ -963,7 +961,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
              */
             __wt_row_leaf_value_cell(session, page, rip, &unpack);
             if (!WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw) &&
-              (!delta_enabled || !WT_TIME_WINDOW_HAS_STOP(&unpack.tw)))
+              (!WT_DELTA_LEAF_ENABLED(session) || !WT_TIME_WINDOW_HAS_STOP(&unpack.tw)))
                 continue;
 
             /* Get the key/value pair and instantiate the update. */
@@ -1766,11 +1764,11 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp
 
         /*
          * If we find a prepare, we'll have to instantiate it in the update chain later. Also
-         * instantiate the tombstone for disaggregated storage. We need the tombstone to trace
+         * instantiate the tombstone if leaf delta is enabled. We need the tombstone to trace
          * whether we have included the delete in the delta or not.
          */
         if (WT_TIME_WINDOW_HAS_PREPARE(&(unpack.tw)) ||
-          (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && WT_TIME_WINDOW_HAS_STOP(&unpack.tw)))
+          (WT_DELTA_LEAF_ENABLED(session) && WT_TIME_WINDOW_HAS_STOP(&unpack.tw)))
             instantiate_upd = true;
     }
     WT_CELL_FOREACH_END;

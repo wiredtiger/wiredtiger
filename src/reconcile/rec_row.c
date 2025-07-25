@@ -522,13 +522,18 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             source_ta = &vpack->ta;
         } else {
             retain_onpage = true;
+
+            /*
+             * We can end up here with a changed state if we skipped writing an empty delta for the
+             * leaf page.
+             */
+            WT_ASSERT_ALWAYS(session,
+              cms.state == WTI_CHILD_ORIGINAL || WT_DELTA_INT_ENABLED(session),
+              "Not propagating the original fast-truncate information");
             /*
              * The transaction ids are cleared after restart. Repack the cell with new validity
              * information to flush cleared transaction ids.
              */
-            WT_ASSERT_ALWAYS(session,
-              cms.state == WTI_CHILD_ORIGINAL || F_ISSET(btree, WT_BTREE_DISAGGREGATED),
-              "Not propagating the original fast-truncate information");
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
 
             /* The proxy cells of fast truncate pages must be handled in the above flows. */

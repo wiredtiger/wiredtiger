@@ -178,13 +178,13 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
 
             /*
              * If we restore an update chain in update restore eviction, there should be no update
-             * or a restored tombstone on the existing update chain except for disaggregated btrees.
+             * or a restored tombstone on the existing update chain except for btrees with leaf
+             * delta enabled.
              */
             WT_ASSERT_ALWAYS(session,
               !restore ||
                 (*upd_entry == NULL ||
-                  (F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
-                    (*upd_entry)->type == WT_UPDATE_TOMBSTONE &&
+                  (WT_DELTA_LEAF_ENABLED(session) && (*upd_entry)->type == WT_UPDATE_TOMBSTONE &&
                     F_ISSET(*upd_entry, WT_UPDATE_RESTORED_FROM_DS))),
               "Illegal update on chain during update restore eviction");
 
