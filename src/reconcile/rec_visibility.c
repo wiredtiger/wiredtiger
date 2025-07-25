@@ -152,6 +152,7 @@ __rec_append_orig_value(
      */
     WT_ASSERT_ALWAYS(session, oldest_upd != NULL, "No older updates found on update chain");
 
+    bool delta_enabled = WT_DELTA_LEAF_ENABLED(session);
     /*
      * Additionally, we need to append a tombstone before the onpage value we're about to append to
      * the list, if the onpage value has a valid stop time point. Imagine a case where we insert and
@@ -187,7 +188,7 @@ __rec_append_orig_value(
             tombstone->upd_start_ts = unpack->tw.stop_ts;
             tombstone->upd_durable_ts = unpack->tw.durable_stop_ts;
             F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
-            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            if (delta_enabled)
                 F_SET(tombstone, WT_UPDATE_DURABLE);
         } else {
             /*
@@ -232,7 +233,7 @@ __rec_append_orig_value(
         append->upd_start_ts = unpack->tw.start_ts;
         append->upd_durable_ts = unpack->tw.durable_start_ts;
         F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
-        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        if (delta_enabled)
             F_SET(append, WT_UPDATE_DURABLE);
     }
 
@@ -317,8 +318,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
      * We need to save the update chain to build the delta. Don't save the update chain if the
      * selected update is already durable.
      */
-    if (upd_select->upd != NULL && F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
-      F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_LEAF_PAGE_DELTA)) {
+    if (upd_select->upd != NULL && WT_DELTA_LEAF_ENABLED(session)) {
         if (upd_select->tombstone != NULL) {
             if (!F_ISSET(upd_select->tombstone, WT_UPDATE_DURABLE | WT_UPDATE_PREPARE_DURABLE))
                 return (true);
@@ -926,13 +926,12 @@ __rec_fill_tw_from_upd_select(
          * currently we either append the onpage value and return that, or return the tombstone
          * itself; there is no case that returns no update but sets the time window.)
          *
-         * If the tombstone is restored from the disk except for disaggregated storage or the
-         * history store, the onpage value and the history store value should have been restored
-         * together. Therefore, we should not end up here.
+         * If the tombstone is restored from the disk except for building delta or the history
+         * store, the onpage value and the history store value should have been restored together.
+         * Therefore, we should not end up here.
          */
         WT_ASSERT_ALWAYS(session,
-          (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
-            !F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_HS)) ||
+          (WT_DELTA_LEAF_ENABLED(session) && !F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_HS)) ||
             (!F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS)),
           "A tombstone written to the disk image except for disaggregated storage or history store "
           "should be accompanied by the full value.");
