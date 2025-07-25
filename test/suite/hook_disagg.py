@@ -267,6 +267,11 @@ def session_create_replace(orig_session_create, session_self, uri, config):
     ret = orig_session_create(session_self, uri, config_str)
     return ret
 
+# Called to replace Session.drop
+def session_drop_replace(orig_session_drop, session_self, uri, config):
+    uri = replace_uri(uri)
+    return orig_session_drop(session_self, uri, config)
+
 # Called to replace Session.open_cursor.  We skip calls that do backup
 # as that is not yet supported in disaggregated storage.
 def session_open_cursor_replace(orig_session_open_cursor, session_self, uri, dupcursor, config):
@@ -363,6 +368,10 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
         orig_session_create = self.Session['create']
         self.Session['create'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
           session_create_replace(orig_session_create, s, uri, config))
+
+        orig_session_drop = self.Session['drop']
+        self.Session['drop'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
+          session_drop_replace(orig_session_drop, s, uri, config))
 
         orig_session_open_cursor = self.Session['open_cursor']
         self.Session['open_cursor'] = (wthooks.HOOK_REPLACE, lambda s, uri, todup=None, config=None:
