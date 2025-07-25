@@ -1542,7 +1542,10 @@ struct __wt_update {
 #undef upd_saved_txnid
 #define upd_saved_txnid u.prepare_rollback.saved_txnid
 
-    /* Prepared transaction fields */
+    /*
+     * Prepared transaction fields. Note that when prepare_ts is set, start_ts should always also be
+     * set with prepare_ts.
+     */
     uint64_t prepared_id;
     wt_timestamp_t prepare_ts;
 
