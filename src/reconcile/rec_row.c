@@ -524,7 +524,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             retain_onpage = true;
 
             /*
-             * We can see a changed state here if the child reconciliation skipped writing an empty
+             * We may see a changed state here if the child reconciliation skipped writing an empty
              * delta.
              */
             WT_ASSERT_ALWAYS(session,
