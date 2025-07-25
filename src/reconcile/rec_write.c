@@ -2614,12 +2614,10 @@ static int
 __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chunk, uint8_t *addr,
   size_t *addr_sizep, size_t *compressed_sizep, bool last_block)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_MULTI *multi;
     WT_PAGE *page;
     WT_PAGE_BLOCK_META *block_meta;
 
-    conn = S2C(session);
     page = r->page;
     multi = &r->multi[r->multi_next - 1];
     block_meta = &page->block_meta;
