@@ -557,7 +557,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
      * reconciliations ondisk value that we will be comparing against.
      */
     if (vpack != NULL && !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw))) {
-        char ts_string[3][WT_TS_INT_STRING_SIZE];
+        char ts_string[4][WT_TS_INT_STRING_SIZE];
         if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw))
             WT_ASSERT_ALWAYS(session,
               prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||

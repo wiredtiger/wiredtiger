@@ -2107,16 +2107,18 @@ __txn_modify_block(
                 rollback = !__wt_txn_tw_stop_visible(session, &tw);
                 if (rollback)
                     __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
-                      "Conflict with update %" PRIu64 " at stop timestamp: %s, prepare timestamp: %s", tw.stop_txn,
-                      __wt_timestamp_to_string(tw.stop_ts, ts_string[0]),
-                    __wt_timestamp_to_string(tw.stop_prepare_ts, ts_string[1]));
+                      "Conflict with update %" PRIu64
+                      " at stop timestamp: %s, prepare timestamp: %s",
+                      tw.stop_txn, __wt_timestamp_to_string(tw.stop_ts, ts_string[0]),
+                      __wt_timestamp_to_string(tw.stop_prepare_ts, ts_string[1]));
             } else {
                 rollback = !__wt_txn_tw_start_visible(session, &tw);
                 if (rollback)
                     __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
-                      "Conflict with update %" PRIu64 " at start timestamp: %s, prepare timestamp: %s", tw.start_txn,
-                      __wt_timestamp_to_string(tw.start_ts, ts_string[0]),
-                    __wt_timestamp_to_string(tw.start_prepare_ts, ts_string[1]));
+                      "Conflict with update %" PRIu64
+                      " at start timestamp: %s, prepare timestamp: %s",
+                      tw.start_txn, __wt_timestamp_to_string(tw.start_ts, ts_string[0]),
+                      __wt_timestamp_to_string(tw.start_prepare_ts, ts_string[1]));
             }
         }
     }
