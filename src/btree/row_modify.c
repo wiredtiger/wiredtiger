@@ -72,7 +72,6 @@ int
 __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
   WT_UPDATE **updp_arg, u_int modify_type, bool exclusive, bool restore)
 {
-    WT_BTREE *btree;
     WT_DECL_RET;
     WT_INSERT *ins;
     WT_INSERT_HEAD *ins_head, **ins_headp;
@@ -89,7 +88,6 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
     ins = NULL;
     page = cbt->ref->page;
     session = CUR2S(cbt);
-    btree = S2BT(session);
     last_upd = NULL;
     upd_arg = updp_arg == NULL ? NULL : *updp_arg;
     upd = upd_arg;

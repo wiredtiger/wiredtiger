@@ -775,12 +775,14 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
     WT_DECL_RET;
     WT_UPDATE *upd, *tombstone;
     size_t size, total_size;
+    bool delta_enabled;
 
     size = 0;
     *sizep = 0;
 
     tombstone = upd = NULL;
     total_size = 0;
+    delta_enabled = WT_DELTA_LEAF_ENABLED(session);
 
     WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, &size));
     total_size += size;
@@ -798,13 +800,13 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         upd->upd_start_ts = unpack->tw.start_prepare_ts;
         upd->prepare_state = WT_PREPARE_INPROGRESS;
         F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
-        if (WT_DELTA_LEAF_ENABLED(session))
+        if (delta_enabled)
             F_SET(upd, WT_UPDATE_PREPARE_DURABLE);
     } else {
         upd->upd_durable_ts = unpack->tw.durable_start_ts;
         upd->upd_start_ts = unpack->tw.start_ts;
         F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
-        if (WT_DELTA_LEAF_ENABLED(session))
+        if (delta_enabled)
             F_SET(upd, WT_UPDATE_DURABLE);
     }
     if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&(unpack->tw))) {
@@ -818,7 +820,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         tombstone->prepared_id = unpack->tw.stop_prepared_id;
         tombstone->prepare_state = WT_PREPARE_INPROGRESS;
         F_SET(tombstone, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
-        if (WT_DELTA_LEAF_ENABLED(session))
+        if (delta_enabled)
             F_SET(tombstone, WT_UPDATE_PREPARE_DURABLE);
         tombstone->next = upd;
         *updp = tombstone;
@@ -952,6 +954,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
     } else {
         WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF);
         WT_ERR(__wt_scr_alloc(session, 0, &key));
+        bool delta_enabled = WT_DELTA_LEAF_ENABLED(session);
         WT_ROW_FOREACH (page, rip, i) {
             /*
              * Search for prepare records and records with a stop time point if we want to build
@@ -959,7 +962,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
              */
             __wt_row_leaf_value_cell(session, page, rip, &unpack);
             if (!WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw) &&
-              (!WT_DELTA_LEAF_ENABLED(session) || !WT_TIME_WINDOW_HAS_STOP(&unpack.tw)))
+              (!delta_enabled || !WT_TIME_WINDOW_HAS_STOP(&unpack.tw)))
                 continue;
 
             /* Get the key/value pair and instantiate the update. */
@@ -1650,10 +1653,11 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp
     uint32_t best_prefix_count, best_prefix_start, best_prefix_stop;
     uint32_t last_slot, prefix_count, prefix_start, prefix_stop, slot;
     uint8_t smallest_prefix;
-    bool instantiate_upd;
+    bool instantiate_upd, delta_enabled;
 
     last_slot = 0;
     instantiate_upd = false;
+    delta_enabled = WT_DELTA_LEAF_ENABLED(session);
 
     /* The code depends on the prefix count variables, other initialization shouldn't matter. */
     best_prefix_count = prefix_count = 0;
@@ -1764,7 +1768,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp
          * whether we have included the delete in the delta or not.
          */
         if (WT_TIME_WINDOW_HAS_PREPARE(&(unpack.tw)) ||
-          (WT_DELTA_LEAF_ENABLED(session) && WT_TIME_WINDOW_HAS_STOP(&unpack.tw)))
+          (delta_enabled && WT_TIME_WINDOW_HAS_STOP(&unpack.tw)))
             instantiate_upd = true;
     }
     WT_CELL_FOREACH_END;

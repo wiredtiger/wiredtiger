@@ -152,6 +152,7 @@ __rec_append_orig_value(
      */
     WT_ASSERT_ALWAYS(session, oldest_upd != NULL, "No older updates found on update chain");
 
+    bool delta_enabled = WT_DELTA_LEAF_ENABLED(session);
     /*
      * Additionally, we need to append a tombstone before the onpage value we're about to append to
      * the list, if the onpage value has a valid stop time point. Imagine a case where we insert and
@@ -187,7 +188,7 @@ __rec_append_orig_value(
             tombstone->upd_start_ts = unpack->tw.stop_ts;
             tombstone->upd_durable_ts = unpack->tw.durable_stop_ts;
             F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
-            if (WT_DELTA_LEAF_ENABLED(session))
+            if (delta_enabled)
                 F_SET(tombstone, WT_UPDATE_DURABLE);
         } else {
             /*
@@ -232,7 +233,7 @@ __rec_append_orig_value(
         append->upd_start_ts = unpack->tw.start_ts;
         append->upd_durable_ts = unpack->tw.durable_start_ts;
         F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
-        if (WT_DELTA_LEAF_ENABLED(session))
+        if (delta_enabled)
             F_SET(append, WT_UPDATE_DURABLE);
     }
 
