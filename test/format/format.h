@@ -91,6 +91,8 @@
 #define STR(s) #s
 #define XSTR(s) STR(s)
 
+#define DISAGG_FOLLOWER_OPS_SEC 10
+
 /* Session configuration to enable prefetch. */
 #define SESSION_PREFETCH_CFG_ON "prefetch=(enabled=true)"
 
@@ -304,6 +306,8 @@ typedef struct {
 #define PREFIX_LEN_CONFIG_MIN 15
 #define PREFIX_LEN_CONFIG_MAX 80
     uint32_t prefix_len_max;
+
+    bool disagg_leader;
 
     bool column_store_config;           /* At least one column-store table configured */
     bool disagg_storage_config;         /* If disaggregated storage is configured */
