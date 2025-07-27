@@ -326,7 +326,7 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
      * the options struct on a temporary basis to help create the disagg configuration.
      */
     opts.disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
-    opts.disagg_mode = (char*) (g.disagg_leader ? "leader" : "follower");
+    opts.disagg_mode = (char *)(g.disagg_leader ? "leader" : "follower");
     opts.home = (char *)home;
     opts.build_dir = (char *)BUILDDIR;
     opts.palm_map_size_mb = 2048; /* 2 Gigabytes for PALM map */
