@@ -2082,6 +2082,12 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
         WT_DIAGNOSTIC_YIELD;
         WT_RET(__wt_session_copy_values(session));
     }
+    /*
+     * Release our snapshot in case it is keeping data pinned. This will not make the updates
+     * visible to other threads until we remove the transaction id from the global transaction table
+     * at the end of the function.
+     */
+    __wt_txn_release_snapshot(session);
 
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
         /* Assert it's not an update to the history store file. */
@@ -2168,9 +2174,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     /* Set transaction state to prepare. */
     F_SET(session->txn, WT_TXN_PREPARE);
 
-    /* Release our snapshot in case it is keeping data pinned. */
-    __wt_txn_release_snapshot(session);
-
     /*
      * Clear the transaction's ID from the global table, to facilitate prepared data visibility, but
      * not from local transaction structure.
@@ -2215,6 +2218,13 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
     /* Set the rollback timestamp if it is an user api call. */
     if (api_call)
         WT_RET(__wt_txn_set_timestamp(session, cfg, false));
+
+    /*
+     * Release our snapshot in case it is keeping data pinned. This will not make the updates
+     * visible to other threads because we haven't removed the transaction id from the global
+     * transaction table at the end of the function.
+     */
+    __wt_txn_release_snapshot(session);
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
