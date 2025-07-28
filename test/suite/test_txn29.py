@@ -42,7 +42,7 @@ class test_txn29(wttest.WiredTigerTestCase):
         uri2 = "file:txn29-2"
         self.session.create(uri2, 'key_format=i,value_format=S,log=(enabled=false)')
 
-        # Do an update on the logged table and non-logged table with out of order timestamp
+        # Do an update on the logged table and the non-logged table
         self.session.begin_transaction()
         cursor1 = self.session.open_cursor(uri1)
         cursor1[1] = "aaaa"
