@@ -1505,7 +1505,7 @@ config_disagg_storage(void)
             testutil_die(EINVAL, "illegal disagg.mode configuration: %s", mode);
 
         if (strcmp(mode, "switch") == 0)
-            /* Randomly assign "leader" or "follower" with equal probability. */
+            /* Randomly assign "leader" or "follower". */
             g.disagg_leader = mmrand(&g.data_rnd, 0, 1);
         else
             g.disagg_leader = strcmp(mode, "leader") == 0;

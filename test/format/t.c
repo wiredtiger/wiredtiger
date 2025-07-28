@@ -179,9 +179,8 @@ main(int argc, char *argv[])
     uint64_t now, start;
     u_int leader_ops_seconds, ops_seconds, reps;
     int ch;
-    char disagg_cfg[64];
     const char *config, *home;
-    bool disagg_switch_mode, is_backup, quiet_flag, verify_only;
+    bool is_backup, quiet_flag, verify_only;
 
     custom_die = format_die; /* Local death handler. */
 
@@ -370,8 +369,6 @@ main(int argc, char *argv[])
     /* Optionally start checkpoints. */
     wts_checkpoints();
 
-    disagg_switch_mode = g.disagg_storage_config && strcmp(GVS(DISAGG_MODE), "switch") == 0;
-
     /*
      * Calculate how long each operations loop should run. Take any timer value and convert it to
      * seconds, then allocate 15 seconds to do initialization, verification and/or salvage tasks
@@ -382,21 +379,21 @@ main(int argc, char *argv[])
      * time and then don't check for timer expiration once the main operations loop completes.
      */
     ops_seconds = GV(RUNS_TIMER) == 0 ? 0 : ((GV(RUNS_TIMER) * 60) - 15) / FORMAT_OPERATION_REPS;
-    if (!disagg_switch_mode)
+    if (!disagg_is_mode_switch())
         for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
             operations(ops_seconds, reps, FORMAT_OPERATION_REPS);
     else {
-        leader_ops_seconds = ops_seconds != 0 ? (ops_seconds - DISAGG_FOLLOWER_OPS_SEC) : 0;
+        /*
+         * In disagg "switch" mode, we alternate b/w leader and follower roles. The follower only
+         * runs for a short, fixed time since (DISAGG_SWITCH_FOLLOWER_OPS_SEC) its not supposed to
+         * do much or cache heavily. The leader gets the rest of the time.
+         */
+        leader_ops_seconds = ops_seconds != 0 ? (ops_seconds - DISAGG_SWITCH_FOLLOWER_OPS_SEC) : 0;
 
         for (reps = 1; reps <= (FORMAT_OPERATION_REPS * 2); ++reps) {
-            ops_seconds = g.disagg_leader ? leader_ops_seconds : DISAGG_FOLLOWER_OPS_SEC;
+            ops_seconds = g.disagg_leader ? leader_ops_seconds : DISAGG_SWITCH_FOLLOWER_OPS_SEC;
             operations(ops_seconds, reps, (FORMAT_OPERATION_REPS * 2));
-
-            /* Switch roles. */
-            g.disagg_leader = g.disagg_leader ? 0 : 1;
-            testutil_snprintf(disagg_cfg, sizeof(disagg_cfg), "disaggregated=(role=\"%s\")",
-              g.disagg_leader ? "leader" : "follower");
-            testutil_check(g.wts_conn->reconfigure(g.wts_conn, disagg_cfg));
+            testutil_check(disagg_switch_roles());
         }
     }
 
