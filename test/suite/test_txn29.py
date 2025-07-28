@@ -50,4 +50,5 @@ class test_txn29(wttest.WiredTigerTestCase):
         cursor2 = self.session.open_cursor(uri2)
         cursor2[1] = "aaaa"
         cursor2.reset()
-        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(80)}')
+        self.assertRaisesException(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(80)}'))
