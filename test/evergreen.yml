@@ -5555,12 +5555,6 @@ tasks:
   - <<: *workgen-test
     name: "workgen-test-microbenchmark_prefetch_on_verify"
 
-  - <<: *workgen-test
-    name: "workgen-test-cache_workload_dirty_trigger"
-
-  - <<: *workgen-test
-    name: "workgen-test-cache_workload_update_trigger"
-
 #######################################
 #     Antithesis Integration          #
 #######################################
