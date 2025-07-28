@@ -163,8 +163,6 @@ pop_workload = Workload(context, populate_threads * pop_thread)
 ret = pop_workload.run(conn)
 assert ret == 0, ret
 cache_eviction_file = context.args.home + "/cache_eviction.stat"
-# print stats after data populate
-# get_cache_eviction_stats(s, cache_eviction_file)
 
 print('Populate complete')
 
