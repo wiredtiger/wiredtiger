@@ -126,80 +126,12 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
     ((void *)((uint8_t *)(dsk) + WT_PAGE_HEADER_BYTE_SIZE(btree)))
 
 /*
- * WT_DELTA_HEADER --
- *	A delta is a durable record of changes to a page since the previous delta or full-page image
- * was recorded. It is composed of a WT_DELTA_HEADER, followed by a variable number of delta
- * entries. The number of entries does not explicitly appear, it is inferred by the size of the
- * overall delta. Each delta entry has a one header 'flags' byte (flags from WT_DELTA_CELL_UNPACK),
- * followed by up to 4 timestamps as indicated by the flags, followed by the key size and the key
- * bytes. If the WT_DELTA_LEAF_IS_DELETE flag is not set, the entry then includes the value size and
- * the value bytes.
- */
-struct __wt_delta_header {
-    uint64_t write_gen; /* 0-7: write generation */
-    /*
-     * Memory size of the delta.
-     */
-    uint32_t mem_size; /* 08-11: in-memory size */
-
-    union {
-        uint32_t entries; /* 12-15: number of cells on page */
-        uint32_t datalen; /* 12-15: overflow data length */
-    } u;
-
-    uint8_t version; /* 16: version */
-
-    uint8_t type; /* 17: page type */
-
-    uint8_t flags; /* 18: flags */
-
-    uint8_t unused; /* 19: unused padding */
-};
-
-/*
- * WT_DELTA_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler
- * inserts padding it will break the world.
- */
-#define WT_DELTA_HEADER_SIZE 20
-
-/*
  * The number of deltas for a base page must be strictly less than or equal to WT_DELTA_LIMIT.
  * Though we have made the number of consecutive deltas adjustable through the max_consecutive_delta
  * config, 32 remains the maximum value we support. Thus WT_DELTA_LIMIT can be used to size arrays
  * that contain the base page plus all associated deltas.
  */
 #define WT_DELTA_LIMIT 32
-
-/*
- * WT_DELTA_HEADER_BYTE --
- * WT_DELTA_HEADER_BYTE_SIZE --
- *	The first usable data byte on the block (past the combined headers).
- */
-#define WT_DELTA_HEADER_BYTE_SIZE(btree) ((u_int)(WT_DELTA_HEADER_SIZE + (btree)->block_header))
-#define WT_DELTA_HEADER_BYTE(btree, dsk) \
-    ((void *)((uint8_t *)(dsk) + WT_DELTA_HEADER_BYTE_SIZE(btree)))
-
-/*
- * A variant of WT_BLOCK_HEADER_REF that must be used with deltas. XXX It's a hack, needed because
- * the block manager's header is not first.
- */
-#define WT_BLOCK_HEADER_REF_FOR_DELTAS(dsk) ((void *)((uint8_t *)(dsk) + WT_DELTA_HEADER_SIZE))
-
-/*
- * __wt_delta_header_byteswap --
- *     Handle big- and little-endian transformation of a page header.
- */
-static WT_INLINE void
-__wt_delta_header_byteswap(WT_DELTA_HEADER *dsk)
-{
-#ifdef WORDS_BIGENDIAN
-    dsk->write_gen = __wt_bswap64(dsk->write_gen);
-    dsk->mem_size = __wt_bswap64(dsk->mem_size);
-    dsk->u.entries = __wt_bswap32(dsk->u.entries);
-#else
-    WT_UNUSED(dsk);
-#endif
-}
 
 /*
  * WT_ADDR --
@@ -315,6 +247,7 @@ struct __wt_save_upd {
     WT_ROW *rip;    /* Original on-page reference */
     WT_UPDATE *onpage_upd;
     WT_UPDATE *onpage_tombstone;
+    WT_TIME_WINDOW tw;
     bool restore; /* Whether to restore this saved update chain */
 };
 
@@ -324,15 +257,11 @@ struct __wt_save_upd {
  */
 struct __wt_page_block_meta {
     uint64_t page_id;
-    uint64_t checkpoint_id;
-    uint64_t reconciliation_id;
+    uint64_t disagg_lsn;
 
     uint64_t backlink_lsn;
     uint64_t base_lsn;
-    uint64_t backlink_checkpoint_id;
-    uint64_t base_checkpoint_id;
     uint32_t delta_count;
-    uint64_t disagg_lsn;
 
     uint32_t checksum;
 
@@ -1157,8 +1086,22 @@ struct __wt_page_deleted {
      */
     wt_shared volatile uint64_t txnid; /* Transaction ID */
 
-    wt_timestamp_t timestamp; /* Timestamps */
-    wt_timestamp_t durable_timestamp;
+    union {
+        struct {
+            wt_timestamp_t durable_ts; /* timestamps */
+            wt_timestamp_t start_ts;
+        } commit;
+
+        struct {
+            wt_timestamp_t rollback_ts; /* rollback timestamp */
+            uint64_t saved_txnid;       /* transaction id before rollback */
+        } prepare_rollback;
+    } u;
+
+#define pg_del_durable_ts u.commit.durable_ts
+#define pg_del_start_ts u.commit.start_ts
+#define pg_del_rollback_ts u.prepare_rollback.rollback_ts
+#define pg_del_saved_txnid u.prepare_rollback.saved_txnid
 
     /* Prepared transaction fields */
     uint64_t prepared_id;
@@ -1577,10 +1520,31 @@ struct __wt_update {
      */
     wt_shared volatile uint64_t txnid; /* transaction ID */
 
-    wt_timestamp_t durable_ts; /* timestamps */
-    wt_timestamp_t start_ts;
+    union {
+        struct {
+            wt_timestamp_t durable_ts; /* timestamps */
+            wt_timestamp_t start_ts;
+        } commit;
 
-    /* Prepared transaction fields */
+        struct {
+            wt_timestamp_t rollback_ts; /* rollback timestamp */
+            uint64_t saved_txnid;       /* transaction id before rollback */
+        } prepare_rollback;
+    } u;
+
+#undef upd_durable_ts
+#define upd_durable_ts u.commit.durable_ts
+#undef upd_start_ts
+#define upd_start_ts u.commit.start_ts
+#undef upd_rollback_ts
+#define upd_rollback_ts u.prepare_rollback.rollback_ts
+#undef upd_saved_txnid
+#define upd_saved_txnid u.prepare_rollback.saved_txnid
+
+    /*
+     * When transaction is prepared, both prepare_ts and start_ts should be assigned to prepare
+     * timestamp. After commit, start_ts will store the commit_ts.
+     */
     uint64_t prepared_id;
     wt_timestamp_t prepare_ts;
 
@@ -1614,16 +1578,18 @@ struct __wt_update {
 
 /* When introducing a new flag, consider adding it to WT_UPDATE_SELECT_FOR_DS. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_UPDATE_DS 0x001u                       /* Update has been chosen to the data store. */
-#define WT_UPDATE_DURABLE 0x002u                  /* Update has been durable. */
-#define WT_UPDATE_HS 0x004u                       /* Update has been written to history store. */
-#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x008u /* Prepared update restored from data store. */
-#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x010u   /* Fast truncate instantiation */
-#define WT_UPDATE_RESTORED_FROM_DELTA 0x020u      /* Update restored from delta. */
-#define WT_UPDATE_RESTORED_FROM_DS 0x040u         /* Update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_HS 0x080u         /* Update restored from history store. */
-#define WT_UPDATE_RTS_DRYRUN_ABORT 0x100u         /* Used by dry run to mark a would-be abort. */
-#define WT_UPDATE_TO_DELETE_FROM_HS 0x200u /* Update needs to be deleted from history store */
+#define WT_UPDATE_DELETE_DURABLE 0x001u           /* Key has been removed from disk image */
+#define WT_UPDATE_DS 0x002u                       /* Update has been chosen to the data store. */
+#define WT_UPDATE_DURABLE 0x004u                  /* Update has been durable. */
+#define WT_UPDATE_HS 0x008u                       /* Update has been written to history store. */
+#define WT_UPDATE_PREPARE_DURABLE 0x010u          /* Prepared update has been durable. */
+#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x020u /* Prepared update restored from data store. */
+#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x040u   /* Fast truncate instantiation */
+#define WT_UPDATE_RESTORED_FROM_DELTA 0x080u      /* Update restored from delta. */
+#define WT_UPDATE_RESTORED_FROM_DS 0x100u         /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x200u         /* Update restored from history store. */
+#define WT_UPDATE_RTS_DRYRUN_ABORT 0x400u         /* Used by dry run to mark a would-be abort. */
+#define WT_UPDATE_TO_DELETE_FROM_HS 0x800u /* Update needs to be deleted from history store */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t flags;
 

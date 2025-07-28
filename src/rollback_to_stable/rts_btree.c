@@ -58,10 +58,8 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
          * The transaction id validation is ignored in all scenarios except recovery.
          */
         txn_id_visible = __wti_rts_visibility_txn_visible_id(session, upd->txnid);
-        if (!txn_id_visible || rollback_timestamp < upd->durable_ts ||
-          (upd->prepare_state == WT_PREPARE_INPROGRESS &&
-            (!F_ISSET_ATOMIC_32(conn, WT_CONN_PRESERVE_PREPARED) ||
-              rollback_timestamp < upd->start_ts))) {
+        if (!txn_id_visible || rollback_timestamp < upd->upd_durable_ts ||
+          upd->prepare_state == WT_PREPARE_INPROGRESS) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               WT_RTS_VERB_TAG_UPDATE_ABORT "rollback to stable aborting update with txnid=%" PRIu64
                                            ", txnid_not_visible=%s"
@@ -69,8 +67,8 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
                                            "prepare_state=%s, flags 0x%" PRIx16,
               upd->txnid, !txn_id_visible ? "true" : "false",
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
-              __wt_timestamp_to_string(upd->durable_ts, ts_string[0]),
-              rollback_timestamp < upd->durable_ts ? "true" : "false",
+              __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[0]),
+              rollback_timestamp < upd->upd_durable_ts ? "true" : "false",
               __wt_prepare_state_str(upd->prepare_state), upd->flags);
 
             if (dryrun)
@@ -86,7 +84,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
               "stable update found with txnid=%" PRIu64
               ", stable_timestamp=%s,  durable_timestamp=%s, flags 0x%" PRIx16,
               upd->txnid, __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
-              __wt_timestamp_to_string(upd->durable_ts, ts_string[0]), upd->flags);
+              __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[0]), upd->flags);
             break;
         }
     }
@@ -99,7 +97,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
          * cannot have a prepared transaction on it and a fast deleted page in the history store
          * should never be reinstantiated as it is globally visible.
          */
-        if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING) && !WT_IS_HS(session->dhandle)) {
+        if (F_ISSET(conn, WT_CONN_RECOVERING) && !WT_IS_HS(session->dhandle)) {
             WT_ASSERT(session, first_upd->type == WT_UPDATE_TOMBSTONE);
             WT_ASSERT(session,
               F_ISSET(
@@ -146,8 +144,8 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
              * that update from the history store as it has a globally visible tombstone. In that
              * case, it is enough to delete everything up until to the tombstone timestamp.
              */
-            WT_RET(__wti_rts_history_delete_hs(
-              session, key, stable_upd == NULL ? tombstone->start_ts : stable_upd->start_ts));
+            WT_RET(__wti_rts_history_delete_hs(session, key,
+              stable_upd == NULL ? tombstone->upd_start_ts : stable_upd->upd_start_ts));
 
             /*
              * Clear the history store flags for the first stable update. Otherwise, it will not be
@@ -215,7 +213,7 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
               WT_RTS_VERB_TAG_INSERT_LIST_UPDATE_ABORT
               "attempting to abort update on the insert list with durable_timestamp=%s, key=%s",
-              __wt_timestamp_to_string(ins->upd->durable_ts, ts_string),
+              __wt_timestamp_to_string(ins->upd->upd_durable_ts, ts_string),
               __wt_key_string(
                 session, key->data, key->size, S2BT(session)->key_format, key_string));
 
@@ -435,7 +433,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
          * the written proper timestamp, so comparing against it with history store shouldn't have
          * any problem.
          */
-        if (hs_tw->start_ts <= tw->start_ts || tw->prepare) {
+        if (hs_tw->start_ts <= tw->start_ts || WT_TIME_WINDOW_HAS_PREPARE(tw)) {
             if (type == WT_UPDATE_MODIFY) {
                 __wt_modify_max_memsize_format(
                   hs_value->data, S2BT(session)->value_format, full_value->size, &max_memsize);
@@ -503,7 +501,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
               "history store update valid with time_window=%s, type=%s and stable_timestamp=%s",
               __wt_time_window_to_string(hs_tw, tw_string), __wt_update_type_str(type),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[0]));
-            WT_ASSERT(session, tw->prepare || hs_tw->start_ts <= tw->start_ts);
+            WT_ASSERT(session, WT_TIME_WINDOW_HAS_PREPARE(tw) || hs_tw->start_ts <= tw->start_ts);
             valid_update_found = true;
             break;
         }
@@ -544,17 +542,20 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
          * in the cache will be problematic. The transaction id of pages which are in disk will be
          * automatically reset as part of unpacking cell when loaded to cache.
          */
-        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING))
+        if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
             upd->txnid = WT_TXN_NONE;
         else
             upd->txnid = hs_tw->start_txn;
-        upd->durable_ts = hs_tw->durable_start_ts;
-        upd->start_ts = hs_tw->start_ts;
+        upd->upd_durable_ts = hs_tw->durable_start_ts;
+        upd->upd_start_ts = hs_tw->start_ts;
+        upd->prepare_ts = hs_tw->start_prepare_ts;
+        upd->prepared_id = hs_tw->start_prepared_id;
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_HS_UPDATE_RESTORED "history store update restored txnid=%" PRIu64
-                                             ", start_ts=%s and durable_ts=%s",
-          upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
-          __wt_timestamp_to_string(upd->durable_ts, ts_string[1]));
+                                             ", start_ts=%s, prepare_ts=%s and durable_ts=%s",
+          upd->txnid, __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
+          __wt_timestamp_to_string(upd->prepare_ts, ts_string[1]),
+          __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[2]));
 
         /*
          * Set the flag to indicate that this update has been restored from history store for the
@@ -575,7 +576,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
              */
             WT_ASSERT(session,
               hs_stop_durable_ts == WT_TS_NONE || hs_stop_durable_ts < newer_hs_durable_ts ||
-                tw->prepare);
+                WT_TIME_WINDOW_HAS_PREPARE(tw));
 
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
             /*
@@ -584,17 +585,21 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
              * updates in the cache will be problematic. The transaction id of pages which are in
              * disk will be automatically reset as part of unpacking cell when loaded to cache.
              */
-            if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING))
+            if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
                 tombstone->txnid = WT_TXN_NONE;
             else
                 tombstone->txnid = hs_tw->stop_txn;
-            tombstone->durable_ts = hs_tw->durable_stop_ts;
-            tombstone->start_ts = hs_tw->stop_ts;
+            tombstone->upd_durable_ts = hs_tw->durable_stop_ts;
+            tombstone->upd_start_ts = hs_tw->stop_ts;
+            tombstone->prepare_ts = hs_tw->stop_prepare_ts;
+            tombstone->prepared_id = hs_tw->stop_prepared_id;
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               WT_RTS_VERB_TAG_HS_RESTORE_TOMBSTONE
-              "history store tombstone restored, txnid=%" PRIu64 ", start_ts=%s and durable_ts=%s",
-              tombstone->txnid, __wt_timestamp_to_string(tombstone->start_ts, ts_string[0]),
-              __wt_timestamp_to_string(tombstone->durable_ts, ts_string[1]));
+              "history store tombstone restored, txnid=%" PRIu64
+              ", start_ts=%s, prepare_ts=%s and durable_ts=%s",
+              tombstone->txnid, __wt_timestamp_to_string(tombstone->upd_start_ts, ts_string[0]),
+              __wt_timestamp_to_string(tombstone->prepare_ts, ts_string[1]),
+              __wt_timestamp_to_string(tombstone->upd_durable_ts, ts_string[2]));
 
             /*
              * Set the flag to indicate that this update has been restored from history store for
@@ -682,7 +687,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     /* Retrieve the time window from the unpacked value cell. */
     __wt_cell_get_tw(vpack, &tw);
 
-    prepared = tw->prepare;
+    prepared = WT_TIME_WINDOW_HAS_PREPARE(tw);
     if (WT_IS_HS(session->dhandle)) {
         /*
          * Abort the history store update with stop durable timestamp greater than the stable
@@ -705,19 +710,18 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
             return (0);
     } else if (tw->durable_start_ts > rollback_timestamp ||
       !__wti_rts_visibility_txn_visible_id(session, tw->start_txn) ||
-      (!WT_TIME_WINDOW_HAS_STOP(tw) && prepared &&
-        (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) ||
-          tw->start_ts > rollback_timestamp))) {
+      (!WT_TIME_WINDOW_HAS_STOP(tw) && prepared)) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_ONDISK_ABORT_TW
           "on-disk update aborted with time_window=%s. "
           "Start durable_timestamp > stable_timestamp: %s, or txnid_not_visible=%s, "
           "or tw_has_no_stop_and_is_prepared=%s",
-          __wt_time_point_to_string(tw->start_ts, tw->durable_start_ts, tw->start_txn, time_string),
+          __wt_time_point_to_string(tw->durable_start_ts, tw->start_ts, tw->start_prepare_ts,
+            tw->start_prepared_id, tw->start_txn, time_string),
           tw->durable_start_ts > rollback_timestamp ? "true" : "false",
           !__wti_rts_visibility_txn_visible_id(session, tw->start_txn) ? "true" : "false",
           !WT_TIME_WINDOW_HAS_STOP(tw) && prepared ? "true" : "false");
-        if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY) &&
+        if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
           !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
             return (__rts_btree_ondisk_fixup_key(
               session, ref, rip, recno, row_key, vpack, rollback_timestamp));
@@ -739,10 +743,10 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
          * windows can be the same. To abort these updates, check for any stable update from history
          * store or remove the key.
          */
-        if (tw->start_ts == tw->stop_ts && tw->durable_start_ts == tw->durable_stop_ts &&
-          tw->start_txn == tw->stop_txn) {
-            WT_ASSERT(session, prepared == true);
-            if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY) &&
+        if (WT_TIME_WINDOW_HAS_START_PREPARE(tw) && tw->start_prepared_id == tw->stop_prepared_id &&
+          tw->start_prepare_ts == tw->stop_prepare_ts && tw->start_txn == tw->stop_txn) {
+            WT_ASSERT(session, prepared);
+            if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
               !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
                 return (__rts_btree_ondisk_fixup_key(
                   session, ref, rip, recno, row_key, vpack, rollback_timestamp));
@@ -771,14 +775,16 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
              * updates in the cache will be problematic. The transaction id of pages which are in
              * disk will be automatically reset as part of unpacking cell when loaded to cache.
              */
-            if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING))
+            if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
                 upd->txnid = WT_TXN_NONE;
             else
                 upd->txnid = tw->start_txn;
-            upd->durable_ts = tw->durable_start_ts;
-            upd->start_ts = tw->start_ts;
+            upd->upd_durable_ts = tw->durable_start_ts;
+            upd->upd_start_ts = tw->start_ts;
+            upd->prepare_ts = tw->start_prepare_ts;
+            upd->prepared_id = tw->start_prepared_id;
             F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
-            if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+            if (WT_DELTA_LEAF_ENABLED(session))
                 F_SET(upd, WT_UPDATE_DURABLE);
             WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_keys_restored);
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
@@ -787,8 +793,8 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
               "txnid=%" PRIu64
               " and removed commit_timestamp=%s, durable_timestamp=%s, txnid=%" PRIu64
               ", prepared=%s",
-              __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
-              __wt_timestamp_to_string(upd->durable_ts, ts_string[1]),
+              __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
+              __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[1]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[2]), upd->txnid,
               __wt_timestamp_to_string(tw->stop_ts, ts_string[3]),
               __wt_timestamp_to_string(tw->durable_stop_ts, ts_string[4]), tw->stop_txn,

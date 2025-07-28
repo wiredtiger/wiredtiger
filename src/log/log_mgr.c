@@ -314,7 +314,7 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
         WT_RET(__wt_config_gets(session, cfg, "log.prealloc_init_count", &cval));
         log_mgr->prealloc = (uint32_t)cval.val;
         log_mgr->prealloc_init_count = (uint32_t)cval.val;
-        WT_ASSERT(session, log_mgr->prealloc > 0);
+        WT_ASSERT(session, __wti_log_is_prealloc_enabled(session));
     }
 
     WT_RET(__wt_config_gets(session, cfg, "log.force_write_wait", &cval));
@@ -335,7 +335,7 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
 
     WT_RET(__wt_config_gets(session, cfg, "log.zero_fill", &cval));
     if (cval.val != 0) {
-        if (F_ISSET_ATOMIC_32(conn, WT_CONN_READONLY))
+        if (F_ISSET(conn, WT_CONN_READONLY))
             WT_RET_MSG(
               session, EINVAL, "Read-only configuration incompatible with zero-filling log files");
         F_SET(&conn->log_mgr, WT_LOG_ZERO_FILL);
@@ -442,7 +442,7 @@ __compute_min_lognum(WT_SESSION_IMPL *session, WTI_LOG *log, uint32_t backup_fil
 
     /* Encourage race conditions in log subsystem during database shutdown. */
     if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CLOSE_STRESS_LOG) &&
-      F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING)) {
+      F_ISSET(conn, WT_CONN_CLOSING)) {
         for (int i = 0; i < 50; i++)
             WT_IGNORE_RET(__wt_log_printf(session, "DEBUG: Stress for concurrency control"));
     }
@@ -570,7 +570,6 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
      * keep adding in more.
      */
     log->prep_missed = 0;
-
     if (0)
 err:
         __wt_err(session, ret, "log pre-alloc server error");
@@ -961,7 +960,7 @@ __log_server(void *arg)
             /*
              * Perform log pre-allocation.
              */
-            if (log_mgr->prealloc > 0) {
+            if (__wti_log_is_prealloc_enabled(session)) {
                 /*
                  * Log file pre-allocation is disabled when a hot backup cursor is open because we
                  * have agreed not to rename or remove any files in the database directory.

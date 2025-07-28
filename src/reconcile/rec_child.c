@@ -66,16 +66,16 @@ __rec_child_deleted(
                     visible = false;
             }
 
-            if (visible && F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT) &&
-              page_del->durable_timestamp > r->rec_start_pinned_stable_ts)
+            if (visible && F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+              page_del->pg_del_durable_ts > r->rec_start_pinned_stable_ts)
                 visible = false;
 
             visible_all = visible ? __wt_page_del_visible_all(session, page_del, true) : false;
         } else if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
             visible = __wt_page_del_visible(session, page_del, true);
 
-            if (visible && F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT) &&
-              page_del->durable_timestamp > r->rec_start_pinned_stable_ts)
+            if (visible && F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+              page_del->pg_del_durable_ts > r->rec_start_pinned_stable_ts)
                 visible = false;
 
             visible_all = visible ? __wt_page_del_visible_all(session, page_del, true) : false;

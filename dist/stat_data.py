@@ -104,6 +104,10 @@ class DhandleStat(Stat):
     prefix = 'data-handle'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, DhandleStat.prefix, desc, flags)
+class DisaggStat(Stat):
+    prefix = 'disagg'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, DisaggStat.prefix, desc, flags)
 class EvictCacheWalkStat(Stat):
     prefix = 'cache_walk'
     def __init__(self, name, desc, flags=''):
@@ -279,6 +283,7 @@ conn_stats = [
     BlockStat('block_byte_write_saved_delta_intl', 'bytes saved from being written when using internal page deltas', 'size'),
     BlockStat('block_byte_write_saved_delta_leaf', 'bytes saved from being written when using leaf page deltas', 'size'),
     BlockStat('block_byte_write_syscall', 'bytes written via system call API', 'size'),
+    BlockStat('block_first_srch_walk_time', 'time spent(usecs) on the most recent linear walk of extents during first-fit allocation', 'no_clear,no_scale'),
     BlockStat('block_map_read', 'mapped blocks read'),
     BlockStat('block_preload', 'blocks pre-loaded'),
     BlockStat('block_read', 'blocks read'),
@@ -540,6 +545,11 @@ conn_stats = [
     CursorSweepStat('cursor_sweep_buckets', 'cursor sweep buckets'),
     CursorSweepStat('cursor_sweep_closed', 'cursor sweep cursors closed'),
     CursorSweepStat('cursor_sweep_examined', 'cursor sweep cursors examined'),
+
+    ##########################################
+    # Disagg statistics
+    ##########################################
+    DisaggStat('disagg_role_leader', 'role leader'),
 
     ##########################################
     # Dhandle statistics
@@ -1055,8 +1065,6 @@ dsrc_stats = [
     # Reconciliation statistics
     ##########################################
     RecStat('rec_dictionary', 'dictionary matches'),
-    RecStat('rec_multiblock_internal', 'internal page multi-block writes'),
-    RecStat('rec_multiblock_leaf', 'leaf page multi-block writes'),
     RecStat('rec_multiblock_max', 'maximum blocks required for a page', 'max_aggregate,no_scale'),
     RecStat('rec_prefix_compression', 'leaf page key bytes discarded using prefix compression', 'size'),
     RecStat('rec_suffix_compression', 'internal page key bytes discarded using suffix compression', 'size'),
@@ -1121,6 +1129,8 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_deepen', 'page split during eviction deepened the tree'),
     CacheStat('cache_eviction_dirty', 'modified pages evicted'),
     CacheStat('cache_eviction_dirty_obsolete_tw', 'pages dirtied due to obsolete time window by eviction'),
+    CacheStat('cache_eviction_hs_cursor_not_cached', 'history store cursor not cached during eviction'),
+    CacheStat('cache_eviction_hs_shared_cursor_not_cached', 'shared history store cursor not cached during eviction'),
     CacheStat('cache_eviction_internal', 'internal pages evicted'),
     CacheStat('cache_eviction_pages_queued_clean', 'eviction walk pages queued that were clean'),
     CacheStat('cache_eviction_pages_queued_dirty', 'eviction walk pages queued that were dirty'),
@@ -1299,6 +1309,8 @@ conn_dsrc_stats = [
     RecStat('rec_ingest_garbage_collection_keys', 'number of keys that are garbage collected in the ingest table for disaggregated storage'),
     RecStat('rec_max_internal_page_deltas', 'max deltas seen on internal page during reconciliation'),
     RecStat('rec_max_leaf_page_deltas', 'max deltas seen on leaf page during reconciliation'),
+    RecStat('rec_multiblock_internal', 'internal page multi-block writes'),
+    RecStat('rec_multiblock_leaf', 'leaf page multi-block writes'),
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
     RecStat('rec_overflow_value', 'overflow values written'),
     RecStat('rec_page_delete', 'pages deleted'),

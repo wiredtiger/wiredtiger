@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -26,139 +26,333 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
+import wttest
+import os
+from wiredtiger import stat
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered45.py
-#    Test passing encryption keys to and from the PALI interface.
+# Entires have been durable are not included in the new delta
+
 @disagg_test_class
 class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    nitems = 500
-
-    # The keys in this test are integer values less than nitems that have been "stringized".
-    # Make an array of the keys in sort order so we can verify the results from scanning.
-    keys_in_order = sorted([str(k) for k in range(nitems)])
-
-    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(page_log=palm),'
-    conn_config = conn_base_config + 'disaggregated=(role="leader")'
-
-    create_session_config = 'key_format=S,value_format=S'
-
-    uri = "layered:test_layered45a"
-
+    uri = "layered:test_layered45"
+    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),transaction_sync=(enabled,method=fsync),' \
+                     + 'page_delta=(delta_pct=50),disaggregated=(page_log=palm),checkpoint=(precise=true),preserve_prepared=true,'
+    #conn_config = conn_base_config + 'disaggregated=(role="leader")'
     disagg_storages = gen_disagg_storages('test_layered45', disagg_only = True)
+
+    # Make scenarios for different cloud service providers
     scenarios = make_scenarios(disagg_storages)
 
-    # Load the page log extension, which has disaggregated storage support
-    def conn_extensions(self, extlist):
-        # Tell PALM to be verbose, and send that output to the WT
-        # extension message API.  This guarantees that it will be captured
-        # in the Python stdout file. Regular PALM verbose messages are not
-        # captured.
-        self.palm_debug = True
-        self.palm_config = 'verbose_msg=1'
+    nitems = 10
 
+    def session_create_config(self):
+        # The delta percentage of 100 is an arbitrary large value, intended to produce
+        # deltas a lot of the time.
+        return 'key_format=S,value_format=S'
+
+    def conn_config(self):
+        return self.conn_base_config + 'disaggregated=(role="leader")'
+
+    # Load the storage store extension.
+    def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        DisaggConfigMixin.conn_extensions(self, extlist)
+        extlist.extension('page_log', 'palm')
 
-    def put_data(self, value_prefix, low = 0, high = nitems, session = None):
-        if session == None:
-            session = self.session   # leader by default
-        cursor = session.open_cursor(self.uri, None, None)
-        for i in range(low, high):
-            cursor[str(i)] = value_prefix + str(i)
-        cursor.close()
+    def test_normal_update(self):
+        self.session.create(self.uri, self.session_create_config())
 
-    def check_data(self, cursor, value_prefix, low = 0, high = nitems):
-        for i in range(low, high):
-            self.assertEqual(cursor[str(i)], value_prefix + str(i))
+        cursor = self.session.open_cursor(self.uri, None, None)
+        value1 = "a"
+        value2 = "b"
 
-    # Scan data from low to high expecting to see all the keys and values using the given prefix.
-    #
-    # This function is sometimes called doing partial scans, and later, after a state change,
-    # continuing using the same cursor.  We are promised that cursor iteration results aren't
-    # affected by other transactions. Extending this reasoning to state changes, like picking up
-    # checkpoints and stepping up to leader, cursors should similarly be unaffected by state
-    # changes happening concurrently to the lifetime of the cursor.
-    def scan_data(self, cursor, value_prefix, low = 0, high = nitems):
-        if value_prefix == 'eee':
-            self.session_follow.breakpoint()
-        uri = self.uri
+        for i in range(self.nitems):
+            self.session.begin_transaction()
+            cursor[str(i)] = value1
+            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(5)}')
 
-        found = 0
-        for i in range(low, high):
-            ret = cursor.next()
-            if ret == wiredtiger.WT_NOTFOUND:
-                break
-            self.assertEqual(ret, 0)
-            expected_key = self.keys_in_order[i]
-            self.assertEqual(cursor.get_key(), expected_key)
-            self.assertEqual(cursor.get_value(), value_prefix + expected_key)
-            found += 1
-        self.assertEqual(found, high - low)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
 
-    # This test was copied from layered31, but has been simplified a lot.
-    # We want to establish a leader and follower, and have the follower
-    # step up to a leader and make changes.  This guarantees (on the follower),
-    # that page(s) have been read from disaggregated storage and that we
-    # are making changes to those changes.  The pages we receieved from DS
-    # have dek (encryption keys), and when we write deltas for those pages,
-    # we want to make sure we use those encryption keys.  We check this by reading
-    # the verbose output, looking for a message that we've used a saved key.
-    #
-    def test_layered45(self):
-        cfg = self.create_session_config
-        self.session.create(self.uri, cfg)
-
-        # Create the follower
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + \
-                                           self.conn_base_config + 'disaggregated=(role="follower")')
-        session_follow = conn_follow.open_session('')
-
-        self.session_follow = session_follow   # Useful for convenience functions
-
-        # Put data to the leader table
-        value_prefix0 = '---'
-        self.put_data(value_prefix0)
         self.session.checkpoint()
 
-        # Check data in the follower
-        self.disagg_advance_checkpoint(conn_follow)
-        follower_cursor = self.session_follow.open_cursor(self.uri)
-        self.check_data(follower_cursor, value_prefix0)
-        follower_cursor.close()
+        self.session.begin_transaction()
+        cursor[str(5)] = value2
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(10)}')
 
-        # Make a change on the leader, and propogate to the follower.
-        value_prefix1 = '+++'
-        self.put_data(value_prefix1)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
 
-        # Advance the checkpoint.
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
 
-        # Step up. We have two connections, our old leader and the follower that is becoming
-        # the new leader. Close the old leader first so there's no confusion within this test.
-        self.conn.close()
-        conn_follow.reconfigure('disaggregated=(role="leader")')
+        session2 = self.conn.open_session()
+        # Do an uncommitted update
+        session2.begin_transaction()
+        cursor2 = session2.open_cursor(self.uri, None, None)
+        cursor2[str(2)] = value1
 
-        # Now check that after closing, we get the new value
-        follower_cursor = self.session_follow.open_cursor(self.uri)
-        self.scan_data(follower_cursor, value_prefix1)
-        follower_cursor.close()
+        # We should build an empty delta
+        self.session.checkpoint()
 
-        value_prefix2 = '!!!'
-        self.put_data(value_prefix2, session = self.session_follow)
+        stat_cursor = self.session.open_cursor('statistics:')
+        self.assertEqual(stat_cursor[stat.conn.rec_page_delta_leaf][2], 1)
+        stat_cursor.close()
 
-        # Now, the encryption part of the test. Remove all output up to now. We've previously
-        # told PALM to be verbose and we're looking for a message that we've used the
-        # encryption key. Doing a checkpoint should trigger the message.  Close down the connection
-        # as well, as that generates other PALM verbose output that must be ignored.
-        self.cleanStderr()
-        self.cleanStdout()
-        with self.expectedStdoutPattern('.*palm using saved dek.*', maxchars=10000):
-            self.session_follow.checkpoint()
-            session_follow.close()
-            conn_follow.close()
+    def test_delete(self):
+        self.session.create(self.uri, self.session_create_config())
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        value1 = "a"
+
+        for i in range(self.nitems):
+            self.session.begin_transaction()
+            cursor[str(i)] = value1
+            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(5)}')
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
+
+        self.session.checkpoint()
+
+        self.session.begin_transaction()
+        cursor.set_key(str(5))
+        cursor.remove()
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(10)}')
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+
+        self.session.checkpoint()
+
+        session2 = self.conn.open_session()
+        # Do an uncommitted update
+        session2.begin_transaction()
+        cursor2 = session2.open_cursor(self.uri, None, None)
+        cursor2[str(2)] = value1
+
+        # We should build an empty delta
+        self.session.checkpoint()
+
+        stat_cursor = self.session.open_cursor('statistics:')
+        self.assertEqual(stat_cursor[stat.conn.rec_page_delta_leaf][2], 1)
+        stat_cursor.close()
+
+        session2.rollback_transaction()
+
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(20)},oldest_timestamp={self.timestamp_str(20)}')
+
+        # We should build a delta with delete
+        self.session.checkpoint()
+
+        session2 = self.conn.open_session()
+        # Do an uncommitted update
+        session2.begin_transaction()
+        cursor2 = session2.open_cursor(self.uri, None, None)
+        cursor2[str(2)] = value1
+
+        # We should build an empty delta
+        self.session.checkpoint()
+
+        stat_cursor = self.session.open_cursor('statistics:')
+        self.assertEqual(stat_cursor[stat.conn.rec_page_delta_leaf][2], 2)
+        stat_cursor.close()
+
+    def test_prepare_update(self):
+        # Currently this test will fail because we haven't added support for
+        # packing/unpacking prepare_ts and prepared_id on checkpoint yet, so it
+        # will fail cell validation when trying to read prepared_id from disk. Re-enable this test
+        # when the feature is supported.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
+        self.skipTest('FIXME-WT-14941 Enable when packing/unpacking prepare_ts and prepared_id on checkpoint is supported')
+        self.session.create(self.uri, self.session_create_config())
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        value1 = "a"
+        value2 = "b"
+
+        for i in range(self.nitems):
+            self.session.begin_transaction()
+            cursor[str(i)] = value1
+            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(5)}')
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
+
+        self.session.checkpoint()
+
+        self.session.begin_transaction()
+        cursor[str(5)] = value2
+        self.session.prepare_transaction(f'prepare_timestamp={self.timestamp_str(10)}')
+        cursor.reset()
+
+        session2 = self.conn.open_session()
+        # TODO: this is not needed when checkpoint starts to write prepared update
+        session2.begin_transaction("ignore_prepare=true")
+        evict_cursor = session2.open_cursor("file:test_layered45.wt_stable", None, "debug=(release_evict)")
+        self.assertEqual(evict_cursor[str(5)], value1)
+        evict_cursor.reset()
+        evict_cursor.close()
+        session2.rollback_transaction()
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+
+        session2.checkpoint()
+
+        session3 = self.conn.open_session()
+        # Do an uncommitted update
+        session3.begin_transaction()
+        cursor2 = session3.open_cursor(self.uri, None, None)
+        cursor2[str(2)] = value1
+        cursor2.reset()
+
+        # We should build an empty delta
+        session2.checkpoint()
+
+        stat_cursor = session2.open_cursor('statistics:')
+        self.assertEqual(stat_cursor[stat.conn.rec_page_delta_leaf][2], 1)
+        stat_cursor.close()
+
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(20)},durable_timestamp={self.timestamp_str(30)}')
+
+        # We should build a delta
+        session2.checkpoint()
+
+        # We should build an empty delta
+        session2.checkpoint()
+
+        stat_cursor = session2.open_cursor('statistics:')
+        self.assertEqual(stat_cursor[stat.conn.rec_page_delta_leaf][2], 2)
+        stat_cursor.close()
+
+    def test_prepare_delete(self):
+        # Currently this test will fail because we haven't added support for
+        # packing/unpacking prepare_ts and prepared_id on checkpoint yet, so it
+        # will fail cell validation when trying to read prepared_id from disk. Re-enable this test
+        # when the feature is supported.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
+        self.skipTest('FIXME-WT-14941 Enable when packing/unpacking prepare_ts and prepared_id on checkpoint is supported')
+        self.session.create(self.uri, self.session_create_config())
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        value1 = "a"
+        value2 = "b"
+
+        for i in range(self.nitems):
+            self.session.begin_transaction()
+            cursor[str(i)] = value1
+            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(5)}')
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
+
+        self.session.checkpoint()
+
+        self.session.begin_transaction()
+        cursor.set_key(str(5))
+        cursor.remove()
+        self.session.prepare_transaction(f'prepare_timestamp={self.timestamp_str(10)}')
+        cursor.reset()
+
+        session2 = self.conn.open_session()
+        # TODO: this is not needed when checkpoint starts to write prepared update
+        session2.begin_transaction("ignore_prepare=true")
+        evict_cursor = session2.open_cursor("file:test_layered45.wt_stable", None, "debug=(release_evict)")
+        self.assertEqual(evict_cursor[str(5)], value1)
+        evict_cursor.reset()
+        evict_cursor.close()
+        session2.rollback_transaction()
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+
+        session2.checkpoint()
+
+        session3 = self.conn.open_session()
+        # Do an uncommitted update
+        session3.begin_transaction()
+        cursor2 = session3.open_cursor(self.uri, None, None)
+        cursor2[str(2)] = value1
+        cursor2.reset()
+
+        # We should build an empty delta
+        session2.checkpoint()
+
+        stat_cursor = session2.open_cursor('statistics:')
+        self.assertEqual(stat_cursor[stat.conn.rec_page_delta_leaf][2], 1)
+        stat_cursor.close()
+
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(20)},durable_timestamp={self.timestamp_str(30)}')
+
+        # We should build a delta
+        session2.checkpoint()
+
+        # We should build an empty delta
+        session2.checkpoint()
+
+        stat_cursor = session2.open_cursor('statistics:')
+        self.assertEqual(stat_cursor[stat.conn.rec_page_delta_leaf][2], 2)
+        stat_cursor.close()
+
+    def test_prepare_update_delete(self):
+        # Currently this test will fail because we haven't added support for
+        # packing/unpacking prepare_ts and prepared_id on checkpoint yet, so it
+        # will fail cell validation when trying to read prepared_id from disk. Re-enable this test
+        # when the feature is supported.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
+        self.skipTest('FIXME-WT-14941 Enable when packing/unpacking prepare_ts and prepared_id on checkpoint is supported')
+        self.session.create(self.uri, self.session_create_config())
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        value1 = "a"
+        value2 = "b"
+
+        for i in range(self.nitems):
+            self.session.begin_transaction()
+            cursor[str(i)] = value1
+            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(5)}')
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
+
+        self.session.checkpoint()
+
+        self.session.begin_transaction()
+        cursor[str(5)] = value2
+        cursor.set_key(str(5))
+        cursor.remove()
+        self.session.prepare_transaction(f'prepare_timestamp={self.timestamp_str(10)}')
+        cursor.reset()
+
+        session2 = self.conn.open_session()
+        # TODO: this is not needed when checkpoint starts to write prepared update
+        session2.begin_transaction("ignore_prepare=true")
+        evict_cursor = session2.open_cursor("file:test_layered45.wt_stable", None, "debug=(release_evict)")
+        self.assertEqual(evict_cursor[str(5)], value1)
+        evict_cursor.reset()
+        evict_cursor.close()
+        session2.rollback_transaction()
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+
+        session2.checkpoint()
+
+        session3 = self.conn.open_session()
+        # Do an uncommitted update
+        session3.begin_transaction()
+        cursor2 = session3.open_cursor(self.uri, None, None)
+        cursor2[str(2)] = value1
+        cursor2.reset()
+
+        # We should build an empty delta
+        session2.checkpoint()
+
+        stat_cursor = session2.open_cursor('statistics:')
+        self.assertEqual(stat_cursor[stat.conn.rec_page_delta_leaf][2], 1)
+        stat_cursor.close()
+
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(20)},durable_timestamp={self.timestamp_str(30)}')
+
+        # We should build a delta
+        session2.checkpoint()
+
+        # We should build an empty delta
+        session2.checkpoint()
+
+        stat_cursor = session2.open_cursor('statistics:')
+        self.assertEqual(stat_cursor[stat.conn.rec_page_delta_leaf][2], 2)
+        stat_cursor.close()
