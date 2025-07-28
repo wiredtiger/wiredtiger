@@ -1040,21 +1040,34 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             WT_ERR(ret);
         }
 
-        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.flatten_leaf_page_delta", &cval));
+        WT_ERR(__wt_config_gets(session, cfg, "page_delta.flatten_leaf_page_delta", &cval));
         if (cval.val != 0)
-            F_SET(&conn->disaggregated_storage, WT_DISAGG_FLATTEN_LEAF_PAGE_DELTA);
+            F_SET(&conn->page_delta, WT_FLATTEN_LEAF_PAGE_DELTA);
 
-        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.internal_page_delta", &cval));
+        WT_ERR(__wt_config_gets(session, cfg, "page_delta.internal_page_delta", &cval));
         if (cval.val != 0)
-            F_SET(&conn->disaggregated_storage, WT_DISAGG_INTERNAL_PAGE_DELTA);
+            F_SET(&conn->page_delta, WT_INTERNAL_PAGE_DELTA);
 
-        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.leaf_page_delta", &cval));
+        WT_ERR(__wt_config_gets(session, cfg, "page_delta.leaf_page_delta", &cval));
         if (cval.val != 0)
-            F_SET(&conn->disaggregated_storage, WT_DISAGG_LEAF_PAGE_DELTA);
+            F_SET(&conn->page_delta, WT_LEAF_PAGE_DELTA);
 
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.lose_all_my_data", &cval));
         if (cval.val != 0)
             F_SET(&conn->disaggregated_storage, WT_DISAGG_NO_SYNC);
+
+        /*
+         * Get the percentage of a page size that a delta must be less than in order to write that
+         * delta (instead of just giving up and writing the full page).
+         */
+        WT_ERR(__wt_config_gets(session, cfg, "page_delta.delta_pct", &cval));
+        if (cval.len > 0 && cval.val >= 0)
+            conn->page_delta.delta_pct = (uint32_t)cval.val;
+
+        /* Get the maximum number of consecutive deltas allowed for a single page. */
+        WT_ERR(__wt_config_gets(session, cfg, "page_delta.max_consecutive_delta", &cval));
+        if (cval.len > 0 && cval.val >= 0)
+            conn->page_delta.max_consecutive_delta = (uint32_t)cval.val;
     }
 
 err:
@@ -1349,6 +1362,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
             upd->txnid = tw.start_txn;
             upd->upd_start_ts = tw.start_ts;
             upd->upd_durable_ts = tw.durable_start_ts;
+            upd->prepare_ts = tw.start_prepare_ts;
+            upd->prepared_id = tw.start_prepared_id;
         } else
             WT_ASSERT(session, tombstone != NULL);
 
@@ -1356,8 +1371,10 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
          * ingest table. */
         if (tombstone != NULL) {
             tombstone->txnid = tw.stop_txn;
-            tombstone->upd_start_ts = tw.start_ts;
-            tombstone->upd_durable_ts = tw.durable_start_ts;
+            tombstone->upd_start_ts = tw.stop_ts;
+            tombstone->upd_durable_ts = tw.durable_stop_ts;
+            tombstone->prepare_ts = tw.stop_prepare_ts;
+            tombstone->prepared_id = tw.stop_prepared_id;
             tombstone->next = upd;
 
             WT_ASSERT(session, tombstone->upd_durable_ts > last_checkpoint_timestamp);

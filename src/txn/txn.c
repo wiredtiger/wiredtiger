@@ -836,7 +836,7 @@ __txn_prepare_rollback_restore_hs_update(
     wt_timestamp_t durable_ts, hs_stop_durable_ts;
     size_t size, total_size;
     uint64_t type_full;
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    char ts_string[3][WT_TS_INT_STRING_SIZE];
 
     WT_ASSERT(session, upd_chain != NULL);
 
@@ -867,9 +867,11 @@ __txn_prepare_rollback_restore_hs_update(
     total_size += size;
 
     __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
-      "update restored from history store (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
+      "update restored from history store (txnid: %" PRIu64
+      ", start_ts: %s, prepare_ts: %s, durable_ts: %s",
       upd->txnid, __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
-      __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[1]));
+      __wt_timestamp_to_string(upd->prepare_ts, ts_string[1]),
+      __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[2]));
 
     /* If the history store record has a valid stop time point, append it. */
     if (hs_stop_durable_ts != WT_TS_MAX) {
@@ -887,9 +889,11 @@ __txn_prepare_rollback_restore_hs_update(
         total_size += size;
 
         __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
-          "tombstone restored from history store (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
+          "tombstone restored from history store (txnid: %" PRIu64
+          ", start_ts: %s, prepare_ts:%s, durable_ts: %s",
           tombstone->txnid, __wt_timestamp_to_string(tombstone->upd_start_ts, ts_string[0]),
-          __wt_timestamp_to_string(tombstone->upd_durable_ts, ts_string[1]));
+          __wt_timestamp_to_string(tombstone->prepare_ts, ts_string[1]),
+          __wt_timestamp_to_string(tombstone->upd_durable_ts, ts_string[2]));
 
         upd = tombstone;
     }
@@ -1435,7 +1439,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          */
         if (!commit && first_committed_upd == NULL) {
             tw_found = __wt_read_cell_time_window(cbt, &tw);
-            if (tw_found && tw.prepare == WT_PREPARE_INPROGRESS)
+            if (tw_found && WT_TIME_WINDOW_HAS_PREPARE(&tw))
                 WT_ERR(__txn_append_tombstone(session, op, cbt));
         }
         break;
