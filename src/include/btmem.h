@@ -1543,8 +1543,8 @@ struct __wt_update {
 #define upd_saved_txnid u.prepare_rollback.saved_txnid
 
     /*
-     * Prepared transaction fields. Note that when prepare_ts is set, start_ts should always also be
-     * set with prepare_ts.
+     * When transaction is prepared, both prepare_ts and start_ts should be assigned to prepare
+     * timestamp. After commit, start_ts will store the commit_ts.
      */
     uint64_t prepared_id;
     wt_timestamp_t prepare_ts;
