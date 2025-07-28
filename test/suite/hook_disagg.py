@@ -181,7 +181,7 @@ def replace_uri(uri):
     stat_prefix = 'statistics:'
     if uri.startswith(stat_prefix):
         return 'statistics:' + replace_uri(uri[len(stat_prefix):])
-    if is_layered(uri) and disagg_parameters.table_prefix != "layered":
+    if is_layered(uri) and disagg_parameters.table_prefix == "layered":
         return uri.replace("table:", "layered:")
     else:
         return uri

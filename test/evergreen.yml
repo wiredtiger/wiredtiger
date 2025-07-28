@@ -2190,7 +2190,7 @@ tasks:
           unit_test_parallel_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)"
 
   - name: unit-test-hook-disagg-leader-table
-    tags: ["pull_request", "python"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
@@ -2215,7 +2215,7 @@ tasks:
           unit_test_args: -v 2 --timeout 60 --hook "disagg=(role=follower)" base01
 
   - name: unit-test-hook-disagg-follower-table
-    tags: ["pull_request", "python"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
@@ -5586,6 +5586,8 @@ buildvariants:
     - name: unit-test-random-seed
     - name: unit-test-hook-disagg-leader
     - name: unit-test-hook-disagg-follower
+    - name: unit-test-hook-disagg-leader-table
+    - name: unit-test-hook-disagg-follower-table
     - name: unit-test-hook-tiered
     - name: unit-test-hook-tiered-with-delays
     - name: unit-test-hook-tiered-timestamp

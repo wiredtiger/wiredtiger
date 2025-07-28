@@ -310,7 +310,7 @@ __rec_row_merge(
 static int
 __rec_build_delta_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, bool build_delta)
 {
-    WT_DELTA_HEADER *header;
+    WT_PAGE_HEADER *header;
 
     if (!build_delta) {
         r->delta.size = 0;
@@ -318,7 +318,7 @@ __rec_build_delta_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, bool build_del
     }
 
     WT_RET(__wti_rec_build_delta_init(session, r));
-    header = (WT_DELTA_HEADER *)r->delta.data;
+    header = (WT_PAGE_HEADER *)r->delta.data;
     header->type = r->ref->page->type;
     return (0);
 }
@@ -522,13 +522,18 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             source_ta = &vpack->ta;
         } else {
             retain_onpage = true;
+
+            /*
+             * We may see a changed state here if the child reconciliation skipped writing an empty
+             * delta.
+             */
+            WT_ASSERT_ALWAYS(session,
+              cms.state == WTI_CHILD_ORIGINAL || WT_DELTA_ENABLED_FOR_PAGE(session, page->type),
+              "Not propagating the original fast-truncate information");
             /*
              * The transaction ids are cleared after restart. Repack the cell with new validity
              * information to flush cleared transaction ids.
              */
-            WT_ASSERT_ALWAYS(session,
-              cms.state == WTI_CHILD_ORIGINAL || F_ISSET(btree, WT_BTREE_DISAGGREGATED),
-              "Not propagating the original fast-truncate information");
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
 
             /* The proxy cells of fast truncate pages must be handled in the above flows. */
@@ -646,7 +651,7 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONC
     if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
         return (0);
 
-    for (upd = first_upd; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = first_upd->next)
+    for (upd = first_upd; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
         ;
 
     if (upd == NULL)
