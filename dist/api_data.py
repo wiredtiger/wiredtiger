@@ -135,9 +135,6 @@ connection_page_delta_config_common = [
         as well.''', min='1', max='32', type='int', undoc=True),
 ]
 connection_disaggregated_config_common = [
-    Config('checkpoint_id', '-1', r'''
-        the checkpoint ID from which to start (or restart) the node''',
-        min='-1', type='int', undoc=True),
     Config('checkpoint_meta', '', r'''
         the checkpoint metadata from which to start (or restart) the node''',
         undoc=True),
@@ -148,9 +145,6 @@ connection_disaggregated_config_common = [
         This setting skips file system syncs, and will cause data loss outside of a
         disaggregated storage context.''',
         type='boolean', undoc=True),
-    Config('next_checkpoint_id', '-1', r'''
-        the next checkpoint ID to open when starting (or restarting) the node''',
-        min='-1', type='int', undoc=True),
     Config('role', '', r'''
         whether the stable table in a layered data store should lead or follow''',
         choices=['leader', 'follower'], undoc=True),
@@ -910,7 +904,7 @@ connection_runtime_config = [
         choices=[
         'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
-        'compact_slow', 'conn_close_stress_log_printf', 'evict_reposition', 
+        'compact_slow', 'conn_close_stress_log_printf', 'evict_reposition',
         'failpoint_eviction_split', 'failpoint_history_store_delete_key_from_ts',
         'history_store_checkpoint_delay', 'history_store_search', 'history_store_sweep_race',
         'live_restore_clean_up', 'open_index_slow', 'prefetch_1', 'prefetch_2', 'prefetch_3',
@@ -1889,7 +1883,7 @@ methods = {
         type='boolean'),
     Config('claim_prepared_id', '0', r'''
         allow a session to claim a prepared transaction that was restored upon restart by
-        specifying the transaction's prepared ID.''', 
+        specifying the transaction's prepared ID.''',
         type='int', min=0)
 ], compilable=True),
 
@@ -1928,8 +1922,8 @@ methods = {
         timestamp. See @ref timestamp_prepare'''),
     Config('prepared_id', '0', r'''
         set the optional prepared ID for the prepared updates of the current transaction. Multiple
-        transactions can share a prepared transaction ID, as long as they are all guaranteed to 
-        share a decision whether to commit or abort and share the same prepare, commit and durable 
+        transactions can share a prepared transaction ID, as long as they are all guaranteed to
+        share a decision whether to commit or abort and share the same prepare, commit and durable
         timestamps. Default value 0 ignores this configuration option''', type='int', min=0)
 ]),
 
