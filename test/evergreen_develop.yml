@@ -28,8 +28,6 @@ variables:
       distros: ubuntu2004-wt-large
     - name: ".cppsuite-perf-test"
     - name: many-dhandle-stress
-    - name: cache-workload-dirty-trigger
-    - name: cache-workload-update-trigger
     - name: prefetch-off-verify
     - name: prefetch-on-verify
 
