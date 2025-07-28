@@ -1456,7 +1456,8 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
          */
         if (upd->type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
           !WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
-            WT_TIME_WINDOW_SET_STOP(&cbt->upd_value->tw, upd, prepare_state);
+            WT_TIME_WINDOW_SET_STOP(&cbt->upd_value->tw, upd,
+              prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
             continue;
         }
 
@@ -2325,9 +2326,11 @@ __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
         upd_value->buf.size = upd->size;
     }
     if (upd->type == WT_UPDATE_TOMBSTONE)
-        WT_TIME_WINDOW_SET_STOP(&(upd_value->tw), upd, prepare_state);
+        WT_TIME_WINDOW_SET_STOP(&(upd_value->tw), upd,
+          prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
     else
-        WT_TIME_WINDOW_SET_START(&(upd_value->tw), upd, prepare_state);
+        WT_TIME_WINDOW_SET_START(&(upd_value->tw), upd,
+          prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
 
     upd_value->type = upd->type;
 }

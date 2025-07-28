@@ -977,7 +977,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
      * that the value is visible to any timestamp/transaction id ahead of it.
      */
     if (upd->type == WT_UPDATE_TOMBSTONE) {
-        WT_TIME_WINDOW_SET_STOP(select_tw, upd, upd->prepare_state);
+        WT_TIME_WINDOW_SET_STOP(select_tw, upd, write_prepare);
         tombstone = upd_select->tombstone = upd;
 
         /*
@@ -1030,7 +1030,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
 
     if (upd != NULL)
         /* The beginning of the validity window is the selected update's time point. */
-        WT_TIME_WINDOW_SET_START(select_tw, upd, upd->prepare_state);
+        WT_TIME_WINDOW_SET_START(select_tw, upd, write_prepare);
     else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
         WT_ASSERT_ALWAYS(
           session, tombstone != NULL, "The only contents of the update list is a single tombstone");
@@ -1090,7 +1090,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
               "Tombstone is globally visible, but the tombstoned update is on the update "
               "chain");
             upd_select->upd = last_upd->next;
-            WT_TIME_WINDOW_SET_START(select_tw, last_upd->next, last_upd->next->prepare_state);
+            WT_TIME_WINDOW_SET_START(select_tw, last_upd->next, write_prepare);
         } else {
             /*
              * It's possible that onpage value is not appended if the tombstone becomes globally
