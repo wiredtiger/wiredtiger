@@ -1698,9 +1698,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Release our snapshot in case it is keeping data pinned (this is particularly important for
-     * checkpoints). Before releasing our snapshot, copy values into any positioned cursors so they
-     * don't point to updates that could be freed once we don't have a snapshot. If this transaction
-     * is prepared, then copying values would have been done during prepare.
+     * checkpoints). This will not make the updates visible to other threads because we haven't
+     * removed the transaction id from the global transaction table. Before releasing our snapshot,
+     * copy values into any positioned cursors so they don't point to updates that could be freed
+     * once we don't have a snapshot. If this transaction is prepared, then copying values would
+     * have been done during prepare.
      */
     if (session->ncursors > 0 && !prepare) {
         WT_DIAGNOSTIC_YIELD;
@@ -1714,56 +1716,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (prepare)
         __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
-
-    /* If we are logging, write a commit log record. */
-    if (txn->txn_log.logrec != NULL) {
-        /* Assert environment and tree are logging compatible, the fast-check is short-hand. */
-        WT_ASSERT(
-          session, !F_ISSET(conn, WT_CONN_RECOVERING) && F_ISSET(&conn->log_mgr, WT_LOG_ENABLED));
-
-        /*
-         * The default sync setting is inherited from the connection, but can be overridden by an
-         * explicit "sync" setting for this transaction.
-         */
-        WT_ERR(__wt_config_gets_def(session, cfg, "sync", 0, &cval));
-
-        /*
-         * If the user chose the default setting, check whether sync is enabled for this transaction
-         * (either inherited or via begin_transaction). If sync is disabled, clear the field to
-         * avoid the log write being flushed.
-         *
-         * Otherwise check for specific settings. We don't need to check for "on" because that is
-         * the default inherited from the connection. If the user set anything in begin_transaction,
-         * we only override with an explicit setting.
-         */
-        if (cval.len == 0) {
-            if (!FLD_ISSET(txn->txn_log.txn_logsync, WT_LOG_SYNC_ENABLED) &&
-              !F_ISSET(txn, WT_TXN_SYNC_SET))
-                txn->txn_log.txn_logsync = 0;
-        } else {
-            /*
-             * If the caller already set sync on begin_transaction then they should not be using
-             * sync on commit_transaction. Flag that as an error.
-             */
-            if (F_ISSET(txn, WT_TXN_SYNC_SET))
-                WT_ERR_MSG(session, EINVAL, "sync already set during begin_transaction");
-            if (WT_CONFIG_LIT_MATCH("off", cval))
-                txn->txn_log.txn_logsync = 0;
-            /*
-             * We don't need to check for "on" here because that is the default to inherit from the
-             * connection setting.
-             */
-        }
-
-        /*
-         * We hold the visibility lock for reading from the time we write our log record until the
-         * time we release our transaction so that the LSN any checkpoint gets will always reflect
-         * visible data.
-         */
-        __wt_readlock(session, &txn_global->visibility_rwlock);
-        locked = true;
-        WT_ERR(__wti_txn_log_commit(session));
-    }
 
     /* Process updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
@@ -1868,6 +1820,59 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     if (!prepare) {
         __wt_session_gen_enter(session, WT_GEN_TXN_COMMIT);
         WT_ERR(__txn_check_if_stable_has_moved_ahead_commit_ts(session));
+    }
+
+    /*
+     * If we are logging, write a commit log record after we have finished committing the updates
+     * in-memory. Otherwise, we may still rollback if we fail.
+     */
+    if (txn->txn_log.logrec != NULL) {
+        /* Assert environment and tree are logging compatible, the fast-check is short-hand. */
+        WT_ASSERT(
+          session, !F_ISSET(conn, WT_CONN_RECOVERING) && F_ISSET(&conn->log_mgr, WT_LOG_ENABLED));
+
+        /*
+         * The default sync setting is inherited from the connection, but can be overridden by an
+         * explicit "sync" setting for this transaction.
+         */
+        WT_ERR(__wt_config_gets_def(session, cfg, "sync", 0, &cval));
+
+        /*
+         * If the user chose the default setting, check whether sync is enabled for this transaction
+         * (either inherited or via begin_transaction). If sync is disabled, clear the field to
+         * avoid the log write being flushed.
+         *
+         * Otherwise check for specific settings. We don't need to check for "on" because that is
+         * the default inherited from the connection. If the user set anything in begin_transaction,
+         * we only override with an explicit setting.
+         */
+        if (cval.len == 0) {
+            if (!FLD_ISSET(txn->txn_log.txn_logsync, WT_LOG_SYNC_ENABLED) &&
+              !F_ISSET(txn, WT_TXN_SYNC_SET))
+                txn->txn_log.txn_logsync = 0;
+        } else {
+            /*
+             * If the caller already set sync on begin_transaction then they should not be using
+             * sync on commit_transaction. Flag that as an error.
+             */
+            if (F_ISSET(txn, WT_TXN_SYNC_SET))
+                WT_ERR_MSG(session, EINVAL, "sync already set during begin_transaction");
+            if (WT_CONFIG_LIT_MATCH("off", cval))
+                txn->txn_log.txn_logsync = 0;
+            /*
+             * We don't need to check for "on" here because that is the default to inherit from the
+             * connection setting.
+             */
+        }
+
+        /*
+         * We hold the visibility lock for reading from the time we write our log record until the
+         * time we release our transaction so that the LSN any checkpoint gets will always reflect
+         * visible data.
+         */
+        __wt_readlock(session, &txn_global->visibility_rwlock);
+        locked = true;
+        WT_ERR(__wti_txn_log_commit(session));
     }
 
     /*
