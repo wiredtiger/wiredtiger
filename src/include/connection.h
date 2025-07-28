@@ -173,19 +173,19 @@ struct __wt_disaggregated_checkpoint_track {
 };
 
 /*
- * WT_PAGE_DELTA --
- *      Configuration for the page delta.
+ * WT_PAGE_DELTA_CONFIG --
+ *      Metadata for tracking page deltas
  */
-struct __wt_page_delta {
+struct __wt_page_delta_config {
     wt_shared uint64_t max_internal_delta_count; /* The maximum number of internal deltas. */
     wt_shared uint64_t max_leaf_delta_count;     /* The maximum number of leaf deltas. */
 
     u_int delta_pct;             /* Delta page percent (of full page size) */
     u_int max_consecutive_delta; /* Max number of consecutive deltas */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_DISAGG_FLATTEN_LEAF_PAGE_DELTA 0x1u
-#define WT_DISAGG_INTERNAL_PAGE_DELTA 0x2u
-#define WT_DISAGG_LEAF_PAGE_DELTA 0x4u
+#define WT_FLATTEN_LEAF_PAGE_DELTA 0x1u
+#define WT_INTERNAL_PAGE_DELTA 0x2u
+#define WT_LEAF_PAGE_DELTA 0x4u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
@@ -765,7 +765,7 @@ struct __wt_connection_impl {
     bool prefetch_available;
 
     WT_DISAGGREGATED_STORAGE disaggregated_storage;
-    WT_PAGE_DELTA page_delta; /* Page delta configuration */
+    WT_PAGE_DELTA_CONFIG page_delta; /* Page delta configuration */
     WT_LAYERED_TABLE_MANAGER layered_table_manager;
     WT_PAGE_HISTORY page_history;
 

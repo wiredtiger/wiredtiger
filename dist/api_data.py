@@ -503,8 +503,7 @@ layered_config = [
         type='string', undoc=True),
 ]
 
-layered_meta = format_meta + layered_config + log_runtime_config +\
-                connection_disaggregated_config + connection_page_delta_config
+layered_meta = format_meta + layered_config + log_runtime_config + connection_disaggregated_config
 
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
 connection_runtime_config = [

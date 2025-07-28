@@ -317,7 +317,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
      * selected update is already durable.
      */
     if (upd_select->upd != NULL && F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
-      F_ISSET(&S2C(session)->page_delta, WT_DISAGG_LEAF_PAGE_DELTA)) {
+      F_ISSET(&S2C(session)->page_delta, WT_LEAF_PAGE_DELTA)) {
         if (upd_select->tombstone != NULL) {
             if (!F_ISSET(upd_select->tombstone, WT_UPDATE_DURABLE | WT_UPDATE_PREPARE_DURABLE))
                 return (true);
