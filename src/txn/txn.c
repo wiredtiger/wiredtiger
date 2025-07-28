@@ -1648,7 +1648,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     uint32_t prepare_count;
 #endif
     u_int i;
-    bool cannot_fail, locked, prepare, readonly, update_durable_ts;
+    bool cannot_fail, locked, logged, prepare, readonly, update_durable_ts;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -1660,7 +1660,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     readonly = txn->mod_count == 0;
-    cannot_fail = locked = false;
+    cannot_fail = locked = logged = false;
 
     /* Permit the commit if the transaction failed, but was read-only. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
@@ -1716,6 +1716,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (prepare)
         __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
+
+    if (__wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_COMMIT, 10000)) {
+        ret = WT_ERROR;
+        goto err;
+    }
 
     /* Process updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
@@ -1873,6 +1878,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_readlock(session, &txn_global->visibility_rwlock);
         locked = true;
         WT_ERR(__wti_txn_log_commit(session));
+        logged = true;
     }
 
     /*
@@ -1990,6 +1996,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     return (0);
 
 err:
+    WT_ASSERT_ALWAYS(session, !logged, "logged the transaction but commit failed.");
     /*
      * Leave the commit generation in the error case.
      */

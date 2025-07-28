@@ -35,6 +35,7 @@ const WT_NAME_FLAG __wt_stress_types[] = {
   {"compact_slow", WT_TIMING_STRESS_COMPACT_SLOW},
   {"conn_close_stress_log_printf", WT_TIMING_STRESS_CLOSE_STRESS_LOG},
   {"evict_reposition", WT_TIMING_STRESS_EVICT_REPOSITION},
+  {"failpoint_commit", WT_TIMING_STRESS_FAILPOINT_COMMIT},
   {"failpoint_eviction_split", WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT},
   {"failpoint_history_delete_key_from_ts",
     WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS},
