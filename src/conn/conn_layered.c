@@ -1033,8 +1033,6 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
                 __wt_buf_free(session, &complete_checkpoint_meta);
                 WT_ERR(ret);
-
-                picked_up = true;
             }
             WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_begin_checkpoint(session));
             WT_ERR(ret);
