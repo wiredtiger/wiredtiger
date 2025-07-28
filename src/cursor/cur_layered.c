@@ -391,7 +391,7 @@ __clayered_adjust_state(
         WT_ACQUIRE_READ(
           last_checkpoint_meta_lsn, conn->disaggregated_storage.last_checkpoint_meta_lsn);
     else
-        last_checkpoint_meta_lsn = 0;
+        last_checkpoint_meta_lsn = WT_DISAGG_LSN_NONE;
 
     /*
      * Has any state changed? What is not checked here is the possibility that a step down and step

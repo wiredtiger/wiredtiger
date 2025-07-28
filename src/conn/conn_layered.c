@@ -917,11 +917,14 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_DECL_RET;
     WT_ITEM complete_checkpoint_meta;
     WT_NAMED_PAGE_LOG *npage_log;
-    bool leader, was_leader;
+    bool leader, picked_up, was_leader;
 
     conn = S2C(session);
     leader = was_leader = conn->layered_table_manager.leader;
     npage_log = NULL;
+    picked_up = false;
+
+    WT_CLEAR(complete_checkpoint_meta);
 
     /* Reconfigure-only settings. */
     if (reconfig) {
@@ -1012,10 +1015,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             WT_WITH_CHECKPOINT_LOCK(
               session, ret = __disagg_pick_up_checkpoint_meta(session, &cval));
             WT_ERR(ret);
+            picked_up = true;
         }
 
         /* If we are starting as primary (e.g., for internal testing), begin the checkpoint. */
-        if (leader) {
+        if (leader && !picked_up) {
             WT_ERR(__wt_config_gets(session, cfg, "create", &cval));
             if (cval.val == 0) {
                 ret = __layered_get_disagg_checkpoint(
@@ -1029,6 +1033,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
                 __wt_buf_free(session, &complete_checkpoint_meta);
                 WT_ERR(ret);
+
+                picked_up = true;
             }
             WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_begin_checkpoint(session));
             WT_ERR(ret);

@@ -511,13 +511,13 @@ struct __wt_block_disagg_header {
 #define WT_BLOCK_DISAGG_DATA_CKSUM 0x1u /* Block data is part of the checksum */
 #define WT_BLOCK_DISAGG_ENCRYPTED 0x2u  /* Data following header is encrypted */
 #define WT_BLOCK_DISAGG_COMPRESSED 0x4u /* Data following header is compressed */
-    uint8_t flags;                      /* 13: flags */
+    uint8_t flags;                      /* 12: flags */
 
     /*
      * End the structure with 3 bytes of padding: it wastes space, but it leaves the structure
      * 32-bit aligned and having an extra couple bytes to play with in the future can't hurt.
      */
-    uint8_t unused[3]; /* 14-15: unused padding */
+    uint8_t unused[3]; /* 13-15: unused padding */
 };
 
 /*
