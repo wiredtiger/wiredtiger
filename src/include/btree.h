@@ -332,11 +332,11 @@ struct __wt_salvage_cookie {
 
 #define WT_DELTA_LEAF_ENABLED(session)                 \
     (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && \
-      F_ISSET(&S2C(session)->disaggregated_storage, WT_LEAF_PAGE_DELTA))
+      F_ISSET(&S2C(session)->page_delta, WT_LEAF_PAGE_DELTA))
 
 #define WT_DELTA_INT_ENABLED(session)                  \
     (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && \
-      F_ISSET(&S2C(session)->disaggregated_storage, WT_INTERNAL_PAGE_DELTA))
+      F_ISSET(&S2C(session)->page_delta, WT_INTERNAL_PAGE_DELTA))
 
 #define WT_DELTA_ENABLED_FOR_PAGE(session, type) \
     ((type) == WT_PAGE_ROW_LEAF ? WT_DELTA_LEAF_ENABLED(session) : WT_DELTA_INT_ENABLED(session))
