@@ -1436,7 +1436,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          */
         if (!commit && first_committed_upd == NULL) {
             tw_found = __wt_read_cell_time_window(cbt, &tw);
-            if (tw_found && tw.prepare == WT_PREPARE_INPROGRESS)
+            if (tw_found && WT_TIME_WINDOW_HAS_PREPARE(&tw))
                 WT_ERR(__txn_prepare_rollback_delete_key(session, op, cbt));
         }
         break;
@@ -2121,13 +2121,21 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
              * truncation pages, they aren't linked into the transaction's modify list and so can't
              * be considered.
              */
-            for (tmp = upd->next; tmp != NULL && tmp->txnid == upd->txnid; tmp = tmp->next)
+            for (tmp = upd->next; tmp != NULL; tmp = tmp->next) {
+                /* We may see aborted reserve updates in between the prepared updates. */
+                if (tmp->txnid == WT_TXN_ABORTED)
+                    continue;
+
+                if (tmp->txnid != upd->txnid)
+                    break;
+
                 if (tmp->type != WT_UPDATE_RESERVE &&
                   !F_ISSET(tmp, WT_UPDATE_RESTORED_FAST_TRUNCATE)) {
                     F_SET(op, WT_TXN_OP_KEY_REPEATED);
                     ++prepared_updates_key_repeated;
                     break;
                 }
+            }
             break;
         case WT_TXN_OP_REF_DELETE:
             __wt_txn_op_delete_apply_prepare_state(session, op->u.ref, false);
