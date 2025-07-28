@@ -4935,7 +4935,7 @@ tasks:
         vars:
           test-name: evict-btree-1.wtperf
 
-  - name: cache-workload-dirty-trigger
+  - name: perf-cache-workload-dirty-trigger
     tags: ["evict-perf"]
     depends_on:
       - name: compile
@@ -4956,7 +4956,7 @@ tasks:
         vars:
           test-name: cache_workload_dirty_trigger.py
 
-  - name: cache-workload-update-trigger
+  - name: perf-cache-workload-update-trigger
     tags: ["evict-perf"]
     depends_on:
       - name: compile
