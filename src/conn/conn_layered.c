@@ -981,6 +981,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             /* Do some cleanup as we are abandoning the current checkpoint. */
             __disagg_copy_metadata_clear(session);
     }
+    WT_STAT_CONN_SET(session, disagg_role_leader, leader ? 1 : 0);
 
     /* Connection init settings only. */
 
