@@ -2082,7 +2082,7 @@ __txn_modify_block(
               "Conflict with update with txn id %" PRIu64
               " at start timestamp: %s, prepare timestamp: %s",
               upd->txnid, __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
-              __wt_timestamp_to_string(upd->upd_start_ts, ts_string[1]));
+              __wt_timestamp_to_string(upd->prepare_ts, ts_string[1]));
             rollback = true;
             break;
         }
