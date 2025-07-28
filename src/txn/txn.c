@@ -1717,6 +1717,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     if (prepare)
         __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
 
+    /* Fail the commit before we process the updates if the fail point is enabled. */
     if (__wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_COMMIT, 10000)) {
         ret = WT_ERROR;
         goto err;
