@@ -187,7 +187,7 @@ reread:
                 if (result == last && block_meta != NULL) {
                     WT_ASSERT(session, get_args.lsn > 0);
                     WT_ASSERT(session,
-                      get_args.delta_count > 0 ==
+                      (get_args.delta_count > 0) ==
                         FLD_ISSET(flags, WT_BLOCK_DISAGG_ADDR_FLAG_DELTA));
 
                     /* The server is allowed to set base LSN to 0 for full page images. */
