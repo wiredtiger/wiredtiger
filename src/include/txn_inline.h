@@ -2251,11 +2251,11 @@ __wt_txn_read_last(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_read_last_check --
+ * __wt_txn_read_committed_should_release_snapshot --
  *     Called to check whether we want to release our snapshot through calling WT_CURSOR::reset().
  */
 static WT_INLINE bool
-__wt_txn_read_last_check(WT_SESSION_IMPL *session)
+__wt_txn_read_committed_should_release_snapshot(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
 

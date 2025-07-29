@@ -127,7 +127,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update, bool iter
      * to adhere to that behavior. Ideally we should not be changing the active cursors counter
      * outside of the file cursor code.
      */
-    if (reset && __wt_txn_read_last_check(session)) {
+    if (reset && __wt_txn_read_committed_should_release_snapshot(session)) {
         WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT));
         WT_RET(__clayered_reset_cursors(clayered, false));
     }
