@@ -652,9 +652,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
     is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
     session_txnid = __wt_atomic_loadv64(&WT_SESSION_TXN_SHARED(session)->id);
     seen_prepare = false;
+    *write_prepare = false;
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
-
+        *write_prepare = false;
         WT_ACQUIRE_READ(txnid, upd->txnid);
         /*
          * If we have seen a globally visible tombstone that rolled back a prepared update, we must
