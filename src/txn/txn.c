@@ -1719,13 +1719,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Process updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
-        /* Fail the commit before we process the updates if the fail point is enabled. */
-        if (!WT_IS_METADATA(op->btree->dhandle) &&
-          __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_COMMIT, 10000)) {
-            ret = WT_ERROR;
-            goto err;
-        }
-
         switch (op->type) {
         case WT_TXN_OP_NONE:
             break;

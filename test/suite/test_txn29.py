@@ -27,13 +27,17 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
+from helper import simulate_crash_restart
 
 # test_txn29.py
 #   Test that transaction cannot be rolled back after being logged.
 class test_txn29(wttest.WiredTigerTestCase):
-    conn_config = "log=(enabled=true),timing_stress_for_test=[failpoint_commit]"
+    conn_config = "log=(enabled=true)"
 
-    def test_snapshot_array_dump(self):
+    def test_transaction_logging(self):
+        if wiredtiger.diagnostic_build():
+            self.skipTest('requires a non-diagnostic build')
+
         # Create a logged table
         uri1 = "file:txn29-1"
         self.session.create(uri1, 'key_format=i,value_format=S')
@@ -50,5 +54,34 @@ class test_txn29(wttest.WiredTigerTestCase):
         cursor2 = self.session.open_cursor(uri2)
         cursor2[1] = "aaaa"
         cursor2.reset()
+        self.session.commit_transaction(f'sync=on,commit_timestamp={self.timestamp_str(20)}')
+
+
+        # Do an update on the logged table and the non-logged table
+        self.session.begin_transaction()
+        cursor1 = self.session.open_cursor(uri1)
+        cursor1[1] = "bbbb"
+        cursor1.reset()
+        cursor2 = self.session.open_cursor(uri2)
+        cursor2[1] = "bbbb"
+        cursor2.reset()
         self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(80)}'))
+            lambda: self.session.commit_transaction(f'sync=on,commit_timestamp={self.timestamp_str(10)}'))
+
+        simulate_crash_restart(self, ".", "RESTART")
+
+        # Should not see bbbb.
+        self.session.begin_transaction()
+        cursor2 = self.session.open_cursor(uri2)
+        cursor2.set_key(1)
+        self.assertEqual(cursor2.search(), wiredtiger.WT_NOTFOUND)
+        cursor2.close()
+        cursor1 = self.session.open_cursor(uri1)
+        cursor1.set_key(1)
+        cursor1.search()
+        value = cursor1.get_value()
+        self.assertEqual(value, 'aaaa')
+        cursor1.close()
+        self.session.rollback_transaction()
+
+        self.ignoreStderrPatternIfExists('unexpected timestamp usage')
