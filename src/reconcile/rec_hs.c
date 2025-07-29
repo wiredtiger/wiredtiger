@@ -699,7 +699,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             continue;
 
         /* Skip aborted updates. */
-        for (upd = list->onpage_upd->next; upd != NULL && upd->txnid == WT_TXN_ABORTED;
+        for (upd = list->onpage_upd->next; upd != NULL &&
+             (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) || upd->txnid == WT_TXN_ABORTED);
              upd = upd->next)
             ;
 

@@ -669,7 +669,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                 continue;
 
             WT_READ_ONCE(prepare_state, upd->prepare_state);
-            if (prepare_state != WT_PREPARE_INPROGRESS)
+            if (prepare_state != WT_PREPARE_INPROGRESS && prepare_state != WT_PREPARE_LOCKED)
                 continue;
 
             /* Ignore the prepared update if the rollback timestamp is stable. */
@@ -1169,7 +1169,9 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
     upd = upd_select->upd;
 
     WT_ASSERT_ALWAYS(session,
-      upd == NULL || (upd->txnid != WT_TXN_ABORTED && upd->type != WT_UPDATE_RESERVE),
+      upd == NULL ||
+        ((F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) || upd->txnid != WT_TXN_ABORTED) &&
+          upd->type != WT_UPDATE_RESERVE),
       "Reconciliation should never see an aborted or reserved update");
 
     /*
@@ -1306,7 +1308,9 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
     /*
      * Paranoia: check that we didn't choose an update that has since been rolled back.
      */
-    WT_ASSERT_ALWAYS(session, upd_select->upd == NULL || upd_select->upd->txnid != WT_TXN_ABORTED,
+    WT_ASSERT_ALWAYS(session,
+      upd_select->upd == NULL || upd_select->upd->txnid != WT_TXN_ABORTED ||
+        F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED),
       "Updated selected that has since been rolled back");
 
     /*

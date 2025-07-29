@@ -159,7 +159,6 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # will fail cell validation when trying to read prepared_id from disk. Re-enable this test
         # when the feature is supported.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.skipTest('FIXME-WT-14941 Enable when packing/unpacking prepare_ts and prepared_id on checkpoint is supported')
         self.session.create(self.uri, self.session_create_config())
 
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -177,7 +176,7 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         self.session.begin_transaction()
         cursor[str(5)] = value2
-        self.session.prepare_transaction(f'prepare_timestamp={self.timestamp_str(10)}')
+        self.session.prepare_transaction(f'prepare_timestamp={self.timestamp_str(10)},prepared_id=1')
         cursor.reset()
 
         session2 = self.conn.open_session()
@@ -225,7 +224,6 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # will fail cell validation when trying to read prepared_id from disk. Re-enable this test
         # when the feature is supported.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.skipTest('FIXME-WT-14941 Enable when packing/unpacking prepare_ts and prepared_id on checkpoint is supported')
         self.session.create(self.uri, self.session_create_config())
 
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -244,7 +242,7 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.begin_transaction()
         cursor.set_key(str(5))
         cursor.remove()
-        self.session.prepare_transaction(f'prepare_timestamp={self.timestamp_str(10)}')
+        self.session.prepare_transaction(f'prepare_timestamp={self.timestamp_str(10)},prepared_id=1')
         cursor.reset()
 
         session2 = self.conn.open_session()
@@ -292,7 +290,6 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # will fail cell validation when trying to read prepared_id from disk. Re-enable this test
         # when the feature is supported.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.skipTest('FIXME-WT-14941 Enable when packing/unpacking prepare_ts and prepared_id on checkpoint is supported')
         self.session.create(self.uri, self.session_create_config())
 
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -312,7 +309,7 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor[str(5)] = value2
         cursor.set_key(str(5))
         cursor.remove()
-        self.session.prepare_transaction(f'prepare_timestamp={self.timestamp_str(10)}')
+        self.session.prepare_transaction(f'prepare_timestamp={self.timestamp_str(10)},prepared_id=1')
         cursor.reset()
 
         session2 = self.conn.open_session()

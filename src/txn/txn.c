@@ -1151,6 +1151,7 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
 
         upd->upd_saved_txnid = upd->txnid;
         WT_RELEASE_WRITE_WITH_BARRIER(upd->txnid, WT_TXN_ABORTED);
+        WT_RELEASE_WRITE_WITH_BARRIER(upd->prepare_state, WT_PREPARE_INPROGRESS);
         WT_STAT_CONN_INCR(session, txn_prepared_updates_rolledback);
         return;
     }
