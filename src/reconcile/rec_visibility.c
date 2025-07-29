@@ -636,7 +636,7 @@ __rec_calc_upd_memsize(WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, size_t upd_m
 static int
 __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_upd,
   WTI_UPDATE_SELECT *upd_select, WT_UPDATE **first_txn_updp, bool *has_newer_updatesp,
-  bool *write_preparep, size_t *upd_memsizep)
+  bool *write_prepare, size_t *upd_memsizep)
 {
     WT_CONNECTION_IMPL *conn;
     WT_UPDATE *upd, *prepare_rollback_tombstone;
@@ -652,9 +652,9 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
     is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
     session_txnid = __wt_atomic_loadv64(&WT_SESSION_TXN_SHARED(session)->id);
     seen_prepare = false;
-    *write_preparep = false;
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
+
         WT_ACQUIRE_READ(txnid, upd->txnid);
         /*
          * If we have seen a globally visible tombstone that rolled back a prepared update, we must
@@ -806,7 +806,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                     *has_newer_updatesp = true;
                 }
 
-                *write_preparep = true;
+                *write_prepare = true;
             } else if (prepare_state == WT_PREPARE_RESOLVED) {
                 if (upd->prepare_ts > r->rec_start_pinned_stable_ts) {
                     WT_ASSERT(session, !is_hs_page);
@@ -830,7 +830,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
 
                     WT_ASSERT(session, !is_hs_page);
                     *has_newer_updatesp = true;
-                    *write_preparep = true;
+                    *write_prepare = true;
                 }
             } else if (upd->upd_durable_ts > r->rec_start_pinned_stable_ts) {
                 WT_ASSERT(session, !is_hs_page);
@@ -850,7 +850,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                     seen_prepare = true;
                     continue;
                 } else {
-                    *write_preparep = true;
+                    *write_prepare = true;
 
                     /*
                      * If we are not in eviction, we must be in salvage to reach here. Since salvage
@@ -886,7 +886,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             upd_select->upd = upd;
         else if (prepare_rollback_tombstone != NULL) {
             WT_ASSERT(session,
-              *write_preparep && upd->txnid == WT_TXN_ABORTED &&
+              *write_prepare && upd->txnid == WT_TXN_ABORTED &&
                 upd->prepare_state == WT_PREPARE_INPROGRESS &&
                 prepare_rollback_tombstone->next == upd);
             upd_select->upd = upd;
@@ -896,7 +896,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
         if (max_txn < txnid)
             max_txn = txnid;
 
-        if (*write_preparep) {
+        if (*write_prepare) {
             if (upd->prepare_ts > max_ts)
                 max_ts = upd->prepare_ts;
         } else {
@@ -1028,10 +1028,18 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
         }
     }
 
-    if (upd != NULL)
+    if (upd != NULL) {
         /* The beginning of the validity window is the selected update's time point. */
-        WT_TIME_WINDOW_SET_START(select_tw, upd, write_prepare);
-    else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
+        if (tombstone == NULL)
+            WT_TIME_WINDOW_SET_START(select_tw, upd, write_prepare);
+        else
+            /* if tombstone exist and this update is also prepare -> write prepare, otherwise write
+             * the complete update */
+            WT_TIME_WINDOW_SET_START(select_tw, upd,
+              write_prepare &&
+                (upd->prepare_state == WT_PREPARE_INPROGRESS ||
+                  upd->prepare_state == WT_PREPARE_LOCKED));
+    } else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
         WT_ASSERT_ALWAYS(
           session, tombstone != NULL, "The only contents of the update list is a single tombstone");
 
@@ -1090,7 +1098,11 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
               "Tombstone is globally visible, but the tombstoned update is on the update "
               "chain");
             upd_select->upd = last_upd->next;
-            WT_TIME_WINDOW_SET_START(select_tw, last_upd->next, write_prepare);
+            WT_ASSERT(session,
+              last_upd->next->prepare_state != WT_PREPARE_INPROGRESS &&
+                last_upd->next->prepare_state != WT_PREPARE_LOCKED);
+            /* should always write completed original update */
+            WT_TIME_WINDOW_SET_START(select_tw, last_upd->next, false);
         } else {
             /*
              * It's possible that onpage value is not appended if the tombstone becomes globally
