@@ -527,3 +527,11 @@ struct __wt_block_disagg_header {
 #define WT_BLOCK_DISAGG_HEADER_SIZE 16
 #define WT_BLOCK_DISAGG_HEADER_BYTE_SIZE (WT_PAGE_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_SIZE)
 #define WT_BLOCK_DISAGG_CHECKPOINT_BUFFER (1024)
+
+/*
+ * Flags for address cookies in disaggregated storage.
+ */
+#define WT_BLOCK_DISAGG_ADDR_FLAG_DELTA 0x1u /* Address is a delta */
+
+/* The mask of all currently supported flags (for verification). */
+#define WT_BLOCK_DISAGG_ADDR_ALL_FLAGS (WT_BLOCK_DISAGG_ADDR_FLAG_DELTA)
