@@ -59,13 +59,14 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     uri = 'layered:test_verify_disagg'
 
-    def leader_put_data(self, ts, value_prefix = '', low = 1, high = nitems):
+    def leader_put_data(self, value_prefix = '', low = 1, high = nitems):
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(low, high):
             self.session.begin_transaction()
             cursor[str(i)] = value_prefix + str(i)
             self.timestamp += 1
-            ts_cfg = "commit_timestamp=" + self.timestamp_str(self.timestamp) if ts else None
+            # Setting the commit timestamp to fill the history store if required
+            ts_cfg = "commit_timestamp=" + self.timestamp_str(self.timestamp) if self.fill_hs else None
             self.session.commit_transaction(ts_cfg)
         cursor.close()
 
@@ -108,10 +109,10 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.verify([self.session, self.session_follow])
 
         # Put some data to the leader
-        self.leader_put_data(self.fill_hs)
+        self.leader_put_data()
         # Perform update operations to fill HS
-        self.leader_put_data(self.fill_hs, value_prefix = 'aaa')
-        self.leader_put_data(self.fill_hs, value_prefix = 'bbb')
+        self.leader_put_data(value_prefix = 'aaa')
+        self.leader_put_data(value_prefix = 'bbb')
         # That's not allowed to perform verification if there is some dirty data
         self.verify([self.session], "Device or resource busy")
 
