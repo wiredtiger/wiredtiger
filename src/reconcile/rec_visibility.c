@@ -631,7 +631,9 @@ __rec_calc_upd_memsize(WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, size_t upd_m
 
 /*
  * __rec_upd_select --
- *     Select the update to write to disk image.
+ *     Select the update to write to disk image. @param write_prepare True if we should write the
+ *     update as a prepared update (prepare timestamp is stable but durable timestamp is not), false
+ *     to write as committed.
  */
 static int
 __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_upd,
@@ -1034,8 +1036,10 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
         if (tombstone == NULL)
             WT_TIME_WINDOW_SET_START(select_tw, upd, write_prepare);
         else
-            /* if tombstone exist and this update is also prepare -> write prepare, otherwise write
-             * the complete update */
+            /*
+             * If tombstone exist and this update is also prepare -> write prepare, otherwise write
+             * the complete update
+             */
             WT_TIME_WINDOW_SET_START(select_tw, upd,
               write_prepare &&
                 (upd->prepare_state == WT_PREPARE_INPROGRESS ||
@@ -1121,7 +1125,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
             upd_select->upd = tombstone;
         }
     }
-        WT_ASSERT(session,
+    WT_ASSERT(session,
       !WT_TIME_WINDOW_HAS_STOP_PREPARE(&(upd_select->tw)) ||
         upd_select->tw.stop_prepare_ts >= upd_select->tw.start_ts);
     return (0);
