@@ -1991,7 +1991,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     return (0);
 
 err:
-    WT_ASSERT_ALWAYS(session, !logged, "logged the transaction but commit failed.");
     /*
      * Leave the commit generation in the error case.
      */
@@ -2008,6 +2007,8 @@ err:
     if (cannot_fail)
         WT_RET_PANIC(session, ret,
           "failed to commit a transaction after data corruption point, failing the system");
+    else if (logged)
+        WT_RET_PANIC(session, ret, "failed to commit a transaction after logging it");
 
     /*
      * Check for a prepared transaction, and quit: we can't ignore the error and we can't roll back
