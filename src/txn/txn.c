@@ -1648,7 +1648,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     uint32_t prepare_count;
 #endif
     u_int i;
-    bool cannot_fail, locked, logged, prepare, readonly, update_durable_ts;
+    bool cannot_fail, locked, prepare, readonly, update_durable_ts;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -1660,7 +1660,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     readonly = txn->mod_count == 0;
-    cannot_fail = locked = logged = false;
+    cannot_fail = locked = false;
 
     /* Permit the commit if the transaction failed, but was read-only. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
@@ -1873,8 +1873,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_readlock(session, &txn_global->visibility_rwlock);
         locked = true;
         WT_ERR(__wti_txn_log_commit(session));
-        logged = true;
     }
+
+    /*
+     * !!!WARNING: Don't add anything that can fail here. We cannot fail after we have logged the
+     * transaction.
+     */
 
     /*
      * Note: we're going to commit: nothing can fail after this point. Set a check, it's too easy to
@@ -2007,8 +2011,6 @@ err:
     if (cannot_fail)
         WT_RET_PANIC(session, ret,
           "failed to commit a transaction after data corruption point, failing the system");
-    else if (logged)
-        WT_RET_PANIC(session, ret, "failed to commit a transaction after logging it");
 
     /*
      * Check for a prepared transaction, and quit: we can't ignore the error and we can't roll back
