@@ -2228,14 +2228,14 @@ static int
 __rec_pack_delta_leaf_custom(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *supd)
 {
     WT_CURSOR_BTREE *cbt;
+    WT_DECL_ITEM(custom_value);
     WT_DECL_RET;
     WT_ITEM *key, *value;
-    uint8_t custom_value[2];
     uint8_t flags, *p;
 
     cbt = &r->update_modify_cbt;
-    custom_value[0] = custom_value[1] = 0;
     flags = 0;
+    WT_ERR(__wt_scr_alloc(session, 0, &custom_value));
 
     /* Get the key data and pack it into a key cell. */
     WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
@@ -2270,10 +2270,10 @@ __rec_pack_delta_leaf_custom(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE
     }
 
     /* Pack the flags and delta value into a custom value. */
-    p = custom_value;
-    *p = flags;
-    p++;
+    WT_RET(__wt_buf_init(session, custom_value, key->size + 1 + value->size));
+    p = (uint8_t *)custom_value + 1;
     WT_ERR(__wt_vpack_uint(&p, 0, (uint64_t)value->data));
+    *(uint8_t *)custom_value = flags;
 
     /* Pack the custom value into a standard cell structure. */
     WT_ERR(__wti_rec_cell_build_val(
@@ -2284,6 +2284,7 @@ __rec_pack_delta_leaf_custom(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE
 err:
     __wt_scr_free(session, &key);
     __wt_scr_free(session, &value);
+    __wt_scr_free(session, &custom_value);
     return (ret);
 }
 
