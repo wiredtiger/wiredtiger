@@ -669,7 +669,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                 continue;
 
             WT_READ_ONCE(prepare_state, upd->prepare_state);
-            if (prepare_state != WT_PREPARE_INPROGRESS && prepare_state != WT_PREPARE_LOCKED)
+            if (prepare_state != WT_PREPARE_INPROGRESS)
                 continue;
 
             /* Ignore the prepared update if the rollback timestamp is stable. */
@@ -1121,6 +1121,9 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
             upd_select->upd = tombstone;
         }
     }
+        WT_ASSERT(session,
+      !WT_TIME_WINDOW_HAS_STOP_PREPARE(&(upd_select->tw)) ||
+        upd_select->tw.stop_prepare_ts >= upd_select->tw.start_ts);
     return (0);
 }
 
