@@ -721,7 +721,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          */
         enable_reverse_modify =
           ((WT_STREQ(btree->value_format, "S") || WT_STREQ(btree->value_format, "u"))) &&
-          !WT_TIME_WINDOW_HAS_PREPARE(&list->tw);
+          !WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw);
 
         /*
          * If there exists an on page tombstone without a timestamp, consider it as a no timestamp
@@ -930,9 +930,10 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             tw.start_txn = upd->txnid;
 
             /*
-             * For any uncommitted prepared updates written to disk, the stop timestamp of the last
-             * update moved into the history store should be with max visibility to protect its
-             * removal by checkpoint garbage collection until the data store update is committed.
+             * For any prepared updates written to disk, the stop timestamp of the last update moved
+             * into the history store without a pairing tombstone should be with max visibility to
+             * protect its removal by checkpoint garbage collection until the data store update is
+             * committed.
              */
             if (upd == newest_hs && newest_hs_tombstone == NULL &&
               WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw)) {

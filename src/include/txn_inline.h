@@ -1266,7 +1266,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     bool upd_visible;
 
     for (;; __wt_yield()) {
-        /* Prepare state change is in progress, yield and try again. */
+        /* Prepare state change is on going, yield and try again. */
         WT_ACQUIRE_READ(prepare_state, upd->prepare_state);
         if (prepare_state == WT_PREPARE_LOCKED)
             continue;
