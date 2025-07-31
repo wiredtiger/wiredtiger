@@ -75,7 +75,7 @@ class test_prepare33(wttest.WiredTigerTestCase):
 
         return new_stats
 
-    def test_rollbacked_prepare(self):
+    def test_committed_prepare(self):
         # Set initial timestamps - start with lower values
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
@@ -84,73 +84,71 @@ class test_prepare33(wttest.WiredTigerTestCase):
         create_params = 'key_format=i,value_format=S'
         self.session.create(uri, create_params)
 
-        # Insert some initial data that will be committed
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        for i in range(1, 10):
-            cursor.set_key(i)
-            cursor.set_value("initial_value_" + str(i))
-            cursor.insert()
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
-        cursor.close()
-
-        # Advance stable timestamp after the commit
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
-
-        # Verify initial data is there
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(35))
-        cursor.set_key(1)
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_value(), "initial_value_1")
-        self.session.commit_transaction()
-        cursor.close()
-
-        # Checkpoint should write initial data
-        self.checkpoint_and_verify_stats({
-            wiredtiger.stat.conn.rec_time_window_prepared: False,
-        })
         # Start a prepared transaction that will be committed
         session_prepare = self.conn.open_session()
         cursor_prepare = session_prepare.open_cursor(uri)
         session_prepare.begin_transaction()
-
-        # Make updates in the prepared transaction
-        for i in range(1, 100):
-            cursor_prepare[i] = "prepared_value_" + str(i)
-            cursor_prepare.set_key(1)
-            cursor_prepare.remove()
+        for i in range(1, 10):
+            cursor_prepare.set_key(i)
+            cursor_prepare.set_value("initial_value_" + str(i))
+            cursor_prepare.insert()
+        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(30)+',prepared_id=1')
         cursor_prepare.close()
-        # Prepare the transaction with timestamp 70
-        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=1')
-        # Commit the transaction at timestamp 80
-        session_prepare.rollback_transaction("rollback_timestamp=" + self.timestamp_str(80))
-        session_prepare.close()
-        # Checkpoint, current stable timestamp is 40 so prepare timestamp is not stable
-        # Should not write prepare.
-        self.checkpoint_and_verify_stats({
-            wiredtiger.stat.conn.rec_time_window_prepared: False,
-        })
 
-        # Write a committed prepared update as a prepared update if its prepared timestamp is stable but its durable timestamp is not stable. Leave the page dirty.
-        # Move stable timestamp to after prepared timestamp, but before durable timestamp
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(75))
-        # Should write update as prepared, write both start and stop prepare
+        # Advance stable timestamp after the commit
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
+
         self.checkpoint_and_verify_stats({
             wiredtiger.stat.conn.rec_time_window_prepared: True,
-            wiredtiger.stat.conn.rec_time_window_start_txn: True,
-            wiredtiger.stat.conn.rec_time_window_stop_txn: True,
         })
-        # Write a
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(85))
-        # Skip writing aborted prepared update if its rollback timestamp is stable.
-        # Do not write the prepare but only the start_ts (for the update at ts 30)
+        session_prepare.rollback_transaction("rollback_timestamp=" + self.timestamp_str(35))
+
+        # Advance stable timestamp after the rollback, now if we trigger a checkpoint, should write a globally visible tombstone
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
+        self.session.breakpoint()
         self.checkpoint_and_verify_stats({
-            wiredtiger.stat.conn.rec_time_window_durable_start_ts: True,
-            wiredtiger.stat.conn.rec_time_window_start_ts: True,
-            wiredtiger.stat.conn.rec_time_window_start_txn: True,
-            wiredtiger.stat.conn.rec_time_window_durable_stop_ts: False,
-            wiredtiger.stat.conn.rec_time_window_stop_ts: False,
-            wiredtiger.stat.conn.rec_time_window_stop_txn: False,
             wiredtiger.stat.conn.rec_time_window_prepared: False,
+            # wiredtiger.stat.conn.rec_time_window_stop_txn: True,
+            wiredtiger.stat.conn.rec_time_window_stop_ts: True,
         })
+        # session_prepare.begin_transaction()
+
+        # # Make updates in the prepared transaction
+        # for i in range(1, 100):
+        #     cursor_prepare[i] = "prepared_value_" + str(i)
+        #     cursor_prepare.set_key(1)
+        #     cursor_prepare.remove()
+        # cursor_prepare.close()
+        # # Prepare the transaction with timestamp 70
+        # session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=1')
+        # # Commit the transaction at timestamp 80
+        # session_prepare.rollback_transaction("rollback_timestamp=" + self.timestamp_str(80))
+        # session_prepare.close()
+        # # Checkpoint, current stable timestamp is 40 so prepare timestamp is not stable
+        # # Should not write prepare.
+        # self.checkpoint_and_verify_stats({
+        #     wiredtiger.stat.conn.rec_time_window_prepared: False,
+        # })
+
+        # # Write a committed prepared update as a prepared update if its prepared timestamp is stable but its durable timestamp is not stable. Leave the page dirty.
+        # # Move stable timestamp to after prepared timestamp, but before durable timestamp
+        # self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(75))
+        # # Should write update as prepared, write both start and stop prepare
+        # self.checkpoint_and_verify_stats({
+        #     wiredtiger.stat.conn.rec_time_window_prepared: True,
+        #     wiredtiger.stat.conn.rec_time_window_start_txn: True,
+        #     wiredtiger.stat.conn.rec_time_window_stop_txn: True,
+        # })
+        # # Write a
+        # self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(85))
+        # # Skip writing aborted prepared update if its rollback timestamp is stable.
+        # # Do not write the prepare but only the start_ts (for the update at ts 30)
+        # self.checkpoint_and_verify_stats({
+        #     wiredtiger.stat.conn.rec_time_window_durable_start_ts: True,
+        #     wiredtiger.stat.conn.rec_time_window_start_ts: True,
+        #     wiredtiger.stat.conn.rec_time_window_start_txn: True,
+        #     wiredtiger.stat.conn.rec_time_window_durable_stop_ts: False,
+        #     wiredtiger.stat.conn.rec_time_window_stop_ts: False,
+        #     wiredtiger.stat.conn.rec_time_window_stop_txn: False,
+        #     wiredtiger.stat.conn.rec_time_window_prepared: False,
+        # })

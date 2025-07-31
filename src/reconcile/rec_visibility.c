@@ -1044,7 +1044,8 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
                 WT_TIME_WINDOW_SET_START(select_tw, upd, write_prepare);
             else {
                 WT_ASSERT(session, upd->prepare_state != WT_PREPARE_INPROGRESS);
-                bool write_start_prepare = upd->upd_start_ts > r->rec_start_pinned_stable_ts;
+                bool write_start_prepare =
+                  write_prepare && (upd->upd_start_ts > r->rec_start_pinned_stable_ts);
                 WT_TIME_WINDOW_SET_START(select_tw, upd, write_start_prepare);
             }
         }
