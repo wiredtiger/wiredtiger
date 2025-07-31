@@ -409,7 +409,7 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
     WT_ASSERT(session, !WT_IS_HS(btree));
 
     /*
-     * Only deltas or full updates should be written to the history store. More specifically, we
+     * Only modifies or full updates should be written to the history store. More specifically, we
      * should NOT be writing tombstone records in the history store table.
      */
     WT_ASSERT(session, type == WT_UPDATE_STANDARD || type == WT_UPDATE_MODIFY);
@@ -715,10 +715,12 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
         __wt_update_vector_clear(&updates);
 
         /*
-         * Reverse deltas are only supported on 'S' and 'u' value formats.
+         * Reverse modifies are only supported on 'S' and 'u' value formats. Disable reverse
+         * modifies if we write a prepared update to disk.
          */
         enable_reverse_modify =
-          (WT_STREQ(btree->value_format, "S") || WT_STREQ(btree->value_format, "u"));
+          ((WT_STREQ(btree->value_format, "S") || WT_STREQ(btree->value_format, "u"))) &&
+          !WT_TIME_WINDOW_HAS_PREPARE(&list->tw);
 
         /*
          * If there exists an on page tombstone without a timestamp, consider it as a no timestamp
@@ -757,7 +759,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          * 4) We have a single tombstone on the chain, it is simply ignored.
          */
         squashed = false;
-        for (upd = list->onpage_upd, prev_upd = NULL; upd != NULL; upd = upd->next) {
+        for (upd = list->onpage_upd, prev_upd = NULL; upd != NULL;
+             prev_upd = upd, upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
 
@@ -790,13 +793,6 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
 
             WT_ERR(__wt_update_vector_push(&updates, upd));
 
-            /*
-             * Always insert full update to the history store if we write a prepared update to the
-             * data store.
-             */
-            if (upd->prepare_state == WT_PREPARE_INPROGRESS)
-                enable_reverse_modify = false;
-
             /* Always insert full update to the history store if we need to squash the updates. */
             if (prev_upd != NULL && prev_upd->txnid == upd->txnid &&
               prev_upd->upd_start_ts == upd->upd_start_ts)
@@ -820,8 +816,6 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                     squashed = true;
             }
 
-            prev_upd = upd;
-
             /*
              * No need to continue if we found a first self contained value that is globally
              * visible.
@@ -831,7 +825,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
 
             /*
              * If we've reached a full update and it's in the history store we don't need to
-             * continue as anything beyond this point won't help with calculating deltas.
+             * continue as anything beyond this point won't help with calculating reverse modifies.
              *
              * No need to insert any data that is older than the update restored from delta. They
              * are already in the history store.
