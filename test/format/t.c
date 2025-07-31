@@ -384,9 +384,11 @@ main(int argc, char *argv[])
             operations(ops_seconds, reps, FORMAT_OPERATION_REPS);
     else {
         /*
-         * In disagg "switch" mode, we alternate b/w leader and follower roles. The follower only
-         * runs for a short, fixed time since (DISAGG_SWITCH_FOLLOWER_OPS_SEC) its not supposed to
-         * do much or cache heavily. The leader gets the rest of the time.
+         * In disagg "switch" mode, we alternate between leader and follower roles. The follower
+         * runs only for a short, fixed duration (i.e. DISAGG_SWITCH_FOLLOWER_OPS_SEC), as it's
+         * expected to generate minimal cache activity. Content written in follower mode is not
+         * evictable, extended time in this role can lead to cache overflow. The leader occupies the
+         * remaining time.
          */
         leader_ops_seconds = ops_seconds != 0 ? (ops_seconds - DISAGG_SWITCH_FOLLOWER_OPS_SEC) : 0;
 
