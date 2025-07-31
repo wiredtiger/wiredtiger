@@ -9,7 +9,12 @@
 #include "test_util.h"
 #include "bench_timer.h"
 
-void bench_timer_init(BENCH_TIMER *timer, const char *name)
+/*
+ * bench_timer_init --
+ *     Initialize the bench timer structure.
+ */
+void
+bench_timer_init(BENCH_TIMER *timer, const char *name)
 {
     timer->name = name;
     timer->total_ns = 0;
@@ -17,14 +22,24 @@ void bench_timer_init(BENCH_TIMER *timer, const char *name)
     timer->count = 0;
 }
 
-void bench_timer_start(BENCH_TIMER *timer, uint64_t ns)
+/*
+ * bench_timer_start --
+ *     Start a timing.
+ */
+void
+bench_timer_start(BENCH_TIMER *timer, uint64_t ns)
 {
     assert(ns != 0);
     assert(timer->start_ns == 0);
     timer->start_ns = ns;
 }
 
-void bench_timer_stop(BENCH_TIMER *timer, uint64_t ns)
+/*
+ * bench_timer_stop --
+ *     Stop a timing.
+ */
+void
+bench_timer_stop(BENCH_TIMER *timer, uint64_t ns)
 {
     assert(ns != 0);
     assert(timer->start_ns != 0);
@@ -33,19 +48,34 @@ void bench_timer_stop(BENCH_TIMER *timer, uint64_t ns)
     timer->count++;
 }
 
-void bench_timer_add(BENCH_TIMER *timer, const BENCH_TIMER *that)
+/*
+ * bench_timer_add --
+ *     Add results from another timer to this one.
+ */
+void
+bench_timer_add(BENCH_TIMER *timer, const BENCH_TIMER *that)
 {
     timer->total_ns += that->total_ns;
     timer->count += that->count;
 }
 
-void bench_timer_add_to_shared(BENCH_TIMER *timer, uint64_t ns, uint64_t count)
+/*
+ * bench_timer_add_to_shared --
+ *     Add timing results to this timer, that is shared among multiple threads.
+ */
+void
+bench_timer_add_to_shared(BENCH_TIMER *timer, uint64_t ns, uint64_t count)
 {
     WT_RELEASE_WRITE_WITH_BARRIER(timer->total_ns, timer->total_ns + ns);
     WT_RELEASE_WRITE_WITH_BARRIER(timer->count, timer->count + count);
 }
 
-void bench_timer_add_from_shared(BENCH_TIMER *timer, BENCH_TIMER *that)
+/*
+ * bench_timer_add_to_shared --
+ *     Add results from another shared timer to this (non-shared) timer.
+ */
+void
+bench_timer_add_from_shared(BENCH_TIMER *timer, BENCH_TIMER *that)
 {
     uint64_t ns, count;
 
@@ -56,9 +86,11 @@ void bench_timer_add_from_shared(BENCH_TIMER *timer, BENCH_TIMER *that)
 }
 
 /*
- * Format a number, given as ns/op.
+ * bench_timer_format --
+ *     Format a number, given as nanoseconds per operation, in a readable way.
  */
-static void __bench_timer_format(char *buf, size_t len, double ns_op)
+static void
+__bench_timer_format(char *buf, size_t len, double ns_op)
 {
     if (ns_op > WT_BILLION)
         snprintf(buf, len, "%.3f secs/op", ns_op / WT_BILLION);
@@ -70,7 +102,13 @@ static void __bench_timer_format(char *buf, size_t len, double ns_op)
         snprintf(buf, len, "%.3f ns/op", ns_op);
 }
 
-bool bench_timer_show_change(BENCH_TIMER *before, BENCH_TIMER *after)
+/*
+ * bench_timer_show_change --
+ *     For a difference between two timers, show a summary of the number of operations, and the time
+ *     taken per operation.
+ */
+bool
+bench_timer_show_change(BENCH_TIMER *before, BENCH_TIMER *after)
 {
     uint64_t ns, count;
     char num[20];

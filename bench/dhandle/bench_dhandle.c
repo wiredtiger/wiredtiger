@@ -67,7 +67,7 @@ typedef struct {
     int checkpoint_num;
 
     int high;   /* high point for active tables */
-    int low; /* low point for active tables */
+    int low;    /* low point for active tables */
     int exists; /* tables under this number have been dropped */
 
     /* Locked */
@@ -105,22 +105,22 @@ static void *queuer(void *);
 static void shuffle(int *arr, int n, WT_RAND_STATE *rnd);
 static void *worker(void *);
 
-#define WITH_RW_LOCK(lock, e)                   \
-    do {                                        \
-        (void)pthread_rwlock_wrlock(lock);      \
-        e;                                      \
-        (void)pthread_rwlock_unlock(lock);      \
+#define WITH_RW_LOCK(lock, e)              \
+    do {                                   \
+        (void)pthread_rwlock_wrlock(lock); \
+        e;                                 \
+        (void)pthread_rwlock_unlock(lock); \
     } while (0)
 
-#define TIME_OPERATION(session, timer, stmt)                            \
-    do {                                                                \
-        struct timespec  _start, _stop;                                 \
-        uint64_t _ns;                                                \
-        __wt_epoch((WT_SESSION_IMPL *)(session), &_start);              \
-        stmt;                                                           \
-        __wt_epoch((WT_SESSION_IMPL *)(session), &_stop);               \
-        _ns = difftime_ns(&_start, &_stop);                       \
-        bench_timer_add_to_shared(timer, _ns, 1);                    \
+#define TIME_OPERATION(session, timer, stmt)               \
+    do {                                                   \
+        struct timespec _start, _stop;                     \
+        uint64_t _ns;                                      \
+        __wt_epoch((WT_SESSION_IMPL *)(session), &_start); \
+        stmt;                                              \
+        __wt_epoch((WT_SESSION_IMPL *)(session), &_stop);  \
+        _ns = difftime_ns(&_start, &_stop);                \
+        bench_timer_add_to_shared(timer, _ns, 1);          \
     } while (0)
 
 /*
@@ -247,8 +247,10 @@ bench_dhandle_run(SHARED *shared)
     uint64_t i, now, done_time, last_minute, start_time, stop_time;
     void *ignored;
     int checkpoint_num, last_checkpoint_num;
-    BENCH_TIMER t_last_checkpoint, t_last_create, t_last_drop, t_last_first_insert, t_last_read, t_last_update;
-    BENCH_TIMER t_minute_checkpoint, t_minute_create, t_minute_drop, t_minute_first_insert, t_minute_read, t_minute_update;
+    BENCH_TIMER t_last_checkpoint, t_last_create, t_last_drop, t_last_first_insert, t_last_read,
+      t_last_update;
+    BENCH_TIMER t_minute_checkpoint, t_minute_create, t_minute_drop, t_minute_first_insert,
+      t_minute_read, t_minute_update;
     void *(*thread_func)(void *);
 
     bench_timer_init(&t_last_checkpoint, NULL);
@@ -268,10 +270,13 @@ bench_dhandle_run(SHARED *shared)
     memset(args, 0, sizeof(THREAD_ARGS) * (shared->opts.nthreads + 3));
     last_checkpoint_num = 0;
 
-    fprintf(stderr, "Running with %" PRIu64 " threads, %d tables, %d seconds until full, %d seconds total, "
-      "%d%% tables in use, %d tables per work item\n", shared->opts.nthreads,
-      shared->config.table_count, shared->config.seconds_until_full, shared->config.run_time,
-      shared->config.table_in_use_percent, shared->config.tables_per_work_item);
+    fprintf(stderr,
+      "Running with %" PRIu64
+      " threads, %d tables, %d seconds until full, %d seconds total, "
+      "%d%% tables in use, %d tables per work item\n",
+      shared->opts.nthreads, shared->config.table_count, shared->config.seconds_until_full,
+      shared->config.run_time, shared->config.table_in_use_percent,
+      shared->config.tables_per_work_item);
 
     pthread_rwlock_init(&shared->work_queue_lock, NULL);
 
@@ -327,17 +332,18 @@ bench_dhandle_run(SHARED *shared)
         fprintf(stderr, "\n%" PRIu64 " seconds, %d active tables", (now - start_time), active);
         WT_ACQUIRE_READ_WITH_BARRIER(checkpoint_num, shared->checkpoint_num);
         if (last_checkpoint_num != checkpoint_num || shared->checkpointing) {
-            fprintf(stderr, " ** %s number %d **", shared->checkpointing ? "checkpointing" : "finished checkpoint", checkpoint_num);
+            fprintf(stderr, " ** %s number %d **",
+              shared->checkpointing ? "checkpointing" : "finished checkpoint", checkpoint_num);
             last_checkpoint_num = checkpoint_num;
         }
         fprintf(stderr, "\n");
 
-#define TIMER_SHOW(prev_timer, now_timer)                               \
-        do {                                                            \
-            if (bench_timer_show_change(&prev_timer, &now_timer))       \
-                printed = true;                                         \
-            prev_timer = now_timer;                                     \
-        } while(0)
+#define TIMER_SHOW(prev_timer, now_timer)                     \
+    do {                                                      \
+        if (bench_timer_show_change(&prev_timer, &now_timer)) \
+            printed = true;                                   \
+        prev_timer = now_timer;                               \
+    } while (0)
 
         TIMER_SHOW(t_last_checkpoint, t_checkpoint);
         TIMER_SHOW(t_last_create, t_create);
@@ -366,8 +372,9 @@ bench_dhandle_run(SHARED *shared)
             last_minute = now;
         }
         /*
-         * If we've reached the number of tables we need to create, then we can quit the run after 5 minutes.
-         * Note that the table calculation has a little slop in it due to the way the table counts are created.
+         * If we've reached the number of tables we need to create, then we can quit the run after 5
+         * minutes. Note that the table calculation has a little slop in it due to the way the table
+         * counts are created.
          */
         if (active > shared->config.table_count - 10) {
             if (done_time == 0)
@@ -383,6 +390,10 @@ bench_dhandle_run(SHARED *shared)
         testutil_check(pthread_join(tid[i], &ignored));
 }
 
+/*
+ * checkpointer --
+ *     Run the checkpoint loop in a thread context.
+ */
 static void *
 checkpointer(void *void_args)
 {
@@ -397,14 +408,17 @@ checkpointer(void *void_args)
         sleep(SECONDS_BETWEEN_CHECKPOINTS);
         WT_RELEASE_WRITE_WITH_BARRIER(shared->checkpoint_num, shared->checkpoint_num + 1);
         WT_RELEASE_WRITE_WITH_BARRIER(shared->checkpointing, true);
-        TIME_OPERATION(session, &args->t_checkpoint, {
-              testutil_check(session->checkpoint(session, NULL));
-          });
+        TIME_OPERATION(
+          session, &args->t_checkpoint, { testutil_check(session->checkpoint(session, NULL)); });
         WT_RELEASE_WRITE_WITH_BARRIER(shared->checkpointing, false);
     }
     return (NULL);
 }
 
+/*
+ * checkpointer --
+ *     Run the creator loop in a thread context.
+ */
 static void *
 creator(void *void_args)
 {
@@ -428,12 +442,13 @@ creator(void *void_args)
      */
     while (!shared->done) {
         /*
-         * Create the next batch of tables.
-         * First, determine the new value for the highest table number in use.
+         * Create the next batch of tables. First, determine the new value for the highest table
+         * number in use.
          */
         __wt_seconds(NULL, &now);
         elapsed = now - start_time;
-        new_high = (int)(((double)shared->config.table_count * elapsed) / shared->config.seconds_until_full);
+        new_high =
+          (int)(((double)shared->config.table_count * elapsed) / shared->config.seconds_until_full);
 
         /* Given that, the lowest table that can exist can be determined. */
         new_exists = 0;
@@ -441,37 +456,36 @@ creator(void *void_args)
             new_exists = new_high - shared->config.table_count;
 
         /*
-         * The low marker for being "in use" can be determined, it is based on a configured percentage
-         * of in use.
+         * The low marker for being "in use" can be determined, it is based on a configured
+         * percentage of in use.
          */
         new_table_count = new_high - new_exists;
         pct = 100 - shared->config.table_in_use_percent;
-        new_low = (int)(new_exists + ((double)pct * new_table_count)/100);
-        fprintf(stderr, "new table id constraints: exists=%d, low=%d, high=%d\n", new_exists, new_low, new_high);
+        new_low = (int)(new_exists + ((double)pct * new_table_count) / 100);
+        fprintf(stderr, "new table id constraints: exists=%d, low=%d, high=%d\n", new_exists,
+          new_low, new_high);
 
         fprintf(stderr, "creating tables in range %d => %d\n", shared->high, new_high);
         for (table_num = shared->high; table_num < new_high && !shared->done; ++table_num) {
             snprintf(tname, sizeof(tname), "table:t%d", table_num);
 
-            TIME_OPERATION(session, &args->t_create, {
-                  session->create(session, tname, table_config);
-              });
+            TIME_OPERATION(
+              session, &args->t_create, { session->create(session, tname, table_config); });
 
             TIME_OPERATION(session, &args->t_first_insert, {
-                  testutil_check(session->open_cursor(session, tname, NULL, NULL, &cursor));
-                  cursor->set_key(cursor, 0);
-                  cursor->set_value(cursor, table_num);
-                  cursor->insert(cursor);
-                  testutil_check(cursor->close(cursor));
-              });
+                testutil_check(session->open_cursor(session, tname, NULL, NULL, &cursor));
+                cursor->set_key(cursor, 0);
+                cursor->set_value(cursor, table_num);
+                cursor->insert(cursor);
+                testutil_check(cursor->close(cursor));
+            });
 
             /* Publish the new high point. */
             WT_RELEASE_WRITE_WITH_BARRIER(shared->high, table_num + 1);
 
             /*
-             * And bump up the low point, little by little.  Advancing both the high
-             * and low in this loop keeps the current active number of tables (high - low)
-             * steady.
+             * And bump up the low point, little by little. Advancing both the high and low in this
+             * loop keeps the current active number of tables (high - low) steady.
              */
             if (shared->low < new_low)
                 WT_RELEASE_WRITE_WITH_BARRIER(shared->low, shared->low + 1);
@@ -481,9 +495,7 @@ creator(void *void_args)
         for (table_num = shared->exists; table_num < new_exists && !shared->done; ++table_num) {
             snprintf(tname, sizeof(tname), "table:t%d", table_num);
 
-            TIME_OPERATION(session, &args->t_drop, {
-                  session->drop(session, tname, NULL);
-              });
+            TIME_OPERATION(session, &args->t_drop, { session->drop(session, tname, NULL); });
         }
 
         /* Now set final values for everything. */
@@ -493,14 +505,15 @@ creator(void *void_args)
 
         /* Signal other threads that they can start. */
         shared->started = true;
-       
+
         sleep(5);
     }
     return (NULL);
 }
 
 /*
- * Fisher-Yates shuffle
+ * shuffle --
+ *     Implements the Fisher-Yates shuffle.
  */
 static void
 shuffle(int *arr, int n, WT_RAND_STATE *rnd)
@@ -520,6 +533,11 @@ shuffle(int *arr, int n, WT_RAND_STATE *rnd)
         }
 }
 
+/*
+ * queuer --
+ *     Run the queueing loop in a thread context. The queuer adds items to the work queue that would
+ *     access each table indicated by the current high and low marks.
+ */
 static void *
 queuer(void *void_args)
 {
@@ -550,18 +568,20 @@ queuer(void *void_args)
             fprintf(stderr,
               "work queue too long, workers cannot keep up: len=%d, adding=%d active tables=%d\n",
               queue_len, items_to_add, shared->high - shared->low);
+
+            /* Give up, tell everyone to exit. */
             shared->done = true;
             break;
         }
         /* Create the work list, we want to use each table number once. */
         if (queue_len > 0)
-            fprintf(stderr, "Work queue length at %d, adding %d items for range %d, %d\n", queue_len,
-              items_to_add, shared->low, shared->high);
+            fprintf(stderr, "Work queue length at %d, adding %d items for range %d, %d\n",
+              queue_len, items_to_add, shared->low, shared->high);
         table_numbers = realloc(table_numbers, sizeof(int) * (size_t)table_count);
         for (i = 0; i < table_count; ++i)
             table_numbers[i] = i;
         shuffle(table_numbers, table_count, &rnd);
-        for (idx = 0; idx < table_count; ) {
+        for (idx = 0; idx < table_count;) {
             work = calloc(sizeof(WORK_ITEM), 1);
             for (i = 0; i < TABLES_PER_WORK_ITEM && idx < table_count; ++i) {
                 tablenum = table_numbers[idx++];
@@ -574,15 +594,20 @@ queuer(void *void_args)
                 work->tablenums[i] = tablenum;
             }
             WITH_RW_LOCK(&shared->work_queue_lock, {
-                  TAILQ_INSERT_HEAD(&shared->work_queue, work, q);
-                  shared->work_queue_len++;
-              });
+                TAILQ_INSERT_HEAD(&shared->work_queue, work, q);
+                shared->work_queue_len++;
+            });
         }
         sleep(SECONDS_BETWEEN_WORK_QUEUE_REFILL);
     }
     return (NULL);
 }
 
+/*
+ * worker --
+ *     Run the worker loop in a thread context. A worker (of which there may be many) takes an item
+ *     from the work queue, which indicates a set of tables to search or update.
+ */
 static void *
 worker(void *void_args)
 {
@@ -605,12 +630,12 @@ worker(void *void_args)
 
     while (!shared->done) {
         WITH_RW_LOCK(&shared->work_queue_lock, {
-              work_item = TAILQ_FIRST(&shared->work_queue);
-              if (work_item != NULL) {
-                  TAILQ_REMOVE(&shared->work_queue, work_item, q);
-                  shared->work_queue_len--;
-              }
-          });
+            work_item = TAILQ_FIRST(&shared->work_queue);
+            if (work_item != NULL) {
+                TAILQ_REMOVE(&shared->work_queue, work_item, q);
+                shared->work_queue_len--;
+            }
+        });
         if (work_item == NULL)
             usleep(100);
         else {
@@ -624,20 +649,20 @@ worker(void *void_args)
                 /* Measure the operation. */
                 if (update) {
                     TIME_OPERATION(session, &args->t_update, {
-                          testutil_check(session->open_cursor(session, tname, NULL, NULL, &cursor));
-                          cursor->set_key(cursor, 0);
-                          cursor->set_value(cursor, args->threadnum);
-                          cursor->insert(cursor);
-                          testutil_check(cursor->close(cursor));
-                      });
+                        testutil_check(session->open_cursor(session, tname, NULL, NULL, &cursor));
+                        cursor->set_key(cursor, 0);
+                        cursor->set_value(cursor, args->threadnum);
+                        cursor->insert(cursor);
+                        testutil_check(cursor->close(cursor));
+                    });
                 } else {
                     TIME_OPERATION(session, &args->t_read, {
-                          testutil_check(session->open_cursor(session, tname, NULL, NULL, &cursor));
-                          cursor->set_key(cursor, 0);
-                          cursor->search(cursor);
-                          cursor->get_value(cursor, &ignore);
-                          testutil_check(cursor->close(cursor));
-                      });
+                        testutil_check(session->open_cursor(session, tname, NULL, NULL, &cursor));
+                        cursor->set_key(cursor, 0);
+                        cursor->search(cursor);
+                        cursor->get_value(cursor, &ignore);
+                        testutil_check(cursor->close(cursor));
+                    });
                 }
             }
             free(work_item);
