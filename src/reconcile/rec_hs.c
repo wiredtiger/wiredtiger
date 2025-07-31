@@ -653,7 +653,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_UPDATE_VECTOR updates;
     WT_SAVE_UPD *list;
-    WT_UPDATE *newest_hs, *no_ts_upd, *oldest_upd, *prev_upd, *ref_upd, *tombstone, *upd;
+    WT_UPDATE *newest_hs, *newest_hs_tombstone, *no_ts_upd, *oldest_upd, *prev_upd, *ref_upd,
+      *tombstone, *upd;
     WT_TIME_WINDOW tw;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size, modify_cnt;
@@ -709,7 +710,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
         /* History store table key component: source key. */
         WT_ERR(__rec_hs_pack_key(session, btree, r, list->ins, list->rip, key));
 
-        no_ts_upd = newest_hs = NULL;
+        no_ts_upd = newest_hs = newest_hs_tombstone = NULL;
         ref_upd = list->onpage_upd;
 
         __wt_update_vector_clear(&updates);
@@ -805,8 +806,11 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                 if (upd->txnid != ref_upd->txnid || upd->upd_start_ts != ref_upd->upd_start_ts) {
                     if (upd->type == WT_UPDATE_TOMBSTONE)
                         ref_upd = upd;
-                    else
+                    else {
                         newest_hs = upd;
+                        if (ref_upd->type == WT_UPDATE_TOMBSTONE)
+                            newest_hs_tombstone = ref_upd;
+                    }
                     if (squashed) {
                         ++cache_hs_write_squash;
                         squashed = false;
@@ -930,7 +934,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              * update moved into the history store should be with max visibility to protect its
              * removal by checkpoint garbage collection until the data store update is committed.
              */
-            if (upd == newest_hs && WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw)) {
+            if (upd == newest_hs && newest_hs_tombstone == NULL &&
+              WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw)) {
                 WT_ASSERT(session,
                   list->onpage_upd->txnid == prev_upd->txnid &&
                     list->onpage_upd->upd_start_ts == prev_upd->upd_start_ts);
