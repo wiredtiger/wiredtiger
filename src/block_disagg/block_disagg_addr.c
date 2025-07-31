@@ -11,10 +11,10 @@
 /*
  * Address cookie version numbers.
  *
- * Before incrementing the version number, first check if the format change could be more better
- * handled by introducing a new flag. For example, a flag would be useful if adding an optional
- * field, while a new version number would be more appropriate when introducing a new mandatory
- * field, changing the meaning of an existing field, or removing a field or a flag.
+ * Before incrementing the version number, first check if the format change could be better handled
+ * by introducing a new flag. For example, a flag would be useful if adding an optional field, while
+ * a new version number would be more appropriate when introducing a new mandatory field, changing
+ * the meaning of an existing field, or removing a field or a flag.
  */
 #define WT_BLOCK_DISAGG_ADDR_VERSION 0
 #define WT_BLOCK_DISAGG_ADDR_VERSION_MIN 0 /* The oldest version that can read this format. */
