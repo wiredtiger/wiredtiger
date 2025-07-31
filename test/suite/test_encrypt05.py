@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_encrypt03.py
+# test_encrypt05.py
 #   Test some error conditions with quoted escaped characters.
 #
 
@@ -40,15 +40,13 @@ class test_encrypt05(wttest.WiredTigerTestCase):
         ('table', dict(uri='table:test_encrypt05')),
     ]
     encrypt = [
-        ('rotn', dict( sys_encrypt='rotn', sys_encrypt_args=',keyid=11',
-            file_encrypt='rotn', file_encrypt_args=',keyid=13')),
+        ('rotn', dict( sys_encrypt='rotn', sys_encrypt_args=',keyid=11')),
     ]
     scenarios = make_scenarios(types, encrypt)
 
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
         extlist.extension('encryptors', self.sys_encrypt)
-        extlist.extension('encryptors', self.file_encrypt)
 
     def conn_config(self):
         return 'encryption=(name={0}{1}),'.format(
