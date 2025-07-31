@@ -111,7 +111,7 @@ bool
 bench_timer_show_change(BENCH_TIMER *before, BENCH_TIMER *after)
 {
     uint64_t ns, count;
-    char num[20];
+    char num[512];
 
     if (before->count != after->count) {
         assert(before->count < after->count);
