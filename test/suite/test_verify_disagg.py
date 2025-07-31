@@ -70,13 +70,13 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.session.commit_transaction(ts_cfg)
         cursor.close()
 
-    def verify(self, sessions, err_msg = None):
+    def verify(self, sessions, expected_error = None):
         for session in sessions:
             try:
                 session.verify(self.uri)
             except wiredtiger.WiredTigerError as e:
-                if (err_msg):
-                    self.assertTrue(err_msg == str(e))
+                if (expected_error):
+                    self.assertTrue(expected_error == str(e))
                 else:
                     raise(e)
 
