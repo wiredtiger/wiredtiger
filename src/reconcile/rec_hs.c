@@ -759,8 +759,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          * 4) We have a single tombstone on the chain, it is simply ignored.
          */
         squashed = false;
-        for (upd = list->onpage_upd, prev_upd = NULL; upd != NULL;
-             prev_upd = upd, upd = upd->next) {
+        for (upd = list->onpage_upd, prev_upd = NULL; upd != NULL; upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
 
@@ -815,6 +814,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                 } else if (upd != ref_upd)
                     squashed = true;
             }
+
+            prev_upd = upd;
 
             /*
              * No need to continue if we found a first self contained value that is globally
