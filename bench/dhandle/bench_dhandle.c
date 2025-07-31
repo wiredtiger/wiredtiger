@@ -242,8 +242,8 @@ bench_dhandle(SHARED *shared)
 static void
 bench_dhandle_run(SHARED *shared)
 {
-    THREAD_ARGS args[shared->opts.nthreads + 3]; /* extra threads for create, queue, checkpoint */
-    pthread_t tid[shared->opts.nthreads + 3];
+    THREAD_ARGS *args;
+    pthread_t *tid;
     uint64_t i, now, done_time, last_minute, start_time, stop_time;
     void *ignored;
     int checkpoint_num, last_checkpoint_num;
@@ -253,6 +253,11 @@ bench_dhandle_run(SHARED *shared)
       t_minute_read, t_minute_update;
     void *(*thread_func)(void *);
 
+    /* extra threads for create, queue, checkpoint */
+    args = dcalloc(shared->opts.nthreads + 3, sizeof(THREAD_ARGS));
+    tid = dcalloc(shared->opts.nthreads + 3, sizeof(pthread_t));
+
+    /* timers that keep the perf numbers from the last time. */
     bench_timer_init(&t_last_checkpoint, NULL);
     bench_timer_init(&t_last_create, NULL);
     bench_timer_init(&t_last_drop, NULL);
@@ -260,6 +265,7 @@ bench_dhandle_run(SHARED *shared)
     bench_timer_init(&t_last_read, NULL);
     bench_timer_init(&t_last_update, NULL);
 
+    /* timers that keep the perf numbers for the previous minute. */
     bench_timer_init(&t_minute_checkpoint, NULL);
     bench_timer_init(&t_minute_create, NULL);
     bench_timer_init(&t_minute_drop, NULL);
@@ -281,7 +287,7 @@ bench_dhandle_run(SHARED *shared)
     pthread_rwlock_init(&shared->work_queue_lock, NULL);
 
     for (i = 0; i < shared->opts.nthreads + 3; ++i) {
-        args[i].threadnum = i;
+        args[i].threadnum = (int)i;
         args[i].shared = shared;
 
         bench_timer_init(&args[i].t_create, NULL);
@@ -366,7 +372,7 @@ bench_dhandle_run(SHARED *shared)
             TIMER_SHOW(t_minute_read, t_read);
             TIMER_SHOW(t_minute_update, t_update);
             if (!printed)
-                fprintf(stderr, "(no reads or updates)");
+                fprintf(stderr, "(no activity)");
             fprintf(stderr, "************************************\n\n");
 
             last_minute = now;
