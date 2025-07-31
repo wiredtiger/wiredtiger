@@ -930,7 +930,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              * update moved into the history store should be with max visibility to protect its
              * removal by checkpoint garbage collection until the data store update is committed.
              */
-            if (prev_upd->prepare_state == WT_PREPARE_INPROGRESS) {
+            if (upd == newest_hs && WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw)) {
                 WT_ASSERT(session,
                   list->onpage_upd->txnid == prev_upd->txnid &&
                     list->onpage_upd->upd_start_ts == prev_upd->upd_start_ts);
