@@ -244,8 +244,8 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
 
     endp = addr;
     flags = __block_disagg_addr_flags(block_meta);
-    WT_RET(__wti_block_disagg_addr_pack(&endp, block_meta->page_id, flags, block_meta->disagg_lsn,
-      block_meta->base_lsn, size, checksum));
+    WT_RET(__wti_block_disagg_addr_pack(session, &endp, block_meta->page_id, flags,
+      block_meta->disagg_lsn, block_meta->base_lsn, size, checksum));
     *addr_sizep = WT_PTRDIFF(endp, addr);
 
     return (0);
