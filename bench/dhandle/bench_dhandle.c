@@ -100,7 +100,7 @@ static void bench_dhandle(SHARED *);
 static void bench_dhandle_run(SHARED *);
 static void *checkpointer(void *);
 static void *creator(void *);
-static uint64_t difftime_ns(struct timespec *t0, struct timespec *t1);
+static uint64_t difftime_nsecs(struct timespec *t0, struct timespec *t1);
 static void *queuer(void *);
 static void shuffle(int *arr, int n, WT_RAND_STATE *rnd);
 static void *worker(void *);
@@ -119,7 +119,7 @@ static void *worker(void *);
         __wt_epoch((WT_SESSION_IMPL *)(session), &_start); \
         stmt;                                              \
         __wt_epoch((WT_SESSION_IMPL *)(session), &_stop);  \
-        _ns = difftime_ns(&_start, &_stop);                \
+        _ns = difftime_nsecs(&_start, &_stop);                \
         bench_timer_add_to_shared(timer, _ns, 1);          \
     } while (0)
 
@@ -207,11 +207,11 @@ main(int argc, char *argv[])
 }
 
 /*
- * difftime_ns --
+ * difftime_nsecs --
  *     Return a time difference as nanoseconds.
  */
 static uint64_t
-difftime_ns(struct timespec *t0, struct timespec *t1)
+difftime_nsecs(struct timespec *t0, struct timespec *t1)
 {
     return (uint64_t)((t1->tv_sec - t0->tv_sec) * WT_BILLION + t1->tv_nsec - t0->tv_nsec);
 }
