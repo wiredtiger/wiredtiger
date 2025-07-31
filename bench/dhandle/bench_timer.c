@@ -93,13 +93,13 @@ static void
 __bench_timer_format(char *buf, size_t len, double ns_op)
 {
     if (ns_op > WT_BILLION)
-        snprintf(buf, len, "%.3f secs/op", ns_op / WT_BILLION);
+        snprintf(buf, len, "%10.3f secs/op", ns_op / WT_BILLION);
     else if (ns_op > WT_MILLION)
-        snprintf(buf, len, "%.3f msecs/op", ns_op / WT_MILLION);
+        snprintf(buf, len, "%10.3f msecs/op", ns_op / WT_MILLION);
     else if (ns_op > WT_THOUSAND)
-        snprintf(buf, len, "%.3f usecs/op", ns_op / WT_THOUSAND);
+        snprintf(buf, len, "%10.3f usecs/op", ns_op / WT_THOUSAND);
     else
-        snprintf(buf, len, "%.3f nsecs/op", ns_op);
+        snprintf(buf, len, "%10.3f nsecs/op", ns_op);
 }
 
 /*
