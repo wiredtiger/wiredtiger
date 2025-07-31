@@ -207,7 +207,7 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor.close()
 
         self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(20)},durable_timestamp={self.timestamp_str(30)}')
-
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
         # We should build a delta
         session2.checkpoint()
 
@@ -273,7 +273,7 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor.close()
 
         self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(20)},durable_timestamp={self.timestamp_str(30)}')
-
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
         # We should build a delta
         session2.checkpoint()
 
@@ -340,6 +340,7 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor.close()
 
         self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(20)},durable_timestamp={self.timestamp_str(30)}')
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
 
         # We should build a delta
         session2.checkpoint()

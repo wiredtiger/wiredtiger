@@ -955,7 +955,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
  */
 static int
 __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_KV *vpack,
-  WTI_UPDATE_SELECT *upd_select, bool write_prepare)
+  WTI_UPDATE_SELECT *upd_select, bool write_prepare, WTI_RECONCILE *r)
 {
     WT_TIME_WINDOW *select_tw;
     WT_UPDATE *last_upd, *tombstone, *upd;
@@ -1035,15 +1035,19 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
         /* The beginning of the validity window is the selected update's time point. */
         if (tombstone == NULL)
             WT_TIME_WINDOW_SET_START(select_tw, upd, write_prepare);
-        else
+        else {
             /*
-             * If tombstone exist and this update is also prepare -> write prepare, otherwise write
-             * the complete update
+             * If the start update is from the same transaction as tombstone, we use write_prepare,
+             * otherwise we need to check the write update state again
              */
-            WT_TIME_WINDOW_SET_START(select_tw, upd,
-              write_prepare &&
-                (upd->prepare_state == WT_PREPARE_INPROGRESS ||
-                  upd->prepare_state == WT_PREPARE_LOCKED));
+            if (upd->txnid == tombstone->txnid)
+                WT_TIME_WINDOW_SET_START(select_tw, upd, write_prepare);
+            else {
+                WT_ASSERT(session, upd->prepare_state != WT_PREPARE_INPROGRESS);
+                bool write_start_prepare = upd->upd_start_ts > r->rec_start_pinned_stable_ts;
+                WT_TIME_WINDOW_SET_START(select_tw, upd, write_start_prepare);
+            }
+        }
     } else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
         WT_ASSERT_ALWAYS(
           session, tombstone != NULL, "The only contents of the update list is a single tombstone");
@@ -1215,7 +1219,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
         r->update_used = true;
 
     if (upd != NULL)
-        WT_RET(__rec_fill_tw_from_upd_select(session, page, vpack, upd_select, write_prepare));
+        WT_RET(__rec_fill_tw_from_upd_select(session, page, vpack, upd_select, write_prepare, r));
 
     /* Mark the page dirty after reconciliation. */
     if (has_newer_updates)
