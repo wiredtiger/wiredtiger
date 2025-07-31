@@ -118,7 +118,7 @@ static void *worker(void *);
         __wt_epoch((WT_SESSION_IMPL *)(session), &_start); \
         stmt;                                              \
         __wt_epoch((WT_SESSION_IMPL *)(session), &_stop);  \
-        _ns = difftime_nsecs(&_start, &_stop);                \
+        _ns = difftime_nsecs(&_start, &_stop);             \
         bench_timer_add_to_shared(timer, _ns, 1);          \
     } while (0)
 
