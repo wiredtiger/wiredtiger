@@ -588,7 +588,7 @@ queuer(void *void_args)
             table_numbers[i] = i;
         shuffle(table_numbers, table_count, &rnd);
         for (idx = 0; idx < table_count;) {
-            work = calloc(sizeof(WORK_ITEM), 1);
+            work = dcalloc(1, sizeof(WORK_ITEM));
             for (i = 0; i < TABLES_PER_WORK_ITEM && idx < table_count; ++i) {
                 tablenum = table_numbers[idx++];
 
