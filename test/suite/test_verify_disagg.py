@@ -73,7 +73,9 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def verify(self, sessions, expected_error = None):
         for session in sessions:
             try:
-                session.verify(self.uri)
+                session.verify(self.uri)  
+                if expected_error:
+                    self.fail(f"Expected error '{expected_error}' but no error was raised.")
             except wiredtiger.WiredTigerError as e:
                 if (expected_error):
                     self.assertTrue(expected_error == str(e))
