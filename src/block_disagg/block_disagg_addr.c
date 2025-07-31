@@ -144,7 +144,7 @@ __wti_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, si
     begin = *buf;
 
     /* Avoid compiler warnings. */
-    base_lsn = base_lsn_delta = flags = lsn = page_id = size = 0;
+    base_lsn_delta = flags = lsn = page_id = size = 0;
     checksum = 0;
 
     /* Unpack the address version. */
