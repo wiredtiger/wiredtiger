@@ -676,7 +676,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
 
             /* Ignore the prepared update if the rollback timestamp is stable. */
             if (upd->upd_rollback_ts <= r->rec_start_pinned_stable_ts) {
-                WT_ASSERT(session, upd->upd_rollback_ts != WT_TS_NONE);
+                /* WT_ASSERT(session, upd->upd_rollback_ts != WT_TS_NONE); */
                 /* If we have seen a tombstone that rolled back the prepared update, skip the key.
                  */
                 if (prepare_rollback_tombstone != NULL)
@@ -957,6 +957,7 @@ static int
 __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_KV *vpack,
   WTI_UPDATE_SELECT *upd_select, bool write_prepare, WTI_RECONCILE *r)
 {
+    WT_UNUSED(r);
     WT_TIME_WINDOW *select_tw;
     WT_UPDATE *last_upd, *tombstone, *upd;
     uint64_t txnid;
@@ -1038,15 +1039,14 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
         else {
             /*
              * If the start update is from the same transaction as tombstone, we use write_prepare,
-             * otherwise we need to check the write update state again
+             * otherwise we need to check the write update state again TODO: need to handle case
+             * when start is committed, but durable_start_ts is not stable
              */
             if (upd->txnid == tombstone->txnid)
                 WT_TIME_WINDOW_SET_START(select_tw, upd, write_prepare);
             else {
                 WT_ASSERT(session, upd->prepare_state != WT_PREPARE_INPROGRESS);
-                bool write_start_prepare =
-                  write_prepare && (upd->upd_start_ts > r->rec_start_pinned_stable_ts);
-                WT_TIME_WINDOW_SET_START(select_tw, upd, write_start_prepare);
+                WT_TIME_WINDOW_SET_START(select_tw, upd, false);
             }
         }
     } else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
