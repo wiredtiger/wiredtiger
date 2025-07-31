@@ -219,7 +219,7 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
   bool checkpoint_io)
 {
     WT_BLOCK_DISAGG *block_disagg;
-    uint64_t flags;
+    WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
     uint32_t checksum, size;
     uint8_t *endp;
 
@@ -242,10 +242,16 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
 
     __wt_page_header_byteswap(buf->mem);
 
+    WT_CLEAR(cookie);
+    cookie.page_id = block_meta->page_id;
+    cookie.flags = __block_disagg_addr_flags(block_meta);
+    cookie.lsn = block_meta->disagg_lsn;
+    cookie.base_lsn = block_meta->base_lsn;
+    cookie.size = size;
+    cookie.checksum = checksum;
+
     endp = addr;
-    flags = __block_disagg_addr_flags(block_meta);
-    WT_RET(__wti_block_disagg_addr_pack(session, &endp, block_meta->page_id, flags,
-      block_meta->disagg_lsn, block_meta->base_lsn, size, checksum));
+    WT_RET(__wti_block_disagg_addr_pack(session, &endp, &cookie));
     *addr_sizep = WT_PTRDIFF(endp, addr);
 
     return (0);
@@ -260,15 +266,13 @@ __wti_block_disagg_page_discard(
   WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, const uint8_t *addr, size_t addr_size)
 {
     /* Crack the cookie. */
-    uint64_t base_lsn, flags, lsn, page_id;
-    uint32_t checksum, size;
-    WT_RET(__wti_block_disagg_addr_unpack(
-      session, &addr, addr_size, &page_id, &flags, &lsn, &base_lsn, &size, &checksum));
+    WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
+    WT_RET(__wti_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
 
     __wt_verbose(session, WT_VERB_BLOCK,
       "block free: page_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64 ", base_lsn %" PRIu64
       ", size %" PRIu32 ", checksum %" PRIx32,
-      page_id, flags, lsn, base_lsn, size, checksum);
+      cookie.page_id, cookie.flags, cookie.lsn, cookie.base_lsn, cookie.size, cookie.checksum);
 
     /* Create the discard request. */
     WT_PAGE_LOG_HANDLE *plhandle = block_disagg->plhandle;
@@ -286,9 +290,9 @@ __wti_block_disagg_page_discard(
     /* Always 0 for full page. */
     discard_args.base_lsn = 0;
 
-    discard_args.backlink_lsn = lsn;
+    discard_args.backlink_lsn = cookie.lsn;
 
     WT_STAT_CONN_INCR(session, disagg_block_page_discard);
 
-    return (plhandle->plh_discard(plhandle, &session->iface, page_id, 0, &discard_args));
+    return (plhandle->plh_discard(plhandle, &session->iface, cookie.page_id, 0, &discard_args));
 }
