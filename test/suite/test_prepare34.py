@@ -115,9 +115,14 @@ class test_prepare34(wttest.WiredTigerTestCase):
         for i in range(1, 21):
             cursor_prepare.set_key(i)
 
-            modifications = [wiredtiger.Modify('b', 0, 1), wiredtiger.Modify('c',0,1)]  # Modify 'aaaaa' to `baaaaa`, then to 'cbaaaaa'
+            modifications = [wiredtiger.Modify('b', 0, 1)]  # Modify 'aaaaa' to `baaaaa`
             self.assertEqual(cursor_prepare.modify(modifications), 0)
 
+        for i in range(1, 21):
+            cursor_prepare.set_key(i)
+
+            modifications = [wiredtiger.Modify('d', 0, 1)]  # Modify 'baaaaa' to `dbaaaaa`
+            self.assertEqual(cursor_prepare.modify(modifications), 0)
         # Prepare the transaction at timestamp 70
         session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=1')
 
@@ -191,7 +196,13 @@ class test_prepare34(wttest.WiredTigerTestCase):
         for i in range(1, 21):
             cursor_prepare.set_key(i)
 
-            modifications = [wiredtiger.Modify('b', 0, 1), wiredtiger.Modify('c',1,1)]  # Modify 'aaaaa' to `caaaa`, then to 'bcaaa'
+            modifications = [wiredtiger.Modify('b', 0, 0)]  # Modify 'aaaaa' to `baaaaa`
+            self.assertEqual(cursor_prepare.modify(modifications), 0)
+
+        for i in range(1, 21):
+            cursor_prepare.set_key(i)
+
+            modifications = [wiredtiger.Modify('d', 0, 0)]  # Modify `baaaaa` to 'dbaaaaa'
             self.assertEqual(cursor_prepare.modify(modifications), 0)
 
         # Prepare the transaction at timestamp 70
@@ -238,7 +249,7 @@ class test_prepare34(wttest.WiredTigerTestCase):
 
         self.session.begin_transaction('read_timestamp='+ self.timestamp_str(81))
         for i in range(1, 21):
-            self.assertEqual('bcaaa', cursor[i])
+            self.assertEqual('dbaaaaa', cursor[i])
         self.session.rollback_transaction()
 
 
