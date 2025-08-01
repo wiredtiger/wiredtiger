@@ -836,9 +836,11 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                     if (txnid_prepared == txnid) {
                         squashed = true;
                         continue;
-                    }
-                } else if (upd->txnid != ref_upd->txnid ||
-                  upd->upd_start_ts != ref_upd->upd_start_ts) {
+                    } else
+                        check_prepared = false;
+                }
+
+                if (upd->txnid != ref_upd->txnid || upd->upd_start_ts != ref_upd->upd_start_ts) {
                     if (upd->type == WT_UPDATE_TOMBSTONE)
                         ref_upd = upd;
                     else {
@@ -859,7 +861,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             WT_ASSERT(session, upd->type == WT_UPDATE_TOMBSTONE || newest_hs != NULL);
 
             /* Insert full update to the history store if we need to squash the updates. */
-            if (newest_hs != NULL && prev_upd->txnid == upd->txnid && prev_upd->upd_start_ts == upd->upd_start_ts)
+            if (newest_hs != NULL && prev_upd->txnid == upd->txnid &&
+              prev_upd->upd_start_ts == upd->upd_start_ts)
                 enable_reverse_modify = false;
 
             /*
