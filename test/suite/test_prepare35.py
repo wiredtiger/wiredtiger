@@ -35,7 +35,7 @@ import time
 class test_prepare33(wttest.WiredTigerTestCase):
 
     conn_config_values = [
-        ('preserve_prepared_on', dict(conn_config='checkpoint=(precise=true),preserve_prepared=true,statistics=(all)')),
+        ('preserve_prepared_on', dict(conn_config='checkpoint=(precise=true),preserve_prepared=true,statistics=(all),verbose=(reconcile:4)')),
     ]
 
     scenarios = make_scenarios(conn_config_values)
@@ -84,71 +84,64 @@ class test_prepare33(wttest.WiredTigerTestCase):
         create_params = 'key_format=i,value_format=S'
         self.session.create(uri, create_params)
 
-        # Start a prepared transaction that will be committed
+        # Insert committed updates for keys 1-20
+        cursor_committed = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        for i in range(1, 21):
+            cursor_committed.set_key(i)
+            cursor_committed.set_value("committed_value_" + str(i))
+            cursor_committed.insert()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(25))
+        cursor_committed.close()
+
+        # Start a prepared transaction for key 21
         session_prepare = self.conn.open_session()
         cursor_prepare = session_prepare.open_cursor(uri)
         session_prepare.begin_transaction()
-        for i in range(1, 10):
-            cursor_prepare.set_key(i)
-            cursor_prepare.set_value("initial_value_" + str(i))
-            cursor_prepare.insert()
+        cursor_prepare.set_key(21)
+        cursor_prepare.set_value("prepared_value_21")
+        cursor_prepare.insert()
         session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(30)+',prepared_id=1')
         cursor_prepare.close()
 
-        # Advance stable timestamp after the commit
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
 
         self.checkpoint_and_verify_stats({
             wiredtiger.stat.conn.rec_time_window_prepared: True,
         })
+
+        # Force eviction of pages to trigger reconciliation with prepared data
+        session_evict = self.conn.open_session("debug=(release_evict_page=true)")
+        session_evict.begin_transaction("ignore_prepare=true")
+        evict_cursor = session_evict.open_cursor(uri, None, None)
+        for i in range(1, 21):  # Evict committed data pages
+            evict_cursor.set_key(i)
+            self.assertEqual(evict_cursor.search(), 0)
+            evict_cursor.reset()
+        evict_cursor.close()
+        session_evict.rollback_transaction()
+        session_evict.close()
+
         session_prepare.rollback_transaction("rollback_timestamp=" + self.timestamp_str(35))
 
-        # Advance stable timestamp after the rollback, now if we trigger a checkpoint, should write a globally visible tombstone
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
+        self.session.begin_transaction('read_timestamp='+ self.timestamp_str(40))
+        read_cursor = self.session.open_cursor(uri, None, None)
+        read_cursor.set_key(21)
+        self.assertEqual(read_cursor.search(), wiredtiger.WT_NOTFOUND)
+        self.session.rollback_transaction()
+
+        # Insert a prepared transaction to the same key, make sure that the prepared update is saved to disk
+        session_prepare2 = self.conn.open_session()
+        cursor_prepare2 = session_prepare.open_cursor(uri)
+        session_prepare2.begin_transaction()
+        cursor_prepare2.set_key(21)
+        cursor_prepare2.set_value("prepared_value_22")
+        cursor_prepare2.insert()
+        session_prepare2.prepare_transaction('prepare_timestamp=' + self.timestamp_str(45)+',prepared_id=2')
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(47))
+        cursor_prepare2.close()
+        # We should be able to write the prepared update to disk
         self.session.breakpoint()
         self.checkpoint_and_verify_stats({
-            wiredtiger.stat.conn.rec_time_window_prepared: False,
-            # wiredtiger.stat.conn.rec_time_window_stop_txn: True,
-            wiredtiger.stat.conn.rec_time_window_stop_ts: True,
+            wiredtiger.stat.conn.rec_time_window_prepared: True,
         })
-        # session_prepare.begin_transaction()
-
-        # # Make updates in the prepared transaction
-        # for i in range(1, 100):
-        #     cursor_prepare[i] = "prepared_value_" + str(i)
-        #     cursor_prepare.set_key(1)
-        #     cursor_prepare.remove()
-        # cursor_prepare.close()
-        # # Prepare the transaction with timestamp 70
-        # session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=1')
-        # # Commit the transaction at timestamp 80
-        # session_prepare.rollback_transaction("rollback_timestamp=" + self.timestamp_str(80))
-        # session_prepare.close()
-        # # Checkpoint, current stable timestamp is 40 so prepare timestamp is not stable
-        # # Should not write prepare.
-        # self.checkpoint_and_verify_stats({
-        #     wiredtiger.stat.conn.rec_time_window_prepared: False,
-        # })
-
-        # # Write a committed prepared update as a prepared update if its prepared timestamp is stable but its durable timestamp is not stable. Leave the page dirty.
-        # # Move stable timestamp to after prepared timestamp, but before durable timestamp
-        # self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(75))
-        # # Should write update as prepared, write both start and stop prepare
-        # self.checkpoint_and_verify_stats({
-        #     wiredtiger.stat.conn.rec_time_window_prepared: True,
-        #     wiredtiger.stat.conn.rec_time_window_start_txn: True,
-        #     wiredtiger.stat.conn.rec_time_window_stop_txn: True,
-        # })
-        # # Write a
-        # self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(85))
-        # # Skip writing aborted prepared update if its rollback timestamp is stable.
-        # # Do not write the prepare but only the start_ts (for the update at ts 30)
-        # self.checkpoint_and_verify_stats({
-        #     wiredtiger.stat.conn.rec_time_window_durable_start_ts: True,
-        #     wiredtiger.stat.conn.rec_time_window_start_ts: True,
-        #     wiredtiger.stat.conn.rec_time_window_start_txn: True,
-        #     wiredtiger.stat.conn.rec_time_window_durable_stop_ts: False,
-        #     wiredtiger.stat.conn.rec_time_window_stop_ts: False,
-        #     wiredtiger.stat.conn.rec_time_window_stop_txn: False,
-        #     wiredtiger.stat.conn.rec_time_window_prepared: False,
-        # })
