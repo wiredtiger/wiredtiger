@@ -657,7 +657,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
       *tombstone, *upd;
     WT_TIME_WINDOW tw;
     wt_off_t hs_size;
-    uint64_t insert_cnt, max_hs_size, modify_cnt, txnid, txnid_upd;
+    uint64_t insert_cnt, max_hs_size, modify_cnt, txnid, txnid_prepared;
     uint64_t cache_hs_insert_full_update, cache_hs_insert_reverse_modify, cache_hs_write_squash;
     uint32_t i;
     int nentries;
@@ -693,6 +693,13 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
         /* If no onpage_upd is selected, we don't need to insert anything into the history store. */
         if (list->onpage_upd == NULL)
+            continue;
+
+        /*
+         * If the onpage update is globally visible, we don't need to insert anything into the
+         * history store.
+         */
+        if (__wt_txn_upd_visible_all(session, list->onpage_upd))
             continue;
 
         /*
@@ -780,15 +787,14 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          */
         squashed = false;
         if (check_prepared) {
-            WT_ACQUIRE_READ(txnid, list->onpage_upd->txnid);
+            WT_ACQUIRE_READ(txnid_prepared, list->onpage_upd->txnid);
             /*
              * No need to check the following updates as prepared because they must have all been
              * rolled back.
              */
-            if (txnid == WT_TXN_ABORTED)
+            if (txnid_prepared == WT_TXN_ABORTED)
                 check_prepared = false;
-        } else
-            txnid = list->onpage_upd->txnid;
+        }
         for (upd = list->onpage_upd->next, prev_upd = list->onpage_upd; upd != NULL;
              upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
@@ -827,14 +833,16 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              */
             if (newest_hs == NULL) {
                 if (check_prepared) {
-                    WT_ACQUIRE_READ(txnid_upd, upd->txnid);
-                    if (txnid_upd == WT_TXN_ABORTED) {
+                    WT_ACQUIRE_READ(txnid, upd->txnid);
+                    if (txnid == WT_TXN_ABORTED) {
                         /* No need to check prepared further as they must all have been aborted. */
                         check_prepared = false;
-                        txnid_upd = upd->upd_saved_txnid;
+                        txnid = upd->upd_saved_txnid;
                     }
-                    if (txnid_upd == txnid)
+                    if (txnid_prepared == txnid) {
                         squashed = true;
+                        continue;
+                    }
                 } else if (upd->txnid != ref_upd->txnid ||
                   upd->upd_start_ts != ref_upd->upd_start_ts) {
                     if (upd->type == WT_UPDATE_TOMBSTONE)
@@ -848,8 +856,10 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                         ++cache_hs_write_squash;
                         squashed = false;
                     }
-                } else
+                } else {
                     squashed = true;
+                    continue;
+                }
             }
 
             /*
