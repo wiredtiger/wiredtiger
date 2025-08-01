@@ -917,39 +917,38 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             }
         }
 
+        if (updates.size > 0) {
+            __wt_update_vector_peek(&updates, &oldest_upd);
+
+            WT_ASSERT(session,
+              oldest_upd->type == WT_UPDATE_STANDARD || oldest_upd->type == WT_UPDATE_TOMBSTONE);
+
+            /*
+             * Fix the history store record here if the oldest update is a tombstone without a
+             * timestamp. This situation is possible only when the tombstone is globally visible.
+             * Delete all the updates of the key in the history store with timestamps. In the rare
+             * case we have a modify update already written to the history store (we saved the state
+             * in hs_flag_set), deal with it here and skip the deletion as there is nothing to do
+             */
+            if (!hs_flag_set && oldest_upd->type == WT_UPDATE_TOMBSTONE &&
+              oldest_upd->upd_start_ts == WT_TS_NONE) {
+                WT_ERR(__wti_rec_hs_delete_key(
+                  session, hs_cursor, btree->id, key, false, error_on_ts_ordering));
+
+                WT_STAT_CONN_DSRC_INCR(session, cache_hs_key_truncate);
+
+                /* Reset the update without a timestamp if it is the last update in the chain. */
+                if (oldest_upd == no_ts_upd)
+                    no_ts_upd = NULL;
+            }
+        }
+
         /* Skip if we have nothing to insert to the history store. */
         if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS)) {
             /* The onpage value is squashed. */
             if (newest_hs == NULL && squashed)
                 ++cache_hs_write_squash;
             continue;
-        }
-
-        prev_upd = upd = NULL;
-
-        WT_ASSERT(session, updates.size > 0);
-        __wt_update_vector_peek(&updates, &oldest_upd);
-
-        WT_ASSERT(session,
-          oldest_upd->type == WT_UPDATE_STANDARD || oldest_upd->type == WT_UPDATE_TOMBSTONE);
-
-        /*
-         * Fix the history store record here if the oldest update is a tombstone without a
-         * timestamp. This situation is possible only when the tombstone is globally visible. Delete
-         * all the updates of the key in the history store with timestamps. In the rare case we have
-         * a modify update already written to the history store (we saved the state in hs_flag_set),
-         * deal with it here and skip the deletion as there is nothing to do
-         */
-        if (!hs_flag_set && oldest_upd->type == WT_UPDATE_TOMBSTONE &&
-          oldest_upd->upd_start_ts == WT_TS_NONE) {
-            WT_ERR(__wti_rec_hs_delete_key(
-              session, hs_cursor, btree->id, key, false, error_on_ts_ordering));
-
-            WT_STAT_CONN_DSRC_INCR(session, cache_hs_key_truncate);
-
-            /* Reset the update without a timestamp if it is the last update in the chain. */
-            if (oldest_upd == no_ts_upd)
-                no_ts_upd = NULL;
         }
 
         /* Construct the oldest full update. */
