@@ -521,7 +521,7 @@ __wti_page_reconstruct_deltas(
          *
          * FIXME-WT-14885: this should go away when we use an algorithm to directly rewrite delta.
          */
-        if (F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_FLATTEN_LEAF_PAGE_DELTA) &&
+        if (F_ISSET(&S2C(session)->page_delta, WT_FLATTEN_LEAF_PAGE_DELTA) &&
           !__wt_rec_in_progress(session)) {
             ret = __wt_reconcile(session, ref, false, WT_REC_REWRITE_DELTA);
             if (ret == 0) {
@@ -583,7 +583,7 @@ void
 __wt_page_block_meta_assign(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
 {
     WT_BTREE *btree;
-    uint64_t checkpoint_id, page_id;
+    uint64_t page_id;
 
     btree = S2BT(session);
 
@@ -599,18 +599,9 @@ __wt_page_block_meta_assign(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
     WT_ASSERT(session, page_id >= WT_BLOCK_MIN_PAGE_ID);
 
     meta->page_id = page_id;
-    /* A new page hasn't been reconciled. Starts with 0. */
-    meta->reconciliation_id = 0;
-
-    WT_ACQUIRE_READ(checkpoint_id, S2C(session)->disaggregated_storage.global_checkpoint_id);
-    /* For a new page, everything starts with the current checkpoint id. */
-    meta->checkpoint_id = checkpoint_id;
-    meta->backlink_checkpoint_id = 0;
-    meta->base_checkpoint_id = 0;
-
+    meta->disagg_lsn = 0;
     meta->backlink_lsn = 0;
     meta->base_lsn = 0;
-    meta->disagg_lsn = 0;
 
     /*
      * 0 means there is no delta written for this page yet. We always write a full page for a new

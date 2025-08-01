@@ -836,7 +836,7 @@ __txn_prepare_rollback_restore_hs_update(
     wt_timestamp_t durable_ts, hs_stop_durable_ts;
     size_t size, total_size;
     uint64_t type_full;
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    char ts_string[3][WT_TS_INT_STRING_SIZE];
 
     WT_ASSERT(session, upd_chain != NULL);
 
@@ -867,9 +867,11 @@ __txn_prepare_rollback_restore_hs_update(
     total_size += size;
 
     __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
-      "update restored from history store (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
+      "update restored from history store (txnid: %" PRIu64
+      ", start_ts: %s, prepare_ts: %s, durable_ts: %s",
       upd->txnid, __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
-      __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[1]));
+      __wt_timestamp_to_string(upd->prepare_ts, ts_string[1]),
+      __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[2]));
 
     /* If the history store record has a valid stop time point, append it. */
     if (hs_stop_durable_ts != WT_TS_MAX) {
@@ -887,9 +889,11 @@ __txn_prepare_rollback_restore_hs_update(
         total_size += size;
 
         __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
-          "tombstone restored from history store (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
+          "tombstone restored from history store (txnid: %" PRIu64
+          ", start_ts: %s, prepare_ts:%s, durable_ts: %s",
           tombstone->txnid, __wt_timestamp_to_string(tombstone->upd_start_ts, ts_string[0]),
-          __wt_timestamp_to_string(tombstone->upd_durable_ts, ts_string[1]));
+          __wt_timestamp_to_string(tombstone->prepare_ts, ts_string[1]),
+          __wt_timestamp_to_string(tombstone->upd_durable_ts, ts_string[2]));
 
         upd = tombstone;
     }
@@ -1137,21 +1141,14 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
     __txn_resolve_prepared_update_chain(session, upd->next, commit);
 
     if (!commit) {
-        if (F_ISSET(txn, WT_TXN_HAS_TS_ROLLBACK)) {
-            /*
-             * As updating timestamp might not be an atomic operation, we will manage using state.
-             *
-             * TODO: we can remove the prepare locked state once we separate the prepared timestamp
-             * and commit timestamp.
-             */
-            upd->prepare_state = WT_PREPARE_LOCKED;
-            WT_RELEASE_BARRIER();
+        /* As updating timestamp might not be an atomic operation, we will manage using state. */
+        upd->prepare_state = WT_PREPARE_LOCKED;
+        WT_RELEASE_BARRIER();
+        if (F_ISSET(txn, WT_TXN_HAS_TS_ROLLBACK))
             upd->upd_rollback_ts = txn->rollback_timestamp;
-        }
-
         upd->upd_saved_txnid = upd->txnid;
-        WT_RELEASE_WRITE_WITH_BARRIER(upd->txnid, WT_TXN_ABORTED);
-        WT_RELEASE_WRITE_WITH_BARRIER(upd->prepare_state, WT_PREPARE_INPROGRESS);
+        WT_RELEASE_WRITE(upd->txnid, WT_TXN_ABORTED);
+        WT_RELEASE_WRITE(upd->prepare_state, WT_PREPARE_INPROGRESS);
         WT_STAT_CONN_INCR(session, txn_prepared_updates_rolledback);
         return;
     }
@@ -1700,9 +1697,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Release our snapshot in case it is keeping data pinned (this is particularly important for
-     * checkpoints). Before releasing our snapshot, copy values into any positioned cursors so they
-     * don't point to updates that could be freed once we don't have a snapshot. If this transaction
-     * is prepared, then copying values would have been done during prepare.
+     * checkpoints). This will not make the updates visible to other threads because we haven't
+     * removed the transaction id from the global transaction table. Before releasing our snapshot,
+     * copy values into any positioned cursors so they don't point to updates that could be freed
+     * once we don't have a snapshot. If this transaction is prepared, then copying values would
+     * have been done during prepare.
      */
     if (session->ncursors > 0 && !prepare) {
         WT_DIAGNOSTIC_YIELD;
@@ -1716,56 +1715,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (prepare)
         __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
-
-    /* If we are logging, write a commit log record. */
-    if (txn->txn_log.logrec != NULL) {
-        /* Assert environment and tree are logging compatible, the fast-check is short-hand. */
-        WT_ASSERT(
-          session, !F_ISSET(conn, WT_CONN_RECOVERING) && F_ISSET(&conn->log_mgr, WT_LOG_ENABLED));
-
-        /*
-         * The default sync setting is inherited from the connection, but can be overridden by an
-         * explicit "sync" setting for this transaction.
-         */
-        WT_ERR(__wt_config_gets_def(session, cfg, "sync", 0, &cval));
-
-        /*
-         * If the user chose the default setting, check whether sync is enabled for this transaction
-         * (either inherited or via begin_transaction). If sync is disabled, clear the field to
-         * avoid the log write being flushed.
-         *
-         * Otherwise check for specific settings. We don't need to check for "on" because that is
-         * the default inherited from the connection. If the user set anything in begin_transaction,
-         * we only override with an explicit setting.
-         */
-        if (cval.len == 0) {
-            if (!FLD_ISSET(txn->txn_log.txn_logsync, WT_LOG_SYNC_ENABLED) &&
-              !F_ISSET(txn, WT_TXN_SYNC_SET))
-                txn->txn_log.txn_logsync = 0;
-        } else {
-            /*
-             * If the caller already set sync on begin_transaction then they should not be using
-             * sync on commit_transaction. Flag that as an error.
-             */
-            if (F_ISSET(txn, WT_TXN_SYNC_SET))
-                WT_ERR_MSG(session, EINVAL, "sync already set during begin_transaction");
-            if (WT_CONFIG_LIT_MATCH("off", cval))
-                txn->txn_log.txn_logsync = 0;
-            /*
-             * We don't need to check for "on" here because that is the default to inherit from the
-             * connection setting.
-             */
-        }
-
-        /*
-         * We hold the visibility lock for reading from the time we write our log record until the
-         * time we release our transaction so that the LSN any checkpoint gets will always reflect
-         * visible data.
-         */
-        __wt_readlock(session, &txn_global->visibility_rwlock);
-        locked = true;
-        WT_ERR(__wti_txn_log_commit(session));
-    }
 
     /* Process updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
@@ -1871,6 +1820,64 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_session_gen_enter(session, WT_GEN_TXN_COMMIT);
         WT_ERR(__txn_check_if_stable_has_moved_ahead_commit_ts(session));
     }
+
+    /*
+     * If we are logging, write a commit log record after we have finished committing the updates
+     * in-memory. Otherwise, we may still rollback if we fail.
+     */
+    if (txn->txn_log.logrec != NULL) {
+        /* Assert environment and tree are logging compatible, the fast-check is short-hand. */
+        WT_ASSERT(
+          session, !F_ISSET(conn, WT_CONN_RECOVERING) && F_ISSET(&conn->log_mgr, WT_LOG_ENABLED));
+
+        /*
+         * The default sync setting is inherited from the connection, but can be overridden by an
+         * explicit "sync" setting for this transaction.
+         */
+        WT_ERR(__wt_config_gets_def(session, cfg, "sync", 0, &cval));
+
+        /*
+         * If the user chose the default setting, check whether sync is enabled for this transaction
+         * (either inherited or via begin_transaction). If sync is disabled, clear the field to
+         * avoid the log write being flushed.
+         *
+         * Otherwise check for specific settings. We don't need to check for "on" because that is
+         * the default inherited from the connection. If the user set anything in begin_transaction,
+         * we only override with an explicit setting.
+         */
+        if (cval.len == 0) {
+            if (!FLD_ISSET(txn->txn_log.txn_logsync, WT_LOG_SYNC_ENABLED) &&
+              !F_ISSET(txn, WT_TXN_SYNC_SET))
+                txn->txn_log.txn_logsync = 0;
+        } else {
+            /*
+             * If the caller already set sync on begin_transaction then they should not be using
+             * sync on commit_transaction. Flag that as an error.
+             */
+            if (F_ISSET(txn, WT_TXN_SYNC_SET))
+                WT_ERR_MSG(session, EINVAL, "sync already set during begin_transaction");
+            if (WT_CONFIG_LIT_MATCH("off", cval))
+                txn->txn_log.txn_logsync = 0;
+            /*
+             * We don't need to check for "on" here because that is the default to inherit from the
+             * connection setting.
+             */
+        }
+
+        /*
+         * We hold the visibility lock for reading from the time we write our log record until the
+         * time we release our transaction so that the LSN any checkpoint gets will always reflect
+         * visible data.
+         */
+        __wt_readlock(session, &txn_global->visibility_rwlock);
+        locked = true;
+        WT_ERR(__wti_txn_log_commit(session));
+    }
+
+    /*
+     * !!!WARNING: Don't add anything that can fail here. We cannot fail after we have logged the
+     * transaction.
+     */
 
     /*
      * Note: we're going to commit: nothing can fail after this point. Set a check, it's too easy to
@@ -2070,6 +2077,12 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
         WT_DIAGNOSTIC_YIELD;
         WT_RET(__wt_session_copy_values(session));
     }
+    /*
+     * Release our snapshot in case it is keeping data pinned. This will not make the updates
+     * visible to other threads until we remove the transaction id from the global transaction table
+     * at the end of the function.
+     */
+    __wt_txn_release_snapshot(session);
 
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
         /* Assert it's not an update to the history store file. */
@@ -2156,9 +2169,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     /* Set transaction state to prepare. */
     F_SET(session->txn, WT_TXN_PREPARE);
 
-    /* Release our snapshot in case it is keeping data pinned. */
-    __wt_txn_release_snapshot(session);
-
     /*
      * Clear the transaction's ID from the global table, to facilitate prepared data visibility, but
      * not from local transaction structure.
@@ -2203,6 +2213,13 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
     /* Set the rollback timestamp if it is an user api call. */
     if (api_call)
         WT_RET(__wt_txn_set_timestamp(session, cfg, false));
+
+    /*
+     * Release our snapshot in case it is keeping data pinned. This will not make the updates
+     * visible to other threads because we haven't removed the transaction id from the global
+     * transaction table at the end of the function.
+     */
+    __wt_txn_release_snapshot(session);
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each

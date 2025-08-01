@@ -9,6 +9,7 @@ set(format_sources
     config_compat.c
     format_config.c
     format_config_def.c
+    format_disagg.c
     format_salvage.c
     format_timestamp.c
     format_util.c
