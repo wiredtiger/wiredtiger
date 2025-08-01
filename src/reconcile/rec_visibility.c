@@ -998,8 +998,8 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
          * Ensure we also write it to the disk in this case.
          */
         if (write_prepare || !__wt_txn_upd_visible_all(session, upd)) {
+            uint64_t next_txnid = WT_TXN_NONE;
             for (; upd->next != NULL; upd = upd->next) {
-                uint64_t next_txnid;
                 WT_ACQUIRE_READ(next_txnid, upd->next->txnid);
                 if (next_txnid != WT_TXN_ABORTED)
                     break;
@@ -1027,10 +1027,10 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
                     break;
                 }
             }
-            if (upd->next != NULL)
-                WT_ASSERT(session,
-                  write_prepare && upd->next->prepare_state == WT_PREPARE_INPROGRESS &&
-                    upd->next->upd_saved_txnid == tombstone->upd_saved_txnid);
+            WT_ASSERT(session,
+              upd->next == NULL || next_txnid != WT_TXN_ABORTED ||
+                (write_prepare && upd->next->prepare_state == WT_PREPARE_INPROGRESS &&
+                  upd->next->upd_saved_txnid == tombstone->upd_saved_txnid));
             upd_select->upd = upd = upd->next;
             /* We should not see multiple consecutive tombstones. */
             WT_ASSERT_ALWAYS(session, upd == NULL || upd->type != WT_UPDATE_TOMBSTONE,
