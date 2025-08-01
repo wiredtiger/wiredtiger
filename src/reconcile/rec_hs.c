@@ -863,6 +863,12 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                 }
             }
 
+            WT_ASSERT(session, newest_hs != NULL);
+
+            /* Insert full update to the history store if we need to squash the updates. */
+            if (prev_upd->txnid == upd->txnid && prev_upd->upd_start_ts == upd->upd_start_ts)
+                enable_reverse_modify = false;
+
             /*
              * Only push the updates that will be inserted to the history store to the stack. They
              * are guaranteed to be committed. If we push a prepared onpage value to the stack, we
@@ -870,12 +876,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              * value as a full value and there is also no need to push the onpage value to the
              * stack.
              */
-            if (newest_hs != NULL) {
-                /* Insert full update to the history store if we need to squash the updates. */
-                if (prev_upd->txnid == upd->txnid && prev_upd->upd_start_ts == upd->upd_start_ts)
-                    enable_reverse_modify = false;
-                WT_ERR(__wt_update_vector_push(&updates, upd));
-            }
+            WT_ERR(__wt_update_vector_push(&updates, upd));
 
             prev_upd = upd;
 
@@ -918,6 +919,14 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
 
         prev_upd = upd = NULL;
 
+        /* Skip if we have nothing to insert to the history store. */
+        if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS)) {
+            /* The onpage value is squashed. */
+            if (newest_hs == NULL && squashed)
+                ++cache_hs_write_squash;
+            continue;
+        }
+
         WT_ASSERT(session, updates.size > 0);
         __wt_update_vector_peek(&updates, &oldest_upd);
 
@@ -941,14 +950,6 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             /* Reset the update without a timestamp if it is the last update in the chain. */
             if (oldest_upd == no_ts_upd)
                 no_ts_upd = NULL;
-        }
-
-        /* Skip if we have nothing to insert to the history store. */
-        if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS)) {
-            /* The onpage value is squashed. */
-            if (newest_hs == NULL && squashed)
-                ++cache_hs_write_squash;
-            continue;
         }
 
         /* Construct the oldest full update. */
