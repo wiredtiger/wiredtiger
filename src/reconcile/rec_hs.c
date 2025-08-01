@@ -870,8 +870,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              * stack.
              */
             if (newest_hs != NULL) {
-                /* Always insert full update to the history store if we need to squash the updates.
-                 */
+                /* Insert full update to the history store if we need to squash the updates. */
                 if (prev_upd->txnid == upd->txnid && prev_upd->upd_start_ts == upd->upd_start_ts)
                     enable_reverse_modify = false;
                 WT_ERR(__wt_update_vector_push(&updates, upd));
