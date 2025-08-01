@@ -414,7 +414,7 @@ __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
     size_t base_value_size, item_offset, max_memsize;
     uint64_t txnid;
     uint8_t prepare_state;
-    bool onpage_retry, prepare;
+    bool onpage_retry, check_prepare;
 
     WT_ASSERT(session, modify->type == WT_UPDATE_MODIFY);
 
@@ -443,7 +443,7 @@ retry:
     /* When retrying, the vector might already contain allocated memory that should be released. */
     __wt_update_vector_free(&modifies);
 
-    prepare = false;
+    check_prepare = false;
     /*
      * Handle the case that modify is a prepared update and we race with prepared rollback. This can
      * happen in reconciliation with the preserve prepared config.
@@ -455,7 +455,7 @@ retry:
         if (txnid == WT_TXN_ABORTED)
             txnid = modify->upd_saved_txnid;
 
-        prepare = true;
+        check_prepare = true;
     }
 
     /* Find a complete update. */
@@ -467,7 +467,7 @@ retry:
              * If the modify is a prepared update, we need to check if there is another prepared
              * modify from the same transaction before it.
              */
-            if (!prepare)
+            if (!check_prepare)
                 continue;
 
             /* We may see aborted reserve updates in between the prepared updates. */
@@ -479,7 +479,7 @@ retry:
              * updates in between them.
              */
             if (upd->prepare_state != WT_PREPARE_INPROGRESS) {
-                prepare = false;
+                check_prepare = false;
                 continue;
             }
 
@@ -488,7 +488,7 @@ retry:
              * transaction.
              */
             if (upd->upd_saved_txnid != txnid) {
-                prepare = false;
+                check_prepare = false;
                 continue;
             }
         }
