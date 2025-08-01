@@ -29,13 +29,17 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 import time
-# test_prepare33.py
-# Tests that validate that we write a prepared tombstone followed by an aborted prepared update correctly
 
-class test_prepare33(wttest.WiredTigerTestCase):
+# test_prepare35.py
+# Tests checkpoint behavior with prepared transactions, specifically:
+# 1. Writing prepared updates to disk during checkpoint
+# 2. Handling of rollback tombstones for aborted prepared transactions
+# 3. Ensuring prepared updates can be written with stable timestamp validation
+
+class test_prepare35(wttest.WiredTigerTestCase):
 
     conn_config_values = [
-        ('preserve_prepared_on', dict(conn_config='checkpoint=(precise=true),preserve_prepared=true,statistics=(all),verbose=(reconcile:4)')),
+        ('preserve_prepared_on', dict(conn_config='checkpoint=(precise=true),preserve_prepared=true,statistics=(all)')),
     ]
 
     scenarios = make_scenarios(conn_config_values)
@@ -76,7 +80,7 @@ class test_prepare33(wttest.WiredTigerTestCase):
         return new_stats
 
     def test_committed_prepare(self):
-        # Set initial timestamps - start with lower values
+        # Setup: Initialize timestamps with stable < prepare timestamp
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
 
@@ -84,7 +88,7 @@ class test_prepare33(wttest.WiredTigerTestCase):
         create_params = 'key_format=i,value_format=S'
         self.session.create(uri, create_params)
 
-        # Insert committed updates for keys 1-20
+        # Step 1: Insert committed baseline data for keys 1-20
         cursor_committed = self.session.open_cursor(uri)
         self.session.begin_transaction()
         for i in range(1, 21):
@@ -94,7 +98,7 @@ class test_prepare33(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(25))
         cursor_committed.close()
 
-        # Start a prepared transaction for key 21
+        # Step 2: Create first prepared transaction for key 21 with prepared_id=1
         session_prepare = self.conn.open_session()
         cursor_prepare = session_prepare.open_cursor(uri)
         session_prepare.begin_transaction()
@@ -104,13 +108,16 @@ class test_prepare33(wttest.WiredTigerTestCase):
         session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(30)+',prepared_id=1')
         cursor_prepare.close()
 
+        # Make stable timestamp equal to prepare timestamp - this should allow checkpoint to reconcile prepared update
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
 
+        # Verify checkpoint writes prepared time window to disk
         self.checkpoint_and_verify_stats({
             wiredtiger.stat.conn.rec_time_window_prepared: True,
         })
 
-        # Force eviction of pages to trigger reconciliation with prepared data
+        # Step 3: Force eviction to trigger reconciliation with the prepared data
+        # This ensures the prepared update gets written to disk storage
         session_evict = self.conn.open_session("debug=(release_evict_page=true)")
         session_evict.begin_transaction("ignore_prepare=true")
         evict_cursor = session_evict.open_cursor(uri, None, None)
@@ -122,26 +129,33 @@ class test_prepare33(wttest.WiredTigerTestCase):
         session_evict.rollback_transaction()
         session_evict.close()
 
+        # Step 4: Rollback the first prepared transaction
+        # This prepends a globally visible tombstone
         session_prepare.rollback_transaction("rollback_timestamp=" + self.timestamp_str(35))
+        session_prepare.close()
 
+        # Verify key 21 is not found after rollback
         self.session.begin_transaction('read_timestamp='+ self.timestamp_str(40))
         read_cursor = self.session.open_cursor(uri, None, None)
         read_cursor.set_key(21)
         self.assertEqual(read_cursor.search(), wiredtiger.WT_NOTFOUND)
         self.session.rollback_transaction()
 
-        # Insert a prepared transaction to the same key, make sure that the prepared update is saved to disk
+        # Step 5: Insert second prepared transaction to same key with different prepared_id
+        # This tests the logging code path for handling prepared_id=2
         session_prepare2 = self.conn.open_session()
-        cursor_prepare2 = session_prepare.open_cursor(uri)
+        cursor_prepare2 = session_prepare2.open_cursor(uri)
         session_prepare2.begin_transaction()
         cursor_prepare2.set_key(21)
-        cursor_prepare2.set_value("prepared_value_22")
+        cursor_prepare2.set_value("prepared_value_21")
         cursor_prepare2.insert()
         session_prepare2.prepare_transaction('prepare_timestamp=' + self.timestamp_str(45)+',prepared_id=2')
+
+        # Advance stable timestamp past the new prepare timestamp
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(47))
         cursor_prepare2.close()
-        # We should be able to write the prepared update to disk
-        self.session.breakpoint()
+
+        # Verify the second prepared update is also be written to disk
         self.checkpoint_and_verify_stats({
             wiredtiger.stat.conn.rec_time_window_prepared: True,
         })

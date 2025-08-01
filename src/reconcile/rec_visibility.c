@@ -774,7 +774,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
           !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA)) {
             if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
                 WT_ASSERT_ALWAYS(session,
-                  upd_select->upd == NULL || F_ISSET(r, WT_REC_CHECKPOINT) || upd_select->upd->txnid == upd->txnid,
+                  upd_select->upd == NULL || F_ISSET(r, WT_REC_CHECKPOINT) ||
+                    upd_select->upd->txnid == upd->txnid,
                   "Cannot have two different prepared transactions active on the same key");
 
                 if (upd->prepare_ts > r->rec_start_pinned_stable_ts) {
@@ -989,7 +990,12 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
          * Ensure we also write it to the disk in this case.
          */
         if (write_prepare || !__wt_txn_upd_visible_all(session, upd)) {
-            for (; upd->next != NULL && upd->next->txnid == WT_TXN_ABORTED; upd = upd->next) {
+            for (; upd->next != NULL; upd = upd->next) {
+                uint64_t next_txnid;
+                WT_ACQUIRE_READ(next_txnid, upd->next->txnid);
+                if (next_txnid != WT_TXN_ABORTED)
+                    break;
+
                 if (!write_prepare)
                     continue;
 
@@ -1060,8 +1066,6 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
 
         WT_ASSERT_ALWAYS(
           session, vpack != NULL && vpack->type != WT_CELL_DEL, "No on-disk value is found");
-        WT_ASSERT_ALWAYS(
-          session, !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)), "On-disk value is a prepared update");
 
         /* Move the pointer to the last update on the update chain. */
         for (last_upd = tombstone; last_upd->next != NULL; last_upd = last_upd->next)
