@@ -794,7 +794,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              */
             if (txnid_prepared == WT_TXN_ABORTED)
                 check_prepared = false;
-        }
+        } else
+            txnid_prepared = WT_TXN_NONE;
         for (upd = list->onpage_upd->next, prev_upd = list->onpage_upd; upd != NULL;
              upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
