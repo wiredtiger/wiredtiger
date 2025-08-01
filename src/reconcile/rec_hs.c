@@ -959,7 +959,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          * value.
          */
         modify_cnt = 0;
-        for (;; tmp = full_value, full_value = prev_full_value, prev_full_value = tmp, upd = prev_upd) {
+        for (;; tmp = full_value, full_value = prev_full_value, prev_full_value = tmp,
+                upd = prev_upd) {
             /* We should never insert the onpage value to the history store. */
             WT_ASSERT(session, upd != list->onpage_upd);
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
@@ -1052,18 +1053,18 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                 continue;
             }
 
-                /*
-                 * Ensure all the updates inserted to the history store are committed.
-                 *
-                 * Sometimes the application and the checkpoint threads will fall behind the
-                 * eviction threads, and they may choose an invisible update to write to the data
-                 * store if the update was previously selected by a failed eviction pass. Also the
-                 * eviction may run without a snapshot if the checkpoint is running concurrently. In
-                 * those cases, check whether the history transaction is committed or not against
-                 * the global transaction list. We expect the transaction is committed before the
-                 * check. However, though very rare, it is possible that the check may race with
-                 * transaction commit and in this case we may fail to catch the failure.
-                 */
+            /*
+             * Ensure all the updates inserted to the history store are committed.
+             *
+             * Sometimes the application and the checkpoint threads will fall behind the eviction
+             * threads, and they may choose an invisible update to write to the data store if the
+             * update was previously selected by a failed eviction pass. Also the eviction may run
+             * without a snapshot if the checkpoint is running concurrently. In those cases, check
+             * whether the history transaction is committed or not against the global transaction
+             * list. We expect the transaction is committed before the check. However, though very
+             * rare, it is possible that the check may race with transaction commit and in this case
+             * we may fail to catch the failure.
+             */
 #ifdef HAVE_DIAGNOSTIC
             if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
               !__txn_visible_id(session, list->onpage_upd->txnid))
