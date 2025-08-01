@@ -657,11 +657,12 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
       *tombstone, *upd;
     WT_TIME_WINDOW tw;
     wt_off_t hs_size;
-    uint64_t insert_cnt, max_hs_size, modify_cnt;
+    uint64_t insert_cnt, max_hs_size, modify_cnt, txnid, txnid_upd;
     uint64_t cache_hs_insert_full_update, cache_hs_insert_reverse_modify, cache_hs_write_squash;
     uint32_t i;
     int nentries;
-    bool enable_reverse_modify, error_on_ts_ordering, hs_inserted, squashed, hs_flag_set;
+    bool check_prepared, enable_reverse_modify, error_on_ts_ordering, hs_inserted, squashed,
+      hs_flag_set;
 
     hs_flag_set = false;
     r->cache_write_hs = false;
@@ -694,7 +695,11 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
         if (list->onpage_upd == NULL)
             continue;
 
-        /* Skip aborted updates. */
+        /*
+         * Skip aborted updates. We may race with prepared rollback. But it is OK here to ignore the
+         * race. If we see everything as aborted, we don't need to insert anything into the history
+         * store.
+         */
         for (upd = list->onpage_upd->next; upd != NULL && upd->txnid == WT_TXN_ABORTED;
              upd = upd->next)
             ;
@@ -715,13 +720,15 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
 
         __wt_update_vector_clear(&updates);
 
+        check_prepared = WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw);
+
         /*
          * Reverse modifies are only supported on 'S' and 'u' value formats. Disable reverse
          * modifies if we write a prepared update to disk.
          */
         enable_reverse_modify =
           ((WT_STREQ(btree->value_format, "S") || WT_STREQ(btree->value_format, "u"))) &&
-          !WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw);
+          !check_prepared;
 
         /*
          * If there exists an on page tombstone without a timestamp, consider it as a no timestamp
@@ -730,6 +737,13 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          */
         if (list->onpage_tombstone != NULL && list->onpage_tombstone->upd_start_ts == WT_TS_NONE)
             no_ts_upd = list->onpage_tombstone;
+
+        /*
+         * If the onpage update is a tombstone without a timestamp, we can use it to clear the
+         * timestamps of all the updates that are inserted into the history store.
+         */
+        if (no_ts_upd == NULL && list->onpage_upd->upd_start_ts == WT_TS_NONE)
+            no_ts_upd = list->onpage_upd;
 
         /*
          * The algorithm assumes the oldest update on the update chain in memory is either a full
@@ -747,20 +761,36 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          * store either as a full update or a reverse modification.
          *
          * It deals with the following scenarios:
-         * 1) We only have full updates on the chain and we only insert full updates to
-         * the history store.
-         * 2) We have modifies on the chain, e.g., U (selected onpage value) -> M -> M ->U. We
-         * reverse the modifies and insert the reversed modifies to the history store if it is not
-         * the newest update written to the history store and the reverse operation is successful.
-         * With regard to the example, we insert U -> RM -> U to the history store.
-         * 3) We have tombstones in the middle of the chain, e.g.,
-         * U (selected onpage value) -> U -> T -> M -> U.
-         * We write the stop time point of M with the start time point of the tombstone and skip the
-         * tombstone.
-         * 4) We have a single tombstone on the chain, it is simply ignored.
+         * 1) We always insert the newest update after the onpage value to the history store as a
+         * full value.
+         *
+         * 2) We can only insert updates to the history store as reverse modifies if the value
+         * format supports it and there is no out of order timestamps and the onpage value is not a
+         * prepared update and we don't squash any update.
+         *
+         * 3) If the calculated reverse modify is larger than the maximum number of reverse
+         * modifies, we insert a full update instead.
+         *
+         * 4) We can only insert a maximum of WT_MAX_CONSECUTIVE_REVERSE_MODIFY reverse modifies to
+         * the history store. If we exceed this limit, we insert a full update instead.
+         *
+         * 5) We have tombstones in the middle of the chain, e.g., U (selected onpage value) -> U ->
+         * T -> M -> U. We write the stop time point of M with the start time point of the tombstone
+         * and skip the tombstone. 6) We have a single tombstone on the chain, it is simply ignored.
          */
         squashed = false;
-        for (upd = list->onpage_upd, prev_upd = NULL; upd != NULL; upd = upd->next) {
+        if (check_prepared) {
+            WT_ACQUIRE_READ(txnid, list->onpage_upd->txnid);
+            /*
+             * No need to check the following updates as prepared because they must have all been
+             * rolled back.
+             */
+            if (txnid == WT_TXN_ABORTED)
+                check_prepared = false;
+        } else
+            txnid = list->onpage_upd->txnid;
+        for (upd = list->onpage_upd->next, prev_upd = list->onpage_upd; upd != NULL;
+             upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
 
@@ -768,7 +798,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS));
 
             /* Detect any update without a timestamp. */
-            if (prev_upd != NULL && prev_upd->upd_start_ts < upd->upd_start_ts) {
+            if (prev_upd->upd_start_ts < upd->upd_start_ts) {
                 WT_ASSERT_ALWAYS(session, prev_upd->upd_start_ts == WT_TS_NONE,
                   "out-of-order timestamp update detected");
                 /*
@@ -791,19 +821,22 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                 enable_reverse_modify = false;
             }
 
-            WT_ERR(__wt_update_vector_push(&updates, upd));
-
-            /* Always insert full update to the history store if we need to squash the updates. */
-            if (prev_upd != NULL && prev_upd->txnid == upd->txnid &&
-              prev_upd->upd_start_ts == upd->upd_start_ts)
-                enable_reverse_modify = false;
-
             /*
              * Find the first update to insert to the history store. (The value that is just older
              * than the on-page value)
              */
             if (newest_hs == NULL) {
-                if (upd->txnid != ref_upd->txnid || upd->upd_start_ts != ref_upd->upd_start_ts) {
+                if (check_prepared) {
+                    WT_ACQUIRE_READ(txnid_upd, upd->txnid);
+                    if (txnid_upd == WT_TXN_ABORTED) {
+                        /* No need to check prepared further as they must all have been aborted. */
+                        check_prepared = false;
+                        txnid_upd = upd->upd_saved_txnid;
+                    }
+                    if (txnid_upd == txnid)
+                        squashed = true;
+                } else if (upd->txnid != ref_upd->txnid ||
+                  upd->upd_start_ts != ref_upd->upd_start_ts) {
                     if (upd->type == WT_UPDATE_TOMBSTONE)
                         ref_upd = upd;
                     else {
@@ -815,8 +848,23 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                         ++cache_hs_write_squash;
                         squashed = false;
                     }
-                } else if (upd != ref_upd)
+                } else
                     squashed = true;
+            }
+
+            /*
+             * Only push the updates that will be inserted to the history store to the stack. They
+             * are guaranteed to be committed. If we push a prepared onpage value to the stack, we
+             * may race with prepared commit and rollback. We always insert the newest history store
+             * value as a full value and there is also no need to push the onpage value to the
+             * stack.
+             */
+            if (newest_hs != NULL) {
+                /* Always insert full update to the history store if we need to squash the updates.
+                 */
+                if (prev_upd->txnid == upd->txnid && prev_upd->upd_start_ts == upd->upd_start_ts)
+                    enable_reverse_modify = false;
+                WT_ERR(__wt_update_vector_push(&updates, upd));
             }
 
             prev_upd = upd;
@@ -911,7 +959,11 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             WT_ASSERT(session, upd->prepare_state != WT_PREPARE_INPROGRESS);
 
             tombstone = NULL;
-            __wt_update_vector_peek(&updates, &prev_upd);
+
+            if (upd != newest_hs)
+                __wt_update_vector_peek(&updates, &prev_upd);
+            else
+                prev_upd = newest_hs_tombstone != NULL ? newest_hs_tombstone : list->onpage_upd;
 
             /*
              * Reset the update without a timestamp pointer once all the previous updates are
@@ -970,11 +1022,15 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             if (prev_upd == no_ts_upd)
                 no_ts_upd = NULL;
 
-            WT_ERR(__rec_hs_next_upd_full_value(
-              session, &updates, full_value, prev_full_value, &prev_upd));
+            if (upd != newest_hs)
+                WT_ERR(__rec_hs_next_upd_full_value(
+                  session, &updates, full_value, prev_full_value, &prev_upd));
+            else
+                prev_upd = NULL;
 
             /* Squash the updates from the same transaction. */
-            if (upd->upd_start_ts == prev_upd->upd_start_ts && upd->txnid == prev_upd->txnid) {
+            if (prev_upd != NULL && upd->upd_start_ts == prev_upd->upd_start_ts &&
+              upd->txnid == prev_upd->txnid) {
                 squashed = true;
                 continue;
             }
