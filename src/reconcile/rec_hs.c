@@ -695,6 +695,9 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
         if (list->onpage_upd == NULL)
             continue;
 
+        if (__wt_txn_upd_visible_all(session, list->onpage_upd))
+            continue;
+
         /*
          * Skip aborted updates. We may race with prepared rollback. But it is OK here to ignore the
          * race. If we see everything as aborted, we don't need to insert anything into the history
@@ -956,8 +959,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          * value.
          */
         modify_cnt = 0;
-        for (; upd != NULL; tmp = full_value, full_value = prev_full_value, prev_full_value = tmp,
-                            upd = prev_upd) {
+        for (;; tmp = full_value, full_value = prev_full_value, prev_full_value = tmp, upd = prev_upd) {
             /* We should never insert the onpage value to the history store. */
             WT_ASSERT(session, upd != list->onpage_upd);
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
@@ -1069,13 +1071,6 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             else
                 WT_ASSERT(session, __txn_visible_id(session, upd->txnid));
 #endif
-
-            // /*
-            //  * No need to insert to the history store if the stop timestamp is globally visible.
-            //  */
-            // if (__wt_txn_tw_stop_visible_all(session, &tw))
-            //     continue;
-
             /*
              * Calculate reverse modify and clear the history store records with timestamps when
              * inserting the first update. Always write the newest update in the history store as a
