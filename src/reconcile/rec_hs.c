@@ -917,8 +917,6 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             }
         }
 
-        prev_upd = upd = NULL;
-
         /* Skip if we have nothing to insert to the history store. */
         if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS)) {
             /* The onpage value is squashed. */
@@ -926,6 +924,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                 ++cache_hs_write_squash;
             continue;
         }
+
+        prev_upd = upd = NULL;
 
         WT_ASSERT(session, updates.size > 0);
         __wt_update_vector_peek(&updates, &oldest_upd);
