@@ -956,14 +956,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          * value.
          */
         modify_cnt = 0;
-        for (;; tmp = full_value, full_value = prev_full_value, prev_full_value = tmp,
+        for (; upd != NULL; tmp = full_value, full_value = prev_full_value, prev_full_value = tmp,
                 upd = prev_upd) {
-            /* We don't insert anything. Break out the loop. */
-            if (upd == NULL) {
-                WT_ASSERT(session, !hs_inserted);
-                break;
-            }
-
             /* We should never insert the onpage value to the history store. */
             WT_ASSERT(session, upd != list->onpage_upd);
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
