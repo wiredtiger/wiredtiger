@@ -696,13 +696,6 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             continue;
 
         /*
-         * If the onpage update is globally visible, we don't need to insert anything into the
-         * history store.
-         */
-        if (__wt_txn_upd_visible_all(session, list->onpage_upd))
-            continue;
-
-        /*
          * Skip aborted updates. We may race with prepared rollback. But it is OK here to ignore the
          * race. If we see everything as aborted, we don't need to insert anything into the history
          * store.
@@ -863,10 +856,10 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                 }
             }
 
-            WT_ASSERT(session, newest_hs != NULL);
+            WT_ASSERT(session, upd->type == WT_UPDATE_TOMBSTONE || newest_hs != NULL);
 
             /* Insert full update to the history store if we need to squash the updates. */
-            if (prev_upd->txnid == upd->txnid && prev_upd->upd_start_ts == upd->upd_start_ts)
+            if (newest_hs != NULL && prev_upd->txnid == upd->txnid && prev_upd->upd_start_ts == upd->upd_start_ts)
                 enable_reverse_modify = false;
 
             /*
