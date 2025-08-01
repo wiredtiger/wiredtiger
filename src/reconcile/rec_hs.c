@@ -850,8 +850,10 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                         ref_upd = upd;
                     else {
                         newest_hs = upd;
-                        if (ref_upd->type == WT_UPDATE_TOMBSTONE)
+                        if (ref_upd->type == WT_UPDATE_TOMBSTONE) {
                             newest_hs_tombstone = ref_upd;
+                            WT_ERR(__wt_update_vector_push(&updates, upd));
+                        }
                     }
                     if (squashed) {
                         ++cache_hs_write_squash;
