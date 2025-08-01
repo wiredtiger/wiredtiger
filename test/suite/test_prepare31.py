@@ -27,18 +27,14 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
-import time
-# test_prepare31.py
-# Tests that validate that we write prepared updates to disk correctly
+
+# Tests checkpoint behavior with aborted prepared transactions based on stable timestamp:
+# - Skip writing aborted prepared updates when rollback timestamp is stable
+# - Skip writing when prepare timestamp is not stable
+# - Write prepared updates when prepare timestamp is stable but rollback timestamp is not
 
 class test_prepare31(wttest.WiredTigerTestCase):
-
-    conn_config_values = [
-        ('preserve_prepared_on', dict(conn_config='checkpoint=(precise=true),preserve_prepared=true,statistics=(all)')),
-    ]
-
-    scenarios = make_scenarios(conn_config_values)
+    conn_config = 'checkpoint=(precise=true),preserve_prepared=true,statistics=(all)'
 
     def test_skip_aborted_prepare_update_if_stable_rollback_timestamp(self):
         # Set initial timestamps - start with lower values
@@ -80,21 +76,17 @@ class test_prepare31(wttest.WiredTigerTestCase):
         for i in range(1, 100):
             cursor_prepare[i] = "prepared_value_" + str(i)
 
-        # Prepare the transaction with timestamp 70
         session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=1')
 
-        # Abort the prepared transaction with rollback timestamp 80
         session_prepare.rollback_transaction('rollback_timestamp=' + self.timestamp_str(80))
 
-        # Advance stable timestamp past the rollback timestamp (80)
         # This makes the rollback timestamp "stable"
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(90))
 
         # Force checkpoint to write data to disk - this should skip the aborted prepared updates
         # since their rollback timestamp (80) is less than stable timestamp (90)
         self.session.checkpoint()
-        # Verify that the aborted prepared updates are not visible at any timestamp
-        # and that only the original committed data is present
+
         stat_cursor = self.session.open_cursor('statistics:')
         rec_time_window_prepared = stat_cursor[wiredtiger.stat.conn.rec_time_window_prepared][2]
         self.assertEqual(rec_time_window_prepared, 0)
@@ -152,8 +144,7 @@ class test_prepare31(wttest.WiredTigerTestCase):
         # Force checkpoint to write data to disk - this should skip the aborted prepared updates
         # since their prepare timestamp is after stable timestamp
         self.session.checkpoint()
-        # Verify that the aborted prepared updates are not visible at any timestamp
-        # and that only the original committed data is present
+
         stat_cursor = self.session.open_cursor('statistics:')
         rec_time_window_prepared = stat_cursor[wiredtiger.stat.conn.rec_time_window_prepared][2]
         self.assertEqual(rec_time_window_prepared, 0)
@@ -212,12 +203,11 @@ class test_prepare31(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(75))
 
         # Since prepare timestamp is stable but rollback ts is not, we write the prepared update to disk
-        # If we write aborted prepared update, what transaction id do we write? How to verify?
         self.session.checkpoint()
 
         stat_cursor = self.session.open_cursor('statistics:')
         rec_time_window_prepared = stat_cursor[wiredtiger.stat.conn.rec_time_window_prepared][2]
-        self.assertGreaterEqual(rec_time_window_prepared, 1)
+        self.assertEqual(rec_time_window_prepared, 99)
 
         stat_cursor.close()
         cursor_prepare.close()

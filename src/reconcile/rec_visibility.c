@@ -683,7 +683,9 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             /* Ignore the prepared update if the rollback timestamp is stable. */
             if (upd->upd_rollback_ts != WT_TS_NONE &&
               upd->upd_rollback_ts <= r->rec_start_pinned_stable_ts) {
-                /* If we have seen a tombstone that rolled back the prepared update, skip the key.
+                /*
+                 * If we have seen a tombstone that rolled back the prepared update,
+                 *  skip the key.
                  */
                 if (prepare_rollback_tombstone != NULL)
                     break;

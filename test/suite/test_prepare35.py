@@ -27,22 +27,15 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
-import time
 
-# test_prepare35.py
 # Tests checkpoint behavior with prepared transactions, specifically:
-# 1. Writing prepared updates to disk during checkpoint
-# 2. Handling of rollback tombstones for aborted prepared transactions
-# 3. Ensuring prepared updates can be written with stable timestamp validation
+# - Writing prepared updates to disk during checkpoint
+# - Handling of rollback tombstones for aborted prepared transactions
+# - Ensuring prepared updates can be written with stable timestamp validation
 
 class test_prepare35(wttest.WiredTigerTestCase):
 
-    conn_config_values = [
-        ('preserve_prepared_on', dict(conn_config='checkpoint=(precise=true),preserve_prepared=true,statistics=(all)')),
-    ]
-
-    scenarios = make_scenarios(conn_config_values)
+    conn_config = 'checkpoint=(precise=true),preserve_prepared=true,statistics=(all)'
 
     def get_stats(self, stats):
         """Get the current values of multiple statistics."""
@@ -84,7 +77,7 @@ class test_prepare35(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
 
-        uri = 'table:test_prepare32'
+        uri = 'table:test_prepare35'
         create_params = 'key_format=i,value_format=S'
         self.session.create(uri, create_params)
 
@@ -134,7 +127,7 @@ class test_prepare35(wttest.WiredTigerTestCase):
         session_prepare.rollback_transaction("rollback_timestamp=" + self.timestamp_str(35))
         session_prepare.close()
 
-        # Verify key 21 is not found after rollback
+        # Verify key 21 is not visible
         self.session.begin_transaction('read_timestamp='+ self.timestamp_str(40))
         read_cursor = self.session.open_cursor(uri, None, None)
         read_cursor.set_key(21)
@@ -142,7 +135,6 @@ class test_prepare35(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
         # Step 5: Insert second prepared transaction to same key with different prepared_id
-        # This tests the logging code path for handling prepared_id=2
         session_prepare2 = self.conn.open_session()
         cursor_prepare2 = session_prepare2.open_cursor(uri)
         session_prepare2.begin_transaction()

@@ -27,18 +27,15 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
-import time
-# test_prepare33.py
-# Tests that validate that we write a prepared tombstone followed by an aborted prepared update correctly
+
+# Tests checkpoint behavior for rolled back prepared transactions with tombstones:
+# - Skip writing prepared updates if prepared timestamp is not stable
+# - Write aborted prepared tombstones as prepared if prepared timestamp is stable but rollback timestamp is not stable
+# - Skip writing aborted prepared tobstone if rollback timestamp is stable
 
 class test_prepare33(wttest.WiredTigerTestCase):
 
-    conn_config_values = [
-        ('preserve_prepared_on', dict(conn_config='checkpoint=(precise=true),preserve_prepared=true,statistics=(all)')),
-    ]
-
-    scenarios = make_scenarios(conn_config_values)
+    conn_config = 'checkpoint=(precise=true),preserve_prepared=true,statistics=(all)'
 
     def get_stats(self, stats):
         """Get the current values of multiple statistics."""
@@ -132,7 +129,6 @@ class test_prepare33(wttest.WiredTigerTestCase):
             wiredtiger.stat.conn.rec_time_window_prepared: False,
         })
 
-        # Write a committed prepared update as a prepared update if its prepared timestamp is stable but its durable timestamp is not stable. Leave the page dirty.
         # Move stable timestamp to after prepared timestamp, but before durable timestamp
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(75))
         # Should write update as prepared, write both start and stop prepare
@@ -141,10 +137,9 @@ class test_prepare33(wttest.WiredTigerTestCase):
             wiredtiger.stat.conn.rec_time_window_start_txn: True,
             wiredtiger.stat.conn.rec_time_window_stop_txn: True,
         })
-        # Write a
+
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(85))
-        # Skip writing aborted prepared update if its rollback timestamp is stable.
-        # Do not write the prepare but only the start_ts (for the update at ts 30)
+        # Skip writing aborted prepared update because its rollback timestamp is stable
         self.checkpoint_and_verify_stats({
             wiredtiger.stat.conn.rec_time_window_durable_start_ts: True,
             wiredtiger.stat.conn.rec_time_window_start_ts: True,

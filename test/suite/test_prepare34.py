@@ -27,18 +27,15 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
 
-# test_prepare34.py
-# Tests that validate rollbacked prepared modify operations are correctly handled during checkpoints
+# Tests checkpoint behavior for prepared modify operations:
+# - Unstable prepares not written
+# - Stable prepares written as prepared
+# - Committed/rolled back properly handled
+# FIXME: Verify that prepared modifies are reconstructed properly when loaded from disk
 
 class test_prepare34(wttest.WiredTigerTestCase):
-
-    conn_config_values = [
-        ('preserve_prepared_on', dict(conn_config='checkpoint=(precise=true),preserve_prepared=true,statistics=(all)')),
-    ]
-
-    scenarios = make_scenarios(conn_config_values)
+    conn_config = 'checkpoint=(precise=true),preserve_prepared=true,statistics=(all)'
 
     def get_stats(self, stats):
         """Get the current values of multiple statistics."""
@@ -114,13 +111,11 @@ class test_prepare34(wttest.WiredTigerTestCase):
 
         for i in range(1, 21):
             cursor_prepare.set_key(i)
-
             modifications = [wiredtiger.Modify('b', 0, 1)]  # Modify 'aaaaa' to `baaaaa`
             self.assertEqual(cursor_prepare.modify(modifications), 0)
 
         for i in range(1, 21):
             cursor_prepare.set_key(i)
-
             modifications = [wiredtiger.Modify('d', 0, 1)]  # Modify 'baaaaa' to `dbaaaaa`
             self.assertEqual(cursor_prepare.modify(modifications), 0)
         # Prepare the transaction at timestamp 70

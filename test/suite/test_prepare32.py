@@ -30,15 +30,14 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 import time
 # test_prepare32.py
-# Tests that validate that we write prepared updates to disk correctly
+# Tests prepared transaction checkpoint behavior:
+# - Skip writing prepared updates if prepared timestamp is not stable
+# - Write committed prepared updates as prepared if prepared timestamp is stable but commit timestamp is not stable
+# - Write committed prepared updates as committed if commit timestamp is stable
 
 class test_prepare32(wttest.WiredTigerTestCase):
 
-    conn_config_values = [
-        ('preserve_prepared_on', dict(conn_config='checkpoint=(precise=true),preserve_prepared=true,statistics=(all)')),
-    ]
-
-    scenarios = make_scenarios(conn_config_values)
+    conn_config = 'checkpoint=(precise=true),preserve_prepared=true,statistics=(all)'
 
     def get_stats(self, stats):
         """Get the current values of multiple statistics."""
@@ -130,14 +129,13 @@ class test_prepare32(wttest.WiredTigerTestCase):
             wiredtiger.stat.conn.rec_time_window_prepared: False,
         })
 
-        # Write a committed prepared update as a prepared update if its prepared timestamp is stable but its durable timestamp is not stable. Leave the page dirty.
         # Move stable timestamp to after prepared timestamp, but before durable timestamp
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(85))
         # Should write update as prepared
         self.checkpoint_and_verify_stats({
             wiredtiger.stat.conn.rec_time_window_prepared: True,
         })
-        # Write a committed prepared update as a committed update if its durable timestamp is stable. Leave the page clean.
+
         # Move stable timestamp to after durable timestamp
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(95))
         # Should write update as committed
