@@ -681,8 +681,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                 continue;
 
             /* Ignore the prepared update if the rollback timestamp is stable. */
-            if (upd->upd_rollback_ts <= r->rec_start_pinned_stable_ts) {
-                /* WT_ASSERT(session, upd->upd_rollback_ts != WT_TS_NONE); */
+            if (upd->upd_rollback_ts != WT_TS_NONE &&
+              upd->upd_rollback_ts <= r->rec_start_pinned_stable_ts) {
                 /* If we have seen a tombstone that rolled back the prepared update, skip the key.
                  */
                 if (prepare_rollback_tombstone != NULL)
@@ -885,9 +885,13 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
         else if (prepare_rollback_tombstone != NULL) {
+            /*
+             * Not checking upd->txnid == WT_TXN_ABORTED here because when doing prepared rollback,
+             * we first insert the rollback tombstone then mark the prepare aborted, so this assert
+             * can fire if we race with prepared rollback.
+             */
             WT_ASSERT(session,
-              *write_prepare && upd->txnid == WT_TXN_ABORTED &&
-                upd->prepare_state == WT_PREPARE_INPROGRESS &&
+              *write_prepare && upd->prepare_state == WT_PREPARE_INPROGRESS &&
                 prepare_rollback_tombstone->next == upd);
             upd_select->upd = upd;
         }
@@ -957,7 +961,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
     WT_UNUSED(r);
     WT_TIME_WINDOW *select_tw;
     WT_UPDATE *last_upd, *tombstone, *upd;
-    uint64_t txnid;
+    uint64_t tombstone_txnid;
 
     upd = upd_select->upd;
     last_upd = tombstone = NULL;
@@ -980,7 +984,9 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
     if (upd->type == WT_UPDATE_TOMBSTONE) {
         WT_TIME_WINDOW_SET_STOP(select_tw, upd, write_prepare);
         tombstone = upd_select->tombstone = upd;
-
+        WT_ACQUIRE_READ(tombstone_txnid, tombstone->txnid);
+        if (tombstone_txnid == WT_TXN_ABORTED)
+            tombstone_txnid = tombstone->upd_saved_txnid;
         /*
          * Find the update this tombstone applies to.
          *
@@ -1014,19 +1020,15 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
                  * tombstone still in prepared state but a prepared update that is rolled back from
                  * the same transaction here. Handle this case.
                  */
-                WT_ACQUIRE_READ(txnid, tombstone->txnid);
-                if (txnid == WT_TXN_ABORTED)
-                    txnid = tombstone->upd_saved_txnid;
-                if (upd->next->upd_saved_txnid == txnid) {
+                if (upd->next->upd_saved_txnid == tombstone_txnid) {
                     WT_ASSERT(session, upd->next->prepare_ts == tombstone->prepare_ts);
                     break;
                 }
             }
-
-            WT_ASSERT(session,
-              upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED ||
-                (write_prepare && upd->next->prepare_state == WT_PREPARE_INPROGRESS &&
-                  upd->next->upd_saved_txnid == tombstone->upd_saved_txnid));
+            if (upd->next != NULL)
+                WT_ASSERT(session,
+                  write_prepare && upd->next->prepare_state == WT_PREPARE_INPROGRESS &&
+                    upd->next->upd_saved_txnid == tombstone->upd_saved_txnid);
             upd_select->upd = upd = upd->next;
             /* We should not see multiple consecutive tombstones. */
             WT_ASSERT_ALWAYS(session, upd == NULL || upd->type != WT_UPDATE_TOMBSTONE,
@@ -1111,7 +1113,10 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
             WT_ASSERT(session,
               last_upd->next->prepare_state != WT_PREPARE_INPROGRESS &&
                 last_upd->next->prepare_state != WT_PREPARE_LOCKED);
-            /* should always write completed original update */
+            /*
+             * Set the time window for the appended on-page value, which is always committed and not
+             * prepared in this case.
+             */
             WT_TIME_WINDOW_SET_START(select_tw, last_upd->next, false);
         } else {
             /*
@@ -1131,7 +1136,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
         }
     }
     WT_ASSERT(session,
-      !WT_TIME_WINDOW_HAS_STOP_PREPARE(&(upd_select->tw)) ||
+      !WT_TIME_WINDOW_HAS_STOP_PREPARE(&upd_select->tw) ||
         upd_select->tw.stop_prepare_ts >= upd_select->tw.start_ts);
     return (0);
 }
