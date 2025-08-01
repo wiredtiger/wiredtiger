@@ -324,12 +324,14 @@ class test_layered23(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Apply them to leader WT and checkpoint.
         oplog.apply(self, self.session, 0, 2000)
         oplog.check(self, self.session, 0, 2000)
+        self.verifyTables([self.session], [self.uri])
 
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
 
         self.session.checkpoint()     # checkpoint 1
         checkpoint_count = 1
         self.check_checkpoint(checkpoint_count)
+        self.verifyTables([self.session], [self.uri])
 
         # Add some more traffic
         oplog.insert(t, 900)

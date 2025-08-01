@@ -202,11 +202,12 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CELL_UNPACK_ADDR addr_unpack;
     WT_CKPT *ckptbase, *ckpt;
     WT_DECL_RET;
+    int tmp_ret;
     WT_VSTUFF *vs, _vstuff;
     size_t root_addr_size;
     uint8_t root_addr[WT_ADDR_MAX_COOKIE];
     const char *name;
-    bool bm_start, quit, skip_hs;
+    bool bm_start, quit, skip_hs, eviction_disabled;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
@@ -215,7 +216,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     bm = btree->bm;
     ckptbase = NULL;
     name = session->dhandle->name;
-    bm_start = quit = false;
+    bm_start = quit = eviction_disabled = false;
+    tmp_ret = 0;
     WT_NOT_READ(skip_hs, false);
 
     WT_CLEAR(_vstuff);
@@ -243,11 +245,13 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
      * Get a list of the checkpoints for this file. Empty objects have no checkpoints, in which case
      * there's no work to do.
      */
-    WT_ERR_NOTFOUND_OK(__wt_meta_ckptlist_get(session, name, false, &ckptbase, NULL), true);
+    WT_ERR_NOTFOUND_OK(__wt_meta_ckptlist_get_internal(session, name, false, &ckptbase, NULL, false), true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;
     }
+    WT_ERR(__wt_evict_file_exclusive_on(session));
+    eviction_disabled = true;
 
     /* Inform the underlying block manager we're verifying. */
     WT_ERR(bm->verify_start(bm, session, ckptbase, cfg));
@@ -293,6 +297,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
                   __wt_addr_string(session, root_addr, root_addr_size, vs->tmp1)));
 
             __wt_evict_file_exclusive_off(session);
+            eviction_disabled = false;
 
             /*
              * Create a fake, unpacked parent cell for the tree based on the checkpoint information.
@@ -335,7 +340,11 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * because we are called with eviction locked out, so we release the lock at the top of
              * the loop and re-acquire it here.
              */
-            WT_TRET(__wt_evict_file_exclusive_on(session));
+            tmp_ret = __wt_evict_file_exclusive_on(session);
+            if (tmp_ret == 0)
+                eviction_disabled = true;
+            WT_TRET(tmp_ret);
+
             WT_TRET(__wt_evict_file(session, WT_SYNC_DISCARD));
         }
 
@@ -361,6 +370,8 @@ err:
     if (bm_start)
         WT_TRET(bm->verify_end(bm, session));
 
+    if (eviction_disabled)
+        __wt_evict_file_exclusive_off(session);
     /* Discard the list of checkpoints. */
     if (ckptbase != NULL)
         __wt_ckptlist_free(session, &ckptbase);

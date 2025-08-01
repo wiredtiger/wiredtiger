@@ -1744,7 +1744,8 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
     WT_WITH_CHECKPOINT_LOCK(session,
       WT_WITH_SCHEMA_LOCK(session,
         ret = __wt_schema_worker(
-          session, uri, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY)));
+        //   session, uri, __wt_verify, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY)));
+          session, uri, __wt_verify, NULL, cfg, WT_BTREE_VERIFY)));
     WT_ERR(ret);
 err:
     if (ret != 0)

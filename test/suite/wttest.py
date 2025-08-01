@@ -783,6 +783,19 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     raise err
                 session.checkpoint()
 
+    def verifyTables(self, sessions, uris, expected_error = None):
+        for session in sessions:
+            for uri in uris:
+                try:
+                    session.verify(uri)
+                    if expected_error:
+                        self.fail(f"Expected error '{expected_error}' but no error was raised.")
+                except wiredtiger.WiredTigerError as e:
+                    if (expected_error):
+                        self.assertTrue(expected_error == str(e))
+                    else:
+                        raise(e)
+
     def salvageUntilSuccess(self, session, uri, config=None):
         while True:
             try:

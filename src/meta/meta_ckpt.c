@@ -813,6 +813,18 @@ int
 __wt_meta_ckptlist_get(
   WT_SESSION_IMPL *session, const char *fname, bool update, WT_CKPT **ckptbasep, size_t *allocated)
 {
+    return (__wt_meta_ckptlist_get_internal(session, fname, update, ckptbasep, allocated, true));
+}
+
+/*
+ * __wt_meta_ckptlist_get --
+ *     Load all available checkpoint information for a file. Either use a cached copy of the
+ *     checkpoints or rebuild from the metadata.
+ */
+int
+__wt_meta_ckptlist_get_internal(
+  WT_SESSION_IMPL *session, const char *fname, bool update, WT_CKPT **ckptbasep, size_t *allocated, bool check_cache)
+{
     WT_BTREE *btree;
     WT_CKPT *ckptbase_comp;
     WT_DECL_ITEM(name_buf);
@@ -834,7 +846,7 @@ __wt_meta_ckptlist_get(
      * list command.
      */
     btree = S2BT_SAFE(session);
-    if (btree != NULL && btree->ckpt != NULL && !WT_IS_METADATA(session->dhandle)) {
+    if (check_cache && btree != NULL && btree->ckpt != NULL && !WT_IS_METADATA(session->dhandle)) {
         *ckptbasep = btree->ckpt;
         if (update)
             WT_ERR(__meta_ckptlist_allocate_new_ckpt(
