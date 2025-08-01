@@ -966,6 +966,9 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
 
             tombstone = NULL;
 
+            if (upd = NULL)
+                break;
+
             if (upd != newest_hs)
                 __wt_update_vector_peek(&updates, &prev_upd);
             else
