@@ -1051,6 +1051,12 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             }
 
             /*
+             * No need to insert to the history store if the stop timestamp is globally visible.
+             */
+            if (__wt_txn_tw_stop_visible_all(session, &tw))
+                continue;
+
+            /*
              * Ensure all the updates inserted to the history store are committed.
              *
              * Sometimes the application and the checkpoint threads will fall behind the eviction
@@ -1069,6 +1075,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             else
                 WT_ASSERT(session, __txn_visible_id(session, upd->txnid));
 #endif
+
             /*
              * Calculate reverse modify and clear the history store records with timestamps when
              * inserting the first update. Always write the newest update in the history store as a
