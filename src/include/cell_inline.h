@@ -1603,7 +1603,8 @@ __wt_page_cell_data_ref_kv(
             __wt_cell_unpack_kv(session, dsk, (WT_CELL *)__cell, &(unpack)->delta_key);         \
             __cell += (unpack)->delta_key.__len;                                                \
             __wt_cell_unpack_delta_leaf_value(session, dsk, (WT_CELL *)__cell, unpack);         \
-            __cell += (unpack)->delta_value.__len;
+            __cell += (unpack)->delta_value.__len;                                              \
+            __cell_unpack_window_cleanup_delta(session, dsk, unpack);
 
 #define WT_CELL_FOREACH_ADDR(session, dsk, unpack)                                              \
     do {                                                                                        \

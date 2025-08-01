@@ -2231,16 +2231,18 @@ __rec_pack_delta_leaf_custom(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE
     WT_DECL_ITEM(custom_value);
     WT_DECL_RET;
     WT_ITEM *key, *value;
+    bool ovfl_key;
     uint8_t flags, *p;
 
     cbt = &r->update_modify_cbt;
     flags = 0;
+    ovfl_key = false;
     WT_ERR(__wt_scr_alloc(session, 0, &custom_value));
 
     /* Get the key data and pack it into a key cell. */
     WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
     WT_ERR(__rec_delta_pack_key(session, S2BT(session), r, supd->ins, supd->rip, key));
-    WT_ERR(__wti_rec_cell_build_leaf_key(session, r, key->data, key->size, false));
+    WT_ERR(__wti_rec_cell_build_leaf_key(session, r, key->data, key->size, &ovfl_key));
 
     /*
      * Build the customized value. The value for a leaf page delta looks very similar to a standard
@@ -2279,7 +2281,13 @@ __rec_pack_delta_leaf_custom(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE
     WT_ERR(__wti_rec_cell_build_val(
       session, r, (const void *)custom_value, sizeof(flags) + value->size, &supd->tw, 0));
 
-    r->delta.size += (key->size + sizeof(flags) + value->size);
+    if (r->delta.size + r->k.buf.size + r->v.buf.size > r->delta.memsize)
+        WT_ERR(__wt_buf_grow(session, &r->delta, r->delta.size + r->k.buf.size + r->v.buf.size));
+    p = (uint8_t *)r->delta.data + r->delta.size;
+    memcpy(p, r->k.buf.data, r->k.buf.size);
+    p += r->k.buf.size;
+    memcpy(p, r->v.buf.data, r->v.buf.size);
+    r->delta.size += (r->k.buf.size + r->v.buf.size);
 
 err:
     __wt_scr_free(session, &key);
