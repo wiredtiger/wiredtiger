@@ -966,8 +966,11 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
 
             tombstone = NULL;
 
-            if (upd = NULL)
+            /* We don't insert anything. Break out the loop. */
+            if (upd == NULL) {
+                WT_ASSERT(session, !hs_inserted);
                 break;
+            }
 
             if (upd != newest_hs)
                 __wt_update_vector_peek(&updates, &prev_upd);
