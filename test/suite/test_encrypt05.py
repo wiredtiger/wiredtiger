@@ -68,8 +68,6 @@ class test_encrypt05(wttest.WiredTigerTestCase):
                 # If we get an error, it should be about the malformed keyid.
                 self.assertTrue('Invalid argument' in str(e), f"Unexpected error: {e}")
 
-            continue
-
         # Reopen the connection with a valid config to avoid teardown errors using the
         # problematic config that had the malformed keyid.
         config = ""
