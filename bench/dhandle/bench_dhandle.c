@@ -431,10 +431,10 @@ creator(void *void_args)
     WT_CURSOR *cursor;
     THREAD_ARGS *args;
     SHARED *shared;
-    int table_num;
     uint64_t elapsed, start_time, now;
+    int drop_num, table_num;
+    int new_table_count, new_exists, new_high, new_low, pct, target_high;
     char tname[100];
-    int new_table_count, new_exists, new_high, new_low, pct;
 
     args = (THREAD_ARGS *)void_args;
     shared = args->shared;
@@ -447,31 +447,19 @@ creator(void *void_args)
      */
     while (!shared->done) {
         /*
-         * Create the next batch of tables. First, determine the new value for the highest table
-         * number in use.
+         * Create a batch of tables before sleeping. We have a target number of tables to get to,
+         * and a target time to do it. Based on the current time, see what our new target high
+         * should be before sleeping.
          */
         __wt_seconds(NULL, &now);
         elapsed = now - start_time;
-        new_high =
+        target_high =
           (int)(((double)shared->config.table_count * elapsed) / shared->config.seconds_until_full);
 
-        /* Given that, the lowest table that can exist can be determined. */
-        new_exists = 0;
-        if (new_high > shared->config.table_count)
-            new_exists = new_high - shared->config.table_count;
-
-        /*
-         * The low marker for being "in use" can be determined, it is based on a configured
-         * percentage of in use.
-         */
-        new_table_count = new_high - new_exists;
-        pct = 100 - shared->config.table_in_use_percent;
-        new_low = (int)(new_exists + ((double)pct * new_table_count) / 100);
-        fprintf(stderr, "new table id constraints: exists=%d, low=%d, high=%d\n", new_exists,
-          new_low, new_high);
-
-        fprintf(stderr, "creating tables in range %d => %d\n", shared->high, new_high);
-        for (table_num = shared->high; table_num < new_high && !shared->done; ++table_num) {
+        fprintf(stderr,
+          "current high = %d, low = %d, exists = %d. creating tables in range %d => %d\n",
+          shared->high, shared->low, shared->exists, shared->high, target_high);
+        for (table_num = shared->high; table_num < target_high && !shared->done; ++table_num) {
             snprintf(tname, sizeof(tname), "table:t%d", table_num);
 
             TIME_OPERATION(
@@ -485,30 +473,48 @@ creator(void *void_args)
                 testutil_check(cursor->close(cursor));
             });
 
-            /* Publish the new high point. */
-            WT_RELEASE_WRITE_WITH_BARRIER(shared->high, table_num + 1);
+            new_high = table_num + 1;
+
+            /* Given that high point, the lowest table that can exist can be determined. */
+            new_exists = 0;
+            if (new_high > shared->config.table_count)
+                new_exists = new_high - shared->config.table_count;
 
             /*
-             * And bump up the low point, little by little. Advancing both the high and low in this
-             * loop keeps the current active number of tables (high - low) steady.
+             * The low marker for being "in use" can be determined, it is based on a configured
+             * percentage of in use.
+             */
+            new_table_count = new_high - new_exists;
+            pct = 100 - shared->config.table_in_use_percent;
+            new_low = (int)(new_exists + ((double)pct * new_table_count) / 100);
+
+            /*
+              fprintf(stderr, "  new high = %d, low = %d, exists = %d\n",
+              new_high, new_low, new_exists);
+            */
+
+            /*
+             * Bump up the low point if need be.
              */
             if (shared->low < new_low)
                 WT_RELEASE_WRITE_WITH_BARRIER(shared->low, shared->low + 1);
+
+            /*
+             * Drop any tables that should be dropped.
+             */
+            for (drop_num = shared->exists; drop_num < new_exists && !shared->done; ++drop_num) {
+                snprintf(tname, sizeof(tname), "table:t%d", drop_num);
+
+                TIME_OPERATION(session, &args->t_drop, { session->drop(session, tname, NULL); });
+            }
+
+            /* Publish the new values for the high, low and exists points. */
+            WT_RELEASE_WRITE_WITH_BARRIER(shared->high, new_high);
+            WT_RELEASE_WRITE_WITH_BARRIER(shared->low, new_low);
+            WT_RELEASE_WRITE_WITH_BARRIER(shared->exists, new_exists);
         }
 
-        fprintf(stderr, "dropping tables in range %d => %d\n", shared->exists, new_exists);
-        for (table_num = shared->exists; table_num < new_exists && !shared->done; ++table_num) {
-            snprintf(tname, sizeof(tname), "table:t%d", table_num);
-
-            TIME_OPERATION(session, &args->t_drop, { session->drop(session, tname, NULL); });
-        }
-
-        /* Now set final values for everything. */
-        WT_RELEASE_WRITE_WITH_BARRIER(shared->high, new_high);
-        WT_RELEASE_WRITE_WITH_BARRIER(shared->low, new_low);
-        WT_RELEASE_WRITE_WITH_BARRIER(shared->exists, new_exists);
-
-        /* Signal other threads that they can start. */
+        /* We've done at least one round of creates, signal other threads that they can start. */
         shared->started = true;
 
         sleep(5);
