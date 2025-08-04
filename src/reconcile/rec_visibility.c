@@ -152,6 +152,7 @@ __rec_append_orig_value(
      */
     WT_ASSERT_ALWAYS(session, oldest_upd != NULL, "No older updates found on update chain");
 
+    bool delta_enabled = WT_DELTA_LEAF_ENABLED(session);
     /*
      * Additionally, we need to append a tombstone before the onpage value we're about to append to
      * the list, if the onpage value has a valid stop time point. Imagine a case where we insert and
@@ -187,7 +188,7 @@ __rec_append_orig_value(
             tombstone->upd_start_ts = unpack->tw.stop_ts;
             tombstone->upd_durable_ts = unpack->tw.durable_stop_ts;
             F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
-            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            if (delta_enabled)
                 F_SET(tombstone, WT_UPDATE_DURABLE);
         } else {
             /*
@@ -232,7 +233,7 @@ __rec_append_orig_value(
         append->upd_start_ts = unpack->tw.start_ts;
         append->upd_durable_ts = unpack->tw.durable_start_ts;
         F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
-        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        if (delta_enabled)
             F_SET(append, WT_UPDATE_DURABLE);
     }
 
@@ -349,8 +350,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
      * We need to save the update chain to build the delta. Don't save the update chain if the
      * selected update is already durable.
      */
-    if (upd_select->upd != NULL && F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
-      F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_LEAF_PAGE_DELTA)) {
+    if (upd_select->upd != NULL && WT_DELTA_LEAF_ENABLED(session)) {
         if (upd_select->tombstone != NULL) {
             if (!F_ISSET(upd_select->tombstone, WT_UPDATE_DURABLE | WT_UPDATE_PREPARE_DURABLE))
                 return (true);
@@ -481,6 +481,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
   WT_TIME_WINDOW *select_tw, WT_CELL_UNPACK_KV *vpack)
 {
     WT_UPDATE *prev_upd, *upd;
+    uint8_t prepare_state;
 
     /*
      * There is no selected update to go to disk as such we don't need to check the updates
@@ -540,18 +541,20 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
-        char ts_string[3][WT_TS_INT_STRING_SIZE];
+        WT_ACQUIRE_READ(prepare_state, prev_upd->prepare_state);
+        char ts_string[4][WT_TS_INT_STRING_SIZE];
         WT_ASSERT_ALWAYS(session,
-          prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
+          prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED ||
             prev_upd->upd_start_ts == prev_upd->upd_durable_ts ||
             prev_upd->upd_durable_ts >= upd->upd_durable_ts,
-          "Durable timestamps cannot be out of order for prepared updates: "
-          "prev_upd->upd_start_ts=%s, "
+          "Durable timestamps cannot be out of order for updates: "
+          "prev_upd->upd_start_ts=%s, prev_upd->prepare_ts_ts=%s, "
           "prev_upd->upd_durable_ts=%s, prev_upd->flags=%" PRIu16
           ", upd->upd_durable_ts=%s, upd->flags=%" PRIu16,
           __wt_timestamp_to_string(prev_upd->upd_start_ts, ts_string[0]),
-          __wt_timestamp_to_string(prev_upd->upd_durable_ts, ts_string[1]), prev_upd->flags,
-          __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[2]), upd->flags);
+          __wt_timestamp_to_string(prev_upd->prepare_ts, ts_string[1]),
+          __wt_timestamp_to_string(prev_upd->upd_durable_ts, ts_string[2]), prev_upd->flags,
+          __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[3]), upd->flags);
 
         /* Validate that the updates older than us have older timestamps. */
         if (prev_upd->upd_start_ts < upd->upd_start_ts) {
@@ -588,29 +591,32 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
      * reconciliations ondisk value that we will be comparing against.
      */
     if (vpack != NULL && !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw))) {
-        char ts_string[3][WT_TS_INT_STRING_SIZE];
-        if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw))
+        char ts_string[4][WT_TS_INT_STRING_SIZE];
+        WT_ACQUIRE_READ(prepare_state, prev_upd->prepare_state);
+        if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw)) {
             WT_ASSERT_ALWAYS(session,
-              prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
+              prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED ||
                 prev_upd->upd_start_ts == prev_upd->upd_durable_ts ||
                 prev_upd->upd_durable_ts >= vpack->tw.durable_stop_ts,
-              "Stop: Durable timestamps cannot be out of order for prepared updates: "
-              "prev_upd->upd_start_ts=%s, prev_upd->upd_durable_ts=%s, prev_upd->flags=%" PRIu16
-              ", vpack->tw.durable_stop_ts=%s",
+              "Stop: Durable timestamps cannot be out of order for updates: "
+              "prev_upd->upd_start_ts=%s, prev_upd->prepare_ts=%s, prev_upd->upd_durable_ts=%s, "
+              "prev_upd->flags=%" PRIu16 ", vpack->tw.durable_stop_ts=%s",
               __wt_timestamp_to_string(prev_upd->upd_start_ts, ts_string[0]),
-              __wt_timestamp_to_string(prev_upd->upd_durable_ts, ts_string[1]), prev_upd->flags,
-              __wt_timestamp_to_string(vpack->tw.durable_stop_ts, ts_string[2]));
-        else
+              __wt_timestamp_to_string(prev_upd->prepare_ts, ts_string[1]),
+              __wt_timestamp_to_string(prev_upd->upd_durable_ts, ts_string[2]), prev_upd->flags,
+              __wt_timestamp_to_string(vpack->tw.durable_stop_ts, ts_string[3]));
+        } else
             WT_ASSERT_ALWAYS(session,
-              prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
+              prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED ||
                 prev_upd->upd_start_ts == prev_upd->upd_durable_ts ||
                 prev_upd->upd_durable_ts >= vpack->tw.durable_start_ts,
-              "Start: Durable timestamps cannot be out of order for prepared updates: "
-              "prev_upd->upd_start_ts=%s, prev_upd->upd_durable_ts=%s, prev_upd->flags=%" PRIu16
-              ", vpack->tw.durable_start_ts=%s",
+              "Start: Durable timestamps cannot be out of order for updates: "
+              "prev_upd->upd_start_ts=%s, prev_upd->prepare_ts=%s, prev_upd->upd_durable_ts=%s, "
+              "prev_upd->flags=%" PRIu16 ", vpack->tw.durable_start_ts=%s",
               __wt_timestamp_to_string(prev_upd->upd_start_ts, ts_string[0]),
-              __wt_timestamp_to_string(prev_upd->upd_durable_ts, ts_string[1]), prev_upd->flags,
-              __wt_timestamp_to_string(vpack->tw.durable_start_ts, ts_string[2]));
+              __wt_timestamp_to_string(prev_upd->prepare_ts, ts_string[1]),
+              __wt_timestamp_to_string(prev_upd->upd_durable_ts, ts_string[2]), prev_upd->flags,
+              __wt_timestamp_to_string(vpack->tw.durable_start_ts, ts_string[3]));
 
         if (prev_upd->upd_start_ts == WT_TS_NONE) {
             if (vpack->tw.start_ts != WT_TS_NONE ||
@@ -747,17 +753,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          * Only checkpoint should ever encounter resolving prepared transactions. If it does, then
          * it needs to wait to see whether they should be included or not.
          */
-        WT_READ_ONCE(prepare_state, upd->prepare_state);
-        while (prepare_state == WT_PREPARE_LOCKED) {
-            WT_ASSERT_ALWAYS(session, F_ISSET(r, WT_REC_CHECKPOINT),
-              "Eviction should never occur on a page that has resolving prepared records.");
-            /*
-             * FIXME: WT-14897. This while loop can be removed if we start to use the new prepared
-             * timestamp field.
-             */
-            __wt_sleep(0, 100);
-            WT_READ_ONCE(prepare_state, upd->prepare_state);
-        }
+        WT_ACQUIRE_READ(prepare_state, upd->prepare_state);
 
         /*
          * An interesting case this code will need to deal with is the case where a prepare (start)
@@ -770,9 +766,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          * a new flag like WT_UPDATE_DS, but indicating that it's partially in the datastore).
          * Question: does this become tricky if a prepare makes multiple changes to the same key?
          */
-        if (prepare_state == WT_PREPARE_INPROGRESS) {
+        if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
             WT_ASSERT_ALWAYS(session,
-              upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid,
+              upd_select->upd == NULL || F_ISSET(r, WT_REC_CHECKPOINT) ||
+                upd_select->upd->txnid == upd->txnid,
               "Cannot have two different prepared transactions active on the same key");
             /*
              * Don't save the record if it's prepare time is greater than the checkpoint timestamp
@@ -958,13 +955,12 @@ __rec_fill_tw_from_upd_select(
          * currently we either append the onpage value and return that, or return the tombstone
          * itself; there is no case that returns no update but sets the time window.)
          *
-         * If the tombstone is restored from the disk except for disaggregated storage or the
-         * history store, the onpage value and the history store value should have been restored
-         * together. Therefore, we should not end up here.
+         * If the tombstone is restored from the disk except for building delta or the history
+         * store, the onpage value and the history store value should have been restored together.
+         * Therefore, we should not end up here.
          */
         WT_ASSERT_ALWAYS(session,
-          (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
-            !F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_HS)) ||
+          (WT_DELTA_LEAF_ENABLED(session) && !F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_HS)) ||
             (!F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS)),
           "A tombstone written to the disk image except for disaggregated storage or history store "
           "should be accompanied by the full value.");

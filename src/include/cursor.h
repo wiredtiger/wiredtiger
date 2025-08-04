@@ -483,6 +483,10 @@ struct __wt_cursor_version {
     wt_timestamp_t upd_durable_stop_ts;
     /* The previous traversed update's start_ts will become the stop_ts. */
     wt_timestamp_t upd_stop_ts;
+    /* The previous traversed update's prepare_ts will become the stop_prepare_ts. */
+    wt_timestamp_t upd_stop_prepare_ts;
+    /* Whether The previous traversed update is prepared. */
+    uint8_t upd_stop_prepared;
 
     /* Don't show the user any keys from before this time. */
     wt_timestamp_t start_timestamp;
@@ -517,9 +521,9 @@ struct __wt_cursor_layered {
     int64_t next_random_seed;
     u_int next_random_sample_size;
 
-    uint64_t snapshot_gen;  /* Snapshot generation on last update */
-    uint64_t checkpoint_id; /* The checkpoint id on last updated */
-    bool leader;            /* Leader/follower state on last update */
+    uint64_t snapshot_gen;        /* Snapshot generation on last update */
+    uint64_t checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata */
+    bool leader;                  /* Leader/follower state on last update */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CLAYERED_ACTIVE 0x01u         /* Incremented the session count */
