@@ -983,6 +983,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
      * Otherwise, leave the end of the visibility window at the maximum possible value to indicate
      * that the value is visible to any timestamp/transaction id ahead of it.
      */
+    bool write_start_prepare = write_prepare;
     if (upd->type == WT_UPDATE_TOMBSTONE) {
         WT_TIME_WINDOW_SET_STOP(select_tw, upd, write_prepare);
         tombstone = upd_select->tombstone = upd;
@@ -1003,8 +1004,9 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
                 WT_ACQUIRE_READ(next_txnid, upd->next->txnid);
                 if (next_txnid != WT_TXN_ABORTED)
                     break;
+                write_start_prepare = write_prepare;
 
-                if (!write_prepare)
+                if (!write_start_prepare)
                     continue;
 
                 if (!F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED))
@@ -1014,8 +1016,10 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
                 if (upd->next->type == WT_UPDATE_RESERVE)
                     continue;
 
-                if (upd->next->prepare_state != WT_PREPARE_INPROGRESS)
+                if (upd->next->prepare_state != WT_PREPARE_INPROGRESS) {
+                    write_start_prepare = false;
                     continue;
+                }
 
                 /*
                  * Since we resolve prepared update from the oldest to newest, we may see a
@@ -1025,7 +1029,8 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
                 if (upd->next->upd_saved_txnid == tombstone_txnid) {
                     WT_ASSERT(session, upd->next->prepare_ts == tombstone->prepare_ts);
                     break;
-                }
+                } else
+                    write_start_prepare = false;
             }
             WT_ASSERT(session,
               upd->next == NULL || next_txnid != WT_TXN_ABORTED ||
@@ -1040,21 +1045,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
 
     if (upd != NULL) {
         /* The beginning of the validity window is the selected update's time point. */
-        if (tombstone == NULL)
-            WT_TIME_WINDOW_SET_START(select_tw, upd, write_prepare);
-        else {
-            /*
-             * If the start update is from the same transaction as tombstone, we use write_prepare,
-             * otherwise we need to check the write update state again TODO: need to handle case
-             * when start is committed, but durable_start_ts is not stable
-             */
-            if (upd->txnid == tombstone->txnid)
-                WT_TIME_WINDOW_SET_START(select_tw, upd, write_prepare);
-            else {
-                WT_ASSERT(session, upd->prepare_state != WT_PREPARE_INPROGRESS);
-                WT_TIME_WINDOW_SET_START(select_tw, upd, false);
-            }
-        }
+        WT_TIME_WINDOW_SET_START(select_tw, upd, write_start_prepare);
     } else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
         WT_ASSERT_ALWAYS(
           session, tombstone != NULL, "The only contents of the update list is a single tombstone");
