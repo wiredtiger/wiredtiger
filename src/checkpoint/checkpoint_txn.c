@@ -858,7 +858,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      *
      * We never do checkpoints in the default session.
      */
-    WT_ASSERT(session, !IS_DEFAULT_SESSION(session) && __wt_atomic_loadv32(&txn_global->checkpoint_id) == 0);
+    WT_ASSERT(session,
+      !IS_DEFAULT_SESSION(session) && __wt_atomic_loadv32(&txn_global->checkpoint_id) == 0);
     __wt_atomic_storev32(&txn_global->checkpoint_id, session->id);
 
     /*
