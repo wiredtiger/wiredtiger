@@ -2276,6 +2276,7 @@ __rec_pack_delta_leaf_custom(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE
     p = (uint8_t *)custom_value + 1;
     WT_ERR(__wt_vpack_uint(&p, 0, (uint64_t)value->data));
     *(uint8_t *)custom_value = flags;
+    custom_value->size = 1 + value->size;
 
     /* Pack the custom value into a standard cell structure. */
     WT_ERR(__wti_rec_cell_build_val(
@@ -2283,11 +2284,12 @@ __rec_pack_delta_leaf_custom(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE
 
     if (r->delta.size + r->k.buf.size + r->v.buf.size > r->delta.memsize)
         WT_ERR(__wt_buf_grow(session, &r->delta, r->delta.size + r->k.buf.size + r->v.buf.size));
+
     p = (uint8_t *)r->delta.data + r->delta.size;
-    memcpy(p, r->k.buf.data, r->k.buf.size);
-    p += r->k.buf.size;
-    memcpy(p, r->v.buf.data, r->v.buf.size);
-    r->delta.size += (r->k.buf.size + r->v.buf.size);
+    __wti_rec_kv_copy(session, p, &r->k);
+    p += r->k.len;
+    __wti_rec_kv_copy(session, p, &r->v);
+    r->delta.size += (key->size + custom_value->size);
 
 err:
     __wt_scr_free(session, &key);

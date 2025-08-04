@@ -1214,12 +1214,12 @@ __cell_kv_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack_kv)
              * there shouldn't be any timestamp value as part of durable stop timestamp other than
              * the default value WT_TS_NONE.
              */
-            if (tw->stop_ts == WT_TS_MAX && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw)) {
+            if (tw->stop_ts == WT_TS_MAX) {
                 tw->stop_ts = WT_TS_NONE;
                 WT_ASSERT(session, tw->durable_stop_ts == WT_TS_NONE);
             }
         } else
-            WT_ASSERT(session, tw->stop_ts == WT_TS_MAX && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw));
+            WT_ASSERT(session, tw->stop_ts == WT_TS_MAX);
     }
 }
 
@@ -1423,10 +1423,11 @@ __wt_cell_unpack_delta_leaf_value(WT_SESSION_IMPL *session, const WT_PAGE_HEADER
 {
     WT_DECL_RET;
 
-    unpack->flags = value_cell->__chunk[0];
-
     /* Unpack the value. */
-    __wt_cell_unpack_kv(session, dsk, value_cell + 1, &unpack->delta_value);
+    __wt_cell_unpack_kv(session, dsk, value_cell, &unpack->delta_value);
+
+    /* Unpack the delta metadata from the custom value format. */
+    unpack->flags = *(uint8_t *)unpack->delta_value.data;
 
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 }
