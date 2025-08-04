@@ -1320,7 +1320,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      */
     WT_ASSERT_ALWAYS(session,
       upd_select->upd == NULL || upd_select->upd->txnid != WT_TXN_ABORTED ||
-        F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED),
+       (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) && WT_TIME_WINDOW_HAS_PREPARE(&upd_select->tw)),
       "Updated selected that has since been rolled back");
 
     /*
