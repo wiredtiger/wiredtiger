@@ -1002,11 +1002,11 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
             uint64_t next_txnid = WT_TXN_NONE;
             for (; upd->next != NULL; upd = upd->next) {
                 WT_ACQUIRE_READ(next_txnid, upd->next->txnid);
-                write_start_prepare = write_prepare && next_txnid == tombstone_txnid;
-                if (next_txnid != WT_TXN_ABORTED)
+                if (next_txnid != WT_TXN_ABORTED) {
+                    write_start_prepare = write_prepare && next_txnid == tombstone_txnid;
                     break;
-
-                if (!write_start_prepare)
+                }
+                if (!write_prepare)
                     continue;
 
                 if (!F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED))
@@ -1029,14 +1029,23 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
                 if (upd->next->upd_saved_txnid == tombstone_txnid) {
                     WT_ASSERT(session, upd->next->prepare_ts == tombstone->prepare_ts);
                     break;
-                } else {
+                } else
                     write_start_prepare = false;
-                }
             }
-            WT_ASSERT(session,
-              upd->next == NULL || next_txnid != WT_TXN_ABORTED ||
-                (write_start_prepare && upd->next->prepare_state == WT_PREPARE_INPROGRESS &&
-                  upd->next->upd_saved_txnid == tombstone->upd_saved_txnid));
+            if (!F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED))
+                WT_ASSERT(session,
+                  !write_prepare && (upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED));
+            else
+                /*
+                 * If write_start_prepare is false, we will either break or to the end of the loop
+                 * so upd->next is NULL If we race with transaction commit, next_txnid should not be
+                 * WT_TXN_ABORTED If we race with abort, write_start_prepare must be true and both
+                 * the update and tombstone must be from the same transaction
+                 */
+                WT_ASSERT(session,
+                  upd->next == NULL || next_txnid != WT_TXN_ABORTED ||
+                    (write_start_prepare &&
+                      upd->next->upd_saved_txnid == tombstone->upd_saved_txnid));
             upd_select->upd = upd = upd->next;
             /* We should not see multiple consecutive tombstones. */
             WT_ASSERT_ALWAYS(session, upd == NULL || upd->type != WT_UPDATE_TOMBSTONE,
@@ -1044,10 +1053,10 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
         }
     }
 
-    if (upd != NULL) {
+    if (upd != NULL)
         /* The beginning of the validity window is the selected update's time point. */
         WT_TIME_WINDOW_SET_START(select_tw, upd, write_start_prepare);
-    } else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
+    else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
         WT_ASSERT_ALWAYS(
           session, tombstone != NULL, "The only contents of the update list is a single tombstone");
 
