@@ -794,8 +794,29 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             txnid_prepared = WT_TXN_NONE;
         for (upd = list->onpage_upd->next, prev_upd = list->onpage_upd; upd != NULL;
              upd = upd->next) {
-            if (upd->txnid == WT_TXN_ABORTED)
-                continue;
+            WT_ACQUIRE_READ(txnid, upd->txnid);
+            if (txnid == WT_TXN_ABORTED) {
+                if (!check_prepared)
+                    continue;
+
+                /* We may see aborted reserve updates in between the prepared updates. */
+                if (upd->type == WT_UPDATE_RESERVE)
+                    continue;
+
+                /*
+                 * If we have multiple prepared updates from the same transaction, there is no other
+                 * updates in between them.
+                 */
+                if (upd->prepare_state != WT_PREPARE_INPROGRESS) {
+                    check_prepared = false;
+                    continue;
+                }
+
+                if (upd->upd_saved_txnid != txnid) {
+                    check_prepared = false;
+                    continue;
+                }
+            }
 
             /* We must have deleted any update left in the history store. */
             WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS));
@@ -830,17 +851,12 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              */
             if (newest_hs == NULL) {
                 if (check_prepared) {
-                    WT_ACQUIRE_READ(txnid, upd->txnid);
-                    if (txnid == WT_TXN_ABORTED) {
-                        /* No need to check prepared further as they must all have been aborted. */
-                        check_prepared = false;
-                        txnid = upd->upd_saved_txnid;
-                    }
                     if (txnid_prepared == txnid) {
                         squashed = true;
                         continue;
-                    } else
-                        check_prepared = false;
+                    }
+
+                    check_prepared = false;
                 }
 
                 if (upd->txnid != ref_upd->txnid || upd->upd_start_ts != ref_upd->upd_start_ts) {
