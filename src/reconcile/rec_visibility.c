@@ -1002,9 +1002,9 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
             uint64_t next_txnid = WT_TXN_NONE;
             for (; upd->next != NULL; upd = upd->next) {
                 WT_ACQUIRE_READ(next_txnid, upd->next->txnid);
+                write_start_prepare = write_prepare && next_txnid == tombstone_txnid;
                 if (next_txnid != WT_TXN_ABORTED)
                     break;
-                write_start_prepare = write_prepare;
 
                 if (!write_start_prepare)
                     continue;
@@ -1029,12 +1029,13 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
                 if (upd->next->upd_saved_txnid == tombstone_txnid) {
                     WT_ASSERT(session, upd->next->prepare_ts == tombstone->prepare_ts);
                     break;
-                } else
+                } else {
                     write_start_prepare = false;
+                }
             }
             WT_ASSERT(session,
               upd->next == NULL || next_txnid != WT_TXN_ABORTED ||
-                (write_prepare && upd->next->prepare_state == WT_PREPARE_INPROGRESS &&
+                (write_start_prepare && upd->next->prepare_state == WT_PREPARE_INPROGRESS &&
                   upd->next->upd_saved_txnid == tombstone->upd_saved_txnid));
             upd_select->upd = upd = upd->next;
             /* We should not see multiple consecutive tombstones. */
@@ -1320,7 +1321,8 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      */
     WT_ASSERT_ALWAYS(session,
       upd_select->upd == NULL || upd_select->upd->txnid != WT_TXN_ABORTED ||
-       (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) && WT_TIME_WINDOW_HAS_PREPARE(&upd_select->tw)),
+        (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+          WT_TIME_WINDOW_HAS_PREPARE(&upd_select->tw)),
       "Updated selected that has since been rolled back");
 
     /*
