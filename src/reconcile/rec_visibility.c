@@ -308,7 +308,7 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
           (__wt_txn_upd_visible_all(session, delete_upd) ||
             (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT) &&
               (WT_TXNID_LT(delete_upd->txnid, oldest_id) && prune_timestamp != WT_TS_NONE &&
-                delete_upd->durable_ts <= prune_timestamp))) &&
+                delete_upd->upd_durable_ts <= prune_timestamp))) &&
           WT_UPDATE_DATA_VALUE(delete_upd))
             visible_all_upd = delete_upd;
     }
