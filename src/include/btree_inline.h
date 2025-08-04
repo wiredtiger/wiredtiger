@@ -2613,8 +2613,10 @@ __wt_ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp
              * No need to check the following updates as prepared because they must have all been \
              * rolled back.                                                                       \
              */                                                                                   \
-            if ((txnid_prepared) == WT_TXN_ABORTED)                                               \
+            if ((txnid_prepared) == WT_TXN_ABORTED) {                                             \
                 (check_prepared) = false;                                                         \
+                (txnid_prepared) = (upd)->upd_saved_txnid;                                        \
+            }                                                                                     \
         } else                                                                                    \
             txnid_prepared = WT_TXN_NONE;                                                         \
     } while (0)
