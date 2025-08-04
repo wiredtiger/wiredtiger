@@ -639,6 +639,7 @@ int
 __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *multi)
 {
     WT_BTREE *btree, *hs_btree;
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(key);
@@ -664,6 +665,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     bool check_prepared, enable_reverse_modify, error_on_ts_ordering, hs_inserted, squashed,
       hs_flag_set;
 
+    conn = S2C(session);
     hs_flag_set = false;
     r->cache_write_hs = false;
     btree = S2BT(session);
@@ -671,7 +673,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     WT_TIME_WINDOW_INIT(&tw);
     insert_cnt = 0;
     error_on_ts_ordering = F_ISSET(r, WT_REC_CHECKPOINT_RUNNING) ||
-      FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING);
+      FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING);
     cache_hs_insert_full_update = cache_hs_insert_reverse_modify = cache_hs_write_squash = 0;
 
     WT_RET(__wt_curhs_open(session, btree->id, NULL, &hs_cursor));
@@ -723,15 +725,13 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
 
         __wt_update_vector_clear(&updates);
 
-        check_prepared = WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw);
-
         /*
          * Reverse modifies are only supported on 'S' and 'u' value formats. Disable reverse
          * modifies if we write a prepared update to disk.
          */
         enable_reverse_modify =
           ((WT_STREQ(btree->value_format, "S") || WT_STREQ(btree->value_format, "u"))) &&
-          !check_prepared;
+          !WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw);
 
         /*
          * If there exists an on page tombstone without a timestamp, consider it as a no timestamp
@@ -782,41 +782,11 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          * and skip the tombstone. 6) We have a single tombstone on the chain, it is simply ignored.
          */
         squashed = false;
-        if (check_prepared) {
-            WT_ACQUIRE_READ(txnid_prepared, list->onpage_upd->txnid);
-            /*
-             * No need to check the following updates as prepared because they must have all been
-             * rolled back.
-             */
-            if (txnid_prepared == WT_TXN_ABORTED)
-                check_prepared = false;
-        } else
-            txnid_prepared = WT_TXN_NONE;
+        WT_GET_CHECK_PREPARED_AND_PREPARE_TXNID(check_prepared,
+          WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw), txnid_prepared, list->onpage_upd);
         for (upd = list->onpage_upd->next, prev_upd = list->onpage_upd; upd != NULL;
              upd = upd->next) {
-            WT_ACQUIRE_READ(txnid, upd->txnid);
-            if (txnid == WT_TXN_ABORTED) {
-                if (!check_prepared)
-                    continue;
-
-                /* We may see aborted reserve updates in between the prepared updates. */
-                if (upd->type == WT_UPDATE_RESERVE)
-                    continue;
-
-                /*
-                 * If we have multiple prepared updates from the same transaction, there is no other
-                 * updates in between them.
-                 */
-                if (upd->prepare_state != WT_PREPARE_INPROGRESS) {
-                    check_prepared = false;
-                    continue;
-                }
-
-                if (upd->upd_saved_txnid != txnid) {
-                    check_prepared = false;
-                    continue;
-                }
-            }
+            WT_SKIP_ABORTED_AND_SET_CHECK_PREPARED(txnid, check_prepared, upd);
 
             /* We must have deleted any update left in the history store. */
             WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS));
