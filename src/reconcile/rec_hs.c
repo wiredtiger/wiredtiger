@@ -779,7 +779,9 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          *
          * 5) We have tombstones in the middle of the chain, e.g., U (selected onpage value) -> U ->
          * T -> M -> U. We write the stop time point of M with the start time point of the tombstone
-         * and skip the tombstone. 6) We have a single tombstone on the chain, it is simply ignored.
+         * and skip the tombstone.
+         *
+         * 6) We have a single tombstone on the chain, it is simply ignored.
          */
         squashed = false;
         WT_GET_CHECK_PREPARED_AND_PREPARE_TXNID(check_prepared,
