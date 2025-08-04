@@ -25,14 +25,14 @@ __wt_timestamp_to_string(wt_timestamp_t ts, char *ts_string)
  *     Converts a time point to a standard string representation.
  */
 char *
-__wt_time_point_to_string(
-  wt_timestamp_t ts, wt_timestamp_t durable_ts, uint64_t txn_id, char *tp_string)
+__wt_time_point_to_string(wt_timestamp_t durable_ts, wt_timestamp_t ts, wt_timestamp_t prepare_ts,
+  uint64_t prepared_id, uint64_t txn_id, char *tp_string)
 {
     char ts_string[WT_TS_INT_STRING_SIZE];
 
-    WT_IGNORE_RET(__wt_snprintf(tp_string, WT_TIME_STRING_SIZE, "%s/%s/%" PRIu64,
-      __wt_timestamp_to_string(ts, ts_string), __wt_timestamp_to_string(durable_ts, ts_string),
-      txn_id));
+    WT_IGNORE_RET(__wt_snprintf(tp_string, WT_TIME_STRING_SIZE, "%s/%s/%s/%" PRIu64 "/%" PRIu64,
+      __wt_timestamp_to_string(durable_ts, ts_string), __wt_timestamp_to_string(ts, ts_string),
+      __wt_timestamp_to_string(prepare_ts, ts_string), prepared_id, txn_id));
     return (tp_string);
 }
 
@@ -43,15 +43,17 @@ __wt_time_point_to_string(
 char *
 __wt_time_window_to_string(WT_TIME_WINDOW *tw, char *tw_string)
 {
-    char ts_string[4][WT_TS_INT_STRING_SIZE];
+    char ts_string[6][WT_TS_INT_STRING_SIZE];
 
     WT_IGNORE_RET(__wt_snprintf(tw_string, WT_TIME_STRING_SIZE,
-      "start: %s/%s/%" PRIu64 " | stop: %s/%s/%" PRIu64 "%s",
+      "start: %s/%s/%s/%" PRIu64 "/%" PRIu64 " | stop: %s/%s/%s/%" PRIu64 "/%" PRIu64 "%s",
       __wt_timestamp_to_string(tw->durable_start_ts, ts_string[0]),
-      __wt_timestamp_to_string(tw->start_ts, ts_string[1]), tw->start_txn,
-      __wt_timestamp_to_string(tw->durable_stop_ts, ts_string[2]),
-      __wt_timestamp_to_string(tw->stop_ts, ts_string[3]), tw->stop_txn,
-      WT_TIME_WINDOW_HAS_PREPARE(tw) ? ", prepared" : ""));
+      __wt_timestamp_to_string(tw->start_ts, ts_string[1]),
+      __wt_timestamp_to_string(tw->start_prepare_ts, ts_string[2]), tw->start_prepared_id,
+      tw->start_txn, __wt_timestamp_to_string(tw->durable_stop_ts, ts_string[3]),
+      __wt_timestamp_to_string(tw->stop_ts, ts_string[4]),
+      __wt_timestamp_to_string(tw->stop_prepare_ts, ts_string[5]), tw->stop_prepared_id,
+      tw->stop_txn, WT_TIME_WINDOW_HAS_PREPARE(tw) ? ", prepared" : ""));
     return (tw_string);
 }
 

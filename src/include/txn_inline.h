@@ -212,7 +212,7 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
         WT_RELEASE_BARRIER();
         upd->upd_start_ts = txn->commit_timestamp;
         upd->upd_durable_ts = txn->durable_timestamp;
-        WT_RELEASE_WRITE_WITH_BARRIER(upd->prepare_state, WT_PREPARE_RESOLVED);
+        WT_RELEASE_WRITE(upd->prepare_state, WT_PREPARE_RESOLVED);
     } else {
         /* Set prepare timestamp and id. */
         upd->upd_start_ts = txn->prepare_timestamp;
@@ -225,7 +225,7 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
          * problem.
          */
         upd->upd_durable_ts = WT_TS_NONE;
-        WT_RELEASE_WRITE_WITH_BARRIER(upd->prepare_state, WT_PREPARE_INPROGRESS);
+        WT_RELEASE_WRITE(upd->prepare_state, WT_PREPARE_INPROGRESS);
     }
 }
 
@@ -247,7 +247,7 @@ __txn_apply_prepare_state_page_del(WT_SESSION_IMPL *session, WT_PAGE_DELETED *pa
          */
         page_del->pg_del_start_ts = txn->commit_timestamp;
         page_del->pg_del_durable_ts = txn->durable_timestamp;
-        WT_RELEASE_WRITE_WITH_BARRIER(page_del->prepare_state, WT_PREPARE_RESOLVED);
+        WT_RELEASE_WRITE(page_del->prepare_state, WT_PREPARE_RESOLVED);
     } else {
         /* Set prepare timestamp. */
         page_del->pg_del_start_ts = txn->prepare_timestamp;
@@ -259,7 +259,7 @@ __txn_apply_prepare_state_page_del(WT_SESSION_IMPL *session, WT_PAGE_DELETED *pa
          * problem.
          */
         page_del->pg_del_durable_ts = WT_TS_NONE;
-        WT_RELEASE_WRITE_WITH_BARRIER(page_del->prepare_state, WT_PREPARE_INPROGRESS);
+        WT_RELEASE_WRITE(page_del->prepare_state, WT_PREPARE_INPROGRESS);
     }
 }
 
@@ -1043,7 +1043,7 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
     uint8_t prepare_state;
 
-    WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
+    WT_ACQUIRE_READ(prepare_state, upd->prepare_state);
 
     if (prepare_state == WT_PREPARE_LOCKED || prepare_state == WT_PREPARE_INPROGRESS)
         return (false);
@@ -1262,25 +1262,12 @@ __wt_txn_visible(
 static WT_INLINE WT_VISIBLE_TYPE
 __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-    uint8_t prepare_state;
+    uint8_t prepare_state, new_prepare_state;
     bool upd_visible;
 
     for (;; __wt_yield()) {
-        /*
-         * TODO: we can remove the prepare locked state and the check here once we separate the
-         * prepared timestamp and commit timestamp.
-         */
-        if (upd->txnid == WT_TXN_ABORTED)
-            return (WT_VISIBLE_FALSE);
-
-        /*
-         * Prepare state change is in progress, yield and try again.
-         *
-         *
-         * TODO: we can remove the prepare locked state and the check here once we separate the
-         * prepared timestamp and commit timestamp.
-         */
-        WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
+        /* Prepare state change is on going, yield and try again. */
+        WT_ACQUIRE_READ(prepare_state, upd->prepare_state);
         if (prepare_state == WT_PREPARE_LOCKED)
             continue;
 
@@ -1289,23 +1276,18 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
               upd->type == WT_UPDATE_STANDARD))
             return (WT_VISIBLE_TRUE);
 
-        upd_visible = __wt_txn_visible(session, upd->txnid,
-          F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-              prepare_state == WT_PREPARE_INPROGRESS ?
-            upd->prepare_ts :
-            upd->upd_start_ts,
-          upd->upd_durable_ts);
+        upd_visible = __wt_txn_visible(session, upd->txnid, upd->upd_start_ts, upd->upd_durable_ts);
 
         /*
          * The visibility check is only valid if the update does not change state. If the state does
          * change, recheck visibility.
          *
-         * We need to place an acquire barrier prior to the second read of prepare state as
-         * otherwise it could overlap with the reads of the transaction id and start timestamp.
-         * Which would invalidate this check.
+         * We need to use an acquire read to the second read of prepare state as otherwise it could
+         * overlap with the reads of the transaction id and start timestamp. Which would invalidate
+         * this check.
          */
-        WT_ACQUIRE_BARRIER();
-        if (prepare_state == upd->prepare_state)
+        WT_ACQUIRE_READ(new_prepare_state, upd->prepare_state);
+        if (prepare_state == new_prepare_state)
             break;
 
         WT_STAT_CONN_INCR(session, prepared_transition_blocked_page);
@@ -1417,7 +1399,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         if (upd->type == WT_UPDATE_RESERVE)
             continue;
 
-        WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
+        WT_ACQUIRE_READ(prepare_state, upd->prepare_state);
 
         /*
          * We previously found a prepared update, check if the update has the same transaction id,
@@ -2069,7 +2051,7 @@ __txn_modify_block(
     WT_TIME_WINDOW tw;
     WT_TXN *txn;
     uint32_t snap_count;
-    char ts_string[WT_TS_INT_STRING_SIZE];
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool ignore_prepare_set, rollback, tw_found;
 
     rollback = tw_found = false;
@@ -2084,8 +2066,10 @@ __txn_modify_block(
     for (; upd != NULL && !__wt_txn_upd_visible(session, upd); upd = upd->next) {
         if (upd->txnid != WT_TXN_ABORTED) {
             __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
-              "Conflict with update with txn id %" PRIu64 " at timestamp: %s", upd->txnid,
-              __wt_timestamp_to_string(upd->upd_start_ts, ts_string));
+              "Conflict with update with txn id %" PRIu64
+              " at start timestamp: %s, prepare timestamp: %s",
+              upd->txnid, __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
+              __wt_timestamp_to_string(upd->prepare_ts, ts_string[1]));
             rollback = true;
             break;
         }
@@ -2110,14 +2094,18 @@ __txn_modify_block(
                 rollback = !__wt_txn_tw_stop_visible(session, &tw);
                 if (rollback)
                     __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
-                      "Conflict with update %" PRIu64 " at stop timestamp: %s", tw.stop_txn,
-                      __wt_timestamp_to_string(tw.stop_ts, ts_string));
+                      "Conflict with update %" PRIu64
+                      " at stop timestamp: %s, prepare timestamp: %s",
+                      tw.stop_txn, __wt_timestamp_to_string(tw.stop_ts, ts_string[0]),
+                      __wt_timestamp_to_string(tw.stop_prepare_ts, ts_string[1]));
             } else {
                 rollback = !__wt_txn_tw_start_visible(session, &tw);
                 if (rollback)
                     __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
-                      "Conflict with update %" PRIu64 " at start timestamp: %s", tw.start_txn,
-                      __wt_timestamp_to_string(tw.start_ts, ts_string));
+                      "Conflict with update %" PRIu64
+                      " at start timestamp: %s, prepare timestamp: %s",
+                      tw.start_txn, __wt_timestamp_to_string(tw.start_ts, ts_string[0]),
+                      __wt_timestamp_to_string(tw.start_prepare_ts, ts_string[1]));
             }
         }
     }
@@ -2232,6 +2220,22 @@ __wt_txn_read_last(WT_SESSION_IMPL *session)
     if ((!F_ISSET(txn, WT_TXN_RUNNING) || txn->isolation != WT_ISO_SNAPSHOT) &&
       txn->forced_iso == 0)
         __wt_txn_release_snapshot(session);
+}
+
+/*
+ * __wt_txn_read_committed_should_release_snapshot --
+ *     Called to check whether we want to release our snapshot through calling WT_CURSOR::reset().
+ */
+static WT_INLINE bool
+__wt_txn_read_committed_should_release_snapshot(WT_SESSION_IMPL *session)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    /* Check if we can release the snap_min ID we put in the global table. */
+    return (
+      (!F_ISSET(txn, WT_TXN_RUNNING) || txn->isolation != WT_ISO_SNAPSHOT) && txn->forced_iso == 0);
 }
 
 /*

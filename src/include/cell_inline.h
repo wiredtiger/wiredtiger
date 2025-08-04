@@ -1214,12 +1214,12 @@ __cell_kv_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack_kv)
              * there shouldn't be any timestamp value as part of durable stop timestamp other than
              * the default value WT_TS_NONE.
              */
-            if (tw->stop_ts == WT_TS_MAX) {
+            if (tw->stop_ts == WT_TS_MAX && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw)) {
                 tw->stop_ts = WT_TS_NONE;
                 WT_ASSERT(session, tw->durable_stop_ts == WT_TS_NONE);
             }
         } else
-            WT_ASSERT(session, tw->stop_ts == WT_TS_MAX);
+            WT_ASSERT(session, tw->stop_ts == WT_TS_MAX && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw));
     }
 }
 
