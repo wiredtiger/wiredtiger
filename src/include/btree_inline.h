@@ -2621,7 +2621,7 @@ __wt_ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp
             txnid_prepared = WT_TXN_NONE;                                                         \
     } while (0)
 
-#define WT_SKIP_ABORTED_AND_SET_CHECK_PREPARED(txnid, check_prepared, upd)                       \
+#define WT_SKIP_ABORTED_AND_SET_CHECK_PREPARED(txnid, txnid_prepared, check_prepared, upd)       \
     do {                                                                                         \
         WT_ACQUIRE_READ((txnid), (upd)->txnid);                                                  \
         if ((txnid) == WT_TXN_ABORTED) {                                                         \
@@ -2641,7 +2641,7 @@ __wt_ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp
                 continue;                                                                        \
             }                                                                                    \
                                                                                                  \
-            if ((upd)->upd_saved_txnid != txnid) {                                               \
+            if ((upd)->upd_saved_txnid != txnid_prepared) {                                      \
                 (check_prepared) = false;                                                        \
                 continue;                                                                        \
             }                                                                                    \

@@ -786,7 +786,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
           WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw), txnid_prepared, list->onpage_upd);
         for (upd = list->onpage_upd->next, prev_upd = list->onpage_upd; upd != NULL;
              upd = upd->next) {
-            WT_SKIP_ABORTED_AND_SET_CHECK_PREPARED(txnid, check_prepared, upd);
+            WT_SKIP_ABORTED_AND_SET_CHECK_PREPARED(txnid, txnid_prepared, check_prepared, upd);
 
             /* We must have deleted any update left in the history store. */
             WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS));
