@@ -136,7 +136,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
                             WT_ASSERT(session,
                               stable_upd->txnid == tombstone->txnid &&
                                 stable_upd->upd_start_ts == tombstone->upd_start_ts &&
-                                stable_ts->durable_start_ts == tombstone->durable_start_ts);
+                                stable_upd->upd_durable_ts == tombstone->upd_durable_ts);
                     }
                 }
             }
