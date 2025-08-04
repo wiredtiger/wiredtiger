@@ -507,7 +507,7 @@ __layered_table_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD *t
 
     WT_UNUSED(session_shared);
     session = thread->session;
-    WT_ASSERT(session, session->id != 0);
+    WT_ASSERT(session, !IS_DEFAULT_SESSION(session));
 
     WT_STAT_CONN_SET(session, layered_table_manager_active, 1);
 

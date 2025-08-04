@@ -31,7 +31,7 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_PREFETCH_QUEUE_ENTRY *pe;
 
     WT_UNUSED(thread);
-    WT_ASSERT(session, session->id != 0);
+    WT_ASSERT(session, !IS_DEFAULT_SESSION(session));
     conn = S2C(session);
 
     /* Mark the session as a prefetch thread session. */
