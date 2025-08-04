@@ -460,9 +460,9 @@ retry:
 
     /* Find a complete update. */
     for (upd = modify; upd != NULL; upd = upd->next) {
-        uint64_t txn_id;
-        WT_ACQUIRE_READ(txn_id, upd->txnid);
-        if (txnid == WT_TXN_ABORTED) {
+        uint64_t temp_txn_id;
+        WT_ACQUIRE_READ(temp_txn_id, upd->txnid);
+        if (temp_txn_id == WT_TXN_ABORTED) {
             /*
              * If the modify is a prepared update, we need to check if there is another prepared
              * modify from the same transaction before it.
