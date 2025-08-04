@@ -1033,14 +1033,17 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
                     write_start_prepare = false;
             }
             if (!F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED))
-                WT_ASSERT(session,
-                  !write_prepare && (upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED));
+                WT_ASSERT(session, upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED);
             else
                 /*
-                 * If write_start_prepare is false, we will either break or to the end of the loop
-                 * so upd->next is NULL If we race with transaction commit, next_txnid should not be
-                 * WT_TXN_ABORTED If we race with abort, write_start_prepare must be true and both
-                 * the update and tombstone must be from the same transaction
+                 * Case 1: If write_start_prepare is false, we will either break or to the end of
+                 * the loop so upd->next is NULL.
+                 *
+                 * Case 2: If we race with transaction commit, next_txnid should not be
+                 * WT_TXN_ABORTED.
+                 *
+                 * Case 3: If we race with abort, write_start_prepare must be true and both the
+                 * update and tombstone must be from the same transaction
                  */
                 WT_ASSERT(session,
                   upd->next == NULL || next_txnid != WT_TXN_ABORTED ||
