@@ -1224,51 +1224,6 @@ __cell_kv_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack_kv)
 }
 
 /*
- * __cell_delta_window_cleanup_helper --
- *     Clean up delta cells loaded from a previous run.
- */
-static WT_INLINE void
-__cell_delta_window_cleanup_helper(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack)
-{
-    WT_TIME_WINDOW *tw;
-    tw = &unpack->tw;
-
-    if (tw->start_txn != WT_TXN_NONE) {
-        tw->start_txn = WT_TXN_NONE;
-        F_SET(unpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
-    }
-    if (tw->stop_txn != WT_TXN_MAX) {
-        tw->stop_txn = WT_TXN_NONE;
-        F_SET(unpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
-
-        /*
-         * The combination of stop timestamp being WT_TS_MAX while the stop transaction not being
-         * WT_TXN_MAX is possible only for the non-timestamped tables. In this scenario there
-         * shouldn't be any timestamp value as part of durable stop timestamp other than the default
-         * value WT_TS_NONE.
-         */
-        if (tw->stop_ts == WT_TS_MAX) {
-            tw->stop_ts = WT_TS_NONE;
-            WT_ASSERT(session, tw->durable_stop_ts == WT_TS_NONE);
-        }
-    } else
-        WT_ASSERT(session, tw->stop_ts == WT_TS_MAX);
-}
-
-/*
- * __cell_delta_window_cleanup --
- *     Clean up delta cells loaded from a previous run.
- */
-static WT_INLINE void
-__cell_delta_window_cleanup(WT_SESSION_IMPL *session, WT_CELL_UNPACK_DELTA_LEAF_KV *unpack_delta)
-{
-    if (unpack_delta != NULL) {
-        __cell_delta_window_cleanup_helper(session, &unpack_delta->delta_key);
-        __cell_delta_window_cleanup_helper(session, &unpack_delta->delta_value);
-    }
-}
-
-/*
  * __cell_redo_page_del_cleanup --
  *     Redo the window cleanup logic on a page_del structure after the write generations have been
  *     bumped. Note: the name of this function is abusive (there are no cells involved) but as the
@@ -1369,18 +1324,6 @@ __cell_unpack_window_cleanup_kv(
 {
     if (__cell_unpack_window_need_cleanup(session, dsk->write_gen))
         __cell_kv_window_cleanup(session, unpack_kv);
-}
-
-/*
- * __cell_unpack_window_cleanup_delta --
- *     Clean up delta cells loaded from a previous run.
- */
-static WT_INLINE void
-__cell_unpack_window_cleanup_delta(
-  WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_DELTA_LEAF_KV *unpack_delta)
-{
-    if (__cell_unpack_window_need_cleanup(session, dsk->write_gen))
-        __cell_delta_window_cleanup(session, unpack_delta);
 }
 
 /*
@@ -1603,8 +1546,7 @@ __wt_page_cell_data_ref_kv(
             __wt_cell_unpack_kv(session, dsk, (WT_CELL *)__cell, &(unpack)->delta_key);         \
             __cell += (unpack)->delta_key.__len;                                                \
             __wt_cell_unpack_delta_leaf_value(session, dsk, (WT_CELL *)__cell, unpack);         \
-            __cell += (unpack)->delta_value.__len;                                              \
-            __cell_unpack_window_cleanup_delta(session, dsk, unpack);
+            __cell += (unpack)->delta_value.__len;
 
 #define WT_CELL_FOREACH_ADDR(session, dsk, unpack)                                              \
     do {                                                                                        \
