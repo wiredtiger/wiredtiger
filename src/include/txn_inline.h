@@ -1062,7 +1062,7 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 static WT_INLINE bool
 __wt_txn_upd_value_visible_all(WT_SESSION_IMPL *session, WT_UPDATE_VALUE *upd_value)
 {
-    WT_ASSERT(session, !WT_TIME_WINDOW_HAS_PREPARE(&(upd_value->tw)));
+    WT_ASSERT(session, !WT_TIME_WINDOW_HAS_PREPARE(&upd_value->tw));
     return (upd_value->type == WT_UPDATE_TOMBSTONE ?
         __wt_txn_visible_all(session, upd_value->tw.stop_txn, upd_value->tw.durable_stop_ts) :
         __wt_txn_visible_all(session, upd_value->tw.start_txn, upd_value->tw.durable_start_ts));
@@ -2330,10 +2330,10 @@ __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
         upd_value->buf.size = upd->size;
     }
     if (upd->type == WT_UPDATE_TOMBSTONE)
-        WT_TIME_WINDOW_SET_STOP(&(upd_value->tw), upd,
+        WT_TIME_WINDOW_SET_STOP(&upd_value->tw, upd,
           prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
     else
-        WT_TIME_WINDOW_SET_START(&(upd_value->tw), upd,
+        WT_TIME_WINDOW_SET_START(&upd_value->tw, upd,
           prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED);
 
     upd_value->type = upd->type;
