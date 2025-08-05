@@ -1507,34 +1507,38 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
 
             /*
              * We have decided to restore this update chain so it must have newer updates than the
-             * onpage value on it.
+             * onpage value on it or we write a prepared update to disk.
              */
-            WT_ASSERT(session, upd != tmp);
+            WT_ASSERT(session, upd != tmp || WT_TIME_WINDOW_HAS_PREPARE(&supd->tw));
             WT_ASSERT(session, F_ISSET(tmp, WT_UPDATE_DS));
 
-            /*
-             * Move the pointer to the position before the onpage value and truncate all the updates
-             * starting from the onpage value.
-             */
-            for (prev_onpage = upd; prev_onpage->next != NULL && prev_onpage->next != tmp;
-                 prev_onpage = prev_onpage->next)
-                ;
-            WT_ASSERT(session, prev_onpage->next == tmp);
+            /* FIXME-WT-15118: Don't free the update chain with prepared updates for now. */
+            if (WT_TIME_WINDOW_HAS_PREPARE(&supd->tw)) {
+                /*
+                 * Move the pointer to the position before the onpage value and truncate all the
+                 * updates starting from the onpage value.
+                 */
+                for (prev_onpage = upd; prev_onpage->next != NULL && prev_onpage->next != tmp;
+                     prev_onpage = prev_onpage->next)
+                    ;
+                WT_ASSERT(session, prev_onpage->next == tmp);
 #ifdef HAVE_DIAGNOSTIC
-            /*
-             * During update restore eviction we remove anything older than the on-page update,
-             * including the on-page update. However it is possible a tombstone is also written as
-             * the stop time of the on-page value. To handle this we also need to remove the
-             * tombstone from the update chain.
-             *
-             * This assertion checks that there aren't any unexpected updates between that tombstone
-             * and the subsequent value which both make up the on-page value.
-             */
-            for (; tmp != NULL && tmp != supd->onpage_upd; tmp = tmp->next)
-                WT_ASSERT(session, tmp == supd->onpage_tombstone || tmp->txnid == WT_TXN_ABORTED);
+                /*
+                 * During update restore eviction we remove anything older than the on-page update,
+                 * including the on-page update. However it is possible a tombstone is also written
+                 * as the stop time of the on-page value. To handle this we also need to remove the
+                 * tombstone from the update chain.
+                 *
+                 * This assertion checks that there aren't any unexpected updates between that
+                 * tombstone and the subsequent value which both make up the on-page value.
+                 */
+                for (; tmp != NULL && tmp != supd->onpage_upd; tmp = tmp->next)
+                    WT_ASSERT(
+                      session, tmp == supd->onpage_tombstone || tmp->txnid == WT_TXN_ABORTED);
 #endif
-            /* Discard updates/tombstone after prev_onpage. */
-            prev_onpage->next = NULL;
+                /* Discard updates/tombstone after prev_onpage. */
+                prev_onpage->next = NULL;
+            }
         }
 
         last_upd = NULL;
@@ -1548,8 +1552,24 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             /* Search the page. */
             WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL));
 
+            /*
+             * If we write a prepared update to disk and we need to restore the update chain, we
+             * will find we have already instantiated a prepared update (possibly with a prepared
+             * tombstone) by the page in-memory code. Discard the re-instantiated prepared updates.
+             */
+            if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED))
+                for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
+                    ;
+
             /* Apply the modification. */
             WT_ERR(__wt_col_modify(&cbt, recno, NULL, &upd, WT_UPDATE_INVALID, true, true));
+
+            if (last_upd != NULL && last_upd->next != NULL) {
+                WT_ASSERT(session, F_ISSET(last_upd->next, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
+                tmp = last_upd->next;
+                last_upd->next = NULL;
+                __wt_free_update_list(session, &tmp);
+            }
             break;
         case WT_PAGE_ROW_LEAF:
             /* Build a key. */
@@ -1579,7 +1599,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                 WT_ASSERT(session, F_ISSET(last_upd->next, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
                 tmp = last_upd->next;
                 last_upd->next = NULL;
-                __wt_free(session, tmp);
+                __wt_free_update_list(session, &tmp);
             }
             break;
         default:
@@ -1659,12 +1679,13 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
 
         /*
          * Free the updates written to the data store and the history store when there exists an
-         * onpage value. It is possible that there can be an onpage tombstone without an onpage
-         * value when the tombstone is globally visible. Do not free them here as it is possible
-         * that the globally visible tombstone is already freed as part of update obsolete check.
+         * onpage value except when we write a prepared update to disk (FIXME-WT-15118). It is
+         * possible that there can be an onpage tombstone without an onpage value when the tombstone
+         * is globally visible. Do not free them here as it is possible that the globally visible
+         * tombstone is already freed as part of update obsolete check.
          */
         if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-          !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) {
+          !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) && !WT_TIME_WINDOW_HAS_PREPARE(&supd->tw)) {
             tmp = supd->onpage_tombstone != NULL ? &supd->onpage_tombstone : &supd->onpage_upd;
             __wt_free_update_list(session, tmp);
             supd->onpage_tombstone = supd->onpage_upd = NULL;
@@ -1692,6 +1713,10 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mult
              * without an onpage value.
              */
             if (!supd->restore || supd->onpage_upd == NULL)
+                continue;
+
+            /* FIXME-WT-15118: Update chain with prepared update is not freed. */
+            if (WT_TIME_WINDOW_HAS_PREPARE(&supd->tw))
                 continue;
 
             if (supd->ins == NULL) {
