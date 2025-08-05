@@ -179,7 +179,7 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         self.session.begin_transaction()
         cursor[str(5)] = value2
-        self.session.prepare_transaction(f'prepare_timestamp={self.timestamp_str(10)},prepared_id=1')
+        self.session.prepare_transaction(f'prepare_timestamp={self.timestamp_str(10)},prepared_id=0x1')
         cursor.reset()
 
         session2 = self.conn.open_session()

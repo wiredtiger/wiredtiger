@@ -119,7 +119,7 @@ class test_prepare33(wttest.WiredTigerTestCase):
             cursor_prepare.remove()
         cursor_prepare.close()
         # Prepare the transaction with timestamp 70
-        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=1')
+        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=0x1')
         # Commit the transaction at timestamp 80
         session_prepare.rollback_transaction("rollback_timestamp=" + self.timestamp_str(80))
         session_prepare.close()

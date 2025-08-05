@@ -119,7 +119,7 @@ class test_prepare34(wttest.WiredTigerTestCase):
             modifications = [wiredtiger.Modify('d', 0, 1)]  # Modify 'baaaaa' to `dbaaaaa`
             self.assertEqual(cursor_prepare.modify(modifications), 0)
         # Prepare the transaction at timestamp 70
-        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=1')
+        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=0x1')
 
         # Checkpoint while transaction is prepared but stable timestamp is before prepare timestamp
         # Should not write any prepared content since stable timestamp (40) < prepare timestamp (70)
@@ -201,7 +201,7 @@ class test_prepare34(wttest.WiredTigerTestCase):
             self.assertEqual(cursor_prepare.modify(modifications), 0)
 
         # Prepare the transaction at timestamp 70
-        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=1')
+        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=0x1')
 
         # Checkpoint while transaction is prepared but stable timestamp is before prepare timestamp
         # Should not write any prepared content since stable timestamp (40) < prepare timestamp (70)

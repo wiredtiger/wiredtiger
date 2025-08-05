@@ -76,7 +76,7 @@ class test_prepare31(wttest.WiredTigerTestCase):
         for i in range(1, 100):
             cursor_prepare[i] = "prepared_value_" + str(i)
 
-        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=1')
+        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=0x1')
 
         session_prepare.rollback_transaction('rollback_timestamp=' + self.timestamp_str(80))
 
@@ -136,7 +136,7 @@ class test_prepare31(wttest.WiredTigerTestCase):
             cursor_prepare[i] = "prepared_value_" + str(i)
 
         # Prepare the transaction with timestamp 70
-        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=1')
+        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=0x1')
 
         # Abort the prepared transaction with rollback timestamp 80
         session_prepare.rollback_transaction('rollback_timestamp=' + self.timestamp_str(80))
@@ -194,7 +194,7 @@ class test_prepare31(wttest.WiredTigerTestCase):
             cursor_prepare[i] = "prepared_value_" + str(i)
 
         # Prepare the transaction with timestamp 70
-        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=1')
+        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=0x1')
 
         # Abort the prepared transaction with rollback timestamp 80
         session_prepare.rollback_transaction('rollback_timestamp=' + self.timestamp_str(80))

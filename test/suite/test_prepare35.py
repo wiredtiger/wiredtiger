@@ -91,14 +91,14 @@ class test_prepare35(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(25))
         cursor_committed.close()
 
-        # Step 2: Create first prepared transaction for key 21 with prepared_id=1
+        # Step 2: Create first prepared transaction for key 21 with prepared_id=0x1
         session_prepare = self.conn.open_session()
         cursor_prepare = session_prepare.open_cursor(uri)
         session_prepare.begin_transaction()
         cursor_prepare.set_key(21)
         cursor_prepare.set_value("prepared_value_21")
         cursor_prepare.insert()
-        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(30)+',prepared_id=1')
+        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(30)+',prepared_id=0x1')
         cursor_prepare.close()
 
         # Make stable timestamp equal to prepare timestamp - this should allow checkpoint to reconcile prepared update
@@ -141,7 +141,7 @@ class test_prepare35(wttest.WiredTigerTestCase):
         cursor_prepare2.set_key(21)
         cursor_prepare2.set_value("prepared_value_21")
         cursor_prepare2.insert()
-        session_prepare2.prepare_transaction('prepare_timestamp=' + self.timestamp_str(45)+',prepared_id=2')
+        session_prepare2.prepare_transaction('prepare_timestamp=' + self.timestamp_str(45)+',prepared_id=0x2')
 
         # Advance stable timestamp past the new prepare timestamp
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(47))
