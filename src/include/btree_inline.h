@@ -2619,29 +2619,27 @@ __wt_ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp
             (txnid_prepared) = WT_TXN_NONE;                                                       \
     } while (0)
 
-#define WT_SKIP_ABORTED_AND_SET_CHECK_PREPARED(temp_txnid, txnid_prepared, check_prepared, upd)  \
-    do {                                                                                         \
-        WT_ACQUIRE_READ((temp_txnid), (upd)->txnid);                                             \
-        if ((temp_txnid) == WT_TXN_ABORTED) {                                                    \
-            if (!(check_prepared))                                                               \
-                continue;                                                                        \
-                                                                                                 \
-            /* We may see aborted reserve updates in between the prepared updates. */            \
-            if ((upd)->type == WT_UPDATE_RESERVE)                                                \
-                continue;                                                                        \
-                                                                                                 \
-            /*                                                                                   \
-             * If we have multiple prepared updates from the same transaction, there is no other \
-             * updates in between them.                                                          \
-             */                                                                                  \
-            if ((upd)->prepare_state != WT_PREPARE_INPROGRESS) {                                 \
-                (check_prepared) = false;                                                        \
-                continue;                                                                        \
-            }                                                                                    \
-                                                                                                 \
-            if ((upd)->upd_saved_txnid != txnid_prepared) {                                      \
-                (check_prepared) = false;                                                        \
-                continue;                                                                        \
-            }                                                                                    \
-        }                                                                                        \
-    } while (0)
+#define WT_SKIP_ABORTED_AND_SET_CHECK_PREPARED(temp_txnid, txnid_prepared, check_prepared, upd) \
+    WT_ACQUIRE_READ((temp_txnid), (upd)->txnid);                                                \
+    if ((temp_txnid) == WT_TXN_ABORTED) {                                                       \
+        if (!(check_prepared))                                                                  \
+            continue;                                                                           \
+                                                                                                \
+        /* We may see aborted reserve updates in between the prepared updates. */               \
+        if ((upd)->type == WT_UPDATE_RESERVE)                                                   \
+            continue;                                                                           \
+                                                                                                \
+        /*                                                                                      \
+         * If we have multiple prepared updates from the same transaction, there is no other    \
+         * updates in between them.                                                             \
+         */                                                                                     \
+        if ((upd)->prepare_state != WT_PREPARE_INPROGRESS) {                                    \
+            (check_prepared) = false;                                                           \
+            continue;                                                                           \
+        }                                                                                       \
+                                                                                                \
+        if ((upd)->upd_saved_txnid != txnid_prepared) {                                         \
+            (check_prepared) = false;                                                           \
+            continue;                                                                           \
+        }                                                                                       \
+    }
