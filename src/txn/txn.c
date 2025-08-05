@@ -1197,8 +1197,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     has_hs_record = false;
 #define RESOLVE_UPDATE_CHAIN 0
 #define RESOLVE_PREPARE_ON_DISK 1
-#define RESOLVE_PREPARE_EVICTION_FAILURE 2
-#define RESOLVE_IN_MEMORY 3
+#define RESOLVE_IN_MEMORY 2
     WT_NOT_READ(resolve_case, RESOLVE_UPDATE_CHAIN);
 
     WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
@@ -1272,7 +1271,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      *
      * 1) Prepared updates are on the update chain and hasn't been reconciled to write to data
      *    store.
-     *     Simply resolve the prepared updates in memory.
+     *     Simply resolve the prepared updates in memory. However, we may find the prepared updates
+     *     have been written to the disk image by a failed eviction or checkpoint. Mark the first
+     * update after the prepared update to be deleted from the history store in the future
+     * reconciliation.
      *
      * 2) Prepared updates are written to the data store.
      *     If there is no older updates written to the history store:
@@ -1285,20 +1287,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      *         rollback: restore the newest update in the history store to the data store and mark
      *                   it to be deleted from the history store in the future reconciliation.
      *
-     * 3) Prepared updates are successfully reconciled to a new disk image in eviction but the
-     *    eviction fails and the updates are restored back to the old disk image.
-     *     If there is no older updates written to the history store:
-     *         commit: simply resolve the prepared updates in memory.
-     *         rollback: delete the whole key.
-     *
-     *     If there are older updates written to the history store:
-     *          commit: fix the stop timestamp of the newest update in the history store if it has a
-     *                  max timestamp.
-     *          rollback: mark the data update (or tombstone and data update) that is older
-     *                    than the prepared updates to be deleted from the history store in the
-     *                    future reconciliation.
-     *
-     * 4) We are running an in-memory database:
+     * 3) We are running an in-memory database:
      *     commit: resolve the prepared updates in memory.
      *     rollback: if the prepared update is written to the disk image, delete the whole key.
      */
@@ -1313,51 +1302,12 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         (upd->next != NULL && upd->upd_durable_ts == upd->next->upd_durable_ts &&
           upd->txnid == upd->next->txnid && upd->upd_start_ts == upd->next->upd_start_ts)))
         resolve_case = RESOLVE_PREPARE_ON_DISK;
-    /*
-     * If the first committed update older than the prepared update has already been marked to be
-     * deleted from the history store, we are in the case that there was an older prepared update
-     * that was rolled back.
-     *
-     * 1) We have a prepared update Up and an update U on the update chain initially.
-     * 2) An eviction writes Up to the disk and U to the history store.
-     * 3) The eviction fails and everything is restored.
-     * 4) We rollback Up and mark U to be deleted from the history store.
-     * 5) We add another prepared update to the update chain.
-     *
-     * Check the WT_UPDATE_TO_DELETE_FROM_HS to see if we have already handled the older prepared
-     * update or not. Ignore if it is already handled.
-     */
-    else if (first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS) &&
-      !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS))
-        resolve_case = RESOLVE_PREPARE_EVICTION_FAILURE;
     else if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY))
         resolve_case = RESOLVE_IN_MEMORY;
     else
         resolve_case = RESOLVE_UPDATE_CHAIN;
 
     switch (resolve_case) {
-    case RESOLVE_PREPARE_EVICTION_FAILURE:
-        /*
-         * If we see the first committed update has been moved to the history store, we must have
-         * done a successful reconciliation on the page but failed to evict it. Also reconciliation
-         * could not possibly empty the page because the prepared update is not globally visible.
-         * Therefore, reconciliation must have either split the page or done a page rewrite.
-         *
-         * In this case, we still need to resolve the prepared update as if we have successfully
-         * evicted the page because the value older than the prepared update has been written to the
-         * history store with the max timestamp.
-         */
-        WT_ASSERT(session,
-          page->modify->rec_result == WT_PM_REC_MULTIBLOCK ||
-            page->modify->rec_result == WT_PM_REC_REPLACE);
-        /*
-         * Marked the update older than the prepared update that is already in the history store to
-         * be deleted from the history store.
-         */
-        if (!commit)
-            __wt_txn_mark_upd_to_delete_from_hs(session, first_committed_upd);
-
-        /* Fall through. */
     case RESOLVE_PREPARE_ON_DISK:
         /*
          * Open a history store table cursor and scan the history store for the given btree and key
@@ -1430,14 +1380,14 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
         /*
          * If checkpoint writes a prepared update to disk, we may end up here with the first
-         * committed update already in the history store. Mark it to be deleted from the history
-         * store.
+         * committed update already in the history store. Another case we may end up here is that we
+         * have a failed eviction that writes a prepared update to the disk and the following
+         * updates to the history store. Mark the first update after the prepared update to be
+         * deleted from the history store in the future reconciliation.
          */
         if (first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS) &&
-          !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
-            WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED));
+          !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS))
             __wt_txn_mark_upd_to_delete_from_hs(session, first_committed_upd);
-        }
         break;
     }
 
