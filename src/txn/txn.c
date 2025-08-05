@@ -1197,7 +1197,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     has_hs_record = false;
 #define RESOLVE_UPDATE_CHAIN 0
 #define RESOLVE_PREPARE_ON_DISK 1
-#define RESOLVE_PREPARE_EVICTION_FAILURE 2
+#define RESOLVE_RESTORED_UPDATE_CHAIN 2
 #define RESOLVE_IN_MEMORY 3
     WT_NOT_READ(resolve_case, RESOLVE_UPDATE_CHAIN);
 
@@ -1329,14 +1329,14 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      */
     else if (first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS) &&
       !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS))
-        resolve_case = RESOLVE_PREPARE_EVICTION_FAILURE;
+        resolve_case = RESOLVE_RESTORED_UPDATE_CHAIN;
     else if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY))
         resolve_case = RESOLVE_IN_MEMORY;
     else
         resolve_case = RESOLVE_UPDATE_CHAIN;
 
     switch (resolve_case) {
-    case RESOLVE_PREPARE_EVICTION_FAILURE:
+    case RESOLVE_RESTORED_UPDATE_CHAIN:
         /*
          * If we see the first committed update has been moved to the history store, we must have
          * done a successful reconciliation on the page but failed to evict it. Also reconciliation
@@ -1359,11 +1359,12 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
                 for (upd_followed_tombstone = first_committed_upd->next;
                      upd_followed_tombstone != NULL;
                      upd_followed_tombstone = upd_followed_tombstone->next)
-                    if (upd_followed_tombstone->txnid != WT_TXN_ABORTED)
+                    if (upd_followed_tombstone->txnid != WT_TXN_ABORTED &&
+                      F_ISSET(upd_followed_tombstone, WT_UPDATE_HS))
                         break;
                 /* We may not find a full update following the tombstone if it is obsolete. */
                 if (upd_followed_tombstone != NULL) {
-                    WT_ASSERT(session, F_ISSET(upd_followed_tombstone, WT_UPDATE_HS));
+                    WT_ASSERT(session, upd_followed_tombstone->type != WT_UPDATE_TOMBSTONE);
                     F_SET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
                     F_SET(upd_followed_tombstone, WT_UPDATE_TO_DELETE_FROM_HS);
                 }
@@ -1440,6 +1441,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         break;
     default:
         WT_ASSERT(session, resolve_case == RESOLVE_UPDATE_CHAIN);
+        WT_ASSERT(
+          session, first_committed_upd == NULL || !F_ISSET(first_committed_upd, WT_UPDATE_HS));
         break;
     }
 

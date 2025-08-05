@@ -119,7 +119,7 @@ class test_prepare32(wttest.WiredTigerTestCase):
             cursor_prepare[i] = "prepared_value_" + str(i)
         cursor_prepare.close()
         # Prepare the transaction with timestamp 70
-        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=0x1')
+        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=' + self.prepared_id_str(1))
         # Commit the transaction at timestamp 80
         session_prepare.commit_transaction("commit_timestamp=" + self.timestamp_str(80)+",durable_timestamp="+self.timestamp_str(90))
         session_prepare.close()

@@ -944,15 +944,36 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
         r->max_ts = max_ts;
 
     /*
-     * We should never select an update that has been written to the history store except checkpoint
-     * writes the update that is older than a prepared update or we need to first delete the update
-     * from the history store.
+     * If the preserve prepared config is not enabled, we should never select an update that has
+     * been written to the history store except checkpoint writes the update that is older than a
+     * prepared update or we need to first delete the update from the history store.
      */
-    WT_ASSERT_ALWAYS(session,
-      upd_select->upd == NULL || !F_ISSET(upd_select->upd, WT_UPDATE_HS) ||
-        F_ISSET(upd_select->upd, WT_UPDATE_TO_DELETE_FROM_HS) ||
-        (F_ISSET(r, WT_REC_CHECKPOINT) && seen_prepare),
-      "Selected update that has already been written to the history store");
+    if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
+        WT_ASSERT_ALWAYS(session,
+          upd_select->upd == NULL || !F_ISSET(upd_select->upd, WT_UPDATE_HS) ||
+            F_ISSET(upd_select->upd, WT_UPDATE_TO_DELETE_FROM_HS) ||
+            (F_ISSET(r, WT_REC_CHECKPOINT) && seen_prepare),
+          "Selected update that has already been written to the history store");
+    else if (upd_select->upd != NULL && F_ISSET(upd_select->upd, WT_UPDATE_HS)) {
+        /*
+         * If the preserve prepared config is enabled and we select an update that has been inserted
+         * to the history store, we must have written an aborted prepared update as prepared update
+         * to disk in the previous reconciliation. Now its rollback timestamp is stable and we need
+         * to delete the new value from the history store.
+         */
+        if (upd_select->upd->type == WT_UPDATE_TOMBSTONE) {
+            WT_UPDATE *upd_hs;
+            for (upd_hs = upd_select->upd->next; upd_hs != NULL; upd_hs = upd_hs->next) {
+                if (upd_hs->txnid != WT_TXN_ABORTED && F_ISSET(upd_hs, WT_UPDATE_HS)) {
+                    break;
+                }
+                WT_ASSERT(session, upd_hs->type != WT_UPDATE_TOMBSTONE);
+                F_SET(upd_select->upd, WT_UPDATE_TO_DELETE_FROM_HS);
+                F_SET(upd_hs, WT_UPDATE_TO_DELETE_FROM_HS);
+            }
+        } else
+            F_SET(upd_select->upd, WT_UPDATE_TO_DELETE_FROM_HS);
+    }
 
     return (0);
 }

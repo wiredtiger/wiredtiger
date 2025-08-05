@@ -71,7 +71,7 @@ class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
         c[4] = "prepare ts=100"
         c[5] = "prepare ts=100"
         # Prepare with a timestamp greater than current stable
-        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(100) +',prepared_id=0x123')
+        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(100) +',prepared_id=' + self.prepared_id_str(123))
         # Move the stable timestamp to include the prepared transaction
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(150))
         # Create a checkpoint
