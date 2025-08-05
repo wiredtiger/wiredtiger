@@ -1336,6 +1336,25 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         resolve_case = RESOLVE_UPDATE_CHAIN;
 
     switch (resolve_case) {
+    case RESOLVE_UPDATE_CHAIN:
+        /*
+         * If checkpoint writes a prepared update to disk, we may end up here with the first
+         * committed update already in the history store. Mark it to be deleted from the history
+         * store.
+         */
+        if (first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS) &&
+          !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
+            WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED));
+            if (!commit) {
+                __wt_txn_mark_upd_to_delete_from_hs(session, first_committed_upd);
+                break;
+            }
+
+            goto fix_hs;
+        }
+
+        break;
+
     case RESOLVE_PREPARE_EVICTION_FAILURE:
         /*
          * If we see the first committed update has been moved to the history store, we must have
@@ -1354,11 +1373,14 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * Marked the update older than the prepared update that is already in the history store to
          * be deleted from the history store.
          */
-        if (!commit)
+        if (!commit) {
             __wt_txn_mark_upd_to_delete_from_hs(session, first_committed_upd);
+            break;
+        }
 
         /* Fall through. */
     case RESOLVE_PREPARE_ON_DISK:
+fix_hs:
         /*
          * Open a history store table cursor and scan the history store for the given btree and key
          * with maximum start timestamp to let the search point to the last version of the key.
@@ -1426,18 +1448,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         }
         break;
     default:
-        WT_ASSERT(session, resolve_case == RESOLVE_UPDATE_CHAIN);
-
-        /*
-         * If checkpoint writes a prepared update to disk, we may end up here with the first
-         * committed update already in the history store. Mark it to be deleted from the history
-         * store.
-         */
-        if (first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS) &&
-          !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
-            WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED));
-            __wt_txn_mark_upd_to_delete_from_hs(session, first_committed_upd);
-        }
+        WT_ERR_PANIC(
+          session, WT_PANIC, "invalid prepared operation resolve case: %d", resolve_case);
         break;
     }
 
