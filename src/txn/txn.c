@@ -1186,7 +1186,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_PAGE *page;
     WT_TIME_WINDOW tw;
     WT_TXN *txn;
-    WT_UPDATE *first_committed_upd, *upd, *upd_followed_tombstone;
+    WT_UPDATE *first_committed_upd, *upd;
     WT_UPDATE *head_upd;
     uint8_t hs_recno_key_buf[WT_INTPACK64_MAXSIZE], *p, resolve_case;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
@@ -1197,7 +1197,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     has_hs_record = false;
 #define RESOLVE_UPDATE_CHAIN 0
 #define RESOLVE_PREPARE_ON_DISK 1
-#define RESOLVE_RESTORED_UPDATE_CHAIN 2
+#define RESOLVE_PREPARE_EVICTION_FAILURE 2
 #define RESOLVE_IN_MEMORY 3
     WT_NOT_READ(resolve_case, RESOLVE_UPDATE_CHAIN);
 
@@ -1329,14 +1329,14 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      */
     else if (first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS) &&
       !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS))
-        resolve_case = RESOLVE_RESTORED_UPDATE_CHAIN;
+        resolve_case = RESOLVE_PREPARE_EVICTION_FAILURE;
     else if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY))
         resolve_case = RESOLVE_IN_MEMORY;
     else
         resolve_case = RESOLVE_UPDATE_CHAIN;
 
     switch (resolve_case) {
-    case RESOLVE_RESTORED_UPDATE_CHAIN:
+    case RESOLVE_PREPARE_EVICTION_FAILURE:
         /*
          * If we see the first committed update has been moved to the history store, we must have
          * done a successful reconciliation on the page but failed to evict it. Also reconciliation
@@ -1354,25 +1354,13 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * Marked the update older than the prepared update that is already in the history store to
          * be deleted from the history store.
          */
-        if (!commit) {
-            if (first_committed_upd->type == WT_UPDATE_TOMBSTONE) {
-                for (upd_followed_tombstone = first_committed_upd->next;
-                     upd_followed_tombstone != NULL;
-                     upd_followed_tombstone = upd_followed_tombstone->next)
-                    if (upd_followed_tombstone->txnid != WT_TXN_ABORTED &&
-                      F_ISSET(upd_followed_tombstone, WT_UPDATE_HS))
-                        break;
-                /* We may not find a full update following the tombstone if it is obsolete. */
-                if (upd_followed_tombstone != NULL) {
-                    WT_ASSERT(session,
-                      upd_followed_tombstone->type != WT_UPDATE_TOMBSTONE &&
-                        !F_ISSET(upd_followed_tombstone, WT_UPDATE_TO_DELETE_FROM_HS));
-                    F_SET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
-                    F_SET(upd_followed_tombstone, WT_UPDATE_TO_DELETE_FROM_HS);
-                }
-            } else
-                F_SET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
-        }
+        if (!commit)
+            __wt_txn_mark_upd_to_delete_from_hs(
+#ifdef HAVE_DIAGNOSTIC
+              session,
+#endif
+              first_committed_upd);
+
         /* Fall through. */
     case RESOLVE_PREPARE_ON_DISK:
         /*
@@ -1443,8 +1431,21 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         break;
     default:
         WT_ASSERT(session, resolve_case == RESOLVE_UPDATE_CHAIN);
-        WT_ASSERT(
-          session, first_committed_upd == NULL || !F_ISSET(first_committed_upd, WT_UPDATE_HS));
+
+        /*
+         * If checkpoint writes a prepared update to disk, we may end up here with the first
+         * committed update already in the history store. Mark it to be deleted from the history
+         * store.
+         */
+        if (first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS) &&
+          !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
+            WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED));
+            __wt_txn_mark_upd_to_delete_from_hs(
+#ifdef HAVE_DIAGNOSTIC
+              session,
+#endif
+              first_committed_upd);
+        }
         break;
     }
 

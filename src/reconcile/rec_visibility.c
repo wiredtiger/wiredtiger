@@ -962,20 +962,11 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          * to disk in the previous reconciliation. Now its rollback timestamp is stable and we need
          * to delete the new value from the history store.
          */
-        if (upd_select->upd->type == WT_UPDATE_TOMBSTONE) {
-            WT_UPDATE *upd_hs;
-            for (upd_hs = upd_select->upd->next; upd_hs != NULL; upd_hs = upd_hs->next) {
-                if (upd_hs->txnid != WT_TXN_ABORTED && F_ISSET(upd_hs, WT_UPDATE_HS)) {
-                    break;
-                }
-                WT_ASSERT(session,
-                  upd_hs->type != WT_UPDATE_TOMBSTONE &&
-                    !F_ISSET(upd_select->upd, WT_UPDATE_TO_DELETE_FROM_HS));
-                F_SET(upd_select->upd, WT_UPDATE_TO_DELETE_FROM_HS);
-                F_SET(upd_hs, WT_UPDATE_TO_DELETE_FROM_HS);
-            }
-        } else
-            F_SET(upd_select->upd, WT_UPDATE_TO_DELETE_FROM_HS);
+        __wt_txn_mark_upd_to_delete_from_hs(
+#ifdef HAVE_DIAGNOSTIC
+          session,
+#endif
+          upd_select->upd);
     }
 
     return (0);

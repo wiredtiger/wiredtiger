@@ -2355,3 +2355,56 @@ __wt_upd_value_clear(WT_UPDATE_VALUE *upd_value)
     WT_TIME_WINDOW_INIT(&upd_value->tw);
     upd_value->type = WT_UPDATE_INVALID;
 }
+
+/*
+ * __wt_txn_mark_upd_to_delete_from_hs --
+ *     Mark the tombstone and the following update to be deleted from the history store.
+ */
+static WT_INLINE void
+__wt_txn_mark_upd_to_delete_from_hs(
+#ifdef HAVE_DIAGNOSTIC
+  WT_SESSION_IMPL *session,
+#endif
+  WT_UPDATE *upd)
+{
+    if (upd->type == WT_UPDATE_TOMBSTONE) {
+        WT_UPDATE *upd_value;
+        for (upd_value = upd->next; upd_value != NULL; upd_value = upd_value->next)
+            if (upd_value->txnid != WT_TXN_ABORTED && F_ISSET(upd_value, WT_UPDATE_HS))
+                break;
+        /* We may not find an update following the tombstone if it is obsolete. */
+        if (upd_value != NULL) {
+            WT_ASSERT(session,
+              upd_value->type != WT_UPDATE_TOMBSTONE &&
+                !F_ISSET(upd_value, WT_UPDATE_TO_DELETE_FROM_HS));
+            F_SET(upd_value, WT_UPDATE_TO_DELETE_FROM_HS);
+            F_SET(upd, WT_UPDATE_TO_DELETE_FROM_HS);
+        }
+    } else
+        F_SET(upd, WT_UPDATE_TO_DELETE_FROM_HS);
+}
+
+#define WT_SKIP_ABORTED_AND_SET_CHECK_PREPARED(temp_txnid, txnid_prepared, check_prepared, upd) \
+    WT_ACQUIRE_READ((temp_txnid), (upd)->txnid);                                                \
+    if ((temp_txnid) == WT_TXN_ABORTED) {                                                       \
+        if (!(check_prepared))                                                                  \
+            continue;                                                                           \
+                                                                                                \
+        /* We may see aborted reserve updates in between the prepared updates. */               \
+        if ((upd)->type == WT_UPDATE_RESERVE)                                                   \
+            continue;                                                                           \
+                                                                                                \
+        /*                                                                                      \
+         * If we have multiple prepared updates from the same transaction, there is no other    \
+         * updates in between them.                                                             \
+         */                                                                                     \
+        if ((upd)->prepare_state != WT_PREPARE_INPROGRESS) {                                    \
+            (check_prepared) = false;                                                           \
+            continue;                                                                           \
+        }                                                                                       \
+                                                                                                \
+        if ((upd)->upd_saved_txnid != txnid_prepared) {                                         \
+            (check_prepared) = false;                                                           \
+            continue;                                                                           \
+        }                                                                                       \
+    }
