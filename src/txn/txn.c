@@ -1364,7 +1364,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
                         break;
                 /* We may not find a full update following the tombstone if it is obsolete. */
                 if (upd_followed_tombstone != NULL) {
-                    WT_ASSERT(session, upd_followed_tombstone->type != WT_UPDATE_TOMBSTONE);
+                    WT_ASSERT(session,
+                      upd_followed_tombstone->type != WT_UPDATE_TOMBSTONE &&
+                        !F_ISSET(upd_followed_tombstone, WT_UPDATE_TO_DELETE_FROM_HS));
                     F_SET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS);
                     F_SET(upd_followed_tombstone, WT_UPDATE_TO_DELETE_FROM_HS);
                 }
