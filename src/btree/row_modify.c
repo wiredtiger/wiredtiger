@@ -150,9 +150,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
             /*
              * We only update history store records in three cases:
              *  1) Delete the record with a tombstone with WT_TS_NONE.
-             *  2) Update the record's stop time point if the prepared update written to the data
-             * store is committed.
-             *  3) Reinsert an update that has been deleted by a prepared rollback.
+             *  2) Reinsert an update that has been deleted by a prepared commit or rollback.
              */
             WT_ASSERT(session,
               !WT_IS_HS(S2BT(session)->dhandle) ||
