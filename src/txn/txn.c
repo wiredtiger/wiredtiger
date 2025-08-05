@@ -1355,11 +1355,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * be deleted from the history store.
          */
         if (!commit)
-            __wt_txn_mark_upd_to_delete_from_hs(
-#ifdef HAVE_DIAGNOSTIC
-              session,
-#endif
-              first_committed_upd);
+            __wt_txn_mark_upd_to_delete_from_hs(session, first_committed_upd);
 
         /* Fall through. */
     case RESOLVE_PREPARE_ON_DISK:
@@ -1440,11 +1436,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         if (first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS) &&
           !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
             WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED));
-            __wt_txn_mark_upd_to_delete_from_hs(
-#ifdef HAVE_DIAGNOSTIC
-              session,
-#endif
-              first_committed_upd);
+            __wt_txn_mark_upd_to_delete_from_hs(session, first_committed_upd);
         }
         break;
     }

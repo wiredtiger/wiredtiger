@@ -2361,11 +2361,7 @@ __wt_upd_value_clear(WT_UPDATE_VALUE *upd_value)
  *     Mark the tombstone and the following update to be deleted from the history store.
  */
 static WT_INLINE void
-__wt_txn_mark_upd_to_delete_from_hs(
-#ifdef HAVE_DIAGNOSTIC
-  WT_SESSION_IMPL *session,
-#endif
-  WT_UPDATE *upd)
+__wt_txn_mark_upd_to_delete_from_hs(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
     if (upd->type == WT_UPDATE_TOMBSTONE) {
         WT_UPDATE *upd_value;

@@ -962,11 +962,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          * to disk in the previous reconciliation. Now its rollback timestamp is stable and we need
          * to delete the new value from the history store.
          */
-        __wt_txn_mark_upd_to_delete_from_hs(
-#ifdef HAVE_DIAGNOSTIC
-          session,
-#endif
-          upd_select->upd);
+        __wt_txn_mark_upd_to_delete_from_hs(session, upd_select->upd);
     }
 
     return (0);
