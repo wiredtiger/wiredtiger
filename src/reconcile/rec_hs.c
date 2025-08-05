@@ -801,6 +801,9 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              upd != NULL; upd = upd->next) {
             WT_SKIP_ABORTED_AND_SET_CHECK_PREPARED(txnid, txnid_prepared, check_prepared, upd);
 
+            if (txnid == WT_TXN_ABORTED)
+                continue;
+
             /* We must have deleted any update left in the history store. */
             WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS));
 
@@ -874,10 +877,9 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              * value as a full value and there is also no need to push the onpage value to the
              * stack.
              */
-            if (newest_hs != NULL) {
-                WT_ERR(__wt_update_vector_push(&updates, upd));
-                prev_upd = upd;
-            }
+            WT_ERR(__wt_update_vector_push(&updates, upd));
+
+            prev_upd = upd;
 
             /*
              * No need to continue if we found a first self contained value that is globally
