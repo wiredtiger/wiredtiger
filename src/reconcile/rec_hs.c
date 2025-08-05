@@ -785,8 +785,18 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          * 6) We have a single tombstone on the chain, it is simply ignored.
          */
         squashed = false;
-        WT_GET_CHECK_PREPARED_AND_PREPARE_TXNID(check_prepared,
-          WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw), txnid_prepared, list->onpage_upd);
+        check_prepared =
+          F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) && WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw);
+        if (check_prepared) {
+            WT_ACQUIRE_READ(txnid_prepared, list->onpage_upd->txnid);
+            /*
+             * No need to check the following updates as prepared because they must have all been
+             * rolled back.
+             */
+            if (txnid_prepared == WT_TXN_ABORTED)
+                check_prepared = false;
+        } else
+            txnid_prepared = WT_TXN_NONE;
         for (upd = list->onpage_upd->next, prev_upd = list->onpage_upd; upd != NULL;
              upd = upd->next) {
             WT_SKIP_ABORTED_AND_SET_CHECK_PREPARED(txnid, txnid_prepared, check_prepared, upd);
