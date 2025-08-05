@@ -1434,7 +1434,7 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
  */
 static WT_INLINE void
 __wt_cell_unpack_delta_int(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *page_dsk,
-  const WT_PAGE_HEADER *dsk, WT_DELTA_CELL_INT *cell, WT_CELL_UNPACK_DELTA_INT *unpack_delta)
+  const WT_PAGE_HEADER *dsk, WT_CELL *cell, WT_CELL_UNPACK_DELTA_INT *unpack_delta)
 {
     WT_DECL_RET;
     const uint8_t *p;
@@ -1449,7 +1449,8 @@ __wt_cell_unpack_delta_int(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *page_
     p += unpack_delta->key.__len;
 
     /* Optionally unpack the value if it exists. */
-    if (!F_ISSET(unpack_delta, WT_DELTA_INT_IS_DELETE)) {
+    if (!F_ISSET(unpack_delta, WT_CELL_ADDR_DEL)) {
+        F_SET(unpack_delta, WT_DELTA_INT_IS_VALID);
         __wt_cell_unpack_addr(session, page_dsk, (WT_CELL *)p, &unpack_delta->value);
         p += unpack_delta->value.__len;
     }
@@ -1635,8 +1636,7 @@ __wt_page_cell_data_ref_kv(
         uint8_t *__cell;                                                                        \
         for (__cell = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
              --__i) {                                                                           \
-            __wt_cell_unpack_delta_int(                                                         \
-              session, page_dsk, dsk, (WT_DELTA_CELL_INT *)__cell, &(unpack));                  \
+            __wt_cell_unpack_delta_int(session, page_dsk, dsk, (WT_CELL *)__cell, &(unpack));   \
             __cell += (unpack).__len;
 
 #define WT_CELL_FOREACH_DELTA_LEAF(session, dsk, unpack)                                        \

@@ -2206,9 +2206,13 @@ __wti_rec_pack_delta_internal(
 
     __wti_rec_kv_copy(session, p, key);
     p += key->len;
-    if (value == NULL)
-        LF_SET(WT_DELTA_INT_IS_DELETE);
-    else
+    if (value == NULL) {
+        LF_SET(WT_CELL_ADDR_DEL);
+        value->buf.data = NULL;
+        value->buf.size = 0;
+        value->cell_len = 1;
+        value->len = 1;
+    } else
         __wti_rec_kv_copy(session, p, value);
 
     r->delta.size += packed_size;
