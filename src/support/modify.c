@@ -460,38 +460,8 @@ retry:
 
     /* Find a complete update. */
     for (upd = modify; upd != NULL; upd = upd->next) {
-        uint64_t temp_txn_id;
-        WT_ACQUIRE_READ(temp_txn_id, upd->txnid);
-        if (temp_txn_id == WT_TXN_ABORTED) {
-            /*
-             * If the modify is a prepared update, we need to check if there is another prepared
-             * modify from the same transaction before it.
-             */
-            if (!check_prepare)
-                continue;
-
-            /* We may see aborted reserve updates in between the prepared updates. */
-            if (upd->type == WT_UPDATE_RESERVE)
-                continue;
-
-            /*
-             * If we have multiple prepared updates from the same transaction, there is no other
-             * updates in between them.
-             */
-            if (upd->prepare_state != WT_PREPARE_INPROGRESS) {
-                check_prepare = false;
-                continue;
-            }
-
-            /*
-             * No need to check other aborted updates if we have seen an update from another
-             * transaction.
-             */
-            if (upd->upd_saved_txnid != txnid) {
-                check_prepare = false;
-                continue;
-            }
-        }
+        uint64_t temp_txnid;
+        WT_SKIP_ABORTED_AND_SET_CHECK_PREPARED(temp_txnid, txnid, check_prepare, upd);
 
         if (WT_UPDATE_DATA_VALUE(upd))
             break;
