@@ -103,7 +103,7 @@ typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
  * during the initialization of a WiredTiger connection. It serves as the initial session for the
  * connection before any user sessions are created.
  */
-#define IS_DEFAULT_SESSION(s) ((s)->id == WT_SESSION_ID_INITIAL)
+#define WT_IS_DEFAULT_SESSION(s) ((s)->id == WT_SESSION_ID_INITIAL)
 
 /* Invalid session ID. */
 #define WT_SESSION_ID_INVALID 0xffffffff
