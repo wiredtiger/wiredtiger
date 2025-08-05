@@ -1513,7 +1513,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             WT_ASSERT(session, F_ISSET(tmp, WT_UPDATE_DS));
 
             /* FIXME-WT-15118: Don't free the update chain with prepared updates for now. */
-            if (WT_TIME_WINDOW_HAS_PREPARE(&supd->tw)) {
+            if (!WT_TIME_WINDOW_HAS_PREPARE(&supd->tw)) {
                 /*
                  * Move the pointer to the position before the onpage value and truncate all the
                  * updates starting from the onpage value.
