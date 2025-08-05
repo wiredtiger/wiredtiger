@@ -35,14 +35,15 @@ from wtscenario import make_scenarios
 
 # Test error conditions with quoted escaped characters.
 class test_encrypt05(wttest.WiredTigerTestCase):
-
-    types = [
-        ('table', dict(uri='table:test_encrypt05')),
+    sys_encrypt = 'rotn'
+    sys_encrypt_args = ',keyid=11'
+    escaped_characters = [
+        ('check newline', dict(escaped_char='\n')),
+        ('check carriage return', dict(escaped_char='\r')),
+        ('check tab', dict(escaped_char='\t')),
+        ('check backspace', dict(escaped_char='\b')),
     ]
-    encrypt = [
-        ('rotn', dict( sys_encrypt='rotn', sys_encrypt_args=',keyid=11')),
-    ]
-    scenarios = make_scenarios(types, encrypt)
+    scenarios = make_scenarios(escaped_characters)
 
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
@@ -55,18 +56,15 @@ class test_encrypt05(wttest.WiredTigerTestCase):
     # Open connection with a config that has a malformed keyid.
     # The keyid is malformed because it contains a quoted escaped character.
     def test_encrypt(self):
-        escaped_chars = ['\n', '\r', '\t', '\b']
-        for escaped_char in escaped_chars:
-            sys_encrypt = 'rotn'
-            sys_encrypt_args = f',keyid=\"11{escaped_char}\"' # Intentionally malformed keyid
-            config = 'encryption=(name={0}{1}),'.format(
-                sys_encrypt, sys_encrypt_args)
+        sys_encrypt_args = f',keyid=\"11{self.escaped_char}\"' # Intentionally malformed keyid
+        config = 'encryption=(name={0}{1}),'.format(
+            self.sys_encrypt, sys_encrypt_args)
 
-            try:
-                self.reopen_conn(config=config)
-            except wiredtiger.WiredTigerError as e:
-                # If we get an error, it should be about the malformed keyid.
-                self.assertTrue('Invalid argument' in str(e), f"Unexpected error: {e}")
+        try:
+            self.reopen_conn(config=config)
+        except wiredtiger.WiredTigerError as e:
+            # If we get an error, it should be about the malformed keyid.
+            self.assertTrue('Invalid argument' in str(e), f"Unexpected error: {e}")
 
         # Reopen the connection with a valid config to avoid teardown errors using the
         # problematic config that had the malformed keyid.
