@@ -663,6 +663,11 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
     *write_prepare = false;
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
+        /*
+         * Reset write_prepare for each update in the chain. The decision to write an update as
+         * prepared depends on the specific state and timestamps of each individual update, so we
+         * need to reset the state for each update.
+         */
         *write_prepare = false;
         WT_ACQUIRE_READ(txnid, upd->txnid);
         /*
