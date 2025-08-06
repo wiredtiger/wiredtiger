@@ -39,7 +39,7 @@ class test_prepare31(wttest.WiredTigerTestCase):
 
     def get_stats(self, stats):
         """Get the current values of multiple statistics."""
-        stat_cursor = self.session.open_cursor('statistics:')
+        stat_cursor = self.session.open_cursor('statistics:' + self.uri)
         results = {}
         for stat in stats:
             results[stat] = stat_cursor[stat][2]
@@ -115,7 +115,7 @@ class test_prepare31(wttest.WiredTigerTestCase):
     def check_prepared_stat(self, expected_value):
         """Check the rec_time_window_prepared statistic."""
         stat_cursor = self.session.open_cursor('statistics:')
-        rec_time_window_prepared = stat_cursor[wiredtiger.stat.conn.rec_time_window_prepared][2]
+        rec_time_window_prepared = stat_cursor[wiredtiger.stat.dsrc.rec_time_window_prepared][2]
         self.assertEqual(rec_time_window_prepared, expected_value)
         stat_cursor.close()
 
@@ -132,7 +132,7 @@ class test_prepare31(wttest.WiredTigerTestCase):
         # Force checkpoint to write data to disk - this should skip the aborted prepared updates
         # since their rollback timestamp (80) is less than stable timestamp (90)
         self.checkpoint_and_verify_stats({
-            wiredtiger.stat.conn.rec_time_window_prepared: False,
+            wiredtiger.stat.dsrc.rec_time_window_prepared: False,
         })
 
     def test_skip_aborted_prepare_update_if_prepare_timestamp_not_stable(self):
@@ -145,7 +145,7 @@ class test_prepare31(wttest.WiredTigerTestCase):
         # Force checkpoint to write data to disk - this should skip the aborted prepared updates
         # since their prepare timestamp is after stable timestamp
         self.checkpoint_and_verify_stats({
-            wiredtiger.stat.conn.rec_time_window_prepared: False,
+            wiredtiger.stat.dsrc.rec_time_window_prepared: False,
         })
 
     def test_write_prepare_update_if_rollback_timestamp_not_stable(self):
@@ -160,5 +160,5 @@ class test_prepare31(wttest.WiredTigerTestCase):
 
         # Since prepare timestamp is stable but rollback ts is not, we write the prepared update to disk
         self.checkpoint_and_verify_stats({
-            wiredtiger.stat.conn.rec_time_window_prepared: True,
+            wiredtiger.stat.dsrc.rec_time_window_prepared: True,
         })
