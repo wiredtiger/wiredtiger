@@ -869,7 +869,8 @@ functions:
         fi
         py=${python_binary|python3}
         echo "Using $threads_command for 'unit test parallel'"
-        if [ ${check_coverage|false} = true ]; then
+        if [ ${tsan_run|false} = true ]; then
+            export TSAN_OPTIONS="$TSAN_OPTIONS:log_path=$(git rev-parse --show-toplevel)/tsan_logs:exitcode=0"
             ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1 || echo "Ignoring failed test as we are checking test coverage"
         else
             ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1
@@ -2234,18 +2235,12 @@ tasks:
     depends_on:
     - name: compile
     commands:
-      - command: timeout.update
-        params:
-          timeout_secs: 86400
-          exec_timeout_secs: 86400
       - func: "fetch artifacts"
       - func: "unit test parallel"
         vars:
-          check_coverage: true
-          # As leader, run the set of tests that are not in the fail list.
+          tsan_run: true
+          # Run the set of tests that are not in the fail list.
           unit_test_parallel_ignore: test/suite/tsan.fail
-          # The timeout for this command is on a test file basis. Make the timeouts long,
-          # as there are a few files that contain a large number of slower tests.
           unit_test_parallel_args: -v 2 --timeout 300
       - func: "upload artifact"
         vars:
@@ -6636,18 +6631,19 @@ buildvariants:
 - name: amazon2023-armv9-tsan
   display_name: "(ARMV9) Amazon Linux 2023 TSAN"
   run_on:
-  - amazon2023-arm64-latest-large-m8g
+  - amazon2023-arm64-latest-small-m8g
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
     ENABLE_TCMALLOC: 0
     additional_env_vars: |
-      export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=2:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp:log_path=$(git rev-parse --show-toplevel)/tsan_logs:exitcode=0"
+      export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 8" | bc)
   tasks:
     - name: compile
     - name: examples-c-test
     - name: unit-test-tsan
+      distros: amazon2023-arm64-latest-large-m8g
     - name: generate-tsan-metric
 
 - name: amazon2023-armv9-msan
