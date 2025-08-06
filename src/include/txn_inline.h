@@ -65,7 +65,7 @@ __wt_txn_log_op_check(WT_SESSION_IMPL *session)
         return (false);
 
     /* No logging during recovery. */
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING))
+    if (F_ISSET(conn, WT_CONN_RECOVERING))
         return (false);
 
     return (true);
@@ -210,12 +210,12 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
          */
         upd->prepare_state = WT_PREPARE_LOCKED;
         WT_RELEASE_BARRIER();
-        upd->start_ts = txn->commit_timestamp;
-        upd->durable_ts = txn->durable_timestamp;
-        WT_RELEASE_WRITE_WITH_BARRIER(upd->prepare_state, WT_PREPARE_RESOLVED);
+        upd->upd_start_ts = txn->commit_timestamp;
+        upd->upd_durable_ts = txn->durable_timestamp;
+        WT_RELEASE_WRITE(upd->prepare_state, WT_PREPARE_RESOLVED);
     } else {
         /* Set prepare timestamp and id. */
-        upd->start_ts = txn->prepare_timestamp;
+        upd->upd_start_ts = txn->prepare_timestamp;
         upd->prepare_ts = txn->prepare_timestamp;
         upd->prepared_id = txn->prepared_id;
 
@@ -224,8 +224,8 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
          * with WT_TS_NONE to make sure in case if we change the macro value it shouldn't be a
          * problem.
          */
-        upd->durable_ts = WT_TS_NONE;
-        WT_RELEASE_WRITE_WITH_BARRIER(upd->prepare_state, WT_PREPARE_INPROGRESS);
+        upd->upd_durable_ts = WT_TS_NONE;
+        WT_RELEASE_WRITE(upd->prepare_state, WT_PREPARE_INPROGRESS);
     }
 }
 
@@ -245,12 +245,12 @@ __txn_apply_prepare_state_page_del(WT_SESSION_IMPL *session, WT_PAGE_DELETED *pa
          * instantiate the leaf page and check the keys on it. Therefore, we don't need to worry
          * about reading the partial state and don't need to lock the state.
          */
-        page_del->timestamp = txn->commit_timestamp;
-        page_del->durable_timestamp = txn->durable_timestamp;
-        WT_RELEASE_WRITE_WITH_BARRIER(page_del->prepare_state, WT_PREPARE_RESOLVED);
+        page_del->pg_del_start_ts = txn->commit_timestamp;
+        page_del->pg_del_durable_ts = txn->durable_timestamp;
+        WT_RELEASE_WRITE(page_del->prepare_state, WT_PREPARE_RESOLVED);
     } else {
         /* Set prepare timestamp. */
-        page_del->timestamp = txn->prepare_timestamp;
+        page_del->pg_del_start_ts = txn->prepare_timestamp;
         page_del->prepare_ts = txn->prepare_timestamp;
         page_del->prepared_id = txn->prepared_id;
         /*
@@ -258,8 +258,8 @@ __txn_apply_prepare_state_page_del(WT_SESSION_IMPL *session, WT_PAGE_DELETED *pa
          * with WT_TS_NONE to make sure in case if we change the macro value it shouldn't be a
          * problem.
          */
-        page_del->durable_timestamp = WT_TS_NONE;
-        WT_RELEASE_WRITE_WITH_BARRIER(page_del->prepare_state, WT_PREPARE_INPROGRESS);
+        page_del->pg_del_durable_ts = WT_TS_NONE;
+        WT_RELEASE_WRITE(page_del->prepare_state, WT_PREPARE_INPROGRESS);
     }
 }
 
@@ -407,9 +407,9 @@ __txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_TXN
     txn = session->txn;
     page_del = op->u.ref->page_del;
 
-    if (page_del != NULL && page_del->timestamp == WT_TS_NONE) {
-        page_del->timestamp = txn->commit_timestamp;
-        page_del->durable_timestamp = txn->durable_timestamp;
+    if (page_del != NULL && page_del->pg_del_start_ts == WT_TS_NONE) {
+        page_del->pg_del_start_ts = txn->commit_timestamp;
+        page_del->pg_del_durable_ts = txn->durable_timestamp;
     }
 
     return;
@@ -480,13 +480,13 @@ __wt_txn_op_delete_commit(
                 do {
                     if (validate)
                         WT_ERR(__wt_txn_timestamp_usage_check(session, op,
-                          (*updp)->start_ts != WT_TS_NONE ? (*updp)->start_ts :
-                                                            txn->commit_timestamp,
+                          (*updp)->upd_start_ts != WT_TS_NONE ? (*updp)->upd_start_ts :
+                                                                txn->commit_timestamp,
                           (*updp)->prev_durable_ts));
 
-                    if (assign_timestamp && (*updp)->start_ts == WT_TS_NONE) {
-                        (*updp)->start_ts = txn->commit_timestamp;
-                        (*updp)->durable_ts = txn->durable_timestamp;
+                    if (assign_timestamp && (*updp)->upd_start_ts == WT_TS_NONE) {
+                        (*updp)->upd_start_ts = txn->commit_timestamp;
+                        (*updp)->upd_durable_ts = txn->durable_timestamp;
                     }
                     ++updp;
                 } while (*updp != NULL);
@@ -503,7 +503,8 @@ __wt_txn_op_delete_commit(
         WT_WITH_BTREE(session, op->btree, addr_found = __wt_ref_addr_copy(session, ref, &addr));
         if (addr_found)
             ret = __wt_txn_timestamp_usage_check(session, op,
-              page_del->timestamp != WT_TS_NONE ? page_del->timestamp : txn->commit_timestamp,
+              page_del->pg_del_start_ts != WT_TS_NONE ? page_del->pg_del_start_ts :
+                                                        txn->commit_timestamp,
               WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts));
         WT_LEAVE_GENERATION(session, WT_GEN_SPLIT);
         WT_ERR(ret);
@@ -567,7 +568,7 @@ __wt_txn_timestamp_usage_check(
      * Do not check for timestamp usage in recovery. We don't expect recovery to be using timestamps
      * when applying commits, and it is possible that timestamps may be out-of-order in log replay.
      */
-    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING))
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
         return (0);
 
     /* Check for disallowed timestamps. */
@@ -666,11 +667,11 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
             upd = op->u.op_upd;
             if (validate)
                 WT_RET(__wt_txn_timestamp_usage_check(session, op,
-                  upd->start_ts != WT_TS_NONE ? upd->start_ts : txn->commit_timestamp,
+                  upd->upd_start_ts != WT_TS_NONE ? upd->upd_start_ts : txn->commit_timestamp,
                   upd->prev_durable_ts));
-            if (upd->start_ts == WT_TS_NONE) {
-                upd->start_ts = txn->commit_timestamp;
-                upd->durable_ts = txn->durable_timestamp;
+            if (upd->upd_start_ts == WT_TS_NONE) {
+                upd->upd_start_ts = txn->commit_timestamp;
+                upd->upd_durable_ts = txn->durable_timestamp;
             }
         }
     }
@@ -787,7 +788,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
      */
     WT_ACQUIRE_READ_WITH_BARRIER(oldest_id, txn_global->oldest_id);
 
-    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING) || session->dhandle == NULL ||
+    if (!F_ISSET(conn, WT_CONN_RECOVERING) || session->dhandle == NULL ||
       F_ISSET(S2BT(session), WT_BTREE_LOGGED)) {
         /*
          * Checkpoint transactions often fall behind ordinary application threads. If there is an
@@ -842,7 +843,7 @@ __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinne
      */
     WT_ACQUIRE_READ(pinned_stable_ts, txn_global->stable_timestamp);
 
-    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+    if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
         *pinned_stable_tsp = pinned_stable_ts;
         return;
     }
@@ -992,7 +993,7 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
      * When shutting down, the transactional system has finished running and all we care about is
      * eviction, make everything visible.
      */
-    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING))
+    if (F_ISSET(S2C(session), WT_CONN_CLOSING))
         return (true);
 
     if (!__txn_visible_all_id(session, id))
@@ -1042,7 +1043,7 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
     uint8_t prepare_state;
 
-    WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
+    WT_ACQUIRE_READ(prepare_state, upd->prepare_state);
 
     if (prepare_state == WT_PREPARE_LOCKED || prepare_state == WT_PREPARE_INPROGRESS)
         return (false);
@@ -1051,7 +1052,7 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
      * This function is used to determine when an update is obsolete: that should take into account
      * the durable timestamp which is greater than or equal to the start timestamp.
      */
-    return (__wt_txn_visible_all(session, upd->txnid, upd->durable_ts));
+    return (__wt_txn_visible_all(session, upd->txnid, upd->upd_durable_ts));
 }
 
 /*
@@ -1061,7 +1062,7 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 static WT_INLINE bool
 __wt_txn_upd_value_visible_all(WT_SESSION_IMPL *session, WT_UPDATE_VALUE *upd_value)
 {
-    WT_ASSERT(session, upd_value->tw.prepare == 0);
+    WT_ASSERT(session, !WT_TIME_WINDOW_HAS_PREPARE(&(upd_value->tw)));
     return (upd_value->type == WT_UPDATE_TOMBSTONE ?
         __wt_txn_visible_all(session, upd_value->tw.stop_txn, upd_value->tw.durable_stop_ts) :
         __wt_txn_visible_all(session, upd_value->tw.start_txn, upd_value->tw.durable_start_ts));
@@ -1074,7 +1075,7 @@ __wt_txn_upd_value_visible_all(WT_SESSION_IMPL *session, WT_UPDATE_VALUE *upd_va
 static WT_INLINE bool
 __wt_txn_tw_stop_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    return (WT_TIME_WINDOW_HAS_STOP(tw) && !tw->prepare &&
+    return (WT_TIME_WINDOW_HAS_STOP(tw) && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) &&
       __wt_txn_visible(session, tw->stop_txn, tw->stop_ts, tw->durable_stop_ts));
 }
 
@@ -1085,15 +1086,9 @@ __wt_txn_tw_stop_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 static WT_INLINE bool
 __wt_txn_tw_start_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    /*
-     * Check the prepared flag if there is no stop time point or the start and stop time points are
-     * from the same transaction.
-     */
-    return (((WT_TIME_WINDOW_HAS_STOP(tw) &&
-               (tw->start_txn != tw->stop_txn || tw->start_ts != tw->stop_ts ||
-                 tw->durable_start_ts != tw->durable_stop_ts)) ||
-              !tw->prepare) &&
-      __wt_txn_visible(session, tw->start_txn, tw->start_ts, tw->durable_start_ts));
+    if (WT_TIME_WINDOW_HAS_START_PREPARE(tw))
+        return (false);
+    return (__wt_txn_visible(session, tw->start_txn, tw->start_ts, tw->durable_start_ts));
 }
 
 /*
@@ -1103,15 +1098,9 @@ __wt_txn_tw_start_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 static WT_INLINE bool
 __wt_txn_tw_start_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    /*
-     * Check the prepared flag if there is no stop time point or the start and stop time points are
-     * from the same transaction.
-     */
-    return (((WT_TIME_WINDOW_HAS_STOP(tw) &&
-               (tw->start_txn != tw->stop_txn || tw->start_ts != tw->stop_ts ||
-                 tw->durable_start_ts != tw->durable_stop_ts)) ||
-              !tw->prepare) &&
-      __wt_txn_visible_all(session, tw->start_txn, tw->durable_start_ts));
+    if (WT_TIME_WINDOW_HAS_START_PREPARE(tw))
+        return (false);
+    return (__wt_txn_visible_all(session, tw->start_txn, tw->durable_start_ts));
 }
 
 /*
@@ -1121,7 +1110,7 @@ __wt_txn_tw_start_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 static WT_INLINE bool
 __wt_txn_tw_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    return (WT_TIME_WINDOW_HAS_STOP(tw) && !tw->prepare &&
+    return (WT_TIME_WINDOW_HAS_STOP(tw) && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) &&
       __wt_txn_visible_all(session, tw->stop_txn, tw->durable_stop_ts));
 }
 
@@ -1273,25 +1262,12 @@ __wt_txn_visible(
 static WT_INLINE WT_VISIBLE_TYPE
 __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-    uint8_t prepare_state;
+    uint8_t prepare_state, new_prepare_state;
     bool upd_visible;
 
     for (;; __wt_yield()) {
-        /*
-         * TODO: we can remove the prepare locked state and the check here once we separate the
-         * prepared timestamp and commit timestamp.
-         */
-        if (upd->txnid == WT_TXN_ABORTED)
-            return (WT_VISIBLE_FALSE);
-
-        /*
-         * Prepare state change is in progress, yield and try again.
-         *
-         *
-         * TODO: we can remove the prepare locked state and the check here once we separate the
-         * prepared timestamp and commit timestamp.
-         */
-        WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
+        /* Prepare state change is on going, yield and try again. */
+        WT_ACQUIRE_READ(prepare_state, upd->prepare_state);
         if (prepare_state == WT_PREPARE_LOCKED)
             continue;
 
@@ -1300,23 +1276,18 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
               upd->type == WT_UPDATE_STANDARD))
             return (WT_VISIBLE_TRUE);
 
-        upd_visible = __wt_txn_visible(session, upd->txnid,
-          F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-              prepare_state == WT_PREPARE_INPROGRESS ?
-            upd->prepare_ts :
-            upd->start_ts,
-          upd->durable_ts);
+        upd_visible = __wt_txn_visible(session, upd->txnid, upd->upd_start_ts, upd->upd_durable_ts);
 
         /*
          * The visibility check is only valid if the update does not change state. If the state does
          * change, recheck visibility.
          *
-         * We need to place an acquire barrier prior to the second read of prepare state as
-         * otherwise it could overlap with the reads of the transaction id and start timestamp.
-         * Which would invalidate this check.
+         * We need to use an acquire read to the second read of prepare state as otherwise it could
+         * overlap with the reads of the transaction id and start timestamp. Which would invalidate
+         * this check.
          */
-        WT_ACQUIRE_BARRIER();
-        if (prepare_state == upd->prepare_state)
+        WT_ACQUIRE_READ(new_prepare_state, upd->prepare_state);
+        if (prepare_state == new_prepare_state)
             break;
 
         WT_STAT_CONN_INCR(session, prepared_transition_blocked_page);
@@ -1428,7 +1399,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         if (upd->type == WT_UPDATE_RESERVE)
             continue;
 
-        WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
+        WT_ACQUIRE_READ(prepare_state, upd->prepare_state);
 
         /*
          * We previously found a prepared update, check if the update has the same transaction id,
@@ -1467,11 +1438,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
          */
         if (upd->type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
           !WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
-            cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
-            cbt->upd_value->tw.stop_ts = upd->start_ts;
-            cbt->upd_value->tw.stop_txn = upd->txnid;
-            cbt->upd_value->tw.prepare =
-              prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
+            WT_TIME_WINDOW_SET_STOP(&cbt->upd_value->tw, upd, prepare_state);
             continue;
         }
 
@@ -1515,7 +1482,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
              * If we see an update that is not visible to the reader and it is restored from delta,
              * we should search the history store.
              */
-            if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_HS_OPEN) &&
+            if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
               !F_ISSET(session->dhandle,
                 WT_DHANDLE_HS | WT_DHANDLE_IS_METADATA | WT_DHANDLE_DISAGG_META)) {
                 __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
@@ -1661,8 +1628,7 @@ retry:
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
-    if (!F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) &&
-      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_HS_OPEN) &&
+    if (!F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) && F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
       !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
         /*
          * Stressing this code path may slow down the system too much. To minimize the impact, sleep
@@ -1883,7 +1849,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     }
 
     F_SET(txn, WT_TXN_RUNNING);
-    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_READONLY))
+    if (F_ISSET(S2C(session), WT_CONN_READONLY))
         F_SET(txn, WT_TXN_READONLY);
 
     WT_ASSERT_ALWAYS(
@@ -2048,7 +2014,7 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
         return (0);
 
     /* Skip checks during recovery. */
-    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING))
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
         return (0);
 
     /* Verify if the table should always or never use a read timestamp. */
@@ -2085,7 +2051,7 @@ __txn_modify_block(
     WT_TIME_WINDOW tw;
     WT_TXN *txn;
     uint32_t snap_count;
-    char ts_string[WT_TS_INT_STRING_SIZE];
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool ignore_prepare_set, rollback, tw_found;
 
     rollback = tw_found = false;
@@ -2100,8 +2066,10 @@ __txn_modify_block(
     for (; upd != NULL && !__wt_txn_upd_visible(session, upd); upd = upd->next) {
         if (upd->txnid != WT_TXN_ABORTED) {
             __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
-              "Conflict with update with txn id %" PRIu64 " at timestamp: %s", upd->txnid,
-              __wt_timestamp_to_string(upd->start_ts, ts_string));
+              "Conflict with update with txn id %" PRIu64
+              " at start timestamp: %s, prepare timestamp: %s",
+              upd->txnid, __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
+              __wt_timestamp_to_string(upd->prepare_ts, ts_string[1]));
             rollback = true;
             break;
         }
@@ -2126,14 +2094,18 @@ __txn_modify_block(
                 rollback = !__wt_txn_tw_stop_visible(session, &tw);
                 if (rollback)
                     __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
-                      "Conflict with update %" PRIu64 " at stop timestamp: %s", tw.stop_txn,
-                      __wt_timestamp_to_string(tw.stop_ts, ts_string));
+                      "Conflict with update %" PRIu64
+                      " at stop timestamp: %s, prepare timestamp: %s",
+                      tw.stop_txn, __wt_timestamp_to_string(tw.stop_ts, ts_string[0]),
+                      __wt_timestamp_to_string(tw.stop_prepare_ts, ts_string[1]));
             } else {
                 rollback = !__wt_txn_tw_start_visible(session, &tw);
                 if (rollback)
                     __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
-                      "Conflict with update %" PRIu64 " at start timestamp: %s", tw.start_txn,
-                      __wt_timestamp_to_string(tw.start_ts, ts_string));
+                      "Conflict with update %" PRIu64
+                      " at start timestamp: %s, prepare timestamp: %s",
+                      tw.start_txn, __wt_timestamp_to_string(tw.start_ts, ts_string[0]),
+                      __wt_timestamp_to_string(tw.start_prepare_ts, ts_string[1]));
             }
         }
     }
@@ -2171,8 +2143,8 @@ __txn_modify_block(
     if (!rollback && prev_tsp != NULL) {
         if (upd != NULL) {
             /* The durable timestamp must be greater than or equal to the commit timestamp. */
-            WT_ASSERT(session, upd->durable_ts >= upd->start_ts);
-            *prev_tsp = upd->durable_ts;
+            WT_ASSERT(session, upd->upd_durable_ts >= upd->upd_start_ts);
+            *prev_tsp = upd->upd_durable_ts;
         } else if (tw_found)
             *prev_tsp = WT_TIME_WINDOW_HAS_STOP(&tw) ? tw.durable_stop_ts : tw.durable_start_ts;
     }
@@ -2248,6 +2220,22 @@ __wt_txn_read_last(WT_SESSION_IMPL *session)
     if ((!F_ISSET(txn, WT_TXN_RUNNING) || txn->isolation != WT_ISO_SNAPSHOT) &&
       txn->forced_iso == 0)
         __wt_txn_release_snapshot(session);
+}
+
+/*
+ * __wt_txn_read_committed_should_release_snapshot --
+ *     Called to check whether we want to release our snapshot through calling WT_CURSOR::reset().
+ */
+static WT_INLINE bool
+__wt_txn_read_committed_should_release_snapshot(WT_SESSION_IMPL *session)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    /* Check if we can release the snap_min ID we put in the global table. */
+    return (
+      (!F_ISSET(txn, WT_TXN_RUNNING) || txn->isolation != WT_ISO_SNAPSHOT) && txn->forced_iso == 0);
 }
 
 /*
@@ -2340,17 +2328,11 @@ __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
         upd_value->buf.data = upd->data;
         upd_value->buf.size = upd->size;
     }
-    if (upd->type == WT_UPDATE_TOMBSTONE) {
-        upd_value->tw.durable_stop_ts = upd->durable_ts;
-        upd_value->tw.stop_ts = upd->start_ts;
-        upd_value->tw.stop_txn = upd->txnid;
-    } else {
-        upd_value->tw.durable_start_ts = upd->durable_ts;
-        upd_value->tw.start_ts = upd->start_ts;
-        upd_value->tw.start_txn = upd->txnid;
-    }
-    upd_value->tw.prepare =
-      prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
+    if (upd->type == WT_UPDATE_TOMBSTONE)
+        WT_TIME_WINDOW_SET_STOP(&(upd_value->tw), upd, prepare_state);
+    else
+        WT_TIME_WINDOW_SET_START(&(upd_value->tw), upd, prepare_state);
+
     upd_value->type = upd->type;
 }
 

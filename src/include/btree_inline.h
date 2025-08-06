@@ -797,8 +797,8 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
             WT_ASSERT_ALWAYS(session, !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE), "%s",
               "A btree is marked dirty during RTS");
             WT_ASSERT_ALWAYS(session,
-              !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT),
-              "%s", "A btree is marked dirty during recovery or shutdown");
+              !F_ISSET(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT), "%s",
+              "A btree is marked dirty during recovery or shutdown");
         }
         S2BT(session)->modified = true;
         WT_FULL_BARRIER();
@@ -834,8 +834,8 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
      */
     if (__wt_page_is_modified(page)) {
         WT_ASSERT_ALWAYS(session,
-          F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-            F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING) || !__wt_page_is_reconciling(page),
+          F_ISSET(session->dhandle, WT_DHANDLE_DEAD) || F_ISSET(S2C(session), WT_CONN_CLOSING) ||
+            !__wt_page_is_reconciling(page),
           "Illegal attempt to mark a page clean that is being reconciled");
 
         /*
@@ -1595,7 +1595,7 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
         else {
             /* It's a legacy page; create default delete information. */
             copy->del.txnid = WT_TXN_NONE;
-            copy->del.timestamp = copy->del.durable_timestamp = WT_TS_NONE;
+            copy->del.pg_del_start_ts = copy->del.pg_del_durable_ts = WT_TS_NONE;
             copy->del.prepare_state = 0;
             copy->del.committed = true;
         }
@@ -1696,7 +1696,7 @@ __wt_page_del_visible_all(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, b
             return (false);
     }
 
-    return (__wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp));
+    return (__wt_txn_visible_all(session, page_del->txnid, page_del->pg_del_durable_ts));
 }
 
 /*
@@ -1722,8 +1722,8 @@ __wt_page_del_visible(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, bool 
             return (false);
     }
 
-    return (
-      __wt_txn_visible(session, page_del->txnid, page_del->timestamp, page_del->durable_timestamp));
+    return (__wt_txn_visible(
+      session, page_del->txnid, page_del->pg_del_start_ts, page_del->pg_del_durable_ts));
 }
 
 /*
@@ -2603,3 +2603,43 @@ __wt_ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp
 
     *refp = parent_ref;
 }
+
+#define WT_GET_CHECK_PREPARED_AND_PREPARE_TXNID(check_prepared, prepared, txnid_prepared, upd)    \
+    do {                                                                                          \
+        (check_prepared) = F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) && (prepared);                \
+        if ((check_prepared)) {                                                                   \
+            WT_ACQUIRE_READ((txnid_prepared), (upd)->txnid);                                      \
+            /*                                                                                    \
+             * No need to check the following updates as prepared because they must have all been \
+             * rolled back.                                                                       \
+             */                                                                                   \
+            if ((txnid_prepared) == WT_TXN_ABORTED)                                               \
+                (check_prepared) = false;                                                         \
+        } else                                                                                    \
+            (txnid_prepared) = WT_TXN_NONE;                                                       \
+    } while (0)
+
+#define WT_SKIP_ABORTED_AND_SET_CHECK_PREPARED(txnid, txnid_prepared, check_prepared, upd)   \
+    WT_ACQUIRE_READ((txnid), (upd)->txnid);                                                  \
+    if ((txnid) == WT_TXN_ABORTED) {                                                         \
+        if (!(check_prepared))                                                               \
+            continue;                                                                        \
+                                                                                             \
+        /* We may see aborted reserve updates in between the prepared updates. */            \
+        if ((upd)->type == WT_UPDATE_RESERVE)                                                \
+            continue;                                                                        \
+                                                                                             \
+        /*                                                                                   \
+         * If we have multiple prepared updates from the same transaction, there is no other \
+         * updates in between them.                                                          \
+         */                                                                                  \
+        if ((upd)->prepare_state != WT_PREPARE_INPROGRESS) {                                 \
+            (check_prepared) = false;                                                        \
+            continue;                                                                        \
+        }                                                                                    \
+                                                                                             \
+        if ((upd)->upd_saved_txnid != txnid_prepared) {                                      \
+            (check_prepared) = false;                                                        \
+            continue;                                                                        \
+        }                                                                                    \
+    }

@@ -229,8 +229,8 @@ __eventv_append_error(const char *err, char *start, char *p, size_t *remainp)
  *     Report a message to an event handler.
  */
 static int
-__eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, int line,
-  WT_VERBOSE_CATEGORY category, WT_VERBOSE_LEVEL level, const char *fmt, va_list ap)
+__eventv(WT_SESSION_IMPL *session, bool is_json, int error, uint32_t log_id, const char *func,
+  int line, WT_VERBOSE_CATEGORY category, WT_VERBOSE_LEVEL level, const char *fmt, va_list ap)
   WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     struct timespec ts;
@@ -316,6 +316,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
     if (is_json) {
         /* Category and verbosity level. */
         WT_ERROR_APPEND(p, remain, "\"category\":\"%s\",", verbose_category_strings[category]);
+        WT_ERROR_APPEND(p, remain, "\"log_id\":%" PRIu32 ",", log_id);
         WT_ERROR_APPEND(p, remain, "\"category_id\":%" PRIu32 ",", category);
         WT_ERROR_APPEND(p, remain, "\"verbose_level\":\"%s\",", verbosity_level_tag);
         WT_ERROR_APPEND(p, remain, "\"verbose_level_id\":%d,", level);
@@ -481,8 +482,8 @@ __wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      */
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session,
-      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, error, func,
-      line, category, WT_VERBOSE_ERROR, fmt, ap));
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, error,
+      WT_DEFAULT_LOG_ID, func, line, category, WT_VERBOSE_ERROR, fmt, ap));
     va_end(ap);
 }
 
@@ -503,8 +504,8 @@ __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, WT_VERBOSE_
      */
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session,
-      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0, func, line,
-      category, WT_VERBOSE_ERROR, fmt, ap));
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0,
+      WT_DEFAULT_LOG_ID, func, line, category, WT_VERBOSE_ERROR, fmt, ap));
     va_end(ap);
 }
 
@@ -535,11 +536,11 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
     va_start(ap, fmt);
     WT_IGNORE_RET(
       __eventv(session, conn != NULL ? FLD_ISSET(conn->json_output, WT_JSON_OUTPUT_ERROR) : false,
-        error, func, line, category, WT_VERBOSE_ERROR, fmt, ap));
+        error, WT_DEFAULT_LOG_ID, func, line, category, WT_VERBOSE_ERROR, fmt, ap));
     va_end(ap);
 
     /* If the connection has already panicked, just return the error. */
-    if (conn != NULL && F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC))
+    if (conn != NULL && F_ISSET(conn, WT_CONN_PANIC))
         return (WT_PANIC);
 
     /*
@@ -551,7 +552,8 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
     va_start(ap, fmt);
     WT_IGNORE_RET(
       __eventv(session, conn != NULL ? FLD_ISSET(conn->json_output, WT_JSON_OUTPUT_ERROR) : false,
-        WT_PANIC, func, line, category, WT_VERBOSE_ERROR, "the process must exit and restart", ap));
+        WT_PANIC, WT_DEFAULT_LOG_ID, func, line, category, WT_VERBOSE_ERROR,
+        "the process must exit and restart", ap));
     va_end(ap);
 
 #ifdef HAVE_DIAGNOSTIC
@@ -565,7 +567,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      * dropping a core and returning an error.
      */
     if (conn != NULL &&
-      (!F_ISSET_ATOMIC_32(conn, WT_CONN_DATA_CORRUPTION) ||
+      (!F_ISSET(conn, WT_CONN_DATA_CORRUPTION) ||
         FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT)))
         __wt_abort(session);
 #endif
@@ -578,7 +580,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
 #ifndef HAVE_UNITTEST_ASSERTS
     /* Panic the connection. */
     if (conn != NULL)
-        F_SET_ATOMIC_32(conn, WT_CONN_PANIC);
+        F_SET(conn, WT_CONN_PANIC);
 #endif
     /*
      * !!!
@@ -618,10 +620,27 @@ __wt_ext_err_printf(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char
 
     va_start(ap, fmt);
     ret = __eventv(session,
-      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0, NULL, 0,
-      WT_VERB_EXTENSION, WT_VERBOSE_ERROR, fmt, ap);
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0,
+      WT_DEFAULT_LOG_ID, NULL, 0, WT_VERB_EXTENSION, WT_VERBOSE_ERROR, fmt, ap);
     va_end(ap);
     return (ret);
+}
+
+/*
+ * __wt_verbose_worker_id --
+ *     Verbose message that takes the verbose info structure.
+ */
+void
+__wt_verbose_worker_id(WT_SESSION_IMPL *session, const WT_VERBOSE_MESSAGE_INFO *verb_info,
+  const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((format(printf, 3, 4))) WT_GCC_FUNC_ATTRIBUTE((cold))
+{
+    va_list ap;
+
+    va_start(ap, fmt);
+    WT_IGNORE_RET(__eventv(session,
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_MESSAGE) : false, 0,
+      verb_info->id, NULL, 0, verb_info->category, verb_info->level, fmt, ap));
+    va_end(ap);
 }
 
 /*
@@ -636,8 +655,8 @@ __wt_verbose_worker(WT_SESSION_IMPL *session, WT_VERBOSE_CATEGORY category, WT_V
 
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session,
-      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_MESSAGE) : false, 0, NULL, 0,
-      category, level, fmt, ap));
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_MESSAGE) : false, 0,
+      WT_DEFAULT_LOG_ID, NULL, 0, category, level, fmt, ap));
     va_end(ap);
 }
 
@@ -737,7 +756,7 @@ __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
 int
 __wt_inmem_unsupported_op(WT_SESSION_IMPL *session, const char *tag) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
-    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY))
+    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         WT_RET_MSG(session, ENOTSUP, "%s%snot supported for in-memory configurations",
           tag == NULL ? "" : tag, tag == NULL ? "" : ": ");
     return (0);

@@ -506,6 +506,7 @@ struct __wt_connection_stats {
     int64_t block_byte_write_leaf_delta_gt100;
     int64_t block_remap_file_resize;
     int64_t block_remap_file_write;
+    int64_t block_first_srch_walk_time;
     int64_t eviction_interupted_by_app;
     int64_t eviction_app_time;
     int64_t cache_eviction_app_threads_fill_ratio_lt_25;
@@ -609,6 +610,7 @@ struct __wt_connection_stats {
     int64_t cache_hazard_checks;
     int64_t cache_hazard_walks;
     int64_t cache_hazard_max;
+    int64_t cache_eviction_hs_cursor_not_cached;
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
     int64_t cache_hs_ondisk_max;
@@ -698,6 +700,7 @@ struct __wt_connection_stats {
     int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
+    int64_t cache_eviction_hs_shared_cursor_not_cached;
     int64_t cache_read_delta_updates;
     int64_t cache_read_restored_tombstone_bytes;
     int64_t cache_hs_insert_full_update;
@@ -916,6 +919,7 @@ struct __wt_connection_stats {
     int64_t dh_sweep_skip_ckpt;
     int64_t dh_session_handles;
     int64_t dh_session_sweeps;
+    int64_t disagg_role_leader;
     int64_t layered_curs_insert;
     int64_t layered_curs_next;
     int64_t layered_curs_next_ingest;
@@ -1153,7 +1157,9 @@ struct __wt_connection_stats {
     int64_t rec_page_full_image_internal;
     int64_t rec_page_full_image_leaf;
     int64_t rec_page_delta_internal;
+    int64_t rec_multiblock_internal;
     int64_t rec_page_delta_leaf;
+    int64_t rec_multiblock_leaf;
     int64_t rec_overflow_key_leaf;
     int64_t rec_max_internal_page_deltas;
     int64_t rec_max_leaf_page_deltas;
@@ -1404,6 +1410,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_target_page_lt128;
     int64_t cache_eviction_target_page_reduced;
     int64_t cache_eviction_blocked_hazard;
+    int64_t cache_eviction_hs_cursor_not_cached;
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
     int64_t cache_hs_read;
@@ -1462,6 +1469,7 @@ struct __wt_dsrc_stats {
     int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
+    int64_t cache_eviction_hs_shared_cursor_not_cached;
     int64_t cache_read_delta_updates;
     int64_t cache_read_restored_tombstone_bytes;
     int64_t cache_hs_insert_full_update;

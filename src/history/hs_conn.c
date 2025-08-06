@@ -22,7 +22,7 @@ __hs_cleanup_las(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     /* Read-only and in-memory configurations won't drop the lookaside. */
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 
     /* The LAS table may exist on upgrade. Discard it. */
@@ -33,11 +33,11 @@ __hs_cleanup_las(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_hs_get_btree --
+ * __hs_get_btree --
  *     Get the history store btree by opening a history store cursor.
  */
-int
-__wt_hs_get_btree(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_btreep)
+static int
+__hs_get_btree(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BTREE **hs_btreep)
 {
     WT_CURSOR *hs_cursor;
 
@@ -74,13 +74,13 @@ __hs_config(WT_SESSION_IMPL *session, uint32_t hs_id, const char **cfg)
           WT_HS_FILE_MIN);
 
     /* The history store is not available for in-memory configurations. */
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY))
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY))
         return (0);
 
     WT_ERR(__wt_open_internal_session(conn, "hs_access", true, 0, 0, &tmp_setup_session));
 
     /* Retrieve the btree from the history store cursor. */
-    WT_ERR(__wt_hs_get_btree(tmp_setup_session, hs_id, &btree));
+    WT_ERR(__hs_get_btree(tmp_setup_session, hs_id, &btree));
 
     /* Track the history store file ID. */
     if (conn->cache->hs_fileid == 0)
@@ -94,7 +94,7 @@ __hs_config(WT_SESSION_IMPL *session, uint32_t hs_id, const char **cfg)
      * Now that we have the history store's handle, we may set the flag because we know the file is
      * open.
      */
-    F_SET_ATOMIC_32(conn, WT_CONN_HS_OPEN);
+    F_SET(conn, WT_CONN_HS_OPEN);
 
 err:
     if (tmp_setup_session != NULL)
@@ -136,7 +136,7 @@ __wt_hs_open(WT_SESSION_IMPL *session, const char **cfg)
     hs_session = NULL;
 
     /* Read-only and in-memory configurations don't need the history store table. */
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 
     /*
@@ -171,5 +171,5 @@ err:
 void
 __wt_hs_close(WT_SESSION_IMPL *session)
 {
-    F_CLR_ATOMIC_32(S2C(session), WT_CONN_HS_OPEN);
+    F_CLR(S2C(session), WT_CONN_HS_OPEN);
 }

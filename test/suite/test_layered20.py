@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest
+import platform, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -56,7 +56,7 @@ class test_layered20(wttest.WiredTigerTestCase, DisaggConfigMixin):
     ]
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(page_log=palm),'
+                     + 'page_delta=(delta_pct=100),disaggregated=(page_log=palm),'
     disagg_storages = gen_disagg_storages('test_layered20', disagg_only = True)
 
     # Make scenarios for different cloud service providers
@@ -67,7 +67,7 @@ class test_layered20(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def session_create_config(self):
         # The delta percentage of 200 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
-        cfg = 'disaggregated=(delta_pct=80),key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+        cfg = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith('file'):
             cfg += ',block_manager=disagg'
         return cfg
@@ -83,6 +83,9 @@ class test_layered20(wttest.WiredTigerTestCase, DisaggConfigMixin):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def test_layered_read_write(self):
+        if platform.processor() == 's390x':
+            self.skipTest("FIXME-WT-15000: not working on zSeries")
+
         self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 

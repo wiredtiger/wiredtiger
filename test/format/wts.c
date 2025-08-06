@@ -326,7 +326,7 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
      * the options struct on a temporary basis to help create the disagg configuration.
      */
     opts.disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
-    opts.disagg_mode = (char *)GVS(DISAGG_MODE);
+    opts.disagg_mode = (char *)(g.disagg_leader ? "leader" : "follower");
     opts.home = (char *)home;
     opts.build_dir = (char *)BUILDDIR;
     opts.palm_map_size_mb = 2048; /* 2 Gigabytes for PALM map */
@@ -687,7 +687,7 @@ static void
 disagg_conn_init(WT_CONNECTION *conn)
 {
     /*
-     * We do a separate wiredtiger_open call to create a the database and tables, and when we close
+     * We do a separate wiredtiger_open call to create the database and tables, and when we close
      * that connection, a checkpoint is done. Disaggregated storage uses precise checkpoints, which
      * require the stable timestamp to be set. Set it to the minimum value, which should not
      * interfere with any later operations.
@@ -715,7 +715,7 @@ wts_create_database(void)
     WT_CONNECTION *conn;
 
     create_database(g.home, &conn);
-    if (GVS(DISAGG_PAGE_LOG) != NULL)
+    if (g.disagg_storage_config)
         disagg_conn_init(conn);
 
     g.wts_conn = conn;

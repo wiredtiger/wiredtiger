@@ -269,7 +269,7 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile, uint32_t
      * in-memory configuration, or when reading a checkpoint that has no corresponding history store
      * checkpoint.
      */
-    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY) && !WT_IS_HS(session->dhandle) &&
+    if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !WT_IS_HS(session->dhandle) &&
       !(WT_READING_CHECKPOINT(session) && session->hs_checkpoint == NULL)) {
         WT_ASSERT(session, session->dhandle != NULL);
         WT_ERR(__wt_curhs_open(session, S2BT(session)->id, NULL, &ds->hs_cursor));
@@ -569,8 +569,8 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
         if (F_ISSET(dsk, WT_PAGE_FT_UPDATE)) {
             page_del = &unpack->page_del;
             WT_RET(ds->f(ds, " | page_del : %s",
-              __wt_time_point_to_string(
-                page_del->timestamp, page_del->durable_timestamp, page_del->txnid, time_string)));
+              __wt_time_point_to_string(page_del->pg_del_durable_ts, page_del->pg_del_start_ts,
+                page_del->prepare_ts, page_del->prepared_id, page_del->txnid, time_string)));
         }
     /* FALLTHROUGH */
     case WT_CELL_ADDR_INT:
@@ -1667,10 +1667,13 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
               "txn_id %" PRIu64,
               upd->txnid));
 
-        WT_RET(ds->f(ds, ", start_ts %s", __wt_timestamp_to_string(upd->start_ts, ts_string)));
-        if (upd->durable_ts != WT_TS_NONE)
+        WT_RET(ds->f(ds, ", start_ts %s", __wt_timestamp_to_string(upd->upd_start_ts, ts_string)));
+        if (upd->upd_durable_ts != WT_TS_NONE)
+            WT_RET(ds->f(
+              ds, ", durable_ts %s", __wt_timestamp_to_string(upd->upd_durable_ts, ts_string)));
+        if (upd->prepare_ts != WT_TS_NONE)
             WT_RET(
-              ds->f(ds, ", durable_ts %s", __wt_timestamp_to_string(upd->durable_ts, ts_string)));
+              ds->f(ds, ", prepare_ts %s", __wt_timestamp_to_string(upd->prepare_ts, ts_string)));
 
         prepare_state = NULL;
         switch (upd->prepare_state) {
@@ -1758,8 +1761,8 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
     if (ref->page_del != NULL) {
         page_del = ref->page_del;
         WT_RET(ds->f(ds, " | page_del: %s",
-          __wt_time_point_to_string(
-            page_del->timestamp, page_del->durable_timestamp, page_del->txnid, time_string)));
+          __wt_time_point_to_string(page_del->pg_del_durable_ts, page_del->pg_del_start_ts,
+            page_del->prepare_ts, page_del->prepared_id, page_del->txnid, time_string)));
     }
     return (ds->f(ds, "\n"));
 }

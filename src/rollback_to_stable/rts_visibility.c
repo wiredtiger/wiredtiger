@@ -35,7 +35,7 @@ __wti_rts_visibility_txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
     conn = S2C(session);
 
     /* If not recovery then assume all the data as visible. */
-    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING))
+    if (!F_ISSET(conn, WT_CONN_RECOVERING))
         return (true);
 
     /*
@@ -125,9 +125,8 @@ __wti_rts_visibility_page_needs_abort(
     } else if (mod != NULL && mod->instantiated && !__wt_page_is_modified(ref->page) &&
       ref->page_del != NULL) {
         tag = "page_del info";
-        durable_ts = ref->page_del->durable_timestamp;
-        prepared = ref->page_del->prepare_state == WT_PREPARE_INPROGRESS ||
-          ref->page_del->prepare_state == WT_PREPARE_LOCKED;
+        durable_ts = ref->page_del->pg_del_durable_ts;
+        prepared = ref->page_del->prepare_state == WT_PREPARE_INPROGRESS;
         newest_txn = ref->page_del->txnid;
         result = (durable_ts > rollback_timestamp) || prepared ||
           WT_CHECK_RECOVERY_FLAG_TXNID(session, newest_txn);
