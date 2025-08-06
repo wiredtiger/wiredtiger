@@ -1410,7 +1410,7 @@ __split_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE *last_upd, size_t *
 
     tmp = last_upd->next;
     last_upd->next = NULL;
-    for (tmp2 = tmp; tmp2 != NULL; tmp2 = tmp2)
+    for (tmp2 = tmp; tmp2 != NULL; tmp2 = tmp2->next)
         *free_sizep += WT_UPDATE_MEMSIZE(tmp2);
     __wt_free_update_list(session, &tmp);
 }
@@ -1428,7 +1428,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_SAVE_UPD *supd;
-    WT_UPDATE *last_upd, *prev_onpage, *tmp, *tmp2, *upd;
+    WT_UPDATE *last_upd, *prev_onpage, *tmp, *upd;
     size_t free_size;
     uint64_t recno;
     uint32_t i, slot;
