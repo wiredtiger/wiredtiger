@@ -36,12 +36,40 @@ import wiredtiger, wttest
 class test_prepare31(wttest.WiredTigerTestCase):
     conn_config = 'checkpoint=(precise=true),preserve_prepared=true,statistics=(all)'
 
-    def test_skip_aborted_prepare_update_if_stable_rollback_timestamp(self):
+    def get_stats(self, stats):
+        """Get the current values of multiple statistics."""
+        stat_cursor = self.session.open_cursor('statistics:')
+        results = {}
+        for stat in stats:
+            results[stat] = stat_cursor[stat][2]
+        stat_cursor.close()
+        return results
+
+    def checkpoint_and_verify_stats(self, expected_changes):
+        stats_to_check = list(expected_changes.keys())
+        old_stats = self.get_stats(stats_to_check)
+
+        self.session.checkpoint()
+
+        new_stats = self.get_stats(stats_to_check)
+
+        for stat, expect_increase in expected_changes.items():
+            diff = new_stats[stat] - old_stats[stat]
+            if expect_increase:
+                self.assertGreater(diff, 0,
+                    f"Stat {stat}: expected increase, got diff {diff}")
+            else:
+                self.assertEqual(diff, 0,
+                    f"Stat {stat}: expected no change, got diff {diff}")
+
+        return new_stats
+
+    def setup_initial_data(self, uri):
+        """Set up initial test data and verify it's accessible."""
         # Set initial timestamps - start with lower values
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
 
-        uri = 'table:test_prepare31'
         create_params = 'key_format=i,value_format=S'
         self.session.create(uri, create_params)
 
@@ -67,7 +95,8 @@ class test_prepare31(wttest.WiredTigerTestCase):
         self.session.commit_transaction()
         cursor.close()
 
-        # Start a prepared transaction that will be aborted
+    def create_prepared_transaction(self, uri, prepare_ts, rollback_ts):
+        """Create a prepared transaction and roll it back."""
         session_prepare = self.conn.open_session()
         cursor_prepare = session_prepare.open_cursor(uri)
         session_prepare.begin_transaction()
@@ -76,140 +105,59 @@ class test_prepare31(wttest.WiredTigerTestCase):
         for i in range(1, 100):
             cursor_prepare[i] = "prepared_value_" + str(i)
 
-        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=' + self.prepared_id_str(1))
+        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(prepare_ts) + ',prepared_id=' + self.prepared_id_str(1))
+        session_prepare.rollback_transaction('rollback_timestamp=' + self.timestamp_str(rollback_ts))
 
-        session_prepare.rollback_transaction('rollback_timestamp=' + self.timestamp_str(80))
+        cursor_prepare.close()
+        session_prepare.close()
+
+    def check_prepared_stat(self, expected_value):
+        """Check the rec_time_window_prepared statistic."""
+        stat_cursor = self.session.open_cursor('statistics:')
+        rec_time_window_prepared = stat_cursor[wiredtiger.stat.conn.rec_time_window_prepared][2]
+        self.assertEqual(rec_time_window_prepared, expected_value)
+        stat_cursor.close()
+
+    def test_skip_aborted_prepare_update_if_stable_rollback_timestamp(self):
+        uri = 'table:test_prepare31'
+        self.setup_initial_data(uri)
+
+        # Create and rollback a prepared transaction
+        self.create_prepared_transaction(uri, prepare_ts=70, rollback_ts=80)
 
         # This makes the rollback timestamp "stable"
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(90))
 
         # Force checkpoint to write data to disk - this should skip the aborted prepared updates
         # since their rollback timestamp (80) is less than stable timestamp (90)
-        self.session.checkpoint()
-
-        stat_cursor = self.session.open_cursor('statistics:')
-        rec_time_window_prepared = stat_cursor[wiredtiger.stat.conn.rec_time_window_prepared][2]
-        self.assertEqual(rec_time_window_prepared, 0)
-
-        stat_cursor.close()
-        cursor_prepare.close()
-        session_prepare.close()
+        self.checkpoint_and_verify_stats({
+            wiredtiger.stat.conn.rec_time_window_prepared: False,
+        })
 
     def test_skip_aborted_prepare_update_if_prepare_timestamp_not_stable(self):
-        # Set initial timestamps - start with lower values
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
-
         uri = 'table:test_prepare31'
-        create_params = 'key_format=i,value_format=S'
-        self.session.create(uri, create_params)
+        self.setup_initial_data(uri)
 
-        # Insert some initial data that will be committed
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        for i in range(1, 100):
-            cursor.set_key(i)
-            cursor.set_value("initial_value_" + str(i))
-            cursor.insert()
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
-        cursor.close()
-
-        # Advance stable timestamp after the commit
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
-
-        # Verify initial data is there
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(35))
-        cursor.set_key(50)
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_value(), "initial_value_50")
-        self.session.commit_transaction()
-        cursor.close()
-
-        # Start a prepared transaction that will be aborted
-        session_prepare = self.conn.open_session()
-        cursor_prepare = session_prepare.open_cursor(uri)
-        session_prepare.begin_transaction()
-
-        # Make updates in the prepared transaction
-        for i in range(1, 100):
-            cursor_prepare[i] = "prepared_value_" + str(i)
-
-        # Prepare the transaction with timestamp 70
-        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=' + self.prepared_id_str(1))
-
-        # Abort the prepared transaction with rollback timestamp 80
-        session_prepare.rollback_transaction('rollback_timestamp=' + self.timestamp_str(80))
+        # Create and rollback a prepared transaction
+        self.create_prepared_transaction(uri, prepare_ts=70, rollback_ts=80)
 
         # Force checkpoint to write data to disk - this should skip the aborted prepared updates
         # since their prepare timestamp is after stable timestamp
-        self.session.checkpoint()
-
-        stat_cursor = self.session.open_cursor('statistics:')
-        rec_time_window_prepared = stat_cursor[wiredtiger.stat.conn.rec_time_window_prepared][2]
-        self.assertEqual(rec_time_window_prepared, 0)
-
-        stat_cursor.close()
-        cursor_prepare.close()
-        session_prepare.close()
+        self.checkpoint_and_verify_stats({
+            wiredtiger.stat.conn.rec_time_window_prepared: False,
+        })
 
     def test_write_prepare_update_if_rollback_timestamp_not_stable(self):
-        # Set initial timestamps - start with lower values
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
-
         uri = 'table:test_prepare31'
-        create_params = 'key_format=i,value_format=S'
-        self.session.create(uri, create_params)
+        self.setup_initial_data(uri)
 
-        # Insert some initial data that will be committed
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        for i in range(1, 100):
-            cursor.set_key(i)
-            cursor.set_value("initial_value_" + str(i))
-            cursor.insert()
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
-        cursor.close()
-
-        # Advance stable timestamp after the commit
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
-
-        # Verify initial data is there
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(35))
-        cursor.set_key(50)
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_value(), "initial_value_50")
-        self.session.commit_transaction()
-        cursor.close()
-
-        # Start a prepared transaction that will be aborted
-        session_prepare = self.conn.open_session()
-        cursor_prepare = session_prepare.open_cursor(uri)
-        session_prepare.begin_transaction()
-
-        # Make updates in the prepared transaction
-        for i in range(1, 100):
-            cursor_prepare[i] = "prepared_value_" + str(i)
-
-        # Prepare the transaction with timestamp 70
-        session_prepare.prepare_transaction('prepare_timestamp=' + self.timestamp_str(70)+',prepared_id=' + self.prepared_id_str(1))
-
-        # Abort the prepared transaction with rollback timestamp 80
-        session_prepare.rollback_transaction('rollback_timestamp=' + self.timestamp_str(80))
+        # Create and rollback a prepared transaction
+        self.create_prepared_transaction(uri, prepare_ts=70, rollback_ts=80)
 
         # Set table timestamp to be after prepare timestamp, but before rollback timestamp.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(75))
 
         # Since prepare timestamp is stable but rollback ts is not, we write the prepared update to disk
-        self.session.checkpoint()
-
-        stat_cursor = self.session.open_cursor('statistics:')
-        rec_time_window_prepared = stat_cursor[wiredtiger.stat.conn.rec_time_window_prepared][2]
-        self.assertEqual(rec_time_window_prepared, 99)
-
-        stat_cursor.close()
-        cursor_prepare.close()
-        session_prepare.close()
-        self.session.close()
+        self.checkpoint_and_verify_stats({
+            wiredtiger.stat.conn.rec_time_window_prepared: True,
+        })

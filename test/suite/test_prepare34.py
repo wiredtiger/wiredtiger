@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 
 # Tests checkpoint behavior for prepared modify operations:
-# - Unstable prepares not written
 # - Stable prepares written as prepared
 # - Committed/rolled back properly handled
 # FIXME: Verify that prepared modifies are reconstructed properly when loaded from disk
@@ -137,6 +136,11 @@ class test_prepare34(wttest.WiredTigerTestCase):
             wiredtiger.stat.conn.rec_time_window_prepared: True,
         })
 
+        self.session.begin_transaction('read_timestamp='+ self.timestamp_str(75)+ ',isolation=read-uncommitted')
+        for i in range(1, 21):
+            self.assertEqual(value, cursor[i])
+        self.session.rollback_transaction()
+
         # Write aborted update to disk when rollback ts is stable
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(80))
         self.checkpoint_and_verify_stats({
@@ -173,7 +177,6 @@ class test_prepare34(wttest.WiredTigerTestCase):
             cursor.set_value(value)
             cursor.insert()
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
-        # cursor.close()
 
         # Advance stable timestamp after baseline commit
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))

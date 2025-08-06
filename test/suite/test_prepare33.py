@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 
 # Tests checkpoint behavior for rolled back prepared transactions with tombstones:
-# - Skip writing prepared updates if prepared timestamp is not stable
 # - Write aborted prepared tombstones as prepared if prepared timestamp is stable but rollback timestamp is not stable
 # - Skip writing aborted prepared tobstone if rollback timestamp is stable
 
