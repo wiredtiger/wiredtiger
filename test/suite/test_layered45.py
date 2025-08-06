@@ -360,6 +360,6 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # We should build an empty delta
         session2.checkpoint()
 
-        stat_cursor = session2.open_cursor('statistics:')
-        self.assertEqual(stat_cursor[stat.conn.rec_page_delta_leaf][2], 2)
+        stat_cursor = session2.open_cursor('statistics:' + self.uri)
+        self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 2)
         stat_cursor.close()

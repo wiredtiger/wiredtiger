@@ -36,10 +36,11 @@ import wiredtiger, wttest
 class test_prepare35(wttest.WiredTigerTestCase):
 
     conn_config = 'checkpoint=(precise=true),preserve_prepared=true,statistics=(all)'
+    uri = 'table:test_prepare35'
 
     def get_stats(self, stats):
         """Get the current values of multiple statistics."""
-        stat_cursor = self.session.open_cursor('statistics:')
+        stat_cursor = self.session.open_cursor('statistics:'+self.uri)
         results = {}
         for stat in stats:
             results[stat] = stat_cursor[stat][2]
@@ -76,13 +77,13 @@ class test_prepare35(wttest.WiredTigerTestCase):
         # Setup: Initialize timestamps with stable < prepare timestamp
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
-
-        uri = 'table:test_prepare35'
+        if 'disagg' in self.hook_names:
+            self.skipTest("Skip test until cell packing/unpacking is supported for page delta and tier storage")
         create_params = 'key_format=i,value_format=S'
-        self.session.create(uri, create_params)
+        self.session.create(self.uri, create_params)
 
         # Step 1: Insert committed baseline data for keys 1-20
-        cursor_committed = self.session.open_cursor(uri)
+        cursor_committed = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         for i in range(1, 21):
             cursor_committed.set_key(i)
@@ -93,7 +94,7 @@ class test_prepare35(wttest.WiredTigerTestCase):
 
         # Step 2: Create first prepared transaction for key 21 with prepared_id=1
         session_prepare = self.conn.open_session()
-        cursor_prepare = session_prepare.open_cursor(uri)
+        cursor_prepare = session_prepare.open_cursor(self.uri)
         session_prepare.begin_transaction()
         cursor_prepare.set_key(21)
         cursor_prepare.set_value("prepared_value_21")
@@ -106,14 +107,14 @@ class test_prepare35(wttest.WiredTigerTestCase):
 
         # Verify checkpoint writes prepared time window to disk
         self.checkpoint_and_verify_stats({
-            wiredtiger.stat.conn.rec_time_window_prepared: True,
+            wiredtiger.stat.dsrc.rec_time_window_prepared: True,
         })
 
         # Step 3: Force eviction to trigger reconciliation with the prepared data
         # This ensures the prepared update gets written to disk storage
         session_evict = self.conn.open_session("debug=(release_evict_page=true)")
         session_evict.begin_transaction("ignore_prepare=true")
-        evict_cursor = session_evict.open_cursor(uri, None, None)
+        evict_cursor = session_evict.open_cursor(self.uri, None, None)
         for i in range(1, 21):  # Evict committed data pages
             evict_cursor.set_key(i)
             self.assertEqual(evict_cursor.search(), 0)
@@ -129,14 +130,14 @@ class test_prepare35(wttest.WiredTigerTestCase):
 
         # Verify key 21 is not visible
         self.session.begin_transaction('read_timestamp='+ self.timestamp_str(40))
-        read_cursor = self.session.open_cursor(uri, None, None)
+        read_cursor = self.session.open_cursor(self.uri, None, None)
         read_cursor.set_key(21)
         self.assertEqual(read_cursor.search(), wiredtiger.WT_NOTFOUND)
         self.session.rollback_transaction()
 
         # Step 5: Insert second prepared transaction to same key with different prepared_id
         session_prepare2 = self.conn.open_session()
-        cursor_prepare2 = session_prepare2.open_cursor(uri)
+        cursor_prepare2 = session_prepare2.open_cursor(self.uri)
         session_prepare2.begin_transaction()
         cursor_prepare2.set_key(21)
         cursor_prepare2.set_value("prepared_value_21")
@@ -149,5 +150,5 @@ class test_prepare35(wttest.WiredTigerTestCase):
 
         # Verify the second prepared update is also be written to disk
         self.checkpoint_and_verify_stats({
-            wiredtiger.stat.conn.rec_time_window_prepared: True,
+            wiredtiger.stat.dsrc.rec_time_window_prepared: True,
         })

@@ -1400,6 +1400,22 @@ err:
 }
 
 /*
+ * __split_free_update_list --
+ *     Free the update list from an update.
+ */
+static WT_INLINE void
+__split_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE *last_upd, size_t *free_sizep)
+{
+    WT_UPDATE *tmp, *tmp2;
+
+    tmp = last_upd->next;
+    last_upd->next = NULL;
+    for (tmp2 = tmp; tmp2 != NULL; tmp2 = tmp2->next)
+        *free_sizep += WT_UPDATE_MEMSIZE(tmp2);
+    __wt_free_update_list(session, &tmp);
+}
+
+/*
  * __split_multi_inmem --
  *     Instantiate a page from a disk image.
  */
@@ -1413,6 +1429,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     WT_PAGE_MODIFY *mod;
     WT_SAVE_UPD *supd;
     WT_UPDATE *last_upd, *prev_onpage, *tmp, *upd;
+    size_t free_size;
     uint64_t recno;
     uint32_t i, slot;
     bool instantiate_upd;
@@ -1467,6 +1484,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      */
     if (!multi->supd_restore)
         return (0);
+
+    free_size = 0;
 
     if (orig->type == WT_PAGE_ROW_LEAF)
         WT_RET(__wt_scr_alloc(session, 0, &key));
@@ -1566,9 +1585,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
 
             if (last_upd != NULL && last_upd->next != NULL) {
                 WT_ASSERT(session, F_ISSET(last_upd->next, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
-                tmp = last_upd->next;
-                last_upd->next = NULL;
-                __wt_free_update_list(session, &tmp);
+                __split_free_update_list(session, last_upd, &free_size);
             }
             break;
         case WT_PAGE_ROW_LEAF:
@@ -1587,8 +1604,12 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
              * If we write a prepared update to disk and we need to restore the update chain, we
              * will find we have already instantiated a prepared update (possibly with a prepared
              * tombstone) by the page in-memory code. Discard the re-instantiated prepared updates.
+             *
+             * If we have instantiated a tombstone when we read the page back into memory, discard
+             * it as well. FIXME-WT-14885: no need to consider the delta case after we have
+             * implemented delta consolidation
              */
-            if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED))
+            if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) || WT_DELTA_LEAF_ENABLED(session))
                 for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
                     ;
 
@@ -1596,16 +1617,19 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             WT_ERR(__wt_row_modify(&cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
 
             if (last_upd != NULL && last_upd->next != NULL) {
-                WT_ASSERT(session, F_ISSET(last_upd->next, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
-                tmp = last_upd->next;
-                last_upd->next = NULL;
-                __wt_free_update_list(session, &tmp);
+                WT_ASSERT(session,
+                  F_ISSET(last_upd->next,
+                    WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DS));
+                __split_free_update_list(session, last_upd, &free_size);
             }
             break;
         default:
             WT_ERR(__wt_illegal_value(session, orig->type));
         }
     }
+
+    if (free_size > 0)
+        __wt_cache_page_inmem_decr(session, page, free_size);
 
     /*
      * When modifying the page we set the first dirty transaction to the last transaction currently
