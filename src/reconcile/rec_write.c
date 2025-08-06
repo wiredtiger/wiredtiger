@@ -3382,7 +3382,7 @@ split:
         break;
     }
 
-    __wt_atomic_addv16(&ref->ref_changes, 1);
+    __wt_atomic_addv8(&ref->ref_changes, 1);
 
     /*
      * If the page has post-instantiation delete information, we don't need it any more. Note: this

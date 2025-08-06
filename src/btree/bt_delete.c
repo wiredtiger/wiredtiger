@@ -213,7 +213,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     *skipp = true;
     WT_STAT_CONN_DSRC_INCR(session, rec_page_delete_fast);
 
-    __wt_atomic_addv16(&ref->ref_changes, 1);
+    __wt_atomic_addv8(&ref->ref_changes, 1);
 
     /* Set the page to its new state. */
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
@@ -328,7 +328,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
         }
     }
 
-    __wt_atomic_addv16(&ref->ref_changes, 1);
+    __wt_atomic_addv8(&ref->ref_changes, 1);
 
     WT_REF_SET_STATE(ref, current_state);
     return (0);
