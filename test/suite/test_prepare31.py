@@ -10,7 +10,7 @@
 # binary, for any purpose, commercial or non-commercial, and by any
 # means.
 #
-# In jurisdictions that recognize copyright laws, the author or authors
+# In jself.urisdictions that recognize copyright laws, the author or authors
 # of this software dedicate any and all copyright interest in the
 # software to the public domain. We make this dedication for the benefit
 # of the public at large and to the detriment of our heirs and
@@ -35,6 +35,7 @@ import wiredtiger, wttest
 
 class test_prepare31(wttest.WiredTigerTestCase):
     conn_config = 'checkpoint=(precise=true),preserve_prepared=true,statistics=(all)'
+    uri = 'table:test_prepare31'
 
     def get_stats(self, stats):
         """Get the current values of multiple statistics."""
@@ -74,7 +75,7 @@ class test_prepare31(wttest.WiredTigerTestCase):
         self.session.create(uri, create_params)
 
         # Insert some initial data that will be committed
-        cursor = self.session.open_cursor(uri)
+        cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         for i in range(1, 100):
             cursor.set_key(i)
@@ -87,7 +88,7 @@ class test_prepare31(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
 
         # Verify initial data is there
-        cursor = self.session.open_cursor(uri)
+        cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(35))
         cursor.set_key(50)
         self.assertEqual(cursor.search(), 0)
@@ -98,7 +99,7 @@ class test_prepare31(wttest.WiredTigerTestCase):
     def create_prepared_transaction(self, uri, prepare_ts, rollback_ts):
         """Create a prepared transaction and roll it back."""
         session_prepare = self.conn.open_session()
-        cursor_prepare = session_prepare.open_cursor(uri)
+        cursor_prepare = session_prepare.open_cursor(self.uri)
         session_prepare.begin_transaction()
 
         # Make updates in the prepared transaction
@@ -119,11 +120,11 @@ class test_prepare31(wttest.WiredTigerTestCase):
         stat_cursor.close()
 
     def test_skip_aborted_prepare_update_if_stable_rollback_timestamp(self):
-        uri = 'table:test_prepare31'
-        self.setup_initial_data(uri)
-
+        self.setup_initial_data(self.uri)
+        if 'disagg' in self.hook_names:
+            self.skipTest("Skip test until cell packing/unpacking is supported for page delta and tier storage")
         # Create and rollback a prepared transaction
-        self.create_prepared_transaction(uri, prepare_ts=70, rollback_ts=80)
+        self.create_prepared_transaction(self.uri, prepare_ts=70, rollback_ts=80)
 
         # This makes the rollback timestamp "stable"
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(90))
@@ -135,11 +136,11 @@ class test_prepare31(wttest.WiredTigerTestCase):
         })
 
     def test_skip_aborted_prepare_update_if_prepare_timestamp_not_stable(self):
-        uri = 'table:test_prepare31'
-        self.setup_initial_data(uri)
-
+        self.setup_initial_data(self.uri)
+        if 'disagg' in self.hook_names:
+            self.skipTest("Skip test until cell packing/unpacking is supported for page delta and tier storage")
         # Create and rollback a prepared transaction
-        self.create_prepared_transaction(uri, prepare_ts=70, rollback_ts=80)
+        self.create_prepared_transaction(self.uri, prepare_ts=70, rollback_ts=80)
 
         # Force checkpoint to write data to disk - this should skip the aborted prepared updates
         # since their prepare timestamp is after stable timestamp
@@ -148,11 +149,11 @@ class test_prepare31(wttest.WiredTigerTestCase):
         })
 
     def test_write_prepare_update_if_rollback_timestamp_not_stable(self):
-        uri = 'table:test_prepare31'
-        self.setup_initial_data(uri)
-
+        self.setup_initial_data(self.uri)
+        if 'disagg' in self.hook_names:
+            self.skipTest("Skip test until cell packing/unpacking is supported for page delta and tier storage")
         # Create and rollback a prepared transaction
-        self.create_prepared_transaction(uri, prepare_ts=70, rollback_ts=80)
+        self.create_prepared_transaction(self.uri, prepare_ts=70, rollback_ts=80)
 
         # Set table timestamp to be after prepare timestamp, but before rollback timestamp.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(75))

@@ -35,10 +35,11 @@ import wiredtiger, wttest
 class test_prepare33(wttest.WiredTigerTestCase):
 
     conn_config = 'checkpoint=(precise=true),preserve_prepared=true,statistics=(all)'
+    uri = 'table:test_prepare32'
 
     def get_stats(self, stats):
         """Get the current values of multiple statistics."""
-        stat_cursor = self.session.open_cursor('statistics:')
+        stat_cursor = self.session.open_cursor('statistics:'+self.uri)
         results = {}
         for stat in stats:
             results[stat] = stat_cursor[stat][2]
@@ -75,13 +76,13 @@ class test_prepare33(wttest.WiredTigerTestCase):
         # Set initial timestamps - start with lower values
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
-
-        uri = 'table:test_prepare32'
+        if 'disagg' in self.hook_names:
+            self.skipTest("Skip test until cell packing/unpacking is supported for page delta and tier storage")
         create_params = 'key_format=i,value_format=S'
-        self.session.create(uri, create_params)
+        self.session.create(self.uri, create_params)
 
         # Insert some initial data that will be committed
-        cursor = self.session.open_cursor(uri)
+        cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         for i in range(1, 10):
             cursor.set_key(i)
@@ -94,7 +95,7 @@ class test_prepare33(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
 
         # Verify initial data is there
-        cursor = self.session.open_cursor(uri)
+        cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(35))
         cursor.set_key(1)
         self.assertEqual(cursor.search(), 0)
@@ -104,11 +105,11 @@ class test_prepare33(wttest.WiredTigerTestCase):
 
         # Checkpoint should write initial data
         self.checkpoint_and_verify_stats({
-            wiredtiger.stat.conn.rec_time_window_prepared: False,
+            wiredtiger.stat.dsrc.rec_time_window_prepared: False,
         })
         # Start a prepared transaction that will be committed
         session_prepare = self.conn.open_session()
-        cursor_prepare = session_prepare.open_cursor(uri)
+        cursor_prepare = session_prepare.open_cursor(self.uri)
         session_prepare.begin_transaction()
 
         # Make updates in the prepared transaction
@@ -125,26 +126,26 @@ class test_prepare33(wttest.WiredTigerTestCase):
         # Checkpoint, current stable timestamp is 40 so prepare timestamp is not stable
         # Should not write prepare.
         self.checkpoint_and_verify_stats({
-            wiredtiger.stat.conn.rec_time_window_prepared: False,
+            wiredtiger.stat.dsrc.rec_time_window_prepared: False,
         })
 
         # Move stable timestamp to after prepared timestamp, but before durable timestamp
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(75))
         # Should write update as prepared, write both start and stop prepare
         self.checkpoint_and_verify_stats({
-            wiredtiger.stat.conn.rec_time_window_prepared: True,
-            wiredtiger.stat.conn.rec_time_window_start_txn: True,
-            wiredtiger.stat.conn.rec_time_window_stop_txn: True,
+            wiredtiger.stat.dsrc.rec_time_window_prepared: True,
+            wiredtiger.stat.dsrc.rec_time_window_start_txn: True,
+            wiredtiger.stat.dsrc.rec_time_window_stop_txn: True,
         })
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(85))
         # Skip writing aborted prepared update because its rollback timestamp is stable
         self.checkpoint_and_verify_stats({
-            wiredtiger.stat.conn.rec_time_window_durable_start_ts: True,
-            wiredtiger.stat.conn.rec_time_window_start_ts: True,
-            wiredtiger.stat.conn.rec_time_window_start_txn: True,
-            wiredtiger.stat.conn.rec_time_window_durable_stop_ts: False,
-            wiredtiger.stat.conn.rec_time_window_stop_ts: False,
-            wiredtiger.stat.conn.rec_time_window_stop_txn: False,
-            wiredtiger.stat.conn.rec_time_window_prepared: False,
+            wiredtiger.stat.dsrc.rec_time_window_durable_start_ts: True,
+            wiredtiger.stat.dsrc.rec_time_window_start_ts: True,
+            wiredtiger.stat.dsrc.rec_time_window_start_txn: True,
+            wiredtiger.stat.dsrc.rec_time_window_durable_stop_ts: False,
+            wiredtiger.stat.dsrc.rec_time_window_stop_ts: False,
+            wiredtiger.stat.dsrc.rec_time_window_stop_txn: False,
+            wiredtiger.stat.dsrc.rec_time_window_prepared: False,
         })

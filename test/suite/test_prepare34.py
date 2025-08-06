@@ -82,6 +82,10 @@ class test_prepare34(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
 
+        if 'disagg' in self.hook_names:
+            self.skipTest("Skip test until cell packing/unpacking is supported for page delta and tier storage")
+
+        uri = 'table:test_prepare34'
         create_params = 'key_format=i,value_format=S'
         self.session.create(self.uri, create_params)
 
@@ -164,6 +168,8 @@ class test_prepare34(wttest.WiredTigerTestCase):
         # Set initial timestamps
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+        if 'disagg' in self.hook_names:
+            self.skipTest("Skip test until cell packing/unpacking is supported for page delta and tier storage")
 
         create_params = 'key_format=i,value_format=S'
         self.session.create(self.uri, create_params)
@@ -173,6 +179,7 @@ class test_prepare34(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         for i in range(1, 21):  # Keys 1-20
             cursor.set_key(i)
+            self.session.breakpoint()
             cursor.set_value(value)
             cursor.insert()
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
