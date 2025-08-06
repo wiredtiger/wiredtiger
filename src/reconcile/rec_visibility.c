@@ -268,6 +268,7 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
     uint8_t prepare_state;
     bool find_triggering_prepare;
 
+    delete_tombstone = NULL;
     find_triggering_prepare = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
       WT_TIME_WINDOW_HAS_START_PREPARE(&upd_select->tw);
     for (delete_upd = upd_select->tombstone != NULL ? upd_select->tombstone : upd_select->upd,
