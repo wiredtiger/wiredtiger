@@ -171,6 +171,8 @@ __wti_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool 
         }
     }
 
+    bm->verify_page_ids(bm, session);
+
 err:
     __wt_scr_free(session, &buf);
     __wt_free(session, md_key);
