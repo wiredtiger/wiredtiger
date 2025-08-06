@@ -423,6 +423,7 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
                 standard_value->prepared_id = unpack.delta_value.tw.start_prepared_id;
                 standard_value->prepare_ts = unpack.delta_value.tw.start_prepare_ts;
                 standard_value->prepare_state = WT_PREPARE_INPROGRESS;
+                standard_value->upd_start_ts = unpack.delta_value.tw.start_prepare_ts;
 
                 F_SET(standard_value, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
             } else
@@ -439,6 +440,8 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
                     tombstone->prepared_id = unpack.delta_value.tw.stop_prepared_id;
                     tombstone->prepare_ts = unpack.delta_value.tw.stop_prepare_ts;
                     tombstone->prepare_state = WT_PREPARE_INPROGRESS;
+                    /* The start timestamp is not really a start timestamp and more like a commit timestamp. */
+                    tombstone->upd_start_ts = unpack.delta_value.tw.stop_prepare_ts;
                     F_SET(
                       tombstone, WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS);
 
@@ -462,6 +465,7 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
                     standard_value->prepared_id = unpack.delta_value.tw.start_prepared_id;
                     standard_value->prepare_ts = unpack.delta_value.tw.start_prepare_ts;
                     standard_value->prepare_state = WT_PREPARE_INPROGRESS;
+                    standard_value->upd_start_ts = unpack.delta_value.tw.start_prepare_ts;
                     F_SET(standard_value,
                       WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS);
                 }
