@@ -5816,8 +5816,6 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: examples-c-test
-    - name: generate-tsan-metric
-      batchtime: 10080 # 7 days
 
 # FIXME-WT-13256
 # This variant runs all possible tasks under TSan but instructs TSan to not report any issues it
