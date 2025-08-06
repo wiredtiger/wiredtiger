@@ -163,7 +163,11 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
                 ((*upd_entry)->type == WT_UPDATE_TOMBSTONE && (*upd_entry)->txnid == WT_TXN_NONE &&
                   (*upd_entry)->upd_start_ts == WT_TS_NONE) ||
                 ((*upd_entry)->txnid == WT_TXN_ABORTED &&
-                  (*upd_entry)->next->txnid == WT_TXN_ABORTED));
+                  (*upd_entry)->next->txnid == WT_TXN_ABORTED) ||
+                ((*upd_entry)->type == WT_UPDATE_TOMBSTONE &&
+                  (*upd_entry)->txnid != WT_TXN_ABORTED &&
+                  (*upd_entry)->next->type == WT_UPDATE_STANDARD &&
+                  (*upd_entry)->next->txnid != WT_TXN_ABORTED));
 
             upd_size = __wt_update_list_memsize(upd);
 
