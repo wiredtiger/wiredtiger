@@ -1196,8 +1196,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * 1) Prepared updates are on the update chain and hasn't been reconciled to write to data
      *    store.
      *     commit: if we have inserted the older update to the history store with a max stop point,
-     * mark it to be deleted from the history store. rollback: if we have inserted the older update
-     * to the history store, mark it to be deleted from the history store.
+     *             mark it to be deleted from the history store.
+     *.    rollback: if we have inserted the older update
+     *               to the history store, mark it to be deleted from the history store.
      *
      * 2) Prepared updates are written to the data store.
      *     If there is no older updates written to the history store:
@@ -1206,9 +1207,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      *
      *     If there are older updates written to the history store:
      *         commit: restore the newest history store update with a max stop time point and mark
-     * it to be deleted to fix it in the future reconciliation. rollback: restore the newest update
-     * in the history store to the data store and mark it to be deleted from the history store in
-     * the future reconciliation.
+     *                 it to be deleted to fix it in the future reconciliation.
+     *         rollback: restore the newest update in the history store to the data store and mark
+     *                   it to be deleted from the history store in the future reconciliation.
      *
      * 4) We are running an in-memory database:
      *     commit: resolve the prepared updates in memory.
