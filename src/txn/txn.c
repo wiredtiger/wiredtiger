@@ -848,6 +848,13 @@ __txn_prepare_rollback_restore_hs_update(
     /* Get current value. */
     WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_durable_ts, &durable_ts, &type_full, hs_value));
 
+    /*
+     * No need to restore the history store update if we want to commit the prepared update and the
+     * record has a valid stop point.
+     */
+    if (commit && hs_stop_durable_ts != WT_TS_MAX)
+        goto done;
+
     /* The value older than the prepared update in the history store must be a full value. */
     WT_ASSERT(session, (uint8_t)type_full == WT_UPDATE_STANDARD);
 
@@ -862,12 +869,8 @@ __txn_prepare_rollback_restore_hs_update(
      * Set the flag to indicate that this update has been restored from history store for the
      * rollback of a prepared transaction.
      */
-    F_SET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS);
+    F_SET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
     total_size += size;
-    /*
-     * No need to restore the history store update if we want to commit the prepared update and the
-     * record has a valid stop point.
-     */
 
     __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
       "update restored from history store (txnid: %" PRIu64
@@ -876,13 +879,11 @@ __txn_prepare_rollback_restore_hs_update(
       __wt_timestamp_to_string(upd->prepare_ts, ts_string[1]),
       __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[2]));
 
-    if (commit)
-        goto done;
-
+    /*
+     * If the history store record has a valid stop time point and we want to rollback the prepared
+     * update, append it.
+     */
     if (hs_stop_durable_ts != WT_TS_MAX) {
-
-        /* If the history store record has a valid stop time point and we want to rollback the
-         * prepared update, append it. */
         WT_ASSERT(session, hs_tw->stop_ts != WT_TS_MAX);
         WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &tombstone, &size));
         tombstone->upd_durable_ts = hs_tw->durable_stop_ts;
@@ -893,7 +894,7 @@ __txn_prepare_rollback_restore_hs_update(
          * Set the flag to indicate that this update has been restored from history store for the
          * rollback of a prepared transaction.
          */
-        F_SET(tombstone, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS);
+        F_SET(tombstone, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
         total_size += size;
 
         __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
@@ -917,6 +918,8 @@ __txn_prepare_rollback_restore_hs_update(
 
     /* Append the update to the end of the chain. */
     WT_RELEASE_WRITE_WITH_BARRIER(upd_chain->next, upd);
+
+    WT_ASSERT(session, false);
 
     __wt_cache_page_inmem_incr(session, page, total_size, false);
 
