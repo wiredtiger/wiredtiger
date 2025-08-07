@@ -1275,22 +1275,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
     if (!WT_IS_HS(session->dhandle) && upd_select->tombstone != NULL &&
       !F_ISSET(upd_select->tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS) &&
       !WT_TIME_WINDOW_HAS_STOP_PREPARE(&upd_select->tw)) {
-        upd = upd_select->upd;
-
-        /*
-         * The selected update can be the tombstone itself when the tombstone is globally visible.
-         * Compare the tombstone's timestamp with either the next update in the update list or the
-         * on-disk cell timestamp to determine if the tombstone is discarding a timestamp.
-         */
-        if (upd_select->tombstone == upd) {
-            upd = upd->next;
-
-            /* Loop until a valid update is found. */
-            while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
-                upd = upd->next;
-        }
-
-        if ((upd != NULL && upd_select->tw.start_ts > upd_select->tw.stop_ts) ||
+        if (upd_select->tw.start_ts > upd_select->tw.stop_ts ||
           (vpack != NULL && vpack->tw.start_ts > upd_select->tw.stop_ts)) {
             WT_ASSERT(session, upd_select->tw.stop_ts == WT_TS_NONE);
             upd_select->no_ts_tombstone = true;
