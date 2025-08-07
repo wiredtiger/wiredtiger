@@ -856,9 +856,10 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     /*
      * Save the checkpoint session ID.
      *
-     * We never do checkpoints in the default session (with id zero).
+     * We never do checkpoints in the default session.
      */
-    WT_ASSERT(session, session->id != 0 && __wt_atomic_loadv32(&txn_global->checkpoint_id) == 0);
+    WT_ASSERT(session,
+      !WT_SESSION_IS_DEFAULT(session) && __wt_atomic_loadv32(&txn_global->checkpoint_id) == 0);
     __wt_atomic_storev32(&txn_global->checkpoint_id, session->id);
 
     /*
@@ -1203,8 +1204,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     conn->rec_maximum_hs_wrapup_milliseconds = 0;
     conn->rec_maximum_image_build_milliseconds = 0;
     conn->rec_maximum_milliseconds = 0;
-    conn->disaggregated_storage.max_internal_delta_count = 0;
-    conn->disaggregated_storage.max_leaf_delta_count = 0;
+    conn->page_delta.max_internal_delta_count = 0;
+    conn->page_delta.max_leaf_delta_count = 0;
 
     /* Initialize the verbose tracking timer */
     __wt_epoch(session, &conn->ckpt.ckpt_api.timer_start);

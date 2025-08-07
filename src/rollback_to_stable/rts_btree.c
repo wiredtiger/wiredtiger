@@ -130,10 +130,13 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
                 for (stable_upd = stable_upd->next; stable_upd != NULL;
                      stable_upd = stable_upd->next) {
                     if (stable_upd->txnid != WT_TXN_ABORTED) {
-                        WT_ASSERT(session,
-                          stable_upd->type != WT_UPDATE_TOMBSTONE &&
-                            F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS));
-                        break;
+                        if (F_ISSET(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS))
+                            break;
+                        else
+                            WT_ASSERT(session,
+                              stable_upd->txnid == tombstone->txnid &&
+                                stable_upd->upd_start_ts == tombstone->upd_start_ts &&
+                                stable_upd->upd_durable_ts == tombstone->upd_durable_ts);
                     }
                 }
             }
@@ -552,9 +555,10 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
         upd->prepared_id = hs_tw->start_prepared_id;
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_HS_UPDATE_RESTORED "history store update restored txnid=%" PRIu64
-                                             ", start_ts=%s and durable_ts=%s",
+                                             ", start_ts=%s, prepare_ts=%s and durable_ts=%s",
           upd->txnid, __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
-          __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[1]));
+          __wt_timestamp_to_string(upd->prepare_ts, ts_string[1]),
+          __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[2]));
 
         /*
          * Set the flag to indicate that this update has been restored from history store for the
@@ -594,9 +598,11 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
             tombstone->prepared_id = hs_tw->stop_prepared_id;
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               WT_RTS_VERB_TAG_HS_RESTORE_TOMBSTONE
-              "history store tombstone restored, txnid=%" PRIu64 ", start_ts=%s and durable_ts=%s",
+              "history store tombstone restored, txnid=%" PRIu64
+              ", start_ts=%s, prepare_ts=%s and durable_ts=%s",
               tombstone->txnid, __wt_timestamp_to_string(tombstone->upd_start_ts, ts_string[0]),
-              __wt_timestamp_to_string(tombstone->upd_durable_ts, ts_string[1]));
+              __wt_timestamp_to_string(tombstone->prepare_ts, ts_string[1]),
+              __wt_timestamp_to_string(tombstone->upd_durable_ts, ts_string[2]));
 
             /*
              * Set the flag to indicate that this update has been restored from history store for
@@ -781,7 +787,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
             upd->prepare_ts = tw->start_prepare_ts;
             upd->prepared_id = tw->start_prepared_id;
             F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
-            if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+            if (WT_DELTA_LEAF_ENABLED(session))
                 F_SET(upd, WT_UPDATE_DURABLE);
             WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_keys_restored);
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),

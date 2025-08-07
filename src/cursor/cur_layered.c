@@ -121,8 +121,13 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update, bool iter
     bool external_state_change;
 
     session = CUR2S(clayered);
-
-    if (reset) {
+    /*
+     * FIXME-WT-15058: When inside a read committed isolation, the file cursor code expects to
+     * release the snapshot when the count of active cursors is zero. Reset the constituent cursors
+     * to adhere to that behavior. Ideally we should not be changing the active cursors counter
+     * outside of the file cursor code.
+     */
+    if (reset && __wt_txn_read_committed_should_release_snapshot(session)) {
         WT_ASSERT(session, !F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT));
         WT_RET(__clayered_reset_cursors(clayered, false));
     }
@@ -378,19 +383,20 @@ __clayered_adjust_state(
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *old_stable;
     WT_SESSION_IMPL *session;
-    uint64_t current_checkpoint_id, snapshot_gen;
+    uint64_t last_checkpoint_meta_lsn, snapshot_gen;
     bool change_ingest, change_stable, current_leader;
 
     *state_updated = false;
     session = CUR2S(clayered);
     conn = S2C(session);
     current_leader = conn->layered_table_manager.leader;
-    /* Get the current checkpoint id. This only matters if we are a follower. */
-    if (!current_leader) {
-        WT_ACQUIRE_READ(current_checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
-    } else {
-        current_checkpoint_id = WT_DISAGG_CHECKPOINT_ID_NONE;
-    }
+
+    /* Get the current checkpoint LSN. This only matters if we are a follower. */
+    if (!current_leader)
+        WT_ACQUIRE_READ(
+          last_checkpoint_meta_lsn, conn->disaggregated_storage.last_checkpoint_meta_lsn);
+    else
+        last_checkpoint_meta_lsn = WT_DISAGG_LSN_NONE;
 
     /*
      * Has any state changed? What is not checked here is the possibility that a step down and step
@@ -398,7 +404,8 @@ __clayered_adjust_state(
      * opposite) at the moment. If we did, we'd want to issue a rollback if the stable cursor has
      * any changes. FIXME-WT-14545.
      */
-    if (current_leader != clayered->leader || current_checkpoint_id != clayered->checkpoint_id) {
+    if (current_leader != clayered->leader ||
+      last_checkpoint_meta_lsn != clayered->checkpoint_meta_lsn) {
         change_ingest = false;
         snapshot_gen = clayered->snapshot_gen;
 
@@ -486,7 +493,7 @@ __clayered_adjust_state(
 
         /* Update the state of the layered cursor. */
         clayered->leader = current_leader;
-        clayered->checkpoint_id = current_checkpoint_id;
+        clayered->checkpoint_meta_lsn = last_checkpoint_meta_lsn;
         clayered->snapshot_gen = snapshot_gen;
         *state_updated = (change_ingest || change_stable);
     }
