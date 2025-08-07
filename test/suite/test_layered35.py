@@ -101,6 +101,9 @@ class test_layered35(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # We should build an empty delta
         self.session.checkpoint()
 
+        # Specify "local_files_action=ignore" to avoid deleting local files on reopen.
+        # This is important for the disaggregated storage test, as we want to read the
+        # checkpoint meta file without deleting it.
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}",local_files_action=ignore)'
         self.reopen_conn(config = follower_config)
