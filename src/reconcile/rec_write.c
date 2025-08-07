@@ -3382,7 +3382,7 @@ split:
         break;
     }
 
-    if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
+    if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
         __wt_atomic_addv8(&ref->ref_changes, 1);
 
     /*

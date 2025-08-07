@@ -710,7 +710,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
              * which seems like asking for trouble.) Don't discard any ref has the prefetch flag,
              * the prefetch thread would crash if it sees a freed ref.
              */
-            if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
+            if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
                 WT_ACQUIRE_READ(ref_changes, next_ref->ref_changes);
             else
                 ref_changes = 0;
