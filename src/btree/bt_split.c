@@ -1709,7 +1709,6 @@ static void
 __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi)
 {
     WT_SAVE_UPD *supd;
-    WT_UPDATE **tmp;
     uint32_t i, slot;
 
     /*
