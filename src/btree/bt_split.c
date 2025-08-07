@@ -710,7 +710,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
              * which seems like asking for trouble.) Don't discard any ref has the prefetch flag,
              * the prefetch thread would crash if it sees a freed ref.
              */
-            if (WT_DELTA_INT_ENABLED(session))
+            if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
                 WT_ACQUIRE_READ(ref_changes, next_ref->ref_changes);
             else
                 ref_changes = 0;
@@ -1796,7 +1796,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
         break;
     }
 
-    if (WT_DELTA_INT_ENABLED(session))
+    if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
         __wt_atomic_addv8(&ref->ref_changes, 1);
 
     switch (page->type) {
@@ -2418,7 +2418,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool 
     __wt_ref_out(session, ref);
 
     /* Swap the new page into place. */
-    if (WT_DELTA_INT_ENABLED(session))
+    if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
         __wt_atomic_addv8(&ref->ref_changes, 1);
     ref->page = new->page;
 
