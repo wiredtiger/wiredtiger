@@ -58,42 +58,6 @@ __block_disagg_addr_unpack_version(
 }
 
 /*
- * __block_disagg_addr_pack_uint32 --
- *     Pack a 32-bit unsigned integer into the address cookie.
- */
-static inline int
-__block_disagg_addr_pack_uint32(uint8_t **pp, size_t maxlen, uint32_t value)
-{
-    uint8_t *p;
-    p = *pp;
-
-    WT_SIZE_CHECK_PACK(4, maxlen);
-    memcpy(p, &value, sizeof(value));
-    p += sizeof(value);
-
-    *pp = p;
-    return (0);
-}
-
-/*
- * __block_disagg_addr_unpack_uint32 --
- *     Unpack a 32-bit unsigned integer from the address cookie.
- */
-static inline int
-__block_disagg_addr_unpack_uint32(const uint8_t **pp, size_t maxlen, uint32_t *valuep)
-{
-    const uint8_t *p;
-    p = *pp;
-
-    WT_SIZE_CHECK_UNPACK(4, maxlen);
-    memcpy(valuep, p, sizeof(*valuep));
-    p += sizeof(*valuep);
-
-    *pp = p;
-    return (0);
-}
-
-/*
  * __wti_block_disagg_addr_pack --
  *     Convert the filesystem components into its address cookie.
  */
@@ -122,7 +86,7 @@ __wti_block_disagg_addr_pack(
     WT_RET(__wt_vpack_uint(pp, 0, cookie->size));
 
     /* Pack the checksum as a fixed-length 32-bit integer. */
-    WT_RET(__block_disagg_addr_pack_uint32(pp, 0, cookie->checksum));
+    WT_RET(__wt_pack_fixed_uint32(pp, 0, cookie->checksum));
 
     return (0);
 }
@@ -162,7 +126,7 @@ __wti_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, si
     WT_RET(__wt_vunpack_uint(buf, 0, &size));
 
     /* Unpack the checksum as a fixed-length 32-bit integer. */
-    WT_RET(__block_disagg_addr_unpack_uint32(buf, 0, &checksum));
+    WT_RET(__wt_unpack_fixed_uint32(buf, 0, &checksum));
 
     /* Get the base LSN from the delta. */
     if (lsn < base_lsn_delta)
@@ -188,14 +152,14 @@ __wti_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, si
     cookie->checksum = checksum;
 
     /*
-     * Check the address cookie size, but only (1) if we are reading the current version of the
+     * Check the address cookie size, but only (1) if we are reading a supported version of the
      * address cookie, and (2) if there are no unsupported flags. If we are reading a new version,
      * we can't check the size, as more fields could have been added.
      */
     unsupported_flags = flags;
     FLD_CLR(unsupported_flags, WT_BLOCK_DISAGG_ADDR_ALL_FLAGS);
-    if ((size_t)(*buf - begin) != buf_size && version == WT_BLOCK_DISAGG_ADDR_VERSION &&
-      unsupported_flags == 0)
+    if (version <= WT_BLOCK_DISAGG_ADDR_VERSION && unsupported_flags == 0 &&
+      (size_t)(*buf - begin) != buf_size)
         WT_RET_MSG(session, EINVAL,
           "Disaggregated address cookie size mismatch: expected %" PRIuMAX ", got %" PRIuMAX,
           (uintmax_t)buf_size, (uintmax_t)(*buf - begin));
