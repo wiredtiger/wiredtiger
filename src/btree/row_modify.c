@@ -177,7 +177,8 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
             /*
              * If we restore an update chain in update restore eviction, there should be no update
              * or a restored tombstone on the existing update chain except for btrees with leaf
-             * delta enabled.
+             * delta enabled. FIXME-WT-14885: No need to consider the delta case if we have
+             * implemented delta consolidation.
              */
             WT_ASSERT_ALWAYS(session,
               !restore ||
@@ -243,11 +244,12 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
             __wt_upd_value_assign(cbt->modify_update, upd);
         } else {
             /*
-             * We either insert a tombstone with a standard update or only a standard update to the
-             * history store if we write a prepared update to the data store.
+             * If this refers to the delta-enabled case, we can skip the following checks. We either
+             * insert a tombstone with a standard update or only a standard update to the history
+             * store if we write a prepared update to the data store.
              */
             WT_ASSERT(session,
-              !WT_IS_HS(S2BT(session)->dhandle) ||
+              WT_DELTA_LEAF_ENABLED(session) || !WT_IS_HS(S2BT(session)->dhandle) ||
                 (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->next != NULL &&
                   upd_arg->next->type == WT_UPDATE_STANDARD && upd_arg->next->next == NULL) ||
                 (upd_arg->type == WT_UPDATE_STANDARD && upd_arg->next == NULL));
@@ -391,13 +393,13 @@ __wt_update_obsolete_check(
             continue;
 
         /*
-         * WiredTiger internal operations such as Rollback to stable and prepare transaction
+         * WiredTiger internal operations such as rollback to stable and prepare transaction
          * rollback adds a globally visible tombstone to the update chain to remove the entire key.
          * Treating these globally visible tombstones as obsolete and trimming update list can cause
-         * problems if the update chain is getting accessed somewhere. To avoid this problem, skip
-         * these globally visible tombstones from the update obsolete check were generated from
-         * prepare transaction rollback and not from RTS, because there are no concurrent operations
-         * run in parallel to the RTS to be affected.
+         * problems if the update chain is getting accessed somewhere else. To avoid this problem,
+         * skip these globally visible tombstones from the update obsolete check that were generated
+         * from prepare transaction rollback but not from RTS, because there are no concurrent
+         * operations run in parallel to the RTS to be affected.
          */
         if (upd->txnid == WT_TXN_NONE && upd->upd_start_ts == WT_TS_NONE &&
           upd->type == WT_UPDATE_TOMBSTONE && upd->next != NULL &&
