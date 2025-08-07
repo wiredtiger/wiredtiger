@@ -1112,7 +1112,7 @@ __wti_disagg_check_local_files(WT_SESSION_IMPL *session, const char *cfg[])
      * dependency.
      */
     WT_RET(__wt_config_gets(session, cfg, "disaggregated.lose_all_my_data", &cval));
-    if (cval.len == 0)
+    if (cval.val == 0)
         return (0);
 
     /*
@@ -1129,12 +1129,11 @@ __wti_disagg_check_local_files(WT_SESSION_IMPL *session, const char *cfg[])
     else if (WT_CONFIG_LIT_MATCH("ignore", cval))
         return (0);
 
-    bool has_metadata = false, has_turtle = false;
-
     /*
      * Avoid using a blanket wildcard like "WiredTiger*" as some files are ok to have, e.g.
      * WiredTiger.lock.
      */
+    bool has_metadata = false, has_turtle = false;
     WT_RET(__wt_fs_exist(session, WT_METADATA_TURTLE, &has_turtle));
     WT_RET(__wt_fs_exist(session, WT_METAFILE, &has_metadata));
 
