@@ -2373,7 +2373,7 @@ static WT_INLINE void __wt_tree_modify_set(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_txn_cursor_op(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_txn_err_set(WT_SESSION_IMPL *session, int ret);
 static WT_INLINE void __wt_txn_op_delete_apply_prepare_state(
-  WT_SESSION_IMPL *session, WT_REF *ref, bool commit);
+  WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit);
 static WT_INLINE void __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno);
 static WT_INLINE void __wt_txn_pinned_stable_timestamp(
   WT_SESSION_IMPL *session, wt_timestamp_t *pinned_stable_tsp);
