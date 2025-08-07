@@ -247,6 +247,7 @@ struct __wt_save_upd {
     WT_ROW *rip;    /* Original on-page reference */
     WT_UPDATE *onpage_upd;
     WT_UPDATE *onpage_tombstone;
+    WT_UPDATE *free_upds; /* Updates to be freed */
     WT_TIME_WINDOW tw;
     bool restore; /* Whether to restore this saved update chain */
 };

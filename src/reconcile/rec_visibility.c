@@ -36,6 +36,7 @@ __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT
     supd->rip = rip;
     supd->onpage_upd = onpage_upd;
     supd->onpage_tombstone = tombstone;
+    supd->free_upds = NULL;
     supd->tw = *tw;
     supd->restore = supd_restore;
     ++r->supd_next;
