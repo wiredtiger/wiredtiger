@@ -464,7 +464,7 @@ next:
 
     *size = count;
 
-    return (0);
+    return (ret);
 }
 
 int
