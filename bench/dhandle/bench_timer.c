@@ -27,11 +27,15 @@ bench_timer_init(BENCH_TIMER *timer, const char *name)
  *     Start a timing.
  */
 void
-bench_timer_start(BENCH_TIMER *timer, uint64_t ns)
+bench_timer_start(BENCH_TIMER *timer, WT_SESSION *session)
 {
-    assert(ns != 0);
+    struct timespec start;
+
     assert(timer->start_ns == 0);
-    timer->start_ns = ns;
+
+    __wt_epoch((WT_SESSION_IMPL *)session, &start);
+    /* Will overflow sometime > 2100 AD */
+    timer->start_ns = (uint64_t)(start.tv_sec * WT_BILLION + start.tv_nsec);
 }
 
 /*
@@ -39,10 +43,16 @@ bench_timer_start(BENCH_TIMER *timer, uint64_t ns)
  *     Stop a timing.
  */
 void
-bench_timer_stop(BENCH_TIMER *timer, uint64_t ns)
+bench_timer_stop(BENCH_TIMER *timer, WT_SESSION *session)
 {
-    assert(ns != 0);
+    uint64_t ns;
+    struct timespec start;
+
     assert(timer->start_ns != 0);
+
+    __wt_epoch((WT_SESSION_IMPL *)session, &start);
+    /* Will overflow sometime > 2100 AD */
+    ns = (uint64_t)(start.tv_sec * WT_BILLION + start.tv_nsec);
     assert(ns > timer->start_ns);
     timer->total_ns += (ns - timer->start_ns);
     timer->count++;
@@ -64,14 +74,25 @@ bench_timer_add(BENCH_TIMER *timer, const BENCH_TIMER *that)
  *     Add timing results to this timer, that is shared among multiple threads.
  */
 void
-bench_timer_add_to_shared(BENCH_TIMER *timer, uint64_t ns, uint64_t count)
+bench_timer_add_to_shared(BENCH_TIMER *timer, BENCH_TIMER *that)
 {
-    WT_RELEASE_WRITE_WITH_BARRIER(timer->total_ns, timer->total_ns + ns);
+    WT_RELEASE_WRITE_WITH_BARRIER(timer->total_ns, timer->total_ns + that->total_ns);
+    WT_RELEASE_WRITE_WITH_BARRIER(timer->count, timer->count + that->count);
+}
+
+/*
+ * bench_timer_add_to_shared_2 --
+ *     Add timing results to this timer, that is shared among multiple threads.
+ */
+void
+bench_timer_add_to_shared_2(BENCH_TIMER *timer, uint64_t nsec, uint64_t count)
+{
+    WT_RELEASE_WRITE_WITH_BARRIER(timer->total_ns, timer->total_ns + nsec);
     WT_RELEASE_WRITE_WITH_BARRIER(timer->count, timer->count + count);
 }
 
 /*
- * bench_timer_add_to_shared --
+ * bench_timer_add_from_shared --
  *     Add results from another shared timer to this (non-shared) timer.
  */
 void
