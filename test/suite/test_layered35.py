@@ -102,7 +102,7 @@ class test_layered35(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.checkpoint()
 
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}",local_files_action=ignore)'
         self.reopen_conn(config = follower_config)
 
         cursor = self.session.open_cursor(self.uri, None, None)
