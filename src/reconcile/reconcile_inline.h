@@ -510,3 +510,15 @@ __wti_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WTI_UPDATE_SELECT
         }
     }
 }
+
+/*
+ * __wt_rec_in_progress --
+ *     Whether we're currently reconciling.
+ */
+static bool
+__wt_rec_in_progress(WT_SESSION_IMPL *session)
+{
+    WTI_RECONCILE *rec = session->reconcile;
+
+    return (rec != NULL && rec->ref != NULL);
+}

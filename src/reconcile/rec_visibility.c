@@ -1380,15 +1380,3 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
 
     return (0);
 }
-
-/*
- * __wt_rec_in_progress --
- *     Whether we're currently reconciling.
- */
-bool
-__wt_rec_in_progress(WT_SESSION_IMPL *session)
-{
-    WTI_RECONCILE *rec = session->reconcile;
-
-    return (rec != NULL && rec->ref != NULL);
-}
