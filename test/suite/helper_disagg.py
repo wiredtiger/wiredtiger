@@ -39,7 +39,7 @@ def get_conn_config(disagg_storage):
     if disagg_storage.ds_name == 'palm' and not os.path.exists(disagg_storage.bucket):
             os.mkdir(disagg_storage.bucket)
     return \
-        f'statistics=(all),name={disagg_storage.ds_name},lose_all_my_data=true,local_files_action=delete'
+        f'statistics=(all),name={disagg_storage.ds_name},lose_all_my_data=true'
 
 def gen_disagg_storages(test_name='', disagg_only = False):
     disagg_storages = [

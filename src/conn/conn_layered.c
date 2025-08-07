@@ -1119,15 +1119,17 @@ __wti_disagg_check_local_files(WT_SESSION_IMPL *session, const char *cfg[])
      * Possible actions for local files are: fail, delete, ignore.
      *
      * A reasonable default for Disagg would be to delete all local WT-related files, since they can
-     * be in an inconsistent state anyway. That said, we use "fail" as the default for safety to
-     * prevent any unintentional file deletion.
+     * be in an inconsistent state anyway. Since this only works together with the
+     * "lose_all_my_data" option, it's considered to be safe enough to be triggered by accident.
      */
-    int action = 0; /* 0: fail (default), 1: delete, 2: ignore */
+    int action; /* 0: delete (default), 1: fail, 2: ignore */
     WT_RET(__wt_config_gets(session, cfg, "disaggregated.local_files_action", &cval));
-    if (WT_CONFIG_LIT_MATCH("delete", cval))
+    if (WT_CONFIG_LIT_MATCH("fail", cval))
         action = 1;
     else if (WT_CONFIG_LIT_MATCH("ignore", cval))
         return (0);
+    else
+        action = 0; /* Default: delete */
 
     /*
      * Avoid using a blanket wildcard like "WiredTiger*" as some files are ok to have, e.g.
@@ -1138,7 +1140,7 @@ __wti_disagg_check_local_files(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_fs_exist(session, WT_METAFILE, &has_metadata));
 
     if (has_turtle || has_metadata) {
-        if (action == 0) {
+        if (action == 1) {
             WT_ERR_MSG(session, EEXIST,
               "Disaggregated storage requires a clean directory, but found WiredTiger metadata "
               "files (%s %s): use 'disaggregated.local_files_action=delete' to remove them.",

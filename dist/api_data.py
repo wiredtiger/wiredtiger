@@ -141,9 +141,9 @@ connection_disaggregated_config_common = [
     Config('last_materialized_lsn', '', r'''
         the page LSN indicating that all pages up until this LSN are available for reading''',
         type='int', undoc=True),
-    Config('local_files_action', 'fail', r'''
+    Config('local_files_action', 'delete', r'''
         what should be done to the local files in disaggregated mode upon startup.''',
-        choices=['fail', 'delete', 'ignore'], undoc=True),
+        choices=['delete', 'fail', 'ignore'], undoc=True),
     Config('lose_all_my_data', 'false', r'''
         This setting skips file system syncs, and will cause data loss outside of a
         disaggregated storage context.''',

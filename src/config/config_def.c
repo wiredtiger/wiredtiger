@@ -288,12 +288,12 @@ static const uint8_t confchk_wiredtiger_open_debug_mode_subconfigs_jump[WT_CONFI
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 1, 6, 6, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 9, 10, 10, 13, 15, 17, 18, 18, 18, 18, 18, 18,
     18, 18, 18, 18};
-const char __WT_CONFIG_CHOICE_fail[] = "fail";
 const char __WT_CONFIG_CHOICE_delete[] = "delete";
+const char __WT_CONFIG_CHOICE_fail[] = "fail";
 const char __WT_CONFIG_CHOICE_ignore[] = "ignore";
 
 static const char *confchk_local_files_action_choices[] = {
-  __WT_CONFIG_CHOICE_fail, __WT_CONFIG_CHOICE_delete, __WT_CONFIG_CHOICE_ignore, NULL};
+  __WT_CONFIG_CHOICE_delete, __WT_CONFIG_CHOICE_fail, __WT_CONFIG_CHOICE_ignore, NULL};
 const char __WT_CONFIG_CHOICE_leader[] = "leader";
 const char __WT_CONFIG_CHOICE_follower[] = "follower";
 
@@ -305,7 +305,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_disaggregated_sub
     INT64_MIN, INT64_MAX, NULL},
   {"last_materialized_lsn", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 74,
     INT64_MIN, INT64_MAX, NULL},
-  {"local_files_action", "string", NULL, "choices=[\"fail\",\"delete\",\"ignore\"]", NULL, 0, NULL,
+  {"local_files_action", "string", NULL, "choices=[\"delete\",\"fail\",\"ignore\"]", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_STRING, 75, INT64_MIN, INT64_MAX, confchk_local_files_action_choices},
   {"lose_all_my_data", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 76,
     INT64_MIN, INT64_MAX, NULL},
@@ -2032,7 +2032,7 @@ static const uint8_t confchk_index_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0,
   5, 6, 6, 6, 6, 6, 6, 6, 6, 7, 8, 8, 10, 11, 11, 11, 11, 11, 11, 11, 11};
 
 static const char *confchk_local_files_action2_choices[] = {
-  __WT_CONFIG_CHOICE_fail, __WT_CONFIG_CHOICE_delete, __WT_CONFIG_CHOICE_ignore, NULL};
+  __WT_CONFIG_CHOICE_delete, __WT_CONFIG_CHOICE_fail, __WT_CONFIG_CHOICE_ignore, NULL};
 
 static const char *confchk_role2_choices[] = {
   __WT_CONFIG_CHOICE_leader, __WT_CONFIG_CHOICE_follower, NULL};
@@ -2042,7 +2042,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_disaggregated_subconfigs[] 
     INT64_MIN, INT64_MAX, NULL},
   {"last_materialized_lsn", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 74,
     INT64_MIN, INT64_MAX, NULL},
-  {"local_files_action", "string", NULL, "choices=[\"fail\",\"delete\",\"ignore\"]", NULL, 0, NULL,
+  {"local_files_action", "string", NULL, "choices=[\"delete\",\"fail\",\"ignore\"]", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_STRING, 75, INT64_MIN, INT64_MAX, confchk_local_files_action2_choices},
   {"lose_all_my_data", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 76,
     INT64_MIN, INT64_MAX, NULL},
@@ -3940,7 +3940,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "rollback_error=0,slow_checkpoint=false,stress_skiplist=false,"
     "table_logging=false,tiered_flush_error_continue=false,"
     "update_restore_evict=false),disaggregated=(checkpoint_meta=,"
-    "last_materialized_lsn=,local_files_action=fail,"
+    "last_materialized_lsn=,local_files_action=delete,"
     "lose_all_my_data=false,role=),error_prefix=,"
     "eviction=(evict_sample_inmem=true,evict_use_softptr=false,"
     "legacy_page_visit_strategy=false,threads_max=8,threads_min=1),"
@@ -4146,7 +4146,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
     "collator=,columns=,disaggregated=(checkpoint_meta=,"
-    "last_materialized_lsn=,local_files_action=fail,"
+    "last_materialized_lsn=,local_files_action=delete,"
     "lose_all_my_data=false,page_log=,role=),ingest=,key_format=u,"
     "log=(enabled=true),stable=,value_format=u,verbose=[],"
     "write_timestamp_usage=none",
@@ -4251,8 +4251,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "table_logging=false,tiered_flush_error_continue=false,"
     "update_restore_evict=false),direct_io=,"
     "disaggregated=(checkpoint_meta=,last_materialized_lsn=,"
-    "local_files_action=fail,lose_all_my_data=false,page_log=,role=),"
-    "encryption=(keyid=,name=,secretkey=),error_prefix=,"
+    "local_files_action=delete,lose_all_my_data=false,page_log=,"
+    "role=),encryption=(keyid=,name=,secretkey=),error_prefix=,"
     "eviction=(evict_sample_inmem=true,evict_use_softptr=false,"
     "legacy_page_visit_strategy=false,threads_max=8,threads_min=1),"
     "eviction_checkpoint_target=1,eviction_dirty_target=5,"
@@ -4314,8 +4314,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "table_logging=false,tiered_flush_error_continue=false,"
     "update_restore_evict=false),direct_io=,"
     "disaggregated=(checkpoint_meta=,last_materialized_lsn=,"
-    "local_files_action=fail,lose_all_my_data=false,page_log=,role=),"
-    "encryption=(keyid=,name=,secretkey=),error_prefix=,"
+    "local_files_action=delete,lose_all_my_data=false,page_log=,"
+    "role=),encryption=(keyid=,name=,secretkey=),error_prefix=,"
     "eviction=(evict_sample_inmem=true,evict_use_softptr=false,"
     "legacy_page_visit_strategy=false,threads_max=8,threads_min=1),"
     "eviction_checkpoint_target=1,eviction_dirty_target=5,"
@@ -4378,8 +4378,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "table_logging=false,tiered_flush_error_continue=false,"
     "update_restore_evict=false),direct_io=,"
     "disaggregated=(checkpoint_meta=,last_materialized_lsn=,"
-    "local_files_action=fail,lose_all_my_data=false,page_log=,role=),"
-    "encryption=(keyid=,name=,secretkey=),error_prefix=,"
+    "local_files_action=delete,lose_all_my_data=false,page_log=,"
+    "role=),encryption=(keyid=,name=,secretkey=),error_prefix=,"
     "eviction=(evict_sample_inmem=true,evict_use_softptr=false,"
     "legacy_page_visit_strategy=false,threads_max=8,threads_min=1),"
     "eviction_checkpoint_target=1,eviction_dirty_target=5,"
@@ -4440,8 +4440,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "table_logging=false,tiered_flush_error_continue=false,"
     "update_restore_evict=false),direct_io=,"
     "disaggregated=(checkpoint_meta=,last_materialized_lsn=,"
-    "local_files_action=fail,lose_all_my_data=false,page_log=,role=),"
-    "encryption=(keyid=,name=,secretkey=),error_prefix=,"
+    "local_files_action=delete,lose_all_my_data=false,page_log=,"
+    "role=),encryption=(keyid=,name=,secretkey=),error_prefix=,"
     "eviction=(evict_sample_inmem=true,evict_use_softptr=false,"
     "legacy_page_visit_strategy=false,threads_max=8,threads_min=1),"
     "eviction_checkpoint_target=1,eviction_dirty_target=5,"
