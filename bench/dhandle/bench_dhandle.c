@@ -150,8 +150,7 @@ main(int argc, char *argv[])
 
     memset(&shared, 0, sizeof(shared));
 
-    /* Set stdout to be line-buffered. */
-    setvbuf(stdout, NULL, _IOLBF, 0);
+    __wt_stream_set_line_buffer(stdout);
 
     (void)testutil_set_progname(argv);
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, &shared.opts);
@@ -429,7 +428,7 @@ creator(void *void_args)
     THREAD_ARGS *args;
     SHARED *shared;
     double create_pct;
-    uint64_t create_ns, elapsed, loop_ns, pause_ns, start_time, now;
+    uint64_t create_nsec, elapsed, loop_nsec, pause_nsec, start_time, now;
     int drop_num, table_num;
     int new_table_count, new_exists, new_high, new_low, pct, target_high;
     char tname[100];
@@ -522,17 +521,17 @@ creator(void *void_args)
             /*
              * We want to pause a certain amount so that the creation
              * takes up a certain percentage (pct) of the time.  The percentage is given by:
-             *     create_pct == ((create_ns) / (loop_ns + pause_ns)) * 100
-             * Solving for pause_ns:
-             *     pause_ns == (create_time_ns * 100 / create_pct) - loop_time_ns;
+             *     create_pct == ((create_nsec) / (loop_nsec + pause_nsec)) * 100
+             * Solving for pause_nsec:
+             *     pause_nsec == (create_time_nsec * 100 / create_pct) - loop_time_nsec;
              */
             bench_timer_stop(&loop_time, session);
 
-            create_ns = create_time.total_ns;
-            loop_ns = loop_time.total_ns;
+            create_nsec = create_time.total_nsec;
+            loop_nsec = loop_time.total_nsec;
             create_pct = (double)shared->config.creation_time_percent;
-            pause_ns = (uint64_t)(((create_ns * 100) / create_pct) - loop_ns);
-            usleep((useconds_t)pause_ns / WT_THOUSAND);
+            pause_nsec = (uint64_t)(((create_nsec * 100) / create_pct) - loop_nsec);
+            usleep((useconds_t)pause_nsec / WT_THOUSAND);
         }
 
         /* We've done at least one round of creates, signal other threads that they can start. */

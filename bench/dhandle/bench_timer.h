@@ -10,9 +10,9 @@
 
 typedef struct __bench_timer {
     const char *name;
-    uint64_t total_ns;
+    uint64_t total_nsec;
     uint64_t count;
-    uint64_t start_ns;
+    uint64_t start_nsec;
 } BENCH_TIMER;
 
 void bench_timer_init(BENCH_TIMER *timer, const char *name);
