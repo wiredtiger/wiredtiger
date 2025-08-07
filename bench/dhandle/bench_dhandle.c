@@ -150,6 +150,9 @@ main(int argc, char *argv[])
 
     memset(&shared, 0, sizeof(shared));
 
+    /* Set stdout to be line-buffered. */
+    setvbuf(stdout, NULL, _IOLBF, 0);
+
     (void)testutil_set_progname(argv);
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, &shared.opts);
 
@@ -269,10 +272,9 @@ bench_dhandle_run(SHARED *shared)
     memset(args, 0, sizeof(THREAD_ARGS) * (shared->opts.nthreads + 3));
     last_checkpoint_num = 0;
 
-    fprintf(stderr,
-      "Running with %" PRIu64
-      " threads, %d tables, %d seconds until full, %d seconds total, "
-      "%d%% tables in use, %d tables per work item\n",
+    printf("Running with %" PRIu64
+           " threads, %d tables, %d seconds until full, %d seconds total, "
+           "%d%% tables in use, %d tables per work item\n",
       shared->opts.nthreads, shared->config.table_count, shared->config.seconds_until_full,
       shared->config.run_time, shared->config.table_in_use_percent,
       shared->config.tables_per_work_item);
@@ -328,14 +330,14 @@ bench_dhandle_run(SHARED *shared)
         }
         __wt_seconds(NULL, &now);
         int active = shared->high - shared->low;
-        fprintf(stderr, "\n%" PRIu64 " seconds, %d active tables", (now - start_time), active);
+        printf("\n%" PRIu64 " seconds, %d active tables", (now - start_time), active);
         WT_ACQUIRE_READ_WITH_BARRIER(checkpoint_num, shared->checkpoint_num);
         if (last_checkpoint_num != checkpoint_num || shared->checkpointing) {
-            fprintf(stderr, " ** %s number %d **",
+            printf(" ** %s number %d **",
               shared->checkpointing ? "checkpointing" : "finished checkpoint", checkpoint_num);
             last_checkpoint_num = checkpoint_num;
         }
-        fprintf(stderr, "\n");
+        printf("\n");
 
 #define TIMER_SHOW(prev_timer, now_timer)                     \
     do {                                                      \
@@ -352,12 +354,12 @@ bench_dhandle_run(SHARED *shared)
         TIMER_SHOW(t_last_update, t_update);
 
         if (!printed)
-            fprintf(stderr, "(no reads or updates)");
-        fprintf(stderr, "\n");
+            printf("(no reads or updates)");
+        printf("\n");
 
         if (now >= last_minute + 60) {
             printed = false;
-            fprintf(stderr, "\n**** PREVIOUS MINUTE AGGREGATED ****\n");
+            printf("\n**** PREVIOUS MINUTE AGGREGATED ****\n");
             TIMER_SHOW(t_minute_checkpoint, t_checkpoint);
             TIMER_SHOW(t_minute_create, t_create);
             TIMER_SHOW(t_minute_drop, t_drop);
@@ -365,8 +367,8 @@ bench_dhandle_run(SHARED *shared)
             TIMER_SHOW(t_minute_read, t_read);
             TIMER_SHOW(t_minute_update, t_update);
             if (!printed)
-                fprintf(stderr, "(no activity)");
-            fprintf(stderr, "************************************\n\n");
+                printf("(no activity)");
+            printf("************************************\n\n");
 
             last_minute = now;
         }
@@ -452,8 +454,7 @@ creator(void *void_args)
         target_high =
           (int)(((double)shared->config.table_count * elapsed) / shared->config.seconds_until_full);
 
-        fprintf(stderr,
-          "current high = %d, low = %d, exists = %d. creating tables in range %d => %d\n",
+        printf("current high = %d, low = %d, exists = %d. creating tables in range %d => %d\n",
           shared->high, shared->low, shared->exists, shared->high, target_high);
         for (table_num = shared->high; table_num < target_high && !shared->done; ++table_num) {
             /* Measure the total time of the loop. */
@@ -493,7 +494,7 @@ creator(void *void_args)
             new_low = (int)(new_exists + ((double)pct * new_table_count) / 100);
 
             /*
-              fprintf(stderr, "  new high = %d, low = %d, exists = %d\n",
+              printf("  new high = %d, low = %d, exists = %d\n",
               new_high, new_low, new_exists);
             */
 
@@ -531,7 +532,7 @@ creator(void *void_args)
             loop_ns = loop_time.total_ns;
             create_pct = (double)shared->config.creation_time_percent;
             pause_ns = (uint64_t)(((create_ns * 100) / create_pct) - loop_ns);
-            usleep(pause_ns / WT_THOUSAND);
+            usleep((useconds_t)pause_ns / WT_THOUSAND);
         }
 
         /* We've done at least one round of creates, signal other threads that they can start. */
@@ -606,8 +607,8 @@ queuer(void *void_args)
         }
         /* Create the work list, we want to use each table number once. */
         if (queue_len > 0)
-            fprintf(stderr, "Work queue length at %d, adding %d items for range %d, %d\n",
-              queue_len, items_to_add, shared->low, shared->high);
+            printf("Work queue length at %d, adding %d items for range %d, %d\n", queue_len,
+              items_to_add, shared->low, shared->high);
         table_numbers = realloc(table_numbers, sizeof(int) * (size_t)table_count);
         for (i = 0; i < table_count; ++i)
             table_numbers[i] = i;
