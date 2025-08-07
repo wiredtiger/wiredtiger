@@ -1778,7 +1778,7 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mult
                 upd = supd->ins->upd;
 
             WT_ASSERT(session, upd != NULL);
-            for (; upd->next != NULL && upd->next != NULL; upd = upd->next)
+            for (; upd->next != NULL; upd = upd->next)
                 ;
             upd->next = supd->free_upds;
         }
