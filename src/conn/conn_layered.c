@@ -1105,11 +1105,6 @@ __wti_disagg_check_local_files(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
-    u_int file_count;
-    char **files;
-
-    file_count = 0;
-    files = NULL;
 
     /*
      * FIXME-WT-14721: As it stands, __wt_conn_is_disagg only works after we have metadata access,
@@ -1134,28 +1129,27 @@ __wti_disagg_check_local_files(WT_SESSION_IMPL *session, const char *cfg[])
     else if (WT_CONFIG_LIT_MATCH("ignore", cval))
         return (0);
 
-    WT_ERR(__wt_fs_directory_list(session, "", "WiredTiger", &files, &file_count));
+    bool has_metadata = false, has_turtle = false;
 
-    if (file_count > 0) {
+    /*
+     * Avoid using a blanket wildcard like "WiredTiger*" as some files are ok to have, e.g.
+     * WiredTiger.lock.
+     */
+    WT_RET(__wt_fs_exist(session, WT_METADATA_TURTLE, &has_turtle));
+    WT_RET(__wt_fs_exist(session, WT_METAFILE, &has_metadata));
+
+    if (has_turtle || has_metadata) {
         if (action == 0) {
             WT_ERR_MSG(session, EEXIST,
-              "Disaggregated storage requires a clean directory, but found %u WiredTiger files "
-              "(e.g. %s): "
-              "use 'disaggregated.local_files_action=delete' to remove them.",
-              file_count, files[0]);
+              "Disaggregated storage requires a clean directory, but found WiredTiger metadata "
+              "files (%s %s): use 'disaggregated.local_files_action=delete' to remove them.",
+              has_turtle ? WT_METADATA_TURTLE : "", has_metadata ? WT_METAFILE : "");
         }
-        /*
-         * Remove all WiredTiger owned files (those starting with WiredTiger prefix). Doing that
-         * will clear out the metadata, which will cause any user owned database files to be renamed
-         * out of the way when being created.
-         */
-        for (u_int i = 0; i < file_count; i++) {
-            WT_ERR(__wt_fs_remove(session, files[i], false, false));
-        }
+        WT_TRET(__wt_fs_remove(session, WT_METADATA_TURTLE, false, false));
+        WT_TRET(__wt_fs_remove(session, WT_METAFILE, false, false));
     }
 
 err:
-    WT_TRET(__wt_fs_directory_list_free(session, &files, file_count));
     return (ret);
 }
 
