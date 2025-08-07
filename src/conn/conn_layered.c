@@ -1092,6 +1092,31 @@ __wt_conn_is_disagg(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __disagg_delete_or_fail --
+ *     Delete a file or fail depending on the flag.
+ */
+static int
+__disagg_delete_or_fail(WT_SESSION_IMPL *session, const char *fname, bool fail)
+{
+    bool file_exists;
+
+    WT_RET(__wt_fs_exist(session, fname, &file_exists));
+
+    if (!file_exists)
+        return (0); /* Nothing to do, file does not exist. */
+
+    if (fail)
+        WT_RET_MSG(session, EEXIST,
+          "Disaggregated storage requires a clean directory, but found WiredTiger file %s: "
+          "use 'disaggregated.local_files_action=delete' to remove it.",
+          fname);
+
+    WT_RET(__wt_fs_remove(session, fname, false, false));
+
+    return (0);
+}
+
+/*
  * __wti_disagg_check_local_files --
  *     Check for local files that need to be removed before starting in disaggregated mode.
  *
@@ -1122,35 +1147,35 @@ __wti_disagg_check_local_files(WT_SESSION_IMPL *session, const char *cfg[])
      * be in an inconsistent state anyway. Since this only works together with the
      * "lose_all_my_data" option, it's considered to be safe enough to be triggered by accident.
      */
-    int action; /* 0: delete (default), 1: fail, 2: ignore */
+    bool fail;
     WT_RET(__wt_config_gets(session, cfg, "disaggregated.local_files_action", &cval));
     if (WT_CONFIG_LIT_MATCH("fail", cval))
-        action = 1;
+        fail = true;
     else if (WT_CONFIG_LIT_MATCH("ignore", cval))
         return (0);
     else
-        action = 0; /* Default: delete */
+        fail = false; /* Default: delete */
 
     /*
      * Avoid using a blanket wildcard like "WiredTiger*" as some files are ok to have, e.g.
      * WiredTiger.lock.
      */
-    bool has_metadata = false, has_turtle = false;
-    WT_RET(__wt_fs_exist(session, WT_METADATA_TURTLE, &has_turtle));
-    WT_RET(__wt_fs_exist(session, WT_METAFILE, &has_metadata));
 
-    if (has_turtle || has_metadata) {
-        if (action == 1) {
-            WT_ERR_MSG(session, EEXIST,
-              "Disaggregated storage requires a clean directory, but found WiredTiger metadata "
-              "files (%s %s): use 'disaggregated.local_files_action=delete' to remove them.",
-              has_turtle ? WT_METADATA_TURTLE : "", has_metadata ? WT_METAFILE : "");
-        }
-        WT_TRET(__wt_fs_remove(session, WT_METADATA_TURTLE, false, false));
-        WT_TRET(__wt_fs_remove(session, WT_METAFILE, false, false));
+    WT_RET(__disagg_delete_or_fail(session, WT_METADATA_TURTLE, fail));
+    WT_RET(__disagg_delete_or_fail(session, WT_METAFILE, fail));
+    WT_RET(__disagg_delete_or_fail(session, WT_HS_FILE, fail));
+
+    u_int file_count = 0;
+    char **files = NULL;
+    WT_ERR(__wt_fs_directory_list(session, "", "", &files, &file_count));
+
+    for (u_int i = 0; i < file_count; i++) {
+        if (WT_SUFFIX_MATCH(files[i], ".wt_ingest") || WT_SUFFIX_MATCH(files[i], ".wt_stable"))
+            WT_ERR(__disagg_delete_or_fail(session, files[i], fail));
     }
 
 err:
+    WT_TRET(__wt_fs_directory_list_free(session, &files, file_count));
     return (ret);
 }
 
