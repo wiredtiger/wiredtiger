@@ -1250,6 +1250,21 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
     if (upd != NULL)
         WT_RET(__rec_fill_tw_from_upd_select(session, page, vpack, upd_select, write_prepare, r));
 
+    /*
+     * Fixup any missing timestamps, assert that checkpoint wasn't running when this round of
+     * reconciliation started.
+     *
+     * Returning EBUSY here is okay as the previous call to validate the update chain wouldn't have
+     * caught the situation where only a tombstone is selected.
+     */
+    if (__timestamp_no_ts_fix(session, &upd_select->tw) && F_ISSET(r, WT_REC_HS) &&
+      F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)) {
+        /* Catch this case in diagnostic builds. */
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_3);
+        WT_ASSERT(session, false);
+        return (EBUSY);
+    }
+
     /* Mark the page dirty after reconciliation. */
     if (has_newer_updates)
         r->leave_dirty = true;
@@ -1272,7 +1287,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      * Set the flag if the selected tombstone has no timestamp. Based on this flag, the caller
      * functions perform the history store truncation for this key.
      */
-    if (!F_ISSET(session->dhandle, WT_DHANDLE_HS) && upd_select->tombstone != NULL &&
+    if (!WT_IS_HS(session->dhandle) && upd_select->tombstone != NULL &&
       !F_ISSET(upd_select->tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS)) {
         upd = upd_select->upd;
 
@@ -1289,24 +1304,8 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
                 upd = upd->next;
         }
 
-        if ((upd != NULL && upd->upd_start_ts > upd_select->tombstone->upd_start_ts) ||
-          (vpack != NULL && vpack->tw.start_ts > upd_select->tombstone->upd_start_ts))
+        if (upd != NULL && upd_select->tw.stop_ts == WT_TS_NONE)
             upd_select->no_ts_tombstone = true;
-    }
-
-    /*
-     * Fixup any missing timestamps, assert that checkpoint wasn't running when this round of
-     * reconciliation started.
-     *
-     * Returning EBUSY here is okay as the previous call to validate the update chain wouldn't have
-     * caught the situation where only a tombstone is selected.
-     */
-    if (__timestamp_no_ts_fix(session, &upd_select->tw) && F_ISSET(r, WT_REC_HS) &&
-      F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)) {
-        /* Catch this case in diagnostic builds. */
-        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_3);
-        WT_ASSERT(session, false);
-        return (EBUSY);
     }
 
     /*
