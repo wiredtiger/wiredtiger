@@ -1092,6 +1092,74 @@ __wt_conn_is_disagg(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wti_disagg_check_local_files --
+ *     Check for local files that need to be removed before starting in disaggregated mode.
+ *
+ * Disaggregated storage needs to start with a clean directory, for now wipe out the directory if
+ *     starting in disaggregated storage mode. Eventually this should not be necessary but at the
+ *     moment WiredTiger will generate local files in disaggregated storage mode, and MongoDB
+ *     expects to be able to restart without files being present.
+ */
+int
+__wti_disagg_check_local_files(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+    u_int file_count;
+    char **files;
+
+    file_count = 0;
+    files = NULL;
+
+    /*
+     * FIXME-WT-14721: As it stands, __wt_conn_is_disagg only works after we have metadata access,
+     * which depends on having run recovery, so the config hack is the simplest way to break that
+     * dependency.
+     */
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.lose_all_my_data", &cval));
+    if (cval.len == 0)
+        return (0);
+
+    /*
+     * Possible actions for local files are: fail, delete, ignore.
+     *
+     * A reasonable default for Disagg would be to delete all local WT-related files, since they can
+     * be in an inconsistent state anyway. That said, we use "fail" as the default for safety to
+     * prevent any unintentional file deletion.
+     */
+    int action = 0; /* 0: fail (default), 1: delete, 2: ignore */
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.local_files_action", &cval));
+    if (WT_CONFIG_LIT_MATCH("delete", cval))
+        action = 1;
+    else if (WT_CONFIG_LIT_MATCH("ignore", cval))
+        return (0);
+
+    WT_ERR(__wt_fs_directory_list(session, "", "WiredTiger", &files, &file_count));
+
+    if (file_count > 0) {
+        if (action == 0) {
+            WT_ERR_MSG(session, EEXIST,
+              "Disaggregated storage requires a clean directory, but found %u WiredTiger files "
+              "(e.g. %s): "
+              "use 'disaggregated.local_files_action=delete' to remove them.",
+              file_count, files[0]);
+        }
+        /*
+         * Remove all WiredTiger owned files (those starting with WiredTiger prefix). Doing that
+         * will clear out the metadata, which will cause any user owned database files to be renamed
+         * out of the way when being created.
+         */
+        for (u_int i = 0; i < file_count; i++) {
+            WT_ERR(__wt_fs_remove(session, files[i], false, false));
+        }
+    }
+
+err:
+    WT_TRET(__wt_fs_directory_list_free(session, &files, file_count));
+    return (ret);
+}
+
+/*
  * __wti_disagg_destroy --
  *     Shut down disaggregated storage.
  */
