@@ -87,6 +87,7 @@ class test_prepare36(wttest.WiredTigerTestCase):
         cursor.close()
         # Check the history store file value.
         cursor = session.open_cursor("file:WiredTigerHS.wt", None, 'checkpoint=WiredTigerCheckpoint')
+        count = 0
         for _, _, hs_start_ts, _, hs_stop_ts, _, type, value in cursor:
             # No WT_UPDATE_TOMBSTONE in the history store.
             self.assertNotEqual(type, 5)
@@ -97,7 +98,8 @@ class test_prepare36(wttest.WiredTigerTestCase):
                 # self.assertEqual(value.decode(), expected_hs_value + '\x00')
             self.assertEqual(hs_start_ts, expected_hs_start_ts)
             self.assertEqual(hs_stop_ts, expected_hs_stop_ts)
-
+            count = count +1
+        self.assertGreaterEqual(count, 1)
         cursor.close()
         session.close()
 
@@ -149,7 +151,7 @@ class test_prepare36(wttest.WiredTigerTestCase):
             evict_cursor.reset()
         evict_cursor.close()
         session_evict.rollback_transaction()
-        
+        session_prepare.breakpoint()
         session_prepare.commit_transaction('commit_timestamp=' + self.timestamp_str(35)+', durable_timestamp='+ self.timestamp_str(40))
 
         session_prepare.close()
@@ -167,11 +169,11 @@ class test_prepare36(wttest.WiredTigerTestCase):
         self.assertEqual(read_cursor.search(), 0)
         self.assertEqual(read_cursor.get_value(), 'committed_value_21')
         self.session.rollback_transaction()
-        
+
         # move stable timestamp and do another checkpoint where commit ts is still not stable,
         # we might try to reinsert the same update to the history store, check that there's no error here
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(35))
-        self.check_ckpt_hs('committed_value_21', 25, 18446744073709551615)        
-        
+        self.check_ckpt_hs('committed_value_21', 25, 18446744073709551615)
+
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(41))
-        self.check_ckpt_hs('committed_value_21', 25, 40)     
+        self.check_ckpt_hs('committed_value_21', 25, 40)

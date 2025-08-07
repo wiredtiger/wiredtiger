@@ -864,6 +864,10 @@ __txn_prepare_rollback_restore_hs_update(
      */
     F_SET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS);
     total_size += size;
+    /*
+     * No need to restore the history store update if we want to commit the prepared update and the
+     * record has a valid stop point.
+     */
 
     __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
       "update restored from history store (txnid: %" PRIu64
@@ -872,13 +876,10 @@ __txn_prepare_rollback_restore_hs_update(
       __wt_timestamp_to_string(upd->prepare_ts, ts_string[1]),
       __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[2]));
 
+    if (commit)
+        goto done;
+
     if (hs_stop_durable_ts != WT_TS_MAX) {
-        /*
-         * No need to restore the history store update if we want to commit the prepared update and
-         * the record has a valid stop point.
-         */
-        if (commit)
-            goto done;
 
         /* If the history store record has a valid stop time point and we want to rollback the
          * prepared update, append it. */
