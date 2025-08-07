@@ -1277,7 +1277,8 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
       !WT_TIME_WINDOW_HAS_STOP_PREPARE(&upd_select->tw)) {
         if ((upd_select->tombstone != upd_select->upd &&
               upd_select->tw.start_ts > upd_select->tw.stop_ts) ||
-          (vpack != NULL && vpack->tw.start_ts > upd_select->tw.stop_ts)) {
+          (vpack != NULL && vpack->tw.start_ts > upd_select->tw.stop_ts &&
+            upd_select->tw.stop_ts == WT_TS_NONE)) {
             WT_ASSERT(session, upd_select->tw.stop_ts == WT_TS_NONE);
             upd_select->no_ts_tombstone = true;
         }
