@@ -441,7 +441,8 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
              * Set the ref_changes state to zero if there were no concurrent changes while
              * reconciling the internal page.
              */
-            __wt_atomic_casv8(&ref->ref_changes, prev_ref_changes, 0);
+            if (WT_DELTA_INT_ENABLED(session))
+                __wt_atomic_casv8(&ref->ref_changes, prev_ref_changes, 0);
             /*
              * Ignored child.
              */
@@ -470,7 +471,8 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                  * Set the ref_changes state to zero if there were no concurrent changes while
                  * reconciling the internal page.
                  */
-                __wt_atomic_casv8(&ref->ref_changes, prev_ref_changes, 0);
+                if (WT_DELTA_INT_ENABLED(session))
+                    __wt_atomic_casv8(&ref->ref_changes, prev_ref_changes, 0);
 
                 WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
                 continue;
@@ -481,7 +483,8 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                  * Set the ref_changes state to zero if there were no concurrent changes while
                  * reconciling the internal page.
                  */
-                __wt_atomic_casv8(&ref->ref_changes, prev_ref_changes, 0);
+                if (WT_DELTA_INT_ENABLED(session))
+                    __wt_atomic_casv8(&ref->ref_changes, prev_ref_changes, 0);
 
                 WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
                 continue;
@@ -593,7 +596,8 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          * Set the ref_changes state to zero if there were no concurrent changes while reconciling
          * the internal page.
          */
-        __wt_atomic_casv8(&ref->ref_changes, prev_ref_changes, 0);
+        if (WT_DELTA_INT_ENABLED(session))
+            __wt_atomic_casv8(&ref->ref_changes, prev_ref_changes, 0);
     }
     WT_INTL_FOREACH_END;
 

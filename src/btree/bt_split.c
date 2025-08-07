@@ -1796,7 +1796,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
         break;
     }
 
-    __wt_atomic_addv8(&ref->ref_changes, 1);
+    if (WT_DELTA_INT_ENABLED(session))
+        __wt_atomic_addv8(&ref->ref_changes, 1);
 
     switch (page->type) {
     case WT_PAGE_COL_INT:
@@ -2417,7 +2418,8 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool 
     __wt_ref_out(session, ref);
 
     /* Swap the new page into place. */
-    __wt_atomic_addv8(&ref->ref_changes, 1);
+    if (WT_DELTA_INT_ENABLED(session))
+        __wt_atomic_addv8(&ref->ref_changes, 1);
     ref->page = new->page;
 
     if (change_ref_state)
