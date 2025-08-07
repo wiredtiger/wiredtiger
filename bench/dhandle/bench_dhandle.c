@@ -50,6 +50,7 @@ typedef struct work_item {
 typedef struct {
     TEST_OPTS opts;
     struct {
+        int creation_time_percent;
         int table_count;
         int run_time;
         int seconds_until_full;
@@ -99,7 +100,6 @@ static void bench_dhandle(SHARED *);
 static void bench_dhandle_run(SHARED *);
 static void *checkpointer(void *);
 static void *creator(void *);
-static uint64_t difftime_nsecs(struct timespec *t0, struct timespec *t1);
 static void *queuer(void *);
 static void shuffle(int *arr, int n, WT_RAND_STATE *rnd);
 static void *worker(void *);
@@ -111,17 +111,6 @@ static void *worker(void *);
         (void)pthread_rwlock_unlock(lock); \
     } while (0)
 
-#define TIME_OPERATION(session, timer, stmt)               \
-    do {                                                   \
-        struct timespec _start, _stop;                     \
-        uint64_t _ns;                                      \
-        __wt_epoch((WT_SESSION_IMPL *)(session), &_start); \
-        stmt;                                              \
-        __wt_epoch((WT_SESSION_IMPL *)(session), &_stop);  \
-        _ns = difftime_nsecs(&_start, &_stop);             \
-        bench_timer_add_to_shared(timer, _ns, 1);          \
-    } while (0)
-
 /*
  * usage --
  *     Display usage statement and exit failure.
@@ -131,12 +120,21 @@ usage(void)
 {
     fprintf(stderr,
       "usage: %s\n"
-      "    [-p] [-h home] [-T threads]\n",
+      "    [-p] [-c create_pct] [ -f full_seconds ] [ -n table_count ]\n"
+      "    [ -r run_time ] [-h home] [-T threads] [ -u in_use_percent ] [ -w tables_per_work_item "
+      "]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-h set a database home directory\n"
+      "\t-c percentage of time doing create calls\n"
+      "\t-f seconds until reaching the table count (this is a goal, the performance may not allow "
+      "it)\n"
+      "\t-n table count\n"
       "\t-p preserve home directory\n"
-      "\t-T set number of threads\n");
+      "\t-r total run time\n"
+      "\t-T set number of threads\n"
+      "\t-u percentage of tables kept in use\n"
+      "\t-w tables accessed per work item\n");
     return (EXIT_FAILURE);
 }
 
@@ -155,8 +153,12 @@ main(int argc, char *argv[])
     (void)testutil_set_progname(argv);
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, &shared.opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv, "f:n:r:u:w:" SHARED_PARSE_OPTIONS)) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "c:f:n:r:u:w:" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
+        case 'c':
+            shared.config.creation_time_percent = atoi(__wt_optarg);
+            break;
+
         case 'f':
             shared.config.seconds_until_full = atoi(__wt_optarg);
             break;
@@ -187,6 +189,8 @@ main(int argc, char *argv[])
     /* Set defaults. */
     if (shared.opts.nthreads == 0)
         shared.opts.nthreads = 10;
+    if (shared.config.creation_time_percent == 0)
+        shared.config.creation_time_percent = 50;
     if (shared.config.seconds_until_full == 0)
         shared.config.seconds_until_full = 300;
     if (shared.config.run_time == 0)
@@ -203,16 +207,6 @@ main(int argc, char *argv[])
     testutil_cleanup(&shared.opts);
 
     return (EXIT_SUCCESS);
-}
-
-/*
- * difftime_nsecs --
- *     Return a time difference as nanoseconds.
- */
-static uint64_t
-difftime_nsecs(struct timespec *t0, struct timespec *t1)
-{
-    return (uint64_t)((t1->tv_sec - t0->tv_sec) * WT_BILLION + t1->tv_nsec - t0->tv_nsec);
 }
 
 /*
@@ -413,8 +407,8 @@ checkpointer(void *void_args)
         sleep(SECONDS_BETWEEN_CHECKPOINTS);
         WT_RELEASE_WRITE_WITH_BARRIER(shared->checkpoint_num, shared->checkpoint_num + 1);
         WT_RELEASE_WRITE_WITH_BARRIER(shared->checkpointing, true);
-        TIME_OPERATION(
-          session, &args->t_checkpoint, { testutil_check(session->checkpoint(session, NULL)); });
+        BENCH_TIME_CUMULATIVE(
+          &args->t_checkpoint, session, { testutil_check(session->checkpoint(session, NULL)); });
         WT_RELEASE_WRITE_WITH_BARRIER(shared->checkpointing, false);
     }
     return (NULL);
@@ -427,11 +421,13 @@ checkpointer(void *void_args)
 static void *
 creator(void *void_args)
 {
+    BENCH_TIMER create_time, loop_time;
     WT_SESSION *session;
     WT_CURSOR *cursor;
     THREAD_ARGS *args;
     SHARED *shared;
-    uint64_t elapsed, start_time, now;
+    double create_pct;
+    uint64_t create_ns, elapsed, loop_ns, pause_ns, start_time, now;
     int drop_num, table_num;
     int new_table_count, new_exists, new_high, new_low, pct, target_high;
     char tname[100];
@@ -460,12 +456,20 @@ creator(void *void_args)
           "current high = %d, low = %d, exists = %d. creating tables in range %d => %d\n",
           shared->high, shared->low, shared->exists, shared->high, target_high);
         for (table_num = shared->high; table_num < target_high && !shared->done; ++table_num) {
+            /* Measure the total time of the loop. */
+            bench_timer_init(&loop_time, NULL);
+            bench_timer_start(&loop_time, session);
+
             snprintf(tname, sizeof(tname), "table:t%d", table_num);
 
-            TIME_OPERATION(
-              session, &args->t_create, { session->create(session, tname, table_config); });
+            /*
+             * Measure the time of the individual create before adding it to the total.
+             */
+            BENCH_TIME_SINGLE(
+              &create_time, session, { session->create(session, tname, table_config); });
+            bench_timer_add(&args->t_create, &create_time);
 
-            TIME_OPERATION(session, &args->t_first_insert, {
+            BENCH_TIME_CUMULATIVE(&args->t_first_insert, session, {
                 testutil_check(session->open_cursor(session, tname, NULL, NULL, &cursor));
                 cursor->set_key(cursor, 0);
                 cursor->set_value(cursor, table_num);
@@ -505,13 +509,29 @@ creator(void *void_args)
             for (drop_num = shared->exists; drop_num < new_exists && !shared->done; ++drop_num) {
                 snprintf(tname, sizeof(tname), "table:t%d", drop_num);
 
-                TIME_OPERATION(session, &args->t_drop, { session->drop(session, tname, NULL); });
+                BENCH_TIME_CUMULATIVE(
+                  &args->t_drop, session, { session->drop(session, tname, NULL); });
             }
 
             /* Publish the new values for the high, low and exists points. */
             WT_RELEASE_WRITE_WITH_BARRIER(shared->high, new_high);
             WT_RELEASE_WRITE_WITH_BARRIER(shared->low, new_low);
             WT_RELEASE_WRITE_WITH_BARRIER(shared->exists, new_exists);
+
+            /*
+             * We want to pause a certain amount so that the creation
+             * takes up a certain percentage (pct) of the time.  The percentage is given by:
+             *     create_pct == ((create_ns) / (loop_ns + pause_ns)) * 100
+             * Solving for pause_ns:
+             *     pause_ns == (create_time_ns * 100 / create_pct) - loop_time_ns;
+             */
+            bench_timer_stop(&loop_time, session);
+
+            create_ns = create_time.total_ns;
+            loop_ns = loop_time.total_ns;
+            create_pct = (double)shared->config.creation_time_percent;
+            pause_ns = (uint64_t)(((create_ns * 100) / create_pct) - loop_ns);
+            usleep(pause_ns / WT_THOUSAND);
         }
 
         /* We've done at least one round of creates, signal other threads that they can start. */
@@ -659,7 +679,7 @@ worker(void *void_args)
 
                 /* Measure the operation. */
                 if (update) {
-                    TIME_OPERATION(session, &args->t_update, {
+                    BENCH_TIME_CUMULATIVE(&args->t_update, session, {
                         testutil_check(session->open_cursor(session, tname, NULL, NULL, &cursor));
                         cursor->set_key(cursor, 0);
                         cursor->set_value(cursor, args->threadnum);
@@ -667,7 +687,7 @@ worker(void *void_args)
                         testutil_check(cursor->close(cursor));
                     });
                 } else {
-                    TIME_OPERATION(session, &args->t_read, {
+                    BENCH_TIME_CUMULATIVE(&args->t_read, session, {
                         testutil_check(session->open_cursor(session, tname, NULL, NULL, &cursor));
                         cursor->set_key(cursor, 0);
                         cursor->search(cursor);
