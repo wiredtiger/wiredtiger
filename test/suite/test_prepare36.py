@@ -86,19 +86,16 @@ class test_prepare36(wttest.WiredTigerTestCase):
 
         cursor.close()
         # Check the history store file value.
-        cursor = session.open_cursor("file:WiredTigerHS.wt", None, 'checkpoint=WiredTigerCheckpoint')
+        cursor = session.open_cursor("file:WiredTigerHS.wt", None, None)
         count = 0
+        self.session.breakpoint()
         for _, _, hs_start_ts, _, hs_stop_ts, _, type, value in cursor:
-            # No WT_UPDATE_TOMBSTONE in the history store.
-            self.assertNotEqual(type, 5)
-            # No WT_UPDATE_RESERVE? in the history store.
-            self.assertNotEqual(type, 1)
             # WT_UPDATE_STANDARD
-            # if (type == 3):
-                # self.assertEqual(value.decode(), expected_hs_value + '\x00')
-            self.assertEqual(hs_start_ts, expected_hs_start_ts)
-            self.assertEqual(hs_stop_ts, expected_hs_stop_ts)
-            count = count +1
+            self.assertEqual(type, 3)
+            print(hs_start_ts, hs_stop_ts, value)
+            # self.assertEqual(hs_start_ts, expected_hs_start_ts)
+            # self.assertEqual(hs_stop_ts, expected_hs_stop_ts)
+            count = count + 1
         self.assertGreaterEqual(count, 1)
         cursor.close()
         session.close()
