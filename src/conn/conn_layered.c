@@ -1157,20 +1157,26 @@ __wti_disagg_check_local_files(WT_SESSION_IMPL *session, const char *cfg[])
         fail = false; /* Default: delete */
 
     /*
-     * Avoid using a blanket wildcard like "WiredTiger*" as some files are ok to have, e.g.
-     * WiredTiger.lock.
+     * Delete all WiredTiger-owned local files that are not part of the disaggregated storage.
      */
-
-    WT_RET(__disagg_delete_or_fail(session, WT_METADATA_TURTLE, fail));
-    WT_RET(__disagg_delete_or_fail(session, WT_METAFILE, fail));
-    WT_RET(__disagg_delete_or_fail(session, WT_HS_FILE, fail));
 
     u_int file_count = 0;
     char **files = NULL;
     WT_ERR(__wt_fs_directory_list(session, "", "", &files, &file_count));
 
     for (u_int i = 0; i < file_count; i++) {
-        if (WT_SUFFIX_MATCH(files[i], ".wt_ingest") || WT_SUFFIX_MATCH(files[i], ".wt_stable"))
+        /*
+         * Delete any WiredTiger files to prevent reading them during startup. But keep
+         * WiredTiger.lock as a safety mechanism.
+         */
+        if (WT_PREFIX_MATCH(files[i], "WiredTiger") && !WT_STREQ(files[i], WT_SINGLETHREAD))
+            WT_ERR(__disagg_delete_or_fail(session, files[i], fail));
+        /*
+         * Delete ingest and stable tables as they are not guaranteed to be consistent anyway. If
+         * they are not deleted, the files will be renamed and kept around - someone will have to
+         * clean them up later.
+         */
+        else if (WT_SUFFIX_MATCH(files[i], ".wt_ingest") || WT_SUFFIX_MATCH(files[i], ".wt_stable"))
             WT_ERR(__disagg_delete_or_fail(session, files[i], fail));
     }
 
