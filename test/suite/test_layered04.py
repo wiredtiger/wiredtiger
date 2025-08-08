@@ -37,7 +37,7 @@ class test_layered04(wttest.WiredTigerTestCase):
     nitems = 50000
     uri_base = "test_layered04"
     conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),disaggregated=(role="leader"),' \
-                + 'disaggregated=(page_log=palm,lose_all_my_data=true),'
+                + 'disaggregated=(page_log=palite,lose_all_my_data=true),'
 
     uri = "layered:" + uri_base
 
@@ -45,7 +45,7 @@ class test_layered04(wttest.WiredTigerTestCase):
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('page_log', 'palm')
+        extlist.extension('page_log', 'palite')
 
     # Test inserting a record into a layered tree
     def test_layered04(self):

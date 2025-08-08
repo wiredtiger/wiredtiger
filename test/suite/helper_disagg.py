@@ -36,20 +36,31 @@ import functools, os, wttest
 def get_conn_config(disagg_storage):
     if not disagg_storage.is_disagg_scenario():
             return ''
-    if disagg_storage.ds_name == 'palm' and not os.path.exists(disagg_storage.bucket):
+    if (disagg_storage.ds_name == 'palm' or disagg_storage.ds_name == 'palite') \
+       and not os.path.exists(disagg_storage.bucket):
             os.mkdir(disagg_storage.bucket)
     return \
         f'statistics=(all),name={disagg_storage.ds_name},lose_all_my_data=true'
 
-def gen_disagg_storages(test_name='', disagg_only = False):
+def gen_disagg_storages(test_name='', disagg_only = False, palm_only = False, palite_only = False):
     disagg_storages = [
         ('palm', dict(is_disagg = True,
             is_local_storage = True,
             num_ops=100,
             ds_name = 'palm')),
+        ('palite', dict(is_disagg = True,
+            is_local_storage = True,
+            num_ops=100,
+            ds_name = 'palite')),
         # This must be the last item as we separate the non-disagg from the disagg items later on.
         ('non_disagg', dict(is_disagg = False)),
     ]
+
+    if palm_only:
+        return disagg_storages[0:0]
+
+    if palite_only:
+        return disagg_storages[1:1]
 
     if disagg_only:
         return disagg_storages[:-1]
@@ -96,6 +107,9 @@ class DisaggConfigMixin:
     palm_debug = False        # can be overridden in test class
     palm_config = None        # a string, can be overridden in test class
     palm_cache_size_mb = -1   # this uses the default, can be overridden
+    palite_debug = False      # can be overridden in test class
+
+    default_ds_name = "palite"
 
     # Returns True if the current scenario is disaggregated.
     def is_disagg_scenario(self):
@@ -108,6 +122,13 @@ class DisaggConfigMixin:
     # Can be overridden
     def additional_conn_config(self):
         return ''
+
+    def get_ds_name(self):
+        # ds_name may be set via a scenario, otherwise use the default.
+        if hasattr(self, 'ds_name'):
+            return self.ds_name
+        else:
+            return self.default_ds_name
 
     # Setup disaggregated connection config.
     def disagg_conn_config(self):
@@ -124,7 +145,7 @@ class DisaggConfigMixin:
         # Build disaggregated storage connection string.
         # Any additional configuration appears first to override this configuration.
         return \
-            self.additional_conn_config() + f'name={self.ds_name}),'
+            self.additional_conn_config() + f'name={self.get_ds_name()}),'
 
     # Load the storage sources extension.
     def conn_extensions(self, extlist):
@@ -140,7 +161,7 @@ class DisaggConfigMixin:
     # or 'materialization_delay_ms=1000'
     def disaggregated_extension_config(self):
         extension_config = ''
-        if self.ds_name == 'palm':
+        if self.get_ds_name() == 'palm':
             if self.palm_debug:
                 extension_config += ',verbose=1'
             else:
@@ -149,6 +170,13 @@ class DisaggConfigMixin:
                 extension_config += f',cache_size_mb={self.palm_cache_size_mb}'
             if self.palm_config:
                 extension_config += ',' + self.palm_config
+        if self.get_ds_name() == 'palite':
+            if self.palm_debug:
+                extension_config += ',verbose=1'
+            else:
+                extension_config += ',verbose=0'
+            if self.palite_config:
+                extension_config += ',' + self.palite_config
         return extension_config
 
     # Load disaggregated storage extension.
@@ -169,13 +197,13 @@ class DisaggConfigMixin:
         # Windows doesn't support dynamically loaded extension libraries.
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('page_log', self.ds_name + config)
+        extlist.extension('page_log', self.get_ds_name() + config)
 
     # Get the information about the last completed checkpoint: ID, LSN, and metadata
     def disagg_get_complete_checkpoint_ext(self, conn=None):
         if conn is None:
             conn = self.conn
-        page_log = conn.get_page_log('palm')
+        page_log = conn.get_page_log(self.get_ds_name())
 
         session = conn.open_session('')
         r = page_log.pl_get_complete_checkpoint_ext(session)

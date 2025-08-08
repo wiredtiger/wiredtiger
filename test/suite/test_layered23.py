@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest, wiredtiger
+import os, wttest, wiredtiger
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wiredtiger import stat
 
@@ -286,11 +286,20 @@ class Oplog(object):
 @disagg_test_class
 class test_layered23(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                 + 'disaggregated=(page_log=palm),'
+                 + 'disaggregated=(page_log=palite),'
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    scenarios = gen_disagg_storages('test_layered23', disagg_only = True)
+    # TODO: we should be able to use gen_disagg_storages to load just the needed extensions,
+    # and not have to use the more hacky conn_connections override.
+    #scenarios = gen_disagg_storages('test_layered23', disagg_only = True, palite_only = True)
+
+    # Load the page log extension, which has object storage support
+    def conn_extensions(self, extlist):
+        if os.name == 'nt':
+            extlist.skip_if_missing = True
+        extlist.extension('page_log', 'palite', configs=['verbose=1'])
+        self.pr(f"{extlist=}")
 
     uri = "layered:test_layered23"
 

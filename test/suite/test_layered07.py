@@ -36,7 +36,7 @@ class test_layered07(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(page_log=palm,lose_all_my_data=true),'
+                     + 'disaggregated=(page_log=palite,lose_all_my_data=true),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     create_session_config = 'key_format=S,value_format=S'
@@ -47,15 +47,8 @@ class test_layered07(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('page_log', 'palm')
+        extlist.extension('page_log', 'palite', configs=['verbose=1'])
         self.pr(f"{extlist=}")
-
-    # Custom test case setup
-    def early_setup(self):
-        os.mkdir('follower')
-        # Create the home directory for the PALM k/v store, and share it with the follower.
-        os.mkdir('kv_home')
-        os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
     # Test inserting records into a follower that turned into a leader
     def test_layered07(self):

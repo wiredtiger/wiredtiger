@@ -39,7 +39,7 @@ class test_layered01(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     uri_base = "test_layered01"
     conn_config = 'verbose=[layered],disaggregated=(role="leader"),' \
-                + 'disaggregated=(page_log=palm,lose_all_my_data=true)'
+                + 'disaggregated=(page_log=palite,lose_all_my_data=true)'
 
     uri = "layered:" + uri_base
 
@@ -53,7 +53,7 @@ class test_layered01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('page_log', 'palm')
+        extlist.extension('page_log', 'palite')
 
     # Check for a specific string as part of the uri's metadata.
     def check_metadata(self, uri, val_str):
@@ -64,7 +64,7 @@ class test_layered01(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     # Test calling the create API for a layered table.
     def test_layered01(self):
-        base_create = 'key_format=S,value_format=S,disaggregated=(page_log=palm)'
+        base_create = 'key_format=S,value_format=S,disaggregated=(page_log=palite)'
 
         self.pr("create layered tree")
         #conf = ',layered=true'
