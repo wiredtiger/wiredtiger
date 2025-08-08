@@ -233,13 +233,14 @@ err:
  *     Transaction rollback for a fast-truncate operation.
  */
 int
-__wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
     WT_REF_STATE current_state;
     WT_TXN *txn;
     WT_UPDATE **updp;
     uint64_t sleep_usecs, yield_count;
     bool locked;
+    WT_REF *ref = op->u.ref;
 
     txn = session->txn;
 
