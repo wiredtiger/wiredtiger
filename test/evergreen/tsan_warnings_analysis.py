@@ -39,18 +39,15 @@ def get_line_last_modified_times(file_path, line_number):
     :param git_rev: Git revision (default: HEAD).
     :return: List of tuples (line_number, line_content, last_modified_timestamp).
     """
-    # Run `git blame` to retrieve metadata for each line
+    # Run `git blame` to retrieve metadata for found line number
     git_command = ["git", "blame", "--line-porcelain", "HEAD", f"-L {line_number},{line_number}", "--", file_path]
     result = subprocess.run(git_command, capture_output=True, text=True, check=True)
 
-    # Parse blame information
     timestamp = None
-
     output_lines = result.stdout.splitlines()
     for line in output_lines:
-        # Extract commit metadata
+        # Extract the UNIX timestamp
         if line.startswith("author-time"):
-            # Extract the UNIX timestamp
             timestamp = int(line.split()[1])
     return timestamp
 
@@ -63,7 +60,7 @@ def get_tsan_warnings():
     current_dir = os.getcwd()
 
     # Loop through WT root directory and search for tsan logs.
-    for root, dirs, files in os.walk(current_dir):
+    for root, _, files in os.walk(current_dir):
         for file_name in files:
             # Check if the file starts with "tsan"
             if file_name.startswith("tsan_logs"):
