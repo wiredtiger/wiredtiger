@@ -272,6 +272,11 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
     delete_tombstone = NULL;
     find_triggering_prepare = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
       WT_TIME_WINDOW_HAS_START_PREPARE(&upd_select->tw);
+    /*
+     * If we're in preserve_prepared mode and have a prepared time window, look for the prepared
+     * update that triggered the history store deletion. This helps us determine if we should delay
+     * the deletion until the prepared update is committed/rolled back and stable.
+     */
     for (delete_upd = upd_select->tombstone != NULL ? upd_select->tombstone : upd_select->upd,
         triggering_prepare_upd = NULL;
          delete_upd != NULL; delete_upd = delete_upd->next) {

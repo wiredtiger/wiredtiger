@@ -148,7 +148,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
             __wt_upd_value_assign(cbt->modify_update, upd);
         } else {
             /*
-             * We only update history store records in three cases:
+             * We only update history store records in two cases:
              *  1) Delete the record with a tombstone with WT_TS_NONE.
              *  2) Reinsert an update that has been deleted by a prepared commit or rollback.
              */
