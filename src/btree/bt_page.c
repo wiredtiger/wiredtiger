@@ -382,6 +382,8 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
+    WT_ERR(__wt_scr_alloc(session, 0, &unpack.delta_leaf_value_data));
+
     WT_CELL_FOREACH_DELTA_LEAF(session, header, &unpack)
     {
         key.data = unpack.delta_key.data;
@@ -488,6 +490,7 @@ err:
         __wt_free(session, standard_value);
         __wt_free(session, tombstone);
     }
+    __wt_scr_free(session, &unpack.delta_leaf_value_data);
     WT_TRET(__wt_btcur_close(&cbt, true));
     return (ret);
 }
