@@ -1381,5 +1381,5 @@ __wt_rec_in_progress(WT_SESSION_IMPL *session)
 {
     WTI_RECONCILE *rec = session->reconcile;
 
-    return (!(rec == NULL && rec->ref == NULL));
+    return (rec != NULL && rec->ref != NULL);
 }
