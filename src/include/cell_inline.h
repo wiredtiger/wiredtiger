@@ -1433,7 +1433,7 @@ __wt_cell_unpack_delta_leaf_value(WT_SESSION_IMPL *session, const WT_PAGE_HEADER
     ret = __wt_struct_unpack(session, unpack->delta_value.data, unpack->delta_value.size,
       WT_UNCHECKED_STRING(Bu), &unpack->flags, &delta_leaf_value_actual);
 
-    memcpy(unpack->delta_leaf_value_data->data, delta_leaf_value_actual.data,
+    memcpy((void *)unpack->delta_leaf_value_data->data, delta_leaf_value_actual.data,
       delta_leaf_value_actual.size);
     unpack->delta_leaf_value_data->size = delta_leaf_value_actual.size;
 
