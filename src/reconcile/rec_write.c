@@ -2231,8 +2231,8 @@ __rec_pack_delta_leaf_custom(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE
     WT_DECL_ITEM(custom_value);
     WT_DECL_RET;
     WT_ITEM *key, *value;
-    bool ovfl_key;
     uint8_t flags, *p;
+    bool ovfl_key;
 
     cbt = &r->update_modify_cbt;
     flags = 0;
@@ -2240,7 +2240,7 @@ __rec_pack_delta_leaf_custom(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE
     WT_ERR(__wt_scr_alloc(session, 0, &custom_value));
 
     /* Get the key data and pack it into a key cell. */
-    WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
     WT_ERR(__rec_delta_pack_key(session, S2BT(session), r, supd->ins, supd->rip, key));
     WT_ERR(__wti_rec_cell_build_leaf_key(session, r, key->data, key->size, &ovfl_key));
 
@@ -2248,7 +2248,7 @@ __rec_pack_delta_leaf_custom(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE
      * Build the customized value. The value for a leaf page delta looks very similar to a standard
      * value, but has an additional byte before the value data to hold metadata for the delta.
      */
-    WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &value));
+    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &value));
     if (supd->onpage_upd != NULL) {
         if (supd->onpage_upd->type == WT_UPDATE_MODIFY) {
             if (supd->rip != NULL)
@@ -2272,15 +2272,14 @@ __rec_pack_delta_leaf_custom(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE
     }
 
     /* Pack the flags and delta value into a custom value. */
-    WT_RET(__wt_buf_init(session, custom_value, 1 + value->size));
-    p = (uint8_t *)custom_value + 1;
-    WT_ERR(__wt_vpack_uint(&p, 0, (uint64_t)value->data));
-    *(uint8_t *)custom_value = flags;
+    WT_ERR(__wt_buf_init(session, custom_value, 1 + value->size));
     custom_value->size = 1 + value->size;
+    WT_ERR(__wt_struct_pack(session, (void *)custom_value->data, custom_value->size,
+      WT_UNCHECKED_STRING(Bu), flags, value));
 
     /* Pack the custom value into a standard cell structure. */
-    WT_ERR(__wti_rec_cell_build_val(
-      session, r, (const void *)custom_value, custom_value->size, &supd->tw, 0));
+    WT_ERR(
+      __wti_rec_cell_build_val(session, r, custom_value->data, custom_value->size, &supd->tw, 0));
 
     if (r->delta.size + key->size + custom_value->size > r->delta.memsize)
         WT_ERR(__wt_buf_grow(session, &r->delta, r->delta.size + key->size + custom_value->size));

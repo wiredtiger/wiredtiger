@@ -1419,15 +1419,21 @@ __wt_cell_unpack_delta_int(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *page_
  */
 static WT_INLINE void
 __wt_cell_unpack_delta_leaf_value(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
-  WT_CELL *value_cell, WT_CELL_UNPACK_KV *unpack)
+  WT_CELL *value_cell, WT_CELL_UNPACK_DELTA_LEAF_KV *unpack)
 {
     WT_DECL_RET;
+    WT_ITEM delta_leaf_value_actual;
 
     /* Unpack the value. */
-    __wt_cell_unpack_kv(session, dsk, value_cell, unpack);
+    __wt_cell_unpack_kv(session, dsk, value_cell, &unpack->delta_value);
 
-    /* Unpack the delta metadata from the custom value format. */
-    unpack->flags = *(uint8_t *)unpack->data;
+    ret = __wt_buf_init(session, &delta_leaf_value_actual, unpack->delta_value.size);
+
+    /* Extract the delta metadata and then the actual delta value from the custom value format. */
+    ret = __wt_struct_unpack(session, unpack->delta_value.data, unpack->delta_value.size,
+      WT_UNCHECKED_STRING(Bu), &unpack->flags, &delta_leaf_value_actual);
+
+    unpack->delta_leaf_value_data = &delta_leaf_value_actual;
 
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 }
@@ -1546,10 +1552,8 @@ __wt_page_cell_data_ref_kv(
              --__i) {                                                                           \
             __wt_cell_unpack_kv(session, dsk, (WT_CELL *)__cell, &(unpack)->delta_key);         \
             __cell += (unpack)->delta_key.__len;                                                \
-            __wt_cell_unpack_delta_leaf_value(                                                  \
-              session, dsk, (WT_CELL *)__cell, &(unpack)->delta_value);                         \
-            __cell += (unpack)->delta_value.__len;                                              \
-            __cell_kv_window_cleanup(session, &(unpack)->delta_value);
+            __wt_cell_unpack_delta_leaf_value(session, dsk, (WT_CELL *)__cell, unpack);         \
+            __cell += (unpack)->delta_value.__len;
 
 #define WT_CELL_FOREACH_ADDR(session, dsk, unpack)                                              \
     do {                                                                                        \

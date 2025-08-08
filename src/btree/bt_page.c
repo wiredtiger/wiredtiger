@@ -413,8 +413,8 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
             size += tmp_size;
             upd = tombstone;
         } else {
-            value.data = unpack.delta_value.data;
-            value.size = unpack.delta_value.size;
+            value.data = unpack.delta_leaf_value_data->data;
+            value.size = unpack.delta_leaf_value_data->size;
             WT_ERR(__wt_upd_alloc(session, &value, WT_UPDATE_STANDARD, &standard_value, &tmp_size));
             standard_value->txnid = unpack.delta_value.tw.start_txn;
             standard_value->upd_start_ts = unpack.delta_value.tw.start_ts;
@@ -440,7 +440,8 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
                     tombstone->prepared_id = unpack.delta_value.tw.stop_prepared_id;
                     tombstone->prepare_ts = unpack.delta_value.tw.stop_prepare_ts;
                     tombstone->prepare_state = WT_PREPARE_INPROGRESS;
-                    /* The start timestamp is not really a start timestamp and more like a commit timestamp. */
+                    /* The start timestamp is not really a start timestamp and more like a commit
+                     * timestamp. */
                     tombstone->upd_start_ts = unpack.delta_value.tw.stop_prepare_ts;
                     F_SET(
                       tombstone, WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS);
