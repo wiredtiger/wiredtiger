@@ -175,6 +175,7 @@ GetLastError
 GetModuleHandleExW
 GetProcAddress
 Getters
+Golomb
 HANDLEOPS
 HFS
 HOTBACKUP
@@ -219,6 +220,7 @@ LOGSCAN
 LOGSLOT
 LRU
 LSB
+LSBs
 LSM
 LSN
 LSNs
@@ -245,6 +247,7 @@ MOVEFILE
 MRXB
 MRXBOPC
 MSAN
+MSB
 MSDN
 MSVC
 MSan
@@ -542,6 +545,7 @@ bitcnt
 bitfield
 bitfields
 bitflip
+bitpack
 bitstr
 bitstring
 bitwise
@@ -589,6 +593,7 @@ ccc
 ccr
 cd
 ce
+ceil
 celsius
 centric
 cerr
@@ -656,6 +661,7 @@ cryptographic
 cstring
 csuite
 ctime
+ctx
 ctype
 curbackup
 curbt
