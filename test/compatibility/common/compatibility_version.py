@@ -55,21 +55,21 @@ class WTVersion:
                 self.sub = int(match.group(2))
             else:
                 self.is_valid = False
-    
+
     def __bool__(self):
         return self.is_valid
-    
+
     # string format others will directly compare the name
     def __eq__(self, other : Union["WTVersion", str]):
         if isinstance(other, str):
             return self.name == other
         else:
             return (
-                self.group == other.group 
-                and self.main == other.main 
+                self.group == other.group
+                and self.main == other.main
                 and self.sub == other.sub
             )
-    
+
     def __lt__(self, other: "WTVersion"):
         if self.group < other.group:
             return True
@@ -81,7 +81,7 @@ class WTVersion:
             return False
         else:
             return self.sub < other.sub
-    
+
     def __gt__(self, other: "WTVersion"):
         if self < other or self == other:
             return False
@@ -90,7 +90,7 @@ class WTVersion:
 
     # Hash is used to support set collection, make it able to remove redundant
     def __hash__(self):
-        return hash(self.name)    
-    
+        return hash(self.name)
+
     def __str__(self):
         return self.name
