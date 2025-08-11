@@ -188,6 +188,8 @@ __4b_nibbles_for_posint(uint64_t x)
 
 /*
  * Interface functions.
+ *
+ * We're using functions with specific typed arguments rather than "..." for type safety.
  */
 
 /*

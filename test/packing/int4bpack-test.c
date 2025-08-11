@@ -215,8 +215,8 @@ roundtrip_and_print_signed(int64_t sval)
 static void
 roundtrip_array_compact(const uint64_t *arr, size_t n)
 {
-    uint8_t buf[2048];
     uint64_t out_local[64];
+    uint8_t buf[2048];
     uint64_t *out = out_local;
     size_t used = 0;
 
@@ -243,8 +243,8 @@ roundtrip_array_compact(const uint64_t *arr, size_t n)
 static void
 roundtrip_array_multiline(const uint64_t *arr, size_t n)
 {
-    uint8_t buf[2048];
     uint64_t out_local[64];
+    uint8_t buf[2048];
     uint64_t *out = out_local;
     size_t used = 0;
 
