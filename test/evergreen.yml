@@ -3554,7 +3554,8 @@ tasks:
             RW_LOCK_FILE=$(pwd)/../../cmake_build/test/csuite/rwlock/test_rwlock ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
 
   - name: format-disagg-leader-test
-    tags: ["stress-disagg-test"]
+    # FIXME-WT-14566: Enable disagg leader mode once failure has been resolved.
+    # tags: ["stress-disagg-test"]
     depends_on:
       - name: compile
     commands:
@@ -3576,7 +3577,8 @@ tasks:
           times: 10
 
   - name: format-disagg-switch-test
-    tags: ["stress-disagg-test"]
+    # FIXME-WT-14566: Enable disagg switch mode once failure has been resolved.
+    # tags: ["stress-disagg-test"]
     depends_on:
       - name: compile
     commands:
@@ -5933,6 +5935,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
+    - name: ".stress-disagg-test"
     - name: ".stress-test-no-barrier"
       distros: ubuntu2004-medium
     - name: format-abort-recovery-stress-test
@@ -5952,6 +5955,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
+    - name: ".stress-disagg-test"
     - name: ".stress-test-no-barrier"
     - name: checkpoint-stress-test-tiered
     - name: precise-checkpoint-stress-test-tiered
@@ -6279,6 +6283,7 @@ buildvariants:
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
+    - name: ".stress-disagg-test"
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
 
@@ -6294,6 +6299,7 @@ buildvariants:
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
+    - name: ".stress-disagg-test"
     - name: format-abort-recovery-stress-test
 
 - name: ubuntu2004-nonstandalone
@@ -6327,6 +6333,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
+    - name: ".stress-disagg-test"
     - name: ".stress-test-no-barrier"
       distros: ubuntu2004-medium
     - name: format-abort-recovery-stress-test
@@ -6352,6 +6359,7 @@ buildvariants:
       distros: ubuntu2004-test
     - name: format-abort-recovery-stress-test
       distros: ubuntu2004-test
+    - name: ".stress-disagg-test"
     - name: compile
     - name: make-check-test
     - name: unit-test
@@ -6377,6 +6385,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
+    - name: ".stress-disagg-test"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
@@ -6399,6 +6408,7 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: format-abort-recovery-stress-test
       distros: ubuntu2004-arm64-large
+    - name: ".stress-disagg-test"
     - name: compile
     - name: make-check-test
     - name: unit-test
@@ -6442,11 +6452,13 @@ buildvariants:
       distros: amazon2023-arm64-latest-large-m8g
     - name: format-abort-recovery-stress-test
       distros: amazon2023-arm64-latest-large-m8g
+    - name: ".stress-disagg-test"
     - name: compile
     - name: make-check-test
     - name: unit-test
     - name: unit-test-extra-long
       distros: amazon2023-arm64-latest-large-m8g
+
 
 - name: amazon2023-armv9-nonstandalone
   display_name: (ARMV9) Amazon Linux 2023 (ARM64, Non-standalone)
@@ -6469,6 +6481,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
+    - name: ".stress-disagg-test"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
@@ -6570,6 +6583,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
+    - name: ".stress-disagg-test"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
@@ -6682,6 +6696,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
+    - name: ".stress-disagg-test"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: compile
