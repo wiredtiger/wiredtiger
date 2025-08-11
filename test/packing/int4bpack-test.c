@@ -134,49 +134,296 @@ assert_bytes_for_values(size_t used, const uint64_t *vals, size_t n)
 
 /*
  * encode_array --
- *     Encode array.
+ *     Encode an array of positive integers into buf using 4-bit packing.
  */
 static void
-encode_array(const uint64_t *vals, size_t nvals, uint8_t *buf, size_t bufsz, size_t *used_len)
+encode_array(const uint64_t *vals, size_t n, uint8_t *buf, size_t bufsz, size_t *usedp)
 {
-    WT_4B_PACK_CONTEXT pctx;
+    WT_4B_PACK_CONTEXT ctx;
     uint8_t *p = buf;
-    size_t i;
-    __4b_pack_init(&pctx, &p, buf + bufsz);
-    for (i = 0; i < nvals; ++i)
-        testutil_check(__4b_pack_posint_ctx(&pctx, vals[i]));
-    *used_len = (size_t)(p - buf);
+
+    __4b_pack_init(&ctx, &p, buf + bufsz);
+    for (size_t i = 0; i < n; ++i)
+        testutil_check(__4b_pack_posint_ctx(&ctx, vals[i]));
+    *usedp = (size_t)(p - buf);
 }
 
 /*
  * decode_array --
- *     Decode array.
+ *     Decode 'n' positive integers from buf using 4-bit packing.
  */
 static void
-decode_array(const uint8_t *buf, size_t len, size_t count, uint64_t *out)
+decode_array(const uint8_t *buf, size_t len, size_t n, uint64_t *out)
 {
     WT_4B_UNPACK_CONTEXT uctx;
     const uint8_t *p = buf;
-    size_t i;
+
     __4b_unpack_init(&uctx, &p, buf + len);
-    for (i = 0; i < count; ++i)
+    for (size_t i = 0; i < n; ++i)
         testutil_check(__4b_unpack_posint_ctx(&uctx, &out[i]));
 }
 
 /*
- * main --
- *     Main.
+ * test_extreme_values --
+ *     Test extremes: UINT64_MAX and zigzag edges.
  */
-int
-main(void)
+static void
+test_extreme_values(void)
+{
+    uint8_t buf[128];
+    size_t used = 0;
+    uint64_t out = 0;
+
+    /* UINT64_MAX */
+    {
+        const uint64_t v = UINT64_MAX;
+        encode_array(&v, 1, buf, sizeof(buf), &used);
+        assert_bytes_for_values(used, &v, 1);
+        decode_array(buf, used, 1, &out);
+        /* Print the value and its encoded buffer */
+        printf("Extreme UINT64: %-20" PRIu64 " ", v);
+        print_hex_bin_columns(buf, used);
+        printf("  Decoded: %-20" PRIu64 "  Len: %" WT_SIZET_FMT "\n", out, used);
+        testutil_assert(out == v);
+    }
+
+    /* Zigzag: INT64_MIN, -1, 0, 1, INT64_MAX */
+    {
+        int64_t svals[] = {INT64_MIN, -1, 0, 1, INT64_MAX};
+        for (size_t i = 0; i < WT_ELEMENTS(svals); ++i) {
+            uint64_t enc = __wt_encode_signed_as_positive(svals[i]);
+            encode_array(&enc, 1, buf, sizeof(buf), &used);
+            assert_bytes_for_values(used, &enc, 1);
+            decode_array(buf, used, 1, &out);
+            int64_t dec = __wt_decode_positive_as_signed(out);
+            /* Print the signed value, encoded positive, and buffer */
+            printf("Zigzag signed: %-20" PRId64 " Positive: %-20" PRIu64 " ", svals[i], enc);
+            print_hex_bin_columns(buf, used);
+            printf("  Decoded: %-20" PRId64 "  Len: %" WT_SIZET_FMT "\n", dec, used);
+            testutil_assert(dec == svals[i]);
+        }
+    }
+}
+
+/*
+ * test_alignment_boundaries --
+ *     Test values at nibble-count boundaries and alignment flips.
+ */
+static void
+test_alignment_boundaries(void)
+{
+    uint8_t buf[128];
+    size_t used = 0;
+    uint64_t out[8];
+
+    /* Boundary singles */
+    {
+        uint64_t vals[] = {7, 8, 15, 16, 63, 64, 511, 512};
+        for (size_t i = 0; i < WT_ELEMENTS(vals); ++i) {
+            encode_array(&vals[i], 1, buf, sizeof(buf), &used);
+            assert_bytes_for_values(used, &vals[i], 1);
+            decode_array(buf, used, 1, out);
+            printf("Boundary single: %-10" PRIu64 " ", vals[i]);
+            print_hex_bin_columns(buf, used);
+            printf("  Decoded: %-10" PRIu64 "  Len: %" WT_SIZET_FMT "\n", out[0], used);
+            testutil_assert(out[0] == vals[i]);
+        }
+    }
+
+    /* Alignment flip arrays */
+    {
+        const uint64_t a1[] = {0, 0};
+        const uint64_t a2[] = {1, 1};
+        const uint64_t a3[] = {7, 1};
+        const uint64_t a4[] = {15, 1};
+        const uint64_t a5[] = {1, 7, 1};
+        const uint64_t a6[] = {7, 7, 7, 7};
+        const uint64_t *arrs[] = {a1, a2, a3, a4, a5, a6};
+        const size_t lens[] = {WT_ELEMENTS(a1), WT_ELEMENTS(a2), WT_ELEMENTS(a3), WT_ELEMENTS(a4),
+          WT_ELEMENTS(a5), WT_ELEMENTS(a6)};
+        for (size_t i = 0; i < WT_ELEMENTS(arrs); ++i) {
+            encode_array(arrs[i], lens[i], buf, sizeof(buf), &used);
+            assert_bytes_for_values(used, arrs[i], lens[i]);
+            decode_array(buf, used, lens[i], out);
+            printf("Align flip array: ");
+            print_u64_array(arrs[i], lens[i]);
+            printf(" ");
+            print_u64_array(out, lens[i]);
+            printf(" %" WT_SIZET_FMT "\t", used);
+            print_hex_bin_columns(buf, used);
+            printf("\n");
+            for (size_t j = 0; j < lens[i]; ++j)
+                testutil_assert(out[j] == arrs[i][j]);
+        }
+    }
+}
+
+/*
+ * pack_vals_into --
+ *     Helper to pack vals into a buffer with explicit end; returns ret and used.
+ */
+static int
+pack_vals_into(const uint64_t *vals, size_t n, uint8_t *buf, size_t bufsz, size_t *usedp)
+{
+    WT_4B_PACK_CONTEXT ctx;
+    uint8_t *p = buf;
+    int ret = 0;
+
+    __4b_pack_init(&ctx, &p, buf + bufsz);
+    for (size_t i = 0; i < n; ++i) {
+        ret = __4b_pack_posint_ctx(&ctx, vals[i]);
+        if (ret != 0)
+            break;
+    }
+    *usedp = (size_t)(p - buf);
+    return ret;
+}
+
+/*
+ * test_exact_fit_and_enomem --
+ *     Verify exact-fit succeeds and size-1 fails with ENOMEM.
+ */
+static void
+test_exact_fit_and_enomem(void)
+{
+    uint8_t tmp[256];
+    size_t used = 0;
+
+    const uint64_t vsets[][4] = {
+      {7, 0, 0, 0},          /* small */
+      {8, 0, 0, 0},          /* crosses into 2 nibbles */
+      {15, 15, 15, 0},       /* mix to flip nibbles */
+      {UINT64_MAX, 0, 0, 0}, /* extreme */
+      {63, 64, 511, 512},    /* boundaries */
+    };
+    const size_t vcounts[] = {1, 1, 3, 1, 4};
+
+    for (size_t i = 0; i < WT_ELEMENTS(vcounts); ++i) {
+        const uint64_t *vals = vsets[i];
+        size_t n = vcounts[i];
+        size_t need = bytes_for_values(vals, n);
+
+        /* Exact fit succeeds */
+        int ret = pack_vals_into(vals, n, tmp, need, &used);
+        testutil_assert(ret == 0);
+        testutil_assert(used == need);
+        printf("Exact-fit array: ");
+        print_u64_array(vals, n);
+        printf(" %" WT_SIZET_FMT "\t", used);
+        print_hex_bin_columns(tmp, used);
+        printf("\n");
+
+        /* One byte short fails with ENOMEM */
+        if (need > 0) {
+            ret = pack_vals_into(vals, n, tmp, need - 1, &used);
+            testutil_assert(ret == ENOMEM);
+            printf("  (Need-1) ENOMEM as expected\n");
+        }
+    }
+}
+
+/*
+ * try_decode_count --
+ *     Decode 'count' values from buffer with explicit end; returns ret.
+ */
+static int
+try_decode_count(const uint8_t *buf, size_t len, size_t count)
+{
+    WT_4B_UNPACK_CONTEXT uctx;
+    const uint8_t *p = buf;
+    uint64_t v;
+    int ret = 0;
+
+    __4b_unpack_init(&uctx, &p, buf + len);
+    for (size_t i = 0; i < count; ++i) {
+        ret = __4b_unpack_posint_ctx(&uctx, &v);
+        if (ret != 0)
+            return ret;
+    }
+    return 0;
+}
+
+/*
+ * test_truncated_and_overcount_decode --
+ *     Ensure truncated buffers and over-count decodes fail with EINVAL.
+ */
+static void
+test_truncated_and_overcount_decode(void)
+{
+    uint8_t buf[256];
+    size_t used = 0;
+
+    /* Build buffer with several values. */
+    const uint64_t vals[] = {0, 7, 8, 63, 64, 511, 512};
+    encode_array(vals, WT_ELEMENTS(vals), buf, sizeof(buf), &used);
+
+    printf("Truncated/overcount base array: ");
+    print_u64_array(vals, WT_ELEMENTS(vals));
+    printf(" %" WT_SIZET_FMT "\t", used);
+    print_hex_bin_columns(buf, used);
+    printf("\n");
+
+    /* Truncate by one byte: should fail to decode full sequence. */
+    testutil_assert(try_decode_count(buf, used - 1, WT_ELEMENTS(vals)) == EINVAL);
+    printf("  Truncated by 1 -> EINVAL as expected\n");
+
+    /* Over-count: ask for extra value beyond available: should hit EINVAL. */
+    testutil_assert(try_decode_count(buf, used, WT_ELEMENTS(vals) + 1) == EINVAL);
+    printf("  Over-count by 1 -> EINVAL as expected\n");
+
+    /* Also try removing two bytes to likely split mid-number. */
+    if (used > 1) {
+        testutil_assert(try_decode_count(buf, used - 2, WT_ELEMENTS(vals)) == EINVAL);
+        printf("  Truncated by 2 -> EINVAL as expected\n");
+    }
+}
+
+/*
+ * test_partial_decode_resume --
+ *     Decode k values, then resume to decode the rest from the same buffer.
+ */
+static void
+test_partial_decode_resume(void)
+{
+    uint8_t buf[256];
+    size_t used = 0;
+    const uint64_t vals[] = {0, 1, 7, 8, 15, 16, 63, 64, 255, 256};
+    const size_t n = WT_ELEMENTS(vals);
+
+    encode_array(vals, n, buf, sizeof(buf), &used);
+
+    printf("Partial-resume array: ");
+    print_u64_array(vals, n);
+    printf(" %" WT_SIZET_FMT "\t", used);
+    print_hex_bin_columns(buf, used);
+    printf("\n");
+
+    /* Decode first k, then resume. */
+    for (size_t k = 1; k < n; ++k) {
+        WT_4B_UNPACK_CONTEXT uctx;
+        const uint8_t *p = buf;
+        uint64_t out[WT_ELEMENTS(vals)];
+        size_t i = 0;
+
+        __4b_unpack_init(&uctx, &p, buf + used);
+        for (; i < k; ++i)
+            testutil_check(__4b_unpack_posint_ctx(&uctx, &out[i]));
+        for (; i < n; ++i)
+            testutil_check(__4b_unpack_posint_ctx(&uctx, &out[i]));
+        for (i = 0; i < n; ++i)
+            testutil_assert(out[i] == vals[i]);
+    }
+}
+
+/*
+ * test_positive_integers --
+ *     Exercise positive integers, including small and larger values.
+ */
+static void
+test_positive_integers(void)
 {
     uint8_t buf[1024];
     const size_t bufsz = sizeof(buf);
-
-    /*
-     * Required on some systems to pull in parts of the library for which we have data references.
-     */
-    testutil_check(__wt_library_init());
 
     /* Positive integers */
     printf("\n    Positive integers\n%-10s %-20s %-30s  %-20s\n", "Number", "Hex", "Bin",
@@ -207,8 +454,18 @@ main(void)
         printf("  %-20" PRIu64 "\n", dec);
         testutil_assert(dec == i);
     }
+}
 
-    /* Signed integers via zigzag */
+/*
+ * test_signed_integers --
+ *     Exercise signed integers encoded via zigzag.
+ */
+static void
+test_signed_integers(void)
+{
+    uint8_t buf[1024];
+    const size_t bufsz = sizeof(buf);
+
     printf(
       "\n    Signed integers\n%-10s %-20s %-20s %-20s\n", "Number", "Hex", "Bin", "Decoded Value");
     for (int64_t i = -100; i <= 100; ++i) {
@@ -226,8 +483,18 @@ main(void)
         printf(" %-20" PRId64 "\n", dec);
         testutil_assert(dec == i);
     }
+}
 
-    /* Pairs of integers */
+/*
+ * test_pairs_of_integers --
+ *     Exercise pairs of integers.
+ */
+static void
+test_pairs_of_integers(void)
+{
+    uint8_t buf[1024];
+    const size_t bufsz = sizeof(buf);
+
     printf("\n    Pairs of integers\n%-15s %-15s %-8s %-10s %-16s\n", "Array", "Decoded", "Len",
       "Hex", "Bin");
     printf(
@@ -253,8 +520,18 @@ main(void)
         printf("\n");
         testutil_assert(out[0] == arr[0] && out[1] == arr[1]);
     }
+}
 
-    /* Array of small positive integers */
+/*
+ * test_small_int_arrays --
+ *     Exercise arrays of small positive integers.
+ */
+static void
+test_small_int_arrays(void)
+{
+    uint8_t buf[1024];
+    const size_t bufsz = sizeof(buf);
+
     printf("\n    Array of small integers\n");
     for (uint64_t i = 1; i <= 10; ++i) {
         uint64_t arr[10], out[10];
@@ -276,8 +553,18 @@ main(void)
         print_hex_dump(buf, used);
         print_bin_dump(buf, used);
     }
+}
 
-    /* Array of bigger integers (squares) */
+/*
+ * test_bigger_int_arrays --
+ *     Exercise arrays of bigger integers (squares).
+ */
+static void
+test_bigger_int_arrays(void)
+{
+    uint8_t buf[1024];
+    const size_t bufsz = sizeof(buf);
+
     printf("\n    Array of bigger integers\n");
     for (uint64_t i = 2; i <= 10; ++i) {
         uint64_t arr[10], out[10];
@@ -299,6 +586,32 @@ main(void)
         print_hex_dump(buf, used);
         print_bin_dump(buf, used);
     }
+}
+
+/*
+ * main --
+ *     Main.
+ */
+int
+main(void)
+{
+    /*
+     * Required on some systems to pull in parts of the library for which we have data references.
+     */
+    testutil_check(__wt_library_init());
+
+    test_positive_integers();
+    test_signed_integers();
+    test_pairs_of_integers();
+    test_small_int_arrays();
+    test_bigger_int_arrays();
+
+    /* Additional corner-case tests */
+    test_extreme_values();
+    test_alignment_boundaries();
+    test_exact_fit_and_enomem();
+    test_truncated_and_overcount_decode();
+    test_partial_decode_resume();
 
     return (0);
 }

@@ -765,6 +765,7 @@ encodings
 encryptor
 encryptors
 endian
+enomem
 enum
 env
 eof
@@ -1135,6 +1136,7 @@ ori
 origstartrecno
 os
 ostream
+overcount
 oversized
 ovfl
 ownp
@@ -1460,6 +1462,7 @@ vPodir
 vW
 va
 validator
+vals
 valuep
 valuev
 vanishingly

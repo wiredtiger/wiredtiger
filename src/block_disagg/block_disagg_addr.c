@@ -38,7 +38,9 @@ static inline int
 __block_disagg_addr_unpack_version(
   const uint8_t **pp, size_t maxlen, uint8_t *version, uint8_t *version_min)
 {
-    uint64_t version_, version_min_;
+    uint64_t version_ = 0,
+             version_min_ =
+               0; /* Just to suppress gcc "may be used uninitialized in this function" */
     WT_RET(__wt_4b_unpack_posint2(pp, maxlen ? *pp + maxlen : NULL, &version_, &version_min_));
     *version = (uint8_t)version_;
     *version_min = (uint8_t)version_min_;
@@ -91,7 +93,7 @@ __wti_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, si
     uint64_t base_lsn, base_lsn_delta, flags, lsn, page_id, size, unsupported_flags;
     uint32_t checksum;
     uint8_t version = 0,
-            version_min = 0; /* Just to suppress "may be used uninitialized in this function" */
+            version_min = 0; /* Just to suppress gcc "may be used uninitialized in this function" */
     const uint8_t *begin;
 
     begin = *buf;
