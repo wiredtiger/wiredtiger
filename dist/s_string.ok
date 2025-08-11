@@ -562,6 +562,7 @@ bool
 boolean
 booleans
 boption
+bpack
 br
 breakpoint
 bs

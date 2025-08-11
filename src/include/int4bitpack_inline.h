@@ -186,10 +186,16 @@ __4b_nibbles_for_posint(uint64_t x)
     return (nibbles);
 }
 
-/*
+/*!!!
  * Interface functions.
  *
  * We're using functions with specific typed arguments rather than "..." for type safety.
+ *
+ * Possible extensions:
+ * - Add functions for packing and unpacking more numbers.
+ * - Add functions for packing and unpacking arrays
+ *   (see encode_array() and decode_array() in test/packing/int4bpack-test.c).
+ * - Optional: Add support for negative integers.
  */
 
 /*
