@@ -28,10 +28,36 @@
 
 # Common configuration for compatibility tests.
 
+import os
+import re
+from typing import Dict, List
+
+from compatibility_version import WTVersion
+
 # The branches we use for the testing. We support special branch name 'this' that refers to the
 # current branch. This is useful when debugging a compatibility issue on the current branch, but it
 # should not be enabled when testing on Evergreen.
-BRANCHES = ['develop', 'mongodb-7.1', 'mongodb-7.0', 'mongodb-6.3']
+
+# To make this branches compatitable with existing "compatibility_test_for_releases.sh", the
+# version is imported from the bash file of "meta/versions.sh"
+
+def version_extract(bash_script):
+    version_ret = {}
+    with open(bash_script, "r") as f:
+        lines = f.read().split('\n')
+    for line in lines:
+        match = re.match(r'export\s+([A-Z_]+)\s*=\s*"([^"]*)"', line)
+        if match:
+            name = match.group(1)
+            versions = match.group(2).split()
+            versions = [WTVersion(version) for version in versions]
+            version_ret[name] = [version for version in versions if version]
+    return version_ret
+
+META_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../meta')
+BRANCHES : Dict[str, List[WTVersion]]  = version_extract(os.path.join(META_DIR, "versions.sh"))
+
+# BRANCHES = ['develop', 'mongodb-7.1', 'mongodb-7.0', 'mongodb-6.3']
 
 # Example use of the 'this' branch (useful for debugging):
 # BRANCHES = ['this', 'mongodb-7.0']
