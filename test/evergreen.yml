@@ -6463,7 +6463,6 @@ buildvariants:
     - name: unit-test-extra-long
       distros: amazon2023-arm64-latest-large-m8g
 
-
 - name: amazon2023-armv9-nonstandalone
   display_name: (ARMV9) Amazon Linux 2023 (ARM64, Non-standalone)
   run_on:
