@@ -123,7 +123,6 @@ struct __wt_layered_table_manager_entry {
     WT_LAYERED_TABLE *layered_table;
 
     uint64_t checkpoint_txn_id;
-    uint64_t read_checkpoint;
 };
 
 /*
@@ -173,6 +172,24 @@ struct __wt_disaggregated_checkpoint_track {
 };
 
 /*
+ * WT_PAGE_DELTA_CONFIG --
+ *      Metadata for tracking page deltas
+ */
+struct __wt_page_delta_config {
+    wt_shared uint64_t max_internal_delta_count; /* The maximum number of internal deltas. */
+    wt_shared uint64_t max_leaf_delta_count;     /* The maximum number of leaf deltas. */
+
+    u_int delta_pct;             /* Delta page percent (of full page size) */
+    u_int max_consecutive_delta; /* Max number of consecutive deltas */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_FLATTEN_LEAF_PAGE_DELTA 0x1u
+#define WT_INTERNAL_PAGE_DELTA 0x2u
+#define WT_LEAF_PAGE_DELTA 0x4u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
+};
+
+/*
  * WT_DISAGGREGATED_STORAGE --
  *      Configuration and the current state for disaggregated storage, which tells the Block Manager
  *      how to find remote object storage. This is a separate configuration from layered tables.
@@ -180,16 +197,12 @@ struct __wt_disaggregated_checkpoint_track {
 struct __wt_disaggregated_storage {
     char *page_log;
 
-    wt_shared uint64_t global_checkpoint_id;     /* The ID of the currently opened checkpoint. */
-                                                 /* Updates are protected by the checkpoint lock. */
+    /* Updates are protected by the checkpoint lock. */
     wt_shared uint64_t last_checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata. */
     wt_shared uint64_t last_materialized_lsn;    /* The LSN of the last materialized page. */
 
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
     wt_shared wt_timestamp_t last_checkpoint_timestamp; /* The timestamp of the last checkpoint. */
-
-    wt_shared uint64_t max_internal_delta_count; /* The maximum number of internal deltas. */
-    wt_shared uint64_t max_leaf_delta_count;     /* The maximum number of leaf deltas. */
 
     WT_NAMED_PAGE_LOG *npage_log;
     WT_PAGE_LOG_HANDLE *page_log_meta;
@@ -217,10 +230,7 @@ struct __wt_disaggregated_storage {
      * e.g. if the config parsing does anything even slightly off the beaten track.
      */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_DISAGG_FLATTEN_LEAF_PAGE_DELTA 0x1u
-#define WT_DISAGG_INTERNAL_PAGE_DELTA 0x2u
-#define WT_DISAGG_LEAF_PAGE_DELTA 0x4u
-#define WT_DISAGG_NO_SYNC 0x8u
+#define WT_DISAGG_NO_SYNC 0x1u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
@@ -753,6 +763,7 @@ struct __wt_connection_impl {
     bool prefetch_available;
 
     WT_DISAGGREGATED_STORAGE disaggregated_storage;
+    WT_PAGE_DELTA_CONFIG page_delta; /* Page delta configuration */
     WT_LAYERED_TABLE_MANAGER layered_table_manager;
     WT_PAGE_HISTORY page_history;
 

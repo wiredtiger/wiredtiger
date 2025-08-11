@@ -177,7 +177,7 @@ main(int argc, char *argv[])
     READ_SCAN_ARGS scan_args;
     WT_DECL_RET;
     uint64_t now, start;
-    u_int ops_seconds, reps;
+    u_int leader_ops_seconds, ops_seconds, reps;
     int ch;
     const char *config, *home;
     bool is_backup, quiet_flag, verify_only;
@@ -249,8 +249,8 @@ main(int argc, char *argv[])
      * reading configuration. There may be random seeds in the configuration, however, so we will
      * reinitialize the RNGs later.
      */
-    __wt_random_init_default(&g.data_rnd);
-    __wt_random_init_default(&g.extra_rnd);
+    __wt_random_init(NULL, &g.data_rnd);
+    __wt_random_init(NULL, &g.extra_rnd);
 
     /* Initialize lock to ensure single threading during failure handling. */
     testutil_check(pthread_rwlock_init(&g.death_lock, NULL));
@@ -379,8 +379,25 @@ main(int argc, char *argv[])
      * time and then don't check for timer expiration once the main operations loop completes.
      */
     ops_seconds = GV(RUNS_TIMER) == 0 ? 0 : ((GV(RUNS_TIMER) * 60) - 15) / FORMAT_OPERATION_REPS;
-    for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
-        operations(ops_seconds, reps, FORMAT_OPERATION_REPS);
+    if (!disagg_is_mode_switch())
+        for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
+            operations(ops_seconds, reps, FORMAT_OPERATION_REPS);
+    else {
+        /*
+         * In disagg "switch" mode, we alternate between leader and follower roles. The follower
+         * runs only for a short, fixed duration (i.e. DISAGG_SWITCH_FOLLOWER_OPS_SEC), as it's
+         * expected to generate minimal cache activity. Content written in follower mode is not
+         * evictable, extended time in this role can lead to cache overflow. The leader occupies the
+         * remaining time.
+         */
+        leader_ops_seconds = ops_seconds != 0 ? (ops_seconds - DISAGG_SWITCH_FOLLOWER_OPS_SEC) : 0;
+
+        for (reps = 1; reps <= (FORMAT_OPERATION_REPS * 2); ++reps) {
+            ops_seconds = g.disagg_leader ? leader_ops_seconds : DISAGG_SWITCH_FOLLOWER_OPS_SEC;
+            operations(ops_seconds, reps, (FORMAT_OPERATION_REPS * 2));
+            testutil_check(disagg_switch_roles());
+        }
+    }
 
     /* Copy out the run's statistics. */
     TIMED_MAJOR_OP(wts_stats());

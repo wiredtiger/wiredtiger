@@ -856,9 +856,10 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     /*
      * Save the checkpoint session ID.
      *
-     * We never do checkpoints in the default session (with id zero).
+     * We never do checkpoints in the default session.
      */
-    WT_ASSERT(session, session->id != 0 && __wt_atomic_loadv32(&txn_global->checkpoint_id) == 0);
+    WT_ASSERT(session,
+      !WT_SESSION_IS_DEFAULT(session) && __wt_atomic_loadv32(&txn_global->checkpoint_id) == 0);
     __wt_atomic_storev32(&txn_global->checkpoint_id, session->id);
 
     /*
@@ -1203,8 +1204,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     conn->rec_maximum_hs_wrapup_milliseconds = 0;
     conn->rec_maximum_image_build_milliseconds = 0;
     conn->rec_maximum_milliseconds = 0;
-    conn->disaggregated_storage.max_internal_delta_count = 0;
-    conn->disaggregated_storage.max_leaf_delta_count = 0;
+    conn->page_delta.max_internal_delta_count = 0;
+    conn->page_delta.max_leaf_delta_count = 0;
 
     /* Initialize the verbose tracking timer */
     __wt_epoch(session, &conn->ckpt.ckpt_api.timer_start);
@@ -1494,8 +1495,19 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * view of the data, make sure that all the logs are flushed to disk before the checkpoint is
      * complete.
      */
-    if (F_ISSET(&conn->log_mgr, WT_LOG_ENABLED))
+    if (logging) {
+        /* FIXME-WT-15069: Remove this if condition as part of this FIXME. This is a temporary
+         * workaround to allow ckpt_crash_before_metadata_sync crash point with logging enabled.
+         * test/model currently expects crash points to result in only non-recoverable checkpoints.
+         * However, from WT perspective, a crash after flushing the logs here is still considered
+         * a valid recoverable checkpoint.
+         */
+        /* Crash before metadata sync if checkpoint crash point is configured. */
+        if (ckpt_crash_before_metadata_sync)
+            __wt_debug_crash(session);
+
         WT_ERR(__wt_log_flush(session, WT_LOG_FSYNC));
+    }
 
     /* Crash before metadata sync if checkpoint crash point is configured. */
     if (ckpt_crash_before_metadata_sync)

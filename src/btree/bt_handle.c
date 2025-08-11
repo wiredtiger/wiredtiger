@@ -498,17 +498,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     if (strstr(btree->dhandle->name, ".wt_stable") != NULL || WT_CONFIG_LIT_MATCH("disagg", cval)) {
         F_SET(btree, WT_BTREE_DISAGGREGATED);
 
-        /*
-         * Get the percentage of a page size that a delta must be less than in order to write that
-         * delta (instead of just giving up and writing the full page).
-         */
-        WT_RET(__wt_config_gets(session, cfg, "disaggregated.delta_pct", &cval));
-        btree->delta_pct = (u_int)cval.val;
-
-        /* Get the maximum number of consecutive deltas allowed for a single page. */
-        WT_RET(__wt_config_gets(session, cfg, "disaggregated.max_consecutive_delta", &cval));
-        btree->max_consecutive_delta = (u_int)cval.val;
-
         WT_RET(__btree_setup_page_log(session, btree));
 
         /* A page log service and a storage source cannot both be enabled. */
@@ -649,7 +638,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     WT_ASSERT(session, ckpt->write_gen >= ckpt->run_write_gen);
 
     /* If this is the first time opening the tree this run. */
-    /* FIXME-SLS-556 A leader node needs to keep transaction IDs from the current run.  */
     if (F_ISSET(session, WT_SESSION_IMPORT) || ckpt->run_write_gen < conn->base_write_gen ||
       F_ISSET(btree, WT_BTREE_DISAGGREGATED))
         btree->run_write_gen = btree->write_gen;

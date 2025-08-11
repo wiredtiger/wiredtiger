@@ -52,7 +52,7 @@ class test_layered35(wttest.WiredTigerTestCase, DisaggConfigMixin):
     ]
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(page_log=palm,lose_all_my_data=true),checkpoint=(precise=true),'
+                     + 'page_delta=(delta_pct=80),disaggregated=(page_log=palm,lose_all_my_data=true),checkpoint=(precise=true),'
     disagg_storages = gen_disagg_storages('test_layered35', disagg_only = True)
 
     # Make scenarios for different cloud service providers
@@ -63,7 +63,7 @@ class test_layered35(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def session_create_config(self):
         # The delta percentage of 80 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
-        cfg = 'disaggregated=(delta_pct=80),key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+        cfg = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith('file'):
             cfg += ',block_manager=disagg'
         return cfg
@@ -101,8 +101,13 @@ class test_layered35(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # We should build an empty delta
         self.session.checkpoint()
 
+        # Specify "local_files_action=ignore" to avoid deleting local files on reopen.
+        # This is important for the disaggregated storage test, as we want to read the
+        # checkpoint meta file without deleting it.
+        # Error text:
+        # unable to read root page from file:WiredTigerShared.wt_stable: WT_ERROR: non-specific WiredTiger error
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}",local_files_action=ignore)'
         self.reopen_conn(config = follower_config)
 
         cursor = self.session.open_cursor(self.uri, None, None)

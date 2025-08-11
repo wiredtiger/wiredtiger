@@ -93,6 +93,8 @@ struct __wt_block_desc;
 typedef struct __wt_block_desc WT_BLOCK_DESC;
 struct __wt_block_disagg;
 typedef struct __wt_block_disagg WT_BLOCK_DISAGG;
+struct __wt_block_disagg_address_cookie;
+typedef struct __wt_block_disagg_address_cookie WT_BLOCK_DISAGG_ADDRESS_COOKIE;
 struct __wt_block_disagg_header;
 typedef struct __wt_block_disagg_header WT_BLOCK_DISAGG_HEADER;
 struct __wt_block_header;
@@ -227,8 +229,6 @@ struct __wt_delta_cell_int;
 typedef struct __wt_delta_cell_int WT_DELTA_CELL_INT;
 struct __wt_delta_cell_leaf;
 typedef struct __wt_delta_cell_leaf WT_DELTA_CELL_LEAF;
-struct __wt_delta_header;
-typedef struct __wt_delta_header WT_DELTA_HEADER;
 struct __wt_disagg_copy_metadata;
 typedef struct __wt_disagg_copy_metadata WT_DISAGG_COPY_METADATA;
 struct __wt_disaggregated_checkpoint_track;
@@ -335,6 +335,8 @@ struct __wt_page_block_meta;
 typedef struct __wt_page_block_meta WT_PAGE_BLOCK_META;
 struct __wt_page_deleted;
 typedef struct __wt_page_deleted WT_PAGE_DELETED;
+struct __wt_page_delta_config;
+typedef struct __wt_page_delta_config WT_PAGE_DELTA_CONFIG;
 struct __wt_page_header;
 typedef struct __wt_page_header WT_PAGE_HEADER;
 struct __wt_page_history;
@@ -445,6 +447,8 @@ struct __wt_update_vector;
 typedef struct __wt_update_vector WT_UPDATE_VECTOR;
 struct __wt_verbose_dump_cookie;
 typedef struct __wt_verbose_dump_cookie WT_VERBOSE_DUMP_COOKIE;
+struct __wt_verbose_message_info;
+typedef struct __wt_verbose_message_info WT_VERBOSE_MESSAGE_INFO;
 struct __wt_verbose_multi_category;
 typedef struct __wt_verbose_multi_category WT_VERBOSE_MULTI_CATEGORY;
 struct __wt_verify_info;
@@ -616,7 +620,8 @@ typedef uint64_t wt_timestamp_t;
 #include "../evict/evict_inline.h" /* required by misc_inline.h */
 #include "ctype_inline.h"          /* required by packing_inline.h */
 #include "intpack_inline.h"        /* required by cell_inline.h, packing_inline.h */
-#include "misc_inline.h"           /* required by mutex_inline.h */
+#include "int4bitpack_inline.h"
+#include "misc_inline.h" /* required by mutex_inline.h */
 
 #include "generation_inline.h" /* required by txn_inline.h */
 #include "buf_inline.h"        /* required by cell_inline.h */

@@ -213,7 +213,7 @@ struct __wt_bm {
     void (*compact_progress)(WT_BM *, WT_SESSION_IMPL *);
     int (*compact_start)(WT_BM *, WT_SESSION_IMPL *);
     int (*corrupt)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
-    size_t (*encrypt_skip)(WT_BM *, WT_SESSION_IMPL *, bool);
+    size_t (*encrypt_skip)(WT_BM *, WT_SESSION_IMPL *);
     int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     bool (*is_mapped)(WT_BM *, WT_SESSION_IMPL *);
     int (*map_discard)(WT_BM *, WT_SESSION_IMPL *, void *, size_t);
@@ -505,38 +505,51 @@ struct __wt_block_disagg_header {
     uint32_t checksum;          /* 04-07: checksum */
     uint32_t previous_checksum; /* 08-11: checksum for previous delta or page */
 
-    /*
-     * The reconciliation id tracks the "version" of a page or delta within a checkpoint. The first
-     * write of a page at a checkpoint has id 0, the second has id 1. We use this number as a
-     * diagnostic to detect the kind of discrepancy that occurred when there is a checksum error.
-     * Thus, overflowing a byte is not a cause for concern. Besides, overflows should be exceedingly
-     * rare. It means checkpointing is much less frequent than the number of times a page needed to
-     * be reconciled.
-     */
-#define WT_BLOCK_OVERFLOW_RECONCILIATION_ID 0xff
-    uint8_t reconciliation_id; /* 12: disaggregated identifier */
-
 /*
  * No automatic generation: flag values cannot change, they're written to disk.
  */
 #define WT_BLOCK_DISAGG_DATA_CKSUM 0x1u /* Block data is part of the checksum */
 #define WT_BLOCK_DISAGG_ENCRYPTED 0x2u  /* Data following header is encrypted */
 #define WT_BLOCK_DISAGG_COMPRESSED 0x4u /* Data following header is compressed */
-    uint8_t flags;                      /* 13: flags */
+    uint8_t flags;                      /* 12: flags */
 
     /*
-     * End the structure with 2 bytes of padding: it wastes space, but it leaves the structure
+     * End the structure with 3 bytes of padding: it wastes space, but it leaves the structure
      * 32-bit aligned and having an extra couple bytes to play with in the future can't hurt.
      */
-    uint8_t unused[2]; /* 14-15: unused padding */
+    uint8_t unused[3]; /* 13-15: unused padding */
 };
 
 /*
- * WT_BLOCK_DISAGG_BASE_HEADER_SIZE is the number of bytes we allocate for a base page structure,
- * and WT_BLOCK_DISAGG_DELTA_HEADER_SIZE is the number of bytes we allocated for a delta: if the
- * compiler inserts padding it will break the world.
+ * WT_BLOCK_DISAGG_HEADER_SIZE is the number of bytes we allocate for a base page and delta
+ * structures: if the compiler inserts padding it will break the world.
  */
 #define WT_BLOCK_DISAGG_HEADER_SIZE 16
-#define WT_BLOCK_DISAGG_BASE_HEADER_BYTE_SIZE (WT_PAGE_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_SIZE)
-#define WT_BLOCK_DISAGG_DELTA_HEADER_BYTE_SIZE (WT_DELTA_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_SIZE)
+#define WT_BLOCK_DISAGG_HEADER_BYTE_SIZE (WT_PAGE_HEADER_SIZE + WT_BLOCK_DISAGG_HEADER_SIZE)
 #define WT_BLOCK_DISAGG_CHECKPOINT_BUFFER (1024)
+
+/*
+ * WT_BLOCK_DISAGG_ADDRESS_COOKIE --
+ *	The disaggregated block manager address cookie.
+ */
+struct __wt_block_disagg_address_cookie {
+
+    uint64_t page_id; /* Page ID */
+
+/*
+ * Flags for address cookies in disaggregated storage. No automatic generation: flag values cannot
+ * change, because they are stored persistently.
+ */
+#define WT_BLOCK_DISAGG_ADDR_FLAG_DELTA 0x1u /* Address is a delta */
+
+/* The mask of all currently supported flags (for verification). */
+#define WT_BLOCK_DISAGG_ADDR_ALL_FLAGS (WT_BLOCK_DISAGG_ADDR_FLAG_DELTA)
+
+    uint64_t flags; /* Flags for the address cookie */
+
+    uint64_t lsn;      /* Log sequence number */
+    uint64_t base_lsn; /* Base log sequence number */
+
+    uint32_t size;     /* Size of the data */
+    uint32_t checksum; /* Checksum of the data */
+};

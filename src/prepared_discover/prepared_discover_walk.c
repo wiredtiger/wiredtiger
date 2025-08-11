@@ -103,7 +103,7 @@ __prepared_discover_check_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_RO
     __wt_cell_get_tw(vpack, &tw);
 
     /* Done if the record wasn't prepared. */
-    if (!tw->prepare)
+    if (!WT_TIME_WINDOW_HAS_PREPARE(tw))
         return (0);
 
     WT_RET(__prepared_discover_process_ondisk_kv(session, ref, rip, recno, row_key, vpack));
@@ -123,8 +123,7 @@ __prepared_discover_process_prepared_update(WT_SESSION_IMPL *session, WT_ITEM *k
     WT_ASSERT(
       session, upd->prepare_state != WT_PREPARE_INIT && upd->prepare_state != WT_PREPARE_RESOLVED);
 
-    /* TODO: at the moment the prepare time is overloaded, eventually this will be different */
-    prepare_timestamp = upd->upd_start_ts;
+    prepare_timestamp = upd->prepare_ts;
     WT_RET(__wti_prepared_discover_add_artifact_upd(session, prepare_timestamp, key, upd));
     return (0);
 }

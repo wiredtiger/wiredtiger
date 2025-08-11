@@ -154,8 +154,6 @@ struct __wt_btree {
 #define WT_SPLIT_DEEPEN_PER_CHILD_DEF 100
     u_int split_deepen_per_child; /* Entries per child when deepened */
     int split_pct;                /* Split page percent */
-    u_int delta_pct;              /* Delta page percent (of full page size) */
-    u_int max_consecutive_delta;  /* Max number of consecutive deltas */
 
     WT_COMPRESSOR *compressor;    /* Page compressor */
                                   /*
@@ -331,3 +329,14 @@ struct __wt_salvage_cookie {
 
     bool done; /* Ignore the rest */
 };
+
+#define WT_DELTA_LEAF_ENABLED(session)                 \
+    (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && \
+      F_ISSET(&S2C(session)->page_delta, WT_LEAF_PAGE_DELTA))
+
+#define WT_DELTA_INT_ENABLED(btree, conn) \
+    (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && F_ISSET(&conn->page_delta, WT_INTERNAL_PAGE_DELTA))
+
+#define WT_DELTA_ENABLED_FOR_PAGE(session, type)                   \
+    ((type) == WT_PAGE_ROW_LEAF ? WT_DELTA_LEAF_ENABLED(session) : \
+                                  WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
