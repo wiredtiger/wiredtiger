@@ -29,6 +29,10 @@
 import wiredtiger
 from prepare_util import test_prepare_preserve_prepare_base
 
+# Test prepared transaction rollback behavior and history store interactions.
+# This test verifies that the history store correctly writes data to disk for committed
+# prepare transactions with precise checkpoint.
+
 WT_TS_MAX = 2**64-1
 
 class test_prepare36(test_prepare_preserve_prepare_base):
