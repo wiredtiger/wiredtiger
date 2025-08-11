@@ -35,10 +35,10 @@ from prepare_util import test_prepare_preserve_prepare_base
 
 WT_TS_MAX = 2**64-1
 
-class test_prepare38(test_prepare_preserve_prepare_base):
+class test_prepare39(test_prepare_preserve_prepare_base):
 
     conn_config = 'checkpoint=(precise=true),preserve_prepared=true,statistics=(all)'
-    uri = 'table:test_prepare38'
+    uri = 'table:test_prepare39'
 
     def check_ckpt_hs(self, expected_hs_value, expected_hs_start_ts,
                       expected_hs_stop_ts, expect_prepared_in_datastore = False):
