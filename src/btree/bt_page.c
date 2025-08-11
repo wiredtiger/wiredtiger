@@ -382,7 +382,7 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
-    WT_ERR(__wt_buf_init(session, &unpack.delta_leaf_value_data, 0));
+    WT_ERR(__wt_buf_init(session, &unpack.delta_value_data, 0));
 
     WT_CELL_FOREACH_DELTA_LEAF(session, header, &unpack)
     {
@@ -415,8 +415,8 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
             size += tmp_size;
             upd = tombstone;
         } else {
-            value.data = unpack.delta_leaf_value_data.data;
-            value.size = unpack.delta_leaf_value_data.size;
+            value.data = unpack.delta_value_data.data;
+            value.size = unpack.delta_value_data.size;
             WT_ERR(__wt_upd_alloc(session, &value, WT_UPDATE_STANDARD, &standard_value, &tmp_size));
             standard_value->txnid = unpack.delta_value.tw.start_txn;
             if (WT_TIME_WINDOW_HAS_START_PREPARE(&unpack.delta_value.tw)) {
@@ -470,7 +470,7 @@ err:
         __wt_free(session, standard_value);
         __wt_free(session, tombstone);
     }
-    __wt_buf_free(session, &unpack.delta_leaf_value_data);
+    __wt_buf_free(session, &unpack.delta_value_data);
     WT_TRET(__wt_btcur_close(&cbt, true));
     return (ret);
 }

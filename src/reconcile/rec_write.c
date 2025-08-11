@@ -2221,11 +2221,11 @@ __wti_rec_pack_delta_internal(
 }
 
 /*
- * __rec_pack_delta_leaf_custom --
+ * __rec_pack_delta_leaf --
  *     Pack a delta key and a delta value for a leaf page.
  */
 static int
-__rec_pack_delta_leaf_custom(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *supd)
+__rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *supd)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(custom_value);
@@ -2354,7 +2354,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
             }
         }
 
-        WT_RET(__rec_pack_delta_leaf_custom(session, r, supd));
+        WT_RET(__rec_pack_delta_leaf(session, r, supd));
         ++count;
     }
 
