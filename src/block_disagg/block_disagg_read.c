@@ -278,3 +278,27 @@ __wti_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session,
 
     return (0);
 }
+
+/*
+ * __wti_block_disagg_read_page_ids --
+ *     Created for testing purposes, will be cleaned up as part of WT-14705.
+ */
+int
+__wt_block_disagg_read_page_ids(WT_BM *bm, WT_SESSION_IMPL *session)
+{
+    WT_BLOCK_DISAGG *block_disagg;
+    WT_DECL_ITEM(item);
+    uint64_t checkpoint_lsn;
+    uint64_t table_id;
+    size_t size = 0;
+
+    checkpoint_lsn = INT64_MAX;
+    table_id = 41;
+
+    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+
+    block_disagg->plhandle->plh_get_page_ids(
+      block_disagg->plhandle, &session->iface, checkpoint_lsn, table_id, item, &size);
+
+    return (0);
+}

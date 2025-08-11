@@ -202,8 +202,20 @@ __wti_block_disagg_verify_addr(
 int
 __wti_block_disagg_verify_end(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-    WT_UNUSED(bm);
-    WT_UNUSED(session);
+    /* Fix-Me-WT-14705: Clean-up for page discard verify. */
+    WT_BLOCK_DISAGG *block_disagg;
+    WT_DECL_ITEM(item);
+    uint64_t checkpoint_lsn;
+    uint64_t table_id;
+    size_t size = 0;
+
+    checkpoint_lsn = INT64_MAX;
+    table_id = 41;
+
+    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+
+    block_disagg->plhandle->plh_get_page_ids(
+      block_disagg->plhandle, &session->iface, checkpoint_lsn, table_id, item, &size);
     return (0);
 }
 

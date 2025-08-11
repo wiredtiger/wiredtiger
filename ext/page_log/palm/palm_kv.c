@@ -428,6 +428,12 @@ palm_kv_get_page_ids(
         PAGE_KEY decoded_key;
         swap_page_key(key, &decoded_key);
 
+        if (decoded_key.flags == WT_PALM_KV_TOMBSTONE) {
+            printf("Tombstone page found: "
+                   "table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64 "\n",
+                   decoded_key.table_id, decoded_key.page_id, decoded_key.lsn);
+        }
+
         /* Skip pages that are not for the requested table. */
         if (decoded_key.table_id < table_id) {
             /* Skip pages that are not for the requested table. */
