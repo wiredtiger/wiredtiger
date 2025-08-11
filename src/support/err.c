@@ -539,7 +539,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
     va_end(ap);
 
     /* If the connection has already panicked, just return the error. */
-    if (conn != NULL && F_ISSET(conn, WT_CONN_PANIC))
+    if (conn != NULL && F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC))
         return (WT_PANIC);
 
     /*
@@ -565,7 +565,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      * dropping a core and returning an error.
      */
     if (conn != NULL &&
-      (!F_ISSET(conn, WT_CONN_DATA_CORRUPTION) ||
+      (!F_ISSET_ATOMIC_32(conn, WT_CONN_DATA_CORRUPTION) ||
         FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT)))
         __wt_abort(session);
 #endif
@@ -578,7 +578,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
 #ifndef HAVE_UNITTEST_ASSERTS
     /* Panic the connection. */
     if (conn != NULL)
-        F_SET(conn, WT_CONN_PANIC);
+        F_SET_ATOMIC_32(conn, WT_CONN_PANIC);
 #endif
     /*
      * !!!
