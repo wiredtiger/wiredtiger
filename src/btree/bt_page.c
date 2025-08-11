@@ -468,7 +468,6 @@ err:
         __wt_free(session, standard_value);
         __wt_free(session, tombstone);
     }
-    __wt_buf_free(session, &unpack.delta_value_data);
     WT_TRET(__wt_btcur_close(&cbt, true));
     return (ret);
 }
