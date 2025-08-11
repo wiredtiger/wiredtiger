@@ -6,7 +6,7 @@
 
 # Currently this is a temporary setup for python testsuite
 # This will be merged with the following variables in the future
-export PYTHON_RELEASE_BRANCHS="develop mongodb-7.1 mongodb-7.0 mongodb-6.3"
+export SUITE_RELEASE_BRANCHES="develop mongodb-7.1 mongodb-7.0 mongodb-6.3"
 
 # This array is used to configure the release branches we'd like to use for testing the importing
 # of files created in previous versions of WiredTiger. Go all the way back to mongodb-4.2 since

@@ -41,7 +41,7 @@ from compatibility_version import WTVersion
 # To make this branches compatitable with existing "compatibility_test_for_releases.sh", the
 # version is imported from the bash file of "meta/versions.sh"
 
-def version_extract(bash_script):
+def extract_versions(bash_script):
     version_ret = {}
     with open(bash_script, "r") as f:
         lines = f.read().split('\n')
@@ -52,15 +52,15 @@ def version_extract(bash_script):
             versions = match.group(2).split()
             versions = [WTVersion(version) for version in versions]
             version_ret[name] = [version for version in versions if version]
+    if not version_ret:
+        raise Exception("Failed to extract versions from " + bash_script)
     return version_ret
 
-META_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../meta')
-BRANCHES : Dict[str, List[WTVersion]]  = version_extract(os.path.join(META_DIR, "versions.sh"))
-
-# BRANCHES = ['develop', 'mongodb-7.1', 'mongodb-7.0', 'mongodb-6.3']
+META_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'meta')
+BRANCHES : Dict[str, List[WTVersion]] = extract_versions(os.path.join(META_DIR, "versions.sh"))
 
 # Example use of the 'this' branch (useful for debugging):
-# BRANCHES = ['this', 'mongodb-7.0']
+# BRANCHES = {'SUITE_RELEASE_BRANCHES' : ['this', 'mongodb-7.0']}
 
 # The default directory to which the test will check out other branches, relative to the project's
 # top-level directory.
