@@ -1428,7 +1428,7 @@ __wt_cell_unpack_delta_leaf_value(WT_SESSION_IMPL *session, const WT_PAGE_HEADER
     __wt_cell_unpack_kv(session, dsk, value_cell, &unpack->delta_value);
 
     if (unpack->delta_value.size > unpack->delta_leaf_value_data->size)
-        ret = __wt_buf_grow(session, unpack->delta_leaf_value_data, unpack->delta_value.size);
+        WT_IGNORE_RET(__wt_buf_grow(session, unpack->delta_leaf_value_data, unpack->delta_value.size));
 
     /* Extract the delta metadata and then the actual delta value from the custom value format. */
     ret = __wt_struct_unpack(session, unpack->delta_value.data, unpack->delta_value.size,

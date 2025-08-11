@@ -419,8 +419,6 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
             value.size = unpack.delta_leaf_value_data->size;
             WT_ERR(__wt_upd_alloc(session, &value, WT_UPDATE_STANDARD, &standard_value, &tmp_size));
             standard_value->txnid = unpack.delta_value.tw.start_txn;
-            standard_value->upd_start_ts = unpack.delta_value.tw.start_ts;
-            standard_value->upd_durable_ts = unpack.delta_value.tw.durable_start_ts;
             if (WT_TIME_WINDOW_HAS_START_PREPARE(&unpack.delta_value.tw)) {
                 standard_value->prepared_id = unpack.delta_value.tw.start_prepared_id;
                 standard_value->prepare_ts = unpack.delta_value.tw.start_prepare_ts;
@@ -428,52 +426,34 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
                 standard_value->upd_start_ts = unpack.delta_value.tw.start_prepare_ts;
 
                 F_SET(standard_value, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
-            } else
+            } else {
+                standard_value->upd_start_ts = unpack.delta_value.tw.start_ts;
+                standard_value->upd_durable_ts = unpack.delta_value.tw.durable_start_ts;
                 F_SET(standard_value, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
+            }
             size += tmp_size;
 
             if (WT_TIME_WINDOW_HAS_STOP(&unpack.delta_value.tw)) {
                 WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &tmp_size));
                 tombstone->txnid = unpack.delta_value.tw.stop_txn;
-                tombstone->upd_start_ts = unpack.delta_value.tw.stop_ts;
-                tombstone->upd_durable_ts = unpack.delta_value.tw.durable_stop_ts;
 
                 if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&unpack.delta_value.tw)) {
                     tombstone->prepared_id = unpack.delta_value.tw.stop_prepared_id;
                     tombstone->prepare_ts = unpack.delta_value.tw.stop_prepare_ts;
                     tombstone->prepare_state = WT_PREPARE_INPROGRESS;
-                    /* The start timestamp is not really a start timestamp and more like a commit
-                     * timestamp. */
                     tombstone->upd_start_ts = unpack.delta_value.tw.stop_prepare_ts;
                     F_SET(
                       tombstone, WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS);
-
-                    if (WT_TIME_WINDOW_HAS_START_PREPARE(&unpack.delta_value.tw)) {
-                        standard_value->prepared_id = unpack.delta_value.tw.start_prepared_id;
-                        standard_value->prepare_ts = unpack.delta_value.tw.start_prepare_ts;
-                        standard_value->prepare_state = WT_PREPARE_INPROGRESS;
-                        F_SET(standard_value,
-                          WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS);
-                    }
-                } else
+                } else {
+                    tombstone->upd_start_ts = unpack.delta_value.tw.stop_ts;
+                    tombstone->upd_durable_ts = unpack.delta_value.tw.durable_stop_ts;
                     F_SET(tombstone, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
+                }
                 size += tmp_size;
                 tombstone->next = standard_value;
                 upd = tombstone;
-            } else {
-                if (WT_TIME_WINDOW_HAS_START_PREPARE(&unpack.delta_value.tw)) {
-                    WT_ASSERT(session,
-                      unpack.delta_value.tw.start_prepared_id != WT_PREPARED_ID_NONE &&
-                        unpack.delta_value.tw.start_prepare_ts != WT_TS_NONE);
-                    standard_value->prepared_id = unpack.delta_value.tw.start_prepared_id;
-                    standard_value->prepare_ts = unpack.delta_value.tw.start_prepare_ts;
-                    standard_value->prepare_state = WT_PREPARE_INPROGRESS;
-                    standard_value->upd_start_ts = unpack.delta_value.tw.start_prepare_ts;
-                    F_SET(standard_value,
-                      WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS);
-                }
+            } else
                 upd = standard_value;
-            }
         }
 
         WT_ERR(__wt_row_modify(&cbt, &key, NULL, &upd, WT_UPDATE_INVALID, true, true));
