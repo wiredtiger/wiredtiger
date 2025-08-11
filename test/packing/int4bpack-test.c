@@ -28,6 +28,110 @@
 
 #include "test_util.h"
 
+/* Helpers for output formatting and size checks */
+
+/*
+ * print_hex_bytes --
+ *     Print a buffer as space-separated hex bytes.
+ */
+static inline void
+print_hex_bytes(const uint8_t *buf, size_t used)
+{
+    for (size_t k = 0; k < used; ++k)
+        printf("%s%02x", k ? " " : "", buf[k]);
+}
+
+/*
+ * print_bin_bytes_spaced --
+ *     Print a buffer as space-separated binary bytes (MSB-first).
+ */
+static inline void
+print_bin_bytes_spaced(const uint8_t *buf, size_t used)
+{
+    for (size_t k = 0; k < used; ++k) {
+        putchar(' ');
+        for (int b = 7; b >= 0; --b)
+            putchar(((buf[k] >> b) & 1) ? '1' : '0');
+    }
+}
+
+/*
+ * print_hex_bin_columns --
+ *     Print hex bytes and a padded binary column to align table output.
+ */
+static inline void
+print_hex_bin_columns(const uint8_t *buf, size_t used)
+{
+    print_hex_bytes(buf, used);
+    /* Pad to align the Bin column similarly to %-20s and %-30s headings */
+    printf("%*s", (int)(21 - (used ? (3 * used - 1) : 0)), "");
+    print_bin_bytes_spaced(buf, used);
+}
+
+/*
+ * print_u64_array --
+ *     Print an array of uint64_t values as [a, b, c].
+ */
+static inline void
+print_u64_array(const uint64_t *arr, size_t n)
+{
+    printf("[");
+    for (size_t j = 0; j < n; ++j)
+        printf("%s%" PRIu64, j ? ", " : "", arr[j]);
+    printf("]");
+}
+
+/*
+ * print_hex_dump --
+ *     Print a hex dump with a trailing byte count.
+ */
+static inline void
+print_hex_dump(const uint8_t *buf, size_t used)
+{
+    printf("Hex dump: ");
+    print_hex_bytes(buf, used);
+    printf("\t(%" WT_SIZET_FMT " bytes)\n", used);
+}
+
+/*
+ * print_bin_dump --
+ *     Print a binary dump of a buffer, bytes separated by spaces.
+ */
+static inline void
+print_bin_dump(const uint8_t *buf, size_t used)
+{
+    printf("Bin dump: ");
+    for (size_t k = 0; k < used; ++k) {
+        for (int b = 7; b >= 0; --b)
+            putchar(((buf[k] >> b) & 1) ? '1' : '0');
+        putchar(k + 1 == used ? '\n' : ' ');
+    }
+}
+
+/*
+ * bytes_for_values --
+ *     Compute expected packed byte length for an array of values.
+ */
+static inline size_t
+bytes_for_values(const uint64_t *vals, size_t n)
+{
+    size_t nibbles = 0;
+    for (size_t i = 0; i < n; ++i)
+        nibbles += __4b_nibbles_for_posint(vals[i]);
+    return (nibbles + 1) >> 1; /* ceil(nibbles/2) */
+}
+
+/*
+ * assert_bytes_for_values --
+ *     Assert the packed length equals the expected byte length.
+ */
+static inline void
+assert_bytes_for_values(size_t used, const uint64_t *vals, size_t n)
+{
+    size_t exp_used = bytes_for_values(vals, n);
+    testutil_assert(used == exp_used);
+}
+
 /*
  * encode_array --
  *     Encode array.
@@ -84,18 +188,9 @@ main(void)
         encode_array(enc_vals, 1, buf, bufsz, &used);
         decode_array(buf, used, 1, &dec);
         /* Verify expected packed size in bytes: ceil(nibbles/2). */
-        testutil_assert(used == (__4b_nibbles_for_posint(i) + 1) >> 1);
+        assert_bytes_for_values(used, enc_vals, 1);
         printf("%-10" PRIu64 " ", i);
-        /* hex */
-        for (size_t k = 0; k < used; ++k)
-            printf("%s%02x", k ? " " : "", buf[k]);
-        /* bin */
-        printf("%*s", (int)(21 - (used ? (3 * used - 1) : 0)), "");
-        for (size_t k = 0; k < used; ++k) {
-            putchar(' ');
-            for (int b = 7; b >= 0; --b)
-                putchar(((buf[k] >> b) & 1) ? '1' : '0');
-        }
+        print_hex_bin_columns(buf, used);
         printf("  %-20" PRIu64 "\n", dec);
         testutil_assert(dec == i);
     }
@@ -106,16 +201,9 @@ main(void)
         encode_array(&i, 1, buf, bufsz, &used);
         decode_array(buf, used, 1, &dec);
         /* Verify expected packed size. */
-        testutil_assert(used == (__4b_nibbles_for_posint(i) + 1) >> 1);
+        assert_bytes_for_values(used, &i, 1);
         printf("%-10" PRIu64 " ", i);
-        for (size_t k = 0; k < used; ++k)
-            printf("%s%02x", k ? " " : "", buf[k]);
-        printf("%*s", (int)(21 - (used ? (3 * used - 1) : 0)), "");
-        for (size_t k = 0; k < used; ++k) {
-            putchar(' ');
-            for (int b = 7; b >= 0; --b)
-                putchar(((buf[k] >> b) & 1) ? '1' : '0');
-        }
+        print_hex_bin_columns(buf, used);
         printf("  %-20" PRIu64 "\n", dec);
         testutil_assert(dec == i);
     }
@@ -131,17 +219,10 @@ main(void)
         encode_array(&enc, 1, buf, bufsz, &used);
         decode_array(buf, used, 1, &decpos);
         /* Verify expected packed size for the encoded positive. */
-        testutil_assert(used == (__4b_nibbles_for_posint(enc) + 1) >> 1);
+        assert_bytes_for_values(used, &enc, 1);
         dec = __wt_decode_positive_as_signed(decpos);
         printf("%-10" PRId64 " ", i);
-        for (size_t k = 0; k < used; ++k)
-            printf("%s%02x", k ? " " : "", buf[k]);
-        printf("%*s", (int)(21 - (used ? (3 * used - 1) : 0)), "");
-        for (size_t k = 0; k < used; ++k) {
-            putchar(' ');
-            for (int b = 7; b >= 0; --b)
-                putchar(((buf[k] >> b) & 1) ? '1' : '0');
-        }
+        print_hex_bin_columns(buf, used);
         printf(" %-20" PRId64 "\n", dec);
         testutil_assert(dec == i);
     }
@@ -163,19 +244,12 @@ main(void)
         encode_array(arr, 2, buf, bufsz, &used);
         decode_array(buf, used, 2, out);
         /* Verify expected packed size for two numbers. */
-        testutil_assert(
-          used == (__4b_nibbles_for_posint(arr[0]) + __4b_nibbles_for_posint(arr[1]) + 1) >> 1);
-        printf("[%" PRIu64 ", %" PRIu64 "] ", arr[0], arr[1]);
-        printf("[%" PRIu64 ", %" PRIu64 "] ", out[0], out[1]);
-        printf("%" WT_SIZET_FMT "\t", used);
-        for (size_t k = 0; k < used; ++k)
-            printf("%s%02x", k ? " " : "", buf[k]);
-        printf("\t");
-        for (size_t k = 0; k < used; ++k) {
-            putchar(' ');
-            for (int b = 7; b >= 0; --b)
-                putchar(((buf[k] >> b) & 1) ? '1' : '0');
-        }
+        assert_bytes_for_values(used, arr, 2);
+        print_u64_array(arr, 2);
+        printf(" ");
+        print_u64_array(out, 2);
+        printf(" %" WT_SIZET_FMT "\t", used);
+        print_hex_bin_columns(buf, used);
         printf("\n");
         testutil_assert(out[0] == arr[0] && out[1] == arr[1]);
     }
@@ -190,36 +264,17 @@ main(void)
         encode_array(arr, i, buf, bufsz, &used);
         decode_array(buf, used, i, out);
         /* Verify expected packed size for array. */
-        {
-            size_t nibbles = 0;
-            for (uint64_t j = 0; j < i; ++j)
-                nibbles += __4b_nibbles_for_posint(arr[j]);
-            size_t exp_used = (nibbles + 1) >> 1;
-            testutil_assert(used == exp_used);
-        }
-        printf("Array:    [");
+        assert_bytes_for_values(used, arr, (size_t)i);
+        printf("Array:    ");
+        print_u64_array(arr, (size_t)i);
+        printf("\t(%" PRIu64 " elements)\n", i);
+        printf("Decoded:  ");
+        print_u64_array(out, (size_t)i);
+        printf("\n");
         for (uint64_t j = 0; j < i; ++j)
-            printf("%s%" PRIu64, j ? ", " : "", arr[j]);
-        printf("]\t(%" PRIu64 " elements)\n", i);
-        printf("Decoded:  [");
-        for (uint64_t j = 0; j < i; ++j) {
-            printf("%s%" PRIu64, j ? ", " : "", out[j]);
             testutil_assert(out[j] == arr[j]);
-        }
-        printf(
-          "]\n"
-          "Hex dump: ");
-        for (size_t k = 0; k < used; ++k)
-            printf("%s%02x", k ? " " : "", buf[k]);
-        printf("\t(%" WT_SIZET_FMT
-               " bytes)\n"
-               "Bin dump: ",
-          used);
-        for (size_t k = 0; k < used; ++k) {
-            for (int b = 7; b >= 0; --b)
-                putchar(((buf[k] >> b) & 1) ? '1' : '0');
-            putchar(k + 1 == used ? '\n' : ' ');
-        }
+        print_hex_dump(buf, used);
+        print_bin_dump(buf, used);
     }
 
     /* Array of bigger integers (squares) */
@@ -232,36 +287,17 @@ main(void)
         encode_array(arr, i, buf, bufsz, &used);
         decode_array(buf, used, i, out);
         /* Verify expected packed size for array. */
-        {
-            size_t nibbles = 0;
-            for (uint64_t j = 0; j < i; ++j)
-                nibbles += __4b_nibbles_for_posint(arr[j]);
-            size_t exp_used = (nibbles + 1) >> 1;
-            testutil_assert(used == exp_used);
-        }
-        printf("Array:    [");
+        assert_bytes_for_values(used, arr, (size_t)i);
+        printf("Array:    ");
+        print_u64_array(arr, (size_t)i);
+        printf("\t(%" PRIu64 " elements)\n", i);
+        printf("Decoded:  ");
+        print_u64_array(out, (size_t)i);
+        printf("\n");
         for (uint64_t j = 0; j < i; ++j)
-            printf("%s%" PRIu64, j ? ", " : "", arr[j]);
-        printf("]\t(%" PRIu64 " elements)\n", i);
-        printf("Decoded:  [");
-        for (uint64_t j = 0; j < i; ++j) {
-            printf("%s%" PRIu64, j ? ", " : "", out[j]);
             testutil_assert(out[j] == arr[j]);
-        }
-        printf(
-          "]\n"
-          "Hex dump: ");
-        for (size_t k = 0; k < used; ++k)
-            printf("%s%02x", k ? " " : "", buf[k]);
-        printf("\t(%" WT_SIZET_FMT
-               " bytes)\n"
-               "Bin dump: ",
-          used);
-        for (size_t k = 0; k < used; ++k) {
-            for (int b = 7; b >= 0; --b)
-                putchar(((buf[k] >> b) & 1) ? '1' : '0');
-            putchar(k + 1 == used ? '\n' : ' ');
-        }
+        print_hex_dump(buf, used);
+        print_bin_dump(buf, used);
     }
 
     return (0);

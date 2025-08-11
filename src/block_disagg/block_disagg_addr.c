@@ -90,7 +90,8 @@ __wti_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, si
 {
     uint64_t base_lsn, base_lsn_delta, flags, lsn, page_id, size, unsupported_flags;
     uint32_t checksum;
-    uint8_t version, version_min;
+    uint8_t version = 0,
+            version_min = 0; /* Just to suppress "may be used uninitialized in this function" */
     const uint8_t *begin;
 
     begin = *buf;
