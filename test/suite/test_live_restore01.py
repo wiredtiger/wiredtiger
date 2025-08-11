@@ -104,6 +104,8 @@ class test_live_restore01(backup_base):
         # Specify statistics are disabled.
         self.expect_failure("statistics=(none),live_restore=(enabled=true,path=SOURCE)", "/Statistics must be enabled when live restore is active./")
 
+        self.expect_failure("live_restore=(enabled=true,path=SOURCE),disaggregated=(page_log=palm)", "/Live restore is not compatible with disaggregated storage mode/")
+
         # Expect a failure if statistics are disabled via a reconfigure call.
         self.open_conn("DEST", config="live_restore=(enabled=true,path=SOURCE)")
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
