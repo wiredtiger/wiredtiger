@@ -164,6 +164,192 @@ decode_array(const uint8_t *buf, size_t len, size_t n, uint64_t *out)
 }
 
 /*
+ * roundtrip_and_print_pos --
+ *     Encode, decode, and print a positive integer value.
+ */
+static void
+roundtrip_and_print_pos(uint64_t val)
+{
+    uint8_t buf[1024];
+    size_t used = 0;
+    uint64_t dec = 0;
+    uint64_t one[1] = {val};
+
+    encode_array(one, 1, buf, sizeof(buf), &used);
+    decode_array(buf, used, 1, &dec);
+    assert_bytes_for_values(used, one, 1);
+
+    printf("%-10" PRIu64 " ", val);
+    print_hex_bin_columns(buf, used);
+    printf("  %-20" PRIu64 "\n", dec);
+    testutil_assert(dec == val);
+}
+
+/*
+ * roundtrip_and_print_signed --
+ *     Encode, decode, and print a signed integer value.
+ */
+static void
+roundtrip_and_print_signed(int64_t sval)
+{
+    uint8_t buf[1024];
+    uint64_t enc = __wt_encode_signed_as_positive(sval);
+    uint64_t decpos = 0;
+    size_t used = 0;
+
+    encode_array(&enc, 1, buf, sizeof(buf), &used);
+    decode_array(buf, used, 1, &decpos);
+    assert_bytes_for_values(used, &enc, 1);
+
+    int64_t dec = __wt_decode_positive_as_signed(decpos);
+    printf("%-10" PRId64 " ", sval);
+    print_hex_bin_columns(buf, used);
+    printf(" %-20" PRId64 "\n", dec);
+    testutil_assert(dec == sval);
+}
+
+/*
+ * roundtrip_array_compact --
+ *     Encode/decode an array and print compact one-line summary.
+ */
+static void
+roundtrip_array_compact(const uint64_t *arr, size_t n)
+{
+    uint8_t buf[2048];
+    uint64_t out_local[64];
+    uint64_t *out = out_local;
+    size_t used = 0;
+
+    testutil_assert(n <= WT_ELEMENTS(out_local));
+    encode_array(arr, n, buf, sizeof(buf), &used);
+    assert_bytes_for_values(used, arr, n);
+    decode_array(buf, used, n, out);
+
+    print_u64_array(arr, n);
+    printf(" ");
+    print_u64_array(out, n);
+    printf(" %" WT_SIZET_FMT "\t", used);
+    print_hex_bin_columns(buf, used);
+    printf("\n");
+
+    for (size_t i = 0; i < n; ++i)
+        testutil_assert(out[i] == arr[i]);
+}
+
+/*
+ * roundtrip_array_multiline --
+ *     Encode/decode an array and print multi-line details plus dumps.
+ */
+static void
+roundtrip_array_multiline(const uint64_t *arr, size_t n)
+{
+    uint8_t buf[2048];
+    uint64_t out_local[64];
+    uint64_t *out = out_local;
+    size_t used = 0;
+
+    testutil_assert(n <= WT_ELEMENTS(out_local));
+    encode_array(arr, n, buf, sizeof(buf), &used);
+    assert_bytes_for_values(used, arr, n);
+    decode_array(buf, used, n, out);
+
+    printf("Array:    ");
+    print_u64_array(arr, n);
+    printf("\t(%" WT_SIZET_FMT " elements)\n", n);
+    printf("Decoded:  ");
+    print_u64_array(out, n);
+    printf("\n");
+    for (size_t i = 0; i < n; ++i)
+        testutil_assert(out[i] == arr[i]);
+    print_hex_dump(buf, used);
+    print_bin_dump(buf, used);
+}
+
+/*
+ * test_positive_integers --
+ *     Exercise positive integers, including small and larger values.
+ */
+static void
+test_positive_integers(void)
+{
+    /* Positive integers */
+    printf("\n    Positive integers\n%-10s %-20s %-30s  %-20s\n", "Number", "Hex", "Bin",
+      "Decoded Value");
+    for (uint64_t i = 0; i <= 200; ++i)
+        roundtrip_and_print_pos(i);
+
+    for (int ii = 3; ii < 30; ++ii) {
+        uint64_t i = 200ULL + ((uint64_t)ii * ((uint64_t)1 << ii)) / 3ULL;
+        roundtrip_and_print_pos(i);
+    }
+}
+
+/*
+ * test_signed_integers --
+ *     Exercise signed integers encoded via zigzag.
+ */
+static void
+test_signed_integers(void)
+{
+    printf(
+      "\n    Signed integers\n%-10s %-20s %-20s %-20s\n", "Number", "Hex", "Bin", "Decoded Value");
+    for (int64_t i = -100; i <= 100; ++i)
+        roundtrip_and_print_signed(i);
+}
+
+/*
+ * test_pairs_of_integers --
+ *     Exercise pairs of integers.
+ */
+static void
+test_pairs_of_integers(void)
+{
+    printf(
+      "\n    Pairs of integers\n"
+      "Array\t"
+      "Decoded\t"
+      "Len\t"
+      "Hex\t"
+      "Bin\n");
+    for (uint64_t i = 0; i <= 10; ++i) {
+        uint64_t arr[2] = {i * (i + 1) / 2, i};
+        roundtrip_array_compact(arr, 2);
+    }
+}
+
+/*
+ * test_small_int_arrays --
+ *     Exercise arrays of small positive integers.
+ */
+static void
+test_small_int_arrays(void)
+{
+    printf("\n    Array of small integers\n");
+    for (uint64_t i = 1; i <= 10; ++i) {
+        uint64_t arr[10];
+        for (uint64_t j = 0; j < i; ++j)
+            arr[j] = j;
+        roundtrip_array_multiline(arr, (size_t)i);
+    }
+}
+
+/*
+ * test_bigger_int_arrays --
+ *     Exercise arrays of bigger integers (squares).
+ */
+static void
+test_bigger_int_arrays(void)
+{
+    printf("\n    Array of bigger integers\n");
+    for (uint64_t i = 2; i <= 10; ++i) {
+        uint64_t arr[10];
+        for (uint64_t j = 0; j < i; ++j)
+            arr[j] = j * j;
+        roundtrip_array_multiline(arr, (size_t)i);
+    }
+}
+
+/*
  * test_extreme_values --
  *     Test extremes: UINT64_MAX and zigzag edges.
  */
@@ -416,175 +602,94 @@ test_partial_decode_resume(void)
 }
 
 /*
- * test_positive_integers --
- *     Exercise positive integers, including small and larger values.
+ * rand_u64 --
+ *     Helper: compose a 64-bit random from testutil_random().
  */
-static void
-test_positive_integers(void)
+static inline uint64_t
+rand_u64(WT_RAND_STATE *rnd)
 {
-    uint8_t buf[1024];
-    const size_t bufsz = sizeof(buf);
-
-    /* Positive integers */
-    printf("\n    Positive integers\n%-10s %-20s %-30s  %-20s\n", "Number", "Hex", "Bin",
-      "Decoded Value");
-    for (uint64_t i = 0; i <= 200; ++i) {
-        uint64_t enc_vals[1] = {i};
-        size_t used = 0;
-        uint64_t dec = 0;
-        encode_array(enc_vals, 1, buf, bufsz, &used);
-        decode_array(buf, used, 1, &dec);
-        /* Verify expected packed size in bytes: ceil(nibbles/2). */
-        assert_bytes_for_values(used, enc_vals, 1);
-        printf("%-10" PRIu64 " ", i);
-        print_hex_bin_columns(buf, used);
-        printf("  %-20" PRIu64 "\n", dec);
-        testutil_assert(dec == i);
-    }
-    for (int ii = 3; ii < 30; ++ii) {
-        uint64_t i = 200ULL + ((uint64_t)ii * ((uint64_t)1 << ii)) / 3ULL;
-        uint64_t dec = 0;
-        size_t used = 0;
-        encode_array(&i, 1, buf, bufsz, &used);
-        decode_array(buf, used, 1, &dec);
-        /* Verify expected packed size. */
-        assert_bytes_for_values(used, &i, 1);
-        printf("%-10" PRIu64 " ", i);
-        print_hex_bin_columns(buf, used);
-        printf("  %-20" PRIu64 "\n", dec);
-        testutil_assert(dec == i);
-    }
+    return ((uint64_t)testutil_random(rnd) << 32) | (uint64_t)testutil_random(rnd);
 }
 
 /*
- * test_signed_integers --
- *     Exercise signed integers encoded via zigzag.
+ * test_random_fuzz --
+ *     Fuzz random arrays of values for round-trip encode/decode.
  */
 static void
-test_signed_integers(void)
+test_random_fuzz(void)
 {
-    uint8_t buf[1024];
-    const size_t bufsz = sizeof(buf);
+    /* Deterministic seed for reproducibility. */
+    WT_RAND_STATE rnd;
+    testutil_random_from_seed(&rnd, testutil_random(NULL));
 
-    printf(
-      "\n    Signed integers\n%-10s %-20s %-20s %-20s\n", "Number", "Hex", "Bin", "Decoded Value");
-    for (int64_t i = -100; i <= 100; ++i) {
-        uint64_t enc = __wt_encode_signed_as_positive(i);
-        uint64_t decpos = 0;
-        int64_t dec = 0;
-        size_t used = 0;
-        encode_array(&enc, 1, buf, bufsz, &used);
-        decode_array(buf, used, 1, &decpos);
-        /* Verify expected packed size for the encoded positive. */
-        assert_bytes_for_values(used, &enc, 1);
-        dec = __wt_decode_positive_as_signed(decpos);
-        printf("%-10" PRId64 " ", i);
-        print_hex_bin_columns(buf, used);
-        printf(" %-20" PRId64 "\n", dec);
-        testutil_assert(dec == i);
+    uint8_t buf[8192];
+    size_t used = 0;
+
+    /* Positive integers fuzz */
+    for (int iter = 0; iter < 2000; ++iter) {
+        uint64_t vals[64], out[64];
+        size_t n = (size_t)(testutil_random(&rnd) % WT_ELEMENTS(vals));
+
+        for (size_t i = 0; i < n; ++i) {
+            switch (testutil_random(&rnd) % 6) {
+            case 0:
+                vals[i] = (uint64_t)(testutil_random(&rnd) % 32);
+                break;
+            case 1:
+                vals[i] = (uint64_t)(testutil_random(&rnd) % 512);
+                break;
+            case 2:
+                vals[i] = rand_u64(&rnd);
+                break;
+            case 3: {
+                uint32_t k = testutil_random(&rnd) % 64; /* 0..63 */
+                if (k == 0)
+                    vals[i] = 0;
+                else if (testutil_random(&rnd) & 1)
+                    vals[i] = (1ULL << k) - 1ULL; /* 2^k - 1 */
+                else
+                    vals[i] = (k == 63 ? (1ULL << 63) : (1ULL << k)); /* 2^k */
+                break;
+            }
+            case 4:
+                vals[i] = rand_u64(&rnd) & 0xFFFFULL; /* lower 16 bits */
+                break;
+            default:
+                vals[i] = rand_u64(&rnd) >> (testutil_random(&rnd) % 64);
+                break;
+            }
+        }
+
+        encode_array(vals, n, buf, sizeof(buf), &used);
+        assert_bytes_for_values(used, vals, n);
+        decode_array(buf, used, n, out);
+        for (size_t i = 0; i < n; ++i)
+            testutil_assert(out[i] == vals[i]);
     }
-}
 
-/*
- * test_pairs_of_integers --
- *     Exercise pairs of integers.
- */
-static void
-test_pairs_of_integers(void)
-{
-    uint8_t buf[1024];
-    const size_t bufsz = sizeof(buf);
+    /* Zigzag signed integers fuzz */
+    for (int iter = 0; iter < 2000; ++iter) {
+        int64_t svals[64], sdec[64];
+        uint64_t enc[64], outpos[64];
+        size_t n = (size_t)(testutil_random(&rnd) % WT_ELEMENTS(svals));
 
-    printf("\n    Pairs of integers\n%-15s %-15s %-8s %-10s %-16s\n", "Array", "Decoded", "Len",
-      "Hex", "Bin");
-    printf(
-      "\n    Pairs of integers\n"
-      "Array\t"
-      "Decoded\t"
-      "Len\t"
-      "Hex\t"
-      "Bin\n");
-    for (uint64_t i = 0; i <= 10; ++i) {
-        uint64_t arr[2] = {i * (i + 1) / 2, i};
-        uint64_t out[2] = {0, 0};
-        size_t used = 0;
-        encode_array(arr, 2, buf, bufsz, &used);
-        decode_array(buf, used, 2, out);
-        /* Verify expected packed size for two numbers. */
-        assert_bytes_for_values(used, arr, 2);
-        print_u64_array(arr, 2);
-        printf(" ");
-        print_u64_array(out, 2);
-        printf(" %" WT_SIZET_FMT "\t", used);
-        print_hex_bin_columns(buf, used);
-        printf("\n");
-        testutil_assert(out[0] == arr[0] && out[1] == arr[1]);
-    }
-}
+        for (size_t i = 0; i < n; ++i) {
+            if (testutil_random(&rnd) % 3 == 0) {
+                int32_t x = (int32_t)testutil_random(&rnd);
+                svals[i] = (int64_t)(x % 1001); /* small signed range [-1000,1000] */
+            } else {
+                svals[i] = (int64_t)rand_u64(&rnd); /* full 64-bit space */
+            }
+            enc[i] = __wt_encode_signed_as_positive(svals[i]);
+        }
 
-/*
- * test_small_int_arrays --
- *     Exercise arrays of small positive integers.
- */
-static void
-test_small_int_arrays(void)
-{
-    uint8_t buf[1024];
-    const size_t bufsz = sizeof(buf);
-
-    printf("\n    Array of small integers\n");
-    for (uint64_t i = 1; i <= 10; ++i) {
-        uint64_t arr[10], out[10];
-        size_t used = 0;
-        for (uint64_t j = 0; j < i; ++j)
-            arr[j] = j;
-        encode_array(arr, i, buf, bufsz, &used);
-        decode_array(buf, used, i, out);
-        /* Verify expected packed size for array. */
-        assert_bytes_for_values(used, arr, (size_t)i);
-        printf("Array:    ");
-        print_u64_array(arr, (size_t)i);
-        printf("\t(%" PRIu64 " elements)\n", i);
-        printf("Decoded:  ");
-        print_u64_array(out, (size_t)i);
-        printf("\n");
-        for (uint64_t j = 0; j < i; ++j)
-            testutil_assert(out[j] == arr[j]);
-        print_hex_dump(buf, used);
-        print_bin_dump(buf, used);
-    }
-}
-
-/*
- * test_bigger_int_arrays --
- *     Exercise arrays of bigger integers (squares).
- */
-static void
-test_bigger_int_arrays(void)
-{
-    uint8_t buf[1024];
-    const size_t bufsz = sizeof(buf);
-
-    printf("\n    Array of bigger integers\n");
-    for (uint64_t i = 2; i <= 10; ++i) {
-        uint64_t arr[10], out[10];
-        size_t used = 0;
-        for (uint64_t j = 0; j < i; ++j)
-            arr[j] = j * j;
-        encode_array(arr, i, buf, bufsz, &used);
-        decode_array(buf, used, i, out);
-        /* Verify expected packed size for array. */
-        assert_bytes_for_values(used, arr, (size_t)i);
-        printf("Array:    ");
-        print_u64_array(arr, (size_t)i);
-        printf("\t(%" PRIu64 " elements)\n", i);
-        printf("Decoded:  ");
-        print_u64_array(out, (size_t)i);
-        printf("\n");
-        for (uint64_t j = 0; j < i; ++j)
-            testutil_assert(out[j] == arr[j]);
-        print_hex_dump(buf, used);
-        print_bin_dump(buf, used);
+        encode_array(enc, n, buf, sizeof(buf), &used);
+        assert_bytes_for_values(used, enc, n);
+        decode_array(buf, used, n, outpos);
+        for (size_t i = 0; i < n; ++i) {
+            sdec[i] = __wt_decode_positive_as_signed(outpos[i]);
+            testutil_assert(sdec[i] == svals[i]);
+        }
     }
 }
 
@@ -612,6 +717,9 @@ main(void)
     test_exact_fit_and_enomem();
     test_truncated_and_overcount_decode();
     test_partial_decode_resume();
+
+    /* Randomized fuzz tests */
+    test_random_fuzz();
 
     return (0);
 }
