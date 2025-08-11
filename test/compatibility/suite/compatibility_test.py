@@ -231,7 +231,7 @@ def add_branch_pair_scenarios(suite):
                 # need to build the version object from the string list
                 return [WTVersion(version) for version in versions]
             else:
-                return compatibility_common.BRANCHES['SUITE_RELEASE_BRANCHES']
+                return compatibility_common.BRANCHES.SUITE_RELEASE_BRANCHES
         older = extract_versions(test, 'older')
         newer = extract_versions(test, 'newer')
 
@@ -240,7 +240,7 @@ def add_branch_pair_scenarios(suite):
         unsupported_branches = list([
             branch
             for branch in set([*older, *newer])
-            if branch not in compatibility_common.BRANCHES['SUITE_RELEASE_BRANCHES']
+            if branch not in compatibility_common.BRANCHES.SUITE_RELEASE_BRANCHES
         ])
 
         if len(unsupported_branches) > 0:
@@ -290,7 +290,7 @@ def prepare_tests(suites):
                 all_build_configs.append(config)
 
     # Check out and build all relevant branches.
-    for branch in compatibility_common.BRANCHES['SUITE_RELEASE_BRANCHES']:
+    for branch in compatibility_common.BRANCHES.SUITE_RELEASE_BRANCHES:
         for config in all_build_configs:
             compatibility_common.prepare_branch(branch.name, config)
 

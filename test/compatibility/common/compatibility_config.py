@@ -41,23 +41,32 @@ from compatibility_version import WTVersion
 # To make this branches compatitable with existing "compatibility_test_for_releases.sh", the
 # version is imported from the bash file of "meta/versions.sh"
 
-def extract_versions(bash_script):
-    version_ret = {}
-    with open(bash_script, "r") as f:
-        lines = f.read().split('\n')
-    for line in lines:
-        match = re.match(r'export\s+([A-Z_]+)\s*=\s*"([^"]*)"', line)
-        if match:
-            name = match.group(1)
-            versions = match.group(2).split()
-            versions = [WTVersion(version) for version in versions]
-            version_ret[name] = [version for version in versions if version]
-    if not version_ret:
-        raise Exception("Failed to extract versions from " + bash_script)
-    return version_ret
+class WTBranchs:
+
+    def __init__(self, bash_script:str):
+        self.SUITE_RELEASE_BRANCHES = []
+        self.extract_versions(bash_script)
+
+    def extract_versions(self, bash_script:str):
+        with open(bash_script, "r") as f:
+            lines = f.read().split('\n')
+        for line in lines:
+            match = re.match(r'export\s+([A-Z_]+)\s*=\s*"([^"]*)"', line)
+            if match:
+                name = match.group(1)
+                if name in ['SUITE_RELEASE_BRANCHES']:
+                    versions = match.group(2).split()
+                    versions = [WTVersion(version) for version in versions]
+                    versions = [version for version in versions if version]
+                    setattr(self, name, versions)
+        if not self:
+            raise Exception("Failed to extract versions from " + bash_script)
+
+    def __bool__(self):
+        return bool(self.SUITE_RELEASE_BRANCHES)
 
 META_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'meta')
-BRANCHES : Dict[str, List[WTVersion]] = extract_versions(os.path.join(META_DIR, "versions.sh"))
+BRANCHES : WTBranchs = WTBranchs(os.path.join(META_DIR, "versions.sh"))
 
 # Example use of the 'this' branch (useful for debugging):
 # BRANCHES = {'SUITE_RELEASE_BRANCHES' : ['this', 'mongodb-7.0']}
