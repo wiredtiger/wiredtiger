@@ -2361,7 +2361,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
     header = (WT_PAGE_HEADER *)r->delta.data;
     header->mem_size = (uint32_t)r->delta.size;
     header->type = r->ref->page->type;
-    header->u.entries = count;
+    header->u.entries = count * 2;
     header->write_gen = full_image->write_gen;
 
     stop = __wt_clock(session);
