@@ -1733,7 +1733,7 @@ retry:
     loop_count = 0;
     while (slot < max_entries && loop_count++ < conn->dhandle_count) {
         /* We're done if shutting down or reconfiguring. */
-        if (F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING || WT_CONN_RECONFIGURING))
+        if (F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING | WT_CONN_RECONFIGURING))
             break;
 
         /*
