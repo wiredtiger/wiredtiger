@@ -32,6 +32,7 @@ import os
 import re
 
 from compatibility_version import WTVersion
+from typing import List
 
 # The branches we use for the testing. We support special branch name 'this' that refers to the
 # current branch. This is useful when debugging a compatibility issue on the current branch, but it
@@ -42,9 +43,9 @@ from compatibility_version import WTVersion
 
 class WTBranches:
 
-    def __init__(self, bash_script:str):
-        self.SUITE_RELEASE_BRANCHES = []
-        self.extract_versions(bash_script)
+    def __init__(self, branches:List[str] = []):
+        # The branches here aims to support non-script mode
+        self.SUITE_RELEASE_BRANCHES = [WTVersion(branch) for branch in branches]
 
     def extract_versions(self, bash_script:str):
         with open(bash_script, "r") as f:
@@ -60,15 +61,16 @@ class WTBranches:
                 setattr(self, name, versions)
         if not self:
             raise Exception("Failed to extract versions from " + bash_script)
+        return self
 
     def __bool__(self):
         return bool(self.SUITE_RELEASE_BRANCHES)
 
 META_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'meta')
-BRANCHES : WTBranches = WTBranches(os.path.join(META_DIR, "versions.sh"))
+BRANCHES : WTBranches = WTBranches().extract_versions(os.path.join(META_DIR, "versions.sh"))
 
 # Example use of the 'this' branch (useful for debugging):
-# BRANCHES.SUITE_RELEASE_BRANCHES == ['this', 'mongodb-7.0']
+# BRANCHES : WTBranches = WTBranches(['this', 'mongodb-7.0'])
 
 # The default directory to which the test will check out other branches, relative to the project's
 # top-level directory.
