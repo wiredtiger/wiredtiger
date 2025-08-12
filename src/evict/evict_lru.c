@@ -414,7 +414,9 @@ __evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * when the connection is closing or when an error has occurred and connection panic flag is
      * set.
      */
-    WT_ASSERT(session, F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_PANIC | WT_CONN_RECOVERING));
+    WT_ASSERT(session,
+      F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING | WT_CONN_PANIC) ||
+        F_ISSET(conn, WT_CONN_RECOVERING));
 
     /* Clear the eviction thread session flag. */
     F_CLR(session, WT_SESSION_EVICTION);
