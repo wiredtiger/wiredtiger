@@ -21,7 +21,7 @@ static int __rec_split_row_promote(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_ITEM *
 static int __rec_split_write(WT_SESSION_IMPL *, WTI_RECONCILE *, WTI_REC_CHUNK *, bool);
 static void __rec_write_page_status(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __rec_write_err(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_PAGE *);
-static int __rec_write_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_PAGE *);
+static int __rec_write_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __reconcile(WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_t, bool *);
 
 /*
@@ -325,7 +325,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * checkpoint.
      */
     if (ret == 0 && !(btree->evict_disabled > 0 || !F_ISSET(btree->dhandle, WT_DHANDLE_OPEN)) &&
-      F_ISSET(r, WT_REC_EVICT) && !WT_PAGE_IS_INTERNAL(r->page) && r->multi_next == 1 &&
+      F_ISSET(r, WT_REC_EVICT) && !WT_PAGE_IS_INTERNAL(r->ref->page) && r->multi_next == 1 &&
       F_ISSET(r, WT_REC_CALL_URGENT) && !r->update_used && r->cache_write_restore_invisible &&
       !r->cache_upd_chain_all_aborted) {
         /*
@@ -360,7 +360,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     }
 
     /* Wrap up the page reconciliation. Panic on failure. */
-    WT_ERR(__rec_write_wrapup(session, r, page));
+    WT_ERR(__rec_write_wrapup(session, r));
     __rec_write_page_status(session, r);
     WT_ERR(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
 
@@ -2828,7 +2828,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
          * We need to assign a new page id for the root every time. We don't support delta for root
          * page yet.
          */
-        __wt_page_block_meta_assign(session, &r->wrapup_checkpoint_block_meta);
+        if (page->disagg_info != NULL)
+            __wt_page_block_meta_assign(session, &r->wrapup_checkpoint_block_meta);
 
         return (0);
     }
@@ -3011,7 +3012,7 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     }
 
     WT_ERR(__wti_rec_split_finish(session, r));
-    WT_ERR(__rec_write_wrapup(session, r, r->page));
+    WT_ERR(__rec_write_wrapup(session, r));
     __rec_write_page_status(session, r);
 
     /* Mark the page's parent and the tree dirty. */
@@ -3156,12 +3157,13 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
  *     Finish the reconciliation.
  */
 static int
-__rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
+__rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     WT_BM *bm;
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_MULTI *multi;
+    WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_REF *ref;
     WT_REF_STATE previous_ref_state;
@@ -3172,6 +3174,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     bm = btree->bm;
     mod = page->modify;
     ref = r->ref;
+    page = r->page;
     WT_TIME_AGGREGATE_INIT(&ta);
     previous_ref_state = 0;
 
@@ -3295,15 +3298,15 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          * FIXME-WT-14884: we need to check with the page service team if we need to write an empty
          * root page.
          */
-        ref = r->ref;
         if (__wt_ref_is_root(ref)) {
             __wt_checkpoint_tree_reconcile_update(session, &ta);
-            if (r->wrapup_checkpoint_block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID)
+            if (page->disagg_info != NULL &&
+              r->wrapup_checkpoint_block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID)
                 __wt_page_block_meta_assign(session, &r->wrapup_checkpoint_block_meta);
             WT_RET(bm->checkpoint(
               bm, session, NULL, &r->wrapup_checkpoint_block_meta, btree->ckpt, false));
-            if (r->ref->page->disagg_info != NULL)
-                r->ref->page->disagg_info->block_meta = r->wrapup_checkpoint_block_meta;
+            if (page->disagg_info != NULL)
+                page->disagg_info->block_meta = r->wrapup_checkpoint_block_meta;
         }
 
         /*
@@ -3327,8 +3330,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          */
         if (F_ISSET(r, WT_REC_IN_MEMORY) || r->multi->supd_restore) {
             WT_ASSERT(session, !F_ISSET(r, WT_REC_REWRITE_DELTA));
-            if (r->ref->page->disagg_info != NULL)
-                r->ref->page->disagg_info->block_meta = *r->multi->block_meta;
+            if (page->disagg_info != NULL)
+                page->disagg_info->block_meta = *r->multi->block_meta;
             WT_ASSERT_ALWAYS(session,
               F_ISSET(r, WT_REC_IN_MEMORY) ||
                 (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0),
@@ -3347,8 +3350,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                 r->multi->addr.block_cookie = NULL;
                 mod->mod_disk_image = r->multi->disk_image;
                 r->multi->disk_image = NULL;
-                if (r->ref->page->disagg_info != NULL)
-                    r->ref->page->disagg_info->block_meta = *r->multi->block_meta;
+                if (page->disagg_info != NULL)
+                    page->disagg_info->block_meta = *r->multi->block_meta;
                 WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
             } else
                 WT_ASSERT(
@@ -3358,8 +3361,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             WT_RET(
               __rec_write(session, r->wrapup_checkpoint, &r->wrapup_checkpoint_block_meta, NULL,
                 NULL, NULL, true, F_ISSET(r, WT_REC_CHECKPOINT), r->wrapup_checkpoint_compressed));
-            if (r->ref->page->disagg_info != NULL)
-                r->ref->page->disagg_info->block_meta = r->wrapup_checkpoint_block_meta;
+            if (page->disagg_info != NULL)
+                page->disagg_info->block_meta = r->wrapup_checkpoint_block_meta;
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &r->multi->addr.ta);
         }
 
@@ -3380,8 +3383,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          * instead of reusing the existing page id. Building deltas on the split page is a future
          * thing.
          */
-        if (r->ref->page->disagg_info != NULL)
-            r->ref->page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+        if (page->disagg_info != NULL)
+            page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
 split:
         mod->mod_multi = r->multi;
