@@ -448,7 +448,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     /* Track the page's most recent LSN. */
     if (page->block_meta != NULL) {
         if (mod->rec_result == WT_PM_REC_MULTIBLOCK)
-            page->rec_lsn_max = mod->mod_multi[mod->mod_multi_entries - 1].block_meta.disagg_lsn;
+            page->rec_lsn_max = mod->mod_multi[mod->mod_multi_entries - 1].block_meta->disagg_lsn;
         else
             page->rec_lsn_max = page->block_meta->disagg_lsn;
     }
@@ -865,6 +865,7 @@ __rec_cleanup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         __wt_free(session, multi->disk_image);
         __wt_free(session, multi->supd);
         __wt_free(session, multi->addr.block_cookie);
+        __wt_free(session, multi->block_meta);
     }
     __wt_free(session, r->multi);
 
@@ -2530,17 +2531,17 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     WT_ASSERT(session, block_meta != NULL);
 
-    multi->block_meta = *block_meta;
+    *multi->block_meta = *block_meta;
 
     /* The first delta needs to explicitly initialize the base LSN. */
-    if (multi->block_meta.delta_count == 0)
-        multi->block_meta.base_lsn = multi->block_meta.disagg_lsn;
-    WT_ASSERT(session, multi->block_meta.base_lsn > 0);
-    multi->block_meta.backlink_lsn = block_meta->disagg_lsn;
-    ++multi->block_meta.delta_count;
+    if (multi->block_meta->delta_count == 0)
+        multi->block_meta->base_lsn = multi->block_meta->disagg_lsn;
+    WT_ASSERT(session, multi->block_meta->base_lsn > 0);
+    multi->block_meta->backlink_lsn = block_meta->disagg_lsn;
+    ++multi->block_meta->delta_count;
 
     /* Get the checkpoint ID. */
-    WT_RET(__wt_blkcache_write(session, &r->delta, &multi->block_meta, addr, addr_sizep,
+    WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, addr, addr_sizep,
       compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
     /* Turn off compression adjustment for delta. */
     *compressed_sizep = 0;
@@ -2572,13 +2573,13 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
             WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_gt100);
 
         /* Increase this count only when we write the first delta. */
-        if (multi->block_meta.delta_count == 1)
+        if (multi->block_meta->delta_count == 1)
             WT_STAT_CONN_DSRC_INCR(session, rec_pages_with_internal_deltas);
 
-        if (multi->block_meta.delta_count >
+        if (multi->block_meta->delta_count >
           __wt_atomic_load64(&conn->page_delta.max_internal_delta_count))
             __wt_atomic_store64(
-              &conn->page_delta.max_internal_delta_count, multi->block_meta.delta_count);
+              &conn->page_delta.max_internal_delta_count, multi->block_meta->delta_count);
     } else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
         WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_leaf);
         WT_STAT_CONN_INCRV(
@@ -2598,13 +2599,13 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
             WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_gt100);
 
         /* Increase this count only when we write the first delta. */
-        if (multi->block_meta.delta_count == 1)
+        if (multi->block_meta->delta_count == 1)
             WT_STAT_CONN_DSRC_INCR(session, rec_pages_with_leaf_deltas);
 
-        if (multi->block_meta.delta_count >
+        if (multi->block_meta->delta_count >
           __wt_atomic_load64(&conn->page_delta.max_leaf_delta_count))
             __wt_atomic_store64(
-              &conn->page_delta.max_leaf_delta_count, multi->block_meta.delta_count);
+              &conn->page_delta.max_leaf_delta_count, multi->block_meta->delta_count);
     }
 
     return (0);
@@ -2630,22 +2631,22 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     if (block_meta != NULL) {
         if (last_block && block_meta != NULL && r->multi_next == 1 &&
           block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
-            multi->block_meta = *block_meta;
+            *multi->block_meta = *block_meta;
             /*
              * Full page's backlink is the previous full page. If the previous page is a delta, use
              * the base as the new backlink. Otherwise, use the previous page as the backlink.
              */
-            if (multi->block_meta.delta_count > 0) {
-                WT_ASSERT(session, multi->block_meta.base_lsn > 0);
-                multi->block_meta.backlink_lsn = multi->block_meta.base_lsn;
+            if (multi->block_meta->delta_count > 0) {
+                WT_ASSERT(session, multi->block_meta->base_lsn > WT_DISAGG_LSN_NONE);
+                multi->block_meta->backlink_lsn = multi->block_meta->base_lsn;
             } else
-                multi->block_meta.backlink_lsn = multi->block_meta.disagg_lsn;
-            multi->block_meta.delta_count = 0;
-            multi->block_meta.base_lsn = 0;
+                multi->block_meta->backlink_lsn = multi->block_meta->disagg_lsn;
+            multi->block_meta->delta_count = 0;
+            multi->block_meta->base_lsn = WT_DISAGG_LSN_NONE;
         } else
-            __wt_page_block_meta_assign(session, &multi->block_meta);
+            __wt_page_block_meta_assign(session, multi->block_meta);
     }
-    WT_RET(__rec_write(session, &chunk->image, &multi->block_meta, addr, addr_sizep,
+    WT_RET(__rec_write(session, &chunk->image, multi->block_meta, addr, addr_sizep,
       compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
 
     if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL))
@@ -2680,7 +2681,7 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         break;
     case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
         if (page->block_meta != NULL)
-            multi->block_meta = *page->block_meta;
+            *multi->block_meta = *page->block_meta;
         if (mod->mod_replace.block_cookie != NULL) {
             WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &mod->mod_replace.ta);
             WT_RET(__wt_memdup(session, mod->mod_replace.block_cookie,
@@ -2694,7 +2695,7 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         break;
     case WT_PM_REC_MULTIBLOCK: /* Multiple blocks */
         WT_ASSERT(session, mod->mod_multi_entries == 1);
-        multi->block_meta = mod->mod_multi->block_meta;
+        *multi->block_meta = *mod->mod_multi->block_meta;
         if (mod->mod_multi->addr.block_cookie != NULL) {
             WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &mod->mod_multi->addr.ta);
             WT_RET(__wt_memdup(session, mod->mod_multi->addr.block_cookie,
@@ -2776,7 +2777,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         return (__wt_illegal_value(session, page->type));
     }
     multi->supd_restore = false;
-    WT_CLEAR(multi->block_meta);
+    if (page->block_meta != NULL)
+        WT_RET(__wt_calloc_one(session, &multi->block_meta));
 
     /* Set the key. */
     if (btree->type == BTREE_ROW)
@@ -3324,7 +3326,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         if (F_ISSET(r, WT_REC_IN_MEMORY) || r->multi->supd_restore) {
             WT_ASSERT(session, !F_ISSET(r, WT_REC_REWRITE_DELTA));
             if (r->ref->page->block_meta != NULL)
-                *r->ref->page->block_meta = r->multi->block_meta;
+                *r->ref->page->block_meta = *r->multi->block_meta;
             WT_ASSERT_ALWAYS(session,
               F_ISSET(r, WT_REC_IN_MEMORY) ||
                 (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0),
@@ -3344,7 +3346,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                 mod->mod_disk_image = r->multi->disk_image;
                 r->multi->disk_image = NULL;
                 if (r->ref->page->block_meta != NULL)
-                    *r->ref->page->block_meta = r->multi->block_meta;
+                    *r->ref->page->block_meta = *r->multi->block_meta;
                 WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
             } else
                 WT_ASSERT(

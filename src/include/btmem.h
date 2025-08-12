@@ -288,7 +288,7 @@ struct __wt_multi {
      * memory.
      */
     void *disk_image;
-    WT_PAGE_BLOCK_META block_meta; /* the metadata for the disk image */
+    WT_PAGE_BLOCK_META *block_meta; /* the metadata for the disk image */
 
     /*
      * List of unresolved updates. Updates are either a row-store insert or update list, or

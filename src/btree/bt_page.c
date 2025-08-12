@@ -532,7 +532,8 @@ __wti_page_reconstruct_deltas(
                 /* The split code works with WT_MULTI structures, build one for the disk image. */
                 memset(&multi, 0, sizeof(multi));
                 multi.disk_image = mod->mod_disk_image;
-                multi.block_meta = *ref->page->block_meta;
+                WT_RET(__wt_calloc_one(session, &multi.block_meta));
+                *multi.block_meta = *ref->page->block_meta;
 
                 /*
                  * Store the disk image to a temporary pointer in case we fail to rewrite the page
@@ -541,6 +542,7 @@ __wti_page_reconstruct_deltas(
                 tmp = mod->mod_disk_image;
                 mod->mod_disk_image = NULL;
                 ret = __wt_split_rewrite(session, ref, &multi, false);
+                __wt_free(session, multi.block_meta);
                 if (ret != 0) {
                     mod->mod_disk_image = tmp;
                     WT_STAT_CONN_DSRC_INCR(session, cache_read_flatten_leaf_delta_fail);
