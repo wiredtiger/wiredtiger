@@ -258,9 +258,11 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         FLD_SET(page_flags, WT_PAGE_WITH_DELTAS);
     WT_ERR(__wti_page_inmem(session, ref, tmp[0].data, page_flags, &notused, &instantiate_upd));
     tmp[0].mem = NULL;
-    ref->page->block_meta = block_meta;
-    ref->page->old_rec_lsn_max = block_meta.disagg_lsn;
-    ref->page->rec_lsn_max = block_meta.disagg_lsn;
+    if (ref->page->block_meta != NULL) {
+        *ref->page->block_meta = block_meta;
+        ref->page->old_rec_lsn_max = block_meta.disagg_lsn;
+        ref->page->rec_lsn_max = block_meta.disagg_lsn;
+    }
 
     /* Reconstruct deltas*/
     if (count > 1) {

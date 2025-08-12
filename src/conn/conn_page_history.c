@@ -346,8 +346,8 @@ __wt_conn_page_history_track_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
         return (0);
     }
 
-    page_id = page->block_meta.page_id;
-    if (page_id == 0) {
+    page_id = page->block_meta->page_id;
+    if (page_id == WT_BLOCK_INVALID_PAGE_ID) {
         (void)__wt_atomic_add64(&page_history->global_evict_count_no_page_id, 1);
         return (0);
     }
@@ -398,8 +398,8 @@ __wt_conn_page_history_track_read(WT_SESSION_IMPL *session, WT_PAGE *page)
         return (0);
     }
 
-    page_id = page->block_meta.page_id;
-    if (page_id == 0) /* This should not happen. */
+    page_id = page->block_meta->page_id;
+    if (page_id == WT_BLOCK_INVALID_PAGE_ID) /* This should not happen. */
         return (0);
 
     item = NULL;

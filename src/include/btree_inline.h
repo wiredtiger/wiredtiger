@@ -1645,8 +1645,8 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool page_replacement
 
     WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size, page_replacement));
 
-    if (!page_replacement && ref->page != NULL)
-        ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+    if (!page_replacement && ref->page != NULL && ref->page->block_meta != NULL)
+        ref->page->block_meta->page_id = WT_BLOCK_INVALID_PAGE_ID;
 
     /* Clear the address (so we don't free it twice). */
     __wt_ref_addr_free(session, ref);

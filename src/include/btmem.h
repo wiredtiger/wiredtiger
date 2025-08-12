@@ -262,11 +262,12 @@ struct __wt_page_block_meta {
 
     uint64_t backlink_lsn;
     uint64_t base_lsn;
-    uint32_t delta_count;
 
     uint32_t checksum;
 
     WT_PAGE_LOG_ENCRYPTION encryption;
+
+    uint8_t delta_count;
 };
 
 /*
@@ -838,7 +839,7 @@ struct __wt_page {
     uint64_t old_rec_lsn_max; /* The LSN associated with the page's before the most recent
                                  reconciliation */
     uint64_t rec_lsn_max;     /* The LSN associated with the page's most recent reconciliation */
-    WT_PAGE_BLOCK_META block_meta;
+    WT_PAGE_BLOCK_META *block_meta;
 
 #ifdef HAVE_DIAGNOSTIC
 #define WT_SPLIT_SAVE_STATE_MAX 3

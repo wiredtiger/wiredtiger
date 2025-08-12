@@ -532,7 +532,7 @@ __wti_page_reconstruct_deltas(
                 /* The split code works with WT_MULTI structures, build one for the disk image. */
                 memset(&multi, 0, sizeof(multi));
                 multi.disk_image = mod->mod_disk_image;
-                multi.block_meta = ref->page->block_meta;
+                multi.block_meta = *ref->page->block_meta;
 
                 /*
                  * Store the disk image to a temporary pointer in case we fail to rewrite the page
@@ -659,6 +659,12 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
     page->type = type;
     __wt_evict_page_init(page);
 
+    /* Allocate an empty block meta. */
+    if (F_ISSET(S2C(session), WT_BTREE_DISAGGREGATED)) {
+        WT_ERR(__wt_calloc_one(session, &page->block_meta));
+        size += sizeof(WT_PAGE_BLOCK_META);
+    }
+
     switch (type) {
     case WT_PAGE_COL_FIX:
         page->entries = alloc_entries;
@@ -685,12 +691,7 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
                 }
             if (0) {
 err:
-                WT_INTL_INDEX_GET_SAFE(page, pindex);
-                if (pindex != NULL) {
-                    for (i = 0; i < pindex->entries; ++i)
-                        __wt_free(session, pindex->index[i]);
-                    __wt_free(session, pindex);
-                }
+                __wt_page_out(session, &page);
                 return (ret);
             }
         }
@@ -706,9 +707,6 @@ err:
     default:
         return (__wt_illegal_value(session, type));
     }
-
-    /* A new page doesn't have a page id. */
-    page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
     /* Increment the cache statistics. */
     __wt_cache_page_inmem_incr(session, page, size, false);
