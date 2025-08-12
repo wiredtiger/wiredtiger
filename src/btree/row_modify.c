@@ -148,26 +148,28 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
             __wt_upd_value_assign(cbt->modify_update, upd);
         } else {
             /*
-             * We only update history store records in three cases:
+             * We only update history store records in two cases:
              *  1) Delete the record with a tombstone with WT_TS_NONE.
-             *  2) Update the record's stop time point if the prepared update written to the data
-             * store is committed.
-             *  3) Reinsert an update that has been deleted by a prepared rollback.
+             *  2) Reinsert an update that has been deleted by a prepared commit or rollback.
              */
             WT_ASSERT(session,
               !WT_IS_HS(S2BT(session)->dhandle) ||
-                (*upd_entry == NULL ||
-                  ((*upd_entry)->type == WT_UPDATE_TOMBSTONE &&
-                    (((*upd_entry)->txnid == WT_TXN_NONE &&
-                       (*upd_entry)->upd_start_ts == WT_TS_NONE) ||
-                      __wt_txn_visible_all(
-                        session, (*upd_entry)->txnid, (*upd_entry)->upd_durable_ts) ||
-                      ((*upd_entry)->txnid == WT_TXN_ABORTED &&
-                        (*upd_entry)->next->txnid == WT_TXN_ABORTED)))) ||
                 (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->upd_start_ts == WT_TS_NONE &&
                   upd_arg->next == NULL) ||
                 (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->next != NULL &&
                   upd_arg->next->type == WT_UPDATE_STANDARD && upd_arg->next->next == NULL));
+            WT_ASSERT(session,
+              !WT_IS_HS(S2BT(session)->dhandle) || *upd_entry == NULL ||
+                ((*upd_entry)->type == WT_UPDATE_TOMBSTONE && (*upd_entry)->txnid == WT_TXN_NONE &&
+                  (*upd_entry)->upd_start_ts == WT_TS_NONE) ||
+                ((*upd_entry)->txnid == WT_TXN_ABORTED &&
+                  (*upd_entry)->next->txnid == WT_TXN_ABORTED) ||
+                ((*upd_entry)->type == WT_UPDATE_TOMBSTONE &&
+                  (*upd_entry)->txnid != WT_TXN_ABORTED &&
+                  (*upd_entry)->next->type == WT_UPDATE_STANDARD &&
+                  (*upd_entry)->next->txnid != WT_TXN_ABORTED) ||
+                ((*upd_entry)->type == WT_UPDATE_STANDARD &&
+                  (*upd_entry)->txnid != WT_TXN_ABORTED));
 
             upd_size = __wt_update_list_memsize(upd);
 
@@ -179,14 +181,17 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
             /*
              * If we restore an update chain in update restore eviction, there should be no update
              * or a restored tombstone on the existing update chain except for btrees with leaf
-             * delta enabled. FIXME-WT-14885: No need to consider the delta case if we have
-             * implemented delta consolidation.
+             * delta enabled or a prepared update if the preserve prepared config is enabled.
+             * FIXME-WT-14885: No need to consider the delta case if we have implemented delta
+             * consolidation.
              */
             WT_ASSERT_ALWAYS(session,
               !restore ||
                 (*upd_entry == NULL ||
                   (WT_DELTA_LEAF_ENABLED(session) && (*upd_entry)->type == WT_UPDATE_TOMBSTONE &&
-                    F_ISSET(*upd_entry, WT_UPDATE_RESTORED_FROM_DS))),
+                    F_ISSET(*upd_entry, WT_UPDATE_RESTORED_FROM_DS)) ||
+                  (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+                    (*upd_entry)->prepare_state == WT_PREPARE_INPROGRESS)),
               "Illegal update on chain during update restore eviction");
 
             /*

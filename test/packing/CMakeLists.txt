@@ -12,6 +12,13 @@ create_test_executable(test_intpack
     EXECUTABLE_NAME "intpack-test3"
 )
 
+# Create intpack test executable.
+create_test_executable(test_int4bpack
+    SOURCES int4bpack-test.c
+    EXECUTABLE_NAME "int4bpack-test"
+)
+
 add_test(NAME test_packing COMMAND test_packing)
 add_test(NAME test_intpack COMMAND test_intpack)
+add_test(NAME test_int4bpack COMMAND test_int4bpack)
 set_tests_properties(test_packing PROPERTIES LABELS "check")

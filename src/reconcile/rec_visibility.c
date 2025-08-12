@@ -36,6 +36,7 @@ __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT
     supd->rip = rip;
     supd->onpage_upd = onpage_upd;
     supd->onpage_tombstone = tombstone;
+    supd->free_upds = NULL;
     supd->tw = *tw;
     supd->restore = supd_restore;
     ++r->supd_next;
@@ -264,10 +265,11 @@ static int
 __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
   WT_ROW *rip, WTI_UPDATE_SELECT *upd_select)
 {
-    WT_UPDATE *delete_tombstone, *delete_upd, *visible_all_upd;
+    WT_UPDATE *delete_tombstone, *delete_upd, *triggering_prepare_upd, *visible_all_upd;
     wt_timestamp_t prune_timestamp;
     uint64_t oldest_id;
-    bool delete_hs_upd_found;
+    uint8_t prepare_state;
+    bool delete_hs_upd_found, find_triggering_prepare;
 
     WT_ACQUIRE_READ(prune_timestamp, S2BT(session)->prune_timestamp);
     oldest_id = __wt_txn_oldest_id(session);
@@ -275,8 +277,22 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
     visible_all_upd = NULL;
     delete_hs_upd_found = false;
 
-    for (delete_upd = upd_select->tombstone != NULL ? upd_select->tombstone : upd_select->upd;
+    find_triggering_prepare = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+      WT_TIME_WINDOW_HAS_START_PREPARE(&upd_select->tw);
+    /*
+     * If we're in preserve_prepared mode and have a prepared time window, look for the prepared
+     * update that triggered the history store deletion. This helps us determine if we should delay
+     * the deletion until the prepared update is committed/rolled back and stable.
+     */
+    for (delete_upd = upd_select->tombstone != NULL ? upd_select->tombstone : upd_select->upd,
+        triggering_prepare_upd = NULL;
          delete_upd != NULL; delete_upd = delete_upd->next) {
+        if (find_triggering_prepare && delete_upd->type != WT_UPDATE_RESERVE) {
+            WT_ACQUIRE_READ(prepare_state, delete_upd->prepare_state);
+            if (prepare_state != WT_PREPARE_INIT)
+                triggering_prepare_upd = delete_upd;
+        }
+
         if (delete_upd->txnid == WT_TXN_ABORTED)
             continue;
 
@@ -286,6 +302,22 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
               "Attempting to remove an update from the history store in WiredTiger, but the "
               "update was missing.");
             delete_hs_upd_found = true;
+            find_triggering_prepare = false;
+            if (triggering_prepare_upd != NULL) {
+                uint64_t txnid;
+                WT_ACQUIRE_READ(txnid, triggering_prepare_upd->txnid);
+                if (txnid == WT_TXN_ABORTED)
+                    txnid = triggering_prepare_upd->upd_saved_txnid;
+                /*
+                 * It must be the operation on this prepared update that triggered us to delete the
+                 * update from the history store. If it is the same prepared update we are writing
+                 * to disk, don't delete the update from the history store now. We need to wait the
+                 * prepared update to become stable.
+                 */
+                if (txnid == upd_select->tw.start_txn)
+                    break;
+            }
+
             if (delete_upd->type == WT_UPDATE_TOMBSTONE)
                 delete_tombstone = delete_upd;
             else {
@@ -1303,26 +1335,16 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      * Set the flag if the selected tombstone has no timestamp. Based on this flag, the caller
      * functions perform the history store truncation for this key.
      */
-    if (!F_ISSET(session->dhandle, WT_DHANDLE_HS) && upd_select->tombstone != NULL &&
-      !F_ISSET(upd_select->tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS)) {
-        upd = upd_select->upd;
-
-        /*
-         * The selected update can be the tombstone itself when the tombstone is globally visible.
-         * Compare the tombstone's timestamp with either the next update in the update list or the
-         * on-disk cell timestamp to determine if the tombstone is discarding a timestamp.
-         */
-        if (upd_select->tombstone == upd) {
-            upd = upd->next;
-
-            /* Loop until a valid update is found. */
-            while (upd != NULL && upd->txnid == WT_TXN_ABORTED)
-                upd = upd->next;
-        }
-
-        if ((upd != NULL && upd->upd_start_ts > upd_select->tombstone->upd_start_ts) ||
-          (vpack != NULL && vpack->tw.start_ts > upd_select->tombstone->upd_start_ts))
+    if (!WT_IS_HS(session->dhandle) && upd_select->tombstone != NULL &&
+      !F_ISSET(upd_select->tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS) &&
+      !WT_TIME_WINDOW_HAS_STOP_PREPARE(&upd_select->tw)) {
+        if ((upd_select->tombstone != upd_select->upd &&
+              upd_select->tw.start_ts > upd_select->tw.stop_ts) ||
+          (vpack != NULL && vpack->tw.start_ts > upd_select->tw.stop_ts &&
+            upd_select->tw.stop_ts == WT_TS_NONE)) {
+            WT_ASSERT(session, upd_select->tw.stop_ts == WT_TS_NONE);
             upd_select->no_ts_tombstone = true;
+        }
     }
 
     /*
@@ -1422,5 +1444,5 @@ __wt_rec_in_progress(WT_SESSION_IMPL *session)
 {
     WTI_RECONCILE *rec = session->reconcile;
 
-    return (!(rec == NULL && rec->ref == NULL));
+    return (rec != NULL && rec->ref != NULL);
 }
