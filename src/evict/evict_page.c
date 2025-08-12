@@ -491,9 +491,9 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             /* The split code works with WT_MULTI structures, build one for the disk image. */
             memset(&multi, 0, sizeof(multi));
             multi.disk_image = mod->mod_disk_image;
-            if (ref->page->block_meta != NULL) {
+            if (ref->page->disagg_info != NULL) {
                 WT_RET(__wt_calloc_one(session, &multi.block_meta));
-                *multi.block_meta = *ref->page->block_meta;
+                *multi.block_meta = ref->page->disagg_info->block_meta;
             }
             WT_ASSERT(session, mod->mod_replace.block_cookie == NULL);
             /*
@@ -967,7 +967,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * We must do scrub dirty eviction for disaggregated storage btrees as we cannot read back the
      * evicted page until they are materialized.
      */
-    if (!closing && F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+    if (!closing && ref->page->disagg_info != NULL) {
         /*
          * We should not evict dirty internal pages for disaggregated storage as they cannot be
          * recreated in-memory and it doesn't effectively reduce cache usage.

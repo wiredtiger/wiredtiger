@@ -533,7 +533,7 @@ __wti_page_reconstruct_deltas(
                 memset(&multi, 0, sizeof(multi));
                 multi.disk_image = mod->mod_disk_image;
                 WT_RET(__wt_calloc_one(session, &multi.block_meta));
-                *multi.block_meta = *ref->page->block_meta;
+                *multi.block_meta = ref->page->disagg_info->block_meta;
 
                 /*
                  * Store the disk image to a temporary pointer in case we fail to rewrite the page
@@ -590,9 +590,6 @@ __wt_page_block_meta_assign(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
     btree = S2BT(session);
 
     WT_CLEAR(*meta);
-    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-        return;
-
     /*
      * Allocate an interim page ID. If the page is actually being loaded from disk, it's ok to waste
      * some IDs for now.
@@ -661,9 +658,9 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
     page->type = type;
     __wt_evict_page_init(page);
 
-    /* Allocate an empty block meta. */
+    /* Allocate the structure that holds the disaggregated information for the page. */
     if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
-        WT_ERR(__wt_calloc_one(session, &page->block_meta));
+        WT_ERR(__wt_calloc_one(session, &page->disagg_info));
         size += sizeof(WT_PAGE_BLOCK_META);
     }
 
