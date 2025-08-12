@@ -660,7 +660,7 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
     __wt_evict_page_init(page);
 
     /* Allocate an empty block meta. */
-    if (F_ISSET(S2C(session), WT_BTREE_DISAGGREGATED)) {
+    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
         WT_ERR(__wt_calloc_one(session, &page->block_meta));
         size += sizeof(WT_PAGE_BLOCK_META);
     }
