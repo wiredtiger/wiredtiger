@@ -1210,9 +1210,11 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      *     If there are older updates written to the history store:
      *         commit: restore the newest history store update with a max stop time point and mark
      *                 it to be deleted to fix it in the future reconciliation. When the commit
-     * becomes stable, we reinsert the history store record to the history store with the correct
-     * stop time point. rollback: restore the newest update in the history store to the data store
-     * and mark it to be deleted from the history store in the future reconciliation.
+     *                 becomes stable, we reinsert the history store record to the history store
+     *                 with the correct stop time point.
+     *         rollback: restore the newest update in the history store to the data store
+     *                   and mark it to be deleted from the history store in the future
+     *                   reconciliation.
      *
      * 4) We are running an in-memory database:
      *     commit: resolve the prepared updates in memory.
