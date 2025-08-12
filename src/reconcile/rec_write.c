@@ -446,10 +446,12 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     page->old_rec_lsn_max = page->rec_lsn_max;
     /* Track the page's most recent LSN. */
-    if (mod->rec_result == WT_PM_REC_MULTIBLOCK)
-        page->rec_lsn_max = mod->mod_multi[mod->mod_multi_entries - 1].block_meta.disagg_lsn;
-    else
-        page->rec_lsn_max = r->page->block_meta->disagg_lsn;
+    if (page->block_meta != NULL) {
+        if (mod->rec_result == WT_PM_REC_MULTIBLOCK)
+            page->rec_lsn_max = mod->mod_multi[mod->mod_multi_entries - 1].block_meta.disagg_lsn;
+        else
+            page->rec_lsn_max = page->block_meta->disagg_lsn;
+    }
 
     /*
      * Track the tree's maximum transaction ID (used to decide if it's safe to discard the tree) and

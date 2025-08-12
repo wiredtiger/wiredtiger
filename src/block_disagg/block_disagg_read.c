@@ -200,8 +200,9 @@ reread:
                     block_meta->backlink_lsn = get_args.backlink_lsn;
                     block_meta->base_lsn = get_args.base_lsn;
                     block_meta->disagg_lsn = get_args.lsn;
-                    block_meta->delta_count =
-                      get_args.delta_count == 0 ? *results_count - 1 : get_args.delta_count;
+                    block_meta->delta_count = get_args.delta_count == 0 ?
+                      (uint8_t)(*results_count - 1) :
+                      (unit8_t)get_args.delta_count;
                     block_meta->checksum = checksum;
                     block_meta->encryption = get_args.encryption;
                     if (block_meta->delta_count > 0)
