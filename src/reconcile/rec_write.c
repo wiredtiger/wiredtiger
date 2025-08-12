@@ -3172,9 +3172,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     btree = S2BT(session);
     bm = btree->bm;
-    mod = page->modify;
     ref = r->ref;
     page = r->page;
+    mod = page->modify;
     WT_TIME_AGGREGATE_INIT(&ta);
     previous_ref_state = 0;
 
