@@ -2053,7 +2053,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * Don't evict dirty internal pages for disaggregated storage. They cannot be recreated
      * in-memory and it will not reduce cache usage.
      */
-    if (modified && btree->disagg_info != NULL && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+    if (modified && page->disagg_info != NULL && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_disagg_dirty_internal_page);
         return (false);
     }
