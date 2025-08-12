@@ -997,7 +997,8 @@ restart:
             continue;
 
         WT_WITH_DHANDLE(session, dhandle,
-          WT_TRET(__wti_conn_dhandle_discard_single(session, true, F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC))));
+          WT_TRET(__wti_conn_dhandle_discard_single(
+            session, true, F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC))));
         goto restart;
     }
 
@@ -1023,7 +1024,8 @@ restart:
     WT_TAILQ_SAFE_REMOVE_BEGIN(dhandle, &conn->dhqh, q, dhandle_tmp)
     {
         WT_WITH_DHANDLE(session, dhandle,
-          WT_TRET(__wti_conn_dhandle_discard_single(session, true, F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC))));
+          WT_TRET(__wti_conn_dhandle_discard_single(
+            session, true, F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC))));
     }
     WT_TAILQ_SAFE_REMOVE_END
 
