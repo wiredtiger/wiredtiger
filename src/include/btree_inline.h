@@ -1975,8 +1975,9 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * to happen, as long as their equivalent content remains in cache until the materialization
      * frontier is satisfied.
      */
-    if (mod == NULL && page->disagg_info != NULL) {
-        if (__wt_page_materialization_check(session, page->disagg_info->rec_lsn_max))
+    if (mod == NULL) {
+        if (page->disagg_info != NULL &&
+          __wt_page_materialization_check(session, page->disagg_info->rec_lsn_max))
             return (true);
         else {
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
