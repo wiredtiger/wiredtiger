@@ -36,7 +36,7 @@ from prepare_util import test_prepare_preserve_prepare_base
 class test_prepare33(test_prepare_preserve_prepare_base):
     uri = 'table:test_prepare32'
 
-    def test_rollback_prepare(self):
+    def test_rollbacked_prepare(self):
         # Set initial timestamps - start with lower values
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
