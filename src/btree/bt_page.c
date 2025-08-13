@@ -658,7 +658,7 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
         size += sizeof(WT_PAGE_DISAGG_INFO);
         WT_RET(__wt_calloc(session, 1, size, &page));
         page->disagg_info =
-          (WT_PAGE_DISAGG_INFO *)((void *)page + size - sizeof(WT_PAGE_DISAGG_INFO));
+          (WT_PAGE_DISAGG_INFO *)((uin8_t *)page + size - sizeof(WT_PAGE_DISAGG_INFO));
     } else
         WT_RET(__wt_calloc(session, 1, size, &page));
 
