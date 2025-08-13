@@ -2275,7 +2275,7 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
     WT_ERR(__wt_buf_init(session, custom_value, 1 + value->size));
     custom_value->size = 1 + value->size;
     WT_ERR(__wt_struct_pack(session, (void *)custom_value->data, custom_value->size,
-      WT_UNCHECKED_STRING(Bu), flags, value));
+      WT_DELTA_LEAF_VALUE_FORMAT, flags, value));
 
     /* Pack the custom value into a standard cell structure. */
     WT_ERR(
