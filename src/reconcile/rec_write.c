@@ -2206,12 +2206,18 @@ __wti_rec_pack_delta_internal(
 
     __wti_rec_kv_copy(session, p, key);
     p += key->len;
+
+    /*
+     * If the value is NULL then write the zeroed out values and set the cell type to
+     * WT_CELL_ADDR_DEL.
+     */
     if (value == NULL) {
-        LF_SET(WT_CELL_ADDR_DEL);
+        printf("HELLO\n");
         value->buf.data = NULL;
         value->buf.size = 0;
-        value->cell_len = 1;
-        value->len = 1;
+        value->cell_len = __wt_cell_pack_addr(
+          session, &value->cell, WT_CELL_ADDR_DEL, WT_RECNO_OOB, NULL, NULL, value->buf.size);
+        value->len = value->cell_len + value->buf.size;
     } else
         __wti_rec_kv_copy(session, p, value);
 

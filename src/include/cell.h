@@ -242,9 +242,6 @@ struct __wt_cell_unpack_delta_int {
     uint32_t __len;
     WT_CELL_UNPACK_KV key;
     WT_CELL_UNPACK_ADDR value;
-
-#define WT_DELTA_INT_IS_VALID 0x01u
-    uint8_t flags;
 };
 
 /*

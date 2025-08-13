@@ -1441,19 +1441,16 @@ __wt_cell_unpack_delta_int(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *page_
 
     WT_UNUSED(dsk);
 
-    unpack_delta->flags = cell->__chunk[0];
     p = (uint8_t *)&cell->__chunk[1];
 
     /* Unpack the key. */
     __wt_cell_unpack_kv(session, page_dsk, (WT_CELL *)p, &unpack_delta->key);
     p += unpack_delta->key.__len;
 
-    /* Optionally unpack the value if it exists. */
-    if (!F_ISSET(unpack_delta, WT_CELL_ADDR_DEL)) {
-        F_SET(unpack_delta, WT_DELTA_INT_IS_VALID);
-        __wt_cell_unpack_addr(session, page_dsk, (WT_CELL *)p, &unpack_delta->value);
+    /* Unpack the value to check for the internal page that is a delete. */
+    __wt_cell_unpack_addr(session, page_dsk, (WT_CELL *)p, &unpack_delta->value);
+    if (__wt_cell_type_raw(unpack_delta->value.cell) != WT_CELL_ADDR_DEL)
         p += unpack_delta->value.__len;
-    }
 
     unpack_delta->__len = (uint32_t)WT_PTRDIFF(p, &cell->__chunk[0]);
 
