@@ -257,7 +257,7 @@ struct __wt_cell_unpack_delta_leaf_kv {
     WT_ITEM delta_value_data;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_VALUE_IS_DELETE 0x1u
+#define WT_DELTA_LEAF_IS_DELETE 0x1u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
