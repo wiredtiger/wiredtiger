@@ -5289,7 +5289,6 @@ tasks:
         vars:
           test-name: cache_update_trigger_read-90_write-10.py
 
-
     ###########################################
     # Performance Tests for log consolidation #
     ###########################################
