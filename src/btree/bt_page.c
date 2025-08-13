@@ -661,7 +661,7 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
     /* Allocate the structure that holds the disaggregated information for the page. */
     if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
         WT_ERR(__wt_calloc_one(session, &page->disagg_info));
-        size += sizeof(WT_PAGE_BLOCK_META);
+        size += sizeof(WT_PAGE_DISAGG_INFO);
     }
 
     switch (type) {

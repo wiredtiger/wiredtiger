@@ -2626,10 +2626,10 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     page = r->page;
     multi = &r->multi[r->multi_next - 1];
-    block_meta = &page->disagg_info->block_meta;
 
     /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
-    if (block_meta != NULL) {
+    if (page->disagg_info != NULL) {
+        block_meta = &page->disagg_info->block_meta;
         if (last_block && block_meta != NULL && r->multi_next == 1 &&
           block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
             *multi->block_meta = *block_meta;
@@ -2673,6 +2673,9 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     mod = page->modify;
     multi = &r->multi[r->multi_next - 1];
 
+    /* We must be in disagg code. */
+    WT_ASSERT(session, multi->block_meta != NULL && page->disagg_info != NULL);
+
     switch (mod->rec_result) {
     case 0:
         WT_ASSERT(session, r->ref->addr != NULL);
@@ -2681,8 +2684,7 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         WT_ASSERT_ALWAYS(session, false, "write delta for a new page.");
         break;
     case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
-        if (page->disagg_info != NULL)
-            *multi->block_meta = page->disagg_info->block_meta;
+        *multi->block_meta = page->disagg_info->block_meta;
         if (mod->mod_replace.block_cookie != NULL) {
             WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &mod->mod_replace.ta);
             WT_RET(__wt_memdup(session, mod->mod_replace.block_cookie,
@@ -2740,7 +2742,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     btree = S2BT(session);
     page = r->page;
     build_delta = false;
-    block_meta = &page->disagg_info->block_meta;
 #ifdef HAVE_DIAGNOSTIC
     verify_image = true;
 #endif
@@ -2869,16 +2870,20 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         WT_ASSERT_ALWAYS(session, chunk->entries > 0, "Trying to write an empty chunk");
     }
 
-    if (WT_DELTA_ENABLED_FOR_PAGE(session, r->page->type) && last_block && r->multi_next == 1 &&
-      block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
-      block_meta->delta_count < conn->page_delta.max_consecutive_delta) {
-        WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
-        /*
-         * Discard the delta if it is larger than the configured percentage of the size of the full
-         * image.
-         */
-        if (build_delta && ((r->delta.size * 100) / chunk->image.size) > conn->page_delta.delta_pct)
-            build_delta = false;
+    if (page->disagg_info != NULL) {
+        block_meta = &page->disagg_info->block_meta;
+        if (WT_DELTA_ENABLED_FOR_PAGE(session, r->page->type) && last_block && r->multi_next == 1 &&
+          block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
+          block_meta->delta_count < conn->page_delta.max_consecutive_delta) {
+            WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
+            /*
+             * Discard the delta if it is larger than the configured percentage of the size of the
+             * full image.
+             */
+            if (build_delta &&
+              ((r->delta.size * 100) / chunk->image.size) > conn->page_delta.delta_pct)
+                build_delta = false;
+        }
     }
 
     /* Write the disk image and get an address. */
