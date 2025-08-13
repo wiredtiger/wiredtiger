@@ -25,6 +25,7 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+import wttest
 from helper import copy_wiredtiger_home
 from prepare_util import test_prepare_preserve_prepare_base
 
@@ -34,9 +35,8 @@ from prepare_util import test_prepare_preserve_prepare_base
 class test_prepare38(test_prepare_preserve_prepare_base):
     uri = 'table:test_prepare38'
 
+    @wttest.skip_for_hook("disagg", "Skip test until cell packing/unpacking is supported for page delta")
     def test_open(self):
-        if 'disagg' in self.hook_names:
-            self.skipTest("Skip test until cell packing/unpacking is supported for page delta and tier storage")
         create_params = 'key_format=i,value_format=S'
         self.session.create(self.uri, create_params)
 
