@@ -49,7 +49,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('unnamed', dict(checkpoint_name=None)),
     ]
     ckpt_precision = [
-        ('fuzzy', dict(ckpt_config='checkpoint=(precise=false)')),
+        ('fuzzy', dict(ckpt_config='precise_checkpoint=false')),
         ('precise', dict(ckpt_config='precise_checkpoint=true')),
     ]
     scenarios = make_scenarios(ckptname_values, ckpt_precision)
