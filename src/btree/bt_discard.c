@@ -150,9 +150,6 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
         break;
     }
 
-    if (page->disagg_info != NULL)
-        __wt_free(session, page->disagg_info);
-
     /* Discard any allocated disk image. */
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC))
         __wt_overwrite_and_free_len(session, dsk, dsk->mem_size);
