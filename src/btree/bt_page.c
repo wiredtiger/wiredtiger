@@ -598,9 +598,9 @@ __wt_page_block_meta_assign(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
     WT_ASSERT(session, page_id >= WT_BLOCK_MIN_PAGE_ID);
 
     meta->page_id = page_id;
-    meta->disagg_lsn = 0;
-    meta->backlink_lsn = 0;
-    meta->base_lsn = 0;
+    meta->disagg_lsn = WT_DISAGG_LSN_NONE;
+    meta->backlink_lsn = WT_DISAGG_LSN_NONE;
+    meta->base_lsn = WT_DISAGG_LSN_NONE;
 
     /*
      * 0 means there is no delta written for this page yet. We always write a full page for a new
