@@ -51,6 +51,8 @@ class WTBranches:
         with open(bash_script, "r") as f:
             content = f.read()
         for name in ['SUITE_RELEASE_BRANCHES']:
+            # The regex is searching for multi lines of environment variables define
+            # Example: export SUITE_RELEASE_BRANCHES = "this mongodb-7.1 mongodb-7.2"
             match = re.search(r'export\s+'+name+r'\s*=\s*"([^"]*)"', content)
             if match:
                 versions = match.group(1)
