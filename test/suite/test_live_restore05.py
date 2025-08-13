@@ -35,6 +35,7 @@ from wtbackup import backup_base
 # test_live_restore05.py
 # Reproduce a live restore edge case that resulted in duplicate metadata entries.
 @wttest.skip_for_hook("tiered", "using multiple WT homes")
+@wttest.skip_for_hook("disagg", "live restore does not support remote files")
 class test_live_restore05(backup_base):
     format_values = [
         ('row_integer', dict(key_format='i', value_format='S')),

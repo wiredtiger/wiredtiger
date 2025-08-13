@@ -35,6 +35,7 @@ from wtbackup import backup_base
 # test_live_restore02.py
 # Enable background thread migration and loop until it completes
 @wttest.skip_for_hook("tiered", "using multiple WT homes")
+@wttest.skip_for_hook("disagg", "live restore does not support remote files")
 class test_live_restore02(backup_base):
     format_values = [
         ('column', dict(key_format='r', value_format='S')),

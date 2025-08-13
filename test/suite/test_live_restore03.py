@@ -36,6 +36,7 @@ from wtbackup import backup_base
 # directory.
 # Note: The block_size statistic corresponds to underlying file size.
 @wttest.skip_for_hook("tiered", "using multiple WT homes")
+@wttest.skip_for_hook("disagg", "live restore does not support remote files")
 class test_live_restore03(backup_base):
     nrows = 100
 
