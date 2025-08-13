@@ -655,20 +655,15 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
 
     /* Allocate the structure that holds the disaggregated information for the page. */
     if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
-        WT_RET(__wt_calloc(session, 1, sizeof(WT_PAGE) + sizeof(WT_PAGE_DISAGG_INFO), &page));
-        page->disagg_info = (WT_PAGE_DISAGG_INFO *)(page + 1);
         size += sizeof(WT_PAGE_DISAGG_INFO);
+        WT_RET(__wt_calloc(session, 1, size, &page));
+        page->disagg_info =
+          (WT_PAGE_DISAGG_INFO *)((void *)page + size - sizeof(WT_PAGE_DISAGG_INFO));
     } else
-        WT_RET(__wt_calloc(session, 1, sizeof(WT_PAGE), &page));
+        WT_RET(__wt_calloc(session, 1, size, &page));
 
     page->type = type;
     __wt_evict_page_init(page);
-
-    /* Allocate the structure that holds the disaggregated information for the page. */
-    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
-        WT_ERR(__wt_calloc_one(session, &page->disagg_info));
-        size += sizeof(WT_PAGE_DISAGG_INFO);
-    }
 
     switch (type) {
     case WT_PAGE_COL_FIX:
