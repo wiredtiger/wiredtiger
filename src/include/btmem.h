@@ -805,6 +805,8 @@ struct __wt_page {
 
     /* 1 byte hole expected. */
 
+    wt_shared size_t memory_footprint; /* Memory attached to the page */
+
     /* Page's on-disk representation: NULL for pages created in memory. */
     const WT_PAGE_HEADER *dsk;
 
@@ -815,8 +817,6 @@ struct __wt_page {
      * !!!
      * This is the 64 byte boundary, try to keep hot fields above here.
      */
-    
-    wt_shared size_t memory_footprint; /* Memory attached to the page */
 
 /*
  * The page's read generation acts as an LRU value for each page in the
