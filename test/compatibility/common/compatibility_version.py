@@ -31,6 +31,8 @@ from typing import Union
 
 # This is a version class aimed to provide a operatable version object
 # For compare, this > develop > mongodb-{major}:{minor}
+#    the branch of 'this' here means the code in current folder,
+#    and if 'this' is used, 'git checkout ...' will not be executed.
 # For invalid version string, this will return false by bool operator
 
 class WTVersion:

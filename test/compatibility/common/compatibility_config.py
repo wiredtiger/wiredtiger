@@ -57,10 +57,14 @@ class WTBranches:
             if match:
                 versions = match.group(1)
                 # This is designed to compatitate with multi-line variable define
-                versions = versions.replace('\n', '').replace('\\', '').split()
-                versions = [WTVersion(version) for version in versions]
+                versions:List[str] = versions.replace('\n', '').replace('\\', '').split()
+                # Versions are constructured from str to WTVersions
+                versions:List[WTVersion] = [WTVersion(version) for version in versions]
+                # Following 'if' is used to filter out invalid branches
                 versions = [version for version in versions if version]
                 setattr(self, name, versions)
+        # the following "not self" is equivelent to self.__bool__()
+        # the purpose here is to make sure all expected variables are found
         if not self:
             raise Exception("Failed to extract versions from " + bash_script)
         return self
