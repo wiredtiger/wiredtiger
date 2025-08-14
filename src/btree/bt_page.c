@@ -553,7 +553,7 @@ __wti_page_reconstruct_deltas(
                 }
 
                 WT_STAT_CONN_DSRC_INCR(session, cache_read_flatten_leaf_delta);
-            } else {
+            } else if (ret != 0) {
                 WT_STAT_CONN_DSRC_INCR(session, cache_read_flatten_leaf_delta_fail);
                 WT_RET(ret);
             }
