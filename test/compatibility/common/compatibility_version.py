@@ -43,8 +43,8 @@ class WTVersion:
         # group is used to unify this and develop
         # this : 2, develop : 1, mongod-a.b : 0
         self.group = 0
-        self.main = 0
-        self.sub = 0
+        self.major = 0
+        self.minor = 0
         if name == "this":
             self.group = 2
         if name == "develop":
@@ -53,8 +53,8 @@ class WTVersion:
             # Match patterns like mongodb-8.0, without prefix and suffix
             match = re.match(r'^mongodb-(\d+)\.(\d+)$', name)
             if match:
-                self.main = int(match.group(1))
-                self.sub = int(match.group(2))
+                self.major = int(match.group(1))
+                self.minor = int(match.group(2))
             else:
                 self.is_valid = False
 
@@ -68,8 +68,8 @@ class WTVersion:
         else:
             return (
                 self.group == other.group
-                and self.main == other.main
-                and self.sub == other.sub
+                and self.major == other.major
+                and self.minor == other.minor
             )
 
     def __lt__(self, other: "WTVersion"):
@@ -77,12 +77,12 @@ class WTVersion:
             return True
         elif self.group > other.group:
             return False
-        elif self.main < other.main:
+        elif self.major < other.major:
             return True
-        elif self.main > other.main:
+        elif self.major > other.major:
             return False
         else:
-            return self.sub < other.sub
+            return self.minor < other.minor
 
     def __gt__(self, other: "WTVersion"):
         if self < other or self == other:

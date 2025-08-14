@@ -739,7 +739,7 @@ gittags['mongodb-4.2']="mongodb-4.2"
 #gittags['mongodb-5.0']="ce1d1e58ba35166710552e3aaa1c426ddba513fd"
 #gittags['mongodb-4.4']="ec742d6807b943cd6f2baf1a55853d296eb5b5c6"
 
-# The version list is defined in the "meta/versions.sh" folder
+# The version list is defined in the "meta/versions.sh" shell script
 # The variable name is the uppercased variable name
 
 # Use relative folder to locate the meta file
