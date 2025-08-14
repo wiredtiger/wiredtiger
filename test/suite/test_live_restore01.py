@@ -34,8 +34,6 @@ from wtbackup import backup_base
 
 # test_live_restore01.py
 # Test live restore compatibility with various other connection options.
-@wttest.skip_for_hook("tiered", "using multiple WT homes")
-@wttest.skip_for_hook("disagg", "live restore does not support remote files")
 class test_live_restore01(backup_base):
 
     def expect_success(self, config_str):

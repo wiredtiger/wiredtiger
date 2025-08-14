@@ -302,7 +302,8 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
             ("test_config_json",     "Tiered hook's create function can't handle a json config string"),
             ("test_cursor_big",      "Cursor caching verified with stats"),
             ("tiered",               "Tiered tests already do tiering."),
-            ("test_verify",          "Verify not supported on tiered tables (yet)")
+            ("test_verify",          "Verify not supported on tiered tables (yet)"),
+            ("live_restore",         "Live restore is not supported with tiered storage")
         ]
 
         for (skip_string, skip_reason) in skip_categories:
