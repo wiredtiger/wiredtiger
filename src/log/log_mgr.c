@@ -245,6 +245,13 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
               session, EINVAL, "In-memory configuration incompatible with log=(enabled=true)");
     }
 
+    if (enabled) {
+       WT_RET(__wt_config_gets(session, cfg, "disagg.enabled", &cval));
+        if (cval.val != 0)
+            WT_RET_MSG(
+              session, EINVAL, "Disaggregated storage is incompatible with log=(enabled=true)");
+    }
+
     if (enabled)
         F_SET(log_mgr, WT_LOG_CONFIG_ENABLED);
     else
