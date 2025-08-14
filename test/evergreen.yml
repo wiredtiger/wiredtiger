@@ -5153,7 +5153,7 @@ tasks:
           test_type: workgen
           exec_path: ${python_binary|python3}
           perf-test-path: ../../../bench/workgen/runner
-          perf-test-name: cache_dirty_trigger_read-55_write-25.py
+          perf-test-name: cache_dirty_trigger_read-75_write-25.py
           maxruns: 1
           wtarg: -ops ['"read_ops","update_ops","read_latency_us","read_latency_ms","read_latency_sec","update_latency_us","update_latency_ms","update_latency_sec"']
       - func: "upload stats to atlas"
@@ -5258,7 +5258,7 @@ tasks:
           test_type: workgen
           exec_path: ${python_binary|python3}
           perf-test-path: ../../../bench/workgen/runner
-          perf-test-name: cache_update_trigger_read-55_write-25.py
+          perf-test-name: cache_update_trigger_read-75_write-25.py
           maxruns: 1
           wtarg: -ops ['"read_ops","update_ops","read_latency_us","read_latency_ms","read_latency_sec","update_latency_us","update_latency_ms","update_latency_sec"']
       - func: "upload stats to atlas"
