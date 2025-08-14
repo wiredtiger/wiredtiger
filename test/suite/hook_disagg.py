@@ -94,8 +94,6 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
     if 'tiered_storage=' in curconfig:
         skip_test("cannot run disagg hook on a test that uses tiered_storage in the config string")
 
-
-
     extension_libs = WiredTigerTestCase.findExtension('page_log', page_log_name)
     if len(extension_libs) == 0:
         raise Exception(extension_name + ' storage source extension not found')
