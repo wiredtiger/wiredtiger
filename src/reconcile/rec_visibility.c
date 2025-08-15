@@ -1324,9 +1324,10 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
     /*
      * If we have done a prepared rollback, we may have restored a history store value to the update
      * chain but the same value is left in the history store. Save it to delete it from the history
-     * store later.
+     * store later. Ignore if the reconciliation is happening on the history store itself.
      */
-    WT_RET(__rec_find_and_save_delete_hs_upd(session, r, ins, rip, upd_select));
+    if (!WT_IS_HS(session->dhandle))
+        WT_RET(__rec_find_and_save_delete_hs_upd(session, r, ins, rip, upd_select));
 
     /* Check the update chain for conditions that could prevent it's eviction. */
     WT_RET(__rec_validate_upd_chain(session, r, onpage_upd, &upd_select->tw, vpack));
