@@ -2534,6 +2534,7 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_ASSERT(session, multi->block_meta.base_lsn > 0);
     multi->block_meta.backlink_lsn = block_meta->disagg_lsn;
     ++multi->block_meta.delta_count;
+    multi->block_meta.image_size = chunk->image.size;
 
     /* Get the checkpoint ID. */
     WT_RET(__wt_blkcache_write(session, &r->delta, &multi->block_meta, addr, addr_sizep,
@@ -2638,6 +2639,7 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         multi->block_meta.base_lsn = 0;
     } else
         __wt_page_block_meta_assign(session, &multi->block_meta);
+    multi->block_meta.image_size = chunk->image.size;
     WT_RET(__rec_write(session, &chunk->image, &multi->block_meta, addr, addr_sizep,
       compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
 
