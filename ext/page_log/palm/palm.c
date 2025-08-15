@@ -724,7 +724,7 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
 
     PALM_KV_ERR(palm, session,
       palm_kv_put_page(&context, palm_handle->table_id, page_id, lsn, is_delta,
-        discard_args->backlink_lsn, discard_args->base_lsn, &zero_encryption, flags, tombstone));
+        discard_args->backlink_lsn, discard_args->base_lsn, 0, &zero_encryption, flags, tombstone));
     PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_LSN, lsn + 1));
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
 
@@ -788,7 +788,8 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
 
     PALM_KV_ERR(palm, session,
       palm_kv_put_page(&context, palm_handle->table_id, page_id, lsn, is_delta,
-        put_args->backlink_lsn, put_args->base_lsn, &encryption, put_args->flags, buf));
+        put_args->backlink_lsn, put_args->base_lsn, put_args->image_size, &encryption,
+        put_args->flags, buf));
     PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_LSN, lsn + 1));
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
     put_args->lsn = lsn;

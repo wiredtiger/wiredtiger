@@ -74,6 +74,7 @@ typedef struct PAGE_KEY {
      */
     uint64_t backlink_lsn;
     uint64_t base_lsn;
+    size_t image_size;
     uint32_t flags;
 
     /*
@@ -344,8 +345,8 @@ palm_kv_get_global(PALM_KV_CONTEXT *context, PALM_KV_GLOBAL_KEY key, uint64_t *v
 
 int
 palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id, uint64_t lsn,
-  bool is_delta, uint64_t backlink_lsn, uint64_t base_lsn, const WT_PAGE_LOG_ENCRYPTION *encryption,
-  uint32_t flags, const WT_ITEM *buf)
+  bool is_delta, uint64_t backlink_lsn, uint64_t base_lsn, size_t image_size,
+  const WT_PAGE_LOG_ENCRYPTION *encryption, uint32_t flags, const WT_ITEM *buf)
 {
     MDB_val kval;
     MDB_val vval;
@@ -360,6 +361,7 @@ palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id, 
     page_key.is_delta = is_delta;
     page_key.backlink_lsn = backlink_lsn;
     page_key.base_lsn = base_lsn;
+    page_key.image_size = image_size;
     page_key.flags = flags;
     page_key.encryption = *encryption;
     page_key.timestamp_materialized_us = palm_kv_timestamp_us() + context->materialization_delay_us;
@@ -368,6 +370,8 @@ palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id, 
     kval.mv_data = &page_key;
     vval.mv_size = buf->size;
     vval.mv_data = (void *)buf->data;
+
+    fprintf(stdout, "page_put size: %" PRIuMAX "\n", page_key.image_size);
 
     return (mdb_put(context->lmdb_txn, context->env->lmdb_pages_dbi, &kval, &vval, 0));
 }
@@ -434,6 +438,7 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
      * recent than asked for.
      */
     while (ret == 0 && RESULT_MATCH(&result_key, context, table_id, page_id, lsn, now)) {
+        fprintf(stdout, "size: %" PRIuMAX, page_key.image_size);
         /* If this is what we're looking for, we're done, and the cursor is positioned. */
         if (result_key.is_delta == false) {
             matches->lsn = result_key.lsn;
@@ -505,6 +510,7 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
             matches->base_lsn = page_key.base_lsn;
             matches->encryption = page_key.encryption;
             matches->flags = page_key.flags;
+            fprintf(stdout, "size: %" PRIuMAX, page_key.image_size);
             return (true);
         }
     }
