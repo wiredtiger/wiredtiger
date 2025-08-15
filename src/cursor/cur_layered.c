@@ -519,8 +519,6 @@ __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, b
     conn = S2C(session);
     layered = (WT_LAYERED_TABLE *)session->dhandle;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
-
     /*
      * Query operations need a full set of cursors. Overwrite cursors do queries in service of
      * updates.
