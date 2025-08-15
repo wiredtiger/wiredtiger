@@ -5817,7 +5817,7 @@ buildvariants:
     - name: compile
     - name: examples-c-test
     - name: unit-test-tsan
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: ubuntu2004-large
     - name: generate-tsan-metric
 
 # FIXME-WT-13256
