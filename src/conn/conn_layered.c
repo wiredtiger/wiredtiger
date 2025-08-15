@@ -407,6 +407,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
     /* Update the checkpoint timestamp. */
     WT_RELEASE_WRITE(conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);
 
+    printf("checkpoint pick-up checkpoint_timestamp=%"PRIu64"\n", checkpoint_timestamp);
+
     /* Keep a record of past checkpoints, they will be needed for ingest garbage collection. */
     WT_ERR(__layered_track_checkpoint(session, checkpoint_timestamp));
 
@@ -1591,6 +1593,8 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
             WT_ERR_NOTFOUND_OK(
               __layered_last_checkpoint_order(session, layered_table->stable_uri, &last_ckpt),
               true);
+            __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_WARNING,
+                    "layered_table %s last_ckpt=%ld", layered_table->stable_uri, last_ckpt);
             /*
              * If we've never seen a checkpoint, then there's nothing in the ingest table we can
              * remove. Move on.
@@ -1610,6 +1614,7 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
              * including in one of the checkpoints we're saving, and thus can be removed.
              */
             ckpt_inuse = layered_table->last_ckpt_inuse;
+            printf("layered_table %s layered_table->last_ckpt_inuse=%ld\n", layered_table->stable_uri, ckpt_inuse);
             if (ckpt_inuse == 0) {
                 /*
                  * If we've never checked this layered table before, it's safe to start at the
@@ -1619,6 +1624,8 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
                  */
                 if (ds->ckpt_track_cnt > 0)
                     ckpt_inuse = ds->ckpt_track[0].ckpt_order;
+
+                printf("first layered_table %s layered_table->last_ckpt_inuse=%ld\n", layered_table->stable_uri, ckpt_inuse);
             }
 
             /*
@@ -1758,7 +1765,7 @@ __layered_track_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_timesta
     for (expire = 0; expire < ds->ckpt_track_cnt; ++expire) {
         if (ds->ckpt_track[expire].ckpt_order >= ds->ckpt_min_inuse)
             break;
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_WARNING,
           "expiring tracked checkpoint: %" PRId64 " %" PRIu64 "\n",
           ds->ckpt_track[expire].ckpt_order, ds->ckpt_track[expire].timestamp);
     }
@@ -1776,7 +1783,7 @@ __layered_track_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_timesta
     ds->ckpt_track[entry].ckpt_order = order;
     ds->ckpt_track[entry].timestamp = checkpoint_timestamp;
     ++ds->ckpt_track_cnt;
-    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_WARNING,
       "tracking checkpoint: %" PRId64 " %" PRIu64 "\n", order, checkpoint_timestamp);
 
     return (0);

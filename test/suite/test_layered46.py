@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+#
+# Public Domain 2014-present MongoDB, Inc.
+# Public Domain 2008-2014 WiredTiger, Inc.
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+
+import errno, os, wiredtiger, wttest
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from wtscenario import make_scenarios
+
+# TODO-DONT-MERGE: Add test descritpion
+
+@disagg_test_class
+class test_layered46(wttest.WiredTigerTestCase, DisaggConfigMixin):
+    disagg_storages = gen_disagg_storages('test_layered46', disagg_only = True)
+    scenarios = make_scenarios(disagg_storages)
+
+    nitems = 10000
+    timestamp = 2
+
+    conn_base_config = 'disaggregated=(page_log=palm),'
+    conn_config = conn_base_config + 'disaggregated=(role="leader")'
+    conn_config_follower = conn_base_config + 'disaggregated=(role="follower")'
+
+    table_cfg = 'key_format=S,value_format=S,block_manager=disagg'
+
+    session_follow = None
+    conn_follow = None
+
+    uris = ['layered:test_layered46.a', 'layered:test_layered46.b']
+
+    def leader_put_data(self, uri, value_prefix = '', low = 1, high = nitems):
+        cursor = self.session.open_cursor(uri, None, None)
+        for i in range(low, high):
+            self.session.begin_transaction()
+            cursor[str(i)] = value_prefix + str(i)
+            self.timestamp += 1
+            ts_cfg = "commit_timestamp=" + self.timestamp_str(self.timestamp)
+            self.session.commit_transaction(ts_cfg)
+        cursor.close()
+
+    def checkpoint(self):
+        self.timestamp += 1
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.timestamp))
+        self.session.checkpoint()
+
+    def create_follower(self):
+        self.conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
+                                                self.conn_config_follower)
+        self.session_follow = self.conn_follow.open_session('')
+
+    def test_layered46(self):
+        # FOR SOME REASON ORDER IS IMPORTANT HERE FOR GETTING LAST_CKPT INITIALIZED CORRECTLY
+        self.session.create(self.uris[1], self.table_cfg)
+        self.session.create(self.uris[0], self.table_cfg)
+
+        print("--- CREATE FOLLOWER")
+        self.create_follower()
+
+        print("--- PUT MORE DATA 1")
+        self.leader_put_data(self.uris[0])
+        self.leader_put_data(self.uris[1])
+
+        print("--- CKPT 1")
+        self.checkpoint() # ckpt 1
+        print("--- CKPT PICKUP 1")
+        self.disagg_advance_checkpoint(self.conn_follow)
+
+        print("--- OPEN CURSOR 1")
+        # Open a cursor on uris[0] to pin ckpt as in use
+        cursor = self.session_follow.open_cursor(self.uris[0], None, None)
+        # # Do we need this ???
+        self.session_follow.begin_transaction()
+        cursor.set_key(str(1))
+        cursor.search()
+        self.session_follow.commit_transaction()
+
+        # # Add more data
+        print("--- PUT MORE DATA 2")
+        self.leader_put_data(self.uris[0], 'aaa')
+        # # self.leader_put_data(self.uris[1], 'aaa')
+
+        print("--- CKPT 2")
+        self.checkpoint() # ckpt 2
+        print("--- CKPT PICKUP 2")
+        self.disagg_advance_checkpoint(self.conn_follow)
+
+        # print("--- OPEN CURSOR 2")
+        # # Reinitialize prune_timestamp (should be set to the ckpt 2, but ckpt 1 is still in use)
+        cursor2 = self.session_follow.open_cursor(self.uris[1], None, None)
+        # Do we need this ???
+        # self.session_follow.begin_transaction()
+        # cursor2.set_key(str(1))
+        # cursor2.search()
+        # self.session_follow.commit_transaction()
+
+        print("--- PUT MORE DATA 3")
+        self.leader_put_data(self.uris[0], 'bbb')
+        # self.leader_put_data(self.uris[1], 'bbb')
+
+        print("--- CKPT 3")
+        self.checkpoint() # ckpt 3
+        print("--- CKPT PICKUP 3")
+        self.disagg_advance_checkpoint(self.conn_follow)
