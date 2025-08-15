@@ -377,29 +377,37 @@ palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id, 
 }
 
 int
-palm_kv_get_page_ids(PALM_KV_CONTEXT *context, WT_ITEM *item, uint64_t checkpoint_id){
+palm_kv_get_page_ids(PALM_KV_CONTEXT *context, WT_ITEM *item, uint64_t checkpoint_id)
+{
 
     MDB_cursor *cursor;
+    MDB_cursor *cursor_next;
     MDB_val kval;
     MDB_val vval;
+    MDB_val kval_next;
+    MDB_val vval_next;
     MDB_stat stat;
     int ret;
     size_t count = 0;
+    size_t ckpt_size = 0;
 
     (void)checkpoint_id; /* Unused parameter */
 
     memset(&kval, 0, sizeof(kval));
-    memset(&vval, 0, sizeof(kval));
+    memset(&vval, 0, sizeof(vval));
+    memset(&kval_next, 0, sizeof(kval_next));
+    memset(&vval_next, 0, sizeof(vval_next));
 
+    if ((ret = mdb_cursor_open(context->lmdb_txn, context->env->lmdb_pages_dbi, &cursor)) != 0)
+        return (ret);
 
-    if ((ret = mdb_cursor_open(
-        context->lmdb_txn, context->env->lmdb_pages_dbi, &cursor)) != 0)
+    if ((ret = mdb_cursor_open(context->lmdb_txn, context->env->lmdb_pages_dbi, &cursor_next)) != 0)
         return (ret);
 
     // Get maximum size for page ids
     if ((ret = mdb_stat(context->lmdb_txn, context->env->lmdb_pages_dbi, &stat)) != 0)
         return (ret);
-    
+
     // If no entries found, return an error.
     if (stat.ms_entries == 0) {
         item->size = 0;
@@ -408,8 +416,8 @@ palm_kv_get_page_ids(PALM_KV_CONTEXT *context, WT_ITEM *item, uint64_t checkpoin
     }
 
     // TO-DO: Clarify if we should at least one page (root page) in the database.
-        
-    item->data = malloc(stat.ms_entries * sizeof(uint64_t));
+
+    item = malloc(stat.ms_entries * sizeof(uint64_t));
     if (item->data == NULL)
         return (ENOMEM);
 
@@ -423,15 +431,21 @@ palm_kv_get_page_ids(PALM_KV_CONTEXT *context, WT_ITEM *item, uint64_t checkpoin
 
     metadata_len = 0;
 
-    ret = palm_kv_get_last_checkpoint(context, &checkpoint_lsn, &checkpoint_timestamp, &checkpoint_metadata, &metadata_len);
+    ret = palm_kv_get_last_checkpoint(
+      context, &checkpoint_lsn, &checkpoint_timestamp, &checkpoint_metadata, &metadata_len);
     if (ret == MDB_NOTFOUND) {
         ret = WT_NOTFOUND;
         return (ret);
     }
 
+    fprintf(stdout,
+      "finding pages in checkpoint: checkpoint_lsn=%" PRIu64 " checkpoint_timestamp:%" PRIu64 "\n",
+      checkpoint_lsn, checkpoint_timestamp);
+
     /*
-    * Iterate through the pages table, looking for pages that match the checkpoint ID.
-    */
+     * Iterate through the pages table, looking for pages that match the checkpoint ID.
+     */
+    bool has_tombstone = false;
     while (ret == 0) {
         if (kval.mv_size == sizeof(PAGE_KEY)) {
             PAGE_KEY *key = (PAGE_KEY *)kval.mv_data;
@@ -439,19 +453,46 @@ palm_kv_get_page_ids(PALM_KV_CONTEXT *context, WT_ITEM *item, uint64_t checkpoin
             swap_page_key(key, &decoded_key);
 
             fprintf(stdout,
-                "{\n   table_id: %" PRIu64 ",\n   page_id: %" PRIu64 ",\n   lsn: %" PRIu64 ",\n   is_delta: %" PRIu32 ",\n   backlink_lsn: %" PRIu64
-                ",\n   base_lsn: %" PRIu64 ",\n   flags: %x\n},\n",
-                decoded_key.table_id, decoded_key.page_id, decoded_key.lsn, decoded_key.is_delta, decoded_key.backlink_lsn, decoded_key.base_lsn, decoded_key.flags);
-
+              "{\n   table_id: %" PRIu64 ",\n   page_id: %" PRIu64 ",\n   lsn: %" PRIu64
+              ",\n   is_delta: %" PRIu32 ",\n   backlink_lsn: %" PRIu64 ",\n   base_lsn: %" PRIu64
+              ",\n   image_size: %" PRIuMAX ",\n   flags: %x\n},\n",
+              decoded_key.table_id, decoded_key.page_id, decoded_key.lsn, decoded_key.is_delta,
+              decoded_key.backlink_lsn, decoded_key.base_lsn, (uintmax_t)decoded_key.image_size,
+              decoded_key.flags);
 
             /*
-            * If tombstone detected, skip it.
-            */
-            if (item->data && (!(decoded_key.flags & WT_PALM_KV_TOMBSTONE))) {
-                // If the checkpoint ID matches, add the page ID to the result.
-                // Make sure we are only adding full pages, not deltas.
-                if (decoded_key.lsn < checkpoint_lsn && !decoded_key.is_delta) {
-                    ((uint64_t *)item->data)[count++] = decoded_key.page_id;
+             * If tombstone detected, skip it.
+             */
+            if (item->data && (!(decoded_key.flags & WT_PALM_KV_TOMBSTONE)) &&
+              !decoded_key.is_delta && decoded_key.lsn < checkpoint_lsn) {
+                // Check if the page has a tombstone.
+                memcpy(&kval_next, &kval, sizeof(kval_next));
+                ret = mdb_cursor_get(cursor_next, &kval_next, &vval, MDB_SET);
+                PAGE_KEY decoded_key_next;
+                swap_page_key((PAGE_KEY *)kval_next.mv_data, &decoded_key_next);
+
+                has_tombstone = false;
+
+                while (decoded_key_next.page_id == decoded_key.page_id) {
+                    ret = mdb_cursor_get(cursor_next, &kval_next, &vval, MDB_NEXT);
+                    swap_page_key((PAGE_KEY *)kval_next.mv_data, &decoded_key_next);
+                    if (ret == MDB_NOTFOUND) {
+                        break;
+                    }
+
+                    if (decoded_key_next.flags & WT_PALM_KV_TOMBSTONE) {
+                        has_tombstone = true;
+                        fprintf(
+                          stdout, "page_id: %" PRIu64 " has tombstone\n", decoded_key.page_id);
+                    }
+                }
+
+                if (!has_tombstone) {
+                    fprintf(stdout,
+                      "page_id: %" PRIu64 " does not have tombstone, including size: %" PRIuMAX
+                      " in checkpoint (ckpt size: %" PRIuMAX ")\n",
+                      decoded_key.page_id, (uintmax_t)decoded_key.image_size, (uintmax_t)ckpt_size);
+                    ckpt_size += decoded_key.image_size;
                 }
             }
         }
@@ -459,6 +500,8 @@ palm_kv_get_page_ids(PALM_KV_CONTEXT *context, WT_ITEM *item, uint64_t checkpoin
         if (ret != 0 && ret != MDB_NOTFOUND)
             return (ret);
     }
+
+    fprintf(stdout, "ckpt size = %" PRIuMAX "\n", (uintmax_t)ckpt_size);
 
     // Track the number of page IDs found.
     item->size = count;
@@ -528,7 +571,6 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
      * recent than asked for.
      */
     while (ret == 0 && RESULT_MATCH(&result_key, context, table_id, page_id, lsn, now)) {
-        fprintf(stdout, "size: %" PRIuMAX, page_key.image_size);
         /* If this is what we're looking for, we're done, and the cursor is positioned. */
         if (result_key.is_delta == false) {
             matches->lsn = result_key.lsn;

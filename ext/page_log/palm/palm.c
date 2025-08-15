@@ -819,7 +819,9 @@ err:
     }
 
 static int
-palm_handle_get_page_ids(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t checkpoint_id, WT_ITEM *item){
+palm_handle_get_page_ids(
+  WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t checkpoint_id, WT_ITEM *item)
+{
     PALM_KV_CONTEXT context;
     PALM_HANDLE *palm_handle = (PALM_HANDLE *)plh;
     PALM *palm = palm_handle->palm;
@@ -828,7 +830,11 @@ palm_handle_get_page_ids(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t 
 
     palm_init_context(palm, &context);
 
+    PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
+
     ret = palm_kv_get_page_ids(&context, item, checkpoint_id);
+
+    palm_kv_rollback_transaction(&context);
 
     return (ret);
 }
