@@ -33,7 +33,7 @@ import re
 # The TSAN configuration will need option log_path to create the tsan logs.
 def get_line_last_modified_times(file_path, line_number):
     """
-    Get the last modification time (UNIX timestamp) of every line in a file using Git blame.
+    Get the last modification time (UNIX timestamp) for the provided line and file using git blame.
 
     :param file_path: Path to the file to analyze.
     :param git_rev: Git revision (default: HEAD).
@@ -70,7 +70,7 @@ def get_tsan_warnings():
                         if (not line.startswith("SUMMARY:")):
                             continue
                         # Strip away the unnecessary information
-                        pattern_to_remove = r"/data/mci/.*/wiredtiger/"
+                        pattern_to_remove = r"/.*/wiredtiger/"
                         cleaned_text = re.sub(pattern_to_remove, "", line).strip()
 
                         # Strip away the column line information.
@@ -89,25 +89,20 @@ def main():
 
     tsan_warnings_set = get_tsan_warnings()
     filter_tsan_warnings = set()
-    timestamp_filter = None
-    if (args.timestamp):
-        timestamp_filter = int(args.timestamp)
 
-    if (timestamp_filter):
+    if (args.timestamp):
         for tsan_warning in tsan_warnings_set:
-            pattern_to_capture = r"data race (/data/wiredtiger/.*):(\d+)"
+            pattern_to_capture = r"data race (/wiredtiger/.*):(\d+)"
             capture = re.search(pattern_to_capture, tsan_warning)
             if (capture):
                 timestamp = get_line_last_modified_times(capture.group(1), capture.group(2))
+                timestamp_filter = int(args.timestamp)
                 if (timestamp_filter and timestamp_filter <= timestamp):
                     filter_tsan_warnings.add(tsan_warning)
-        if len(filter_tsan_warnings) == 0:
-            print("No TSAN warnings to fix!")
-        else:
-            print("Fix warnings:")
-            print("\n".join(filter_tsan_warnings))
-            print(f"Overall TSAN Warnings: {len(filter_tsan_warnings)}")
-            exit(-1)
+        tsan_warnings_set = filter_tsan_warnings
+
+    if len(tsan_warnings_set) == 0:
+        print("No TSAN warnings to fix!")
     else:
         print("Total warnings:")
         print("\n".join(tsan_warnings_set))
