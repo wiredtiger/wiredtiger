@@ -246,8 +246,7 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
     }
 
     if (enabled) {
-       WT_RET(__wt_config_gets(session, cfg, "disagg.enabled", &cval));
-        if (cval.val != 0)
+       if (__wt_config_gets(session, cfg, "disagg.enabled", &cval) == 0 && cval.val != 0)
             WT_RET_MSG(
               session, EINVAL, "Disaggregated storage is incompatible with log=(enabled=true)");
     }
