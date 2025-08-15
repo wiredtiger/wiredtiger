@@ -377,6 +377,96 @@ palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id, 
 }
 
 int
+palm_kv_get_page_ids(PALM_KV_CONTEXT *context, WT_ITEM *item, uint64_t checkpoint_id){
+
+    MDB_cursor *cursor;
+    MDB_val kval;
+    MDB_val vval;
+    MDB_stat stat;
+    int ret;
+    size_t count = 0;
+
+    (void)checkpoint_id; /* Unused parameter */
+
+    memset(&kval, 0, sizeof(kval));
+    memset(&vval, 0, sizeof(kval));
+
+
+    if ((ret = mdb_cursor_open(
+        context->lmdb_txn, context->env->lmdb_pages_dbi, &cursor)) != 0)
+        return (ret);
+
+    // Get maximum size for page ids
+    if ((ret = mdb_stat(context->lmdb_txn, context->env->lmdb_pages_dbi, &stat)) != 0)
+        return (ret);
+    
+    // If no entries found, return an error.
+    if (stat.ms_entries == 0) {
+        item->size = 0;
+        item->data = NULL;
+        return (EINVAL);
+    }
+
+    // TO-DO: Clarify if we should at least one page (root page) in the database.
+        
+    item->data = malloc(stat.ms_entries * sizeof(uint64_t));
+    if (item->data == NULL)
+        return (ENOMEM);
+
+    if ((ret = mdb_cursor_get(cursor, &kval, &vval, MDB_FIRST)) != 0)
+        return (ret);
+
+    uint64_t checkpoint_lsn;
+    uint64_t checkpoint_timestamp;
+    void *checkpoint_metadata;
+    size_t metadata_len;
+
+    metadata_len = 0;
+
+    ret = palm_kv_get_last_checkpoint(context, &checkpoint_lsn, &checkpoint_timestamp, &checkpoint_metadata, &metadata_len);
+    if (ret == MDB_NOTFOUND) {
+        ret = WT_NOTFOUND;
+        return (ret);
+    }
+
+    /*
+    * Iterate through the pages table, looking for pages that match the checkpoint ID.
+    */
+    while (ret == 0) {
+        if (kval.mv_size == sizeof(PAGE_KEY)) {
+            PAGE_KEY *key = (PAGE_KEY *)kval.mv_data;
+            PAGE_KEY decoded_key;
+            swap_page_key(key, &decoded_key);
+
+            fprintf(stdout,
+                "{\n   table_id: %" PRIu64 ",\n   page_id: %" PRIu64 ",\n   lsn: %" PRIu64 ",\n   is_delta: %" PRIu32 ",\n   backlink_lsn: %" PRIu64
+                ",\n   base_lsn: %" PRIu64 ",\n   flags: %x\n},\n",
+                decoded_key.table_id, decoded_key.page_id, decoded_key.lsn, decoded_key.is_delta, decoded_key.backlink_lsn, decoded_key.base_lsn, decoded_key.flags);
+
+
+            /*
+            * If tombstone detected, skip it.
+            */
+            if (item->data && (!(decoded_key.flags & WT_PALM_KV_TOMBSTONE))) {
+                // If the checkpoint ID matches, add the page ID to the result.
+                // Make sure we are only adding full pages, not deltas.
+                if (decoded_key.lsn < checkpoint_lsn && !decoded_key.is_delta) {
+                    ((uint64_t *)item->data)[count++] = decoded_key.page_id;
+                }
+            }
+        }
+        ret = mdb_cursor_get(cursor, &kval, &vval, MDB_NEXT);
+        if (ret != 0 && ret != MDB_NOTFOUND)
+            return (ret);
+    }
+
+    // Track the number of page IDs found.
+    item->size = count;
+
+    return (0);
+}
+
+int
 palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
   uint64_t lsn, PALM_KV_PAGE_MATCHES *matches)
 {
