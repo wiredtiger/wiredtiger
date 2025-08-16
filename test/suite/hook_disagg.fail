@@ -9,9 +9,6 @@ test_bug006.py
 test_bug010.py
 test_bug019.py
 test_bug027.py # RTS message
-test_bug029.py
-test_bug030.py
-test_bug031.py
 test_bug033.py
 test_bulk01.py
 test_bulk02.py
@@ -22,10 +19,8 @@ test_cc06.py # uses statistics we don't support in disagg
 test_cc07.py
 test_cc08.py
 test_cc09.py
-test_cc10.py
 test_compat05.py
 test_config02.py
-test_config04.py
 test_config09.py
 test_config10.py
 test_config12.py # RTS message
@@ -54,8 +49,6 @@ test_durability01.py # RTS message
 test_durable_ts01.py
 test_durable_ts03.py
 test_empty.py
-test_encrypt01.py
-test_encrypt04.py
 test_encrypt06.py
 test_env01.py
 test_error_info01.py
@@ -75,7 +68,6 @@ test_hs32.py
 test_hs33.py # RTS message
 test_hs_evict_race01.py # RTS message
 test_import02.py
-test_import04.py
 test_import07.py
 test_import08.py
 test_import10.py
@@ -129,13 +121,6 @@ test_timestamp10.py
 test_timestamp12.py
 test_timestamp20.py
 test_timestamp26.py
-test_truncate05.py
-test_truncate11.py
-test_truncate12.py
-test_truncate13.py
-test_truncate14.py
-test_truncate17.py
-test_truncate19.py
 test_txn02.py
 test_txn04.py # RTS message
 test_txn06.py # RTS message
