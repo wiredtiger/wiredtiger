@@ -362,6 +362,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
   WT_TIME_WINDOW *select_tw, WT_CELL_UNPACK_KV *vpack)
 {
     WT_UPDATE *prev_upd, *upd;
+    char ts_string[3][WT_TS_INT_STRING_SIZE];
 
     /*
      * There is no selected update to go to disk as such we don't need to check the updates
@@ -421,7 +422,6 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
-        char ts_string[3][WT_TS_INT_STRING_SIZE];
         WT_ASSERT_ALWAYS(session,
           prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
             prev_upd->start_ts == prev_upd->durable_ts || prev_upd->durable_ts >= upd->durable_ts,
@@ -467,7 +467,6 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      * reconciliations ondisk value that we will be comparing against.
      */
     if (vpack != NULL && !vpack->tw.prepare) {
-        char ts_string[3][WT_TS_INT_STRING_SIZE];
         if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw))
             WT_ASSERT_ALWAYS(session,
               prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
