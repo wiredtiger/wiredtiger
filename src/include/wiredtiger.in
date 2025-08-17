@@ -1617,8 +1617,8 @@ struct __wt_session {
      * @param session the session handle
      * @configstart{WT_SESSION.begin_transaction, see dist/api_data.py}
      * @config{claim_prepared_id, allow a session to claim a prepared transaction that was restored
-     * upon restart by specifying the transaction's prepared ID., an integer greater than or equal
-     * to \c 0; default \c 0.}
+     * upon restart by specifying the transaction's prepared ID. Returns WT_NOTFOUND if the prepared
+     * id doesn't exist., an integer greater than or equal to \c 0; default \c 0.}
      * @config{ignore_prepare, whether to ignore updates by other prepared transactions when doing
      * of read operations of this transaction.  When \c true\, forces the transaction to be
      * read-only.  Use \c force to ignore prepared updates and permit writes (see @ref
