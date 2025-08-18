@@ -245,7 +245,7 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
               session, EINVAL, "In-memory configuration incompatible with log=(enabled=true)");
         if (__wt_config_gets(session, cfg, "disaggregated.page_log", &cval) == 0 && cval.len != 0)
             WT_RET_MSG(session, EINVAL,
-              "Disaggregated storage is incompatible with log=(enabled=true), cfg=%s", *cfg);
+              "Disaggregated storage is incompatible with log=(enabled=true)");
     }
 
     if (enabled)
