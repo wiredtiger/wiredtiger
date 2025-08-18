@@ -263,6 +263,7 @@ class test_truncate_empty(test_truncate_base):
         self.assertEqual(self.session.truncate(uri, None, None, None), 0)
 
 # Test truncation timestamp handling.
+@wttest.skip_for_hook("disagg", "log tables are disabled in disagg")
 class test_truncate_timestamp(test_truncate_base):
     name = 'test_truncate'
 
