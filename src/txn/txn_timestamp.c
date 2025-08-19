@@ -1018,10 +1018,8 @@ static int
 __txn_set_prepared_id(WT_SESSION_IMPL *session, uint64_t prepared_id)
 {
     WT_TXN *txn;
-    WT_TXN_GLOBAL *txn_global;
 
     txn = session->txn;
-    txn_global = &S2C(session)->txn_global;
 
     if (F_ISSET(txn, WT_TXN_HAS_PREPARED_ID))
         WT_RET_MSG(session, EINVAL, "prepared id is already set");
