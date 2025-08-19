@@ -8,7 +8,7 @@ test_bug003.py
 test_bug006.py
 test_bug010.py
 test_bug019.py
-test_bug027.py # RTS message
+test_bug027.py
 test_bug029.py
 test_bug030.py
 test_bug031.py
@@ -28,7 +28,7 @@ test_config02.py
 test_config04.py
 test_config09.py
 test_config10.py
-test_config12.py # RTS message
+test_config12.py
 test_cursor01.py
 test_cursor02.py
 test_cursor03.py
@@ -44,13 +44,13 @@ test_drop.py
 test_drop03.py
 test_drop_create.py
 test_dump.py
-test_dump01.py # RTS message
-test_dump02.py # RTS message
-test_dump03.py # RTS message
-test_dump04.py # RTS message
-test_dump05.py # RTS message
+test_dump01.py
+test_dump02.py
+test_dump03.py
+test_dump04.py
+test_dump05.py
 test_dupc.py
-test_durability01.py # RTS message
+test_durability01.py
 test_durable_ts01.py
 test_durable_ts03.py
 test_empty.py
@@ -62,18 +62,18 @@ test_error_info01.py
 test_error_info02.py
 test_error_info03.py
 test_eviction02.py
-test_eviction03.py # RTS message
+test_eviction03.py
 test_hs01.py
 test_hs06.py
 test_hs09.py
 test_hs11.py
 test_hs18.py
 test_hs21.py
-test_hs24.py # RTS message
+test_hs24.py
 test_hs30.py
 test_hs32.py
-test_hs33.py # RTS message
-test_hs_evict_race01.py # RTS message
+test_hs33.py
+test_hs_evict_race01.py
 test_import02.py
 test_import04.py
 test_import07.py
@@ -93,7 +93,6 @@ test_prepare11.py
 test_prepare13.py
 test_prepare18.py
 test_prepare20.py
-test_prepare21.py # RTS message
 test_prepare22.py
 test_prepare23.py
 test_prepare27.py
@@ -102,13 +101,13 @@ test_prepare29.py
 test_prepare_cursor01.py
 test_prepare_hs02.py
 test_prepare_hs03.py
-test_prepare_hs04.py # RTS message
+test_prepare_hs04.py
 test_readonly01.py
 test_readonly03.py  # WT-14582
-test_recovery01.py # RTS message
+test_recovery01.py
 test_reserve.py
 test_scrub_eviction_prepare.py
-test_shared_cache01.py # RTS message
+test_shared_cache01.py
 test_stat01.py
 test_stat02.py
 test_stat03.py
@@ -122,8 +121,8 @@ test_sweep03.py
 test_sweep06.py
 test_timestamp03.py
 test_timestamp05.py
-test_timestamp06.py # RTS message
-test_timestamp07.py # RTS message
+test_timestamp06.py
+test_timestamp07.py
 test_timestamp08.py
 test_timestamp10.py
 test_timestamp12.py
@@ -137,32 +136,30 @@ test_truncate14.py
 test_truncate17.py
 test_truncate19.py
 test_txn02.py
-test_txn04.py # RTS message
-test_txn06.py # RTS message
-test_txn08.py # RTS message
+test_txn04.py
+test_txn06.py
+test_txn08.py
 test_txn09.py
 test_txn10.py
 test_txn14.py
 test_txn15.py
 test_txn16.py
 test_txn18.py
-test_txn19.py # RTS message
+test_txn19.py
 test_txn22.py
-test_util01.py # RTS message
-test_util02.py # RTS message
-test_util03.py # RTS message
+test_util01.py
+test_util02.py
 test_util04.py
-test_util07.py # RTS message
-test_util09.py # RTS message
-test_util11.py # RTS message
-test_util12.py # RTS message
-test_util13.py # RTS message
+test_util07.py
+test_util09.py
+test_util11.py
+test_util12.py
+test_util13.py
 test_util14.py
 test_util15.py
 test_util17.py
-test_util18.py # RTS message
-test_util21.py # RTS message
-test_util22.py # RTS message
+test_util18.py
+test_util22.py
 test_verbose01.py
 test_verbose02.py
 test_verbose03.py
