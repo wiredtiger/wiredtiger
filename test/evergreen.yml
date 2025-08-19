@@ -3698,7 +3698,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -C cache_size=100MB
+          run_test_checkpoint_args: -x -p -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-no-timestamp
     tags: ["data-validation-stress-test"]
@@ -3716,7 +3716,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 1 -C cache_size=100MB
+          run_test_checkpoint_args: -x -p -s 1 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-no-timestamp
     tags: ["data-validation-stress-test"]
@@ -3734,7 +3734,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 2 -C cache_size=100MB
+          run_test_checkpoint_args: -x -p -s 2 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3
     tags: ["data-validation-stress-test"]
@@ -3743,7 +3743,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 3 -C cache_size=100MB
+          run_test_checkpoint_args: -x -p -s 3 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-no-timestamp
     tags: ["data-validation-stress-test"]
@@ -3761,7 +3761,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 4 -C cache_size=100MB
+          run_test_checkpoint_args: -x -p -s 4 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
     tags: ["data-validation-stress-test"]
@@ -3770,7 +3770,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 5 -C cache_size=100MB
+          run_test_checkpoint_args: -x -p -s 5 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp
     tags: ["data-validation-stress-test"]
@@ -3788,7 +3788,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 6 -C cache_size=100MB
+          run_test_checkpoint_args: -x -p -s 6 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7
     tags: ["data-validation-stress-test"]
@@ -3797,7 +3797,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 7 -C cache_size=100MB
+          run_test_checkpoint_args: -x -p -s 7 -C cache_size=100MB
 
   - name: data-validation-stress-test-precise-checkpoint
     tags: ["data-validation-stress-test"]
@@ -3806,7 +3806,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
+          run_test_checkpoint_args: -x -p -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
 
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s1
     tags: ["data-validation-stress-test"]
@@ -3815,7 +3815,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 1 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
+          run_test_checkpoint_args: -x -p -s 1 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
 
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s2
     tags: ["data-validation-stress-test"]
@@ -3824,7 +3824,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 2 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
+          run_test_checkpoint_args: -x -p -s 2 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
 
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s3
     tags: ["data-validation-stress-test"]
@@ -3833,7 +3833,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 3 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
+          run_test_checkpoint_args: -x -p -s 3 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
 
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s4
     tags: ["data-validation-stress-test"]
@@ -3842,7 +3842,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 4 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
+          run_test_checkpoint_args: -x -p -s 4 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
 
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s5
     tags: ["data-validation-stress-test"]
@@ -3851,7 +3851,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 5 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
+          run_test_checkpoint_args: -x -p -s 5 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
 
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s6
     tags: ["data-validation-stress-test"]
@@ -3860,7 +3860,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 6 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
+          run_test_checkpoint_args: -x -p -s 6 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
 
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s7
     tags: ["data-validation-stress-test"]
