@@ -98,6 +98,7 @@ typedef struct {
 
     uint64_t ts_oldest;                   /* Current oldest timestamp */
     uint64_t ts_stable;                   /* Current stable timestamp */
+    uint64_t prepared_id;                 /* Current prepared id */
     bool failpoint_eviction_split;        /* Fail point for eviction split. */
     bool failpoint_hs_delete_key_from_ts; /* Failpoint for hs key deletion. */
     bool no_ts_deletes;                   /* Run with deletes without timestamps */
