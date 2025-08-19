@@ -1176,6 +1176,13 @@ done:
 
     WT_ERR(__recovery_txn_setup_initial_state(session, &r));
 
+    /* If we have precise checkpoint enabled and there is no stable timestamp, nothing to do. */
+    if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+      conn->txn_global.stable_timestamp == WT_TS_NONE) {
+        do_checkpoint = false;
+        goto done;
+    }
+
     /*
      * Set the history store file size as it may already exist after a restart.
      */
