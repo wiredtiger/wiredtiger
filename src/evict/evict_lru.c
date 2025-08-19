@@ -2096,14 +2096,14 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY)) {
             WT_IGNORE_RET(__wt_evict_dirty_needed(session, &pct_dirty));
             high_pressure = (pct_dirty >
-                (conn->evict->eviction_dirty_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
-            }
+              (conn->evict->eviction_dirty_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
+        }
 
         if (!high_pressure && F_ISSET(conn->evict, WT_EVICT_CACHE_UPDATES)) {
             WT_IGNORE_RET(__wti_evict_updates_needed(session, &pct_updates));
             high_pressure = (pct_updates >
-                (conn->evict->eviction_updates_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
-            }
+              (conn->evict->eviction_updates_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
+        }
 
         if (!high_pressure)
             return (true);
