@@ -1,5 +1,3 @@
-project(cppsuite CXX)
-
 # Create an intermediate static lib.
 add_library(cppsuite_test_harness STATIC
     src/bound/bound.cpp

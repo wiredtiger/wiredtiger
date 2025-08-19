@@ -1,4 +1,3 @@
-project(test_packing C)
 
 # Create packing-test executable.
 create_test_executable(test_packing

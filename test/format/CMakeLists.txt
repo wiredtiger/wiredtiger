@@ -1,5 +1,3 @@
-project(test_format C)
-
 set(format_sources
     alter.c
     backup.c
