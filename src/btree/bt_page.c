@@ -304,7 +304,7 @@ __page_reconstruct_internal_deltas(
     for (i = 0, j = 0; i < (uint32_t)delta_size; ++i, j = 0) {
         header = (WT_PAGE_HEADER *)deltas[i].data;
         WT_ASSERT(session, header->u.entries != 0);
-        delta_size_each[i] = (size_t)header->u.entries;
+        delta_size_each[i] = (size_t)header->u.entries / 2; /* Each entry has a key and a value. */
 
         WT_ERR(__wt_calloc_def(session, header->u.entries, &unpacked_deltas[i]));
         WT_CELL_FOREACH_DELTA_INT(session, ref->page->dsk, header, unpacked_deltas[i][j])
