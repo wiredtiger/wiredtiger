@@ -1,5 +1,3 @@
-project(nop_encrypt C)
-
 set(sources "nop_encrypt.c")
 add_library(wiredtiger_nop_encrypt MODULE ${sources})
 

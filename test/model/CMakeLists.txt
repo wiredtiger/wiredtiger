@@ -1,4 +1,3 @@
-project(wiredtiger_model CXX)
 
 # Create a model library.
 add_library(wiredtiger_model SHARED

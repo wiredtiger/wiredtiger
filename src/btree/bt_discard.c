@@ -76,9 +76,11 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
      * issue a read for the page we're evicting. That means we're free to write the page even if
      * it's ahead of the materialization frontier.
      */
-    if (!(F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-          F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING)))
-        if (!__wt_page_materialization_check(session, page->old_rec_lsn_max))
+
+    if (page->disagg_info != NULL &&
+      !(F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
+        F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING)))
+        if (!__wt_page_materialization_check(session, page->disagg_info->old_rec_lsn_max))
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_ahead_of_last_materialized_lsn);
 
     /*
