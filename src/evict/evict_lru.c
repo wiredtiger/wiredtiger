@@ -2091,22 +2091,21 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (__wt_conn_is_disagg(session) &&
       __wt_atomic_load32(&page->modify->page_state) < WT_EVICT_MODIFY_COUNT_MIN) {
         double pct_dirty = 0.0, pct_updates = 0.0;
-        bool low_pressure = false;
+        bool high_pressure = false;
 
         if (F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY)) {
             WT_IGNORE_RET(__wt_evict_dirty_needed(session, &pct_dirty));
-            low_pressure = (pct_dirty <
-              (conn->evict->eviction_dirty_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
-        }
+            high_pressure = (pct_dirty >
+                (conn->evict->eviction_dirty_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
+            }
 
-        if (F_ISSET(conn->evict, WT_EVICT_CACHE_UPDATES)) {
+        if (!high_pressure && F_ISSET(conn->evict, WT_EVICT_CACHE_UPDATES)) {
             WT_IGNORE_RET(__wti_evict_updates_needed(session, &pct_updates));
-            low_pressure = low_pressure ||
-              (pct_updates <
+            high_pressure = (pct_updates >
                 (conn->evict->eviction_updates_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
-        }
+            }
 
-        if (low_pressure)
+        if (!high_pressure)
             return (true);
     }
     return (false);
