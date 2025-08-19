@@ -1899,7 +1899,6 @@ err:
 int
 __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    WT_CONFIG_ITEM cval;
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *tmp, *upd;
