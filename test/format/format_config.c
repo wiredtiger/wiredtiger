@@ -789,7 +789,7 @@ config_checkpoint(void)
             break;
         }
 
-    if (!GV(OPS_PREPARE))
+    if (!GV(PRECISE_CHECKPOINT))
         config_off(NULL, "preserve_prepared");
 }
 
