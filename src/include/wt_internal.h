@@ -337,6 +337,8 @@ struct __wt_page_deleted;
 typedef struct __wt_page_deleted WT_PAGE_DELETED;
 struct __wt_page_delta_config;
 typedef struct __wt_page_delta_config WT_PAGE_DELTA_CONFIG;
+struct __wt_page_disagg_info;
+typedef struct __wt_page_disagg_info WT_PAGE_DISAGG_INFO;
 struct __wt_page_header;
 typedef struct __wt_page_header WT_PAGE_HEADER;
 struct __wt_page_history;
@@ -620,7 +622,8 @@ typedef uint64_t wt_timestamp_t;
 #include "../evict/evict_inline.h" /* required by misc_inline.h */
 #include "ctype_inline.h"          /* required by packing_inline.h */
 #include "intpack_inline.h"        /* required by cell_inline.h, packing_inline.h */
-#include "misc_inline.h"           /* required by mutex_inline.h */
+#include "int4bitpack_inline.h"
+#include "misc_inline.h" /* required by mutex_inline.h */
 
 #include "generation_inline.h" /* required by txn_inline.h */
 #include "buf_inline.h"        /* required by cell_inline.h */
