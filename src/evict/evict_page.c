@@ -875,7 +875,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_ACQUIRE_READ(checkpoint_timestamp, conn->txn_global.checkpoint_timestamp);
     if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && checkpoint_timestamp != WT_TS_NONE &&
       page->modify->rec_pinned_stable_timestamp >= checkpoint_timestamp) {
-        WT_STAT_CONN_INCR(session, cache_eviction_blocked_checkpoint_precise);
+        WT_STAT_CONN_INCR(session, cache_eviction_blocked_precise_checkpoint);
         return (__wt_set_return(session, EBUSY));
     }
 
