@@ -1,5 +1,3 @@
-project(test_cursor_order C)
-
 create_test_executable(test_cursor_order
     SOURCES
         cursor_order_file.c

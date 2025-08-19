@@ -1,5 +1,3 @@
-project(test_checkpoint C)
-
 create_test_executable(test_checkpoint
     SOURCES
         checkpointer.c
