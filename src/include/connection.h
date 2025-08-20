@@ -578,6 +578,8 @@ struct __wt_connection_impl {
     uint64_t dh_hash_size;    /* Data handle hash bucket array size */
     uint64_t hash_size;       /* General hash bucket array size */
     int is_new;               /* Connection created database */
+    bool evict_app_threads_enabled;
+    uint64_t evict_app_threads_flags;
 
     WT_VERSION recovery_version; /* Version of the database being recovered */
 
