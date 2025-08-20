@@ -839,7 +839,7 @@ transaction_ops(WT_SESSION *session_arg)
         cursor->set_key(cursor, "key");
         cursor->set_value(cursor, "value");
         /*! [transaction prepared_id] */
-        error_check(session->prepared_id_transaction(session, "prepare_id=a"));
+        error_check(session->prepared_id_transaction(session, "prepared_id=a"));
         /*! [transaction prepared_id] */
         error_check(session->prepare_transaction(session, "prepare_timestamp=2a"));
         error_check(
