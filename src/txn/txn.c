@@ -709,7 +709,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     WT_ERR(__wt_conf_gets_def(session, conf, read_timestamp, 0, &cval));
     if (cval.len != 0) {
-        WT_ERR(__wt_txn_parse_timestamp(session, "read", &read_ts, &cval));
+        WT_ERR(__wt_txn_parse_timestamp(session, "read timestamp", &read_ts, &cval));
         WT_ERR(__wti_txn_set_read_timestamp(session, read_ts));
     }
 

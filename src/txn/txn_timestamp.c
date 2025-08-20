@@ -42,7 +42,7 @@ __txn_parse_hex_raw(
             hex_val = -1;
         if (hex_val < 0)
             WT_RET_MSG(
-              session, EINVAL, "Failed to parse %s value '%.*s'", name, (int)cval->len, cval->str);
+              session, EINVAL, "Failed to parse %s '%.*s'", name, (int)cval->len, cval->str);
         value = (value << 4) | (uint64_t)hex_val;
     }
     *valuep = value;
@@ -71,8 +71,8 @@ __wt_txn_parse_timestamp(
 {
     WT_RET(__wt_txn_parse_timestamp_raw(session, name, timestamp, cval));
     if (cval->len != 0 && *timestamp == WT_TS_NONE)
-        WT_RET_MSG(session, EINVAL, "illegal %s timestamp '%.*s': zero not permitted", name,
-          (int)cval->len, cval->str);
+        WT_RET_MSG(session, EINVAL, "illegal %s '%.*s': zero not permitted", name, (int)cval->len,
+          cval->str);
 
     return (0);
 }
@@ -82,12 +82,11 @@ __wt_txn_parse_timestamp(
  *     Decodes and sets a prepared id checking it is non-zero.
  */
 int
-__wt_txn_parse_prepared_id(
-  WT_SESSION_IMPL *session, const char *name, uint64_t *prepared_id, WT_CONFIG_ITEM *cval)
+__wt_txn_parse_prepared_id(WT_SESSION_IMPL *session, uint64_t *prepared_id, WT_CONFIG_ITEM *cval)
 {
-    WT_RET(__txn_parse_hex_raw(session, name, prepared_id, cval));
+    WT_RET(__txn_parse_hex_raw(session, "prepare id", prepared_id, cval));
     if (cval->len != 0 && *prepared_id == WT_PREPARED_ID_NONE)
-        WT_RET_MSG(session, EINVAL, "illegal %s prepared id '%.*s': zero not permitted", name,
+        WT_RET_MSG(session, EINVAL, "illegal prepared id '%.*s': zero not permitted",
           (int)cval->len, cval->str);
 
     return (0);
@@ -388,9 +387,9 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * Parsing will initialize the timestamp to zero even if it is not configured.
      */
-    WT_RET(__wt_txn_parse_timestamp(session, "durable", &durable_ts, &durable_cval));
-    WT_RET(__wt_txn_parse_timestamp(session, "oldest", &oldest_ts, &oldest_cval));
-    WT_RET(__wt_txn_parse_timestamp(session, "stable", &stable_ts, &stable_cval));
+    WT_RET(__wt_txn_parse_timestamp(session, "durable timestamp", &durable_ts, &durable_cval));
+    WT_RET(__wt_txn_parse_timestamp(session, "oldest timestamp", &oldest_ts, &oldest_cval));
+    WT_RET(__wt_txn_parse_timestamp(session, "stable timestamp", &stable_ts, &stable_cval));
 
     WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
     force = cval.val != 0;
@@ -1098,19 +1097,20 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
         while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0) {
             WT_ASSERT(session, ckey.str != NULL);
             if (WT_CONFIG_LIT_MATCH("commit_timestamp", ckey)) {
-                WT_RET(__wt_txn_parse_timestamp(session, "commit", &commit_ts, &cval));
+                WT_RET(__wt_txn_parse_timestamp(session, "commit timestamp", &commit_ts, &cval));
                 set_ts = true;
             } else if (WT_CONFIG_LIT_MATCH("durable_timestamp", ckey)) {
-                WT_RET(__wt_txn_parse_timestamp(session, "durable", &durable_ts, &cval));
+                WT_RET(__wt_txn_parse_timestamp(session, "durable timestamp", &durable_ts, &cval));
                 set_ts = true;
             } else if (WT_CONFIG_LIT_MATCH("prepare_timestamp", ckey)) {
-                WT_RET(__wt_txn_parse_timestamp(session, "prepare", &prepare_ts, &cval));
+                WT_RET(__wt_txn_parse_timestamp(session, "prepare timestamp", &prepare_ts, &cval));
                 set_ts = true;
             } else if (WT_CONFIG_LIT_MATCH("read_timestamp", ckey)) {
-                WT_RET(__wt_txn_parse_timestamp(session, "read", &read_ts, &cval));
+                WT_RET(__wt_txn_parse_timestamp(session, "read timestamp", &read_ts, &cval));
                 set_ts = true;
             } else if (WT_CONFIG_LIT_MATCH("rollback_timestamp", ckey)) {
-                WT_RET(__wt_txn_parse_timestamp(session, "rollback", &rollback_ts, &cval));
+                WT_RET(
+                  __wt_txn_parse_timestamp(session, "rollback timestamp", &rollback_ts, &cval));
                 set_ts = true;
             }
         }
@@ -1244,7 +1244,7 @@ __wt_txn_set_prepared_id(WT_SESSION_IMPL *session, const char *cfg[])
         while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0) {
             WT_ASSERT(session, ckey.str != NULL);
             if (WT_CONFIG_LIT_MATCH("prepared_id", ckey))
-                WT_RET(__wt_txn_parse_prepared_id(session, "prepared_id", &prepared_id, &cval));
+                WT_RET(__wt_txn_parse_prepared_id(session, &prepared_id, &cval));
         }
         WT_RET_NOTFOUND_OK(ret);
     }
