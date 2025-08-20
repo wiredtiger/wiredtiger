@@ -2057,7 +2057,7 @@ err:
  *     WT_SESSION->timestamp_transaction_uint method.
  */
 static int
-__session_timestamp_transaction_uint(WT_SESSION *wt_session, WT_TS_TXN_TYPE which, uint64_t ts)
+__session_timestamp_transaction_uint(WT_SESSION *wt_session, WT_TS_TXN_TYPE which, uint64_t value)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -2065,10 +2065,10 @@ __session_timestamp_transaction_uint(WT_SESSION *wt_session, WT_TS_TXN_TYPE whic
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_PREPARE_ALLOWED_NOCONF(session, timestamp_transaction_uint);
 
-    ret = __wt_txn_set_timestamp_uint(session, which, ts);
+    ret = __wt_txn_set_timestamp_uint(session, which, value);
 err:
 #ifdef HAVE_CALL_LOG
-    WT_TRET(__wt_call_log_timestamp_transaction_uint(session, which, ts, ret));
+    WT_TRET(__wt_call_log_timestamp_transaction_uint(session, which, value, ret));
 #endif
     API_END_RET(session, ret);
 }
