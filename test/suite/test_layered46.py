@@ -41,6 +41,7 @@ class test_layered46(wttest.WiredTigerTestCase, DisaggConfigMixin):
     disagg_storages = gen_disagg_storages('test_layered46', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
+    # Keep it low to avoid splitting pages
     nitems = 10
     timestamp = 2
 
