@@ -644,8 +644,9 @@ rollback_transaction(TINFO *tinfo, bool prepared)
             ts = replay_rollback_ts(tinfo);
         else
             ts = __wt_atomic_addv64(&g.timestamp, 1);
+
+        testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_ROLLBACK, ts));
     }
-    testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
     testutil_check(session->rollback_transaction(session, NULL));
     replay_rollback(tinfo);
 
@@ -679,8 +680,7 @@ prepare_transaction(TINFO *tinfo)
          */
         ts = __wt_atomic_fetch_addv64(&g.timestamp, 1);
     testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_PREPARE, ts));
-    testutil_check(
-      session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_PREPARED_ID, prepared_id));
+    testutil_check(session->prepared_id_transaction_uint(session, prepared_id));
     ret = session->prepare_transaction(session, NULL);
 
     trace_uri_op(tinfo, NULL, "prepare ts=%" PRIu64 ", prepared id=%" PRIu64, ts, prepared_id);

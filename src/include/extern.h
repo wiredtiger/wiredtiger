@@ -312,6 +312,10 @@ extern int __wt_call_log_open_session(WT_SESSION_IMPL *session, int ret_val)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_call_log_prepare_transaction(WT_SESSION_IMPL *session, const char *config,
   int ret_val) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_call_log_prepared_id_transaction(WT_SESSION_IMPL *session, const char *config,
+  int ret_val) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_call_log_prepared_id_transaction_uint(WT_SESSION_IMPL *session,
+  uint64_t prepared_id, int ret_val) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_call_log_print_return(WT_CONNECTION_IMPL *conn, WT_SESSION_IMPL *session,
   int ret_val, const char *err_msg) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_call_log_query_timestamp(
@@ -324,7 +328,7 @@ extern int __wt_call_log_set_timestamp(WT_SESSION_IMPL *session, const char *con
 extern int __wt_call_log_timestamp_transaction(WT_SESSION_IMPL *session, const char *config,
   int ret_val) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_call_log_timestamp_transaction_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which,
-  uint64_t value, int ret_val) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  wt_timestamp_t ts, int ret_val) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_calloc(WT_SESSION_IMPL *session, size_t number, size_t size, void *retp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1160,10 +1164,14 @@ extern int __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool di
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_txn_set_prepared_id(WT_SESSION_IMPL *session, const char *cfg[])
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_txn_set_prepared_id_uint(WT_SESSION_IMPL *session, uint64_t prepared_id)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which,
-  uint64_t value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  wt_timestamp_t ts) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_truncate_log(WT_TRUNCATE_INFO *trunc_info)

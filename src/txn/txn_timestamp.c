@@ -1166,7 +1166,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
  *     __wt_txn_set_timestamp when string parsing is a performance bottleneck.
  */
 int
-__wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, uint64_t value)
+__wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_timestamp_t ts)
 {
     WT_CONNECTION_IMPL *conn;
     const char *name;
@@ -1175,7 +1175,7 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, uint
 
     conn = S2C(session);
 
-    if (value == WT_TS_NONE) {
+    if (ts == WT_TS_NONE) {
         /* Quiet warnings from both gcc and clang about this variable. */
         WT_NOT_READ(name, "unknown");
         switch (which) {
@@ -1194,31 +1194,26 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, uint
         case WT_TS_TXN_TYPE_ROLLBACK:
             name = "rollback";
             break;
-        case WT_TS_TXN_TYPE_PREPARED_ID:
-            name = "prepared_id";
-            break;
         }
         WT_RET_MSG(session, EINVAL, "illegal %s timestamp: zero not permitted", name);
     }
 
     switch (which) {
     case WT_TS_TXN_TYPE_COMMIT:
-        WT_RET(__txn_set_commit_timestamp(session, (wt_timestamp_t)value));
+        WT_RET(__txn_set_commit_timestamp(session, ts));
         break;
     case WT_TS_TXN_TYPE_DURABLE:
-        WT_RET(__txn_set_durable_timestamp(session, (wt_timestamp_t)value));
+        WT_RET(__txn_set_durable_timestamp(session, ts));
         break;
     case WT_TS_TXN_TYPE_PREPARE:
-        WT_RET(__txn_set_prepare_timestamp(session, (wt_timestamp_t)value));
+        WT_RET(__txn_set_prepare_timestamp(session, ts));
         break;
     case WT_TS_TXN_TYPE_READ:
-        WT_RET(__wti_txn_set_read_timestamp(session, (wt_timestamp_t)value));
+        WT_RET(__wti_txn_set_read_timestamp(session, ts));
         break;
     case WT_TS_TXN_TYPE_ROLLBACK:
-        WT_RET(__txn_set_rollback_timestamp(session, (wt_timestamp_t)value));
+        WT_RET(__txn_set_rollback_timestamp(session, ts));
         break;
-    case WT_TS_TXN_TYPE_PREPARED_ID:
-        WT_RET(__txn_set_prepared_id(session, value));
     }
     __txn_publish_durable_timestamp(session);
 
@@ -1226,6 +1221,73 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, uint
     if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING) &&
       F_ISSET(&conn->log_mgr, WT_LOG_ENABLED) && !F_ISSET(conn, WT_CONN_RECOVERING))
         WT_RET(__wti_txn_ts_log(session));
+
+    return (0);
+}
+
+/*
+ * __wt_txn_set_prepared_id --
+ *     Parse a request to set a prepared_id in a transaction.
+ */
+int
+__wt_txn_set_prepared_id(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG cparser;
+    WT_CONFIG_ITEM ckey, cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_TXN *txn;
+    uint64_t prepared_id;
+    bool set_prepared_id;
+
+    conn = S2C(session);
+    txn = session->txn;
+
+    WT_RET(__wt_txn_context_check(session, true));
+
+    prepared_id = WT_PREPARED_ID_NONE;
+
+    /*
+     * If the API received no configuration string, or we just have the base configuration, there
+     * are no strings to parse. Additionally, take a shortcut in parsing that works because we're
+     * only given a base configuration and a user configuration.
+     */
+    if (cfg != NULL && cfg[0] != NULL && cfg[1] != NULL) {
+        WT_ASSERT(session, cfg[2] == NULL);
+        __wt_config_init(session, &cparser, cfg[1]);
+        while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0) {
+            WT_ASSERT(session, ckey.str != NULL);
+            if (WT_CONFIG_LIT_MATCH("prepared_id", ckey))
+                WT_RET(__wt_txn_parse_prepared_id(session, "prepared_id", &prepared_id, &cval));
+        }
+        WT_RET_NOTFOUND_OK(ret);
+    }
+
+    if (prepared_id != WT_PREPARED_ID_NONE)
+        WT_RET(__txn_set_prepared_id(session, prepared_id));
+
+    return (0);
+}
+
+/*
+ * __wt_txn_set_prepared_id_uint --
+ *     Directly set the prepared id in a transaction, bypassing parsing logic. Prefer this to
+ *     __wt_txn_set_prepared_id when string parsing is a performance bottleneck.
+ */
+int
+__wt_txn_set_prepared_id_uint(WT_SESSION_IMPL *session, uint64_t prepared_id)
+{
+    WT_CONNECTION_IMPL *conn;
+    const char *name;
+
+    WT_RET(__wt_txn_context_check(session, true));
+
+    conn = S2C(session);
+
+    if (prepared_id == WT_TS_NONE)
+        WT_RET_MSG(session, EINVAL, "illegal prepared id: zero not permitted");
+
+    WT_RET(__txn_set_prepared_id(session, prepared_id));
 
     return (0);
 }

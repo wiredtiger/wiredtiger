@@ -820,7 +820,6 @@ typedef enum {
     WT_TS_TXN_TYPE_PREPARE, /*!< Prepare timestamp. */
     WT_TS_TXN_TYPE_READ, /*!< Read timestamp. */
     WT_TS_TXN_TYPE_ROLLBACK, /*!< Rollback timestamp. */
-    WT_TS_TXN_TYPE_PREPARED_ID /*!< Prepared id. */
 } WT_TS_TXN_TYPE;
 
 /*!
@@ -1858,6 +1857,44 @@ struct __wt_session {
      */
     int __F(timestamp_transaction_uint)(WT_SESSION *session, WT_TS_TXN_TYPE which,
             uint64_t ts);
+
+    /*!
+     * Set a prepared_id on a transaction.
+     *
+     * The WT_SESSION.prepared_id_transaction method can only be used at snapshot isolation.
+     *
+     * @snippet ex_all.c transaction prepared_id
+     *
+     * @requires_transaction
+     *
+     * @param session the session handle
+     * @configstart{WT_SESSION.prepared_id_transaction, see dist/api_data.py}
+     * @config{prepared_id, set the optional prepared ID for the prepared updates of the current
+     * transaction.  Multiple transactions can share a prepared transaction ID\, as long as they are
+     * all guaranteed to share a decision whether to commit or abort and share the same prepare\,
+     * commit and durable timestamps.  Ignored if the preserve prepared config is not enabled., a
+     * string; default empty.}
+     * @configend
+     * @errors
+     */
+    int __F(prepared_id_transaction)(WT_SESSION *session, const char *config);
+
+    /*!
+     * Set a prepared id on a transaction numerically.  Prefer this method over
+     * WT_SESSION::prepared_id_transaction if the hexadecimal string parsing done in that method
+     * becomes a bottleneck.
+     *
+     * The WT_SESSION.prepared_id_transaction_uint method can only be used at snapshot isolation.
+     *
+     * @snippet ex_all.c transaction prepared_id_uint
+     *
+     * @requires_transaction
+     *
+     * @param session the session handle
+     * @param prepared_id the prepared_id.
+     * @errors
+     */
+    int __F(prepared_id_transaction_uint)(WT_SESSION *session, uint64_t prepared_id);
     /*! @} */
 
     /*!

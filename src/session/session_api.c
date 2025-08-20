@@ -2057,7 +2057,7 @@ err:
  *     WT_SESSION->timestamp_transaction_uint method.
  */
 static int
-__session_timestamp_transaction_uint(WT_SESSION *wt_session, WT_TS_TXN_TYPE which, uint64_t value)
+__session_timestamp_transaction_uint(WT_SESSION *wt_session, WT_TS_TXN_TYPE which, uint64_t ts)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -2065,17 +2065,17 @@ __session_timestamp_transaction_uint(WT_SESSION *wt_session, WT_TS_TXN_TYPE whic
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_PREPARE_ALLOWED_NOCONF(session, timestamp_transaction_uint);
 
-    ret = __wt_txn_set_timestamp_uint(session, which, value);
+    ret = __wt_txn_set_timestamp_uint(session, which, ts);
 err:
 #ifdef HAVE_CALL_LOG
-    WT_TRET(__wt_call_log_timestamp_transaction_uint(session, which, value, ret));
+    WT_TRET(__wt_call_log_timestamp_transaction_uint(session, which, ts, ret));
 #endif
     API_END_RET(session, ret);
 }
 
 /*
  * __session_timestamp_transaction_uint_notsup --
- *     WT_SESSION->timestamp_transaction_uint_ method; not supported version.
+ *     WT_SESSION->timestamp_transaction_uint method; not supported version.
  */
 static int
 __session_timestamp_transaction_uint_notsup(
@@ -2089,6 +2089,92 @@ __session_timestamp_transaction_uint_notsup(
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_NOCONF(session, timestamp_transaction_uint);
+    ret = __wti_session_notsup(session);
+err:
+    API_END_RET(session, ret);
+}
+
+/*
+ * __session_prepared_id_transaction --
+ *     WT_SESSION->prepared_id_transaction method. Also see __session_prepared_id_transaction_uint
+ *     if config parsing is a performance issue.
+ */
+static int
+__session_prepared_id_transaction(WT_SESSION *wt_session, const char *config)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+#ifdef HAVE_DIAGNOSTIC
+    SESSION_API_CALL_PREPARE_ALLOWED(session, prepared_id_transaction, config, cfg);
+#else
+    SESSION_API_CALL_PREPARE_ALLOWED(session, prepared_id_transaction, NULL, cfg);
+    cfg[1] = config;
+#endif
+
+    ret = __wt_txn_set_prepared_id(session, cfg);
+err:
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_call_log_prepared_id_transaction(session, config, ret));
+#endif
+    API_END_RET(session, ret);
+}
+
+/*
+ * __session_prepared_id_transaction_notsup --
+ *     WT_SESSION->prepared_id_transaction method; not supported version.
+ */
+static int
+__session_prepared_id_transaction_notsup(WT_SESSION *wt_session, const char *config)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    WT_UNUSED(config);
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    SESSION_API_CALL_NOCONF(session, prepared_id_transaction);
+    ret = __wti_session_notsup(session);
+err:
+    API_END_RET(session, ret);
+}
+
+/*
+ * __session_prepared_id_transaction_uint --
+ *     WT_SESSION->prepared_id_transaction_uint method.
+ */
+static int
+__session_prepared_id_transaction_uint(WT_SESSION *wt_session, uint64_t prepared_id)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    SESSION_API_CALL_PREPARE_ALLOWED_NOCONF(session, prepared_id_uint);
+
+    ret = __wt_txn_set_prepared_id_uint(session, prepared_id);
+err:
+#ifdef HAVE_CALL_LOG
+    WT_TRET(__wt_call_log_prepared_id_transaction_uint(session, prepared_id, ret));
+#endif
+    API_END_RET(session, ret);
+}
+
+/*
+ * __session_prepared_id_transaction_uint_notsup --
+ *     WT_SESSION->prepared_id_transaction_uint method; not supported version.
+ */
+static int
+__session_prepared_id_transaction_uint_notsup(WT_SESSION *wt_session, uint64_t prepared_id)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    WT_UNUSED(prepared_id);
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    SESSION_API_CALL_NOCONF(session, prepared_id_uint);
     ret = __wti_session_notsup(session);
 err:
     API_END_RET(session, ret);
@@ -2347,7 +2433,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_reset, __session_salvage, __session_truncate, __session_verify,
         __session_begin_transaction, __session_commit_transaction, __session_prepare_transaction,
         __session_rollback_transaction, __session_query_timestamp, __session_timestamp_transaction,
-        __session_timestamp_transaction_uint, __session_checkpoint, __session_reset_snapshot,
+        __session_timestamp_transaction_uint, __session_prepared_id_transaction,
+        __session_prepared_id_transaction_uint, __session_checkpoint, __session_reset_snapshot,
         __session_transaction_pinned_range, __session_get_last_error, __wt_session_breakpoint},
       stds_min = {NULL, NULL, __session_close, __session_reconfigure_notsup, __wt_session_strerror,
         __session_open_cursor, __session_alter_readonly, __session_bind_configuration,
@@ -2357,7 +2444,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_begin_transaction_notsup, __session_commit_transaction_notsup,
         __session_prepare_transaction_readonly, __session_rollback_transaction_notsup,
         __session_query_timestamp_notsup, __session_timestamp_transaction_notsup,
-        __session_timestamp_transaction_uint_notsup, __session_checkpoint_readonly,
+        __session_timestamp_transaction_uint_notsup, __session_prepared_id_transaction_notsup,
+        __session_prepared_id_transaction_uint_notsup, __session_checkpoint_readonly,
         __session_reset_snapshot_notsup, __session_transaction_pinned_range_notsup,
         __session_get_last_error, __wt_session_breakpoint},
       stds_readonly = {NULL, NULL, __session_close, __session_reconfigure, __wt_session_strerror,
@@ -2368,7 +2456,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_begin_transaction, __session_commit_transaction,
         __session_prepare_transaction_readonly, __session_rollback_transaction,
         __session_query_timestamp, __session_timestamp_transaction,
-        __session_timestamp_transaction_uint, __session_checkpoint_readonly,
+        __session_timestamp_transaction_uint, __session_prepared_id_transaction,
+        __session_prepared_id_transaction_uint, __session_checkpoint_readonly,
         __session_reset_snapshot, __session_transaction_pinned_range, __session_get_last_error,
         __wt_session_breakpoint};
     WT_DECL_RET;

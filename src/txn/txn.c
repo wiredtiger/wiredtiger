@@ -1920,6 +1920,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Set the prepare timestamp. */
     WT_RET(__wt_txn_set_timestamp(session, cfg, false));
+    /* Set the prepared id. */
+    WT_RET(__wt_txn_set_prepared_id(session, cfg));
 
     if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) && !F_ISSET(txn, WT_TXN_HAS_PREPARED_ID)) {
         WT_RET_MSG(session, EINVAL, "prepared_id need to be set with preserve_prepared flag on");
