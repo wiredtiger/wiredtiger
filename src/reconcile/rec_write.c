@@ -2191,34 +2191,39 @@ __wti_rec_pack_delta_internal(
 {
     WT_PAGE_HEADER *header;
     size_t packed_size;
-    uint8_t flags;
-    uint8_t *p, *head_byte;
-
-    flags = 0;
+    uint8_t *p;
 
     header = (WT_PAGE_HEADER *)r->delta.data;
 
-    packed_size = 1 + key->len;
+    packed_size = key->len;
     if (value != NULL)
         packed_size += value->len;
 
     if (r->delta.size + packed_size > r->delta.memsize)
         WT_RET(__wt_buf_grow(session, &r->delta, r->delta.size + packed_size));
 
-    head_byte = (uint8_t *)r->delta.data + r->delta.size;
-    p = head_byte + 1;
+    p = (uint8_t *)r->delta.data + r->delta.size;
 
     __wti_rec_kv_copy(session, p, key);
     p += key->len;
-    if (value == NULL)
-        LF_SET(WT_DELTA_INT_IS_DELETE);
-    else
+
+    /*
+     * If the value is NULL then write the zeroed out values and set the cell type to
+     * WT_CELL_ADDR_DEL.
+     */
+    if (value == NULL) {
+        value->buf.data = NULL;
+        value->buf.size = 0;
+        value->cell_len = __wt_cell_pack_addr(
+          session, &value->cell, WT_CELL_ADDR_DEL, WT_RECNO_OOB, NULL, NULL, value->buf.size);
+        value->len = value->cell_len + value->buf.size;
+    } else
         __wti_rec_kv_copy(session, p, value);
 
     r->delta.size += packed_size;
-    *head_byte = flags;
 
-    ++header->u.entries;
+    header->u.entries += 2; /* Two entries: key and value. */
+
     header->mem_size = (uint32_t)r->delta.size;
 
     return (0);
