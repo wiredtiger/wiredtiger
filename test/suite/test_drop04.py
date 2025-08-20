@@ -58,7 +58,7 @@ from test_cc01 import test_cc_base
 import wttest
 
 # test_drop04.py
-# Test dropping a collection on empty logged table.
+# Test dropping a collection on empty logged table. The python test reproduces the WT-15225 bug.
 class test_drop04(test_cc_base):
     conn_config = 'log=(enabled=true)'
     uri = 'table:test_drop04'
@@ -71,10 +71,8 @@ class test_drop04(test_cc_base):
         self.prout("Finished checkpoint.")
 
         for i in range(100):
-            self.prout(f"Iteration {i+1}: drop with force=false should fail.")
-            self.assertTrue(self.raisesBusy(lambda: self.session.drop(self.uri, "force=false")),
-                            "was expecting drop call to fail with EBUSY")
-            self.prout(f"Iteration {i+1}: Exists after unsuccessful drop.")
+            self.session.create(self.uri, 'key_format=i,value_format=S')
+            self.assertEqual(self.session.drop(self.uri, "force=false"), 0)
             self.session.checkpoint()
             self.prout(f"Finished checkpoint {i+1}.")
 
