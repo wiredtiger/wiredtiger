@@ -635,6 +635,7 @@ rollback_transaction(TINFO *tinfo, bool prepared)
     uint64_t ts;
 
     session = tinfo->session;
+    ts = 0;
 
     ++tinfo->rollback;
     tinfo->ignore_prepare = false;
@@ -1044,6 +1045,7 @@ ops(void *arg)
             __wt_sleep(throttle_delay / WT_MILLION, throttle_delay % WT_MILLION);
         }
 rollback_retry:
+        prepared = false;
         mirrored_truncate = false;
         if (tinfo->quit)
             break;
@@ -1409,7 +1411,6 @@ skip_operation:
          * If prepare configured, prepare the transaction 10% of the time. Note prepare requires a
          * timestamped world, which means we're in a snapshot-isolation transaction by definition.
          */
-        prepared = false;
         if (GV(OPS_PREPARE) && mmrand(&tinfo->data_rnd, 1, 10) == 1) {
             if ((ret = prepare_transaction(tinfo)) != 0) {
                 testutil_assert(ret == WT_ROLLBACK);
