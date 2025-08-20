@@ -1234,13 +1234,11 @@ __wt_txn_set_prepared_id(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG cparser;
     WT_CONFIG_ITEM ckey, cval;
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_TXN *txn;
     uint64_t prepared_id;
     bool set_prepared_id;
 
-    conn = S2C(session);
     txn = session->txn;
 
     WT_RET(__wt_txn_context_check(session, true));
@@ -1277,12 +1275,9 @@ __wt_txn_set_prepared_id(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_txn_set_prepared_id_uint(WT_SESSION_IMPL *session, uint64_t prepared_id)
 {
-    WT_CONNECTION_IMPL *conn;
     const char *name;
 
     WT_RET(__wt_txn_context_check(session, true));
-
-    conn = S2C(session);
 
     if (prepared_id == WT_TS_NONE)
         WT_RET_MSG(session, EINVAL, "illegal prepared id: zero not permitted");
