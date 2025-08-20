@@ -923,6 +923,7 @@ transaction_ops(WT_SESSION *session_arg)
         error_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_PREPARE, 40));
         /*! [transaction prepared_id_uint] */
         error_check(session->prepared_id_transaction_uint(session, 10));
+        error_check(session->prepare_transaction(session, NULL));
         /*! [transaction prepared_id_uint] */
         error_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, 42));
         error_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_DURABLE, 45));
