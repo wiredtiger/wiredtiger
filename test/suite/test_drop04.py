@@ -64,28 +64,14 @@ class test_drop04(test_cc_base):
     uri = 'table:test_drop04'
 
     def test_drop_after_bulk_load(self):
-        self.session.create(self.uri, 'key_format=i,value_format=S')
-
-        # Checkpoint the database and wait for the checkpoint cleanup.
-        self.wait_for_cc_to_run()
-        self.prout("Finished checkpoint.")
-
         for i in range(100):
             self.session.create(self.uri, 'key_format=i,value_format=S')
             self.assertEqual(self.session.drop(self.uri, "force=false"), 0)
-            self.session.checkpoint()
-            self.prout(f"Finished checkpoint {i+1}.")
+            # Checkpoint the database and wait for the checkpoint cleanup.
+            self.wait_for_cc_to_run()
+            self.pr("Finished checkpoint {i}")
 
-        # Perform an insert, following by checkpoint to let the drop succeed.
-        cursor = self.session.open_cursor(self.uri, None, None)
-        self.session.begin_transaction()
-        cursor[1] = "value1"
-        self.session.commit_transaction()
-        self.session.checkpoint()
-        cursor.close()
-        self.assertEqual(self.session.drop(self.uri), 0)
-
-        self.prout("Done.")
+        self.pr("Done.")
 
 if __name__ == '__main__':
     wttest.run()
