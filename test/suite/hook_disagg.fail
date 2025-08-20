@@ -8,6 +8,7 @@ test_bug003.py
 test_bug006.py
 test_bug010.py
 test_bug019.py
+test_bug027.py
 test_bug033.py
 test_bulk01.py
 test_bulk02.py
