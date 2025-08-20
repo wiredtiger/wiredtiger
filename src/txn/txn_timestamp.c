@@ -1069,7 +1069,6 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
     WT_DECL_RET;
     WT_TXN *txn;
     wt_timestamp_t commit_ts, durable_ts, prepare_ts, read_ts, rollback_ts;
-    uint64_t prepared_id;
     bool set_ts;
 
     conn = S2C(session);
@@ -1083,7 +1082,6 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
      * them, the stable timestamp might have moved forward since they were successfully set.
      */
     commit_ts = durable_ts = prepare_ts = read_ts = rollback_ts = WT_TS_NONE;
-    prepared_id = WT_PREPARED_ID_NONE;
     if (commit && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
         commit_ts = txn->commit_timestamp;
     if (commit && F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
@@ -1113,9 +1111,6 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
                 set_ts = true;
             } else if (WT_CONFIG_LIT_MATCH("rollback_timestamp", ckey)) {
                 WT_RET(__wt_txn_parse_timestamp(session, "rollback", &rollback_ts, &cval));
-                set_ts = true;
-            } else if (WT_CONFIG_LIT_MATCH("prepared_id", ckey)) {
-                WT_RET(__wt_txn_parse_prepared_id(session, "prepared_id", &prepared_id, &cval));
                 set_ts = true;
             }
         }
@@ -1148,9 +1143,6 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
 
     if (rollback_ts != WT_TS_NONE)
         WT_RET(__txn_set_rollback_timestamp(session, rollback_ts));
-
-    if (prepared_id != WT_PREPARED_ID_NONE)
-        WT_RET(__txn_set_prepared_id(session, prepared_id));
 
     /* Timestamps are only logged in debugging mode. */
     if (set_ts && FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING) &&
