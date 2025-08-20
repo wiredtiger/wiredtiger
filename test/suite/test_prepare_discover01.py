@@ -80,6 +80,7 @@ class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
         # Creating backup that will preserve artifacts
         backup_dir = 'bkp'
         self.backup(backup_dir, session2)
+
         # Opening backup database
         conn2 = self.wiredtiger_open(backup_dir, self.conn_config)
 
