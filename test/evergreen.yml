@@ -869,7 +869,7 @@ functions:
         fi
         py=${python_binary|python3}
         echo "Using $threads_command for 'unit test parallel'"
-        if [ ${TESTUTIL_TSAN} -eq 1 ]; then
+        if [[ ${TESTUTIL_TSAN|0} -eq 1 ]]; then
             export TSAN_OPTIONS="$TSAN_OPTIONS:log_path=$(git rev-parse --show-toplevel)/tsan_logs:exitcode=0"
             ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1 || echo "Ignoring failed test as we are checking test coverage"
         else
@@ -5812,7 +5812,7 @@ buildvariants:
     ENABLE_TCMALLOC: 0
     additional_env_vars: |
       export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 8" | bc)
+    num_jobs: 2
   tasks:
     - name: compile
     - name: examples-c-test
@@ -6639,7 +6639,7 @@ buildvariants:
     ENABLE_TCMALLOC: 0
     additional_env_vars: |
       export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 8" | bc)
+    num_jobs: 2
   tasks:
     - name: compile
     - name: examples-c-test
