@@ -682,8 +682,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
 
     /* FIXME-WT-15192: Consider setting `prune_timestamp` to `last_checkpoint_timestamp` */
     if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-        WT_ACQUIRE_READ(
-          btree->prune_timestamp, conn->disaggregated_storage.last_checkpoint_timestamp);
+        btree->prune_timestamp = WT_TS_NONE;
 
     return (0);
 }

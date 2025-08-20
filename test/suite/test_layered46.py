@@ -30,7 +30,11 @@ import errno, os, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# TODO-DONT-MERGE: Add test descritpion
+# Regression test for WT-15158
+# Before the fix, during the initialization of an ingest table, `prune_timestamp` was initialized to the last checkpoint timestamp.
+# During the subsequent checkpoint operation, it should be updated to the most recent checkpoint in use.
+# This test is designed to initialize the `prune_timestamp` to `ckpt2` while `ckpt1` is still in use,
+# in order to create a conflict by updating the timestamp to an older one (to `ckpt1`) during the checkpoint operation.
 
 @disagg_test_class
 class test_layered46(wttest.WiredTigerTestCase, DisaggConfigMixin):
@@ -72,15 +76,15 @@ class test_layered46(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session_follow = self.conn_follow.open_session('')
 
     def test_layered46(self):
+        # Setup
         self.session.create(self.uris[0], self.table_cfg)
         self.session.create(self.uris[1], self.table_cfg)
-
         self.create_follower()
 
+        # Create and pick-up checkpoint #1
         self.leader_put_data(self.uris[1])
         self.leader_put_data(self.uris[0])
-
-        self.checkpoint() # ckpt 1
+        self.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
 
         # Open a cursor on uris[0] to pin ckpt as in use
@@ -90,17 +94,16 @@ class test_layered46(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor.search()
         self.session_follow.commit_transaction()
 
-        # Add more data
+        # Create and pick-up checkpoint #2
         self.leader_put_data(self.uris[0], 'aaa')
-
-        self.checkpoint() # ckpt 2
+        self.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
 
         # Initialize prune_timestamp (should be set to the ckpt 2, but ckpt 1 is still in use)
         cursor2 = self.session_follow.open_cursor(self.uris[1], None, None)
 
+        # Create and pick-up checkpoint #3 to initiate checkpoint pickup for `uris[1]`
         self.leader_put_data(self.uris[0], 'bbb')
-
         self.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
 
