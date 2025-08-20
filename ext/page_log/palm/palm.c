@@ -723,6 +723,7 @@ palm_handle_verify_page(
     while (palm_kv_next_page_match(&matches)) {
 
         /* FIXME-WT-15041: Enable the following once PALM can handle abandoned checkpoints. */
+        (void)last_tombstone;
 #if 0
         /* Only the last page in the chain can be a tombstone. */
         PALM_VERIFY_EQUAL(last_tombstone, false);
