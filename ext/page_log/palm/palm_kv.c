@@ -467,7 +467,7 @@ next:
     }
 
     /* If the last tracked page was not a tombstone, store the page ID. */
-    if (ret == MDB_NOTFOUND && !prev_is_tombstone) {
+    if (prev_page_id != 0 && !prev_is_tombstone) {
         assert(count < stat.ms_entries);
         ((uint64_t *)item->data)[count++] = prev_page_id;
     }
