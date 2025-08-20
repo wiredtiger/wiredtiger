@@ -50,6 +50,7 @@
 #include <swap.h>
 
 #include "palm_kv.h"
+#include "palm_utils.h"
 #define MEGABYTE (1024 * 1024)
 
 /*
@@ -377,15 +378,21 @@ palm_kv_get_page_ids(
   PALM_KV_CONTEXT *context, WT_ITEM *item, uint64_t checkpoint_lsn, uint64_t table_id, size_t *size)
 {
     MDB_cursor *cursor;
-    MDB_val kval;
-    MDB_val vval;
     MDB_stat stat;
     int ret;
     size_t count = 0;
     cursor = NULL;
+    MDB_val kval;
+    MDB_val vval;
+    PAGE_KEY page_key;
 
     memset(&kval, 0, sizeof(kval));
     memset(&vval, 0, sizeof(vval));
+    memset(&page_key, 0, sizeof(page_key));
+    page_key.table_id = table_id;
+    swap_page_key(&page_key, &page_key);
+    kval.mv_size = sizeof(page_key);
+    kval.mv_data = &page_key;
 
     if ((ret = mdb_cursor_open(context->lmdb_txn, context->env->lmdb_pages_dbi, &cursor)) != 0)
         return (ret);
@@ -401,13 +408,16 @@ palm_kv_get_page_ids(
         return (WT_NOTFOUND);
     }
 
-    item = malloc(sizeof(WT_ITEM));
-    item->data = malloc(stat.ms_entries * sizeof(uint64_t));
-    item->size = stat.ms_entries;
+    if (item != NULL) {
+        memset(item, 0, sizeof(WT_ITEM));
+        if ((ret = palm_resize_item(item, stat.ms_entries * sizeof(uint64_t))) != 0)
+            return (ret);
+    }
+
     if (item->data == NULL)
         return (ENOMEM);
 
-    if ((ret = mdb_cursor_get(cursor, &kval, &vval, MDB_FIRST)) != 0)
+    if ((ret = mdb_cursor_get(cursor, &kval, &vval, MDB_SET_RANGE)) != 0)
         return (ret);
 
     uint64_t prev_page_id = 0;
@@ -421,30 +431,29 @@ palm_kv_get_page_ids(
      * page ID in the item->data array.
      */
     while (ret == 0) {
-        if (kval.mv_size != sizeof(PAGE_KEY)) {
+        if (kval.mv_size != sizeof(PAGE_KEY))
             return (EINVAL);
-        }
+
         PAGE_KEY *key = (PAGE_KEY *)kval.mv_data;
         PAGE_KEY decoded_key;
         swap_page_key(key, &decoded_key);
 
         /* Skip pages that are not for the requested table. */
-        if (decoded_key.table_id < table_id) {
+        if (decoded_key.table_id < table_id)
             /* Skip pages that are not for the requested table. */
             goto next;
-        }
+
         /* If we have gone past the table, stop. */
-        else if (decoded_key.table_id > table_id) {
+        else if (decoded_key.table_id > table_id)
             break;
-        }
 
         /* Skip pages that are newer than the checkpoint. */
-        if (decoded_key.lsn >= checkpoint_lsn) {
+        if (decoded_key.lsn >= checkpoint_lsn)
             goto next;
-        }
 
         /*  If the previous page was not a tombstone, store the previous page ID. */
         if (prev_page_id != 0 && decoded_key.page_id != prev_page_id && !prev_is_tombstone) {
+            assert(count < stat.ms_entries);
             ((uint64_t *)item->data)[count++] = prev_page_id;
         }
 
@@ -459,6 +468,7 @@ next:
 
     /* If the last tracked page was not a tombstone, store the page ID. */
     if (ret == MDB_NOTFOUND && !prev_is_tombstone) {
+        assert(count < stat.ms_entries);
         ((uint64_t *)item->data)[count++] = prev_page_id;
     }
 

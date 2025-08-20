@@ -43,6 +43,7 @@
 
 #include "palm_kv.h"
 #include "palm_verbose.h"
+#include "palm_utils.h"
 
 /*
  * This page log implementation is used for demonstration and testing. All objects are stored as
@@ -460,24 +461,6 @@ palm_get_dek(PALM *palm, WT_SESSION *session, const WT_PAGE_LOG_ENCRYPTION *encr
     if (was_zeroed && is_delta && base_lsn < palm->begin_lsn)
         return (palm_err(palm, session, EINVAL, "expected non-zero encryption dek"));
 
-    return (0);
-}
-
-/*
- * palm_resize_item --
- *     Resize a buffer as needed.
- */
-static int
-palm_resize_item(WT_ITEM *item, size_t new_size)
-{
-    if (item->memsize < new_size) {
-        item->mem = realloc(item->mem, new_size);
-        if (item->mem == NULL)
-            return (errno);
-        item->memsize = new_size;
-    }
-    item->data = item->mem;
-    item->size = new_size;
     return (0);
 }
 
