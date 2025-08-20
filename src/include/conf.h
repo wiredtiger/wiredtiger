@@ -167,15 +167,15 @@ WT_CONF_API_DECLARE(colgroup, meta, 2, 12);
 WT_CONF_API_DECLARE(file, config, 6, 59);
 WT_CONF_API_DECLARE(file, meta, 7, 69);
 WT_CONF_API_DECLARE(index, meta, 2, 15);
-WT_CONF_API_DECLARE(layered, meta, 4, 22);
+WT_CONF_API_DECLARE(layered, meta, 4, 23);
 WT_CONF_API_DECLARE(object, meta, 7, 71);
 WT_CONF_API_DECLARE(table, meta, 2, 13);
 WT_CONF_API_DECLARE(tier, meta, 7, 72);
 WT_CONF_API_DECLARE(tiered, meta, 7, 74);
-WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open, 25, 189);
-WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_all, 25, 190);
-WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_basecfg, 25, 184);
-WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_usercfg, 25, 183);
+WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open, 25, 190);
+WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_all, 25, 191);
+WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_basecfg, 25, 185);
+WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_usercfg, 25, 184);
 
 #define WT_CONF_API_ELEMENTS 54
 

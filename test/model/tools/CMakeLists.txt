@@ -1,4 +1,3 @@
-project(model_tools)
 
 include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
 

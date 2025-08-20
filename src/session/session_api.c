@@ -581,7 +581,6 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_PREPARE_ALLOWED(session, reconfigure, config, cfg);
-    WT_UNUSED(cfg);
 
     WT_ERR(__wt_session_reset_cursors(session, false));
 
@@ -710,9 +709,8 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
         }
         break;
     case 'p':
-        if (WT_PREFIX_MATCH(uri, "prepared_discover:")) {
+        if (WT_PREFIX_MATCH(uri, "prepared_discover:"))
             WT_RET(__wt_cursor_prepared_discover_open(session, uri, other, cfg, cursorp));
-        }
         break;
     case 's':
         if (WT_PREFIX_MATCH(uri, "statistics:")) {

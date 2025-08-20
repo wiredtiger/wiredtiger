@@ -1,5 +1,3 @@
-project(page_log C)
-
 set(sources
   "palm.c"
   "palm_kv.c"

@@ -1,7 +1,3 @@
-project(test)
-
-include(ctest_helpers.cmake)
-
 if(WT_WIN)
     # Compile the windows shim library.
     add_subdirectory(windows)

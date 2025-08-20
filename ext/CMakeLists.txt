@@ -1,5 +1,3 @@
-project(ext C)
-
 # Build the compressor extensions.
 add_subdirectory(compressors/lz4)
 add_subdirectory(compressors/snappy)

@@ -24,14 +24,17 @@ extern "C" {
 /*******************************************
  * Required includes
  *******************************************/
-@wiredtiger_includes_decl@
+#include <sys/types.h>
+#include <inttypes.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
 
 /*******************************************
  * Portable type names
  *******************************************/
-@off_t_decl@
-@uintmax_t_decl@
-@uintptr_t_decl@
+typedef int64_t wt_off_t;
 
 #if defined(DOXYGEN) || defined(SWIG)
 #define __F(func) func
@@ -1617,8 +1620,8 @@ struct __wt_session {
      * @param session the session handle
      * @configstart{WT_SESSION.begin_transaction, see dist/api_data.py}
      * @config{claim_prepared_id, allow a session to claim a prepared transaction that was restored
-     * upon restart by specifying the transaction's prepared ID., an integer greater than or equal
-     * to \c 0; default \c 0.}
+     * upon restart by specifying the transaction's prepared ID. Returns WT_NOTFOUND if the prepared
+     * id doesn't exist., an integer greater than or equal to \c 0; default \c 0.}
      * @config{ignore_prepare, whether to ignore updates by other prepared transactions when doing
      * of read operations of this transaction.  When \c true\, forces the transaction to be
      * read-only.  Use \c force to ignore prepared updates and permit writes (see @ref
@@ -2123,14 +2126,9 @@ struct __wt_connection {
      * use a minimum of the log file size.  A database can configure both log_size and wait to set
      * an upper bound for checkpoints; setting this value above 0 configures periodic checkpoints.,
      * an integer between \c 0 and \c 2GB; default \c 0.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;precise,
-     * Only write data with timestamps that are smaller or equal to the stable timestamp to the
-     * checkpoint.  Rollback to stable after restart is a no-op if enabled.  However\, it leads to
-     * extra cache pressure.  The user must have set the stable timestamp.  It is not compatible
-     * with use_timestamp=false config., a boolean flag; default \c false.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each checkpoint; setting this
-     * value above 0 configures periodic checkpoints., an integer between \c 0 and \c 100000;
-     * default \c 0.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait,
+     * seconds to wait between each checkpoint; setting this value above 0 configures periodic
+     * checkpoints., an integer between \c 0 and \c 100000; default \c 0.}
      * @config{ ),,}
      * @config{checkpoint_cleanup = (, periodically checkpoint cleanup the database., a set of
      * related configuration options defined as follows.}
@@ -2238,10 +2236,10 @@ struct __wt_connection {
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number of threads
      * WiredTiger will start to help evict pages from cache.  The number of threads started will
      * vary depending on the current eviction load.  Each eviction worker thread uses a session from
-     * the configured session_max., an integer between \c 1 and \c 20; default \c 8.}
+     * the configured session_max., an integer between \c 1 and \c 64; default \c 8.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min, minimum number of threads WiredTiger will start
      * to help evict pages from cache.  The number of threads currently running will vary depending
-     * on the current eviction load., an integer between \c 1 and \c 20; default \c 1.}
+     * on the current eviction load., an integer between \c 1 and \c 64; default \c 1.}
      * @config{
      * ),,}
      * @config{eviction_checkpoint_target, perform eviction at the beginning of checkpoints to bring
@@ -2959,14 +2957,9 @@ struct __wt_connection {
  * minimum of the log file size.  A database can configure both log_size and wait to set an upper
  * bound for checkpoints; setting this value above 0 configures periodic checkpoints., an integer
  * between \c 0 and \c 2GB; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;precise, Only write data
- * with timestamps that are smaller or equal to the stable timestamp to the checkpoint.  Rollback to
- * stable after restart is a no-op if enabled.  However\, it leads to extra cache pressure.  The
- * user must have set the stable timestamp.  It is not compatible with use_timestamp=false config.,
- * a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between
- * each checkpoint; setting this value above 0 configures periodic checkpoints., an integer between
- * \c 0 and \c 100000; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait
+ * between each checkpoint; setting this value above 0 configures periodic checkpoints., an integer
+ * between \c 0 and \c 100000; default \c 0.}
  * @config{ ),,}
  * @config{checkpoint_cleanup = (, periodically checkpoint cleanup the database., a set of related
  * configuration options defined as follows.}
@@ -3116,11 +3109,11 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number of threads WiredTiger will
  * start to help evict pages from cache.  The number of threads started will vary depending on the
  * current eviction load.  Each eviction worker thread uses a session from the configured
- * session_max., an integer between \c 1 and \c 20; default \c 8.}
+ * session_max., an integer between \c 1 and \c 64; default \c 8.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
  * threads_min, minimum number of threads WiredTiger will start to help evict pages from cache.  The
  * number of threads currently running will vary depending on the current eviction load., an integer
- * between \c 1 and \c 20; default \c 1.}
+ * between \c 1 and \c 64; default \c 1.}
  * @config{ ),,}
  * @config{eviction_checkpoint_target, perform eviction at the beginning of checkpoints to bring the
  * dirty content in cache to this level.  It is a percentage of the cache size if the value is
@@ -3316,6 +3309,10 @@ struct __wt_connection {
  * @config{page_delta = (, configure page delta settings for this connection., a set of related
  * configuration options defined as follows.}
  * @config{ ),,}
+ * @config{precise_checkpoint, Only write data with timestamps that are smaller or equal to the
+ * stable timestamp to the checkpoint.  Rollback to stable after restart is a no-op if enabled.
+ * However\, it leads to extra cache pressure.  The user must have set the stable timestamp.  It is
+ * not compatible with use_timestamp=false config., a boolean flag; default \c false.}
  * @config{prefetch = (, Enable automatic detection of scans by applications\, and attempt to
  * pre-fetch future content into the cache., a set of related configuration options defined as
  * follows.}
