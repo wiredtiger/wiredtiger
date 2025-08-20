@@ -1266,7 +1266,7 @@ __wt_txn_set_prepared_id_uint(WT_SESSION_IMPL *session, uint64_t prepared_id)
 {
     WT_RET(__wt_txn_context_check(session, true));
 
-    if (prepared_id == WT_TS_NONE)
+    if (prepared_id == WT_PREPARED_ID_NONE)
         WT_RET_MSG(session, EINVAL, "illegal prepared id: zero not permitted");
 
     WT_RET(__txn_set_prepared_id(session, prepared_id));
