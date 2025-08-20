@@ -56,7 +56,6 @@ class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
         # Support this by moving recovery to after setting precise_checkpoint and preserve_prepared flags.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(50))
-        self.skipTest('FIXME-WT-15113 Enable when we support recovery from backup with preserve_prepare config')
         self.session.create(self.uri, self.s_config)
         c = self.session.open_cursor(self.uri)
 
@@ -81,7 +80,6 @@ class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
         # Creating backup that will preserve artifacts
         backup_dir = 'bkp'
         self.backup(backup_dir, session2)
-
         # Opening backup database
         conn2 = self.wiredtiger_open(backup_dir, self.conn_config)
 
