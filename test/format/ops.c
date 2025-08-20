@@ -40,7 +40,7 @@ static int col_update(TINFO *, bool);
 static int nextprev(TINFO *, bool);
 static WT_THREAD_RET ops(void *);
 static int read_row(TINFO *);
-static void rollback_transaction(TINFO *);
+static void rollback_transaction(TINFO *, bool);
 static int row_insert(TINFO *, bool);
 static int row_modify(TINFO *, bool);
 static int row_remove(TINFO *, bool);
@@ -629,19 +629,28 @@ commit_transaction(TINFO *tinfo, bool prepared)
  *     Rollback a transaction.
  */
 static void
-rollback_transaction(TINFO *tinfo)
+rollback_transaction(TINFO *tinfo, bool prepared)
 {
     WT_SESSION *session;
+    uint64_t ts;
 
     session = tinfo->session;
 
     ++tinfo->rollback;
     tinfo->ignore_prepare = false;
 
+    if (prepared) {
+        if (GV(RUNS_PREDICTABLE_REPLAY))
+            ts = replay_rollback_ts(tinfo);
+        else
+            ts = __wt_atomic_addv64(&g.timestamp, 1);
+    }
+    testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
     testutil_check(session->rollback_transaction(session, NULL));
     replay_rollback(tinfo);
 
-    trace_uri_op(tinfo, NULL, "abort read-ts=%" PRIu64, tinfo->read_ts);
+    trace_uri_op(
+      tinfo, NULL, "abort read-ts=%" PRIu64 ", rollback-ts=%" PRIu64, tinfo->read_ts, ts);
 }
 
 /*
@@ -653,12 +662,13 @@ prepare_transaction(TINFO *tinfo)
 {
     WT_DECL_RET;
     WT_SESSION *session;
-    uint64_t ts;
+    uint64_t prepared_id, ts;
 
     session = tinfo->session;
 
     ++tinfo->prepare;
 
+    prepared_id = __wt_atomic_add64(&g.timestamp, 1);
     if (GV(RUNS_PREDICTABLE_REPLAY))
         ts = replay_prepare_ts(tinfo);
     else
@@ -669,9 +679,11 @@ prepare_transaction(TINFO *tinfo)
          */
         ts = __wt_atomic_fetch_addv64(&g.timestamp, 1);
     testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_PREPARE, ts));
+    testutil_check(
+      session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_PREPARED_ID, prepared_id));
     ret = session->prepare_transaction(session, NULL);
 
-    trace_uri_op(tinfo, NULL, "prepare ts=%" PRIu64, ts);
+    trace_uri_op(tinfo, NULL, "prepare ts=%" PRIu64 ", prepared id=%" PRIu64, ts, prepared_id);
 
     return (ret);
 }
@@ -1426,7 +1438,7 @@ rollback:
                     goto loop_exit;
                 /* Force a rollback */
                 testutil_assert(intxn);
-                rollback_transaction(tinfo);
+                rollback_transaction(tinfo, prepared);
                 intxn = false;
                 ++ntries;
                 replay_pause_after_rollback(tinfo, ntries);
@@ -1434,7 +1446,7 @@ rollback:
                 goto rollback_retry;
             }
             __wt_yield(); /* Encourage races */
-            rollback_transaction(tinfo);
+            rollback_transaction(tinfo, prepared);
             snap_repeat_update(tinfo, false);
             break;
         }
