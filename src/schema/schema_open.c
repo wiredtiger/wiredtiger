@@ -643,8 +643,6 @@ __schema_open_layered_ingest(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered
     WT_ACQUIRE_READ(
       ingest_btree->prune_timestamp, S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
 
-    printf("init layered_table=%s ingest_btree->prune_timestamp = %" PRIu64 "\n", layered->stable_uri, ingest_btree->prune_timestamp);
-
     WT_RET(__wt_session_release_dhandle(session));
     return (0);
 }

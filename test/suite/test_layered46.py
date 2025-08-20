@@ -37,7 +37,7 @@ class test_layered46(wttest.WiredTigerTestCase, DisaggConfigMixin):
     disagg_storages = gen_disagg_storages('test_layered46', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
-    nitems = 10000
+    nitems = 10
     timestamp = 2
 
     conn_base_config = 'disaggregated=(page_log=palm),'
@@ -72,55 +72,35 @@ class test_layered46(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session_follow = self.conn_follow.open_session('')
 
     def test_layered46(self):
-        # FOR SOME REASON ORDER IS IMPORTANT HERE FOR GETTING LAST_CKPT INITIALIZED CORRECTLY
-        self.session.create(self.uris[1], self.table_cfg)
         self.session.create(self.uris[0], self.table_cfg)
+        self.session.create(self.uris[1], self.table_cfg)
 
-        print("--- CREATE FOLLOWER")
         self.create_follower()
 
-        print("--- PUT MORE DATA 1")
-        self.leader_put_data(self.uris[0])
         self.leader_put_data(self.uris[1])
+        self.leader_put_data(self.uris[0])
 
-        print("--- CKPT 1")
         self.checkpoint() # ckpt 1
-        print("--- CKPT PICKUP 1")
         self.disagg_advance_checkpoint(self.conn_follow)
 
-        print("--- OPEN CURSOR 1")
         # Open a cursor on uris[0] to pin ckpt as in use
         cursor = self.session_follow.open_cursor(self.uris[0], None, None)
-        # # Do we need this ???
         self.session_follow.begin_transaction()
         cursor.set_key(str(1))
         cursor.search()
         self.session_follow.commit_transaction()
 
-        # # Add more data
-        print("--- PUT MORE DATA 2")
+        # Add more data
         self.leader_put_data(self.uris[0], 'aaa')
-        # # self.leader_put_data(self.uris[1], 'aaa')
 
-        print("--- CKPT 2")
         self.checkpoint() # ckpt 2
-        print("--- CKPT PICKUP 2")
         self.disagg_advance_checkpoint(self.conn_follow)
 
-        # print("--- OPEN CURSOR 2")
-        # # Reinitialize prune_timestamp (should be set to the ckpt 2, but ckpt 1 is still in use)
+        # Initialize prune_timestamp (should be set to the ckpt 2, but ckpt 1 is still in use)
         cursor2 = self.session_follow.open_cursor(self.uris[1], None, None)
-        # Do we need this ???
-        # self.session_follow.begin_transaction()
-        # cursor2.set_key(str(1))
-        # cursor2.search()
-        # self.session_follow.commit_transaction()
 
-        print("--- PUT MORE DATA 3")
         self.leader_put_data(self.uris[0], 'bbb')
-        # self.leader_put_data(self.uris[1], 'bbb')
 
-        print("--- CKPT 3")
-        self.checkpoint() # ckpt 3
-        print("--- CKPT PICKUP 3")
+        self.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
+

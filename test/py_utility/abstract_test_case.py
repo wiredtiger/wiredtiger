@@ -294,8 +294,8 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
         '''
         self.captureout = CapturedFd('stdout.txt', 'standard output')
         self.captureerr = CapturedFd('stderr.txt', 'error output')
-        # sys.stdout = self.captureout.capture()
-        # sys.stderr = self.captureerr.capture()
+        sys.stdout = self.captureout.capture()
+        sys.stderr = self.captureerr.capture()
         if self.ignore_regex is not None:
             self.captureout.setIgnorePattern(self.ignore_regex)
 
