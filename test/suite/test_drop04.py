@@ -65,7 +65,7 @@ class test_drop04(test_cc_base):
 
     def test_drop_after_bulk_load(self):
         for i in range(100):
-            self.session.create(self.uri, 'key_format=i,value_format=S')
+            self.assertEqual(self.session.create(self.uri, 'key_format=i,value_format=S'), 0)
             # Checkpoint the database and wait for the checkpoint cleanup.
             self.wait_for_cc_to_run()
             self.pr("Finished checkpoint {i}, performing drop...")
