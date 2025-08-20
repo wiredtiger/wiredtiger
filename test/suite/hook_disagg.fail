@@ -42,6 +42,7 @@ test_cursor21.py
 test_debug_mode08.py
 test_drop.py
 test_drop03.py
+test_drop04.py
 test_drop_create.py
 test_dump.py
 test_dump01.py # RTS message
