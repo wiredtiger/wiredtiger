@@ -1235,11 +1235,7 @@ __wt_txn_set_prepared_id(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONFIG cparser;
     WT_CONFIG_ITEM ckey, cval;
     WT_DECL_RET;
-    WT_TXN *txn;
     uint64_t prepared_id;
-    bool set_prepared_id;
-
-    txn = session->txn;
 
     WT_RET(__wt_txn_context_check(session, true));
 
@@ -1275,8 +1271,6 @@ __wt_txn_set_prepared_id(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_txn_set_prepared_id_uint(WT_SESSION_IMPL *session, uint64_t prepared_id)
 {
-    const char *name;
-
     WT_RET(__wt_txn_context_check(session, true));
 
     if (prepared_id == WT_TS_NONE)
