@@ -12,7 +12,7 @@
  * __txn_parse_hex_raw --
  *     Decodes and sets a hex value. Don't do any checking.
  */
-static int WT_INLINE
+WT_INLINE static int
 __txn_parse_hex_raw(
   WT_SESSION_IMPL *session, const char *name, uint64_t *valuep, WT_CONFIG_ITEM *cval)
 {
