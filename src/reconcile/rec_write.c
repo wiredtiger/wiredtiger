@@ -2190,6 +2190,7 @@ __wti_rec_pack_delta_internal(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *key, WTI_REC_KV *value)
 {
     WT_PAGE_HEADER *header;
+    WTI_REC_KV kv_struct, *t_kv;
     size_t packed_size;
     uint8_t *p;
 
@@ -2212,11 +2213,13 @@ __wti_rec_pack_delta_internal(
      * WT_CELL_ADDR_DEL.
      */
     if (value == NULL) {
-        value->buf.data = NULL;
-        value->buf.size = 0;
-        value->cell_len = __wt_cell_pack_addr(
-          session, &value->cell, WT_CELL_ADDR_DEL, WT_RECNO_OOB, NULL, NULL, value->buf.size);
-        value->len = value->cell_len + value->buf.size;
+        t_kv = &kv_struct;
+        t_kv->buf.data = NULL;
+        t_kv->buf.size = 0;
+
+        t_kv->cell_len = __wt_cell_pack_addr(
+          session, &t_kv->cell, WT_CELL_ADDR_DEL, WT_RECNO_OOB, NULL, NULL, t_kv->buf.size);
+        t_kv->len = t_kv->cell_len + t_kv->buf.size;
     } else
         __wti_rec_kv_copy(session, p, value);
 
