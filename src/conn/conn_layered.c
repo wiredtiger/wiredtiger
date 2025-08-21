@@ -1172,18 +1172,10 @@ __disagg_check_local_files_in_dir(WT_SESSION_IMPL *session, const char *dir, boo
 
         struct stat sb;
         if (stat(full_path, &sb) == 0) {
-            char type = S_ISREG(sb.st_mode) ? 'f' :
-              S_ISDIR(sb.st_mode)           ? 'd' :
-              S_ISLNK(sb.st_mode)           ? 'l' :
-              S_ISCHR(sb.st_mode)           ? 'c' :
-              S_ISBLK(sb.st_mode)           ? 'b' :
-              S_ISFIFO(sb.st_mode)          ? 'p' :
-              S_ISSOCK(sb.st_mode)          ? 's' :
-                                              '?';
             __wt_verbose_debug1(session, WT_VERB_METADATA,
-              "File %2u:  [%c] %s: size=%" PRIuMAX " mode=%03o uid=%u gid=%u mtime=%s", i + 1, type,
-              full_path, (uintmax_t)sb.st_size, (u_int)sb.st_mode & 0777, (u_int)sb.st_uid,
-              (u_int)sb.st_gid, ctime(&sb.st_mtime));
+              "File %2u:  %s: size=%" PRIuMAX " mode=%03o uid=%u gid=%u mtime=%s", i + 1, full_path,
+              (uintmax_t)sb.st_size, (u_int)sb.st_mode & 0777, (u_int)sb.st_uid, (u_int)sb.st_gid,
+              ctime(&sb.st_mtime));
         } else
             __wt_verbose_debug1(
               session, WT_VERB_METADATA, "  %s: stat failed: %s", full_path, strerror(errno));
