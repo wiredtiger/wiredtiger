@@ -1230,6 +1230,9 @@ __wti_disagg_check_local_files(WT_SESSION_IMPL *session, const char *cfg[])
      * which depends on having run recovery, so the config hack is the simplest way to break that
      * dependency.
      */
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
+    if (cval.len == 0)
+        return (0); /* Not in disaggregated mode, nothing to do. */
     WT_RET(__wt_config_gets(session, cfg, "disaggregated.lose_all_my_data", &cval));
     if (cval.val == 0)
         return (0);

@@ -1834,8 +1834,8 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
      * which depends on having run recovery, so the config hack is the simplest way to break that
      * dependency.
      */
-    WT_RET(__wt_config_gets(session, cfg, "disaggregated.lose_all_my_data", &cval));
-    is_disag = cval.val != 0;
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
+    is_disag = cval.len > 0;
 
     bytelock = true;
     __wt_spin_lock(session, &__wt_process.spinlock);
