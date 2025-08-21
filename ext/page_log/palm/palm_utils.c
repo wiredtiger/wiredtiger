@@ -26,21 +26,12 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <assert.h>
 #include <errno.h>
-#include <pthread.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 
 #include <wiredtiger.h>
-#include <wiredtiger_ext.h>
 
-#include "palm_kv.h"
 #include "palm_utils.h"
-#include "palm_verbose.h"
 
 /*
  * palm_resize_item --
