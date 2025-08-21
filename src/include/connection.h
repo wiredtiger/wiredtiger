@@ -323,6 +323,20 @@ struct __wt_bucket_storage {
     } while (0)
 
 /*
+ * WT_CACHE_EVICTION_CONTROLS --
+ *  Cache eviction controls configuration.
+ */
+struct __wt_cache_eviction_controls {
+    /* Only a part of application threads will participate in cache management when a cache
+     * threshold reaches its trigger limit. */
+    bool incremental_app_eviction_enabled;
+
+    /* Change the eviction strategy to scrub eviction when the cache usage is under the target
+     * limit. */
+    bool scrub_evict_under_target_limit_enabled;
+};
+
+/*
  * WT_HEURISTIC_CONTROLS --
  *  Heuristic controls configuration.
  */
@@ -578,8 +592,6 @@ struct __wt_connection_impl {
     uint64_t dh_hash_size;    /* Data handle hash bucket array size */
     uint64_t hash_size;       /* General hash bucket array size */
     int is_new;               /* Connection created database */
-    bool evict_app_threads_enabled;
-    uint64_t evict_app_threads_flags;
 
     WT_VERSION recovery_version; /* Version of the database being recovered */
 
@@ -683,6 +695,7 @@ struct __wt_connection_impl {
                                      configured or the current size
                                      within a cache pool). */
     WT_EVICT *evict;
+    WT_CACHE_EVICTION_CONTROLS cache_eviction_controls;
 
     WT_TXN_GLOBAL txn_global; /* Global transaction state */
 

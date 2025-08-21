@@ -2291,6 +2291,29 @@ __wti_heuristic_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __wti_cache_eviction_controls_config --
+ *     Set cache_eviction_controls configuration.
+ */
+int
+__wti_cache_eviction_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    WT_RET(
+      __wt_config_gets(session, cfg, "cache_eviction_controls.incremental_app_eviction", &cval));
+    conn->cache_eviction_controls.incremental_app_eviction_enabled = (bool)cval.val;
+
+    WT_RET(__wt_config_gets(
+      session, cfg, "cache_eviction_controls.scrub_evict_under_target_limit", &cval));
+    conn->cache_eviction_controls.scrub_evict_under_target_limit_enabled = (bool)cval.val;
+
+    return (0);
+}
+
+/*
  * __wti_json_config --
  *     Set JSON output configuration.
  */
@@ -3248,6 +3271,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Parse the heuristic_controls configuration. */
     WT_ERR(__wti_heuristic_controls_config(session, cfg));
+
+    /* Parse the cache_eviction_controls configuration. */
+    WT_ERR(__wti_cache_eviction_controls_config(session, cfg));
 
     /*
      * Load the extensions after initialization completes; extensions expect everything else to be
