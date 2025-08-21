@@ -670,16 +670,17 @@ prepare_transaction(TINFO *tinfo)
 
     ++tinfo->prepare;
 
-    prepared_id = __wt_atomic_add64(&g.prepared_id, 1);
+    prepared_id = __wt_atomic_addv64(&g.prepared_id, 1);
     if (GV(RUNS_PREDICTABLE_REPLAY))
         ts = replay_prepare_ts(tinfo);
     else
         /*
-         * Prepare timestamps must be less than or equal to the eventual commit timestamp. Set the
-         * prepare timestamp to whatever the global value is now. The subsequent commit will
-         * increment it, ensuring correctness.
+         * Prepare timestamps must be less than or equal to the eventual commit timestamp but larger
+         * than the current stable timestamp. Increase the global value to ensure it is larger than
+         * the stable timestamp. The subsequent commit will increment it again, ensuring
+         * correctness.
          */
-        ts = __wt_atomic_fetch_addv64(&g.timestamp, 1);
+        ts = __wt_atomic_addv64(&g.timestamp, 1);
     testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_PREPARE, ts));
     testutil_check(session->prepared_id_transaction_uint(session, prepared_id));
     ret = session->prepare_transaction(session, NULL);
