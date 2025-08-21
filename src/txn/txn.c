@@ -1135,13 +1135,12 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
           txn->id, __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[0]),
           __wt_timestamp_to_string(txn->commit_timestamp, ts_string[1]),
           __wt_timestamp_to_string(txn->durable_timestamp, ts_string[2]));
-    else {
+    else
         __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
           "rollback resolving prepared transaction with txnid: %" PRIu64
           " and prepared timestamp: %s and rollback timestamp: %s",
           txn->id, __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[0]),
           __wt_timestamp_to_string(txn->rollback_timestamp, ts_string[1]));
-    }
 
     /*
      * Aborted updates can exist in the update chain of our transaction due to reserved update. All
@@ -1923,9 +1922,9 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     /* Set the prepared id. */
     WT_RET(__wt_txn_set_prepared_id(session, cfg));
 
-    if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) && !F_ISSET(txn, WT_TXN_HAS_PREPARED_ID)) {
-        WT_RET_MSG(session, EINVAL, "prepared_id need to be set with preserve_prepared flag on");
-    }
+    if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) && !F_ISSET(txn, WT_TXN_HAS_PREPARED_ID))
+        WT_RET_MSG(session, EINVAL,
+          "prepared_id need to be set if the preserve_prepared config is enabled.");
 
     if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
         WT_RET_MSG(session, EINVAL, "prepare timestamp is not set");
@@ -2557,7 +2556,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
                   " milliseconds",
                   conn->shutdown_timeline.rts_ms);
         } else if (conn_is_disagg)
-            __wt_verbose_warning(session, WT_VERB_RTS, "%s", "skipped shutdown RTS due to disagg");
+            __wt_verbose_info(session, WT_VERB_RTS, "%s", "skipped shutdown RTS due to disagg");
 
         s = NULL;
         /*

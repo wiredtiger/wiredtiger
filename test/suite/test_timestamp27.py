@@ -47,6 +47,11 @@ class test_timestamp27_preserve_prepared_off(wttest.WiredTigerTestCase):
         self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(100)),
             '/rollback timestamp is set for an non-prepared transaction/')
 
+    def test_prepared(self):
+        self.session.begin_transaction()
+        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(50))
+        self.session.timestamp_transaction('rollback_timestamp=' + self.timestamp_str(100))
+
 class test_timestamp27_preserve_prepared_on(wttest.WiredTigerTestCase):
     conn_config = "precise_checkpoint=true,preserve_prepared=true"
 

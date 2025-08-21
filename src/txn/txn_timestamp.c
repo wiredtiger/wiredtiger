@@ -33,7 +33,7 @@ __txn_parse_hex_raw(
 
     /* Protect against unexpectedly long hex strings. */
     if (cval->len > 2 * sizeof(uint64_t))
-        WT_RET_MSG(session, EINVAL, "%s value too long '%.*s'", name, (int)cval->len, cval->str);
+        WT_RET_MSG(session, EINVAL, "%s too long '%.*s'", name, (int)cval->len, cval->str);
 
     for (value = 0, hex_itr = cval->str, len = cval->len; len > 0; --len) {
         if ((size_t)*hex_itr < WT_ELEMENTS(hextable))
@@ -1265,7 +1265,7 @@ __wt_txn_set_prepared_id_uint(WT_SESSION_IMPL *session, uint64_t prepared_id)
 {
     WT_RET(__wt_txn_context_check(session, true));
 
-    if (prepared_id == WT_TS_NONE)
+    if (prepared_id == WT_PREPARED_ID_NONE)
         WT_RET_MSG(session, EINVAL, "illegal prepared id: zero not permitted");
 
     WT_RET(__txn_set_prepared_id(session, prepared_id));
