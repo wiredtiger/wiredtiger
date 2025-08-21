@@ -26,10 +26,14 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
+import os, wiredtiger, wttest, helper_disagg
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
+def disagg_ignore_expected_output(testcase):
+    testcase.ignoreStdoutPattern('WT_VERB_RTS|(wiredtiger_open:.*WT_VERB_METADATA)')
+
+helper_disagg.disagg_ignore_expected_output = disagg_ignore_expected_output
 
 # test_layered46.py
 #    Test deleting local files on restart.
