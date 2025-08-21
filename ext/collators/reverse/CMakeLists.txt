@@ -1,5 +1,3 @@
-project(reverse_collator C)
-
 set(sources "reverse_collator.c")
 add_library(wiredtiger_reverse_collator MODULE ${sources})
 

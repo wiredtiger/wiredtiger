@@ -1,6 +1,3 @@
-project(gcp_unit_test CXX)    
-include(${CMAKE_SOURCE_DIR}/test/ctest_helpers.cmake)
-
 # Build the unit test binary.
 create_test_executable(run_gcp_unit_tests 
     SOURCES test_gcp_connection.cpp

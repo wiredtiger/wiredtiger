@@ -1,5 +1,3 @@
-project(test_bloom C)
-
 create_test_executable(test_bloom
     SOURCES test_bloom.c
 )

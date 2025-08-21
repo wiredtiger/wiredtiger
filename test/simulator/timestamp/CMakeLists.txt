@@ -1,4 +1,3 @@
-project(timestamp_simulator CXX)
 
 # Create a timestamp_simulator library.
 add_library(timestamp_simulator SHARED
