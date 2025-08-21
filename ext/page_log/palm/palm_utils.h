@@ -26,4 +26,6 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#pragma once
+
 int palm_resize_item(WT_ITEM *item, size_t new_size);
