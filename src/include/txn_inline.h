@@ -1826,8 +1826,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     if (conf != NULL) {
         WT_RET(__wt_conf_gets_def(session, conf, claim_prepared_id, 0, &cval));
         if (cval.len != 0) {
-            WT_RET(__wt_txn_parse_timestamp(
-              session, "prepared_transaction_id", &prepared_transaction_id, &cval));
+            WT_RET(__wt_txn_parse_prepared_id(session, &prepared_transaction_id, &cval));
             WT_RET(__wt_txn_claim_prepared_txn(session, prepared_transaction_id));
             return (0);
         }
