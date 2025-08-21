@@ -1146,15 +1146,18 @@ __disagg_check_local_files_in_dir(WT_SESSION_IMPL *session, const char *dir, boo
 #ifndef MAXPATHLEN
 #define MAXPATHLEN 1024
 #endif
+
+#ifndef _WIN32
     { /* Limit the scope of big local stack variables. */
         char cwd[MAXPATHLEN];
-        if ((void *)getcwd(cwd, MAXPATHLEN) == (void *)NULL) { /* (void*) for Windows */
+        if (getcwd(cwd, MAXPATHLEN) != NULL) {
             cwd[0] = '?';
             cwd[1] = '\0';
         }
         __wt_verbose_debug1(session, WT_VERB_METADATA,
           "Found %u local files in directory <%s> -> <%s>:", file_count, cwd, dir);
     }
+#endif
 
     for (u_int i = 0; i < file_count; i++) {
         /* Build full file name */
