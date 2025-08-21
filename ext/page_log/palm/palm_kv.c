@@ -379,11 +379,12 @@ palm_kv_get_page_ids(
 {
     MDB_cursor *cursor;
     MDB_stat stat;
-    int ret;
     MDB_val kval;
     MDB_val vval;
     PAGE_KEY page_key;
     size_t count = 0;
+    int ret;
+
     cursor = NULL;
 
     memset(&kval, 0, sizeof(kval));
@@ -408,13 +409,11 @@ palm_kv_get_page_ids(
         return (WT_NOTFOUND);
     }
 
-    if (item != NULL) {
-        memset(item, 0, sizeof(*item));
-        if ((ret = palm_resize_item(item, stat.ms_entries * sizeof(uint64_t))) != 0)
-            return (ret);
-    }
-
     assert(item != NULL);
+    memset(item, 0, sizeof(*item));
+    if ((ret = palm_resize_item(item, stat.ms_entries * sizeof(uint64_t))) != 0)
+        return (ret);
+
     if (item->data == NULL)
         return (ENOMEM);
 
@@ -425,7 +424,7 @@ palm_kv_get_page_ids(
     int prev_is_tombstone = 0;
 
     /*
-     * Iterate through the pages table, looking for pages that has an lsn smaller than the given
+     * Iterate through the pages table, looking for pages that have an lsn smaller than the given
      * checkpoint lsn. Note that the pages are sorted by table_id, page_id, lsn in ascending order,
      * so we are only interested in the last page of each page_id. If the last page is a tombstone,
      * meaning we're discarding it, then we skip it. If the last page is a full page, we store the
@@ -444,8 +443,8 @@ palm_kv_get_page_ids(
             break;
 
         /*
-         * Skip pages that are not for the requested table and pages that are newer than the
-         * checkpoint. Also skip deltas as we're only interested in full pages.
+         * Skip pages that are not for the requested table and pages that are newer than the given
+         * checkpoint lsn. Also skip deltas as we're only interested in full pages.
          */
         if (decoded_key.table_id < table_id || decoded_key.lsn >= checkpoint_lsn ||
           decoded_key.is_delta) {
