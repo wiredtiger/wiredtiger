@@ -733,7 +733,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
              * If we have seen a tombstone that rolled back the prepared update, this must be the
              * prepared update. No need to walk further.
              */
-            prepare_rollback_tombstone = NULL;
             txnid = upd->upd_saved_txnid;
         }
 
@@ -933,6 +932,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
               *write_prepare && upd->prepare_state == WT_PREPARE_INPROGRESS &&
                 prepare_rollback_tombstone->next == upd);
             upd_select->upd = upd;
+            prepare_rollback_tombstone = NULL;
         }
 
         /* Track the selected update transaction id and timestamp. */
