@@ -1779,7 +1779,7 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, wt_timestamp_t prepared_tr
     WT_TXN *tmp;
 
     WT_RET(__wt_prepared_discover_find_or_create_transaction(
-      session, prepared_transaction_id, &prepared_session));
+      session, prepared_transaction_id, &prepared_session, false));
 
     WT_ASSERT(prepared_session, F_ISSET(prepared_session->txn, WT_TXN_PREPARE));
 
@@ -1826,8 +1826,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     if (conf != NULL) {
         WT_RET(__wt_conf_gets_def(session, conf, claim_prepared_id, 0, &cval));
         if (cval.len != 0) {
-            WT_RET(__wt_txn_parse_timestamp(
-              session, "prepared_transaction_id", &prepared_transaction_id, &cval));
+            WT_RET(__wt_txn_parse_prepared_id(session, &prepared_transaction_id, &cval));
             WT_RET(__wt_txn_claim_prepared_txn(session, prepared_transaction_id));
             return (0);
         }

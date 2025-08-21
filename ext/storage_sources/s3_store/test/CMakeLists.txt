@@ -1,6 +1,3 @@
-project(s3_unit_test CXX)    
-include(${CMAKE_SOURCE_DIR}/test/ctest_helpers.cmake)
-
 # Build the unit test binary.
 create_test_executable(run_s3_unit_tests 
     SOURCES test_s3_connection.cpp

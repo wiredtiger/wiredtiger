@@ -173,7 +173,7 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
             WT_ERR(__page_build_ref(
               session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
         } else if (cmp >= 0) {
-            if (!F_ISSET(delta[j], WT_DELTA_INT_IS_DELETE))
+            if (__wt_cell_type_raw(delta[j]->value.cell) != WT_CELL_ADDR_DEL)
                 WT_ERR(__page_build_ref(
                   session, ref, NULL, NULL, delta[j], false, &refs[final_entries++], incr));
             if (cmp == 0)
@@ -189,7 +189,7 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
           session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
     }
     for (; j < delta_entries; j++)
-        if (!F_ISSET(delta[j], WT_DELTA_INT_IS_DELETE))
+        if (__wt_cell_type_raw(delta[j]->value.cell) != WT_CELL_ADDR_DEL)
             WT_ERR(__page_build_ref(
               session, ref, NULL, NULL, delta[j], false, &refs[final_entries++], incr));
 
@@ -304,8 +304,9 @@ __page_reconstruct_internal_deltas(
     for (i = 0, j = 0; i < (uint32_t)delta_size; ++i, j = 0) {
         header = (WT_PAGE_HEADER *)deltas[i].data;
         WT_ASSERT(session, header->u.entries != 0);
-        delta_size_each[i] = (size_t)header->u.entries;
+        WT_ASSERT(session, header->u.entries % 2 == 0);
 
+        delta_size_each[i] = (size_t)header->u.entries / 2; /* Each entry has a key and a value. */
         WT_ERR(__wt_calloc_def(session, header->u.entries, &unpacked_deltas[i]));
         WT_CELL_FOREACH_DELTA_INT(session, ref->page->dsk, header, unpacked_deltas[i][j])
         {
@@ -509,10 +510,13 @@ __wti_page_reconstruct_deltas(
         if (F_ISSET(&S2C(session)->page_delta, WT_FLATTEN_LEAF_PAGE_DELTA) &&
           !__wt_rec_in_progress(session)) {
             ret = __wt_reconcile(session, ref, false, WT_REC_REWRITE_DELTA);
-            if (ret == 0) {
-                mod = ref->page->modify;
-                WT_ASSERT(
-                  session, mod->mod_disk_image != NULL && mod->mod_replace.block_cookie == NULL);
+            mod = ref->page->modify;
+            /*
+             * We may generate an empty page if the keys all have a globally visible tombstone. Give
+             * up the rewrite in this case.
+             */
+            if (ret == 0 && mod->mod_disk_image != NULL) {
+                WT_ASSERT(session, mod->mod_replace.block_cookie == NULL);
 
                 /* The split code works with WT_MULTI structures, build one for the disk image. */
                 memset(&multi, 0, sizeof(multi));
@@ -535,7 +539,7 @@ __wti_page_reconstruct_deltas(
                 }
 
                 WT_STAT_CONN_DSRC_INCR(session, cache_read_flatten_leaf_delta);
-            } else {
+            } else if (ret != 0) {
                 WT_STAT_CONN_DSRC_INCR(session, cache_read_flatten_leaf_delta_fail);
                 WT_RET(ret);
             }

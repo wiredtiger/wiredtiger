@@ -1,5 +1,3 @@
-project(test_fops C)
-
 create_test_executable(test_fops
     SOURCES
         fops_file.c

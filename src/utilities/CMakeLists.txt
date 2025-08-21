@@ -1,5 +1,3 @@
-project(wt C)
-
 set(sources
     util_main.c
     util_alter.c

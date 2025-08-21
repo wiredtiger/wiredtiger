@@ -1,7 +1,3 @@
-include(${CMAKE_SOURCE_DIR}/test/ctest_helpers.cmake)
-
-set(c_tests)
-
 define_c_test(
     TARGET ex_access
     SOURCES ex_access.c
