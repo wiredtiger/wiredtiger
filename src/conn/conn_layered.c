@@ -1148,7 +1148,7 @@ __disagg_check_local_files_in_dir(WT_SESSION_IMPL *session, const char *dir, boo
 #endif
     { /* Limit the scope of big local stack variables. */
         char cwd[MAXPATHLEN];
-        if (getcwd(cwd, MAXPATHLEN) == NULL) {
+        if ((void *)getcwd(cwd, MAXPATHLEN) == (void *)NULL) { /* (void*) for Windows */
             cwd[0] = '?';
             cwd[1] = '\0';
         }
