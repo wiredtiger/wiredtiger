@@ -340,6 +340,7 @@ main(int argc, char *argv[])
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
         ret = timestamp_query("get=stable_timestamp", &g.stable_timestamp);
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+        g.prepared_id = 1;
     } else {
         wts_create_home();
         config_print(false);
@@ -347,6 +348,7 @@ main(int argc, char *argv[])
         wts_create_database();
         wts_open(g.home, &g.wts_conn, true);
         timestamp_init();
+        g.prepared_id = 1;
     }
 
     locks_init(g.wts_conn);
