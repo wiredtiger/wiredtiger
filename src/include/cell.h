@@ -155,20 +155,15 @@ struct __wt_cell {
 };
 
 /*
- * WT_DELTA_CELL_LEAF --
- *	Variable-length, delta leaf cell header.
+ * WT_DELTA_CELL_INT --
+ *  Variable-length, delta internal cell header.
  */
-struct __wt_delta_cell_leaf {
+struct __wt_delta_cell_int {
     /*
-     * Maximum of 65 bytes:
+     * Maximum of 1 byte:
      *  1: cell descriptor byte
-     * 54: 4 timestamps and 2 transaction ids		(uint64_t encoding, max 9 bytes)
-     *  5: key length		                        (uint32_t encoding, max 5 bytes)
-     *  5: value length		                        (uint32_t encoding, max 5 bytes)
-     *
-     * This calculation is pessimistic: the timestamps are optional.
      */
-    uint8_t __chunk[65];
+    uint8_t __chunk[1];
 };
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -242,27 +237,27 @@ struct __wt_cell_unpack_delta_int {
     uint32_t __len;
     WT_CELL_UNPACK_KV key;
     WT_CELL_UNPACK_ADDR value;
+
+#define WT_DELTA_INT_IS_DELETE 0x01u
+    uint8_t flags;
 };
 
+#define WT_VALUE_IS_DELETE 0x01u
+
+#define WT_DELTA_LEAF_VALUE_FORMAT WT_UNCHECKED_STRING(Bu)
+
 /*
- * WT_CELL_UNPACK_DELTA_LEAF --
- *     Unpacked leaf delta cell.
+ * WT_CELL_UNPACK_DELTA_LEAF_KV --
+ *     Unpacked leaf delta k/v pair.
  */
-struct __wt_cell_unpack_delta_leaf {
-    uint32_t __len;
-    const void *key;
-    uint32_t key_size;
-    const void *value;
-    uint32_t value_size;
+struct __wt_cell_unpack_delta_leaf_kv {
+    WT_CELL_UNPACK_KV delta_key;
+    WT_CELL_UNPACK_KV delta_value;
 
-    WT_TIME_WINDOW tw;
+    WT_ITEM delta_value_data;
 
-#define WT_DELTA_LEAF_HAS_START_TXN_ID 0x01u
-#define WT_DELTA_LEAF_HAS_START_TS 0x02u
-#define WT_DELTA_LEAF_HAS_START_DURABLE_TS 0x04u
-#define WT_DELTA_LEAF_HAS_STOP_TXN_ID 0x08u
-#define WT_DELTA_LEAF_HAS_STOP_TS 0x10u
-#define WT_DELTA_LEAF_HAS_STOP_DURABLE_TS 0x20u
-#define WT_DELTA_LEAF_IS_DELETE 0x40u
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_DELTA_LEAF_IS_DELETE 0x1u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
