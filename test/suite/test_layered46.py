@@ -35,6 +35,8 @@ def disagg_ignore_expected_output(testcase):
 
 helper_disagg.disagg_ignore_expected_output = disagg_ignore_expected_output
 
+logdir = "log"
+
 # test_layered46.py
 #    Test deleting local files on restart.
 @disagg_test_class
@@ -43,6 +45,7 @@ class test_layered46(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_config = (
         "statistics=(all),statistics_log=(wait=1,json=true,on_close=true),"
         + "disaggregated=(page_log=palm,lose_all_my_data=true),"
+        + f"log=(enabled=true,path={logdir}),"
     )
 
     disagg_storages = gen_disagg_storages("test_layered46", disagg_only=True)
@@ -53,6 +56,10 @@ class test_layered46(wttest.WiredTigerTestCase, DisaggConfigMixin):
     create_session_config = "key_format=S,value_format=S"
     uri = "layered:test_layered46"
     uri_local = "table:test_layered46local"
+
+    def wiredtiger_open(self, *args, **kwargs):
+        os.makedirs(logdir, exist_ok=True)
+        return super().wiredtiger_open(*args, **kwargs)
 
     # Load the page log extension, which has object storage support.
     def conn_extensions(self, extlist):

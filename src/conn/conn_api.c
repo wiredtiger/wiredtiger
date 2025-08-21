@@ -1888,6 +1888,10 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
      * above, locked files cannot be copied on Windows). If the WiredTiger
      * file exists in the directory, create the lock file, covering the case
      * of a hot backup.
+     *
+     * In addition, in disagg mode, we should create the lock file regardless
+     * of whether the  WiredTiger file exists or not because WiredTiger may
+     * not be there.
      */
     exist = false;
     if (!is_create)
