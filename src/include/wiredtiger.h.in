@@ -1730,10 +1730,10 @@ struct __wt_session {
      * transaction.  The value must not be older than any active read timestamps\, and must be newer
      * than the current stable timestamp.  See @ref timestamp_prepare., a string; default empty.}
      * @config{prepared_id, set the optional prepared ID for the prepared updates of the current
-     * transaction.  Multiple transactions can share a prepared transaction ID\, as long as they are
-     * all guaranteed to share a decision whether to commit or abort and share the same prepare\,
-     * commit and durable timestamps.  It is ignored if the preserve prepared config is not
-     * enabled., a string; default empty.}
+     * transaction.  Multiple transactions can share a prepared ID\, as long as they are all
+     * guaranteed to share a decision whether to commit or abort and share the same prepare\, commit
+     * and durable timestamps.  It is ignored if the preserve prepared config is not enabled., a
+     * string; default empty.}
      * @configend
      * @errors
      */
@@ -1870,10 +1870,10 @@ struct __wt_session {
      * @param session the session handle
      * @configstart{WT_SESSION.prepared_id_transaction, see dist/api_data.py}
      * @config{prepared_id, set the optional prepared ID for the prepared updates of the current
-     * transaction.  Multiple transactions can share a prepared transaction ID\, as long as they are
-     * all guaranteed to share a decision whether to commit or abort and share the same prepare\,
-     * commit and durable timestamps.  It is ignored if the preserve prepared config is not
-     * enabled., a string; default empty.}
+     * transaction.  Multiple transactions can share a prepared ID\, as long as they are all
+     * guaranteed to share a decision whether to commit or abort and share the same prepare\, commit
+     * and durable timestamps.  It is ignored if the preserve prepared config is not enabled., a
+     * string; default empty.}
      * @configend
      * @errors
      */

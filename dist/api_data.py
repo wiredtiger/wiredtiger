@@ -1925,9 +1925,9 @@ methods = {
         timestamp. See @ref timestamp_prepare'''),
     Config('prepared_id', '', r'''
         set the optional prepared ID for the prepared updates of the current transaction. Multiple
-        transactions can share a prepared transaction ID, as long as they are all guaranteed to
-        share a decision whether to commit or abort and share the same prepare, commit and durable
-        timestamps. It is ignored if the preserve prepared config is not enabled.''')
+        transactions can share a prepared ID, as long as they are all guaranteed to share a decision
+        whether to commit or abort and share the same prepare, commit and durable timestamps. It is
+        ignored if the preserve prepared config is not enabled.''')
 ]),
 
 'WT_SESSION.timestamp_transaction_uint' : Method([]),
@@ -1967,9 +1967,9 @@ methods = {
 'WT_SESSION.prepared_id_transaction' : Method([
     Config('prepared_id', '', r'''
         set the optional prepared ID for the prepared updates of the current transaction. Multiple
-        transactions can share a prepared transaction ID, as long as they are all guaranteed to
-        share a decision whether to commit or abort and share the same prepare, commit and durable
-        timestamps. It is ignored if the preserve prepared config is not enabled.''')
+        transactions can share a prepared ID, as long as they are all guaranteed to share a decision
+        whether to commit or abort and share the same prepare, commit and durable timestamps. It is
+        ignored if the preserve prepared config is not enabled.''')
 ]),
 
 'WT_SESSION.rollback_transaction' : Method([
