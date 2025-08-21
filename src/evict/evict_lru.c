@@ -1383,11 +1383,11 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     for (candidates = 0; candidates < queue->evict_candidates; ++candidates) {
         WT_PAGE *page = queue->evict_queue[candidates].ref->page;
         if (__wt_page_is_modified(page))
-            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_dirty);
+            WT_STAT_CONN_DATA_INCR(session, cache_eviction_pages_queued_dirty);
         else if (page->modify != NULL)
-            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_updates);
+            WT_STAT_CONN_DATA_INCR(session, cache_eviction_pages_queued_updates);
         else
-            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_clean);
+            WT_STAT_CONN_DATA_INCR(session, cache_eviction_pages_queued_clean);
     }
 
     queue->evict_current = queue->evict_queue;
@@ -2268,9 +2268,9 @@ fast:
       session, cache_eviction_internal_pages_already_queued, internal_pages_already_queued);
     WT_STAT_CONN_INCRV(session, cache_eviction_internal_pages_queued, internal_pages_queued);
     WT_STAT_CONN_DATA_INCR(session, cache_eviction_walk_passes);
-    WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_clean, pages_seen_clean);
-    WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_dirty, pages_seen_dirty);
-    WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_updates, pages_seen_updates);
+    WT_STAT_CONN_DATA_INCRV(session, cache_eviction_pages_seen_clean, pages_seen_clean);
+    WT_STAT_CONN_DATA_INCRV(session, cache_eviction_pages_seen_dirty, pages_seen_dirty);
+    WT_STAT_CONN_DATA_INCRV(session, cache_eviction_pages_seen_updates, pages_seen_updates);
     return (0);
 }
 
