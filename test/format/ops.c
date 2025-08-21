@@ -670,7 +670,7 @@ prepare_transaction(TINFO *tinfo)
 
     ++tinfo->prepare;
 
-    prepared_id = __wt_atomic_add64(&g.timestamp, 1);
+    prepared_id = __wt_atomic_add64(&g.prepared_id, 1);
     if (GV(RUNS_PREDICTABLE_REPLAY))
         ts = replay_prepare_ts(tinfo);
     else
