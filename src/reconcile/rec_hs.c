@@ -505,9 +505,8 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
      * visible to checkpoint and the modifications it makes to the history store will be the same as
      * what checkpoint would've done.
      */
-    if (error_on_ts_ordering && __wt_txn_tw_start_visible_all(session, tw)) {
+    if (error_on_ts_ordering && __wt_txn_tw_start_visible_all(session, tw))
         error_on_ts_ordering = false;
-    }
 
     if (ret == 0) {
         WT_ASSERT(session, tw->start_ts + 1 > WT_TS_NONE);
@@ -603,9 +602,12 @@ __rec_hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r, W
   WT_ROW *rip, WT_ITEM *key)
 {
     WT_DECL_RET;
+    WT_PAGE *page;
     uint8_t *p;
 
-    switch (r->page->type) {
+    page = r->page;
+
+    switch (page->type) {
     case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_VAR:
         p = key->mem;
@@ -614,8 +616,7 @@ __rec_hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r, W
         break;
     case WT_PAGE_ROW_LEAF:
         if (ins == NULL) {
-            WT_WITH_BTREE(
-              session, btree, ret = __wt_row_leaf_key(session, r->page, rip, key, false));
+            WT_WITH_BTREE(session, btree, ret = __wt_row_leaf_key(session, page, rip, key, false));
             WT_RET(ret);
         } else {
             key->data = WT_INSERT_KEY(ins);
@@ -623,7 +624,7 @@ __rec_hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r, W
         }
         break;
     default:
-        WT_RET(__wt_illegal_value(session, r->page->type));
+        WT_RET(__wt_illegal_value(session, page->type));
     }
 
     return (ret);
@@ -784,17 +785,38 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
          * 6) We have a single tombstone on the chain, it is simply ignored.
          */
         squashed = false;
-        WT_GET_CHECK_PREPARED_AND_PREPARE_TXNID(check_prepared,
-          WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw), txnid_prepared, list->onpage_upd);
-        for (upd = list->onpage_upd->next, prev_upd = list->onpage_upd; upd != NULL;
-             upd = upd->next) {
+        check_prepared =
+          F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) && WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw);
+        if (check_prepared) {
+            WT_ACQUIRE_READ(txnid_prepared, list->onpage_upd->txnid);
+            /*
+             * No need to check the following updates as prepared because they must have all been
+             * rolled back.
+             */
+            if (txnid_prepared == WT_TXN_ABORTED)
+                check_prepared = false;
+        } else
+            txnid_prepared = WT_TXN_NONE;
+        for (upd = list->onpage_upd->next,
+            prev_upd = WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw) ? NULL : list->onpage_upd;
+             upd != NULL; upd = upd->next) {
             WT_SKIP_ABORTED_AND_SET_CHECK_PREPARED(txnid, txnid_prepared, check_prepared, upd);
 
-            /* We must have deleted any update left in the history store. */
-            WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS));
+            if (txnid == WT_TXN_ABORTED)
+                continue;
+
+            /*
+             * We must have deleted any update left in the history store except if the preserve
+             * prepared config is enabled as we cannot delete them until the associated prepare
+             * commit or rollback becomes stable.
+             */
+            WT_ASSERT(session,
+              !F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS) ||
+                (F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) &&
+                  WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw)));
 
             /* Detect any update without a timestamp. */
-            if (prev_upd->upd_start_ts < upd->upd_start_ts) {
+            if (prev_upd != NULL && prev_upd->upd_start_ts < upd->upd_start_ts) {
                 WT_ASSERT_ALWAYS(session, prev_upd->upd_start_ts == WT_TS_NONE,
                   "out-of-order timestamp update detected");
                 /*
@@ -852,7 +874,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             WT_ASSERT(session, upd->type == WT_UPDATE_TOMBSTONE || newest_hs != NULL);
 
             /* Insert full update to the history store if we need to squash the updates. */
-            if (newest_hs != NULL && prev_upd->txnid == upd->txnid &&
+            if (newest_hs != NULL && prev_upd != NULL && prev_upd->txnid == upd->txnid &&
               prev_upd->upd_start_ts == upd->upd_start_ts)
                 enable_reverse_modify = false;
 

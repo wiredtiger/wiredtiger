@@ -1,5 +1,3 @@
-project(examples)
-
 add_subdirectory(c)
 
 # Some of the examples expect to find the `wt` binary at a specific location relative to

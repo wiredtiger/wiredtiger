@@ -135,30 +135,32 @@ struct __wt_config_parser_impl {
 #define WT_CONFIG_ENTRY_WT_SESSION_log_printf 27
 #define WT_CONFIG_ENTRY_WT_SESSION_open_cursor 28
 #define WT_CONFIG_ENTRY_WT_SESSION_prepare_transaction 29
-#define WT_CONFIG_ENTRY_WT_SESSION_query_timestamp 30
-#define WT_CONFIG_ENTRY_WT_SESSION_reconfigure 31
-#define WT_CONFIG_ENTRY_WT_SESSION_reset 32
-#define WT_CONFIG_ENTRY_WT_SESSION_reset_snapshot 33
-#define WT_CONFIG_ENTRY_WT_SESSION_rollback_transaction 34
-#define WT_CONFIG_ENTRY_WT_SESSION_salvage 35
-#define WT_CONFIG_ENTRY_WT_SESSION_strerror 36
-#define WT_CONFIG_ENTRY_WT_SESSION_timestamp_transaction 37
-#define WT_CONFIG_ENTRY_WT_SESSION_timestamp_transaction_uint 38
-#define WT_CONFIG_ENTRY_WT_SESSION_truncate 39
-#define WT_CONFIG_ENTRY_WT_SESSION_verify 40
-#define WT_CONFIG_ENTRY_colgroup_meta 41
-#define WT_CONFIG_ENTRY_file_config 42
-#define WT_CONFIG_ENTRY_file_meta 43
-#define WT_CONFIG_ENTRY_index_meta 44
-#define WT_CONFIG_ENTRY_layered_meta 45
-#define WT_CONFIG_ENTRY_object_meta 46
-#define WT_CONFIG_ENTRY_table_meta 47
-#define WT_CONFIG_ENTRY_tier_meta 48
-#define WT_CONFIG_ENTRY_tiered_meta 49
-#define WT_CONFIG_ENTRY_wiredtiger_open 50
-#define WT_CONFIG_ENTRY_wiredtiger_open_all 51
-#define WT_CONFIG_ENTRY_wiredtiger_open_basecfg 52
-#define WT_CONFIG_ENTRY_wiredtiger_open_usercfg 53
+#define WT_CONFIG_ENTRY_WT_SESSION_prepared_id_transaction 30
+#define WT_CONFIG_ENTRY_WT_SESSION_prepared_id_transaction_uint 31
+#define WT_CONFIG_ENTRY_WT_SESSION_query_timestamp 32
+#define WT_CONFIG_ENTRY_WT_SESSION_reconfigure 33
+#define WT_CONFIG_ENTRY_WT_SESSION_reset 34
+#define WT_CONFIG_ENTRY_WT_SESSION_reset_snapshot 35
+#define WT_CONFIG_ENTRY_WT_SESSION_rollback_transaction 36
+#define WT_CONFIG_ENTRY_WT_SESSION_salvage 37
+#define WT_CONFIG_ENTRY_WT_SESSION_strerror 38
+#define WT_CONFIG_ENTRY_WT_SESSION_timestamp_transaction 39
+#define WT_CONFIG_ENTRY_WT_SESSION_timestamp_transaction_uint 40
+#define WT_CONFIG_ENTRY_WT_SESSION_truncate 41
+#define WT_CONFIG_ENTRY_WT_SESSION_verify 42
+#define WT_CONFIG_ENTRY_colgroup_meta 43
+#define WT_CONFIG_ENTRY_file_config 44
+#define WT_CONFIG_ENTRY_file_meta 45
+#define WT_CONFIG_ENTRY_index_meta 46
+#define WT_CONFIG_ENTRY_layered_meta 47
+#define WT_CONFIG_ENTRY_object_meta 48
+#define WT_CONFIG_ENTRY_table_meta 49
+#define WT_CONFIG_ENTRY_tier_meta 50
+#define WT_CONFIG_ENTRY_tiered_meta 51
+#define WT_CONFIG_ENTRY_wiredtiger_open 52
+#define WT_CONFIG_ENTRY_wiredtiger_open_all 53
+#define WT_CONFIG_ENTRY_wiredtiger_open_basecfg 54
+#define WT_CONFIG_ENTRY_wiredtiger_open_usercfg 55
 
 extern const char __WT_CONFIG_CHOICE_NULL[]; /* not set in configuration */
 extern const char __WT_CONFIG_CHOICE_DRAM[];
@@ -197,6 +199,7 @@ extern const char __WT_CONFIG_CHOICE_conn_close_stress_log_printf[];
 extern const char __WT_CONFIG_CHOICE_cursor_check[];
 extern const char __WT_CONFIG_CHOICE_data[];
 extern const char __WT_CONFIG_CHOICE_default[];
+extern const char __WT_CONFIG_CHOICE_delete[];
 extern const char __WT_CONFIG_CHOICE_disagg[];
 extern const char __WT_CONFIG_CHOICE_disaggregated_storage[];
 extern const char __WT_CONFIG_CHOICE_disk_validate[];
@@ -206,6 +209,7 @@ extern const char __WT_CONFIG_CHOICE_error_returns[];
 extern const char __WT_CONFIG_CHOICE_evict_reposition[];
 extern const char __WT_CONFIG_CHOICE_eviction[];
 extern const char __WT_CONFIG_CHOICE_eviction_check[];
+extern const char __WT_CONFIG_CHOICE_fail[];
 extern const char __WT_CONFIG_CHOICE_failpoint_eviction_split[];
 extern const char __WT_CONFIG_CHOICE_failpoint_history_store_delete_key_from_ts[];
 extern const char __WT_CONFIG_CHOICE_false[];
@@ -226,6 +230,7 @@ extern const char __WT_CONFIG_CHOICE_history_store_checkpoint_delay[];
 extern const char __WT_CONFIG_CHOICE_history_store_search[];
 extern const char __WT_CONFIG_CHOICE_history_store_sweep_race[];
 extern const char __WT_CONFIG_CHOICE_hs_validate[];
+extern const char __WT_CONFIG_CHOICE_ignore[];
 extern const char __WT_CONFIG_CHOICE_json[];
 extern const char __WT_CONFIG_CHOICE_key_consistent[];
 extern const char __WT_CONFIG_CHOICE_key_out_of_order[];

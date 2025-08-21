@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 class test_prepare30(wttest.WiredTigerTestCase):
 
     conn_config_values = [
-        ('preserve_prepared_on', dict(expected_error=True, conn_config='checkpoint=(precise=true),preserve_prepared=true')),
+        ('preserve_prepared_on', dict(expected_error=True, conn_config='precise_checkpoint=true,preserve_prepared=true')),
     ]
 
     scenarios = make_scenarios(conn_config_values)
@@ -51,4 +51,4 @@ class test_prepare30(wttest.WiredTigerTestCase):
         if self.expected_error:
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
                 self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(ts)),
-                        '/prepared_id need to be set with preserve_prepared flag on/')
+                        '/prepared_id need to be set if the preserve_prepared config is enabled/')

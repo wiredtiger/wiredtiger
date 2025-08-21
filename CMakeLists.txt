@@ -1,11 +1,4 @@
-cmake_minimum_required(VERSION 3.10.0)
-
-# Try to use CCACHE if available - speeds up build times.
-find_program(CCACHE_FOUND ccache)
-if(CCACHE_FOUND)
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
-endif(CCACHE_FOUND)
+cmake_minimum_required(VERSION 3.21)
 
 project(WiredTiger C CXX ASM)
 
@@ -16,6 +9,8 @@ include(cmake/configs/modes.cmake)
 include(cmake/helpers.cmake)
 include(cmake/define_libwiredtiger.cmake)
 include(cmake/gdb_autoloader_setup.cmake)
+# Define installation directory variables
+include(GNUInstallDirs)
 
 # If the user doesn't manually specify the target ARCH and OS (i.e not cross-compiling)
 # we will infer the target from the host. This is checked prior to the config option
@@ -38,12 +33,25 @@ if(NOT WT_OS)
     set(WT_OS "${host_os}")
 endif()
 
-if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake")
-    message(FATAL_ERROR "cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake does not exist")
+set(WT_CONFIG "cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake")
+
+if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/${WT_CONFIG}")
+    message(FATAL_ERROR "${WT_CONFIG} does not exist")
+endif()
+
+# Try to use CCACHE if available - speeds up build times.
+find_program(
+    CCACHE ccache
+    DOC "Ccache is a compiler cache that speeds up recompilation."
+)
+if(CCACHE)
+    set(CMAKE_C_COMPILER_LAUNCHER, ${CCACHE})
+    set(CMAKE_CXX_COMPILER_LAUNCHER, ${CCACHE})
+    message(STATUS "Using ccache: ${CCACHE}")
 endif()
 
 # Load any configuration variables special to our target.
-include(cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake)
+include(${WT_CONFIG})
 # Load auto-configure variables (e.g. environment-related configs).
 include(cmake/configs/auto.cmake)
 # Load WiredTiger related configuration options.
@@ -68,19 +76,14 @@ if(ENABLE_AZURE)
 endif()
 
 if(NOT ENABLE_SHARED AND NOT ENABLE_STATIC)
-    message(FATAL_ERROR "Both ENABLE_SHARED & ENABLE_STATIC are disabled. Need to enable at least one build flavour.")
+    message(FATAL_ERROR "Both ENABLE_SHARED & ENABLE_STATIC are disabled. "
+        "Need to enable at least one build flavour.")
 endif()
 
-# Set the C++ 17 standard. Have to use this method to make it consistent across the platforms
-# as cmake is doing funny things with the versions we have (including setting -std on MSVC).
-if(MSVC)
-    set(CMAKE_CXX_STANDARD)
-    add_cmake_flag(CMAKE_CXX_FLAGS /std:c++17)
-else()
-    set(CMAKE_CXX_STANDARD 17)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
-    set(CMAKE_CXX_EXTENSIONS OFF)
-endif()
+# Set the C++ 17 standard.
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(ENABLE_COLORIZE_OUTPUT)
     # Colorize the build error output
@@ -135,6 +138,7 @@ endif()
 
 # Enable CTest. Subsequent targets may additionally define their own ctest definitions.
 enable_testing()
+include(test/ctest_helpers.cmake)
 
 # Include the extensions to the build.
 add_subdirectory(ext)
@@ -174,7 +178,7 @@ if(HAVE_BUILTIN_EXTENSION_IAA)
 endif()
 
 # Generate wiredtiger.h include file.
-configure_file(src/include/wiredtiger.in "include/wiredtiger.h" @ONLY)
+configure_file(src/include/wiredtiger.h.in "include/wiredtiger.h" @ONLY)
 # Generate our wiredtiger_config.h include file.
 configure_file(cmake/configs/wiredtiger_config.h.in "config/wiredtiger_config.h" @ONLY)
 
@@ -268,21 +272,28 @@ add_subdirectory(src/utilities)
 # Establish our install target configuration.
 include(cmake/install/install.cmake)
 
-
 if(ENABLE_PYTHON)
+    find_package(Python3 ${PYTHON3_REQUIRED_VERSION}
+        COMPONENTS Interpreter Development REQUIRED)
+    
+    find_package(SWIG ${SWIG_REQUIRED_VERSION} COMPONENTS python REQUIRED)
+    include(UseSWIG)
+
     add_subdirectory(lang/python)
     add_subdirectory(bench/workgen)
 endif()
 
 # Build the wiredtiger test suites.
+add_subdirectory(bench/dhandle)
 add_subdirectory(bench/wtperf)
 add_subdirectory(bench/tiered)
 add_subdirectory(bench/wt2853_perf)
 add_subdirectory(examples)
 add_subdirectory(test)
+
+# Build the WiredTiger tools.
+add_subdirectory(tools/checksum_bitflip)
+
 if(ENABLE_LLVM)
     add_subdirectory(tools/xray_to_optrack)
 endif()
-
-# Build other tools.
-add_subdirectory(tools/checksum_bitflip)

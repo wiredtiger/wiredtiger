@@ -141,6 +141,9 @@ connection_disaggregated_config_common = [
     Config('last_materialized_lsn', '', r'''
         the page LSN indicating that all pages up until this LSN are available for reading''',
         type='int', undoc=True),
+    Config('local_files_action', 'delete', r'''
+        what should be done to the local files in disaggregated mode upon startup.''',
+        choices=['delete', 'fail', 'ignore'], undoc=True),
     Config('lose_all_my_data', 'false', r'''
         This setting skips file system syncs, and will cause data loss outside of a
         disaggregated storage context.''',
@@ -573,12 +576,6 @@ connection_runtime_config = [
             A database can configure both log_size and wait to set an upper bound for checkpoints;
             setting this value above 0 configures periodic checkpoints''',
             min='0', max='2GB'),
-        Config('precise', 'false', r'''
-            Only write data with timestamps that are smaller or equal to the stable timestamp to the
-            checkpoint. Rollback to stable after restart is a no-op if enabled. However, it leads to
-            extra cache pressure. The user must have set the stable timestamp. It is not compatible
-            with use_timestamp=false config.''',
-            type='boolean'),
         Config('wait', '0', r'''
             seconds to wait between each checkpoint; setting this value above 0 configures
             periodic checkpoints''',
@@ -689,12 +686,12 @@ connection_runtime_config = [
                 maximum number of threads WiredTiger will start to help evict pages from cache. The
                 number of threads started will vary depending on the current eviction load. Each
                 eviction worker thread uses a session from the configured session_max''',
-                min=1, max=20), # !!! Must match WT_EVICT_MAX_WORKERS
+                min=1, max=64), # !!! Must match WT_EVICT_MAX_WORKERS
             Config('threads_min', '1', r'''
                 minimum number of threads WiredTiger will start to help evict pages from
                 cache. The number of threads currently running will vary depending on the
                 current eviction load''',
-                min=1, max=20),
+                min=1, max=64),
             Config('evict_sample_inmem', 'true', r'''
                 If no in-memory ref is found on the root page, attempt to locate a random
                 in-memory page by examining all entries on the root page.''',
@@ -1352,6 +1349,12 @@ wiredtiger_open_common =\
             whether pre-fetch is enabled for all sessions by default''',
             type='boolean'),
         ]),
+    Config('precise_checkpoint', 'false', r'''
+            Only write data with timestamps that are smaller or equal to the stable timestamp to the
+            checkpoint. Rollback to stable after restart is a no-op if enabled. However, it leads to
+            extra cache pressure. The user must have set the stable timestamp. It is not compatible
+            with use_timestamp=false config.''',
+            type='boolean'),
     Config('preserve_prepared', 'false', r'''
         open connection in preserve prepare mode. All the prepared transactions that are
         not yet committed or rolled back will be preserved in the database. This is useful for
@@ -1881,10 +1884,10 @@ methods = {
         whether to sync log records when the transaction commits, inherited from ::wiredtiger_open
         \c transaction_sync''',
         type='boolean'),
-    Config('claim_prepared_id', '0', r'''
+    Config('claim_prepared_id', '', r'''
         allow a session to claim a prepared transaction that was restored upon restart by
-        specifying the transaction's prepared ID.''',
-        type='int', min=0)
+        specifying the transaction's prepared ID. Returns WT_NOTFOUND if the prepared id doesn't
+        exist.''')
 ], compilable=True),
 
 'WT_SESSION.commit_transaction' : Method([
@@ -1920,11 +1923,11 @@ methods = {
         set the prepare timestamp for the updates of the current transaction. The value must
         not be older than any active read timestamps, and must be newer than the current stable
         timestamp. See @ref timestamp_prepare'''),
-    Config('prepared_id', '0', r'''
+    Config('prepared_id', '', r'''
         set the optional prepared ID for the prepared updates of the current transaction. Multiple
-        transactions can share a prepared transaction ID, as long as they are all guaranteed to
-        share a decision whether to commit or abort and share the same prepare, commit and durable
-        timestamps. Default value 0 ignores this configuration option''', type='int', min=0)
+        transactions can share a prepared ID, as long as they are all guaranteed to share a decision
+        whether to commit or abort and share the same prepare, commit and durable timestamps. It is
+        ignored if the preserve prepared config is not enabled.''')
 ]),
 
 'WT_SESSION.timestamp_transaction_uint' : Method([]),
@@ -1956,7 +1959,17 @@ methods = {
         set the rollback timestamp for the current transaction. This is valid only for prepared
         transactions under the preserve_prepared config. For prepared transactions, a rollback
         timestamp is required, must not be older than the prepare timestamp, and can be set only
-        once. See @ref timestamp_txn_api and @ref timestamp_prepare'''),
+        once. It is ignored if the preserve prepared config is not enabled. See
+        @ref timestamp_txn_api and @ref timestamp_prepare''')
+]),
+
+'WT_SESSION.prepared_id_transaction_uint' : Method([]),
+'WT_SESSION.prepared_id_transaction' : Method([
+    Config('prepared_id', '', r'''
+        set the optional prepared ID for the prepared updates of the current transaction. Multiple
+        transactions can share a prepared ID, as long as they are all guaranteed to share a decision
+        whether to commit or abort and share the same prepare, commit and durable timestamps. It is
+        ignored if the preserve prepared config is not enabled.''')
 ]),
 
 'WT_SESSION.rollback_transaction' : Method([
