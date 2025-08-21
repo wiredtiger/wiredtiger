@@ -1097,14 +1097,14 @@ __wt_conn_is_disagg(WT_SESSION_IMPL *session)
  *     Delete a file or fail depending on the flag.
  */
 static int
-__disagg_delete_or_fail(WT_SESSION_IMPL *session, const char *fname, bool fail)
+__disagg_delete_or_fail(WT_SESSION_IMPL *session, const char *fname, bool fail, bool ok_not_exist)
 {
-    bool file_exists;
-
-    WT_RET(__wt_fs_exist(session, fname, &file_exists));
-
-    if (!file_exists)
-        return (0); /* Nothing to do, file does not exist. */
+    if (ok_not_exist) {
+        bool file_exists;
+        WT_RET(__wt_fs_exist(session, fname, &file_exists));
+        if (!file_exists)
+            return (0); /* Nothing to do, file does not exist. */
+    }
 
     if (fail)
         WT_RET_MSG(session, EEXIST,
@@ -1117,6 +1117,90 @@ __disagg_delete_or_fail(WT_SESSION_IMPL *session, const char *fname, bool fail)
     WT_RET(__wt_fs_remove(session, fname, false, false));
 
     return (0);
+}
+
+/*
+ * __disagg_check_local_files_in_dir --
+ *     Check for local files in a directory that need to be removed before starting in disaggregated mode.
+ */
+static int
+__disagg_check_local_files_in_dir(WT_SESSION_IMPL *session, const char *dir, bool fail)
+{
+    WT_DECL_RET;
+
+    u_int file_count = 0;
+    char **files = NULL;
+    WT_ERR(__wt_fs_directory_list(session, dir, "", &files, &file_count));
+
+    if (file_count > 0) {
+#ifndef MAXPATHLEN
+#define MAXPATHLEN 1024
+#endif
+        { /* Limit the scope of big local stack variables. */
+            char cwd[MAXPATHLEN];
+            if (getcwd(cwd, MAXPATHLEN) == NULL) {
+                cwd[0] = '?';
+                cwd[1] = '\0';
+            }
+            __wt_verbose_warning(session, WT_VERB_METADATA, "Found %u local files in directory <%s> -> <%s>:",
+                file_count, cwd, dir);
+        }
+
+        for (u_int i = 0; i < file_count; i++) {
+            /* Build full file name */
+            char full_path_buf[MAXPATHLEN];
+            char *full_path;
+            if (dir != NULL && dir[0] != '\0') {
+                WT_ERR(__wt_snprintf(full_path_buf, sizeof(full_path_buf), "%s%s%s", dir, __wt_path_separator(), files[i]));
+                full_path = full_path_buf;
+            } else {
+                full_path = files[i];
+            }
+
+            struct stat sb;
+            if (stat(full_path, &sb) == 0) {
+                char type =
+                    S_ISREG(sb.st_mode) ? 'f' :
+                    S_ISDIR(sb.st_mode) ? 'd' :
+                    S_ISLNK(sb.st_mode) ? 'l' :
+                    S_ISCHR(sb.st_mode) ? 'c' :
+                    S_ISBLK(sb.st_mode) ? 'b' :
+                    S_ISFIFO(sb.st_mode) ? 'p' :
+                    S_ISSOCK(sb.st_mode) ? 's' :
+                    '?';
+                __wt_verbose_warning(session, WT_VERB_METADATA,
+                  "File %2u:  [%c] %s: size=%" PRIuMAX " mode=%03o uid=%u gid=%u mtime=%s", i+1, type, full_path,
+                  (uintmax_t)sb.st_size, (unsigned)sb.st_mode & 0777, (unsigned)sb.st_uid, (unsigned)sb.st_gid,
+                  ctime(&sb.st_mtime));
+            } else {
+                __wt_verbose_warning(
+                  session, WT_VERB_METADATA, "  %s: stat failed: %s", full_path, strerror(errno));
+            }
+
+            /*
+            * Delete any WiredTiger files to prevent reading them during startup. But keep
+            * WiredTiger.lock as a safety mechanism.
+            */
+            if (WT_PREFIX_MATCH(files[i], "WiredTiger") && !WT_STREQ(files[i], WT_SINGLETHREAD)) {
+                WT_ERR(__disagg_delete_or_fail(session, full_path, fail, false));
+            } else if (WT_SUFFIX_MATCH(files[i], ".wt") || WT_SUFFIX_MATCH(files[i], ".wt_ingest") || WT_SUFFIX_MATCH(files[i], ".wt_stable")) {
+                /*
+                * Delete all normal tables since they are not usable without metadata anyway.
+                *
+                * Delete ingest and stable tables as they are not guaranteed to be consistent. If
+                * they are not deleted now, the files will be renamed and kept around - someone will have to
+                * clean them up later.
+                */
+                WT_ERR(__disagg_delete_or_fail(session, full_path, fail, false));
+            } else {
+                __wt_verbose_warning(session, WT_VERB_METADATA, "Keeping local file: %s", full_path);
+            }
+        }
+    }
+
+err:
+    WT_TRET(__wt_fs_directory_list_free(session, &files, file_count));
+    return (ret);
 }
 
 /*
@@ -1159,32 +1243,22 @@ __wti_disagg_check_local_files(WT_SESSION_IMPL *session, const char *cfg[])
     else
         fail = false; /* Default: delete */
 
+    /* Delete from home directory. */
+    WT_RET(__disagg_check_local_files_in_dir(session, "", fail));
+
     /*
-     * Delete all WiredTiger-owned local files that are not part of the disaggregated storage.
+     * Delete from log directory.
+     *
+     * Since log manager is not initialized yet, read directly from config.
      */
-
-    u_int file_count = 0;
-    char **files = NULL;
-    WT_ERR(__wt_fs_directory_list(session, "", "", &files, &file_count));
-
-    for (u_int i = 0; i < file_count; i++) {
-        /*
-         * Delete any WiredTiger files to prevent reading them during startup. But keep
-         * WiredTiger.lock as a safety mechanism.
-         */
-        if (WT_PREFIX_MATCH(files[i], "WiredTiger") && !WT_STREQ(files[i], WT_SINGLETHREAD))
-            WT_ERR(__disagg_delete_or_fail(session, files[i], fail));
-        /*
-         * Delete ingest and stable tables as they are not guaranteed to be consistent anyway. If
-         * they are not deleted, the files will be renamed and kept around - someone will have to
-         * clean them up later.
-         */
-        else if (WT_SUFFIX_MATCH(files[i], ".wt_ingest") || WT_SUFFIX_MATCH(files[i], ".wt_stable"))
-            WT_ERR(__disagg_delete_or_fail(session, files[i], fail));
+    const char *log_path;
+    WT_RET(__wt_config_gets(session, cfg, "log.path", &cval));
+    if (cval.len > 0 && !(cval.len == 1 && cval.str[0] == '.')) {
+        WT_RET(__wt_strndup(session, cval.str, cval.len, &log_path));
+        ret = __disagg_check_local_files_in_dir(session, log_path, fail);
+        __wt_free(session, log_path);
     }
 
-err:
-    WT_TRET(__wt_fs_directory_list_free(session, &files, file_count));
     return (ret);
 }
 
