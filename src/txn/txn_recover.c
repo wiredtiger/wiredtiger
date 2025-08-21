@@ -1225,7 +1225,7 @@ done:
           " milliseconds",
           conn->recovery_timeline.rts_ms);
     } else if (disagg)
-        __wt_verbose_warning(session, WT_VERB_RTS, "%s", "skipped recovery RTS due to disagg");
+        __wt_verbose_info(session, WT_VERB_RTS, "%s", "skipped recovery RTS due to disagg");
 
     /*
      * Sometimes eviction is triggered after doing a checkpoint. However, we don't want eviction to
