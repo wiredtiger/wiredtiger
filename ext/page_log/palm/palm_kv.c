@@ -424,8 +424,8 @@ palm_kv_get_page_ids(
     int prev_is_tombstone = 0;
 
     /*
-     * Iterate through the pages table, looking for pages that have an lsn smaller than the given
-     * checkpoint lsn. Note that the pages are sorted by table_id, page_id, lsn in ascending order,
+     * Iterate through the pages table, looking for pages that have an LSN smaller than the given
+     * checkpoint LSN. Note that the pages are sorted by table_id, page_id, LSN in ascending order,
      * so we are only interested in the last page of each page_id. If the last page is a tombstone,
      * meaning we're discarding it, then we skip it. If the last page is a full page, we store the
      * page ID in the item->data array.
@@ -443,11 +443,12 @@ palm_kv_get_page_ids(
             break;
 
         /*
-         * Skip pages that are not for the requested table and pages that are newer than the given
-         * checkpoint lsn. Also skip deltas as we're only interested in full pages.
+         * Skip pages that are not for the requested table and pages newer than the given checkpoint
+         * LSN. For deltas, skip those that are not tombstones, since only full pages and tombstones
+         * are relevant here.
          */
         if (decoded_key.table_id < table_id || decoded_key.lsn >= checkpoint_lsn ||
-          decoded_key.is_delta) {
+          (decoded_key.is_delta && ((decoded_key.flags & WT_PALM_KV_TOMBSTONE) == 0))) {
             ret = mdb_cursor_get(cursor, &kval, &vval, MDB_NEXT);
             if (ret != 0 && ret != MDB_NOTFOUND)
                 return (ret);
