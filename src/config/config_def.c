@@ -184,8 +184,8 @@ static const uint8_t
     3, 4, 5, 5, 6, 6, 6, 6, 6, 7, 8, 8, 9, 9, 9, 11, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_cache_eviction_controls_subconfigs[] = {
-  {"flags", "int", NULL, "min=0,max=18446744073709551615", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 188, 0, 18446744073709551615, NULL},
+  {"flags", "int", NULL, "min=0,max=64", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 188, 0, 64,
+    NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t

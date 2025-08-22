@@ -554,7 +554,7 @@ connection_runtime_config = [
                 Bit positions:
                 bit 0: incremental_app_eviction
                 bit 1: scrub_evict_under_target_limit
-                (remaining bits reserved for future use).''', min=0, max=18446744073709551615)
+                (remaining bits reserved for future use).''', min=0, max=64)
         ]),
     Config('cache_size', '100MB', r'''
         maximum heap memory to allocate for the cache. A database should configure either
