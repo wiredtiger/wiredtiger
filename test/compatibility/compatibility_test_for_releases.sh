@@ -17,7 +17,7 @@ bcopy()
     test "$1" = "mongodb-7.0" && echo "1"
     test "$1" = "mongodb-6.0" && echo "1"
     test "$1" = "mongodb-5.0" && echo "1"
-    # test "$1" = "mongodb-4.4" && echo "1"
+    test "$1" = "mongodb-4.4" && echo "1"
     # Anything newer than mongodb-8.0 returns false.
     return 0
 }
@@ -34,7 +34,7 @@ bflag()
     test "$1" = "mongodb-7.0" && echo "-B "
     test "$1" = "mongodb-6.0" && echo "-B "
     test "$1" = "mongodb-5.0" && echo "-B "
-    # test "$1" = "mongodb-4.4" && echo "-B "
+    test "$1" = "mongodb-4.4" && echo "-B "
     return 0
 }
 
@@ -554,7 +554,7 @@ test_dirty_upgrade()
     pushd "${src_branch}/build/test/format"
     local dir="RUNDIR.${src_branch}"
 
-    # Ignore the error resulting from the segfault
+    # Ignore the error resulting from the segfault.
     set +e
     ./t "$flags" -c "$config_file" -h "$dir" format.abort=1
     set -e
@@ -563,7 +563,7 @@ test_dirty_upgrade()
     # We now have a directory with WT files that resulted from a crash. Run the newer version
     # against those.
     pushd "${dst_branch}/build/test/format"
-    local dir="../../../../$src_branch/build/test/format/RUNDIR.${src_branch}"
+    local dir="../../../../${src_branch}/build/test/format/RUNDIR.${src_branch}"
     ./t "$flags" -c "$config_file" -h "$dir"
 
     # Remove the database so future runs don't try to use it.
@@ -762,8 +762,8 @@ gittags['mongodb-8.0']="mongodb-8.0"
 gittags['mongodb-7.0']="mongodb-7.0"
 gittags['mongodb-6.0']="mongodb-6.0"
 gittags['mongodb-5.0']="mongodb-5.0"
-# gittags['mongodb-4.4']="mongodb-4.4"
-# gittags['mongodb-4.2']="mongodb-4.2"
+gittags['mongodb-4.4']="mongodb-4.4"
+gittags['mongodb-4.2']="mongodb-4.2"
 # Then, optionally, replace one or more tags with a particular branch or commit hash where required for testing
 # For example, this set of commit hashes will reproduce the bug in WT-9795
 #gittags['develop']="d031f0af518c9b5f15dc586de4ae55d6867f423b"
@@ -785,8 +785,6 @@ source "$VERSIONS_FILE"
 import_release_branches=($IMPORT_RELEASE_BRANCHES)
 newer_release_branches=($NEWER_RELEASE_BRANCHES)
 older_release_branches=($OLDER_RELEASE_BRANCHES)
-echo "asdfasdfasdfasdf"
-echo $older_release_branches=
 compatible_upgrade_downgrade_release_branches=($COMPATIBLE_UPGRADE_DOWNGRADE_RELEASE_BRANCHES)
 patch_version_upgrade_downgrade_release_branches=($PATCH_VERSION_UPGRADE_DOWNGRADE_RELEASE_BRANCHES)
 test_checkpoint_release_branches=($TEST_CHECKPOINT_RELEASE_BRANCHES)
