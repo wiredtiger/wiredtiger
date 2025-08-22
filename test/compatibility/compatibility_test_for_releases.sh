@@ -961,8 +961,6 @@ if [ "$upgrade_to_latest" = true ]; then
 fi
 
 if [ "$dirty_upgrade" = true ]; then
-    test_root="$(pwd)"
-
     for b in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
         create_configs "$b"
         pushd .
@@ -970,7 +968,8 @@ if [ "$dirty_upgrade" = true ]; then
         popd
     done
 
-    # Go over the release branches, from pair to pair. If a pair is a
+    # Go over the release branches, from pair to pair. If a pair has the LHS older than the RHS,
+    # treat that as a combination worth testing.
     for b1 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
         for b2 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
             if [[ "$b1" < "$b2" ]]; then
