@@ -549,14 +549,12 @@ connection_runtime_config = [
     Config('cache_eviction_controls', '', r'''
         Controls the experimental incremental cache eviction features.''',
         type='category', subconfig=[
-            Config('incremental_app_eviction', 'true', r'''
-                Only a part of application threads will participate in cache management 
-                when a cache threshold reaches its trigger limit.''',
-                type='boolean'),
-            Config('scrub_evict_under_target_limit', 'true', 
-                r'''Change the eviction strategy to scrub eviction when the cache usage is under
-                the target limit.''',
-                type='boolean'),
+            Config('flags', '0', r'''
+                Bitmask controlling incremental cache eviction features.
+                Bit positions:
+                bit 0: incremental_app_eviction
+                bit 1: scrub_evict_under_target_limit
+                (remaining bits reserved for future use).''', min=0, max=18446744073709551615)
         ]),
     Config('cache_size', '100MB', r'''
         maximum heap memory to allocate for the cache. A database should configure either

@@ -2142,12 +2142,10 @@ struct __wt_connection {
      * @config{ ),,}
      * @config{cache_eviction_controls = (, Controls the experimental incremental cache eviction
      * features., a set of related configuration options defined as follows.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;incremental_app_eviction, Only a part of application threads
-     * will participate in cache management when a cache threshold reaches its trigger limit., a
-     * boolean flag; default \c true.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-     * scrub_evict_under_target_limit, Change the eviction strategy to scrub eviction when the cache
-     * usage is under the target limit., a boolean flag; default \c true.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;flags, Bitmask controlling incremental cache eviction
+     * features.  Bit positions: bit 0: incremental_app_eviction bit 1:
+     * scrub_evict_under_target_limit (remaining bits reserved for future use)., an integer between
+     * \c 0 and \c 18446744073709551615; default \c 0.}
      * @config{ ),,}
      * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait
      * for space to be available in cache before giving up.  Default or 0 will wait forever.  1 will
@@ -2982,12 +2980,10 @@ struct __wt_connection {
  * WT_CONNECTION.open_session., a boolean flag; default \c true.}
  * @config{cache_eviction_controls = (, Controls the experimental incremental cache eviction
  * features., a set of related configuration options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;incremental_app_eviction, Only a part of application threads will
- * participate in cache management when a cache threshold reaches its trigger limit., a boolean
- * flag; default \c true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;scrub_evict_under_target_limit, Change
- * the eviction strategy to scrub eviction when the cache usage is under the target limit., a
- * boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;flags, Bitmask controlling incremental cache eviction features.
+ * Bit positions: bit 0: incremental_app_eviction bit 1: scrub_evict_under_target_limit (remaining
+ * bits reserved for future use)., an integer between \c 0 and \c 18446744073709551615; default \c
+ * 0.}
  * @config{ ),,}
  * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait for
  * space to be available in cache before giving up.  Default or 0 will wait forever.  1 will never

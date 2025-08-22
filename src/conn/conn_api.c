@@ -2299,16 +2299,18 @@ __wti_cache_eviction_controls_config(WT_SESSION_IMPL *session, const char *cfg[]
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    uint64_t flags;
 
     conn = S2C(session);
 
-    WT_RET(
-      __wt_config_gets(session, cfg, "cache_eviction_controls.incremental_app_eviction", &cval));
-    conn->cache_eviction_controls.incremental_app_eviction_enabled = (bool)cval.val;
+    WT_RET(__wt_config_gets(session, cfg, "cache_eviction_controls.flags", &cval));
+    flags = (uint64_t)cval.val;
 
-    WT_RET(__wt_config_gets(
-      session, cfg, "cache_eviction_controls.scrub_evict_under_target_limit", &cval));
-    conn->cache_eviction_controls.scrub_evict_under_target_limit_enabled = (bool)cval.val;
+    if ((flags & WT_CACHE_EVICT_INCREMENTAL_APP) != 0)
+        F_SET(&conn->cache_eviction_controls, WT_CACHE_EVICT_INCREMENTAL_APP);
+
+    if ((flags & WT_CACHE_EVICT_SCRUB_UNDER_TARGET) != 0)
+        F_SET(&conn->cache_eviction_controls, WT_CACHE_EVICT_SCRUB_UNDER_TARGET);
 
     return (0);
 }
