@@ -566,19 +566,12 @@ err:
 }
 
 /*
- * __file_delete_or_fail --
- *     Delete a file or fail depending on the flag.
+ * __on_file_in_wt_dir --
+ *     Act on a file in WT directory: delete or fail depending on the flag.
  */
 static int
-__file_delete_or_fail(WT_SESSION_IMPL *session, const char *fname, bool fail, bool ok_not_exist)
+__on_file_in_wt_dir(WT_SESSION_IMPL *session, const char *fname, bool fail)
 {
-    if (ok_not_exist) {
-        bool file_exists;
-        WT_RET(__wt_fs_exist(session, fname, &file_exists));
-        if (!file_exists)
-            return (0); /* Nothing to do, file does not exist. */
-    }
-
     if (fail)
         WT_RET_MSG(session, EEXIST,
           "Disaggregated storage requires a clean directory, but found WiredTiger file %s: "
@@ -646,8 +639,8 @@ __wt_cleanup_start_dir(WT_SESSION_IMPL *session, const char *dir, bool fail)
         struct stat sb;
         if (stat(full_path, &sb) == 0) {
             __wt_verbose_debug1(session, WT_VERB_METADATA,
-              "File %2u:  %s: size=%" PRIuMAX " mode=%03o uid=%u gid=%u mtime=%s", i + 1, full_path,
-              (uintmax_t)sb.st_size, (u_int)sb.st_mode & 0777, (u_int)sb.st_uid, (u_int)sb.st_gid,
+              "File:  %s: size=%" WT_SIZET_FMT " mode=%03o uid=%u gid=%u mtime=%s", full_path,
+              (size_t)sb.st_size, (u_int)sb.st_mode & 0777, (u_int)sb.st_uid, (u_int)sb.st_gid,
               ctime(&sb.st_mtime));
         } else
             __wt_verbose_debug1(
@@ -658,7 +651,7 @@ __wt_cleanup_start_dir(WT_SESSION_IMPL *session, const char *dir, bool fail)
          * WiredTiger.lock as a safety mechanism.
          */
         if (WT_PREFIX_MATCH(files[i], "WiredTiger") && !WT_STREQ(files[i], WT_SINGLETHREAD))
-            WT_ERR(__file_delete_or_fail(session, full_path, fail, false));
+            WT_ERR(__on_file_in_wt_dir(session, full_path, fail));
         else if (WT_SUFFIX_MATCH(files[i], ".wt") || WT_SUFFIX_MATCH(files[i], ".wt_ingest") ||
           WT_SUFFIX_MATCH(files[i], ".wt_stable"))
             /*
@@ -668,7 +661,7 @@ __wt_cleanup_start_dir(WT_SESSION_IMPL *session, const char *dir, bool fail)
              * are not deleted now, the files will be renamed and kept around - someone will have to
              * clean them up later.
              */
-            WT_ERR(__file_delete_or_fail(session, full_path, fail, false));
+            WT_ERR(__on_file_in_wt_dir(session, full_path, fail));
         else
             __wt_verbose_debug1(session, WT_VERB_METADATA, "Keeping local file: %s", full_path);
     }
