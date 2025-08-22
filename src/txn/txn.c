@@ -865,11 +865,6 @@ __txn_prepare_rollback_restore_hs_update(
     upd->upd_durable_ts = hs_tw->durable_start_ts;
     upd->upd_start_ts = hs_tw->start_ts;
 
-    /*
-     * Set the flag to indicate that this update has been restored from history store for the
-     * rollback of a prepared transaction.
-     */
-    F_SET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
     total_size += size;
 
     __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
@@ -890,11 +885,9 @@ __txn_prepare_rollback_restore_hs_update(
         tombstone->upd_start_ts = hs_tw->stop_ts;
         tombstone->txnid = hs_tw->stop_txn;
         tombstone->next = upd;
-        /*
-         * Set the flag to indicate that this update has been restored from history store for the
-         * rollback of a prepared transaction.
-         */
-        F_SET(tombstone, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS | WT_UPDATE_HS);
+        /* Set the flag to indicate that this update has been restored from history store. */
+        F_SET(tombstone, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_HS);
+        F_SET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_HS);
         total_size += size;
 
         __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
@@ -905,7 +898,12 @@ __txn_prepare_rollback_restore_hs_update(
           __wt_timestamp_to_string(tombstone->upd_durable_ts, ts_string[2]));
 
         upd = tombstone;
-    }
+    } else
+        /*
+         * Set the flag to indicate that this update has been restored from history store with max
+         * stop point.
+         */
+        F_SET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_HS_MAX_STOP);
 
     /* Walk to the end of the chain and we can only have prepared updates on the update chain. */
     for (;; upd_chain = upd_chain->next) {
@@ -1230,26 +1228,6 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
     switch (resolve_case) {
     case RESOLVE_UPDATE_CHAIN:
-        /*
-         * If checkpoint writes a prepared update to disk, we may end up here with the first
-         * committed update already in the history store. Mark it to be deleted from the history
-         * store. Another case we may end up here is when an eviction failed and the update chain
-         * with prepared updates are restored back to the old disk image.
-         */
-        if (first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS) &&
-          !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
-            WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED));
-            if (commit) {
-                /*
-                 * For the commit case, we only need to delete the history store record if it
-                 * doesn't have a stop point.
-                 */
-                if (first_committed_upd->type != WT_UPDATE_TOMBSTONE)
-                    __wt_txn_mark_upd_to_delete_from_hs(session, first_committed_upd);
-            } else
-                __wt_txn_mark_upd_to_delete_from_hs(session, first_committed_upd);
-        }
-
         break;
 
     case RESOLVE_PREPARE_ON_DISK:
