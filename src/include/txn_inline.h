@@ -1652,8 +1652,7 @@ retry:
      * value the reader should read may have been removed from the history store and appended to the
      * data store. If we race with prepared commit, imagine a case we read with timestamp 50 and we
      * have a prepared update with timestamp 30 and a history store record with timestamp 20,
-     * committing the prepared update will cause the stop timestamp of the history store record
-     * being updated to 30 and the reader not seeing it.
+     * committing the prepared update will cause the record being removed by reconciliation.
      */
     if (prepare_upd != NULL) {
         WT_ASSERT(session, F_ISSET(prepare_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
@@ -2357,30 +2356,6 @@ __wt_upd_value_clear(WT_UPDATE_VALUE *upd_value)
     upd_value->buf.size = 0;
     WT_TIME_WINDOW_INIT(&upd_value->tw);
     upd_value->type = WT_UPDATE_INVALID;
-}
-
-/*
- * __wt_txn_mark_upd_to_delete_from_hs --
- *     Mark the tombstone and the following update to be deleted from the history store.
- */
-static WT_INLINE void
-__wt_txn_mark_upd_to_delete_from_hs(WT_SESSION_IMPL *session, WT_UPDATE *upd)
-{
-    if (upd->type == WT_UPDATE_TOMBSTONE) {
-        WT_UPDATE *upd_value;
-        for (upd_value = upd->next; upd_value != NULL; upd_value = upd_value->next)
-            if (upd_value->txnid != WT_TXN_ABORTED && F_ISSET(upd_value, WT_UPDATE_HS))
-                break;
-        /* We may not find an update following the tombstone if it is obsolete. */
-        if (upd_value != NULL) {
-            WT_ASSERT(session,
-              upd_value->type != WT_UPDATE_TOMBSTONE &&
-                !F_ISSET(upd_value, WT_UPDATE_TO_DELETE_FROM_HS));
-            F_SET(upd_value, WT_UPDATE_TO_DELETE_FROM_HS);
-            F_SET(upd, WT_UPDATE_TO_DELETE_FROM_HS);
-        }
-    } else
-        F_SET(upd, WT_UPDATE_TO_DELETE_FROM_HS);
 }
 
 #define WT_SKIP_ABORTED_AND_SET_CHECK_PREPARED(temp_txnid, txnid_prepared, check_prepared, upd) \

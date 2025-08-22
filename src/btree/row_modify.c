@@ -429,7 +429,7 @@ __wt_update_obsolete_check(
             first = NULL;
 
         /* Cannot truncate the updates if we need to remove the updates from the history store. */
-        if (F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS))
+        if (F_ISSET(upd, WT_UPDATE_HS_MAX_STOP))
             first = NULL;
     }
 

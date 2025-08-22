@@ -265,63 +265,48 @@ static int
 __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
   WT_ROW *rip, WTI_UPDATE_SELECT *upd_select)
 {
-    WT_UPDATE *delete_tombstone, *delete_upd, *triggering_prepare_upd;
-    uint8_t prepare_state;
-    bool find_triggering_prepare;
+    WT_UPDATE *delete_upd;
+    uint64_t txnid;
+    bool seen_committed;
 
-    delete_tombstone = NULL;
-    find_triggering_prepare = F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-      WT_TIME_WINDOW_HAS_START_PREPARE(&upd_select->tw);
+    if (upd_select->upd == NULL)
+        return (0);
+
     /*
-     * If we're in preserve_prepared mode and have a prepared time window, look for the prepared
-     * update that triggered the history store deletion. This helps us determine if we should delay
-     * the deletion until the prepared update is committed/rolled back and stable.
+     * If we select an update in the history store to write to disk, delete it from the history
+     * store.
      */
-    for (delete_upd = upd_select->tombstone != NULL ? upd_select->tombstone : upd_select->upd,
-        triggering_prepare_upd = NULL;
-         delete_upd != NULL; delete_upd = delete_upd->next) {
-        if (find_triggering_prepare && delete_upd->type != WT_UPDATE_RESERVE) {
-            WT_ACQUIRE_READ(prepare_state, delete_upd->prepare_state);
-            if (prepare_state != WT_PREPARE_INIT)
-                triggering_prepare_upd = delete_upd;
-        }
-
-        if (delete_upd->txnid == WT_TXN_ABORTED)
-            continue;
-
-        if (F_ISSET(delete_upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
-            WT_ASSERT_ALWAYS(session,
-              F_ISSET(delete_upd, WT_UPDATE_HS | WT_UPDATE_RESTORED_FROM_HS),
-              "Attempting to remove an update from the history store in WiredTiger, but the "
-              "update was missing.");
-            find_triggering_prepare = false;
-            if (triggering_prepare_upd != NULL) {
-                uint64_t txnid;
-                WT_ACQUIRE_READ(txnid, triggering_prepare_upd->txnid);
-                if (txnid == WT_TXN_ABORTED)
-                    txnid = triggering_prepare_upd->upd_saved_txnid;
-                /*
-                 * It must be the operation on this prepared update that triggered us to delete the
-                 * update from the history store. If it is the same prepared update we are writing
-                 * to disk, don't delete the update from the history store now. We need to wait the
-                 * prepared update to become stable.
-                 */
-                if (txnid == upd_select->tw.start_txn)
-                    break;
-            }
-
-            if (delete_upd->type == WT_UPDATE_TOMBSTONE)
-                delete_tombstone = delete_upd;
-            else {
-                WT_RET(
-                  __rec_delete_hs_upd_save(session, r, ins, rip, delete_upd, delete_tombstone));
-                break;
-            }
-        }
+    if (F_ISSET(upd_select->upd, WT_UPDATE_HS | WT_UPDATE_HS_MAX_STOP)) {
+        WT_ASSERT(
+          session, upd_select->tombstone == NULL || F_ISSET(upd_select->tombstone, WT_UPDATE_HS));
+        WT_RET(
+          __rec_delete_hs_upd_save(session, r, ins, rip, upd_select->upd, upd_select->tombstone));
+        return (0);
     }
 
-    WT_ASSERT_ALWAYS(session, delete_tombstone == NULL || delete_upd != NULL,
-      "If we delete a tombstone from the history store, we must also delete the update.");
+    seen_committed = !WT_TIME_WINDOW_HAS_START_PREPARE(&upd_select->tw);
+
+    /* Delete all the history store record with a max stop timestamp. */
+    for (delete_upd = upd_select->upd->next; delete_upd != NULL; delete_upd = delete_upd->next) {
+        if ((txnid = delete_upd->txnid) == WT_TXN_ABORTED)
+            continue;
+
+        if (!seen_committed && upd_select->tw.start_ts != txnid)
+            seen_committed = true;
+
+        if (F_ISSET(delete_upd, WT_UPDATE_HS_MAX_STOP)) {
+            WT_ASSERT(session, delete_upd->type != WT_UPDATE_TOMBSTONE);
+            /*
+             * Don't delete it from the history store if we again write a prepared update to disk
+             * and there is nothing in between the prepared update and the update with the max stop
+             * point in the history store.
+             */
+            if (!seen_committed)
+                break;
+            WT_RET(__rec_delete_hs_upd_save(session, r, ins, rip, delete_upd, NULL));
+            break;
+        }
+    }
 
     return (0);
 }
@@ -683,7 +668,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
     wt_timestamp_t max_ts;
     uint64_t max_txn, session_txnid, txnid;
     uint8_t prepare_state;
-    bool is_hs_page, seen_prepare;
+    bool is_hs_page;
 
     conn = S2C(session);
     prepare_rollback_tombstone = NULL;
@@ -691,7 +676,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
     max_txn = WT_TXN_NONE;
     is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
     session_txnid = __wt_atomic_loadv64(&WT_SESSION_TXN_SHARED(session)->id);
-    seen_prepare = false;
     *write_prepare = false;
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
@@ -729,11 +713,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                 continue;
             }
 
-            /*
-             * If we have seen a tombstone that rolled back the prepared update, this must be the
-             * prepared update. No need to walk further.
-             */
-            prepare_rollback_tombstone = NULL;
             txnid = upd->upd_saved_txnid;
         }
 
@@ -812,16 +791,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
         if (F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT) &&
           !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA)) {
             if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
-                WT_ASSERT_ALWAYS(session,
-                  upd_select->upd == NULL || F_ISSET(r, WT_REC_CHECKPOINT) ||
-                    upd_select->upd->txnid == upd->txnid,
-                  "Cannot have two different prepared transactions active on the same key");
-
                 if (upd->prepare_ts > r->rec_start_pinned_stable_ts) {
                     WT_ASSERT(session, !is_hs_page);
                     *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                     *has_newer_updatesp = true;
-                    seen_prepare = true;
                     continue;
                 }
 
@@ -829,7 +802,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                     WT_ASSERT(session, !is_hs_page);
                     *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                     *has_newer_updatesp = true;
-                    seen_prepare = true;
                     continue;
                 }
 
@@ -863,7 +835,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                         WT_ASSERT(session, !is_hs_page);
                         *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                         *has_newer_updatesp = true;
-                        seen_prepare = true;
                         continue;
                     }
 
@@ -886,7 +857,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                 if (F_ISSET(r, WT_REC_CHECKPOINT)) {
                     *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                     *has_newer_updatesp = true;
-                    seen_prepare = true;
                     continue;
                 } else {
                     *write_prepare = true;
@@ -933,6 +903,11 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
               *write_prepare && upd->prepare_state == WT_PREPARE_INPROGRESS &&
                 prepare_rollback_tombstone->next == upd);
             upd_select->upd = upd;
+            /*
+             * If we have seen a tombstone that rolled back the prepared update, this must be the
+             * prepared update. No need to walk further.
+             */
+            prepare_rollback_tombstone = NULL;
         }
 
         /* Track the selected update transaction id and timestamp. */
@@ -974,28 +949,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
     /* Update the maximum timestamp. */
     if (max_ts > r->max_ts)
         r->max_ts = max_ts;
-
-    /*
-     * If the preserve prepared config is not enabled, we should never select an update that has
-     * been written to the history store except checkpoint writes the update that is older than a
-     * prepared update or we need to first delete the update from the history store.
-     */
-    if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
-        WT_ASSERT_ALWAYS(session,
-          upd_select->upd == NULL || !F_ISSET(upd_select->upd, WT_UPDATE_HS) ||
-            F_ISSET(upd_select->upd, WT_UPDATE_TO_DELETE_FROM_HS) ||
-            (F_ISSET(r, WT_REC_CHECKPOINT) && seen_prepare),
-          "Selected update that has already been written to the history store");
-    else if (upd_select->upd != NULL && F_ISSET(upd_select->upd, WT_UPDATE_HS) &&
-      !F_ISSET(upd_select->upd, WT_UPDATE_TO_DELETE_FROM_HS)) {
-        /*
-         * If the preserve prepared config is enabled and we select an update that has been inserted
-         * to the history store, we must have written an aborted prepared update as prepared update
-         * to disk in the previous reconciliation. Now its rollback timestamp is stable and we need
-         * to delete the new value from the history store.
-         */
-        __wt_txn_mark_upd_to_delete_from_hs(session, upd_select->upd);
-    }
 
     return (0);
 }
