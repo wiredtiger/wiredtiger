@@ -29,7 +29,7 @@
 # test_prepare40.py
 # Test that checkpoint after opening a backup with prepared updates (preserve prepared on) doesn't crash by:
 # - Checkpoint writes prepared update to disk
-# - Collback the transaction with rollback timestamp > stable timestamp
+# - Rollback the transaction with rollback timestamp > stable timestamp
 # - Checkpoint again. it should not crash and should write the rolled back update as prepared to disk
 
 import wiredtiger
@@ -68,7 +68,7 @@ class test_prepare40(test_prepare_preserve_prepare_base):
         session2 = self.conn.open_session()
         session2.checkpoint()
 
-        # Step 6: Force eviction to trigger reconciliation
+        # Force eviction to trigger reconciliation
         # This ensures the committed update gets written to disk storage
         session_evict = self.conn.open_session("debug=(release_evict_page=true)")
         session_evict.begin_transaction("ignore_prepare=true")
