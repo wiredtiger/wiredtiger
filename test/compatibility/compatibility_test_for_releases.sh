@@ -17,7 +17,7 @@ bcopy()
     test "$1" = "mongodb-7.0" && echo "1"
     test "$1" = "mongodb-6.0" && echo "1"
     test "$1" = "mongodb-5.0" && echo "1"
-    test "$1" = "mongodb-4.4" && echo "1"
+    # test "$1" = "mongodb-4.4" && echo "1"
     # Anything newer than mongodb-8.0 returns false.
     return 0
 }
@@ -34,7 +34,7 @@ bflag()
     test "$1" = "mongodb-7.0" && echo "-B "
     test "$1" = "mongodb-6.0" && echo "-B "
     test "$1" = "mongodb-5.0" && echo "-B "
-    test "$1" = "mongodb-4.4" && echo "-B "
+    # test "$1" = "mongodb-4.4" && echo "-B "
     return 0
 }
 
@@ -104,9 +104,9 @@ build_branch()
     git checkout --quiet "${git_tag}"
 
     build_system=$(get_build_system $1)
+    config=""
     if [ "$build_system" == "cmake" ]; then
         . ./test/evergreen/find_cmake.sh
-        config=""
         config+="-DENABLE_SNAPPY=1 "
         # Need to disable configs since WT-9455 enabled additional items by default.
         # Old releases didn't have these enabled, need to make it consistent.
@@ -540,6 +540,37 @@ upgrade_downgrade()
     done
 }
 
+test_dirty_upgrade()
+{
+    local src_branch="$1"
+    local dst_branch="$2"
+
+    # Don't worry about changing flags for the dst branch, we're going to restart it from the source
+    # branch's working directory anwyay.
+    local flags="-1q $(bflag $src_branch)"
+    local config_file="../../../../CONFIG_${src_branch}"
+
+    # Run format on the source branch until it aborts.
+    pushd "${src_branch}/build/test/format"
+    local dir="RUNDIR.${src_branch}"
+
+    # Ignore the error resulting from the segfault
+    set +e
+    ./t "$flags" -c "$config_file" -h "$dir" format.abort=1
+    set -e
+    popd
+
+    # We now have a directory with WT files that resulted from a crash. Run the newer version
+    # against those.
+    pushd "${dst_branch}/build/test/format"
+    local dir="../../../../$src_branch/build/test/format/RUNDIR.${src_branch}"
+    ./t "$flags" -c "$config_file" -h "$dir"
+
+    # Remove the database so future runs don't try to use it.
+    rm -rf "$dir"
+    popd
+}
+
 #############################################################
 # test_upgrade_to_branch:
 #       arg1: release branch name
@@ -713,6 +744,7 @@ import_compatibility_test()
 }
 
 # Only one of below flags will be set by the 1st argument of the script.
+dirty_upgrade=false
 import=false
 older=false
 newer=false
@@ -730,8 +762,8 @@ gittags['mongodb-8.0']="mongodb-8.0"
 gittags['mongodb-7.0']="mongodb-7.0"
 gittags['mongodb-6.0']="mongodb-6.0"
 gittags['mongodb-5.0']="mongodb-5.0"
-gittags['mongodb-4.4']="mongodb-4.4"
-gittags['mongodb-4.2']="mongodb-4.2"
+# gittags['mongodb-4.4']="mongodb-4.4"
+# gittags['mongodb-4.2']="mongodb-4.2"
 # Then, optionally, replace one or more tags with a particular branch or commit hash where required for testing
 # For example, this set of commit hashes will reproduce the bug in WT-9795
 #gittags['develop']="d031f0af518c9b5f15dc586de4ae55d6867f423b"
@@ -753,12 +785,15 @@ source "$VERSIONS_FILE"
 import_release_branches=($IMPORT_RELEASE_BRANCHES)
 newer_release_branches=($NEWER_RELEASE_BRANCHES)
 older_release_branches=($OLDER_RELEASE_BRANCHES)
+echo "asdfasdfasdfasdf"
+echo $older_release_branches=
 compatible_upgrade_downgrade_release_branches=($COMPATIBLE_UPGRADE_DOWNGRADE_RELEASE_BRANCHES)
 patch_version_upgrade_downgrade_release_branches=($PATCH_VERSION_UPGRADE_DOWNGRADE_RELEASE_BRANCHES)
 test_checkpoint_release_branches=($TEST_CHECKPOINT_RELEASE_BRANCHES)
 upgrade_to_latest_upgrade_downgrade_release_branches=($UPGRADE_TO_LATEST_UPGRADE_DOWNGRADE_RELEASE_BRANCHES)
 
 declare -A scopes
+scopes[dirty_upgrade]="upgrade from an unclean shutdown of a previous version"
 scopes[import]="import files from previous versions"
 scopes[newer]="newer stable release branches"
 scopes[older]="older stable release branches"
@@ -810,7 +845,8 @@ get_build_system()
 #############################################################
 usage()
 {
-    echo -e "Usage: \tcompatibility_test_for_releases [-i|-n|-o|-p|-u|-w|-v]"
+    echo -e "Usage: \tcompatibility_test_for_releases [-d|-i|-n|-o|-p|-u|-w|-v]"
+    echo -e "\t-d\trun compatibility tests for ${scopes[dirty_upgrade]}"
     echo -e "\t-i\trun compatibility tests for ${scopes[import]}"
     echo -e "\t-n\trun compatibility tests for ${scopes[newer]}"
     echo -e "\t-o\trun compatibility tests for ${scopes[older]}"
@@ -827,6 +863,12 @@ fi
 
 # Script argument processing
 case $1 in
+"-d")
+    dirty_upgrade=true
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Performing compatibility tests for ${scopes[dirty_upgrade]}"
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+;;
 "-i")
     import=true
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
@@ -915,6 +957,26 @@ if [ "$upgrade_to_latest" = true ]; then
         # cleanup.
         cd $test_root
         rm -rf $test_data_root
+    done
+fi
+
+if [ "$dirty_upgrade" = true ]; then
+    test_root="$(pwd)"
+
+    for b in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
+        create_configs "$b"
+        pushd .
+        build_branch "$b"
+        popd
+    done
+
+    # Go over the release branches, from pair to pair. If a pair is a
+    for b1 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
+        for b2 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
+            if [[ "$b1" < "$b2" ]]; then
+                test_dirty_upgrade "$b1" "$b2"
+            fi
+        done
     done
 fi
 
