@@ -1678,13 +1678,13 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
                     btree = (WT_BTREE *)session->dhandle->handle;
 
                     __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-                      "GC %s: update pruning timestamp from %" PRIu64 " to %" PRIu64,
+                      "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64,
                       layered_table->iface.name, btree->prune_timestamp, prune_timestamp);
                     WT_ASSERT(session, prune_timestamp >= btree->prune_timestamp);
                     WT_RELEASE_WRITE(btree->prune_timestamp, prune_timestamp);
 
                     __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-                      "GC %s: update checkpoint inuse from %" PRId64 " to %" PRId64,
+                      "GC %s: update checkpoint in use from %" PRId64 " to %" PRId64,
                       layered_table->iface.name, layered_table->last_ckpt_inuse, ckpt_inuse);
                     layered_table->last_ckpt_inuse = ckpt_inuse;
                     WT_ERR(__wt_session_release_dhandle(session));
