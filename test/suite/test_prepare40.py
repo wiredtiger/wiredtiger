@@ -32,33 +32,22 @@
 # - Claim the prepared updateand rollback, do not advance the stable timestamp
 # - Checkpoint again. it should not crash and should write the rolled back update as prepared to disk
 
-import random, sys
-from suite_subprocess import suite_subprocess
-import wttest
+import wiredtiger
+from prepare_util import test_prepare_preserve_prepare_base
 from wtscenario import make_scenarios
 
-class test_prepare40(wttest.WiredTigerTestCase, suite_subprocess):
+class test_prepare40(test_prepare_preserve_prepare_base):
     tablename = 'test_prepare40'
     uri = 'table:' + tablename
     conn_config = 'precise_checkpoint=true,preserve_prepared=true'
 
-    types = [
-        ('row', dict(s_config='key_format=i,value_format=S')),
-    ]
 
-    # Transaction end types
-    txn_end = [
-        ('txn_commit', dict(txn_commit=True)),
-    ]
+    def test_prepare40(self):
 
-    scenarios = make_scenarios(types, txn_end)
-
-    def test_prepare_discover01(self):
-        # Currently this test will crash because we try recover before setting preserve_prepared flag.
-        # Support this by moving recovery to after setting precise_checkpoint and preserve_prepared flags.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(50))
-        self.session.create(self.uri, self.s_config)
+        create_params = 'key_format=i,value_format=S'
+        self.session.create(self.uri, create_params)
         c = self.session.open_cursor(self.uri)
 
         self.session.begin_transaction()
@@ -103,6 +92,9 @@ class test_prepare40(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(count, 1)
 
         prepared_discover_cursor.close()
-
         session3 = self.conn.open_session()
-        session3.checkpoint()
+
+        # check that we're writing updates as prepared again
+        self.checkpoint_and_verify_stats({
+            wiredtiger.stat.dsrc.rec_time_window_prepared: True,
+        }, self.uri, session3)
