@@ -2219,6 +2219,7 @@ __wti_rec_pack_delta_internal(
 
         t_kv->cell_len = __wt_cell_pack_addr(
           session, &t_kv->cell, WT_CELL_ADDR_DEL, WT_RECNO_OOB, NULL, NULL, t_kv->buf.size);
+        t_kv->len = t_kv->cell_len + t_kv->buf.size;
     } else
         __wti_rec_kv_copy(session, p, value);
 
