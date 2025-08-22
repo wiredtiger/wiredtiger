@@ -2104,7 +2104,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
 
         /* If this is a rollback during shutdown, prepared transaction work should not be a undone
          */
-        if (F_ISSET(S2C(session), WT_CONN_CLOSING) && prepare)
+        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING) && prepare)
             continue;
 
         switch (op->type) {
@@ -2515,7 +2515,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
      * before shutting down all the subsystems. We have shut down all user sessions, but send in
      * true for waiting for internal races.
      */
-    F_SET(conn, WT_CONN_CLOSING_CHECKPOINT);
+    F_SET_ATOMIC_32(conn, WT_CONN_CLOSING_CHECKPOINT);
     WT_TRET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
     ckpt_cfg = "use_timestamp=false";
     if (cval.val != 0) {
@@ -2523,7 +2523,8 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
         if (conn->txn_global.has_stable_timestamp)
             use_timestamp = true;
     }
-    if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY | WT_CONN_PANIC)) {
+    if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY) &&
+      !F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC)) {
         /*
          * Perform rollback to stable to ensure that the stable version is written to disk on a
          * clean shutdown.

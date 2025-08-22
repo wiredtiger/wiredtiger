@@ -846,7 +846,7 @@ __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinne
      */
     WT_ACQUIRE_READ(pinned_stable_ts, txn_global->stable_timestamp);
 
-    if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT)) {
         *pinned_stable_tsp = pinned_stable_ts;
         return;
     }
@@ -996,7 +996,7 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
      * When shutting down, the transactional system has finished running and all we care about is
      * eviction, make everything visible.
      */
-    if (F_ISSET(S2C(session), WT_CONN_CLOSING))
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING))
         return (true);
 
     if (!__txn_visible_all_id(session, id))
@@ -1486,7 +1486,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
              * If we see an update that is not visible to the reader and it is restored from delta,
              * we should search the history store.
              */
-            if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
+            if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_HS_OPEN) &&
               !F_ISSET(session->dhandle,
                 WT_DHANDLE_HS | WT_DHANDLE_IS_METADATA | WT_DHANDLE_DISAGG_META)) {
                 __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
@@ -1632,7 +1632,8 @@ retry:
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
-    if (!F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) && F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
+    if (!F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) &&
+      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_HS_OPEN) &&
       !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
         /*
          * Stressing this code path may slow down the system too much. To minimize the impact, sleep
