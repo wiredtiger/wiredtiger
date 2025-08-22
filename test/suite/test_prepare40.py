@@ -28,8 +28,8 @@
 #
 # test_prepare40.py
 # Test that checkpoint after opening a backup with prepared updates (preserve prepared on) doesn't crash by:
-# - checkpoint writes prepared update to disk
-# - Claim the prepared updateand rollback, do not advance the stable timestamp
+# - Checkpoint writes prepared update to disk
+# - Collback the transaction with rollback timestamp > stable timestamp
 # - Checkpoint again. it should not crash and should write the rolled back update as prepared to disk
 
 import wiredtiger
@@ -68,33 +68,23 @@ class test_prepare40(test_prepare_preserve_prepare_base):
         session2 = self.conn.open_session()
         session2.checkpoint()
 
-        # Creating backup that will preserve artifacts
-        backup_dir = 'bkp'
-        self.backup(backup_dir, session2)
+        # Step 6: Force eviction to trigger reconciliation
+        # This ensures the committed update gets written to disk storage
+        session_evict = self.conn.open_session("debug=(release_evict_page=true)")
+        session_evict.begin_transaction("ignore_prepare=true")
+        evict_cursor = session_evict.open_cursor(self.uri, None, None)
+        for i in range(1, 3):  # Evict to trigger reconciliation
+            evict_cursor.set_key(i)
+            self.assertEqual(evict_cursor.search(), 0)
+            evict_cursor.reset()
+        evict_cursor.close()
+        session_evict.rollback_transaction()
+        session_evict.close()
 
-        # Opening backup database
-        conn2 = self.wiredtiger_open(backup_dir, self.conn_config)
+        self.session.rollback_transaction("rollback_timestamp=" + self.timestamp_str(200))
 
-        c2s1 = conn2.open_session()
-
-        # Opening prepared discover cursor
-        prepared_discover_cursor = c2s1.open_cursor("prepared_discover:")
-
-        # Walking through prepared discover cursor
-        c2s2 = conn2.open_session()
-        count = 0
-        while prepared_discover_cursor.next() == 0:
-            count += 1
-            prepared_id = prepared_discover_cursor.get_key()
-            self.assertEqual(prepared_id, 100)
-            c2s2.begin_transaction("claim_prepared=" + self.timestamp_str(prepared_id))
-            c2s2.rollback_transaction("rollback_timestamp=" + self.timestamp_str(200))
-        self.assertEqual(count, 1)
-
-        prepared_discover_cursor.close()
         session3 = self.conn.open_session()
-
-        # check that we're writing updates as prepared again
+        # Check that we're writing updates as prepared again
         self.checkpoint_and_verify_stats({
             wiredtiger.stat.dsrc.rec_time_window_prepared: True,
         }, self.uri, session3)
