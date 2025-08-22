@@ -60,7 +60,9 @@ extern "C" {
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
-
+#ifdef TRACY_ENABLE
+#include "../../tracy/public/tracy/TracyC.h"
+#endif
 /*
  * DO NOT EDIT: automatically built by dist/s_typedef.
  * Forward type declarations for internal types: BEGIN

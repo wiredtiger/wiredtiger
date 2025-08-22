@@ -74,6 +74,7 @@ include(cmake/third_party/zstd.cmake)
 include(cmake/third_party/iaa.cmake)
 include(cmake/third_party/voidstar.cmake)
 include(cmake/third_party/sqlite3.cmake)
+include(cmake/third_party/tracy.cmake)
 
 # Skip the AZURE SDK build step if the extension is not enabled.
 if(ENABLE_AZURE)

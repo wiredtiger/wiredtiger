@@ -73,6 +73,12 @@ macro(define_wiredtiger_library target type)
         target_link_libraries(${target} PRIVATE wt::memkind)
     endif()
 
+    if(TRACY_ENABLE)
+        target_link_libraries(${target} PRIVATE wt::tracy)
+        # Disable aggregate-return warning for Tracy usage
+        target_compile_options(${target} PRIVATE -Wno-aggregate-return)
+    endif()
+
     # We want to capture any transitive dependencies associated with the builtin library
     # target and ensure we are explicitly linking the 3rd party libraries.
     if(HAVE_BUILTIN_EXTENSION_LZ4)

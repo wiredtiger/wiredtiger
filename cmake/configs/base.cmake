@@ -13,6 +13,7 @@ set(default_enable_iaa OFF)
 set(default_enable_debug_info ON)
 set(default_enable_static OFF)
 set(default_enable_shared ON)
+set(default_enable_tracy ON)
 
 string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPER)
 
@@ -326,6 +327,12 @@ config_bool(
     ENABLE_MODEL
     "Build the model for lightweight formal verification"
     DEFAULT ON
+)
+
+config_bool(
+    TRACY_ENABLE
+    "Enable Tracy profiler integration"
+    DEFAULT ${default_enable_tracy}
 )
 
 config_bool(
