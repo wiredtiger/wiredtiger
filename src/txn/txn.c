@@ -1185,12 +1185,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * If the prepared update is not a tombstone or we have multiple prepared updates in the same
      * transaction. There are four base cases:
      *
-     * 1) Prepared updates are on the update chain and hasn't been reconciled to write to data
-     *    store.
-     *     commit: if we have inserted the older update to the history store with a max stop point,
-     *             mark it to be deleted from the history store.
-     *     rollback: if we have inserted the older update
-     *               to the history store, mark it to be deleted from the history store.
+     * 1) Prepared updates are on the update chain.
+     *     commit: simply resolve the updates on chain.
+     *     rollback: simply resolve the updates on chain.
      *
      * 2) Prepared updates are written to the data store.
      *     If there is no older updates written to the history store:
@@ -1198,13 +1195,11 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      *         rollback: delete the whole key.
      *
      *     If there are older updates written to the history store:
-     *         commit: restore the newest history store update with a max stop time point and mark
-     *                 it to be deleted to fix it in the future reconciliation. When the commit
-     *                 becomes stable, we reinsert the history store record to the history store
-     *                 with the correct stop time point.
-     *         rollback: restore the newest update in the history store to the data store
-     *                   and mark it to be deleted from the history store in the future
-     *                   reconciliation.
+     *         commit: restore the newest history store update with a max stop time point to the
+     *                 update chain. Reconciliation should know when to delete it from the history
+     *                 store.
+     *         rollback:restore the newest update in the history store to the update chain.
+     *                  Reconciliation should know when to delete it from the history store.
      *
      * 4) We are running an in-memory database:
      *     commit: resolve the prepared updates in memory.
@@ -1248,10 +1243,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         }
         /*
          * Locate the previous update from the history store. We know there may be content in the
-         * history store if the prepared update is written to the disk image or first committed
-         * update older than the prepared update is marked as WT_UPDATE_HS. The second case is rare
-         * but can happen if the previous eviction that writes the prepared update to the disk image
-         * fails after reconciliation.
+         * history store if the prepared update is written to the disk image.
          *
          * We need to locate the history store update before we resolve the prepared updates because
          * if we abort the prepared updates first, the history store search may race with other
