@@ -2194,7 +2194,7 @@ __wti_rec_pack_delta_internal(
     size_t packed_size;
     uint8_t *p;
 
-    WT_CLEAR (t_kv_struct);
+    WT_CLEAR(t_kv_struct);
     header = (WT_PAGE_HEADER *)r->delta.data;
 
     packed_size = key->len;
