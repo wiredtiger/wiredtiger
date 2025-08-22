@@ -1150,7 +1150,7 @@ __disagg_check_local_files_in_dir(WT_SESSION_IMPL *session, const char *dir, boo
 #ifndef _WIN32
     { /* Limit the scope of big local stack variables. */
         char cwd[MAXPATHLEN];
-        if (getcwd(cwd, MAXPATHLEN) != NULL) {
+        if (getcwd(cwd, MAXPATHLEN) == NULL) {
             cwd[0] = '?';
             cwd[1] = '\0';
         }
