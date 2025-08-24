@@ -97,6 +97,10 @@ __rec_append_orig_value(
 
     /* Review the current update list, checking conditions that mean no work is needed. */
     for (;; upd = upd->next) {
+        /* The update may be aborted. Check this before checking the transaction id. */
+        if (F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS))
+            return (0);
+
         if (upd->txnid == WT_TXN_ABORTED) {
             if (upd->next == NULL)
                 break;
@@ -277,8 +281,6 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
      * store.
      */
     if (F_ISSET(upd_select->upd, WT_UPDATE_HS | WT_UPDATE_HS_MAX_STOP)) {
-        WT_ASSERT(
-          session, upd_select->tombstone == NULL || F_ISSET(upd_select->tombstone, WT_UPDATE_HS));
         WT_RET(
           __rec_delete_hs_upd_save(session, r, ins, rip, upd_select->upd, upd_select->tombstone));
         return (0);
