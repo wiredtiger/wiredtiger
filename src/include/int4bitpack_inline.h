@@ -193,8 +193,6 @@ __4b_nibbles_for_posint(uint64_t x)
  *
  * Possible extensions:
  * - Add functions for packing and unpacking more numbers.
- * - Add functions for packing and unpacking arrays
- *   (see encode_array() and decode_array() in test/packing/int4bpack-test.c).
  * - Optional: Add support for negative integers.
  */
 
@@ -228,6 +226,22 @@ __wt_4b_pack_posint2(uint8_t **pp, uint8_t *end, uint64_t x1, uint64_t x2)
 }
 
 /*
+ * __wt_4b_pack_array --
+ *     Packs an array of positive variable-length integers.
+ */
+static WT_INLINE int
+__wt_4b_pack_array(uint8_t **pp, uint8_t *end, const uint64_t *vals, size_t n)
+{
+    WT_4B_PACK_CONTEXT ctx;
+    size_t i;
+
+    __4b_pack_init(&ctx, pp, end);
+    for (i = 0; i < n; ++i)
+        WT_RET(__4b_pack_posint_ctx(&ctx, vals[i]));
+    return (0);
+}
+
+/*
  * __wt_4b_unpack_posint1 --
  *     Unpacks 1 positive variable-length integer from the specified location.
  */
@@ -257,6 +271,22 @@ __wt_4b_unpack_posint2(const uint8_t **pp, const uint8_t *end, uint64_t *x1, uin
 }
 
 /*
+ * __wt_4b_unpack_array --
+ *     Unpacks an array of positive variable-length integers.
+ */
+static WT_INLINE int
+__wt_4b_unpack_array(const uint8_t **pp, const uint8_t *end, uint64_t *vals, size_t n)
+{
+    WT_4B_UNPACK_CONTEXT ctx;
+    size_t i;
+
+    __4b_unpack_init(&ctx, pp, end);
+    for (i = 0; i < n; ++i)
+        WT_RET(__4b_unpack_posint_ctx(&ctx, &vals[i]));
+    return (0);
+}
+
+/*
  * __wt_4b_size_posint1 --
  *     Return the packed size of 1 unsigned integer in bytes.
  */
@@ -275,6 +305,21 @@ __wt_4b_size_posint2(uint64_t x1, uint64_t x2)
 {
     return (__4b_nibbles_for_posint(x1) + __4b_nibbles_for_posint(x2) + 1) >>
       1; /* ceil((n1+n2)/2) */
+}
+
+/*
+ * __wt_4b_size_array --
+ *     Return the packed size of an array of unsigned integers in bytes.
+ */
+static WT_INLINE size_t
+__wt_4b_size_array(const uint64_t *vals, size_t n)
+{
+    size_t nibbles = 0;
+    size_t i;
+
+    for (i = 0; i < n; ++i)
+        nibbles += __4b_nibbles_for_posint(vals[i]);
+    return (nibbles + 1) >> 1; /* ceil(nibbles/2) */
 }
 
 /*
