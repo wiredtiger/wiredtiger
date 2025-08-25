@@ -266,7 +266,7 @@ static int
 __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
   WT_ROW *rip, WTI_UPDATE_SELECT *upd_select)
 {
-    WT_UPDATE *delete_upd;
+    WT_UPDATE *delete_upd, *tombstone;
     uint64_t txnid;
     bool seen_committed;
 
@@ -278,14 +278,15 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
      * store.
      */
     if (F_ISSET(upd_select->upd, WT_UPDATE_HS | WT_UPDATE_HS_MAX_STOP)) {
-        WT_ASSERT(session,
-          upd_select->tombstone == NULL ||
-            (F_ISSET(upd_select->upd, WT_UPDATE_HS) &&
-              F_ISSET(upd_select->tombstone, WT_UPDATE_HS)) ||
-            (F_ISSET(upd_select->upd, WT_UPDATE_HS_MAX_STOP) &&
-              !F_ISSET(upd_select->tombstone, WT_UPDATE_HS_MAX_STOP)));
-        WT_RET(
-          __rec_delete_hs_upd_save(session, r, ins, rip, upd_select->upd, upd_select->tombstone));
+        if (upd_select->tombstone == NULL)
+            tombstone = NULL;
+        else if (F_ISSET(upd_select->tombstone, WT_UPDATE_HS))
+            tombstone = upd_select->tombstone;
+        else {
+            tombstone = NULL;
+            WT_ASSERT(session, !F_ISSET(upd_select->tombstone, WT_UPDATE_HS_MAX_STOP));
+        }
+        WT_RET(__rec_delete_hs_upd_save(session, r, ins, rip, upd_select->upd, tombstone));
         return (0);
     }
 
@@ -546,8 +547,13 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
           __wt_timestamp_to_string(prev_upd->upd_durable_ts, ts_string[2]), prev_upd->flags,
           __wt_timestamp_to_string(upd->upd_durable_ts, ts_string[3]), upd->flags);
 
-        /* Validate that the updates older than us have older timestamps. */
-        if (prev_upd->upd_start_ts < upd->upd_start_ts) {
+        /*
+         * Validate that the updates older than us have older timestamps. Don't check prepared
+         * updates as we may race with prepared commit or rollback. Prepared updates must use a
+         * timestamp so they cannot be mixed mode anyway.
+         */
+        if (prepare_state != WT_PREPARE_INPROGRESS && prepare_state != WT_PREPARE_LOCKED &&
+          prev_upd->upd_start_ts < upd->upd_start_ts) {
             WT_ASSERT_ALWAYS(session, prev_upd->upd_start_ts == WT_TS_NONE,
               "Previous update missing start timestamp");
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_4);
