@@ -27,50 +27,41 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from wtscenario import make_scenarios
 
 # For now, this is just making sure the flags are set without errors
+# Test that cache eviction controls can be reconfigured dynamically
+# and do not require a connection restart.
 class test_cache_evict_config01(wttest.WiredTigerTestCase):
-    conn_config_common = 'cache_size=50MB,statistics=(all)'
+    conn_config = "cache_size=50MB,statistics=(all)"
+    uri = "table:eviction01"
 
-    conn_config_values = [
-        ('default_enabled', dict(
-            enabled=True,
-            inc_eviction=True,
-            scrub_under_limit=True,
-            conn_config=f'{conn_config_common},cache_eviction_controls=[incremental_app_eviction=true,scrub_evict_under_target_limit=true]'
-        )),
-        ('disabled_all', dict(
-            enabled=False,
-            inc_eviction=False,
-            scrub_under_limit=False,
-            conn_config=f'{conn_config_common},cache_eviction_controls=[incremental_app_eviction=false,scrub_evict_under_target_limit=false]'
-        )),
-        ('scrub_only', dict(
-            enabled=True,
-            inc_eviction=False,
-            scrub_under_limit=True,
-            conn_config=f'{conn_config_common},cache_eviction_controls=[incremental_app_eviction=false,scrub_evict_under_target_limit=true]'
-        )),
-        ('incr_only', dict(
-            enabled=True,
-            inc_eviction=True,
-            scrub_under_limit=False,
-            conn_config=f'{conn_config_common},cache_eviction_controls=[incremental_app_eviction=true,scrub_evict_under_target_limit=false]'
-        )),
-    ]
-
-    scenarios = make_scenarios(conn_config_values)
-
-    def test_eviction_app_threads(self):
-        # Create a table, insert some data, ensure no errors.
-        uri = 'table:eviction01'
-        self.session.create(uri, 'key_format=i,value_format=S')
-        cursor = self.session.open_cursor(uri)
-        for i in range(10):
-            cursor[i] = "value" + str(i)
+    def test_cache_eviction_reconfig(self):
+        # Create a table and insert baseline data
+        self.session.create(self.uri, "key_format=i,value_format=S")
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(5):
+            cursor[i] = "init" + str(i)
         cursor.close()
 
-        # Open statistics cursor.
-        stat_cursor = self.session.open_cursor('statistics:')
-        stat_cursor.close()
+        # Try different eviction reconfigurations.
+        configs = [
+            "cache_eviction_controls=[incremental_app_eviction=true,scrub_evict_under_target_limit=true]",
+            "cache_eviction_controls=[incremental_app_eviction=false,scrub_evict_under_target_limit=false]",
+            "cache_eviction_controls=[incremental_app_eviction=true,scrub_evict_under_target_limit=false]",
+            "cache_eviction_controls=[incremental_app_eviction=false,scrub_evict_under_target_limit=true]",
+        ]
+
+        for cfg in configs:
+            self.conn.reconfigure(cfg)
+
+            # Verify the connection is still alive by inserting more rows
+            cursor = self.session.open_cursor(self.uri)
+            for i in range(5, 10):
+                cursor[i] = "postreconfig_" + str(i)
+            cursor.close()
+
+            # Ensure rows can be read
+            cursor = self.session.open_cursor(self.uri)
+            count = sum(1 for _ in cursor)
+            self.assertGreaterEqual(count, 5)
+            cursor.close()
