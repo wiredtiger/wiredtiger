@@ -38,25 +38,25 @@ class test_cache_evict_config01(wttest.WiredTigerTestCase):
             enabled=True,
             inc_eviction=True,
             scrub_under_limit=True,
-            conn_config=f'{conn_config_common},eviction_app_threads=[enabled=true,incremental_app_eviction=true,scrub_evict_under_target_limit=true]'
+            conn_config=f'{conn_config_common},cache_eviction_controls=[incremental_app_eviction=true,scrub_evict_under_target_limit=true]'
         )),
         ('disabled_all', dict(
             enabled=False,
             inc_eviction=False,
             scrub_under_limit=False,
-            conn_config=f'{conn_config_common},eviction_app_threads=[enabled=false,incremental_app_eviction=false,scrub_evict_under_target_limit=false]'
+            conn_config=f'{conn_config_common},cache_eviction_controls=[incremental_app_eviction=false,scrub_evict_under_target_limit=false]'
         )),
         ('scrub_only', dict(
             enabled=True,
             inc_eviction=False,
             scrub_under_limit=True,
-            conn_config=f'{conn_config_common},eviction_app_threads=[enabled=true,incremental_app_eviction=false,scrub_evict_under_target_limit=true]'
+            conn_config=f'{conn_config_common},cache_eviction_controls=[incremental_app_eviction=false,scrub_evict_under_target_limit=true]'
         )),
         ('incr_only', dict(
             enabled=True,
             inc_eviction=True,
             scrub_under_limit=False,
-            conn_config=f'{conn_config_common},eviction_app_threads=[enabled=true,incremental_app_eviction=true,scrub_evict_under_target_limit=false]'
+            conn_config=f'{conn_config_common},cache_eviction_controls=[incremental_app_eviction=true,scrub_evict_under_target_limit=false]'
         )),
     ]
 
