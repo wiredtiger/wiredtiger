@@ -1206,6 +1206,8 @@ err:
  *     starting in disaggregated storage mode. Eventually this should not be necessary but at the
  *     moment WiredTiger will generate local files in disaggregated storage mode, and MongoDB
  *     expects to be able to restart without files being present.
+ *
+ * FIXME-WT-15163: Revisit what files get written and what needs to be deleted.
  */
 int
 __wti_ensure_clean_startup_dir(WT_SESSION_IMPL *session, const char *cfg[])
