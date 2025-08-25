@@ -1136,7 +1136,7 @@ __wti_disagg_check_local_files(WT_SESSION_IMPL *session, const char *cfg[])
         fail = false; /* Default: delete */
 
     /* Delete from home directory. */
-    WT_RET(__wt_cleanup_start_dir(session, "", fail));
+    WT_RET(__wt_ensure_clean_startup_dir(session, "", fail));
 
     /*
      * Delete from log directory.
@@ -1147,7 +1147,7 @@ __wti_disagg_check_local_files(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "log.path", &cval));
     if (cval.len > 0 && !(cval.len == 1 && cval.str[0] == '.')) {
         WT_RET(__wt_strndup(session, cval.str, cval.len, &log_path));
-        ret = __wt_cleanup_start_dir(session, log_path, fail);
+        ret = __wt_ensure_clean_startup_dir(session, log_path, fail);
         __wt_free(session, log_path);
     }
 

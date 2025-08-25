@@ -586,12 +586,12 @@ __on_file_in_wt_dir(WT_SESSION_IMPL *session, const char *fname, bool fail)
 }
 
 /*
- * __wt_cleanup_start_dir --
+ * __wt_ensure_clean_startup_dir --
  *     Check for local files in a directory that need to be removed before starting in disaggregated
  *     mode.
  */
 int
-__wt_cleanup_start_dir(WT_SESSION_IMPL *session, const char *dir, bool fail)
+__wt_ensure_clean_startup_dir(WT_SESSION_IMPL *session, const char *dir, bool fail)
 {
     WT_DECL_RET;
 
