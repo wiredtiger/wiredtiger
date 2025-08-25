@@ -144,16 +144,6 @@ __rec_append_orig_value(
             break;
     }
 
-    /*
-     * We end up in this function because we have selected a newer value to write to disk. If we
-     * select the newest committed update, we should see a valid update here. We can only write
-     * uncommitted prepared updates in eviction and if the update chain only has uncommitted
-     * prepared updates, we cannot abort them concurrently when we are still evicting the page
-     * because we have to do a search for the prepared updates, which can not proceed until eviction
-     * finishes.
-     */
-    WT_ASSERT_ALWAYS(session, oldest_upd != NULL, "No older updates found on update chain");
-
     bool delta_enabled = WT_DELTA_LEAF_ENABLED(session);
     /*
      * Additionally, we need to append a tombstone before the onpage value we're about to append to
@@ -915,7 +905,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                 prepare_rollback_tombstone->next == upd);
             upd_select->upd = upd;
             /* We skipped the prepare rollback tombstone. */
-            *has_newer_updatesp = true;
+            WT_ASSERT(session, *has_newer_updatesp);
             /*
              * If we have seen a tombstone that rolled back the prepared update, this must be the
              * prepared update. No need to walk further.

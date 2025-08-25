@@ -1562,10 +1562,20 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                 /*
                  * If we write a prepared tombstone, we still need to retain the update it deletes
                  * on the update chain. Otherwise, if the prepared update is aborted, we will have
-                 * nothing to write in the next reconciliation.
+                 * nothing to write in the next reconciliation. If the update is a modify, we need
+                 * to retain all the older updates until a full value is found.
                  */
-                supd->free_upds = supd->onpage_upd->next;
-                supd->onpage_upd->next = NULL;
+                for (tmp = supd->onpage_upd; tmp != NULL; tmp = tmp->next) {
+                    if (tmp->txnid == WT_TXN_ABORTED)
+                        continue;
+
+                    if (WT_UPDATE_DATA_VALUE(tmp))
+                        break;
+                }
+                if (tmp != NULL) {
+                    supd->free_upds = tmp->next;
+                    tmp->next = NULL;
+                }
             } else {
                 /*
                  * For non-prepared case, free the on-page value and the on-page tombstone if there
