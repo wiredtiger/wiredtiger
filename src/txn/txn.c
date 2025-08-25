@@ -2678,7 +2678,12 @@ __wt_verbose_dump_txn_one(
     txn_shared = WT_SESSION_TXN_SHARED(txn_session);
     WT_ERROR_INFO *txn_err_info = &(txn_session->err_info);
 
-    if (txn->isolation != WT_ISO_READ_UNCOMMITTED && !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
+    /*
+     * If there's no error, and the transaction is not read uncommitted, and it has no snapshot,
+     * skip.
+     */
+    if (error_code == 0 && txn->isolation != WT_ISO_READ_UNCOMMITTED &&
+      !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         return (0);
 
     WT_RET(__wt_msg(session,
