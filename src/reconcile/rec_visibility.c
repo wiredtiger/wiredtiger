@@ -98,10 +98,6 @@ __rec_append_orig_value(
 
     /* Review the current update list, checking conditions that mean no work is needed. */
     for (;; upd = upd->next) {
-        /* The update may be aborted. Check this before checking the transaction id. */
-        if (F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS))
-            return (0);
-
         if (upd->txnid == WT_TXN_ABORTED) {
             if (upd->next == NULL)
                 break;
@@ -147,16 +143,6 @@ __rec_append_orig_value(
         if (upd->next == NULL)
             break;
     }
-
-    /*
-     * We end up in this function because we have selected a newer value to write to disk. If we
-     * select the newest committed update, we should see a valid update here. We can only write
-     * uncommitted prepared updates in eviction and if the update chain only has uncommitted
-     * prepared updates, we cannot abort them concurrently when we are still evicting the page
-     * because we have to do a search for the prepared updates, which can not proceed until eviction
-     * finishes.
-     */
-    WT_ASSERT_ALWAYS(session, oldest_upd != NULL, "No older updates found on update chain");
 
     bool delta_enabled = WT_DELTA_LEAF_ENABLED(session);
     /*
@@ -919,7 +905,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                 prepare_rollback_tombstone->next == upd);
             upd_select->upd = upd;
             /* We skipped the prepare rollback tombstone. */
-            *has_newer_updatesp = true;
+            WT_ASSERT(session, *has_newer_updatesp);
             /*
              * If we have seen a tombstone that rolled back the prepared update, this must be the
              * prepared update. No need to walk further.
