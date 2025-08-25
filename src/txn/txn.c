@@ -2686,7 +2686,9 @@ __wt_verbose_dump_txn_one(
       !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         return (0);
 
-    WT_RET(__wt_msg(session,
+    buf_len = 512;
+    WT_RET(__wt_scr_alloc(session, buf_len, &buf));
+    WT_ERR(__wt_snprintf((char *)buf->data, buf_len,
       "session ID: %" PRIu32 ", txn ID: %" PRIu64 ", pinned ID: %" PRIu64
       ", metadata pinned ID: %" PRIu64 ", name: %s",
       txn_session->id, __wt_atomic_loadv64(&txn_shared->id),
@@ -2694,8 +2696,15 @@ __wt_verbose_dump_txn_one(
       __wt_atomic_loadv64(&txn_shared->metadata_pinned),
       txn_session->name == NULL ? "EMPTY" : txn_session->name));
 
+    if (error_code != 0)
+        WT_ERR_MSG(session, error_code, "%s, %s", (char *)buf->data,
+          error_string != NULL ? error_string : "");
+    else
+        WT_ERR(__wt_msg(session, "%s", (char *)buf->data));
+
+    __wt_scr_free(session, &buf);
     if (txn->isolation == WT_ISO_READ_UNCOMMITTED)
-        return (0);
+        goto err;
 
     WT_NOT_READ(iso_tag, "INVALID");
     switch (txn->isolation) {
