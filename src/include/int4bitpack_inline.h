@@ -173,12 +173,11 @@ __4b_unpack_posint_ctx(WT_4B_UNPACK_CONTEXT *ctx, uint64_t *out)
 
     for (;;) {
         uint8_t chunk;
-        if (__4b_unpack_get_chunk(ctx, &chunk) != 0)
-            return (EINVAL);
+        WT_RET(__4b_unpack_get_chunk(ctx, &chunk));
         uint64_t val = (uint64_t)(chunk & 0x7U);
         if (shift != 0)
-            val += 1;        /* carry from saved "+1 on decode" rule */
-        n += (val << shift); /* use + to allow carry */
+            val = (val + 1) << shift;
+        n += val; /* use + to allow carry */
         shift += 3;
         if ((chunk & 0x8U) == 0)
             break; /* last chunk */
