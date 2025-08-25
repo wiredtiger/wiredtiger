@@ -63,16 +63,6 @@ class test_cache_evict_config01(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(conn_config_values)
 
     def test_eviction_app_threads(self):
-        # Open a fresh connection with the scenario config.
-        self.conn.close()
-        self.conn = self.wiredtiger_open(".", self.conn_config)
-
-        # Open statistics cursor.
-        stat_cursor = self.session.open_cursor('statistics:')
-        # For now, we just verify that the connection is established with
-        # the given config (no parse errors, no startup failure).
-        stat_cursor.close()
-
         # Create a table, insert some data, ensure no errors.
         uri = 'table:eviction01'
         self.session.create(uri, 'key_format=i,value_format=S')
@@ -80,3 +70,7 @@ class test_cache_evict_config01(wttest.WiredTigerTestCase):
         for i in range(10):
             cursor[i] = "value" + str(i)
         cursor.close()
+
+        # Open statistics cursor.
+        stat_cursor = self.session.open_cursor('statistics:')
+        stat_cursor.close()
