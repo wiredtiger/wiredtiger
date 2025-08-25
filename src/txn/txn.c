@@ -2679,8 +2679,8 @@ __wt_verbose_dump_txn_one(
     WT_ERROR_INFO *txn_err_info = &(txn_session->err_info);
 
     /*
-     * If there's no error, and the transaction is not read uncommitted, and it has no snapshot,
-     * skip.
+     * Unless an error occurs, there's no need to print transactions without a snapshot, as they are
+     * typically harmless to the database.
      */
     if (error_code == 0 && txn->isolation != WT_ISO_READ_UNCOMMITTED &&
       !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
@@ -2711,12 +2711,11 @@ __wt_verbose_dump_txn_one(
     case WT_ISO_READ_COMMITTED:
         iso_tag = "WT_ISO_READ_COMMITTED";
         break;
-    case WT_ISO_READ_UNCOMMITTED:
-        iso_tag = "WT_ISO_READ_UNCOMMITTED";
-        break;
     case WT_ISO_SNAPSHOT:
         iso_tag = "WT_ISO_SNAPSHOT";
         break;
+    case WT_ISO_READ_UNCOMMITTED:
+        return (__wt_illegal_value(session, txn->isolation));
     }
 
     WT_ERR(__wt_scr_alloc(session, 2048, &snapshot_buf));
