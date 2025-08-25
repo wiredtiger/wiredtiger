@@ -1,6 +1,7 @@
 set(sources
   "palm.c"
   "palm_kv.c"
+  "palm_utils.c"
   "palm_verbose.c"
   "../../../third_party/openldap_liblmdb/mdb.c"
   "../../../third_party/openldap_liblmdb/midl.c"
