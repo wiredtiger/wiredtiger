@@ -546,6 +546,18 @@ connection_runtime_config = [
         Config('type', '', r'''
             cache location: DRAM or NVRAM'''),
         ]),
+    Config('cache_eviction_controls', '', r'''
+        Controls the experimental incremental cache eviction features.''',
+        type='category', subconfig=[
+            Config('incremental_app_eviction', 'false', r'''
+                Only a part of application threads will participate in cache management 
+                when a cache threshold reaches its trigger limit.''',
+                type='boolean'),
+            Config('scrub_evict_under_target_limit', 'false', 
+                r'''Change the eviction strategy to scrub eviction when the cache usage is under
+                the target limit.''',
+                type='boolean'),
+        ]),
     Config('cache_size', '100MB', r'''
         maximum heap memory to allocate for the cache. A database should configure either
         \c cache_size or \c shared_cache but not both''',
