@@ -127,8 +127,8 @@ static void
 roundtrip_and_print_pos(uint64_t val)
 {
     uint8_t buf[1024];
-    const uint8_t *p_in;
     uint8_t *p_out;
+    const uint8_t *p_in;
     size_t used = 0;
     uint64_t dec = 0;
     uint64_t one[1] = {val};
@@ -139,6 +139,7 @@ roundtrip_and_print_pos(uint64_t val)
 
     p_in = buf;
     testutil_check(__wt_4b_unpack_array(&p_in, buf + used, &dec, 1));
+    testutil_assert((size_t)(p_in - buf) == used);
     assert_bytes_for_values(used, one, 1);
 
     printf("%-10" PRIu64 " ", val);
@@ -155,8 +156,8 @@ static void
 roundtrip_and_print_signed(int64_t sval)
 {
     uint8_t buf[1024];
-    const uint8_t *p_in;
     uint8_t *p_out;
+    const uint8_t *p_in;
     uint64_t enc = __wt_encode_signed_as_positive(sval);
     uint64_t decpos = 0;
     size_t used = 0;
@@ -167,6 +168,7 @@ roundtrip_and_print_signed(int64_t sval)
 
     p_in = buf;
     testutil_check(__wt_4b_unpack_array(&p_in, buf + used, &decpos, 1));
+    testutil_assert((size_t)(p_in - buf) == used);
     assert_bytes_for_values(used, &enc, 1);
 
     int64_t dec = __wt_decode_positive_as_signed(decpos);
@@ -185,8 +187,8 @@ roundtrip_array_compact(const uint64_t *arr, size_t n)
 {
     uint64_t out_local[64];
     uint8_t buf[2048];
-    const uint8_t *p_in;
     uint8_t *p_out;
+    const uint8_t *p_in;
     uint64_t *out = out_local;
     size_t used = 0;
 
@@ -198,6 +200,7 @@ roundtrip_array_compact(const uint64_t *arr, size_t n)
 
     p_in = buf;
     testutil_check(__wt_4b_unpack_array(&p_in, buf + used, out, n));
+    testutil_assert((size_t)(p_in - buf) == used);
 
     print_u64_array(arr, n);
     printf(" ");
@@ -219,8 +222,8 @@ roundtrip_array_multiline(const uint64_t *arr, size_t n)
 {
     uint64_t out_local[64];
     uint8_t buf[2048];
-    const uint8_t *p_in;
     uint8_t *p_out;
+    const uint8_t *p_in;
     uint64_t *out = out_local;
     size_t used = 0;
 
@@ -232,6 +235,7 @@ roundtrip_array_multiline(const uint64_t *arr, size_t n)
 
     p_in = buf;
     testutil_check(__wt_4b_unpack_array(&p_in, buf + used, out, n));
+    testutil_assert((size_t)(p_in - buf) == used);
 
     printf("Array:    ");
     print_u64_array(arr, n);
@@ -310,6 +314,9 @@ test_small_int_arrays(void)
         for (uint64_t j = 0; j < i; ++j)
             arr[j] = j;
         roundtrip_array_multiline(arr, (size_t)i);
+        for (uint64_t j = 0; j < i; ++j)
+            arr[i - j - 1] = j;
+        roundtrip_array_multiline(arr, (size_t)i);
     }
 }
 
@@ -326,6 +333,9 @@ test_bigger_int_arrays(void)
         for (uint64_t j = 0; j < i; ++j)
             arr[j] = j * j;
         roundtrip_array_multiline(arr, (size_t)i);
+        for (uint64_t j = 0; j < i; ++j)
+            arr[i - j - 1] = j * j;
+        roundtrip_array_multiline(arr, (size_t)i);
     }
 }
 
@@ -337,8 +347,8 @@ static void
 test_extreme_values(void)
 {
     uint8_t buf[128];
-    const uint8_t *p_in;
     uint8_t *p_out;
+    const uint8_t *p_in;
     size_t used = 0;
     uint64_t out = 0;
 
@@ -351,6 +361,7 @@ test_extreme_values(void)
         assert_bytes_for_values(used, &v, 1);
         p_in = buf;
         testutil_check(__wt_4b_unpack_array(&p_in, buf + used, &out, 1));
+        testutil_assert((size_t)(p_in - buf) == used);
         /* Print the value and its encoded buffer */
         printf("Extreme UINT64: %-20" PRIu64 " ", v);
         print_hex_bin_columns(buf, used);
@@ -369,6 +380,7 @@ test_extreme_values(void)
             assert_bytes_for_values(used, &enc, 1);
             p_in = buf;
             testutil_check(__wt_4b_unpack_array(&p_in, buf + used, &out, 1));
+            testutil_assert((size_t)(p_in - buf) == used);
             int64_t dec = __wt_decode_positive_as_signed(out);
             /* Print the signed value, encoded positive, and buffer */
             printf("Zigzag signed: %-20" PRId64 " Positive: %-20" PRIu64 " ", svals[i], enc);
@@ -387,8 +399,8 @@ static void
 test_alignment_boundaries(void)
 {
     uint8_t buf[128];
-    const uint8_t *p_in;
     uint8_t *p_out;
+    const uint8_t *p_in;
     size_t used = 0;
     uint64_t out[8];
 
@@ -402,6 +414,7 @@ test_alignment_boundaries(void)
             assert_bytes_for_values(used, &vals[i], 1);
             p_in = buf;
             testutil_check(__wt_4b_unpack_array(&p_in, buf + used, out, 1));
+            testutil_assert((size_t)(p_in - buf) == used);
             printf("Boundary single: %-10" PRIu64 " ", vals[i]);
             print_hex_bin_columns(buf, used);
             printf("  Decoded: %-10" PRIu64 "  Len: %" WT_SIZET_FMT "\n", out[0], used);
@@ -422,12 +435,12 @@ test_alignment_boundaries(void)
           WT_ELEMENTS(a5), WT_ELEMENTS(a6)};
         for (size_t i = 0; i < WT_ELEMENTS(arrs); ++i) {
             p_out = buf;
-            testutil_check(
-              __wt_4b_pack_array(&p_out, buf + sizeof(buf), arrs[i], lens[i]));
+            testutil_check(__wt_4b_pack_array(&p_out, buf + sizeof(buf), arrs[i], lens[i]));
             used = (size_t)(p_out - buf);
             assert_bytes_for_values(used, arrs[i], lens[i]);
             p_in = buf;
             testutil_check(__wt_4b_unpack_array(&p_in, buf + used, out, lens[i]));
+            testutil_assert((size_t)(p_in - buf) == used);
             printf("Align flip array: ");
             print_u64_array(arrs[i], lens[i]);
             printf(" ");
@@ -448,8 +461,8 @@ test_alignment_boundaries(void)
 static void
 test_exact_fit_and_enomem(void)
 {
-    uint8_t tmp[256];
     uint8_t *p;
+    uint8_t tmp[256];
     size_t used = 0;
 
     const uint64_t vsets[][4] = {
@@ -496,8 +509,8 @@ static void
 test_truncated_and_overcount_decode(void)
 {
     uint8_t buf[256];
-    const uint8_t *p_in;
     uint8_t *p_out;
+    const uint8_t *p_in;
     size_t used = 0;
     uint64_t *v;
 
@@ -529,7 +542,8 @@ test_truncated_and_overcount_decode(void)
     /* Also try removing two bytes to likely split mid-number. */
     if (used > 1) {
         p_in = buf;
-        testutil_assert(__wt_4b_unpack_array(&p_in, buf + used - 2, v, WT_ELEMENTS(vals)) == EINVAL);
+        testutil_assert(
+          __wt_4b_unpack_array(&p_in, buf + used - 2, v, WT_ELEMENTS(vals)) == EINVAL);
         printf("  Truncated by 2 -> EINVAL as expected\n");
     }
     free(v);
@@ -668,6 +682,7 @@ test_random_fuzz(void)
         assert_bytes_for_values(used, enc, n);
         p_in = buf;
         testutil_check(__wt_4b_unpack_array(&p_in, buf + used, outpos, n));
+        testutil_assert((size_t)(p_in - buf) == used);
         for (size_t i = 0; i < n; ++i) {
             sdec[i] = __wt_decode_positive_as_signed(outpos[i]);
             testutil_assert(sdec[i] == svals[i]);
