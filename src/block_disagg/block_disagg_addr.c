@@ -47,9 +47,16 @@ __wti_block_disagg_addr_pack(
     WT_ASSERT_ALWAYS(session, cookie->lsn > cookie->base_lsn,
       "LSN %" PRIu64 " must be larger than base LSN %" PRIu64, cookie->lsn, cookie->base_lsn);
 
-    /* Pack the address cookie. */
-    uint64_t values[] = {WT_BLOCK_DISAGG_ADDR_VERSION, WT_BLOCK_DISAGG_ADDR_VERSION_MIN,
-      cookie->page_id, cookie->flags, cookie->lsn, cookie->lsn - cookie->base_lsn, cookie->size};
+    /* Bit-packed values. */
+    uint64_t values[] = {
+      WT_BLOCK_DISAGG_ADDR_VERSION,     /* version */
+      WT_BLOCK_DISAGG_ADDR_VERSION_MIN, /* version_min */
+      cookie->page_id,                  /* page_id */
+      cookie->flags,                    /* flags */
+      cookie->lsn,                      /* lsn */
+      cookie->lsn - cookie->base_lsn,   /* base_lsn_delta */
+      cookie->size                      /* size */
+    };
     WT_RET(__wt_4b_pack_array(pp, 0, values, WT_ELEMENTS(values)));
 
     /* Pack the checksum as a fixed-length 32-bit integer. */
@@ -67,27 +74,23 @@ int
 __wti_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, size_t buf_size,
   WT_BLOCK_DISAGG_ADDRESS_COOKIE *cookie)
 {
-    uint64_t base_lsn, base_lsn_delta, flags, lsn, page_id, size, unsupported_flags, version,
-      version_min;
-    uint32_t checksum;
-    uint64_t values[7];
-    const uint8_t *begin;
-
-    begin = *buf;
+    const uint8_t *begin = *buf; /* Save to later calculate the consumed size. */
 
     /* Unpack the address cookie. */
+    uint64_t values[7];
     WT_RET(__wt_4b_unpack_array(buf, 0, values, WT_ELEMENTS(values)));
 
     /* Assign to variables for better readability. */
-    version = values[0];
-    version_min = values[1];
-    page_id = values[2];
-    flags = values[3];
-    lsn = values[4];
-    base_lsn_delta = values[5];
-    size = values[6];
+    uint64_t version = values[0];
+    uint64_t version_min = values[1];
+    uint64_t page_id = values[2];
+    uint64_t flags = values[3];
+    uint64_t lsn = values[4];
+    uint64_t base_lsn_delta = values[5];
+    uint64_t size = values[6];
 
     /* Unpack the checksum as a fixed-length 32-bit integer. */
+    uint32_t checksum;
     WT_RET(__wt_unpack_fixed_uint32(buf, 0, &checksum));
 
     if (version_min > WT_BLOCK_DISAGG_ADDR_VERSION)
@@ -100,7 +103,7 @@ __wti_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, si
         WT_RET_MSG(session, EINVAL,
           "Disaggregated address cookie LSN %" PRIu64 " is smaller than base LSN delta %" PRIu64,
           lsn, base_lsn_delta);
-    base_lsn = lsn - base_lsn_delta;
+    uint64_t base_lsn = lsn - base_lsn_delta;
 
     /* Check the page ID and size. */
     if (page_id == WT_BLOCK_INVALID_PAGE_ID)
@@ -123,7 +126,7 @@ __wti_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, si
      * address cookie, and (2) if there are no unsupported flags. If we are reading a new version,
      * we can't check the size, as more fields could have been added.
      */
-    unsupported_flags = flags;
+    uint64_t unsupported_flags = flags;
     FLD_CLR(unsupported_flags, WT_BLOCK_DISAGG_ADDR_ALL_FLAGS);
     if (version <= WT_BLOCK_DISAGG_ADDR_VERSION && unsupported_flags == 0 &&
       (size_t)(*buf - begin) != buf_size)
