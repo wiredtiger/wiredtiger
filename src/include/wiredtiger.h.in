@@ -5732,7 +5732,7 @@ struct __wt_page_log_handle {
      * @param checkpoint_lsn the checkpoint to use
      * @param table_id the table where we want to get the pages from
      * @param item the WT_ITEM to hold the page ids
-     * @param actual size by number of page IDs stored in the array
+     * @param size number of page IDs stored in the array
      */
     int (*plh_get_page_ids)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
         uint64_t checkpoint_lsn, uint64_t table_id, WT_ITEM *item, size_t *size);
