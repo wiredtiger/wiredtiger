@@ -68,8 +68,9 @@ class test_prepare40(test_prepare_preserve_prepare_base):
         session2 = self.conn.open_session()
         session2.checkpoint()
 
-        # Force eviction to trigger reconciliation
-        # This ensures the committed update gets written to disk storage
+        # Force eviction to ensures the committed update gets written to disk storage
+        # and flush in-memory updates. The aim of this is to hit RESOLVE_PREPARE_ON_DISK case
+        # when we rollback the transaction
         session_evict = self.conn.open_session("debug=(release_evict_page=true)")
         session_evict.begin_transaction("ignore_prepare=true")
         evict_cursor = session_evict.open_cursor(self.uri, None, None)
