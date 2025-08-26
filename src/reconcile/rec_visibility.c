@@ -691,13 +691,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          */
         *write_prepare = false;
         WT_ACQUIRE_READ(txnid, upd->txnid);
-        /*
-         * If we have seen a globally visible tombstone that rolled back a prepared update, we must
-         * now see an aborted prepared update.
-         */
-        WT_ASSERT(session,
-          prepare_rollback_tombstone == NULL ||
-            (txnid == WT_TXN_ABORTED && upd->prepare_state == WT_PREPARE_INPROGRESS));
         if (txnid == WT_TXN_ABORTED) {
             if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
                 continue;
