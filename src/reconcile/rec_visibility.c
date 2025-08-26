@@ -610,20 +610,24 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
                 WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_1);
                 return (EBUSY);
             }
-        } else
+        } else {
+            WT_ACQUIRE_READ(prepare_state, prev_upd->prepare_state);
             /*
              * Rollback to stable may recover updates from the history store that is out of order to
              * the on-disk value. Normally these updates have the WT_UPDATE_RESTORED_FROM_HS flag on
              * them. However, in rare cases, if the newer update becomes globally visible, the
              * restored update may be removed by the obsolete check. This may lead to an out of
              * order edge case but it is benign. Check the global visibility of the update and
-             * ignore this case.
+             * ignore this case. Don't check prepared updates as we may race with prepared commit or
+             * rollback. Prepared updates must use a timestamp so they cannot be mixed mode anyway.
              */
             WT_ASSERT(session,
               __wt_txn_upd_visible_all(session, prev_upd) ||
+                prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED ||
                 (prev_upd->upd_start_ts >= vpack->tw.start_ts &&
                   (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw) ||
                     prev_upd->upd_start_ts >= vpack->tw.stop_ts)));
+        }
     }
 
     return (0);
