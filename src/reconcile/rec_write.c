@@ -2239,7 +2239,8 @@ __wti_rec_pack_delta_internal(
  *     Pack a delta key and a delta value for a leaf page.
  */
 static int
-__rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *supd)
+__rec_pack_delta_leaf(
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *supd, bool *build_deltap)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(custom_value);
@@ -2257,6 +2258,13 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
     WT_ERR(__rec_delta_pack_key(session, S2BT(session), r, supd->ins, supd->rip, key));
     WT_ERR(__wti_rec_cell_build_leaf_key(session, r, key->data, key->size, &ovfl_key));
+
+    /* Don't build a delta for overflow keys. */
+    if (ovfl_key) {
+        *build_deltap = false;
+        __wt_scr_free(session, &key);
+        return (ret);
+    }
 
     /*
      * Build the customized value. The value for a leaf page delta looks very similar to a standard
@@ -2283,6 +2291,14 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
         LF_SET(WT_VALUE_IS_DELETE);
         value->data = NULL;
         value->size = 0;
+    }
+
+    /* Don't build a delta for overflow values. */
+    if (value->size > S2BT(session)->maxleafvalue) {
+        *build_deltap = false;
+        __wt_scr_free(session, &key);
+        __wt_scr_free(session, &value);
+        return (ret);
     }
 
     /* Pack the flags and delta value into a custom value. */
@@ -2316,13 +2332,17 @@ err:
  *     Build delta for leaf pages.
  */
 static int
-__rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI_RECONCILE *r)
+__rec_build_delta_leaf(
+  WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI_RECONCILE *r, bool *build_deltap)
 {
+    WT_DECL_RET;
     WT_MULTI *multi;
     WT_PAGE_HEADER *header;
     WT_SAVE_UPD *supd;
     uint64_t start, stop;
     uint32_t count, i;
+
+    *build_deltap = true;
 
     WT_ASSERT(session, r->multi_next == 1);
     /* Only row store leaf page is supported. */
@@ -2367,8 +2387,13 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
                     continue;
             }
         }
+        ret = __rec_pack_delta_leaf(session, r, supd, build_deltap);
 
-        WT_RET(__rec_pack_delta_leaf(session, r, supd));
+        /* Stop building delta for the page if an overflow item is encountered. */
+        if (!*build_deltap)
+            break;
+        else
+            WT_RET(ret);
         ++count;
     }
 
@@ -2400,10 +2425,8 @@ __rec_build_delta(
 
     *build_deltap = false;
     if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
-        if (WT_BUILD_DELTA_LEAF(session, r)) {
-            WT_RET(__rec_build_delta_leaf(session, full_image, r));
-            *build_deltap = true;
-        }
+        if (WT_BUILD_DELTA_LEAF(session, r))
+            WT_RET(__rec_build_delta_leaf(session, full_image, r, build_deltap));
     } else if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
         /* The internal page delta would have already been built at this point if one exists. */
         if (r->delta.size > 0) {
