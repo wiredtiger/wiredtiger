@@ -78,17 +78,29 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
   int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], uint32_t open_flags)
 {
+    WT_UNUSED(name_func);
     WT_DECL_RET;
 
+    /*
+     * If the operation requires exclusive access, close any open file handles.
+     */
+    if (FLD_ISSET(open_flags, WT_DHANDLE_EXCLUSIVE)) {
+        WT_WITH_HANDLE_LIST_WRITE_LOCK(
+          session, ret = __wt_conn_dhandle_close_all(session, uri, false, false, false));
+        WT_RET(ret);
+    }
+
+    //__schema_open_layered_ingest to open ingest tabke
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags));
-    WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)session->dhandle;
-    const char *stable_uri = layered->stable_uri;
 
-    WT_ASSERT(session, stable_uri != NULL);
-    WT_ASSERT(session, file_func == __wt_verify);
+    // WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)session->dhandle;
+    // const char *stable_uri = layered->stable_uri;
+    // WT_ASSERT(session, stable_uri != NULL);
+    // WT_ASSERT(session, file_func == __wt_verify);
+    // WT_WITHOUT_DHANDLE(session,
+    //   ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
 
-    WT_WITHOUT_DHANDLE(session,
-      ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
+    WT_SAVE_DHANDLE(session, ret = file_func(session, cfg));
 
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
@@ -188,7 +200,11 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
                 WT_ERR(
                   __wt_schema_worker(session, idx->source, file_func, name_func, cfg, open_flags));
         }
-    } else if (WT_PREFIX_MATCH(uri, "layered:") && file_func == __wt_verify) {
+    } 
+    else if (WT_PREFIX_MATCH(uri, "layered:")) {
+        /* Currently, only verify is supported for layered tables. */
+        if (file_func != __wt_verify)
+            WT_ERR(ENOTSUP);
         WT_ERR(__schema_layered_worker_verify(session, uri, file_func, name_func, cfg, open_flags));
     } else if (WT_PREFIX_MATCH(uri, "tiered:")) {
         WT_ERR(__schema_tiered_worker(session, uri, file_func, name_func, cfg, open_flags));

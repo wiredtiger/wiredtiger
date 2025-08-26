@@ -53,6 +53,9 @@ static int __verify_row_int_key_order(
   WT_SESSION_IMPL *, WT_PAGE *, WT_REF *, uint32_t, WT_VSTUFF *);
 static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
+static int __wt_verify_ext(WT_SESSION_IMPL *session, const char *cfg[]);
+static int __wt_verify_layered(WT_SESSION_IMPL *session, const char *cfg[]);
+static int __verify_layered_ingest(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered);
 
 /*
  * __verify_config --
@@ -190,12 +193,22 @@ __dump_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
     return (0);
 }
 
+int
+__wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    printf("WT_VERIFY: %s\n", session->dhandle->name);
+
+    if (WT_PREFIX_MATCH(session->dhandle->name, "layered:"))
+        return (__wt_verify_layered(session, cfg));
+    
+    return (__wt_verify_ext(session, cfg));
+}
 /*
  * __wt_verify --
  *     Verify a file.
  */
-int
-__wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
+static int
+__wt_verify_ext(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -373,6 +386,110 @@ err:
     __wt_scr_free(session, &vs->tmp3);
     __wt_scr_free(session, &vs->tmp4);
 
+    return (ret);
+}
+
+/* 
+ * __wt_verify_layered --
+ *     Layered table verification.
+ * 
+ * FIXME-WT-15047: Fix as part of extending on ingest table verification
+ */
+static int
+__wt_verify_layered(WT_SESSION_IMPL *session, const char *cfg[]) 
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_LAYERED_TABLE *layered;
+    const char *uri;
+
+    WT_UNUSED(cfg);
+
+    conn = S2C(session);
+    layered = (WT_LAYERED_TABLE *)session->dhandle;
+    uri = session->dhandle->name;
+
+    /* Check that the ingest table is empty on leader*/
+    if (conn->layered_table_manager.leader)
+        WT_RET(__verify_layered_ingest(session, layered));
+
+    /*
+     * Layered tables should always have a stable table constituent. A transient exception exists
+     * where a layered table may exist without a stable constituent, e.g. when a follower creates
+     * only the ingest table after applying a create operation from the oplog. Since only a leader
+     * can create a stable table, the follower will not see one until it picks up a checkpoint from
+     * the leader. If the leader crashes before checkpointing, a follower may step up with only an
+     * ingest table. In that case, the step-up process cleans up the incomplete state. Enforcing the
+     * presence of a stable table ensures layered tables are durable and followers can safely
+     * transition to leader without additional setup.
+     */
+    if (layered->stable_uri == NULL)
+        WT_RET_MSG(session, EINVAL, "verify(layered): %s has no stable constituent", uri);
+   
+    // verify stable using __wt_verify_ext
+
+    // WT_WITHOUT_DHANDLE(session, ret = __wt_session_get_btree_ckpt(session, layered->stable_uri, cfg, 0, NULL, NULL));
+    // if (ret == 0) {
+    //     WT_SAVE_DHANDLE(session, ret = __wt_verify_ext(session, cfg));
+    //     WT_TRET(__wt_session_release_dhandle(session));
+    // } else
+    //     WT_RET(ret);
+
+    return (ret);
+}
+
+
+/*
+ * __verify_layered_ingest --
+ *     Verify that the ingest table is empty when running as a leader.
+ *
+ * This function ensures that the ingest table is empty, which is a requirement for leaders.
+ * 
+ * FIXME-WT-15047: Extend on this to verify the ingest table on the follower nodes as well and update
+ * the description.
+ */
+static int
+__verify_layered_ingest(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered)
+{
+    WT_DECL_RET;
+    WT_CURSOR *ingest_cursor;
+
+    const char *ingest_uri;
+    const char *cfg[] = {// MM: config string must be null terminated
+      WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "readonly=true", NULL, NULL};
+
+    ingest_cursor = NULL;
+    ingest_uri = layered->ingest_uri;
+
+    /* No ingest constituent, nothing to verify. */ 
+    if (ingest_uri == NULL)
+        return (0);
+
+    /* Check if the ingest table cursor exists. */
+    WT_WITHOUT_DHANDLE(
+      session, ret = __wt_open_cursor(session, ingest_uri, NULL, cfg, &ingest_cursor));
+    if (ret == ENOENT) { //MM: changed from WT_NOTFOUND to ENOENT to match __clayered_open_stable
+        /* No ingest table: okay*/ 
+        ret = 0;
+        goto done;
+    }
+    WT_ERR(ret);
+
+    /* Check if the ingest table is empty*/
+    ret = ingest_cursor->next(ingest_cursor);
+    if (ret == 0)
+        /* Ingest table is not empty: error */
+        WT_RET_MSG(session, EINVAL, "verify layered: ingest table on leader must be empty");
+    else if (ret == WT_NOTFOUND)
+        /* Ingest table is empty: okay */
+        ret = 0;
+    else
+        WT_ERR(ret);
+
+done:
+err:
+    if (ingest_cursor != NULL)
+        WT_TRET(ingest_cursor->close(ingest_cursor));
     return (ret);
 }
 
