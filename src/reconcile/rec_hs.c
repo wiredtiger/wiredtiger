@@ -972,7 +972,9 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             WT_ASSERT(session, upd != list->onpage_upd);
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
             /* We should never insert prepared updates to the history store. */
-            WT_ASSERT(session, upd->prepare_state != WT_PREPARE_INPROGRESS);
+            WT_ASSERT(session,
+              upd->prepare_state != WT_PREPARE_INPROGRESS &&
+                upd->prepare_state != WT_PREPARE_LOCKED);
 
             tombstone = NULL;
 

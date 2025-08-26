@@ -691,32 +691,31 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          */
         *write_prepare = false;
         WT_ACQUIRE_READ(txnid, upd->txnid);
-        /*
-         * If we have seen a globally visible tombstone that rolled back a prepared update, we must
-         * now see an aborted prepared update.
-         */
-        WT_ASSERT(session,
-          prepare_rollback_tombstone == NULL ||
-            (txnid == WT_TXN_ABORTED && upd->prepare_state == WT_PREPARE_INPROGRESS));
         if (txnid == WT_TXN_ABORTED) {
             if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
                 continue;
 
             WT_READ_ONCE(prepare_state, upd->prepare_state);
-            if (prepare_state != WT_PREPARE_INPROGRESS)
-                continue;
 
-            /* Ignore the prepared update if the rollback timestamp is stable. */
-            if (upd->upd_rollback_ts != WT_TS_NONE &&
-              upd->upd_rollback_ts <= r->rec_start_pinned_stable_ts) {
+            if (prepare_state == WT_PREPARE_INPROGRESS) {
+                /* Ignore the prepared update if the rollback timestamp is stable. */
+                if (upd->upd_rollback_ts != WT_TS_NONE &&
+                  upd->upd_rollback_ts <= r->rec_start_pinned_stable_ts) {
+                    /*
+                     * If we have seen a tombstone that rolled back the prepared update,
+                     *  skip the key.
+                     */
+                    if (prepare_rollback_tombstone != NULL)
+                        break;
+                    continue;
+                }
+            } else if (prepare_state != WT_PREPARE_LOCKED)
                 /*
-                 * If we have seen a tombstone that rolled back the prepared update,
-                 *  skip the key.
+                 * We set the prepare state back to in progress after we have set the transaction id
+                 * to aborted. Therefore, we may race with prepare rollback and read a locked state
+                 * here. No need to check the rollback timestamp as it cannot be stable anyway.
                  */
-                if (prepare_rollback_tombstone != NULL)
-                    break;
                 continue;
-            }
 
             txnid = upd->upd_saved_txnid;
         }
@@ -882,8 +881,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                     /* Prepared updates cannot be resolved concurrently to eviction and salvage. */
                     WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
                       "Should never concurrently resolve a prepared update during reconciliation "
-                      "if we "
-                      "are not in a checkpoint.");
+                      "if we are not in a checkpoint.");
                 }
             }
         }
@@ -905,7 +903,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
              * can fire if we race with prepared rollback.
              */
             WT_ASSERT(session,
-              *write_prepare && upd->prepare_state == WT_PREPARE_INPROGRESS &&
+              *write_prepare &&
+                (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) &&
                 prepare_rollback_tombstone->next == upd);
             upd_select->upd = upd;
             /* We skipped the prepare rollback tombstone. */
@@ -972,6 +971,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
     WT_TIME_WINDOW *select_tw;
     WT_UPDATE *last_upd, *tombstone, *upd;
     uint64_t tombstone_txnid;
+    uint8_t prepare_state;
 
     upd = upd_select->upd;
     last_upd = tombstone = NULL;
@@ -1024,7 +1024,9 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
                 if (upd->next->type == WT_UPDATE_RESERVE)
                     continue;
 
-                if (upd->next->prepare_state != WT_PREPARE_INPROGRESS) {
+                /* We may see a locked prepare state if we race with prepare rollback. */
+                WT_ACQUIRE_READ(prepare_state, upd->next->prepare_state);
+                if (prepare_state != WT_PREPARE_INPROGRESS && prepare_state != WT_PREPARE_LOCKED) {
                     write_start_prepare = false;
                     continue;
                 }
