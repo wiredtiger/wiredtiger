@@ -995,12 +995,9 @@ __txn_search_prepared_op(
     F_SET(txn, txn_flags);
     F_CLR(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
     WT_RET(ret);
-    /*
-     * We cannot guarantee that we find an update when collators are being used as we cannot sort
-     * modifications on collated b-trees.
-     */
-    WT_RET_ASSERT(session, WT_DIAGNOSTIC_PREPARED, *updp != NULL || op->btree->collator != NULL,
-      WT_NOTFOUND, "unable to locate update associated with a prepared operation");
+    /* We resolve each prepared key exactly once. We should always find an update. */
+    WT_RET_ASSERT(session, WT_DIAGNOSTIC_PREPARED, *updp != NULL, WT_NOTFOUND,
+      "unable to locate update associated with a prepared operation");
 
     return (0);
 }
