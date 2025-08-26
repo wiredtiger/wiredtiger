@@ -1192,7 +1192,7 @@ done:
      * 3. We are not using disaggregated storage or precise checkpoint
      */
     if (hs_exists_local && !F_ISSET(conn, WT_CONN_READONLY) && !disagg &&
-      !F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+      !F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT)) {
         const char *rts_cfg[] = {
           WT_CONFIG_BASE(session, WT_CONNECTION_rollback_to_stable), NULL, NULL};
         __wt_timer_start(session, &rts_timer);
