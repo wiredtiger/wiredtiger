@@ -2243,15 +2243,16 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(custom_value);
+    WT_DECL_ITEM(key);
+    WT_DECL_ITEM(value);
     WT_DECL_RET;
-    WT_ITEM *key, *value;
     uint8_t flags, *p;
     bool ovfl_key;
 
     cbt = &r->update_modify_cbt;
     flags = 0;
     ovfl_key = false;
-    WT_ERR(__wt_scr_alloc(session, 0, &custom_value));
+    WT_RET(__wt_scr_alloc(session, 0, &custom_value));
 
     /* Get the key data and pack it into a key cell. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
