@@ -634,14 +634,16 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
  *     Search and return exact matching records only.
  */
 int
-__wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
+__wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp, bool *has_ondiskp)
 {
     WT_BTREE *btree;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_UPDATE *upd;
+    bool has_ondisk;
 
     *updp = upd = NULL; /* -Wuninitialized */
+    *has_ondiskp = has_ondisk = false;
     cbt = (WT_CURSOR_BTREE *)cursor;
     btree = CUR2BT(cbt);
 
@@ -671,12 +673,26 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
          * will be returned to us. In either case, we want the most recent update (any update
          * attempted after the prepare would have failed).
          */
-        if (cbt->ins != NULL)
+        if (cbt->ins != NULL) {
             upd = cbt->ins->upd;
-        else if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
+            has_ondisk = false;
+        } else if (cbt->ref->page->modify != NULL &&
+          cbt->ref->page->modify->mod_row_update != NULL) {
             upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
+            has_ondisk = true;
+        }
         break;
     case BTREE_COL_FIX:
+        /*
+         * Any update must be in the insert list and we want the most recent update (any update
+         * attempted after the prepare would have failed).
+         */
+        if (cbt->ins != NULL)
+            upd = cbt->ins->upd;
+
+        /* Fixed length column store always has an onpage value. */
+        has_ondisk = true;
+        break;
     case BTREE_COL_VAR:
         /*
          * Any update must be in the insert list and we want the most recent update (any update
@@ -684,10 +700,13 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
          */
         if (cbt->ins != NULL)
             upd = cbt->ins->upd;
+
+        has_ondisk = F_ISSET(cbt, WT_CBT_VAR_ONPAGE_MATCH);
         break;
     }
 
     *updp = upd;
+    *has_ondiskp = has_ondisk;
     return (0);
 }
 
