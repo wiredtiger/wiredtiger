@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger
+import wiredtiger, wttest
 from prepare_util import test_prepare_preserve_prepare_base
 
 # Test prepared transaction rollback behavior and history store interactions.
