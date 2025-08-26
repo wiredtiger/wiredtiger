@@ -703,20 +703,26 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                 continue;
 
             WT_READ_ONCE(prepare_state, upd->prepare_state);
-            if (prepare_state != WT_PREPARE_INPROGRESS)
-                continue;
 
-            /* Ignore the prepared update if the rollback timestamp is stable. */
-            if (upd->upd_rollback_ts != WT_TS_NONE &&
-              upd->upd_rollback_ts <= r->rec_start_pinned_stable_ts) {
+            if (prepare_state == WT_PREPARE_INPROGRESS) {
+                /* Ignore the prepared update if the rollback timestamp is stable. */
+                if (upd->upd_rollback_ts != WT_TS_NONE &&
+                  upd->upd_rollback_ts <= r->rec_start_pinned_stable_ts) {
+                    /*
+                     * If we have seen a tombstone that rolled back the prepared update,
+                     *  skip the key.
+                     */
+                    if (prepare_rollback_tombstone != NULL)
+                        break;
+                    continue;
+                }
+            } else if (prepare_state != WT_PREPARE_LOCKED)
                 /*
-                 * If we have seen a tombstone that rolled back the prepared update,
-                 *  skip the key.
+                 * We set the prepare state back to in progress after we have set the transaction id
+                 * to aborted. Therefore, we may race with prepare rollback and read a locked state
+                 * here. No need to check the rollback timestamp as it cannot be stable anyway.
                  */
-                if (prepare_rollback_tombstone != NULL)
-                    break;
                 continue;
-            }
 
             txnid = upd->upd_saved_txnid;
         }
