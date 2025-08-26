@@ -373,6 +373,7 @@ __wt_update_obsolete_check(
     wt_timestamp_t prune_timestamp;
     size_t delta_upd_size, size, upd_size;
     uint64_t oldest_id;
+    uint8_t prepare_state;
     u_int count;
 
     next = NULL;
@@ -412,8 +413,12 @@ __wt_update_obsolete_check(
          */
         if (upd->txnid == WT_TXN_NONE && upd->upd_start_ts == WT_TS_NONE &&
           upd->type == WT_UPDATE_TOMBSTONE && upd->next != NULL &&
-          upd->next->txnid == WT_TXN_ABORTED && upd->next->prepare_state == WT_PREPARE_INPROGRESS)
-            continue;
+          upd->next->txnid == WT_TXN_ABORTED) {
+            WT_ACQUIRE_READ(prepare_state, upd->prepare_state);
+            /* We may see a locked prepare state if we race with prepare rollback. */
+            if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
+                continue;
+        }
 
         /*
          * If a table has garbage collection enabled, then trim updates as possible. We should check
