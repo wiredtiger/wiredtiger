@@ -295,7 +295,8 @@ __rec_row_merge(
         /* Update compression state. */
         __rec_key_state_update(r, false);
 
-        if (*build_delta && ref_changes > 0) {
+        /* Don't build page deltas for overflow keys. */
+        if (*build_delta && ref_changes > 0 && key->buf.size <= S2BT(session)->maxleafkey) {
             WT_ASSERT(session, mod->mod_multi_entries == 1);
             WT_RET(__wti_rec_pack_delta_internal(session, r, key, val));
         }
@@ -434,7 +435,12 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             if (build_delta && prev_ref_changes > 0) {
                 __wt_ref_key(page, ref, &p, &size);
                 WT_ERR(__rec_cell_build_int_key(session, r, p, size));
-                WT_ERR(__wti_rec_pack_delta_internal(session, r, key, NULL));
+
+                /* Don't build page deltas for overflow keys. */
+                if (key->buf.size <= btree->maxleafkey)
+                    WT_ERR(__wti_rec_pack_delta_internal(session, r, key, NULL));
+                else
+                    build_delta = false;
             }
 
             /*
@@ -464,7 +470,12 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                 if (build_delta && prev_ref_changes > 0) {
                     __wt_ref_key(page, ref, &p, &size);
                     WT_ERR(__rec_cell_build_int_key(session, r, p, size));
-                    WT_ERR(__wti_rec_pack_delta_internal(session, r, key, NULL));
+
+                    /* Don't build page deltas for overflow keys. */
+                    if (key->buf.size <= btree->maxleafkey)
+                        WT_ERR(__wti_rec_pack_delta_internal(session, r, key, NULL));
+                    else
+                        build_delta = false;
                 }
 
                 /*
@@ -589,7 +600,9 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         /* Update compression state. */
         __rec_key_state_update(r, false);
 
-        if (build_delta && prev_ref_changes > 0 && !retain_onpage)
+        /* Don't build page deltas for overflow keys. */
+        if (build_delta && prev_ref_changes > 0 && !retain_onpage &&
+          key->buf.size <= btree->maxleafkey)
             WT_ERR(__wti_rec_pack_delta_internal(session, r, key, val));
 
         /*
