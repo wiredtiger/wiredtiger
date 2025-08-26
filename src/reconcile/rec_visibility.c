@@ -888,8 +888,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                     /* Prepared updates cannot be resolved concurrently to eviction and salvage. */
                     WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
                       "Should never concurrently resolve a prepared update during reconciliation "
-                      "if we "
-                      "are not in a checkpoint.");
+                      "if we are not in a checkpoint.");
                 }
             }
         }
@@ -911,7 +910,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
              * can fire if we race with prepared rollback.
              */
             WT_ASSERT(session,
-              *write_prepare && upd->prepare_state == WT_PREPARE_INPROGRESS &&
+              *write_prepare &&
+                (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) &&
                 prepare_rollback_tombstone->next == upd);
             upd_select->upd = upd;
             /* We skipped the prepare rollback tombstone. */
@@ -978,6 +978,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
     WT_TIME_WINDOW *select_tw;
     WT_UPDATE *last_upd, *tombstone, *upd;
     uint64_t tombstone_txnid;
+    uint8_t prepare_state;
 
     upd = upd_select->upd;
     last_upd = tombstone = NULL;
@@ -1030,7 +1031,9 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
                 if (upd->next->type == WT_UPDATE_RESERVE)
                     continue;
 
-                if (upd->next->prepare_state != WT_PREPARE_INPROGRESS) {
+                /* We may see a locked prepare state if we race with prepare rollback. */
+                WT_ACQUIRE_READ(prepare_state, upd->next->prepare_state);
+                if (prepare_state != WT_PREPARE_INPROGRESS && prepare_state != WT_PREPARE_LOCKED) {
                     write_start_prepare = false;
                     continue;
                 }
