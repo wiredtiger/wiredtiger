@@ -2703,6 +2703,8 @@ __wt_verbose_dump_txn_one(
         WT_ERR(__wt_msg(session, "%s", (char *)buf->data));
 
     __wt_scr_free(session, &buf);
+
+    /* Since read uncommitted isolation doesn't create snapshots, there is no need to log them. */
     if (txn->isolation == WT_ISO_READ_UNCOMMITTED)
         goto err;
 
