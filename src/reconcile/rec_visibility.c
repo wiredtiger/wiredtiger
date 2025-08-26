@@ -947,6 +947,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             break;
     }
 
+    /* The prepare rollback is stable. Delete the key by selecting the rollback tombstone. */
     if (upd_select->upd == NULL && prepare_rollback_tombstone != NULL)
         upd_select->upd = prepare_rollback_tombstone;
 
