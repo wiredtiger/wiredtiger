@@ -1632,7 +1632,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
              * will find we have already instantiated a prepared update (possibly with a prepared
              * tombstone) by the page in-memory code. Discard the re-instantiated prepared updates.
              */
-            if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED))
+            if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+              WT_TIME_WINDOW_HAS_PREPARE(&supd->tw))
                 for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
                     ;
 
@@ -1665,7 +1666,9 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
              * it as well. FIXME-WT-14885: no need to consider the delta case after we have
              * implemented delta consolidation
              */
-            if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) || WT_DELTA_LEAF_ENABLED(session))
+            if ((F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+                  WT_TIME_WINDOW_HAS_PREPARE(&supd->tw)) ||
+              WT_DELTA_LEAF_ENABLED(session))
                 for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
                     ;
 
