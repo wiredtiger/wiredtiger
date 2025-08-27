@@ -1054,6 +1054,10 @@ connection_ops(WT_CONNECTION *conn)
       conn->configure_method(conn, "WT_SESSION.open_cursor", "my_data:", "devices", "list", NULL));
     /*! [Configure method configuration] */
 
+    /*! [Set the last materialized LSN] */
+    error_check(conn->set_global_lsn_uint(conn, WT_GLOBAL_LSN_TYPE_LAST_MATERIALIZED, 100));
+    /*! [Set the last materialized LSN] */
+
     /*! [Close a connection] */
     error_check(conn->close(conn, NULL));
     /*! [Close a connection] */

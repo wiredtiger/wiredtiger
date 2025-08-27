@@ -2041,6 +2041,11 @@ struct __wt_session {
 #endif
 };
 
+/*! WT_CONNECTION::set_global_lsn_uint LSN types */
+typedef enum {
+    WT_GLOBAL_LSN_TYPE_LAST_MATERIALIZED, /*!< The LSN of the last materialized log entry. */
+} WT_GLOBAL_LSN_TYPE;
+
 /*!
  * A connection to a WiredTiger database.  The connection may be opened within
  * the same address space as the caller or accessed over a socket connection.
@@ -2909,6 +2914,19 @@ struct __wt_connection {
      */
     int __F(get_storage_source)(WT_CONNECTION *connection, const char *name,
         WT_STORAGE_SOURCE **storage_sourcep);
+
+    /*!
+     * Set a global log sequence number (LSN).
+     *
+     * @snippet ex_all.c Set the last materialized LSN
+     *
+     * @param connection the connection handle
+     * @param which the LSN being set (see ::WT_GLOBAL_LSN_TYPE for available options).
+     * @param lsn the LSN.
+     * @errors
+     */
+    int __F(set_global_lsn_uint)(WT_CONNECTION *connection, WT_GLOBAL_LSN_TYPE which,
+        uint64_t lsn);
 #endif
 
     /*!
