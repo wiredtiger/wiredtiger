@@ -935,7 +935,7 @@ done:
  */
 static int
 __txn_search_prepared_op(
-  WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR **cursorp, WT_UPDATE **updp, bool *has_ondiskp)
+  WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR **cursorp, WT_UPDATE **updp, bool *has_onpagep)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -991,7 +991,7 @@ __txn_search_prepared_op(
     }
 
     F_CLR(txn, txn_flags);
-    WT_WITH_BTREE(session, op->btree, ret = __wt_btcur_search_prepared(cursor, updp, has_ondiskp));
+    WT_WITH_BTREE(session, op->btree, ret = __wt_btcur_search_prepared(cursor, updp, has_onpagep));
     F_SET(txn, txn_flags);
     F_CLR(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
     WT_RET(ret);
@@ -1115,7 +1115,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_UPDATE *head_upd;
     uint8_t hs_recno_key_buf[WT_INTPACK64_MAXSIZE], *p, resolve_case;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
-    bool has_ondisk, tw_found;
+    bool has_onpage, tw_found;
 
     hs_cursor = NULL;
     txn = session->txn;
@@ -1124,7 +1124,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 #define RESOLVE_IN_MEMORY 2
     WT_NOT_READ(resolve_case, RESOLVE_UPDATE_CHAIN);
 
-    WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd, &has_ondisk));
+    WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd, &has_onpage));
 
     if (commit)
         __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
@@ -1225,7 +1225,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * If the prepared update is the only update on the update chain and there is no on-disk
          * value. Delete the key with a tombstone.
          */
-        if (!commit && first_committed_upd == NULL && !has_ondisk)
+        if (!commit && first_committed_upd == NULL && !has_onpage)
             WT_ERR(__txn_prepare_rollback_delete_key(session, op, cbt));
         break;
 
