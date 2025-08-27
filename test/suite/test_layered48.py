@@ -88,7 +88,7 @@ class test_layered48(wttest.WiredTigerTestCase, DisaggConfigMixin):
         key_prefix1 = 'aabbcc' * 1000
         value_prefix1 = 'matcha'
         timestamp1 = 100
-        
+
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
             # Don't make the transaction too long due to eviction hangs.
@@ -98,7 +98,7 @@ class test_layered48(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 time.sleep(1)
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(timestamp1)}')
         cursor.close()
-        
+
         # Assert that no overflow values were generated.
         self.assertEqual(self.get_stat(stat.conn.rec_overflow_key_leaf), 0)
         self.assertEqual(self.get_stat(stat.conn.rec_overflow_value), 0)
