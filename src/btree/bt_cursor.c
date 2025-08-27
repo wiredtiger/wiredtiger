@@ -634,16 +634,16 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
  *     Search and return exact matching records only.
  */
 int
-__wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp, bool *has_ondiskp)
+__wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp, bool *has_onpagep)
 {
     WT_BTREE *btree;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_UPDATE *upd;
-    bool has_ondisk;
+    bool has_onpage;
 
     *updp = upd = NULL; /* -Wuninitialized */
-    *has_ondiskp = has_ondisk = false;
+    *has_onpagep = has_onpage = false;
     cbt = (WT_CURSOR_BTREE *)cursor;
     btree = CUR2BT(cbt);
 
@@ -675,11 +675,11 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp, bool *has_ondisk
          */
         if (cbt->ins != NULL) {
             upd = cbt->ins->upd;
-            has_ondisk = false;
+            has_onpage = false;
         } else if (cbt->ref->page->modify != NULL &&
           cbt->ref->page->modify->mod_row_update != NULL) {
             upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
-            has_ondisk = true;
+            has_onpage = true;
         }
         break;
     case BTREE_COL_FIX:
@@ -690,8 +690,8 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp, bool *has_ondisk
         if (cbt->ins != NULL)
             upd = cbt->ins->upd;
 
-        /* Fixed length column store always has an onpage value. */
-        has_ondisk = true;
+        /* We have passed the end of the page. */
+        has_onpage = cbt->recno < cbt->ref->ref_recno + cbt->ref->page->entries;
         break;
     case BTREE_COL_VAR:
         /*
@@ -701,12 +701,18 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp, bool *has_ondisk
         if (cbt->ins != NULL)
             upd = cbt->ins->upd;
 
-        has_ondisk = F_ISSET(cbt, WT_CBT_VAR_ONPAGE_MATCH);
+        if (F_ISSET(cbt, WT_CBT_VAR_ONPAGE_MATCH)) {
+            WT_PAGE *page = cbt->ref->page;
+            WT_COL *cip = &page->pg_var[cbt->slot];
+            WT_CELL *cell = WT_COL_PTR(page, cip);
+            if (__wt_cell_type(cell) != WT_CELL_DEL)
+                has_onpage = true;
+        }
         break;
     }
 
     *updp = upd;
-    *has_ondiskp = has_ondisk;
+    *has_onpagep = has_onpage;
     return (0);
 }
 
