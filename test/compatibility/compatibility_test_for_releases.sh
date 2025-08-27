@@ -556,7 +556,7 @@ test_dirty_upgrade()
 
     # Ignore the error resulting from the segfault.
     set +e
-    ./t "$flags" -c "$config_file" -h "$dir" format.abort=1
+    ./t ${flags} -c "$config_file" -h "$dir" format.abort=1
     set -e
     popd
 
@@ -564,7 +564,7 @@ test_dirty_upgrade()
     # against those.
     pushd "${dst_branch}/build/test/format"
     local dir="../../../../${src_branch}/build/test/format/RUNDIR.${src_branch}"
-    ./t "$flags" -c "$config_file" -h "$dir"
+    ./t ${flags} -c "$config_file" -h "$dir"
 
     # Remove the database so future runs don't try to use it.
     rm -rf "$dir"

@@ -132,6 +132,7 @@ buildvariants:
     - name: compatibility-test-for-newer-releases
     - name: compatibility-test-for-patch-releases
     - name: import-compatibility-test
+    - name: dirty-upgrade-compatibility-test
 
 - name: infrequent-checks
   display_name: "~ Infrequent checks"
