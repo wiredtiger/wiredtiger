@@ -1156,7 +1156,7 @@ __ensure_clean_startup_dir(WT_SESSION_IMPL *session, const char *dir, bool fail)
         /* Build full file name */
         char full_path_buf[MAXPATHLEN];
         char *full_path;
-        if (dir != NULL && dir[0] != '\0') {
+        if (dir[0] != '\0') {
             WT_ERR(__wt_snprintf(full_path_buf, sizeof(full_path_buf), "%s%s%s", dir,
               __wt_path_separator(), files[i]));
             full_path = full_path_buf;
