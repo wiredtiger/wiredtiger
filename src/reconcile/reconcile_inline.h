@@ -404,7 +404,7 @@ __wti_rec_cell_build_val(WT_SESSION_IMPL *session, WTI_RECONCILE *r, const void 
     val->buf.data = data;
     val->buf.size = size;
 
-    /* 
+    /*
      * Create an overflow object if the data won't fit and the connection is attached storage. SLS
      * cannot work with overflow pages.
      */

@@ -149,7 +149,7 @@ __wti_rec_cell_build_leaf_key(
     }
     r->key_pfx_last = pfx;
 
-    /* 
+    /*
      * Create an overflow object if the data won't fit and the connection is attached storage. SLS
      * cannot work with overflow pages.
      */
