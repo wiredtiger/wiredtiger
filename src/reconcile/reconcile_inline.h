@@ -404,9 +404,12 @@ __wti_rec_cell_build_val(WT_SESSION_IMPL *session, WTI_RECONCILE *r, const void 
     val->buf.data = data;
     val->buf.size = size;
 
-    /* Create an overflow object if the data won't fit. */
+    /* 
+     * Create an overflow object if the data won't fit and the connection is attached storage. SLS
+     * cannot work with overflow pages.
+     */
     WT_ASSERT(session, btree->maxleafvalue > 0);
-    if (val->buf.size > btree->maxleafvalue) {
+    if (val->buf.size > btree->maxleafvalue && !__wt_conn_is_disagg(session)) {
         WT_STAT_CONN_DSRC_INCR(session, rec_overflow_value);
 
         return (__wti_rec_cell_build_ovfl(session, r, val, WT_CELL_VALUE_OVFL, tw, rle));
