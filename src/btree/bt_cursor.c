@@ -689,7 +689,6 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp, bool *has_onpage
         if (cbt->ins != NULL)
             upd = cbt->ins->upd;
 
-        /* We have passed the end of the page. */
         has_onpage = cbt->recno < cbt->ref->ref_recno + cbt->ref->page->entries;
         break;
     case BTREE_COL_VAR:
