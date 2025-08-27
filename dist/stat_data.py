@@ -374,6 +374,7 @@ conn_stats = [
     # Note eviction_server_evict_attempt - eviction_server_evict_fail = evict page successes by eviction server.
     EvictStat('eviction_server_skip_checkpointing_trees', 'eviction server skips trees that are being checkpointed'),
     EvictStat('eviction_server_skip_dirty_pages_during_checkpoint', 'eviction server skips dirty pages during a running checkpoint'),
+    EvictStat('eviction_server_skip_dirty_pages_when_low_pressure', 'eviction server skips dirty pages at low pressure'),
     EvictStat('eviction_server_skip_intl_page_with_active_child', 'eviction server skips internal pages as it has an active child.'),
     EvictStat('eviction_server_skip_metatdata_with_history', 'eviction server skips metadata pages with history'),
     EvictStat('eviction_server_skip_pages_checkpoint_timestamp', 'eviction server skips pages that are written with transactions greater than the checkpoint timestamp'),

@@ -2108,7 +2108,8 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
         }
 
         if (!high_pressure)
-            return (true);
+            WT_STAT_CONN_INCR(session, eviction_server_skip_dirty_pages_when_low_pressure);
+        return (true);
     }
     return (false);
 }
