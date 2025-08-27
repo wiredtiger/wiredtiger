@@ -38,7 +38,7 @@ from wtscenario import make_scenarios
 class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_prepare_discover01'
     uri = 'table:' + tablename
-    conn_config = 'checkpoint=(precise=true),preserve_prepared=true'
+    conn_config = 'precise_checkpoint=true,preserve_prepared=true'
 
     types = [
         ('row', dict(s_config='key_format=i,value_format=S')),
@@ -52,11 +52,8 @@ class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
     scenarios = make_scenarios(types, txn_end)
 
     def test_prepare_discover01(self):
-        # Currently this test will crash because we try recover before setting preserve_prepared flag.
-        # Support this by moving recovery to after setting precise_checkpoint and preserve_prepared flags.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(50))
-        self.skipTest('FIXME-WT-15113 Enable when we support recovery from backup with preserve_prepare config')
         self.session.create(self.uri, self.s_config)
         c = self.session.open_cursor(self.uri)
 

@@ -582,6 +582,7 @@ __wt_txn_timestamp_usage_check(
         __wt_err(session, EINVAL,
           "%s: " WT_TS_VERBOSE_PREFIX "timestamp %s set when disallowed by table configuration",
           name, __wt_timestamp_to_string(op_ts, ts_string[0]));
+        WT_IGNORE_RET(__wt_verbose_dump_txn_one(session, session, EINVAL, NULL));
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
@@ -599,6 +600,7 @@ __wt_txn_timestamp_usage_check(
           "no timestamp provided for an update to a table configured to always use timestamps "
           "once they are first used",
           name);
+        WT_IGNORE_RET(__wt_verbose_dump_txn_one(session, session, EINVAL, NULL));
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
@@ -612,6 +614,7 @@ __wt_txn_timestamp_usage_check(
           "updating a value with a timestamp %s before the previous update %s",
           name, __wt_timestamp_to_string(op_ts, ts_string[0]),
           __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1]));
+        WT_IGNORE_RET(__wt_verbose_dump_txn_one(session, session, EINVAL, NULL));
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
@@ -996,7 +999,7 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
      * When shutting down, the transactional system has finished running and all we care about is
      * eviction, make everything visible.
      */
-    if (F_ISSET(S2C(session), WT_CONN_CLOSING))
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING))
         return (true);
 
     if (!__txn_visible_all_id(session, id))
@@ -1486,7 +1489,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
              * If we see an update that is not visible to the reader and it is restored from delta,
              * we should search the history store.
              */
-            if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
+            if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_HS_OPEN) &&
               !F_ISSET(session->dhandle,
                 WT_DHANDLE_HS | WT_DHANDLE_IS_METADATA | WT_DHANDLE_DISAGG_META)) {
                 __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
@@ -1632,7 +1635,8 @@ retry:
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
-    if (!F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) && F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
+    if (!F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) &&
+      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_HS_OPEN) &&
       !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
         /*
          * Stressing this code path may slow down the system too much. To minimize the impact, sleep
@@ -1779,7 +1783,7 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, wt_timestamp_t prepared_tr
     WT_TXN *tmp;
 
     WT_RET(__wt_prepared_discover_find_or_create_transaction(
-      session, prepared_transaction_id, &prepared_session));
+      session, prepared_transaction_id, &prepared_session, false));
 
     WT_ASSERT(prepared_session, F_ISSET(prepared_session->txn, WT_TXN_PREPARE));
 
@@ -1826,8 +1830,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     if (conf != NULL) {
         WT_RET(__wt_conf_gets_def(session, conf, claim_prepared_id, 0, &cval));
         if (cval.len != 0) {
-            WT_RET(__wt_txn_parse_timestamp(
-              session, "prepared_transaction_id", &prepared_transaction_id, &cval));
+            WT_RET(__wt_txn_parse_prepared_id(session, &prepared_transaction_id, &cval));
             WT_RET(__wt_txn_claim_prepared_txn(session, prepared_transaction_id));
             return (0);
         }
