@@ -78,19 +78,38 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
   int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], uint32_t open_flags)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+
+    conn = S2C(session);
 
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags));
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)session->dhandle;
     const char *stable_uri = layered->stable_uri;
+    const char *ingest_uri = layered->ingest_uri;
 
     WT_ASSERT(session, stable_uri != NULL);
+    WT_ASSERT(session, ingest_uri != NULL);
     WT_ASSERT(session, file_func == __wt_verify);
+
+    if (conn->layered_table_manager.leader) {
+        WT_WITHOUT_DHANDLE(session,
+          ret = __wt_schema_worker(session, ingest_uri, file_func, name_func, cfg, open_flags));
+        /* To verify ingest table on leader there must be: no dirty content, no open cursors, no
+         * ckpt */
+        if (ret == EBUSY)
+            /* This is very bad. The ingest table on leader must either be empty or no-op */
+            WT_ERR_MSG(session, ret,
+              "Verify (layered): ingest table %s on leader cannot be verified. Returned EBUSY",
+              ingest_uri);
+    }
 
     WT_WITHOUT_DHANDLE(session,
       ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
 
     WT_TRET(__wt_session_release_dhandle(session));
+
+err:
     return (ret);
 }
 
