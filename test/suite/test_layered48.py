@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, os.path, shutil, time, wiredtiger, wttest
+import os, os.path, random, shutil, string, time, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
@@ -74,6 +74,11 @@ class test_layered48(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor.close()
         return val
 
+    def generate_random_string(self, length):
+        characters = string.ascii_letters + string.digits + string.punctuation
+        random_string = ''.join(random.choices(characters, k=length))
+        return random_string
+
     # Test overflow keys and values.
     def test_layered18(self):
 
@@ -85,7 +90,7 @@ class test_layered48(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.create(self.uri, table_config)
 
         # Put big data to the table
-        key_prefix1 = 'aabbcc' * 1000
+        key_prefix1 = self.generate_random_string(1000)
         value_prefix1 = 'matcha'
         timestamp1 = 100
 
@@ -94,8 +99,6 @@ class test_layered48(wttest.WiredTigerTestCase, DisaggConfigMixin):
             # Don't make the transaction too long due to eviction hangs.
             self.session.begin_transaction()
             cursor[key_prefix1 + str(i)] = value_prefix1 + str(i)
-            if i % 250 == 0:
-                time.sleep(1)
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(timestamp1)}')
         cursor.close()
 
@@ -103,14 +106,12 @@ class test_layered48(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(self.get_stat(stat.conn.rec_overflow_key_leaf), 0)
         self.assertEqual(self.get_stat(stat.conn.rec_overflow_value), 0)
 
-        time.sleep(1)
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(timestamp1)}')
         self.session.checkpoint()
-        time.sleep(1)
 
         # Create several updates with big values.
         timestamp2 = 200
-        value_prefix2 = 'xxyyzz' * 1000
+        value_prefix2 = self.generate_random_string(1000)
         for n in range(1, self.num_updates):
             self.session.begin_transaction()
             cursor = self.session.open_cursor(self.uri, None, None)
@@ -118,7 +119,6 @@ class test_layered48(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor.close()
 
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(timestamp2)}')
-            time.sleep(1)
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(timestamp2)}')
         self.session.checkpoint()
 
