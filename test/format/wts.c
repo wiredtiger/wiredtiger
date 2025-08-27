@@ -326,7 +326,7 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
      * the options struct on a temporary basis to help create the disagg configuration.
      */
     opts.disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
-    opts.disagg_mode = (char *)GVS(DISAGG_MODE);
+    opts.disagg_mode = (char *)(g.disagg_leader ? "leader" : "follower");
     opts.home = (char *)home;
     opts.build_dir = (char *)BUILDDIR;
     opts.palm_map_size_mb = 2048; /* 2 Gigabytes for PALM map */
@@ -692,7 +692,7 @@ disagg_conn_init(WT_CONNECTION *conn)
      * require the stable timestamp to be set. Set it to the minimum value, which should not
      * interfere with any later operations.
      */
-    testutil_check(conn->set_timestamp(conn, "stable_timestamp=0x1"));
+    testutil_check(conn->set_timestamp(conn, "stable_timestamp=1"));
 }
 
 /*
@@ -789,7 +789,7 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
          * Ideally we would not gate precise checkpoints on disagg also being enabled.
          */
         if (g.disagg_storage_config && GV(CHECKPOINT_PRECISE))
-            CONFIG_APPEND(p, ",checkpoint=(precise=true)");
+            CONFIG_APPEND(p, ",precise_checkpoint=true");
 
 #if WIREDTIGER_VERSION_MAJOR >= 10
         if (GV(OPS_VERIFY) && verify_metadata)

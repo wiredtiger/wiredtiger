@@ -130,7 +130,7 @@ __txn_backup_post_recovery(WT_RECOVERY *r)
             clear = false;
     }
     if (clear) {
-        F_CLR(conn, WT_CONN_INCR_BACKUP);
+        F_CLR_ATOMIC_32(conn, WT_CONN_INCR_BACKUP);
         F_CLR(&conn->log_mgr, WT_LOG_INCR_BACKUP);
         conn->incr_granularity = 0;
     }
@@ -1062,7 +1062,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
      * some sort.
      */
     if (ret == ENOENT) {
-        F_SET(conn, WT_CONN_DATA_CORRUPTION);
+        F_SET_ATOMIC_32(conn, WT_CONN_DATA_CORRUPTION);
         ret = WT_ERROR;
     }
 
@@ -1189,9 +1189,10 @@ done:
      * 1. The connection is not read-only. A read-only connection expects that there shouldn't be
      *    any changes that need to be done on the database other than reading.
      * 2. The history store file was found in the metadata.
-     * 3. We are not using disaggregated storage.
+     * 3. We are not using disaggregated storage or precise checkpoint
      */
-    if (hs_exists_local && !F_ISSET(conn, WT_CONN_READONLY) && !disagg) {
+    if (hs_exists_local && !F_ISSET(conn, WT_CONN_READONLY | WT_CONN_PRECISE_CHECKPOINT) &&
+      !disagg) {
         const char *rts_cfg[] = {
           WT_CONFIG_BASE(session, WT_CONNECTION_rollback_to_stable), NULL, NULL};
         __wt_timer_start(session, &rts_timer);
@@ -1225,7 +1226,7 @@ done:
           " milliseconds",
           conn->recovery_timeline.rts_ms);
     } else if (disagg)
-        __wt_verbose_warning(session, WT_VERB_RTS, "%s", "skipped recovery RTS due to disagg");
+        __wt_verbose_info(session, WT_VERB_RTS, "%s", "skipped recovery RTS due to disagg");
 
     /*
      * Sometimes eviction is triggered after doing a checkpoint. However, we don't want eviction to

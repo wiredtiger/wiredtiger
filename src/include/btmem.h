@@ -247,6 +247,7 @@ struct __wt_save_upd {
     WT_ROW *rip;    /* Original on-page reference */
     WT_UPDATE *onpage_upd;
     WT_UPDATE *onpage_tombstone;
+    WT_UPDATE *free_upds; /* Updates to be freed */
     WT_TIME_WINDOW tw;
     bool restore; /* Whether to restore this saved update chain */
 };
@@ -261,11 +262,24 @@ struct __wt_page_block_meta {
 
     uint64_t backlink_lsn;
     uint64_t base_lsn;
-    uint32_t delta_count;
 
     uint32_t checksum;
 
     WT_PAGE_LOG_ENCRYPTION encryption;
+
+    uint8_t delta_count;
+};
+
+/*
+ * WT_PAGE_DISAGG_INFO --
+ *  Page information associated with disaggregated storage.
+ */
+struct __wt_page_disagg_info {
+    uint64_t old_rec_lsn_max; /* The LSN associated with the page's before the most recent
+                                 reconciliation */
+    uint64_t rec_lsn_max;     /* The LSN associated with the page's most recent reconciliation */
+
+    WT_PAGE_BLOCK_META block_meta;
 };
 
 /*
@@ -286,7 +300,7 @@ struct __wt_multi {
      * memory.
      */
     void *disk_image;
-    WT_PAGE_BLOCK_META block_meta; /* the metadata for the disk image */
+    WT_PAGE_BLOCK_META *block_meta; /* the metadata for the disk image */
 
     /*
      * List of unresolved updates. Updates are either a row-store insert or update list, or
@@ -837,10 +851,7 @@ struct __wt_page {
     uint64_t cache_create_gen; /* Page create timestamp */
     uint64_t evict_pass_gen;   /* Eviction pass generation */
 
-    uint64_t old_rec_lsn_max; /* The LSN associated with the page's before the most recent
-                                 reconciliation */
-    uint64_t rec_lsn_max;     /* The LSN associated with the page's most recent reconciliation */
-    WT_PAGE_BLOCK_META block_meta;
+    WT_PAGE_DISAGG_INFO *disagg_info;
 
 #ifdef HAVE_DIAGNOSTIC
 #define WT_SPLIT_SAVE_STATE_MAX 3
@@ -1012,10 +1023,10 @@ typedef uint8_t WT_REF_STATE;
  */
 
 /* Must be 0, as structures will be default initialized with 0. */
-#define WT_PREPARE_INIT 0
-#define WT_PREPARE_INPROGRESS 1
-#define WT_PREPARE_LOCKED 2
-#define WT_PREPARE_RESOLVED 3
+#define WT_PREPARE_INIT (uint8_t)0
+#define WT_PREPARE_INPROGRESS (uint8_t)1
+#define WT_PREPARE_LOCKED (uint8_t)2
+#define WT_PREPARE_RESOLVED (uint8_t)3
 
 /*
  * Page state.
@@ -1188,7 +1199,17 @@ struct __wt_ref {
     wt_shared WT_PAGE *volatile home;        /* Reference page */
     wt_shared volatile uint32_t pindex_hint; /* Reference page index hint */
 
-    uint8_t unused; /* Padding: before the flags field so flags can be easily expanded. */
+    /*
+     * A counter used to track how many times a ref has changed during internal page reconciliation.
+     * The value is compared and swapped to 0 for each internal page reconciliation. If the counter
+     * has a value greater than zero, this implies that the ref has been changed concurrently and
+     * that the ref remains dirty after internal page reconciliation. It is possible for other
+     * operations such as page splits and fast-truncate to concurrently write new values to the ref,
+     * but depending on timing or race conditions, it cannot be guaranteed that these new values are
+     * included as part of the reconciliation. The page would need to be reconciled again to ensure
+     * that these modifications are included.
+     */
+    wt_shared volatile uint8_t ref_changes;
 
 /*
  * Define both internal- and leaf-page flags for now: we only need one, but it provides an easy way
@@ -1361,19 +1382,6 @@ struct __wt_ref {
     WT_REF_HIST hist[WT_REF_SAVE_STATE_MAX];
     uint64_t histoff;
 #endif
-
-    /*
-     * A counter used to track how many times a ref has changed during internal page reconciliation.
-     * The value is compared and swapped to 0 for each internal page reconciliation. If the counter
-     * has a value greater than zero, this implies that the ref has been changed concurrently and
-     * that the ref remains dirty after internal page reconciliation. It is possible for other
-     * operations such as page splits and fast-truncate to concurrently write new values to the ref,
-     * but depending on timing or race conditions, it cannot be guaranteed that these new values are
-     * included as part of the reconciliation. The page would need to be reconciled again to ensure
-     * that these modifications are included.
-     */
-    wt_shared volatile uint16_t ref_changes;
-    char pad[6]; /* Padding */
 };
 
 #ifdef HAVE_REF_TRACK
@@ -1386,9 +1394,9 @@ struct __wt_ref {
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure the compiler hasn't
  * inserted padding which would break the world.
  */
-#define WT_REF_SIZE (56 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
+#define WT_REF_SIZE (48 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
 #else
-#define WT_REF_SIZE 56
+#define WT_REF_SIZE 48
 #define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
 #endif
 
@@ -1578,19 +1586,20 @@ struct __wt_update {
 
 /* When introducing a new flag, consider adding it to WT_UPDATE_SELECT_FOR_DS. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_UPDATE_DELETE_DURABLE 0x001u           /* Key has been removed from disk image */
-#define WT_UPDATE_DS 0x002u                       /* Update has been chosen to the data store. */
-#define WT_UPDATE_DURABLE 0x004u                  /* Update has been durable. */
-#define WT_UPDATE_HS 0x008u                       /* Update has been written to history store. */
-#define WT_UPDATE_PREPARE_DURABLE 0x010u          /* Prepared update has been durable. */
-#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x020u /* Prepared update restored from data store. */
-#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x040u   /* Fast truncate instantiation */
-#define WT_UPDATE_RESTORED_FROM_DELTA 0x080u      /* Update restored from delta. */
-#define WT_UPDATE_RESTORED_FROM_DS 0x100u         /* Update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_HS 0x200u         /* Update restored from history store. */
-#define WT_UPDATE_RTS_DRYRUN_ABORT 0x400u         /* Used by dry run to mark a would-be abort. */
-#define WT_UPDATE_TO_DELETE_FROM_HS 0x800u /* Update needs to be deleted from history store */
-                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+#define WT_UPDATE_DELETE_DURABLE 0x0001u           /* Key has been removed from disk image. */
+#define WT_UPDATE_DS 0x0002u                       /* Update has been chosen to the data store. */
+#define WT_UPDATE_DURABLE 0x0004u                  /* Update has been durable. */
+#define WT_UPDATE_HS 0x0008u                       /* Update has been written to history store. */
+#define WT_UPDATE_PREPARE_DURABLE 0x0010u          /* Prepared update has been durable. */
+#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x0020u /* Prepared update restored from data store. */
+#define WT_UPDATE_PREPARE_ROLLBACK 0x0040u /* Tombstone that rolled back by a prepared update.*/
+#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x0080u /* Fast truncate instantiation. */
+#define WT_UPDATE_RESTORED_FROM_DELTA 0x0100u    /* Update restored from delta. */
+#define WT_UPDATE_RESTORED_FROM_DS 0x0200u       /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x0400u       /* Update restored from history store. */
+#define WT_UPDATE_RTS_DRYRUN_ABORT 0x0800u       /* Used by dry run to mark a would-be abort. */
+#define WT_UPDATE_TO_DELETE_FROM_HS 0x1000u /* Update needs to be deleted from history store. */
+                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t flags;
 
 /* There are several cases we should select the update irrespective of visibility to write to the

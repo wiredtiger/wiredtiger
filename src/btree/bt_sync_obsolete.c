@@ -330,8 +330,8 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
          * For deleted and on-disk pages, increment ref_changes if there has been a change in the
          * ref's state. There's nothing to do for in-memory pages as we don't change those.
          */
-        if (previous_state != new_state)
-            __wt_atomic_addv16(&ref->ref_changes, 1);
+        if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)) && previous_state != new_state)
+            __wt_atomic_addv8(&ref->ref_changes, 1);
         WT_REF_UNLOCK(ref, new_state);
         WT_RET(ret);
     } else
@@ -510,6 +510,9 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     if (btree->root.page == NULL)
         goto err;
 
+    /* Ignore tables that are empty or is currently in a bulk-load phase. */
+    if (btree->original)
+        goto err;
     /*
      * FLCS pages cannot be discarded and must be rewritten as implicitly filling in missing chunks
      * of FLCS namespace is problematic.

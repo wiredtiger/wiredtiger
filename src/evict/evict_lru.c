@@ -414,7 +414,9 @@ __evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * when the connection is closing or when an error has occurred and connection panic flag is
      * set.
      */
-    WT_ASSERT(session, F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_PANIC | WT_CONN_RECOVERING));
+    WT_ASSERT(session,
+      F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING | WT_CONN_PANIC) ||
+        F_ISSET(conn, WT_CONN_RECOVERING));
 
     /* Clear the eviction thread session flag. */
     F_CLR(session, WT_SESSION_EVICTION);
@@ -699,7 +701,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
      * history store dhandle isn't always available to eviction. Keeping potentially out-of-date
      * values could lead to surprising bugs in the future.
      */
-    if (F_ISSET(conn, WT_CONN_HS_OPEN)) {
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_HS_OPEN)) {
         total_dirty = total_inmem = total_updates = 0;
         hs_id = 0;
         for (;;) {
@@ -1731,7 +1733,7 @@ retry:
     loop_count = 0;
     while (slot < max_entries && loop_count++ < conn->dhandle_count) {
         /* We're done if shutting down or reconfiguring. */
-        if (F_ISSET(conn, WT_CONN_CLOSING) || F_ISSET(conn, WT_CONN_RECONFIGURING))
+        if (F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING | WT_CONN_RECONFIGURING))
             break;
 
         /*
@@ -1820,8 +1822,10 @@ retry:
          * reset the walk effectiveness tracking. Imagine a case where only dirty content has been
          * looked for and this tree doesn't have much dirty content. Then eviction starts looking
          * for clean content - this tree might be a cornucopia of good clean candidate pages.
+         * Specific for disaggregated connections, where we are using WT_EVICT_MODIFY_COUNT_MIN and
+         * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD values to change the priority for this heuristic.
          */
-        if (btree->last_evict_walk_flags != evict->flags) {
+        if (__wt_conn_is_disagg(session) && btree->last_evict_walk_flags != evict->flags) {
             __wt_atomic_store32(&btree->evict_walk_period, 0);
             btree->last_evict_walk_flags = evict->flags;
         }
@@ -1869,7 +1873,7 @@ retry:
              * If eviction is not in aggressive mode, sleep a bit to give the checkpoint thread a
              * chance to gather its handles.
              */
-            if (F_ISSET(conn, WT_CONN_CKPT_GATHER) && !__wt_evict_aggressive(session)) {
+            if (F_ISSET_ATOMIC_32(conn, WT_CONN_CKPT_GATHER) && !__wt_evict_aggressive(session)) {
                 __wt_sleep(0, 10);
                 WT_STAT_CONN_INCR(session, eviction_walk_sleeps);
             }
@@ -2089,22 +2093,21 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (__wt_conn_is_disagg(session) &&
       __wt_atomic_load32(&page->modify->page_state) < WT_EVICT_MODIFY_COUNT_MIN) {
         double pct_dirty = 0.0, pct_updates = 0.0;
-        bool low_pressure = false;
+        bool high_pressure = false;
 
         if (F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY)) {
             WT_IGNORE_RET(__wt_evict_dirty_needed(session, &pct_dirty));
-            low_pressure = (pct_dirty <
+            high_pressure = (pct_dirty >
               (conn->evict->eviction_dirty_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
         }
 
-        if (F_ISSET(conn->evict, WT_EVICT_CACHE_UPDATES)) {
+        if (!high_pressure && F_ISSET(conn->evict, WT_EVICT_CACHE_UPDATES)) {
             WT_IGNORE_RET(__wti_evict_updates_needed(session, &pct_updates));
-            low_pressure = low_pressure ||
-              (pct_updates <
-                (conn->evict->eviction_updates_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
+            high_pressure = (pct_updates >
+              (conn->evict->eviction_updates_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
         }
 
-        if (low_pressure)
+        if (!high_pressure)
             return (true);
     }
     return (false);

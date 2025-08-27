@@ -26,139 +26,79 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
+import os, wiredtiger, wttest, helper_disagg
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
+def disagg_ignore_expected_output(testcase):
+    testcase.ignoreStdoutPattern('WT_VERB_RTS|(wiredtiger_open:.*WT_VERB_METADATA)')
+
+helper_disagg.disagg_ignore_expected_output = disagg_ignore_expected_output
+
+logdir = "log"
+
 # test_layered46.py
-#    Test passing encryption keys to and from the PALI interface.
+#    Test deleting local files on restart.
 @disagg_test_class
 class test_layered46(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    nitems = 500
 
-    # The keys in this test are integer values less than nitems that have been "stringized".
-    # Make an array of the keys in sort order so we can verify the results from scanning.
-    keys_in_order = sorted([str(k) for k in range(nitems)])
+    conn_config = (
+        "statistics=(all),statistics_log=(wait=1,json=true,on_close=true),"
+        + "disaggregated=(page_log=palm,lose_all_my_data=true),"
+        + f"log=(enabled=true,path={logdir}),"
+    )
 
-    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(page_log=palm),'
-    conn_config = conn_base_config + 'disaggregated=(role="leader")'
+    disagg_storages = gen_disagg_storages("test_layered46", disagg_only=True)
 
-    create_session_config = 'key_format=S,value_format=S'
-
-    uri = "layered:test_layered46a"
-
-    disagg_storages = gen_disagg_storages('test_layered46', disagg_only = True)
+    # Make scenarios for different cloud service providers.
     scenarios = make_scenarios(disagg_storages)
 
-    # Load the page log extension, which has disaggregated storage support
-    def conn_extensions(self, extlist):
-        # Tell PALM to be verbose, and send that output to the WT
-        # extension message API.  This guarantees that it will be captured
-        # in the Python stdout file. Regular PALM verbose messages are not
-        # captured.
-        self.palm_debug = True
-        self.palm_config = 'verbose_msg=1'
+    create_session_config = "key_format=S,value_format=S"
+    uri = "layered:test_layered46"
+    uri_local = "table:test_layered46local"
 
-        if os.name == 'nt':
+    def wiredtiger_open(self, *args, **kwargs):
+        os.makedirs(logdir, exist_ok=True)
+        return super().wiredtiger_open(*args, **kwargs)
+
+    # Load the page log extension, which has object storage support.
+    def conn_extensions(self, extlist):
+        if os.name == "nt":
             extlist.skip_if_missing = True
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def put_data(self, value_prefix, low = 0, high = nitems, session = None):
-        if session == None:
-            session = self.session   # leader by default
-        cursor = session.open_cursor(self.uri, None, None)
-        for i in range(low, high):
-            cursor[str(i)] = value_prefix + str(i)
+    def test_layered46(self):
+        self.conn.reconfigure('disaggregated=(role="leader")')
+
+        # Create the tables
+        self.session.create(self.uri, self.create_session_config)
+        self.session.create(self.uri_local, self.create_session_config)
+
+        # Put data to tables with checkpoints to ensure that we generate some history.
+        for value in ["aaa", "bbb", "ccc"]:
+            cursor = self.session.open_cursor(self.uri, None, None)
+            cursor["A"] = value
+            cursor.close()
+            cursor = self.session.open_cursor(self.uri_local, None, None)
+            cursor["A"] = value
+            cursor.close()
+            self.session.checkpoint()
+
+        # Reopen the connection.
+        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        self.close_conn()
+
+        with self.expectedStdoutPattern("Removing local file"):
+            self.open_conn()
+
+        self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
+        self.conn.reconfigure('disaggregated=(role="leader")')
+
+        # Check the data.
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.assertEqual(cursor["A"], "ccc")
         cursor.close()
 
-    def check_data(self, cursor, value_prefix, low = 0, high = nitems):
-        for i in range(low, high):
-            self.assertEqual(cursor[str(i)], value_prefix + str(i))
-
-    # Scan data from low to high expecting to see all the keys and values using the given prefix.
-    #
-    # This function is sometimes called doing partial scans, and later, after a state change,
-    # continuing using the same cursor.  We are promised that cursor iteration results aren't
-    # affected by other transactions. Extending this reasoning to state changes, like picking up
-    # checkpoints and stepping up to leader, cursors should similarly be unaffected by state
-    # changes happening concurrently to the lifetime of the cursor.
-    def scan_data(self, cursor, value_prefix, low = 0, high = nitems):
-        if value_prefix == 'eee':
-            self.session_follow.breakpoint()
-        uri = self.uri
-
-        found = 0
-        for i in range(low, high):
-            ret = cursor.next()
-            if ret == wiredtiger.WT_NOTFOUND:
-                break
-            self.assertEqual(ret, 0)
-            expected_key = self.keys_in_order[i]
-            self.assertEqual(cursor.get_key(), expected_key)
-            self.assertEqual(cursor.get_value(), value_prefix + expected_key)
-            found += 1
-        self.assertEqual(found, high - low)
-
-    # This test was copied from layered31, but has been simplified a lot.
-    # We want to establish a leader and follower, and have the follower
-    # step up to a leader and make changes.  This guarantees (on the follower),
-    # that page(s) have been read from disaggregated storage and that we
-    # are making changes to those changes.  The pages we receieved from DS
-    # have dek (encryption keys), and when we write deltas for those pages,
-    # we want to make sure we use those encryption keys.  We check this by reading
-    # the verbose output, looking for a message that we've used a saved key.
-    #
-    def test_layered46(self):
-        cfg = self.create_session_config
-        self.session.create(self.uri, cfg)
-
-        # Create the follower
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + \
-                                           self.conn_base_config + 'disaggregated=(role="follower")')
-        session_follow = conn_follow.open_session('')
-
-        self.session_follow = session_follow   # Useful for convenience functions
-
-        # Put data to the leader table
-        value_prefix0 = '---'
-        self.put_data(value_prefix0)
-        self.session.checkpoint()
-
-        # Check data in the follower
-        self.disagg_advance_checkpoint(conn_follow)
-        follower_cursor = self.session_follow.open_cursor(self.uri)
-        self.check_data(follower_cursor, value_prefix0)
-        follower_cursor.close()
-
-        # Make a change on the leader, and propogate to the follower.
-        value_prefix1 = '+++'
-        self.put_data(value_prefix1)
-
-        # Advance the checkpoint.
-        self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
-
-        # Step up. We have two connections, our old leader and the follower that is becoming
-        # the new leader. Close the old leader first so there's no confusion within this test.
-        self.conn.close()
-        conn_follow.reconfigure('disaggregated=(role="leader")')
-
-        # Now check that after closing, we get the new value
-        follower_cursor = self.session_follow.open_cursor(self.uri)
-        self.scan_data(follower_cursor, value_prefix1)
-        follower_cursor.close()
-
-        value_prefix2 = '!!!'
-        self.put_data(value_prefix2, session = self.session_follow)
-
-        # Now, the encryption part of the test. Remove all output up to now. We've previously
-        # told PALM to be verbose and we're looking for a message that we've used the
-        # encryption key. Doing a checkpoint should trigger the message.  Close down the connection
-        # as well, as that generates other PALM verbose output that must be ignored.
-        self.cleanStderr()
-        self.cleanStdout()
-        with self.expectedStdoutPattern('.*palm using saved dek.*', maxchars=10000):
-            self.session_follow.checkpoint()
-            session_follow.close()
-            conn_follow.close()
+        # The local table should not exist.
+        self.assertRaisesException(wiredtiger.WiredTigerError,
+                                   lambda: self.session.open_cursor(self.uri_local, None, None))

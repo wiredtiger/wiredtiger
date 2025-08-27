@@ -119,7 +119,7 @@ __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *ch
  * configured.
  */
 #ifdef WT_STANDALONE_BUILD
-    if (!F_ISSET(S2C(session), WT_CONN_COMPATIBILITY))
+    if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_COMPATIBILITY))
         /* Check the major/minor version numbers. */
         WT_ERR(__ckpt_version_chk(session, fname, config));
 #else
@@ -652,7 +652,7 @@ __meta_blk_mods_load(
      * checkpoint's modified blocks from the block manager.
      */
     F_SET(ckpt, WT_CKPT_ADD);
-    if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP)) {
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_INCR_BACKUP)) {
         F_SET(ckpt, WT_CKPT_BLOCK_MODS_LIST);
         WT_RET(__ckpt_valid_blk_mods(session, ckpt, rename));
     }
@@ -1295,13 +1295,20 @@ err:
 static int
 __meta_live_restore_to_meta(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_ITEM *buf)
 {
-    if (WT_PREFIX_MATCH(dhandle->name, "file:")) {
-        WT_BM *bm = ((WT_BTREE *)dhandle->handle)->bm;
-        WT_ASSERT(session, bm->is_multi_handle == false);
-        /* FIXME-WT-13897 Replace this with an API call into the block manager. */
-        WT_FILE_HANDLE *fh = bm->block->fh->handle;
-        WT_RET_NOTFOUND_OK(__wt_live_restore_fh_to_metadata(session, fh, buf));
-    }
+    if (!WT_PREFIX_MATCH(dhandle->name, "file:"))
+        return (0);
+
+    WT_BM *bm = ((WT_BTREE *)dhandle->handle)->bm;
+
+    /* If the dhandle is using remote storage, it won't have local file handle. */
+    if (bm->is_remote)
+        return (0);
+
+    WT_ASSERT(session, bm->is_multi_handle == false);
+    /* FIXME-WT-13897 Replace this with an API call into the block manager. */
+    WT_FILE_HANDLE *fh = bm->block->fh->handle;
+    WT_RET_NOTFOUND_OK(__wt_live_restore_fh_to_metadata(session, fh, buf));
+
     return (0);
 }
 

@@ -1164,10 +1164,10 @@ err:
     __wt_evict_favor_clearing_dirty_cache(session);
 
     if (conn->default_session->event_handler->handle_general != NULL &&
-      F_ISSET(conn, WT_CONN_MINIMAL | WT_CONN_READY))
+      F_ISSET_ATOMIC_32(conn, WT_CONN_MINIMAL | WT_CONN_READY))
         WT_TRET(conn->default_session->event_handler->handle_general(
           conn->default_session->event_handler, &conn->iface, NULL, WT_EVENT_CONN_CLOSE, NULL));
-    F_CLR(conn, WT_CONN_MINIMAL | WT_CONN_READY);
+    F_CLR_ATOMIC_32(conn, WT_CONN_MINIMAL | WT_CONN_READY);
 
     __wt_verbose_info(
       session, WT_VERB_RECOVERY_PROGRESS, "%s", "rolling back all running transactions.");
@@ -1189,7 +1189,7 @@ err:
      * Set MINIMAL again and call the event handler so that statistics can monitor any end of
      * connection activity (like the final checkpoint).
      */
-    F_SET(conn, WT_CONN_MINIMAL);
+    F_SET_ATOMIC_32(conn, WT_CONN_MINIMAL);
     if (conn->default_session->event_handler->handle_general != NULL)
         WT_TRET(conn->default_session->event_handler->handle_general(
           conn->default_session->event_handler, wt_conn, NULL, WT_EVENT_CONN_READY, NULL));
@@ -1244,7 +1244,7 @@ err:
     if (conn->default_session->event_handler->handle_general != NULL)
         WT_TRET(conn->default_session->event_handler->handle_general(
           conn->default_session->event_handler, wt_conn, NULL, WT_EVENT_CONN_CLOSE, NULL));
-    F_CLR(conn, WT_CONN_MINIMAL);
+    F_CLR_ATOMIC_32(conn, WT_CONN_MINIMAL);
 
     /*
      * See if close should wait for tiered storage to finish any flushing after the final
@@ -1257,7 +1257,7 @@ err:
 
     if (ret != 0) {
         __wt_err(session, ret, "failure during close, disabling further writes");
-        F_SET(conn, WT_CONN_PANIC);
+        F_SET_ATOMIC_32(conn, WT_CONN_PANIC);
     }
 
     /*
@@ -1268,7 +1268,7 @@ err:
      */
     WT_TRET(__wt_config_gets(session, cfg, "leak_memory", &cval));
     if (cval.val != 0)
-        F_SET(conn, WT_CONN_LEAK_MEMORY);
+        F_SET_ATOMIC_32(conn, WT_CONN_LEAK_MEMORY);
 
     /* Time since the shutdown has started. */
     __wt_timer_evaluate_ms(session, &timer, &conn->shutdown_timeline.shutdown_ms);
@@ -1657,7 +1657,7 @@ err:
      * that there is corruption present in the file.
      */
     if (!is_user && ret == EINVAL) {
-        F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
+        F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
         return (WT_ERROR);
     }
 
@@ -1818,7 +1818,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     wt_off_t size;
     size_t len;
     char buf[256];
-    bool bytelock, empty, exist, is_create, is_salvage, match;
+    bool bytelock, empty, exist, is_create, is_disag, is_salvage, match;
 
     conn = S2C(session);
     fh = NULL;
@@ -1828,6 +1828,14 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 
     if (F_ISSET(conn, WT_CONN_READONLY))
         is_create = false;
+
+    /*
+     * FIXME-WT-14721: As it stands, __wt_conn_is_disagg only works after we have metadata access,
+     * which depends on having run recovery, so the config hack is the simplest way to break that
+     * dependency.
+     */
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
+    is_disag = cval.len > 0;
 
     bytelock = true;
     __wt_spin_lock(session, &__wt_process.spinlock);
@@ -1880,12 +1888,16 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
      * above, locked files cannot be copied on Windows). If the WiredTiger
      * file exists in the directory, create the lock file, covering the case
      * of a hot backup.
+     *
+     * In addition, in disagg mode, we should create the lock file regardless
+     * of whether the  WiredTiger file exists or not because WiredTiger file may
+     * not be there.
      */
     exist = false;
     if (!is_create)
         WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
     ret = __wt_open(session, WT_SINGLETHREAD, WT_FS_OPEN_FILE_TYPE_REGULAR,
-      is_create || exist ? WT_FS_OPEN_CREATE : 0, &conn->lock_fh);
+      is_create || is_disag || exist ? WT_FS_OPEN_CREATE : 0, &conn->lock_fh);
 
     /*
      * If this is a read-only connection and we cannot grab the lock file, check if it is because
@@ -1908,7 +1920,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     if (ret == ENOENT) {
         WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
         if (!exist) {
-            F_SET(conn, WT_CONN_DATA_CORRUPTION);
+            F_SET_ATOMIC_32(conn, WT_CONN_DATA_CORRUPTION);
             WT_ERR(WT_ERROR);
         }
     }
@@ -1959,7 +1971,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     if (!is_salvage && !conn->is_new) {
         WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
         if (!exist) {
-            F_SET(conn, WT_CONN_DATA_CORRUPTION);
+            F_SET_ATOMIC_32(conn, WT_CONN_DATA_CORRUPTION);
             WT_ERR_MSG(session, WT_TRY_SALVAGE, "WiredTiger version file cannot be found");
         }
     }
@@ -1979,7 +1991,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(ret);
     } else {
         if (ret == ENOENT) {
-            F_SET(conn, WT_CONN_DATA_CORRUPTION);
+            F_SET_ATOMIC_32(conn, WT_CONN_DATA_CORRUPTION);
             WT_ERR(WT_ERROR);
         }
         WT_ERR(ret);
@@ -2286,6 +2298,31 @@ __wti_heuristic_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets(session, cfg, "heuristic_controls.obsolete_tw_btree_max", &cval));
     conn->heuristic_controls.obsolete_tw_btree_max = (uint32_t)cval.val;
+
+    return (0);
+}
+
+/*
+ * __wti_cache_eviction_controls_config --
+ *     Set cache_eviction_controls configuration.
+ */
+int
+__wti_cache_eviction_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    WT_RET(
+      __wt_config_gets(session, cfg, "cache_eviction_controls.incremental_app_eviction", &cval));
+    if (cval.val != 0)
+        F_SET(&conn->cache_eviction_controls, WT_CACHE_EVICT_INCREMENTAL_APP);
+
+    WT_RET(__wt_config_gets(
+      session, cfg, "cache_eviction_controls.scrub_evict_under_target_limit", &cval));
+    if (cval.val != 0)
+        F_SET(&conn->cache_eviction_controls, WT_CACHE_EVICT_SCRUB_UNDER_TARGET);
 
     return (0);
 }
@@ -2770,6 +2807,10 @@ __conn_config_file_system(WT_SESSION_IMPL *session, const char *cfg[])
         if (F_ISSET(conn, WT_CONN_IN_MEMORY))
             WT_RET_MSG(
               session, EINVAL, "Live restore is not compatible with an in-memory connections");
+        WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
+        if (cval.len != 0)
+            WT_RET_MSG(
+              session, EINVAL, "Live restore is not compatible with disaggregated storage mode");
 #ifdef _MSC_VER
         /* FIXME-WT-14051 Add support for Windows */
         WT_RET_MSG(session, EINVAL, "Live restore is not supported on Windows");
@@ -3003,6 +3044,11 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     /* Configure the file system on the connection. */
     WT_ERR(__conn_config_file_system(session, cfg));
 
+    /*
+     * Check for local files that need to be removed before starting in disaggregated mode.
+     */
+    WT_ERR(__wti_ensure_clean_startup_dir(session, cfg));
+
     /* Make sure no other thread of control already owns this database. */
     WT_ERR(__conn_single(session, cfg));
 
@@ -3175,6 +3221,25 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         WT_ERR_MSG(session, EINVAL,
           "pre-fetching cannot be enabled if pre-fetching is configured as unavailable");
 
+    WT_ERR(__wt_config_gets(session, cfg, "precise_checkpoint", &cval));
+    /*
+     * FIXME-WT-14721: Disaggregated storage should only support precise checkpoint but mongod is
+     * not ready for that yet. Enable precise checkpoint automatically for disaggregated storage in
+     * the future.
+     */
+    if (cval.val)
+        F_SET(conn, WT_CONN_PRECISE_CHECKPOINT);
+    else
+        F_CLR(conn, WT_CONN_PRECISE_CHECKPOINT);
+
+    WT_ERR(__wt_config_gets(session, cfg, "preserve_prepared", &cval));
+    if (cval.val) {
+        if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
+            WT_ERR_MSG(session, EINVAL,
+              "Preserve prepared configuration incompatible with fuzzy checkpoint");
+        F_SET(conn, WT_CONN_PRESERVE_PREPARED);
+    }
+
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     if (cval.val) {
         if (F_ISSET(conn, WT_CONN_READONLY))
@@ -3221,6 +3286,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Parse the heuristic_controls configuration. */
     WT_ERR(__wti_heuristic_controls_config(session, cfg));
+
+    /* Parse the cache_eviction_controls configuration. */
+    WT_ERR(__wti_cache_eviction_controls_config(session, cfg));
 
     /*
      * Load the extensions after initialization completes; extensions expect everything else to be
@@ -3312,25 +3380,13 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__wt_backup_open(session));
 
-    F_SET(conn, WT_CONN_MINIMAL);
+    F_SET_ATOMIC_32(conn, WT_CONN_MINIMAL);
     if (event_handler != NULL && event_handler->handle_general != NULL)
         WT_ERR(event_handler->handle_general(
           event_handler, &conn->iface, NULL, WT_EVENT_CONN_READY, NULL));
 
     /* Start the worker threads, run recovery, and initialize the disaggregated storage. */
     WT_ERR(__wti_connection_workers(session, cfg));
-
-    /*
-     * TODO: WT-15017 we can set this earlier after we have moved the precise checkpoint config
-     * outside the checkpoint server config.
-     */
-    WT_ERR(__wt_config_gets(session, cfg, "preserve_prepared", &cval));
-    if (cval.val) {
-        if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
-            WT_ERR_MSG(session, EINVAL,
-              "Preserve prepared configuration incompatible with fuzzy checkpoint");
-        F_SET(conn, WT_CONN_PRESERVE_PREPARED);
-    }
 
     /*
      * We want WiredTiger in a reasonably normal state - despite the salvage flag, this is a boring
@@ -3364,8 +3420,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     F_SET(session, WT_SESSION_NO_DATA_HANDLES);
 
-    F_SET(conn, WT_CONN_READY);
-    F_CLR(conn, WT_CONN_MINIMAL);
+    F_SET_ATOMIC_32(conn, WT_CONN_READY);
+    F_CLR_ATOMIC_32(conn, WT_CONN_MINIMAL);
     *connectionp = &conn->iface;
     __wt_verbose_info(
       session, WT_VERB_RECOVERY, "%s", "the WiredTiger library has successfully opened");
@@ -3397,10 +3453,10 @@ err:
 
     if (ret != 0) {
         if (conn->default_session->event_handler->handle_general != NULL &&
-          F_ISSET(conn, WT_CONN_MINIMAL | WT_CONN_READY))
+          F_ISSET_ATOMIC_32(conn, WT_CONN_MINIMAL | WT_CONN_READY))
             WT_TRET(conn->default_session->event_handler->handle_general(
               conn->default_session->event_handler, &conn->iface, NULL, WT_EVENT_CONN_CLOSE, NULL));
-        F_CLR(conn, WT_CONN_MINIMAL | WT_CONN_READY);
+        F_CLR_ATOMIC_32(conn, WT_CONN_MINIMAL | WT_CONN_READY);
 
         /*
          * Set panic if we're returning the run recovery error or if recovery did not complete so
@@ -3409,14 +3465,15 @@ err:
          * will not have that flag set.
          */
         if (ret == WT_RUN_RECOVERY || F_ISSET(&conn->log_mgr, WT_LOG_RECOVER_FAILED))
-            F_SET(conn, WT_CONN_PANIC);
+            F_SET_ATOMIC_32(conn, WT_CONN_PANIC);
         /*
          * If we detected a data corruption issue, we really want to indicate the corruption instead
          * of whatever error was set. We cannot use standard return macros because we don't want to
          * generalize this. Record it here while we have the connection and set it after we destroy
          * the connection.
          */
-        if (F_ISSET(conn, WT_CONN_DATA_CORRUPTION) && (ret == WT_PANIC || ret == WT_ERROR))
+        if (F_ISSET_ATOMIC_32(conn, WT_CONN_DATA_CORRUPTION) &&
+          (ret == WT_PANIC || ret == WT_ERROR))
             try_salvage = true;
         WT_TRET(__wti_connection_close(conn));
         /*

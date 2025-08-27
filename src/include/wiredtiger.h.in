@@ -24,14 +24,17 @@ extern "C" {
 /*******************************************
  * Required includes
  *******************************************/
-@wiredtiger_includes_decl@
+#include <sys/types.h>
+#include <inttypes.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
 
 /*******************************************
  * Portable type names
  *******************************************/
-@off_t_decl@
-@uintmax_t_decl@
-@uintptr_t_decl@
+typedef int64_t wt_off_t;
 
 #if defined(DOXYGEN) || defined(SWIG)
 #define __F(func) func
@@ -1618,8 +1621,8 @@ struct __wt_session {
      * @param session the session handle
      * @configstart{WT_SESSION.begin_transaction, see dist/api_data.py}
      * @config{claim_prepared_id, allow a session to claim a prepared transaction that was restored
-     * upon restart by specifying the transaction's prepared ID., an integer greater than or equal
-     * to \c 0; default \c 0.}
+     * upon restart by specifying the transaction's prepared ID. Returns WT_NOTFOUND if the prepared
+     * id doesn't exist., a string; default empty.}
      * @config{ignore_prepare, whether to ignore updates by other prepared transactions when doing
      * of read operations of this transaction.  When \c true\, forces the transaction to be
      * read-only.  Use \c force to ignore prepared updates and permit writes (see @ref
@@ -1728,10 +1731,10 @@ struct __wt_session {
      * transaction.  The value must not be older than any active read timestamps\, and must be newer
      * than the current stable timestamp.  See @ref timestamp_prepare., a string; default empty.}
      * @config{prepared_id, set the optional prepared ID for the prepared updates of the current
-     * transaction.  Multiple transactions can share a prepared transaction ID\, as long as they are
-     * all guaranteed to share a decision whether to commit or abort and share the same prepare\,
-     * commit and durable timestamps.  Default value 0 ignores this configuration option., an
-     * integer greater than or equal to \c 0; default \c 0.}
+     * transaction.  Multiple transactions can share a prepared ID\, as long as they are all
+     * guaranteed to share a decision whether to commit or abort and share the same prepare\, commit
+     * and durable timestamps.  It is ignored if the preserve prepared config is not enabled., a
+     * string; default empty.}
      * @configend
      * @errors
      */
@@ -1829,8 +1832,8 @@ struct __wt_session {
      * @config{rollback_timestamp, set the rollback timestamp for the current transaction.  This is
      * valid only for prepared transactions under the preserve_prepared config.  For prepared
      * transactions\, a rollback timestamp is required\, must not be older than the prepare
-     * timestamp\, and can be set only once.  See @ref timestamp_txn_api and @ref
-     * timestamp_prepare., a string; default empty.}
+     * timestamp\, and can be set only once.  It is ignored if the preserve prepared config is not
+     * enabled.  See @ref timestamp_txn_api and @ref timestamp_prepare., a string; default empty.}
      * @configend
      * @errors
      */
@@ -1855,6 +1858,44 @@ struct __wt_session {
      */
     int __F(timestamp_transaction_uint)(WT_SESSION *session, WT_TS_TXN_TYPE which,
             uint64_t ts);
+
+    /*!
+     * Set a prepared_id on a transaction.
+     *
+     * The WT_SESSION.prepared_id_transaction method can only be used at snapshot isolation.
+     *
+     * @snippet ex_all.c transaction prepared_id
+     *
+     * @requires_transaction
+     *
+     * @param session the session handle
+     * @configstart{WT_SESSION.prepared_id_transaction, see dist/api_data.py}
+     * @config{prepared_id, set the optional prepared ID for the prepared updates of the current
+     * transaction.  Multiple transactions can share a prepared ID\, as long as they are all
+     * guaranteed to share a decision whether to commit or abort and share the same prepare\, commit
+     * and durable timestamps.  It is ignored if the preserve prepared config is not enabled., a
+     * string; default empty.}
+     * @configend
+     * @errors
+     */
+    int __F(prepared_id_transaction)(WT_SESSION *session, const char *config);
+
+    /*!
+     * Set a prepared id on a transaction numerically.  Prefer this method over
+     * WT_SESSION::prepared_id_transaction if the hexadecimal string parsing done in that method
+     * becomes a bottleneck.
+     *
+     * The WT_SESSION.prepared_id_transaction_uint method can only be used at snapshot isolation.
+     *
+     * @snippet ex_all.c transaction prepared_id_uint
+     *
+     * @requires_transaction
+     *
+     * @param session the session handle
+     * @param prepared_id the prepared_id.
+     * @errors
+     */
+    int __F(prepared_id_transaction_uint)(WT_SESSION *session, uint64_t prepared_id);
     /*! @} */
 
     /*!
@@ -2100,6 +2141,15 @@ struct __wt_connection {
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;type, cache location: DRAM or NVRAM., a string; default
      * empty.}
      * @config{ ),,}
+     * @config{cache_eviction_controls = (, Controls the experimental incremental cache eviction
+     * features., a set of related configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;incremental_app_eviction, Only a part of application threads
+     * will participate in cache management when a cache threshold reaches its trigger limit., a
+     * boolean flag; default \c false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+     * scrub_evict_under_target_limit, Change the eviction strategy to scrub eviction when the cache
+     * usage is under the target limit., a boolean flag; default \c false.}
+     * @config{ ),,}
      * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait
      * for space to be available in cache before giving up.  Default or 0 will wait forever.  1 will
      * never wait., an integer greater than or equal to \c 0; default \c 0.}
@@ -2129,14 +2179,9 @@ struct __wt_connection {
      * checkpoint.  Rollback to stable after restart is a no-op if enabled.  However\, it leads to
      * extra cache pressure.  The user must have set the stable timestamp.  It is not compatible
      * with use_timestamp=false config., a boolean flag; default \c false.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;precise, Only write data with timestamps that are smaller or
-     * equal to the stable timestamp to the checkpoint.  Rollback to stable after restart is a no-op
-     * if enabled.  However\, it leads to extra cache pressure.  The user must have set the stable
-     * timestamp.  It is not compatible with use_timestamp=false config., a boolean flag; default \c
-     * false.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each checkpoint;
-     * setting this value above 0 configures periodic checkpoints., an integer between \c 0 and \c
-     * 100000; default \c 0.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each checkpoint; setting this
+     * value above 0 configures periodic checkpoints., an integer between \c 0 and \c 100000;
+     * default \c 0.}
      * @config{ ),,}
      * @config{checkpoint_cleanup = (, periodically checkpoint cleanup the database., a set of
      * related configuration options defined as follows.}
@@ -2244,10 +2289,10 @@ struct __wt_connection {
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number of threads
      * WiredTiger will start to help evict pages from cache.  The number of threads started will
      * vary depending on the current eviction load.  Each eviction worker thread uses a session from
-     * the configured session_max., an integer between \c 1 and \c 20; default \c 8.}
+     * the configured session_max., an integer between \c 1 and \c 64; default \c 8.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min, minimum number of threads WiredTiger will start
      * to help evict pages from cache.  The number of threads currently running will vary depending
-     * on the current eviction load., an integer between \c 1 and \c 20; default \c 1.}
+     * on the current eviction load., an integer between \c 1 and \c 64; default \c 1.}
      * @config{
      * ),,}
      * @config{eviction_checkpoint_target, perform eviction at the beginning of checkpoints to bring
@@ -2941,6 +2986,15 @@ struct __wt_connection {
  * @config{cache_cursors, enable caching of cursors for reuse.  This is the default value for any
  * sessions created\, and can be overridden in configuring \c cache_cursors in
  * WT_CONNECTION.open_session., a boolean flag; default \c true.}
+ * @config{cache_eviction_controls = (, Controls the experimental incremental cache eviction
+ * features., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;incremental_app_eviction, Only a part of application threads will
+ * participate in cache management when a cache threshold reaches its trigger limit., a boolean
+ * flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;scrub_evict_under_target_limit, Change
+ * the eviction strategy to scrub eviction when the cache usage is under the target limit., a
+ * boolean flag; default \c false.}
+ * @config{ ),,}
  * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait for
  * space to be available in cache before giving up.  Default or 0 will wait forever.  1 will never
  * wait., an integer greater than or equal to \c 0; default \c 0.}
@@ -2967,11 +3021,6 @@ struct __wt_connection {
  * between \c 0 and \c 2GB; default \c 0.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;precise, Only write data
  * with timestamps that are smaller or equal to the stable timestamp to the checkpoint.  Rollback to
- * stable after restart is a no-op if enabled.  However\, it leads to extra cache pressure.  The
- * user must have set the stable timestamp.  It is not compatible with use_timestamp=false config.,
- * a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;precise, Only write data with
- * timestamps that are smaller or equal to the stable timestamp to the checkpoint.  Rollback to
  * stable after restart is a no-op if enabled.  However\, it leads to extra cache pressure.  The
  * user must have set the stable timestamp.  It is not compatible with use_timestamp=false config.,
  * a boolean flag; default \c false.}
@@ -3127,11 +3176,11 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number of threads WiredTiger will
  * start to help evict pages from cache.  The number of threads started will vary depending on the
  * current eviction load.  Each eviction worker thread uses a session from the configured
- * session_max., an integer between \c 1 and \c 20; default \c 8.}
+ * session_max., an integer between \c 1 and \c 64; default \c 8.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
  * threads_min, minimum number of threads WiredTiger will start to help evict pages from cache.  The
  * number of threads currently running will vary depending on the current eviction load., an integer
- * between \c 1 and \c 20; default \c 1.}
+ * between \c 1 and \c 64; default \c 1.}
  * @config{ ),,}
  * @config{eviction_checkpoint_target, perform eviction at the beginning of checkpoints to bring the
  * dirty content in cache to this level.  It is a percentage of the cache size if the value is
@@ -3327,6 +3376,10 @@ struct __wt_connection {
  * @config{page_delta = (, configure page delta settings for this connection., a set of related
  * configuration options defined as follows.}
  * @config{ ),,}
+ * @config{precise_checkpoint, Only write data with timestamps that are smaller or equal to the
+ * stable timestamp to the checkpoint.  Rollback to stable after restart is a no-op if enabled.
+ * However\, it leads to extra cache pressure.  The user must have set the stable timestamp.  It is
+ * not compatible with use_timestamp=false config., a boolean flag; default \c false.}
  * @config{prefetch = (, Enable automatic detection of scans by applications\, and attempt to
  * pre-fetch future content into the cache., a set of related configuration options defined as
  * follows.}
@@ -5697,6 +5750,21 @@ struct __wt_page_log_handle {
     int (*plh_get)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
         uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_GET_ARGS *args,
         WT_ITEM *results_array, uint32_t *results_count);
+
+    /*!
+     * Get all live page IDs from the paging/logging service for a given checkpoint.
+     *
+     * @errors
+     *
+     * @param plh the WT_PAGE_LOG_HANDLE
+     * @param session the current WiredTiger session
+     * @param checkpoint_lsn the checkpoint to use
+     * @param table_id the table where we want to get the pages from
+     * @param item the WT_ITEM to hold the page ids
+     * @param size number of page IDs stored in the array
+     */
+    int (*plh_get_page_ids)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
+        uint64_t checkpoint_lsn, uint64_t table_id, WT_ITEM *item, size_t *size);
 
     /*!
      * Discard an object into the paging/logging service.

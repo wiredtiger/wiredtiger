@@ -1,9 +1,3 @@
-project(csuite)
-
-include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
-
-set(c_tests)
-
 define_c_test(
     TARGET test_wt10461_skip_list_stress
     SOURCES wt10461_skip_list_stress/main.c

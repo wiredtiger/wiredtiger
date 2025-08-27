@@ -458,9 +458,10 @@ typedef struct {
  * Called when building the internal page image to indicate should we start to build a delta for the
  * page. We are still building so multi_next should still be 0 instead of 1.
  */
-#define WT_BUILD_DELTA_INT(session, r)                                                      \
-    WT_DELTA_INT_ENABLED((session)) && !__wt_ref_is_root(r->ref) && (r)->multi_next == 0 && \
-      !F_ISSET_ATOMIC_16(r->ref->page, WT_PAGE_REC_FAIL | WT_PAGE_INTL_PINDEX_UPDATE) &&    \
+#define WT_BUILD_DELTA_INT(session, r)                                                    \
+    WT_DELTA_INT_ENABLED((S2BT(session)), (S2C(session))) && !__wt_ref_is_root(r->ref) && \
+      (r)->multi_next == 0 &&                                                             \
+      !F_ISSET_ATOMIC_16(r->ref->page, WT_PAGE_REC_FAIL | WT_PAGE_INTL_PINDEX_UPDATE) &&  \
       WT_REC_RESULT_SINGLE_PAGE((session), (r))
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
@@ -477,6 +478,8 @@ extern int __wti_ovfl_track_wrapup_err(WT_SESSION_IMPL *session, WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_build_delta_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_rec_cell_build_leaf_key(WT_SESSION_IMPL *session, WTI_RECONCILE *r,
+  const void *data, size_t size, bool *is_ovflp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *kv,
   uint8_t type, WT_TIME_WINDOW *tw, uint64_t rle) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,

@@ -141,6 +141,9 @@ connection_disaggregated_config_common = [
     Config('last_materialized_lsn', '', r'''
         the page LSN indicating that all pages up until this LSN are available for reading''',
         type='int', undoc=True),
+    Config('local_files_action', 'delete', r'''
+        what should be done to the local files in disaggregated mode upon startup.''',
+        choices=['delete', 'fail', 'ignore'], undoc=True),
     Config('lose_all_my_data', 'false', r'''
         This setting skips file system syncs, and will cause data loss outside of a
         disaggregated storage context.''',
@@ -201,6 +204,37 @@ format_meta = common_meta + [
         manipulate raw byte arrays. Value items of type 't' are bitfields, and when configured
         with record number type keys, will be stored using a fixed-length store''',
         type='format', func='__wt_struct_confchk'),
+]
+
+# We need to be able to understand these forever, even if they're just empty strings. It's OK
+# to reject them if there's any real config -- the feature is gone.
+lsm_config = [
+    Config('lsm', '', r'''
+        Removed options, preserved to allow parsing old metadata''',
+        type='category', undoc=True, subconfig=[
+        Config('auto_throttle', 'none', r'''
+            removed option, preserved to allow parsing old metadata''', undoc=True),
+        Config('bloom', 'none', r'''
+            removed option, preserved to allow parsing old metadata''', undoc=True),
+        Config('bloom_bit_count', 'none', r'''
+            removed option, preserved to allow parsing old metadata''', undoc=True),
+        Config('bloom_config', '', r'''
+            removed option, preserved to allow parsing old metadata''', undoc=True),
+        Config('bloom_hash_count', 'none', r'''
+            removed option, preserved to allow parsing old metadata''', undoc=True),
+        Config('bloom_oldest', 'none', r'''
+            removed option, preserved to allow parsing old metadata''', undoc=True),
+        Config('chunk_count_limit', 'none', r'''
+            removed option, preserved to allow parsing old metadata''', undoc=True),
+        Config('chunk_max', 'none', r'''
+            removed option, preserved to allow parsing old metadata''', undoc=True),
+        Config('chunk_size', 'none', r'''
+            removed option, preserved to allow parsing old metadata''', undoc=True),
+        Config('merge_max', 'none', r'''
+            removed option, preserved to allow parsing old metadata''', undoc=True),
+        Config('merge_min', 'none', r'''
+            removed option, preserved to allow parsing old metadata''', undoc=True),
+    ]),
 ]
 
 tiered_config = [
@@ -478,6 +512,8 @@ table_only_config = [
 ]
 
 index_only_config = [
+    Config('extractor', 'none', r'''
+        removed option, preserved to allow parsing old metadata''', undoc=True),
     Config('immutable', 'false', r'''
         configure the index to be immutable -- that is, the index is not changed by any update to
         a record in the table''',
@@ -545,6 +581,18 @@ connection_runtime_config = [
         Config('type', '', r'''
             cache location: DRAM or NVRAM'''),
         ]),
+    Config('cache_eviction_controls', '', r'''
+        Controls the experimental incremental cache eviction features.''',
+        type='category', subconfig=[
+            Config('incremental_app_eviction', 'false', r'''
+                Only a part of application threads will participate in cache management 
+                when a cache threshold reaches its trigger limit.''',
+                type='boolean'),
+            Config('scrub_evict_under_target_limit', 'false', 
+                r'''Change the eviction strategy to scrub eviction when the cache usage is under
+                the target limit.''',
+                type='boolean'),
+        ]),
     Config('cache_size', '100MB', r'''
         maximum heap memory to allocate for the cache. A database should configure either
         \c cache_size or \c shared_cache but not both''',
@@ -575,12 +623,6 @@ connection_runtime_config = [
             A database can configure both log_size and wait to set an upper bound for checkpoints;
             setting this value above 0 configures periodic checkpoints''',
             min='0', max='2GB'),
-        Config('precise', 'false', r'''
-            Only write data with timestamps that are smaller or equal to the stable timestamp to the
-            checkpoint. Rollback to stable after restart is a no-op if enabled. However, it leads to
-            extra cache pressure. The user must have set the stable timestamp. It is not compatible
-            with use_timestamp=false config.''',
-            type='boolean'),
         Config('wait', '0', r'''
             seconds to wait between each checkpoint; setting this value above 0 configures
             periodic checkpoints''',
@@ -697,12 +739,12 @@ connection_runtime_config = [
                 maximum number of threads WiredTiger will start to help evict pages from cache. The
                 number of threads started will vary depending on the current eviction load. Each
                 eviction worker thread uses a session from the configured session_max''',
-                min=1, max=20), # !!! Must match WT_EVICT_MAX_WORKERS
+                min=1, max=64), # !!! Must match WT_EVICT_MAX_WORKERS
             Config('threads_min', '1', r'''
                 minimum number of threads WiredTiger will start to help evict pages from
                 cache. The number of threads currently running will vary depending on the
                 current eviction load''',
-                min=1, max=20),
+                min=1, max=64),
             Config('evict_sample_inmem', 'true', r'''
                 If no in-memory ref is found on the root page, attempt to locate a random
                 in-memory page by examining all entries on the root page.''',
@@ -1361,6 +1403,12 @@ wiredtiger_open_common =\
             whether pre-fetch is enabled for all sessions by default''',
             type='boolean'),
         ]),
+    Config('precise_checkpoint', 'false', r'''
+            Only write data with timestamps that are smaller or equal to the stable timestamp to the
+            checkpoint. Rollback to stable after restart is a no-op if enabled. However, it leads to
+            extra cache pressure. The user must have set the stable timestamp. It is not compatible
+            with use_timestamp=false config.''',
+            type='boolean'),
     Config('preserve_prepared', 'false', r'''
         open connection in preserve prepare mode. All the prepared transactions that are
         not yet committed or rolled back will be preserved in the database. This is useful for
@@ -1532,8 +1580,9 @@ methods = {
         type='int'),
 ]),
 
-'WT_SESSION.create' : Method(file_config + tiered_config + file_disaggregated_config +\
-        source_meta + index_only_config + table_only_config + layered_config + [
+'WT_SESSION.create' : Method(file_config + lsm_config + tiered_config +\
+        file_disaggregated_config + source_meta + index_only_config + table_only_config +\
+        layered_config + [
     Config('exclusive', 'false', r'''
         explicitly fail with EEXIST if the object exists. When false (the default), if the object
         exists, silently fail without creating a new object.''',
@@ -1890,10 +1939,10 @@ methods = {
         whether to sync log records when the transaction commits, inherited from ::wiredtiger_open
         \c transaction_sync''',
         type='boolean'),
-    Config('claim_prepared_id', '0', r'''
+    Config('claim_prepared_id', '', r'''
         allow a session to claim a prepared transaction that was restored upon restart by
-        specifying the transaction's prepared ID.''',
-        type='int', min=0)
+        specifying the transaction's prepared ID. Returns WT_NOTFOUND if the prepared id doesn't
+        exist.''')
 ], compilable=True),
 
 'WT_SESSION.commit_transaction' : Method([
@@ -1929,11 +1978,11 @@ methods = {
         set the prepare timestamp for the updates of the current transaction. The value must
         not be older than any active read timestamps, and must be newer than the current stable
         timestamp. See @ref timestamp_prepare'''),
-    Config('prepared_id', '0', r'''
+    Config('prepared_id', '', r'''
         set the optional prepared ID for the prepared updates of the current transaction. Multiple
-        transactions can share a prepared transaction ID, as long as they are all guaranteed to
-        share a decision whether to commit or abort and share the same prepare, commit and durable
-        timestamps. Default value 0 ignores this configuration option''', type='int', min=0)
+        transactions can share a prepared ID, as long as they are all guaranteed to share a decision
+        whether to commit or abort and share the same prepare, commit and durable timestamps. It is
+        ignored if the preserve prepared config is not enabled.''')
 ]),
 
 'WT_SESSION.timestamp_transaction_uint' : Method([]),
@@ -1965,7 +2014,17 @@ methods = {
         set the rollback timestamp for the current transaction. This is valid only for prepared
         transactions under the preserve_prepared config. For prepared transactions, a rollback
         timestamp is required, must not be older than the prepare timestamp, and can be set only
-        once. See @ref timestamp_txn_api and @ref timestamp_prepare'''),
+        once. It is ignored if the preserve prepared config is not enabled. See
+        @ref timestamp_txn_api and @ref timestamp_prepare''')
+]),
+
+'WT_SESSION.prepared_id_transaction_uint' : Method([]),
+'WT_SESSION.prepared_id_transaction' : Method([
+    Config('prepared_id', '', r'''
+        set the optional prepared ID for the prepared updates of the current transaction. Multiple
+        transactions can share a prepared ID, as long as they are all guaranteed to share a decision
+        whether to commit or abort and share the same prepare, commit and durable timestamps. It is
+        ignored if the preserve prepared config is not enabled.''')
 ]),
 
 'WT_SESSION.rollback_transaction' : Method([
