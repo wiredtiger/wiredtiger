@@ -2072,10 +2072,13 @@ __txn_modify_block(
     F_CLR(txn, WT_TXN_IGNORE_PREPARE);
     for (; upd != NULL && !__wt_txn_upd_visible(session, upd); upd = upd->next) {
         if (upd->txnid != WT_TXN_ABORTED) {
-            __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
-              "Conflict with update with txn id %" PRIu64
+            ++txn->modify_block_count;
+            __wt_verbose_level(session, WT_VERB_TRANSACTION,
+              txn->modify_block_count >= 100 ? WT_VERBOSE_INFO : WT_VERBOSE_DEBUG_1,
+              "Conflict with %s update with txn id %" PRIu64
               " at start timestamp: %s, prepare timestamp: %s",
-              upd->txnid, __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
+              F_ISSET(txn, WT_TXN_PREPARE) ? "prepared" : "", upd->txnid,
+              __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
               __wt_timestamp_to_string(upd->prepare_ts, ts_string[1]));
             rollback = true;
             break;
@@ -2099,27 +2102,36 @@ __txn_modify_block(
         if (tw_found) {
             if (WT_TIME_WINDOW_HAS_STOP(&tw)) {
                 rollback = !__wt_txn_tw_stop_visible(session, &tw);
-                if (rollback)
-                    __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
+                if (rollback) {
+                    ++txn->modify_block_count;
+                    __wt_verbose_level(session, WT_VERB_TRANSACTION,
+                      txn->modify_block_count >= 100 ? WT_VERBOSE_INFO : WT_VERBOSE_DEBUG_1,
                       "Conflict with update %" PRIu64
                       " at stop timestamp: %s, prepare timestamp: %s",
                       tw.stop_txn, __wt_timestamp_to_string(tw.stop_ts, ts_string[0]),
                       __wt_timestamp_to_string(tw.stop_prepare_ts, ts_string[1]));
+                }
             } else {
                 rollback = !__wt_txn_tw_start_visible(session, &tw);
-                if (rollback)
-                    __wt_verbose_debug1(session, WT_VERB_TRANSACTION,
+                if (rollback) {
+                    ++txn->modify_block_count;
+                    __wt_verbose_level(session, WT_VERB_TRANSACTION,
+                      txn->modify_block_count >= 100 ? WT_VERBOSE_INFO : WT_VERBOSE_DEBUG_1,
                       "Conflict with update %" PRIu64
                       " at start timestamp: %s, prepare timestamp: %s",
                       tw.start_txn, __wt_timestamp_to_string(tw.start_ts, ts_string[0]),
                       __wt_timestamp_to_string(tw.start_prepare_ts, ts_string[1]));
+                }
             }
         }
     }
 
     if (rollback) {
         /* Dump information about the txn snapshot. */
-        if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_TRANSACTION, WT_VERBOSE_DEBUG_1)) {
+        WT_VERBOSE_LEVEL level =
+          txn->modify_block_count >= 100 ? WT_VERBOSE_INFO : WT_VERBOSE_DEBUG_1;
+
+        if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_TRANSACTION, level)) {
             WT_ERR(__wt_scr_alloc(session, 1024, &buf));
             WT_ERR(__wt_buf_fmt(session, buf,
               "snapshot_min=%" PRIu64 ", snapshot_max=%" PRIu64 ", snapshot_count=%" PRIu32,
@@ -2134,8 +2146,12 @@ __txn_modify_block(
                 WT_ERR(__wt_buf_catfmt(
                   session, buf, "%" PRIu64 "]", txn->snapshot_data.snapshot[snap_count]));
             }
-            __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "%s", (const char *)buf->data);
+            __wt_verbose_level(session, WT_VERB_TRANSACTION, level, "%s", (const char *)buf->data);
         }
+
+        /* Reset modify_block_count to prevent int overflow.*/
+        if (txn->modify_block_count >= 100)
+            txn->modify_block_count = 100;
 
         WT_STAT_CONN_DSRC_INCR(session, txn_update_conflict);
         ret = WT_ROLLBACK;
