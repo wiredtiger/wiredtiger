@@ -677,10 +677,17 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      */
     if (LF_ISSET(WT_REC_VISIBLE_CHECKPOINT)) {
         WT_ASSERT(session, LF_ISSET(WT_REC_EVICT));
-        WT_ACQUIRE_READ(
-          r->rec_start_ckpt_pinned_id, conn->txn_global.checkpoint_txn_shared.pinned_id);
+        WT_TXN_GLOBAL *txn_global = &conn->txn_global;
+        WT_ACQUIRE_READ(r->rec_start_ckpt_pinned_id, txn_global->checkpoint_txn_shared.pinned_id);
         if (r->rec_start_ckpt_pinned_id == WT_TXN_NONE)
-            WT_ACQUIRE_READ(r->rec_start_ckpt_pinned_id, conn->txn_global.last_running);
+            WT_ACQUIRE_READ(r->rec_start_ckpt_pinned_id, txn_global->last_running);
+
+        if (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) {
+            uint64_t ckpt_txn;
+            WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
+            if (ckpt_txn != WT_TXN_NONE && ckpt_txn < r->rec_start_ckpt_pinned_id)
+                r->rec_start_ckpt_pinned_id = ckpt_txn;
+        }
     } else
         r->rec_start_ckpt_pinned_id = WT_TXN_NONE;
 
