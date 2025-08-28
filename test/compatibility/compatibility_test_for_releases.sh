@@ -540,7 +540,7 @@ upgrade_downgrade()
     done
 }
 
-test_dirty_upgrade()
+test_dirty_restart()
 {
     local src_branch="$1"
     local dst_branch="$2"
@@ -744,7 +744,7 @@ import_compatibility_test()
 }
 
 # Only one of below flags will be set by the 1st argument of the script.
-dirty_upgrade=false
+dirty_restart=false
 import=false
 older=false
 newer=false
@@ -791,7 +791,7 @@ test_checkpoint_release_branches=($TEST_CHECKPOINT_RELEASE_BRANCHES)
 upgrade_to_latest_upgrade_downgrade_release_branches=($UPGRADE_TO_LATEST_UPGRADE_DOWNGRADE_RELEASE_BRANCHES)
 
 declare -A scopes
-scopes[dirty_upgrade]="upgrade from an unclean shutdown of a previous version"
+scopes[dirty_restart]="start from an unclean shutdown of a different version"
 scopes[import]="import files from previous versions"
 scopes[newer]="newer stable release branches"
 scopes[older]="older stable release branches"
@@ -844,7 +844,7 @@ get_build_system()
 usage()
 {
     echo -e "Usage: \tcompatibility_test_for_releases [-d|-i|-n|-o|-p|-u|-w|-v]"
-    echo -e "\t-d\trun compatibility tests for ${scopes[dirty_upgrade]}"
+    echo -e "\t-d\trun compatibility tests for ${scopes[dirty_restart]}"
     echo -e "\t-i\trun compatibility tests for ${scopes[import]}"
     echo -e "\t-n\trun compatibility tests for ${scopes[newer]}"
     echo -e "\t-o\trun compatibility tests for ${scopes[older]}"
@@ -862,9 +862,9 @@ fi
 # Script argument processing
 case $1 in
 "-d")
-    dirty_upgrade=true
+    dirty_restart=true
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-    echo "Performing compatibility tests for ${scopes[dirty_upgrade]}"
+    echo "Performing compatibility tests for ${scopes[dirty_restart]}"
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 ;;
 "-i")
@@ -958,7 +958,7 @@ if [ "$upgrade_to_latest" = true ]; then
     done
 fi
 
-if [ "$dirty_upgrade" = true ]; then
+if [ "$dirty_restart" = true ]; then
     for b in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
         create_configs "$b"
         pushd .
@@ -966,12 +966,12 @@ if [ "$dirty_upgrade" = true ]; then
         popd
     done
 
-    # Go over the release branches, from pair to pair. If a pair has the LHS older than the RHS,
+    # Go over the release branches, from pair to pair. If a pair has the LHS different to the RHS,
     # treat that as a combination worth testing.
     for b1 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
         for b2 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
-            if [[ "$b1" < "$b2" ]]; then
-                test_dirty_upgrade "$b1" "$b2"
+            if [[ "$b1" != "$b2" ]]; then
+                test_dirty_restart "$b1" "$b2"
             fi
         done
     done
