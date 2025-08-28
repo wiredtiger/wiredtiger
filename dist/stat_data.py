@@ -1237,17 +1237,6 @@ conn_dsrc_stats = [
     CursorStat('cursor_tree_walk_ondisk_del_page_skip', 'Total number of on-disk deleted pages skipped during tree walk'),
 
     ##########################################
-    # Disaggregated block manager statistics
-    ##########################################
-    BlockDisaggStat('disagg_block_get', 'Disaggregated block manager get'),
-    BlockDisaggStat('disagg_block_hs_byte_read', 'Bytes read from the shared history store in SLS', 'size'),
-    BlockDisaggStat('disagg_block_hs_byte_write', 'Bytes written to the shared history store in SLS', 'size'),
-    BlockDisaggStat('disagg_block_hs_get', 'Disaggregated block manager get from the shared history store in SLS'),
-    BlockDisaggStat('disagg_block_hs_put', 'Disaggregated block manager put to the shared history store in SLS'),
-    BlockDisaggStat('disagg_block_page_discard', 'Disaggregated block manager page discard calls'),
-    BlockDisaggStat('disagg_block_put', 'Disaggregated block manager put '),
-
-    ##########################################
     # Cursor API error statistics
     ##########################################
     CursorErrorStat('cursor_bound_error', 'cursor bound calls that return an error'),
@@ -1272,6 +1261,17 @@ conn_dsrc_stats = [
     CursorErrorStat('cursor_search_error', 'cursor search calls that return an error'),
     CursorErrorStat('cursor_search_near_error', 'cursor search near calls that return an error'),
     CursorErrorStat('cursor_update_error', 'cursor update calls that return an error'),
+
+    ##########################################
+    # Disaggregated block manager statistics
+    ##########################################
+    BlockDisaggStat('disagg_block_get', 'Disaggregated block manager get'),
+    BlockDisaggStat('disagg_block_hs_byte_read', 'Bytes read from the shared history store in SLS', 'size'),
+    BlockDisaggStat('disagg_block_hs_byte_write', 'Bytes written to the shared history store in SLS', 'size'),
+    BlockDisaggStat('disagg_block_hs_get', 'Disaggregated block manager get from the shared history store in SLS'),
+    BlockDisaggStat('disagg_block_hs_put', 'Disaggregated block manager put to the shared history store in SLS'),
+    BlockDisaggStat('disagg_block_page_discard', 'Disaggregated block manager page discard calls'),
+    BlockDisaggStat('disagg_block_put', 'Disaggregated block manager put '),
 
     ##########################################
     # Layered table statistics

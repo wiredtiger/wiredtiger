@@ -248,6 +248,7 @@ __session_clear(WT_SESSION_IMPL *session)
     __wt_atomic_store32(&session->hazards.inuse, 0);
     session->hazards.num_active = 0;
 }
+
 /*
  * __session_close_cursors --
  *     Close all cursors in a list.

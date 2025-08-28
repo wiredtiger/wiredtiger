@@ -509,7 +509,6 @@ __instantiate_tombstone(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del,
 
         if (update_list != NULL)
             update_list[(*countp)++] = *updp;
-
         WT_STAT_CONN_DSRC_INCRV(session, cache_read_restored_tombstone_bytes, *sizep);
     }
 

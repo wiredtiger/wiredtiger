@@ -627,12 +627,6 @@ connection_runtime_config = [
             seconds to wait between each checkpoint; setting this value above 0 configures
             periodic checkpoints''',
             min='0', max='100000'),
-        Config('precise', 'false', r'''
-            Only write data with timestamps that are smaller or equal to the stable timestamp to the
-            checkpoint. Rollback to stable after restart is a no-op if enabled. However, it leads to
-            extra cache pressure. The user must have set the stable timestamp. It is not compatible
-            with use_timestamp=false config.''',
-            type='boolean'),
         ]),
     Config('checkpoint_cleanup', '', r'''
         periodically checkpoint cleanup the database.''',
@@ -958,7 +952,7 @@ connection_runtime_config = [
         'failpoint_eviction_split', 'failpoint_history_store_delete_key_from_ts',
         'history_store_checkpoint_delay', 'history_store_search', 'history_store_sweep_race',
         'live_restore_clean_up', 'open_index_slow', 'prefetch_1', 'prefetch_2', 'prefetch_3',
-        'prefetch_delay', 'prefix_compare', 'prepare_checkpoint_delay', 'prepare_resolution_1',
+        'prefix_compare', 'prepare_checkpoint_delay', 'prepare_resolution_1',
         'prepare_resolution_2', 'session_alter_slow', 'sleep_before_read_overflow_onpage',
         'split_1', 'split_2', 'split_3', 'split_4', 'split_5', 'split_6', 'split_7',
         'split_8', 'tiered_flush_finish']),

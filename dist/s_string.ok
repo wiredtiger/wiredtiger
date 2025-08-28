@@ -941,7 +941,6 @@ islocked
 ispo
 isprint
 isspace
-janky
 jjj
 js
 json
@@ -1080,7 +1079,6 @@ needvalue
 negint
 nentries
 nentriesp
-ness
 newbar
 newfile
 newv
@@ -1364,7 +1362,6 @@ sumv
 sunique
 sunused
 supd
-supercalafragalisticexpialadoshus
 superset
 sw
 syncop

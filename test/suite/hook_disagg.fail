@@ -31,6 +31,7 @@ test_cursor05.py
 test_cursor06.py
 test_cursor07.py
 test_cursor08.py
+test_cursor13.py
 test_cursor17.py
 test_cursor21.py
 test_debug_mode08.py
