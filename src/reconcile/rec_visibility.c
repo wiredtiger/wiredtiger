@@ -274,6 +274,10 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
             tombstone = upd_select->tombstone;
         else {
             tombstone = NULL;
+            /*
+             * A history store record with a max time point must be a full value without a deleting
+             * tombstone.
+             */
             WT_ASSERT(session, !F_ISSET(upd_select->tombstone, WT_UPDATE_HS_MAX_STOP));
         }
         WT_RET(__rec_delete_hs_upd_save(session, r, ins, rip, upd_select->upd, tombstone));
@@ -287,9 +291,20 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
         if ((txnid = delete_upd->txnid) == WT_TXN_ABORTED)
             continue;
 
+        /*
+         * If we find any update that is committed, any older updates with the WT_UPDATE_HS_MAX_STOP
+         * flag can be safely deleted from the history store as its associated prepared update must
+         * have been resolved and stable.
+         */
         if (!seen_committed && upd_select->tw.start_txn != txnid)
             seen_committed = true;
 
+        /*
+         * Note that at most one update with the flag WT_UPDATE_HS_MAX_STOP can be present on the
+         * same key because any previous reconciliation that tries to write a new prepared update to
+         * the data store must have deleted any existing update with the flag WT_UPDATE_HS_MAX_STOP
+         * from the history store.
+         */
         if (F_ISSET(delete_upd, WT_UPDATE_HS_MAX_STOP)) {
             WT_ASSERT(session, delete_upd->type != WT_UPDATE_TOMBSTONE);
             /*
