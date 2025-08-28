@@ -242,12 +242,19 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * Get a list of the checkpoints for this file. Empty objects have no checkpoints, in which case
      * there's no work to do.
+     *
+     * Note: For ingest uris, __wt_meta_ckptlist_get should always return WT_NOTFOUND since ingest
+     * tables are not checkpointed. Ingest URIs should never make it past this point.
      */
     WT_ERR_NOTFOUND_OK(__wt_meta_ckptlist_get(session, name, false, &ckptbase, NULL), true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;
-    }
+    } else if (WT_SUFFIX_MATCH(name, ".wt_ingest"))
+        WT_ERR_MSG(session, EBUSY,
+          "verify (layered): ingest table %s unexpectedly has checkpoints. "
+          "This is a fatal violation as the ingest table does not get checkpointed.",
+          name);
 
     /* Inform the underlying block manager we're verifying. */
     WT_ERR(bm->verify_start(bm, session, ckptbase, cfg));
