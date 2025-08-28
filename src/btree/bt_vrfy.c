@@ -1387,3 +1387,27 @@ __verify_page_content_leaf(
 
     return (0);
 }
+
+static int
+__verify_page_discard(WT_SESSION_IMPL *session, WT_ITEM *item, size_t *size)
+{
+    WT_BTREE *btree = S2BT(session);
+    WT_REF *ref = NULL;
+    int ret = 0;
+
+    // Walk the tree, visiting every page.
+    // Use WT_READ_CACHE to avoid reading pages from disk.
+    while ((ret = __wt_tree_walk(session, &ref, WT_READ_VISIBLE_ALL | WT_READ_CACHE)) == 0 && ref != NULL) {
+        WT_PAGE *page = ref->page;
+        if (page != NULL) {
+            // Retrieve the page ID from ref (method TBD)
+            // Add page id to the given array
+        }
+    }
+
+    // Release the last reference if needed
+    if (ref != NULL)
+        WT_TRET(__wt_page_release(session, ref, 0));
+
+    return (ret == WT_NOTFOUND ? 0 : ret);
+}

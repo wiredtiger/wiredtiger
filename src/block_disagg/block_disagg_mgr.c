@@ -136,6 +136,40 @@ __bmd_encrypt_skip_size(WT_BM *bm, WT_SESSION_IMPL *session)
     return (WT_BLOCK_DISAGG_HEADER_BYTE_SIZE);
 }
 
+static int
+__bmd_verify_page_discard(WT_BM *bm, WT_SESSION_IMPL *session)
+{
+    
+    WT_BLOCK_DISAGG *block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+    
+    /* Get checkpoint LSN */
+    uint64_t checkpoint_lsn;
+    // session->dhandle->checkpoint?
+    // bm->checkpoint(bm, session, NULL, NULL, false);?
+
+    
+    /* Get table id */
+    uint64_t table_id = S2BT(session)->id;
+
+    /* Call btree verify to get the page id list from the tree walk */
+    WT_DECL_ITEM(tree_walk_page_id);
+    size_t tree_walk_size = 0;
+    WT_RET(__wt_scr_alloc(session, tree_walk_size, &tree_walk_page_id));
+    __verify_page_discard(session, tree_walk_page_id);
+
+    /* Call PALI function to get all page ids from PALM */
+    WT_PAGE_LOG_HANDLE *plhandle = block_disagg->plhandle;
+
+    WT_DECL_ITEM(PALI_page_id);
+    size_t PALI_size = 0;
+
+    WT_RET(__wt_scr_alloc(session, PALI_size, &PALI_page_id));
+
+    plhandle->plh_get_page_ids(plhandle, (WT_SESSION *)session, checkpoint_lsn, table_id, PALI_page_id, &PALI_size);
+
+    /* Compare the two lists, any page ids in the tree that are not in the PALM should be discarded */
+}
+
 /*
  * __bmd_method_set --
  *     Set up the legal methods.
@@ -174,6 +208,7 @@ __bmd_method_set(WT_BM *bm, bool readonly)
     bm->sync = __wti_block_disagg_sync;
     bm->verify_addr = __wti_block_disagg_verify_addr;
     bm->verify_end = __wti_block_disagg_verify_end;
+    bm->verify_page_discard =__bmd_verify_page_discard;
     bm->verify_start = __wti_block_disagg_verify_start;
     bm->write = __bmd_write;
     bm->write_size = __bmd_write_size;
