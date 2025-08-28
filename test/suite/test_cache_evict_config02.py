@@ -35,29 +35,34 @@ class test_cache_evict_config02(wttest.WiredTigerTestCase):
     conn_config = "cache_size=5MB,statistics=(all),cache_eviction_controls=[scrub_evict_under_target_limit=false]"
     uri = "table:eviction02"
 
-    def test_cache_eviction_reconfig_and_scrub(self):
-        self.session.create(self.uri, "key_format=i,value_format=S")
+    def _insert_data(self):
+        """Repeatedly update 100 keys to fill cache usage with dirty / updates"""
         cursor = self.session.open_cursor(self.uri)
-
-        # Repeatedly update 100 keys to fill cache usage with dirty / updates
         big_value = "x" * 5000
         for i in range(50000):
             cursor[i % 100] = big_value
         cursor.close()
 
+    def test_cache_eviction_reconfig_and_scrub(self):
+        self.session.create(self.uri, "key_format=i,value_format=S")
+        self._insert_data()
+
         # Baseline
         stat_cursor = self.session.open_cursor("statistics:")
-        pages_scubbed_baseline = stat_cursor[stat.conn.cache_write_restore][2]
+        pages_scrubbed_baseline = stat_cursor[stat.conn.cache_write_restore][2]
         stat_cursor.close()
 
+        self.reopen_conn()
         # Enable scrub_evict_under_target_limit flag
         self.conn.reconfigure(
             "cache_eviction_controls=[scrub_evict_under_target_limit=true]"
         )
+        self.session.create(self.uri, "key_format=i,value_format=S")
+        self._insert_data()
 
         stat_cursor = self.session.open_cursor("statistics:")
         pages_scrubbed_with_flag = stat_cursor[stat.conn.cache_write_restore][2]
         stat_cursor.close()
 
         # Check that by enabling scrub-under-target flag, more pages were scrub evicted
-        self.assertGreater(pages_scrubbed_with_flag, pages_scubbed_baseline, "Scrub-under-target flag should increase update restores when enabled")
+        self.assertGreater(pages_scrubbed_with_flag, pages_scrubbed_baseline, "Scrub-under-target flag should increase update restores when enabled")
