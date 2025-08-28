@@ -58,6 +58,7 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_follow = None
 
     uri = 'layered:test_verify_disagg'
+    ingest_uri = 'file:test_verify_disagg.wt_ingest'
 
     def leader_put_data(self, value_prefix = '', low = 1, high = nitems):
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -87,14 +88,16 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
         if self.fill_hs:
             self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.timestamp))
 
-        # Create a table in the leader
+        # Create a layered table on the leader
         self.session.create(self.uri, self.table_cfg)
         # Verify the empty leader's table
         self.verify([self.session])
 
         # Create a follower
         self.create_follower()
-        # The leader's table stays empty, the follower creation doesn't mean loading tables from the leader (it requires reconfiguration)
+        # The leader's table stays empty, the follower creation doesn't mean loading tables
+        # from the leader (it requires reconfiguration). Followers are only able to create their
+        # ingest constituents. They see stable through checkpoint or step-up.
         self.verify([self.session])
         self.verify([self.session_follow], errno.ENOENT)
 
@@ -128,4 +131,20 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.conn_follow.close()
 
         # The leader is still alive, verify it.
+        self.verify([self.session])
+
+    def test_verify_ingest_busy_on_leader(self):
+        # Create a layered table on the leader
+        self.session.create(self.uri, self.table_cfg)
+        self.session.checkpoint()
+
+        # Open a cursor on the ingest component on leader
+        ingest_cursor = self.session.open_cursor(self.ingest_uri, None, None)
+
+        # Verify fails as the ingest table on leader has open cursors
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.verify([self.session]), '/ingest table on leader cannot be verified/')
+
+        ingest_cursor.close()
+
         self.verify([self.session])

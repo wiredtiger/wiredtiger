@@ -106,8 +106,10 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
         WT_WITHOUT_DHANDLE(session,
           ret = __wt_schema_worker(session, ingest_uri, file_func, name_func, cfg, open_flags));
         if (ret == EBUSY)
-            WT_ERR_MSG(session, ret,
-              "Verify (layered): ingest table %s on leader cannot be verified.", ingest_uri);
+            WT_ERR_MSG(session, WT_ERROR,
+              "Verify (layered): %s ingest table on leader cannot be verified. Returned EBUSY, "
+              "this is an invalid access pattern",
+              ingest_uri);
     }
 
     WT_WITHOUT_DHANDLE(session,
