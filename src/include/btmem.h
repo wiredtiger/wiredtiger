@@ -265,7 +265,7 @@ struct __wt_page_block_meta {
 
     uint32_t checksum;
 
-    size_t image_size;
+    size_t image_size; /* The in-memory size of the fully constructed page image. */
 
     WT_PAGE_LOG_ENCRYPTION encryption;
 
