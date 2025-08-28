@@ -723,6 +723,21 @@ __wt_evict_app_assist_worker_check(
     if (!__evict_check_user_ok_with_eviction(session, interruptible))
         return (0);
 
+    /* 
+     * If incremental application eviction flag is set, only involve 1/3 of application threads
+     * in eviction at once for each of the 3 cache triggers that have been reached
+     */
+    if (F_ISSET(&conn->cache_eviction_controls, WT_CACHE_EVICT_INCREMENTAL_APP)) {
+        if (!__wti_evict_updates_needed(session, NULL) && (session->id % 3 == 0 ))
+            return (0);
+
+        if (!__wt_evict_dirty_needed(session, NULL) && (session->id % 3 == 1 ))
+            return (0);
+    
+        if (!__wt_evict_clean_needed(session, NULL) && (session->id % 3 == 2 ))
+            return (0);
+    }
+
     /*
      * Some callers (those waiting for slow operations), will sleep if there was no cache work to
      * do. After this point, let them skip the sleep.
