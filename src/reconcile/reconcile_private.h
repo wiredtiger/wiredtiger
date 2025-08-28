@@ -167,10 +167,10 @@ struct __wti_reconcile {
     WT_PAGE *page;
     uint32_t flags; /* Caller's configuration */
 
-    /* Track the oldest running transaction. */
+    /* Track the last running transaction. */
     uint64_t last_running;
 
-    /* Track the oldest running id. This one doesn't consider checkpoint. */
+    /* Track the oldest id that is needed. */
     uint64_t rec_start_oldest_id;
 
     /* Track the pinned timestamp at the time reconciliation started. */
