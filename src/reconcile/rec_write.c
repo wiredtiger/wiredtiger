@@ -77,7 +77,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      * isolation.
      */
     WT_ASSERT_ALWAYS(session,
-      !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_ALL) ||
+      !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_CHECKPOINT) ||
         F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT),
       "Attempting an eviction with transaction visibility and no snapshot");
 
@@ -672,169 +672,145 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
         r->rec_prune_timestamp = WT_TS_NONE;
 
     /*
-     * Cache the last running transaction ID. This is used to check whether updates seen by
-     * reconciliation have committed. We keep a cached copy to avoid races where a concurrent
-     * transaction could abort while reconciliation is examining its updates. This way, any
-     * transaction running when reconciliation starts is considered uncommitted.
+     * Cache the checkpoint's pinned transaction ID. This forbids eviction to evict anything that is
+     * not visible to the current checkpoint.
      */
-    if (LF_ISSET(WT_REC_VISIBLE_ALL) || F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
+    if (LF_ISSET(WT_REC_VISIBLE_CHECKPOINT)) {
         WT_ASSERT(session, LF_ISSET(WT_REC_EVICT));
-        WT_TXN_GLOBAL *txn_global = &conn->txn_global;
-        WT_ACQUIRE_READ(r->last_running, txn_global->last_running);
+        WT_ACQUIRE_READ(
+          r->rec_start_ckpt_pinned_id, conn->txn_global.checkpoint_txn_shared.pinned_id);
+        if (r->rec_start_ckpt_pinned_id == WT_TXN_NONE)
+            WT_ACQUIRE_READ(r->rec_start_ckpt_pinned_id, conn->txn_global.last_running);
+    } else
+        r->rec_start_ckpt_pinned_id = WT_TXN_NONE;
 
-        /*
-         * The checkpoint transaction doesn't pin the oldest txn id, therefore the global
-         * last_running can move beyond the checkpoint transaction id. When reconciling the metadata
-         * or disaggregated shared metadata, we have to take checkpoints into account. Otherwise,
-         * eviction may evict the uncommitted checkpoint updates.
-         *
-         * If precise checkpoint is enabled and the eviction doesn't have a snapshot, we should
-         * consider the checkpoint's pinned id.
-         */
-        if (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) {
-            uint64_t ckpt_txn;
-            WT_ACQUIRE_READ(ckpt_txn, txn_global->checkpoint_txn_shared.id);
-            if (ckpt_txn != WT_TXN_NONE && ckpt_txn < r->last_running)
-                r->last_running = ckpt_txn;
-        } else if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
-            WT_ASSERT(session,
-              !F_ISSET(session, WT_SESSION_EVICTION) ||
-                !F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
-            uint64_t ckpt_pinned_id;
-            WT_ACQUIRE_READ(ckpt_pinned_id, txn_global->checkpoint_txn_shared.pinned_id);
-            if (ckpt_pinned_id != WT_TXN_NONE && ckpt_pinned_id < r->last_running)
-                r->last_running = ckpt_pinned_id;
-        }
-    }
-}
-else r->last_running = WT_TXN_NONE;
+    /* When operating on the history store table, we should never try history store eviction. */
+    WT_ASSERT_ALWAYS(session, !F_ISSET(btree->dhandle, WT_DHANDLE_HS) || !LF_ISSET(WT_REC_HS),
+      "Attempting history store eviction while operating on the history store table");
 
-/* When operating on the history store table, we should never try history store eviction. */
-WT_ASSERT_ALWAYS(session, !F_ISSET(btree->dhandle, WT_DHANDLE_HS) || !LF_ISSET(WT_REC_HS),
-  "Attempting history store eviction while operating on the history store table");
+    /*
+     * History store table eviction is configured when eviction gets aggressive, adjust the flags
+     * for cases we don't support.
+     */
 
-/*
- * History store table eviction is configured when eviction gets aggressive, adjust the flags for
- * cases we don't support.
- */
+    r->flags = flags;
 
-r->flags = flags;
+    /* Track the page's maximum transaction/timestamp. */
+    r->max_txn = WT_TXN_NONE;
+    r->max_ts = WT_TS_NONE;
 
-/* Track the page's maximum transaction/timestamp. */
-r->max_txn = WT_TXN_NONE;
-r->max_ts = WT_TS_NONE;
+    /* Track if updates were used and/or uncommitted. */
+    r->update_used = false;
 
-/* Track if updates were used and/or uncommitted. */
-r->update_used = false;
+    /* Track if the page can be marked clean. */
+    r->leave_dirty = false;
 
-/* Track if the page can be marked clean. */
-r->leave_dirty = false;
+    /* Track overflow items. */
+    r->ovfl_items = false;
 
-/* Track overflow items. */
-r->ovfl_items = false;
+    /* Track empty values. */
+    r->all_empty_value = true;
+    r->any_empty_value = false;
 
-/* Track empty values. */
-r->all_empty_value = true;
-r->any_empty_value = false;
+    /* The list of saved updates is reused. */
+    r->supd_next = 0;
+    r->supd_memsize = 0;
 
-/* The list of saved updates is reused. */
-r->supd_next = 0;
-r->supd_memsize = 0;
+    /* The list of updates to be deleted from the history store. */
+    r->delete_hs_upd_next = 0;
 
-/* The list of updates to be deleted from the history store. */
-r->delete_hs_upd_next = 0;
+    /* The list of pages we've written. */
+    r->multi = NULL;
+    r->multi_next = 0;
+    r->multi_allocated = 0;
 
-/* The list of pages we've written. */
-r->multi = NULL;
-r->multi_next = 0;
-r->multi_allocated = 0;
+    r->wrapup_checkpoint = NULL;
+    r->wrapup_checkpoint_compressed = false;
+    WT_CLEAR(r->wrapup_checkpoint_block_meta);
 
-r->wrapup_checkpoint = NULL;
-r->wrapup_checkpoint_compressed = false;
-WT_CLEAR(r->wrapup_checkpoint_block_meta);
+    /*
+     * Dictionary compression only writes repeated values once. We grow the dictionary as necessary,
+     * always using the largest size we've seen.
+     *
+     * Reset the dictionary.
+     *
+     * Sanity check the size: 100 slots is the smallest dictionary we use.
+     */
+    if (btree->dictionary != 0 && btree->dictionary > r->dictionary_slots)
+        WT_ERR(
+          __wti_rec_dictionary_init(session, r, btree->dictionary < 100 ? 100 : btree->dictionary));
+    __wti_rec_dictionary_reset(r);
 
-/*
- * Dictionary compression only writes repeated values once. We grow the dictionary as necessary,
- * always using the largest size we've seen.
- *
- * Reset the dictionary.
- *
- * Sanity check the size: 100 slots is the smallest dictionary we use.
- */
-if (btree->dictionary != 0 && btree->dictionary > r->dictionary_slots)
-    WT_ERR(
-      __wti_rec_dictionary_init(session, r, btree->dictionary < 100 ? 100 : btree->dictionary));
-__wti_rec_dictionary_reset(r);
+    /*
+     * Prefix compression discards repeated prefix bytes from row-store leaf page keys.
+     */
+    r->key_pfx_compress_conf = false;
+    if (btree->prefix_compression && page->type == WT_PAGE_ROW_LEAF)
+        r->key_pfx_compress_conf = true;
 
-/*
- * Prefix compression discards repeated prefix bytes from row-store leaf page keys.
- */
-r->key_pfx_compress_conf = false;
-if (btree->prefix_compression && page->type == WT_PAGE_ROW_LEAF)
-    r->key_pfx_compress_conf = true;
+    /*
+     * Suffix compression shortens internal page keys by discarding trailing bytes that aren't
+     * necessary for tree navigation. We don't do suffix compression if there is a custom collator
+     * because we don't know what bytes a custom collator might use. Some custom collators (for
+     * example, a collator implementing reverse ordering of strings), won't have any problem with
+     * suffix compression: if there's ever a reason to implement suffix compression for custom
+     * collators, we can add a setting to the collator, configured when the collator is added, that
+     * turns on suffix compression.
+     */
+    r->key_sfx_compress_conf = false;
+    if (btree->collator == NULL && btree->internal_key_truncate)
+        r->key_sfx_compress_conf = true;
 
-/*
- * Suffix compression shortens internal page keys by discarding trailing bytes that aren't necessary
- * for tree navigation. We don't do suffix compression if there is a custom collator because we
- * don't know what bytes a custom collator might use. Some custom collators (for example, a collator
- * implementing reverse ordering of strings), won't have any problem with suffix compression: if
- * there's ever a reason to implement suffix compression for custom collators, we can add a setting
- * to the collator, configured when the collator is added, that turns on suffix compression.
- */
-r->key_sfx_compress_conf = false;
-if (btree->collator == NULL && btree->internal_key_truncate)
-    r->key_sfx_compress_conf = true;
+    r->is_bulk_load = false;
 
-r->is_bulk_load = false;
+    r->salvage = salvage;
 
-r->salvage = salvage;
+    r->cache_write_hs = r->cache_write_restore_invisible = r->cache_upd_chain_all_aborted = false;
 
-r->cache_write_hs = r->cache_write_restore_invisible = r->cache_upd_chain_all_aborted = false;
+    /*
+     * The fake cursor used to figure out modified update values points to the enclosing WT_REF as a
+     * way to access the page, and also needs to set the format.
+     */
+    r->update_modify_cbt.ref = ref;
+    r->update_modify_cbt.iface.value_format = btree->value_format;
+    r->update_modify_cbt.upd_value = &r->update_modify_cbt._upd_value;
 
-/*
- * The fake cursor used to figure out modified update values points to the enclosing WT_REF as a way
- * to access the page, and also needs to set the format.
- */
-r->update_modify_cbt.ref = ref;
-r->update_modify_cbt.iface.value_format = btree->value_format;
-r->update_modify_cbt.upd_value = &r->update_modify_cbt._upd_value;
+    /* Clear stats related data. */
+    r->rec_page_cell_with_ts = false;
+    r->rec_page_cell_with_txn_id = false;
+    r->rec_page_cell_with_prepared_txn = false;
 
-/* Clear stats related data. */
-r->rec_page_cell_with_ts = false;
-r->rec_page_cell_with_txn_id = false;
-r->rec_page_cell_with_prepared_txn = false;
-
-/*
- * When removing a key due to a tombstone with a durable timestamp of "none", also remove the
- * history store contents associated with that key. It's safe to do even if we fail reconciliation
- * after the removal, the history store content must be obsolete in order for us to consider
- * removing the key.
- *
- * Ignore if this is metadata, as metadata doesn't have any history.
- *
- * Some code paths, such as schema removal, involve deleting keys in metadata and assert that they
- * shouldn't open new dhandles. In those cases we won't ever need to blow away history store
- * content, so we can skip this.
- */
-r->hs_clear_on_tombstone = F_ISSET_ATOMIC_32(conn, WT_CONN_HS_OPEN) &&
-  !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES) && !WT_IS_HS(btree->dhandle) &&
-  !WT_IS_METADATA(btree->dhandle);
+    /*
+     * When removing a key due to a tombstone with a durable timestamp of "none", also remove the
+     * history store contents associated with that key. It's safe to do even if we fail
+     * reconciliation after the removal, the history store content must be obsolete in order for us
+     * to consider removing the key.
+     *
+     * Ignore if this is metadata, as metadata doesn't have any history.
+     *
+     * Some code paths, such as schema removal, involve deleting keys in metadata and assert that
+     * they shouldn't open new dhandles. In those cases we won't ever need to blow away history
+     * store content, so we can skip this.
+     */
+    r->hs_clear_on_tombstone = F_ISSET_ATOMIC_32(conn, WT_CONN_HS_OPEN) &&
+      !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES) && !WT_IS_HS(btree->dhandle) &&
+      !WT_IS_METADATA(btree->dhandle);
 
 /*
  * If we allocated the reconciliation structure and there was an error, clean up. If our caller
  * passed in a structure, they own it.
  */
-err : if (*(WTI_RECONCILE **)reconcilep == NULL)
-{
-    if (ret == 0)
-        *(WTI_RECONCILE **)reconcilep = r;
-    else {
-        WT_TRET(__rec_cleanup(session, r));
-        WT_TRET(__rec_destroy(session, &r));
+err:
+    if (*(WTI_RECONCILE **)reconcilep == NULL) {
+        if (ret == 0)
+            *(WTI_RECONCILE **)reconcilep = r;
+        else {
+            WT_TRET(__rec_cleanup(session, r));
+            WT_TRET(__rec_destroy(session, &r));
+        }
     }
-}
 
-return (ret);
+    return (ret);
 }
 
 /*
