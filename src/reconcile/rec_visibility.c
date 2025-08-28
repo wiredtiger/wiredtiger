@@ -287,7 +287,7 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
         if ((txnid = delete_upd->txnid) == WT_TXN_ABORTED)
             continue;
 
-        if (!seen_committed && upd_select->tw.start_ts != txnid)
+        if (!seen_committed && upd_select->tw.start_txn != txnid)
             seen_committed = true;
 
         if (F_ISSET(delete_upd, WT_UPDATE_HS_MAX_STOP)) {
