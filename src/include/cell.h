@@ -181,6 +181,7 @@ struct __wt_delta_cell_leaf {
      * This calculation is pessimistic: the timestamps are optional.
      */
     uint8_t __chunk[65];
+};
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CELL_UNPACK_OVERFLOW 0x1u            /* cell is an overflow */
