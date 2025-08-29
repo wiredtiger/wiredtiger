@@ -941,7 +941,7 @@ functions:
         }
 
         for i in $(seq ${times|1}); do
-          ./t -c ${config|../../../test/format/CONFIG.stress} ${trace_args|-T bulk,txn,retain=50} ${test_format_extra_args|} || fail
+          ./t -c ${config|../../../test/format/CONFIG.disagg} ${trace_args|-T bulk,txn,retain=50} ${test_format_extra_args|} || fail
         done
   "format test predictable":
     command: shell.exec
@@ -1436,7 +1436,7 @@ variables:
           <<: *configure_flags_with_builtins
       - func: "format test script"
         vars:
-          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 60
 
   - &format-stress-asan-ppc-test
     exec_timeout_secs: 25200
@@ -1450,7 +1450,7 @@ variables:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           # Always disable mmap for PPC due to issues on variant setup.
           # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
-          format_test_script_args: -t 360 -- -C "mmap=false,mmap_all=false"
+          format_test_script_args: -t 60 -- -C "mmap=false,mmap_all=false"
 
   - &format-stress-asan-test
     exec_timeout_secs: 25200
@@ -1462,7 +1462,7 @@ variables:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 360
+          format_test_script_args: -t 60
 
   - &race-condition-stress-asan-test
     exec_timeout_secs: 25200
@@ -4235,7 +4235,7 @@ tasks:
           NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
       - func: "format test script"
         vars:
-          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 60
 
   - name: format-stress-asan-test-no-barrier
     tags: ["stress-test-asan"]
@@ -4249,7 +4249,7 @@ tasks:
       - func: "format test script"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -t 360
+          format_test_script_args: -t 60
 
   - name: race-condition-stress-asan-test-no-barrier
     tags: ["stress-test-asan"]
@@ -4263,7 +4263,7 @@ tasks:
       - func: "format test script"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -R -t 360
+          format_test_script_args: -R -t 60
 
   - name: recovery-stress-test-no-barrier
     tags: ["stress-test-no-barrier"]

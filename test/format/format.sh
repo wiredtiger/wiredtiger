@@ -89,7 +89,7 @@ directory_total=0
 
 abort_test=0
 build=""
-config="CONFIG.stress"
+config="../../../test/format/CONFIG.disagg"
 first_failure=0
 format_args=""
 format_binary="./t"
