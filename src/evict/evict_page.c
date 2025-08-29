@@ -1012,8 +1012,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
         if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && !F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
             uint64_t btree_ckpt_gen, ckpt_gen;
             /*
-             * If precise checkpoint is configured, only evict the globally visible updates in terms
-             * of transaction id for trees haven't been visited by the checkpoint.
+             * If precise checkpoint is configured, only evict the updates that visible to the
+             * ongoing checkpoint for trees haven't been visited by the checkpoint.
              */
             WT_ACQUIRE_READ(btree_ckpt_gen, btree->checkpoint_gen);
             ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
