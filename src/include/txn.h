@@ -415,7 +415,7 @@ struct __wt_txn {
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
 
-    uint8_t modify_block_count;
+    uint16_t modify_block_count;
 
     /*
      * Zero or more bytes of value (the payload) immediately follows the WT_TXN structure. We use a

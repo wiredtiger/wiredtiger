@@ -1822,6 +1822,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     txn->commit_timestamp = WT_TS_NONE;
     txn->durable_timestamp = WT_TS_NONE;
     txn->first_commit_timestamp = WT_TS_NONE;
+    txn->modify_block_count = 0;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
 
@@ -2075,9 +2076,8 @@ __txn_modify_block(
             ++txn->modify_block_count;
             __wt_verbose_level(session, WT_VERB_TRANSACTION,
               txn->modify_block_count >= 100 ? WT_VERBOSE_INFO : WT_VERBOSE_DEBUG_1,
-              "Conflict with %s update with txn id %" PRIu64
+              "Conflict with update with txn id %" PRIu64
               " at start timestamp: %s, prepare timestamp: %s",
-              F_ISSET(txn, WT_TXN_PREPARE) ? "prepared" : "", upd->txnid,
               __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
               __wt_timestamp_to_string(upd->prepare_ts, ts_string[1]));
             rollback = true;
@@ -2148,10 +2148,6 @@ __txn_modify_block(
             }
             __wt_verbose_level(session, WT_VERB_TRANSACTION, level, "%s", (const char *)buf->data);
         }
-
-        /* Reset modify_block_count to prevent int overflow.*/
-        if (txn->modify_block_count >= 100)
-            txn->modify_block_count = 100;
 
         WT_STAT_CONN_DSRC_INCR(session, txn_update_conflict);
         ret = WT_ROLLBACK;
