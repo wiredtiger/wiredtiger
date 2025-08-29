@@ -8,7 +8,25 @@
 
 #include "wt_internal.h"
 
-/* can make this a config? */
+/*
+ * Design a data structure to store all the identified prepared transactions and their updates in
+ * recovery. The prototype implementation stores the updates in an internal session and uses an
+ * array to store the internal sessions with prepared transactions.
+ *
+ * This approach limits the number of prepared transactions to the number of sessions we can
+ * concurrently open, which is not scalable.
+ *
+ * We need to design a data structure to allow us store arbitrary number of prepared transactions in
+ * recovery.
+ *
+ * A simple idea is to create a structure __wt_pending_prepared_item to store all the WT_TXN_OP of a
+ * prepared transaction without initializing a real session and transaction. Then we can use a
+ * hashmap to identify the prepared transaction with its prepared id.
+ *
+ * Hash size of 64 provides a reasonable balance between memory usage and lookup performance for
+ * typical workloads. This can be made configurable in the future if needed for specific use cases
+ * with very high numbers of prepared transactions.
+ */
 #define WT_DEFAULT_PENDING_PREPARED_DISCOVER_HASHSIZE 64
 
 /*
@@ -51,7 +69,8 @@ __pending_prepare_items_init(
     WT_ASSERT(session, (hash_size & (hash_size - 1)) == 0);
 
     pending_prepare_items->hash_size = hash_size;
-    WT_RET(__wt_calloc_def(session, pending_prepare_items->hash_size, &pending_prepare_items->hash));
+    WT_RET(
+      __wt_calloc_def(session, pending_prepare_items->hash_size, &pending_prepare_items->hash));
     for (uint64_t i = 0; i < pending_prepare_items->hash_size; i++) {
         TAILQ_INIT(&pending_prepare_items->hash[i]); /* hash lists */
     }
@@ -111,18 +130,11 @@ __wti_prepared_discover_add_artifact_upd(
 
     WT_RET(__wt_pending_prepared_next_op(session, &op, prepared_item));
     WT_RET(__wt_op_modify(session, upd, op));
-    /*
-     * Copy the key into the transaction operation, so it can be used to find the update later.
-     */
 
     WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW);
-
     /*
      * Copy the key into the transaction operation structure, so when update is evicted to the
-     * history store, we have a chance of finding it again. Even though only prepared updates can be
-     * evicted, at this stage we don't know whether this transaction will be prepared or not, hence
-     * we are copying the key for all operations, so that we can use this key to fetch the update in
-     * case this transaction is prepared.
+     * history store, we can still find it.
      */
     WT_RET(__wt_buf_set(session, &op->u.op_row.key, key->data, key->size));
 #ifdef HAVE_DIAGNOSTIC

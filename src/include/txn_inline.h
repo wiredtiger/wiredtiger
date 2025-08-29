@@ -1834,7 +1834,7 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, wt_timestamp_t prepared_tr
     txn->mod = prepared_item->mod;
     txn->mod_alloc = prepared_item->mod_alloc;
     txn->mod_count = prepared_item->mod_count;
-    
+
     prepared_item->mod = tmp_mod;
     prepared_item->mod_alloc = 0;
     prepared_item->mod_count = 0;
