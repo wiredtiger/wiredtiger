@@ -1530,7 +1530,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
              * retain all the older updates until a full value is found.
              */
             if (WT_TIME_WINDOW_HAS_START_PREPARE(&supd->tw)) {
-                bool find_next_value = false;
                 for (tmp = supd->onpage_upd->next; tmp != NULL; tmp = tmp->next) {
                     /*
                      * We can get away not using an ordered read here as we can simply skip aborted
@@ -1544,13 +1543,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                     if (txnid == supd->tw.start_txn)
                         continue;
 
-                    /* We are looking for a full update. */
-                    if (!find_next_value && tmp->type == WT_UPDATE_TOMBSTONE)
-                        continue;
-
-                    find_next_value = true;
-
-                    if (WT_UPDATE_DATA_VALUE(tmp))
+                    if (tmp->type == WT_UPDATE_STANDARD)
                         break;
                 }
 
