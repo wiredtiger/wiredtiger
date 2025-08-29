@@ -5623,6 +5623,7 @@ struct __wt_page_log_put_args {
        uint64_t base_lsn;
        uint64_t backlink_checkpoint_id;
        uint64_t base_checkpoint_id;
+       size_t image_size;
 
        WT_PAGE_LOG_ENCRYPTION encryption;
 
