@@ -33,7 +33,7 @@ endif()
 # Smoke-test wtperf as part of running "ctest check".
 define_test_variants(wtperf
     VARIANTS
-        "small_btree|-O \"${CMAKE_CURRENT_SOURCE_DIR}/runners/small-btree.wtperf\" -o \"run_time=20\""
+        "test_wtperf_small_btree;-O \"${CMAKE_CURRENT_SOURCE_DIR}/runners/small-btree.wtperf\" -o \"run_time=20\""
     LABELS
         check
         wtperf
