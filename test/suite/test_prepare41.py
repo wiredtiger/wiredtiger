@@ -86,7 +86,7 @@ class test_prepare41(test_prepare_preserve_prepare_base):
         session_evict.rollback_transaction()
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
-        # We should not crash
+        # Step 5: Do a checkpoint to insert updates to the history store again.
         self.session.checkpoint()
 
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(25))
@@ -141,7 +141,7 @@ class test_prepare41(test_prepare_preserve_prepare_base):
         session_evict.rollback_transaction()
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
-        # We should not crash
+        # Step 5: Do a checkpoint to insert updates to the history store again.
         self.session.checkpoint()
 
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(25))
