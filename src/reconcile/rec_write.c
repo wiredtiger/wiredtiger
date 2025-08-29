@@ -893,6 +893,11 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
 
     *(WTI_RECONCILE **)reconcilep = NULL;
 
+    for (size_t i = 0; i < r->multi_next; i++) {
+        if (r->multi[i].block_meta != NULL)
+            __wt_free(session, r->multi[i].block_meta);
+    }
+
     __wt_buf_free(session, &r->chunk_A.key);
     __wt_buf_free(session, &r->chunk_A.key_at_split_boundary);
     __wt_buf_free(session, &r->chunk_A.image);
@@ -2779,8 +2784,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         return (__wt_illegal_value(session, page->type));
     }
     multi->supd_restore = false;
-    if (page->disagg_info != NULL)
-        WT_RET(__wt_calloc_one(session, &multi->block_meta));
 
     /* Set the key. */
     if (btree->type == BTREE_ROW)
@@ -2804,6 +2807,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
             return (0);
         }
     }
+
+    if (page->disagg_info != NULL)
+        WT_RET(__wt_calloc_one(session, &multi->block_meta));
+    else
+        multi->block_meta = NULL;
 
     /* Initialize the page header(s). */
     __rec_split_write_header(session, r, chunk, multi, chunk->image.mem);
@@ -3355,8 +3363,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                 r->multi->addr.block_cookie = NULL;
                 mod->mod_disk_image = r->multi->disk_image;
                 r->multi->disk_image = NULL;
-                if (page->disagg_info != NULL)
+                if (page->disagg_info != NULL) {
                     page->disagg_info->block_meta = *r->multi->block_meta;
+                    __wt_free(session, r->multi->block_meta);
+                }
                 WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
             } else
                 WT_ASSERT(
