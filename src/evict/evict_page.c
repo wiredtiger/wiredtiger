@@ -1038,9 +1038,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
         }
 
         LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
-    } else if (!WT_SESSION_BTREE_SYNC(session)) {
+    } else if (!WT_SESSION_BTREE_SYNC(session))
         LF_SET(WT_REC_VISIBLE_CHECKPOINT);
-    }
 
     WT_ASSERT(
       session, LF_ISSET(WT_REC_VISIBLE_CHECKPOINT) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));

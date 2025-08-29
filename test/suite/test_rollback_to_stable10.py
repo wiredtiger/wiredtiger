@@ -213,7 +213,6 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         ds_2.populate()
 
         if self.value_format == '8t':
-            nrows *= 2
             value_a = 97
             value_b = 98
             value_c = 99
@@ -278,6 +277,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
                 cursor.set_value(value)
                 self.assertEqual(cursor.update(), 0)
             self.pr("prepare")
+            cursor.reset()
             session.prepare_transaction(prepare_config)
 
         # Create a checkpoint thread
