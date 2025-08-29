@@ -101,7 +101,7 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     if (conn->layered_table_manager.leader) {
         /*
          * On leader, if verifying ingest returns EBUSY, it means ingest is not empty (dirty
-         * content, open cursors, or checkpoints present), which is a fatal violation.
+         * content, open cursors, or checkpoints present), which is an invalid state.
          */
         WT_WITHOUT_DHANDLE(session,
           ret = __wt_schema_worker(session, ingest_uri, file_func, name_func, cfg, open_flags));
