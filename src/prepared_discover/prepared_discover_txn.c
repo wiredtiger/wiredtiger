@@ -8,25 +8,6 @@
 
 #include "wt_internal.h"
 
-/*
- * Design a data structure to store all the identified prepared transactions and their updates in
- * recovery. The prototype implementation stores the updates in an internal session and uses an
- * array to store the internal sessions with prepared transactions.
- *
- * This approach limits the number of prepared transactions to the number of sessions we can
- * concurrently open, which is not scalable.
- *
- * We need to design a data structure to allow us store arbitrary number of prepared transactions in
- * recovery.
- *
- * A simple idea is to create a structure __wt_pending_prepared_item to store all the WT_TXN_OP of a
- * prepared transaction without initializing a real session and transaction. Then we can use a
- * hashmap to identify the prepared transaction with its prepared id.
- *
- * Hash size of 64 provides a reasonable balance between memory usage and lookup performance for
- * typical workloads. This can be made configurable in the future if needed for specific use cases
- * with very high numbers of prepared transactions.
- */
 #define WT_DEFAULT_PENDING_PREPARED_DISCOVER_HASHSIZE 64
 
 /*
