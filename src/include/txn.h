@@ -140,6 +140,31 @@ struct __wt_txn_shared {
     WT_CACHE_LINE_PAD_END
 };
 
+/*
+ * WT_TXN_PREPARED --
+ *	A structure to store the transactions prepared operations.
+ */
+struct __wt_pending_prepared_item {
+    TAILQ_ENTRY(__wt_pending_prepared_item) hashq;
+    uint64_t prepared_id;
+    WT_TXN_OP *mod;
+    size_t mod_alloc;
+    u_int mod_count;
+#ifdef HAVE_DIAGNOSTIC
+    u_int prepare_count;
+#endif
+};
+
+/*
+ * Hash map for pending prepared transactions that are available to be claimed. Populated by a
+ * prepared transactions cursor, and cleaned up when the cursor is closed. No need for concurrency
+ * control on making changes to the list.
+ */
+struct __wt_pending_prepared_map {
+    TAILQ_HEAD(__wt_pending_prepared_hash, __wt_pending_prepared_item) * hash;
+    u_int hash_size; /* Number of hash buckets */
+};
+
 struct __wt_txn_global {
     wt_shared volatile uint64_t current; /* Current transaction ID. */
 
@@ -195,14 +220,7 @@ struct __wt_txn_global {
 
     WT_TXN_SHARED *txn_shared_list; /* Per-session shared transaction states */
 
-    /*
-     * A list of prepared transactions that are available to be claimed. Populated by a prepared
-     * transactions cursor, and cleaned up when the cursor is closed. No need for concurrency
-     * control on making changes to the list.
-     */
-    WT_SESSION_IMPL **pending_prepared_sessions;
-    size_t pending_prepared_sessions_allocated;
-    u_int pending_prepared_sessions_count;
+    WT_PENDING_PREPARED_MAP pending_prepare_items;
 };
 
 typedef enum __wt_txn_isolation {
