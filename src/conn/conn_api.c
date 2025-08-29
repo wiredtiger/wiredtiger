@@ -2921,11 +2921,11 @@ __conn_version_verify(WT_SESSION_IMPL *session)
 }
 
 /*
- * __conn_set_global_lsn_uint --
- *     Set the global LSN.
+ * __conn_set_context_uint --
+ *     Set a global context parameter.
  */
 static int
-__conn_set_global_lsn_uint(WT_CONNECTION *wt_conn, WT_GLOBAL_LSN_TYPE which, uint64_t lsn)
+__conn_set_context_uint(WT_CONNECTION *wt_conn, WT_CONTEXT_TYPE which, uint64_t value)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -2933,11 +2933,11 @@ __conn_set_global_lsn_uint(WT_CONNECTION *wt_conn, WT_GLOBAL_LSN_TYPE which, uin
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
-    CONNECTION_API_CALL_NOCONF(conn, session, set_global_lsn_uint);
+    CONNECTION_API_CALL_NOCONF(conn, session, set_context_uint);
 
     switch (which) {
-    case WT_GLOBAL_LSN_TYPE_LAST_MATERIALIZED:
-        WT_ERR(__wti_disagg_set_last_materialized_lsn(session, lsn));
+    case WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN:
+        WT_ERR(__wti_disagg_set_last_materialized_lsn(session, value));
         break;
     }
 
@@ -2958,7 +2958,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
       __conn_open_session, __conn_query_timestamp, __conn_set_timestamp, __conn_rollback_to_stable,
       __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
       __conn_add_encryptor, __conn_set_file_system, __conn_add_page_log, __conn_add_storage_source,
-      __conn_get_page_log, __conn_get_storage_source, __conn_set_global_lsn_uint,
+      __conn_get_page_log, __conn_get_storage_source, __conn_set_context_uint,
       __conn_get_extension_api};
     static const WT_NAME_FLAG file_types[] = {
       {"data", WT_FILE_TYPE_DATA}, {"log", WT_FILE_TYPE_LOG}, {NULL, 0}};

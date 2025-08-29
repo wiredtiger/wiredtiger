@@ -2041,10 +2041,10 @@ struct __wt_session {
 #endif
 };
 
-/*! WT_CONNECTION::set_global_lsn_uint LSN types */
+/*! WT_CONNECTION::set_context_uint types */
 typedef enum {
-    WT_GLOBAL_LSN_TYPE_LAST_MATERIALIZED, /*!< The LSN of the last materialized log entry. */
-} WT_GLOBAL_LSN_TYPE;
+    WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN, /*!< The LSN of the last materialized page log entry. */
+} WT_CONTEXT_TYPE;
 
 /*!
  * A connection to a WiredTiger database.  The connection may be opened within
@@ -2916,17 +2916,18 @@ struct __wt_connection {
         WT_STORAGE_SOURCE **storage_sourcep);
 
     /*!
-     * Set a global log sequence number (LSN).
+     * Set a global context parameter, which tells WiredTiger about relevant changes
+     * in the running system, such as the state of the page log service.
      *
-     * @snippet ex_all.c Set the last materialized LSN
+     * @snippet ex_all.c Set the last materialized page log LSN by the page log service
      *
      * @param connection the connection handle
-     * @param which the LSN being set (see ::WT_GLOBAL_LSN_TYPE for available options).
-     * @param lsn the LSN.
+     * @param which the context parameter being set (see ::WT_CONTEXT_TYPE for available options).
+     * @param value the value
      * @errors
      */
-    int __F(set_global_lsn_uint)(WT_CONNECTION *connection, WT_GLOBAL_LSN_TYPE which,
-        uint64_t lsn);
+    int __F(set_context_uint)(WT_CONNECTION *connection, WT_CONTEXT_TYPE which,
+        uint64_t value);
 #endif
 
     /*!

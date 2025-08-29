@@ -86,8 +86,8 @@ class test_layered39(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 if i % 20_000 == 0:
                     self.conn.reconfigure(f'disaggregated=(last_materialized_lsn={last_lsn})')
                 else:
-                    self.conn.set_global_lsn_uint(wiredtiger.WT_GLOBAL_LSN_TYPE_LAST_MATERIALIZED,
-                                                  last_lsn)
+                    self.conn.set_context_uint(wiredtiger.WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN,
+                                               last_lsn)
         cursor.close()
 
         self.pr(f'cache_scrub_restore = {self.get_stat(wiredtiger.stat.conn.cache_scrub_restore)}')
