@@ -893,11 +893,6 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
 
     *(WTI_RECONCILE **)reconcilep = NULL;
 
-    for (size_t i = 0; i < r->multi_next; i++) {
-        if (r->multi[i].block_meta != NULL)
-            __wt_free(session, r->multi[i].block_meta);
-    }
-
     __wt_buf_free(session, &r->chunk_A.key);
     __wt_buf_free(session, &r->chunk_A.key_at_split_boundary);
     __wt_buf_free(session, &r->chunk_A.image);
