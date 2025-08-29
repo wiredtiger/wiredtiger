@@ -487,7 +487,8 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          */
         WT_ASSERT(session,
           !F_ISSET(r, WT_REC_EVICT) ||
-            (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || WT_IS_METADATA(btree->dhandle)));
+            (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || WT_IS_METADATA(btree->dhandle) ||
+              WT_IS_DISAGG_META(btree->dhandle)));
     } else {
         /*
          * We set the page state to mark it as having been dirtied for the first time prior to
