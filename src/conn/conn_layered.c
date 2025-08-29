@@ -231,15 +231,15 @@ __disagg_put_meta(WT_SESSION_IMPL *session, uint64_t page_id, const WT_ITEM *ite
     disagg = &conn->disaggregated_storage;
 
     WT_CLEAR(put_args);
-    if (disagg->page_log_meta != NULL) {
-        WT_RET(disagg->page_log_meta->plh_put(
-          disagg->page_log_meta, &session->iface, page_id, 0, &put_args, item));
-        if (lsnp != NULL)
-            *lsnp = put_args.lsn;
-        __wt_atomic_addv64(&disagg->num_meta_put, 1);
-        return (0);
-    }
-    return (ENOTSUP);
+    if (disagg->page_log_meta == NULL)
+        return (ENOTSUP);
+
+    WT_RET(disagg->page_log_meta->plh_put(
+      disagg->page_log_meta, &session->iface, page_id, 0, &put_args, item));
+    if (lsnp != NULL)
+        *lsnp = put_args.lsn;
+    __wt_atomic_addv64(&disagg->num_meta_put, 1);
+    return (0);
 }
 
 /*
