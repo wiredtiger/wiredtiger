@@ -5,7 +5,7 @@ create_test_executable(test_huge
 
 define_test_variants(test_huge
     VARIANTS
-        "small|-s"
+        "test_huge_small;-s"
     LABELS
         check
 )
