@@ -756,7 +756,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
         /*
          * Special handling for application threads evicting their own updates.
          */
-        if (!is_hs_page && F_ISSET(r, WT_REC_APP_EVICTION_SNAPSHOT) && txnid == session_txnid) {
+        if (!is_hs_page && F_ISSET(r, WT_REC_APP_EVICTION_SNAPSHOT) &&
+          session_txnid != WT_TXN_NONE && txnid == session_txnid) {
             *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
             *has_newer_updatesp = true;
             continue;
