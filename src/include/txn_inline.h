@@ -2078,7 +2078,7 @@ __txn_modify_block(
               txn->modify_block_count >= 100 ? WT_VERBOSE_INFO : WT_VERBOSE_DEBUG_1,
               "Conflict with update with txn id %" PRIu64
               " at start timestamp: %s, prepare timestamp: %s",
-              __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
+              upd->txnid, __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
               __wt_timestamp_to_string(upd->prepare_ts, ts_string[1]));
             rollback = true;
             break;
