@@ -3358,10 +3358,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                 r->multi->addr.block_cookie = NULL;
                 mod->mod_disk_image = r->multi->disk_image;
                 r->multi->disk_image = NULL;
-                if (page->disagg_info != NULL) {
+                if (page->disagg_info != NULL)
                     page->disagg_info->block_meta = *r->multi->block_meta;
-                    __wt_free(session, r->multi->block_meta);
-                }
                 WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
             } else
                 WT_ASSERT(
