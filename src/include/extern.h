@@ -263,7 +263,7 @@ extern int __wt_btcur_reset(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((wa
 extern int __wt_btcur_search(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
+extern int __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp, bool *has_onpagep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_update(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btree_close(WT_SESSION_IMPL *session)
@@ -2408,7 +2408,6 @@ static WT_INLINE void __wt_timing_stress_sleep_random(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_tree_modify_set(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_txn_cursor_op(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_txn_err_set(WT_SESSION_IMPL *session, int ret);
-static WT_INLINE void __wt_txn_mark_upd_to_delete_from_hs(WT_SESSION_IMPL *session, WT_UPDATE *upd);
 static WT_INLINE void __wt_txn_op_delete_apply_prepare_state(
   WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit);
 static WT_INLINE void __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno);
