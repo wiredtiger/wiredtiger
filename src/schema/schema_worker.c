@@ -107,8 +107,8 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
           ret = __wt_schema_worker(session, ingest_uri, file_func, name_func, cfg, open_flags));
         if (ret == EBUSY)
             WT_ERR_MSG(session, WT_ERROR,
-              "Verify (layered): %s ingest table on leader cannot be verified. Returned EBUSY, "
-              "this is an invalid access pattern",
+              "Verify (layered): %s ingest table on leader cannot be verified. "
+              "Ingest contains dirty content or open cursors, which is an invalid state.",
               ingest_uri);
     }
 
