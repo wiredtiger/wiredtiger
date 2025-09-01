@@ -27,8 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_prepare_discover01.py
-#   Test discovering prepared transaction artifacts after recovery
-#
+#   Test that pending prepared transaction artifacts can be discovered after recovery
+#   and rolled back
 
 import random, sys
 from suite_subprocess import suite_subprocess
