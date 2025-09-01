@@ -426,7 +426,7 @@ __wt_update_obsolete_check(
          */
         if (__wt_txn_upd_visible_all(session, upd) ||
           (F_ISSET(CUR2BT(cbt), WT_BTREE_GARBAGE_COLLECT) &&
-            (WT_TXNID_LT(upd->txnid, oldest_id) && prune_timestamp != WT_TS_NONE &&
+            (upd->txnid < oldest_id && prune_timestamp != WT_TS_NONE &&
               upd->upd_durable_ts <= prune_timestamp))) {
             if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
                 first = upd;
