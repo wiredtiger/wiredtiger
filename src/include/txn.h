@@ -149,9 +149,9 @@ struct __wt_pending_prepared_item {
     uint64_t prepared_id;
     WT_TXN_OP *mod;
     size_t mod_alloc;
-    u_int mod_count;
+    uint32_t mod_count;
 #ifdef HAVE_DIAGNOSTIC
-    u_int prepare_count;
+    uint32_t prepare_count;
 #endif
 };
 
@@ -162,7 +162,7 @@ struct __wt_pending_prepared_item {
  */
 struct __wt_pending_prepared_map {
     TAILQ_HEAD(__wt_pending_prepared_hash, __wt_pending_prepared_item) * hash;
-    u_int hash_size; /* Number of hash buckets */
+    uint64_t /* Number of hash buckets */
 };
 
 struct __wt_txn_global {

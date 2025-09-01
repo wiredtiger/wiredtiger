@@ -1819,8 +1819,7 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, wt_timestamp_t prepared_tr
     WT_TXN *txn;
     WT_TXN_OP *tmp_mod;
     txn = session->txn;
-    WT_RET(
-      __wt_prepared_discover_find_transaction(session, prepared_transaction_id, &prepared_item));
+    WT_RET(__wt_prepared_discover_find_item(session, prepared_transaction_id, &prepared_item));
     F_SET(txn, WT_TXN_PREPARE | WT_TXN_HAS_PREPARED_ID | WT_TXN_RUNNING);
     txn->prepared_id = prepared_transaction_id;
     txn->prepare_timestamp = prepared_transaction_id;

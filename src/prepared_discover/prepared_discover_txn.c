@@ -11,11 +11,11 @@
 #define WT_DEFAULT_PENDING_PREPARED_DISCOVER_HASHSIZE 64
 
 /*
- * __wt_prepared_discover_find_transaction --
- *     Find a prepared transaction by its ID in the pending prepared transactions hash map.
+ * __wt_prepared_discover_find_item --
+ *     Find a pending prepared item by its ID in the pending prepared items hash map.
  */
 int
-__wt_prepared_discover_find_transaction(WT_SESSION_IMPL *session, uint64_t prepare_transaction_id,
+__wt_prepared_discover_find_item(WT_SESSION_IMPL *session, uint64_t prepare_transaction_id,
   WT_PENDING_PREPARED_ITEM **prepared_item)
 {
     WT_CONNECTION_IMPL *conn;
@@ -59,14 +59,14 @@ __pending_prepare_items_init(
 }
 
 /*
- * __prepared_discover_find_or_create_transaction --
+ * __prepared_discover_find_or_create_item --
  *     We have learned that a prepared transaction with a particular ID exists. If this is the first
- *     time it's been noticed, create a transaction corresponding to it. Otherwise return the
- *     matching transaction.
+ *     time it's been noticed, create an item corresponding to it. Otherwise return the matching
+ *     item.
  */
 static int
-__prepared_discover_find_or_create_transaction(WT_SESSION_IMPL *session,
-  uint64_t prepare_transaction_id, WT_PENDING_PREPARED_ITEM **prepared_item)
+__prepared_discover_find_or_create_item(WT_SESSION_IMPL *session, uint64_t prepare_transaction_id,
+  WT_PENDING_PREPARED_ITEM **prepared_item)
 {
     WT_CONNECTION_IMPL *conn;
     WT_PENDING_PREPARED_ITEM *item;
@@ -74,8 +74,7 @@ __prepared_discover_find_or_create_transaction(WT_SESSION_IMPL *session,
     WT_TXN_GLOBAL *txn_global;
     uint64_t bucket;
 
-    if (__wt_prepared_discover_find_transaction(session, prepare_transaction_id, prepared_item) ==
-      0)
+    if (__wt_prepared_discover_find_item(session, prepare_transaction_id, prepared_item) == 0)
         return (0);
 
     conn = S2C(session);
@@ -106,8 +105,8 @@ __wti_prepared_discover_add_artifact_upd(
     WT_PENDING_PREPARED_ITEM *prepared_item;
     WT_TXN_OP *op;
 
-    WT_RET(__prepared_discover_find_or_create_transaction(
-      session, prepare_transaction_id, &prepared_item));
+    WT_RET(
+      __prepared_discover_find_or_create_item(session, prepare_transaction_id, &prepared_item));
 
     WT_RET(__wt_pending_prepared_next_op(session, &op, prepared_item));
     WT_RET(__wt_op_modify(session, upd, op));
