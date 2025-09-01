@@ -141,7 +141,7 @@ struct __wt_txn_shared {
 };
 
 /*
- * WT_TXN_PREPARED --
+ * WT_PENDING_PREPARED_ITEM --
  *	A structure to store the transactions prepared operations.
  */
 struct __wt_pending_prepared_item {
@@ -156,13 +156,13 @@ struct __wt_pending_prepared_item {
 };
 
 /*
- * Hash map for pending prepared transactions that are available to be claimed. Populated by a
- * prepared transactions cursor, and cleaned up when the cursor is closed. No need for concurrency
- * control on making changes to the list.
+ * WT_PENDING_PREPARED_MAP -- Hash map for pending prepared transactions that are available to be
+ * claimed. Populated by a prepared transactions cursor, and cleaned up when the cursor is closed.
+ * No need for concurrency control on making changes to the list.
  */
 struct __wt_pending_prepared_map {
     TAILQ_HEAD(__wt_pending_prepared_hash, __wt_pending_prepared_item) * hash;
-    uint64_t /* Number of hash buckets */
+    uint64_t hash_size; /* Number of hash buckets */
 };
 
 struct __wt_txn_global {
