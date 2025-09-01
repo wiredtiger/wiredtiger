@@ -318,7 +318,7 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
  */
 static WT_INLINE int
 __wt_pending_prepared_next_op(
-  WT_SESSION_IMPL *session, WT_TXN_OP **opp, WT_PENDING_PREPARED_ITEM *prepared_item)
+  WT_SESSION_IMPL *session, WT_TXN_OP **opp, WT_PENDING_PREPARED_ITEM *prepared_item, WT_ITEM *key)
 {
     WT_BTREE *btree;
     WT_TXN_OP *op;
@@ -333,12 +333,17 @@ __wt_pending_prepared_next_op(
     btree = S2BT(session);
     op->btree = btree;
 
-    /* 
-     * Increment the session use count for the data handle.
-     * This counter always increases in __txn_next_op decreased in __wt_txn_op_free so we need to
-     * match the behaviour here.
+    /*
+     * Increment the session use count for the data handle. This counter always increases in
+     * __txn_next_op decreased in __wt_txn_op_free so we need to match that here.
      */
     (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
+
+    /*
+     * Copy the key into the transaction operation structure, so when update is evicted to the
+     * history store, we can still find it.
+     */
+    WT_RET(__wt_buf_set(session, &op->u.op_row.key, key->data, key->size));
     *opp = op;
     return (0);
 }

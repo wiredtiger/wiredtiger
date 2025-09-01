@@ -380,7 +380,7 @@ struct __wt_txn {
     /* Array of modifications by this transaction. */
     WT_TXN_OP *mod;
     size_t mod_alloc;
-    u_int mod_count;
+    uint32_t mod_count;
 #ifdef HAVE_DIAGNOSTIC
     u_int prepare_count;
 #endif

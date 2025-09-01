@@ -108,15 +108,11 @@ __wti_prepared_discover_add_artifact_upd(
     WT_RET(
       __prepared_discover_find_or_create_item(session, prepare_transaction_id, &prepared_item));
 
-    WT_RET(__wt_pending_prepared_next_op(session, &op, prepared_item));
+    WT_RET(__wt_pending_prepared_next_op(session, &op, prepared_item, key));
     WT_RET(__wt_op_modify(session, upd, op));
 
     WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW);
-    /*
-     * Copy the key into the transaction operation structure, so when update is evicted to the
-     * history store, we can still find it.
-     */
-    WT_RET(__wt_buf_set(session, &op->u.op_row.key, key->data, key->size));
+
 #ifdef HAVE_DIAGNOSTIC
     ++prepared_item->prepare_count;
 #endif
