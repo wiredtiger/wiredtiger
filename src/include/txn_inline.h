@@ -1851,16 +1851,8 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, wt_timestamp_t prepared_tr
     prepared_item->prepare_count = 0;
 #endif
 
-    /* Ensure a transaction ID is allocated prior to sharing it globally */
-    WT_RET(__wt_txn_id_check(session));
-    /* Release our snapshot in case it is keeping data pinned. */
-    __wt_txn_release_snapshot(session);
-    /*
-     * Clear the transaction's ID from the global table, to facilitate prepared data visibility, but
-     * not from local transaction structure.
-     */
-    if (F_ISSET(session->txn, WT_TXN_HAS_ID))
-        __txn_remove_from_global_table(session);
+    /* There's no txn id since claimed prepared txn is from recovery */
+    WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_HAS_ID));
     return (ret);
 }
 
