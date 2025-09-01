@@ -62,6 +62,14 @@ __rec_delete_hs_upd_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *
     delete_hs_upd->upd = upd;
     delete_hs_upd->tombstone = tombstone;
     ++r->delete_hs_upd_next;
+
+    /* Clear the durable flag to allow them being included in a delta. */
+    if (F_ISSET(upd, WT_UPDATE_DURABLE))
+        F_CLR(upd, WT_UPDATE_DURABLE);
+
+    if (tombstone != NULL && F_ISSET(tombstone, WT_UPDATE_DURABLE))
+        F_CLR(tombstone, WT_UPDATE_DURABLE);
+
     return (0);
 }
 
@@ -274,6 +282,10 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
             tombstone = upd_select->tombstone;
         else {
             tombstone = NULL;
+            /*
+             * A history store record with a max time point must be a full value without a deleting
+             * tombstone.
+             */
             WT_ASSERT(session, !F_ISSET(upd_select->tombstone, WT_UPDATE_HS_MAX_STOP));
         }
         WT_RET(__rec_delete_hs_upd_save(session, r, ins, rip, upd_select->upd, tombstone));
@@ -287,9 +299,20 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
         if ((txnid = delete_upd->txnid) == WT_TXN_ABORTED)
             continue;
 
-        if (!seen_committed && upd_select->tw.start_ts != txnid)
+        /*
+         * If we find any update that is committed, any older updates with the WT_UPDATE_HS_MAX_STOP
+         * flag can be safely deleted from the history store as its associated prepared update must
+         * have been resolved and stable.
+         */
+        if (!seen_committed && upd_select->tw.start_txn != txnid)
             seen_committed = true;
 
+        /*
+         * Note that at most one update with the flag WT_UPDATE_HS_MAX_STOP can be present on the
+         * same key because any previous reconciliation that tries to write a new prepared update to
+         * the data store must have deleted any existing update with the flag WT_UPDATE_HS_MAX_STOP
+         * from the history store.
+         */
         if (F_ISSET(delete_upd, WT_UPDATE_HS_MAX_STOP)) {
             WT_ASSERT(session, delete_upd->type != WT_UPDATE_TOMBSTONE);
             /*
@@ -725,7 +748,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          * shared metadata file.
          */
         if ((WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) &&
-          txnid != WT_TXN_NONE && txnid == session_txnid)
+          session_txnid != WT_TXN_NONE && txnid == session_txnid)
             return (__wt_set_return(session, EBUSY));
 
         /*
@@ -737,7 +760,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
         /*
          * Special handling for application threads evicting their own updates.
          */
-        if (!is_hs_page && F_ISSET(r, WT_REC_APP_EVICTION_SNAPSHOT) && txnid == session_txnid) {
+        if (!is_hs_page && F_ISSET(r, WT_REC_APP_EVICTION_SNAPSHOT) &&
+          session_txnid != WT_TXN_NONE && txnid == session_txnid) {
             *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
             *has_newer_updatesp = true;
             continue;
@@ -757,8 +781,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          * ok to undo the work of the previous reconciliations.
          */
         if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) && !is_hs_page &&
-          (F_ISSET(r, WT_REC_VISIBLE_ALL) ? (r->last_running <= txnid) :
-                                            !__txn_visible_id(session, txnid))) {
+          (F_ISSET(r, WT_REC_VISIBLE_CHECKPOINT) ? r->rec_start_ckpt_pinned_id <= txnid :
+                                                   !__txn_visible_id(session, txnid))) {
             /*
              * Rare case: metadata writes at read uncommitted isolation level, eviction may see a
              * committed update followed by uncommitted updates. Give up in that case because we
@@ -792,7 +816,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          * this through reconfiguration, we need to ensure we have run a rollback to stable before
          * we run the first checkpoint with the precise mode.
          */
-        if (F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
           !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA)) {
             if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
                 if (upd->prepare_ts > r->rec_start_pinned_stable_ts) {
@@ -911,6 +935,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                     prepare_rollback_tombstone->next == upd);
                 /* We skipped the prepare rollback tombstone. */
                 WT_ASSERT(session, *has_newer_updatesp);
+                /*
+                 * If we have seen a tombstone that rolled back the prepared update, this must be
+                 * the prepared update. No need to walk further.
+                 */
                 prepare_rollback_tombstone = NULL;
             }
         }
@@ -943,6 +971,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             break;
     }
 
+    /* The prepare rollback is stable. Delete the key by selecting the rollback tombstone. */
     if (upd_select->upd == NULL && prepare_rollback_tombstone != NULL)
         upd_select->upd = prepare_rollback_tombstone;
 

@@ -1544,13 +1544,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                     if (txnid == supd->tw.start_txn)
                         continue;
 
-                    /* We are looking for a full update. */
-                    if (!find_next_value && tmp->type == WT_UPDATE_TOMBSTONE)
-                        continue;
-
-                    find_next_value = true;
-
-                    if (WT_UPDATE_DATA_VALUE(tmp))
+                    if (tmp->type == WT_UPDATE_STANDARD)
                         break;
                 }
 

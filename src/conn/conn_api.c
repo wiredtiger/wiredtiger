@@ -1818,7 +1818,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     wt_off_t size;
     size_t len;
     char buf[256];
-    bool bytelock, empty, exist, is_create, is_salvage, match;
+    bool bytelock, empty, exist, is_create, is_disag, is_salvage, match;
 
     conn = S2C(session);
     fh = NULL;
@@ -1828,6 +1828,14 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 
     if (F_ISSET(conn, WT_CONN_READONLY))
         is_create = false;
+
+    /*
+     * FIXME-WT-14721: As it stands, __wt_conn_is_disagg only works after we have metadata access,
+     * which depends on having run recovery, so the config hack is the simplest way to break that
+     * dependency.
+     */
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
+    is_disag = cval.len > 0;
 
     bytelock = true;
     __wt_spin_lock(session, &__wt_process.spinlock);
@@ -1880,12 +1888,16 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
      * above, locked files cannot be copied on Windows). If the WiredTiger
      * file exists in the directory, create the lock file, covering the case
      * of a hot backup.
+     *
+     * In addition, in disagg mode, we should create the lock file regardless
+     * of whether the  WiredTiger file exists or not because WiredTiger file may
+     * not be there.
      */
     exist = false;
     if (!is_create)
         WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
     ret = __wt_open(session, WT_SINGLETHREAD, WT_FS_OPEN_FILE_TYPE_REGULAR,
-      is_create || exist ? WT_FS_OPEN_CREATE : 0, &conn->lock_fh);
+      is_create || is_disag || exist ? WT_FS_OPEN_CREATE : 0, &conn->lock_fh);
 
     /*
      * If this is a read-only connection and we cannot grab the lock file, check if it is because
@@ -2286,6 +2298,31 @@ __wti_heuristic_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets(session, cfg, "heuristic_controls.obsolete_tw_btree_max", &cval));
     conn->heuristic_controls.obsolete_tw_btree_max = (uint32_t)cval.val;
+
+    return (0);
+}
+
+/*
+ * __wti_cache_eviction_controls_config --
+ *     Set cache_eviction_controls configuration.
+ */
+int
+__wti_cache_eviction_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    WT_RET(
+      __wt_config_gets(session, cfg, "cache_eviction_controls.incremental_app_eviction", &cval));
+    if (cval.val != 0)
+        F_SET(&conn->cache_eviction_controls, WT_CACHE_EVICT_INCREMENTAL_APP);
+
+    WT_RET(__wt_config_gets(
+      session, cfg, "cache_eviction_controls.scrub_evict_under_target_limit", &cval));
+    if (cval.val != 0)
+        F_SET(&conn->cache_eviction_controls, WT_CACHE_EVICT_SCRUB_UNDER_TARGET);
 
     return (0);
 }
@@ -2884,6 +2921,31 @@ __conn_version_verify(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __conn_set_context_uint --
+ *     Set a global context parameter.
+ */
+static int
+__conn_set_context_uint(WT_CONNECTION *wt_conn, WT_CONTEXT_TYPE which, uint64_t value)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+
+    CONNECTION_API_CALL_NOCONF(conn, session, set_context_uint);
+
+    switch (which) {
+    case WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN:
+        WT_ERR(__wti_disagg_set_last_materialized_lsn(session, value));
+        break;
+    }
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
  * wiredtiger_open --
  *     Main library entry point: open a new connection to a WiredTiger database.
  */
@@ -2896,7 +2958,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
       __conn_open_session, __conn_query_timestamp, __conn_set_timestamp, __conn_rollback_to_stable,
       __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
       __conn_add_encryptor, __conn_set_file_system, __conn_add_page_log, __conn_add_storage_source,
-      __conn_get_page_log, __conn_get_storage_source, __conn_get_extension_api};
+      __conn_get_page_log, __conn_get_storage_source, __conn_set_context_uint,
+      __conn_get_extension_api};
     static const WT_NAME_FLAG file_types[] = {
       {"data", WT_FILE_TYPE_DATA}, {"log", WT_FILE_TYPE_LOG}, {NULL, 0}};
 
@@ -3009,7 +3072,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     /*
      * Check for local files that need to be removed before starting in disaggregated mode.
      */
-    WT_ERR(__wti_disagg_check_local_files(session, cfg));
+    WT_ERR(__wti_ensure_clean_startup_dir(session, cfg));
 
     /* Make sure no other thread of control already owns this database. */
     WT_ERR(__conn_single(session, cfg));
@@ -3190,13 +3253,13 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * the future.
      */
     if (cval.val)
-        F_SET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT);
+        F_SET(conn, WT_CONN_PRECISE_CHECKPOINT);
     else
-        F_CLR_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT);
+        F_CLR(conn, WT_CONN_PRECISE_CHECKPOINT);
 
     WT_ERR(__wt_config_gets(session, cfg, "preserve_prepared", &cval));
     if (cval.val) {
-        if (!F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT))
+        if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
             WT_ERR_MSG(session, EINVAL,
               "Preserve prepared configuration incompatible with fuzzy checkpoint");
         F_SET(conn, WT_CONN_PRESERVE_PREPARED);
@@ -3248,6 +3311,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Parse the heuristic_controls configuration. */
     WT_ERR(__wti_heuristic_controls_config(session, cfg));
+
+    /* Parse the cache_eviction_controls configuration. */
+    WT_ERR(__wti_cache_eviction_controls_config(session, cfg));
 
     /*
      * Load the extensions after initialization completes; extensions expect everything else to be

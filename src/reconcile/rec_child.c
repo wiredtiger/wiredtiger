@@ -57,8 +57,8 @@ __rec_child_deleted(
      * setting the page delete structure committed flag cannot overlap with us checking the flag.
      */
     if (__wt_page_del_committed_set(page_del)) {
-        if (F_ISSET(r, WT_REC_VISIBLE_ALL)) {
-            visible = page_del->txnid <= r->last_running;
+        if (F_ISSET(r, WT_REC_VISIBLE_CHECKPOINT)) {
+            visible = page_del->txnid < r->rec_start_ckpt_pinned_id;
 
             if (visible) {
                 WT_ACQUIRE_READ(prepare_state, page_del->prepare_state);
@@ -66,7 +66,7 @@ __rec_child_deleted(
                     visible = false;
             }
 
-            if (visible && F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+            if (visible && F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
               page_del->pg_del_durable_ts > r->rec_start_pinned_stable_ts)
                 visible = false;
 
@@ -74,7 +74,7 @@ __rec_child_deleted(
         } else if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
             visible = __wt_page_del_visible(session, page_del, true);
 
-            if (visible && F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+            if (visible && F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
               page_del->pg_del_durable_ts > r->rec_start_pinned_stable_ts)
                 visible = false;
 

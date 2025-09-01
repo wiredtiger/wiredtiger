@@ -2041,6 +2041,11 @@ struct __wt_session {
 #endif
 };
 
+/*! WT_CONNECTION::set_context_uint types */
+typedef enum {
+    WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN, /*!< The LSN of the last materialized page log entry. */
+} WT_CONTEXT_TYPE;
+
 /*!
  * A connection to a WiredTiger database.  The connection may be opened within
  * the same address space as the caller or accessed over a socket connection.
@@ -2139,6 +2144,15 @@ struct __wt_connection {
      * caching filesystem blocks., an integer between \c 0 and \c 1024GB; default \c 0.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;type, cache location: DRAM or NVRAM., a string; default
      * empty.}
+     * @config{ ),,}
+     * @config{cache_eviction_controls = (, Controls the experimental incremental cache eviction
+     * features., a set of related configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;incremental_app_eviction, Only a part of application threads
+     * will participate in cache management when a cache threshold reaches its trigger limit., a
+     * boolean flag; default \c false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+     * scrub_evict_under_target_limit, Change the eviction strategy to scrub eviction when the cache
+     * usage is under the target limit., a boolean flag; default \c false.}
      * @config{ ),,}
      * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait
      * for space to be available in cache before giving up.  Default or 0 will wait forever.  1 will
@@ -2900,6 +2914,20 @@ struct __wt_connection {
      */
     int __F(get_storage_source)(WT_CONNECTION *connection, const char *name,
         WT_STORAGE_SOURCE **storage_sourcep);
+
+    /*!
+     * Set a global context parameter, which tells WiredTiger about relevant changes
+     * in the running system, such as the state of the page log service.
+     *
+     * @snippet ex_all.c Set the last materialized page log LSN by the page log service
+     *
+     * @param connection the connection handle
+     * @param which the context parameter being set (see ::WT_CONTEXT_TYPE for available options).
+     * @param value the value
+     * @errors
+     */
+    int __F(set_context_uint)(WT_CONNECTION *connection, WT_CONTEXT_TYPE which,
+        uint64_t value);
 #endif
 
     /*!
@@ -2971,6 +2999,15 @@ struct __wt_connection {
  * @config{cache_cursors, enable caching of cursors for reuse.  This is the default value for any
  * sessions created\, and can be overridden in configuring \c cache_cursors in
  * WT_CONNECTION.open_session., a boolean flag; default \c true.}
+ * @config{cache_eviction_controls = (, Controls the experimental incremental cache eviction
+ * features., a set of related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;incremental_app_eviction, Only a part of application threads will
+ * participate in cache management when a cache threshold reaches its trigger limit., a boolean
+ * flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;scrub_evict_under_target_limit, Change
+ * the eviction strategy to scrub eviction when the cache usage is under the target limit., a
+ * boolean flag; default \c false.}
+ * @config{ ),,}
  * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait for
  * space to be available in cache before giving up.  Default or 0 will wait forever.  1 will never
  * wait., an integer greater than or equal to \c 0; default \c 0.}
@@ -5605,6 +5642,7 @@ struct __wt_page_log_put_args {
        uint64_t base_lsn;
        uint64_t backlink_checkpoint_id;
        uint64_t base_checkpoint_id;
+       size_t image_size;
 
        WT_PAGE_LOG_ENCRYPTION encryption;
 
@@ -5638,7 +5676,6 @@ struct __wt_page_log_get_args {
        uint64_t base_lsn;
        uint64_t backlink_checkpoint_id;
        uint64_t base_checkpoint_id;
-       uint32_t delta_count;
 
        WT_PAGE_LOG_ENCRYPTION encryption;
 };
@@ -5721,6 +5758,21 @@ struct __wt_page_log_handle {
     int (*plh_get)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
         uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_GET_ARGS *args,
         WT_ITEM *results_array, uint32_t *results_count);
+
+    /*!
+     * Get all live page IDs from the paging/logging service for a given checkpoint.
+     *
+     * @errors
+     *
+     * @param plh the WT_PAGE_LOG_HANDLE
+     * @param session the current WiredTiger session
+     * @param checkpoint_lsn the checkpoint to use
+     * @param table_id the table where we want to get the pages from
+     * @param item the WT_ITEM to hold the page ids
+     * @param size number of page IDs stored in the array
+     */
+    int (*plh_get_page_ids)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
+        uint64_t checkpoint_lsn, uint64_t table_id, WT_ITEM *item, size_t *size);
 
     /*!
      * Discard an object into the paging/logging service.
