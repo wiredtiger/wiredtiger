@@ -2075,7 +2075,7 @@ __txn_modify_block(
         if (upd->txnid != WT_TXN_ABORTED) {
             ++txn->modify_block_count;
             __wt_verbose_level(session, WT_VERB_TRANSACTION,
-              txn->modify_block_count >= 100 ? WT_VERBOSE_INFO : WT_VERBOSE_DEBUG_1,
+              txn->modify_block_count >= WT_HUNDRED ? WT_VERBOSE_INFO : WT_VERBOSE_DEBUG_1,
               "Conflict with update with txn id %" PRIu64
               " at start timestamp: %s, prepare timestamp: %s",
               upd->txnid, __wt_timestamp_to_string(upd->upd_start_ts, ts_string[0]),
@@ -2105,7 +2105,7 @@ __txn_modify_block(
                 if (rollback) {
                     ++txn->modify_block_count;
                     __wt_verbose_level(session, WT_VERB_TRANSACTION,
-                      txn->modify_block_count >= 100 ? WT_VERBOSE_INFO : WT_VERBOSE_DEBUG_1,
+                      txn->modify_block_count >= WT_HUNDRED ? WT_VERBOSE_INFO : WT_VERBOSE_DEBUG_1,
                       "Conflict with update %" PRIu64
                       " at stop timestamp: %s, prepare timestamp: %s",
                       tw.stop_txn, __wt_timestamp_to_string(tw.stop_ts, ts_string[0]),
@@ -2116,7 +2116,7 @@ __txn_modify_block(
                 if (rollback) {
                     ++txn->modify_block_count;
                     __wt_verbose_level(session, WT_VERB_TRANSACTION,
-                      txn->modify_block_count >= 100 ? WT_VERBOSE_INFO : WT_VERBOSE_DEBUG_1,
+                      txn->modify_block_count >= WT_HUNDRED ? WT_VERBOSE_INFO : WT_VERBOSE_DEBUG_1,
                       "Conflict with update %" PRIu64
                       " at start timestamp: %s, prepare timestamp: %s",
                       tw.start_txn, __wt_timestamp_to_string(tw.start_ts, ts_string[0]),
@@ -2129,7 +2129,7 @@ __txn_modify_block(
     if (rollback) {
         /* Dump information about the txn snapshot. */
         WT_VERBOSE_LEVEL level =
-          txn->modify_block_count >= 100 ? WT_VERBOSE_INFO : WT_VERBOSE_DEBUG_1;
+          txn->modify_block_count >= WT_HUNDRED ? WT_VERBOSE_INFO : WT_VERBOSE_DEBUG_1;
 
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_TRANSACTION, level)) {
             WT_ERR(__wt_scr_alloc(session, 1024, &buf));
