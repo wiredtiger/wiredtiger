@@ -333,7 +333,8 @@ __wt_pending_prepared_next_op(
     btree = S2BT(session);
     op->btree = btree;
 
-    /* Increment the session use count for the data handle.
+    /* 
+     * Increment the session use count for the data handle.
      * This counter always increases in __txn_next_op decreased in __wt_txn_op_free so we need to
      * match the behaviour here.
      */
