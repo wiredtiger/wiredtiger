@@ -346,7 +346,7 @@ run_complete:
 
 /*
  * enable_disagg --
- *    Enable disaggregated storage with given mode.
+ *     Enable disaggregated storage with given mode.
  */
 static int
 enable_disagg(const char *mode)

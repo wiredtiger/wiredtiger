@@ -42,7 +42,7 @@ static int
 create_table(WT_SESSION *session, COOKIE *cookie)
 {
     int ret;
-    char config[256];
+    char config[512];
     const char *kf, *vf;
 
     kf = cookie->type == COL || cookie->type == FIX ? "r" : "q";
@@ -59,6 +59,16 @@ create_table(WT_SESSION *session, COOKIE *cookie)
           kf, vf);
     else
         testutil_snprintf(config, sizeof(config), "key_format=%s,value_format=%s", kf, vf);
+
+    /*
+     * Configure layered. Although disagg support is separated from layered support, we expect them
+     * to be used together, at least for now.
+     */
+    if (g.opts.disagg_storage) {
+        testutil_strcat(config, sizeof(config),
+          ",type=layered"
+          ",block_manager=disagg");
+    }
 
     if ((ret = session->create(session, cookie->uri, config)) != 0)
         if (ret != EEXIST)
