@@ -344,6 +344,10 @@ run_complete:
     return (g.status);
 }
 
+/*
+ * enable_disagg --
+ *    Enable disaggregated storage with given mode.
+ */
 static int
 enable_disagg(const char *mode)
 {
