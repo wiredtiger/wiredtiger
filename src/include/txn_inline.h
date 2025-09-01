@@ -313,6 +313,42 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
 }
 
 /*
+ * __wt_pending_prepared_next_op --
+ *     Get the next transaction operation slot for a pending prepared transaction.
+ */
+static WT_INLINE int
+__wt_pending_prepared_next_op(
+  WT_SESSION_IMPL *session, WT_TXN_OP **opp, WT_PENDING_PREPARED_ITEM *prepared_item, WT_ITEM *key)
+{
+    WT_BTREE *btree;
+    WT_TXN_OP *op;
+
+    *opp = NULL;
+
+    WT_RET(__wt_realloc_def(
+      session, &prepared_item->mod_alloc, prepared_item->mod_count + 1, &prepared_item->mod));
+
+    op = &prepared_item->mod[prepared_item->mod_count++];
+    WT_CLEAR(*op);
+    btree = S2BT(session);
+    op->btree = btree;
+
+    /*
+     * Increment the session use count for the data handle. This counter always increases in
+     * __txn_next_op decreased in __wt_txn_op_free so we need to match that here.
+     */
+    (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
+
+    /*
+     * Copy the key into the transaction operation structure, so when update is evicted to the
+     * history store, we can still find it.
+     */
+    WT_RET(__wt_buf_set(session, &op->u.op_row.key, key->data, key->size));
+    *opp = op;
+    return (0);
+}
+
+/*
  * __txn_swap_snapshot --
  *     Swap the snapshot pointers.
  */
@@ -706,6 +742,22 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     }
 
     WT_RET(__txn_next_op(session, &op));
+
+    upd->txnid = session->txn->id;
+    ret = __wt_op_modify(session, upd, op);
+    if (ret != 0)
+        __wt_txn_unmodify(session);
+
+    return (ret);
+}
+
+/*
+ * __wt_op_modify --
+ *     Initialize a transaction operation for a prepared update.
+ */
+static WT_INLINE int
+__wt_op_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_TXN_OP *op)
+{
     if (F_ISSET(session, WT_SESSION_LOGGING_INMEM)) {
         if (op->btree->type == BTREE_ROW)
             op->type = WT_TXN_OP_INMEM_ROW;
@@ -722,12 +774,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     /* History store bypasses transactions, transaction modify should never be called on it. */
     WT_ASSERT(session, !WT_IS_HS((S2BT(session))->dhandle));
 
-    upd->txnid = session->txn->id;
-    ret = __wt_txn_op_set_timestamp(session, op, false);
-    if (ret != 0)
-        __wt_txn_unmodify(session);
-
-    return (ret);
+    return (__wt_txn_op_set_timestamp(session, op, false));
 }
 
 /*
@@ -1778,30 +1825,37 @@ __txn_remove_from_global_table(WT_SESSION_IMPL *session)
 static WT_INLINE int
 __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, wt_timestamp_t prepared_transaction_id)
 {
-    WT_SESSION_IMPL *prepared_session;
-    WT_TXN *tmp;
-
-    WT_RET(__wt_prepared_discover_find_or_create_transaction(
-      session, prepared_transaction_id, &prepared_session, false));
-
-    WT_ASSERT(prepared_session, F_ISSET(prepared_session->txn, WT_TXN_PREPARE));
-
-    /* Release our snapshot in case it is keeping data pinned. */
-    __wt_txn_release_snapshot(prepared_session);
+    WT_DECL_RET;
+    WT_PENDING_PREPARED_ITEM *prepared_item;
+    WT_TXN *txn;
+    WT_TXN_OP *tmp_mod;
+    txn = session->txn;
+    WT_RET(__wt_prepared_discover_find_item(session, prepared_transaction_id, &prepared_item));
+    F_SET(txn, WT_TXN_PREPARE | WT_TXN_HAS_PREPARED_ID | WT_TXN_RUNNING);
+    txn->prepared_id = prepared_transaction_id;
+    txn->prepare_timestamp = prepared_transaction_id;
 
     /*
-     * Clear the transaction's ID from the global table, to facilitate prepared data visibility, but
-     * not from local transaction structure.
+     * Swap mod array with prepared_item to avoid double-free on cursor close and when
+     * commit/rollback.
      */
-    if (F_ISSET(prepared_session->txn, WT_TXN_HAS_ID))
-        __txn_remove_from_global_table(prepared_session);
+    tmp_mod = txn->mod;
 
-    /* Exchange transactions */
-    tmp = session->txn;
-    session->txn = prepared_session->txn;
-    prepared_session->txn = tmp;
+    txn->mod = prepared_item->mod;
+    txn->mod_alloc = prepared_item->mod_alloc;
+    txn->mod_count = prepared_item->mod_count;
 
-    return (0);
+    prepared_item->mod = tmp_mod;
+    prepared_item->mod_alloc = 0;
+    prepared_item->mod_count = 0;
+#ifdef HAVE_DIAGNOSTIC
+    txn->prepare_count = prepared_item->prepare_count;
+    prepared_item->prepare_count = 0;
+#endif
+
+    /* There's no txn id since claimed prepared txn is from recovery */
+    WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_HAS_ID));
+    return (ret);
 }
 
 /*
