@@ -54,6 +54,8 @@
 /*
  * Deprecated: use WT_RELEASE_WRITE instead. Release write a value to a shared location. All
  * previous stores must complete before the value is made public.
+ *
+ * Use atomic based operation for TSAN since it doesn't track standalone barriers synchronization
  */
 #if defined(TSAN_BUILD)
 #define WT_RELEASE_WRITE_WITH_BARRIER(v, val) __atomic_store_n(&(v), (val), __ATOMIC_RELEASE)
@@ -150,8 +152,9 @@
 /*
  * Deprecated: use WT_ACQUIRE_READ instead. Read a shared location and guarantee that subsequent
  * reads do not see any earlier state.
+ *
+ *  * Use atomic based operation for TSAN since it doesn't track standalone barriers synchronization
  */
-
 #if defined(TSAN_BUILD)
 #define WT_ACQUIRE_READ_WITH_BARRIER(v, val) (v) = __atomic_load_n(&(val), __ATOMIC_ACQUIRE)
 #else
