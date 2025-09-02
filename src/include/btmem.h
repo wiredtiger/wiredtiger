@@ -1219,6 +1219,7 @@ struct __wt_ref {
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_REF_FLAG_INTERNAL 0x1u /* Page is an internal page */
 #define WT_REF_FLAG_LEAF 0x2u     /* Page is a leaf page */
+#define WT_REF_REC_SPLIT 0x4u     /* Page has been split in reconciliation */
                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 

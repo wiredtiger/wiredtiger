@@ -255,12 +255,6 @@ __rec_row_merge(
     key = &r->k;
     val = &r->v;
 
-    /* FIXME-WT-14880: build delta for split pages. */
-    if (*build_delta && mod->mod_multi_entries > 1 && ref_changes > 0) {
-        *build_delta = false;
-        r->delta.size = 0;
-    }
-
     /* For each entry in the split array... */
     for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
         /*
@@ -382,8 +376,14 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
-        /* FIXME-WT-14880: build delta for split pages. */
-        if (build_delta && r->multi_next > 0) {
+        /*
+         * FIXME-WT-14880: build delta for split pages.
+         *
+         * Stop building the delta if the page has ever been split. We may write a split page before
+         * but the page is not split in the previous reconciliation. In this case, we cannot delete
+         * the keys written in the previous reconciliation.
+         */
+        if (build_delta && F_ISSET(ref, WT_REF_REC_SPLIT)) {
             build_delta = false;
             r->delta.size = 0;
         }
