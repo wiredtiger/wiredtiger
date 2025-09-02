@@ -265,8 +265,10 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
-    if (checkpoint_root == NULL)
+    if (checkpoint_root == NULL) {
+        WT_ASSERT(session, checkpoint_root_size == 0);
         checkpoint_root = "";
+    }
     if (checkpoint_root_size == 0)
         checkpoint_root_size = strlen(checkpoint_root);
 
