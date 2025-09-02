@@ -1225,8 +1225,14 @@ done:
           "recovery rollback to stable has successfully finished and ran for %" PRIu64
           " milliseconds",
           conn->recovery_timeline.rts_ms);
-    } else if (disagg)
+    } else if (disagg) {
         __wt_verbose_info(session, WT_VERB_RTS, "%s", "skipped recovery RTS due to disagg");
+
+        /* Disagg doesn’t use rollback to stable, but we still need to set the durable timestamp. */
+        WT_TXN_GLOBAL *txn_global = &conn->txn_global;
+        txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
+        txn_global->durable_timestamp = txn_global->stable_timestamp;
+    }
 
     /*
      * Sometimes eviction is triggered after doing a checkpoint. However, we don't want eviction to
