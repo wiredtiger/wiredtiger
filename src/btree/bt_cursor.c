@@ -673,7 +673,7 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp, bool *has_onpage
          * will be returned to us. In either case, we want the most recent update (any update
          * attempted after the prepare would have failed).
          */
-        if (cbt->ins != NULL) {
+        if (cbt->ins != NULL)
             upd = cbt->ins->upd;
         else {
             if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
