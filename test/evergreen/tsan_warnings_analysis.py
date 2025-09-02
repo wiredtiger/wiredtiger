@@ -95,7 +95,7 @@ def main():
 
     if (args.timestamp):
         for tsan_warning in tsan_warnings_set:
-            pattern_to_capture = r"data race (/wiredtiger/.*):(\d+)"
+            pattern_to_capture = r"data race (.*):(\d+)"
             capture = re.search(pattern_to_capture, tsan_warning)
             if (capture):
                 timestamp = get_line_last_modified_times(capture.group(1), capture.group(2))
