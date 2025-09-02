@@ -861,7 +861,7 @@ functions:
         # do_run will contain a list of files we want to run.
         no_run=$(mktemp)
         do_run=$(mktemp)
-        sed -e 's/ *#.*//' -e '/^$/d' < ${unit_test_parallel_ignore} > $no_run
+        sed -e 's/ *#.*//' -e '/^$/d' ${unit_test_parallel_ignore} > $no_run
         (cd ./test/suite; ls test_*.py) | fgrep -vf $no_run > $do_run
         cd cmake_build
         threads_command="-j ${nproc}"
@@ -2342,7 +2342,7 @@ tasks:
           unit_test_parallel_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
-          unit_test_parallel_args: -v 2 --timeout 1800 --hook "disagg=(role=follower)"
+          unit_test_parallel_args: -v 2 --timeout 1800 --hook "disagg=(role=follower)" base01
       - func: "upload artifact"
         vars:
           upload_source_dir: "wiredtiger"
