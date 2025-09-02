@@ -150,6 +150,7 @@ struct __wt_pending_prepared_item {
     WT_TXN_OP *mod;
     size_t mod_alloc;
     uint32_t mod_count;
+    bool claimed;
 #ifdef HAVE_DIAGNOSTIC
     uint32_t prepare_count;
 #endif

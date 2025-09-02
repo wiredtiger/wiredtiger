@@ -1519,11 +1519,10 @@ extern int __wti_prefetch_create(WT_SESSION_IMPL *session, const char *cfg[])
 extern int __wti_prefetch_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_prepared_discover_add_artifact_ondisk_row(
-  WT_SESSION_IMPL *session, wt_timestamp_t prepare_transaction_id, WT_TIME_WINDOW *tw, WT_ITEM *key)
+  WT_SESSION_IMPL *session, uint64_t prepared_id, WT_TIME_WINDOW *tw, WT_ITEM *key)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_prepared_discover_add_artifact_upd(
-  WT_SESSION_IMPL *session, wt_timestamp_t prepare_transaction_id, WT_ITEM *key, WT_UPDATE *upd)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_prepared_discover_add_artifact_upd(WT_SESSION_IMPL *session, uint64_t prepared_id,
+  WT_ITEM *key, WT_UPDATE *upd) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_row_ikey(WT_SESSION_IMPL *session, uint32_t cell_offset, const void *key,
   size_t size, WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_row_ikey_incr(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t cell_offset,

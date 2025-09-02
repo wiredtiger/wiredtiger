@@ -1831,6 +1831,9 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, wt_timestamp_t prepared_tr
     WT_TXN_OP *tmp_mod;
     txn = session->txn;
     WT_RET(__wt_prepared_discover_find_item(session, prepared_transaction_id, &prepared_item));
+    if (prepared_item->claimed)
+        WT_RET_MSG(
+          session, WT_ERROR, "Prepared id %lu has already been claimed", prepared_transaction_id);
     F_SET(txn, WT_TXN_PREPARE | WT_TXN_HAS_PREPARED_ID | WT_TXN_RUNNING);
     txn->prepared_id = prepared_transaction_id;
     txn->prepare_timestamp = prepared_transaction_id;
@@ -1848,6 +1851,7 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, wt_timestamp_t prepared_tr
     prepared_item->mod = tmp_mod;
     prepared_item->mod_alloc = 0;
     prepared_item->mod_count = 0;
+    prepared_item->claimed = true;
 #ifdef HAVE_DIAGNOSTIC
     txn->prepare_count = prepared_item->prepare_count;
     prepared_item->prepare_count = 0;
