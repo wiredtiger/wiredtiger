@@ -54,6 +54,28 @@ def get_line_last_modified_times(file_path, line_number):
             timestamp = int(line.split()[1])
     return timestamp
 
+def is_warning_triaged(file_path, line_number):
+    """
+    Filter out warnings that already have a FIXME comment.
+
+    :param file_path: File to read.
+    :param line_number: Line number.
+    :return: Last modified timestamp.
+    """  
+    with open(file_path, 'r') as file:  
+        lines = file.readlines()  
+        if line_number < 0 and line_number >= len(lines): 
+            print(f"Error: line_number {line_number} is out of range. The file has {len(lines)} lines.")
+            exit(1)
+        for i in range(line_number, 0, -1):
+            if "FIXME" in lines[i] and "TSAN" in lines[i]:
+                return True
+
+            if "/*" in lines[i] or "//" in lines[i]:
+                break
+
+    return False
+
 def get_tsan_warnings():
     """
     Get the TSAN warnings from the log files.
@@ -98,9 +120,11 @@ def main():
             pattern_to_capture = r"data race (.*):(\d+)"
             capture = re.search(pattern_to_capture, tsan_warning)
             if (capture):
-                timestamp = get_line_last_modified_times(capture.group(1), capture.group(2))
+                file_path = capture.group(1)
+                line_number = int(capture.group(2))
+                timestamp = get_line_last_modified_times(file_path, line_number)
                 timestamp_filter = int(args.timestamp)
-                if (timestamp_filter and timestamp_filter <= timestamp):
+                if (not is_warning_triaged(file_path, line_number) and timestamp_filter <= timestamp):
                     filter_tsan_warnings.add(tsan_warning)
         tsan_warnings_set = filter_tsan_warnings
 

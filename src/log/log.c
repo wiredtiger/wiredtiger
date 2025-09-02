@@ -1179,7 +1179,6 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created, bool *clo
             *closed = true;
     }
     log->fileid++;
-
     /*
      * If pre-allocating log files look for one; otherwise, or if we don't find one, create a log
      * file. We can't use pre-allocated log files while a hot backup is in progress: applications

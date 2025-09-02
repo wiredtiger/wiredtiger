@@ -682,6 +682,7 @@ __layered_table_manager_start(WT_SESSION_IMPL *session)
       session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s", "__layered_table_manager_start");
     FLD_SET(conn->server_flags, WT_CONN_SERVER_LAYERED);
 
+    /* FIXME-WT-15348: Fix potential TSAN race condition. */
     manager->state = WT_LAYERED_TABLE_MANAGER_RUNNING;
     return (0);
 

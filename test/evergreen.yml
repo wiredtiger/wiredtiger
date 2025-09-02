@@ -4771,7 +4771,7 @@ tasks:
           destination: wiredtiger/unit-test-tsan
       - func: "tsan warning metric"
         vars:
-          timestamp: 1751505526
+          timestamp: 1746576000
 
   - name: generate-tsan-metric-disagg
     tags: ["pull_request_code_statistics"]
