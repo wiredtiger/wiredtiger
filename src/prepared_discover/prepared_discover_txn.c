@@ -15,8 +15,8 @@
  *     Find a pending prepared item by its ID in the pending prepared items hash map.
  */
 int
-__wt_prepared_discover_find_item(WT_SESSION_IMPL *session, uint64_t prepare_transaction_id,
-  WT_PENDING_PREPARED_ITEM **prepared_item)
+__wt_prepared_discover_find_item(
+  WT_SESSION_IMPL *session, uint64_t prepared_id, WT_PENDING_PREPARED_ITEM **prepared_item)
 {
     WT_CONNECTION_IMPL *conn;
     WT_PENDING_PREPARED_ITEM *item;
@@ -27,9 +27,9 @@ __wt_prepared_discover_find_item(WT_SESSION_IMPL *session, uint64_t prepare_tran
     txn_global = &conn->txn_global;
     pending_prepare_items = &txn_global->pending_prepare_items;
     if (pending_prepare_items->hash != NULL) {
-        bucket = prepare_transaction_id & (pending_prepare_items->hash_size - 1);
+        bucket = prepared_id & (pending_prepare_items->hash_size - 1);
         TAILQ_FOREACH (item, &pending_prepare_items->hash[bucket], hashq) {
-            if (item->prepared_id == prepare_transaction_id) {
+            if (item->prepared_id == prepared_id) {
                 *prepared_item = item;
                 return (0);
             }
@@ -131,7 +131,8 @@ __wti_prepared_discover_add_artifact_ondisk_row(
 
     /*
      * Create an update structure with the time information and state populated - that allows this
-     * code to reuse existing machinery for installing transaction operations.
+     * code to reuse existing machinery for installing transaction operations. FIXME-WT-15346 Handle
+     * claiming prepared delete.
      */
     WT_RET(__wt_upd_alloc(session, NULL, WT_UPDATE_STANDARD, &upd, NULL));
     upd->txnid = session->txn->id;

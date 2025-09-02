@@ -70,7 +70,6 @@ __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_
     __wt_cell_get_tw(vpack, &tw);
 
     /* Add an entry for this key to the transaction structure */
-    /* TODO: Handle stop ts case */
     if (rip != NULL)
         WT_ERR(
           __wti_prepared_discover_add_artifact_ondisk_row(session, tw->start_prepared_id, tw, key));

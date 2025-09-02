@@ -50,6 +50,7 @@ class test_prepare_discover03(wttest.WiredTigerTestCase, suite_subprocess):
 
     scenarios = make_scenarios(types, txn_end)
 
+    @wttest.only_for_hook("disagg", "FIXME-WT-15343 disable RTS when precise checkpoint is on")
     def test_prepare_discover03(self):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(50))
@@ -102,7 +103,9 @@ class test_prepare_discover03(wttest.WiredTigerTestCase, suite_subprocess):
             c2s2.begin_transaction("claim_prepared=" + self.timestamp_str(prepared_id))
             c2s2.commit_transaction("commit_timestamp=" + self.timestamp_str(200)+",durable_timestamp=" + self.timestamp_str(210))
             if count == 1:
-                break;
+                break
         self.assertEqual(count, 1)
+        # Try to claim an already claimed prepared transaction, should return an error
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: c2s2.begin_transaction("claim_prepared=" + self.timestamp_str(123)), "/Prepared id 123 has already been claimed/")
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: prepared_discover_cursor.close(), "")
+            lambda: prepared_discover_cursor.close(), "/Found 1 unclaimed prepared transactions/")
