@@ -3381,7 +3381,7 @@ split:
         mod->rec_result = WT_PM_REC_MULTIBLOCK;
 
         if (r->multi_next > 1)
-            F_SET(ref, WT_REF_REC_SPLIT);
+            F_SET(ref, WT_REF_FLAG_REC_SPLIT);
 
         r->multi = NULL;
         r->multi_next = 0;

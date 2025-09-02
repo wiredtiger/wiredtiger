@@ -383,7 +383,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          * but the page is not split in the previous reconciliation. In this case, we cannot delete
          * the keys written in the previous reconciliation.
          */
-        if (build_delta && F_ISSET(ref, WT_REF_REC_SPLIT)) {
+        if (build_delta && F_ISSET(ref, WT_REF_FLAG_REC_SPLIT)) {
             build_delta = false;
             r->delta.size = 0;
         }
