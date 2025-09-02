@@ -6985,4 +6985,4 @@ buildvariants:
   tasks:
     - name: compile
     - name: ".stress-test-disagg"
-      batchtime: 720 # 12 hours
+      batchtime: 1440 # once a day
