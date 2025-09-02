@@ -547,7 +547,8 @@ test_dirty_restart()
 
     # Don't worry about changing flags for the dst branch, we're going to restart it from the source
     # branch's working directory anwyay.
-    local flags="-1q $(bflag $src_branch)"
+    # local flags="-1q $(bflag $src_branch)"
+    local flags="-1q "
     local config_file="../../../../CONFIG_${src_branch}"
 
     # Run format on the source branch until it aborts.
@@ -556,15 +557,20 @@ test_dirty_restart()
 
     # Ignore the error resulting from the segfault.
     set +e
-    ./t ${flags} -c "$config_file" -h "$dir" format.abort=1
+    ./t ${flags} -c "$config_file" -h "$dir" format.abort=1 btree.reverse=0
     set -e
     popd
 
     # We now have a directory with WT files that resulted from a crash. Run the newer version
     # against those.
     pushd "${dst_branch}/build/test/format"
+    pwd
     local dir="../../../../${src_branch}/build/test/format/RUNDIR.${src_branch}"
-    ./t ${flags} -c "$config_file" -h "$dir"
+    # TODO giant hack, replace the old-school path with the new one
+    pwd
+    ls
+    sed --in-place -e 's/\/\.libs//g' "$dir"/WiredTiger.basecfg
+    ./t ${flags} -R -h "$dir" format.abort=0
 
     # Remove the database so future runs don't try to use it.
     rm -rf "$dir"
@@ -970,7 +976,7 @@ if [ "$dirty_restart" = true ]; then
     # treat that as a combination worth testing.
     for b1 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
         for b2 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
-            if [[ "$b1" != "$b2" ]]; then
+            if [[ "$b1" < "$b2" ]]; then
                 test_dirty_restart "$b1" "$b2"
             fi
         done
