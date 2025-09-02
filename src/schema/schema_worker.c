@@ -111,6 +111,7 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
               "Ingest contains dirty content or open cursors, which is an invalid state.",
               ingest_uri);
     }
+    WT_ERR(ret);
 
     WT_WITHOUT_DHANDLE(session,
       ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
