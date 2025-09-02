@@ -379,11 +379,13 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         /*
          * FIXME-WT-14880: build delta for split pages.
          *
-         * Stop building the delta if the page has ever been split. We may write a split page before
-         * but the page is not split in the previous reconciliation. In this case, we cannot delete
-         * the keys written in the previous reconciliation.
+         * Stop building the delta if the page has ever been split.
+         *
+         * We may split the child before but the it is not split in the most recent reconciliation.
+         * In this case, we cannot delete the keys written in the previous reconciliation if we
+         * build a delta. Stop building a delta.
          */
-        if (build_delta && F_ISSET(ref, WT_REF_FLAG_REC_SPLIT)) {
+        if (build_delta && (r->multi_next > 0 || F_ISSET(ref, WT_REF_FLAG_REC_SPLIT))) {
             build_delta = false;
             r->delta.size = 0;
         }
