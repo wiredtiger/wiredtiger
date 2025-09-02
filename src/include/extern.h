@@ -881,6 +881,8 @@ extern int __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_prepared_discover_find_item(WT_SESSION_IMPL *session, uint64_t prepared_id,
   WT_PENDING_PREPARED_ITEM **prepared_item) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_prepared_discover_remove_item(WT_SESSION_IMPL *session, uint64_t prepared_id)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags,

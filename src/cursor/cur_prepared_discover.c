@@ -91,10 +91,10 @@ __cursor_prepared_discover_close(WT_CURSOR *cursor)
     if (pending_prepare_items->hash != NULL) {
         for (i = 0; i < pending_prepare_items->hash_size; i++) {
             while ((item = TAILQ_FIRST(&pending_prepare_items->hash[i])) != NULL) {
-                if (!item->claimed) {
-                    /* Found an unclaimed prepare but still need to clean up this cursor */
-                    unclaimed_count++;
-                }
+                /* Claimed prepare transactions should have been removed from the hash map already.
+                 * Increase the counter if we find unclaimed item left in map.
+                 */
+                unclaimed_count++;
                 TAILQ_REMOVE(&pending_prepare_items->hash[i], item, hashq);
                 /* Clean up memory of unclaimed mod array */
                 for (j = 0, op = item->mod; j < item->mod_count; j++, op++) {

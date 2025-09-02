@@ -65,8 +65,8 @@ __pending_prepare_items_init(
  *     item.
  */
 static int
-__prepared_discover_find_or_create_item(
-  WT_SESSION_IMPL *session, uint64_t prepared_id, WT_PENDING_PREPARED_ITEM **prepared_item)
+__prepared_discover_find_or_create_item(WT_SESSION_IMPL *session, uint64_t prepared_id,
+  wt_timestamp_t prepare_timestamp, WT_PENDING_PREPARED_ITEM **prepared_item)
 {
     WT_CONNECTION_IMPL *conn;
     WT_PENDING_PREPARED_ITEM *item;
@@ -87,11 +87,48 @@ __prepared_discover_find_or_create_item(
 
     WT_RET(__wt_calloc_one(session, &item));
     item->prepared_id = prepared_id;
-    item->claimed = false;
+    item->prepare_timestamp = prepare_timestamp;
     bucket = prepared_id & (pending_prepare_items->hash_size - 1);
     TAILQ_INSERT_HEAD(&pending_prepare_items->hash[bucket], item, hashq);
     *prepared_item = item;
     return (0);
+}
+
+/*
+ * __wt_prepared_discover_remove_item --
+ *     Find and remove a pending prepared item by its ID in the pending prepared items hash map.
+ */
+int
+__wt_prepared_discover_remove_item(WT_SESSION_IMPL *session, uint64_t prepared_id)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_PENDING_PREPARED_ITEM *item;
+    WT_PENDING_PREPARED_MAP *pending_prepare_items;
+    WT_TXN_GLOBAL *txn_global;
+    WT_TXN_OP *op;
+    uint64_t bucket, i;
+    conn = S2C(session);
+    txn_global = &conn->txn_global;
+    pending_prepare_items = &txn_global->pending_prepare_items;
+
+    if (pending_prepare_items->hash != NULL) {
+        bucket = prepared_id & (pending_prepare_items->hash_size - 1);
+        TAILQ_FOREACH (item, &pending_prepare_items->hash[bucket], hashq) {
+            if (item->prepared_id == prepared_id) {
+                TAILQ_REMOVE(&pending_prepare_items->hash[bucket], item, hashq);
+                /* Clean up memory of unclaimed mod array */
+                for (i = 0, op = item->mod; i < item->mod_count; i++, op++) {
+                    __wt_txn_op_free(session, op);
+                }
+                __wt_free(session, item->mod);
+                item->mod_alloc = 0;
+                item->mod_count = 0;
+                __wt_free(session, item);
+                return (0);
+            }
+        }
+    }
+    return (WT_NOTFOUND);
 }
 
 /*
@@ -105,7 +142,8 @@ __wti_prepared_discover_add_artifact_upd(
     WT_PENDING_PREPARED_ITEM *prepared_item;
     WT_TXN_OP *op;
 
-    WT_RET(__prepared_discover_find_or_create_item(session, prepared_id, &prepared_item));
+    WT_RET(__prepared_discover_find_or_create_item(
+      session, prepared_id, upd->prepare_ts, &prepared_item));
 
     WT_RET(__wt_pending_prepared_next_op(session, &op, prepared_item, key));
     WT_RET(__wt_op_modify(session, upd, op));

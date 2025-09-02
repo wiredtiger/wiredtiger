@@ -1831,13 +1831,9 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, wt_timestamp_t prepared_id
     WT_TXN_OP *tmp_mod;
     txn = session->txn;
     WT_RET(__wt_prepared_discover_find_item(session, prepared_id, &prepared_item));
-    if (prepared_item->claimed)
-        WT_RET_MSG(
-          session, WT_ERROR, "Prepared id %" PRIu64 " has already been claimed", prepared_id);
-    F_SET(txn, WT_TXN_PREPARE | WT_TXN_HAS_PREPARED_ID | WT_TXN_RUNNING);
+    F_SET(txn, WT_TXN_PREPARE | WT_TXN_HAS_PREPARED_ID | WT_TXN_HAS_TS_PREPARE | WT_TXN_RUNNING);
     txn->prepared_id = prepared_id;
-    txn->prepare_timestamp = prepared_id;
-
+    txn->prepare_timestamp = prepared_item->prepare_timestamp;
     /*
      * Swap mod array with prepared_item to avoid double-free on cursor close and when
      * commit/rollback.
@@ -1851,7 +1847,7 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, wt_timestamp_t prepared_id
     prepared_item->mod = tmp_mod;
     prepared_item->mod_alloc = 0;
     prepared_item->mod_count = 0;
-    prepared_item->claimed = true;
+    WT_RET(__wt_prepared_discover_remove_item(session, prepared_id));
 #ifdef HAVE_DIAGNOSTIC
     txn->prepare_count = prepared_item->prepare_count;
     prepared_item->prepare_count = 0;
