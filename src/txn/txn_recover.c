@@ -1189,7 +1189,7 @@ done:
      * 1. The connection is not read-only. A read-only connection expects that there shouldn't be
      *    any changes that need to be done on the database other than reading.
      * 2. The history store file was found in the metadata.
-     * 3. We are not using disaggregated storage or precise checkpoint\
+     * 3. We are not using disaggregated storage or precise checkpoint.
      * FIXME-WT-15343 Disable RTS for precise checkpoint when claim prepared is implemented in test
      * format
      */
