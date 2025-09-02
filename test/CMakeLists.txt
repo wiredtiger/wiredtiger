@@ -29,6 +29,7 @@ if(WT_POSIX)
     add_subdirectory(salvage)
     add_subdirectory(syscall)
     add_subdirectory(thread)
+    add_subdirectory(mockfs)
 
     if(ENABLE_CPPSUITE)
         add_subdirectory(cppsuite)
