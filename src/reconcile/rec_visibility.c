@@ -272,7 +272,7 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
         return (0);
 
     visible_all_upd = NULL;
-    
+
     /*
      * If we select an update in the history store to write to disk, delete it from the history
      * store.
