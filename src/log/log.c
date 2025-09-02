@@ -1167,9 +1167,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
      * Note, the file server worker thread requires the LSN be set once the close file handle is
      * set, force that ordering.
      */
-    if (log->log_fh == NULL)
-        log->log_close_fh = NULL;
-    else {
+    if (log->log_fh != NULL) {
         WT_ASSIGN_LSN(&log->log_close_lsn, &log->alloc_lsn);
         /* Paired with an acquire read in the log file server path. */
         WT_RELEASE_WRITE_WITH_BARRIER(log->log_close_fh, log->log_fh);
@@ -1365,10 +1363,10 @@ __wti_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WTI_LOGSLOT *slot)
      * risk of an error due to no space.
      */
     if (F_ISSET(log, WTI_LOG_FORCE_NEWFILE) || !__log_size_fit(session, &log->alloc_lsn, recsize)) {
+        if (log->log_fh != NULL)
+            F_SET_ATOMIC_16(slot, WTI_SLOT_CLOSEFH);
         WT_RET(__log_newfile(session, false, &created_log));
         F_CLR(log, WTI_LOG_FORCE_NEWFILE);
-        if (log->log_close_fh != NULL)
-            F_SET_ATOMIC_16(slot, WTI_SLOT_CLOSEFH);
     }
 
     /*

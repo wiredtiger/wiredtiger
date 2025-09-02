@@ -30,8 +30,7 @@
  * version we avoid type checking loss by defining an unreachable if block, we also guard against
  * misuse by statically asserting that the destination is the same size as the value being written.
  */
-#ifdef HAVE_RCPC
-#ifndef TSAN_BUILD
+#if defined(HAVE_RCPC) && !defined(TSAN_BUILD)
 #define WT_RELEASE_WRITE(v, val)                                                                   \
     do {                                                                                           \
         if (0) {                                                                                   \
@@ -49,21 +48,22 @@
         }                                                                                          \
     } while (0)
 #else
-#define WT_RELEASE_WRITE(v, val) __atomic_store_n(&(v), (val), __ATOMIC_RELEASE);
-#endif
-#else
-#define WT_RELEASE_WRITE(v, val) WT_RELEASE_WRITE_WITH_BARRIER(v, val);
+#define WT_RELEASE_WRITE(v, val) __atomic_store_n(&(v), (val), __ATOMIC_RELEASE)
 #endif
 
 /*
  * Deprecated: use WT_RELEASE_WRITE instead. Release write a value to a shared location. All
  * previous stores must complete before the value is made public.
  */
+#if defined(TSAN_BUILD)
+#define WT_RELEASE_WRITE_WITH_BARRIER(v, val) __atomic_store_n(&(v), (val), __ATOMIC_RELEASE)
+#else
 #define WT_RELEASE_WRITE_WITH_BARRIER(v, val)   \
     do {                                        \
         WT_RELEASE_BARRIER();                   \
         __wt_atomic_store_generic(&(v), (val)); \
     } while (0)
+#endif
 
 /*
  * WT_READ_ONCE --
@@ -126,8 +126,7 @@
  * The flag HAVE_RCPC is determined by the build system, if this macro is removed in the future be
  * sure to remove that part of the compilation.
  */
-#ifdef HAVE_RCPC
-#ifndef TSAN_BUILD
+#if defined(HAVE_RCPC) && !defined(TSAN_BUILD)
 #define WT_ACQUIRE_READ(v, val)                                                                    \
     do {                                                                                           \
         if (0) {                                                                                   \
@@ -147,19 +146,21 @@
 #else
 #define WT_ACQUIRE_READ(v, val) (v) = __atomic_load_n(&(val), __ATOMIC_ACQUIRE)
 #endif
-#else
-#define WT_ACQUIRE_READ(v, val) WT_ACQUIRE_READ_WITH_BARRIER(v, val)
-#endif
 
 /*
  * Deprecated: use WT_ACQUIRE_READ instead. Read a shared location and guarantee that subsequent
  * reads do not see any earlier state.
  */
+
+#if defined(TSAN_BUILD)
+#define WT_ACQUIRE_READ_WITH_BARRIER(v, val) (v) = __atomic_load_n(&(val), __ATOMIC_ACQUIRE)
+#else
 #define WT_ACQUIRE_READ_WITH_BARRIER(v, val)    \
     do {                                        \
         (v) = __wt_atomic_load_generic(&(val)); \
         WT_ACQUIRE_BARRIER();                   \
     } while (0)
+#endif
 
 /*
  * Atomic versions of the flag set/clear macros.
