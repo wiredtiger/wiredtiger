@@ -61,10 +61,10 @@ def is_warning_triaged(file_path, line_number):
     :param file_path: File to read.
     :param line_number: Line number.
     :return: Last modified timestamp.
-    """  
-    with open(file_path, 'r') as file:  
-        lines = file.readlines()  
-        if line_number < 0 and line_number >= len(lines): 
+    """
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+        if line_number < 0 and line_number >= len(lines):
             print(f"Error: line_number {line_number} is out of range. The file has {len(lines)} lines.")
             exit(1)
         for i in range(line_number, 0, -1):
