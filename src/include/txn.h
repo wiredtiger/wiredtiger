@@ -140,6 +140,31 @@ struct __wt_txn_shared {
     WT_CACHE_LINE_PAD_END
 };
 
+/*
+ * WT_PENDING_PREPARED_ITEM --
+ *	A structure to store the transactions prepared operations.
+ */
+struct __wt_pending_prepared_item {
+    TAILQ_ENTRY(__wt_pending_prepared_item) hashq;
+    uint64_t prepared_id;
+    WT_TXN_OP *mod;
+    size_t mod_alloc;
+    uint32_t mod_count;
+#ifdef HAVE_DIAGNOSTIC
+    uint32_t prepare_count;
+#endif
+};
+
+/*
+ * WT_PENDING_PREPARED_MAP -- Hash map for pending prepared transactions that are available to be
+ * claimed. Populated by a prepared transactions cursor, and cleaned up when the cursor is closed.
+ * No need for concurrency control on making changes to the list.
+ */
+struct __wt_pending_prepared_map {
+    TAILQ_HEAD(__wt_pending_prepared_hash, __wt_pending_prepared_item) * hash;
+    uint64_t hash_size; /* Number of hash buckets */
+};
+
 struct __wt_txn_global {
     wt_shared volatile uint64_t current; /* Current transaction ID. */
 
@@ -195,14 +220,7 @@ struct __wt_txn_global {
 
     WT_TXN_SHARED *txn_shared_list; /* Per-session shared transaction states */
 
-    /*
-     * A list of prepared transactions that are available to be claimed. Populated by a prepared
-     * transactions cursor, and cleaned up when the cursor is closed. No need for concurrency
-     * control on making changes to the list.
-     */
-    WT_SESSION_IMPL **pending_prepared_sessions;
-    size_t pending_prepared_sessions_allocated;
-    u_int pending_prepared_sessions_count;
+    WT_PENDING_PREPARED_MAP pending_prepare_items;
 };
 
 typedef enum __wt_txn_isolation {
@@ -362,7 +380,7 @@ struct __wt_txn {
     /* Array of modifications by this transaction. */
     WT_TXN_OP *mod;
     size_t mod_alloc;
-    u_int mod_count;
+    uint32_t mod_count;
 #ifdef HAVE_DIAGNOSTIC
     u_int prepare_count;
 #endif
@@ -392,27 +410,30 @@ struct __wt_txn {
 #define WT_TXN_AUTOCOMMIT 0x000001u
 #define WT_TXN_ERROR 0x000002u
 #define WT_TXN_HAS_ID 0x000004u
-#define WT_TXN_HAS_SNAPSHOT 0x000008u
-#define WT_TXN_HAS_TS_COMMIT 0x000010u
-#define WT_TXN_HAS_TS_DURABLE 0x000020u
-#define WT_TXN_HAS_TS_PREPARE 0x000040u
-#define WT_TXN_HAS_TS_ROLLBACK 0x000080u
-#define WT_TXN_IGNORE_PREPARE 0x000100u
-#define WT_TXN_IS_CHECKPOINT 0x000200u
-#define WT_TXN_PREPARE 0x000400u
-#define WT_TXN_PREPARE_IGNORE_API_CHECK 0x000800u
-#define WT_TXN_READONLY 0x001000u
-#define WT_TXN_REFRESH_SNAPSHOT 0x002000u
-#define WT_TXN_RUNNING 0x004000u
-#define WT_TXN_SHARED_TS_DURABLE 0x008000u
-#define WT_TXN_SHARED_TS_READ 0x010000u
-#define WT_TXN_SYNC_SET 0x020000u
-#define WT_TXN_TS_NOT_SET 0x040000u
-#define WT_TXN_TS_ROUND_PREPARED 0x080000u
-#define WT_TXN_TS_ROUND_READ 0x100000u
-#define WT_TXN_UPDATE 0x200000u
+#define WT_TXN_HAS_PREPARED_ID 0x000008u
+#define WT_TXN_HAS_SNAPSHOT 0x000010u
+#define WT_TXN_HAS_TS_COMMIT 0x000020u
+#define WT_TXN_HAS_TS_DURABLE 0x000040u
+#define WT_TXN_HAS_TS_PREPARE 0x000080u
+#define WT_TXN_HAS_TS_ROLLBACK 0x000100u
+#define WT_TXN_IGNORE_PREPARE 0x000200u
+#define WT_TXN_IS_CHECKPOINT 0x000400u
+#define WT_TXN_PREPARE 0x000800u
+#define WT_TXN_PREPARE_IGNORE_API_CHECK 0x001000u
+#define WT_TXN_READONLY 0x002000u
+#define WT_TXN_REFRESH_SNAPSHOT 0x004000u
+#define WT_TXN_RUNNING 0x008000u
+#define WT_TXN_SHARED_TS_DURABLE 0x010000u
+#define WT_TXN_SHARED_TS_READ 0x020000u
+#define WT_TXN_SYNC_SET 0x040000u
+#define WT_TXN_TS_NOT_SET 0x080000u
+#define WT_TXN_TS_ROUND_PREPARED 0x100000u
+#define WT_TXN_TS_ROUND_READ 0x200000u
+#define WT_TXN_UPDATE 0x400000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
+
+    uint16_t modify_block_count;
 
     /*
      * Zero or more bytes of value (the payload) immediately follows the WT_TXN structure. We use a

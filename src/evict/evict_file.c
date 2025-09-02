@@ -83,7 +83,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * history.
              */
             rec_flags = WT_REC_EVICT | WT_REC_EVICT_CALL_CLOSING | WT_REC_CLEAN_AFTER_REC |
-              WT_REC_VISIBLE_ALL;
+              WT_REC_VISIBLE_CHECKPOINT;
             if (!WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(dhandle))
                 rec_flags |= WT_REC_HS;
             WT_ERR(__wt_reconcile(session, ref, NULL, rec_flags));
@@ -109,7 +109,8 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * not exhaustive, but provides basic checking on the page's status.
              */
             WT_ASSERT(session,
-              F_ISSET(dhandle, WT_DHANDLE_DEAD) || F_ISSET(S2C(session), WT_CONN_CLOSING) ||
+              F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+                F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING) ||
                 __wt_page_can_evict(session, ref, NULL));
             __wt_ref_out(session, ref);
             break;

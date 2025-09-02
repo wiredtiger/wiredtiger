@@ -1,5 +1,3 @@
-project(revint_collator C)
-
 set(sources "revint_collator.c")
 add_library(wiredtiger_revint_collator MODULE ${sources})
 
