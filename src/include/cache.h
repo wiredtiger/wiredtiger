@@ -115,6 +115,20 @@ struct __wt_cache_pool {
 };
 
 /*
+ * WT_CACHE_EVICTION_CONTROLS --
+ *  Cache eviction controls configuration.
+ *  WT_CACHE_EVICT_INCREMENTAL_APP: Only a part of application threads will participate in cache
+ * management when a cache threshold reaches its trigger limit. WT_CACHE_EVICT_SCRUB_UNDER_TARGET:
+ * Change the eviction strategy to scrub eviction when the cache usage is under the target limit.
+ */
+struct __wt_cache_eviction_controls {
+/* cache eviction controls bit positions */
+#define WT_CACHE_EVICT_INCREMENTAL_APP 0x1u
+#define WT_CACHE_EVICT_SCRUB_UNDER_TARGET 0x2u
+    uint64_t flags;
+};
+
+/*
  * Optimize comparisons against the history store URI, flag handles that reference the history store
  * file.
  */
