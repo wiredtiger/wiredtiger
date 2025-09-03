@@ -257,6 +257,11 @@ __rec_row_merge(
 
     /* FIXME-WT-14880: build delta for split pages. */
     if (mod->mod_multi_entries > 1) {
+        /*
+         * We need to remember what has been written for this ref in this internal page
+         * reconciliation to be able to build the internal page delta in the future. We have to
+         * remember it on the ref otherwise the information is lost if the child page is evicted.
+         */
         F_SET(ref, WT_REF_FLAG_REC_MULTIPLE);
         if (*build_delta && ref_changes > 0) {
             *build_delta = false;
