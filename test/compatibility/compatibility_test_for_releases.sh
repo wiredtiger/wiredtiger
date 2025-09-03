@@ -540,36 +540,61 @@ upgrade_downgrade()
     done
 }
 
+# test/format manually specifies paths to loadable extensions. It also relies on WiredTiger.basecfg
+# existing, so the result is a bunch of paths to .so files in WiredTiger.basecfg. This is fine, but
+# the change from autoconf to cmake resulted in these files living in different directories. It's a
+# bit awful, but this method fixes up the paths in WiredTiger.basecfg when upgrading between
+# versions built with different build systems. This whole thing can go away once we stop caring
+# about 5.0.
+fixup_format_extension_paths()
+{
+    local src_branch="$1"
+    local dst_branch="$2"
+    local working_dir="$3"
+
+    local src_build_system=$(get_build_system "$src_branch")
+    local dst_build_system=$(get_build_system "$dst_branch")
+
+    if [ "$src_build_system" != "$dst_build_system" ]; then
+        if [ "$src_build_system" = "autoconf" ]; then
+            sed --in-place -e 's/\/\.libs//g' "$working_dir"/WiredTiger.basecfg
+        fi
+
+        # We don't need to make the inverse translation when going from cmake to autoconf, since
+        # autoconf puts the libraries in both the .libs/ directory, and the root of the extension's
+        # build directory. Thus, when a newer version saves a path without .libs/ it'll still find
+        # the right shared library.
+    fi
+}
+
+# Run test/format from $src_branch, and crash. Recover using test/format from $dst_branch.
 test_dirty_restart()
 {
     local src_branch="$1"
     local dst_branch="$2"
 
-    # Don't worry about changing flags for the dst branch, we're going to restart it from the source
-    # branch's working directory anwyay.
-    # local flags="-1q $(bflag $src_branch)"
-    local flags="-1q "
+    # We can reuse these flags for the dst branch. We're going to restart it from the source
+    # branch's working directory, and test/format will automatically pick up that config.
+    local flags="-1q $(bflag $src_branch)"
     local config_file="../../../../CONFIG_${src_branch}"
 
     # Run format on the source branch until it aborts.
     pushd "${src_branch}/build/test/format"
     local dir="RUNDIR.${src_branch}"
 
-    # Ignore the error resulting from the segfault.
+    # Ignore the error resulting from the segfault. We set a few options: backup=0 since it's
+    # incompatible with verify, and the compatibility version in case $src_branch is newer than
+    # $dst_branch.
     set +e
-    ./t ${flags} -c "$config_file" -h "$dir" format.abort=1 btree.reverse=0
+    ./t ${flags} -c "$config_file" -C "compatibility=(release=10.0.0)" -h "$dir" format.abort=1 backup=0
     set -e
     popd
 
     # We now have a directory with WT files that resulted from a crash. Run the newer version
     # against those.
     pushd "${dst_branch}/build/test/format"
-    pwd
     local dir="../../../../${src_branch}/build/test/format/RUNDIR.${src_branch}"
-    # TODO giant hack, replace the old-school path with the new one
-    pwd
-    ls
-    sed --in-place -e 's/\/\.libs//g' "$dir"/WiredTiger.basecfg
+    fixup_format_extension_paths "$src_branch" "$dst_branch" "$dir"
     ./t ${flags} -R -h "$dir" format.abort=0
 
     # Remove the database so future runs don't try to use it.
@@ -976,7 +1001,7 @@ if [ "$dirty_restart" = true ]; then
     # treat that as a combination worth testing.
     for b1 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
         for b2 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
-            if [[ "$b1" < "$b2" ]]; then
+            if [[ "$b1" != "$b2" ]]; then
                 test_dirty_restart "$b1" "$b2"
             fi
         done
