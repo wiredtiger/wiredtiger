@@ -38,17 +38,7 @@ class test_prepare_discover03(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_prepare_discover03'
     uri = 'table:' + tablename
     conn_config = 'precise_checkpoint=true,preserve_prepared=true'
-
-    types = [
-        ('row', dict(s_config='key_format=i,value_format=S')),
-    ]
-
-    # Transaction end types
-    txn_end = [
-        ('txn_commit', dict(txn_commit=True)),
-    ]
-
-    scenarios = make_scenarios(types, txn_end)
+    s_config = 'key_format=i,value_format=S'
 
     @wttest.only_for_hook("disagg", "FIXME-WT-15343 disable RTS when precise checkpoint is on")
     def test_prepare_discover03(self):
