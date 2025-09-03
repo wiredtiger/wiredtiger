@@ -18,6 +18,8 @@ ops.compaction=0
 ops.salvage=0
 ops.throttle=0
 ops.truncate=0
+# FIXME-WT-14931 FIXME-15051 should allow prepared operations for layered tables.
+ops.prepare=0
 quiet=0
 runs.in_memory=0
 transaction.timestamps=1
