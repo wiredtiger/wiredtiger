@@ -731,7 +731,7 @@ config_cache(void)
     if (GV(PRECISE_CHECKPOINT) && GV(CACHE) < 4086)
         GV(CACHE) = 4086;
 
-    if (cache_maximum_explicit && GV(CACHE) > GV(CACHE_MAXIMUM))
+    if (cache_maximum_explicit && !GV(PRECISE_CHECKPOINT) && GV(CACHE) > GV(CACHE_MAXIMUM))
         GV(CACHE) = GV(CACHE_MAXIMUM);
 
     /* Give any block cache 20% of the total cache size, over and above the cache. */
@@ -1520,8 +1520,6 @@ config_disagg_storage(void)
         /* TODO: Some operations are not yet supported for disaggregated storage. */
         config_off(NULL, "ops.salvage");
         config_off(NULL, "ops.verify");
-        /* FIXME-WT-15051: enable prepare for disagg when it is fixed. */
-        config_off(NULL, "ops.prepare");
         config_off(NULL, "backup");
         config_off(NULL, "backup.incremental");
         config_off(NULL, "ops.compaction");
