@@ -12,7 +12,6 @@ test_bug027.py
 test_bug033.py
 test_bulk01.py
 test_bulk02.py
-test_cc02.py
 test_cc04.py
 test_cc05.py
 test_cc06.py # uses statistics we don't support in disagg
