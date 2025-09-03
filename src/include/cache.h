@@ -42,6 +42,8 @@ struct __wt_cache {
     wt_shared uint64_t bytes_delta_updates; /* Bytes of updates reconstructed from deltas */
     wt_shared uint64_t bytes_written;
 
+    WT_CACHE_EVICTION_CONTROLS *cache_eviction_controls;
+
     /*
      * History store cache usage. TODO: The values for these variables are cached and potentially
      * outdated.

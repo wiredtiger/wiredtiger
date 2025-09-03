@@ -682,7 +682,6 @@ struct __wt_connection_impl {
                                      configured or the current size
                                      within a cache pool). */
     WT_EVICT *evict;
-    WT_CACHE_EVICTION_CONTROLS cache_eviction_controls;
 
     WT_TXN_GLOBAL txn_global; /* Global transaction state */
 
