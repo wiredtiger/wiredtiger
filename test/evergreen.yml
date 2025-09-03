@@ -886,7 +886,6 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_PATH}
-        # Track warnings only after time 2025-08-06 06:07:50.655735+00:00
         python3 test/evergreen/tsan_warnings_analysis.py --timestamp ${timestamp}
 
   "code coverage analysis":
@@ -4771,7 +4770,8 @@ tasks:
           destination: wiredtiger/unit-test-tsan
       - func: "tsan warning metric"
         vars:
-          timestamp: 1746576000
+          # Track warnings only after time 2025-08-06 06:07:50.655735+00:00
+          timestamp: 1754460496
 
   - name: generate-tsan-metric-disagg
     tags: ["pull_request_code_statistics"]
@@ -4790,7 +4790,8 @@ tasks:
           destination: wiredtiger/unit-test-disagg-follower-tsan
       - func: "tsan warning metric"
         vars:
-          timestamp: 1754460496
+          # Track warnings right before disagg merge 2025-08-02.
+          timestamp: 1746576000
 
     ###############################
     # Performance Tests for btree #
