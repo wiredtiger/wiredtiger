@@ -105,8 +105,7 @@ __wt_prepared_discover_remove_item(WT_SESSION_IMPL *session, uint64_t prepared_i
     WT_PENDING_PREPARED_ITEM *item;
     WT_PENDING_PREPARED_MAP *pending_prepare_items;
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_OP *op;
-    uint64_t bucket, i;
+    uint64_t bucket;
     conn = S2C(session);
     txn_global = &conn->txn_global;
     pending_prepare_items = &txn_global->pending_prepare_items;
@@ -117,9 +116,7 @@ __wt_prepared_discover_remove_item(WT_SESSION_IMPL *session, uint64_t prepared_i
             if (item->prepared_id == prepared_id) {
                 TAILQ_REMOVE(&pending_prepare_items->hash[bucket], item, hashq);
                 /* Clean up memory of unclaimed mod array */
-                for (i = 0, op = item->mod; i < item->mod_count; i++, op++) {
-                    __wt_txn_op_free(session, op);
-                }
+                WT_ASSERT_ALWAYS(session, item->mod_count == 0, "Removing an unclaimed prepared item.");
                 __wt_free(session, item->mod);
                 item->mod_alloc = 0;
                 item->mod_count = 0;

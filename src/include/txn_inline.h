@@ -1831,9 +1831,9 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, wt_timestamp_t prepared_id
     WT_TXN_OP *tmp_mod;
     txn = session->txn;
     WT_RET(__wt_prepared_discover_find_item(session, prepared_id, &prepared_item));
-    F_SET(txn, WT_TXN_PREPARE | WT_TXN_HAS_PREPARED_ID | WT_TXN_HAS_TS_PREPARE | WT_TXN_RUNNING);
     txn->prepared_id = prepared_id;
     txn->prepare_timestamp = prepared_item->prepare_timestamp;
+    F_SET(txn, WT_TXN_PREPARE | WT_TXN_HAS_PREPARED_ID | WT_TXN_HAS_TS_PREPARE | WT_TXN_RUNNING);
     /*
      * Swap mod array with prepared_item to avoid double-free on cursor close and when
      * commit/rollback.
