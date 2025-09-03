@@ -6201,6 +6201,7 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-disagg-success"
+    - name: ".stress-test-no-barrier"
       distros: ubuntu2004-medium
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
@@ -6548,7 +6549,8 @@ buildvariants:
     - name: compile
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-test-disagg-success"test
+    - name: ".stress-test-disagg-success"
+    - name: format-abort-recovery-stress-test
     - name: format-predictable-test
 
 - name: ubuntu2004-release-stress-tests-arm64
@@ -6564,7 +6566,8 @@ buildvariants:
     - name: compile
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-test-disagg-success"test
+    - name: ".stress-test-disagg-success"
+    - name: format-abort-recovery-stress-test
 
 - name: ubuntu2004-nonstandalone
   display_name: "Ubuntu 20.04 (Non-standalone)"
@@ -6599,6 +6602,7 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-disagg-success"
+    - name: ".stress-test-no-barrier"
       distros: ubuntu2004-medium
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
@@ -6624,6 +6628,7 @@ buildvariants:
     - name: format-abort-recovery-stress-test
       distros: ubuntu2004-test
     - name: ".stress-test-disagg-success"
+    - name: make-check-test
     - name: unit-test
 
 - name: ubuntu2004-arm64-nonstandalone
@@ -6648,6 +6653,7 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-disagg-success"
+    - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
       batchtime: 720 # 12 hours
@@ -6671,6 +6677,7 @@ buildvariants:
     - name: format-abort-recovery-stress-test
       distros: ubuntu2004-arm64-large
     - name: ".stress-test-disagg-success"
+    - name: make-check-test
     - name: unit-test
     - name: unit-test-extra-long
       distros: ubuntu2004-arm64-large
@@ -6714,6 +6721,7 @@ buildvariants:
     - name: format-abort-recovery-stress-test
       distros: amazon2023-arm64-latest-large-m8g
     - name: ".stress-test-disagg-success"
+    - name: make-check-test
     - name: unit-test
     - name: unit-test-extra-long
       distros: amazon2023-arm64-latest-large-m8g
@@ -6740,6 +6748,7 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-disagg-success"
+    - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
       batchtime: 720 # 12 hours
@@ -6842,6 +6851,7 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-disagg-success"
+    - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
     - name: schema-abort-predictable-test
