@@ -118,8 +118,6 @@ __wt_prepared_discover_remove_item(WT_SESSION_IMPL *session, uint64_t prepared_i
                 /* Clean up memory of unclaimed mod array */
                 WT_ASSERT_ALWAYS(session, item->mod_count == 0, "Removing an unclaimed prepared item.");
                 __wt_free(session, item->mod);
-                item->mod_alloc = 0;
-                item->mod_count = 0;
                 __wt_free(session, item);
                 return (0);
             }

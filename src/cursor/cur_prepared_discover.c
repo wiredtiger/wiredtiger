@@ -102,8 +102,6 @@ __cursor_prepared_discover_close(WT_CURSOR *cursor)
                     __wt_txn_op_free(session, op);
                 }
                 __wt_free(session, item->mod);
-                item->mod_alloc = 0;
-                item->mod_count = 0;
                 __wt_free(session, item);
             }
         }
