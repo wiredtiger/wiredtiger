@@ -4098,7 +4098,7 @@ tasks:
             ./model_test -l 100-200 -g -t 3600
 
   - name: model-test-disagg-long
-    tags: [".stress-test-disagg-fail"]
+    tags: ["stress-test-disagg-fail"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -4114,7 +4114,7 @@ tasks:
             ./model_test -D -l 2000-3000 -t 3600
 
   - name: model-test--disagg-long-random-config
-    tags: [".stress-test-disagg-fail"]
+    tags: ["stress-test-disagg-fail"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
