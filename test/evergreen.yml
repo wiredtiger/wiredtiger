@@ -7017,5 +7017,3 @@ buildvariants:
     - name: compile
     - name: ".stress-test-disagg-fail"
       batchtime: 2880 # once every two days
-    - name: ".model_checking"
-      batchtime: 2880 # once every two days
