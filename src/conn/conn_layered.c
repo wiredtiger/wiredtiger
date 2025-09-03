@@ -1395,7 +1395,6 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
 
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
-    WT_RET(__wt_scr_alloc(session, 0, &meta));
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -1403,6 +1402,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
     if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
         return (0);
 
+    WT_RET(__wt_scr_alloc(session, 0, &meta));
     WT_ACQUIRE_READ(meta_lsn, conn->disaggregated_storage.last_checkpoint_meta_lsn);
     WT_ACQUIRE_READ(checkpoint_timestamp, conn->disaggregated_storage.cur_checkpoint_timestamp);
     WT_ASSERT(session, meta_lsn > 0); /* The metadata page should be written by now. */
