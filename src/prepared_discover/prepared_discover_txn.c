@@ -116,7 +116,8 @@ __wt_prepared_discover_remove_item(WT_SESSION_IMPL *session, uint64_t prepared_i
             if (item->prepared_id == prepared_id) {
                 TAILQ_REMOVE(&pending_prepare_items->hash[bucket], item, hashq);
                 /* Clean up memory of unclaimed mod array */
-                WT_ASSERT_ALWAYS(session, item->mod_count == 0, "Removing an unclaimed prepared item.");
+                WT_ASSERT_ALWAYS(
+                  session, item->mod_count == 0, "Removing an unclaimed prepared item.");
                 __wt_free(session, item->mod);
                 __wt_free(session, item);
                 return (0);

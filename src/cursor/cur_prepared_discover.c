@@ -91,7 +91,7 @@ __cursor_prepared_discover_close(WT_CURSOR *cursor)
     if (pending_prepare_items->hash != NULL) {
         for (i = 0; i < pending_prepare_items->hash_size; i++) {
             while ((item = TAILQ_FIRST(&pending_prepare_items->hash[i])) != NULL) {
-                /* 
+                /*
                  * Claimed prepare transactions should have been removed from the hash map already.
                  * Increase the counter if we find unclaimed item left in map.
                  */
