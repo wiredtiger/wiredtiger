@@ -4113,7 +4113,7 @@ tasks:
             # Keep repeating the model test for 60 minutes
             ./model_test -D -l 2000-3000 -t 3600
 
-  - name: model-test--disagg-long-random-config
+  - name: model-test-disagg-long-random-config
     tags: ["stress-test-disagg-fail"]
     commands:
       - func: "get project"
