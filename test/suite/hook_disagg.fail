@@ -18,7 +18,6 @@ test_cc05.py
 test_cc06.py # uses statistics we don't support in disagg
 test_cc07.py
 test_cc08.py
-test_cc09.py
 test_compat05.py
 test_config02.py
 test_config09.py

@@ -61,8 +61,6 @@ class test_cc09(test_cc_base):
         create_params = 'key_format=i,value_format=S'
         nrows = 100000
         uri = 'table:cc09'
-        stable_uri = 'file:cc09.wt_stable'
-
         value = 'k' * 1024
 
         self.session.create(uri, create_params)
@@ -80,12 +78,11 @@ class test_cc09(test_cc_base):
         # Restart to have everything on disk.
         self.reopen_conn()
 
-        # Open the table as we need the dhandle to be open for checkpoint cleanup to process the
-        # table.
-        if hasattr(self, 'disagg_leader'):
-            cursor = self.session.open_cursor(stable_uri, None, None)
-        else:
-            cursor = self.session.open_cursor(uri, None, None)
+        # Open the table and perform a read as we need the dhandle to be open for checkpoint cleanup
+        # to process the table.
+        cursor = self.session.open_cursor(uri, None, None)
+        self.assertEqual(cursor.next(), 0)
+        self.assertEqual(cursor.reset(), 0)
 
         if self.has_delete:
             self.session.begin_transaction()
