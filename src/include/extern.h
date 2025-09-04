@@ -2155,7 +2155,7 @@ static WT_INLINE int __wt_txn_autocommit_check(WT_SESSION_IMPL *session)
 static WT_INLINE int __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session,
-  wt_timestamp_t prepared_id) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  uint64_t prepared_id) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_txn_context_prepare_check(WT_SESSION_IMPL *session)
