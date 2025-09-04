@@ -1642,6 +1642,20 @@ tasks:
       - func: "compile wiredtiger"
       - func: "make check all"
 
+  # This task is same as make-check-test, fit for a low spec host machine.
+  - name: make-check-test-low-perf
+    commands:
+      - command: timeout.update
+        params:
+          # Allow the overall task running time maximum to 4h
+          exec_timeout_secs: 14400
+          # Allow test_checkpoint_row_server_93028_2 running over 4h
+          # The reason is durning the running of this task there will be silent, no log out
+          timeout_secs: 14400
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check all"
+
   # Start of normal make check test tasks
 
   - name: lang-python-test
@@ -6256,7 +6270,8 @@ buildvariants:
     python_binary: "/cygdrive/c/python/Python311/python"
   tasks:
     - name: compile
-    - name: make-check-test
+    # the low-perf task is designed to avoid timeout in CI
+    - name: make-check-test-low-perf
     - name: ".unit_test"
     - name: fops
     - name: catch2-test
