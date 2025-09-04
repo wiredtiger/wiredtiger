@@ -1612,6 +1612,7 @@ config_transaction(void)
 
     g.operation_timeout_ms = GV(TRANSACTION_OPERATION_TIMEOUT_MS);
     g.transaction_timestamps_config = GV(TRANSACTION_TIMESTAMPS) != 0;
+    g.prepare_id = 1;
 }
 
 /*
