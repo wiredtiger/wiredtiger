@@ -172,7 +172,8 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
         dsk = ip->data;
         actually_encrypted = F_ISSET(dsk, WT_PAGE_ENCRYPTED);
 
-        /* Disallow reading an unencrypted block from original source when encryption is configured.
+        /*
+         * Disallow reading an unencrypted block from original source when encryption is configured.
          */
         if (!F_ISSET(dsk, WT_PAGE_ENCRYPTED) && btree->kencryptor != NULL)
             WT_ERR(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
@@ -507,7 +508,8 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
         type = dsk->type;
         actually_encrypted = F_ISSET(dsk, WT_PAGE_ENCRYPTED);
 
-        /* Disallow reading an unencrypted block from original source when encryption is configured.
+        /*
+         * Disallow reading an unencrypted block from original source when encryption is configured.
          */
         if (!F_ISSET(dsk, WT_PAGE_ENCRYPTED) && btree->kencryptor != NULL)
             WT_ERR(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
