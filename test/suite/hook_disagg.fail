@@ -13,7 +13,6 @@ test_bug033.py
 test_bulk01.py
 test_bulk02.py
 test_cc08.py
-test_cc09.py
 test_compat05.py
 test_config02.py
 test_config09.py
