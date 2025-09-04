@@ -1647,10 +1647,9 @@ tasks:
     commands:
       - command: timeout.update
         params:
-          # Allow the overall task running time maximum to 4h
+          # Allow the overall task to run for a maximum time of 4h.
           exec_timeout_secs: 14400
-          # Allow test_checkpoint_row_server_93028_2 running over 4h
-          # The reason is durning the running of this task there will be silent, no log out
+          # Slow scenarios will not output anything and Evergreen kills them after 2h. Allow 4h of silence.
           timeout_secs: 14400
       - func: "get project"
       - func: "compile wiredtiger"
@@ -6270,7 +6269,7 @@ buildvariants:
     python_binary: "/cygdrive/c/python/Python311/python"
   tasks:
     - name: compile
-    # the low-perf task is designed to avoid timeout in CI
+    # Windows hosts are slow, use the designed low-perf task to avoid timeout failures.
     - name: make-check-test-low-perf
     - name: ".unit_test"
     - name: fops
