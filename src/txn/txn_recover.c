@@ -1190,7 +1190,7 @@ done:
      *    any changes that need to be done on the database other than reading.
      * 2. The history store file was found in the metadata.
      * 3. We are not using disaggregated storage or precise checkpoint(In precise checkpoints,
-     * everything is stable except prepared txns. Disagg also uses precise checkpoint, so neither
+     * everything is stable except prepared txn. Disagg also uses precise checkpoint, so neither
      * requires rollback to stable).
      * FIXME-WT-15343 Disable RTS for precise checkpoint when claim prepared is implemented in test
      * format
@@ -1229,7 +1229,7 @@ done:
           " milliseconds",
           conn->recovery_timeline.rts_ms);
     } else {
-        /* Although rollback to stable isn’t needed, we still need to set the durable timestamp. */
+        /* Although rollback to stable is not needed, we still need to set the durable timestamp. */
         WT_TXN_GLOBAL *txn_global = &conn->txn_global;
         txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
         txn_global->durable_timestamp = txn_global->stable_timestamp;
