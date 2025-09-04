@@ -521,6 +521,7 @@ create_database(const char *home, WT_CONNECTION **connp)
     if (GV(PRECISE_CHECKPOINT))
         CONFIG_APPEND(p, ",precise_checkpoint=true");
 
+    /* If prepared is not enabled, this will be a no-op. */
     if (GV(PRESERVE_PREPARED))
         CONFIG_APPEND(p, ",preserve_prepared=true");
 
@@ -793,6 +794,7 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
         if (GV(PRECISE_CHECKPOINT))
             CONFIG_APPEND(p, ",precise_checkpoint=true");
 
+        /* If prepared is not enabled, this will be a no-op. */
         if (GV(PRESERVE_PREPARED))
             CONFIG_APPEND(p, ",preserve_prepared=true");
 

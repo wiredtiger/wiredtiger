@@ -414,7 +414,6 @@ typedef struct {
     uint64_t read_ts;      /* read timestamp */
     uint64_t replay_ts;    /* allocated timestamp for predictable replay */
     uint64_t stable_ts;    /* stable timestamp */
-    uint64_t prepared_id;  /* prepared id */
     SNAP_STATE snap_states[2];
     SNAP_STATE *s; /* points to one of the snap_states */
 
