@@ -731,8 +731,12 @@ config_cache(void)
     if (GV(PRECISE_CHECKPOINT) && GV(CACHE) < 4086)
         GV(CACHE) = 4086;
 
-    if (cache_maximum_explicit && !GV(PRECISE_CHECKPOINT) && GV(CACHE) > GV(CACHE_MAXIMUM))
-        GV(CACHE) = GV(CACHE_MAXIMUM);
+    if (cache_maximum_explicit && GV(CACHE) > GV(CACHE_MAXIMUM)) {
+        if (GV(PRECISE_CHECKPOINT) && GV(CACHE_MAXIMUM) < 4086)
+            config_off(NULL, "cache.maximum");
+        else
+            GV(CACHE) = GV(CACHE_MAXIMUM);
+    }
 
     /* Give any block cache 20% of the total cache size, over and above the cache. */
     if (GV(BLOCK_CACHE) != 0)
