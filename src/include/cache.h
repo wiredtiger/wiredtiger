@@ -19,6 +19,20 @@ typedef enum __wt_cache_op {
 #define WT_HS_FILE_MIN (100 * WT_MEGABYTE)
 
 /*
+ * WT_CACHE_EVICTION_CONTROLS --
+ *  Cache eviction controls configuration.
+ *  WT_CACHE_EVICT_INCREMENTAL_APP: Only a part of application threads will participate in cache
+ * management when a cache threshold reaches its trigger limit. WT_CACHE_EVICT_SCRUB_UNDER_TARGET:
+ * Change the eviction strategy to scrub eviction when the cache usage is under the target limit.
+ */
+struct __wt_cache_eviction_controls {
+/* cache eviction controls bit positions */
+#define WT_CACHE_EVICT_INCREMENTAL_APP 0x1u
+#define WT_CACHE_EVICT_SCRUB_UNDER_TARGET 0x2u
+    wt_shared uint32_t flags_atomic;
+};
+
+/*
  * WiredTiger cache structure.
  */
 struct __wt_cache {
@@ -42,7 +56,7 @@ struct __wt_cache {
     wt_shared uint64_t bytes_delta_updates; /* Bytes of updates reconstructed from deltas */
     wt_shared uint64_t bytes_written;
 
-    WT_CACHE_EVICTION_CONTROLS *cache_eviction_controls;
+    WT_CACHE_EVICTION_CONTROLS cache_eviction_controls;
 
     /*
      * History store cache usage. TODO: The values for these variables are cached and potentially
@@ -114,20 +128,6 @@ struct __wt_cache_pool {
 #define WT_CACHE_POOL_ACTIVE 0x1u /* Cache pool is active */
                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
-};
-
-/*
- * WT_CACHE_EVICTION_CONTROLS --
- *  Cache eviction controls configuration.
- *  WT_CACHE_EVICT_INCREMENTAL_APP: Only a part of application threads will participate in cache
- * management when a cache threshold reaches its trigger limit. WT_CACHE_EVICT_SCRUB_UNDER_TARGET:
- * Change the eviction strategy to scrub eviction when the cache usage is under the target limit.
- */
-struct __wt_cache_eviction_controls {
-/* cache eviction controls bit positions */
-#define WT_CACHE_EVICT_INCREMENTAL_APP 0x1u
-#define WT_CACHE_EVICT_SCRUB_UNDER_TARGET 0x2u
-    uint64_t flags;
 };
 
 /*
