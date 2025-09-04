@@ -1823,7 +1823,7 @@ __txn_remove_from_global_table(WT_SESSION_IMPL *session)
  *     Claim a prepared transaction.
  */
 static WT_INLINE int
-__wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uin64_t prepared_id)
+__wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
 {
     WT_DECL_RET;
     WT_PENDING_PREPARED_ITEM *prepared_item;
