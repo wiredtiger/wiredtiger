@@ -672,6 +672,10 @@ config_cache(void)
 
     /* Check if both min and max cache sizes have been specified and if they're consistent. */
     if (config_explicit(NULL, "cache")) {
+        if (GV(CACHE) < 4086) {
+            config_off(NULL, "preserve_prepared");
+            config_off(NULL, "precise_checkpoint");
+        }
         if (config_explicit(NULL, "cache.minimum") && GV(CACHE) < GV(CACHE_MINIMUM))
             testutil_die(EINVAL, "minimum cache set larger than cache (%" PRIu32 " > %" PRIu32 ")",
               GV(CACHE_MINIMUM), GV(CACHE));
@@ -763,6 +767,11 @@ dirty_eviction_config:
           "avoid operation thread stalls.");
         config_single(NULL, "cache.eviction_dirty_trigger=95", false);
         config_single(NULL, "cache.eviction_updates_trigger=95", false);
+    }
+
+    if (GV(PRICISE_CHECKPOINT) && GV(CACHE) < 4086) {
+        WARN("%s", "Setting cache to minimum of 4086MB due to precise_checkpoint");
+        config_single(NULL, "cache=4086", false);
     }
 }
 
