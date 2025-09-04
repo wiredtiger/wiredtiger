@@ -1642,7 +1642,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "make check all"
 
-  # This task is same as make-check-test, fit for a low spec host machine.
+  # This task is the same as make-check-test but fits for lower specs by allowing a bigger timeout.
   - name: make-check-test-low-perf
     commands:
       - command: timeout.update
