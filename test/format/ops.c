@@ -40,7 +40,7 @@ static int col_update(TINFO *, bool);
 static int nextprev(TINFO *, bool);
 static WT_THREAD_RET ops(void *);
 static int read_row(TINFO *);
-static void rollback_transaction(TINFO *, bool);
+static void rollback_transaction(TINFO *);
 static int row_insert(TINFO *, bool);
 static int row_modify(TINFO *, bool);
 static int row_remove(TINFO *, bool);
@@ -629,30 +629,19 @@ commit_transaction(TINFO *tinfo, bool prepared)
  *     Rollback a transaction.
  */
 static void
-rollback_transaction(TINFO *tinfo, bool prepared)
+rollback_transaction(TINFO *tinfo)
 {
     WT_SESSION *session;
-    uint64_t ts;
 
     session = tinfo->session;
-    ts = 0;
 
     ++tinfo->rollback;
     tinfo->ignore_prepare = false;
 
-    if (prepared) {
-        if (GV(RUNS_PREDICTABLE_REPLAY))
-            ts = replay_rollback_ts(tinfo);
-        else
-            ts = __wt_atomic_addv64(&g.timestamp, 1);
-
-        testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_ROLLBACK, ts));
-    }
     testutil_check(session->rollback_transaction(session, NULL));
     replay_rollback(tinfo);
 
-    trace_uri_op(
-      tinfo, NULL, "abort read-ts=%" PRIu64 ", rollback-ts=%" PRIu64, tinfo->read_ts, ts);
+    trace_uri_op(tinfo, NULL, "abort read-ts=%" PRIu64, tinfo->read_ts);
 }
 
 /*
@@ -664,28 +653,25 @@ prepare_transaction(TINFO *tinfo)
 {
     WT_DECL_RET;
     WT_SESSION *session;
-    uint64_t prepared_id, ts;
+    uint64_t ts;
 
     session = tinfo->session;
 
     ++tinfo->prepare;
 
-    prepared_id = __wt_atomic_addv64(&g.prepared_id, 1);
     if (GV(RUNS_PREDICTABLE_REPLAY))
         ts = replay_prepare_ts(tinfo);
     else
         /*
-         * Prepare timestamps must be less than or equal to the eventual commit timestamp but larger
-         * than the current stable timestamp. Increase the global value to ensure it is larger than
-         * the stable timestamp. The subsequent commit will increment it again, ensuring
-         * correctness.
+         * Prepare timestamps must be less than or equal to the eventual commit timestamp. Set the
+         * prepare timestamp to whatever the global value is now. The subsequent commit will
+         * increment it, ensuring correctness.
          */
-        ts = __wt_atomic_addv64(&g.timestamp, 1);
+        ts = __wt_atomic_fetch_addv64(&g.timestamp, 1);
     testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_PREPARE, ts));
-    testutil_check(session->prepared_id_transaction_uint(session, prepared_id));
     ret = session->prepare_transaction(session, NULL);
 
-    trace_uri_op(tinfo, NULL, "prepare ts=%" PRIu64 ", prepared id=%" PRIu64, ts, prepared_id);
+    trace_uri_op(tinfo, NULL, "prepare ts=%" PRIu64, ts);
 
     return (ret);
 }
@@ -1046,7 +1032,6 @@ ops(void *arg)
             __wt_sleep(throttle_delay / WT_MILLION, throttle_delay % WT_MILLION);
         }
 rollback_retry:
-        prepared = false;
         mirrored_truncate = false;
         if (tinfo->quit)
             break;
@@ -1412,6 +1397,7 @@ skip_operation:
          * If prepare configured, prepare the transaction 10% of the time. Note prepare requires a
          * timestamped world, which means we're in a snapshot-isolation transaction by definition.
          */
+        prepared = false;
         if (GV(OPS_PREPARE) && mmrand(&tinfo->data_rnd, 1, 10) == 1) {
             if ((ret = prepare_transaction(tinfo)) != 0) {
                 testutil_assert(ret == WT_ROLLBACK);
@@ -1440,7 +1426,7 @@ rollback:
                     goto loop_exit;
                 /* Force a rollback */
                 testutil_assert(intxn);
-                rollback_transaction(tinfo, prepared);
+                rollback_transaction(tinfo);
                 intxn = false;
                 ++ntries;
                 replay_pause_after_rollback(tinfo, ntries);
@@ -1448,7 +1434,7 @@ rollback:
                 goto rollback_retry;
             }
             __wt_yield(); /* Encourage races */
-            rollback_transaction(tinfo, prepared);
+            rollback_transaction(tinfo);
             snap_repeat_update(tinfo, false);
             break;
         }
