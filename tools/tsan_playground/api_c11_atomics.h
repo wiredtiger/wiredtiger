@@ -16,18 +16,14 @@ typedef uint64_t value_t;
 
 #define ATOMIC_DEFINE(var, value) static atomic_t var = (value)
 
-void atomic_store_release(atomic_t* var, value_t value);
-value_t atomic_load_acquire(atomic_t* var);
-const char *get_mode(void);
-
-void atomic_store_release(atomic_t* var, value_t value) {
+static void atomic_store_release(atomic_t* var, value_t value) {
     atomic_store_explicit(var, value, memory_order_release);
 }
 
-value_t atomic_load_acquire(atomic_t* var) {
+static value_t atomic_load_acquire(atomic_t* var) {
     return atomic_load_explicit(var, memory_order_acquire);
 }
 
-const char *get_mode(void) {
+static const char *get_mode(void) {
     return "C11 atomics";
 }

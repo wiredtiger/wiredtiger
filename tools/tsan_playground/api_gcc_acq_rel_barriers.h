@@ -16,21 +16,17 @@ typedef uint64_t value_t;
 
 #define ATOMIC_DEFINE(var, value) static atomic_t var = (value)
 
-void atomic_store_release(atomic_t* var, value_t value);
-value_t atomic_load_acquire(atomic_t* var);
-const char *get_mode(void);
-
-void atomic_store_release(atomic_t* var, value_t value) {
+static void atomic_store_release(atomic_t* var, value_t value) {
     __atomic_thread_fence(__ATOMIC_RELEASE);
     __atomic_store_n(var, value, __ATOMIC_RELAXED);
 }
 
-value_t atomic_load_acquire(atomic_t* var) {
-    value_t result = __atomic_load_n(var, __ATOMIC_ACQUIRE);
+static value_t atomic_load_acquire(atomic_t* var) {
+    value_t result = __atomic_load_n(var, __ATOMIC_RELAXED);
     __atomic_thread_fence(__ATOMIC_ACQUIRE);
     return result;
 }
 
-const char *get_mode(void) {
+static const char *get_mode(void) {
     return "GCC acq/rel barriers";
 }

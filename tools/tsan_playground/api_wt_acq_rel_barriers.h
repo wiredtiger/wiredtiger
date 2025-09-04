@@ -16,16 +16,12 @@ typedef uint64_t value_t;
 
 #define ATOMIC_DEFINE(var, value) static atomic_t var = value
 
-void atomic_store_release(atomic_t* var, value_t value);
-value_t atomic_load_acquire(atomic_t* var);
-const char *get_mode(void);
-
-void atomic_store_release(atomic_t* var, value_t value) {
+static void atomic_store_release(atomic_t* var, value_t value) {
     WT_RELEASE_BARRIER();
     __wt_atomic_store64(var, value);
 }
 
-value_t atomic_load_acquire(atomic_t* var) {
+static value_t atomic_load_acquire(atomic_t* var) {
     value_t result;
 
     result = __wt_atomic_load64(var);
@@ -34,6 +30,6 @@ value_t atomic_load_acquire(atomic_t* var) {
     return result;
 }
 
-const char *get_mode(void) {
+static const char *get_mode(void) {
     return "WT acq/rel barriers";
 }
