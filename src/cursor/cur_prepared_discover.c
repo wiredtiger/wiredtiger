@@ -109,7 +109,8 @@ __cursor_prepared_discover_close(WT_CURSOR *cursor)
         memset((void *)pending_prepare_items, 0, sizeof(WT_PENDING_PREPARED_MAP));
     }
     if (unclaimed_count > 0)
-        WT_ERR_MSG(session, WT_ERROR, "Found %" PRIu64 " unclaimed prepared transactions", unclaimed_count);
+        WT_ERR_MSG(
+          session, WT_ERROR, "Found %" PRIu64 " unclaimed prepared transactions", unclaimed_count);
 err:
 
     __wt_free(session, cursor_prepare->list);
