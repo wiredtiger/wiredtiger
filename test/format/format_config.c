@@ -769,7 +769,7 @@ dirty_eviction_config:
         config_single(NULL, "cache.eviction_updates_trigger=95", false);
     }
 
-    if (GV(PRICISE_CHECKPOINT) && GV(CACHE) < 4086) {
+    if (GV(PRECISE_CHECKPOINT) && GV(CACHE) < 4086) {
         WARN("%s", "Setting cache to minimum of 4086MB due to precise_checkpoint");
         config_single(NULL, "cache=4086", false);
     }
