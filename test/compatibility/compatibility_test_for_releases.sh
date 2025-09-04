@@ -888,8 +888,9 @@ if [ "$import" = true ]; then
     done
 
     for i in ${!import_release_branches[@]}; do
-        [[ $((i+1)) < ${#import_release_branches[@]} ]] && \
-        (import_compatibility_test ${import_release_branches[$i+1]} ${import_release_branches[$i]})
+        if [ $((i+1)) < ${#import_release_branches[@]} ]; then
+            (import_compatibility_test ${import_release_branches[$i+1]} ${import_release_branches[$i]})
+        fi
     done
 fi
 
