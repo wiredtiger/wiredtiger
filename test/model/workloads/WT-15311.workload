@@ -1,3 +1,5 @@
+config("database", "disaggregated=true")
+create_table(2, "table2", "Q", "Q")
 begin_transaction(4)
 insert(2, 4, 203392, 370921)
 commit_transaction(4, 4843, 0)
