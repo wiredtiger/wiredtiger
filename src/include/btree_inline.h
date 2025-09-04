@@ -793,6 +793,7 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
          * whenever a btree is checkpointed.
          */
         if (WT_SESSION_BTREE_SYNC(session) && !WT_IS_METADATA(session->dhandle) &&
+          !WT_IS_DISAGG_META(session->dhandle) &&
           !FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE)) {
             WT_ASSERT_ALWAYS(session, !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE), "%s",
               "A btree is marked dirty during RTS");
