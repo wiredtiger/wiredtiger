@@ -888,16 +888,9 @@ if [ "$import" = true ]; then
     done
 
     for i in ${!import_release_branches[@]}; do
-        newer=${import_release_branches[$i]}
-
-        # MongoDB v4.2 doesn't support live import so it should only ever be used as the "older" branch
-        # that we're importing from.
-        if [ $newer = mongodb-4.2 ]; then
-            continue
+        if [ $((i+1)) < ${#import_release_branches[@]} ]; then
+            (import_compatibility_test ${import_release_branches[$i+1]} ${import_release_branches[$i]})
         fi
-
-        older=${import_release_branches[$i+1]}
-        import_compatibility_test $older $newer
     done
 fi
 
