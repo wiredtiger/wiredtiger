@@ -624,7 +624,7 @@ __layered_table_manager_start(WT_SESSION_IMPL *session)
     conn = S2C(session);
     manager = &conn->layered_table_manager;
 
-    WT_ASSERT_ALWAYS(session, manager->state == WT_LAYERED_TABLE_MANAGER_OFF,
+    WT_ASSERT_ALWAYS(session, __wt_atomic_load32(&manager->state) == WT_LAYERED_TABLE_MANAGER_OFF,
       "Layered table manager initialization conflict");
 
     WT_RET(__wt_spin_init(session, &manager->layered_table_lock, "layered table manager"));
@@ -646,7 +646,7 @@ __layered_table_manager_start(WT_SESSION_IMPL *session)
       session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s", "__layered_table_manager_start");
     FLD_SET(conn->server_flags, WT_CONN_SERVER_LAYERED);
 
-    manager->state = WT_LAYERED_TABLE_MANAGER_RUNNING;
+    __wt_atomic_storev32(&manager->state, WT_LAYERED_TABLE_MANAGER_RUNNING);
     return (0);
 
 err:
@@ -675,7 +675,8 @@ __wt_layered_table_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_i
       "Adding a layered tree to tracking without the right dhandle context.");
     layered = (WT_LAYERED_TABLE *)session->dhandle;
 
-    WT_ASSERT_ALWAYS(session, manager->state == WT_LAYERED_TABLE_MANAGER_RUNNING,
+    WT_ASSERT_ALWAYS(session,
+      __wt_atomic_load32(&manager->state) == WT_LAYERED_TABLE_MANAGER_RUNNING,
       "Adding a layered table, but the manager isn't running");
     __wt_spin_lock(session, &manager->layered_table_lock);
 
@@ -757,7 +758,7 @@ __wt_layered_table_manager_remove_table(WT_SESSION_IMPL *session, uint32_t inges
     manager = &S2C(session)->layered_table_manager;
 
     /* Shutdown calls this redundantly - ignore cases when the manager is already closed. */
-    if (manager->state == WT_LAYERED_TABLE_MANAGER_OFF)
+    if (__wt_atomic_load32(&manager->state) == WT_LAYERED_TABLE_MANAGER_OFF)
         return;
 
     __wt_spin_lock(session, &manager->layered_table_lock);
@@ -833,7 +834,7 @@ __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
     manager->open_layered_table_count = 0;
     manager->entries_allocated_bytes = 0;
 
-    manager->state = WT_LAYERED_TABLE_MANAGER_OFF;
+    __wt_atomic_storev32(&manager->state, WT_LAYERED_TABLE_MANAGER_OFF);
     WT_STAT_CONN_SET(session, layered_table_manager_running, 0);
 
     __wt_spin_destroy(session, &manager->layered_table_lock);
@@ -1717,7 +1718,7 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
     uri_at_checkpoint = NULL;
     uri_alloc = 0;
 
-    WT_ASSERT(session, manager->state == WT_LAYERED_TABLE_MANAGER_RUNNING);
+    WT_ASSERT(session, __wt_atomic_load32(&manager->state) == WT_LAYERED_TABLE_MANAGER_RUNNING);
 
     __wt_spin_lock(session, &manager->layered_table_lock);
 
