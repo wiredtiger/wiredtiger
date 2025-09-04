@@ -722,16 +722,16 @@ config_cache(void)
     cache *= workers;
     cache *= 2;
 
-    if (GV(CHECKPOINT_PRECISE))
-        cache *= 4;
+    if (GV(PRECISE_CHECKPOINT))
+        cache *= 6;
 
     if (GV(CACHE) < cache)
         GV(CACHE) = (uint32_t)cache;
 
-    if (GV(CHECKPOINT_PRECISE) && GV(CACHE) < 2048)
-        GV(CACHE) = 2048;
+    if (GV(PRECISE_CHECKPOINT) && GV(CACHE) < 4086)
+        GV(CACHE) = 4086;
 
-    if (cache_maximum_explicit && GV(CACHE) > GV(CACHE_MAXIMUM))
+    if (cache_maximum_explicit && !GV(PRECISE_CHECKPOINT) && GV(CACHE) > GV(CACHE_MAXIMUM))
         GV(CACHE) = GV(CACHE_MAXIMUM);
 
     /* Give any block cache 20% of the total cache size, over and above the cache. */
@@ -789,8 +789,8 @@ config_checkpoint(void)
             break;
         }
 
-    if (GV(OPS_PREPARE))
-        config_off(NULL, "precise_checkpoint");
+    if (!GV(PRECISE_CHECKPOINT))
+        config_off(NULL, "preserve_prepared");
 }
 
 /*
@@ -1603,6 +1603,7 @@ config_transaction(void)
     if (!GV(TRANSACTION_TIMESTAMPS)) {
         config_off(NULL, "ops.prepare");
         config_off(NULL, "precise_checkpoint");
+        config_off(NULL, "preserve_prepared");
     }
 
     /* Set a default transaction timeout limit if one is not specified. */
@@ -1611,6 +1612,7 @@ config_transaction(void)
 
     g.operation_timeout_ms = GV(TRANSACTION_OPERATION_TIMEOUT_MS);
     g.transaction_timestamps_config = GV(TRANSACTION_TIMESTAMPS) != 0;
+    g.prepared_id = 1;
 }
 
 /*
