@@ -42,6 +42,39 @@ __blkcache_read_corrupt(WT_SESSION_IMPL *session, int error, const uint8_t *addr
 }
 
 /*
+ * __blkcache_read_decrypt --
+ *     Decrypt the content of one item into another.
+ *
+ * This uses the decryptor on the btree, and requires that the output item is already backed by a
+ *     scratch buffer that can be grown as needed.
+ */
+static int
+__blkcache_read_decrypt(
+  WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out, const uint8_t *addr, size_t addr_size)
+{
+    WT_BM *bm;
+    WT_BTREE *btree;
+    WT_DECL_RET;
+    WT_ENCRYPTOR *encryptor;
+
+    btree = S2BT(session);
+    bm = btree->bm;
+    encryptor = btree->kencryptor == NULL ? NULL : btree->kencryptor->encryptor;
+
+    if (encryptor == NULL || encryptor->decrypt == NULL)
+        WT_RET(__blkcache_read_corrupt(
+          session, WT_ERROR, addr, addr_size, "encrypted block for which no decryptor configured"));
+
+    if ((ret = __wt_decrypt(session, encryptor, bm->encrypt_skip(bm, session), in, out)) != 0)
+        WT_RET(__blkcache_read_corrupt(session, ret, addr, addr_size, "block decryption failed"));
+
+    /* Clear the ENCRYPTED flag. */
+    F_CLR(((WT_PAGE_HEADER *)out->data), WT_PAGE_ENCRYPTED);
+
+    return (0);
+}
+
+/*
  * __blkcache_cache_wants_encrypted_data --
  *     Return if the configured block cache wants to store encrypted blocks.
  */
@@ -82,7 +115,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     size_t compression_ratio, result_len;
     uint64_t time_diff, time_start, time_stop;
     u_int count, i, results_count;
-    bool actually_encrypted, blkcache_found, expect_conversion, found, skip_cache_put, timer;
+    bool blkcache_found, expect_conversion, found, skip_cache_put, timer;
 
     blkcache = &S2C(session)->blkcache;
     blkcache_item = NULL;
@@ -90,7 +123,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     bm = btree->bm;
     compressor = btree->compressor;
     encryptor = btree->kencryptor == NULL ? NULL : btree->kencryptor->encryptor;
-    actually_encrypted = blkcache_found = found = false;
+    blkcache_found = found = false;
     skip_cache_put = (blkcache->type == WT_BLKCACHE_UNCONFIGURED);
     results_count = 0;
 
@@ -110,7 +143,6 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     WT_RET(__wti_blkcache_map_read(session, ip, addr, addr_size, &found));
     if (found) {
         skip_cache_put = true;
-        actually_encrypted = F_ISSET((WT_PAGE_HEADER*)ip->data, WT_PAGE_ENCRYPTED);
         if (!expect_conversion)
             goto verify;
     }
@@ -120,7 +152,6 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
         __wti_blkcache_get(session, addr, addr_size, &blkcache_item, &found, &skip_cache_put);
         if (found) {
             blkcache_found = true;
-            actually_encrypted = __blkcache_cache_wants_encrypted_data(session);
             ip->data = blkcache_item->data;
             ip->size = blkcache_item->data_size;
             if (block_meta != NULL) {
@@ -170,7 +201,6 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
             *block_meta = block_meta_tmp;
 
         dsk = ip->data;
-        actually_encrypted = F_ISSET(dsk, WT_PAGE_ENCRYPTED);
 
         /*
          * Disallow reading an unencrypted block from original source when encryption is configured.
@@ -204,24 +234,9 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
      */
     dsk = ip->data;
     ip_orig = ip;
-    if (actually_encrypted) {
-        /*
-         * We need this machinery with "actually_encrypted" because decryption doesn't clear the
-         * WT_PAGE_ENCRYPTED flag, and we need to know if the block was actually encrypted or not.
-         */
-        if (encryptor == NULL || encryptor->decrypt == NULL)
-            WT_ERR(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
-              "encrypted block for which no decryptor configured"));
-
-        /*
-         * If checksums were turned off because we're depending on decryption to fail on any
-         * corrupted data, we'll end up here on corrupted data.
-         */
+    if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
         WT_ERR(__wt_scr_alloc(session, 0, &etmp));
-        if ((ret = __wt_decrypt(session, encryptor, bm->encrypt_skip(bm, session), ip, etmp)) != 0)
-            WT_ERR(
-              __blkcache_read_corrupt(session, ret, addr, addr_size, "block decryption failed"));
-
+        WT_ERR(__blkcache_read_decrypt(session, ip, etmp, addr, addr_size));
         ip = etmp;
     }
 
@@ -324,36 +339,6 @@ err:
 }
 
 /*
- * __read_decrypt --
- *     Decrypt the content of one item into another.
- *
- * This uses the decryptor on the btree, and requires that the output item is already backed by a
- *     scratch buffer that can be grown as needed.
- */
-static int
-__read_decrypt(
-  WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out, const uint8_t *addr, size_t addr_size)
-{
-    WT_BM *bm;
-    WT_BTREE *btree;
-    WT_DECL_RET;
-    WT_ENCRYPTOR *encryptor;
-
-    btree = S2BT(session);
-    bm = btree->bm;
-    encryptor = btree->kencryptor == NULL ? NULL : btree->kencryptor->encryptor;
-
-    if (encryptor == NULL || encryptor->decrypt == NULL)
-        WT_RET(__blkcache_read_corrupt(
-          session, WT_ERROR, addr, addr_size, "encrypted block for which no decryptor configured"));
-
-    if ((ret = __wt_decrypt(session, encryptor, bm->encrypt_skip(bm, session), in, out)) != 0)
-        WT_RET(__blkcache_read_corrupt(session, ret, addr, addr_size, "block decryption failed"));
-
-    return (0);
-}
-
-/*
  * __read_decompress --
  *     Decompress data into a WT_ITEM.
  *
@@ -426,13 +411,13 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     const WT_PAGE_HEADER *dsk;
     uint32_t count, i;
     uint8_t type;
-    bool actually_encrypted, blkcache_found, found, skip_cache_put;
+    bool blkcache_found, found, skip_cache_put;
 
     WT_CLEAR(block_meta_tmp);
     WT_CLEAR(results);
 
     blkcache = &S2C(session)->blkcache;
-    actually_encrypted = blkcache_found = false;
+    blkcache_found = false;
     blkcache_item = NULL;
     btree = S2BT(session);
     bm = btree->bm;
@@ -464,7 +449,6 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     if (blkcache->type != WT_BLKCACHE_UNCONFIGURED) {
         __wti_blkcache_get(session, addr, addr_size, &blkcache_item, &found, &skip_cache_put);
         if (found) {
-            actually_encrypted = __blkcache_cache_wants_encrypted_data(session);
             blkcache_found = true;
             WT_ASSERT_ALWAYS(session, blkcache_item->num_deltas <= WT_DELTA_LIMIT,
               "block cache item has too many deltas");
@@ -506,7 +490,6 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
         ip = &results[0];
         dsk = ip->data;
         type = dsk->type;
-        actually_encrypted = F_ISSET(dsk, WT_PAGE_ENCRYPTED);
 
         /*
          * Disallow reading an unencrypted block from original source when encryption is configured.
@@ -537,13 +520,9 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
 
     /* Decrypt. */
     ip_orig = ip;
-    if (actually_encrypted) {
-        /*
-         * We need this machinery with "actually_encrypted" because decryption doesn't clear the
-         * WT_PAGE_ENCRYPTED flag, and we need to know if the block was actually encrypted or not.
-         */
+    if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
         WT_ERR(__wt_scr_alloc(session, 0, &etmp));
-        WT_ERR(__read_decrypt(session, ip, etmp, addr, addr_size));
+        WT_ERR(__blkcache_read_decrypt(session, ip, etmp, addr, addr_size));
         ip = etmp;
     }
 
@@ -613,7 +592,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
              * based on the flag.
              */
             WT_ERR(__wt_scr_alloc(session, 0, &etmp));
-            WT_ERR(__read_decrypt(session, ip, etmp, addr, addr_size));
+            WT_ERR(__blkcache_read_decrypt(session, ip, etmp, addr, addr_size));
             ip = etmp;
         }
         if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED)) {
