@@ -658,7 +658,7 @@ functions:
         . test/evergreen/find_cmake.sh
         cd cmake_build
         echo "Using number of parallel processes '-j ${num_jobs}' for 'make check all'"
-        $CTEST -L check -j ${num_jobs} --output-on-failure ${ctest_extra_args|} 2>&1
+        $CTEST -L "^check$" -j ${num_jobs} --output-on-failure ${ctest_extra_args|} 2>&1
 
   # The following cppsuite tasks define a greater overall task.
   "cppsuite test run": &cppsuite_test_run

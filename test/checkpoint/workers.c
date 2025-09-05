@@ -51,13 +51,15 @@ create_table(WT_SESSION *session, COOKIE *cookie)
     /*
      * If we're using timestamps, turn off logging for the table.
      */
-    if (g.use_timestamps)
+    if (g.use_timestamps) {
         testutil_snprintf(config, sizeof(config),
           "key_format=%s,value_format=%s,allocation_size=512,"
           "leaf_page_max=1KB,internal_page_max=1KB,"
           "memory_page_max=64KB,log=(enabled=false)",
           kf, vf);
-    else
+        if (g.opts.disagg_storage)
+            strcat(config, ",type=layered,block_manager=disagg");
+    } else
         testutil_snprintf(config, sizeof(config), "key_format=%s,value_format=%s", kf, vf);
 
     if ((ret = session->create(session, cookie->uri, config)) != 0)
@@ -282,7 +284,8 @@ worker_op(WT_CURSOR *cursor, table_type type, uint64_t keyno, u_int new_val)
         if (g.sweep_stress)
             testutil_check(cursor->reset(cursor));
     } else {
-        if (new_val % 39 < 30) {
+        /* FIXME-WT-14467 should fix cursor->modify for layered tables. */
+        if (new_val % 39 < 30 && !g.opts.disagg_storage) {
             /* Do modify. */
             ret = cursor->search(cursor);
             if (ret == 0 && (type != FIX || !cursor_fix_at_zero(cursor))) {
