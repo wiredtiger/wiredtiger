@@ -100,6 +100,7 @@ test_sweep06.py
 test_timestamp05.py
 test_timestamp06.py
 test_timestamp07.py
+test_timestamp10.py
 test_timestamp08.py
 test_timestamp20.py
 test_timestamp26.py
