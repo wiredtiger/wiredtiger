@@ -676,25 +676,25 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
         WT_ASSERT(session, LF_ISSET(WT_REC_EVICT));
         WT_TXN_GLOBAL *txn_global = &conn->txn_global;
         /*
-         * Cache the checkpoint's pinned transaction ID. This forbids eviction to evict anything
-         * that is not visible to the current checkpoint.
+         * If precise checkpoint is enabled, set the reconciliation's pinned id to the checkpoint's
+         * pinned id. This forbids eviction to evict anything that is not visible to the current
+         * checkpoint.
          */
         if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
-            WT_ACQUIRE_READ(
-              r->rec_start_txnid_not_visible, txn_global->checkpoint_txn_shared.pinned_id);
-            if (r->rec_start_txnid_not_visible == WT_TXN_NONE)
-                WT_ACQUIRE_READ(r->rec_start_txnid_not_visible, txn_global->last_running);
+            WT_ACQUIRE_READ(r->rec_start_pinned_id, txn_global->checkpoint_txn_shared.pinned_id);
+            if (r->rec_start_pinned_id == WT_TXN_NONE)
+                WT_ACQUIRE_READ(r->rec_start_pinned_id, txn_global->last_running);
         } else
-            WT_ACQUIRE_READ(r->rec_start_txnid_not_visible, txn_global->last_running);
+            WT_ACQUIRE_READ(r->rec_start_pinned_id, txn_global->last_running);
 
         if (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) {
             uint64_t ckpt_txn;
             WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
-            if (ckpt_txn != WT_TXN_NONE && ckpt_txn < r->rec_start_txnid_not_visible)
-                r->rec_start_txnid_not_visible = ckpt_txn;
+            if (ckpt_txn != WT_TXN_NONE && ckpt_txn < r->rec_start_pinned_id)
+                r->rec_start_pinned_id = ckpt_txn;
         }
     } else
-        r->rec_start_txnid_not_visible = WT_TXN_NONE;
+        r->rec_start_pinned_id = WT_TXN_NONE;
 
     /* When operating on the history store table, we should never try history store eviction. */
     WT_ASSERT_ALWAYS(session, !F_ISSET(btree->dhandle, WT_DHANDLE_HS) || !LF_ISSET(WT_REC_HS),

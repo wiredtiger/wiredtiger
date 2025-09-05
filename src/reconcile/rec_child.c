@@ -58,7 +58,7 @@ __rec_child_deleted(
      */
     if (__wt_page_del_committed_set(page_del)) {
         if (F_ISSET(r, WT_REC_VISIBLE_NO_SNAPSHOT)) {
-            visible = page_del->txnid < r->rec_start_txnid_not_visible;
+            visible = page_del->txnid < r->rec_start_pinned_id;
 
             if (visible) {
                 WT_ACQUIRE_READ(prepare_state, page_del->prepare_state);
