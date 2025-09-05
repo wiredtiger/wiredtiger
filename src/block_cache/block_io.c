@@ -587,10 +587,6 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
             WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
 
         if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED)) {
-            /*
-             * Deltas are currently not supported by the block cache, so they are always decrypted
-             * based on the flag.
-             */
             WT_ERR(__wt_scr_alloc(session, 0, &etmp));
             WT_ERR(__blkcache_read_decrypt(session, ip, etmp, addr, addr_size));
             ip = etmp;
