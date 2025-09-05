@@ -94,6 +94,9 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
     if 'tiered_storage=' in curconfig:
         skip_test("cannot run disagg hook on a test that uses tiered_storage in the config string")
 
+    if ('log=(enabled)') in curconfig:
+        skip_test("Log tables are not supported in disagg")
+
     extension_libs = WiredTigerTestCase.findExtension('page_log', page_log_name)
     if len(extension_libs) == 0:
         raise Exception(extension_name + ' storage source extension not found')
@@ -143,7 +146,6 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
     WiredTigerTestCase.verbose(None, 3, f'    Calling wiredtiger_open({homedir}, {config})')
 
     result = orig_wiredtiger_open(homedir, config)
-
     # Disaggregated storage generates some extra verbose output which must be ignored.
     disagg_ignore_expected_output(testcase)
 
