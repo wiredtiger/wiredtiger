@@ -42,11 +42,11 @@ __blkcache_read_corrupt(WT_SESSION_IMPL *session, int error, const uint8_t *addr
 }
 
 /*
- * __cache_wants_encrypted_data --
+ * __blkcache_cache_wants_encrypted_data --
  *     Return if the configured block cache wants to store encrypted blocks.
  */
 static bool
-__cache_wants_encrypted_data(WT_SESSION_IMPL *session)
+__blkcache_cache_wants_encrypted_data(WT_SESSION_IMPL *session)
 {
     /*!!!
      * Guidance for adding new block cache types here:
@@ -82,7 +82,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     size_t compression_ratio, result_len;
     uint64_t time_diff, time_start, time_stop;
     u_int count, i, results_count;
-    bool blkcache_found, expect_conversion, found, skip_cache_put, timer, actually_encrypted;
+    bool actually_encrypted, blkcache_found, expect_conversion, found, skip_cache_put, timer;
 
     blkcache = &S2C(session)->blkcache;
     blkcache_item = NULL;
@@ -110,7 +110,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     WT_RET(__wti_blkcache_map_read(session, ip, addr, addr_size, &found));
     if (found) {
         skip_cache_put = true;
-        actually_encrypted = __cache_wants_encrypted_data(session);
+        actually_encrypted = F_ISSET((WT_PAGE_HEADER*)ip->data, WT_PAGE_ENCRYPTED);
         if (!expect_conversion)
             goto verify;
     }
@@ -120,7 +120,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
         __wti_blkcache_get(session, addr, addr_size, &blkcache_item, &found, &skip_cache_put);
         if (found) {
             blkcache_found = true;
-            actually_encrypted = __cache_wants_encrypted_data(session);
+            actually_encrypted = __blkcache_cache_wants_encrypted_data(session);
             ip->data = blkcache_item->data;
             ip->size = blkcache_item->data_size;
             if (block_meta != NULL) {
@@ -234,7 +234,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
 
     if (!skip_cache_put) {
         /* Choose either the encrypted or decrypted data for the cache. */
-        WT_ITEM *cache_item = __cache_wants_encrypted_data(session) ? ip_orig : ip;
+        WT_ITEM *cache_item = __blkcache_cache_wants_encrypted_data(session) ? ip_orig : ip;
         /* Use a local variable for block metadata, because the passed-in pointer could be NULL. */
         WT_ERR(__wti_blkcache_put(
           session, cache_item, NULL, 0, &block_meta_tmp, addr, addr_size, false));
@@ -426,7 +426,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     const WT_PAGE_HEADER *dsk;
     uint32_t count, i;
     uint8_t type;
-    bool blkcache_found, found, skip_cache_put, actually_encrypted;
+    bool actually_encrypted, blkcache_found, found, skip_cache_put;
 
     WT_CLEAR(block_meta_tmp);
     WT_CLEAR(results);
@@ -464,7 +464,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     if (blkcache->type != WT_BLKCACHE_UNCONFIGURED) {
         __wti_blkcache_get(session, addr, addr_size, &blkcache_item, &found, &skip_cache_put);
         if (found) {
-            actually_encrypted = __cache_wants_encrypted_data(session);
+            actually_encrypted = __blkcache_cache_wants_encrypted_data(session);
             blkcache_found = true;
             WT_ASSERT_ALWAYS(session, blkcache_item->num_deltas <= WT_DELTA_LIMIT,
               "block cache item has too many deltas");
@@ -549,7 +549,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
 
     /* Store the compressed block in the block_cache. */
     if (!skip_cache_put) {
-        WT_ITEM *cache_item = __cache_wants_encrypted_data(session) ? ip_orig : ip;
+        WT_ITEM *cache_item = __blkcache_cache_wants_encrypted_data(session) ? ip_orig : ip;
         WT_ERR(__wti_blkcache_put(
           session, cache_item, &results[1], count - 1, &block_meta_tmp, addr, addr_size, false));
     }
@@ -869,7 +869,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
         WT_STAT_CONN_INCR(session, block_cache_bypass_writealloc);
     else if (!checkpoint) {
         /* If we are here, it means that we don't have deltas, so let's just ignore them. */
-        WT_ITEM *cache_item = __cache_wants_encrypted_data(session) ? ip : compressed ? ctmp : buf;
+        WT_ITEM *cache_item = __blkcache_cache_wants_encrypted_data(session) ? ip : compressed ? ctmp : buf;
         WT_ERR(
           __wti_blkcache_put(session, cache_item, NULL, 0, block_meta, addr, *addr_sizep, true));
     }
