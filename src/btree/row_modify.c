@@ -193,7 +193,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
                   (WT_DELTA_LEAF_ENABLED(session) && (*upd_entry)->type == WT_UPDATE_TOMBSTONE &&
                     F_ISSET(*upd_entry, WT_UPDATE_RESTORED_FROM_DS)) ||
                   (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-                    (*upd_entry)->prepare_state == WT_PREPARE_INPROGRESS)),
+                    F_ISSET(*upd_entry, WT_UPDATE_PREPARE_RESTORED_FROM_DS))),
               "Illegal update on chain during update restore eviction");
 
             /*
@@ -402,17 +402,13 @@ __wt_update_obsolete_check(
             continue;
 
         /*
-         * WiredTiger internal operations such as rollback to stable and prepare transaction
-         * rollback adds a globally visible tombstone to the update chain to remove the entire key.
-         * Treating these globally visible tombstones as obsolete and trimming update list can cause
-         * problems if the update chain is getting accessed somewhere else. To avoid this problem,
-         * skip these globally visible tombstones from the update obsolete check that were generated
-         * from prepare transaction rollback but not from RTS, because there are no concurrent
-         * operations run in parallel to the RTS to be affected.
+         * Prepare transaction rollback adds a globally visible tombstone to the update chain to
+         * remove the entire key. Treating these globally visible tombstones as obsolete and
+         * trimming update list can cause problems if the update chain is getting accessed somewhere
+         * else. To avoid this problem, skip these globally visible tombstones from the update
+         * obsolete check.
          */
-        if (upd->txnid == WT_TXN_NONE && upd->upd_start_ts == WT_TS_NONE &&
-          upd->type == WT_UPDATE_TOMBSTONE && upd->next != NULL &&
-          upd->next->txnid == WT_TXN_ABORTED && upd->next->prepare_state == WT_PREPARE_INPROGRESS)
+        if (F_ISSET(upd, WT_UPDATE_PREPARE_ROLLBACK))
             continue;
 
         /*
@@ -429,7 +425,7 @@ __wt_update_obsolete_check(
             first = NULL;
 
         /* Cannot truncate the updates if we need to remove the updates from the history store. */
-        if (F_ISSET(upd, WT_UPDATE_TO_DELETE_FROM_HS))
+        if (F_ISSET(upd, WT_UPDATE_HS_MAX_STOP))
             first = NULL;
     }
 

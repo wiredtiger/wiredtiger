@@ -2168,45 +2168,35 @@ __wti_rec_pack_delta_internal(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *key, WTI_REC_KV *value)
 {
     WT_PAGE_HEADER *header;
-    WTI_REC_KV t_kv_struct, *t_kv;
     size_t packed_size;
-    uint8_t *p;
+    uint8_t flags;
+    uint8_t *p, *head_byte;
 
-    WT_CLEAR(t_kv_struct);
+    flags = 0;
+
     header = (WT_PAGE_HEADER *)r->delta.data;
 
-    packed_size = key->len;
+    packed_size = 1 + key->len;
     if (value != NULL)
         packed_size += value->len;
 
     if (r->delta.size + packed_size > r->delta.memsize)
         WT_RET(__wt_buf_grow(session, &r->delta, r->delta.size + packed_size));
 
-    p = (uint8_t *)r->delta.data + r->delta.size;
+    head_byte = (uint8_t *)r->delta.data + r->delta.size;
+    p = head_byte + 1;
 
     __wti_rec_kv_copy(session, p, key);
     p += key->len;
-
-    /*
-     * If the value is NULL then write the zeroed out values and set the cell type to
-     * WT_CELL_ADDR_DEL.
-     */
-    if (value == NULL) {
-        t_kv = &t_kv_struct;
-        t_kv->buf.data = NULL;
-        t_kv->buf.size = 0;
-
-        t_kv->cell_len = __wt_cell_pack_addr(
-          session, &t_kv->cell, WT_CELL_ADDR_DEL, WT_RECNO_OOB, NULL, NULL, t_kv->buf.size);
-        t_kv->len = t_kv->cell_len + t_kv->buf.size;
-        __wti_rec_kv_copy(session, p, t_kv);
-        packed_size += t_kv->len;
-    } else
+    if (value == NULL)
+        LF_SET(WT_DELTA_INT_IS_DELETE);
+    else
         __wti_rec_kv_copy(session, p, value);
 
     r->delta.size += packed_size;
+    *head_byte = flags;
 
-    header->u.entries += 2; /* Two entries: key and value. */
+    ++header->u.entries;
     header->mem_size = (uint32_t)r->delta.size;
 
     return (0);
@@ -2214,33 +2204,27 @@ __wti_rec_pack_delta_internal(
 
 /*
  * __rec_pack_delta_leaf --
- *     Pack a delta key and a delta value for a leaf page.
+ *     Pack a delta for a leaf page
  */
 static int
 __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *supd)
 {
     WT_CURSOR_BTREE *cbt;
-    WT_DECL_ITEM(custom_value);
     WT_DECL_RET;
-    WT_ITEM *key, *value;
-    uint8_t flags, *p;
-    bool ovfl_key;
+    WT_ITEM *key, value;
+    size_t max_packed_size;
+    uint8_t flags;
+    uint8_t *p, *head;
+
+    flags = 0;
 
     cbt = &r->update_modify_cbt;
-    flags = 0;
-    ovfl_key = false;
-    WT_ERR(__wt_scr_alloc(session, 0, &custom_value));
 
-    /* Get the key data and pack it into a key cell. */
-    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+    /* Ensure enough room for a column-store key without checking. */
+    WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+
     WT_ERR(__rec_delta_pack_key(session, S2BT(session), r, supd->ins, supd->rip, key));
-    WT_ERR(__wti_rec_cell_build_leaf_key(session, r, key->data, key->size, &ovfl_key));
 
-    /*
-     * Build the customized value. The value for a leaf page delta looks very similar to a standard
-     * value, but has an additional byte before the value data to hold metadata for the delta.
-     */
-    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &value));
     if (supd->onpage_upd != NULL) {
         if (supd->onpage_upd->type == WT_UPDATE_MODIFY) {
             if (supd->rip != NULL)
@@ -2250,42 +2234,100 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
             WT_ERR(__wt_modify_reconstruct_from_upd_list(
               session, cbt, supd->onpage_upd, cbt->upd_value, WT_OPCTX_RECONCILATION));
             __wt_value_return(cbt, cbt->upd_value);
-            value->data = cbt->upd_value->buf.data;
-            value->size = cbt->upd_value->buf.size;
+            value.data = cbt->upd_value->buf.data;
+            value.size = cbt->upd_value->buf.size;
         } else {
-            value->data = supd->onpage_upd->data;
-            value->size = supd->onpage_upd->size;
+            value.data = supd->onpage_upd->data;
+            value.size = supd->onpage_upd->size;
         }
     } else {
-        /* The delta is a delete, set the relevant metadata to be packed. */
-        LF_SET(WT_VALUE_IS_DELETE);
-        value->data = NULL;
-        value->size = 0;
+        value.data = NULL;
+        value.size = 0;
     }
 
-    /* Pack the flags and delta value into a custom value. */
-    WT_ERR(__wt_buf_init(session, custom_value, 1 + value->size));
-    custom_value->size = 1 + value->size;
-    WT_ERR(__wt_struct_pack(session, (void *)custom_value->data, custom_value->size,
-      WT_DELTA_LEAF_VALUE_FORMAT, flags, value));
+    /*
+     * The max length of a delta:
+     * 1 header byte
+     * 2 transaction ids
+     * 4 timestamps (4 * 9)
+     * key size (5)
+     * value size (5)
+     * key
+     * value
+     */
+    max_packed_size = 1 + 2 * 9 + 4 * 9 + 2 * 5 + key->size + value.size;
 
-    /* Pack the custom value into a standard cell structure. */
-    WT_ERR(
-      __wti_rec_cell_build_val(session, r, custom_value->data, custom_value->size, &supd->tw, 0));
+    if (r->delta.size + max_packed_size > r->delta.memsize)
+        WT_ERR(__wt_buf_grow(session, &r->delta, r->delta.size + max_packed_size));
 
-    if (r->delta.size + key->size + custom_value->size > r->delta.memsize)
-        WT_ERR(__wt_buf_grow(session, &r->delta, r->delta.size + key->size + custom_value->size));
+    head = (uint8_t *)r->delta.data + r->delta.size;
+    p = head + 1;
 
-    p = (uint8_t *)r->delta.data + r->delta.size;
-    __wti_rec_kv_copy(session, p, &r->k);
-    p += r->k.len;
-    __wti_rec_kv_copy(session, p, &r->v);
-    r->delta.size += (r->k.len + r->v.len);
+    if (supd->onpage_upd == NULL) {
+        WT_ASSERT(session,
+          supd->onpage_tombstone != NULL &&
+            __wt_txn_upd_visible_all(session, supd->onpage_tombstone));
+        LF_SET(WT_DELTA_LEAF_IS_DELETE);
+        WT_ERR(__wt_vpack_uint(&p, 0, key->size));
+        memcpy(p, key->data, key->size);
+        p += key->size;
+    } else {
+        /*
+         * FIXME-WT-14886: how should we handle the case that in the previous reconciliation, we
+         * write the full value and in this reconciliation, it is deleted by a tombstone. Should we
+         * still include the full value in the delta? We can omit it but it will make the rest of
+         * the system more complicated. Include it for now to simplify the prototype.
+         */
+        if (!__wt_txn_upd_visible_all(session, supd->onpage_upd)) {
+            if (supd->onpage_upd->txnid != WT_TXN_NONE) {
+                LF_SET(WT_DELTA_LEAF_HAS_START_TXN_ID);
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->txnid));
+            }
 
+            if (supd->onpage_upd->upd_start_ts != WT_TS_NONE) {
+                LF_SET(WT_DELTA_LEAF_HAS_START_TS);
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->upd_start_ts));
+            }
+
+            if (supd->onpage_upd->upd_durable_ts != WT_TS_NONE) {
+                LF_SET(WT_DELTA_LEAF_HAS_START_DURABLE_TS);
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->upd_durable_ts));
+            }
+        }
+
+        if (supd->onpage_tombstone != NULL) {
+            if (supd->onpage_tombstone->txnid != WT_TXN_MAX) {
+                LF_SET(WT_DELTA_LEAF_HAS_STOP_TXN_ID);
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->txnid));
+            }
+
+            if (supd->onpage_tombstone->upd_start_ts != WT_TS_MAX) {
+                LF_SET(WT_DELTA_LEAF_HAS_STOP_TS);
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->upd_start_ts));
+            }
+
+            if (supd->onpage_tombstone->upd_durable_ts != WT_TS_NONE) {
+                LF_SET(WT_DELTA_LEAF_HAS_STOP_DURABLE_TS);
+                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->upd_durable_ts));
+            }
+        }
+
+        WT_ERR(__wt_vpack_uint(&p, 0, key->size));
+        WT_ERR(__wt_vpack_uint(&p, 0, value.size));
+
+        memcpy(p, key->data, key->size);
+        p += key->size;
+
+        memcpy(p, value.data, value.size);
+        p += value.size;
+    }
+
+    r->delta.size += WT_PTRDIFF(p, head);
+    *head = flags;
+
+    WT_ASSERT(session, p < head + max_packed_size);
 err:
     __wt_scr_free(session, &key);
-    __wt_scr_free(session, &value);
-    __wt_scr_free(session, &custom_value);
     return (ret);
 }
 
@@ -2353,7 +2395,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
     header = (WT_PAGE_HEADER *)r->delta.data;
     header->mem_size = (uint32_t)r->delta.size;
     header->type = r->ref->page->type;
-    header->u.entries = count * 2;
+    header->u.entries = count;
     header->write_gen = full_image->write_gen;
 
     stop = __wt_clock(session);
@@ -2475,6 +2517,7 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         multi->block_meta->base_lsn = multi->block_meta->disagg_lsn;
     WT_ASSERT(session, multi->block_meta->base_lsn > 0);
     multi->block_meta->backlink_lsn = block_meta->disagg_lsn;
+    multi->block_meta->image_size = chunk->image.size;
     ++multi->block_meta->delta_count;
 
     /* Get the checkpoint ID. */
@@ -2582,6 +2625,8 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
             multi->block_meta->base_lsn = WT_DISAGG_LSN_NONE;
         } else
             __wt_page_block_meta_assign(session, multi->block_meta);
+
+        multi->block_meta->image_size = chunk->image.size;
     }
     WT_RET(__rec_write(session, &chunk->image, multi->block_meta, addr, addr_sizep,
       compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
@@ -2622,7 +2667,6 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
         *multi->block_meta = page->disagg_info->block_meta;
         if (mod->mod_replace.block_cookie != NULL) {
-            WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &mod->mod_replace.ta);
             WT_RET(__wt_memdup(session, mod->mod_replace.block_cookie,
               mod->mod_replace.block_cookie_size, &multi->addr.block_cookie));
             multi->addr.block_cookie_size = mod->mod_replace.block_cookie_size;
@@ -2636,7 +2680,6 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         WT_ASSERT(session, mod->mod_multi_entries == 1);
         *multi->block_meta = *mod->mod_multi->block_meta;
         if (mod->mod_multi->addr.block_cookie != NULL) {
-            WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &mod->mod_multi->addr.ta);
             WT_RET(__wt_memdup(session, mod->mod_multi->addr.block_cookie,
               mod->mod_multi->addr.block_cookie_size, &multi->addr.block_cookie));
             multi->addr.block_cookie_size = mod->mod_multi->addr.block_cookie_size;
@@ -2715,8 +2758,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         return (__wt_illegal_value(session, page->type));
     }
     multi->supd_restore = false;
-    if (page->disagg_info != NULL)
-        WT_RET(__wt_calloc_one(session, &multi->block_meta));
 
     /* Set the key. */
     if (btree->type == BTREE_ROW)
@@ -2740,6 +2781,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
             return (0);
         }
     }
+
+    if (page->disagg_info != NULL)
+        WT_RET(__wt_calloc_one(session, &multi->block_meta));
+    else
+        multi->block_meta = NULL;
 
     /* Initialize the page header(s). */
     __rec_split_write_header(session, r, chunk, multi, chunk->image.mem);

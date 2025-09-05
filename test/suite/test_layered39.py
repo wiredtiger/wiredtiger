@@ -76,17 +76,22 @@ class test_layered39(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor["Hello " + str(i)] = "World"
             cursor["Hi " + str(i)] = "There"
             cursor["OK " + str(i)] = "Go"
-            if i % 10000 == 0:
+            if i % 10_000 == 0:
                 self.session.checkpoint()
                 (ret, last_lsn) = page_log.pl_get_last_lsn(self.session)
                 self.pr(f"{i=} {last_lsn=}")
                 self.assertEqual(ret, 0)
                 page_log.pl_set_last_materialized_lsn(self.session, last_lsn)
-                self.conn.reconfigure(f'disaggregated=(last_materialized_lsn={last_lsn})')
+                # Test both ways of setting the last materialized LSN.
+                if i % 20_000 == 0:
+                    self.conn.reconfigure(f'disaggregated=(last_materialized_lsn={last_lsn})')
+                else:
+                    self.conn.set_context_uint(wiredtiger.WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN,
+                                               last_lsn)
         cursor.close()
 
         self.pr(f'cache_scrub_restore = {self.get_stat(wiredtiger.stat.conn.cache_scrub_restore)}')
-        self.pr(f'cache_eviction_blocked_checkpoint_precise = {self.get_stat(wiredtiger.stat.conn.cache_eviction_blocked_checkpoint_precise)}')
+        self.pr(f'cache_eviction_blocked_precise_checkpoint = {self.get_stat(wiredtiger.stat.conn.cache_eviction_blocked_precise_checkpoint)}')
         self.pr(f'checkpoint_pages_reconciled_bytes = {self.get_stat(wiredtiger.stat.conn.checkpoint_pages_reconciled_bytes)}')
 
         scrub_restore = self.get_stat(wiredtiger.stat.conn.cache_scrub_restore)

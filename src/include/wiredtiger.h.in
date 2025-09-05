@@ -819,7 +819,7 @@ typedef enum {
     WT_TS_TXN_TYPE_DURABLE, /*!< Durable timestamp. */
     WT_TS_TXN_TYPE_PREPARE, /*!< Prepare timestamp. */
     WT_TS_TXN_TYPE_READ, /*!< Read timestamp. */
-    WT_TS_TXN_TYPE_ROLLBACK /*!< Rollback timestamp. */
+    WT_TS_TXN_TYPE_ROLLBACK, /*!< Rollback timestamp. */
 } WT_TS_TXN_TYPE;
 
 /*!
@@ -2041,6 +2041,11 @@ struct __wt_session {
 #endif
 };
 
+/*! WT_CONNECTION::set_context_uint types */
+typedef enum {
+    WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN, /*!< The LSN of the last materialized page log entry. */
+} WT_CONTEXT_TYPE;
+
 /*!
  * A connection to a WiredTiger database.  The connection may be opened within
  * the same address space as the caller or accessed over a socket connection.
@@ -2147,7 +2152,7 @@ struct __wt_connection {
      * boolean flag; default \c false.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;
      * scrub_evict_under_target_limit, Change the eviction strategy to scrub eviction when the cache
-     * usage is under the target limit., a boolean flag; default \c false.}
+     * usage is under the target limit., a boolean flag; default \c true.}
      * @config{ ),,}
      * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait
      * for space to be available in cache before giving up.  Default or 0 will wait forever.  1 will
@@ -2909,6 +2914,20 @@ struct __wt_connection {
      */
     int __F(get_storage_source)(WT_CONNECTION *connection, const char *name,
         WT_STORAGE_SOURCE **storage_sourcep);
+
+    /*!
+     * Set a global context parameter, which tells WiredTiger about relevant changes
+     * in the running system, such as the state of the page log service.
+     *
+     * @snippet ex_all.c Set the last materialized page log LSN by the page log service
+     *
+     * @param connection the connection handle
+     * @param which the context parameter being set (see ::WT_CONTEXT_TYPE for available options).
+     * @param value the value
+     * @errors
+     */
+    int __F(set_context_uint)(WT_CONNECTION *connection, WT_CONTEXT_TYPE which,
+        uint64_t value);
 #endif
 
     /*!
@@ -2987,7 +3006,7 @@ struct __wt_connection {
  * flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;scrub_evict_under_target_limit, Change
  * the eviction strategy to scrub eviction when the cache usage is under the target limit., a
- * boolean flag; default \c false.}
+ * boolean flag; default \c true.}
  * @config{ ),,}
  * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait for
  * space to be available in cache before giving up.  Default or 0 will wait forever.  1 will never
@@ -5623,6 +5642,7 @@ struct __wt_page_log_put_args {
        uint64_t base_lsn;
        uint64_t backlink_checkpoint_id;
        uint64_t base_checkpoint_id;
+       size_t image_size;
 
        WT_PAGE_LOG_ENCRYPTION encryption;
 
@@ -6688,7 +6708,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cache: precise checkpoint caused an eviction to be skipped because any
  * dirty content needs to remain in cache
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_CHECKPOINT_PRECISE	1277
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_PRECISE_CHECKPOINT	1277
 /*!
  * cache: realizing in-memory split after reconciliation failed due to
  * internal lock busy
@@ -8673,7 +8693,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cache: precise checkpoint caused an eviction to be skipped because any
  * dirty content needs to remain in cache
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_CHECKPOINT_PRECISE	2132
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_PRECISE_CHECKPOINT	2132
 /*!
  * cache: realizing in-memory split after reconciliation failed due to
  * internal lock busy

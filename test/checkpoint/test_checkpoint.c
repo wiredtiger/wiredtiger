@@ -243,6 +243,7 @@ main(int argc, char *argv[])
     /* Start time at 1 since 0 is not a valid timestamp. */
     g.ts_stable = 1;
     g.ts_oldest = 1;
+    g.prepared_id = 1;
 
     printf("%s: process %" PRIu64 "\n", progname, (uint64_t)getpid());
     if (g.predictable_replay)
