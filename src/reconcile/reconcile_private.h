@@ -168,7 +168,7 @@ struct __wti_reconcile {
     uint32_t flags; /* Caller's configuration */
 
     /* Track the checkpoint pinned transaction id. */
-    uint64_t rec_start_ckpt_pinned_id;
+    uint64_t rec_start_txnid_not_visible;
 
     /* Track the oldest id that is needed. */
     uint64_t rec_start_oldest_id;
