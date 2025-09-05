@@ -1642,6 +1642,19 @@ tasks:
       - func: "compile wiredtiger"
       - func: "make check all"
 
+  # This task is the same as make-check-test but fits for lower specs by allowing a bigger timeout.
+  - name: make-check-test-low-perf
+    commands:
+      - command: timeout.update
+        params:
+          # Allow the overall task to run for a maximum time of 4h.
+          exec_timeout_secs: 14400
+          # Slow scenarios will not output anything and Evergreen kills them after 2h. Allow 4h of silence.
+          timeout_secs: 14400
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check all"
+
   # Start of normal make check test tasks
 
   - name: lang-python-test
@@ -6263,7 +6276,8 @@ buildvariants:
     python_binary: "/cygdrive/c/python/Python311/python"
   tasks:
     - name: compile
-    - name: make-check-test
+    # Windows hosts are slow, use the designed low-perf task to avoid timeout failures.
+    - name: make-check-test-low-perf
     - name: ".unit_test"
     - name: fops
     - name: catch2-test
