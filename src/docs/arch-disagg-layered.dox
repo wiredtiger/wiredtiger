@@ -1,0 +1,107 @@
+/*! @arch_page arch-disagg-layered Layered Tables
+
+Layered tables are a new access method in WiredTiger designed to support distributed systems that
+leverage shared storage for the majority of a table's data. This mechanism enables a single node to
+perform writes to the table, while other nodes maintain a consistent view by tracking recent changes.
+Having nodes follow along with recent changes allows for two key features:
+- Follower nodes can serve read operations on recent data without needing to access the shared
+storage directly.
+- Follower nodes can quickly transition to take over write responsibilities if the current leader
+(writer) becomes unavailable.
+
+@section High-level architecture
+
+These semantics are achieved by using two underlying constituents: a shared stable table and an
+ingest table. The node responsible for writing to shared storage operates directly on a single
+shared table and has the guarantee that no other node will perform writes to that table.
+All other nodes will also have an ingest table, which holds a short-term view of recent changes.
+
+This view is layered over the shared stable table, so any operations on a node with both an ingest
+and stable table will first look for a result in the ingest table, and if no result is found, fall
+back on the shared table.
+
+Layered tables are primarily for Disaggregated Storage Clusters (DSC) but can also be used outside
+of DSC for testing purposes, in particular, via local Page and Log Mock (PALM) infrastructure.
+
+\image html shared_cluster.png
+
+Stable Table:
+- A table shared across nodes in the cluster
+- Backed by a block manager that uses shared storage and supports having multiple different
+WiredTiger nodes share the same underlying data structure
+
+Ingest Table:
+- A short-term in-memory table that stores data that has been changed more recently than is
+available in the stable table
+- Supersedes checkpointed content in the stable table
+- This table is specific to a particular node
+
+@section API restrictions
+
+Layered tables support all the regular tables operations, with exceptions listed here:
+
+- All writes, from all replicas, must be timestamped
+- All nodes must use the same URI for the same table
+- All nodes must use byte-wise identical keys, values, and timestamps for the same records.
+- Prepared transactions will behave as described in the design for distributed transactions in
+disaggregated storage
+- Durability is provided by the logical log service, not WiredTiger
+    - Commit durability (using write-ahead log) is not supported for Layered Tables.
+    - Checkpoint durability is asynchronous. The completion of a `WT_SESSION::checkpoint()` call
+    does not guarantee that the resulting checkpoint is on storage and visible to other nodes yet.
+- Table compaction is not supported on layered tables
+- Backup cursors will not return information about layered tables
+- Bulk cursors are not supported on layered tables
+
+@section Shared tables
+
+A shared table is a table whose data is stored in a shared storage back-end, such as SLS. A table
+that stores all its data on disk can be called a local or regular table. There is no requirement for
+a stable table to be a shared table, but in all known cases, it is. The ingest table is a local table.
+
+There are also shared tables that are not part of any layered table (e.g., a shared history store
+table or a shared metadata table). The key difference between a regular table and a shared table is
+that the shared one uses the disaggregated block manager.
+
+Generally speaking, a layered table is not a table in the traditional sense, but rather an adapter
+that splits data access between two layers, enabling storage in shared storage.
+
+The following diagram is not meant to strictly represent entities relationships, but rather to aid
+in understanding the high-level design.
+
+![OOP View](shared_table_oop_view.png)
+
+@section Implementation aspects
+
+<!-- **Note:** This section is closely tied to the source code and may become outdated if not
+maintained in sync with implementation changes. -->
+
+@subsection Layered tables metadata representation and related files
+
+Each layered table contains three related entries in metadata:
+
+```
+layered:foo.wt
+     disaggregated=(page_log=palm),ingest="file:foo.wt_ingest",log=(enabled=false),stable="file:foo.wt_stable"
+file: foo.wt_ingest
+file: foo.wt_stable
+```
+
+So the ingest and stable tables can be accessed through those files. The ingest and stable table
+could also have table: prefixed metadata entries if the table was created with
+the `block_manager=disagg,type=layered` config.
+
+Since shared metadata and history store tables are shared but not layered tables, they both have
+`.wt_stable` suffixed metadata entries but no associated layered: ones:
+
+```
+file:WiredTigerShared.wt_stable
+file:WiredTigerSharedHS.wt_stable
+```
+
+Despite the presence of `file:`-prefixed metadata entries for both ingest and stable tables, only
+ingest tables have corresponding files on disk in the database directory, since they are local tables.
+Shared tables also have `file:`-prefixed metadata entries, but their files are not present in the
+local database directory because their data resides on shared storage.
+
+*/
