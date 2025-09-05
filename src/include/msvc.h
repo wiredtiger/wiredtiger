@@ -136,6 +136,28 @@ __wt_atomic_storevbool(volatile bool *vp, bool v)
 }
 
 /*
+ * __wt_atomic_load_double --
+ *     Read a double variable. These reads are non-atomic due to MSVC lacking Interlocked intrinsics
+ *     for doubles per the comment above.
+ */
+static inline double
+__wt_atomic_load_double(double *vp)
+{
+    return *vp;
+}
+
+/*
+ * __wt_atomic_store_double --
+ *     Set a double variable. These reads are non-atomic due to MSVC lacking Interlocked intrinsics
+ *     for doubles per the comment above.
+ */
+static inline void
+__wt_atomic_store_double(double *vp, double v)
+{
+    *vp = v;
+}
+
+/*
  * Generic atomic functions that accept any type. The typed macros above should be preferred since
  * they provide better type checking.
  */

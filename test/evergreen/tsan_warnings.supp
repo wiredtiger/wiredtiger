@@ -4,8 +4,8 @@
 # an error that is missing information and the message "failed to restore the stack"
 
 # These functions enable threads to access double values in a shared context, and catch all TSan warnings.
-race:__wt_read_shared_double
-race:__wt_set_shared_double
+# race:__wt_read_shared_double
+# race:__wt_set_shared_double
 
 # Stats are allowed to be fuzzy. Ignore races in TSan
 race:src/include/stat.h
@@ -26,7 +26,7 @@ race:__tiered_queue_peek_empty
 # The ref track code is diagnostic only and allows for races
 race:__ref_track_state
 
-# __wt_configure_method intentionally allows for races between threads to avoid the overhead of taking a lock on each API call.  
+# __wt_configure_method intentionally allows for races between threads to avoid the overhead of taking a lock on each API call.
 race:__wt_configure_method
 
 # FIXME-WT-14930 Dhandle timeofdeath synchronization
