@@ -167,7 +167,7 @@ struct __wti_reconcile {
     WT_PAGE *page;
     uint32_t flags; /* Caller's configuration */
 
-    /* Track the checkpoint pinned transaction id. */
+    /* Track the transaction id that is not visible to the reconciliation if without a snapshot. */
     uint64_t rec_start_txnid_not_visible;
 
     /* Track the oldest id that is needed. */
