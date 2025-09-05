@@ -45,7 +45,7 @@ class test_layered48(wttest.WiredTigerTestCase, DisaggConfigMixin):
                      + 'precise_checkpoint=true,disaggregated=(page_log=palm),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
-    create_session_config = 'key_format=S,value_format=S'
+    create_session_config = 'key_format=S,value_format=S,leaf_key_max=256,leaf_value_max=256'
 
     table_name = "test_layered48"
 
@@ -80,7 +80,7 @@ class test_layered48(wttest.WiredTigerTestCase, DisaggConfigMixin):
         return random_string
 
     # Test overflow keys and values.
-    def test_layered18(self):
+    def test_layered48(self):
 
         # Create table
         self.uri = self.prefix + self.table_name

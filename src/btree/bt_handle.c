@@ -1135,12 +1135,8 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      *
      * In-memory configuration overrides any key/value sizes, there's no such thing as an overflow
      * item in an in-memory configuration.
-     *
-     * FIXME-WT-14722: the disaggregated check is a workaround for the disaggregated block manager
-     * not yet supporting overflow items.
      */
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY) ||
-      F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
         btree->maxleafkey = WT_BTREE_MAX_OBJECT_SIZE;
         btree->maxleafvalue = WT_BTREE_MAX_OBJECT_SIZE;
         return (0);
