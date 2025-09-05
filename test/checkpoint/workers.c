@@ -59,8 +59,7 @@ create_table(WT_SESSION *session, COOKIE *cookie)
           kf, vf);
         if (g.opts.disagg_storage)
             strcat(config, ",type=layered,block_manager=disagg");
-    }
-    else
+    } else
         testutil_snprintf(config, sizeof(config), "key_format=%s,value_format=%s", kf, vf);
 
     if ((ret = session->create(session, cookie->uri, config)) != 0)
