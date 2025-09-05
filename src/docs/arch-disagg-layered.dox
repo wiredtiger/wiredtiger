@@ -82,7 +82,7 @@ Each layered table contains three related entries in metadata:
 
 ```
 layered:foo.wt
-     disaggregated=(page_log=palm),ingest="file:foo.wt_ingest",log=(enabled=false),stable="file:foo.wt_stable"
+    disaggregated=(page_log=palm),ingest="file:foo.wt_ingest",log=(enabled=false),stable="file:foo.wt_stable"
 file: foo.wt_ingest
 file: foo.wt_stable
 ```
@@ -92,7 +92,7 @@ could also have table: prefixed metadata entries if the table was created with
 the `block_manager=disagg,type=layered` config.
 
 Since shared metadata and history store tables are shared but not layered tables, they both have
-`.wt_stable` suffixed metadata entries but no associated layered: ones:
+`.wt_stable` suffixed metadata entries but no associated `layered:` ones:
 
 ```
 file:WiredTigerShared.wt_stable
