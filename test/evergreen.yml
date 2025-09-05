@@ -1427,6 +1427,36 @@ variables:
 # the number of runs adjusted to provide aproximately six hours of testing.
 #########################################################################################
 
+  - &format-stress-test-disagg-leader
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.mode=leader runs.tables=1 runs.timer=3
+          times: 5
+
+  - &format-stress-test-disagg-switch
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.mode=switch runs.tables=1 runs.timer=3
+          times: 5
+
+  - &format-stress-test-disagg-follower
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.mode=follower
+          times: 5
+
   - &format-stress-test
     exec_timeout_secs: 25200
     commands:
@@ -3585,41 +3615,6 @@ tasks:
 
             RW_LOCK_FILE=$(pwd)/../../cmake_build/test/csuite/rwlock/test_rwlock ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
 
-  - name: format-disagg-leader-test
-    # FIXME-WT-14566: Enable disagg leader mode once failure has been resolved.
-    # tags: ["stress-disagg-test"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test disagg"
-        vars:
-          format_args: disagg.mode=leader
-          times: 10
-
-  - name: format-disagg-follower-test
-    tags: ["stress-disagg-test"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test disagg"
-        vars:
-          format_args: disagg.mode=follower
-          times: 10
-
-  - name: format-disagg-switch-test
-    # FIXME-WT-14566: Enable disagg switch mode once failure has been resolved.
-    # tags: ["stress-disagg-test"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test disagg"
-        vars:
-          format_args: disagg.mode=switch
-          times: 10
-
   - name: format-mirror-test
     commands:
       - func: "get project"
@@ -4122,6 +4117,38 @@ tasks:
             # Keep repeating the model test for 60 minutes
             ./model_test -l 100-200 -g -t 3600
 
+  - name: model-test-disagg-long
+    tags: ["stress-test-disagg-fail"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/model/tools"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            # Keep repeating the model test for 60 minutes
+            ./model_test -D -l 2000-3000 -t 3600
+
+  - name: model-test-disagg-long-random-config
+    tags: ["stress-test-disagg-fail"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/model/tools"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            # Keep repeating the model test for 60 minutes
+            ./model_test -D -l 100-200 -g -t 3600
+
   - name: model-test-long-with-coverage
     tags: ["model_checking"]
     commands:
@@ -4243,6 +4270,53 @@ tasks:
   - <<: *recovery-stress-test
     name: recovery-stress-test-3
     tags: ["stress-test-3", "stress-test-zseries-3"]
+   # FIXME-WT-14566: Enable disagg leader mode on all platforms once failures has been resolved.
+  - <<: *format-stress-test-disagg-leader
+    name: format-stress-test-disagg-leader-1
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-leader
+    name: format-stress-test-disagg-leader-2
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-leader
+    name: format-stress-test-disagg-leader-3
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-leader
+    name: format-stress-test-disagg-leader-4
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-leader
+    name: format-stress-test-disagg-leader-5
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-follower
+    name: format-stress-test-disagg-follower-1
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-follower
+    name: format-stress-test-disagg-follower-2
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-follower
+    name: format-stress-test-disagg-follower-3
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-follower
+    name: format-stress-test-disagg-follower-4
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-follower
+    name: format-stress-test-disagg-follower-5
+    tags: ["stress-test-disagg"]
+  # FIXME-WT-14566: Enable disagg switch mode on all platforms once failures has been resolved.
+  - <<: *format-stress-test-disagg-switch
+    name: format-stress-test-disagg-switch-1
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-switch
+    name: format-stress-test-disagg-switch-2
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-switch
+    name: format-stress-test-disagg-switch-3
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-switch
+    name: format-stress-test-disagg-switch-4
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-switch
+    name: format-stress-test-disagg-switch-5
+    tags: ["stress-test-disagg-fail"]
 
   - name: format-stress-test-no-barrier
     tags: ["stress-test-no-barrier"]
@@ -6178,7 +6252,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: ".stress-test-no-barrier"
       distros: ubuntu2004-medium
     - name: format-abort-recovery-stress-test
@@ -6199,8 +6273,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-disagg-test"
-    - name: ".stress-test-no-barrier"
+    - name: ".stress-test-disagg"
     - name: checkpoint-stress-test-tiered
     - name: precise-checkpoint-stress-test-tiered
     - name: format-abort-recovery-stress-test
@@ -6529,7 +6602,7 @@ buildvariants:
     - name: compile
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
 
@@ -6546,7 +6619,7 @@ buildvariants:
     - name: compile
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: format-abort-recovery-stress-test
 
 - name: ubuntu2004-nonstandalone
@@ -6581,7 +6654,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: ".stress-test-no-barrier"
       distros: ubuntu2004-medium
     - name: format-abort-recovery-stress-test
@@ -6607,7 +6680,7 @@ buildvariants:
       distros: ubuntu2004-test
     - name: format-abort-recovery-stress-test
       distros: ubuntu2004-test
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: make-check-test
     - name: unit-test
 
@@ -6632,7 +6705,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
@@ -6656,7 +6729,7 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: format-abort-recovery-stress-test
       distros: ubuntu2004-arm64-large
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: make-check-test
     - name: unit-test
     - name: unit-test-extra-long
@@ -6700,7 +6773,7 @@ buildvariants:
       distros: amazon2023-arm64-latest-large-m8g
     - name: format-abort-recovery-stress-test
       distros: amazon2023-arm64-latest-large-m8g
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: make-check-test
     - name: unit-test
     - name: unit-test-extra-long
@@ -6727,7 +6800,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
@@ -6830,7 +6903,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
@@ -6948,8 +7021,20 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
       batchtime: 720 # 12 hours
+
+- name: amazon2023-disagg-stress
+  display_name: "(ARMV9) Amazon 2023 Disagg Stress tests"
+  run_on:
+  - amazon2023-arm64-latest-large-m8g
+  expansions:
+    ENABLE_TCMALLOC: 1
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+  tasks:
+    - name: compile
+    - name: ".stress-test-disagg-fail"
+      batchtime: 2880 # once every two days
