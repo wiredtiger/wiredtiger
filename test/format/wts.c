@@ -396,7 +396,8 @@ configure_obsolete_cleanup(char **p, size_t max)
         CONFIG_APPEND(*p, "method=%s", (char *)GVS(OBSOLETE_CLEANUP_METHOD));
 
     /* Interval. */
-    CONFIG_APPEND(*p, ",wait=%" PRIu32, GV(OBSOLETE_CLEANUP_WAIT));
+    if (GV(OBSOLETE_CLEANUP_WAIT) != 0)
+        CONFIG_APPEND(*p, ",wait=%" PRIu32, GV(OBSOLETE_CLEANUP_WAIT));
 
     CONFIG_APPEND(*p, "]");
 }
