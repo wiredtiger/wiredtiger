@@ -844,7 +844,9 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
         WT_STAT_CONN_INCR(session, block_cache_bypass_writealloc);
     else if (!checkpoint) {
         /* If we are here, it means that we don't have deltas, so let's just ignore them. */
-        WT_ITEM *cache_item = __blkcache_cache_wants_encrypted_data(session) ? ip : compressed ? ctmp : buf;
+        WT_ITEM *cache_item = __blkcache_cache_wants_encrypted_data(session) ? ip :
+          compressed                                                         ? ctmp :
+                                                                               buf;
         WT_ERR(
           __wti_blkcache_put(session, cache_item, NULL, 0, block_meta, addr, *addr_sizep, true));
     }
