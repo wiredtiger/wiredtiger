@@ -373,6 +373,9 @@ enable_disagg(const char *mode)
         fprintf(stderr, "Invalid disaggregated mode: %s\n", mode);
         return EINVAL;
     }
+
+    g.opts.palm_map_size_mb = 2048; /* Set 2GB map size for palm by default. */
+
     return 0;
 }
 
