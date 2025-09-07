@@ -9,7 +9,7 @@ storage directly.
 - Follower nodes can quickly transition to take over write responsibilities if the current leader
 (writer) becomes unavailable.
 
-@section High-level architecture
+@section layered-arch High-level architecture
 
 These semantics are achieved by using two underlying constituents: a shared stable table and an
 ingest table. The node responsible for writing to shared storage operates directly on a single
@@ -36,7 +36,7 @@ available in the stable table
 - Supersedes checkpointed content in the stable table
 - This table is specific to a particular node
 
-@section API restrictions
+@section layered-api-restrictions API restrictions
 
 Layered tables support all the regular tables operations, with exceptions listed here:
 
@@ -53,9 +53,9 @@ disaggregated storage
 - Backup cursors will not return information about layered tables
 - Bulk cursors are not supported on layered tables
 
-@section Shared tables
+@section shared-tables Shared tables
 
-A shared table is a table whose data is stored in a shared storage back-end, such as SLS. A table
+A shared table is a table whose data is stored in a shared storage back-end. A table
 that stores all its data on disk can be called a local or regular table. There is no requirement for
 a stable table to be a shared table, but in all known cases, it is. The ingest table is a local table.
 
@@ -69,14 +69,14 @@ that splits data access between two layers, enabling storage in shared storage.
 The following diagram is not meant to strictly represent entities relationships, but rather to aid
 in understanding the high-level design.
 
-![OOP View](shared_table_oop_view.png)
+\image html shared_table_oop_view.png
 
-@section Implementation aspects
+@section layered-implementation Implementation aspects
 
-<!-- **Note:** This section is closely tied to the source code and may become outdated if not
-maintained in sync with implementation changes. -->
+__Note:__ This section is closely tied to the source code and may become outdated if not
+maintained in sync with implementation changes.
 
-@subsection Layered tables metadata representation and related files
+@subsection layered-metadata Layered tables metadata representation and related files
 
 Each layered table contains three related entries in metadata:
 
