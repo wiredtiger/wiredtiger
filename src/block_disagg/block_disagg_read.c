@@ -135,7 +135,7 @@ reread:
         if (retry < 100)
             goto reread;
         __wt_verbose_error(session, WT_VERB_READ,
-          "%s: read failed for objectid %" PRIx32 ", page_id %" PRIu64 ", flags %" PRIx64
+          "%s: read failed for table ID %" PRIu32 ", page ID %" PRIu64 ", flags %" PRIx64
           ", lsn %" PRIu64 ", base_lsn %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
           block_disagg->name, block_disagg->objectid, page_id, flags, lsn, base_lsn, size,
           checksum);
