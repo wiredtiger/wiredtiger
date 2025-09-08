@@ -90,7 +90,7 @@ def get_tsan_warnings():
 
                     start_record = False
                     warning_lines = []
-                    for line in file: 
+                    for line in file:
                         if ("===" in line.strip()):
                             start_record = not start_record
                         if start_record:
@@ -115,10 +115,10 @@ def main():
     args = parser.parse_args()
 
     tsan_warnings_dict = get_tsan_warnings()
-    filter_tsan_warnings = set()
+    filter_tsan_warnings = dict()
 
     if (args.timestamp):
-        for tsan_warning in tsan_warnings_dict:
+        for tsan_warning, tsan_tuple in tsan_warnings_dict.items():
             pattern_to_capture = r"data race (.*):(\d+)"
             capture = re.search(pattern_to_capture, tsan_warning)
             if (capture):
@@ -127,7 +127,7 @@ def main():
                 timestamp = get_line_last_modified_times(file_path, line_number)
                 timestamp_filter = int(args.timestamp)
                 if (not is_warning_triaged(file_path, line_number) and timestamp_filter <= timestamp):
-                    filter_tsan_warnings.add(tsan_warning)
+                    filter_tsan_warnings[tsan_warning] = tsan_tuple
         tsan_warnings_dict = filter_tsan_warnings
 
     if len(tsan_warnings_dict) == 0:
@@ -138,7 +138,6 @@ def main():
             print(tsan_warning)
             print(tsan_log)
             print("\n".join(warning_lines))
-
         print(f"Overall TSAN Warnings: {len(tsan_warnings_dict)}")
         exit(1)
 

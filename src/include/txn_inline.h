@@ -1358,7 +1358,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         if (prepare_state == WT_PREPARE_LOCKED)
             continue;
 
-        /* 
+        /*
          * Entries in the history store are always visible. FIXME-TSAN-WT-15347: Investigate TSAN
          * potential race condition.
          */
