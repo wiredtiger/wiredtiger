@@ -94,8 +94,6 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
     if 'tiered_storage=' in curconfig:
         skip_test("cannot run disagg hook on a test that uses tiered_storage in the config string")
 
-    if 'log=(enabled)' in curconfig or 'log=(enabled=true)' in curconfig:
-        skip_test("Log tables are not supported in disagg. FIXME-WT-15221 Should throw an error when this is set in disagg")
 
     extension_libs = WiredTigerTestCase.findExtension('page_log', page_log_name)
     if len(extension_libs) == 0:
@@ -237,6 +235,16 @@ def session_create_replace(orig_session_create, session_self, uri, config):
     # there's nothing we can do to "fix" it.  Currently "index:foo" is hardwired to
     # link up with "table:foo", and there is not a "table:foo", only a "layered:foo".
     WiredTigerTestCase.verbose(None, 1, f'    Creating "{uri}" with config = "{config}"')
+
+    # Check if log table is enabled at connection level. If it is, by default session will create a log table unless explicitly disabled in session config.
+    # Skip test if it is enabled
+    # FIXME-WT-15221 Should throw an error when this is set in disagg"
+    conn_config = testcase.conn_config
+    if hasattr(conn_config, '__call__'):
+        config = testcase.conn_config()
+    log_enabled = re.search(r'log=\(enabled(?:=true|,|\))', config) is not None
+    if log_enabled and 'log=(enabled=false' not in config:
+        skip_test("Log tables are not supported in disagg.")
 
     if uri.startswith("index:"):
         # URI is index:base_name:index_name
