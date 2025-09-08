@@ -198,7 +198,7 @@ table_verify_mirror(
     uint64_t range_begin, range_end;
     char buf[256], tagbuf[128];
 
-    base_keyno = table_keyno = 0;             /* -Wconditional-uninitialized */
+    base_id = base_keyno = table_id = table_keyno = 0;             /* -Wconditional-uninitialized */
     base_bitv = table_bitv = FIX_VALUE_WRONG; /* -Wconditional-uninitialized */
     base_ret = table_ret = 0;
     last_match = 0;
@@ -218,10 +218,12 @@ table_verify_mirror(
      */
     for (;;) {
         wt_wrap_open_cursor(session, base->uri, checkpoint == NULL ? NULL : buf, &base_cursor);
-        base_id = base_cursor->checkpoint_id(base_cursor);
         wt_wrap_open_cursor(session, table->uri, checkpoint == NULL ? NULL : buf, &table_cursor);
-        table_id = table_cursor->checkpoint_id(table_cursor);
 
+        if (checkpoint != NULL) {
+            base_id = base_cursor->checkpoint_id(base_cursor);
+            table_id = table_cursor->checkpoint_id(table_cursor);
+        }
         testutil_assert((checkpoint == NULL && base_id == 0 && table_id == 0) ||
           (checkpoint != NULL && base_id != 0 && table_id != 0));
 
