@@ -55,7 +55,7 @@ from helper_disagg import DisaggConfigMixin, gen_disagg_storages, disagg_ignore_
 # These are the hook functions that are run when particular APIs are called.
 
 # Add the local storage extension whenever we call wiredtiger_open
-def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
+def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
 
     disagg_storages = gen_disagg_storages()
     testcase = WiredTigerTestCase.currentTestCase()
@@ -77,7 +77,7 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
     # We might attempt to let the wiredtiger_open complete without alteration,
     # however, we alter several other API methods that would do weird things with
     # a different disagg_storage configuration. So better to skip the test entirely.
-    if 'disaggregated=' in curconfig:
+    if 'disaggregated=' in conn_config:
         skip_test("cannot run disagg hook on a test that already uses disagg storage")
 
     # Similarly if this test is already set up to run disagg vs non-disagg scenario, let's
@@ -85,13 +85,13 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
     if hasattr(testcase, 'disagg_conn_config'):
         skip_test("cannot run disagg hook on a test that already includes DisaggConfigMixin")
 
-    if 'in_memory=true' in curconfig:
+    if 'in_memory=true' in conn_config:
         skip_test("cannot run disagg hook on a test that is in-memory")
 
-    if 'compatibility=' in curconfig:
+    if 'compatibility=' in conn_config:
         skip_test("cannot run disagg hook on a test that requires compatibility in the config string")
 
-    if 'tiered_storage=' in curconfig:
+    if 'tiered_storage=' in conn_config:
         skip_test("cannot run disagg hook on a test that uses tiered_storage in the config string")
 
 
@@ -125,12 +125,12 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
     # Build the extension strings, we'll need to merge it with any extensions
     # already in the configuration.
     ext_string = 'extensions=['
-    start = curconfig.find(ext_string)
+    start = conn_config.find(ext_string)
     if start >= 0:
-        end = curconfig.find(']', start)
+        end = conn_config.find(']', start)
         if end < 0:
-            raise Exception('hook_disagg: bad extensions in config \"%s\"' % curconfig)
-        ext_string = curconfig[start: end]
+            raise Exception('hook_disagg: bad extensions in config \"%s\"' % conn_config)
+        ext_string = conn_config[start: end]
 
     if page_log_config == None:
         ext_lib = '\"%s\"' % extension_libs[0]
@@ -139,7 +139,7 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
 
     disagg_config += ',' + ext_string + ',%s]' % ext_lib
 
-    config = curconfig + disagg_config
+    config = conn_config + disagg_config
 
     WiredTigerTestCase.verbose(None, 3, f'    Calling wiredtiger_open({homedir}, {config})')
 
