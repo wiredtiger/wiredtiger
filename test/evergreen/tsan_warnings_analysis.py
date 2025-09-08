@@ -67,13 +67,9 @@ def is_warning_triaged(file_path, line_number):
         if line_number < 0 and line_number >= len(lines):
             print(f"Error: line_number {line_number} is out of range. The file has {len(lines)} lines.")
             exit(1)
-        for i in range(line_number, 0, -1):
-            if "FIXME" in lines[i] and "TSAN" in lines[i]:
-                return True
 
-            if "/*" in lines[i] or "//" in lines[i]:
-                break
-
+        if "FIXME-TSAN" in lines[line_number - 1]:
+            return True
     return False
 
 def get_tsan_warnings():
@@ -81,7 +77,7 @@ def get_tsan_warnings():
     Get the TSAN warnings from the log files.
     :return: Set of unique TSAN warnings.
     """
-    tsan_warnings_set = set()
+    tsan_warnings_dict = dict()
     current_dir = os.getcwd()
 
     # Loop through WT root directory and search for tsan logs.
@@ -91,19 +87,25 @@ def get_tsan_warnings():
             if file_name.startswith("tsan_logs"):
                 file_path = os.path.join(root, file_name)  # Get the full path to the file
                 with open(file_path, "r") as file:
-                    for line in file:
-                        if (not line.startswith("SUMMARY:")):
-                            continue
-                        # Strip away the unnecessary information
-                        pattern_to_remove = r"/.*/wiredtiger/"
-                        cleaned_text = re.sub(pattern_to_remove, "", line).strip()
 
-                        # Strip away the column line information.
-                        pattern_to_remove = r':(\d+):\d+'
-                        cleaned_text = re.sub(pattern_to_remove, r':\1', cleaned_text).strip()
+                    start_record = False
+                    warning_lines = []
+                    for line in file: 
+                        if ("===" in line.strip()):
+                            start_record = not start_record
+                        if start_record:
+                            warning_lines.append(line.strip())
+                            # Strip away the unnecessary information
+                            if (line.startswith("SUMMARY:")):
+                                pattern_to_remove = r"/.*/wiredtiger/"
+                                cleaned_text = re.sub(pattern_to_remove, "", line).strip()
 
-                        tsan_warnings_set.add(cleaned_text)
-    return tsan_warnings_set
+                                # Strip away the column line information.
+                                pattern_to_remove = r':(\d+):\d+'
+                                cleaned_text = re.sub(pattern_to_remove, r':\1', cleaned_text).strip()
+                                tsan_warnings_dict[cleaned_text] = (file_name, file_path, warning_lines.copy())
+                                warning_lines = []
+    return tsan_warnings_dict
 
 
 def main():
@@ -112,11 +114,11 @@ def main():
 
     args = parser.parse_args()
 
-    tsan_warnings_set = get_tsan_warnings()
+    tsan_warnings_dict = get_tsan_warnings()
     filter_tsan_warnings = set()
 
     if (args.timestamp):
-        for tsan_warning in tsan_warnings_set:
+        for tsan_warning in tsan_warnings_dict:
             pattern_to_capture = r"data race (.*):(\d+)"
             capture = re.search(pattern_to_capture, tsan_warning)
             if (capture):
@@ -126,14 +128,19 @@ def main():
                 timestamp_filter = int(args.timestamp)
                 if (not is_warning_triaged(file_path, line_number) and timestamp_filter <= timestamp):
                     filter_tsan_warnings.add(tsan_warning)
-        tsan_warnings_set = filter_tsan_warnings
+        tsan_warnings_dict = filter_tsan_warnings
 
-    if len(tsan_warnings_set) == 0:
+    if len(tsan_warnings_dict) == 0:
         print("No TSAN warnings to fix!")
     else:
         print("Total warnings:")
-        print("\n".join(tsan_warnings_set))
-        print(f"Overall TSAN Warnings: {len(tsan_warnings_set)}")
+        for tsan_warning, (tsan_log, tsan_log_path, warning_lines) in tsan_warnings_dict.items():
+            print(tsan_warning)
+            print(tsan_log)
+            print("\n".join(warning_lines))
+
+        print(f"Overall TSAN Warnings: {len(tsan_warnings_dict)}")
+        exit(1)
 
 if __name__ == '__main__':
     main()

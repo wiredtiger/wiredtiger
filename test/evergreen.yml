@@ -871,8 +871,7 @@ functions:
         py=${python_binary|python3}
         echo "Using $threads_command for 'unit test parallel'"
         if [[ $TESTUTIL_TSAN -eq 1 ]]; then
-            export TSAN_OPTIONS="$TSAN_OPTIONS:log_path=$(git rev-parse --show-toplevel)/tsan_logs:exitcode=0"
-            ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1 || echo "Ignoring failed test as we are checking test coverage"
+            ../tools/pytest_parallel --tsan --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1 || echo "Ignoring failed test as we are checking test tsan"
         else
             ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1
         fi

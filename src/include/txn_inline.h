@@ -1358,8 +1358,10 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         if (prepare_state == WT_PREPARE_LOCKED)
             continue;
 
-        /* Entries in the history store are always visible. FIXME-WT-15347: Investigate TSAN
-         * potential race condition. */
+        /* 
+         * Entries in the history store are always visible. FIXME-TSAN-WT-15347: Investigate TSAN
+         * potential race condition.
+         */
         if ((WT_IS_HS(session->dhandle) && upd->txnid != WT_TXN_ABORTED &&
               upd->type == WT_UPDATE_STANDARD))
             return (WT_VISIBLE_TRUE);
@@ -1487,7 +1489,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         if (upd->type == WT_UPDATE_RESERVE)
             continue;
 
-        /* FIXME-WT-15347: Investigate potential TSAN race condition. */
+        /* FIXME-TSAN-WT-15347: Investigate potential TSAN race condition. */
         WT_ACQUIRE_READ(prepare_state, upd->prepare_state);
 
         /*

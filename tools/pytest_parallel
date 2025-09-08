@@ -5,6 +5,7 @@ declare -A procs
 verbose="-v 2"
 ecode=0
 summary=""
+saved_tsan_options=""
 python="python3"
 
 Usage() {
@@ -76,6 +77,10 @@ while [ "$#" -gt 0 ]; do
             python="$2"
             shift; shift
             ;;
+        --tsan )
+            saved_tsan_options=$TSAN_OPTIONS
+            shift;
+            ;;
         --help )
             Usage
             exit 1
@@ -117,6 +122,9 @@ rm -rf WT_TEST
 for pyfile in "$@"; do
     # Run the test script in the background - modify output so we know what test it is coming from.
     echo running "$python ../test/suite/run.py $run_py_options $pyfile"
+    if [ -n "$saved_tsan_options" ]; then
+        export TSAN_OPTIONS="$saved_tsan_options:log_path=$(git rev-parse --show-toplevel)/tsan_logs_$pyfile:exitcode=0"
+    fi
     label_output "$pyfile" "$python" ../test/suite/run.py $run_py_options $pyfile &
     procs["$!"]="$pyfile"
 

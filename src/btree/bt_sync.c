@@ -42,7 +42,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
     /* The checkpoint's snapshot includes the first dirty update on the page. */
     txn = session->txn;
     mod = ref->page->modify;
-    /* FIXME-WT-15347: Investigate potential race condition. */
+    /* FIXME-TSAN-WT-15347: Investigate potential TSAN-reported race condition. */
     if (txn->snapshot_data.snap_max >= mod->first_dirty_txn)
         return (false);
 
@@ -356,7 +356,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             }
             tried_eviction = false;
 
-            /* FIXME-WT-15345: Suppress TSAN statistics warnings. */
+            /* FIXME-TSAN-WT-15345: Suppress TSAN statistics warnings. */
             WT_STAT_CONN_INCR(session, checkpoint_pages_reconciled);
             WT_STAT_CONN_INCRV(session, checkpoint_pages_reconciled_bytes, page->memory_footprint);
             WT_STATP_DSRC_INCR(session, btree->dhandle->stats, btree_checkpoint_pages_reconciled);
