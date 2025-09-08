@@ -44,6 +44,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
     uri = "table:test_checkpoint_snapshot02"
     backup_dir = "BACKUP"
     backup_dir2 = "BACKUP2"
+    testcase = wttest.WiredTigerTestCase.currentTestCase()
 
     format_values = [
         ('column_fix', dict(key_format='r', value_format='8t')),
@@ -161,7 +162,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
         # Create a checkpoint thread
         done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done)
+        ckpt = checkpoint_thread(self.conn, done, self.testcase)   
         try:
             ckpt.start()
 
@@ -226,7 +227,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
         # Create a checkpoint thread
         done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done)
+        ckpt = checkpoint_thread(self.conn, done, self.testcase)
         try:
             ckpt.start()
 
@@ -291,7 +292,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
         # Create a checkpoint thread
         done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done)
+        ckpt = checkpoint_thread(self.conn, done, self.testcase)
         try:
             ckpt.start()
 

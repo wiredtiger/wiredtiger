@@ -78,7 +78,8 @@ class test_truncate11(wttest.WiredTigerTestCase):
 
         # Create a checkpoint thread
         done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done)
+        testcase = self.currentTestCase()
+        ckpt = checkpoint_thread(self.conn, done, testcase)
         try:
             ckpt.start()
 

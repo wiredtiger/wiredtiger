@@ -177,6 +177,10 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def currentTestCase():
         return getattr(WiredTigerTestCase._threadLocal, 'currentTestCase', None)
 
+    @staticmethod
+    def setCurrentTestCase(val):
+        return setattr(WiredTigerTestCase._threadLocal, 'currentTestCase', val)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.skipped = False

@@ -118,7 +118,8 @@ class test_rollback_to_stable35(test_rollback_to_stable_base):
 
         # Create a checkpoint thread
         done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done)
+        testcase = self.currentTestCase()
+        ckpt = checkpoint_thread(self.conn, done, testcase)
         try:
             ckpt.start()
             # Wait for checkpoint to start before committing.

@@ -28,9 +28,10 @@
 
 import os, queue, random, shutil, threading, time, wiredtiger, wttest
 from helper import compare_tables
+from wttest import WiredTigerTestCase
 
 class checkpoint_thread(threading.Thread):
-    def __init__(self, conn, done, **kwargs):
+    def __init__(self, conn, done, testcase, **kwargs):
         """
         Keyword Args:
             checkpoint_count_max (int): Maximum number of checkpoints to initiate. Must be greater
@@ -39,6 +40,7 @@ class checkpoint_thread(threading.Thread):
         """
         self.conn = conn
         self.done = done
+        self.testcase = testcase
         self.checkpoint_count = 0
 
         if "checkpoint_count_max" in kwargs:
@@ -56,6 +58,8 @@ class checkpoint_thread(threading.Thread):
         return self._max_count > 0 and self.checkpoint_count >= self._max_count
 
     def run(self):
+        # Save the current test case object in thread local storage.
+        WiredTigerTestCase.setCurrentTestCase(self.testcase)
         sess = self.conn.open_session()
         while not self.done.is_set() and not self.reached_max_count():
             # Sleep for 10 milliseconds.
@@ -65,13 +69,16 @@ class checkpoint_thread(threading.Thread):
         sess.close()
 
 class named_checkpoint_thread(threading.Thread):
-    def __init__(self, conn, done, ckpt_name):
+    def __init__(self, conn, done, testcase, ckpt_name):
         self.conn = conn
         self.done = done
+        self.testcase = testcase
         self.ckpt_name = ckpt_name
         threading.Thread.__init__(self)
 
     def run(self):
+        # Save the current test case object in thread local storage.
+        WiredTigerTestCase.setCurrentTestCase(self.testcase)
         sess = self.conn.open_session()
         while not self.done.is_set():
             # Sleep for 10 milliseconds.
@@ -80,13 +87,16 @@ class named_checkpoint_thread(threading.Thread):
         sess.close()
 
 class flush_checkpoint_thread(threading.Thread):
-    def __init__(self, conn, done, prob):
+    def __init__(self, conn, done, testcase, prob):
         self.conn = conn
         self.done = done
         self.flush_probability = prob
+        self.testcase = testcase
         threading.Thread.__init__(self)
 
     def run(self):
+        # Save the current test case object in thread local storage.
+        WiredTigerTestCase.setCurrentTestCase(self.testcase)
         sess = self.conn.open_session()
         while not self.done.is_set():
             # Sleep for 10 milliseconds.
@@ -98,13 +108,16 @@ class flush_checkpoint_thread(threading.Thread):
         sess.close()
 
 class backup_thread(threading.Thread):
-    def __init__(self, conn, backup_dir, done):
+    def __init__(self, conn, backup_dir, done, testcase):
         self.backup_dir = backup_dir
         self.conn = conn
         self.done = done
+        self.testcase = testcase
         threading.Thread.__init__(self)
 
     def run(self):
+        # Save the current test case object in thread local storage.
+        WiredTigerTestCase.setCurrentTestCase(self.testcase)
         sess = self.conn.open_session()
         while not self.done.is_set():
             # Sleep for 2 seconds.
@@ -158,15 +171,18 @@ class backup_thread(threading.Thread):
 # 'd' for drop a table
 # 't' for create a table and insert a single item into it
 class op_thread(threading.Thread):
-    def __init__(self, conn, uris, key_fmt, work_queue, done):
+    def __init__(self, conn, uris, key_fmt, work_queue, done, testcase):
         self.conn = conn
         self.uris = uris
         self.key_fmt = key_fmt
         self.work_queue = work_queue
         self.done = done
+        self.testcase = testcase
         threading.Thread.__init__(self)
 
     def run(self):
+        # Save the current test case object in thread local storage.
+        WiredTigerTestCase.setCurrentTestCase(self.testcase)
         sess = self.conn.open_session()
         if (len(self.uris) == 1):
             c = sess.open_cursor(self.uris[0], None, None)

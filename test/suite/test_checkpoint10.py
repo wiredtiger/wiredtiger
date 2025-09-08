@@ -144,10 +144,11 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
         # Checkpoint in the background.
         done = threading.Event()
+        testcase = self.currentTestCase()
         if self.second_checkpoint is None:
-            ckpt = checkpoint_thread(self.conn, done)
+            ckpt = checkpoint_thread(self.conn, done, testcase)
         else:
-            ckpt = named_checkpoint_thread(self.conn, done, self.second_checkpoint)
+            ckpt = named_checkpoint_thread(self.conn, done, testcase, self.second_checkpoint)
         try:
             ckpt.start()
 
