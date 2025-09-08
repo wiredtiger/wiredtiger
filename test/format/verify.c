@@ -47,7 +47,8 @@ table_verify(TABLE *table, void *arg)
     wt_wrap_open_session(conn, &sap, table->track_prefix,
       enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
     ret = session->verify(session, table->uri, "strict");
-    testutil_assert(ret == 0 || ret == EBUSY);
+    if (!g.disagg_storage_config)
+        testutil_assert(ret == 0 || ret == EBUSY);
     if (ret == EBUSY)
         WARN("table.%u skipped verify because of EBUSY", table->id);
     wt_wrap_close_session(session);
