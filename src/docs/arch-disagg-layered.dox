@@ -50,10 +50,6 @@ Layered tables support all the regular tables operations, with exceptions listed
 - All nodes must use byte-wise identical keys, values, and timestamps for the same records.
 - Prepared transactions will behave as described in the design for distributed transactions in
 disaggregated storage
-- Durability is provided by the logical log service, not WiredTiger
-    - Commit durability (using write-ahead log) is not supported for Layered Tables.
-    - Checkpoint durability is asynchronous. The completion of a `WT_SESSION::checkpoint()` call
-    does not guarantee that the resulting checkpoint is on storage and visible to other nodes yet.
 - Table compaction is not supported on layered tables
 - Backup cursors will not return information about layered tables
 - Bulk cursors are not supported on layered tables
