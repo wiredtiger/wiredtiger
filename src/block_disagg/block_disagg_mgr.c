@@ -137,37 +137,40 @@ __bmd_encrypt_skip_size(WT_BM *bm, WT_SESSION_IMPL *session)
 }
 
 static int
-__bmd_verify_page_discard(WT_BM *bm, WT_SESSION_IMPL *session)
+__bmd_verify_page_discard(
+  WT_BM *bm, WT_SESSION_IMPL *session, uint64_t *page_ids, size_t *page_id_count)
 {
-    
-    WT_BLOCK_DISAGG *block_disagg = (WT_BLOCK_DISAGG *)bm->block;
-    
-    /* Get checkpoint LSN */
+    WT_BLOCK_DISAGG *block_disagg;
+    WT_DECL_ITEM(item);
+    size_t size = 0;
     uint64_t checkpoint_lsn;
-    // session->dhandle->checkpoint?
-    // bm->checkpoint(bm, session, NULL, NULL, false);?
+    uint64_t table_id;
 
-    
-    /* Get table id */
-    uint64_t table_id = S2BT(session)->id;
+    block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+    checkpoint_lsn = S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn;
+    table_id = S2BT(session)->id;
 
-    /* Call btree verify to get the page id list from the tree walk */
-    WT_DECL_ITEM(tree_walk_page_id);
-    size_t tree_walk_size = 0;
-    WT_RET(__wt_scr_alloc(session, tree_walk_size, &tree_walk_page_id));
-    __verify_page_discard(session, tree_walk_page_id);
+    WT_RET(__wt_scr_alloc(session, size, &item));
 
-    /* Call PALI function to get all page ids from PALM */
-    WT_PAGE_LOG_HANDLE *plhandle = block_disagg->plhandle;
+    block_disagg->plhandle->plh_get_page_ids(
+      block_disagg->plhandle, &session->iface, checkpoint_lsn, table_id, item, &size);
 
-    WT_DECL_ITEM(PALI_page_id);
-    size_t PALI_size = 0;
+    if (item->size != *page_id_count) {
+        WT_RET_MSG(session, EINVAL,
+          "Mismatch in number of page ids from PALM and btree walk: PALM %zu Btree walk %zu",
+          item->size, *page_id_count);
+    }
 
-    WT_RET(__wt_scr_alloc(session, PALI_size, &PALI_page_id));
+    for (size_t i = 0; i < size; i++) {
+        if (((uint64_t *)item->data)[i] != page_ids[i]) {
+            WT_RET_MSG(session, EINVAL,
+              "Mismatch in page ids from PALM and btree walk: PALM %" PRIu64 " Btree walk %" PRIu64,
+              ((uint64_t *)item->data)[i], page_ids[i]);
+            return (EINVAL);
+        }
+    }
 
-    plhandle->plh_get_page_ids(plhandle, (WT_SESSION *)session, checkpoint_lsn, table_id, PALI_page_id, &PALI_size);
-
-    /* Compare the two lists, any page ids in the tree that are not in the PALM should be discarded */
+    return (0);
 }
 
 /*
@@ -208,7 +211,7 @@ __bmd_method_set(WT_BM *bm, bool readonly)
     bm->sync = __wti_block_disagg_sync;
     bm->verify_addr = __wti_block_disagg_verify_addr;
     bm->verify_end = __wti_block_disagg_verify_end;
-    bm->verify_page_discard =__bmd_verify_page_discard;
+    bm->verify_page_discard = __bmd_verify_page_discard;
     bm->verify_start = __wti_block_disagg_verify_start;
     bm->write = __bmd_write;
     bm->write_size = __bmd_write_size;

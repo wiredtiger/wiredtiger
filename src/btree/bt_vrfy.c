@@ -53,6 +53,8 @@ static int __verify_row_int_key_order(
   WT_SESSION_IMPL *, WT_PAGE *, WT_REF *, uint32_t, WT_VSTUFF *);
 static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
+static int __wt_verify_page_discard(WT_SESSION_IMPL *, WT_BM *);
+static int __wt_compare_page_id(const void *, const void *);
 
 /*
  * __verify_config --
@@ -337,6 +339,12 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              */
             WT_TRET(__wt_evict_file_exclusive_on(session));
             WT_TRET(__wt_evict_file(session, WT_SYNC_DISCARD));
+
+            /* Run page discard verify for latest checkpoint. */
+            if (ret == 0 && (ckpt + 1)->name == NULL) {
+                WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
+                __wt_verify_page_discard(session, bm);
+            }
         }
 
         /* Unload the checkpoint. */
@@ -1389,25 +1397,58 @@ __verify_page_content_leaf(
 }
 
 static int
-__verify_page_discard(WT_SESSION_IMPL *session, WT_ITEM *item, size_t *size)
+__wt_verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
 {
-    WT_BTREE *btree = S2BT(session);
     WT_REF *ref = NULL;
+    size_t count = 0;
+    size_t capacity = 0;
+    uint64_t *page_ids = NULL;
     int ret = 0;
 
-    // Walk the tree, visiting every page.
-    // Use WT_READ_CACHE to avoid reading pages from disk.
-    while ((ret = __wt_tree_walk(session, &ref, WT_READ_VISIBLE_ALL | WT_READ_CACHE)) == 0 && ref != NULL) {
+    /* Walk the btree to retrieve the page IDs for all pages in the btree at the loaded checkpoint
+     * time. */
+    while ((ret = (__wt_tree_walk(session, &ref, WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED))) == 0 &&
+      ref != NULL) {
         WT_PAGE *page = ref->page;
+
+        /* Use dynamically allocated array to track page IDs as we don't know the number of pages
+           here. Check if the array size needs to grow. */
+        if (count == capacity) {
+            size_t new_capacity = (capacity == 0) ? 1 : capacity * 2;
+            uint64_t *temp = realloc(page_ids, new_capacity * sizeof(uint64_t));
+            if (temp == NULL) {
+                return (ENOMEM);
+            }
+            page_ids = temp;
+            capacity = new_capacity;
+        }
+
         if (page != NULL) {
-            // Retrieve the page ID from ref (method TBD)
-            // Add page id to the given array
+            page_ids[count++] = page->disagg_info->block_meta.page_id;
         }
     }
 
-    // Release the last reference if needed
-    if (ref != NULL)
-        WT_TRET(__wt_page_release(session, ref, 0));
+    if (ret != WT_NOTFOUND)
+        return (ret);
 
-    return (ret == WT_NOTFOUND ? 0 : ret);
+    /* Sort array for easier comparison. */
+    __wt_qsort(page_ids, count, sizeof(uint64_t), __wt_compare_page_id);
+
+    WT_RET(bm->verify_page_discard(bm, session, page_ids, &count));
+
+    return 0;
+}
+
+static int
+__wt_compare_page_id(const void *a, const void *b)
+{
+    const uint64_t *id_a = (const uint64_t *)a;
+    const uint64_t *id_b = (const uint64_t *)b;
+
+    if (*id_a < *id_b)
+        return -1;
+    else if (*id_a > *id_b)
+        return 1;
+    else
+        return 0;
 }
