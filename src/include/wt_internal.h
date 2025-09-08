@@ -62,6 +62,7 @@ extern "C" {
 #endif
 #ifdef TRACY_ENABLE
 #include "../../tracy/public/tracy/TracyC.h"
+#include "../../tracy/public/tracy/TracyColors.h"
 #endif
 /*
  * DO NOT EDIT: automatically built by dist/s_typedef.
