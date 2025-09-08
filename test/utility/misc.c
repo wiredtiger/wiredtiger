@@ -476,7 +476,7 @@ dcalloc(size_t number, size_t size)
 {
     void *p;
 
-    if ((p = calloc(number, size)) != NULL)
+    if ((p = calloc(number, size)) != NULL || number == 0 || size == 0)
         return (p);
     testutil_die(errno, "calloc: %" WT_SIZET_FMT "B", number * size);
 }
@@ -490,7 +490,7 @@ dmalloc(size_t len)
 {
     void *p;
 
-    if ((p = malloc(len)) != NULL)
+    if ((p = malloc(len)) != NULL || len == 0)
         return (p);
     testutil_die(errno, "malloc: %" WT_SIZET_FMT "B", len);
 }
@@ -504,7 +504,7 @@ drealloc(void *p, size_t len)
 {
     void *t;
 
-    if ((t = realloc(p, len)) != NULL)
+    if ((t = realloc(p, len)) != NULL || len == 0)
         return (t);
     testutil_die(errno, "realloc: %" WT_SIZET_FMT "B", len);
 }
