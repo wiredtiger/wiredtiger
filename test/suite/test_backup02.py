@@ -65,7 +65,7 @@ class test_backup02(wttest.WiredTigerTestCase):
                 work_queue.put_nowait(('gi', i, my_data))
 
             for i in range(self.nthreads):
-                t = op_thread(self.conn, uris, self.fmt, work_queue, done)
+                t = op_thread(self.conn, uris, self.fmt, work_queue, done, testcase)
                 opthreads.append(t)
                 t.start()
 

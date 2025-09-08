@@ -162,7 +162,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
         # Create a checkpoint thread
         done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done, self.testcase)   
+        ckpt = checkpoint_thread(self.conn, done, self.testcase)
         try:
             ckpt.start()
 
