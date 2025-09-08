@@ -465,7 +465,7 @@ class test_timestamp26_log_ts(wttest.WiredTigerTestCase, DisaggConfigMixin):
         config += 'always' if self.always else 'never'
 
         # Disagg is not compatible with write timestamp never.
-        if not self.always and DisaggConfigMixin.is_disagg_scenario():
+        if not self.always and DisaggConfigMixin.is_disagg_scenario(self):
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda: self.session.create(uri, config), "")
             return
