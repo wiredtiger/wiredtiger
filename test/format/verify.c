@@ -199,8 +199,8 @@ table_verify_mirror(
     uint64_t range_begin, range_end;
     char buf[256], tagbuf[128];
 
-    base_id = base_keyno = table_id = table_keyno = 0;             /* -Wconditional-uninitialized */
-    base_bitv = table_bitv = FIX_VALUE_WRONG; /* -Wconditional-uninitialized */
+    base_id = base_keyno = table_id = table_keyno = 0; /* -Wconditional-uninitialized */
+    base_bitv = table_bitv = FIX_VALUE_WRONG;          /* -Wconditional-uninitialized */
     base_ret = table_ret = 0;
     last_match = 0;
     failures = 0;
