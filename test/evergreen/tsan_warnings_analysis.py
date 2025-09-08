@@ -93,6 +93,7 @@ def get_tsan_warnings():
                     for line in file:
                         if ("===" in line.strip()):
                             start_record = not start_record
+                            continue
                         if start_record:
                             warning_lines.append(line.strip())
                             # Strip away the unnecessary information
@@ -103,7 +104,7 @@ def get_tsan_warnings():
                                 # Strip away the column line information.
                                 pattern_to_remove = r':(\d+):\d+'
                                 cleaned_text = re.sub(pattern_to_remove, r':\1', cleaned_text).strip()
-                                tsan_warnings_dict[cleaned_text] = (file_name, file_path, warning_lines.copy())
+                                tsan_warnings_dict[cleaned_text] = (file_name, warning_lines.copy())
                                 warning_lines = []
     return tsan_warnings_dict
 
@@ -134,10 +135,11 @@ def main():
         print("No TSAN warnings to fix!")
     else:
         print("Total warnings:")
-        for tsan_warning, (tsan_log, tsan_log_path, warning_lines) in tsan_warnings_dict.items():
-            print(tsan_warning)
-            print(tsan_log)
+        for tsan_warning, (tsan_log, warning_lines) in tsan_warnings_dict.items():
+            print("=" * 150)
+            print("TSAN log: " + tsan_log)
             print("\n".join(warning_lines))
+            print("=" * 150)
         print(f"Overall TSAN Warnings: {len(tsan_warnings_dict)}")
         exit(1)
 
