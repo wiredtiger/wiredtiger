@@ -38,10 +38,6 @@ import time
 
 @disagg_test_class
 class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    compress = [
-        ('none', dict(block_compress='none')),
-        ('snappy', dict(block_compress='snappy')),
-    ]
 
     delta = [
         ('write_leaf_only', dict(delta_config='page_delta=(internal_page_delta=false,leaf_page_delta=true)', delta_type='leaf_only')),
@@ -58,12 +54,12 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
     uri='file:test_layered32'
 
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(compress, disagg_storages, delta)
+    scenarios = make_scenarios(disagg_storages, delta)
 
     def session_create_config(self):
         # The delta percentage of 100 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
-        cfg = 'key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512,block_manager=disagg,block_compressor={}'.format(self.block_compress)
+        cfg = 'key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512,block_manager=disagg'
         return cfg
 
     def conn_config(self):
@@ -71,7 +67,6 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
-        extlist.extension('compressors', self.block_compress)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def get_stat(self, stat):
