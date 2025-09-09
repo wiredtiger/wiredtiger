@@ -87,7 +87,7 @@ class test_layered48(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor.remove()
             self.timestamp += 1
             self.session_follow.commit_transaction("commit_timestamp=" + self.timestamp_str(self.timestamp))
-        
+
         # Make the delete globally visible
         self.conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(self.timestamp) + ',oldest_timestamp=' + self.timestamp_str(self.timestamp))
 
@@ -107,7 +107,7 @@ class test_layered48(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor.set_key(str(i))
             self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
         self.session_follow.rollback_transaction()
-    
+
     def test_truncate(self):
         uri = "layered:test_layered48"
         # Setup
@@ -127,7 +127,7 @@ class test_layered48(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session_follow.truncate(None, cursor, None, None)
         self.timestamp = self.timestamp + 1
         self.session_follow.commit_transaction("commit_timestamp=" + self.timestamp_str(self.timestamp))
-        
+
         # Make the delete globally visible
         self.conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(self.timestamp) + ',oldest_timestamp=' + self.timestamp_str(self.timestamp))
 
