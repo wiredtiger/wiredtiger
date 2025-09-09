@@ -845,10 +845,10 @@ rollback:
         if (use_ts) {
             static uint32_t progress = 0;
             if (WT_TS_NONE == active_timestamps[td->threadnum]) {
-                progress++;
-                printf(
-                  "---syncing %u/%u @ Thread: %" PRIu32 " ---\n", progress, nth, td->threadnum);
-                if (progress == nth) {
+                uint32_t current_progress = __wt_atomic_add32(&progress, 1);
+                printf("--- syncing %u/%u @ Thread: %" PRIu32 " ---\n", current_progress, nth,
+                  td->threadnum);
+                if (current_progress == nth) {
                     thrd_sync_conds.tmr_ready_to_go = true;
                     __wt_cond_signal((WT_SESSION_IMPL *)session, thrd_sync_conds.cond_tmr_thrd);
                 }
