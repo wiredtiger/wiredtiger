@@ -668,7 +668,8 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
     key = value = NULL;
 
     /* Use a metadata cursor to have access to the existing URIs. */
-    WT_ERR(__wt_metadata_cursor(session, &cursor));
+    const char *cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
+    WT_ERR(__wt_open_cursor(session, WT_METADATA_URI, NULL, cursor_cfg, &cursor));
 
     /* Position the cursor on the given URI. */
     cursor->set_key(cursor, (const char *)uri->data);
@@ -702,7 +703,8 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
     WT_ERR(__wt_buf_set(session, uri, cursor->key.data, cursor->key.size));
 
 err:
-    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
     return (ret);
 }
 

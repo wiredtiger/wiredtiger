@@ -124,6 +124,7 @@ __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_SESSION_IMPL *internal_session;
     char *stable_uri;
+    const char *cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
     const char *layered_uri, *layered_cfg;
 
     conn = S2C(session);
@@ -131,8 +132,8 @@ __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
     stable_uri = NULL;
 
     WT_ERR(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
-    WT_ERR(__wt_metadata_cursor(internal_session, &cursor_check));
-    WT_ERR(__wt_metadata_cursor(internal_session, &cursor_scan));
+    WT_ERR(__wt_open_cursor(internal_session, WT_METADATA_URI, NULL, cursor_cfg, &cursor_check));
+    WT_ERR(__wt_open_cursor(internal_session, WT_METADATA_URI, NULL, cursor_cfg, &cursor_scan));
 
     cursor_scan->set_key(cursor_scan, "layered:");
     WT_ERR(cursor_scan->bound(cursor_scan, "bound=lower"));
@@ -165,8 +166,12 @@ __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
 
 err:
     __wt_free(session, stable_uri);
-    WT_TRET(__wt_metadata_cursor_release(internal_session, &cursor_check));
-    WT_TRET(__wt_metadata_cursor_release(internal_session, &cursor_scan));
+    if (cursor_check != NULL)
+        WT_TRET(cursor_check->close(cursor_check));
+
+    if (cursor_scan != NULL)
+        WT_TRET(cursor_scan->close(cursor_scan));
+
     WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }

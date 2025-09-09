@@ -184,6 +184,94 @@ err:
 }
 
 /*
+ * __curmetadata_set_key --
+ *     WT_CURSOR->set_key implementation for metadata cursors.
+ */
+static void
+__curmetadata_set_key(WT_CURSOR *cursor, ...)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_METADATA *mdc;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    uint64_t flags;
+    va_list ap;
+
+    session = CUR2S(cursor);
+
+    /* Reset the cursor every time for a new key. */
+    if ((ret = cursor->reset(cursor)) != 0)
+        WT_IGNORE_RET(__wt_panic(session, ret, "failed to reset cursor"));
+
+    mdc = (WT_CURSOR_METADATA *)cursor;
+    file_cursor = mdc->file_cursor;
+    va_start(ap, cursor);
+    flags = file_cursor->flags;
+    /* Pass on the raw flag. */
+    if (F_ISSET(cursor, WT_CURSTD_RAW))
+        LF_SET(WT_CURSTD_RAW);
+    if ((ret = __wti_cursor_set_keyv(file_cursor, flags, ap)) != 0)
+        WT_IGNORE_RET(__wt_panic(session, ret, "failed to set key"));
+    va_end(ap);
+}
+
+/*
+ * __curmetadata_get_key --
+ *     WT_CURSOR->get_key implementation for metadata cursors.
+ */
+static int
+__curmetadata_get_key(WT_CURSOR *cursor, ...)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_METADATA *mdc;
+    WT_DECL_RET;
+    uint64_t flags;
+    va_list ap;
+
+    mdc = (WT_CURSOR_METADATA *)cursor;
+    
+    file_cursor = mdc->file_cursor;
+    va_start(ap, cursor);
+    flags = file_cursor->flags;
+    /* Pass on the raw flag. */
+    if (F_ISSET(cursor, WT_CURSTD_RAW))
+        flags |= WT_CURSTD_RAW;
+    WT_ERR(__wti_cursor_get_keyv(file_cursor, flags, ap));
+
+err:
+    va_end(ap);
+    return (ret);
+}
+
+/*
+ * __curmetadata_get_value --
+ *     WT_CURSOR->get_key implementation for metadata cursors.
+ */
+static int
+__curmetadata_get_value(WT_CURSOR *cursor, ...)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_METADATA *mdc;
+    WT_SESSION_IMPL *session;
+    WT_DECL_RET;
+    va_list ap;
+
+    mdc = (WT_CURSOR_METADATA *)cursor;
+    file_cursor = mdc->file_cursor;
+    va_start(ap, cursor);
+
+    CURSOR_API_CALL(cursor, session, ret, get_value, NULL);
+    WT_ERR(__cursor_checkvalue(cursor));
+    // WT_ERR(__cursor_checkvBalue(file_cursor));
+
+    WT_ERR(__wti_cursor_get_valuev(file_cursor, ap));
+
+err:
+    va_end(ap);
+    API_END_RET(session, ret);
+}
+
+/*
  * Check if a key matches the metadata. The public value is "metadata:", but also check for the
  * internal version of the URI.
  */
@@ -543,6 +631,45 @@ err:
 }
 
 /*
+ * __curmetadata_bound --
+ *     WT_CURSOR->bound method for the metadata cursor type.
+ */
+static int
+__curmetadata_bound(WT_CURSOR *cursor, const char *config)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_METADATA *mdc;
+    // WT_DECL_CONF(WT_CURSOR, bound, conf);
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    // WT_COLLATOR *btree_collator;
+    // WT_CURSOR_BTREE *cbt;
+    // WT_CONFIG_ITEM cval;
+
+    
+    mdc = (WT_CURSOR_METADATA *)cursor;
+    file_cursor = mdc->file_cursor;
+    CURSOR_API_CALL(cursor, session, ret, bound, ((WT_CURSOR_BTREE *)file_cursor)->dhandle);
+    // cbt = (WT_CURSOR_BTREE *)file_cursor;
+
+    // WT_ERR(__wt_conf_compile_api_call(session, WT_CONFIG_REF(session, WT_CURSOR_bound),
+    //   WT_CONFIG_ENTRY_WT_CURSOR_bound, config, &_conf, sizeof(_conf), &conf));
+
+    // /* It is illegal to set a bound on a positioned cursor (it's fine to clear one) */
+    // WT_ERR(__wt_conf_gets(session, conf, action, &cval));
+    // if (WT_CONF_STRING_MATCH(set, cval) && WT_CURSOR_IS_POSITIONED(cbt))
+    //     WT_ERR_MSG(session, EINVAL, "setting bounds on a positioned cursor is not allowed");
+    // btree_collator = CUR2BT(file_cursor)->collator;
+
+    // WT_ERR(__wti_cursor_bound(file_cursor, conf, btree_collator));
+
+    file_cursor->bound(file_cursor, config);
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
  * __curmetadata_close --
  *     WT_CURSOR->close method for the metadata cursor type.
  */
@@ -580,10 +707,10 @@ __wt_curmetadata_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owne
   const char *cfg[], WT_CURSOR **cursorp)
 {
     WT_CONFIG_ITEM cval;
-    WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
-      __wt_cursor_get_value,                          /* get-value */
+    WT_CURSOR_STATIC_INIT(iface, __curmetadata_get_key, /* get-key */
+      __curmetadata_get_value,                          /* get-value */
       __wt_cursor_get_raw_key_value,                  /* get-raw-key-value */
-      __wt_cursor_set_key,                            /* set-key */
+      __curmetadata_set_key,                            /* set-key */
       __wt_cursor_set_value,                          /* set-value */
       __curmetadata_compare,                          /* compare */
       __wt_cursor_equals,                             /* equals */
@@ -599,7 +726,7 @@ __wt_curmetadata_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owne
       __wt_cursor_notsup,                             /* reserve */
       __wt_cursor_config_notsup,                      /* reconfigure */
       __wt_cursor_notsup,                             /* largest_key */
-      __wt_cursor_config_notsup,                      /* bound */
+      __curmetadata_bound,                            /* bound */
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */
       __wt_cursor_checkpoint_id,                      /* checkpoint ID */
