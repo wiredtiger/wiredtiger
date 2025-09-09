@@ -1410,6 +1410,7 @@ __clayered_remove_int(
 
     if (S2C(session)->layered_table_manager.leader) {
         c = clayered->stable_cursor;
+        /* There is no content on the ingest table. We must be positioned on the stable table. */
         if (!positioned) {
             /*
              * Clear the existing cursor position. Don't clear the primary cursor: we're about to
