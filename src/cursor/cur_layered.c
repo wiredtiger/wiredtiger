@@ -1410,7 +1410,6 @@ __clayered_remove_int(
 
     if (S2C(session)->layered_table_manager.leader) {
         c = clayered->stable_cursor;
-        clayered->current_cursor = c;
         if (!positioned) {
             /*
              * Clear the existing cursor position. Don't clear the primary cursor: we're about to
@@ -1423,6 +1422,7 @@ __clayered_remove_int(
         } else
             WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
         WT_RET(c->remove(c));
+        clayered->current_cursor = c;
     } else {
         c = clayered->ingest_cursor;
         /* If we are positioned on the stable table, we need to set the key. */
