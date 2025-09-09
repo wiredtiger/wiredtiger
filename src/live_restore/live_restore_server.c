@@ -332,7 +332,7 @@ __live_restore_init_work_queue(WT_SESSION_IMPL *session)
     WT_CURSOR *cursor;
     WT_RET(__wt_metadata_cursor(session, &cursor));
     uint64_t work_count = 0;
-    while ((ret = cursor->next(cursor)) == 0) {
+    while ((ret = __wt_metadata_cursor_next(session, cursor)) == 0) {
         char *uri = NULL;
         WT_ERR(cursor->get_key(cursor, &uri));
         if (WT_PREFIX_MATCH(uri, "file:"))

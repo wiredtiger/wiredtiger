@@ -1116,7 +1116,7 @@ __wt_meta_correct_base_write_gen(WT_SESSION_IMPL *session)
 
     uri = NULL;
     WT_RET(__wt_metadata_cursor(session, &cursor));
-    while ((ret = cursor->next(cursor)) == 0) {
+    while ((ret = __wt_metadata_cursor_next(session, cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &uri));
 
         if (!WT_BTREE_PREFIX(uri))

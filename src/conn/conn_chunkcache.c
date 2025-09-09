@@ -38,9 +38,10 @@ __chunkcache_get_metadata_config(WT_SESSION_IMPL *session, char **config)
 
     *config = NULL;
 
+    /* FIXME-WT-15416: Fix metadata cursors */
     WT_RET(__wt_metadata_cursor(session, &cursor));
     cursor->set_key(cursor, WT_CC_METAFILE_URI);
-    WT_ERR(cursor->search(cursor));
+    WT_ERR(__wt_metadata_cursor_search(session, cursor));
 
     WT_ERR(cursor->get_value(cursor, &tmp));
     WT_ERR(__wt_strdup(session, tmp, config));

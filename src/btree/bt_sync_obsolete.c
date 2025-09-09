@@ -667,19 +667,23 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
     exact = 0;
     key = value = NULL;
 
-    /* Use a metadata cursor to have access to the existing URIs. */
+    /*
+     * FIXME-WT-15416: Fix metadata cursors
+     *
+     * Use a metadata cursor to have access to the existing URIs.
+     */
     WT_ERR(__wt_metadata_cursor(session, &cursor));
 
     /* Position the cursor on the given URI. */
     cursor->set_key(cursor, (const char *)uri->data);
-    WT_ERR(cursor->search_near(cursor, &exact));
+    WT_ERR(__wt_metadata_cursor_search_near(session, cursor, &exact));
 
     /*
      * The given URI may not exist in the metadata file. Since we always want to return a URI that
      * is lexicographically larger the given one, make sure not to go backwards.
      */
     if (exact <= 0)
-        WT_ERR(cursor->next(cursor));
+        WT_ERR(__wt_metadata_cursor_next(session, cursor));
 
     /* Loop through the eligible candidates. */
     do {
@@ -695,7 +699,7 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
         /* Check the given uri needs checkpoint cleanup. */
         if (__checkpoint_cleanup_eligibility(session, key, value))
             break;
-    } while ((ret = cursor->next(cursor)) == 0);
+    } while ((ret = __wt_metadata_cursor_next(session, cursor)) == 0);
     WT_ERR(ret);
 
     /* Save the selected uri. */

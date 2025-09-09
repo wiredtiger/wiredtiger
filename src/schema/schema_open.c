@@ -258,9 +258,9 @@ __schema_open_index(
     /* Find matching indices. */
     WT_ERR(__wt_metadata_cursor(session, &cursor));
     cursor->set_key(cursor, tmp->data);
-    if ((ret = cursor->search_near(cursor, &cmp)) == 0 && cmp < 0)
-        ret = cursor->next(cursor);
-    for (i = 0; ret == 0; i++, ret = cursor->next(cursor)) {
+    if ((ret = __wt_metadata_cursor_search_near(session, cursor, &cmp)) == 0 && cmp < 0)
+        ret = __wt_metadata_cursor_next(session, cursor);
+    for (i = 0; ret == 0; i++, ret = __wt_metadata_cursor_next(session, cursor)) {
         WT_ERR(cursor->get_key(cursor, &uri));
         name = uri;
 

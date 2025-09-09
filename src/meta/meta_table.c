@@ -352,6 +352,85 @@ err:
 }
 
 /*
+ * __wt_metadata_cursor_search --
+ *     Call cursor search on the metadata using read uncommitted isolation.
+ *
+ * FIXME-WT-15416: Fix metadata cursors This can be removed once the metadata cursor methods work
+ *     correctly.
+ */
+int
+__wt_metadata_cursor_search(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+{
+    WT_DECL_RET;
+
+    WT_ASSERT(session, cursor != NULL);
+
+    /*
+     * All metadata reads are at read-uncommitted isolation. That's because once a schema-level
+     * operation completes, subsequent operations must see the current version of checkpoint
+     * metadata, or they may try to read blocks that may have been freed from a file. Metadata
+     * updates use non-transactional techniques (such as the schema and metadata locks) to protect
+     * access to in-flight updates.
+     */
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->search(cursor));
+
+    return (ret);
+}
+
+/*
+ * __wt_metadata_cursor_search_near --
+ *     Call cursor search on the metadata using read uncommitted isolation.
+ *
+ * FIXME-WT-15416: Fix metadata cursors This can be removed once the metadata cursor methods work
+ *     correctly.
+ */
+int
+__wt_metadata_cursor_search_near(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exactp)
+{
+    WT_DECL_RET;
+
+    WT_ASSERT(session, cursor != NULL);
+
+    /*
+     * All metadata reads are at read-uncommitted isolation. That's because once a schema-level
+     * operation completes, subsequent operations must see the current version of checkpoint
+     * metadata, or they may try to read blocks that may have been freed from a file. Metadata
+     * updates use non-transactional techniques (such as the schema and metadata locks) to protect
+     * access to in-flight updates.
+     */
+    WT_WITH_TXN_ISOLATION(
+      session, WT_ISO_READ_UNCOMMITTED, ret = cursor->search_near(cursor, exactp));
+
+    return (ret);
+}
+
+/*
+ * __wt_metadata_cursor_next --
+ *     Call cursor next on the metadata using read uncommitted isolation.
+ *
+ * FIXME-WT-15416: Fix metadata cursors This can be removed once the metadata cursor methods work
+ *     correctly.
+ */
+int
+__wt_metadata_cursor_next(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+{
+    WT_DECL_RET;
+
+    WT_ASSERT(session, cursor != NULL);
+
+    /*
+     * All metadata reads are at read-uncommitted isolation. That's because once a schema-level
+     * operation completes, subsequent operations must see the current version of checkpoint
+     * metadata, or they may try to read blocks that may have been freed from a file. Metadata
+     * updates use non-transactional techniques (such as the schema and metadata locks) to protect
+     * access to in-flight updates.
+     */
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
+
+    return (ret);
+}
+
+/*
  * __wt_metadata_btree_id_to_uri --
  *     Given a btree id, find the matching entry in the metadata and return a copy of the uri. The
  *     caller has to free the returned uri.

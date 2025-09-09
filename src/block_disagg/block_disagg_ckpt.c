@@ -129,11 +129,15 @@ __wti_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool 
     len = strlen("file:") + strlen(block_disagg->name) + 4;
     WT_ERR(__wt_calloc_def(session, len, &md_key));
 
-    /* Get a metadata cursor pointing to this table */
+    /*
+     * FIXME-WT-15416: Fix metadata cursors.
+     *
+     *  Get a metadata cursor pointing to this table
+     */
     WT_ERR(__wt_metadata_cursor(session, &md_cursor));
     WT_ERR(__wt_snprintf(md_key, len, "file:%s", block_disagg->name));
     md_cursor->set_key(md_cursor, md_key);
-    WT_ERR(md_cursor->search(md_cursor));
+    WT_ERR(__wt_metadata_cursor_search(session, md_cursor));
     WT_ERR(md_cursor->get_value(md_cursor, &md_value));
 
     /*

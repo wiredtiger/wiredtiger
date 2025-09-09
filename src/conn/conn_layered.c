@@ -131,12 +131,13 @@ __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
     stable_uri = NULL;
 
     WT_ERR(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
+    /* FIXME-WT-15416: Fix metadata cursors */
     WT_ERR(__wt_metadata_cursor(internal_session, &cursor_check));
     WT_ERR(__wt_metadata_cursor(internal_session, &cursor_scan));
 
     cursor_scan->set_key(cursor_scan, "layered:");
     WT_ERR(cursor_scan->bound(cursor_scan, "bound=lower"));
-    while ((ret = cursor_scan->next(cursor_scan)) == 0) {
+    while ((ret = __wt_metadata_cursor_next(session, cursor_scan)) == 0) {
         WT_ERR(cursor_scan->get_key(cursor_scan, &layered_uri));
         WT_ERR(cursor_scan->get_value(cursor_scan, &layered_cfg));
         if (!WT_PREFIX_MATCH(layered_uri, "layered:"))
@@ -148,7 +149,7 @@ __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
 
         /* Check if the URI exists. */
         cursor_check->set_key(cursor_check, stable_uri);
-        WT_ERR_NOTFOUND_OK(cursor_check->search(cursor_check), true);
+        WT_ERR_NOTFOUND_OK(__wt_metadata_cursor_search(session, cursor_check), true);
 
         /* Create the stable table if it does not exist. */
         if (ret == WT_NOTFOUND) {
@@ -369,10 +370,14 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
     /* We need an internal session when modifying metadata. */
     WT_ERR(__wt_open_internal_session(conn, "checkpoint-pick-up", false, 0, 0, &internal_session));
 
-    /* Open up a metadata cursor pointing at our table */
+    /*
+     * FIXME-WT-15416: Fix metadata cursors
+     *
+     * Open up a metadata cursor pointing at our table
+     */
     WT_ERR(__wt_metadata_cursor(internal_session, &md_cursor));
     md_cursor->set_key(md_cursor, metadata_key);
-    WT_ERR(md_cursor->search(md_cursor));
+    WT_ERR(__wt_metadata_cursor_search(session, md_cursor));
 
     /* Pull the value out. */
     WT_ERR(md_cursor->get_value(md_cursor, &current_value));
@@ -414,7 +419,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
         WT_ERR(cursor->get_value(cursor, &metadata_value));
 
         md_cursor->set_key(md_cursor, metadata_key);
-        WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
+        WT_ERR_NOTFOUND_OK(__wt_metadata_cursor_search(session, md_cursor), true);
 
         if (ret == 0 && WT_PREFIX_MATCH(metadata_key, "file:")) {
             /* Existing table: Just apply the new metadata. */
@@ -459,7 +464,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
                     memcpy(layered_ingest_uri, cval.str, cval.len);
                     layered_ingest_uri[cval.len] = '\0';
                     md_cursor->set_key(md_cursor, layered_ingest_uri);
-                    WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
+                    WT_ERR_NOTFOUND_OK(__wt_metadata_cursor_search(session, md_cursor), true);
                     if (ret == WT_NOTFOUND)
                         WT_ERR(__layered_create_missing_ingest_table(
                           internal_session, layered_ingest_uri, metadata_value));

@@ -288,7 +288,7 @@ __metadata_load_bulk(WT_SESSION_IMPL *session)
      * but the file won't exist. Create on demand.
      */
     WT_RET(__wt_metadata_cursor(session, &cursor));
-    while ((ret = cursor->next(cursor)) == 0) {
+    while ((ret = __wt_metadata_cursor_next(session, cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &key));
         if (!WT_PREFIX_SKIP(key, "file:"))
             continue;
