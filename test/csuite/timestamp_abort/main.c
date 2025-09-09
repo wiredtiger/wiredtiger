@@ -106,11 +106,11 @@ extern int __wt_optind;
 extern char *__wt_optarg;
 
 static struct {
-    bool tmr_ready_to_go;
-    WT_CONDVAR *cond_tmr_thrd;
+    bool timer_ready_to_go;
+    WT_CONDVAR *timer_cond;
     bool ckpt_ready_to_go;
-    WT_CONDVAR *cond_ckpt_thrd;
-} thrd_sync_conds = {false, NULL, false, NULL};
+    WT_CONDVAR *ckpt_cond;
+} thread_sync_conds = {false, NULL, false, NULL};
 
 /*
  * Print that we are doing backup verification.
@@ -350,11 +350,11 @@ thread_ts_run(void *arg)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     /* While is to wait for all written thread reached the commit. */
     /* Using while is to avoid spurious wakeups of conditional variables */
-    while (!thrd_sync_conds.tmr_ready_to_go) {
+    while (!thread_sync_conds.timer_ready_to_go) {
         /* Actually we don't need this value */
         bool cv_signalled;
         /* Wait maximum 1s each round */
-        __wt_cond_wait_signal((WT_SESSION_IMPL *)session, thrd_sync_conds.cond_tmr_thrd, WT_MILLION,
+        __wt_cond_wait_signal((WT_SESSION_IMPL *)session, thread_sync_conds.timer_cond, WT_MILLION,
           NULL, &cv_signalled);
     }
     printf("Timestamp thread started...\n");
@@ -376,8 +376,8 @@ thread_ts_run(void *arg)
             testutil_snprintf(tscfg, sizeof(tscfg),
               "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64, ts, ts);
         testutil_check(conn->set_timestamp(conn, tscfg));
-        thrd_sync_conds.ckpt_ready_to_go = true;
-        __wt_cond_signal((WT_SESSION_IMPL *)session, thrd_sync_conds.cond_ckpt_thrd);
+        thread_sync_conds.ckpt_ready_to_go = true;
+        __wt_cond_signal((WT_SESSION_IMPL *)session, thread_sync_conds.ckpt_cond);
         /*
          * Only perform the reconfigure test after statistics have a chance to run. If we do it too
          * frequently then internal servers like the statistics server get destroyed and restarted
@@ -496,11 +496,11 @@ thread_ckpt_run(void *arg)
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
     /* While is to wait for stable_timestamp is configured. */
     /* Using while is to avoid spurious wakeups of conditional variables. */
-    while (!thrd_sync_conds.ckpt_ready_to_go) {
+    while (!thread_sync_conds.ckpt_ready_to_go) {
         bool cv_signalled;
         /* Wait maximum 1s each round */
-        __wt_cond_wait_signal((WT_SESSION_IMPL *)session, thrd_sync_conds.cond_ckpt_thrd,
-          WT_MILLION, NULL, &cv_signalled);
+        __wt_cond_wait_signal(
+          (WT_SESSION_IMPL *)session, thread_sync_conds.ckpt_cond, WT_MILLION, NULL, &cv_signalled);
     }
     printf("Checkpoint thread started...\n");
     first_ckpt = true;
@@ -849,8 +849,8 @@ rollback:
                 printf("--- syncing %u/%u @ Thread: %" PRIu32 " ---\n", current_progress, nth,
                   td->threadnum);
                 if (current_progress == nth) {
-                    thrd_sync_conds.tmr_ready_to_go = true;
-                    __wt_cond_signal((WT_SESSION_IMPL *)session, thrd_sync_conds.cond_tmr_thrd);
+                    thread_sync_conds.timer_ready_to_go = true;
+                    __wt_cond_signal((WT_SESSION_IMPL *)session, thread_sync_conds.timer_cond);
                 }
             }
             WT_RELEASE_WRITE_WITH_BARRIER(active_timestamps[td->threadnum], active_ts);
@@ -975,10 +975,10 @@ run_workload(uint32_t workload_iteration)
     opts->running = true;
     /* Initialize cond machines */
     opt_session = (WT_SESSION_IMPL *)opts->session;
-    thrd_sync_conds.tmr_ready_to_go = false;
-    testutil_check(__wt_cond_alloc(opt_session, "timer thread cv", &thrd_sync_conds.cond_tmr_thrd));
-    thrd_sync_conds.ckpt_ready_to_go = false;
-    testutil_check(__wt_cond_alloc(opt_session, "ckpt thread cv", &thrd_sync_conds.cond_ckpt_thrd));
+    thread_sync_conds.timer_ready_to_go = false;
+    testutil_check(__wt_cond_alloc(opt_session, "timer thread cv", &thread_sync_conds.timer_cond));
+    thread_sync_conds.ckpt_ready_to_go = false;
+    testutil_check(__wt_cond_alloc(opt_session, "ckpt thread cv", &thread_sync_conds.ckpt_cond));
     /* The backup, checkpoint, timestamp, and worker threads are added at the end. */
     backup_id = nth;
     if (use_backups) {
@@ -1028,8 +1028,8 @@ run_workload(uint32_t workload_iteration)
     for (i = 0; i <= ts_id; ++i)
         testutil_check(__wt_thread_join(NULL, &thr[i]));
 
-    __wt_cond_destroy(opt_session, &thrd_sync_conds.cond_tmr_thrd);
-    __wt_cond_destroy(opt_session, &thrd_sync_conds.cond_ckpt_thrd);
+    __wt_cond_destroy(opt_session, &thread_sync_conds.timer_cond);
+    __wt_cond_destroy(opt_session, &thread_sync_conds.ckpt_cond);
 
     /*
      * NOTREACHED
