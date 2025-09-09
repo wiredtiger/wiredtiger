@@ -577,11 +577,8 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
     MDB_val vval;
     PAGE_KEY *readonly_page_key;
     PAGE_KEY page_key;
-    PALM_KV_CONTEXT *context;
     uint64_t now;
     int ret;
-
-    context = matches->context;
 
     if (matches->lmdb_cursor == NULL)
         return (false);
