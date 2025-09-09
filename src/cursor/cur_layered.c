@@ -1427,7 +1427,7 @@ __clayered_remove_int(
         WT_CURSOR *old_current = clayered->current_cursor;
         c = clayered->ingest_cursor;
         clayered->current_cursor = c;
-        /* We may be positioned on the stable table so check again. */
+        /* If we are positioned on the stable table, we need to set the key. */
         if (!positioned || old_current != c) {
             /*
              * Clear the existing cursor position. Don't clear the primary cursor: we're about to
