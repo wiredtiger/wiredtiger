@@ -209,8 +209,11 @@ __disagg_get_meta(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn, WT_I
             break;
 
         /* Otherwise retry up to 100 times to account for page materialization delay. */
-        if (retry > 100)
+        if (retry > 100) {
+            __wt_verbose_error(session, WT_VERB_READ,
+              "read failed for metadata page ID %" PRIu64 ", lsn %" PRIu64, page_id, lsn);
             return (WT_NOTFOUND);
+        }
         __wt_verbose_notice(session, WT_VERB_READ,
           "retry #%" PRIu32 " for metadata page_id %" PRIu64 ", lsn %" PRIu64, retry, page_id, lsn);
         __wt_sleep(0, 10000 + retry * 5000);
