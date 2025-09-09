@@ -1358,9 +1358,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         if (prepare_state == WT_PREPARE_LOCKED)
             continue;
 
-        /*
-         * Entries in the history store are always visible.
-         */
+        /* Entries in the history store are always visible. */
         if ((WT_IS_HS(session->dhandle) && upd->txnid != WT_TXN_ABORTED &&
               upd->type == WT_UPDATE_STANDARD))
             return (WT_VISIBLE_TRUE);

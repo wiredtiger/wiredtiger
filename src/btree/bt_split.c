@@ -1457,7 +1457,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
         ref->page->disagg_info->old_rec_lsn_max = multi->block_meta->disagg_lsn;
         page->disagg_info->rec_lsn_max = multi->block_meta->disagg_lsn;
     }
-    /* FIXME-TSAN-WT-15345: Suppress TSAN statistics warnings. */
     WT_STAT_CONN_DSRC_INCR(session, cache_scrub_restore);
 
     /*

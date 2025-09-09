@@ -1195,10 +1195,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     logging = F_ISSET(&conn->log_mgr, WT_LOG_ENABLED);
 
-    /*
-     * Reset the statistics tracked per checkpoint. FIXME-TSAN-WT-15345: Suppress TSAN statistics
-     * warnings.
-     */
+    /* Reset the statistics tracked per checkpoint. */
     __wt_atomic_store64(&evict->evict_max_gen_gap, 0);
     __wt_atomic_store64(&evict->evict_max_page_size, 0);
     __wt_atomic_store64(&evict->evict_max_ms, 0);
