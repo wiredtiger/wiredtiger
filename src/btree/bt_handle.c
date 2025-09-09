@@ -1135,8 +1135,13 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      *
      * In-memory configuration overrides any key/value sizes, there's no such thing as an overflow
      * item in an in-memory configuration.
+     *
+     * Writing overflow keys and values isn't possible with disaggregated storage because overflow
+     * items are stored on a different page within the same tree, which cannot be handled by
+     * disaggregated storage.
      */
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY) ||
+      F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
         btree->maxleafkey = WT_BTREE_MAX_OBJECT_SIZE;
         btree->maxleafvalue = WT_BTREE_MAX_OBJECT_SIZE;
         return (0);

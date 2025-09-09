@@ -149,11 +149,8 @@ __rec_cell_build_leaf_key(
     }
     r->key_pfx_last = pfx;
 
-    /*
-     * Create an overflow object if the data won't fit and the connection is attached storage. SLS
-     * cannot work with overflow pages.
-     */
-    if (key->buf.size > btree->maxleafkey && !__wt_conn_is_disagg(session)) {
+    /* Create an overflow object if the data won't fit. */
+    if (key->buf.size > btree->maxleafkey) {
         /*
          * Overflow objects aren't prefix compressed -- rebuild any object that was prefix
          * compressed.
