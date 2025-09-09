@@ -1424,11 +1424,9 @@ __clayered_remove_int(
             WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
         WT_RET(c->remove(c));
     } else {
-        WT_CURSOR *old_current = clayered->current_cursor;
         c = clayered->ingest_cursor;
-        clayered->current_cursor = c;
         /* If we are positioned on the stable table, we need to set the key. */
-        if (!positioned || old_current != c) {
+        if (!positioned || clayered->current_cursor != c) {
             /*
              * Clear the existing cursor position. Don't clear the primary cursor: we're about to
              * use it anyway. No need to do another search if we are already positioned.
@@ -1439,6 +1437,7 @@ __clayered_remove_int(
             WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
         c->set_value(c, &__wt_tombstone);
         WT_RET(c->update(c));
+        clayered->current_cursor = c;
     }
 
     return (0);
