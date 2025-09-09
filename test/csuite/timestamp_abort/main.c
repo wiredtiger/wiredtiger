@@ -348,10 +348,8 @@ thread_ts_run(void *arg)
     td = (THREAD_DATA *)arg;
     conn = td->conn;
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    /* While is to wait for all written thread reached the commit. */
-    /* Using while is to avoid spurious wakeups of conditional variables */
+    /* Wait for all working threads to complete as there will be a stable timestamp available to work with. */
     while (!thrd_sync_conds.tmr_ready_to_go) {
-        /* Actually we don't need this value */
         bool cv_signalled;
         /* Wait maximum 1s each round */
         __wt_cond_wait_signal((WT_SESSION_IMPL *)session, thrd_sync_conds.cond_tmr_thrd, WT_MILLION,
