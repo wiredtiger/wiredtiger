@@ -453,6 +453,7 @@ struct __wt_block_disagg {
     const char *name;  /* Name */
     uint32_t objectid; /* Object id */
     uint32_t ref;      /* References */
+    uint64_t tableid;  /* Table id */
 
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
