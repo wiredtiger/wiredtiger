@@ -33,7 +33,7 @@ from error_info_util import error_info_util
 #   Test that the get_last_error() session API returns the last error for rollback error to
 #   occur in the session.
 
-# FIXME-14684
+# FIXME-WT-14684
 @wttest.skip_for_hook("disagg", "Fails with PALM mapsize limit reached")
 class test_error_info02(error_info_util):
     uri = "table:test_error_info.wt"
