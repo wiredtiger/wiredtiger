@@ -60,7 +60,7 @@ class test_compact16(compact_util):
 
         # Run compact concurrently with another thread that continually creates checkpoints.
         done = threading.Event()
-        testcase = self.currentTestCase()
+        testcase = self.getCurrentTestCase()
         ckpt = checkpoint_thread(self.conn, done, testcase)
         try:
             ckpt.start()

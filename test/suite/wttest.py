@@ -174,7 +174,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                 totalRetries, totalTestsRun, WiredTigerTestCase._resultFileName))
 
     @staticmethod
-    def currentTestCase():
+    def getCurrentTestCase():
         return getattr(WiredTigerTestCase._threadLocal, 'currentTestCase', None)
 
     @staticmethod

@@ -109,7 +109,7 @@ class test_prepare21(test_rollback_to_stable_base):
         self.large_updates(uri, value_d, ds, nrows, False, 60)
 
         done = threading.Event()
-        testcase = self.currentTestCase()
+        testcase = self.getCurrentTestCase()
         ckpt = checkpoint_thread(self.conn, done, testcase)
         try:
             ckpt.start()

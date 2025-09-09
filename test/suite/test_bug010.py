@@ -66,7 +66,7 @@ class test_bug010(wttest.WiredTigerTestCase):
 
             # Create a checkpoint thread
             done = threading.Event()
-            testcase = self.currentTestCase()
+            testcase = self.getCurrentTestCase()
             ckpt = wtthread.checkpoint_thread(self.conn, done, testcase)
             ckpt.start()
             try:

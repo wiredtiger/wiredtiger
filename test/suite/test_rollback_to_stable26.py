@@ -130,7 +130,7 @@ class test_rollback_to_stable26(test_rollback_to_stable_base):
 
         # Create a checkpoint thread
         done = threading.Event()
-        testcase = self.currentTestCase()
+        testcase = self.getCurrentTestCase()
         ckpt = checkpoint_thread(self.conn, done, testcase)
         try:
             ckpt.start()

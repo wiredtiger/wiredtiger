@@ -102,7 +102,7 @@ class test_hs33(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Create a checkpoint thread
         done = threading.Event()
-        testcase = self.currentTestCase()
+        testcase = self.getCurrentTestCase()
         ckpt = checkpoint_thread(self.conn, done, testcase)
         try:
             ckpt.start()

@@ -58,7 +58,7 @@ from helper_disagg import DisaggConfigMixin, gen_disagg_storages, disagg_ignore_
 def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
 
     disagg_storages = gen_disagg_storages()
-    testcase = WiredTigerTestCase.currentTestCase()
+    testcase = WiredTigerTestCase.getCurrentTestCase()
     platform_api = testcase.platform_api
     disagg_parameters = platform_api.getDisaggParameters()
     page_log_name = disagg_parameters.page_log
@@ -150,32 +150,32 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
     return result
 
 def testcase_has_failed():
-    testcase = WiredTigerTestCase.currentTestCase()
+    testcase = WiredTigerTestCase.getCurrentTestCase()
     return testcase.failed()
 
 def testcase_has_skipped():
-    testcase = WiredTigerTestCase.currentTestCase()
+    testcase = WiredTigerTestCase.getCurrentTestCase()
     return testcase.skipped
 
 def skip_test(comment):
-    testcase = WiredTigerTestCase.currentTestCase()
+    testcase = WiredTigerTestCase.getCurrentTestCase()
     testcase.skipTest(comment)
 
 def mark_as_layered(uri):
-    testcase = WiredTigerTestCase.currentTestCase()
+    testcase = WiredTigerTestCase.getCurrentTestCase()
     testcase.layered_uris.add(uri)
 
 def marked_as_non_layered(uri):
-    testcase = WiredTigerTestCase.currentTestCase()
+    testcase = WiredTigerTestCase.getCurrentTestCase()
     return uri in testcase.non_layered_uris
 
 def is_layered(uri):
-    testcase = WiredTigerTestCase.currentTestCase()
+    testcase = WiredTigerTestCase.getCurrentTestCase()
     return uri in testcase.layered_uris
 
 # If the uri has been marked as layered, then transform to a layered uri
 def replace_uri(uri):
-    testcase = WiredTigerTestCase.currentTestCase()
+    testcase = WiredTigerTestCase.getCurrentTestCase()
     disagg_parameters = testcase.platform_api.getDisaggParameters()
     # Handle statistics: or statistics:<uri>
     stat_prefix = 'statistics:'
@@ -210,7 +210,7 @@ def session_compact_replace(orig_session_compact, session_self, uri, config):
 
 # Called to replace Session.create
 def session_create_replace(orig_session_create, session_self, uri, config):
-    testcase = WiredTigerTestCase.currentTestCase()
+    testcase = WiredTigerTestCase.getCurrentTestCase()
     disagg_parameters = testcase.platform_api.getDisaggParameters()
 
     # If the test isn't creating a table (i.e., it's a column store or lsm) create it as a
@@ -242,7 +242,7 @@ def session_create_replace(orig_session_create, session_self, uri, config):
         base_uri = 'table:' + uri[6:last_colon]
         WiredTigerTestCase.verbose(None, 1, f'    BaseURI "{base_uri}", {last_colon}')
 
-        testcase = WiredTigerTestCase.currentTestCase()
+        testcase = WiredTigerTestCase.getCurrentTestCase()
         WiredTigerTestCase.verbose(None, 1, f'    Layered URIS: "{testcase.layered_uris}"')
 
         if is_layered(base_uri):

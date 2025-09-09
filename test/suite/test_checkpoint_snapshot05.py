@@ -145,7 +145,7 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
 
         # Commit the transaction concurrently with the checkpoint.
         done = threading.Event()
-        testcase = self.currentTestCase()
+        testcase = self.getCurrentTestCase()
         ckpt = checkpoint_thread(self.conn, done, testcase, checkpoint_count_max=1)
         try:
             ckpt.start()

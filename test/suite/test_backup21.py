@@ -49,7 +49,7 @@ class test_backup21(backup_base):
         self.add_data(table_uri, 'key', 'value', True)
 
         work_queue = queue.Queue()
-        testcase = backup_base.currentTestCase()
+        testcase = backup_base.getCurrentTestCase()
         t = op_thread(self.conn, [table_uri], self.key_fmt, work_queue, done, testcase)
         try:
             t.start()

@@ -44,7 +44,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
     uri = "table:test_checkpoint_snapshot02"
     backup_dir = "BACKUP"
     backup_dir2 = "BACKUP2"
-    testcase = wttest.WiredTigerTestCase.currentTestCase()
+    testcase = wttest.WiredTigerTestCase.getCurrentTestCase()
 
     format_values = [
         ('column_fix', dict(key_format='r', value_format='8t')),

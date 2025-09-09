@@ -128,7 +128,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
         # Checkpoint in the background.
         done = threading.Event()
-        testcase = self.currentTestCase()
+        testcase = self.getCurrentTestCase()
         if self.first_checkpoint is None:
             ckpt = checkpoint_thread(self.conn, done, testcase)
         else:

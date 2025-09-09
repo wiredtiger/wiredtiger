@@ -61,7 +61,7 @@ class test_checkpoint02(wttest.WiredTigerTestCase):
         return self.ckpt_config
 
     def test_checkpoint02(self):
-        testcase = self.currentTestCase()
+        testcase = self.getCurrentTestCase()
 
         # Avoid checkpoint error with precise checkpoint
         if self.ckpt_config == 'precise_checkpoint=true':
