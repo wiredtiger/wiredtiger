@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time, wiredtiger
+import time, wiredtiger, wttest
 from error_info_util import error_info_util
 
 # test_error_info02.py
