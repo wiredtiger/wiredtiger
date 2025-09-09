@@ -243,7 +243,7 @@ if(ENABLE_SHARED)
 
     setup_gdb_autoloader()
 
-    # For MacOS builds we need to generate a dSYM bundle that contains the debug symbols for the 
+    # For MacOS builds we need to generate a dSYM bundle that contains the debug symbols for the
     # WiredTiger library.
     if (WT_DARWIN)
         add_custom_command(
@@ -275,7 +275,7 @@ include(cmake/install/install.cmake)
 if(ENABLE_PYTHON)
     find_package(Python3 ${PYTHON3_REQUIRED_VERSION}
         COMPONENTS Interpreter Development REQUIRED)
-    
+
     find_package(SWIG ${SWIG_REQUIRED_VERSION} COMPONENTS python REQUIRED)
     include(UseSWIG)
 
@@ -293,6 +293,9 @@ add_subdirectory(test)
 
 # Build the WiredTiger tools.
 add_subdirectory(tools/checksum_bitflip)
+if(CMAKE_BUILD_TYPE STREQUAL "TSan")
+    add_subdirectory(tools/tsan_playground)
+endif()
 
 if(ENABLE_LLVM)
     add_subdirectory(tools/xray_to_optrack)

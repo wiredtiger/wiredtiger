@@ -134,6 +134,11 @@ reread:
          */
         if (retry < 100)
             goto reread;
+        __wt_verbose_error(session, WT_VERB_READ,
+          "%s: read failed for table ID %" PRIu32 ", page ID %" PRIu64 ", flags %" PRIx64
+          ", lsn %" PRIu64 ", base_lsn %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
+          block_disagg->name, block_disagg->objectid, page_id, flags, lsn, base_lsn, size,
+          checksum);
         WT_ERR(WT_NOTFOUND);
     }
 
@@ -186,12 +191,11 @@ reread:
                 if (result == last) {
                     WT_ASSERT(session, get_args.lsn > 0);
                     WT_ASSERT(session,
-                      (get_args.delta_count > 0) ==
-                        FLD_ISSET(flags, WT_BLOCK_DISAGG_ADDR_FLAG_DELTA));
+                      (*results_count > 1) == FLD_ISSET(flags, WT_BLOCK_DISAGG_ADDR_FLAG_DELTA));
 
                     /* The server is allowed to set base LSN to 0 for full page images. */
                     WT_ASSERT(session,
-                      (get_args.base_lsn == 0 && get_args.delta_count == 0) ||
+                      (get_args.base_lsn == 0 && *results_count == 1) ||
                         get_args.base_lsn == base_lsn);
 
                     /* Set the other metadata returned by the Page Service. */
@@ -199,9 +203,7 @@ reread:
                     block_meta->backlink_lsn = get_args.backlink_lsn;
                     block_meta->base_lsn = get_args.base_lsn;
                     block_meta->disagg_lsn = get_args.lsn;
-                    block_meta->delta_count = get_args.delta_count == 0 ?
-                      (uint8_t)(*results_count - 1) :
-                      (uint8_t)get_args.delta_count;
+                    block_meta->delta_count = (uint8_t)(*results_count - 1);
                     block_meta->checksum = checksum;
                     block_meta->encryption = get_args.encryption;
                     if (block_meta->delta_count > 0)

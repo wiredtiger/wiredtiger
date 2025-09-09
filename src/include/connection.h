@@ -200,12 +200,13 @@ struct __wt_disaggregated_storage {
     /* Updates are protected by the checkpoint lock. */
     wt_shared uint64_t last_checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata. */
     wt_shared uint64_t last_materialized_lsn;    /* The LSN of the last materialized page. */
+    char *last_checkpoint_root;                  /* The root config of the last checkpoint. */
 
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
     wt_shared wt_timestamp_t last_checkpoint_timestamp; /* The timestamp of the last checkpoint. */
 
     WT_NAMED_PAGE_LOG *npage_log;
-    WT_PAGE_LOG_HANDLE *page_log_meta;
+    WT_PAGE_LOG_HANDLE *page_log_meta; /* The page log for the metadata. */
 
     wt_shared uint64_t num_meta_put;     /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
@@ -321,20 +322,6 @@ struct __wt_bucket_storage {
         e;                                                                  \
         (s)->bucket_storage = __saved_bstorage;                             \
     } while (0)
-
-/*
- * WT_CACHE_EVICTION_CONTROLS --
- *  Cache eviction controls configuration.
- *  WT_CACHE_EVICT_INCREMENTAL_APP: Only a part of application threads will participate in cache
- * management when a cache threshold reaches its trigger limit. WT_CACHE_EVICT_SCRUB_UNDER_TARGET:
- * Change the eviction strategy to scrub eviction when the cache usage is under the target limit.
- */
-struct __wt_cache_eviction_controls {
-/* cache eviction controls bit positions */
-#define WT_CACHE_EVICT_INCREMENTAL_APP 0x1u
-#define WT_CACHE_EVICT_SCRUB_UNDER_TARGET 0x2u
-    uint64_t flags;
-};
 
 /*
  * WT_HEURISTIC_CONTROLS --
@@ -695,7 +682,6 @@ struct __wt_connection_impl {
                                      configured or the current size
                                      within a cache pool). */
     WT_EVICT *evict;
-    WT_CACHE_EVICTION_CONTROLS cache_eviction_controls;
 
     WT_TXN_GLOBAL txn_global; /* Global transaction state */
 
