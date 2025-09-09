@@ -62,6 +62,7 @@ test_import10.py
 test_log03.py
 test_metadata_cursor01.py
 test_metadata_cursor02.py
+test_metadata_cursor03.py
 test_overwrite.py
 test_prefetch01.py
 test_prefetch02.py
@@ -98,7 +99,6 @@ test_timestamp06.py
 test_timestamp07.py
 test_timestamp10.py
 test_timestamp20.py
-test_timestamp26.py
 test_txn02.py
 test_txn04.py
 test_txn06.py
