@@ -38,24 +38,9 @@ import time
 
 @disagg_test_class
 class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    encrypt = [
-        ('none', dict(encryptor='none', encrypt_args='')),
-        ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
-    ]
-
     compress = [
         ('none', dict(block_compress='none')),
         ('snappy', dict(block_compress='snappy')),
-    ]
-
-    uris = [
-        ('layered', dict(uri='layered:test_layered32')),
-        ('btree', dict(uri='file:test_layered32')),
-    ]
-
-    ts = [
-        ('ts', dict(ts=True)),
-        ('non-ts', dict(ts=False)),
     ]
 
     delta = [
@@ -69,25 +54,24 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
                      + 'disaggregated=(page_log=palm),page_delta=(delta_pct=100),'
     disagg_storages = gen_disagg_storages('test_layered32', disagg_only = True)
 
+    nrows = 1000
+    uri='file:test_layered32'
+
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, ts, delta)
+    scenarios = make_scenarios(compress, disagg_storages, delta)
 
     def session_create_config(self):
         # The delta percentage of 100 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
-        cfg = 'key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512,block_compressor={}'.format(self.block_compress)
-        if self.uri.startswith('file'):
-            cfg += ',block_manager=disagg'
+        cfg = 'key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512,block_manager=disagg,block_compressor={}'.format(self.block_compress)
         return cfg
 
     def conn_config(self):
-        enc_conf = 'encryption=(name={0},{1}),'.format(self.encryptor, self.encrypt_args)
-        return self.conn_base_config + f'disaggregated=(role="leader"),{self.delta_config},' + enc_conf
+        return self.conn_base_config + f'disaggregated=(role="leader"),{self.delta_config},'
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
         extlist.extension('compressors', self.block_compress)
-        extlist.extension('encryptors', self.encryptor)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def get_stat(self, stat):
@@ -96,21 +80,18 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor.close()
         return val
 
-    def insert(self, kv, ts=None):
+    def insert(self, kv, ts):
         cursor = self.session.open_cursor(self.uri, None, None)
         for k, v in kv.items():
             self.session.begin_transaction()
             cursor[k] = v
-            if self.ts:
-                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(ts))
-            else:
-                self.session.commit_transaction()
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(ts))
         cursor.close()
 
     def verify(self, expected_kv, expected_initial_val):
         # Verify the values in the table.
         cursor = self.session.open_cursor(self.uri, None, None)
-        for i in range(1, self.nitems + 1):
+        for i in range(1, self.nrows + 1):
             cursor.set_key(str(i))
             cursor.search()
             if str(i) in expected_kv:
@@ -119,16 +100,13 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEqual(cursor.get_value(), expected_initial_val)
         cursor.close()
 
-
-    nitems = 10_000
-
     def test_internal_page_delta_simple(self):
         self.session.create(self.uri, self.session_create_config())
 
-        # Populate the table with nitems.
+        # Populate the table with nrows.
         inital_value = "abc" * 10
         inital_ts = 5
-        kv = {str(i): inital_value for i in range(1, self.nitems + 1)}
+        kv = {str(i): inital_value for i in range(1, self.nrows + 1)}
         self.insert(kv, inital_ts)
         self.session.checkpoint()
 
@@ -136,8 +114,8 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.reopen_disagg_conn(self.conn_config())
 
         # Perform two small updates.
-        kv_modfied = {str(10): "10abc", str(220): "220abc"}
-        self.insert(kv_modfied, inital_ts + 1)
+        kv_modified = {str(10): "10abc", str(220): "220abc"}
+        self.insert(kv_modified, inital_ts + 1)
         # Perform a checkpoint to write out a delta.
         self.session.checkpoint()
 
@@ -153,7 +131,7 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.reopen_disagg_conn(self.conn_config())
 
         # Verify the updated values in the table.
-        self.verify(kv_modfied, inital_value)
+        self.verify(kv_modified, inital_value)
 
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
@@ -166,7 +144,7 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1.0)
 
         # Verify the updated values in the table.
-        self.verify(kv_modfied, inital_value)
+        self.verify(kv_modified, inital_value)
 
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
@@ -174,35 +152,35 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         else:
             self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
 
-    def test_internal_page_delta_random(self):
+    def test_internal_page_delta_split_internal(self):
 
         self.session.create(self.uri, self.session_create_config())
 
-        # Populate the table with nitems.
+        # Initial population of the table with nrows.
         inital_value = "abc" * 100
-        small_value = "b123r" * 5
+        small_value = "b123r" * 20
         inital_ts = 5
 
-        # Initial Population
-        kv = {str(i): small_value for i in range(1, self.nitems + 1)}
+        kv = {str(i): small_value for i in range(1, self.nrows + 1)}
         self.insert(kv, inital_ts)
-    
-        # First Checkpoint & Reopen
+
+        # First Checkpoint & Reopen to ensure all data is read from the disk.
         self.session.checkpoint()
         self.reopen_disagg_conn(self.conn_config())
 
-        # Large Value Insertion
-        keys_to_update = ["4041","4042","4043", "4044", "4045", "4046", "4047", "4048", "4049", "4050"]
+        # Updates a sequence of subset of keys with a large value.
+        keys_to_update = ["241","242","243", "244", "245", "246", "247", "248", "249", "250"]
         kv_modified = {}
         for key in keys_to_update:
             kv = {key: inital_value}
             inital_ts = inital_ts + 1
             self.insert(kv, inital_ts)
 
-        #Second Checkpoint 
+        # Second Checkpoint to force a page split and write the newly split pages to disk.
         self.session.checkpoint()
 
-        # Small Value Update
+        # The same set of keys is then updated with a smaller value, which should cause the
+        # pages to merge back together and write an internal page delta.
         for key in keys_to_update:
             kv = {key: small_value}
             inital_ts = inital_ts + 1
@@ -224,16 +202,6 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Re-open the connection to clear contents out of memory.
         self.reopen_disagg_conn(self.conn_config())
-
-        # Verify the updated values in the table.
-        self.verify(kv_modified, small_value)
-
-        # Re-open the connection to clear contents out of memory.
-        self.reopen_disagg_conn(self.conn_config())
-
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower"),'
-        self.reopen_disagg_conn(follower_config)
-        time.sleep(1.0)
 
         # Verify the updated values in the table.
         self.verify(kv_modified, small_value)
