@@ -241,8 +241,8 @@ def session_create_replace(orig_session_create, session_self, uri, config):
     # FIXME-WT-15221 Should throw an error when this is set in disagg"
     conn_config = testcase.conn_config
     if hasattr(conn_config, '__call__'):
-        config = testcase.conn_config()
-    log_enabled = re.search(r'log=\(enabled(?:=true|,|\))', config) is not None
+        conn_config = testcase.conn_config()
+    log_enabled = re.search(r'log=\(enabled(?:=true|,|\))', conn_config) is not None
     if log_enabled and 'log=(enabled=false' not in config:
         skip_test("Log tables are not supported in disagg.")
 
