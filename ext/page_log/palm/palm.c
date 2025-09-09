@@ -696,6 +696,7 @@ palm_handle_get_previous_lsns(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint
     while (palm_kv_next_page_match(&matches)) {
         is_delta = (matches.flags & WT_PAGE_LOG_DELTA) != 0;
         assert((count > 0) == is_delta);
+        (void)count; /* used only in assert */
         if (!is_delta && prev_full_page_lsnp != NULL)
             *prev_full_page_lsnp = matches.lsn;
         if (prev_lsnp != NULL)
