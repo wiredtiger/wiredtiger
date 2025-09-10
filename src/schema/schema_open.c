@@ -255,7 +255,11 @@ __schema_open_index(
     WT_ERR(__wt_scr_alloc(session, 512, &tmp));
     WT_ERR(__wt_buf_fmt(session, tmp, "index:%s:", tablename));
 
-    /* Find matching indices. */
+    /*
+     * FIXME-WT-15416: Fix metadata cursors
+     *
+     * Find matching indices.
+     */
     WT_ERR(__wt_metadata_cursor(session, &cursor));
     cursor->set_key(cursor, tmp->data);
     if ((ret = __wt_metadata_cursor_search_near(session, cursor, &cmp)) == 0 && cmp < 0)

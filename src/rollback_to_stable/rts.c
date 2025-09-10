@@ -184,6 +184,8 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
     rts_threads_started = false;
 
     /*
+     * FIXME-WT-15416: Fix metadata cursors
+     *
      * Walk the metadata first to count how many files we have overall. That allows us to give
      * signal about progress.
      */

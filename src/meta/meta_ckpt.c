@@ -1115,6 +1115,7 @@ __wt_meta_correct_base_write_gen(WT_SESSION_IMPL *session)
     char *config, *uri;
 
     uri = NULL;
+    /* FIXME-WT-15416: Fix metadata cursors */
     WT_RET(__wt_metadata_cursor(session, &cursor));
     while ((ret = __wt_metadata_cursor_next(session, cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &uri));

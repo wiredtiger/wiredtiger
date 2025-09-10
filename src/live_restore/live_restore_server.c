@@ -329,6 +329,7 @@ __live_restore_init_work_queue(WT_SESSION_IMPL *session)
     __wt_verbose_debug1(
       session, WT_VERB_LIVE_RESTORE, "%s", "Live restore server: Initializing the work queue");
 
+    /* FIXME-WT-15416: Fix metadata cursors */
     WT_CURSOR *cursor;
     WT_RET(__wt_metadata_cursor(session, &cursor));
     uint64_t work_count = 0;

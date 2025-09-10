@@ -284,6 +284,8 @@ __metadata_load_bulk(WT_SESSION_IMPL *session)
     bool exist;
 
     /*
+     * FIXME-WT-15416: Fix metadata cursors
+     *
      * If a file was being bulk-loaded during the hot backup, it will appear in the metadata file,
      * but the file won't exist. Create on demand.
      */

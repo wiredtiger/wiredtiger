@@ -402,6 +402,8 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
     bool has_prepare;
 
     /*
+     * FIXME-WT-15416: Fix metadata cursors
+     *
      * TODO: how careful does this need to be about concurrent schema operations? If this step needs
      * to be exclusive in some way it should probably accumulate a set of relevant handles before
      * releasing that access and doing the processing after generating the list.
