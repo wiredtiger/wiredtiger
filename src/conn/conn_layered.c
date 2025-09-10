@@ -152,8 +152,9 @@ __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
 
         /* Create the stable table if it does not exist. */
         if (ret == WT_NOTFOUND) {
-            WT_ERR(
-              __layered_create_missing_stable_table(internal_session, stable_uri, layered_cfg));
+            WT_ERR_EXT(session,
+              __layered_create_missing_stable_table(internal_session, stable_uri, layered_cfg),
+              "Failed to create missing stable table \"%s\" from \"%s\"", stable_uri, layered_cfg);
             /* Ensure that we properly handle empty tables. */
             WT_ERR(__wt_disagg_copy_metadata_later(
               internal_session, stable_uri, layered_uri + strlen("layered:")));
@@ -439,7 +440,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
 
             /* Put our new config in */
             md_cursor->set_value(md_cursor, cfg_ret);
-            WT_ERR(md_cursor->insert(md_cursor));
+            WT_ERR_EXT(session, md_cursor->insert(md_cursor),
+              "Failed to insert metadata for key \"%s\"", metadata_key);
 
             /*
              * Mark any matching data handles to be out of date. Any new opens will get the new
@@ -461,8 +463,11 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
                     md_cursor->set_key(md_cursor, layered_ingest_uri);
                     WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
                     if (ret == WT_NOTFOUND)
-                        WT_ERR(__layered_create_missing_ingest_table(
-                          internal_session, layered_ingest_uri, metadata_value));
+                        WT_ERR_EXT(session,
+                          __layered_create_missing_ingest_table(
+                            internal_session, layered_ingest_uri, metadata_value),
+                          "Failed to create missing ingest table \"%s\" from \"%s\"",
+                          layered_ingest_uri, metadata_value);
                     __wt_free(session, layered_ingest_uri);
                 }
             }
@@ -470,7 +475,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
             /* Insert the actual metadata. */
             md_cursor->set_key(md_cursor, metadata_key);
             md_cursor->set_value(md_cursor, metadata_value);
-            WT_ERR(md_cursor->insert(md_cursor));
+            WT_ERR_EXT(session, md_cursor->insert(md_cursor),
+              "Failed to insert metadata for key \"%s\"", metadata_key);
         }
     }
     WT_ERR_NOTFOUND_OK(ret, false);
@@ -1031,7 +1037,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             if (!leader) {
                 WT_WITH_CHECKPOINT_LOCK(
                   session, ret = __disagg_pick_up_checkpoint_meta(session, &cval));
-                WT_ERR(ret);
+                WT_ERR_EXT(session, ret, "Failed to pick up a new checkpoint with config: %.*s",
+                  (int)cval.len, cval.str);
             }
         }
     }
@@ -1041,7 +1048,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     /* Get the last materialized LSN. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.last_materialized_lsn", &cval));
     if (cval.len > 0 && cval.val >= 0)
-        WT_ERR(__wti_disagg_set_last_materialized_lsn(session, (uint64_t)cval.val));
+        WT_ERR_EXT(session, __wti_disagg_set_last_materialized_lsn(session, (uint64_t)cval.val),
+          "Failed to set the last materialized LSN to %" PRIu64, (uint64_t)cval.val);
 
     /* Set the role. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.role", &cval));
@@ -1053,18 +1061,20 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         else if (WT_CONFIG_LIT_MATCH("leader", cval))
             conn->layered_table_manager.leader = leader = true;
         else
-            WT_ERR_MSG(session, EINVAL, "Invalid node role");
+            WT_ERR_EXT(session, EINVAL, "Invalid node role");
 
         /* Follower step-up. */
         if (reconfig && !was_leader && leader) {
             WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_begin_checkpoint(session));
-            WT_ERR(ret);
+            WT_ERR_EXT(session, ret, "Failed to begin a new checkpoint");
 
             /* Create any missing stable tables. */
-            WT_ERR(__layered_create_missing_stable_tables(session));
+            WT_ERR_EXT(session, __layered_create_missing_stable_tables(session),
+              "Failed to create missing stable tables");
 
             /* Drain the ingest tables before switching to leader. */
-            WT_ERR(__layered_drain_ingest_tables(session));
+            WT_ERR_EXT(
+              session, __layered_drain_ingest_tables(session), "Failed to drain ingest tables");
         }
 
         /* Leader step-down. */
@@ -1106,7 +1116,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         if (cval.len > 0) {
             WT_WITH_CHECKPOINT_LOCK(
               session, ret = __disagg_pick_up_checkpoint_meta(session, &cval));
-            WT_ERR(ret);
+            WT_ERR_EXT(session, ret, "Failed to pick up a new checkpoint with config: %.*s",
+              (int)cval.len, cval.str);
             picked_up = true;
         }
 
@@ -1124,10 +1135,10 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
                   ret = __disagg_pick_up_checkpoint_meta_item(session, &complete_checkpoint_meta));
 
                 __wt_buf_free(session, &complete_checkpoint_meta);
-                WT_ERR(ret);
+                WT_ERR_EXT(session, ret, "Failed to pick up checkpoint metadata");
             }
             WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_begin_checkpoint(session));
-            WT_ERR(ret);
+            WT_ERR_EXT(session, ret, "Failed to begin a new checkpoint");
         }
 
         WT_ERR(__wt_config_gets(session, cfg, "page_delta.flatten_leaf_page_delta", &cval));
@@ -1681,8 +1692,11 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     /* FIXME-WT-14735: skip empty ingest tables. */
     for (i = 0; i < table_count; i++) {
         if ((entry = manager->entries[i]) != NULL) {
-            WT_ERR(__layered_copy_ingest_table(internal_session, entry));
-            WT_ERR(__layered_clear_ingest_table(internal_session, entry->ingest_uri));
+            WT_ERR_EXT(session, __layered_copy_ingest_table(internal_session, entry),
+              "Failed to copy ingest table \"%s\" to stable table \"%s\"", entry->ingest_uri,
+              entry->stable_uri);
+            WT_ERR_EXT(session, __layered_clear_ingest_table(internal_session, entry->ingest_uri),
+              "Failed to clear ingest table \"%s\"", entry->ingest_uri);
         }
     }
 
