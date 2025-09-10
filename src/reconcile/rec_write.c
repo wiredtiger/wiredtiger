@@ -2779,6 +2779,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
         /* We have an empty page. Free the multi. */
         if (chunk->entries == 0 && !multi->supd_restore) {
+            WT_ASSERT_ALWAYS(session, last_block, "Write an empty page in split.");
             WT_ASSERT(session, WT_DELTA_LEAF_ENABLED(session));
             __rec_set_updates_durable(session, multi);
             if (btree->type == BTREE_ROW)

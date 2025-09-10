@@ -160,10 +160,6 @@ __wti_rec_need_split(WTI_RECONCILE *r, size_t len)
     if (F_ISSET(r, WT_REC_REWRITE_DELTA))
         return (false);
 
-    /* Don't split if nothing has been written. */
-    if (r->entries == 0)
-        return (false);
-
     page_items = r->entries + r->supd_onpage;
 
     /*
