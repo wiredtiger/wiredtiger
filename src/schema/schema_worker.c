@@ -79,14 +79,24 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    int ingest_ret, stable_ret;
+    const char *ingest_uri, *stable_uri;
 
     conn = S2C(session);
+    ingest_ret = stable_ret = 0;
 
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags));
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)session->dhandle;
-    const char *stable_uri = layered->stable_uri;
-    const char *ingest_uri = layered->ingest_uri;
 
+    ingest_uri = layered->ingest_uri;
+    stable_uri = layered->stable_uri;
+
+    /*
+     * FIXME-WT-15413 - Verify assumes the stable table always exists. However, on followers that
+     * have not yet picked up their first checkpoint, the stable constituent will be missing. We
+     * should handle this transient state by skipping stable verification with a clear message
+     * instead of failing with ENOENT.
+     */
     WT_ASSERT(session, stable_uri != NULL);
     WT_ASSERT(session, ingest_uri != NULL);
     WT_ASSERT(session, file_func == __wt_verify);
@@ -98,27 +108,46 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
      * - On followers: ingest contains recent oplog updates layered over the stable table.
      */
 
+    /* Verify the stable table of the layered table. */
+    WT_WITHOUT_DHANDLE(session,
+      stable_ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
+
+    if (stable_ret != 0)
+        __wt_err(session, stable_ret, "Verify (layered): %s stable table verification failed. ",
+          stable_uri);
+
+    /*
+     * Verify the ingest table of the layered table. FIXME-WT-15047: Implement ingest table
+     * verification on followers.
+     */
     if (conn->layered_table_manager.leader) {
         /*
          * On leader, if verifying ingest returns EBUSY, it means ingest is not empty (dirty
-         * content, open cursors, or checkpoints present), which is an invalid state.
+         * content, or open cursors), which is an invalid state.
          */
         WT_WITHOUT_DHANDLE(session,
-          ret = __wt_schema_worker(session, ingest_uri, file_func, name_func, cfg, open_flags));
-        if (ret == EBUSY)
-            WT_ERR_MSG(session, WT_ERROR,
+          ingest_ret =
+            __wt_schema_worker(session, ingest_uri, file_func, name_func, cfg, open_flags));
+
+        if (ingest_ret == EBUSY)
+            __wt_err(session, ingest_ret,
               "Verify (layered): %s ingest table on leader cannot be verified. "
               "Ingest contains dirty content or open cursors, which is an invalid state.",
               ingest_uri);
-    WT_ERR(ret);
+
+        /* If ingest verification returned any error other than EBUSY, propagate it. */
+        WT_ERR_ERROR_OK(ingest_ret, EBUSY, true);
     }
 
-    WT_WITHOUT_DHANDLE(session,
-      ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
+err:
+    __wt_verbose_level(session, WT_VERB_VERIFY, WT_VERBOSE_DEBUG_2,
+      "Verify (layered): stable table %s returned %s, ingest table %s returned %s", stable_uri,
+      __wt_wiredtiger_error(stable_ret), ingest_uri, __wt_wiredtiger_error(ingest_ret));
 
     WT_TRET(__wt_session_release_dhandle(session));
 
-err:
+    ret = (stable_ret != 0) ? stable_ret : ingest_ret;
+
     return (ret);
 }
 

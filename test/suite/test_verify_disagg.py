@@ -99,6 +99,9 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # from the leader (it requires reconfiguration). Followers are only able to create their
         # ingest constituents. They see stable through checkpoint or step-up.
         self.verify([self.session])
+
+        # Follower has not picked up a checkpoint yet, so it has no stable constituent yet
+        # FIXME-WT-15413 - until this is fixed, expect ENOENT
         self.verify([self.session_follow], errno.ENOENT)
 
         # Create an empty checkpoint
@@ -115,7 +118,8 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.leader_put_data(value_prefix = 'aaa')
         self.leader_put_data(value_prefix = 'bbb')
         # That's not allowed to perform verification if there is some dirty data
-        self.verify([self.session], errno.EBUSY)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.verify([self.session]), '/stable table verification failed/')
 
         # Checkpoint the data on the leader
         self.session.checkpoint()
