@@ -1966,10 +1966,12 @@ __rec_split_write_supd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK
                 upd = page->modify->mod_row_update[WT_ROW_SLOT(page, r->supd[i].rip)];
             else
                 upd = r->supd[i].ins->upd;
+            /* Only count the size if we need to restore or have an onpage value. */
             if (r->supd[i].onpage_upd != NULL) {
                 r->supd_memsize += __wt_update_list_memsize(upd);
                 ++r->supd_onpage;
-            }
+            } else if (r->supd[i].restore)
+                r->supd_memsize += __wt_update_list_memsize(upd);
             r->supd[j] = r->supd[i];
         }
         r->supd_next = j;
