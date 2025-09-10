@@ -870,11 +870,7 @@ functions:
         fi
         py=${python_binary|python3}
         echo "Using $threads_command for 'unit test parallel'"
-        if [[ $TESTUTIL_TSAN -eq 1 ]]; then
-            ../tools/pytest_parallel --tsan --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1 || echo "Ignoring failed test as we are checking test tsan"
-        else
-            ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1
-        fi
+        ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1
 
   "tsan warning metric":
     command: shell.exec
