@@ -316,6 +316,7 @@ struct __wti_reconcile {
      */
     WT_SAVE_UPD *supd; /* Saved updates */
     uint32_t supd_next;
+    uint32_t supd_onpage;
     size_t supd_allocated;
     size_t supd_memsize; /* Size of saved update structures */
 

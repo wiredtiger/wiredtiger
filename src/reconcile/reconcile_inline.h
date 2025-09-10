@@ -160,7 +160,11 @@ __wti_rec_need_split(WTI_RECONCILE *r, size_t len)
     if (F_ISSET(r, WT_REC_REWRITE_DELTA))
         return (false);
 
-    page_items = r->entries + r->supd_next;
+    /* Don't split if nothing has been written. */
+    if (r->entries == 0)
+        return (false);
+
+    page_items = r->entries + r->supd_onpage;
 
     /*
      * In the case of a row-store leaf page, we want to encourage a split if we see lots of
@@ -176,7 +180,7 @@ __wti_rec_need_split(WTI_RECONCILE *r, size_t len)
      * considering the cache usage by the updates.
      */
     if (r->page->type == WT_PAGE_ROW_LEAF && page_items > WTI_REC_SPLIT_MIN_ITEMS_USE_MEM)
-        len += (r->supd_memsize - ((size_t)r->supd_next * WT_UPDATE_SIZE)) / 10;
+        len += (r->supd_memsize - ((size_t)r->supd_onpage * WT_UPDATE_SIZE)) / 10;
 
     /* Check for the disk image crossing a boundary. */
     return (WTI_CHECK_CROSSING_BND(r, len));
