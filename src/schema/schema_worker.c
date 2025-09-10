@@ -94,7 +94,7 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     /*
      * FIXME-WT-15413 - Verify assumes the stable table always exists. However, on followers that
      * have not yet picked up their first checkpoint, the stable constituent will be missing. We
-     * should handle this transient state by skipping stable verification with a clear message
+     * should handle this transient state by skipping stable verification
      * instead of failing with ENOENT.
      */
     WT_ASSERT(session, stable_uri != NULL);
