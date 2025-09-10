@@ -105,7 +105,7 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
      * Verifying stable tables of layered tables uses the existing verify logic.
      * Ingest tables, however, require special handling:
      * - On leader: ingest must always be empty/no-op.
-     * - On followers: ingest contains recent oplog updates layered over the stable table.
+     * - On followers: FIXME-WT-15047 ingest tables are not checkpointed.
      */
 
     /* Verify the stable table of the layered table. */
