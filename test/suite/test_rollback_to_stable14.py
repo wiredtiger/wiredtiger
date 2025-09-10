@@ -45,7 +45,6 @@ def append_val(value, char):
 # history store. Since FLCS inherently doesn't support modify, there's no need to run this on
 # FLCS. (Note that self.value_format needs to exist anyway for the base class to use.)
 class test_rollback_to_stable14(test_rollback_to_stable_base):
-    testcase = test_rollback_to_stable_base.getCurrentTestCase()
 
     key_format_values = [
         ('column', dict(key_format='r')),
@@ -111,7 +110,7 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
 
         # Create a checkpoint thread
         done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done, self.testcase)
+        ckpt = checkpoint_thread(self.conn, done)
         try:
             self.pr("start checkpoint")
             ckpt.start()
@@ -223,7 +222,7 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
 
         # Create a checkpoint thread
         done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done, self.testcase)
+        ckpt = checkpoint_thread(self.conn, done)
         try:
             self.pr("start checkpoint")
             ckpt.start()
@@ -333,7 +332,7 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
 
         # Create a checkpoint thread
         done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done, self.testcase)
+        ckpt = checkpoint_thread(self.conn, done)
         try:
             self.pr("start checkpoint")
             ckpt.start()

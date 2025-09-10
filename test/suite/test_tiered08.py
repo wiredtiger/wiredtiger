@@ -114,9 +114,8 @@ class test_tiered08(wttest.WiredTigerTestCase, TieredConfigMixin):
             'key_format=S,value_format=S,internal_page_max=4096,leaf_page_max=4096')
 
         done = threading.Event()
-        testcase = self.getCurrentTestCase()
         # Flush on approximately 1/4 of checkpoints.
-        flush = flush_checkpoint_thread(self.conn, done, testcase, 25)
+        flush = flush_checkpoint_thread(self.conn, done, 25)
 
         # Start background thread and give it a chance to start.
         flush.start()

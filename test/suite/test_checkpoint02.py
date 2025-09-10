@@ -61,8 +61,6 @@ class test_checkpoint02(wttest.WiredTigerTestCase):
         return self.ckpt_config
 
     def test_checkpoint02(self):
-        testcase = self.getCurrentTestCase()
-
         # Avoid checkpoint error with precise checkpoint
         if self.ckpt_config == 'precise_checkpoint=true':
             self.conn.set_timestamp('stable_timestamp=1')
@@ -77,7 +75,7 @@ class test_checkpoint02(wttest.WiredTigerTestCase):
         else:
             my_data = 'a' * self.dsize
 
-        ckpt = checkpoint_thread(self.conn, done, testcase)
+        ckpt = checkpoint_thread(self.conn, done)
         work_queue = queue.Queue()
         opthreads = []
         try:
@@ -91,7 +89,7 @@ class test_checkpoint02(wttest.WiredTigerTestCase):
                 work_queue.put_nowait(('i', i + 1, my_data))
 
             for i in range(self.nthreads):
-                t = op_thread(self.conn, uris, self.key_format, work_queue, done, testcase)
+                t = op_thread(self.conn, uris, self.key_format, work_queue, done)
                 opthreads.append(t)
                 t.start()
         except:

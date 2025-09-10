@@ -37,7 +37,6 @@ from wtthread import checkpoint_thread
 # test_rollback_to_stable10.py
 # Test the rollback to stable operation performs sweeping history store.
 class test_rollback_to_stable10(test_rollback_to_stable_base):
-    testcase = test_rollback_to_stable_base.getCurrentTestCase()
 
     format_values = [
         ('column', dict(key_format='r', value_format='S', prepare_extraconfig='')),
@@ -148,7 +147,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
 
         # Create a checkpoint thread
         done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done, self.testcase)
+        ckpt = checkpoint_thread(self.conn, done) 
         try:
             self.pr("start checkpoint")
             ckpt.start()
@@ -283,7 +282,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
 
         # Create a checkpoint thread
         done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done, self.testcase)
+        ckpt = checkpoint_thread(self.conn, done)
         try:
             self.pr("start checkpoint")
             ckpt.start()

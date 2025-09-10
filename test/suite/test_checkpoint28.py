@@ -129,8 +129,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         # Commit the transaction with a background checkpoint so we get part of it
         # in the checkpoint.
         done = threading.Event()
-        testcase = self.getCurrentTestCase()
-        ckpt = checkpoint_thread(self.conn, done, testcase)
+        ckpt = checkpoint_thread(self.conn, done)
         try:
             ckpt.start()
 

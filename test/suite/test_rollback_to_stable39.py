@@ -39,7 +39,6 @@ from wtthread import checkpoint_thread
 # the database which will trigger eviction to insert the same record from data store to history store.
 class test_rollback_to_stable39(test_rollback_to_stable_base):
     restart_config = False
-    testcase = test_rollback_to_stable_base.getCurrentTestCase()
 
     format_values = [
         ('column', dict(key_format='r', value_format='S', prepare_extraconfig='')),
@@ -99,7 +98,7 @@ class test_rollback_to_stable39(test_rollback_to_stable_base):
 
         # Create a checkpoint thread
         done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done, self.testcase)
+        ckpt = checkpoint_thread(self.conn, done)
         try:
             ckpt.start()
 
@@ -150,7 +149,7 @@ class test_rollback_to_stable39(test_rollback_to_stable_base):
 
         # Create a checkpoint thread
         done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done, self.testcase)
+        ckpt = checkpoint_thread(self.conn, done)
         try:
             ckpt.start()
 

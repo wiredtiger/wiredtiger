@@ -53,8 +53,7 @@ class test_backup02(wttest.WiredTigerTestCase):
         # thread. Need a way to stop checkpoints while doing backups.
 #        ckpt = checkpoint_thread(self.conn, done)
 #        ckpt.start()
-        testcase = self.getCurrentTestCase()
-        bkp = backup_thread(self.conn, 'backup.dir', done, testcase)
+        bkp = backup_thread(self.conn, 'backup.dir', done)
         work_queue = queue.Queue()
         opthreads = []
         try:
@@ -65,7 +64,7 @@ class test_backup02(wttest.WiredTigerTestCase):
                 work_queue.put_nowait(('gi', i, my_data))
 
             for i in range(self.nthreads):
-                t = op_thread(self.conn, uris, self.fmt, work_queue, done, testcase)
+                t = op_thread(self.conn, uris, self.fmt, work_queue, done)
                 opthreads.append(t)
                 t.start()
 

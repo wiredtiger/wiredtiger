@@ -31,7 +31,7 @@ from helper import compare_tables
 from wttest import WiredTigerTestCase
 
 class checkpoint_thread(threading.Thread):
-    def __init__(self, conn, done, testcase, **kwargs):
+    def __init__(self, conn, done, **kwargs):
         """
         Keyword Args:
             checkpoint_count_max (int): Maximum number of checkpoints to initiate. Must be greater
@@ -40,7 +40,8 @@ class checkpoint_thread(threading.Thread):
         """
         self.conn = conn
         self.done = done
-        self.testcase = testcase
+        # Get the current test case object via the calling thread of execution.
+        self.testcase = WiredTigerTestCase.getCurrentTestCase()
         self.checkpoint_count = 0
 
         if "checkpoint_count_max" in kwargs:
@@ -69,10 +70,11 @@ class checkpoint_thread(threading.Thread):
         sess.close()
 
 class named_checkpoint_thread(threading.Thread):
-    def __init__(self, conn, done, testcase, ckpt_name):
+    def __init__(self, conn, done, ckpt_name):
         self.conn = conn
         self.done = done
-        self.testcase = testcase
+        # Get the current test case object via the calling thread of execution.
+        self.testcase = WiredTigerTestCase.getCurrentTestCase()
         self.ckpt_name = ckpt_name
         threading.Thread.__init__(self)
 
@@ -87,11 +89,12 @@ class named_checkpoint_thread(threading.Thread):
         sess.close()
 
 class flush_checkpoint_thread(threading.Thread):
-    def __init__(self, conn, done, testcase, prob):
+    def __init__(self, conn, done, prob):
         self.conn = conn
         self.done = done
+        # Get the current test case object via the calling thread of execution.
+        self.testcase = WiredTigerTestCase.getCurrentTestCase()
         self.flush_probability = prob
-        self.testcase = testcase
         threading.Thread.__init__(self)
 
     def run(self):
@@ -108,11 +111,12 @@ class flush_checkpoint_thread(threading.Thread):
         sess.close()
 
 class backup_thread(threading.Thread):
-    def __init__(self, conn, backup_dir, done, testcase):
+    def __init__(self, conn, backup_dir, done):
         self.backup_dir = backup_dir
         self.conn = conn
         self.done = done
-        self.testcase = testcase
+        # Get the current test case object via the calling thread of execution.
+        self.testcase = WiredTigerTestCase.getCurrentTestCase()
         threading.Thread.__init__(self)
 
     def run(self):
@@ -171,13 +175,14 @@ class backup_thread(threading.Thread):
 # 'd' for drop a table
 # 't' for create a table and insert a single item into it
 class op_thread(threading.Thread):
-    def __init__(self, conn, uris, key_fmt, work_queue, done, testcase):
+    def __init__(self, conn, uris, key_fmt, work_queue, done):
         self.conn = conn
         self.uris = uris
         self.key_fmt = key_fmt
         self.work_queue = work_queue
         self.done = done
-        self.testcase = testcase
+        # Get the current test case object via the calling thread of execution.
+        self.testcase = WiredTigerTestCase.getCurrentTestCase()
         threading.Thread.__init__(self)
 
     def run(self):

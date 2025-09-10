@@ -108,8 +108,7 @@ class test_bug033(wttest.WiredTigerTestCase):
 
         # Create a checkpoint in parallel with the eviction below.
         done = threading.Event()
-        testcase = self.getCurrentTestCase()
-        ckpt = wtthread.checkpoint_thread(self.conn, done, testcase)
+        ckpt = wtthread.checkpoint_thread(self.conn, done)
         try:
             ckpt.start()
 
