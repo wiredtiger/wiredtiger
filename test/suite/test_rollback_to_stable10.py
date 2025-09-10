@@ -147,7 +147,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
 
         # Create a checkpoint thread
         done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done) 
+        ckpt = checkpoint_thread(self.conn, done)
         try:
             self.pr("start checkpoint")
             ckpt.start()
