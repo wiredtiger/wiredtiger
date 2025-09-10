@@ -40,8 +40,8 @@ __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT
     supd->tw = *tw;
     supd->restore = supd_restore;
     ++r->supd_next;
-    if (onpage_upd != NULL)
-        ++r->supd_onpage;
+    if (onpage_upd != NULL || supd_restore)
+        ++r->supd_onpage_or_restore;
     r->supd_memsize += upd_memsize;
     return (0);
 }
