@@ -249,8 +249,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
         goto done;
     } else if (WT_SUFFIX_MATCH(name, ".wt_ingest"))
         WT_ERR_MSG(session, WT_ERROR,
-          "verify (layered): ingest table %s unexpectedly has checkpoints. "
-          "This is a fatal violation as the ingest table does not get checkpointed.",
+          "verify (layered): ingest table %s unexpectedly has checkpoints. This is a fatal "
+          "violation as the ingest table does not get checkpointed.",
           name);
 
     /* Inform the underlying block manager we're verifying. */
