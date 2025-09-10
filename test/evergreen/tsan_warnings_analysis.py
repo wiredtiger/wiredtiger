@@ -69,17 +69,16 @@ def get_tsan_warnings():
             if file_name.startswith("tsan_logs"):
                 file_path = os.path.join(root, file_name)  # Get the full path to the file
                 with open(file_path, "r") as file:
-
                     start_record = False
                     warning_lines = []
                     for line in file:
-                        if ("===" in line.strip()):
-                            start_record = not start_record
+                        if ("WARNING:" in line.strip()):
+                            start_record = True
                             continue
                         if start_record:
                             warning_lines.append(line.strip())
-                            # Strip away the unnecessary information
                             if (line.startswith("SUMMARY:")):
+                                # Strip away the path
                                 pattern_to_remove = r"/.*/wiredtiger/"
                                 cleaned_text = re.sub(pattern_to_remove, "", line).strip()
 
@@ -87,7 +86,10 @@ def get_tsan_warnings():
                                 pattern_to_remove = r':(\d+):\d+'
                                 cleaned_text = re.sub(pattern_to_remove, r':\1', cleaned_text).strip()
                                 tsan_warnings_dict[cleaned_text] = (file_name, warning_lines.copy())
+
+                                # Restart the warning recording.
                                 warning_lines = []
+                                start_record = False
     return tsan_warnings_dict
 
 
@@ -117,7 +119,7 @@ def main():
         print("No TSAN warnings to fix!")
     else:
         print("Total warnings:")
-        for tsan_warning, (tsan_log, warning_lines) in tsan_warnings_dict.items():
+        for _, (tsan_log, warning_lines) in tsan_warnings_dict.items():
             print("=" * 150)
             print("TSAN log: " + tsan_log)
             print("\n".join(warning_lines))
