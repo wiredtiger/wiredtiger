@@ -1476,8 +1476,7 @@ variables:
       - func: "fetch artifacts"
       - func: "format test disagg"
         vars:
-          # Validate data with a non-layered table.
-          format_args: disagg.mode=follower ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0
+          format_args: disagg.mode=follower ops.verify=1 runs.mirror=1
           times: 5
 
   - &format-stress-test
