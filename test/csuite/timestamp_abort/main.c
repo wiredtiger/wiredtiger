@@ -348,10 +348,9 @@ thread_ts_run(void *arg)
     td = (THREAD_DATA *)arg;
     conn = td->conn;
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    /* While is to wait for all written thread reached the commit. */
-    /* Using while is to avoid spurious wakeups of conditional variables */
+    /* Wait for all working threads to complete as there will be a stable timestamp available to
+     * work with. */
     while (!thread_sync_conds.timer_ready_to_go) {
-        /* Actually we don't need this value */
         bool cv_signalled;
         /* Wait maximum 1s each round */
         __wt_cond_wait_signal((WT_SESSION_IMPL *)session, thread_sync_conds.timer_cond, WT_MILLION,
@@ -494,8 +493,8 @@ thread_ckpt_run(void *arg)
      */
     (void)unlink(ckpt_file);
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    /* While is to wait for stable_timestamp is configured. */
-    /* Using while is to avoid spurious wakeups of conditional variables. */
+    /* Wait for the stable timestamp is configured as there will make the last_checkpoint timestamp
+     * not 0 */
     while (!thread_sync_conds.ckpt_ready_to_go) {
         bool cv_signalled;
         /* Wait maximum 1s each round */
