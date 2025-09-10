@@ -121,7 +121,7 @@ for pyfile in "$@"; do
     # Run the test script in the background - modify output so we know what test it is coming from.
     echo running "$python ../test/suite/run.py $run_py_options $pyfile"
     if [ $TESTUTIL_TSAN -eq 1 ]; then
-        export TSAN_OPTIONS="$TSAN_OPTIONS:log_path=$(git rev-parse --show-toplevel)/tsan_logs_$pyfile:exitcode=0"
+        export TSAN_OPTIONS="$saved_tsan_options:log_path=$(git rev-parse --show-toplevel)/tsan_logs_$pyfile:exitcode=0"
     fi
     label_output "$pyfile" "$python" ../test/suite/run.py $run_py_options $pyfile &
     procs["$!"]="$pyfile"
