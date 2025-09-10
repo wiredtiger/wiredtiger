@@ -41,8 +41,8 @@ __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT
     supd->restore = supd_restore;
     ++r->supd_next;
     /*
-     * We don't need to worry about the saved update's impact if we only have a tombstone as we will
-     * skip writing it to the disk.
+     * We don't need to worry about the saved update's impact on page split if we only have a
+     * tombstone as we will skip writing it to the disk.
      */
     if (onpage_upd != NULL || supd_restore)
         ++r->supd_onpage_or_restore;
