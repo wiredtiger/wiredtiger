@@ -63,6 +63,7 @@ test_log03.py
 test_metadata_cursor01.py
 test_metadata_cursor02.py
 test_metadata_cursor03.py
+test_metadata_cursor04.py
 test_overwrite.py
 test_prefetch01.py
 test_prefetch02.py
