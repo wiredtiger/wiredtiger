@@ -116,6 +116,7 @@ class test_timestamp06(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.checkpoint(ckptcfg)
         self.backup_check(check_value, valcnt_ts_log, valcnt_ts_nolog)
 
+    @wttest.skip_for_hook("disagg", "Test requires logged ops, disagg does not do WT logging")
     def test_timestamp06(self):
         # Open two tables:
         # 1. Table is logged and so timestamps are ignored.

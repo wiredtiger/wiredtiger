@@ -33,6 +33,7 @@
 import wttest
 from wtscenario import make_scenarios
 
+@wttest.skip_for_hook("disagg", "Test requires logged ops, disagg does not do WT logging")
 class test_timestamp12(wttest.WiredTigerTestCase):
     conn_config = 'config_base=false,create,log=(enabled)'
     ckpt_uri = 'table:ckpt_table'
