@@ -52,7 +52,7 @@ def get_line_last_modified_times(file_path, line_number):
         # Extract the UNIX timestamp
         if line.startswith("author-time"):
             timestamp = int(line.split()[1])
-    
+
     # Check that requested line number and file has a timestamp.
     if (timestamp is None)
         print("Error: Line doesn't have a timestamp")
