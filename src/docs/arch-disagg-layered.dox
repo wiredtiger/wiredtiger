@@ -82,8 +82,8 @@ Each layered table contains three related entries in metadata:
 ```
 layered:foo.wt
     disaggregated=(page_log=palm),ingest="file:foo.wt_ingest",log=(enabled=false),stable="file:foo.wt_stable"
-file: foo.wt_ingest
-file: foo.wt_stable
+file:foo.wt_ingest
+file:foo.wt_stable
 ```
 
 So the ingest and stable tables can be accessed through those files. The ingest and stable table
@@ -97,11 +97,5 @@ Since shared metadata and history store tables are shared but not layered tables
 file:WiredTigerShared.wt_stable
 file:WiredTigerSharedHS.wt_stable
 ```
-
-Despite the presence of `file:`-prefixed metadata entries for both ingest and stable tables, only
-ingest tables have corresponding files on disk in the database directory, since they are local tables.
-However, since ingest tables do not have checkpoints, the only content of these files is data written by eviction.
-Shared tables also have `file:`-prefixed metadata entries, but their files are not present in the
-local database directory because their data resides on shared storage.
 
 */
