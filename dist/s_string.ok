@@ -757,6 +757,7 @@ dstrndup
 dsync
 dup
 dv
+dylib
 eee
 eg
 ejnprx
@@ -857,6 +858,7 @@ gettime
 gettimeofday
 getv
 ggg
+gid
 github
 globals
 globfree
@@ -1055,6 +1057,7 @@ msan
 msecs
 msg
 msvc
+mtime
 multiblock
 multicycle
 multiline
@@ -1414,6 +1417,7 @@ txt
 typedef
 typeof
 uS
+uid
 uint
 uintAny
 ulock
