@@ -112,16 +112,15 @@ def main():
         for tsan_warning, tsan_tuple in tsan_warnings_dict.items():
             pattern_to_capture = r"data race (.*):(\d+)"
             capture = re.search(pattern_to_capture, tsan_warning)
-            if (capture):
-                file_path = capture.group(1)
-                line_number = int(capture.group(2))
-                timestamp = get_line_last_modified_times(file_path, line_number)
-                timestamp_filter = int(args.timestamp)
-                if (timestamp_filter <= timestamp):
-                    filter_tsan_warnings[tsan_warning] = tsan_tuple
-            else:
+            if (not capture):
                 print(f"Error: Unable to parse the tsan warning: {tsan_warning}")
                 exit(1)
+            file_path = capture.group(1)
+            line_number = int(capture.group(2))
+            timestamp = get_line_last_modified_times(file_path, line_number)
+            timestamp_filter = int(args.timestamp)
+            if (timestamp_filter <= timestamp):
+                filter_tsan_warnings[tsan_warning] = tsan_tuple
         tsan_warnings_dict = filter_tsan_warnings
 
     if len(tsan_warnings_dict) == 0:
