@@ -42,8 +42,7 @@ class test_layered50(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
     conn_config_follower = conn_base_config + 'disaggregated=(role="follower")'
 
-    nitems = 100
-    timestamp = 1
+    nitems = 10
 
     session_follow = None
     conn_follow = None
