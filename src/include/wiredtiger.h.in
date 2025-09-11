@@ -819,7 +819,7 @@ typedef enum {
     WT_TS_TXN_TYPE_DURABLE, /*!< Durable timestamp. */
     WT_TS_TXN_TYPE_PREPARE, /*!< Prepare timestamp. */
     WT_TS_TXN_TYPE_READ, /*!< Read timestamp. */
-    WT_TS_TXN_TYPE_ROLLBACK /*!< Rollback timestamp. */
+    WT_TS_TXN_TYPE_ROLLBACK, /*!< Rollback timestamp. */
 } WT_TS_TXN_TYPE;
 
 /*!
@@ -2152,7 +2152,7 @@ struct __wt_connection {
      * boolean flag; default \c false.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;
      * scrub_evict_under_target_limit, Change the eviction strategy to scrub eviction when the cache
-     * usage is under the target limit., a boolean flag; default \c true.}
+     * usage is under the target limit., a boolean flag; default \c false.}
      * @config{ ),,}
      * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait
      * for space to be available in cache before giving up.  Default or 0 will wait forever.  1 will
@@ -3006,7 +3006,7 @@ struct __wt_connection {
  * flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;scrub_evict_under_target_limit, Change
  * the eviction strategy to scrub eviction when the cache usage is under the target limit., a
- * boolean flag; default \c true.}
+ * boolean flag; default \c false.}
  * @config{ ),,}
  * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait for
  * space to be available in cache before giving up.  Default or 0 will wait forever.  1 will never
@@ -4320,6 +4320,12 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * operation because of a running live restore in the system.
  */
 #define	WT_CONFLICT_LIVE_RESTORE	(-32013)
+/*!
+ * Conflict with disaggregated storage.
+ * This sub-level error indicates that an operation or configuration conflicts
+ * with disaggregated storage.
+ */
+#define	WT_CONFLICT_DISAGG	(-32014)
 /*
  * Sub-level error return section: END
  * DO NOT EDIT: automatically built by dist/api_err.py.
@@ -6708,7 +6714,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cache: precise checkpoint caused an eviction to be skipped because any
  * dirty content needs to remain in cache
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_CHECKPOINT_PRECISE	1277
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_PRECISE_CHECKPOINT	1277
 /*!
  * cache: realizing in-memory split after reconciliation failed due to
  * internal lock busy
@@ -8693,7 +8699,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cache: precise checkpoint caused an eviction to be skipped because any
  * dirty content needs to remain in cache
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_CHECKPOINT_PRECISE	2132
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_PRECISE_CHECKPOINT	2132
 /*!
  * cache: realizing in-memory split after reconciliation failed due to
  * internal lock busy
