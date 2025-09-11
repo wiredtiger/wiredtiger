@@ -1403,46 +1403,53 @@ static int
 __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
 {
     WT_REF *ref = NULL;
-    uint64_t count = 0;
+    uint64_t num_pages_found_in_BTREE = 0;
     uint64_t capacity = 0;
     uint64_t *page_ids = NULL;
     int ret = 0;
 
-    /* Walk the btree to retrieve the page IDs for all pages in the btree at the loaded checkpoint
-     * time. */
+    /*
+     * Walk the btree to retrieve the page IDs for all pages in the btree at the loaded checkpoint
+     * time.
+     */
     while ((ret = (__wt_tree_walk(session, &ref, WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED))) == 0 &&
       ref != NULL) {
         WT_PAGE *page = ref->page;
 
-        /* Use dynamically allocated array to track page IDs as we don't know the number of pages
-           here. Check if the array size needs to grow. */
-        if (count == capacity) {
-            uint64_t new_capacity = (capacity == 0) ? 1 : capacity * 2;
+        /*
+         * Use dynamically allocated array to track page IDs as we don't know the number of pages
+         *  here. Check if the array size needs to grow.
+         */
+        if (num_pages_found_in_BTREE == capacity) {
+            uint64_t new_capacity = capacity * 2 + 1;
             uint64_t *temp = realloc(page_ids, new_capacity * sizeof(uint64_t));
-            if (temp == NULL) {
+            if (temp == NULL)
                 return (ENOMEM);
-            }
             page_ids = temp;
             capacity = new_capacity;
         }
 
         if (page != NULL)
-            page_ids[count++] = page->disagg_info->block_meta.page_id;
+            page_ids[num_pages_found_in_BTREE++] = page->disagg_info->block_meta.page_id;
     }
 
-    if (ret != 0 && ret != WT_NOTFOUND)
-        return (ret);
+    WT_RET_NOTFOUND_OK(ret);
 
-    size_t size = 0;
+    /*
+     * Track the number of pages found in the PALM walk. This value is tracked separately because
+     * WT_ITEM->size must match the allocated memory, while the actual number of pages found may be
+     * smaller than that allocation.
+     */
+    size_t num_pages_found_in_PALM = 0;
     uint64_t checkpoint_lsn;
     checkpoint_lsn = S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn;
     WT_DECL_ITEM(item);
-    WT_RET(__wt_scr_alloc(session, size, &item));
+    WT_RET(__wt_scr_alloc(session, num_pages_found_in_PALM, &item));
 
     /* Get page IDs from PALM. */
-    WT_RET(bm->get_page_ids(bm, session, item, &size, checkpoint_lsn));
+    WT_RET(bm->get_page_ids(bm, session, item, &num_pages_found_in_PALM, checkpoint_lsn));
 
-    if ((uint64_t)item->size != count) {
+    if ((uint64_t)num_pages_found_in_PALM != num_pages_found_in_BTREE) {
         /*
          * FIXME-WT-14700: Investigate whether we need to do anything special when freeing a root
          * page Change below warning to an error after root page discard is implemented.
@@ -1450,14 +1457,16 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
         __wt_verbose_warning(session, WT_VERB_VERIFY,
           "Mismatch in the number of page IDs found from PALM and btree walk: PALM %" PRIu64
           " Btree walk %" PRIu64,
-          (uint64_t)item->size, count);
+          (uint64_t)num_pages_found_in_PALM, num_pages_found_in_BTREE);
     }
 
-    /* Sort the btree walk array by page ID in ascending order to match the order used in the PALM
-     * walk. */
-    __wt_qsort(page_ids, count, sizeof(uint64_t), __compare_page_id);
+    /*
+     * Sort the btree walk array by page ID in ascending order to match the order used in the PALM
+     * walk.
+     */
+    __wt_qsort(page_ids, num_pages_found_in_BTREE, sizeof(uint64_t), __compare_page_id);
 
-    for (size_t i = 0; i < size; i++) {
+    for (size_t i = 0; i < num_pages_found_in_PALM; i++) {
         if (((uint64_t *)item->data)[i] != page_ids[i]) {
             /*
              * FIXME-WT-14700: Investigate whether we need to do anything special when freeing a
