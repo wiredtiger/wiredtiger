@@ -106,6 +106,7 @@ extern int __wt_optind;
 extern char *__wt_optarg;
 
 static struct {
+    uint32_t workload_progress;
     bool timer_ready_to_go;
     WT_CONDVAR *timer_cond;
     bool ckpt_ready_to_go;
@@ -348,8 +349,8 @@ thread_ts_run(void *arg)
     td = (THREAD_DATA *)arg;
     conn = td->conn;
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    /* Wait for all working threads to complete as there will be a stable timestamp available to
-     * work with. */
+    /* Wait for all working threads to complete as there will be a
+     * stable timestamp available to work with. */
     while (!thread_sync_conds.timer_ready_to_go) {
         bool cv_signalled;
         /* Under a high workload, there is no need to check very often, check every second. */
@@ -493,7 +494,7 @@ thread_ckpt_run(void *arg)
      */
     (void)unlink(ckpt_file);
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    /* 
+    /*
      * Wait for the stable timestamp to be configured before starting the checkpoint thread. If
      * there is no stable timestamp, we won't create the sentinel file and we will have to
      * checkpoint again which will delay the test.
@@ -845,18 +846,30 @@ rollback:
 
         /* We're done with the timestamps, allow oldest and stable to move forward. */
         if (use_ts) {
-            static uint32_t progress = 0;
             if (WT_TS_NONE == active_timestamps[td->threadnum]) {
-                uint32_t current_progress = __wt_atomic_add32(&progress, 1);
-                printf("--- syncing %u/%u @ Thread: %" PRIu32 " ---\n", current_progress, nth,
-                  td->threadnum);
+                uint32_t current_progress =
+                  __wt_atomic_add32(&thread_sync_conds.workload_progress, 1);
+                printf("Thread %" PRIu32 " reach syncing point, overall progress: %u/%u. \n",
+                  td->threadnum, current_progress, nth);
                 if (current_progress == nth) {
-                    /* All threads are done working and should have updated the active timestamps array with a non-zero timestamp. It's time for the timer thread to get started. */
+                    /* All threads are done working and should have updated the active timestamps
+                     * array with a non-zero timestamp. It's time for the timer thread to get
+                     * started. */
                     thread_sync_conds.timer_ready_to_go = true;
                     __wt_cond_signal((WT_SESSION_IMPL *)session, thread_sync_conds.timer_cond);
                 }
             }
             WT_RELEASE_WRITE_WITH_BARRIER(active_timestamps[td->threadnum], active_ts);
+        } else {
+            uint32_t current_progress = __wt_atomic_add32(&thread_sync_conds.workload_progress, 1);
+            /* In use_ts == false mode, thread sync is no more required for checkpoint creation.
+               Only first thread notify the checkpoint thread to start */
+            if (current_progress == 1) {
+                printf("Thread %" PRIu32 " reach syncing point, Trigger checkpoint. \n",
+                  td->threadnum, current_progress, nth);
+                thread_sync_conds.ckpt_ready_to_go = true;
+                __wt_cond_signal((WT_SESSION_IMPL *)session, thread_sync_conds.ckpt_cond);
+            }
         }
     }
     /* NOTREACHED */
@@ -978,6 +991,7 @@ run_workload(uint32_t workload_iteration)
     opts->running = true;
     /* Initialize cond variables. */
     opt_session = (WT_SESSION_IMPL *)opts->session;
+    thread_sync_conds.workload_progress = 0;
     thread_sync_conds.timer_ready_to_go = false;
     testutil_check(__wt_cond_alloc(opt_session, "timer thread cv", &thread_sync_conds.timer_cond));
     thread_sync_conds.ckpt_ready_to_go = false;
