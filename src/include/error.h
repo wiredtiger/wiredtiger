@@ -60,7 +60,7 @@
         __wt_session_set_last_error(session, v, sub_v, __VA_ARGS__); \
         goto err;                                                    \
     } while (0)
-#define WT_ERR_EXT(session, v, ...)                \
+#define WT_ERR_MSG_CHK(session, v, ...)            \
     do {                                           \
         ret = (v);                                 \
         if (ret != 0)                              \
