@@ -340,6 +340,12 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     }
     addr = ref->addr;
 
+    /* 
+     * Fail 1% of the time after we have built the disk image but before we wrap up reconciliation.
+     */
+    if (__wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP, 100))
+        return (WT_ERROR);
+
     /*
      * If we fail the reconciliation prior to calling __rec_write_wrapup then we can clean up our
      * state and return an error.
