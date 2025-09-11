@@ -3,7 +3,7 @@
 # they'll need to be triaged. When we know something about the failure, they are commented.
 test_autoclose.py
 test_base02.py
-test_base04.py
+test_base04.py  # FIXME: WT-15417
 test_bug003.py
 test_bug006.py
 test_bug010.py
@@ -19,9 +19,9 @@ test_cursor01.py
 test_cursor02.py  # FIXME: WT-15291
 test_cursor03.py
 test_cursor05.py  # FIXME: WT-15291
-test_cursor06.py
+test_cursor06.py  # FIXME: WT-15417
 test_cursor13.py  # FIXME: WT-15369
-test_cursor17.py
+test_cursor17.py  # FIXME: WT-15418
 test_cursor21.py  # FIXME: WT-15369
 test_debug_mode08.py
 test_drop.py
@@ -80,20 +80,16 @@ test_prepare_hs03.py
 test_prepare_hs04.py
 test_readonly01.py
 test_readonly03.py  # WT-14582
-test_reserve.py
-test_scrub_eviction_prepare.py
 test_shared_cache01.py
 test_stat01.py
 test_stat02.py
 test_stat03.py
 test_stat04.py
 test_stat05.py
-test_stat06.py
 test_stat13.py
 test_stat_log01.py
 test_stat_log02.py
-test_sweep03.py
-test_timestamp06.py
+test_sweep03.py  # FIXME: WT-15417
 test_txn02.py
 test_txn04.py
 test_txn06.py
