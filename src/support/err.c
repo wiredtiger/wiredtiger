@@ -33,7 +33,11 @@ struct __wt_error_log {
     struct __wt_error_log_entry log[WT_MAX_ERROR_LOG_MAX];
 };
 
-static _Thread_local struct __wt_error_log error_log = {0};
+#ifdef _WIN32
+__declspec(thread) static struct __wt_error_log error_log = {0};
+#else
+_Thread_local static struct __wt_error_log error_log = {0};
+#endif
 
 /*
  * __handle_error_default --
