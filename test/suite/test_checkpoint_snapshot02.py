@@ -136,7 +136,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         if not self.runningHook('disagg'):
             self.assertEqual(count, targetCount)
         else:
-            # If Disag, it's ok to get the double coount since transaction could make it through.
+            # If Disag, it's ok to get the double count since transaction could make it through.
             # TODO: Make sure it's ok as part of FIXME-WT-15429.
             self.assertTrue(count == targetCount or count == targetCount * 2)
 
