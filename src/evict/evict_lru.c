@@ -502,7 +502,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
         /* Need verbose check only if not in diagnostic build */
         if (WT_VERBOSE_ISSET(session, WT_VERB_EVICTION))
 #endif
-            __wt_epoch(session, &evict->stuck_time);
+            __wt_epoch(session, &evict->stuck_time); // if we did work, update the stuck time to the current time, acknowledging progress made
         return (0);
     }
 
@@ -925,7 +925,13 @@ __evict_pass(WT_SESSION_IMPL *session)
          * rolling back transactions and writing updates to the history store table.
          */
         if (eviction_progress == __wt_atomic_loadv64(&evict->eviction_progress)) {
-            if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 && F_ISSET(evict, WT_EVICT_CACHE_HARD)) {
+            if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN_HARD)) {
+                // Cache isn't critically full, reset aggressive score and continue
+                evict->evict_aggressive_score = 0;
+                loop = 0;
+                continue;
+            }
+            if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 && F_ISSET(evict, WT_EVICT_CACHE_CLEAN_HARD)) {
                 if (__wt_atomic_load32(&evict->evict_aggressive_score) < WT_EVICT_SCORE_MAX)
                     (void)__wt_atomic_addv32(&evict->evict_aggressive_score, 1);
                 oldest_id = __wt_atomic_loadv64(&txn_global->oldest_id);

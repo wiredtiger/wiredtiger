@@ -2479,6 +2479,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool 
      * memory, typical in the case of cache pressure unless the cache is configured for scrub and
      * page doesn't have any skipped updates.
      */
+    // Here, scrub eviction doesn't count as progress? 
     __wt_page_modify_clear(session, page);
     if (!F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_SCRUB) || multi->supd_restore)
         F_SET_ATOMIC_16(page, WT_PAGE_EVICT_NO_PROGRESS);
