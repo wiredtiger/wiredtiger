@@ -60,6 +60,7 @@ class checkpoint_thread(threading.Thread):
 
     def run(self):
         # Save the current test case object in thread local storage.
+        # We need to set in run() as it's in the new thread of execution.
         WiredTigerTestCase.setCurrentTestCase(self.testcase)
         sess = self.conn.open_session()
         while not self.done.is_set() and not self.reached_max_count():
@@ -80,6 +81,7 @@ class named_checkpoint_thread(threading.Thread):
 
     def run(self):
         # Save the current test case object in thread local storage.
+        # We need to set in run() as it's in the new thread of execution.
         WiredTigerTestCase.setCurrentTestCase(self.testcase)
         sess = self.conn.open_session()
         while not self.done.is_set():
@@ -99,6 +101,7 @@ class flush_checkpoint_thread(threading.Thread):
 
     def run(self):
         # Save the current test case object in thread local storage.
+        # We need to set in run() as it's in the new thread of execution.
         WiredTigerTestCase.setCurrentTestCase(self.testcase)
         sess = self.conn.open_session()
         while not self.done.is_set():
@@ -121,6 +124,7 @@ class backup_thread(threading.Thread):
 
     def run(self):
         # Save the current test case object in thread local storage.
+        # We need to set in run() as it's in the new thread of execution.
         WiredTigerTestCase.setCurrentTestCase(self.testcase)
         sess = self.conn.open_session()
         while not self.done.is_set():
@@ -187,6 +191,7 @@ class op_thread(threading.Thread):
 
     def run(self):
         # Save the current test case object in thread local storage.
+        # We need to set in run() as it's in the new thread of execution.
         WiredTigerTestCase.setCurrentTestCase(self.testcase)
         sess = self.conn.open_session()
         if (len(self.uris) == 1):
