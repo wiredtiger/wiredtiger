@@ -117,9 +117,8 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Perform update operations to fill HS
         self.leader_put_data(value_prefix = 'aaa')
         self.leader_put_data(value_prefix = 'bbb')
-        # That's not allowed to perform verification if there is some dirty data
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.verify([self.session]), '/stable table verification failed/')
+        # We're not allowed to perform verification if there is some dirty data
+        self.verify([self.session], errno.EBUSY)
 
         # Checkpoint the data on the leader
         self.session.checkpoint()

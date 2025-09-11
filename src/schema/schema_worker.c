@@ -83,7 +83,7 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     const char *ingest_uri, *stable_uri;
 
     conn = S2C(session);
-    ingest_ret = stable_ret = 0;
+    ingest_ret = 0;
 
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags));
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)session->dhandle;
@@ -94,8 +94,8 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     /*
      * FIXME-WT-15413 - Verify assumes the stable table always exists. However, on followers that
      * have not yet picked up their first checkpoint, the stable constituent will be missing. We
-     * should handle this transient state by skipping stable verification
-     * instead of failing with ENOENT.
+     * should handle this transient state by skipping stable verification instead of failing with
+     * ENOENT.
      */
     WT_ASSERT(session, stable_uri != NULL);
     WT_ASSERT(session, ingest_uri != NULL);
@@ -112,7 +112,7 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     WT_WITHOUT_DHANDLE(session,
       stable_ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
 
-    if (stable_ret != 0)
+    if (stable_ret != 0 && stable_ret != EBUSY)
         __wt_err(session, stable_ret, "Verify (layered): %s stable table verification failed. ",
           stable_uri);
 
@@ -129,17 +129,20 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
           ingest_ret =
             __wt_schema_worker(session, ingest_uri, file_func, name_func, cfg, open_flags));
 
+        /*
+         * Map EBUSY to WT_ERROR to prevent server retries, as EBUSY on a leader's ingest table is
+         * an invalid state
+         */
         if (ingest_ret == EBUSY)
-            __wt_err(session, ingest_ret,
+            __wt_err(session, WT_ERROR,
               "Verify (layered): %s ingest table on leader cannot be verified. "
               "Ingest contains dirty content or open cursors, which is an invalid state.",
               ingest_uri);
-
-        /* If ingest verification returned any error other than EBUSY, propagate it. */
-        WT_ERR_ERROR_OK(ingest_ret, EBUSY, true);
+        else if (ingest_ret != 0)
+            __wt_err(session, ingest_ret, "Verify (layered): %s ingest table verification failed. ",
+              ingest_uri);
     }
 
-err:
     __wt_verbose_level(session, WT_VERB_VERIFY, WT_VERBOSE_DEBUG_2,
       "Verify (layered): stable table %s returned %s, ingest table %s returned %s", stable_uri,
       __wt_wiredtiger_error(stable_ret), ingest_uri, __wt_wiredtiger_error(ingest_ret));
