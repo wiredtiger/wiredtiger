@@ -80,7 +80,6 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     int ingest_ret, stable_ret;
-    const char *ingest_uri, *stable_uri;
 
     conn = S2C(session);
     ingest_ret = 0;
@@ -88,8 +87,8 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags));
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)session->dhandle;
 
-    ingest_uri = layered->ingest_uri;
-    stable_uri = layered->stable_uri;
+    const char *ingest_uri = layered->ingest_uri;
+    const char *stable_uri = layered->stable_uri;
 
     /*
      * FIXME-WT-15413 - Verify assumes the stable table always exists. However, on followers that
@@ -147,7 +146,8 @@ err:
 
     WT_TRET(__wt_session_release_dhandle(session));
 
-    ret = (stable_ret != 0) ? stable_ret : ingest_ret;
+    /* Ingest is expected to never return EBUSY so it's enough to check it for 0 only */
+    ret = ingest_ret != 0 ? ingest_ret : stable_ret;
 
     return (ret);
 }
