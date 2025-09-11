@@ -111,7 +111,7 @@ static struct {
     WT_CONDVAR *timer_cond;
     bool ckpt_ready_to_go;
     WT_CONDVAR *ckpt_cond;
-} thread_sync_conds = {false, NULL, false, NULL};
+} thread_sync_conds = {0, false, NULL, false, NULL};
 
 /*
  * Print that we are doing backup verification.
@@ -865,8 +865,8 @@ rollback:
             /* In use_ts == false mode, thread sync is no more required for checkpoint creation.
                Only first thread notify the checkpoint thread to start */
             if (current_progress == 1) {
-                printf("Thread %" PRIu32 " reach syncing point, Trigger checkpoint. \n",
-                  td->threadnum, current_progress, nth);
+                printf(
+                  "Thread %" PRIu32 " reach syncing point, Trigger checkpoint. \n", td->threadnum);
                 thread_sync_conds.ckpt_ready_to_go = true;
                 __wt_cond_signal((WT_SESSION_IMPL *)session, thread_sync_conds.ckpt_cond);
             }
