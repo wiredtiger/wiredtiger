@@ -1426,9 +1426,8 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
             capacity = new_capacity;
         }
 
-        if (page != NULL) {
+        if (page != NULL)
             page_ids[count++] = page->disagg_info->block_meta.page_id;
-        }
     }
 
     if (ret != 0 && ret != WT_NOTFOUND)
