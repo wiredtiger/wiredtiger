@@ -113,7 +113,7 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
       stable_ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
 
     if (stable_ret != 0 && stable_ret != EBUSY)
-        __wt_err(session, stable_ret, "Verify (layered): %s stable table verification failed. ",
+        WT_ERR_MSG(session, stable_ret, "Verify (layered): %s stable table verification failed. ",
           stable_uri);
 
     /*
@@ -134,12 +134,13 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
          * returns EBUSY.
          */
         if (ingest_ret != 0)
-            __wt_err(session, ingest_ret,
-              "Verify (layered): %s ingest ingest table verification failed. "
-              "Ingest may contain dirty content or open cursors, which is an invalid state.",
+            WT_ERR_MSG(session, ingest_ret,
+              "Verify (layered): %s ingest table verification failed. Ingest must always be empty "
+              "on leader.",
               ingest_uri);
     }
 
+err:
     __wt_verbose_level(session, WT_VERB_VERIFY, WT_VERBOSE_DEBUG_2,
       "Verify (layered): stable table %s returned %s, ingest table %s returned %s", stable_uri,
       __wt_wiredtiger_error(stable_ret), ingest_uri, __wt_wiredtiger_error(ingest_ret));
