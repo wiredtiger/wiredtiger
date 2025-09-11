@@ -58,6 +58,7 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_follow = None
 
     uri = 'layered:test_verify_disagg'
+    # Use internals to test a specific edge case scenario.
     ingest_uri = 'file:test_verify_disagg.wt_ingest'
 
     def leader_put_data(self, value_prefix = '', low = 1, high = nitems):
@@ -146,7 +147,7 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Verify fails as the ingest table on leader has open cursors
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.verify([self.session]), '/ingest table on leader cannot be verified/')
+            lambda: self.verify([self.session]), '/ingest table verification failed/')
 
         ingest_cursor.close()
 

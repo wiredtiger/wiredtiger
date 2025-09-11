@@ -130,16 +130,13 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
             __wt_schema_worker(session, ingest_uri, file_func, name_func, cfg, open_flags));
 
         /*
-         * Map EBUSY to WT_ERROR to prevent server retries, as EBUSY on a leader's ingest table is
-         * an invalid state
+         * FIXME-WT-15433 Add an assertion that verifying the ingest table of the leader never
+         * returns EBUSY.
          */
-        if (ingest_ret == EBUSY)
-            __wt_err(session, WT_ERROR,
-              "Verify (layered): %s ingest table on leader cannot be verified. "
-              "Ingest contains dirty content or open cursors, which is an invalid state.",
-              ingest_uri);
-        else if (ingest_ret != 0)
-            __wt_err(session, ingest_ret, "Verify (layered): %s ingest table verification failed. ",
+        if (ingest_ret != 0)
+            __wt_err(session, ingest_ret,
+              "Verify (layered): %s ingest ingest table verification failed. "
+              "Ingest may contain dirty content or open cursors, which is an invalid state.",
               ingest_uri);
     }
 
