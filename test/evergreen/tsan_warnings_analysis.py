@@ -52,6 +52,12 @@ def get_line_last_modified_times(file_path, line_number):
         # Extract the UNIX timestamp
         if line.startswith("author-time"):
             timestamp = int(line.split()[1])
+    
+    # Check that requested line number and file has a timestamp.
+    if (timestamp is None)
+        print("Error: Line doesn't have a timestamp")
+        exit(1)
+
     return timestamp
 
 def get_tsan_warnings():
@@ -113,6 +119,9 @@ def main():
                 timestamp_filter = int(args.timestamp)
                 if (timestamp_filter <= timestamp):
                     filter_tsan_warnings[tsan_warning] = tsan_tuple
+            else:
+                print(f"Error: Unable to parse the tsan warning: {tsan_warning}")
+                exit(1)
         tsan_warnings_dict = filter_tsan_warnings
 
     if len(tsan_warnings_dict) == 0:
