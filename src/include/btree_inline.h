@@ -1979,6 +1979,8 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     if (mod == NULL) {
         if (page->disagg_info == NULL)
             return (true);
+        else if (F_ISSET(btree, WT_BTREE_READONLY))
+            return (true);
         else if (__wt_page_materialization_check(session, page->disagg_info->rec_lsn_max))
             return (true);
         else {
@@ -2036,7 +2038,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * Clean pages that are in front of the materialization check should not proceed to eviction.
      * They would not go through reconciliation, but just be discarded which isn't OK.
      */
-    if (!modified && page->disagg_info != NULL &&
+    if (!modified && page->disagg_info != NULL && !F_ISSET(btree, WT_BTREE_READONLY) &&
       !__wt_page_materialization_check(session, page->disagg_info->rec_lsn_max)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
         return (false);
