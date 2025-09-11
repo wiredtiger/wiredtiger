@@ -1867,7 +1867,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 {
     WT_CONFIG_ITEM cval;
     WT_TXN *txn;
-    wt_timestamp_t prepared_id;
+    uint64_t prepared_id;
 
     txn = session->txn;
     txn->isolation = session->isolation;

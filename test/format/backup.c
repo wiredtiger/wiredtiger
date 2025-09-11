@@ -50,7 +50,9 @@ check_copy(WT_SESSION *session, uint64_t id)
     g.backup_verify = true;
     wts_open(to_path, &conn, false);
     g.backup_verify = false;
-
+    if (GV(PRECISE_CHECKPOINT))
+        /* Prepare discover testing. */
+        tables_apply(wts_prepare_discover, NULL);
     /* Verify the objects. */
     trace_msg(session, "Start %s backup verify in %s",
       GV(BACKUP_LIVE_RESTORE) ? "live restore" : "copied", to_path);

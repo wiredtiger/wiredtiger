@@ -348,7 +348,9 @@ main(int argc, char *argv[])
         wts_open(g.home, &g.wts_conn, true);
         timestamp_init();
     }
-
+    if (GV(PRECISE_CHECKPOINT))
+        /* Prepare discover testing. */
+        TIMED_MAJOR_OP(tables_apply(wts_prepare_discover, NULL));
     locks_init(g.wts_conn);
 
     /*
