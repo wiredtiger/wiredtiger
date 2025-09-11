@@ -352,7 +352,7 @@ thread_ts_run(void *arg)
      * work with. */
     while (!thread_sync_conds.timer_ready_to_go) {
         bool cv_signalled;
-        /* Wait maximum 1s each round */
+        /* Under a high workload, there is no need to check very often, check every second. */
         __wt_cond_wait_signal((WT_SESSION_IMPL *)session, thread_sync_conds.timer_cond, WT_MILLION,
           NULL, &cv_signalled);
     }
@@ -493,11 +493,14 @@ thread_ckpt_run(void *arg)
      */
     (void)unlink(ckpt_file);
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    /* Wait for the stable timestamp is configured as there will make the last_checkpoint timestamp
-     * not 0 */
+    /* 
+     * Wait for the stable timestamp to be configured before starting the checkpoint thread. If
+     * there is no stable timestamp, we won't create the sentinel file and we will have to
+     * checkpoint again which will delay the test.
+     */
     while (!thread_sync_conds.ckpt_ready_to_go) {
         bool cv_signalled;
-        /* Wait maximum 1s each round */
+        /* Under a high workload, there is no need to check very often, check every second. */
         __wt_cond_wait_signal(
           (WT_SESSION_IMPL *)session, thread_sync_conds.ckpt_cond, WT_MILLION, NULL, &cv_signalled);
     }
@@ -848,6 +851,7 @@ rollback:
                 printf("--- syncing %u/%u @ Thread: %" PRIu32 " ---\n", current_progress, nth,
                   td->threadnum);
                 if (current_progress == nth) {
+                    /* All threads are done working and should have updated the active timestamps array with a non-zero timestamp. It's time for the timer thread to get started. */
                     thread_sync_conds.timer_ready_to_go = true;
                     __wt_cond_signal((WT_SESSION_IMPL *)session, thread_sync_conds.timer_cond);
                 }
@@ -972,7 +976,7 @@ run_workload(uint32_t workload_iteration)
     }
 
     opts->running = true;
-    /* Initialize cond machines */
+    /* Initialize cond variables. */
     opt_session = (WT_SESSION_IMPL *)opts->session;
     thread_sync_conds.timer_ready_to_go = false;
     testutil_check(__wt_cond_alloc(opt_session, "timer thread cv", &thread_sync_conds.timer_cond));
