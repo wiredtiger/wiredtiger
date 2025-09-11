@@ -477,7 +477,7 @@ palm_kv_get_page_ids(
 
     *size = count;
 
-    return (ret);
+    return (0);
 }
 
 int
