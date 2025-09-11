@@ -167,10 +167,10 @@ struct __wti_reconcile {
     WT_PAGE *page;
     uint32_t flags; /* Caller's configuration */
 
-    /* Track the oldest running transaction. */
-    uint64_t last_running;
+    /* Track the pinned id for the reconciliation if without a snapshot. */
+    uint64_t rec_start_pinned_id;
 
-    /* Track the oldest running id. This one doesn't consider checkpoint. */
+    /* Track the oldest id that is needed. */
     uint64_t rec_start_oldest_id;
 
     /* Track the pinned timestamp at the time reconciliation started. */
@@ -316,6 +316,8 @@ struct __wti_reconcile {
      */
     WT_SAVE_UPD *supd; /* Saved updates */
     uint32_t supd_next;
+    uint32_t supd_onpage_or_restore; /* Number of the saved updates have onpage value or should be
+                                        restored */
     size_t supd_allocated;
     size_t supd_memsize; /* Size of saved update structures */
 
@@ -450,8 +452,8 @@ typedef struct {
         (r)->ref->page->modify->mod_multi_entries == 1))
 
 /* Called after building the disk image. */
-#define WT_BUILD_DELTA_LEAF(session, r)                                           \
-    WT_DELTA_LEAF_ENABLED((session)) && (r)->multi_next == 1 && !r->ovfl_items && \
+#define WT_BUILD_DELTA_LEAF(session, r)                         \
+    WT_DELTA_LEAF_ENABLED((session)) && (r)->multi_next == 1 && \
       WT_REC_RESULT_SINGLE_PAGE((session), (r))
 
 /*
@@ -478,8 +480,6 @@ extern int __wti_ovfl_track_wrapup_err(WT_SESSION_IMPL *session, WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_build_delta_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_rec_cell_build_leaf_key(WT_SESSION_IMPL *session, WTI_RECONCILE *r,
-  const void *data, size_t size, bool *is_ovflp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *kv,
   uint8_t type, WT_TIME_WINDOW *tw, uint64_t rle) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,

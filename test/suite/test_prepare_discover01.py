@@ -27,8 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_prepare_discover01.py
-#   Test discovering prepared transaction artifacts after recovery
-#
+#   Test that pending prepared transaction artifacts can be discovered after recovery
+#   and rolled back
 
 import random, sys
 from suite_subprocess import suite_subprocess
@@ -51,12 +51,10 @@ class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
 
     scenarios = make_scenarios(types, txn_end)
 
+    @wttest.only_for_hook("disagg", "FIXME-WT-15343 disable RTS when precise checkpoint is on")
     def test_prepare_discover01(self):
-        # Currently this test will crash because we try recover before setting preserve_prepared flag.
-        # Support this by moving recovery to after setting precise_checkpoint and preserve_prepared flags.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(50))
-        self.skipTest('FIXME-WT-15113 Enable when we support recovery from backup with preserve_prepare config')
         self.session.create(self.uri, self.s_config)
         c = self.session.open_cursor(self.uri)
 
@@ -96,7 +94,7 @@ class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
         while prepared_discover_cursor.next() == 0:
             count += 1
             prepared_id = prepared_discover_cursor.get_key()
-            self.assertEqual(prepared_id, 100)
+            self.assertEqual(prepared_id, 123)
             c2s2.begin_transaction("claim_prepared=" + self.timestamp_str(prepared_id))
             c2s2.rollback_transaction("rollback_timestamp=" + self.timestamp_str(200))
         self.assertEqual(count, 1)

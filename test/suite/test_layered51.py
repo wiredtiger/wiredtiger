@@ -34,7 +34,7 @@ import time
 
 
 # test_layered47.py
-# Test that we write internal page deltas with deleted leaf page 
+# Test that we write internal page deltas with deleted leaf page
 # to the page log extension.
 
 @disagg_test_class
