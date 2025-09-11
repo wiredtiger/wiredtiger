@@ -36,6 +36,7 @@ from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
+@wttest.skip_for_hook("disagg", "Test requires logged ops, disagg does not do WT logging")
 class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'ts07_ts_nologged'
     tablename2 = 'ts07_nots_logged'

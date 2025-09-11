@@ -106,14 +106,8 @@ test_stat_log01.py
 test_stat_log02.py
 test_sweep03.py
 test_sweep06.py
-test_timestamp03.py
-test_timestamp05.py
 test_timestamp06.py
-test_timestamp07.py
-test_timestamp10.py
 test_timestamp12.py
-test_timestamp20.py
-test_timestamp26.py
 test_txn02.py
 test_txn04.py
 test_txn06.py

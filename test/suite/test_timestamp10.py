@@ -34,6 +34,7 @@ from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
+@wttest.skip_for_hook("disagg", "Test requires logged ops, disagg does not do WT logging")
 class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'config_base=false,create,log=(enabled)'
     coll1_uri = 'table:collection10.1'
