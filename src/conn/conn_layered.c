@@ -185,35 +185,43 @@ __disagg_get_meta(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn, WT_I
 
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+
+    if (disagg->page_log_meta == NULL)
+        return (ENOTSUP);
+
+    WT_ASSERT_ALWAYS(session, page_id <= WT_DISAGG_METADATA_MAX_PAGE_ID,
+      "Metadata page ID %" PRIu64 " out of range", page_id);
+
     WT_CLEAR(get_args);
     get_args.lsn = lsn;
 
-    if (disagg->page_log_meta != NULL) {
-        retry = 0;
-        for (;;) {
-            count = 1;
-            WT_RET(disagg->page_log_meta->plh_get(
-              disagg->page_log_meta, &session->iface, page_id, 0, &get_args, item, &count));
-            WT_ASSERT(session, count <= 1); /* Corrupt data. */
+    retry = 0;
+    for (;;) {
+        count = 1;
+        WT_RET(disagg->page_log_meta->plh_get(
+          disagg->page_log_meta, &session->iface, page_id, 0, &get_args, item, &count));
+        WT_ASSERT(session, count <= 1); /* Corrupt data. */
 
-            /* Found the data. */
-            if (count == 1)
-                break;
+        /* Found the data. */
+        if (count == 1)
+            break;
 
-            /* Otherwise retry up to 100 times to account for page materialization delay. */
-            if (retry > 100)
-                return (WT_NOTFOUND);
-            __wt_verbose_notice(session, WT_VERB_READ,
-              "retry #%" PRIu32 " for metadata page_id %" PRIu64 ", lsn %" PRIu64, retry, page_id,
-              lsn);
-            __wt_sleep(0, 10000 + retry * 5000);
-            ++retry;
+        /* Otherwise retry up to 100 times to account for page materialization delay. */
+        if (retry > 100) {
+            __wt_verbose_error(session, WT_VERB_READ,
+              "read failed for metadata page ID %" PRIu64 ", lsn %" PRIu64, page_id, lsn);
+            return (WT_NOTFOUND);
         }
-
-        return (0);
+        __wt_verbose_notice(session, WT_VERB_READ,
+          "retry #%" PRIu32 " for metadata page_id %" PRIu64 ", lsn %" PRIu64, retry, page_id, lsn);
+        __wt_sleep(0, 10000 + retry * 5000);
+        ++retry;
     }
 
-    return (ENOTSUP);
+    disagg->last_metadata_page_lsn[page_id] = get_args.lsn;
+    return (0);
 }
 
 /*
@@ -230,12 +238,21 @@ __disagg_put_meta(WT_SESSION_IMPL *session, uint64_t page_id, const WT_ITEM *ite
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
 
-    WT_CLEAR(put_args);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+
     if (disagg->page_log_meta == NULL)
         return (ENOTSUP);
 
+    WT_ASSERT_ALWAYS(session, page_id <= WT_DISAGG_METADATA_MAX_PAGE_ID,
+      "Metadata page ID %" PRIu64 " out of range", page_id);
+
+    WT_CLEAR(put_args);
+    put_args.backlink_lsn = disagg->last_metadata_page_lsn[page_id];
+
     WT_RET(disagg->page_log_meta->plh_put(
       disagg->page_log_meta, &session->iface, page_id, 0, &put_args, item));
+    disagg->last_metadata_page_lsn[page_id] = put_args.lsn;
+
     if (lsnp != NULL)
         *lsnp = put_args.lsn;
     __wt_atomic_addv64(&disagg->num_meta_put, 1);
