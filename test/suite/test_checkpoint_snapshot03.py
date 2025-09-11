@@ -150,8 +150,9 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
         upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
         stat_cursor.close()
 
-        self.assertGreater(inconsistent_ckpt, 0)
         self.assertEqual(upd_aborted, 0)
         self.assertGreaterEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
-        self.assertGreater(pages_skipped, 0)
+        if not self.runningHook('disagg'):
+            self.assertGreater(inconsistent_ckpt, 0)
+            self.assertGreater(pages_skipped, 0)
