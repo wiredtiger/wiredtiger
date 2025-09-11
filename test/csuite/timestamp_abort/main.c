@@ -862,11 +862,11 @@ rollback:
             WT_RELEASE_WRITE_WITH_BARRIER(active_timestamps[td->threadnum], active_ts);
         } else {
             uint32_t current_progress = __wt_atomic_add32(&thread_sync_conds.workload_progress, 1);
-            /* In use_ts == false mode, thread sync is no more required for checkpoint creation.
-               Only first thread notify the checkpoint thread to start */
+            /* When timestamps are not in use, we don't need to sync all threads before starting the
+             * checkpoint thread. Use the first thread to notify the checkpoint thread to start. */
             if (current_progress == 1) {
                 printf(
-                  "Thread %" PRIu32 " reach syncing point, Trigger checkpoint. \n", td->threadnum);
+                  "Thread %" PRIu32 " reach syncing point, trigger checkpoint.\n", td->threadnum);
                 thread_sync_conds.ckpt_ready_to_go = true;
                 __wt_cond_signal((WT_SESSION_IMPL *)session, thread_sync_conds.ckpt_cond);
             }
