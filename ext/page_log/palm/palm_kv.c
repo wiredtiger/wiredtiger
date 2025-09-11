@@ -50,6 +50,7 @@
 #include <swap.h>
 
 #include "palm_kv.h"
+#include "palm_utils.h"
 #define MEGABYTE (1024 * 1024)
 
 /*
@@ -148,13 +149,15 @@ swap_ckpt_key(const CKPT_KEY *src, CKPT_KEY *dest)
 }
 
 /*
- * True if and only if the result matches the table, and page and is materialized, and the page's
- * version is LTE the given checkpoint.
+ * True if and only if the result matches the table, the page ID, the LSN is less than or equal to
+ * the requested LSN, and the page is materialized.
  */
-#define RESULT_MATCH(result_key, _context, _table_id, _page_id, _lsn, _now)                 \
-    ((result_key)->table_id == (_table_id) && (result_key)->page_id == (_page_id) &&        \
-      ((result_key)->lsn <= (_lsn)) && (_now) > (result_key)->timestamp_materialized_us) && \
-      ((_context)->last_materialized_lsn == 0 || _lsn <= (_context)->last_materialized_lsn)
+#define RESULT_MATCH(result_key, _matches, _table_id, _page_id, _lsn, _now)                       \
+    ((result_key)->table_id == (_table_id) && (result_key)->page_id == (_page_id) &&              \
+      (result_key)->lsn <= (_lsn) &&                                                              \
+      ((_matches)->ignore_materialization || (_now) > (result_key)->timestamp_materialized_us) && \
+      ((_matches)->ignore_materialization || (_matches)->context->last_materialized_lsn == 0 ||   \
+        (result_key)->lsn <= (_matches)->context->last_materialized_lsn))
 
 #ifdef PALM_KV_DEBUG
 /* Show the contents of the PAGE_KEY to stderr.  This can be useful for debugging. */
@@ -373,8 +376,115 @@ palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id, 
 }
 
 int
+palm_kv_get_page_ids(
+  PALM_KV_CONTEXT *context, WT_ITEM *item, uint64_t checkpoint_lsn, uint64_t table_id, size_t *size)
+{
+    MDB_cursor *cursor;
+    MDB_stat stat;
+    MDB_val kval;
+    MDB_val vval;
+    PAGE_KEY page_key;
+    size_t count = 0;
+    int ret;
+
+    cursor = NULL;
+
+    memset(&kval, 0, sizeof(kval));
+    memset(&vval, 0, sizeof(vval));
+    memset(&page_key, 0, sizeof(page_key));
+    page_key.table_id = table_id;
+    swap_page_key(&page_key, &page_key);
+    kval.mv_size = sizeof(page_key);
+    kval.mv_data = &page_key;
+
+    if ((ret = mdb_cursor_open(context->lmdb_txn, context->env->lmdb_pages_dbi, &cursor)) != 0)
+        return (ret);
+
+    /* Get the maximum count of page IDs */
+    if ((ret = mdb_stat(context->lmdb_txn, context->env->lmdb_pages_dbi, &stat)) != 0)
+        return (ret);
+
+    /* If no entries found, return an error.  */
+    if (stat.ms_entries == 0) {
+        item->size = 0;
+        item->data = NULL;
+        return (WT_NOTFOUND);
+    }
+
+    assert(item != NULL);
+    memset(item, 0, sizeof(*item));
+    if ((ret = palm_resize_item(item, stat.ms_entries * sizeof(uint64_t))) != 0)
+        return (ret);
+
+    if (item->data == NULL)
+        return (ENOMEM);
+
+    if ((ret = mdb_cursor_get(cursor, &kval, &vval, MDB_SET_RANGE)) != 0)
+        return (ret);
+
+    uint64_t prev_page_id = 0;
+    int prev_is_tombstone = 0;
+
+    /*
+     * Iterate through the pages table, looking for pages that have an LSN smaller than the given
+     * checkpoint LSN. Note that the pages are sorted by table_id, page_id, LSN in ascending order,
+     * so we are only interested in the last page of each page_id. If the last page is a tombstone,
+     * meaning we're discarding it, then we skip it. If the last page is a full page, we store the
+     * page ID in the item->data array.
+     */
+    while (ret == 0) {
+        if (kval.mv_size != sizeof(PAGE_KEY))
+            return (EINVAL);
+
+        PAGE_KEY *key = (PAGE_KEY *)kval.mv_data;
+        PAGE_KEY decoded_key;
+        swap_page_key(key, &decoded_key);
+
+        /* If we have gone past the table, stop. */
+        if (decoded_key.table_id > table_id)
+            break;
+
+        /*
+         * Skip pages that are not for the requested table and pages newer than the given checkpoint
+         * LSN. For deltas, skip those that are not tombstones, since only full pages and tombstones
+         * are relevant here.
+         */
+        if (decoded_key.table_id < table_id || decoded_key.lsn >= checkpoint_lsn ||
+          (decoded_key.is_delta && ((decoded_key.flags & WT_PALM_KV_TOMBSTONE) == 0))) {
+            ret = mdb_cursor_get(cursor, &kval, &vval, MDB_NEXT);
+            if (ret != 0 && ret != MDB_NOTFOUND)
+                return (ret);
+            continue;
+        }
+
+        /*  If the previous page was not a tombstone, store the previous page ID. */
+        if (prev_page_id != 0 && decoded_key.page_id != prev_page_id && !prev_is_tombstone) {
+            assert(count < stat.ms_entries);
+            ((uint64_t *)item->data)[count++] = prev_page_id;
+        }
+
+        prev_page_id = decoded_key.page_id;
+        prev_is_tombstone = ((decoded_key.flags & WT_PALM_KV_TOMBSTONE) != 0);
+
+        ret = mdb_cursor_get(cursor, &kval, &vval, MDB_NEXT);
+        if (ret != 0 && ret != MDB_NOTFOUND)
+            return (ret);
+    }
+
+    /* If the last tracked page was not a tombstone, store the page ID. */
+    if (prev_page_id != 0 && !prev_is_tombstone) {
+        assert(count < stat.ms_entries);
+        ((uint64_t *)item->data)[count++] = prev_page_id;
+    }
+
+    *size = count;
+
+    return (ret);
+}
+
+int
 palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
-  uint64_t lsn, PALM_KV_PAGE_MATCHES *matches)
+  uint64_t lsn, bool ignore_materialization, PALM_KV_PAGE_MATCHES *matches)
 {
     MDB_val kval;
     MDB_val vval;
@@ -399,6 +509,7 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
     matches->table_id = table_id;
     matches->page_id = page_id;
     matches->query_lsn = lsn;
+    matches->ignore_materialization = ignore_materialization;
 
     page_key.table_id = table_id;
     page_key.page_id = page_id;
@@ -424,7 +535,7 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
      * Now back up until we get a match. This will be the last valid record that matches the
      * table/page.
      */
-    while (ret == 0 && !RESULT_MATCH(&result_key, context, table_id, page_id, lsn, now)) {
+    while (ret == 0 && !RESULT_MATCH(&result_key, matches, table_id, page_id, lsn, now)) {
         ret = mdb_cursor_get(matches->lmdb_cursor, &kval, &vval, MDB_PREV);
         readonly_result_key = (PAGE_KEY *)kval.mv_data;
         swap_page_key(readonly_result_key, &result_key);
@@ -433,7 +544,7 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
      * Now back up until we find the most recent full page that does not have a checkpoint more
      * recent than asked for.
      */
-    while (ret == 0 && RESULT_MATCH(&result_key, context, table_id, page_id, lsn, now)) {
+    while (ret == 0 && RESULT_MATCH(&result_key, matches, table_id, page_id, lsn, now)) {
         /* If this is what we're looking for, we're done, and the cursor is positioned. */
         if (result_key.is_delta == false) {
             matches->lsn = result_key.lsn;
@@ -466,11 +577,8 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
     MDB_val vval;
     PAGE_KEY *readonly_page_key;
     PAGE_KEY page_key;
-    PALM_KV_CONTEXT *context;
     uint64_t now;
     int ret;
-
-    context = matches->context;
 
     if (matches->lmdb_cursor == NULL)
         return (false);
@@ -497,7 +605,7 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
         swap_page_key(readonly_page_key, &page_key);
 
         if (RESULT_MATCH(
-              &page_key, context, matches->table_id, matches->page_id, matches->query_lsn, now)) {
+              &page_key, matches, matches->table_id, matches->page_id, matches->query_lsn, now)) {
             matches->lsn = page_key.lsn;
             matches->size = vval.mv_size;
             matches->data = vval.mv_data;
