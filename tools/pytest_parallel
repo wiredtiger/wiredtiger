@@ -5,7 +5,6 @@ declare -A procs
 verbose="-v 2"
 ecode=0
 summary=""
-saved_tsan_options=""
 python="python3"
 
 Usage() {
@@ -131,6 +130,9 @@ for pyfile in "$@"; do
         waitone
     fi
 done
+
+# Reset TSAN options.
+TSAN_OPTIONS=$saved_tsan_options
 
 # Wait for last running processes
 while [ $(jobs -p | wc -l) -gt 0 ]; do

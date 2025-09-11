@@ -55,7 +55,7 @@ def get_line_last_modified_times(file_path, line_number):
 
     # Check that requested line number and file has a timestamp.
     if (timestamp is None):
-        print("Error: Line doesn't have a timestamp")
+        print("Error: Requested line and file path doesn't have a timestamp")
         exit(1)
 
     return timestamp
