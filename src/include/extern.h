@@ -1693,6 +1693,10 @@ extern void __wt_err_func(WT_SESSION_IMPL *session, int error, const char *func,
   WT_VERBOSE_CATEGORY category, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((cold))
   WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 6, 7)))
     WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+extern void __wt_error_log_add(
+  const char *file, const char *func, int line, const char *expr, int error);
+extern void __wt_error_log_clear(void);
+extern void __wt_error_log_to_handler(WT_SESSION_IMPL *session);
 extern void __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line,
   WT_VERBOSE_CATEGORY category, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((cold))
   WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 5, 6)))

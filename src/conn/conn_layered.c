@@ -1077,7 +1077,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     /* Connection init settings only. */
 
     if (reconfig)
-        return (0);
+        goto err;
 
     /* Remember the configuration. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
@@ -1161,6 +1161,10 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     }
 
 err:
+    /* Dump available logged errors into the event handler to ease debugging. */
+    if (ret != 0)
+        __wt_error_log_to_handler(session);
+
     if (ret != 0 && reconfig && !was_leader && leader)
         return (__wt_panic(session, ret, "failed to step-up as primary"));
     return (ret);

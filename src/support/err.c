@@ -11,6 +11,30 @@
 /* Define the string representation of each verbose category. */
 static const char *verbose_category_strings[] = WT_VERBOSE_CATEGORY_STR_INIT;
 
+/* Keep a log of errors for each thread. */
+#define WT_MAX_ERROR_LOG_MAX 100
+
+struct __wt_error_log_entry {
+    const char *file; /* The file where the error occurred. */
+    const char *func; /* The function where the error occurred. */
+    int line;         /* The line number. */
+    const char *expr; /* The expression inside WT_ERR or WT_RET. */
+    int error;        /* The error code. */
+};
+
+struct __wt_error_log {
+
+    /*
+     * A circular buffer of error logs. No synchronization is needed because the error log is
+     * thread-local.
+     */
+    int head;
+    int tail;
+    struct __wt_error_log_entry log[WT_MAX_ERROR_LOG_MAX];
+};
+
+static _Thread_local struct __wt_error_log error_log = {0};
+
 /*
  * __handle_error_default --
  *     Default WT_EVENT_HANDLER->handle_error implementation: send to stderr.
@@ -802,4 +826,54 @@ __wt_unexpected_object_type(WT_SESSION_IMPL *session, const char *uri, const cha
   WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     WT_RET_MSG(session, EINVAL, "uri %s doesn't match expected \"%s\"", uri, expect);
+}
+
+/*
+ * __wt_error_log_add --
+ *     Add an entry to the error log.
+ */
+void
+__wt_error_log_add(const char *file, const char *func, int line, const char *expr, int error)
+{
+    struct __wt_error_log_entry *entry;
+
+    entry = &error_log.log[error_log.tail];
+    entry->file = file;
+    entry->func = func;
+    entry->line = line;
+    entry->expr = expr;
+    entry->error = error;
+
+    error_log.tail = (error_log.tail + 1) % WT_MAX_ERROR_LOG_MAX;
+    if (error_log.head == error_log.tail)
+        error_log.head = (error_log.head + 1) % WT_MAX_ERROR_LOG_MAX;
+}
+
+/*
+ * __wt_error_log_clear --
+ *     Clear the error log.
+ */
+void
+__wt_error_log_clear(void)
+{
+    error_log.head = 0;
+    error_log.tail = 0;
+}
+
+/*
+ * __wt_error_log_to_handler --
+ *     Print all entries from the error log to the event handler.
+ */
+void
+__wt_error_log_to_handler(WT_SESSION_IMPL *session)
+{
+    struct __wt_error_log_entry *entry;
+    int i;
+
+    for (i = error_log.head; i != error_log.tail; i = (i + 1) % WT_MAX_ERROR_LOG_MAX) {
+        entry = &error_log.log[i];
+        __wt_err_func(session, entry->error, entry->func, entry->line, WT_VERB_ERROR_RETURNS,
+          "Error at %s:%d: %s failed with %s (%d)", entry->file, entry->line, entry->expr,
+          __wt_strerror(session, entry->error, NULL, 0), entry->error);
+    }
 }
