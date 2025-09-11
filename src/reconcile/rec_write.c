@@ -2217,9 +2217,11 @@ __wti_rec_pack_delta_internal(
         t_kv = &t_kv_struct;
         t_kv->buf.data = NULL;
         t_kv->buf.size = 0;
+        WT_TIME_AGGREGATE local_ta;
+        WT_TIME_AGGREGATE_INIT(&local_ta);
 
         t_kv->cell_len = __wt_cell_pack_addr(
-          session, &t_kv->cell, WT_CELL_ADDR_DEL, WT_RECNO_OOB, NULL, NULL, t_kv->buf.size);
+          session, &t_kv->cell, WT_CELL_ADDR_DEL_NULL, WT_RECNO_OOB, NULL, &local_ta, 0);
         t_kv->len = t_kv->cell_len + t_kv->buf.size;
         __wti_rec_kv_copy(session, p, t_kv);
         packed_size += t_kv->len;

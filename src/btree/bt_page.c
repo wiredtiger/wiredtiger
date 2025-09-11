@@ -173,7 +173,7 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
             WT_ERR(__page_build_ref(
               session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
         } else if (cmp >= 0) {
-            if (__wt_cell_type_raw(delta[j]->value.cell) != WT_CELL_ADDR_DEL)
+            if (__wt_cell_type_raw(delta[j]->value.cell) != WT_CELL_ADDR_DEL_NULL)
                 WT_ERR(__page_build_ref(
                   session, ref, NULL, NULL, delta[j], false, &refs[final_entries++], incr));
             if (cmp == 0)
@@ -189,7 +189,7 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
           session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
     }
     for (; j < delta_entries; j++)
-        if (__wt_cell_type_raw(delta[j]->value.cell) != WT_CELL_ADDR_DEL)
+        if (__wt_cell_type_raw(delta[j]->value.cell) != WT_CELL_ADDR_DEL_NULL)
             WT_ERR(__page_build_ref(
               session, ref, NULL, NULL, delta[j], false, &refs[final_entries++], incr));
 
