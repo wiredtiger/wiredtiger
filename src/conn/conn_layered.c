@@ -361,6 +361,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
           ", new metadata LSN = %" PRIu64,
           current_meta_lsn, meta_lsn);
 
+    /* FIXME-WT-15448 We might also want to add a check for picking up the same checkpoint again. */
+
     /*
      * Part 1: Get the metadata of the shared metadata table and insert it into our metadata table.
      */
