@@ -143,7 +143,7 @@ __wt_atomic_storevbool(volatile bool *vp, bool v)
 static inline double
 __wt_atomic_load_double(double *vp)
 {
-    return *vp;
+    return (*vp);
 }
 
 /*

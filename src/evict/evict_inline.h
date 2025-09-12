@@ -537,8 +537,7 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pc
     if (pct_fullp != NULL)
         *pct_fullp = WT_MAX(0.0,
           100.0 -
-            WT_MIN(
-              WT_MIN(evict->eviction_trigger - pct_full, dirty_trigger - pct_dirty),
+            WT_MIN(WT_MIN(evict->eviction_trigger - pct_full, dirty_trigger - pct_dirty),
               evict->eviction_updates_trigger - pct_updates));
 
     /*
