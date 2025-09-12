@@ -30,9 +30,10 @@
 #   Timestamps: assert commit settings
 #
 
-import wiredtiger, wttest
+import wiredtiger, wttest, errno
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
+from helper_disagg import DisaggConfigMixin
 
 # Test write_timestamp_usage never setting.
 class test_timestamp26_wtu_never(wttest.WiredTigerTestCase):
@@ -84,6 +85,8 @@ class test_timestamp26_wtu_never(wttest.WiredTigerTestCase):
         # Commit without a timestamp.
         else:
             self.session.commit_transaction()
+
+        self.ignoreStderrPatternIfExists("__wt_verbose_dump_txn_one/")
 
 # Test assert read timestamp settings.
 class test_timestamp26_read_timestamp(wttest.WiredTigerTestCase):
@@ -195,6 +198,8 @@ class test_timestamp26_alter(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(), msg)
 
+        self.ignoreStderrPatternIfExists("__wt_verbose_dump_txn_one")
+
 # Test timestamp settings with alter and inconsistent updates.
 class test_timestamp26_alter_inconsistent_update(wttest.WiredTigerTestCase):
     types = [
@@ -275,6 +280,8 @@ class test_timestamp26_alter_inconsistent_update(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(), msg)
 
+        self.ignoreStderrPatternIfExists("__wt_verbose_dump_txn_one")
+
 # Test timestamp settings with inconsistent updates.
 class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
     types = [
@@ -342,6 +349,8 @@ class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
             lambda: self.session.commit_transaction(), msg)
         self.ignoreStdoutPatternIfExists(msg)
 
+        self.ignoreStderrPatternIfExists("__wt_verbose_dump_txn_one")
+
     # Try to update a key previously used with timestamps without one. We should get the
     # inconsistent usage error/message.
     def test_timestamp_ts_then_nots(self):
@@ -374,6 +383,7 @@ class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
             lambda: self.session.commit_transaction(), msg)
 
         self.ignoreStdoutPatternIfExists(msg)
+        self.ignoreStderrPatternIfExists("__wt_verbose_dump_txn_one")
 
     # Smoke test setting the timestamp at various points in the transaction.
     def test_timestamp_ts_order(self):
@@ -424,8 +434,10 @@ class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
         self.assertEqual(c[key1], ds.value(20))
         self.assertEqual(c[key2], ds.value(21))
 
+        self.ignoreStderrPatternIfExists("__wt_verbose_dump_txn_one")
+
 # Test that timestamps are ignored in logged files.
-class test_timestamp26_log_ts(wttest.WiredTigerTestCase):
+class test_timestamp26_log_ts(wttest.WiredTigerTestCase, DisaggConfigMixin):
     # Turn on logging to cause timestamps to be ignored.
     conn_config = 'log=(enabled=true)'
 
@@ -448,11 +460,17 @@ class test_timestamp26_log_ts(wttest.WiredTigerTestCase):
 
         # Open the object, configuring write_timestamp usage.
         uri = 'table:ts'
-        config = ',write_timestamp_usage='
+        config = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        config += ',write_timestamp_usage='
         config += 'always' if self.always else 'never'
-        self.session.create(uri,
-            'key_format={},value_format={}'.format(self.key_format, self.value_format) + config)
 
+        # Disagg is not compatible with write timestamp never.
+        if not self.always and DisaggConfigMixin.is_disagg_scenario(self):
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.create(uri, config), "")
+            return
+
+        self.session.create(uri, config)
         c = self.session.open_cursor(uri)
 
         # Commit with a timestamp.
@@ -543,3 +561,5 @@ class test_timestamp26_in_memory_ts(wttest.WiredTigerTestCase):
 
         self.ignoreStdoutPatternIfExists('/unexpected timestamp usage/')
         self.ignoreStdoutPatternIfExists('/no timestamp provided/')
+
+        self.ignoreStderrPatternIfExists("__wt_verbose_dump_txn_one")
