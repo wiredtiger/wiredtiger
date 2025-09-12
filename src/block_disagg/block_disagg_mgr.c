@@ -148,7 +148,7 @@ __bmd_get_page_ids(
     uint64_t table_id;
 
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
-    table_id = S2BT(session)->id;
+    table_id = block_disagg->tableid;
 
     if (block_disagg->plhandle->plh_get_page_ids == NULL) {
         __wt_verbose_warning(
