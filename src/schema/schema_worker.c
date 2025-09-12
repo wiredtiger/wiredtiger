@@ -134,9 +134,9 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
           "state.",
           ingest_uri);
 
-        if (ingest_ret != 0)
-            WT_ERR_MSG(session, ingest_ret,
-              "Verify (layered): %s ingest table verification failed.", ingest_uri);
+        WT_ERR_MSG_CHK(session, ingest_ret,
+          "Verify (layered): %s ingest table verification failed. Ingest on leader must be empty.",
+          ingest_uri);
     }
 
 err:
