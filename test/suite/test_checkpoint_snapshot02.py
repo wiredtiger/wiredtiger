@@ -159,10 +159,10 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
             # Wait for checkpoint to start and acquire its snapshot before committing.
             ckpt_snapshot = 0
             while not ckpt_snapshot:
+                time.sleep(1)
                 stat_cursor = self.session.open_cursor('statistics:', None, None)
                 ckpt_snapshot = stat_cursor[stat.conn.checkpoint_snapshot_acquired][2]
                 stat_cursor.close()
-                time.sleep(1)
 
             sessionX.commit_transaction()
 
@@ -205,7 +205,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         stat_cursor.close()
 
         self.assertGreaterEqual(keys_removed, 0)
-        if not self.runningHook('disagg'):
+        if not self.runningHook('disagg'): # Disagg doesn't have inconsistent checkpoints or RTS.
             self.assertGreater(inconsistent_ckpt, 0)
 
     @wttest.skip_for_hook("disagg", "Fails in Disagg with error: Gap in keys. FIXME-WT-15429.")
@@ -299,7 +299,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
         stat_cursor.close()
 
-        if not self.runningHook('disagg'):
+        if not self.runningHook('disagg'): # Disagg doesn't have inconsistent checkpoints or RTS.
             self.assertGreater(inconsistent_ckpt, 0)
         self.assertGreaterEqual(keys_removed, 0)
 
@@ -313,6 +313,6 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
         stat_cursor.close()
 
-        if not self.runningHook('disagg'):
+        if not self.runningHook('disagg'): # Disagg doesn't have inconsistent checkpoints or RTS.
             self.assertGreaterEqual(inconsistent_ckpt, 0)
         self.assertEqual(keys_removed, 0)

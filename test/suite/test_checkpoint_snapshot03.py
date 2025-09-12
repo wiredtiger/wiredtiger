@@ -153,6 +153,6 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
         self.assertEqual(upd_aborted, 0)
         self.assertGreaterEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
-        if not self.runningHook('disagg'):
+        if not self.runningHook('disagg'): # Disagg doesn't have inconsistent checkpoints or RTS.
             self.assertGreater(inconsistent_ckpt, 0)
             self.assertGreater(pages_skipped, 0)
