@@ -232,14 +232,14 @@ def session_create_replace(orig_session_create, session_self, uri, config):
             uri = replace_uri(uri)
             WiredTigerTestCase.verbose(None, 2, f'    Replacing, new uri = "{uri}"')
         else:
-            WiredTigerTestCase.verbose(None, 2, f'    Replacing, old config = "\{config}"')
-            config += ',block_manager=disagg,type=layered'
-            WiredTigerTestCase.verbose(None, 2, f'    Replacing, new config = "\{config}"')
+            WiredTigerTestCase.verbose(None, 2, f'    Replacing, old config = "\{config_str}"')
+            config_str += ',block_manager=disagg,type=layered'
+            WiredTigerTestCase.verbose(None, 2, f'    Replacing, new config = "\{config_str}"')
 
     # If this is an index create and the main table was already tagged to be layered,
     # there's nothing we can do to "fix" it.  Currently "index:foo" is hardwired to
     # link up with "table:foo", and there is not a "table:foo", only a "layered:foo".
-    WiredTigerTestCase.verbose(None, 3, f'    Creating "{uri}" with config = "{config}"')
+    WiredTigerTestCase.verbose(None, 3, f'    Creating "{uri}" with config = "{config_str}"')
 
     # Check if log table is enabled at connection level. If it is, by default session will create a log table unless explicitly disabled in session config.
     # Skip test if it is enabled
@@ -264,7 +264,7 @@ def session_create_replace(orig_session_create, session_self, uri, config):
             WiredTigerTestCase.verbose(None, 3, f'    SKIPPING "{base_uri}"')
             skip_test('indices do not work in disagg storage')
 
-    ret = orig_session_create(session_self, uri, config)
+    ret = orig_session_create(session_self, uri, config_str)
     return ret
 
 # Called to replace Session.open_cursor.  We skip calls that do backup
