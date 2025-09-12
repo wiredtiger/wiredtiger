@@ -77,7 +77,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      * isolation.
      */
     WT_ASSERT_ALWAYS(session,
-      !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_CHECKPOINT) ||
+      !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_NO_SNAPSHOT) ||
         F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT),
       "Attempting an eviction with transaction visibility and no snapshot");
 
@@ -672,25 +672,29 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     else
         r->rec_prune_timestamp = WT_TS_NONE;
 
-    /*
-     * Cache the checkpoint's pinned transaction ID. This forbids eviction to evict anything that is
-     * not visible to the current checkpoint.
-     */
-    if (LF_ISSET(WT_REC_VISIBLE_CHECKPOINT)) {
+    if (LF_ISSET(WT_REC_VISIBLE_NO_SNAPSHOT)) {
         WT_ASSERT(session, LF_ISSET(WT_REC_EVICT));
         WT_TXN_GLOBAL *txn_global = &conn->txn_global;
-        WT_ACQUIRE_READ(r->rec_start_ckpt_pinned_id, txn_global->checkpoint_txn_shared.pinned_id);
-        if (r->rec_start_ckpt_pinned_id == WT_TXN_NONE)
-            WT_ACQUIRE_READ(r->rec_start_ckpt_pinned_id, txn_global->last_running);
+        /*
+         * If precise checkpoint is enabled, set the reconciliation's pinned id to the checkpoint's
+         * pinned id. This forbids eviction to evict anything that is not visible to the current
+         * checkpoint.
+         */
+        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+            WT_ACQUIRE_READ(r->rec_start_pinned_id, txn_global->checkpoint_txn_shared.pinned_id);
+            if (r->rec_start_pinned_id == WT_TXN_NONE)
+                WT_ACQUIRE_READ(r->rec_start_pinned_id, txn_global->last_running);
+        } else
+            WT_ACQUIRE_READ(r->rec_start_pinned_id, txn_global->last_running);
 
         if (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) {
             uint64_t ckpt_txn;
             WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
-            if (ckpt_txn != WT_TXN_NONE && ckpt_txn < r->rec_start_ckpt_pinned_id)
-                r->rec_start_ckpt_pinned_id = ckpt_txn;
+            if (ckpt_txn != WT_TXN_NONE && ckpt_txn < r->rec_start_pinned_id)
+                r->rec_start_pinned_id = ckpt_txn;
         }
     } else
-        r->rec_start_ckpt_pinned_id = WT_TXN_NONE;
+        r->rec_start_pinned_id = WT_TXN_NONE;
 
     /* When operating on the history store table, we should never try history store eviction. */
     WT_ASSERT_ALWAYS(session, !F_ISSET(btree->dhandle, WT_DHANDLE_HS) || !LF_ISSET(WT_REC_HS),
@@ -722,6 +726,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     /* The list of saved updates is reused. */
     r->supd_next = 0;
+    r->supd_onpage_or_restore = 0;
     r->supd_memsize = 0;
 
     /* The list of updates to be deleted from the history store. */
@@ -1910,6 +1915,7 @@ __rec_split_write_supd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK
     if (last_block) {
         WT_RET(__rec_supd_move(session, multi, r->supd, r->supd_next));
         r->supd_next = 0;
+        r->supd_onpage_or_restore = 0;
         r->supd_memsize = 0;
         return (ret);
     }
@@ -1952,6 +1958,7 @@ __rec_split_write_supd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK
          * appended to the list).
          */
         r->supd_memsize = 0;
+        r->supd_onpage_or_restore = 0;
         for (j = 0; i < r->supd_next; ++j, ++i) {
             /* Account for the remaining update memory. */
             if (r->supd[i].ins == NULL)
@@ -1959,7 +1966,11 @@ __rec_split_write_supd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK
                 upd = page->modify->mod_row_update[WT_ROW_SLOT(page, r->supd[i].rip)];
             else
                 upd = r->supd[i].ins->upd;
-            r->supd_memsize += __wt_update_list_memsize(upd);
+            /* Only count the size if we need to restore or have an onpage value. */
+            if (r->supd[i].onpage_upd != NULL || r->supd[i].restore) {
+                r->supd_memsize += __wt_update_list_memsize(upd);
+                ++r->supd_onpage_or_restore;
+            }
             r->supd[j] = r->supd[i];
         }
         r->supd_next = j;
@@ -2667,13 +2678,10 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
         *multi->block_meta = page->disagg_info->block_meta;
         if (mod->mod_replace.block_cookie != NULL) {
-            WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &mod->mod_replace.ta);
             WT_RET(__wt_memdup(session, mod->mod_replace.block_cookie,
               mod->mod_replace.block_cookie_size, &multi->addr.block_cookie));
             multi->addr.block_cookie_size = mod->mod_replace.block_cookie_size;
             multi->addr.type = mod->mod_replace.type;
-            __wt_free(session, mod->mod_replace.block_cookie);
-            mod->mod_replace.block_cookie_size = 0;
         } else
             WT_ASSERT(session, r->ref->addr != NULL);
         break;
@@ -2681,13 +2689,10 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         WT_ASSERT(session, mod->mod_multi_entries == 1);
         *multi->block_meta = *mod->mod_multi->block_meta;
         if (mod->mod_multi->addr.block_cookie != NULL) {
-            WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &mod->mod_multi->addr.ta);
             WT_RET(__wt_memdup(session, mod->mod_multi->addr.block_cookie,
               mod->mod_multi->addr.block_cookie_size, &multi->addr.block_cookie));
             multi->addr.block_cookie_size = mod->mod_multi->addr.block_cookie_size;
             multi->addr.type = mod->mod_multi->addr.type;
-            __wt_free(session, mod->mod_multi->addr.block_cookie);
-            mod->mod_multi->addr.block_cookie_size = 0;
         } else
             WT_ASSERT(session, r->ref->addr != NULL);
         break;
@@ -2773,6 +2778,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
         /* We have an empty page. Free the multi. */
         if (chunk->entries == 0 && !multi->supd_restore) {
+            WT_ASSERT_ALWAYS(session, last_block, "Write an empty page in split.");
             WT_ASSERT(session, WT_DELTA_LEAF_ENABLED(session));
             __rec_set_updates_durable(session, multi);
             if (btree->type == BTREE_ROW)
