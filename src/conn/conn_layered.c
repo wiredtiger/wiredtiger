@@ -1780,8 +1780,10 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
              * If we've never seen a checkpoint, then there's nothing in the ingest table we can
              * remove. Move on.
              */
-            if (ret == WT_NOTFOUND)
+            if (ret == WT_NOTFOUND) {
+                ret = 0;
                 continue;
+            }
 
             /*
              * For each layered table, we want to see what is the oldest checkpoint on that table
