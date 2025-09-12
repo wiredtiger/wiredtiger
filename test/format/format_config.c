@@ -345,6 +345,9 @@ config_table(TABLE *table, void *arg)
           table->id, WT_MILLION);
     }
 
+    if (GV(PRECISE_CHECKPOINT))
+        config_off(table, "ops.truncate");
+
 #ifndef WT_STANDALONE_BUILD
     /*
      * Non-standalone builds do not support writing fast truncate information to disk, as this
@@ -436,9 +439,9 @@ config_table(TABLE *table, void *arg)
         g.column_store_config = true;
         if (GV(PRECISE_CHECKPOINT)) {
             if (config_explicit(NULL, "precise_checkpoint"))
+                /* FIXME-WT-15274 Support column store with precise checkpoint */
                 WARN("turning off precise_checkpoint as table%" PRIu32 " is a column-store",
                   table->id);
-
             config_off(NULL, "precise_checkpoint");
         }
     }
