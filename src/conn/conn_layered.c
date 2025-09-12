@@ -1072,6 +1072,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     /* Common settings between initial connection config and reconfig. */
 
     /* Get the last materialized LSN. */
+    /* FIXME-WT-15447 Consider deprecating this. */
     WT_ERR_NOTFOUND_OK(
       __wt_config_gets(session, cfg, "disaggregated.last_materialized_lsn", &cval), true);
     if (ret == 0 && cval.len > 0 && cval.val >= 0)
