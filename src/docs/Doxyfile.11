@@ -860,7 +860,10 @@ WARN_IF_UNDOCUMENTED   = YES
 # using markup commands wrongly.
 # The default value is: YES.
 
-WARN_IF_DOC_ERROR      = NO
+# FIXME-WT-15445: Temporarily setting WARN_IF_DOC_ERROR to NO to bypass the issue
+# introduced in Doxygen 1.11.  
+# This workaround should be removed once the root cause is identified and fixed.  
+WARN_IF_DOC_ERROR = NO  
 
 # This WARN_NO_PARAMDOC option can be enabled to get warnings for functions that
 # are documented, but have no documentation for their parameters or return
