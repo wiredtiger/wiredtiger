@@ -1067,8 +1067,6 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
                   (int)cval.len, cval.str);
             }
         }
-
-        ret = 0;
     }
 
     /* Common settings between initial connection config and reconfig. */
@@ -1150,8 +1148,6 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
               (int)cval.len, cval.str);
             picked_up = true;
         }
-
-        ret = 0;
 
         /* If we are starting as primary (e.g., for internal testing), begin the checkpoint. */
         if (leader && !picked_up) {
