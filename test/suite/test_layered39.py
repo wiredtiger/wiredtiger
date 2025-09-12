@@ -107,3 +107,8 @@ class test_layered39(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.conn.set_context_uint(wiredtiger.WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN,
                                                last_lsn + 10)
         self.conn.reconfigure(f'disaggregated=(role=leader)')
+
+        # Ensure that the latest materialized LSN cannot go backwards.
+        self.assertRaisesException(wiredtiger.WiredTigerError,
+            lambda: self.conn.set_context_uint(wiredtiger.WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN,
+                                               last_lsn + 5))
