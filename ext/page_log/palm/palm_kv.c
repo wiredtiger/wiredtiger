@@ -472,9 +472,8 @@ palm_kv_get_page_ids(
     }
 
     /* MDB_NOTFOUND is okay, it means we've reached the end. */
-    if (ret == MDB_NOTFOUND) {
+    if (ret == MDB_NOTFOUND)
         ret = 0;
-    }
 
     mdb_cursor_close(cursor);
 
