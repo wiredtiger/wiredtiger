@@ -129,7 +129,7 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
             __wt_schema_worker(session, ingest_uri, file_func, name_func, cfg, open_flags));
 
         WT_ASSERT_ALWAYS(session, ingest_ret != EBUSY,
-          "Verify(layered): %s ingest table on leader cannot be verified. "
+          "Verify: %s ingest table on leader cannot be verified. "
           "Ingest contains dirty content or open cursors, which is an invalid "
           "state.",
           ingest_uri);
