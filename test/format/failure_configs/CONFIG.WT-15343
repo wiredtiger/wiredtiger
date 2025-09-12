@@ -68,7 +68,6 @@ ops.compaction=0
 ops.hs_cursor=0
 ops.bound_cursor=0
 ops.prepare=1
-ops.prepare_discover=0
 ops.random_cursor=0
 ops.salvage=0
 ops.throttle=0

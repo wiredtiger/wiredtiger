@@ -39,10 +39,10 @@ wts_prepare_discover(TABLE *table, void *arg)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION *session;
-    uint64_t prepared_id, commit_ts, durable_ts;
+    uint64_t prepared_id, ts;
     uint32_t claim_count, discover_count, rand_val;
     char buf[128];
-    bool claim_all, should_commit;
+    bool should_commit;
     SAP sap;
 
     (void)arg; /* unused argument */
@@ -73,56 +73,43 @@ wts_prepare_discover(TABLE *table, void *arg)
      */
     discover_count = 0;
     claim_count = 0;
-    claim_all = mmrand(&g.extra_rnd, 0, 9) < 8; /* 80% chance to claim all */
-
     while ((ret = cursor->next(cursor)) == 0) {
         discover_count++;
         testutil_check(cursor->get_key(cursor, &prepared_id));
 
         trace_msg(session, "Discovered prepared transaction with ID: %" PRIu64, prepared_id);
-
         /*
-         * Decide whether to claim this transaction. If claim_all is true, claim all transactions.
-         * Otherwise, randomly decide for each transaction.
+         * TODO: randomly decide to claim all prepared txn or leave some?
          */
-        if (claim_all || mmrand(&g.extra_rnd, 0, 9) < 7) { /* 70% chance to claim */
-            /* Claim the prepared transaction */
-            testutil_snprintf(buf, sizeof(buf), "claim_prepared=%" PRIx64, prepared_id);
-            testutil_check(session->begin_transaction(session, buf));
+        /* Claim the prepared transaction */
+        testutil_snprintf(buf, sizeof(buf), "claim_prepared_id=%" PRIx64, prepared_id);
+        testutil_check(session->begin_transaction(session, buf));
 
-            /* Randomly decide whether to commit or roll back */
-            rand_val = mmrand(&g.extra_rnd, 0, 9);
-            should_commit = (rand_val < 8); /* 80% chance to commit */
+        /* Randomly decide whether to commit or roll back */
+        rand_val = mmrand(&g.extra_rnd, 0, 9);
+        should_commit = (rand_val < 5); /* 80% chance to commit */
 
-            if (should_commit) {
-                /*
-                 * Commit with a timestamp greater than the prepare timestamp We use the current
-                 * timestamp + 10 to ensure it's newer
-                 */
-                commit_ts = __wt_atomic_addv64(&g.timestamp, 10);
-                durable_ts = commit_ts + 10;
+        if (should_commit) {
+            /*
+             * Commit with a timestamp greater than the prepare timestamp We use the current
+             * timestamp + 10 to ensure it's newer
+             */
+            ts = __wt_atomic_addv64(&g.timestamp, 1);
+            testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
+            testutil_check(
+              session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_DURABLE, ts));
 
-                testutil_snprintf(buf, sizeof(buf),
-                  "commit_timestamp=%" PRIu64 ",durable_timestamp=%" PRIu64, commit_ts, durable_ts);
-
-                testutil_check(session->commit_transaction(session, buf));
-                trace_msg(session,
-                  "Claimed and committed prepared transaction %" PRIu64 " with ts=%" PRIu64
-                  "/%" PRIu64,
-                  prepared_id, commit_ts, durable_ts);
-            } else {
-                /* Roll back the transaction */
-                testutil_check(session->rollback_transaction(session, NULL));
-                trace_msg(
-                  session, "Claimed and rolled back prepared transaction %" PRIu64, prepared_id);
-            }
-
-            claim_count++;
+            testutil_check(session->commit_transaction(session, NULL));
+            trace_msg(session, "Claimed and committed prepared id %" PRIu64, prepared_id);
         } else {
-            trace_msg(session, "Skipped claiming prepared transaction %" PRIu64, prepared_id);
+            /* Roll back the transaction */
+            testutil_check(session->rollback_transaction(session, NULL));
+            trace_msg(
+              session, "Claimed and rolled back prepared transaction %" PRIu64, prepared_id);
         }
-    }
 
+        claim_count++;
+    }
     /* WT_NOTFOUND is expected when we reach the end of the cursor */
     testutil_assert(ret == WT_NOTFOUND);
 
@@ -132,7 +119,6 @@ wts_prepare_discover(TABLE *table, void *arg)
           "Prepare discover: found %" PRIu32 " prepared transactions, claimed %" PRIu32,
           discover_count, claim_count);
     }
-
     /*
      * If we're not claiming all transactions, expect an error when closing the cursor.
      */
