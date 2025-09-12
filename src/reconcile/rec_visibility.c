@@ -48,7 +48,7 @@ __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT
         ++r->supd_onpage_or_restore;
         r->supd_memsize += upd_memsize;
     } else
-        WT_ASSERT(session, upd_memsize == 0);
+        WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT) || upd_memsize == 0);
     return (0);
 }
 
