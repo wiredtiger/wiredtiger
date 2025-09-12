@@ -67,6 +67,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_ITEM *current;
     WT_PAGE_LOG_GET_ARGS get_args;
     uint64_t time_start, time_stop;
+    uint32_t full_size;
     uint32_t i, orig_count, retry;
     int32_t last, result;
     uint8_t compatible_version, expected_magic;
@@ -87,8 +88,9 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
 
     WT_STAT_CONN_INCR(session, disagg_block_get);
     WT_STAT_CONN_INCR(session, block_read);
-    WT_STAT_CONN_INCRV(session, block_byte_read, size);
-
+    /*
+     * WT_STAT_CONN_INCRV(session, block_byte_read, size);
+     */
     if (F_ISSET(block_disagg, WT_BLOCK_DISAGG_HS)) {
         WT_STAT_CONN_INCR(session, disagg_block_hs_get);
         WT_STAT_CONN_INCRV(session, disagg_block_hs_byte_read, size);
@@ -120,6 +122,15 @@ reread:
      */
     WT_ERR(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id, 0,
       &get_args, results_array, results_count));
+
+    full_size = 0;
+    /*
+     * mm: consider using WT_ELEMENTS?
+     */
+    for (i = 0; i < *results_count; ++i)
+        full_size += results_array[i].size;
+
+    WT_STAT_CONN_INCRV(session, block_byte_read, full_size);
 
     WT_ASSERT(session, *results_count <= WT_DELTA_LIMIT + 1);
 
