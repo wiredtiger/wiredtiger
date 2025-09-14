@@ -117,6 +117,7 @@ def main():
             if (not capture):
                 print(f"Error: Unable to parse the tsan warning: {tsan_warning}")
                 filter_tsan_warnings[tsan_warning] = tsan_tuple
+                continue
             file_path = capture.group(1)
             line_number = int(capture.group(2))
             timestamp = get_line_last_modified_times(file_path, line_number)
