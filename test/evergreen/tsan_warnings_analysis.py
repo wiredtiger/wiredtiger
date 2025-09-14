@@ -112,9 +112,11 @@ def main():
         for tsan_warning, tsan_tuple in tsan_warnings_dict.items():
             pattern_to_capture = r"data race (.*):(\d+)"
             capture = re.search(pattern_to_capture, tsan_warning)
+            # It is possible for TSAN warnings to not have line number information.
+            # In such case, add the TSAN warning to the filtered tsan warnings.
             if (not capture):
                 print(f"Error: Unable to parse the tsan warning: {tsan_warning}")
-                exit(1)
+                filter_tsan_warnings[tsan_warning] = tsan_tuple
             file_path = capture.group(1)
             line_number = int(capture.group(2))
             timestamp = get_line_last_modified_times(file_path, line_number)
