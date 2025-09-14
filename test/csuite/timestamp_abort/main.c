@@ -349,8 +349,10 @@ thread_ts_run(void *arg)
     td = (THREAD_DATA *)arg;
     conn = td->conn;
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    /* Wait for all working threads to complete as there will be a
-     * stable timestamp available to work with. */
+    /*
+     * Wait for all working threads to complete as there will be a stable timestamp available to
+     * work with.
+     */
     while (!thread_sync_conds.timer_ready_to_go) {
         bool cv_signalled;
         /* Under a high workload, there is no need to check very often, check every second. */
@@ -1045,12 +1047,12 @@ run_workload(uint32_t workload_iteration)
     for (i = 0; i <= ts_id; ++i)
         testutil_check(__wt_thread_join(NULL, &thr[i]));
 
-    __wt_cond_destroy(opt_session, &thread_sync_conds.timer_cond);
-    __wt_cond_destroy(opt_session, &thread_sync_conds.ckpt_cond);
-
     /*
      * NOTREACHED
      */
+    __wt_cond_destroy(opt_session, &thread_sync_conds.timer_cond);
+    __wt_cond_destroy(opt_session, &thread_sync_conds.ckpt_cond);
+
     free(thr);
     free(td);
     _exit(EXIT_SUCCESS);
