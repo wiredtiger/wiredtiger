@@ -136,5 +136,3 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # The leader is still alive, verify it.
         self.verify([self.session])
-        # FIXME-WT-14700: remove ignore after freeing root pages is addressed.
-        self.ignoreStdoutPattern("Mismatch in page IDs")
