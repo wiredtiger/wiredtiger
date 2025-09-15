@@ -41,7 +41,6 @@ from wiredtiger import stat, WiredTigerError
 # 7. Repeat steps 5,6 and validate that the page read back into memory should
 #    not be reconciled everytime with the help of btree stat.
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
-#@wttest.skip_for_hook("disagg", "prepare not implemented in disagg yet, and stats are fragile")
 class test_scrub_eviction_prepare(wttest.WiredTigerTestCase):
 
     def conn_config(self):
