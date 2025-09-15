@@ -713,6 +713,14 @@ __wt_evict_app_assist_worker_check(
         return (0);
 
     /*
+     * Check if application threads are allowed to participate in eviction based on the configured
+     * minimum cache fill ratio.
+     */
+    if (conn->cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio > 0 &&
+      pct_full < conn->cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio)
+        return (0);
+
+    /*
      * If the caller is holding shared resources, only evict if the cache is at any of its eviction
      * targets.
      */

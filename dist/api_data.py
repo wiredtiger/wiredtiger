@@ -590,6 +590,12 @@ connection_runtime_config = [
                 r'''Change the eviction strategy to scrub eviction when the cache usage is under
                 the target limit.''',
                 type='boolean'),
+            Config('app_eviction_min_cache_fill_ratio', '0', r'''
+                The cache fill ratio that is required for the application threads from
+                participating in eviction. The value is between 0 and 50. A value of 0 means
+                this option is disabled. This value must be greater than \c eviction_dirty_trigger
+                or \c eviction_update_trigger to have any effect.''',
+                min='0', max='50'),
         ]),
     Config('cache_size', '100MB', r'''
         maximum heap memory to allocate for the cache. A database should configure either
