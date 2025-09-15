@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 #
 # Make sure that no shenanigans occur if we try to read from a page that's been
 # fast-truncated by a prepared transaction.
-
+@wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate17(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
     session_config = 'isolation=snapshot'

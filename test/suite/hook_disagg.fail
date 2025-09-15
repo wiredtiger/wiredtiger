@@ -101,6 +101,10 @@ test_stat_log01.py
 test_stat_log02.py
 test_sweep03.py  # FIXME: WT-15417
 test_timestamp20.py
+test_timestamp26.py
+test_truncate01.py # WT-15474
+test_truncate21.py # WT-15472
+test_truncate24.py # WT-15473
 test_txn02.py
 test_txn04.py
 test_txn06.py

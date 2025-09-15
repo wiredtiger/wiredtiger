@@ -38,7 +38,7 @@ from wtscenario import make_scenarios
 # even if the truncate information is loaded during recovery and stays in cache.
 #
 # This version uses timestamps and no logging.
-
+@wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate12(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
     session_config = 'isolation=snapshot'

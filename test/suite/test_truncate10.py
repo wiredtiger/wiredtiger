@@ -34,7 +34,7 @@ from wtscenario import make_scenarios
 # test_truncate10.py
 #
 # Check that nothing comes unstuck if we commit a truncate with durable > commit.
-
+@wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate10(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
     session_config = 'isolation=snapshot'

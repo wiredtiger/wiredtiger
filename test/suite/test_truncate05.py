@@ -31,6 +31,7 @@ from wtscenario import make_scenarios
 
 # test_truncate05.py
 # Test various fast truncate visibility scenarios
+@wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate05(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=2MB'
 

@@ -34,6 +34,7 @@ from wtscenario import make_scenarios
 #
 # Test to mimic oplog workload in MongoDB. Ensure the deleted pages are
 # cleaned up on disk and we are not using excessive disk space.
+@wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate19(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
 

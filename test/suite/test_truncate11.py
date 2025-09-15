@@ -36,6 +36,7 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 from wtthread import checkpoint_thread
 
+@wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate11(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(all),statistics_log=(json,on_close,wait=1),timing_stress_for_test=[checkpoint_slow]'
 

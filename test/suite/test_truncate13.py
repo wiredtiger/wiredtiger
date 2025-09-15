@@ -33,7 +33,7 @@ from wtscenario import make_scenarios
 
 # test_truncate13.py
 # Test reading in the gaps created by a fast-delete.
-
+@wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate13(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
     conn_config = 'cache_size=50MB,statistics=(all),log=(enabled=false)'
