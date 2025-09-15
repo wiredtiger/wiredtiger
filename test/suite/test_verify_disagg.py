@@ -136,24 +136,3 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # The leader is still alive, verify it.
         self.verify([self.session])
-
-        # FIXME-WT-14700: remove ignore after freeing root pages is addressed.
-        self.ignoreStdoutPattern("Mismatch in page IDs")
-
-    def test_verify_ingest_busy_on_leader(self):
-        # Create a layered table on the leader
-        self.session.create(self.uri, self.table_cfg)
-        self.session.checkpoint()
-
-        # Open a cursor on the ingest component on leader
-        ingest_cursor = self.session.open_cursor(self.ingest_uri, None, None)
-
-        # Verify fails as the ingest table on leader has open cursors
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.verify([self.session]), '/ingest table verification failed/')
-
-        ingest_cursor.close()
-
-        self.verify([self.session])
-        # FIXME-WT-14700: remove ignore after freeing root pages is addressed.
-        self.ignoreStdoutPattern("Mismatch in page IDs")

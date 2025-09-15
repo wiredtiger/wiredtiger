@@ -332,7 +332,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
     WT_ITEM item;
     WT_SESSION_IMPL *internal_session, *shared_metadata_session;
     size_t len, metadata_value_cfg_len;
-    uint64_t checkpoint_timestamp;
+    uint64_t checkpoint_timestamp, current_meta_lsn;
     char *buf, *cfg_ret, *checkpoint_config, *root, *metadata_value_cfg, *layered_ingest_uri;
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
 
@@ -352,6 +352,16 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
     WT_CLEAR(item);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+
+    /* We should not pick up a checkpoint with an earlier LSN. */
+    WT_ACQUIRE_READ(current_meta_lsn, conn->disaggregated_storage.last_checkpoint_meta_lsn);
+    if (meta_lsn < current_meta_lsn)
+        WT_RET_MSG(session, EINVAL,
+          "Attempting to pick up an older checkpoint: current metadata LSN = %" PRIu64
+          ", new metadata LSN = %" PRIu64,
+          current_meta_lsn, meta_lsn);
+
+    /* FIXME-WT-15448 We might also want to add a check for picking up the same checkpoint again. */
 
     /*
      * Part 1: Get the metadata of the shared metadata table and insert it into our metadata table.
@@ -1044,8 +1054,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     if (reconfig) {
 
         /* Pick up a new checkpoint (followers only). */
-        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.checkpoint_meta", &cval));
-        if (cval.len > 0) {
+        WT_ERR_NOTFOUND_OK(
+          __wt_config_gets(session, cfg, "disaggregated.checkpoint_meta", &cval), true);
+        if (ret == 0 && cval.len > 0) {
             /*
              * FIXME-WT-14733: currently the leader silently ignores the checkpoint_meta
              * configuration as it may have an obsolete configuration in its base config when it is
@@ -1063,8 +1074,10 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     /* Common settings between initial connection config and reconfig. */
 
     /* Get the last materialized LSN. */
-    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.last_materialized_lsn", &cval));
-    if (cval.len > 0 && cval.val >= 0)
+    /* FIXME-WT-15447 Consider deprecating this. */
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_gets(session, cfg, "disaggregated.last_materialized_lsn", &cval), true);
+    if (ret == 0 && cval.len > 0 && cval.val >= 0)
         WT_ERR_MSG_CHK(session, __wti_disagg_set_last_materialized_lsn(session, (uint64_t)cval.val),
           "Failed to set the last materialized LSN to %" PRIu64, (uint64_t)cval.val);
 
@@ -1129,8 +1142,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR(__disagg_metadata_table_init(session));
 
         /* Pick up the selected checkpoint. */
-        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.checkpoint_meta", &cval));
-        if (cval.len > 0) {
+        WT_ERR_NOTFOUND_OK(
+          __wt_config_gets(session, cfg, "disaggregated.checkpoint_meta", &cval), true);
+        if (ret == 0 && cval.len > 0) {
             WT_WITH_CHECKPOINT_LOCK(
               session, ret = __disagg_pick_up_checkpoint_meta(session, &cval));
             WT_ERR_MSG_CHK(session, ret, "Failed to pick up a new checkpoint with config: %.*s",
@@ -1766,8 +1780,10 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
              * If we've never seen a checkpoint, then there's nothing in the ingest table we can
              * remove. Move on.
              */
-            if (ret == WT_NOTFOUND)
+            if (ret == WT_NOTFOUND) {
+                ret = 0;
                 continue;
+            }
 
             /*
              * For each layered table, we want to see what is the oldest checkpoint on that table
