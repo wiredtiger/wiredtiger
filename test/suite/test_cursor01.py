@@ -98,7 +98,7 @@ class test_cursor01(wttest.WiredTigerTestCase):
         self.pr('creating cursor')
         cursor = self.session.open_cursor(tablearg, None, None)
         self.assertCursorHasNoKeyValue(cursor)
-        if 'disagg' not in self.hook_names:
+        if not self.runningHook('disagg'):
             self.assertEqual(cursor.uri, tablearg)
 
         for i in range(0, self.nentries):

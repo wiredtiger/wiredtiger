@@ -102,7 +102,7 @@ class test_scrub_eviction_prepare(wttest.WiredTigerTestCase):
         # it is the leaf page + internal/root page? But why is this different
         # from attached storage?
         expect_reconciled = 1
-        if 'disagg' in wttest.WiredTigerTestCase.hook_names:
+        if self.runningHook('disagg'):
             self.assertGreater(num_reconciled, 0)
             expect_reconciled = num_reconciled
 

@@ -49,7 +49,7 @@ class test_stat06(wttest.WiredTigerTestCase):
 
     def test_stats_off(self):
         # FIXME-WT-15439: force content before closing, needed to create initial checkpoint
-        if 'disagg' in wttest.WiredTigerTestCase.hook_names:
+        if self.runningHook('disagg'):
             self.session.create('table:_ignore')
             self.session.checkpoint()
         self.close_conn()

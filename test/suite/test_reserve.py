@@ -183,7 +183,7 @@ class test_reserve(wttest.WiredTigerTestCase):
         s.create(uri, 'key_format=' + self.keyfmt + ",value_format=" + self.valfmt)
 
         # In disagg, we can't open a bulk cursor yet.
-        if 'disagg' in wttest.WiredTigerTestCase.hook_names:
+        if self.runningHook('disagg'):
             list = [ "dump=json" ]
         else:
             list = [ "bulk", "dump=json" ]
