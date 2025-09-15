@@ -820,8 +820,8 @@ functions:
         # do_run will contain a list of files we want to run.
         no_run=$(mktemp)
         do_run=$(mktemp)
-        if [ -n "$unit_test_ignore" ]; then
-            sed -e 's/ *#.*//' -e '/^$/d' < "$unit_test_ignore" > $no_run
+        if [ -n ${unit_test_ignore} ]; then
+            sed -e 's/ *#.*//' -e '/^$/d' < ${unit_test_ignore} > $no_run
             (cd ./test/suite; ls test_*.py) | fgrep -vf $no_run > $do_run
         else
             # Some hooks prune out specific tests if we don't give them a list, e.g. hook_tiered.
