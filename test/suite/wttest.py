@@ -174,8 +174,12 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                 totalRetries, totalTestsRun, WiredTigerTestCase._resultFileName))
 
     @staticmethod
-    def currentTestCase():
+    def getCurrentTestCase():
         return getattr(WiredTigerTestCase._threadLocal, 'currentTestCase', None)
+
+    @staticmethod
+    def setCurrentTestCase(val):
+        return setattr(WiredTigerTestCase._threadLocal, 'currentTestCase', val)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -920,6 +924,18 @@ def skip_for_hook(hookname, description):
         return func
     if hookname in WiredTigerTestCase.hook_names:
         return unittest.skip("because running with hook '{}': {}".format(hookname, description))
+    else:
+        return runit_decorator
+
+def only_for_hook(hookname, description):
+    """
+    Used as a function decorator, e.g., @wttest.only_for_hook("tiered", "only runs with tiered hook").
+    The test will be skipped unless the specified hook is active.
+    """
+    def runit_decorator(func):
+        return func
+    if hookname not in WiredTigerTestCase.hook_names:
+        return unittest.skip(f"only runs with hook '{hookname}': {description}")
     else:
         return runit_decorator
 
