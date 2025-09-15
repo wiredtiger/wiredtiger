@@ -345,7 +345,7 @@ config_table(TABLE *table, void *arg)
           table->id, WT_MILLION);
     }
 
-    if (GV(PRECISE_CHECKPOINT))
+    if (GV(PRECISE_CHECKPOINT) && GV(OPS_PREPARE))
         config_off(table, "ops.truncate");
 
 #ifndef WT_STANDALONE_BUILD

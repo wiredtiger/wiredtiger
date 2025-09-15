@@ -67,10 +67,7 @@ wts_prepare_discover(TABLE *table, void *arg)
      */
     trace_msg(session, "Starting prepare discover operation %s", "");
 
-    /*
-     * Iterate through all prepared transactions This is similar to how test_prepare_discover03.py
-     * walks through the cursor
-     */
+    /* Iterate through all prepared transactions and claim pending prepared transactions. */
     discover_count = 0;
     claim_count = 0;
     while ((ret = cursor->next(cursor)) == 0) {
@@ -91,7 +88,7 @@ wts_prepare_discover(TABLE *table, void *arg)
 
         if (should_commit) {
             /*
-             * Commit with a timestamp greater than the prepare timestamp We use the current
+             * Commit with a timestamp greater than the prepare timestamp. We use the current
              * timestamp + 10 to ensure it's newer
              */
             ts = __wt_atomic_addv64(&g.timestamp, 1);
