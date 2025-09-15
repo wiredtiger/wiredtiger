@@ -1544,8 +1544,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
              * Ensure keys returned are in correctly sorted order. Only perform this check when key
              * has been initialized.
              */
-            if (key->size != 0)
-                WT_ASSERT(session, cmp <= 0);
+            WT_ASSERT(session, key->size == 0 || cmp <= 0);
 
             if (upds != NULL) {
                 WT_WITH_DHANDLE(
