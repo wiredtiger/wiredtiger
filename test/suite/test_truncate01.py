@@ -113,6 +113,9 @@ class test_truncate_uri(test_truncate_base):
         confirm_empty(self, uri)
 
         # TODO: layered table drop not supported yet.
+        if self.type != "layered:":
+            self.dropUntilSuccess(self.session, uri)
+
         if self.type == "table:" and 'disagg' not in self.hook_names:
             cds = ComplexDataSet(self, uri, 100)
             cds.populate()
@@ -190,6 +193,9 @@ class test_truncate_cursor_end(test_truncate_base):
         self.assertEqual(c2.close(), 0)
 
         # TODO: layered table drop not supported yet.
+        if self.type != "layered:":
+            self.dropUntilSuccess(self.session, uri)
+
         if self.type == "table:" and 'disagg' not in self.hook_names:
             ds = ComplexDataSet(self, uri, 100, key_format=self.keyfmt)
             ds.populate()
