@@ -57,9 +57,6 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
         config = 'cache_size=250MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
         return config
 
-    def moresetup(self):
-        self.ignoreStdoutPatternIfExists('Eviction took more than 1 minute') # FIXME-WT-15478
-
     def large_updates(self, uri, value, ds, nrows):
         # Update a large number of records.
         session = self.session
@@ -159,3 +156,5 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
         if not self.runningHook('disagg'): # Disagg doesn't have inconsistent checkpoints or RTS.
             self.assertGreater(inconsistent_ckpt, 0)
             self.assertGreater(pages_skipped, 0)
+
+        self.ignoreStdoutPatternIfExists('Eviction took more than 1 minute') # FIXME-WT-15478
