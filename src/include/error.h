@@ -47,7 +47,7 @@
 
 #ifdef WT_HAVE_ERROR_LOG
 #define __wt_error_log_add_helper(expr, error, suberror) \
-    (void)__wt_error_log_add(__FILE__, __PRETTY_FUNCTION__, __LINE__, expr, error, suberror)
+    __wt_error_log_add(__FILE__, __PRETTY_FUNCTION__, __LINE__, expr, error, suberror)
 #else
 #define __wt_error_log_add_helper(expr, error, suberror)
 #endif
@@ -59,7 +59,7 @@
  *     this macro currently results in the error being logged twice if the error log is enabled.
  */
 #define WT_ERROR_LOG_ADD(expr) \
-    __wt_error_log_add(__FILE__, __PRETTY_FUNCTION__, __LINE__, #expr, expr, WT_NONE)
+    __wt_error_log_add_ret(__FILE__, __PRETTY_FUNCTION__, __LINE__, #expr, expr, WT_NONE)
 
 /* Set "ret" and branch-to-err-label tests. */
 #define WT_ERR(a)                                        \

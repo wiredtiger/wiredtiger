@@ -835,9 +835,9 @@ __wt_unexpected_object_type(WT_SESSION_IMPL *session, const char *uri, const cha
 
 /*
  * __wt_error_log_add --
- *     Add an entry to the error log. Return the error code.
+ *     Add an entry to the error log.
  */
-int
+void
 __wt_error_log_add(
   const char *file, const char *func, int line, const char *expr, int error, int suberror)
 {
@@ -854,6 +854,17 @@ __wt_error_log_add(
     error_log.tail = (error_log.tail + 1) % WT_MAX_ERROR_LOG_MAX;
     if (error_log.head == error_log.tail)
         error_log.head = (error_log.head + 1) % WT_MAX_ERROR_LOG_MAX;
+}
+
+/*
+ * __wt_error_log_add_ret --
+ *     Add an entry to the error log. Do not return the error code.
+ */
+int
+__wt_error_log_add_ret(
+  const char *file, const char *func, int line, const char *expr, int error, int suberror)
+{
+    __wt_error_log_add(file, func, line, expr, error, suberror);
     return (error);
 }
 
