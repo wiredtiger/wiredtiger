@@ -27,7 +27,7 @@ __layered_get_disagg_checkpoint(WT_SESSION_IMPL *session, const char **cfg,
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_PAGE_LOG *page_log;
+    WT_PAGE_LOG *page_log = NULL;
     char *page_log_name;
 
     conn = S2C(session);
