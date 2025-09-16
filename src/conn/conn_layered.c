@@ -370,7 +370,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
     /* Read the checkpoint metadata of the shared metadata table from the special metadata page. */
     WT_ERR_MSG_CHK(session,
       __disagg_get_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, meta_lsn, &item),
-      "Disagg metadata fetching failed, with lsn : %" PRIu64 "", meta_lsn);
+      "Disagg metadata fetching failed, with lsn: %" PRIu64, meta_lsn);
 
     /* Add the terminating zero byte to the end of the buffer. */
     len = item.size + 1;
@@ -434,7 +434,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
      * on the most recent checkpoint from now on.
      */
     WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI),
-      "Removing old disagg table failed : \"%s\"", WT_DISAGG_METADATA_URI);
+      "Removing old references to disagg tables failed: \"%s\"", WT_DISAGG_METADATA_URI);
 
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
     cfg[1] = NULL;
@@ -478,7 +478,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
              * metadata.
              */
             WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, metadata_key),
-              "Marking data handles outdated failed : \"%s\"", metadata_key);
+              "Marking data handles outdated failed: \"%s\"", metadata_key);
             __wt_free(session, cfg_ret);
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
@@ -537,20 +537,19 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
 
     /* Keep a record of past checkpoints, they will be needed for ingest garbage collection. */
     WT_ERR_MSG_CHK(session, __layered_track_checkpoint(session, checkpoint_timestamp),
-      "No checkpoint found for track");
+      "Updating disagg checkpoint tracking failed");
 
     /* Update ingest tables' prune timestamps. */
     WT_ERR_MSG_CHK(session, __layered_update_gc_ingest_tables_prune_timestamps(internal_session),
-      "No checkpoint found for update");
+      "Updating prune timestamp failed");
 
 err:
-    /* Add stat for success check here */
     if (ret == 0)
         WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_succeed);
     else {
         WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_failed);
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "Disagg pick up checkpoint for meta_lsn =%" PRIu64 ", failed by : %d", meta_lsn, ret);
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_ERROR,
+          "Disagg pick up checkpoint for meta_lsn =%" PRIu64 ", failed with: %d", meta_lsn, ret);
     }
 
     /* Free memory allocated by the page log interface */
@@ -1798,7 +1797,7 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
             if (ret == WT_NOTFOUND) {
                 ret = 0;
                 __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-                  "GC %s: Layered table checkpoint not exist : %s", layered_table->iface.name,
+                  "GC %s: Layered table checkpoint does not exist: %s", layered_table->iface.name,
                   layered_table->stable_uri);
                 continue;
             }
@@ -1895,7 +1894,7 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
                     WT_ERR(__wt_session_release_dhandle(session));
                 } else {
                     __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-                      "GC %s: Handle not found for ingest uri : %s", layered_table->iface.name,
+                      "GC %s: Handle not found for ingest table uri: %s", layered_table->iface.name,
                       layered_table->ingest_uri);
                     ret = 0;
                 }
@@ -1907,8 +1906,8 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
 
 err:
     if (ret != 0)
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "GC ingest tables prune failed by : %d", ret);
+        __wt_verbose_level(
+          session, WT_VERB_LAYERED, WT_VERBOSE_ERROR, "GC ingest tables prune failed by: %d", ret);
     /*
      * FIXME-WT-14735: we could hold lock for a shorter time. Maybe release it after getting/copying
      * each URI, then an individual URI could be garbage collected without a lock, then re-acquire

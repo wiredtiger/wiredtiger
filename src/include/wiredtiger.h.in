@@ -7280,7 +7280,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS_REFRESHED	1521
 /*! layered: disagg pick up checkpoints failed */
 #define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_FAILED	1522
-/*! layered: disagg pickup checkpoints succeeded */
+/*! layered: disagg pick up checkpoints succeeded */
 #define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_SUCCEED	1523
 /*!
  * layered: how many log applications the layered table manager applied
@@ -9173,7 +9173,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_CHECKPOINTS_REFRESHED	2284
 /*! layered: disagg pick up checkpoints failed */
 #define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_FAILED	2285
-/*! layered: disagg pickup checkpoints succeeded */
+/*! layered: disagg pick up checkpoints succeeded */
 #define	WT_STAT_DSRC_LAYERED_TABLE_MANAGER_CHECKPOINTS_DISAGG_PICK_UP_SUCCEED	2286
 /*!
  * layered: how many log applications the layered table manager applied
