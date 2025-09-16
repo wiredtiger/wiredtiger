@@ -547,8 +547,11 @@ err:
     /* Add stat for success check here */
     if (ret == 0)
         WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_succeed);
-    else
+    else {
         WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_failed);
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+          "Disagg pick up checkpoint for meta_lsn =%" PRIu64 ", failed by : %d", meta_lsn, ret);
+    }
 
     /* Free memory allocated by the page log interface */
     __wt_free(session, item.mem);
@@ -1794,6 +1797,9 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
              */
             if (ret == WT_NOTFOUND) {
                 ret = 0;
+                __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+                  "GC %s: Layered table checkpoint not exist : %s", layered_table->iface.name,
+                  layered_table->stable_uri);
                 continue;
             }
 
@@ -1887,8 +1893,12 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
                       layered_table->iface.name, layered_table->last_ckpt_inuse, ckpt_inuse);
                     layered_table->last_ckpt_inuse = ckpt_inuse;
                     WT_ERR(__wt_session_release_dhandle(session));
-                } else
+                } else {
+                    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+                      "GC %s: Handle not found for ingest uri : %s", layered_table->iface.name,
+                      layered_table->ingest_uri);
                     ret = 0;
+                }
             }
             min_ckpt_inuse = WT_MIN(layered_table->last_ckpt_inuse, min_ckpt_inuse);
         }
@@ -1896,6 +1906,9 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
     ds->ckpt_min_inuse = min_ckpt_inuse;
 
 err:
+    if (ret != 0)
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+          "GC ingest tables prune failed by : %d", ret);
     /*
      * FIXME-WT-14735: we could hold lock for a shorter time. Maybe release it after getting/copying
      * each URI, then an individual URI could be garbage collected without a lock, then re-acquire
