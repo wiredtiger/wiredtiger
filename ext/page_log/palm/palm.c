@@ -1076,8 +1076,8 @@ palm_handle_close_internal(PALM *palm, PALM_HANDLE *palm_handle)
     /* Remove from tracking list (if present). */
     if (palm != NULL) {
         (void)pthread_rwlock_wrlock(&palm->pl_handle_lock);
-        if (palm_handle->q.tqe_prev != NULL || TAILQ_FIRST(&palm->fileq) == palm_handle)
-            TAILQ_REMOVE(&palm->fileq, palm_handle, q);
+        assert(palm_handle->q.tqe_prev != NULL || TAILQ_FIRST(&palm->fileq) == palm_handle);
+        TAILQ_REMOVE(&palm->fileq, palm_handle, q);
         pthread_rwlock_unlock(&palm->pl_handle_lock);
     }
 
