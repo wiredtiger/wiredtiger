@@ -1408,7 +1408,7 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
 {
     WT_REF *ref = NULL;
     uint64_t num_pages_found_in_btree = 0;
-    uint64_t capacity = 0;
+    size_t capacity = 0;
     uint64_t *page_ids = NULL;
     int ret = 0;
 
