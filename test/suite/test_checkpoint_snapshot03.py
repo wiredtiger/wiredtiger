@@ -57,6 +57,9 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
         config = 'cache_size=250MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
         return config
 
+    def moresetup(self):
+        self.ignoreStdoutPatternIfExists('Eviction took more than 1 minute') # FIXME-WT-15478
+
     def large_updates(self, uri, value, ds, nrows):
         # Update a large number of records.
         session = self.session
