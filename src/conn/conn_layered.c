@@ -544,6 +544,12 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
       "No checkpoint found for update");
 
 err:
+    /* Add stat for success check here */
+    if (ret == 0)
+        WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_succeed);
+    else
+        WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_failed);
+
     /* Free memory allocated by the page log interface */
     __wt_free(session, item.mem);
 
