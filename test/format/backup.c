@@ -55,7 +55,7 @@ check_copy(WT_SESSION *session, uint64_t id)
      * all pending prepared transactions.
      */
     if (GV(PRECISE_CHECKPOINT))
-        tables_apply(wts_prepare_discover, NULL);
+        wts_prepare_discover(conn);
     /* Verify the objects. */
     trace_msg(session, "Start %s backup verify in %s",
       GV(BACKUP_LIVE_RESTORE) ? "live restore" : "copied", to_path);

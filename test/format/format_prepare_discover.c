@@ -33,9 +33,8 @@
  *     Discover and process prepared transactions.
  */
 void
-wts_prepare_discover(TABLE *table, void *arg)
+wts_prepare_discover(WT_CONNECTION *conn)
 {
-    WT_CONNECTION *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION *session;
@@ -43,14 +42,11 @@ wts_prepare_discover(TABLE *table, void *arg)
     uint32_t claim_count, discover_count, rand_val;
     char buf[128];
     bool should_commit;
-    SAP sap;
-
-    (void)arg; /* unused argument */
-    testutil_assert(table != NULL);
-
-    conn = g.wts_conn;
-    memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(conn, &sap, table->track_prefix, NULL, &session);
+    /*
+     * Individual object verification. Do a full checkpoint to reduce the possibility of returning
+     * EBUSY from the following verify calls.
+     */
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /* Open the prepare discover cursor */
     ret = session->open_cursor(session, "prepared_discover:", NULL, NULL, &cursor);
@@ -116,46 +112,7 @@ wts_prepare_discover(TABLE *table, void *arg)
           "Prepare discover: found %" PRIu32 " prepared transactions, claimed %" PRIu32,
           discover_count, claim_count);
     }
-    /*
-     * If we're not claiming all transactions, expect an error when closing the cursor.
-     */
-    if (discover_count > 0 && claim_count < discover_count) {
-        ret = cursor->close(cursor);
-        testutil_assert(ret != 0);
-        trace_msg(session, "Expected error when closing cursor with unclaimed transactions: %s",
-          wiredtiger_strerror(ret));
-
-        /* We still need to clean up the session */
-        testutil_check(session->close(session, NULL));
-
-        /*
-         * Reopen a connection and clean up any remaining prepared transactions This is to avoid
-         * leaving the system in a state with unclaimed transactions
-         */
-        wts_open(g.home, &conn, false);
-        memset(&sap, 0, sizeof(sap));
-        wt_wrap_open_session(conn, &sap, table->track_prefix, NULL, &session);
-        testutil_check(session->open_cursor(session, "prepared_discover:", NULL, NULL, &cursor));
-
-        while ((ret = cursor->next(cursor)) == 0) {
-            testutil_check(cursor->get_key(cursor, &prepared_id));
-
-            /* Claim and roll back all remaining prepared transactions */
-            testutil_snprintf(buf, sizeof(buf), "claim_prepared_id=%" PRIx64, prepared_id);
-            testutil_check(session->begin_transaction(session, buf));
-            testutil_check(session->rollback_transaction(session, NULL));
-
-            trace_msg(session, "Cleanup: claimed and rolled back prepared transaction %" PRIu64,
-              prepared_id);
-        }
-
-        testutil_assert(ret == WT_NOTFOUND);
-        testutil_check(cursor->close(cursor));
-        testutil_check(session->close(session, NULL));
-        wts_close(&conn);
-    } else {
-        /* If we claimed all transactions, we should be able to close the cursor cleanly */
-        testutil_check(cursor->close(cursor));
-        testutil_check(session->close(session, NULL));
-    }
+    testutil_check(cursor->close(cursor));
+    // testutil_check(session->checkpoint(session, "force=true"));
+    testutil_check(session->close(session, NULL));
 }

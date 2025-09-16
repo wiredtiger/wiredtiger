@@ -353,7 +353,7 @@ main(int argc, char *argv[])
      * all pending prepared transactions.
      */
     if (GV(PRECISE_CHECKPOINT))
-        TIMED_MAJOR_OP(tables_apply(wts_prepare_discover, NULL));
+        wts_prepare_discover(g.wts_conn);
     locks_init(g.wts_conn);
 
     /*
