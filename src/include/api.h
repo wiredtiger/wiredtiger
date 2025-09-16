@@ -98,16 +98,18 @@
         bool __set_err = true;                                    \
     API_SESSION_INIT(s, struct_name, func_name, dh)
 
-#define API_CALL_NOCONF(s, struct_name, func_name, dh)         \
-    API_CALL_NOCONF_NOERRCLEAR(s, struct_name, func_name, dh); \
-    __wt_error_log_clear_helper();
+#define API_CALL_NOCONF(s, struct_name, func_name, dh)                  \
+    API_CALL_NOCONF_NOERRCLEAR(s, struct_name, func_name, dh);          \
+    if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL)) \
+        __wt_error_log_clear();
 
 #define API_CALL(s, struct_name, func_name, dh, config, cfg)                                \
     do {                                                                                    \
         bool __set_err = true;                                                              \
         const char *(cfg)[] = {WT_CONFIG_BASE(s, struct_name##_##func_name), config, NULL}; \
-        __wt_error_log_clear_helper();                                                      \
         API_SESSION_INIT(s, struct_name, func_name, dh);                                    \
+        if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL))                 \
+            __wt_error_log_clear();                                                         \
         /*                                                                                  \
          * Optimize configuration checking. If the configuration string                     \
          * passed into the API is empty, use NULL instead, it saves a                       \

@@ -28,7 +28,7 @@ __thread_run(void *arg)
         if (!F_ISSET(thread, WT_THREAD_ACTIVE))
             __wt_cond_wait(
               session, thread->pause_cond, WT_THREAD_PAUSE * WT_MILLION, thread->chk_func);
-        __wt_error_log_clear_helper();
+        __wt_error_log_clear();
         WT_ERR(thread->run_func(session, thread));
     }
 

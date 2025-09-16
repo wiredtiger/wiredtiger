@@ -356,7 +356,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
     /* We should not pick up a checkpoint with an earlier LSN. */
     WT_ACQUIRE_READ(current_meta_lsn, conn->disaggregated_storage.last_checkpoint_meta_lsn);
     if (meta_lsn < current_meta_lsn)
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_ERROR_LOG_ADD(EINVAL),
           "Attempting to pick up an older checkpoint: current metadata LSN = %" PRIu64
           ", new metadata LSN = %" PRIu64,
           current_meta_lsn, meta_lsn);

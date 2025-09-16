@@ -20,6 +20,7 @@ struct __wt_error_log_entry {
     int line;         /* The line number. */
     const char *expr; /* The expression inside WT_ERR or WT_RET. */
     int error;        /* The error code. */
+    int suberror;     /* The sub-error code. */
 };
 
 struct __wt_error_log {
@@ -834,10 +835,11 @@ __wt_unexpected_object_type(WT_SESSION_IMPL *session, const char *uri, const cha
 
 /*
  * __wt_error_log_add --
- *     Add an entry to the error log.
+ *     Add an entry to the error log. Return the error code.
  */
-void
-__wt_error_log_add(const char *file, const char *func, int line, const char *expr, int error)
+int
+__wt_error_log_add(
+  const char *file, const char *func, int line, const char *expr, int error, int suberror)
 {
     struct __wt_error_log_entry *entry;
 
@@ -847,10 +849,12 @@ __wt_error_log_add(const char *file, const char *func, int line, const char *exp
     entry->line = line;
     entry->expr = expr;
     entry->error = error;
+    entry->suberror = suberror;
 
     error_log.tail = (error_log.tail + 1) % WT_MAX_ERROR_LOG_MAX;
     if (error_log.head == error_log.tail)
         error_log.head = (error_log.head + 1) % WT_MAX_ERROR_LOG_MAX;
+    return (error);
 }
 
 /*
@@ -874,10 +878,20 @@ __wt_error_log_to_handler(WT_SESSION_IMPL *session)
     struct __wt_error_log_entry *entry;
     int i;
 
-    for (i = error_log.head; i != error_log.tail; i = (i + 1) % WT_MAX_ERROR_LOG_MAX) {
-        entry = &error_log.log[i];
-        __wt_err_func(session, entry->error, entry->func, entry->line, WT_VERB_ERROR_RETURNS,
-          "Error at %s:%d: %s failed with %s (%d)", entry->file, entry->line, entry->expr,
-          __wt_strerror(session, entry->error, NULL, 0), entry->error);
-    }
+    if (session == NULL)
+        for (i = error_log.head; i != error_log.tail; i = (i + 1) % WT_MAX_ERROR_LOG_MAX) {
+            entry = &error_log.log[i];
+            fprintf(stderr, "Error at %s:%d: \"%s\" failed with %s (%d)%s%s\n", entry->file,
+              entry->line, entry->expr, __wt_strerror(NULL, entry->error, NULL, 0), entry->error,
+              entry->suberror == WT_NONE ? "" : ", ",
+              entry->suberror == WT_NONE ? "" : __wt_strerror(NULL, entry->suberror, NULL, 0));
+        }
+    else
+        for (i = error_log.head; i != error_log.tail; i = (i + 1) % WT_MAX_ERROR_LOG_MAX) {
+            entry = &error_log.log[i];
+            __wt_err_func(session, entry->error, entry->func, entry->line, WT_VERB_ERROR_RETURNS,
+              "Error at %s:%d: \"%s\" failed%s%s", entry->file, entry->line, entry->expr,
+              entry->suberror == WT_NONE ? "" : " with ",
+              entry->suberror == WT_NONE ? "" : __wt_strerror(session, entry->suberror, NULL, 0));
+        }
 }
