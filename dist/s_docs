@@ -195,17 +195,16 @@ setup_doxygen()
     }
 
     # Do not build the documentation if doxygen version is not compatible.
-    # v=$(doxygen --version)
-    # case "$v" in
-    #     1.8.17) doxyfile="Doxyfile";;
-    #     1.9.1) doxyfile="Doxyfile.9";;
-    #     1.9.3) doxyfile="Doxyfile.9";;
-    #     1.11.*) doxyfile="Doxyfile.11";;
-    #     *)
-    #         echo "$0 skipped: unsupported version of doxygen: $v, not 1.8.17, 1.9.1, 1.9.3 or 1.11.*"
-    #         exit 0
-    # esac
-    doxyfile="Doxyfile.11"
+    v=$(doxygen --version)
+    case "$v" in
+        1.8.17) doxyfile="Doxyfile";;
+        1.9.1) doxyfile="Doxyfile.9";;
+        1.9.3) doxyfile="Doxyfile.9";;
+        1.11.*) doxyfile="Doxyfile.11";;
+        *)
+            echo "$0 skipped: unsupported version of doxygen: $v, not 1.8.17, 1.9.1, 1.9.3 or 1.11.*"
+            exit 0
+    esac
 }
 
 build()
