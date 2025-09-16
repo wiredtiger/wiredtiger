@@ -308,7 +308,7 @@ palm_kv_put_global(PALM_KV_CONTEXT *context, PALM_KV_GLOBAL_KEY key, uint64_t va
     assert(context->lmdb_txn != NULL);
 
     memset(&kval, 0, sizeof(kval));
-    memset(&vval, 0, sizeof(kval));
+    memset(&vval, 0, sizeof(vval));
 
     k = (u_int)key;
     if (value > UINT_MAX)

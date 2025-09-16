@@ -1170,7 +1170,7 @@ palm_terminate(WT_PAGE_LOG *storage, WT_SESSION *session)
      * We should be single threaded at this point, so it is safe to operate without lock.
      */
     TAILQ_FOREACH_SAFE(palm_handle, &palm->fileq, q, safe_handle)
-        palm_handle_close_internal(palm, palm_handle);
+    palm_handle_close_internal(palm, palm_handle);
 
     if ((ret = pthread_rwlock_destroy(&palm->pl_handle_lock)) != 0)
         (void)palm_err(palm, session, ret, "terminate: pthread_rwlock_destroy");
