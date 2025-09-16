@@ -368,7 +368,9 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
      */
 
     /* Read the checkpoint metadata of the shared metadata table from the special metadata page. */
-    WT_ERR(__disagg_get_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, meta_lsn, &item));
+    WT_ERR_MSG_CHK(session,
+      __disagg_get_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, meta_lsn, &item),
+      "Disagg metadata fetching failed, with lsn : %" PRIu64 "", meta_lsn);
 
     /* Add the terminating zero byte to the end of the buffer. */
     len = item.size + 1;
@@ -431,7 +433,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
      * Throw away any references to the old disaggregated metadata table. This ensures that we are
      * on the most recent checkpoint from now on.
      */
-    WT_ERR(__wti_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI));
+    WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI),
+      "Removing old disagg table failed : \"%s\"", WT_DISAGG_METADATA_URI);
 
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
     cfg[1] = NULL;
@@ -474,7 +477,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
              * Mark any matching data handles to be out of date. Any new opens will get the new
              * metadata.
              */
-            WT_ERR(__wti_conn_dhandle_outdated(session, metadata_key));
+            WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, metadata_key),
+              "Marking data handles outdated failed : \"%s\"", metadata_key);
             __wt_free(session, cfg_ret);
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
@@ -532,10 +536,12 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
     WT_ERR(__wt_strdup(session, root, &conn->disaggregated_storage.last_checkpoint_root));
 
     /* Keep a record of past checkpoints, they will be needed for ingest garbage collection. */
-    WT_ERR(__layered_track_checkpoint(session, checkpoint_timestamp));
+    WT_ERR_MSG_CHK(session, __layered_track_checkpoint(session, checkpoint_timestamp),
+      "No checkpoint found for track");
 
     /* Update ingest tables' prune timestamps. */
-    WT_ERR(__layered_update_gc_ingest_tables_prune_timestamps(internal_session));
+    WT_ERR_MSG_CHK(session, __layered_update_gc_ingest_tables_prune_timestamps(internal_session),
+      "No checkpoint found for update");
 
 err:
     /* Free memory allocated by the page log interface */
