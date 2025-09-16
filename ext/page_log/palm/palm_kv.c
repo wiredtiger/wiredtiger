@@ -582,7 +582,10 @@ err:
         }
     }
     /* MDB_NOTFOUND is not an error - just means no matches. */
-    return (matches->error = ret != MDB_NOTFOUND ? ret : 0);
+    if (ret == MDB_NOTFOUND)
+        ret = 0;
+    matches->error = ret;
+    return (ret);
 }
 
 bool
