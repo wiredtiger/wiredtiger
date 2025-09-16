@@ -2149,7 +2149,7 @@ struct __wt_connection {
      * features., a set of related configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;incremental_app_eviction, Only a part of application threads
      * will participate in cache management when a cache threshold reaches its trigger limit., a
-     * boolean flag; default \c true.}
+     * boolean flag; default \c false.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;
      * scrub_evict_under_target_limit, Change the eviction strategy to scrub eviction when the cache
      * usage is under the target limit., a boolean flag; default \c false.}
@@ -3003,7 +3003,7 @@ struct __wt_connection {
  * features., a set of related configuration options defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;incremental_app_eviction, Only a part of application threads will
  * participate in cache management when a cache threshold reaches its trigger limit., a boolean
- * flag; default \c true.}
+ * flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;scrub_evict_under_target_limit, Change
  * the eviction strategy to scrub eviction when the cache usage is under the target limit., a
  * boolean flag; default \c false.}
