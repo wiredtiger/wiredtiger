@@ -724,17 +724,16 @@ __wt_evict_app_assist_worker_check(
         return (0);
 
     /*
-     * If incremental application eviction flag is set, only involve 1/3 of application threads in
-     * eviction at once for each of the 3 cache triggers that have been reached
+     * If incremental application eviction flag is set, involve application threads proportionally
+     * to the aggressiveness score, when the cache usage is less than target. 5% at score 1 to 100%
+     * at score 20.
      */
-    if (F_ISSET_ATOMIC_32(&(conn->cache->cache_eviction_controls), WT_CACHE_EVICT_INCREMENTAL_APP)) {
-        if (!__wti_evict_updates_needed(session, NULL) && (session->id % 3 == 0))
-            return (0);
-
-        if (!__wt_evict_dirty_needed(session, NULL) && (session->id % 3 == 1))
-            return (0);
-
-        if (!__wt_evict_clean_needed(session, NULL) && (session->id % 3 == 2))
+    WT_EVICT *evict = conn->evict;
+    if (F_ISSET_ATOMIC_32(
+          &(conn->cache->cache_eviction_controls), WT_CACHE_EVICT_INCREMENTAL_APP) &&
+      !__wt_evict_clean_needed(session, &pct_full)) {
+        if (pct_full <= evict->eviction_target &&
+          ((__wt_atomic_load32(&evict->evict_aggressive_score)) <= (session->id % 20)))
             return (0);
     }
 
