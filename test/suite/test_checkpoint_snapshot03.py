@@ -159,3 +159,5 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
         if not self.runningHook('disagg'): # Disagg doesn't have inconsistent checkpoints or RTS.
             self.assertGreater(inconsistent_ckpt, 0)
             self.assertGreater(pages_skipped, 0)
+
+        self.ignoreStdoutPatternIfExists('Eviction took more than 1 minute') # FIXME-WT-15478
