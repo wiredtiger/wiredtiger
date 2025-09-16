@@ -63,6 +63,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         return config
 
     def moresetup(self):
+        self.ignoreStdoutPatternIfExists('Eviction took more than 1 minute')
         if self.value_format == '8t':
             # Rig to use more than one page; otherwise the inconsistent checkpoint assertions fail.
             self.extraconfig = ',leaf_page_max=4096'
