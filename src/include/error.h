@@ -60,8 +60,12 @@
     __wt_error_log_add_ret(__FILE__, __PRETTY_FUNCTION__, __LINE__, #expr, expr, WT_NONE)
 
 #else
-#define __wt_error_log_add_helper(expr, error, suberror)
-#define __wt_error_log_clear_helper()
+#define __wt_error_log_add_helper(expr, error, suberror) \
+    {                                                    \
+    }
+#define __wt_error_log_clear_helper() \
+    {                                 \
+    }
 #define WT_ERROR_LOG_ADD(expr) (expr)
 #endif /* WT_HAVE_ERROR_LOG */
 
