@@ -663,6 +663,13 @@ __wt_evict_app_assist_worker_check(
     if (F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT))
         return (0);
 
+    /*
+     * Only leader nodes can write to storage. On follower nodes restrict eviction to evicting
+     * clean pages.
+     */
+    if (__wt_conn_is_disagg(session) && !conn->layered_table_manager.leader)
+        readonly = true;
+
     /* Setting cache_max_wait_us to 1 effectively means "disable eviction when possible" */
     uint64_t cache_max_wait_us =
       session->cache_max_wait_us != 0 ? session->cache_max_wait_us : conn->evict->cache_max_wait_us;
