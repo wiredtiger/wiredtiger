@@ -33,6 +33,7 @@
 import wttest
 from wtdataset import simple_key, simple_value
 from wtscenario import make_scenarios
+# FIXME-WT-15430: Re-enable once disaggregated storage works with fast truncate tests.
 @wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate08(wttest.WiredTigerTestCase):
     format_values = [

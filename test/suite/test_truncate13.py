@@ -33,6 +33,7 @@ from wtscenario import make_scenarios
 
 # test_truncate13.py
 # Test reading in the gaps created by a fast-delete.
+# FIXME-WT-15430: Re-enable once disaggregated storage works with fast truncate tests.
 @wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate13(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'

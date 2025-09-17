@@ -39,6 +39,7 @@ import wttest
 #       When deleting leaf pages that aren't in memory, we set transactional
 # information in the page's WT_REF structure, which results in interesting
 # issues.
+# FIXME-WT-15430: Re-enable once disaggregated storage works with fast truncate tests.
 @wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate_fast_delete(test_truncate_base):
     name = 'test_truncate'

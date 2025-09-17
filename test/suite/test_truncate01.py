@@ -116,7 +116,7 @@ class test_truncate_uri(test_truncate_base):
         if self.type != "layered:":
             self.dropUntilSuccess(self.session, uri)
 
-        if self.type == "table:" and 'disagg' not in self.hook_names:
+        if self.type == "table:" and not self.runningHook('disagg'):
             cds = ComplexDataSet(self, uri, 100)
             cds.populate()
             cds.truncate(uri, None, None, None)
@@ -141,7 +141,7 @@ class test_truncate_cursor_order(test_truncate_base):
     # Test an illegal order, then confirm that equal cursors works.
     def test_truncate_cursor_order(self):
         # Column store not supported on truncate with disaggregated storage.
-        if 'disagg' in self.hook_names and self.keyfmt == 'r':
+        if self.runningHook('disagg') and self.keyfmt == 'r':
             return
 
         uri = self.type + self.name
@@ -176,7 +176,7 @@ class test_truncate_cursor_end(test_truncate_base):
 
     # Test truncation of cursors past the end of the object.
     def test_truncate_cursor_order(self):
-        if 'disagg' in self.hook_names and self.keyfmt == 'r':
+        if self.runningHook('disagg') and self.keyfmt == 'r':
             return
 
         uri = self.type + self.name
@@ -196,7 +196,7 @@ class test_truncate_cursor_end(test_truncate_base):
         if self.type != "layered:":
             self.dropUntilSuccess(self.session, uri)
 
-        if self.type == "table:" and 'disagg' not in self.hook_names:
+        if self.type == "table:" and not self.runningHook('disagg'):
             ds = ComplexDataSet(self, uri, 100, key_format=self.keyfmt)
             ds.populate()
             c1 = self.session.open_cursor(uri, None)
@@ -225,7 +225,7 @@ class test_truncate_empty(test_truncate_base):
 
     # Test truncation of empty objects using a cursor
     def test_truncate_empty_cursor(self):
-        if 'disagg' in self.hook_names and self.keyfmt == 'r':
+        if self.runningHook('disagg') and self.keyfmt == 'r':
             return
 
         uri = self.type + self.name
@@ -239,7 +239,7 @@ class test_truncate_empty(test_truncate_base):
 
     # Test truncation of empty objects using a URI
     def test_truncate_empty_uri(self):
-        if 'disagg' in self.hook_names and self.keyfmt == 'r':
+        if self.runningHook('disagg') and self.keyfmt == 'r':
             return
 
         uri = self.type + self.name
@@ -325,7 +325,7 @@ class test_truncate_cursor(test_truncate_base):
 
     # Truncate a range using cursors, and check the results.
     def truncateRangeAndCheck(self, ds, uri, begin, end, expected):
-        if 'disagg' in self.hook_names and self.keyfmt == 'r':
+        if self.runningHook('disagg') and self.keyfmt == 'r':
             return
 
         self.pr('truncateRangeAndCheck: ' + str(begin) + ',' + str(end))
@@ -365,7 +365,7 @@ class test_truncate_cursor(test_truncate_base):
 
     # Test truncation of files and simple tables using cursors.
     def test_truncate_simple(self):
-        if 'disagg' in self.hook_names and self.keyfmt == 'r':
+        if self.runningHook('disagg') and self.keyfmt == 'r':
             return
 
         uri = self.type + self.name
@@ -506,7 +506,7 @@ class test_truncate_cursor(test_truncate_base):
                 cursor.close()
 
                 self.truncateRangeAndCheck(ds, uri, begin, end, expected)
-                if 'disagg' not in self.hook_names:
+                if not self.runningHook('disagg'):
                     self.dropUntilSuccess(self.session, uri)
 
     # Test truncation of complex tables using cursors.  We can't do the kind of
@@ -515,7 +515,7 @@ class test_truncate_cursor(test_truncate_base):
     def test_truncate_complex(self):
 
         # We only care about tables.
-        if self.type != 'table:' or 'disagg' not in self.hook_names:
+        if self.type != 'table:' or not self.runningHook('disagg')
                 return
 
         uri = self.type + self.name
