@@ -367,8 +367,6 @@ config_string(
     DEFAULT "${default_optimize_level}"
 )
 
-add_compile_options("${CC_OPTIMIZE_LEVEL}")
-
 config_string(
     VERSION_MAJOR
     "Major version number for WiredTiger"
@@ -400,23 +398,43 @@ endif()
 
 # Setup debug info if enabled.
 if(ENABLE_DEBUG_INFO)
-    if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
-        # Produce full symbolic debugging information.
-        add_compile_options(/Z7)
-        # Ensure a PDB file can be generated for debugging symbols.
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG")
-    else()
+    if(GNU_C_COMPILER OR CLANG_C_COMPILER)
         # Higher debug levels `-g3`/`-ggdb3` emit additional debug information, including
         # macro definitions that allow us to evaluate macros such as `p S2C(session)` inside of gdb.
         # This needs to be in DWARF version 2 format or later - and should be by default - but
         # we'll specify version 4 here to be safe.
-        add_compile_options(-g3)
-        add_compile_options(-ggdb3)
-        add_compile_options(-gdwarf-4)
-        if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+        add_cmake_compiler_flags(
+            FLAGS -g3 -gdwarf-4
+            LANGUAGES C CXX
+            BUILD_TYPES Debug RelWithDebInfo
+        )
+        if("${CMAKE_C_COMPILER_ID}" MATCHES "^(Apple)?(C|c?)lang")
             # Clang requires one additional flag to output macro debug information.
-            add_compile_options(-fdebug-macro)
+            add_cmake_compiler_flags(
+                FLAGS -glldb -fdebug-macro
+                LANGUAGES C CXX
+                BUILD_TYPES Debug RelWithDebInfo
+            )
+        else()
+            add_cmake_compiler_flags(
+                FLAGS -ggdb3
+                LANGUAGES C CXX
+                BUILD_TYPES Debug RelWithDebInfo
+            )
         endif()
+    endif()
+
+    # MSVC: ensure linker produces PDBs.
+    if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+        foreach(link_var CMAKE_EXE_LINKER_FLAGS_DEBUG CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO)
+            if(NOT DEFINED ${link_var})
+                set(${link_var} "")
+            endif()
+            if(NOT ${link_var} MATCHES "/DEBUG")
+                set(${link_var} "${${link_var}} /DEBUG")
+            endif()
+            set(${link_var} "${${link_var}}" CACHE STRING "Linker flags for executables" FORCE)
+        endforeach()
     endif()
 endif()
 
@@ -436,12 +454,14 @@ endif()
 
 if(WT_WIN)
     # Check if we a using the dynamic or static run-time library.
+
+    # Define runtime library flags based on DYNAMIC_CRT setting
     if(DYNAMIC_CRT)
         # Use the multithread-specific and DLL-specific version of the run-time library (MSVCRT.lib).
-        add_compile_options(/MD)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
     else()
         # Use the multithread, static version of the run-time library.
-        add_compile_options(/MT)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
     endif()
 endif()
 
