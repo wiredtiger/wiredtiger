@@ -811,8 +811,9 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
         } else if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200 &&
           bytes_updates < (uint64_t)((updates_target + updates_trigger) * bytes_max) / 200) {
             LF_SET(WT_EVICT_CACHE_SCRUB);
+        } else {
+            LF_SET(WT_EVICT_CACHE_NOKEEP);
         }
-
     } else
         LF_SET(WT_EVICT_CACHE_NOKEEP);
 
