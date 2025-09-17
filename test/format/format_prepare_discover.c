@@ -72,7 +72,7 @@ wts_prepare_discover(WT_CONNECTION *conn)
 
         trace_msg(session, "Discovered prepared transaction with ID: %" PRIu64, prepared_id);
         /*
-         * TODO: randomly decide to claim all prepared txn or leave some?
+         * TODO: randomly decide to claim all prepared txn or leave some?'
          */
         /* Claim the prepared transaction */
         testutil_snprintf(buf, sizeof(buf), "claim_prepared_id=%" PRIx64, prepared_id);
@@ -87,7 +87,7 @@ wts_prepare_discover(WT_CONNECTION *conn)
              * Commit with a timestamp greater than the prepare timestamp. We use the current
              * timestamp + 10 to ensure it's newer
              */
-            ts = __wt_atomic_addv64(&g.timestamp, 1);
+            ts = __wt_atomic_addv64(&g.timestamp, 10);
             testutil_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, ts));
             testutil_check(
               session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_DURABLE, ts));
@@ -113,6 +113,6 @@ wts_prepare_discover(WT_CONNECTION *conn)
           discover_count, claim_count);
     }
     testutil_check(cursor->close(cursor));
-    // testutil_check(session->checkpoint(session, "force=true"));
+    testutil_check(session->checkpoint(session, NULL));
     testutil_check(session->close(session, NULL));
 }
