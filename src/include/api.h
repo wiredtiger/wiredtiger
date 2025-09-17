@@ -101,7 +101,7 @@
 #define API_CALL_NOCONF(s, struct_name, func_name, dh)                  \
     API_CALL_NOCONF_NOERRCLEAR(s, struct_name, func_name, dh);          \
     if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL)) \
-        __wt_error_log_clear();
+        __wt_error_log_clear_helper();
 
 #define API_CALL(s, struct_name, func_name, dh, config, cfg)                                \
     do {                                                                                    \
@@ -109,7 +109,7 @@
         const char *(cfg)[] = {WT_CONFIG_BASE(s, struct_name##_##func_name), config, NULL}; \
         API_SESSION_INIT(s, struct_name, func_name, dh);                                    \
         if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL))                 \
-            __wt_error_log_clear();                                                         \
+            __wt_error_log_clear_helper();                                                  \
         /*                                                                                  \
          * Optimize configuration checking. If the configuration string                     \
          * passed into the API is empty, use NULL instead, it saves a                       \

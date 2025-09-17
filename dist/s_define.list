@@ -148,6 +148,7 @@ __wt_bswap16
 __wt_checksum_with_seed
 __wt_conf_gets
 __wt_error_log_add_helper
+__wt_error_log_clear_helper
 __wt_verbose_error
 __wt_verbose_level
 __wt_verbose_level_id

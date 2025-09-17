@@ -14,30 +14,37 @@ static const char *verbose_category_strings[] = WT_VERBOSE_CATEGORY_STR_INIT;
 /* Keep a log of errors for each thread. */
 #define WT_MAX_ERROR_LOG_MAX 100
 
-struct __wt_error_log_entry {
+typedef struct __wt_error_log_entry {
     const char *file; /* The file where the error occurred. */
     const char *func; /* The function where the error occurred. */
     int line;         /* The line number. */
     const char *expr; /* The expression inside WT_ERR or WT_RET. */
     int error;        /* The error code. */
     int suberror;     /* The sub-error code. */
-};
+} WT_ERROR_LOG_ENTRY;
 
-struct __wt_error_log {
+typedef struct __wt_error_log {
 
     /*
      * A circular buffer of error logs. No synchronization is needed because the error log is
      * thread-local.
      */
+    int count; /* Including messages that did not fit into the log. */
     int head;
     int tail;
-    struct __wt_error_log_entry log[WT_MAX_ERROR_LOG_MAX];
-};
+    WT_ERROR_LOG_ENTRY log[WT_MAX_ERROR_LOG_MAX];
+} WT_ERROR_LOG;
 
+/*
+ * Thread-local storage for the error log. We do not store the error log in the session because we
+ * want to be able to log errors in functions that do not have a session handle and in cases where
+ * the session handle is NULL. We would also like to track errors across functions that use internal
+ * sessions.
+ */
 #ifdef _WIN32
-__declspec(thread) static struct __wt_error_log error_log = {0};
+__declspec(thread) static WT_ERROR_LOG error_log = {0};
 #else
-_Thread_local static struct __wt_error_log error_log = {0};
+_Thread_local static WT_ERROR_LOG error_log = {0};
 #endif
 
 /*
@@ -558,6 +565,9 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      */
     conn = session != NULL ? S2C(session) : NULL;
 
+    /* Dump any previous errors. */
+    __wt_error_log_to_handler(session);
+
     /*
      * Ignore error returns from underlying event handlers, we already have an error value to
      * return.
@@ -841,7 +851,7 @@ void
 __wt_error_log_add(
   const char *file, const char *func, int line, const char *expr, int error, int suberror)
 {
-    struct __wt_error_log_entry *entry;
+    WT_ERROR_LOG_ENTRY *entry;
 
     entry = &error_log.log[error_log.tail];
     entry->file = file;
@@ -851,6 +861,7 @@ __wt_error_log_add(
     entry->error = error;
     entry->suberror = suberror;
 
+    error_log.count++;
     error_log.tail = (error_log.tail + 1) % WT_MAX_ERROR_LOG_MAX;
     if (error_log.head == error_log.tail)
         error_log.head = (error_log.head + 1) % WT_MAX_ERROR_LOG_MAX;
@@ -864,6 +875,9 @@ int
 __wt_error_log_add_ret(
   const char *file, const char *func, int line, const char *expr, int error, int suberror)
 {
+    if (error == 0)
+        return (0);
+
     __wt_error_log_add(file, func, line, expr, error, suberror);
     return (error);
 }
@@ -875,8 +889,8 @@ __wt_error_log_add_ret(
 void
 __wt_error_log_clear(void)
 {
-    error_log.head = 0;
-    error_log.tail = 0;
+    error_log.count = 0;
+    error_log.head = error_log.tail;
 }
 
 /*
@@ -886,10 +900,13 @@ __wt_error_log_clear(void)
 void
 __wt_error_log_to_handler(WT_SESSION_IMPL *session)
 {
-    struct __wt_error_log_entry *entry;
+    WT_ERROR_LOG_ENTRY *entry;
     int i;
 
-    if (session == NULL)
+    if (session == NULL) {
+        if (error_log.count > WT_MAX_ERROR_LOG_MAX)
+            fprintf(stderr, "%d errors occurred, only the last %d are shown\n", error_log.count,
+              WT_MAX_ERROR_LOG_MAX);
         for (i = error_log.head; i != error_log.tail; i = (i + 1) % WT_MAX_ERROR_LOG_MAX) {
             entry = &error_log.log[i];
             fprintf(stderr, "Error at %s:%d: \"%s\" failed with %s (%d)%s%s\n", entry->file,
@@ -897,7 +914,11 @@ __wt_error_log_to_handler(WT_SESSION_IMPL *session)
               entry->suberror == WT_NONE ? "" : ", ",
               entry->suberror == WT_NONE ? "" : __wt_strerror(NULL, entry->suberror, NULL, 0));
         }
-    else
+    } else {
+        if (error_log.count > WT_MAX_ERROR_LOG_MAX)
+            __wt_verbose_warning(session, WT_VERB_ERROR_RETURNS,
+              "%d errors occurred, only the last %d are shown", error_log.count,
+              WT_MAX_ERROR_LOG_MAX);
         for (i = error_log.head; i != error_log.tail; i = (i + 1) % WT_MAX_ERROR_LOG_MAX) {
             entry = &error_log.log[i];
             __wt_err_func(session, entry->error, entry->func, entry->line, WT_VERB_ERROR_RETURNS,
@@ -905,4 +926,5 @@ __wt_error_log_to_handler(WT_SESSION_IMPL *session)
               entry->suberror == WT_NONE ? "" : " with ",
               entry->suberror == WT_NONE ? "" : __wt_strerror(session, entry->suberror, NULL, 0));
         }
+    }
 }

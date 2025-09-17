@@ -48,18 +48,22 @@
 #ifdef WT_HAVE_ERROR_LOG
 #define __wt_error_log_add_helper(expr, error, suberror) \
     __wt_error_log_add(__FILE__, __PRETTY_FUNCTION__, __LINE__, expr, error, suberror)
-#else
-#define __wt_error_log_add_helper(expr, error, suberror)
-#endif
+#define __wt_error_log_clear_helper() __wt_error_log_clear()
 
 /*
  * WT_ERROR_LOG_ADD --
- *     Add an entry to the error log, regardless of whether it is enabled, and return the error
- *     code. This is useful for important error codes that should always be logged. However, using
- *     this macro currently results in the error being logged twice if the error log is enabled.
+ *     Add an entry to the error log. This is useful in places where we assign an error code
+ * directly to "ret" and return it, instead of using the WT_ERR() macro. It is also useful in places
+ * where we want to log an error but not return it.
  */
 #define WT_ERROR_LOG_ADD(expr) \
     __wt_error_log_add_ret(__FILE__, __PRETTY_FUNCTION__, __LINE__, #expr, expr, WT_NONE)
+
+#else
+#define __wt_error_log_add_helper(expr, error, suberror)
+#define __wt_error_log_clear_helper(expr, error, suberror)
+#define WT_ERROR_LOG_ADD(expr) (expr)
+#endif /* WT_HAVE_ERROR_LOG */
 
 /* Set "ret" and branch-to-err-label tests. */
 #define WT_ERR(a)                                        \
@@ -280,6 +284,7 @@ __wt_tret_error_ok(int *pret, int a, int e)
 #define TRIGGER_ABORT(session, exp, ...)                                             \
     do {                                                                             \
         char _buf[WT_ERR_MSG_BUF_LEN];                                               \
+        __wt_error_log_to_handler(session);                                          \
         BUILD_ASSERTION_STRING(session, _buf, WT_ERR_MSG_BUF_LEN, exp, __VA_ARGS__); \
         __wt_errx(session, "%s", _buf);                                              \
         __wt_abort(session);                                                         \
