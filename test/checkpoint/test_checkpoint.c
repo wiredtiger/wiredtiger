@@ -237,6 +237,11 @@ main(int argc, char *argv[])
         return (EXIT_FAILURE);
     }
 
+    if (!g.use_timestamps && g.opts.disagg_storage) {
+        fprintf(stderr, "disaggregated storage feature requires usage of timestamps (-x/-X)");
+        return (EXIT_FAILURE);
+    }
+
     /*
      * Among other things, this initializes the random number generators in the option structure.
      */
@@ -357,13 +362,11 @@ enable_disagg(const char *mode)
         g.opts.disagg_switch_mode = false;
         g.opts.disagg_mode = "leader";
         g.opts.disagg_page_log = "palm";
-        g.use_timestamps = true;
     } else if (strcmp(mode, "follower") == 0) {
         g.opts.disagg_storage = true;
         g.opts.disagg_mode = "follower";
         g.opts.disagg_switch_mode = false;
         g.opts.disagg_page_log = "palm";
-        g.use_timestamps = true;
     } else if (strcmp(mode, "switch") == 0) {
         g.opts.disagg_storage = true;
         g.opts.disagg_switch_mode = true;
@@ -371,7 +374,6 @@ enable_disagg(const char *mode)
         bool disagg_leader = (__wt_random(&g.opts.extra_rnd) % 2) == 0;
         g.opts.disagg_mode = disagg_leader ? "leader" : "follower";
         g.opts.disagg_page_log = "palm";
-        g.use_timestamps = true;
         printf("Switch mode: starting as %s\n", g.opts.disagg_mode);
     } else {
         fprintf(stderr, "Invalid disaggregated mode: %s\n", mode);

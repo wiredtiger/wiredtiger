@@ -1158,7 +1158,7 @@ functions:
         # Check if we running in disagg mode.
         disagg_args=""
         if [[ "${disagg_run|false}" == "true" ]]; then
-            disagg_args="-d leader -t row"
+            disagg_args="-d leader -t row -x"
         fi
         ./test_checkpoint ${checkpoint_args} $disagg_args  2>&1
 
@@ -1174,7 +1174,7 @@ functions:
         ${PREPARE_TEST_ENV}
         disagg_args=""
         if [[ "${disagg_run|false}" == "true" ]]; then
-            disagg_args="-d leader -t row"
+            disagg_args="-d leader -t row -x"
         fi
         ../../../test/evergreen/checkpoint_test_predictable.sh ${times} "${checkpoint_args} $disagg_args"
 
@@ -1454,7 +1454,7 @@ variables:
       - func: "fetch artifacts"
       - func: "format test disagg"
         vars:
-          format_args: disagg.mode=leader runs.tables=1 runs.timer=3
+          format_args: disagg.mode=leader runs.rows=1000000:300000 runs.tables=1:3 runs.timer=3
           times: 5
 
   - &format-stress-data-validation-test-disagg-leader
@@ -1546,6 +1546,7 @@ variables:
       - func: "format test disagg"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
+          format_args: runs.rows=1000000:300000 runs.tables=1:3
           times: 5
 
   - &race-condition-stress-asan-disagg-test
@@ -7152,7 +7153,6 @@ buildvariants:
   tasks:
     - name: compile
     - name: ".stress-test-disagg-fail"
-    
     - name: data-validation-stress-test-checkpoint
       batchtime: 10080 # once every week
     - name: checkpoint-test-long-running
