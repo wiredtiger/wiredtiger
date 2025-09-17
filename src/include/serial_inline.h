@@ -319,8 +319,12 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      */
     __wt_page_modify_update_timestamp(session, page);
 
-    if (!F_ISSET_ATOMIC_32(
-          S2C(session)->cache->cache_eviction_controls, WT_CACHE_EVICT_SKIP_UPDATE_OBSOLETE))
+    /*
+     * If configured, skip checking for obsolete updates and they will be checked as part of the
+     * page reconciliation.
+     */
+    if (F_ISSET_ATOMIC_32(
+          &S2C(session)->cache->cache_eviction_controls, WT_CACHE_EVICT_SKIP_UPDATE_OBSOLETE))
         return (0);
 
     /*
