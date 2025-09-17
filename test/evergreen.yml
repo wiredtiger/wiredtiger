@@ -7152,7 +7152,9 @@ buildvariants:
   tasks:
     - name: compile
     - name: ".stress-test-disagg-fail"
+    
     - name: data-validation-stress-test-checkpoint
+      batchtime: 10080 # once every week
     - name: checkpoint-test-long-running
     - name: checkpoint-test
     - name: checkpoint-filetypes-predictable-test

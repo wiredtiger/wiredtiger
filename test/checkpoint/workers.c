@@ -62,11 +62,9 @@ create_table(WT_SESSION *session, COOKIE *cookie)
     } else
         testutil_snprintf(config, sizeof(config), "key_format=%s,value_format=%s", kf, vf);
 
-    if ((ret = session->create(session, cookie->uri, config)) != 0) {
-
+    if ((ret = session->create(session, cookie->uri, config)) != 0)
         if (ret != EEXIST)
             return (log_print_err("session.create", ret, 1));
-    }
 
     ++g.ntables_created;
     return (0);
@@ -113,8 +111,6 @@ start_workers(void)
     }
 
     /* Create tables */
-
-    printf("creating tables");
     for (i = 0; i < g.ntables; ++i) {
         /* Should probably be atomic to avoid races. */
         if ((ret = create_table(session, &g.cookies[i])) != 0)

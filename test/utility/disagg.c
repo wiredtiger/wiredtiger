@@ -36,13 +36,11 @@ testutil_disagg_storage_configuration(TEST_OPTS *opts, const char *home, char *d
   size_t disagg_cfg_size, char *ext_cfg, size_t ext_cfg_size)
 {
     (void)home;
-    printf("testing config: testing %d\n", opts->disagg_storage);
     if (opts->disagg_storage) {
         testutil_snprintf(ext_cfg, ext_cfg_size, TESTUTIL_ENV_CONFIG_DISAGG_EXT, opts->build_dir,
           opts->disagg_page_log, opts->disagg_page_log, opts->delay_ms, opts->error_ms,
           opts->force_delay, opts->force_error, opts->palm_map_size_mb);
 
-        printf("testing config: %s\n", ext_cfg);
         testutil_snprintf(disagg_cfg, disagg_cfg_size, TESTUTIL_ENV_CONFIG_DISAGG,
           opts->disagg_mode, opts->disagg_page_log);
     } else {

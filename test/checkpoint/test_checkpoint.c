@@ -300,9 +300,7 @@ main(int argc, char *argv[])
 
         g.opts.running = true;
 
-        printf("test 0\n");
         wt_connect(config_open);
-        printf("test 1\n");
         if (verify_only) {
             WT_SESSION *session;
 
@@ -314,7 +312,6 @@ main(int argc, char *argv[])
             verify_consistency(session, WT_TS_NONE, false);
             goto run_complete;
         }
-        printf("test 2\n");
         start_threads();
         ret = start_workers();
         g.opts.running = false;
