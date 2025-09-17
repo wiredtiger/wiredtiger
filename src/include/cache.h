@@ -27,7 +27,7 @@ typedef enum __wt_cache_op {
  */
 struct __wt_cache_eviction_controls {
 
-    uint8_t app_eviction_min_cache_fill_ratio; /* Application eviction minimum cache fill ratio */
+    wt_shared uint8_t app_eviction_min_cache_fill_ratio; /* Application eviction minimum cache fill ratio */
 
 /* cache eviction controls bit positions */
 #define WT_CACHE_EVICT_INCREMENTAL_APP 0x1u

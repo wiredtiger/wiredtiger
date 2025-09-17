@@ -508,6 +508,7 @@ static WT_INLINE bool
 __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pct_fullp)
 {
     WT_EVICT *evict;
+    uint8_t min_cache_fill_ratio;
     double pct_dirty, pct_full, pct_updates;
     bool clean_needed, dirty_needed, updates_needed;
 
@@ -521,6 +522,15 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pc
         return (false);
 
     clean_needed = __wt_evict_clean_needed(session, &pct_full);
+
+    /*
+     * Check if application threads are allowed to participate in eviction based on the configured
+     * minimum cache fill ratio.
+     */
+    min_cache_fill_ratio = __wt_atomic_load8(&S2C(session)->cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio);
+    if (min_cache_fill_ratio > 0 && pct_full < min_cache_fill_ratio)
+        return (false);
+
     if (readonly) {
         dirty_needed = updates_needed = false;
         pct_dirty = pct_updates = 0.0;
@@ -712,13 +722,6 @@ __wt_evict_app_assist_worker_check(
     if (!__wt_evict_needed(session, busy, readonly, &pct_full))
         return (0);
 
-    /*
-     * Check if application threads are allowed to participate in eviction based on the configured
-     * minimum cache fill ratio.
-     */
-    if (conn->cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio > 0 &&
-      pct_full < conn->cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio)
-        return (0);
 
     /*
      * If the caller is holding shared resources, only evict if the cache is at any of its eviction
