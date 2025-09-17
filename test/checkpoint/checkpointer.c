@@ -647,7 +647,7 @@ diagnose_key_error(WT_CURSOR *cursor1, table_type type1, int index1, WT_CURSOR *
     session = cursor1->session;
     key1_orig = key2_orig = 0;
 
-    /* Disaggregate feature doesn't support checkpoint cursors. */
+    /* disagg doesn't support checkpoint cursors. */
     if (g.opts.disagg_storage == true)
         ckpt[0] = '\0';
     else

@@ -8,9 +8,10 @@ precise_checkpoint=1
 disagg.page_log=palm
 disagg.enabled=1
 disagg.layered=1
+runs.rows=1000000:3000000
 runs.source=layered
 runs.type=row-store
-runs.tables=3
+runs.tables=1:3
 import=0
 ops.alter=0
 # FIXME-WT-14467 should fix cursor->modify for layered tables.
