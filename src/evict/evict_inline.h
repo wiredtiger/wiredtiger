@@ -508,8 +508,8 @@ static WT_INLINE bool
 __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pct_fullp)
 {
     WT_EVICT *evict;
-    uint8_t min_cache_fill_ratio;
     double pct_dirty, pct_full, pct_updates;
+    uint8_t min_cache_fill_ratio;
     bool clean_needed, dirty_needed, updates_needed;
 
     evict = S2C(session)->evict;
@@ -527,7 +527,8 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pc
      * Check if application threads are allowed to participate in eviction based on the configured
      * minimum cache fill ratio.
      */
-    min_cache_fill_ratio = __wt_atomic_load8(&S2C(session)->cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio);
+    min_cache_fill_ratio = __wt_atomic_load8(
+      &S2C(session)->cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio);
     if (min_cache_fill_ratio > 0 && pct_full < min_cache_fill_ratio)
         return (false);
 

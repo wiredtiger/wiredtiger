@@ -2326,7 +2326,8 @@ __wti_cache_eviction_controls_config(WT_SESSION_IMPL *session, const char *cfg[]
 
     WT_RET(__wt_config_gets(
       session, cfg, "cache_eviction_controls.app_eviction_min_cache_fill_ratio", &cval));
-    __wt_atomic_store8(&cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio, (uint8_t)cval.val);
+    __wt_atomic_store8(
+      &cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio, (uint8_t)cval.val);
     return (0);
 }
 
