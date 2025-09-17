@@ -61,7 +61,7 @@
 
 #else
 #define __wt_error_log_add_helper(expr, error, suberror)
-#define __wt_error_log_clear_helper(expr, error, suberror)
+#define __wt_error_log_clear_helper()
 #define WT_ERROR_LOG_ADD(expr) (expr)
 #endif /* WT_HAVE_ERROR_LOG */
 
