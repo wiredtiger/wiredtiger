@@ -5,8 +5,8 @@ leverage shared storage for the majority of a table's data. Generally speaking, 
 not a table in the traditional sense, but rather an adapter that splits data access between two
 layers.
 
-This mechanism enables a single leader node to perform writes to the table, while other follower nodes
-maintain a consistent view by tracking recent changes. Having followers track recent changes allows
+This mechanism enables a single leader node to perform writes to the stable table, while other follower
+nodes maintain a consistent view by tracking recent changes. Having followers track recent changes allows
 for two key features:
 - Follower nodes can serve read operations on recent data without needing to access the shared
 storage directly.
@@ -63,8 +63,6 @@ Layered tables support all the regular tables operations, with exceptions listed
 - All writes, from all nodes, must be timestamped
 - All nodes must use the same URI for the same table
 - All nodes must use byte-wise identical keys, values, and timestamps for the same records.
-- Prepared transactions will behave as described in the design for distributed transactions in
-disaggregated storage
 - Table compaction is not supported on layered tables
 - Backup cursors will not return information about layered tables
 - Bulk cursors are not supported on layered tables
@@ -95,9 +93,8 @@ file:foo.wt_ingest
 file:foo.wt_stable
 ```
 
-So the ingest and stable tables can be accessed through those files. The ingest and stable table
-could also have table: prefixed metadata entries if the table was created with
-the `block_manager=disagg,type=layered` config.
+The ingest and stable table could also have table: prefixed metadata entries if the table was created
+with the `block_manager=disagg,type=layered` config.
 
 Since shared metadata and history store tables are shared but not layered tables, they both have
 `.wt_stable` suffixed metadata entries but no associated `layered:` ones:
