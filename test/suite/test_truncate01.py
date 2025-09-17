@@ -515,7 +515,7 @@ class test_truncate_cursor(test_truncate_base):
     def test_truncate_complex(self):
 
         # We only care about tables.
-        if self.type != 'table:' or not self.runningHook('disagg')
+        if self.type != 'table:' or not self.runningHook('disagg'):
                 return
 
         uri = self.type + self.name
