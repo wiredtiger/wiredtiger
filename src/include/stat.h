@@ -602,6 +602,7 @@ struct __wt_connection_stats {
     int64_t eviction_force_hs_success;
     int64_t eviction_force_clean;
     int64_t eviction_force_dirty;
+    int64_t eviction_force_long_update_list;
     int64_t eviction_force_delete;
     int64_t eviction_force;
     int64_t eviction_force_fail;

@@ -346,6 +346,7 @@ conn_stats = [
     EvictStat('eviction_force_hs', 'forced eviction - history store pages selected while session has history store cursor open'),
     EvictStat('eviction_force_hs_fail', 'forced eviction - history store pages failed to evict while session has history store cursor open'),
     EvictStat('eviction_force_hs_success', 'forced eviction - history store pages successfully evicted while session has history store cursor open'),
+    EvictStat('eviction_force_long_update_list', 'forced eviction - pages selected because of a large number of updates to a single item'),
     EvictStat('eviction_force_no_retry', 'forced eviction - do not retry count to evict pages selected to evict during reconciliation'),
     EvictStat('eviction_get_ref_empty', 'eviction calls to get a page found queue empty'),
     EvictStat('eviction_get_ref_empty2', 'eviction calls to get a page found queue empty after locking'),

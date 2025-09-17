@@ -358,3 +358,99 @@ err:
 
     return (ret);
 }
+
+/*
+ * __wt_update_obsolete_check --
+ *     Check for obsolete updates and force evict the page if the update list is too long.
+ */
+void
+__wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+{
+    WT_PAGE *page;
+    WT_TXN_GLOBAL *txn_global;
+    WT_UPDATE *first;
+    wt_timestamp_t prune_timestamp;
+    uint64_t oldest_id;
+    u_int count;
+
+    page = cbt->ref->page;
+    txn_global = &S2C(session)->txn_global;
+
+    WT_ASSERT(session, page->modify != NULL);
+    /* If we can't lock it, don't scan, that's okay. */
+    if (WT_PAGE_TRYLOCK(session, page) != 0)
+        return;
+
+    WT_ACQUIRE_READ(prune_timestamp, CUR2BT(cbt)->prune_timestamp);
+
+    oldest_id = __wt_txn_oldest_id(session);
+
+    /*
+     * This function identifies obsolete updates, and truncates them from the rest of the chain;
+     * because this routine is called from inside a serialization function, the caller has
+     * responsibility for actually freeing the memory.
+     *
+     * Walk the list of updates, looking for obsolete updates at the end.
+     *
+     * Only updates with globally visible, self-contained data can terminate update chains.
+     */
+    for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++) {
+        if (upd->txnid == WT_TXN_ABORTED)
+            continue;
+
+        /*
+         * Prepare transaction rollback adds a globally visible tombstone to the update chain to
+         * remove the entire key. Treating these globally visible tombstones as obsolete and
+         * trimming update list can cause problems if the update chain is getting accessed somewhere
+         * else. To avoid this problem, skip these globally visible tombstones from the update
+         * obsolete check.
+         */
+        if (F_ISSET(upd, WT_UPDATE_PREPARE_ROLLBACK))
+            continue;
+
+        /*
+         * If a table has garbage collection enabled, then trim updates as possible. We should check
+         * the logic here - it might be possible to do something more aggressive?
+         */
+        if (__wt_txn_upd_visible_all(session, upd) ||
+          (F_ISSET(CUR2BT(cbt), WT_BTREE_GARBAGE_COLLECT) &&
+            (upd->txnid < oldest_id && prune_timestamp != WT_TS_NONE &&
+              upd->upd_durable_ts <= prune_timestamp))) {
+            if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
+                first = upd;
+        } else
+            first = NULL;
+
+        /* Cannot truncate the updates if we need to remove the updates from the history store. */
+        if (F_ISSET(upd, WT_UPDATE_HS_MAX_STOP))
+            first = NULL;
+    }
+
+    if (first != NULL && first->next != NULL)
+        __wt_free_obsolete_updates(session, page, first);
+
+    /*
+     * Force evict a page when there are more than WT_THOUSAND updates to a single item. Increasing
+     * the minSnapshotHistoryWindowInSeconds to 300 introduced a performance regression in which the
+     * average number of updates on a single item was approximately 1000 in write-heavy workloads.
+     * This is why we use WT_THOUSAND here.
+     */
+    if (count > WT_THOUSAND) {
+        WT_STAT_CONN_INCR(session, eviction_force_long_update_list);
+        __wt_evict_page_soon(session, cbt->ref);
+    }
+
+    if (first == NULL) {
+        /*
+         * If the list is long, don't retry checks on this page until the transaction state has
+         * moved forwards.
+         */
+        if (count > 20) {
+            page->modify->obsolete_check_txn = __wt_atomic_loadv64(&txn_global->last_running);
+            if (txn_global->has_pinned_timestamp)
+                page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
+        }
+    }
+
+    WT_PAGE_UNLOCK(session, page);
+}

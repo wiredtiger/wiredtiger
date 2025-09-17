@@ -275,7 +275,8 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
 {
     WT_DECL_RET;
     WT_UPDATE *upd;
-    wt_timestamp_t prev_upd_ts;
+    wt_timestamp_t obsolete_timestamp, prev_upd_ts;
+    uint64_t txn;
 
     /* Clear references to memory we now own and must free on error. */
     upd = *updp;
@@ -317,6 +318,51 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      * and used as an eviction heuristic.
      */
     __wt_page_modify_update_timestamp(session, page);
+
+    if (!F_ISSET_ATOMIC_32(
+          S2C(session)->cache->cache_eviction_controls, WT_CACHE_EVICT_SKIP_UPDATE_OBSOLETE))
+        return (0);
+
+    /*
+     * Don't remove obsolete updates in the history store, due to having different visibility rules
+     * compared to normal tables. This visibility rule allows different readers to concurrently read
+     * globally visible updates, and insert new globally visible updates, due to the reuse of
+     * original transaction informations.
+     */
+    if (WT_IS_HS(session->dhandle))
+        return (0);
+
+    /* If there are no subsequent WT_UPDATE structures we are done here. */
+    if (upd->next == NULL)
+        return (0);
+
+    /*
+     * We would like to call __wt_txn_update_oldest only in the event that there are further updates
+     * to this page, the check against WT_TXN_NONE is used as an indicator of there being further
+     * updates on this page.
+     */
+    if ((txn = page->modify->obsolete_check_txn) != WT_TXN_NONE) {
+        obsolete_timestamp = page->modify->obsolete_check_timestamp;
+        if (!__wt_txn_visible_all(session, txn, obsolete_timestamp)) {
+            /* Try to move the oldest ID forward and re-check. */
+            ret = __wt_txn_update_oldest(session, 0);
+            /*
+             * We cannot proceed if we fail here as we have inserted the updates to the update
+             * chain. Panic instead. Currently, we don't ever return any error from
+             * __wt_txn_visible_all. We can catch it if we start to do so in the future and properly
+             * handle it.
+             */
+            if (ret != 0)
+                WT_RET_PANIC(session, ret, "fail to update oldest after serializing the updates");
+
+            if (!__wt_txn_visible_all(session, txn, obsolete_timestamp))
+                return (0);
+        }
+
+        page->modify->obsolete_check_txn = WT_TXN_NONE;
+    }
+
+    __wt_update_obsolete_check(session, cbt, upd->next);
 
     return (0);
 }
