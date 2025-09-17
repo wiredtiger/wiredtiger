@@ -650,9 +650,9 @@ functions:
         ${PREPARE_TEST_ENV}
         . test/evergreen/find_cmake.sh
         cd cmake_build/${directory}
-        disagg_run_label="-L disagg"
+        disagg_run_label="--label disagg"
         if [[ "${disagg_run|false}" == "false" ]]; then
-          disagg_run_label="-LE disagg"
+          disagg_run_label="--exclude-label disagg"
         fi
         $CTEST $disagg_run_label ${ctest_extra_args} --output-on-failure 2>&1
 
