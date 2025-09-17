@@ -591,7 +591,8 @@ connection_runtime_config = [
                 the target limit.''',
                 type='boolean'),
             Config('skip_update_obsolete_check', 'false', 
-                r'''Skip checking for obsolete updates whenever an update operation is performed.''',
+                r'''Skip checking for obsolete updates whenever an update operation is
+                performed.''',
                 type='boolean'),
         ]),
     Config('cache_size', '100MB', r'''

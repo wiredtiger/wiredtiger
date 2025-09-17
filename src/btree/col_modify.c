@@ -175,7 +175,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
         upd->next = old_upd;
 
         /* Serialize the update. */
-        WT_ERR(__wt_update_serial(session, cbt, page, &cbt->ins->upd, &upd, upd_size));
+        WT_ERR(__wt_update_serial(session, cbt, page, &cbt->ins->upd, &upd, upd_size, false));
     } else {
         /* Make sure the modify can proceed. */
         if (cbt->compare == 0 && upd_arg == NULL)

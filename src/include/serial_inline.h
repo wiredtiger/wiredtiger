@@ -271,7 +271,7 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
  */
 static WT_INLINE int
 __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page,
-  WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size)
+  WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size, bool exclusive)
 {
     WT_DECL_RET;
     WT_UPDATE *upd;
@@ -337,7 +337,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
         return (0);
 
     /* If there are no subsequent WT_UPDATE structures we are done here. */
-    if (upd->next == NULL)
+    if (upd->next == NULL || exclusive)
         return (0);
 
     /*
