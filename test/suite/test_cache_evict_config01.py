@@ -45,10 +45,8 @@ class test_cache_evict_config01(wttest.WiredTigerTestCase):
 
         # Try different eviction reconfigurations.
         configs = [
-            "cache_eviction_controls=[incremental_app_eviction=true,scrub_evict_under_target_limit=true]",
-            "cache_eviction_controls=[incremental_app_eviction=false,scrub_evict_under_target_limit=false]",
-            "cache_eviction_controls=[incremental_app_eviction=true,scrub_evict_under_target_limit=false]",
-            "cache_eviction_controls=[incremental_app_eviction=false,scrub_evict_under_target_limit=true]",
+            "cache_eviction_controls=[incremental_app_eviction=true,scrub_evict_under_target_limit=true,skip_update_obsolete_check=true]",
+            "cache_eviction_controls=[incremental_app_eviction=false,scrub_evict_under_target_limit=false,skip_update_obsolete_check=false]",
         ]
 
         for cfg in configs:
