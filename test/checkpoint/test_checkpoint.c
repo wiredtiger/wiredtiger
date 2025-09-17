@@ -300,8 +300,9 @@ main(int argc, char *argv[])
 
         g.opts.running = true;
 
+        printf("test 0\n");
         wt_connect(config_open);
-
+        printf("test 1\n");
         if (verify_only) {
             WT_SESSION *session;
 
@@ -313,7 +314,7 @@ main(int argc, char *argv[])
             verify_consistency(session, WT_TS_NONE, false);
             goto run_complete;
         }
-
+        printf("test 2\n");
         start_threads();
         ret = start_workers();
         g.opts.running = false;
@@ -357,11 +358,13 @@ enable_disagg(const char *mode)
         g.opts.disagg_switch_mode = false;
         g.opts.disagg_mode = "leader";
         g.opts.disagg_page_log = "palm";
+        g.use_timestamps = true;
     } else if (strcmp(mode, "follower") == 0) {
         g.opts.disagg_storage = true;
         g.opts.disagg_mode = "follower";
         g.opts.disagg_switch_mode = false;
         g.opts.disagg_page_log = "palm";
+        g.use_timestamps = true;
     } else if (strcmp(mode, "switch") == 0) {
         g.opts.disagg_storage = true;
         g.opts.disagg_switch_mode = true;
@@ -369,6 +372,7 @@ enable_disagg(const char *mode)
         bool disagg_leader = (__wt_random(&g.opts.extra_rnd) % 2) == 0;
         g.opts.disagg_mode = disagg_leader ? "leader" : "follower";
         g.opts.disagg_page_log = "palm";
+        g.use_timestamps = true;
         printf("Switch mode: starting as %s\n", g.opts.disagg_mode);
     } else {
         fprintf(stderr, "Invalid disaggregated mode: %s\n", mode);

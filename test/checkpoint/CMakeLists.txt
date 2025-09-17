@@ -48,18 +48,19 @@ define_test_variants(test_checkpoint
         test_checkpoint
 )
 
-# FIXME-WT-15334 re-enable tests once the build is stable
-# # Define test variants for the disagg test
-# define_test_variants(test_checkpoint
-#     VARIANTS
-#         # 1. Row-store cases.
-#         "disagg_leader_row_stress_sweep_timestamps|-d leader -t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000 -D"
-#         "disagg_leader_row_sweep_timestamps|-d leader -t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000"
-#     LABELS
-#         check
-#         test_checkpoint
-#         test_checkpoint_disagg
-# )
+# Define test variants for the disagg test
+define_test_variants(test_checkpoint
+    VARIANTS
+        # 1. Row-store cases.
+        "disagg_6_row|-t r -T 6"
+        "disagg_6_row_prepare|-t r -T 6 -p"
+        "disagg_leader_row_stress_sweep_timestamps|-d leader -t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000 -D"
+        "disagg_leader_row_sweep_timestamps|-d leader -t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000"
+    LABELS
+        check
+        disagg
+        test_checkpoint
+)
 
 # Define long running test variants for the checkpoint test
 # See SERVER-93028
@@ -73,14 +74,13 @@ define_test_variants(test_checkpoint
         long_running
 )
 
-# FIXME-WT-15334 re-enable tests once the build is stable
-# # Define long running test variants for the disagg test
-# define_test_variants(test_checkpoint
-#     VARIANTS
-#         "disagg_leader_row_server_93028|-d leader -t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=250MB"
-#     LABELS
-#         check
-#         test_checkpoint
-#         test_checkpoint_disagg
-#         long_running
-# )
+# Define long running test variants for the disagg test
+define_test_variants(test_checkpoint
+    VARIANTS
+        "disagg_leader_row_server_93028|-d leader -t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=250MB"
+    LABELS
+        check
+        disagg
+        test_checkpoint
+        long_running
+)
