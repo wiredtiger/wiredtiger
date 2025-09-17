@@ -53,7 +53,7 @@ define_test_variants(test_checkpoint
     VARIANTS
         # 1. Row-store cases.
         "disagg_6_row|-d leader -t r -T 6 -x"
-        "disagg_6_row_prepare|-d leader -t r -T 6 -p -x
+        "disagg_6_row_prepare|-d leader -t r -T 6 -p -x"
         "disagg_leader_row_stress_sweep_timestamps|-d leader -t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000 -D"
         "disagg_leader_row_sweep_timestamps|-d leader -t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000"
     LABELS
