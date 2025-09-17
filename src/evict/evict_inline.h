@@ -722,7 +722,6 @@ __wt_evict_app_assist_worker_check(
     if (!__wt_evict_needed(session, busy, readonly, &pct_full))
         return (0);
 
-
     /*
      * If the caller is holding shared resources, only evict if the cache is at any of its eviction
      * targets.
