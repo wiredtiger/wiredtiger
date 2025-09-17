@@ -86,6 +86,29 @@ WT_ATOMIC_FUNC(iv64, int64_t, volatile int64_t, 64, __int64)
 WT_ATOMIC_FUNC(size, size_t, size_t, 64, __int64)
 
 /*
+ * __wt_atomic_load_double --
+ *     Read a double variable. These reads are non-atomic due to MSVC lacking Interlocked intrinsics
+ *     for relaxed memory per the comment above.
+ */
+static inline double
+__wt_atomic_load_double(double *vp)
+{
+    return (*vp);
+}
+
+/*
+ * __wt_atomic_store_double --
+ *     Set a double variable. These reads are non-atomic due to MSVC lacking Interlocked intrinsics
+ *     for relaxed memory per the comment above.
+ */
+static inline void
+__wt_atomic_store_double(double *vp, double v)
+{
+    *vp = v;
+}
+
+
+/*
  * We can't use the WT_ATOMIC_FUNC macro for booleans as MSVC doesn't have Interlocked intrinsics
  * that support booleans. These atomic loads and stores were non-atomic memory accesses originally,
  * so we'll maintain that behavior on Windows.
@@ -133,28 +156,6 @@ static inline void
 __wt_atomic_storevbool(volatile bool *vp, bool v)
 {
     *(vp) = (v);
-}
-
-/*
- * __wt_atomic_load_double --
- *     Read a double variable. These reads are non-atomic due to MSVC lacking Interlocked intrinsics
- *     for doubles per the comment above.
- */
-static inline double
-__wt_atomic_load_double(double *vp)
-{
-    return (*vp);
-}
-
-/*
- * __wt_atomic_store_double --
- *     Set a double variable. These reads are non-atomic due to MSVC lacking Interlocked intrinsics
- *     for doubles per the comment above.
- */
-static inline void
-__wt_atomic_store_double(double *vp, double v)
-{
-    *vp = v;
 }
 
 /*
