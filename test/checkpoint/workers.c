@@ -65,7 +65,6 @@ create_table(WT_SESSION *session, COOKIE *cookie)
     if ((ret = session->create(session, cookie->uri, config)) != 0)
         if (ret != EEXIST)
             return (log_print_err("session.create", ret, 1));
-
     ++g.ntables_created;
     return (0);
 }
