@@ -624,28 +624,40 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         return name in WiredTigerTestCase.hook_names
 
     @contextmanager
-    def expectedStdout(self, expect):
-        self.captureout.check(self)
+    def expectedStdout(self, expect, ignore_pat=None):
+        """
+        Expect the given string on stdout. If ignore_pat is set, ignore any lines that match it.
+        """
+        self.captureout.check(self, ignore_pat=ignore_pat)
         yield
         self.captureout.checkAdditional(self, expect)
 
     @contextmanager
-    def expectedStderr(self, expect):
-        self.captureerr.check(self)
+    def expectedStderr(self, expect, ignore_pat=None):
+        """
+        Expect the given string on stderr. If ignore_pat is set, ignore any lines that match it.
+        """
+        self.captureerr.check(self, ignore_pat=ignore_pat)
         yield
         self.captureerr.checkAdditional(self, expect)
 
     @contextmanager
-    def expectedStdoutPattern(self, pat, re_flags=0, maxchars=1500):
-        self.captureout.check(self)
+    def expectedStdoutPattern(self, pat, re_flags=0, maxchars=1500, ignore_pat=None):
+        """
+        Expect a pattern on stdout. If ignore_pat is set, ignore any lines that match it.
+        """
+        self.captureout.check(self, ignore_pat=ignore_pat)
         yield
-        self.captureout.checkAdditionalPattern(self, pat, re_flags, maxchars)
+        self.captureout.checkAdditionalPattern(self, pat, re_flags, maxchars, ignore_pat)
 
     @contextmanager
-    def expectedStderrPattern(self, pat, re_flags=0, maxchars=1500):
-        self.captureerr.check(self)
+    def expectedStderrPattern(self, pat, re_flags=0, maxchars=1500, ignore_pat=None):
+        """
+        Expect a pattern on stderr. If ignore_pat is set, ignore any lines that match it.
+        """
+        self.captureerr.check(self, ignore_pat=ignore_pat)
         yield
-        self.captureerr.checkAdditionalPattern(self, pat, re_flags, maxchars)
+        self.captureerr.checkAdditionalPattern(self, pat, re_flags, maxchars, ignore_pat)
 
     @contextmanager
     def customStdoutPattern(self, f):
@@ -676,11 +688,12 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         error output).  Otherwise, the message must match verbatim,
         including any trailing newlines.
         """
+        ignore_pat = "WT_VERB_ERROR_RETURNS.*Error at " # Ignore file/line number messages.
         if len(message) > 2 and message[0] == '/' and message[-1] == '/':
-            with self.expectedStderrPattern(message[1:-1]):
+            with self.expectedStderrPattern(message[1:-1], ignore_pat=ignore_pat):
                 self.assertRaises(exceptionType, expr)
         else:
-            with self.expectedStderr(message):
+            with self.expectedStderr(message, ignore_pat=ignore_pat):
                 self.assertRaises(exceptionType, expr)
 
     def assertRaisesException(self, exceptionType, expr,
