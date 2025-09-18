@@ -658,13 +658,14 @@ functions:
         else
           disagg_filter='-LE'  # Exclude labels  
         fi
-        # Create new disagg label filter or append to the existing one.  
-        if $(echo "$ctest_extra_args" | grep -q -w '$disagg_filter'); then
-          ctest_extra_args=$(echo "$ctest_extra_args" | sed -E "s/$disagg_filter \"\(.*\)\"/$disagg_filter \"\1|disagg\"/")
+        # Create new disagg label filter or append to the existing one.
+        ctest_args=${ctest_extra_args}
+        if $(echo "$ctest_args" | grep -q -w '$disagg_filter'); then
+          ctest_args=$(echo "$ctest_args" | sed -E "s/$disagg_filter \"\(.*\)\"/$disagg_filter \"\1|disagg\"/")
         else
-          ctest_extra_args+=" $disagg_filter \"disagg\""
+          ctest_args+=" $disagg_filter \"disagg\""
         fi
-        $CTEST ${ctest_extra_args} --output-on-failure 2>&1
+        $CTEST $ctest_args --output-on-failure 2>&1
 
   "make check all":
     command: shell.exec
