@@ -3479,9 +3479,17 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      * question of correctness, we're avoiding block leaks.
      */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
-        if (multi->addr.block_cookie != NULL)
-            WT_TRET(__wt_btree_block_free(session, multi->addr.block_cookie,
-              multi->addr.block_cookie_size, r->multi_next == 1));
+        if (multi->addr.block_cookie != NULL) {
+            int ret_tmp = __wt_btree_block_free(
+              session, multi->addr.block_cookie, multi->addr.block_cookie_size, r->multi_next == 1);
+            if (ret_tmp != 0 && multi->block_meta != NULL)
+                __wt_verbose_error(session, WT_VERB_WRITE,
+                  "failed to free the block in reconciliation failure: page id %" PRIu64
+                  " base lsn %" PRIu64 " backlink lsn %" PRIu64 "",
+                  multi->block_meta->page_id, multi->block_meta->base_lsn,
+                  multi->block_meta->backlink_lsn);
+            WT_TRET(ret_tmp);
+        }
     }
 
     WT_TRET(__wti_ovfl_track_wrapup_err(session, page));
