@@ -144,7 +144,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_DECL_RET;
     WT_ITEM *deltas;
     WT_ITEM *tmp;
-    WT_PAGE *notused, *page;
+    WT_PAGE *page;
     WT_PAGE_BLOCK_META block_meta;
     WT_REF_STATE previous_state;
     size_t count, i;
@@ -257,9 +257,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         FLD_SET(page_flags, WT_PAGE_PREFETCH);
     if (deltas != NULL)
         FLD_SET(page_flags, WT_PAGE_WITH_DELTAS);
-    WT_ERR(__wti_page_inmem(session, ref, tmp[0].data, page_flags, &notused, &instantiate_upd));
+    WT_ERR(__wti_page_inmem(session, ref, tmp[0].data, page_flags, &page, &instantiate_upd));
     tmp[0].mem = NULL;
-    page = ref->page;
     if (page->disagg_info != NULL) {
         page->disagg_info->block_meta = block_meta;
         page->disagg_info->old_rec_lsn_max = block_meta.disagg_lsn;
