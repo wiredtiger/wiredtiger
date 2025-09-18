@@ -47,7 +47,8 @@
 
 #ifdef WT_HAVE_ERROR_LOG
 #define __wt_error_log_add_helper(expr, error, suberror) \
-    __wt_error_log_add(__FILE__, __PRETTY_FUNCTION__, __LINE__, expr, error, suberror)
+    WT_IGNORE_RET(                                       \
+      __wt_error_log_add(__FILE__, __PRETTY_FUNCTION__, __LINE__, expr, error, suberror))
 #define __wt_error_log_clear_helper() __wt_error_log_clear()
 
 /*
@@ -57,7 +58,7 @@
  * where we want to log an error but not return it.
  */
 #define WT_ERROR_LOG_ADD(expr) \
-    __wt_error_log_add_ret(__FILE__, __PRETTY_FUNCTION__, __LINE__, #expr, expr, WT_NONE)
+    __wt_error_log_add(__FILE__, __PRETTY_FUNCTION__, __LINE__, #expr, expr, WT_NONE)
 
 #else
 #define __wt_error_log_add_helper(expr, error, suberror) \
