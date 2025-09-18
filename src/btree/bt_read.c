@@ -322,7 +322,7 @@ err:
      * not the disk image. Discard the page and separately discard the disk image in all cases.
      */
     if (page != NULL) {
-        disk_image_freed = ref->page->dsk != NULL;
+        disk_image_freed = page->dsk != NULL;
         __wt_page_modify_clear(session, page);
         __wt_ref_out(session, ref);
     }
