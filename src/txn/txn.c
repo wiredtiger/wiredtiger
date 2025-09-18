@@ -1146,7 +1146,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * another transaction when the transaction tries to resolve the subsequent operations on the
      * same key.
      */
-    for (; upd != NULL && (upd->txnid != txn->id && upd->prepared_id != txn->prepared_id);
+    for (; upd != NULL &&
+         (upd->txnid != txn->id &&
+           (upd->prepared_id == WT_PREPARED_ID_NONE || upd->prepared_id != txn->prepared_id));
          upd = upd->next)
         ;
     head_upd = upd;
