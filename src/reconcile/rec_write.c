@@ -330,7 +330,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
       !r->cache_upd_chain_all_aborted) {
         /*
          * If leaf delta is enabled, we should have built an empty delta if this page has been
-         * reconciled before.
+         * reconciled before as we don't make any progress.
          */
         WT_ASSERT(session,
           !WT_DELTA_LEAF_ENABLED(session) || F_ISSET(r, WT_REC_EMPTY_DELTA) ||
@@ -2879,6 +2879,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
              */
             if (build_delta) {
                 header = (WT_PAGE_HEADER *)r->delta.data;
+                /* If we build an empty delta, ensure we skip it when we try to write it. */
                 if (header->u.entries > 0 &&
                   ((r->delta.size * 100) / chunk->image.size) > conn->page_delta.delta_pct)
                     build_delta = false;
