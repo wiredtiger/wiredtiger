@@ -591,10 +591,13 @@ connection_runtime_config = [
                 the target limit.''',
                 type='boolean'),
             Config('app_eviction_min_cache_fill_ratio', '0', r'''
-                The cache fill ratio that is required for the application threads from
-                participating in eviction. The value is between 0 and 50. A value of 0 means
-                this option is disabled. This value must be greater than \c eviction_dirty_trigger
-                or \c eviction_update_trigger to have any effect.''',
+                This setting establishes a minimum cache fill ratio that must be met before
+                application threads can start assisting with eviction. The value is a percentage
+                between 0 and 50, with 0 disabling the feature. For it to have any effect, this
+                minimum ratio must be higher than the existing \c eviction_dirty_trigger or
+                \c eviction_update_trigger and less than \c eviction_trigger. Essentially, the
+                standard dirty or update triggers won't become active until the cache fill ratio
+                first reaches this new, higher threshold.''',
                 min='0', max='50'),
         ]),
     Config('cache_size', '100MB', r'''
