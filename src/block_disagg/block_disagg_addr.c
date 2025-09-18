@@ -8,6 +8,19 @@
 
 #include "wt_internal.h"
 
+/*!!!
+ * Address cookie layout:
+ *
+ *     [0]: 4b-pack: version
+ *     [1]: 4b-pack: version_min
+ *     [2]: 4b-pack: page_id
+ *     [3]: 4b-pack: flags
+ *     [4]: 4b-pack: lsn
+ *     [5]: 4b-pack: base_lsn_delta (lsn - base_lsn)
+ *     [6]: 4b-pack: size
+ *     [7]: fixed32: checksum.
+ */
+
 /*
  * Address cookie version numbers.
  *
@@ -20,34 +33,6 @@
 #define WT_BLOCK_DISAGG_ADDR_VERSION_MIN 0 /* The oldest version that can read this format. */
 
 /*
- * __block_disagg_addr_pack_version --
- *     Pack the address cookie version into the buffer.
- */
-static inline int
-__block_disagg_addr_pack_version(uint8_t **pp, size_t maxlen)
-{
-    return (__wt_4b_pack_posint2(pp, maxlen ? *pp + maxlen : NULL, WT_BLOCK_DISAGG_ADDR_VERSION,
-      WT_BLOCK_DISAGG_ADDR_VERSION_MIN));
-}
-
-/*
- * __block_disagg_addr_unpack_version --
- *     Unpack the address cookie version from the buffer.
- */
-static inline int
-__block_disagg_addr_unpack_version(
-  const uint8_t **pp, size_t maxlen, uint8_t *version, uint8_t *version_min)
-{
-    uint64_t version_ = 0,
-             version_min_ =
-               0; /* Just to suppress gcc "may be used uninitialized in this function" */
-    WT_RET(__wt_4b_unpack_posint2(pp, maxlen ? *pp + maxlen : NULL, &version_, &version_min_));
-    *version = (uint8_t)version_;
-    *version_min = (uint8_t)version_min_;
-    return (0);
-}
-
-/*
  * __wti_block_disagg_addr_pack --
  *     Convert the filesystem components into its address cookie.
  */
@@ -55,25 +40,24 @@ int
 __wti_block_disagg_addr_pack(
   WT_SESSION_IMPL *session, uint8_t **pp, const WT_BLOCK_DISAGG_ADDRESS_COOKIE *cookie)
 {
-    uint64_t base_lsn_delta;
-
     WT_ASSERT(session, cookie->page_id != WT_BLOCK_INVALID_PAGE_ID);
     WT_ASSERT(session, cookie->size > 0);
 
     /* We will store the base LSN as a delta relative to the LSN to save space. */
     WT_ASSERT_ALWAYS(session, cookie->lsn > cookie->base_lsn,
       "LSN %" PRIu64 " must be larger than base LSN %" PRIu64, cookie->lsn, cookie->base_lsn);
-    base_lsn_delta = cookie->lsn - cookie->base_lsn;
 
-    /* Write the address version. */
-    WT_RET(__block_disagg_addr_pack_version(pp, 0));
-
-    /* Pack the address cookie. */
-    WT_RET(__wt_vpack_uint(pp, 0, cookie->page_id));
-    WT_RET(__wt_vpack_uint(pp, 0, cookie->flags));
-    WT_RET(__wt_vpack_uint(pp, 0, cookie->lsn));
-    WT_RET(__wt_vpack_uint(pp, 0, base_lsn_delta));
-    WT_RET(__wt_vpack_uint(pp, 0, cookie->size));
+    /* Bit-packed values. */
+    uint64_t values[] = {
+      WT_BLOCK_DISAGG_ADDR_VERSION,     /* version */
+      WT_BLOCK_DISAGG_ADDR_VERSION_MIN, /* version_min */
+      cookie->page_id,                  /* page_id */
+      cookie->flags,                    /* flags */
+      cookie->lsn,                      /* lsn */
+      cookie->lsn - cookie->base_lsn,   /* base_lsn_delta */
+      cookie->size                      /* size */
+    };
+    WT_RET(__wt_4b_pack_array(pp, 0, values, WT_ELEMENTS(values)));
 
     /* Pack the checksum as a fixed-length 32-bit integer. */
     WT_RET(__wt_pack_fixed_uint32(pp, 0, cookie->checksum));
@@ -90,41 +74,36 @@ int
 __wti_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, size_t buf_size,
   WT_BLOCK_DISAGG_ADDRESS_COOKIE *cookie)
 {
-    uint64_t base_lsn, base_lsn_delta, flags, lsn, page_id, size, unsupported_flags;
-    uint32_t checksum;
-    uint8_t version = 0,
-            version_min = 0; /* Just to suppress gcc "may be used uninitialized in this function" */
-    const uint8_t *begin;
-
-    begin = *buf;
-
-    /* Avoid compiler warnings. */
-    base_lsn_delta = flags = lsn = page_id = size = 0;
-    checksum = 0;
-
-    /* Unpack the address version. */
-    WT_RET(__block_disagg_addr_unpack_version(buf, 0, &version, &version_min));
-    if (version_min > WT_BLOCK_DISAGG_ADDR_VERSION)
-        WT_RET_MSG(session, ENOTSUP,
-          "Unsupported disaggregated address cookie version %" PRIu8 ", min %" PRIu8, version,
-          version_min);
+    const uint8_t *begin = *buf; /* Save to later calculate the consumed size. */
 
     /* Unpack the address cookie. */
-    WT_RET(__wt_vunpack_uint(buf, 0, &page_id));
-    WT_RET(__wt_vunpack_uint(buf, 0, &flags));
-    WT_RET(__wt_vunpack_uint(buf, 0, &lsn));
-    WT_RET(__wt_vunpack_uint(buf, 0, &base_lsn_delta));
-    WT_RET(__wt_vunpack_uint(buf, 0, &size));
+    uint64_t values[7];
+    WT_RET(__wt_4b_unpack_array(buf, 0, values, WT_ELEMENTS(values)));
+
+    /* Assign to variables for better readability. */
+    uint64_t version = values[0];
+    uint64_t version_min = values[1];
+    uint64_t page_id = values[2];
+    uint64_t flags = values[3];
+    uint64_t lsn = values[4];
+    uint64_t base_lsn_delta = values[5];
+    uint64_t size = values[6];
 
     /* Unpack the checksum as a fixed-length 32-bit integer. */
+    uint32_t checksum;
     WT_RET(__wt_unpack_fixed_uint32(buf, 0, &checksum));
+
+    if (version_min > WT_BLOCK_DISAGG_ADDR_VERSION)
+        WT_RET_MSG(session, ENOTSUP,
+          "Unsupported disaggregated address cookie version %" PRIu64 ", min %" PRIu64, version,
+          version_min);
 
     /* Get the base LSN from the delta. */
     if (lsn < base_lsn_delta)
         WT_RET_MSG(session, EINVAL,
           "Disaggregated address cookie LSN %" PRIu64 " is smaller than base LSN delta %" PRIu64,
           lsn, base_lsn_delta);
-    base_lsn = lsn - base_lsn_delta;
+    uint64_t base_lsn = lsn - base_lsn_delta;
 
     /* Check the page ID and size. */
     if (page_id == WT_BLOCK_INVALID_PAGE_ID)
@@ -147,7 +126,7 @@ __wti_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, si
      * address cookie, and (2) if there are no unsupported flags. If we are reading a new version,
      * we can't check the size, as more fields could have been added.
      */
-    unsupported_flags = flags;
+    uint64_t unsupported_flags = flags;
     FLD_CLR(unsupported_flags, WT_BLOCK_DISAGG_ADDR_ALL_FLAGS);
     if (version <= WT_BLOCK_DISAGG_ADDR_VERSION && unsupported_flags == 0 &&
       (size_t)(*buf - begin) != buf_size)
