@@ -40,14 +40,11 @@ from wtdataset import SimpleDataSet, ComplexDataSet, simple_key
 from wtscenario import make_scenarios
 
 class test_truncate_base(wttest.WiredTigerTestCase):
-    conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
+    conn_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ignoreStdoutPattern('WT_VERB_RTS')
-
-    def conn_config(self):
-        return self.conn_base_config
 
 # Test truncation arguments.
 class test_truncate_arguments(test_truncate_base):
@@ -250,15 +247,12 @@ class test_truncate_empty(test_truncate_base):
 # Test truncation timestamp handling.
 class test_truncate_timestamp(test_truncate_base):
     name = 'test_truncate'
-
+    conn_config += 'log=(enabled=true),'
     scenarios = make_scenarios([
         ('file', dict(type='file:')),
         ('table', dict(type='table:')),
 
     ])
-
-    def conn_config(self):
-        return self.conn_base_config + 'log=(enabled=true),'
 
     # Prevent these from running under a hook that will cause truncate to use a slow path.
     # Test truncation of an object without a timestamp, expect success.
