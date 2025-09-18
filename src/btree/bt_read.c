@@ -258,6 +258,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     if (deltas != NULL)
         FLD_SET(page_flags, WT_PAGE_WITH_DELTAS);
     WT_ERR(__wti_page_inmem(session, ref, tmp[0].data, page_flags, &page, &instantiate_upd));
+    WT_ASSERT(session, ref->page == page);
     tmp[0].mem = NULL;
     if (page->disagg_info != NULL) {
         page->disagg_info->block_meta = block_meta;
