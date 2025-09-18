@@ -275,7 +275,7 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
             WT_TRET(session->event_handler->handle_close(
               session->event_handler, &session->iface, cursor));
 
-        if (WT_PREFIX_MATCH(cursor->uri, "layered:"))
+        if (WT_PREFIX_MATCH(cursor->internal_uri, "layered:"))
             F_SET(cursor, WT_CURSTD_CONSTITUENT_DEAD);
         WT_TRET(cursor->close(cursor));
     }
