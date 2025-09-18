@@ -751,6 +751,9 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     page->modify->instantiated = true;
     page->modify->inst_updates = update_list;
 
+    /* The instantiated deleted page should be clean. */
+    WT_ASSERT(session, !__wt_page_is_modified(page));
+
     /*
      * We will leave the WT_PAGE_DELETED structure in the ref; all of its information has been
      * copied to the list of WT_UPDATE structures (if any), but we may still need it for internal
