@@ -2176,13 +2176,6 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     cursor->key_format = layered->key_format;
     cursor->value_format = layered->value_format;
 
-    /* Set the cache flag before finding a cursor handle. */
-    if (cacheable)
-        F_SET(cursor, WT_CURSTD_CACHEABLE);
-
-    /* Try to find the cursor in the cache. */
-    WT_ERR(__wt_cursor_init(cursor, uri, owner, cfg, cursorp));
-
     WT_ERR(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
     if (cval.val != 0) {
         F_SET(clayered, WT_CLAYERED_RANDOM);
@@ -2196,6 +2189,13 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
         clayered->next_random_sample_size = (u_int)cval.val;
         cacheable = false;
     }
+
+    /* Set the cache flag before finding a cursor handle. */
+    if (cacheable)
+        F_SET(cursor, WT_CURSTD_CACHEABLE);
+
+    /* Try to find the cursor in the cache. */
+    WT_ERR(__wt_cursor_init(cursor, uri, owner, cfg, cursorp));
 
     /* Layered cursor is not compatible with cursor_copy config. */
     F_CLR(cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE);
