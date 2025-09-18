@@ -147,6 +147,7 @@ __bmd_get_page_ids(
     WT_BLOCK_DISAGG *block_disagg;
     uint64_t table_id;
 
+    WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
     table_id = block_disagg->tableid;
 

@@ -319,7 +319,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * page discard function if we're in disagg mode.
              */
             if (ret == 0 && (ckpt + 1)->name == NULL) {
-                if (__wt_conn_is_disagg(session))
+                if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
                     WT_TRET(__verify_page_discard(session, bm));
 
                 if (!skip_hs)
@@ -1449,6 +1449,7 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
     WT_DECL_ITEM(item);
     WT_RET(__wt_scr_alloc(session, num_pages_found_in_palm, &item));
 
+    WT_ASSERT(session, bm->get_page_ids != NULL);
     /* Get page IDs from PALM. */
     WT_RET(bm->get_page_ids(bm, session, item, &num_pages_found_in_palm, checkpoint_lsn));
 
