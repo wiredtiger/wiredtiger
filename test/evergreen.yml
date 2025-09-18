@@ -650,11 +650,21 @@ functions:
         ${PREPARE_TEST_ENV}
         . test/evergreen/find_cmake.sh
         cd cmake_build/${directory}
-        disagg_run_label="--label disagg"
-        if [[ "${disagg_run|false}" == "false" ]]; then
-          disagg_run_label="--exclude-label disagg"
+
+        # Determine if we want to exclude or include disagg labels.  
+        disagg_filter=""
+        if [[ "${disagg_run}" == "true" ]]; then
+          disagg_filter='-L'  # Include labels  
+        else
+          disagg_filter='-LE'  # Exclude labels  
         fi
-        $CTEST $disagg_run_label ${ctest_extra_args} --output-on-failure 2>&1
+        # Create new disagg label filter or append to the existing one.  
+        if $(echo "$ctest_extra_args" | grep -q -w '$disagg_filter'); then
+          ctest_extra_args=$(echo "$ctest_extra_args" | sed -E "s/$disagg_filter \"\(.*\)\"/$disagg_filter \"\1|disagg\"/")
+        else
+          ctest_extra_args+=" $disagg_filter \"disagg\""
+        fi
+        $CTEST ${ctest_extra_args} --output-on-failure 2>&1
 
   "make check all":
     command: shell.exec
