@@ -290,9 +290,9 @@ def session_salvage_replace(orig_session_salvage, session_self, uri, config):
 
 # Called to replace Session.truncate.
 def session_truncate_replace(orig_session_truncate, session_self, uri, start, stop, config):
-    #uri = replace_uri(uri)
-    #return orig_session_truncate(session_self, uri, start, stop, config)
-    skip_test("truncate on disagg tables not yet implemented")
+    if (uri != None):
+        uri = replace_uri(uri)
+    return orig_session_truncate(session_self, uri, start, stop, config)
 
 # Called to replace Session.verify
 def session_verify_replace(orig_session_verify, session_self, uri, config):
@@ -327,7 +327,6 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
             ("test_cursor_big",      "Cursor caching verified with stats"),
             ("test_cursor_bound",    "Can't use cursor bounds with a disagg table"),
             ("test_salvage",         "Salvage tests directly name files ending in '.wt'"),
-            ("test_truncate",        "Truncate on disagg tables not yet implemented"),
             ("tiered",               "Tiered tests do not apply to disagg"),
         ]
 
