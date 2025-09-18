@@ -113,7 +113,6 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
         LF_SET(WT_CELL_TS_STOP);
     }
     if (tw->stop_txn != WT_TXN_MAX) {
-        WT_ASSERT(session, tw->stop_txn != WT_TS_NONE);
         /* Store differences, not absolutes. */
         WT_RET(__wt_vpack_uint(pp, 0, tw->stop_txn - tw->start_txn));
         LF_SET(WT_CELL_TXN_STOP);
