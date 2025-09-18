@@ -592,7 +592,7 @@ endfunction()
 # add_cmake_flag(dest_var flag)
 # A helper function that adds a CMake flag to a list of included flags if it's not already present.
 function(add_cmake_flag included_flags flag)
-    string(FIND "${${included_flags}}" "${flag}" flag_position)
+    string(FIND " ${${included_flags}} " " ${flag} " flag_position)
     if(flag_position EQUAL -1)
         set(${included_flags} "${${included_flags}} ${flag}" CACHE STRING "" FORCE)
     endif()

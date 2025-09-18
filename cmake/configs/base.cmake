@@ -455,8 +455,6 @@ endif()
 
 if(WT_WIN)
     # Check if we a using the dynamic or static run-time library.
-
-    # Define runtime library flags based on DYNAMIC_CRT setting
     if(DYNAMIC_CRT)
         # Use the multithread-specific and DLL-specific version of the run-time library (MSVCRT.lib).
         set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
