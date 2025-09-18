@@ -107,7 +107,6 @@ __wt_atomic_store_double(double *vp, double v)
     *vp = v;
 }
 
-
 /*
  * We can't use the WT_ATOMIC_FUNC macro for booleans as MSVC doesn't have Interlocked intrinsics
  * that support booleans. These atomic loads and stores were non-atomic memory accesses originally,
