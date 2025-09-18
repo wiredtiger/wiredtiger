@@ -251,7 +251,7 @@ def session_create_replace(orig_session_create, session_self, uri, config):
     if log_enabled and 'log=(enabled=false' not in config:
         skip_test("Log tables are not supported in disagg.")
 
-    import_enabled = 'import=(enabled' in config
+    import_enabled = config is not None and 'import=(enabled' in config
     if import_enabled:
         skip_test("Import does not work in disagg storage")
 
