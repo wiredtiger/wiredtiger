@@ -731,6 +731,8 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             raised = True
         if not raised and not optional:
             self.fail('no assertion raised')
+        ignore_pat = "WT_VERB_ERROR_RETURNS.*Error at " # Ignore file/line number messages.
+        self.ignoreStderrPatternIfExists(ignore_pat)
         return raised
 
     def raisesBusy(self, expr):
