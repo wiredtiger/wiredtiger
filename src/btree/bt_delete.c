@@ -753,7 +753,7 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     page->modify->instantiated = true;
     page->modify->inst_updates = update_list;
 
-    /* Mark the page as clean if we are read only or committed. */
+    /* Mark the page as clean if the btree is read only or the fast truncate is committed. */
     if (F_ISSET(btree, WT_BTREE_READONLY) || page_del == NULL || page_del->committed)
         __wt_page_modify_clear(session, page);
 
