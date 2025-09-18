@@ -728,11 +728,17 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                 fail = False
                 self.pr('Expecting string msg: ' + exceptionString)
                 if len(exceptionString) > 2 and \
-                  exceptionString[0] == '/' and exceptionString[-1] == '/' :
-                      if re.search(exceptionString[1:-1], str(err)) == None:
+                  exceptionString[0] == '/' and exceptionString[-1] == '/':
+                    if re.search(exceptionString[1:-1], str(err)) == None:
                         fail = True
+                    else:
+                        # Skip stderr lines matching the exception pattern, if it was also printed.
+                        self.skipStderrLinesWithPattern(exceptionString[1:-1])
                 elif exceptionString != str(err):
                         fail = True
+                else:
+                    # Skip stderr lines matching the exception string, if it was also printed.
+                    self.skipStderrLinesWithPattern(exceptionString)
                 if fail:
                     self.fail('Exception with incorrect string raised, got: "' + \
                         str(err) + '" Expected: ' + exceptionString)
