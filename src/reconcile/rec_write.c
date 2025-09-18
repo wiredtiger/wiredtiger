@@ -3482,12 +3482,17 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         if (multi->addr.block_cookie != NULL) {
             int ret_tmp = __wt_btree_block_free(
               session, multi->addr.block_cookie, multi->addr.block_cookie_size, r->multi_next == 1);
-            if (ret_tmp != 0 && multi->block_meta != NULL)
-                __wt_verbose_error(session, WT_VERB_WRITE,
-                  "failed to free the block in reconciliation failure: page id %" PRIu64
-                  " base lsn %" PRIu64 " backlink lsn %" PRIu64 "",
-                  multi->block_meta->page_id, multi->block_meta->base_lsn,
-                  multi->block_meta->backlink_lsn);
+            if (ret_tmp != 0) {
+                if (multi->block_meta != NULL)
+                    __wt_verbose_error(session, WT_VERB_RECONCILE,
+                      "failed to free the block in reconciliation failure: page id %" PRIu64
+                      " base lsn %" PRIu64 " backlink lsn %" PRIu64 "",
+                      multi->block_meta->page_id, multi->block_meta->base_lsn,
+                      multi->block_meta->backlink_lsn);
+                else
+                    __wt_verbose_error(session, WT_VERB_RECONCILE, "%s",
+                      "failed to free the block in reconciliation failure");
+            }
             WT_TRET(ret_tmp);
         }
     }
