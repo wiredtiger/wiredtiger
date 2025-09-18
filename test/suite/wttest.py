@@ -41,6 +41,9 @@ from contextlib import contextmanager
 import errno, glob, os, re, shutil, sys, threading, time, traceback, types
 import abstract_test_case, test_result, wiredtiger, wthooks, wtscenario
 
+# The pattern for ignoring file/line number messages.
+WT_ERROR_LOG_PATTERN = "WT_VERB_ERROR_RETURNS.*Error at "
+
 # Use as "with timeout(seconds): ....". Argument of 0 means no timeout,
 # and only available (with non-zero argument) on Unix systems.
 class timeout(object):
@@ -679,6 +682,12 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         if self.captureerr.hasUnexpectedOutput(self):
             self.captureerr.checkAdditionalPattern(self, pat, re_flags)
 
+    def skipStdoutLinesWithPattern(self, pat):
+        self.captureout.skipLinesWithPattern(pat)
+
+    def skipStderrLinesWithPattern(self, pat):
+        self.captureerr.skipLinesWithPattern(pat)
+
     def assertRaisesWithMessage(self, exceptionType, expr, message):
         """
         Like TestCase.assertRaises(), but also checks to see
@@ -688,12 +697,11 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         error output).  Otherwise, the message must match verbatim,
         including any trailing newlines.
         """
-        ignore_pat = "WT_VERB_ERROR_RETURNS.*Error at " # Ignore file/line number messages.
         if len(message) > 2 and message[0] == '/' and message[-1] == '/':
-            with self.expectedStderrPattern(message[1:-1], ignore_pat=ignore_pat):
+            with self.expectedStderrPattern(message[1:-1], ignore_pat=WT_ERROR_LOG_PATTERN):
                 self.assertRaises(exceptionType, expr)
         else:
-            with self.expectedStderr(message, ignore_pat=ignore_pat):
+            with self.expectedStderr(message, ignore_pat=WT_ERROR_LOG_PATTERN):
                 self.assertRaises(exceptionType, expr)
 
     def assertRaisesException(self, exceptionType, expr,
@@ -720,17 +728,25 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                 fail = False
                 self.pr('Expecting string msg: ' + exceptionString)
                 if len(exceptionString) > 2 and \
-                  exceptionString[0] == '/' and exceptionString[-1] == '/' :
-                      if re.search(exceptionString[1:-1], str(err)) == None:
+                  exceptionString[0] == '/' and exceptionString[-1] == '/':
+                    if re.search(exceptionString[1:-1], str(err)) == None:
                         fail = True
+                    else:
+                        # Skip stderr lines matching the exception pattern, if it was also printed.
+                        self.skipStderrLinesWithPattern(exceptionString[1:-1])
                 elif exceptionString != str(err):
                         fail = True
+                else:
+                    # Skip stderr lines matching the exception string, if it was also printed.
+                    self.skipStderrLinesWithPattern(exceptionString)
                 if fail:
                     self.fail('Exception with incorrect string raised, got: "' + \
                         str(err) + '" Expected: ' + exceptionString)
             raised = True
         if not raised and not optional:
             self.fail('no assertion raised')
+        # Ignore file/line number messages.
+        self.skipStderrLinesWithPattern(WT_ERROR_LOG_PATTERN)
         return raised
 
     def raisesBusy(self, expr):

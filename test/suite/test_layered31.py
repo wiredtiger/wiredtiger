@@ -302,11 +302,11 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
         conn_follow.reconfigure('disaggregated=(role="follower")')
 
         # Pick up a non-existent checkpoint
-        with self.expectedStderrPattern('WT_VERB_ERROR_RETURNS'):
-            l = lambda: conn_follow.reconfigure('disaggregated=(checkpoint_meta="test")')
-            self.assertRaisesException(wiredtiger.WiredTigerError, l, '/WT_NOTFOUND/')
-        with self.expectedStderrPattern('WT_VERB_ERROR_RETURNS'):
-            conn_follow.dump_error_log()
+        l = lambda: conn_follow.reconfigure('disaggregated=(checkpoint_meta="test")')
+        self.assertRaisesException(wiredtiger.WiredTigerError, l, '/WT_NOTFOUND/')
+        if wiredtiger.diagnostic_build():
+            with self.expectedStderrPattern('WT_VERB_ERROR_RETURNS'):
+                conn_follow.dump_error_log()
 
         #
         # Cleanup
