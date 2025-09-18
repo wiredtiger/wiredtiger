@@ -657,6 +657,7 @@ err:
 int
 __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_BTREE *btree;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_PAGE_DELETED *page_del;
@@ -678,6 +679,7 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * finding the updates any other way would become a problem.
      */
 
+    btree = S2BT(session);
     page = ref->page;
     page_del = ref->page_del;
     update_list = NULL;
@@ -716,7 +718,7 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * committed. Use an extra slot to mark the end with NULL so we don't need to also store the
      * length.
      */
-    if (page_del != NULL && !page_del->committed) {
+    if (!F_ISSET(btree, WT_BTREE_READONLY) && page_del != NULL && !page_del->committed) {
         count = 0;
         switch (page->type) {
         case WT_PAGE_COL_VAR:
@@ -752,7 +754,7 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     page->modify->inst_updates = update_list;
 
     /* Mark the page as clean if we are read only or committed. */
-    if (F_ISSET(S2BT(session), WT_BTREE_READONLY) || page_del->committed)
+    if (F_ISSET(btree, WT_BTREE_READONLY) || page_del == NULL || page_del->committed)
         __wt_page_modify_clear(session, page);
 
     /*
