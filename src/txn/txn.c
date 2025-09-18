@@ -1056,7 +1056,8 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
      * The previous loop exits on null, check that here. Additionally if the transaction id is then
      * different we know we've reached the end of our update chain and don't need to look deeper.
      */
-    if (upd == NULL || upd->txnid != session->txn->id)
+    if (upd == NULL ||
+      (upd->txnid != session->txn->id && upd->prepared_id != session->txn->prepared_id))
         return;
 
     /* Go down the chain. Do the resolves on the way back up. */
@@ -1144,7 +1145,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * another transaction when the transaction tries to resolve the subsequent operations on the
      * same key.
      */
-    for (; upd != NULL && upd->txnid != txn->id; upd = upd->next)
+    for (; upd != NULL && (upd->txnid != txn->id && upd->prepared_id != txn->prepared_id);
+         upd = upd->next)
         ;
     head_upd = upd;
 
@@ -1336,7 +1338,7 @@ prepare_verify:
             if (head_upd->txnid == WT_TXN_ABORTED)
                 continue;
             /* Exit once we have visited all updates from the current transaction. */
-            if (head_upd->txnid != txn->id)
+            if (head_upd->txnid != txn->id && head_upd->prepared_id != txn->prepared_id)
                 break;
             /* Any update we find should be resolved. */
             WT_ASSERT_ALWAYS(session, head_upd->prepare_state == WT_PREPARE_RESOLVED,
