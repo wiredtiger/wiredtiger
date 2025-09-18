@@ -43,6 +43,7 @@
 #include <random>
 #include <ranges>
 #include <semaphore>
+#include <shared_mutex>
 #include <span>
 #include <source_location>
 #include <stdexcept>
@@ -58,13 +59,6 @@ namespace {
     constexpr size_t LINE_BUFFER_SIZE = 80;
     constexpr size_t BUFFER_SIZE = 1024;
 
-    // Unix epoch microseconds
-    inline auto now_us() {
-        using namespace std::chrono;
-        return duration_cast<microseconds>(
-            system_clock::now().time_since_epoch()).count();
-    }
-
     // Helper to write hex bytes for one line
     char* write_hex_bytes(char* buf_ptr, std::span<const uint8_t> line_data) {
         for (size_t j = 0; j < BYTES_PER_LINE; ++j) {
@@ -73,7 +67,7 @@ namespace {
             } else {
                 buf_ptr = std::format_to(buf_ptr, "   ");
             }
-            if (j == 7) {
+            if (j % 8 == 7) {
                 *buf_ptr++ = ' ';
             }
         }
@@ -123,7 +117,7 @@ const char* hexdump(const void* data, size_t size) {
         buf_ptr = write_hex_bytes(buf_ptr, line_data);
 
         // Write ASCII representation
-        buf_ptr = std::format_to(buf_ptr, " |");
+        buf_ptr = std::format_to(buf_ptr, "|");
         buf_ptr = write_ascii_chars(buf_ptr, line_data);
         buf_ptr = std::format_to(buf_ptr, "|\n");
     }
@@ -147,8 +141,17 @@ const char *palite_verbose_item(const WT_ITEM *buf) {
     return hexdump(buf->data, buf->size);
 }
 
+// Unix epoch microseconds
+inline auto now_us() {
+    using namespace std::chrono;
+    return duration_cast<microseconds>(
+        system_clock::now().time_since_epoch()).count();
+}
+
 // Configuration settings with defaults
 struct Config {
+    WT_EXTENSION_API* extapi = nullptr; // WiredTiger extension API
+
     uint32_t cache_size_mb = 500;            // Size of cache in megabytes (default)
     uint32_t delay_ms = 0;                   // Average length of delay when simulated
     uint32_t error_ms = 0;                   // Average length of sleep when simulated
@@ -160,29 +163,30 @@ struct Config {
     bool verbose_msg = true;                 // Send verbose messages to msg callback interface
     bool sql_trace = false;                  // Trace all SQLite calls
 
-    Config(WT_EXTENSION_API* wt_api, WT_CONFIG_ARG* config) {
-        if (!wt_api || !config) return;
+    Config() = default;
+    Config(WT_EXTENSION_API* wt_api, WT_CONFIG_ARG* config) : extapi(wt_api) {
+        if (!wt_api || !config)
+            throw std::invalid_argument("WT_EXTENSION_API or WT_CONFIG_ARG pointer is null");
 
-        WTConfigParserPtr parser = open_config_parser(wt_api);
+        WTConfigParserPtr parser = open_config_parser();
 
-        // Configure all settings using the template method
-        configure_value(wt_api, parser.get(), config, "cache_size_mb", cache_size_mb);
-        configure_value(wt_api, parser.get(), config, "delay_ms", delay_ms);
-        configure_value(wt_api, parser.get(), config, "error_ms", error_ms);
-        configure_value(wt_api, parser.get(), config, "force_delay", force_delay);
-        configure_value(wt_api, parser.get(), config, "force_error", force_error);
-        configure_value(wt_api, parser.get(), config, "materialization_delay_ms", materialization_delay_ms);
-        configure_value(wt_api, parser.get(), config, "verbose", verbose);
-        configure_value(wt_api, parser.get(), config, "verbose_msg", verbose_msg);
-        configure_value(wt_api, parser.get(), config, "sql_trace", sql_trace);
+        configure_value(parser.get(), config, "cache_size_mb", cache_size_mb);
+        configure_value(parser.get(), config, "delay_ms", delay_ms);
+        configure_value(parser.get(), config, "error_ms", error_ms);
+        configure_value(parser.get(), config, "force_delay", force_delay);
+        configure_value(parser.get(), config, "force_error", force_error);
+        configure_value(parser.get(), config, "materialization_delay_ms", materialization_delay_ms);
+        configure_value(parser.get(), config, "verbose", verbose);
+        configure_value(parser.get(), config, "verbose_msg", verbose_msg);
+        configure_value(parser.get(), config, "sql_trace", sql_trace);
     }
 
 private:
     using WTConfigParserPtr = std::unique_ptr<WT_CONFIG_PARSER,
         decltype(WT_CONFIG_PARSER::close)>;
 
-    WTConfigParserPtr open_config_parser(WT_EXTENSION_API* wt_api) {
-        if (!wt_api) {
+    WTConfigParserPtr open_config_parser() {
+        if (!extapi) {
             throw std::invalid_argument("WT_EXTENSION_API pointer is null");
         }
 
@@ -191,7 +195,7 @@ private:
         if (env_config == NULL)
             env_config = "";
 
-        int ret = wt_api->config_parser_open(wt_api, nullptr,
+        int ret = extapi->config_parser_open(extapi, nullptr,
             env_config, strlen(env_config), &parser);
         if (ret != 0) {
             throw std::runtime_error("Failed to open config parser");
@@ -202,11 +206,8 @@ private:
 
     template<typename T>
     void
-    configure_value(WT_EXTENSION_API* wt_api, WT_CONFIG_PARSER* parser,
-        WT_CONFIG_ARG* config, const char* key, T& value) {
-        WT_CONFIG_ITEM v;
-        int ret = 0;
-
+    configure_value(WT_CONFIG_PARSER* parser, WT_CONFIG_ARG* config,
+        const char* key, T& value) {
         // Guard for supported types (bool and integral types)
         static_assert(std::is_same_v<T, bool> || std::is_integral_v<T>,
             "Unsupported type for configuration");
@@ -220,10 +221,11 @@ private:
             }
         };
 
+        WT_CONFIG_ITEM v{};
+        int ret = 0;
         // Check environment config first, then regular config
         if ((ret = parser->get(parser, key, &v)) == 0 ||
-            (ret = wt_api->config_get(wt_api, nullptr, config, key, &v)) == 0) {
-
+            (ret = extapi->config_get(extapi, nullptr, config, key, &v)) == 0) {
             if (v.len == 0 || !validate(v.type)) {
                 throw std::invalid_argument(std::string("Invalid type for config key: ") + key);
             }
@@ -251,16 +253,6 @@ struct std::formatter<Config> {
     }
 };
 
-static WT_EXTENSION_API* extapi(WT_EXTENSION_API* wt_api = nullptr) {
-    static WT_EXTENSION_API* api = nullptr;
-    return wt_api == nullptr ? api : (api = wt_api);
-}
-
-static Config& config(WT_EXTENSION_API* wt_api = nullptr, WT_CONFIG_ARG* conf = nullptr) {
-    static Config cfg{nullptr, nullptr};
-    return conf == nullptr ? cfg : (cfg = Config(wt_api, conf)), cfg;
-}
-
 WT_SESSION* const INVALID_PTR = reinterpret_cast<WT_SESSION*>(-1);
 
 static WT_SESSION* session(WT_SESSION* s = INVALID_PTR) {
@@ -269,33 +261,34 @@ static WT_SESSION* session(WT_SESSION* s = INVALID_PTR) {
 }
 
 template<typename... Args>
-void log(WT_VERBOSE_LEVEL level, std::format_string<Args...> fmt, Args&&... args) {
-    if (level > config().verbose)
+void log(Config& config, WT_VERBOSE_LEVEL level,
+        std::format_string<Args...> fmt, Args&&... args) {
+    if (level > config.verbose)
         return;
 
     std::string message = std::format(fmt, std::forward<Args>(args)...);
-    if (config().verbose_msg) {
+    if (config.verbose_msg) {
         auto api_printf = (level <= WT_VERBOSE_WARNING)
-            ? extapi()->err_printf : extapi()->msg_printf;
-        api_printf(extapi(), session(), "%s", message.c_str());
+            ? config.extapi->err_printf : config.extapi->msg_printf;
+        api_printf(config.extapi, session(), "%s", message.c_str());
     } else {
         std::cerr << message;
     }
 }
 
 template<typename... Args>
-void log(std::source_location loc, WT_VERBOSE_LEVEL level,
+void log(std::source_location loc, Config& config, WT_VERBOSE_LEVEL level,
     std::format_string<Args...> fmt, Args&&... args) {
-    if (level > config().verbose)
+    if (level > config.verbose)
         return;
 
-    log(level, "{}:{}: {}: {}", loc.file_name(), loc.line(), loc.function_name(),
+    log(config, level, "{}:{}: {}: {}", loc.file_name(), loc.line(), loc.function_name(),
         std::format(fmt, std::forward<Args>(args)...));
 }
 
-#define LOG_AT(_lvl, ...) do {                                     \
-    if ((_lvl) <= config().verbose)                                \
-        log(std::source_location::current(), (_lvl), __VA_ARGS__); \
+#define LOG_AT(_lvl, ...) do {                                             \
+    if ((_lvl) <= config.verbose)                                          \
+        log(std::source_location::current(), config, (_lvl), __VA_ARGS__); \
 } while (0)
 
 #define LOG_ERROR(...)   LOG_AT(WT_VERBOSE_ERROR,    __VA_ARGS__)
@@ -307,7 +300,7 @@ void log(std::source_location loc, WT_VERBOSE_LEVEL level,
 #define LOG_TRACE(...)   LOG_AT(WT_VERBOSE_DEBUG_5,  __VA_ARGS__)
 
 #define LOG_SQL_TRACE(trace_str) do {   \
-    if (config().sql_trace)             \
+    if (config.sql_trace)               \
         LOG_DIAG("{}", trace_str);      \
 } while (0)
 
@@ -323,6 +316,7 @@ static int safe_call(WT_SESSION* sess, S* api, MemberFunc func, Args&&... args) 
         nullptr, &session };
 
     T* obj = static_cast<T*>(api);
+    Config& config = obj->config; // needed for logging macros bellow
     try {
         return std::invoke(func, obj, std::forward<Args>(args)...);
     } catch (const std::bad_alloc& e) {
@@ -350,9 +344,9 @@ static int safe_call(WT_SESSION* sess, S* api, MemberFunc func, Args&&... args) 
 }
 
 template<typename Exception = std::runtime_error, typename... Args>
-void log_and_throw(std::source_location loc,
+void log_and_throw(std::source_location loc, Config& config,
     std::format_string<Args...> fmt, Args&&... args) {
-    log(loc, WT_VERBOSE_ERROR, fmt, std::forward<Args>(args)...);
+    log(loc, config, WT_VERBOSE_ERROR, fmt, std::forward<Args>(args)...);
 
     std::string message = std::format("{}:{}: {}: {}", loc.file_name(),
         loc.line(), loc.function_name(),
@@ -360,7 +354,7 @@ void log_and_throw(std::source_location loc,
     throw Exception(message);
 }
 
-#define LOG_AND_THROW(...) log_and_throw(std::source_location::current(), __VA_ARGS__)
+#define LOG_AND_THROW(...) log_and_throw(std::source_location::current(), config, __VA_ARGS__)
 
 // Unified pointer formatters: all forwarded to const void* formatter.
 
@@ -388,6 +382,7 @@ PALITE_DEFINE_PTR_FORMATTER(busy_handler_ptr_t)
 
 // SQLite3 exec helper
 class SQLiteCall {
+    Config& config;
     sqlite3* db;
     std::source_location loc;
     const char* const func_name;
@@ -432,8 +427,8 @@ class SQLiteCall {
     }
 
 public:   
-    SQLiteCall(sqlite3* d, std::source_location l, const char* func)
-        : db(d), loc(l), func_name(func) {}
+    SQLiteCall(Config& cfg, sqlite3* d, std::source_location l, const char* func)
+        : config(cfg), db(d), loc(l), func_name(func) {}
 
     enum Exec { THROW, NO_THROW };
 
@@ -444,7 +439,7 @@ public:
 
         if (ret != SQLITE_OK && ret != SQLITE_ROW && ret != SQLITE_DONE) {
             std::string error_msg = trace_sqlite3_call(ret, args...);
-            log(loc, WT_VERBOSE_ERROR, "{}", error_msg);
+            log(loc, config, WT_VERBOSE_ERROR, "{}", error_msg);
 
             enforce<Policy>(ret, error_msg);
         }
@@ -502,21 +497,21 @@ public:
 };
 
 #define SQL_CALL_CHECK(db, func, ...)                       \
-    SQLiteCall(db, std::source_location::current(), #func)  \
+    SQLiteCall(config, db, std::source_location::current(), #func)  \
         .exec(func, __VA_ARGS__)
 
 #define SQL_CALL_CHECK_NO_THROW(db, func, ...)              \
-    SQLiteCall(db, std::source_location::current(), #func)  \
+    SQLiteCall(config, db, std::source_location::current(), #func)  \
         .exec<SQLiteCall::NO_THROW>(func, __VA_ARGS__)
 
 #define SQL_CALL_OPEN(func, ...)                                \
-    SQLiteCall(nullptr, std::source_location::current(), #func) \
+    SQLiteCall(config, nullptr, std::source_location::current(), #func) \
         .exec(func, __VA_ARGS__)
 
-// TODO: Hadle SQLITE_BUSY in better way
+// TODO: Handle SQLITE_BUSY in better way
 // SQLite3 busy handler - Experimental!
 extern "C" int db_busy_handler(void* ptr, int count) {
-    auto* storage = static_cast<class Storage*>(ptr);
+    Config& config = *static_cast<Config*>(ptr);
     LOG_TRACE("SQLite busy handler invoked (count={})", count);
 
     // Backoff strategy:
@@ -560,19 +555,178 @@ class Storage
         COUNT              // must be last
     };
 
-    using SqlArray = std::array<const char*, Statement::COUNT>;
-    const SqlArray sql_statements = Storage::init_sql_statements();
-    
     // Our flags start at the 16th bit (0x10000u) to avoid
     // conflicts with WT_PAGE_LOG_PUT_ARGS flags.
     const uint32_t WT_PAGE_LOG_DISCARDED = 0x10000u;
     
-    const std::filesystem::path db_path;
-    std::once_flag db_init;
+    Config& config;
 
-    std::mutex db_mutex;
-    std::vector<std::function<void()>> finalize_statements;
-    std::vector<std::function<void()>> close_connections;
+    const std::filesystem::path db_path;
+
+    using StatementPtr = std::unique_ptr<sqlite3_stmt, std::function<decltype(sqlite3_reset)>>;
+    using InitDbCall = std::function<void(sqlite3*)>;
+
+    class Connection {
+        Config& config;
+        sqlite3* db = nullptr;
+
+        using StatementArray = std::array<sqlite3_stmt*, Statement::COUNT>;
+        StatementArray statements;
+
+    public:
+        ~Connection() = default;
+        Connection(Config& cfg, const std::filesystem::path& db_path, InitDbCall&& init_db)
+            : config(cfg), db(open_db(cfg, db_path, init_db)) {
+            prepare_statements();
+        }
+
+        StatementPtr db_statement(Statement stmt) {
+            return StatementPtr(statements[stmt],
+                [this](sqlite3_stmt* s) {
+                    // do not throw from d'tor
+                    return SQL_CALL_CHECK_NO_THROW(db, sqlite3_reset, s);
+                });
+        }
+
+        sqlite3* db_instance() const {
+            return db;
+        }
+
+        void close() {
+            finalize_statements();
+            close_db();
+        }
+
+    private:
+
+        static
+        sqlite3* open_db(Config& config, const std::filesystem::path& db_path, InitDbCall& init_db) {
+            const unsigned flags =
+                // The database is opened for reading and writing,
+                // and is created if it does not already exist.
+                SQLITE_OPEN_READWRITE |
+                SQLITE_OPEN_CREATE |
+                // Use the "multi-thread" threading mode.
+                // Cannot share this connection between threads.
+                SQLITE_OPEN_NOMUTEX;
+
+            sqlite3* pdb = nullptr;
+            SQL_CALL_OPEN(sqlite3_open_v2, db_path.c_str(), &pdb, flags, nullptr);
+            LOG_DEBUG("Opened SQLite database: {}", pdb);
+
+            init_db(pdb);
+            //std::call_once(db_init, [this](sqlite3* d){ init_db(d); }, *db);
+
+            SQL_CALL_CHECK(pdb, sqlite3_busy_handler, pdb, &db_busy_handler,
+                static_cast<void*>(&config));
+            return pdb;
+        }
+
+        using SqlArray = std::array<const char*, Statement::COUNT>;
+
+        static SqlArray init_sql_statements() {
+            constexpr SqlArray stmts = []() constexpr {
+                SqlArray a{}; // all nullptr initially
+                a[BEGIN] = R"(BEGIN TRANSACTION;)";
+                a[COMMIT] = R"(COMMIT;)";
+                a[ROLLBACK] = R"(ROLLBACK;)";
+                a[PUT_CHECKPOINT] = R"(
+                    INSERT INTO checkpoints (lsn, timestamp, checkpoint_metadata)
+                    VALUES (?, ?, ?);)";
+                a[GET_CHECKPOINT] = R"(
+                    SELECT lsn, timestamp, checkpoint_metadata
+                    FROM checkpoints
+                    ORDER BY
+                        lsn DESC,
+                        timestamp DESC
+                    LIMIT 1;)";
+                a[PUT_GLOBAL] = R"(
+                    INSERT OR REPLACE INTO globals (key, val)
+                    VALUES (?, ?);)";
+                a[GET_GLOBAL] = R"(
+                    SELECT val FROM globals WHERE key = ?;)";
+                a[PUT_PAGE] = R"(
+                    INSERT INTO pages (
+                        table_id,
+                        page_id,
+                        lsn,
+                        backlink_lsn,
+                        base_lsn,
+                        flags,
+                        encryption,
+                        timestamp_materialized_us,
+                        page_data)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);)";
+                a[GET_PAGE_IDS] = R"(
+                    SELECT DISTINCT p1.page_id
+                    FROM pages AS p1
+                    WHERE p1.table_id = ?
+                        AND p1.lsn <= ?
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM pages AS p2
+                            WHERE p2.table_id = p1.table_id
+                            AND p2.page_id = p1.page_id
+                            AND p2.lsn <= ?
+                            AND (p2.flags & ?) = 0
+                        );)";
+                a[GET_PAGE] = R"(
+                    SELECT
+                        lsn,
+                        backlink_lsn,
+                        base_lsn,
+                        flags,
+                        encryption,
+                        page_data
+                    FROM pages
+                    WHERE table_id = ?
+                        AND page_id = ?
+                        AND lsn <= ?
+                        AND timestamp_materialized_us <= ?
+                    ORDER BY lsn DESC;)";
+                return a;
+            }();
+
+            // Verify that each slot was assigned.
+            static_assert(std::ranges::none_of(stmts,
+                [](const char* stmt) { return stmt == nullptr; }),
+                "Uninitialized SQL statement found");
+            return stmts;
+        }
+
+        void prepare_statements() {
+            static const SqlArray sql_statements = init_sql_statements();
+
+            for (size_t i = 0; i < statements.size(); ++i) {
+                SQL_CALL_CHECK(db, sqlite3_prepare_v2, db,
+                    sql_statements[i], -1, &statements[i], nullptr);
+            }
+        }
+
+        void finalize_statements() {
+            std::ranges::for_each(statements, [this](sqlite3_stmt* s) {
+                SQL_CALL_CHECK(db, sqlite3_finalize, s);
+            });
+            statements.fill(nullptr);
+        }
+
+        void close_db() {
+            int ret = sqlite3_close(db);
+            if (ret == SQLITE_OK) {
+                LOG_DEBUG("Closed SQLite database: {}", db);
+            }
+            else {
+                LOG_ERROR("Failed to close SQLite database: {}. Error: {} ({})",
+                        db, ret, sqlite3_errstr(ret));
+            }
+            db = nullptr;
+        }
+    };
+
+    // DB state management
+    std::once_flag db_init;
+    std::shared_mutex db_mutex;
+    std::unordered_map<std::thread::id, std::unique_ptr<Connection>> connections;
 
     // DBG
     std::binary_semaphore db_access;
@@ -584,123 +738,38 @@ class Storage
 
 public:
     ~Storage() = default;
-    Storage(const std::filesystem::path& dbp) : db_path(dbp), db_access(1) {}
+    Storage(Config& cfg, const std::filesystem::path& dbp)
+        : config(cfg), db_path(dbp), db_access(1) {}
     Storage(const Storage&) = delete;
 
 private:
-    static
-    SqlArray init_sql_statements() {
-        constexpr SqlArray stmts = []() constexpr {
-            SqlArray a{}; // all nullptr initially
-            a[BEGIN] = R"(BEGIN TRANSACTION;)";
-            a[COMMIT] = R"(COMMIT;)";
-            a[ROLLBACK] = R"(ROLLBACK;)";
-            a[PUT_CHECKPOINT] = R"(
-                INSERT INTO checkpoints (lsn, timestamp, checkpoint_metadata)
-                VALUES (?, ?, ?);)";
-            a[GET_CHECKPOINT] = R"(
-                SELECT lsn, timestamp, checkpoint_metadata
-                FROM checkpoints
-                ORDER BY
-                    lsn DESC,
-                    timestamp DESC
-                LIMIT 1;)";
-            a[PUT_GLOBAL] = R"(
-                INSERT OR REPLACE INTO globals (key, val)
-                VALUES (?, ?);)";
-            a[GET_GLOBAL] = R"(
-                SELECT val FROM globals WHERE key = ?;)";
-            a[PUT_PAGE] = R"(
-                INSERT INTO pages (
-                    table_id,
-                    page_id,
-                    lsn,
-                    backlink_lsn,
-                    base_lsn,
-                    flags,
-                    encryption,
-                    timestamp_materialized_us,
-                    page_data)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);)";
-            a[GET_PAGE_IDS] = R"(
-                SELECT DISTINCT p1.page_id
-                FROM pages AS p1
-                WHERE p1.table_id = ?
-                    AND p1.lsn <= ?
-                    AND NOT EXISTS (
-                        SELECT 1
-                        FROM pages AS p2
-                        WHERE p2.table_id = p1.table_id
-                        AND p2.page_id = p1.page_id
-                        AND p2.lsn <= ?
-                        AND (p2.flags & ?) = 0
-                    );)";
-            a[GET_PAGE] = R"(
-                SELECT
-                    lsn,
-                    backlink_lsn,
-                    base_lsn,
-                    flags,
-                    encryption,
-                    page_data
-                FROM pages
-                WHERE table_id = ?
-                    AND page_id = ?
-                    AND lsn <= ?
-                    AND timestamp_materialized_us <= ?
-                ORDER BY lsn DESC;)";
-            return a;
-        }();
-
-        // Verify that each slot was assigned.
-        static_assert(std::ranges::none_of(stmts,
-            [](const char* stmt) { return stmt == nullptr; }),
-            "Uninitialized SQL statement found");
-        return stmts;
-    }
-
-    sqlite3* db_instance() {
-        thread_local static sqlite3* db = nullptr;
-        return db ? db : open_db(&db);
-    }
-
-    void close_db(sqlite3** db) {
-        int ret = sqlite3_close(*db);
-        if (ret == SQLITE_OK) {
-            LOG_DEBUG("Closed SQLite database: {}", *db);
+    Connection& db_conn() {
+        {
+            std::shared_lock read_lock(db_mutex);
+            auto it = connections.find(std::this_thread::get_id());
+            if (it != connections.end())
+                return *(it->second);
         }
-        else {
-            LOG_ERROR("Failed to close SQLite database: {}. Error: {} ({})",
-                    *db, ret, sqlite3_errstr(ret));
+
+        {
+            std::unique_lock write_lock(db_mutex);
+            auto[it, inserted] = connections.try_emplace(
+                std::this_thread::get_id(),
+                std::make_unique<Connection>(config, db_path, [this](sqlite3* db){ init_db(db); })
+            );
+
+            if (!inserted)
+                LOG_AND_THROW("Connection already exists for this thread");
+
+            return *(it->second);
         }
-        db = nullptr;
-    }
-
-    sqlite3* open_db(sqlite3** db) {
-        const unsigned flags =
-            // The database is opened for reading and writing,
-            // and is created if it does not already exist.
-            SQLITE_OPEN_READWRITE |
-            SQLITE_OPEN_CREATE |
-            // Use the "multi-thread" threading mode.
-            // Cannot share this connection between threads.
-            SQLITE_OPEN_NOMUTEX;
-
-        SQL_CALL_OPEN(sqlite3_open_v2, db_path.c_str(), db, flags, nullptr);
-        LOG_DEBUG("Opened SQLite database: {}", *db);
-
-        std::call_once(db_init, [this](sqlite3* d){ init_db(d); }, *db);
-
-        SQL_CALL_CHECK(*db, sqlite3_busy_handler, *db, &db_busy_handler,
-            static_cast<void*>(this));
-
-        std::scoped_lock lock(db_mutex);
-        close_connections.push_back([this, db](){ close_db(db); });
-
-        return *db;
     }
 
     void init_db(sqlite3* db) {
+        std::call_once(db_init, [this](sqlite3* d){ create_tables(d); }, db);
+    }
+
+    void create_tables(sqlite3* db) {
         static const char* create_statements[] = {
             R"(CREATE TABLE IF NOT EXISTS pages (
                 table_id INTEGER NOT NULL,
@@ -741,41 +810,7 @@ private:
 
         LOG_DEBUG("SQLite database schema initialized");
     }
-
-#define SQ_CHECK(func, ...) SQL_CALL_CHECK(db_instance(), func, __VA_ARGS__)
-
-    using StatementArray = std::array<sqlite3_stmt*, Statement::COUNT>;
-    using StatementPtr = std::unique_ptr<sqlite3_stmt, std::function<decltype(sqlite3_reset)>>;
-
-    StatementPtr db_statement(Statement stmt) {
-        thread_local static StatementArray statements;
-        if (statements[0] == nullptr) {
-            prepare_statements(statements);
-        }
-
-        return StatementPtr(statements[stmt],
-            [this](sqlite3_stmt* s) {
-                // do not throw from d'tor
-                return SQL_CALL_CHECK_NO_THROW(db_instance(), sqlite3_reset, s);
-            });
-    }
-
-    void prepare_statements(StatementArray& stmts) {
-        for (size_t i = 0; i < stmts.size(); ++i) {
-            SQ_CHECK(sqlite3_prepare_v2, db_instance(),
-                Storage::sql_statements[i], -1, &stmts[i], nullptr);
-        }
-
-        std::scoped_lock lock(db_mutex);
-        for (size_t i = 0; i < stmts.size(); ++i) {
-            finalize_statements.push_back([this, db_stmt = &stmts[i]]() {
-                SQ_CHECK(sqlite3_finalize, *db_stmt);
-                *db_stmt = nullptr;
-            });
-        }
-    }
-
-    static
+   
     void resize_item(WT_ITEM *item, size_t new_size)
     {
         if (item->memsize < new_size) {
@@ -788,7 +823,6 @@ private:
         item->size = new_size;
     }
 
-    static
     void fill_item(WT_ITEM *item, const void* data, size_t size) {
         memset(item, 0, sizeof(WT_ITEM));
         resize_item(item, size);
@@ -827,38 +861,40 @@ public:
             }
         };
 
-        simulate(config().force_delay, config().delay_ms, false);
-        simulate(config().force_error, config().error_ms, true);
+        simulate(config.force_delay, config.delay_ms, false);
+        simulate(config.force_error, config.error_ms, true);
     }
 
     void close() {
-        std::ranges::for_each(finalize_statements,
-            [](auto& finalize) { finalize(); });
-
-        std::ranges::for_each(close_connections,
-            [](auto& close) { close(); });
+        std::ranges::for_each(connections,
+            [](auto& pair) { pair.second->close(); });
+        connections.clear();
     }
 
-    void rollback_transaction() {
-        StatementPtr stmt = db_statement(Statement::ROLLBACK);
+    void rollback_transaction(Connection& conn) {
+        StatementPtr stmt = conn.db_statement(Statement::ROLLBACK);
         // rollback performed in d'tors, so no throw
-        SQL_CALL_CHECK_NO_THROW(db_instance(), sqlite3_step, stmt.get());
+        SQL_CALL_CHECK_NO_THROW(conn.db_instance(), sqlite3_step, stmt.get());
     }
 
     //using Transaction = std::unique_ptr<Storage, std::function<void(Storage*)>>;
     struct Transaction {
+        Connection& conn;
         Storage* store;
         std::source_location& loc;
+
         ~Transaction() {
             if(store) {
-                store->rollback_transaction();
+                store->rollback_transaction(conn);
                 // DBG
                 store->db_access.release();
                 // DBG
             }
             store = nullptr;
         }
-        Transaction(Storage* s, std::source_location& l) : store(s), loc(l) {}
+
+        Transaction(Connection& c, Storage* s, std::source_location& l)
+            : conn(c), store(s), loc(l) {}
 
         void release() {
             // DBG
@@ -868,6 +904,8 @@ public:
             loc = std::source_location();
         }
     };
+
+#define SQ_CHECK(func, ...) SQL_CALL_CHECK(conn.db_instance(), func, __VA_ARGS__)
 
     // Transaction begin_transaction( ) {
     //     StatementPtr stmt = db_statement(Statement::BEGIN);
@@ -887,35 +925,36 @@ public:
         db_access.acquire();
         // DBG
 
-        StatementPtr stmt = db_statement(Statement::BEGIN);
+        Connection& conn = db_conn();
+        StatementPtr stmt = conn.db_statement(Statement::BEGIN);
         SQ_CHECK(sqlite3_step, stmt.get());
         //return Transaction{this, [](Storage* s) { s->rollback_transaction(); }};
-        return Transaction{this, current_txn};
+        return Transaction{conn, this, current_txn};
     }
 
     void commit_transaction(Transaction& txn) {
-        StatementPtr stmt = db_statement(Statement::COMMIT);
-        SQ_CHECK(sqlite3_step, stmt.get());
+        StatementPtr stmt = txn.conn.db_statement(Statement::COMMIT);
+        SQL_CALL_CHECK(txn.conn.db_instance(), sqlite3_step, stmt.get());
         txn.release();
     }
 
-    uint64_t get_global(GlobalKey key) {
-        StatementPtr stmt = db_statement(Statement::GET_GLOBAL);
+    uint64_t get_global(Connection& conn, GlobalKey key) {
+        StatementPtr stmt = conn.db_statement(Statement::GET_GLOBAL);
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(key));
         SQ_CHECK(sqlite3_step, stmt.get());
         return sqlite3_column_int64(stmt.get(), 0);
     }
 
-    void put_global(GlobalKey key, uint64_t val) {
-        StatementPtr stmt = db_statement(Statement::PUT_GLOBAL);
+    void put_global(Connection& conn, GlobalKey key, uint64_t val) {
+        StatementPtr stmt = conn.db_statement(Statement::PUT_GLOBAL);
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(key));
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(val));
         SQ_CHECK(sqlite3_step, stmt.get());
     }
 
-    void put_checkpoint(uint64_t lsn, uint64_t checkpoint_timestamp,
+    void put_checkpoint(Connection& conn, uint64_t lsn, uint64_t checkpoint_timestamp,
         const WT_ITEM* checkpoint_metadata) {
-        StatementPtr stmt = db_statement(Statement::PUT_CHECKPOINT);
+        StatementPtr stmt = conn.db_statement(Statement::PUT_CHECKPOINT);
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, lsn);
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, checkpoint_timestamp);
         SQ_CHECK(sqlite3_bind_blob, stmt.get(), 3, checkpoint_metadata->data,
@@ -923,8 +962,8 @@ public:
         SQ_CHECK(sqlite3_step, stmt.get());
     }
 
-    int get_last_checkpoint(uint64_t* lsn, uint64_t* timestamp, WT_ITEM* checkpoint_metadata) {
-        StatementPtr stmt = db_statement(Statement::GET_CHECKPOINT);
+    int get_last_checkpoint(Connection& conn, uint64_t* lsn, uint64_t* timestamp, WT_ITEM* checkpoint_metadata) {
+        StatementPtr stmt = conn.db_statement(Statement::GET_CHECKPOINT);
         int ret = SQ_CHECK(sqlite3_step, stmt.get());
         if (ret == SQLITE_DONE) {
             // No checkpoint found
@@ -947,9 +986,9 @@ public:
         return 0;
     }
 
-    void put_page(uint64_t table_id, uint64_t page_id, uint64_t lsn,
+    void put_page(Connection& conn, uint64_t table_id, uint64_t page_id, uint64_t lsn,
         WT_PAGE_LOG_PUT_ARGS* args, const WT_ITEM* buf) {
-        StatementPtr stmt = db_statement(Statement::PUT_PAGE);
+        StatementPtr stmt = conn.db_statement(Statement::PUT_PAGE);
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(lsn));
@@ -958,16 +997,17 @@ public:
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 6, static_cast<sqlite3_int64>(args->flags));
         SQ_CHECK(sqlite3_bind_text, stmt.get(), 7, args->encryption.dek, strlen(args->encryption.dek), SQLITE_STATIC);
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 8, static_cast<sqlite3_int64>(
-            now_us() + (config().materialization_delay_ms * 1ms / 1us)));
+            now_us() + (config.materialization_delay_ms * 1ms / 1us)));
         SQ_CHECK(sqlite3_bind_blob, stmt.get(), 9, buf->data, buf->size, SQLITE_STATIC);
         SQ_CHECK(sqlite3_step, stmt.get());
 
         object_puts++;
     }
 
-    int get_page(uint64_t table_id, uint64_t page_id, WT_PAGE_LOG_GET_ARGS* args, 
-        uint32_t* flags, WT_ITEM* results_array, uint32_t* results_count) {
-        StatementPtr stmt = db_statement(Statement::GET_PAGE);
+    int get_page(Connection& conn, uint64_t table_id, uint64_t page_id,
+        WT_PAGE_LOG_GET_ARGS* args, uint32_t* flags, WT_ITEM* results_array,
+        uint32_t* results_count) {
+        StatementPtr stmt = conn.db_statement(Statement::GET_PAGE);
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(args->lsn));
@@ -1020,9 +1060,9 @@ public:
 
     // TODO: tidy-up validation
     void
-    validate_page(uint32_t &count, uint64_t &backlink_lsn, uint64_t &last_lsn, uint64_t &table_id,
-      uint64_t &page_id, uint64_t &base_lsn, WT_PAGE_LOG_GET_ARGS *args, uint32_t *flags,
-      uint64_t &lsn)
+    validate_page(uint32_t &count, uint64_t &backlink_lsn, uint64_t &last_lsn,
+        uint64_t &table_id, uint64_t &page_id, uint64_t &base_lsn,
+        WT_PAGE_LOG_GET_ARGS *args, uint32_t *flags, uint64_t &lsn)
     {
         if (count > 0 && backlink_lsn != last_lsn) {
             LOG_WARN(
@@ -1051,8 +1091,8 @@ public:
         }
     }
 
-    int get_page_ids(uint64_t checkpoint_lsn, uint64_t table_id, WT_ITEM* page_ids, size_t* page_count) {
-        StatementPtr stmt = db_statement(Statement::GET_PAGE_IDS);
+    int get_page_ids(Connection& conn, uint64_t checkpoint_lsn, uint64_t table_id, WT_ITEM* page_ids, size_t* page_count) {
+        StatementPtr stmt = conn.db_statement(Statement::GET_PAGE_IDS);
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(checkpoint_lsn));
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(checkpoint_lsn));
@@ -1071,7 +1111,7 @@ public:
         return ids.size() > 0 ? 0 : WT_NOTFOUND;
     }
 
-    void discard_page(uint64_t table_id, uint64_t page_id, uint64_t lsn,
+    void discard_page(Connection& conn, uint64_t table_id, uint64_t page_id, uint64_t lsn,
         WT_PAGE_LOG_DISCARD_ARGS* args) {
         WT_ITEM dummy_page{};
         WT_PAGE_LOG_PUT_ARGS put_args{
@@ -1079,7 +1119,7 @@ public:
             .base_lsn = args->base_lsn,
             .flags = Storage::WT_PAGE_LOG_DISCARDED
         };
-        put_page(table_id, page_id, lsn, &put_args, &dummy_page);
+        put_page(conn, table_id, page_id, lsn, &put_args, &dummy_page);
     }
 };
 
@@ -1093,9 +1133,11 @@ class PaliteHandle : public WT_PAGE_LOG_HANDLE
 
     void initialize_interface();
 public:
+    Config& config;
+
     ~PaliteHandle() = default;
-    PaliteHandle(WT_PAGE_LOG* palite, Storage& store, uint64_t tid)
-        : WT_PAGE_LOG_HANDLE{.page_log = palite}, table_id(tid), storage(store) {
+    PaliteHandle(WT_PAGE_LOG* palite, Config& cfg, Storage& store, uint64_t tid)
+        : WT_PAGE_LOG_HANDLE{.page_log = palite}, table_id(tid), config(cfg), storage(store) {
         initialize_interface();
         LOG_DEBUG("Created PaliteHandle for table_id={}", table_id);
     }
@@ -1108,9 +1150,9 @@ public:
         // TODO: handle dek encryption
 
         Storage::Transaction txn = storage.begin_transaction();
-        uint64_t lsn = storage.get_global(GlobalKey::LSN);
-        storage.put_page(table_id, page_id, lsn, args, buf);
-        storage.put_global(GlobalKey::LSN, lsn + 1);
+        uint64_t lsn = storage.get_global(txn.conn, GlobalKey::LSN);
+        storage.put_page(txn.conn, table_id, page_id, lsn, args, buf);
+        storage.put_global(txn.conn, GlobalKey::LSN, lsn + 1);
         storage.commit_transaction(txn);
         args->lsn = lsn;
 
@@ -1128,7 +1170,7 @@ public:
 
         Storage::Transaction txn = storage.begin_transaction();
         uint32_t flags = 0;
-        storage.get_page(table_id, page_id, args, &flags, results_array, results_count);
+        storage.get_page(txn.conn, table_id, page_id, args, &flags, results_array, results_count);
         storage.commit_transaction(txn);
         LOG_DIAG("Get page_id={} at lsn={}, returned {} entries, "
             "backlink_lsn={}, base_lsn={}, flags=0x{:x}",
@@ -1140,7 +1182,7 @@ public:
     int get_page_ids(uint64_t checkpoint_lsn,
         uint64_t table_id, WT_ITEM* page_ids, size_t* page_count) {
         Storage::Transaction txn = storage.begin_transaction();
-        storage.get_page_ids(checkpoint_lsn, table_id, page_ids, page_count);
+        storage.get_page_ids(txn.conn, checkpoint_lsn, table_id, page_ids, page_count);
         storage.commit_transaction(txn);
         LOG_DEBUG("Get page_ids for table_id={} at checkpoint_lsn={}, "
             "returned {} page IDs",
@@ -1153,9 +1195,9 @@ public:
         WT_PAGE_LOG_DISCARD_ARGS* args) {
         storage.simulate_unstable_network();
         Storage::Transaction txn = storage.begin_transaction();
-        uint64_t lsn = storage.get_global(GlobalKey::LSN);
-        storage.discard_page(table_id, page_id, lsn, args);
-        storage.put_global(GlobalKey::LSN, lsn + 1);
+        uint64_t lsn = storage.get_global(txn.conn, GlobalKey::LSN);
+        storage.discard_page(txn.conn, table_id, page_id, lsn, args);
+        storage.put_global(txn.conn, GlobalKey::LSN, lsn + 1);
         storage.commit_transaction(txn);
         args->lsn = lsn;
         LOG_DEBUG("Discard page_id={} at lsn={}, backlink_lsn={}, base_lsn={}",
@@ -1164,9 +1206,8 @@ public:
     }
 
     int close() {
-        uint64_t t_id = this->table_id;
+        LOG_DEBUG("Closing PaliteHandle for table_id={}", table_id);
         delete this;
-        LOG_DEBUG("Destroyed PaliteHandle for table_id={}", t_id);
         return 0;
     }
 };
@@ -1240,6 +1281,9 @@ public:
     // Reference counting for the page log service
     int ref_count;
 
+    // Configuration
+    Config config;
+
     // Home directory for DB store
     std::filesystem::path db_path;
 
@@ -1248,13 +1292,11 @@ public:
 
 public:
     ~Palite() = default;
-    Palite(const std::filesystem::path& home_dir)
-        :
-        WT_PAGE_LOG(),
-        ref_count(1),
-        storage(home_dir / "sqlite.db") {
+    Palite(const std::filesystem::path& home_dir, WT_EXTENSION_API* wt_api, WT_CONFIG_ARG* cfg_arg)
+        : WT_PAGE_LOG(), ref_count(1), config(wt_api, cfg_arg),
+        storage(config, home_dir / "sqlite.db") {
+        LOG_DEBUG("Initializing Palite page log extension, config: {}", config);
         initialize_interface();
-
         get_last_lsn(&begin_lsn);
         LOG_DEBUG("Created Palite page log at '{}', ref_count={}, begin_lsn={}",
             home_dir.string(), ref_count, begin_lsn);
@@ -1276,9 +1318,9 @@ public:
     int complete_checkpoint_ext(uint64_t checkpoint_id,
         uint64_t checkpoint_timestamp, const WT_ITEM* checkpoint_metadata, uint64_t* lsnp) {
         Storage::Transaction txn = storage.begin_transaction();
-        uint64_t lsn = storage.get_global(GlobalKey::LSN);
-        storage.put_checkpoint(lsn, checkpoint_timestamp, checkpoint_metadata);
-        storage.put_global(GlobalKey::LSN, lsn + 1);
+        uint64_t lsn = storage.get_global(txn.conn, GlobalKey::LSN);
+        storage.put_checkpoint(txn.conn, lsn, checkpoint_timestamp, checkpoint_metadata);
+        storage.put_global(txn.conn, GlobalKey::LSN, lsn + 1);
         storage.commit_transaction(txn);
 
         LOG_DEBUG("checkpoint_id={}, timestamp={}, lsn={}",
@@ -1295,7 +1337,8 @@ public:
     }
 
     int get_complete_checkpoint_ext(uint64_t* checkpoint_lsn,
-        uint64_t* checkpoint_id, uint64_t* checkpoint_timestamp, WT_ITEM* checkpoint_metadata) {
+        uint64_t* checkpoint_id, uint64_t* checkpoint_timestamp,
+        WT_ITEM* checkpoint_metadata) {
         if (checkpoint_lsn) *checkpoint_lsn = 0;
         if (checkpoint_id) *checkpoint_id = 0;
         if (checkpoint_timestamp) *checkpoint_timestamp = 0;
@@ -1303,7 +1346,8 @@ public:
             memset(checkpoint_metadata, 0, sizeof(WT_ITEM));
 
         Storage::Transaction txn = storage.begin_transaction();
-        storage.get_last_checkpoint(checkpoint_lsn, checkpoint_timestamp, checkpoint_metadata);
+        storage.get_last_checkpoint(txn.conn, checkpoint_lsn,
+            checkpoint_timestamp, checkpoint_metadata);
         storage.commit_transaction(txn);
 
         LOG_DEBUG("checkpoint_lsn={}, timestamp={}",
@@ -1323,7 +1367,7 @@ public:
         }
 
         Storage::Transaction txn = storage.begin_transaction();
-        *lsn = storage.get_global(GlobalKey::LSN);
+        *lsn = storage.get_global(txn.conn, GlobalKey::LSN);
         storage.commit_transaction(txn);
         LOG_TRACE("last_lsn={}", *lsn);
 
@@ -1336,7 +1380,7 @@ public:
             return EINVAL;
         }
 
-        PaliteHandle* handle = new PaliteHandle(this, storage, table_id);
+        PaliteHandle* handle = new PaliteHandle(this, config, storage, table_id);
         *plh = static_cast<WT_PAGE_LOG_HANDLE*>(handle);
         LOG_DEBUG("Opened handle for table_id={}", table_id);
 
@@ -1344,7 +1388,7 @@ public:
     }
 
     int set_last_materialized_lsn(uint64_t lsn) {
-        config().last_materialized_lsn = lsn; // Update config value
+        config.last_materialized_lsn = lsn; // Update config value
         LOG_DEBUG("Set last_materialized_lsn={}", lsn);
         return 0;
     }
@@ -1353,8 +1397,9 @@ public:
         --ref_count;
         LOG_DEBUG("Terminating page log, new ref_count={}", ref_count);
         if (ref_count <= 0) {
+            storage.close();
+            LOG_DEBUG("Destroying Palite page log");
             delete this;
-            LOG_DEBUG("Destroyed Palite page log");
         }
         return 0;
     }
@@ -1442,14 +1487,14 @@ int
 palite_extension_init(WT_CONNECTION* connection, WT_CONFIG_ARG* cfg_arg)
 {
     int ret = 0;
-    auto wt_api = extapi(connection->get_extension_api(connection));
     session(nullptr);
-    try {
-        const Config& cfg = config(wt_api, cfg_arg);
-        LOG_DEBUG("Initializing Palite page log extension, config: {}", cfg);
-        
+    Config config{}; // default config for logging macros bellow
+
+    try {       
         const auto home_dir = connection->get_home(connection);
-        std::unique_ptr<Palite> palite = std::make_unique<Palite>(home_dir);
+        auto wt_api = connection->get_extension_api(connection);
+        std::unique_ptr<Palite> palite = std::make_unique<Palite>(
+            home_dir, wt_api, cfg_arg);
 
         // Register the page log service with WiredTiger
         ret = connection->add_page_log(connection, "palite", palite.get(), nullptr);
