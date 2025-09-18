@@ -305,6 +305,10 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     /* Track page reads for debugging purposes. */
     WT_ERR(__wt_conn_page_history_track_read(session, ref->page));
 
+    /* Read only page must be clean. */
+    WT_ASSERT(
+      session, !F_ISSET(S2BT(session), WT_BTREE_READONLY) || !__wt_page_is_modified(ref->page));
+
 skip_read:
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, WT_REF_MEM);

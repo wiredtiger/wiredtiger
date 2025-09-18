@@ -751,6 +751,10 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     page->modify->instantiated = true;
     page->modify->inst_updates = update_list;
 
+    /* Mark the page as clean if we are read only or committed. */
+    if (F_ISSET(S2BT(session), WT_BTREE_READONLY) || page_del->committed)
+        __wt_page_modify_clear(session, page);
+
     /*
      * We will leave the WT_PAGE_DELETED structure in the ref; all of its information has been
      * copied to the list of WT_UPDATE structures (if any), but we may still need it for internal
