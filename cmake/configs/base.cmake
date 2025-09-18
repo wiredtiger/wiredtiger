@@ -82,6 +82,7 @@ config_bool(
     ENABLE_ANTITHESIS
     "Enable the Antithesis random library"
     DEFAULT OFF
+    DEPENDS "WT_POSIX"
 )
 
 config_bool(
@@ -408,7 +409,7 @@ if(ENABLE_DEBUG_INFO)
             LANGUAGES C CXX
             BUILD_TYPES Debug RelWithDebInfo
         )
-        if("${CMAKE_C_COMPILER_ID}" MATCHES "^(Apple)?(C|c?)lang")
+        if(CLANG_C_COMPILER)
             # Clang requires one additional flag to output macro debug information.
             add_cmake_compiler_flags(
                 FLAGS -glldb -fdebug-macro
@@ -425,7 +426,7 @@ if(ENABLE_DEBUG_INFO)
     endif()
 
     # MSVC: ensure linker produces PDBs.
-    if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+    if(MSVC_C_COMPILER)
         foreach(link_var CMAKE_EXE_LINKER_FLAGS_DEBUG CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO)
             if(NOT DEFINED ${link_var})
                 set(${link_var} "")
@@ -466,5 +467,7 @@ if(WT_WIN)
 endif()
 
 if(ENABLE_ANTITHESIS)
-    add_compile_options(-fsanitize-coverage=trace-pc-guard)
+    foreach(lang C CXX)
+        add_cmake_flag(CMAKE_${lang}_FLAGS -fsanitize-coverage=trace-pc-guard)
+    endforeach()
 endif()

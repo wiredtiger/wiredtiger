@@ -205,7 +205,7 @@ endif()
 set(CMAKE_CONFIGURATION_TYPES ${BUILD_MODES})
 
 # We want to use the optimization level from CC_OPTIMIZE_LEVEL and our DEBUG settings as well.
-if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+if(MSVC_C_COMPILER)
     set(opt_flags "/O3" "/O2")
 else()
     set(opt_flags "-O3" "-O2")
