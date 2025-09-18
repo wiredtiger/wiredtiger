@@ -52,7 +52,7 @@ check_copy(WT_SESSION *session, uint64_t id)
     g.backup_verify = false;
     /*
      * Since RTS is not ran with precise checkpoint, we need to use prepare discover cursor to claim
-     * all pending prepared transactions. TODO - do we need this tho
+     * all pending prepared transactions.
      */
     if (GV(PRECISE_CHECKPOINT))
         wts_prepare_discover(conn);
