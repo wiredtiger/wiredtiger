@@ -57,11 +57,10 @@ class test_cc11(DisaggConfigMixin, test_cc_base):
         # Wait for the checkpoint cleanup thread to run
         time.sleep(1)
 
-        # Trigger a checkpoint initiated cleanup
+        # Trigger a checkpoint to initiate cleanup
         self.session.checkpoint('debug=(checkpoint_cleanup=true)')
 
         # Ensure checkpoint cleanup is not run
         c = self.session.open_cursor('statistics:')
         cc_run = c[stat.conn.checkpoint_cleanup_success][2]
-        # We should always visit pages for cleanup.
         self.assertEqual(cc_run, 0)
