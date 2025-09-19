@@ -7,6 +7,9 @@ if(ENABLE_INTERNAL_SQLITE3)
         ${SQLITE3_DIR}/sqlite3.h
     )
     target_include_directories(sqlite3_lib PUBLIC ${SQLITE3_DIR})
+    # Link pthread library if available (needed for SQLite3 on some platforms)
+    target_link_libraries(sqlite3_lib PUBLIC $<$<BOOL:${HAVE_LIBPTHREAD}>:${HAVE_LIBPTHREAD}>)
+
     add_library(SQLite::SQLite3 ALIAS sqlite3_lib)
 
     add_executable(sqlite3
