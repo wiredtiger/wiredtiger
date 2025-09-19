@@ -694,7 +694,7 @@ struct __wt_connection_stats {
     int64_t cache_write;
     int64_t cache_write_restore;
     int64_t cache_overhead;
-    int64_t cache_eviction_blocked_checkpoint_precise;
+    int64_t cache_eviction_blocked_precise_checkpoint;
     int64_t cache_evict_split_failed_lock;
     int64_t cache_eviction_blocked_recently_modified;
     int64_t cache_scrub_restore;
@@ -939,6 +939,8 @@ struct __wt_connection_stats {
     int64_t layered_curs_upgrade_stable;
     int64_t layered_table_manager_checkpoints;
     int64_t layered_table_manager_checkpoints_refreshed;
+    int64_t layered_table_manager_checkpoints_disagg_pick_up_failed;
+    int64_t layered_table_manager_checkpoints_disagg_pick_up_succeed;
     int64_t layered_table_manager_logops_applied;
     int64_t layered_table_manager_logops_skipped;
     int64_t layered_table_manager_skip_lsn;
@@ -1463,7 +1465,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_pages_seen;
     int64_t cache_write;
     int64_t cache_write_restore;
-    int64_t cache_eviction_blocked_checkpoint_precise;
+    int64_t cache_eviction_blocked_precise_checkpoint;
     int64_t cache_evict_split_failed_lock;
     int64_t cache_eviction_blocked_recently_modified;
     int64_t cache_scrub_restore;
@@ -1616,6 +1618,8 @@ struct __wt_dsrc_stats {
     int64_t layered_curs_upgrade_stable;
     int64_t layered_table_manager_checkpoints;
     int64_t layered_table_manager_checkpoints_refreshed;
+    int64_t layered_table_manager_checkpoints_disagg_pick_up_failed;
+    int64_t layered_table_manager_checkpoints_disagg_pick_up_succeed;
     int64_t layered_table_manager_logops_applied;
     int64_t layered_table_manager_logops_skipped;
     int64_t layered_table_manager_skip_lsn;

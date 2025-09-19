@@ -305,6 +305,8 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: Layered table cursor upgrade state for stable table",
   "layered: checkpoints performed on this table by the layered table manager",
   "layered: checkpoints refreshed on shared layered constituents",
+  "layered: disagg pick up checkpoints failed",
+  "layered: disagg pick up checkpoints succeeded",
   "layered: how many log applications the layered table manager applied on this tree",
   "layered: how many log applications the layered table manager skipped on this tree",
   "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
@@ -568,7 +570,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_pages_seen = 0;
     stats->cache_write = 0;
     stats->cache_write_restore = 0;
-    stats->cache_eviction_blocked_checkpoint_precise = 0;
+    stats->cache_eviction_blocked_precise_checkpoint = 0;
     stats->cache_evict_split_failed_lock = 0;
     stats->cache_eviction_blocked_recently_modified = 0;
     stats->cache_scrub_restore = 0;
@@ -721,6 +723,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->layered_curs_upgrade_stable = 0;
     stats->layered_table_manager_checkpoints = 0;
     stats->layered_table_manager_checkpoints_refreshed = 0;
+    stats->layered_table_manager_checkpoints_disagg_pick_up_failed = 0;
+    stats->layered_table_manager_checkpoints_disagg_pick_up_succeed = 0;
     stats->layered_table_manager_logops_applied = 0;
     stats->layered_table_manager_logops_skipped = 0;
     stats->layered_table_manager_skip_lsn = 0;
@@ -977,8 +981,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_pages_seen += from->cache_eviction_pages_seen;
     to->cache_write += from->cache_write;
     to->cache_write_restore += from->cache_write_restore;
-    to->cache_eviction_blocked_checkpoint_precise +=
-      from->cache_eviction_blocked_checkpoint_precise;
+    to->cache_eviction_blocked_precise_checkpoint +=
+      from->cache_eviction_blocked_precise_checkpoint;
     to->cache_evict_split_failed_lock += from->cache_evict_split_failed_lock;
     to->cache_eviction_blocked_recently_modified += from->cache_eviction_blocked_recently_modified;
     to->cache_scrub_restore += from->cache_scrub_restore;
@@ -1137,6 +1141,10 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->layered_table_manager_checkpoints += from->layered_table_manager_checkpoints;
     to->layered_table_manager_checkpoints_refreshed +=
       from->layered_table_manager_checkpoints_refreshed;
+    to->layered_table_manager_checkpoints_disagg_pick_up_failed +=
+      from->layered_table_manager_checkpoints_disagg_pick_up_failed;
+    to->layered_table_manager_checkpoints_disagg_pick_up_succeed +=
+      from->layered_table_manager_checkpoints_disagg_pick_up_succeed;
     to->layered_table_manager_logops_applied += from->layered_table_manager_logops_applied;
     to->layered_table_manager_logops_skipped += from->layered_table_manager_logops_skipped;
     to->layered_table_manager_skip_lsn += from->layered_table_manager_skip_lsn;
@@ -1413,8 +1421,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_pages_seen += WT_STAT_DSRC_READ(from, cache_eviction_pages_seen);
     to->cache_write += WT_STAT_DSRC_READ(from, cache_write);
     to->cache_write_restore += WT_STAT_DSRC_READ(from, cache_write_restore);
-    to->cache_eviction_blocked_checkpoint_precise +=
-      WT_STAT_DSRC_READ(from, cache_eviction_blocked_checkpoint_precise);
+    to->cache_eviction_blocked_precise_checkpoint +=
+      WT_STAT_DSRC_READ(from, cache_eviction_blocked_precise_checkpoint);
     to->cache_evict_split_failed_lock += WT_STAT_DSRC_READ(from, cache_evict_split_failed_lock);
     to->cache_eviction_blocked_recently_modified +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_recently_modified);
@@ -1586,6 +1594,10 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, layered_table_manager_checkpoints);
     to->layered_table_manager_checkpoints_refreshed +=
       WT_STAT_DSRC_READ(from, layered_table_manager_checkpoints_refreshed);
+    to->layered_table_manager_checkpoints_disagg_pick_up_failed +=
+      WT_STAT_DSRC_READ(from, layered_table_manager_checkpoints_disagg_pick_up_failed);
+    to->layered_table_manager_checkpoints_disagg_pick_up_succeed +=
+      WT_STAT_DSRC_READ(from, layered_table_manager_checkpoints_disagg_pick_up_succeed);
     to->layered_table_manager_logops_applied +=
       WT_STAT_DSRC_READ(from, layered_table_manager_logops_applied);
     to->layered_table_manager_logops_skipped +=
@@ -2247,6 +2259,8 @@ static const char *const __stats_connection_desc[] = {
   "layered: Layered table cursor upgrade state for stable table",
   "layered: checkpoints performed on this table by the layered table manager",
   "layered: checkpoints refreshed on shared layered constituents",
+  "layered: disagg pick up checkpoints failed",
+  "layered: disagg pick up checkpoints succeeded",
   "layered: how many log applications the layered table manager applied on this tree",
   "layered: how many log applications the layered table manager skipped on this tree",
   "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
@@ -2958,7 +2972,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_write = 0;
     stats->cache_write_restore = 0;
     /* not clearing cache_overhead */
-    stats->cache_eviction_blocked_checkpoint_precise = 0;
+    stats->cache_eviction_blocked_precise_checkpoint = 0;
     stats->cache_evict_split_failed_lock = 0;
     stats->cache_eviction_blocked_recently_modified = 0;
     stats->cache_scrub_restore = 0;
@@ -3203,6 +3217,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_curs_upgrade_stable = 0;
     stats->layered_table_manager_checkpoints = 0;
     stats->layered_table_manager_checkpoints_refreshed = 0;
+    stats->layered_table_manager_checkpoints_disagg_pick_up_failed = 0;
+    stats->layered_table_manager_checkpoints_disagg_pick_up_succeed = 0;
     stats->layered_table_manager_logops_applied = 0;
     stats->layered_table_manager_logops_skipped = 0;
     stats->layered_table_manager_skip_lsn = 0;
@@ -3961,8 +3977,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_write += WT_STAT_CONN_READ(from, cache_write);
     to->cache_write_restore += WT_STAT_CONN_READ(from, cache_write_restore);
     to->cache_overhead += WT_STAT_CONN_READ(from, cache_overhead);
-    to->cache_eviction_blocked_checkpoint_precise +=
-      WT_STAT_CONN_READ(from, cache_eviction_blocked_checkpoint_precise);
+    to->cache_eviction_blocked_precise_checkpoint +=
+      WT_STAT_CONN_READ(from, cache_eviction_blocked_precise_checkpoint);
     to->cache_evict_split_failed_lock += WT_STAT_CONN_READ(from, cache_evict_split_failed_lock);
     to->cache_eviction_blocked_recently_modified +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_recently_modified);
@@ -4240,6 +4256,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints);
     to->layered_table_manager_checkpoints_refreshed +=
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_refreshed);
+    to->layered_table_manager_checkpoints_disagg_pick_up_failed +=
+      WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_pick_up_failed);
+    to->layered_table_manager_checkpoints_disagg_pick_up_succeed +=
+      WT_STAT_CONN_READ(from, layered_table_manager_checkpoints_disagg_pick_up_succeed);
     to->layered_table_manager_logops_applied +=
       WT_STAT_CONN_READ(from, layered_table_manager_logops_applied);
     to->layered_table_manager_logops_skipped +=

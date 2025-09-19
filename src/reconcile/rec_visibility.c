@@ -40,7 +40,15 @@ __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT
     supd->tw = *tw;
     supd->restore = supd_restore;
     ++r->supd_next;
-    r->supd_memsize += upd_memsize;
+    /*
+     * We don't need to worry about the saved update's impact on page split if we only have a
+     * tombstone as we will skip writing it to the disk.
+     */
+    if (onpage_upd != NULL || supd_restore) {
+        ++r->supd_onpage_or_restore;
+        r->supd_memsize += upd_memsize;
+    } else
+        WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT) || upd_memsize == 0);
     return (0);
 }
 
@@ -781,8 +789,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          * ok to undo the work of the previous reconciliations.
          */
         if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) && !is_hs_page &&
-          (F_ISSET(r, WT_REC_VISIBLE_CHECKPOINT) ? r->rec_start_ckpt_pinned_id <= txnid :
-                                                   !__txn_visible_id(session, txnid))) {
+          (F_ISSET(r, WT_REC_VISIBLE_NO_SNAPSHOT) ? r->rec_start_pinned_id <= txnid :
+                                                    !__txn_visible_id(session, txnid))) {
             /*
              * Rare case: metadata writes at read uncommitted isolation level, eviction may see a
              * committed update followed by uncommitted updates. Give up in that case because we

@@ -688,7 +688,7 @@ __clayered_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     /*
      * Confirm both cursors refer to the same source and have keys, then compare the keys.
      */
-    if (strcmp(a->uri, b->uri) != 0)
+    if (strcmp(a->internal_uri, b->internal_uri) != 0)
         WT_ERR_MSG(session, EINVAL, "comparison method cursors must reference the same object");
 
     /* Both cursors are from the same tree - they share the same collator */
@@ -1410,7 +1410,7 @@ __clayered_remove_int(
 
     if (S2C(session)->layered_table_manager.leader) {
         c = clayered->stable_cursor;
-        clayered->current_cursor = c;
+        /* There is no content on the ingest table. We must be positioned on the stable table. */
         if (!positioned) {
             /*
              * Clear the existing cursor position. Don't clear the primary cursor: we're about to
@@ -1423,10 +1423,11 @@ __clayered_remove_int(
         } else
             WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
         WT_RET(c->remove(c));
+        clayered->current_cursor = c;
     } else {
         c = clayered->ingest_cursor;
-        clayered->current_cursor = c;
-        if (!positioned) {
+        /* If we are positioned on the stable table, we need to set the key. */
+        if (!positioned || clayered->current_cursor != c) {
             /*
              * Clear the existing cursor position. Don't clear the primary cursor: we're about to
              * use it anyway. No need to do another search if we are already positioned.
@@ -1437,6 +1438,7 @@ __clayered_remove_int(
             WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
         c->set_value(c, &__wt_tombstone);
         WT_RET(c->update(c));
+        clayered->current_cursor = c;
     }
 
     return (0);
