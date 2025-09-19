@@ -585,6 +585,10 @@ __instantiate_col_var(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *pa
     /* We just read the page and it's still locked. The append list should be empty. */
     WT_ASSERT(session, WT_COL_APPEND(page) == NULL);
 
+    /*
+     * The modify code marks the page dirty. Mark it back to clean as instantiated deleted page
+     * should be clean.
+     */
     __wt_page_modify_clear(session, page);
 
 err:
@@ -712,12 +716,13 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_RET(__wt_page_modify_init(session, page));
 
     /*
-     * If the truncate operation is not yet resolved, count how many updates we're going to need and
-     * allocate an array for them. This allows linking them in the page-deleted structure so they
-     * can be found when the transaction is resolved, even if they have moved to other pages. If the
-     * page-deleted structure is NULL, that means the truncate is globally visible, and therefore
-     * committed. Use an extra slot to mark the end with NULL so we don't need to also store the
-     * length.
+     * If the truncate operation is not yet resolved and the btree is not read-only, count how many
+     * updates we're going to need and allocate an array for them. This allows linking them in the
+     * page-deleted structure so they can be found when the transaction is resolved, even if they
+     * have moved to other pages. If the page-deleted structure is NULL, that means the truncate is
+     * globally visible, and therefore committed. Use an extra slot to mark the end with NULL so we
+     * don't need to also store the length. No need to do this for read-only btrees as we will never
+     * resolve the updates.
      */
     if (!F_ISSET(S2BT(session), WT_BTREE_READONLY) && page_del != NULL && !page_del->committed) {
         count = 0;
