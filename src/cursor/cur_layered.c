@@ -765,7 +765,7 @@ __clayered_iterate_constituent(WT_CURSOR_LAYERED *clayered, WT_CURSOR *constitue
      * need to be moved forward.
      */
 
-    /* Constituent is not positioned, set to next/last element */
+    /* Constituent is not positioned, set to first/last element */
     if (!F_ISSET(constituent, WT_CURSTD_KEY_SET)) {
         WT_RET(constituent->reset(constituent));
         WT_RET_NOTFOUND_OK(
@@ -773,14 +773,16 @@ __clayered_iterate_constituent(WT_CURSOR_LAYERED *clayered, WT_CURSOR *constitue
         return (ret);
     }
 
-    /* This constituent already positioned */
+    /* This constituent is already positioned */
     if (constituent == clayered->current_cursor)
         return (0);
 
     ret = __clayered_position_constituent(clayered, constituent, true, &cmp);
     WT_RET_NOTFOUND_OK(ret);
 
-    /* The key was found and current cursor is not set */
+    /* The key was found and current cursor is not set - update the current cursor.
+     * The order is important here, we want to first check the ingest table and then the stable one.
+     */
     if (ret == 0 && cmp == 0 && clayered->current_cursor == NULL)
         clayered->current_cursor = constituent;
 
