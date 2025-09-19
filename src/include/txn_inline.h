@@ -1855,6 +1855,10 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
 
     /* There's no txn id since claimed prepared txn is from recovery */
     WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_HAS_ID));
+    /* Assign a transaction id. We need this transaction id for resolving prepare operations and
+     * saving to disk */
+    WT_RET(__wt_txn_id_check(session));
+    __txn_remove_from_global_table(session);
     return (ret);
 }
 
