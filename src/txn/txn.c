@@ -1161,6 +1161,14 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS)
         goto prepare_verify;
 
+    /* if we find a prepared update with 0 txn id, this must be during prepare discover walk. Give
+     * it a txn id */
+    if (upd->txnid == WT_TXN_NONE) {
+        WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT));
+        upd->txnid = txn->id;
+    } else
+        WT_ASSERT(session, upd->txnid == txn->id);
+
     /* A prepared operation that is rolled back will not have a timestamp worth asserting on. */
     if (commit)
         WT_RET(

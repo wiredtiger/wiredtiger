@@ -72,7 +72,7 @@ wts_prepare_discover(WT_CONNECTION *conn)
 
         trace_msg(session, "Discovered prepared transaction with ID: %" PRIu64, prepared_id);
         /*
-         * TODO: randomly decide to claim all prepared txn or leave some?'
+         * TODO: randomly decide to claim all prepared txn or leave some?
          */
         /* Claim the prepared transaction */
         testutil_snprintf(buf, sizeof(buf), "claim_prepared_id=%" PRIx64, prepared_id);
@@ -113,6 +113,8 @@ wts_prepare_discover(WT_CONNECTION *conn)
           discover_count, claim_count);
     }
     testutil_check(cursor->close(cursor));
-    testutil_check(session->checkpoint(session, NULL));
+    /* TODO - only enable precise checkpoint if global checkpoint is on */
+    if (!GV(RUNS_IN_MEMORY))
+        session->checkpoint(session, NULL);
     testutil_check(session->close(session, NULL));
 }
