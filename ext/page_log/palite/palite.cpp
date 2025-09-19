@@ -617,7 +617,7 @@ class Storage
 
             sqlite3* pdb = nullptr;
             SQL_CALL_OPEN(sqlite3_open_v2, db_path.c_str(), &pdb, flags, nullptr);
-            LOG_DEBUG("Opened SQLite database: {}", pdb);
+            LOG_DEBUG("Opened SQLite database: {} ({})", pdb, db_path.c_str());
 
             init_db(pdb);
             //std::call_once(db_init, [this](sqlite3* d){ init_db(d); }, *db);
@@ -744,7 +744,7 @@ class Storage
 public:
     ~Storage() = default;
     Storage(Config& cfg, const std::filesystem::path& dbp)
-        : config(cfg), db_path(dbp), db_access(1) {}
+        : config(cfg), db_path(dbp / "sqlite.db"), db_access(1) {}
     Storage(const Storage&) = delete;
 
 private:
@@ -1289,9 +1289,6 @@ public:
     // Configuration
     Config config;
 
-    // Home directory for DB store
-    std::filesystem::path db_path;
-
     // Storage layer
     Storage storage;
 
@@ -1299,12 +1296,24 @@ public:
     ~Palite() = default;
     Palite(const std::filesystem::path& home_dir, WT_EXTENSION_API* wt_api, WT_CONFIG_ARG* cfg_arg)
         : WT_PAGE_LOG(), ref_count(1), config(wt_api, cfg_arg),
-        storage(config, home_dir / "sqlite.db") {
+        storage(config, initialize_directory(home_dir)) {
         LOG_DEBUG("Initializing Palite page log extension, config: {}", config);
         initialize_interface();
         get_last_lsn(&begin_lsn);
         LOG_DEBUG("Created Palite page log at '{}', ref_count={}, begin_lsn={}",
             home_dir.string(), ref_count, begin_lsn);
+    }
+
+    std::filesystem::path initialize_directory(const std::filesystem::path& home_dir) {
+        std::filesystem::path kv_home = home_dir / "kv_home";
+        if (!std::filesystem::exists(kv_home)) {
+            std::filesystem::create_directories(kv_home);
+            LOG_DEBUG("Created directory for Palite page log: {}", kv_home.string());
+        }
+        else {
+            LOG_DEBUG("Using existing directory for Palite page log: {}", kv_home.string());
+        }
+        return kv_home;
     }
 
     void initialize_interface();
