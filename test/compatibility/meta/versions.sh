@@ -37,4 +37,4 @@ export PATCH_VERSION_UPGRADE_DOWNGRADE_RELEASE_BRANCHES="mongodb-8.2 mongodb-8.0
 export TEST_CHECKPOINT_RELEASE_BRANCHES="develop mongodb-8.2 mongodb-8.0 mongodb-7.0 mongodb-6.0 mongodb-5.0 mongodb-4.4"
 
 # This array is used to configure the release branches we'd like to run upgrade to latest test.
-export UPGRADE_TO_LATEST_UPGRADE_DOWNGRADE_RELEASE_BRANCHES="mongodb-8.2 mongodb-8.0 mongodb-7.0 mongodb-6.0 mongodb-5.0 mongodb-4.4"
+export UPGRADE_TO_LATEST_UPGRADE_DOWNGRADE_RELEASE_BRANCHES="willk-8.2-format-tmp mongodb-8.0 mongodb-7.0 mongodb-6.0 mongodb-5.0"

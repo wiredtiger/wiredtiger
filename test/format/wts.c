@@ -793,12 +793,6 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
             CONFIG_APPEND(p, ",%s", s);
         if (g.config_open != NULL)
             CONFIG_APPEND(p, ",%s", g.config_open);
-        /*
-         * FIXME-WT-14979: Precise checkpoints are incompatible with the on-disk block manager.
-         * Ideally we would not gate precise checkpoints on disagg also being enabled.
-         */
-        if (g.disagg_storage_config && GV(CHECKPOINT_PRECISE))
-            CONFIG_APPEND(p, ",precise_checkpoint=true");
 
 #if WIREDTIGER_VERSION_MAJOR >= 10
         if (GV(OPS_VERIFY) && verify_metadata)
