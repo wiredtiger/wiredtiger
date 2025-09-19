@@ -1082,6 +1082,7 @@ copy_cell_restart:
         /* FALLTHROUGH */
 
     case WT_CELL_ADDR_DEL:
+    case WT_CELL_ADDR_DEL_NULL:
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
