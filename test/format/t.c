@@ -181,6 +181,7 @@ main(int argc, char *argv[])
     int ch;
     const char *config, *home;
     bool is_backup, quiet_flag, verify_only;
+    wt_thread_t follower_tid;
 
     custom_die = format_die; /* Local death handler. */
 
@@ -345,9 +346,11 @@ main(int argc, char *argv[])
         config_print(false);
         trace_init();
         wts_create_database();
-        wts_open(g.home, &g.wts_conn, true);
+        wts_open(wts_get_home(), &g.wts_conn, true);
         timestamp_init();
     }
+    /* Optionally start followers in disagg multi mode. */
+    follower_setup(&follower_tid);
 
     locks_init(g.wts_conn);
 
@@ -400,7 +403,7 @@ main(int argc, char *argv[])
     }
 
     /* Copy out the run's statistics. */
-    TIMED_MAJOR_OP(wts_stats());
+    // TIMED_MAJOR_OP(wts_stats());
 
 skip_operations:
     locks_destroy(g.wts_conn);
@@ -421,6 +424,7 @@ skip_operations:
         TIMED_MAJOR_OP(tables_apply(wts_salvage, NULL));
 
     trace_teardown();
+    follower_shutdown(&follower_tid);
 
     /* Overwrite the progress line with a completion line. */
     if (!GV(QUIET))

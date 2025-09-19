@@ -703,7 +703,7 @@ config_cache(void)
      * against the cache.
      */
     if (GV(RUNS_IN_MEMORY) ||
-      (g.disagg_storage_config && strcmp(GVS(DISAGG_MODE), "follower") == 0)) {
+      (g.disagg_storage_config && !g.disagg_leader && strcmp(GVS(DISAGG_MODE), "switch") != 0)) {
         cache = table_sumv(V_TABLE_BTREE_KEY_MAX) + table_sumv(V_TABLE_BTREE_VALUE_MAX);
         cache *= table_sumv(V_TABLE_RUNS_ROWS);
         cache *= 2;
@@ -760,7 +760,7 @@ dirty_eviction_config:
         config_single(NULL, "cache.eviction_dirty_target=10", false);
     }
 
-    if (g.disagg_storage_config && strcmp(GVS(DISAGG_MODE), "follower") == 0) {
+    if (g.disagg_storage_config && !g.disagg_leader && strcmp(GVS(DISAGG_MODE), "switch") != 0) {
         WARN("%s",
           "Setting cache.eviction_dirty_trigger=95 and cache.eviction_update_trigger=95. In "
           "disaggregated follower mode, these eviction trigger thresholds are increased to help "
@@ -1514,12 +1514,14 @@ config_disagg_storage(void)
 
         mode = GVS(DISAGG_MODE);
         if (strcmp(mode, "leader") != 0 && strcmp(mode, "follower") != 0 &&
-          strcmp(mode, "switch") != 0)
+          strcmp(mode, "switch") != 0 && strcmp(mode, "multi") != 0)
             testutil_die(EINVAL, "illegal disagg.mode configuration: %s", mode);
 
         if (strcmp(mode, "switch") == 0)
             /* Randomly assign "leader" or "follower". */
             g.disagg_leader = mmrand(&g.data_rnd, 0, 1);
+        else if (strcmp(mode, "multi") == 0)
+            g.disagg_leader = 1;
         else
             g.disagg_leader = strcmp(mode, "leader") == 0;
 

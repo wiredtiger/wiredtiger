@@ -60,7 +60,7 @@ table_verify(TABLE *table, void *arg)
  * table_mirror_row_next --
  *     Move to the next row-store original record.
  */
-static int
+int
 table_mirror_row_next(TABLE *table, WT_CURSOR *cursor, WT_ITEM *key, uint64_t *keynop)
 {
     WT_DECL_RET;

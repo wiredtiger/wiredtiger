@@ -29,6 +29,17 @@
 #include "format.h"
 
 /*
+ * disagg_is_mode_multi --
+ *     Check if disagg is configured to use "switch" mode.
+ */
+bool
+disagg_is_mode_multi(void)
+{
+    return (g.disagg_storage_config && strcmp(GVS(DISAGG_MODE), "multi") == 0);
+}
+
+
+/*
  * disagg_is_mode_switch --
  *     Check if disagg is configured to use "switch" mode.
  */

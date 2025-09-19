@@ -145,16 +145,19 @@ typedef struct palm_handle {
 /*
  * Forward function declarations for internal functions
  */
-static int palm_configure(PALM *, WT_CONFIG_ARG *);
+static int palm_configure(PALM *, WT_CONNECTION *, WT_CONFIG_ARG *);
 static int palm_configure_bool(PALM *, WT_CONFIG_PARSER *, WT_CONFIG_ARG *, const char *, bool *);
 static int palm_configure_int(
   PALM *, WT_CONFIG_PARSER *, WT_CONFIG_ARG *, const char *, uint32_t *);
+static int palm_configure_str(
+  PALM *, WT_CONFIG_PARSER *, WT_CONFIG_ARG *, const char *, WT_CONFIG_ITEM *);
 static int palm_err(PALM *, WT_SESSION *, int, const char *, ...);
 static int palm_kv_err(PALM *, WT_SESSION *, int, const char *, ...);
 static int palm_get_dek(PALM *, WT_SESSION *, const WT_PAGE_LOG_ENCRYPTION *, uint64_t, uint64_t,
   bool, uint64_t, WT_PAGE_LOG_ENCRYPTION *);
 static void palm_init_context(PALM *, PALM_KV_CONTEXT *);
 static int palm_init_lsn(PALM *);
+static int palm_setup_home(PALM *, WT_CONNECTION*, WT_CONFIG_ITEM *);
 
 /*
  * Forward function declarations for page log API implementation
@@ -163,12 +166,58 @@ static int palm_add_reference(WT_PAGE_LOG *);
 static int palm_terminate(WT_PAGE_LOG *, WT_SESSION *);
 
 /*
+ * palm_setup_home
+ *     Build the LMDB home string.
+ */
+static int
+palm_setup_home(PALM *palm, WT_CONNECTION *connection, WT_CONFIG_ITEM *cval)
+{
+    const char* home;
+    size_t len, total_len;
+    int ret;
+
+    home = cval->len == 0 ? connection->get_home(connection) : cval->str;
+    len = cval->len == 0 ? strlen(home) : cval->len;
+
+    const char *suffix = "/kv_home";
+    total_len = len + strlen(suffix) + 1;
+
+    palm->kv_home = malloc(total_len);
+    if (palm->kv_home == NULL) {
+        ret = palm_err(palm, NULL, errno, "malloc");
+        goto err;
+    }
+    strncpy(palm->kv_home, home, len);
+    strncat(palm->kv_home, suffix, total_len);
+
+    /* Create the LMDB home, or if it exists, use what is already there. */
+    ret = mkdir(palm->kv_home, 0777);
+    if (ret != 0) {
+        ret = errno;
+        if (ret == EEXIST)
+            ret = 0;
+        else {
+            ret = palm_err(palm, NULL, ret, "mkdir");
+            goto err;
+        }
+    }
+
+    if (0) { 
+err:
+    if (palm->kv_home != NULL)
+        free(palm->kv_home);
+    }
+    return (ret);
+}
+
+/*
  * palm_configure
  *     Parse the configuration for the keys we care about.
  */
 static int
-palm_configure(PALM *palm, WT_CONFIG_ARG *config)
+palm_configure(PALM *palm, WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
+    WT_CONFIG_ITEM cval;
     WT_CONFIG_PARSER *env_parser;
     const char *env_config;
     int ret, t_ret;
@@ -182,6 +231,7 @@ palm_configure(PALM *palm, WT_CONFIG_ARG *config)
         goto err;
 
     palm->cache_size_mb = DEFAULT_PALM_CACHE_SIZE_MB;
+
     if ((ret = palm_configure_int(
            palm, env_parser, config, "cache_size_mb", &palm->cache_size_mb)) != 0)
         goto err;
@@ -195,6 +245,12 @@ palm_configure(PALM *palm, WT_CONFIG_ARG *config)
     if ((ret = palm_configure_int(palm, env_parser, config, "force_error", &palm->force_error)) !=
       0)
         goto err;
+    if ((ret = palm_configure_str(palm, env_parser, config, "home", &cval)) !=
+      0)
+        goto err;
+    /* Set up PALM home path */
+    palm_setup_home(palm, connection, &cval);
+
     if ((ret = palm_configure_int(palm, env_parser, config, "materialization_delay_ms",
            &palm->materialization_delay_ms)) != 0)
         goto err;
@@ -269,6 +325,34 @@ palm_configure_int(PALM *palm, WT_CONFIG_PARSER *env_parser, WT_CONFIG_ARG *conf
             ret = palm_err(palm, NULL, EINVAL, "force_error config arg: integer required");
         else
             *valuep = (uint32_t)v.val;
+    } else if (ret == WT_NOTFOUND)
+        ret = 0;
+    else
+        ret = palm_err(palm, NULL, EINVAL, "WT_API->config_get");
+
+    return (ret);
+}
+
+/*
+ * palm_configure_str
+ *     Look for a particular configuration key, and return value item.
+ */
+static int
+palm_configure_str(PALM *palm, WT_CONFIG_PARSER *env_parser, WT_CONFIG_ARG *config, const char *key,
+  WT_CONFIG_ITEM *v)
+{
+    int ret;
+
+    ret = 0;
+    memset(v, 0, sizeof(*v));
+    /*
+     * Environment configuration overrides configuration used with loading the library, so check
+     * that first.
+     */
+    if ((ret = env_parser->get(env_parser, key, v)) == 0 ||
+      (ret = palm->wt_api->config_get(palm->wt_api, NULL, config, key, v)) == 0) {
+        if (v->len == 0)
+            ret = palm_err(palm, NULL, EINVAL, "force_error config arg: valid string required");
     } else if (ret == WT_NOTFOUND)
         ret = 0;
     else
@@ -1194,8 +1278,6 @@ int
 palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
     PALM *palm;
-    const char *home;
-    size_t len;
     int ret;
 
     if ((palm = calloc(1, sizeof(PALM))) == NULL)
@@ -1233,35 +1315,12 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     /* Turn on verification by default, as PALM is used primarily for testing. */
     palm->verify = true;
 
-    if ((ret = palm_configure(palm, config)) != 0)
+    if ((ret = palm_configure(palm, connection, config)) != 0)
         goto err;
 
     /* Load the storage */
     PALM_KV_ERR(palm, NULL, connection->add_page_log(connection, "palm", &palm->page_log, NULL));
     PALM_KV_ERR(palm, NULL, palm_kv_env_create(&palm->kv_env, palm->cache_size_mb));
-
-    /* Build the LMDB home string. */
-    home = connection->get_home(connection);
-    len = strlen(home) + 20;
-    palm->kv_home = malloc(len);
-    if (palm->kv_home == NULL) {
-        ret = palm_err(palm, NULL, errno, "malloc");
-        goto err;
-    }
-    strncpy(palm->kv_home, home, len);
-    strncat(palm->kv_home, "/kv_home", len);
-
-    /* Create the LMDB home, or if it exists, use what is already there. */
-    ret = mkdir(palm->kv_home, 0777);
-    if (ret != 0) {
-        ret = errno;
-        if (ret == EEXIST)
-            ret = 0;
-        else {
-            ret = palm_err(palm, NULL, ret, "mkdir");
-            goto err;
-        }
-    }
 
     /* Open the LMDB environment. */
     PALM_KV_ERR(palm, NULL, palm_kv_env_open(palm->kv_env, palm->kv_home));

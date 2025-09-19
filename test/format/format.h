@@ -220,12 +220,14 @@ extern u_int ntables;
 
 typedef struct {
     WT_CONNECTION *wts_conn;
+    WT_CONNECTION *wts_conn_follower;
     WT_CONNECTION *wts_conn_inmemory;
 
     bool backward_compatible; /* Backward compatibility testing */
     bool configured;          /* Configuration completed */
     bool reopen;              /* Reopen an existing database */
     bool workers_finished;    /* Operations completed */
+    bool follower_shutdown;
 
     WT_CONNECTION *trace_conn; /* Tracing operations */
     WT_SESSION *trace_session;
@@ -246,7 +248,9 @@ typedef struct {
     char *home;        /* Home directory */
     char *home_backup; /* Backup file name */
     char *home_config; /* Run CONFIG file path */
+    char *home_follower;
     char *home_key;    /* Key file filename */
+    char *home_leader;
     char *home_stats;  /* Statistics file path */
 
     char *config_open; /* Command-line configuration */
@@ -440,6 +444,7 @@ WT_THREAD_RET background_compact(void *);
 WT_THREAD_RET backup(void *);
 WT_THREAD_RET checkpoint(void *);
 WT_THREAD_RET compact(void *);
+WT_THREAD_RET follower(void *);
 WT_THREAD_RET hs_cursor(void *);
 WT_THREAD_RET import(void *);
 WT_THREAD_RET random_kv(void *);
@@ -455,10 +460,13 @@ void config_run(void);
 void config_single(TABLE *, const char *, bool);
 void create_database(const char *home, WT_CONNECTION **connp);
 void cursor_dump_page(WT_CURSOR *, const char *);
+bool disagg_is_mode_multi(void);
 bool disagg_is_mode_switch(void);
 int disagg_switch_roles(void);
 bool enable_session_prefetch(void);
 void fclose_and_clear(FILE **);
+void follower_setup(wt_thread_t *);
+void follower_shutdown(wt_thread_t *);
 void key_gen_common(TABLE *, WT_ITEM *, uint64_t, const char *);
 void key_gen_init(WT_ITEM *);
 void key_gen_teardown(WT_ITEM *);
@@ -478,6 +486,7 @@ void snap_repeat_update(TINFO *, bool);
 void snap_teardown(TINFO *);
 void snap_track(TINFO *, thread_op);
 void table_dump_page(WT_SESSION *, const char *, TABLE *, uint64_t, const char *);
+int table_mirror_row_next(TABLE *table, WT_CURSOR *cursor, WT_ITEM *key, uint64_t *keynop);
 void table_verify(TABLE *, void *);
 void timestamp_init(void);
 uint64_t timestamp_minimum_committed(void);
@@ -517,8 +526,10 @@ void wts_close(WT_CONNECTION **);
 void wts_create_database(void);
 void wts_create_home(void);
 void wts_dump(const char *, bool);
+const char *wts_get_home(void);
 void wts_load(void);
 void wts_open(const char *, WT_CONNECTION **, bool);
+void wts_db_verify(WT_CONNECTION *, WT_CONNECTION *);
 void wts_read_scan(TABLE *, void *);
 void wts_reopen(void);
 void wts_salvage(TABLE *, void *);
