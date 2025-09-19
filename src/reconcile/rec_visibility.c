@@ -354,8 +354,8 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
 
         /*
          * Track the first self-contained value that is globally visible. If a table has garbage
-         * collection enabled, then trim updates as possible. We should check the logic here -
-         * it might be possible to do something more aggressive?
+         * collection enabled, then trim updates as possible. We should check the logic here - it
+         * might be possible to do something more aggressive?
          */
         if (F_ISSET(r, WT_REC_CHECKPOINT) && visible_all_upd == NULL && delete_upd->next != NULL &&
           ((__wt_txn_upd_visible_all(session, delete_upd) ||
