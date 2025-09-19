@@ -1207,7 +1207,7 @@ public:
 
     int close() {
         LOG_DEBUG("Closing PaliteHandle for table_id={}", table_id);
-        delete this;
+        delete this;    // No calls expected after WT_PAGE_LOG_HANDLE::plh_close
         return 0;
     }
 };
@@ -1399,7 +1399,7 @@ public:
         if (ref_count <= 0) {
             storage.close();
             LOG_DEBUG("Destroying Palite page log");
-            delete this;
+            delete this; // No calls expected after the last WT_PAGE_LOG::terminate
         }
         return 0;
     }
