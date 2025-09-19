@@ -31,6 +31,7 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cerrno>
 #include <cstring>
@@ -40,6 +41,7 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <random>
 #include <ranges>
 #include <semaphore>
@@ -282,7 +284,10 @@ void log(std::source_location loc, Config& config, WT_VERBOSE_LEVEL level,
     if (level > config.verbose)
         return;
 
-    log(config, level, "{}:{}: {}: {}", loc.file_name(), loc.line(), loc.function_name(),
+    thread_local static std::string t_id = (std::ostringstream{}
+        << std::this_thread::get_id()).str();
+    log(config, level, "[{}] {}:{}: {}: {}", t_id,
+        loc.file_name(), loc.line(), loc.function_name(),
         std::format(fmt, std::forward<Args>(args)...));
 }
 
@@ -426,7 +431,7 @@ class SQLiteCall {
         return std::vformat(fmt_arr.data(), fargs);
     }
 
-public:   
+public:
     SQLiteCall(Config& cfg, sqlite3* d, std::source_location l, const char* func)
         : config(cfg), db(d), loc(l), func_name(func) {}
 
@@ -558,7 +563,7 @@ class Storage
     // Our flags start at the 16th bit (0x10000u) to avoid
     // conflicts with WT_PAGE_LOG_PUT_ARGS flags.
     const uint32_t WT_PAGE_LOG_DISCARDED = 0x10000u;
-    
+
     Config& config;
 
     const std::filesystem::path db_path;
@@ -810,7 +815,7 @@ private:
 
         LOG_DEBUG("SQLite database schema initialized");
     }
-   
+
     void resize_item(WT_ITEM *item, size_t new_size)
     {
         if (item->memsize < new_size) {
@@ -975,7 +980,7 @@ public:
             }
             return WT_NOTFOUND;
         }
-        
+
         if (lsn) *lsn = sqlite3_column_int64(stmt.get(), 0);
         if (timestamp) *timestamp = sqlite3_column_int64(stmt.get(), 1);
         if (checkpoint_metadata) {
@@ -1012,7 +1017,7 @@ public:
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(args->lsn));
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 4, now_us());
-        
+
         uint32_t count = 0;
         int ret = 0;
         uint64_t last_lsn = 0;
@@ -1277,7 +1282,7 @@ class Palite : public WT_PAGE_LOG
 public:
     // The LSN when the database is opened, used to check encryption
     uint64_t begin_lsn;
-    
+
     // Reference counting for the page log service
     int ref_count;
 
@@ -1490,7 +1495,7 @@ palite_extension_init(WT_CONNECTION* connection, WT_CONFIG_ARG* cfg_arg)
     session(nullptr);
     Config config{}; // default config for logging macros bellow
 
-    try {       
+    try {
         const auto home_dir = connection->get_home(connection);
         auto wt_api = connection->get_extension_api(connection);
         std::unique_ptr<Palite> palite = std::make_unique<Palite>(
