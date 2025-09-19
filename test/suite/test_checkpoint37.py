@@ -37,6 +37,7 @@ from wiredtiger import stat
 #
 # Test that reconciliation removes obsolete updates on the page.
 class test_checkpoint37(wttest.WiredTigerTestCase):
+    conn_config = 'cache_eviction_controls=[skip_update_obsolete_check=true]'
 
     format_values = [
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
@@ -90,11 +91,11 @@ class test_checkpoint37(wttest.WiredTigerTestCase):
             value_d = 100
             value_e = 101
         else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
-            value_d = "ddddd" * 100
-            value_e = "eeeee" * 100
+            value_a = "aaaaa" * 10
+            value_b = "bbbbb" * 10
+            value_c = "ccccc" * 10
+            value_d = "ddddd" * 10
+            value_e = "eeeee" * 10
 
         # Write some initial data.
         self.large_updates(ds.uri, ds, nrows, value_a, 5)
@@ -110,7 +111,6 @@ class test_checkpoint37(wttest.WiredTigerTestCase):
         # Add updates to each key to check whether they free on reconciliation.
         self.large_updates(ds.uri, ds, nrows, value_b, 10)
         prev_bytes_in_use = self.get_stat(stat.conn.cache_bytes_inuse)
-        self.pr('Base bytes in use ' + str(prev_bytes_in_use))
 
         self.large_updates(ds.uri, ds, nrows, value_c, 20)
 
@@ -121,7 +121,6 @@ class test_checkpoint37(wttest.WiredTigerTestCase):
         # Checkpoint.
         self.session.checkpoint()
         bytes_in_use = self.get_stat(stat.conn.cache_bytes_inuse)
-        self.pr('After first checkpoint bytes in use ' + str(bytes_in_use))
         self.assertLess(bytes_in_use, prev_bytes_in_use * 2)
 
         # Another set of updates.
@@ -134,7 +133,6 @@ class test_checkpoint37(wttest.WiredTigerTestCase):
         # Checkpoint.
         self.session.checkpoint()
         bytes_in_use = self.get_stat(stat.conn.cache_bytes_inuse)
-        self.pr('After second checkpoint bytes in use ' + str(bytes_in_use))
         self.assertLess(bytes_in_use, prev_bytes_in_use * 2)
 
         # Another set of updates.
@@ -145,10 +143,11 @@ class test_checkpoint37(wttest.WiredTigerTestCase):
             ',stable_timestamp=' + self.timestamp_str(40))
 
         # Checkpoint.
+        self.session.breakpoint()
         self.session.checkpoint()
         bytes_in_use = self.get_stat(stat.conn.cache_bytes_inuse)
-        self.pr('After third checkpoint bytes in use ' + str(bytes_in_use))
         self.assertLess(bytes_in_use, prev_bytes_in_use * 2)
+        self.assertGreater(self.get_stat(stat.conn.cache_obsolete_updates_removed), 0)
 
 if __name__ == '__main__':
     wttest.run()
