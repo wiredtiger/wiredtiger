@@ -195,6 +195,7 @@ create_configs()
     echo "logging=1" >> $file_name                    # Test log compatibility
     echo "logging_compression=snappy" >> $file_name   # We only built with snappy, force the choice
     echo "obsolete_cleanup.method=off" >> $file_name  # WT-14142 - Not supported by older releases
+    echo "obsolete_cleanup.wait=0" >> $file_name      # WT-14142 - Not supported by older releases
     echo "prefetch=0" >> $file_name                   # WT-12978 - Not supported by older releases
     echo "rows=1000000" >> $file_name
     echo "salvage=0" >> $file_name                    # Faster runs
