@@ -722,13 +722,13 @@ config_cache(void)
     cache *= workers;
     cache *= 2;
 
-    if (GV(CHECKPOINT_PRECISE))
+    if (GV(PRECISE_CHECKPOINT))
         cache *= 4;
 
     if (GV(CACHE) < cache)
         GV(CACHE) = (uint32_t)cache;
 
-    if (GV(CHECKPOINT_PRECISE) && GV(CACHE) < 2048)
+    if (GV(PRECISE_CHECKPOINT) && GV(CACHE) < 2048)
         GV(CACHE) = 2048;
 
     if (cache_maximum_explicit && GV(CACHE) > GV(CACHE_MAXIMUM))
