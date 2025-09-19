@@ -383,6 +383,10 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
 static bool
 __checkpoint_cleanup_run_chk(WT_SESSION_IMPL *session)
 {
+    /* Skip running checkpoint cleanup if we are the follower. */
+    if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader)
+        return (false);
+
     return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP));
 }
 
@@ -787,10 +791,6 @@ __checkpoint_cleanup(void *arg)
             break;
 
         __wt_seconds(session, &now);
-
-        /* Skip running checkpoint cleanup if we are the follower. */
-        if (__wt_conn_is_disagg(session) && !conn->layered_table_manager.leader)
-            continue;
 
         /*
          * See if it is time to checkpoint cleanup. Checkpoint cleanup is an operation that
