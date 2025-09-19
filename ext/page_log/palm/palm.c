@@ -69,15 +69,17 @@
               palm_kv_err(palm, session, _ret, "%s:%d: \"%s\": failed", __FILE__, __LINE__, #r)); \
     }
 
-#define PALM_KV_ERR(palm, session, r)                                                           \
+#define PALM_KV_ERR_GOTO(palm, session, r, label)                                               \
     {                                                                                           \
         ret = (r);                                                                              \
         if (ret != 0) {                                                                         \
             ret =                                                                               \
               palm_kv_err(palm, session, ret, "%s:%d: \"%s\": failed", __FILE__, __LINE__, #r); \
-            goto err;                                                                           \
+            goto label;                                                                         \
         }                                                                                       \
     }
+
+#define PALM_KV_ERR(palm, session, r) PALM_KV_ERR_GOTO(palm, session, r, err)
 
 #define PALM_ENCRYPTION_EQUAL(e1, e2) (memcmp((e1).dek, (e2).dek, sizeof((e1).dek)) == 0)
 /*
@@ -716,7 +718,7 @@ err:
             ret = palm_kv_err(palm, session, EINVAL,                                              \
               "%s:%d: Delta chain validation failed at position %" PRIu32                         \
               ": %s != %s. Page details: table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64 \
-              ", flags=%" PRIx64 ", %s=%" PRIu64 ", %s=%" PRIu64,                                 \
+              ", flags=%" PRIx32 ", %s=%" PRIu64 ", %s=%" PRIu64,                                 \
               __func__, __LINE__, count, #a, #b, palm_handle->table_id, page_id, matches.lsn,     \
               matches.flags, #a, (a), #b, (b));                                                   \
             goto err;                                                                             \
@@ -760,6 +762,9 @@ palm_handle_verify_page(
 #endif
 
         /* Validate base LSN. */
+        /*
+         * FIXME-WT-15524: fix false positive verification failure caused by failed reconciliation.
+         */
         if (count == 1) {
             PALM_VERIFY_EQUAL(matches.base_lsn, last_lsn);
         } else if (count > 1) {
@@ -830,12 +835,13 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
 
     /* Verify the delta chain. */
     if (palm->verify)
-        PALM_KV_ERR(palm, session, palm_handle_verify_page(plh, session, page_id, lsn));
+        PALM_KV_ERR_GOTO(
+          palm, session, palm_handle_verify_page(plh, session, page_id, lsn), err_no_rollback);
 
     if (0) {
 err:
         palm_kv_rollback_transaction(&context);
-
+err_no_rollback:
         PALM_VERBOSE_PRINT(palm_handle->palm, session,
           "palm_handle_discard(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
           ", is_delta=%d) returned %d\n",
@@ -1072,9 +1078,14 @@ palm_handle_close_internal(PALM *palm, PALM_HANDLE *palm_handle)
     ret = 0;
     plh = (WT_PAGE_LOG_HANDLE *)palm_handle;
 
-    (void)palm;
     (void)plh;
-    /* TODO: placeholder for more actions */
+    /* Remove from tracking list (if present). */
+    if (palm != NULL) {
+        (void)pthread_rwlock_wrlock(&palm->pl_handle_lock);
+        assert(palm_handle->q.tqe_prev != NULL || TAILQ_FIRST(&palm->fileq) == palm_handle);
+        TAILQ_REMOVE(&palm->fileq, palm_handle, q);
+        pthread_rwlock_unlock(&palm->pl_handle_lock);
+    }
 
     free(palm_handle);
 
@@ -1117,6 +1128,11 @@ palm_open_handle(
     palm_handle->palm = palm;
     palm_handle->table_id = table_id;
 
+    /* Track handle so unclosed ones are reclaimed on terminate. */
+    (void)pthread_rwlock_wrlock(&palm->pl_handle_lock);
+    TAILQ_INSERT_TAIL(&palm->fileq, palm_handle, q);
+    pthread_rwlock_unlock(&palm->pl_handle_lock);
+
     *plh = &palm_handle->iface;
 
     return (0);
@@ -1157,14 +1173,13 @@ palm_terminate(WT_PAGE_LOG *storage, WT_SESSION *session)
         return (0);
 
     /*
-     * We should be single threaded at this point, so it is safe to destroy the lock and access the
-     * file handle list without locking it.
+     * We should be single threaded at this point, so it is safe to operate without lock.
      */
-    if ((ret = pthread_rwlock_destroy(&palm->pl_handle_lock)) != 0)
-        (void)palm_err(palm, session, ret, "terminate: pthread_rwlock_destroy");
-
     TAILQ_FOREACH_SAFE(palm_handle, &palm->fileq, q, safe_handle)
     palm_handle_close_internal(palm, palm_handle);
+
+    if ((ret = pthread_rwlock_destroy(&palm->pl_handle_lock)) != 0)
+        (void)palm_err(palm, session, ret, "terminate: pthread_rwlock_destroy");
 
     if (palm->kv_env != NULL)
         palm_kv_env_close(palm->kv_env);
@@ -1197,6 +1212,8 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         free(palm);
         return (ret);
     }
+    /* Initialize handle queue. */
+    TAILQ_INIT(&palm->fileq);
 
     /*
      * Allocate a palm storage structure, with a WT_STORAGE structure as the first field, allowing
