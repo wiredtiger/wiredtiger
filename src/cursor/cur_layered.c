@@ -406,7 +406,7 @@ __clayered_adjust_state(
      */
     if (current_leader == clayered->leader &&
       last_checkpoint_meta_lsn == clayered->checkpoint_meta_lsn)
-        return 0;
+        return (0);
 
     change_ingest = false;
     snapshot_gen = clayered->snapshot_gen;
@@ -417,10 +417,10 @@ __clayered_adjust_state(
         change_ingest = true;
 
         /*
-         * If we're stepping down, then we currently have a R/W stable cursor and all writes
-         * would go to it. Any writes we were about to make or have made to this table could
-         * never be committed at this point. We're going to be a little more strict than that
-         * here and disallow continuing any transaction that has writes.
+         * If we're stepping down, then we currently have a R/W stable cursor and all writes would
+         * go to it. Any writes we were about to make or have made to this table could never be
+         * committed at this point. We're going to be a little more strict than that here and
+         * disallow continuing any transaction that has writes.
          */
         if (!current_leader && (update || session->txn->mod_count != 0)) {
             __wt_txn_err_set(session, WT_ROLLBACK);
@@ -433,13 +433,13 @@ __clayered_adjust_state(
          * stable cursor whenever we can.
          *
          * For step up, we're currently using a readonly stable cursor at a checkpoint. We can
-         * reopen the stable cursor, we'd get a R/W cursor. We don't need the ability to write,
-         * as this request was kicked off on the follower, so it must be all reads. But we want
-         * to discard the stable cursor when we can, as long as we're not breaking transactional
+         * reopen the stable cursor, we'd get a R/W cursor. We don't need the ability to write, as
+         * this request was kicked off on the follower, so it must be all reads. But we want to
+         * discard the stable cursor when we can, as long as we're not breaking transactional
          * semantics for cursors.
          *
-         * For step down, we're currently using a R/W stable cursor. After the check above, we
-         * know we've done read operations to this point. So again, we should upgrade if we can.
+         * For step down, we're currently using a R/W stable cursor. After the check above, we know
+         * we've done read operations to this point. So again, we should upgrade if we can.
          */
     }
     /*
@@ -458,8 +458,8 @@ __clayered_adjust_state(
 
     if (change_ingest) {
         /*
-         * To reopen the ingest table, all we need to do here is close it. It will be reopened
-         * when needed. There's never a situation where we need to save its position.
+         * To reopen the ingest table, all we need to do here is close it. It will be reopened when
+         * needed. There's never a situation where we need to save its position.
          */
         WT_RET(clayered->ingest_cursor->close(clayered->ingest_cursor));
         if (clayered->current_cursor == clayered->ingest_cursor)
@@ -470,9 +470,9 @@ __clayered_adjust_state(
 
     if (change_stable) {
         /*
-         * We can't just close the stable cursor here, as we need to retain any position that
-         * the current stable cursor has. It's easier to keep the old cursor open briefly while
-         * we copy the position.
+         * We can't just close the stable cursor here, as we need to retain any position that the
+         * current stable cursor has. It's easier to keep the old cursor open briefly while we copy
+         * the position.
          */
         old_stable = clayered->stable_cursor;
         clayered->stable_cursor = NULL;
@@ -607,9 +607,9 @@ static int
 __clayered_get_current(
   WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bool smallest, bool *deletedp)
 {
-    WT_DECL_RET;
     WT_COLLATOR *collator;
     WT_CURSOR *c, *current;
+    WT_DECL_RET;
     int cmp;
     bool ingest_positioned, stable_positioned;
 
@@ -649,7 +649,8 @@ __clayered_get_current(
     else if (stable_positioned)
         current = clayered->stable_cursor;
 
-    WT_ASSERT_ALWAYS(session, current != NULL, "Both constituents are positioned, but we cannot choose current");
+    WT_ASSERT_ALWAYS(
+      session, current != NULL, "Both constituents are positioned, but we cannot choose current");
     clayered->current_cursor = current;
 
     WT_ERR(current->get_key(current, &c->key));
@@ -767,7 +768,8 @@ __clayered_iterate_constituent(WT_CURSOR_LAYERED *clayered, WT_CURSOR *constitue
     /* Constituent is not positioned, set to next/last element */
     if (!F_ISSET(constituent, WT_CURSTD_KEY_SET)) {
         WT_RET(constituent->reset(constituent));
-        WT_RET_NOTFOUND_OK(forward ? constituent->next(constituent) : constituent->prev(constituent));
+        WT_RET_NOTFOUND_OK(
+          forward ? constituent->next(constituent) : constituent->prev(constituent));
         return (ret);
     }
 
