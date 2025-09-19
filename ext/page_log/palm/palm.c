@@ -738,7 +738,7 @@ palm_handle_verify_page(
     PALM_HANDLE *palm_handle;
     PALM_KV_PAGE_MATCHES matches;
     uint32_t count;
-    bool seen_tombstone;
+    /* bool seen_tombstone = false; */
     int ret;
     struct {
         uint64_t lsn;
@@ -747,7 +747,6 @@ palm_handle_verify_page(
         uint32_t flags;
     } matched_pages[WT_DELTA_LIMIT + 1]; /* +1 for a tombstone */
 
-    seen_tombstone = false;
     palm_handle = (PALM_HANDLE *)plh;
     palm = palm_handle->palm;
 
@@ -762,8 +761,6 @@ palm_handle_verify_page(
         matched_pages[count].base_lsn = matches.base_lsn;
         matched_pages[count].flags = matches.flags;
 
-        /* FIXME-WT-15041: Any adjustments once PALM can handle abandoned checkpoints? */
-
         if (count == 0) {
             /* For the base page, just check flags. */
             assert((matches.flags & (WT_PALM_KV_TOMBSTONE | WT_PAGE_LOG_DELTA)) == 0);
@@ -773,16 +770,19 @@ palm_handle_verify_page(
         /* All subsequent pages are deltas. */
         assert((matches.flags & WT_PAGE_LOG_DELTA) != 0);
 
+        /* FIXME-WT-15041: Enable once PALM can handle abandoned checkpoints? */
         /* Only the last page in the chain can be a tombstone. */
+        /*
         PALM_VERIFY_EQUAL(seen_tombstone, false);
         if ((matches.flags & WT_PALM_KV_TOMBSTONE) != 0)
             seen_tombstone = true;
+        */
 
         /* Validate base LSN. */
         PALM_VERIFY_EQUAL(matches.base_lsn, matched_pages[0].lsn);
 
         /* Validate backlink LSN. */
-        if (!seen_tombstone)
+        if ((matches.flags & WT_PALM_KV_TOMBSTONE) == 0)
             PALM_VERIFY_EQUAL(matches.backlink_lsn, matched_pages[count - 1].lsn);
         else {
             /* Tombstone can backlink to any page that we've seen in the chain. */
