@@ -265,12 +265,13 @@ err:
 }
 
 /*
- * __rec_find_and_save_delete_hs_upd --
- *     Find and save the update that needs to be deleted from the history store later
+ * __rec_save_delete_hs_upd_and_free_obs_updates --
+ *     Find and save the update that needs to be deleted from the history store later and also free
+ *     the obsolete updates in the update chain.
  */
 static int
-__rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
-  WT_ROW *rip, WTI_UPDATE_SELECT *upd_select)
+__rec_save_delete_hs_upd_and_free_obs_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r,
+  WT_INSERT *ins, WT_ROW *rip, WTI_UPDATE_SELECT *upd_select)
 {
     WT_UPDATE *delete_upd, *tombstone, *visible_all_upd;
     wt_timestamp_t prune_timestamp;
@@ -1333,7 +1334,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      * store later.
      */
     if (F_ISSET(r, WT_REC_HS))
-        WT_RET(__rec_find_and_save_delete_hs_upd(session, r, ins, rip, upd_select));
+        WT_RET(__rec_save_delete_hs_upd_and_free_obs_updates(session, r, ins, rip, upd_select));
 
     /* Check the update chain for conditions that could prevent it's eviction. */
     WT_RET(__rec_validate_upd_chain(session, r, onpage_upd, &upd_select->tw, vpack));
