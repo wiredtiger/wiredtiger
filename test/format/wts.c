@@ -425,7 +425,7 @@ configure_prefetch(char **p, size_t max)
 static void
 configure_obsolete_cleanup(char **p, size_t max)
 {
-     /*
+    /*
      * If it's all off, don't even generate the outer checkpoint_cleanup config. It's not compatible
      * with older branches, so take both options being configured off as a proxy for the whole
      * feature being turned off.
