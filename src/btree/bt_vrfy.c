@@ -42,7 +42,7 @@ typedef struct {
     int verify_err;
 } WT_VSTUFF;
 
-static int __compare_page_id(const void *, const void *);
+static int __verify_compare_page_id(const void *, const void *);
 static void __verify_checkpoint_reset(WT_VSTUFF *);
 static int __verify_page_content_int(
   WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
@@ -1459,8 +1459,8 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
          * page. Change below warning to an error after root page discard is implemented, if a
          * mismatch is found this function will return the corresponding error code.
          */
-        __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5, 
-        "Mismatch in the number of page IDs found from PALM and btree walk: PALM %" PRIu64
+        __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
+          "Mismatch in the number of page IDs found from PALM and btree walk: PALM %" PRIu64
           " Btree walk %" PRIu64,
           (uint64_t)num_pages_found_in_palm, num_pages_found_in_btree);
     }
@@ -1469,7 +1469,7 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
      * Sort the btree walk array by page ID in ascending order to match the order used in the PALM
      * walk.
      */
-    __wt_qsort(page_ids, num_pages_found_in_btree, sizeof(uint64_t), __compare_page_id);
+    __wt_qsort(page_ids, num_pages_found_in_btree, sizeof(uint64_t), __verify_compare_page_id);
 
     for (size_t i = 0; i < num_pages_found_in_palm; i++) {
         /* FIXME-WT-15451: Print mismatch page IDs for discard verify. */
@@ -1492,11 +1492,11 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
 }
 
 /*
- * __compare_page_id --
+ * __verify_compare_page_id --
  *     Compare two page IDs for qsort, sorts in ascending order.
  */
 static int
-__compare_page_id(const void *a, const void *b)
+__verify_compare_page_id(const void *a, const void *b)
 {
     const uint64_t *id_a = (const uint64_t *)a;
     const uint64_t *id_b = (const uint64_t *)b;

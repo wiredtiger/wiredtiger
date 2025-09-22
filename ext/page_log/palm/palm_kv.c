@@ -477,8 +477,6 @@ palm_kv_get_page_ids(
     if (ret == MDB_NOTFOUND)
         ret = 0;
 
-    mdb_cursor_close(cursor);
-
     /* If the last tracked page was not a tombstone, store the page ID. */
     if (prev_page_id != 0 && !prev_is_tombstone) {
         assert(count < stat.ms_entries);
