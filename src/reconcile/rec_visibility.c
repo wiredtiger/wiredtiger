@@ -854,7 +854,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                 if (F_ISSET(r, WT_REC_CHECKPOINT) || upd->txnid == WT_TXN_ABORTED) {
                     WT_ASSERT(session, !is_hs_page);
                     *has_newer_updatesp = true;
-                }
+                } else
+                    WT_ASSERT(session, !*has_newer_updatesp);
 
                 *write_prepare = true;
             } else if (prepare_state == WT_PREPARE_RESOLVED) {
