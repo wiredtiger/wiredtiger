@@ -114,7 +114,10 @@ wts_prepare_discover(WT_CONNECTION *conn)
     }
     testutil_check(cursor->close(cursor));
     /* TODO - only enable precise checkpoint if global checkpoint is on */
-    if (!GV(RUNS_IN_MEMORY))
+    if (!GV(RUNS_IN_MEMORY)) {
+        const char *checkpoint_name = "WiredTigerCheckpoint";
         session->checkpoint(session, NULL);
+        wts_verify_mirrors(g.wts_conn, checkpoint_name, NULL);
+    }
     testutil_check(session->close(session, NULL));
 }

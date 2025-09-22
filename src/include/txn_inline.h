@@ -1915,6 +1915,8 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
     txn->prepare_count = prepared_item->prepare_count;
     prepared_item->prepare_count = 0;
 #endif
+    /* There's no txn id since claimed prepared txn is from recovery */
+    WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_HAS_ID));
     return (ret);
 }
 
