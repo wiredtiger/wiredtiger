@@ -959,11 +959,11 @@ __clayered_reset_cursors(WT_CURSOR_LAYERED *clayered, bool skip_ingest)
         return (0);
 
     c = clayered->stable_cursor;
-    if (c != NULL && F_ISSET(c, WT_CURSTD_KEY_INT))
+    if (c != NULL && F_ISSET(c, WT_CURSTD_KEY_SET))
         WT_TRET(c->reset(c));
 
     c = clayered->ingest_cursor;
-    if (!skip_ingest && F_ISSET(c, WT_CURSTD_KEY_INT))
+    if (!skip_ingest && F_ISSET(c, WT_CURSTD_KEY_SET))
         WT_TRET(c->reset(c));
 
     clayered->current_cursor = NULL;
