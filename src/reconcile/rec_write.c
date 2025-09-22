@@ -2203,19 +2203,27 @@ __wti_rec_pack_delta_internal(
      * WT_CELL_ADDR_DEL.
      */
     if (value == NULL) {
+        printf("Value is NULL\n");
         t_kv = &t_kv_struct;
         t_kv->buf.data = NULL;
         t_kv->buf.size = 0;
-        WT_TIME_AGGREGATE local_ta;
+        /*
+         * Initialize an empty instance of WT_TIME_AGGREGATE to avoid writing a page deleted
+         * structure to disk.
+         */
+        static WT_TIME_AGGREGATE local_ta;
         WT_TIME_AGGREGATE_INIT(&local_ta);
 
         t_kv->cell_len = __wt_cell_pack_addr(
-          session, &t_kv->cell, WT_CELL_ADDR_DEL_NULL, WT_RECNO_OOB, NULL, &local_ta, 0);
+          session, &t_kv->cell, WT_CELL_ADDR_DEL_VISIBLE_ALL, WT_RECNO_OOB, NULL, &local_ta, 0);
         t_kv->len = t_kv->cell_len + t_kv->buf.size;
         __wti_rec_kv_copy(session, p, t_kv);
         packed_size += t_kv->len;
-    } else
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal_key_deleted);
+    } else {
         __wti_rec_kv_copy(session, p, value);
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal_key_updated);
+    }
 
     r->delta.size += packed_size;
 

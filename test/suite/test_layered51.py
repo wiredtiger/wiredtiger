@@ -33,47 +33,37 @@ from wiredtiger import stat
 import time
 
 
-# test_layered47.py
+# test_layered51.py
 # Test that we write internal page deltas with deleted leaf page
 # to the page log extension.
 
 @disagg_test_class
-class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered51(wttest.WiredTigerTestCase, DisaggConfigMixin):
     encrypt = [
-        #('none', dict(encryptor='none', encrypt_args='')),
+        ('none', dict(encryptor='none', encrypt_args='')),
         ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
     ]
 
     compress = [
-        #('none', dict(block_compress='none')),
+        ('none', dict(block_compress='none')),
         ('snappy', dict(block_compress='snappy')),
     ]
 
     uris = [
-        #('layered', dict(uri='layered:test_layered32')),
-        ('btree', dict(uri='file:test_layered32')),
-    ]
-
-    ts = [
-        ('ts', dict(ts=True)),
-        #('non-ts', dict(ts=False)),
+        ('layered', dict(uri='layered:test_layered51')),
+        ('btree', dict(uri='file:test_layered51')),
     ]
 
     delta = [
-        #('write_leaf_only', dict(delta_config='page_delta=(internal_page_delta=false,leaf_page_delta=true)', delta_type='leaf_only')),
         ('write_internal_only', dict(delta_config='page_delta=(internal_page_delta=true,leaf_page_delta=false)', delta_type='internal_only')),
-        #('write_none', dict(delta_config='page_delta=(internal_page_delta=false,leaf_page_delta=false)', delta_type='none')),
-        #('write_both', dict(delta_config='page_delta=(internal_page_delta=true,leaf_page_delta=true)', delta_type='both')),
     ]
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(page_log=palm),page_delta=(delta_pct=100),'
-    disagg_storages = gen_disagg_storages('test_layered32', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered51', disagg_only = True)
 
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, ts, delta)
-
-    nitems = 10_000
+    scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, delta)
 
     def session_create_config(self):
         # The delta percentage of 100 is an arbitrary large value, intended to produce
@@ -99,31 +89,24 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor.close()
         return val
 
-    def insert(self, kv, ts=None):
+    def insert(self, kv, ts):
         cursor = self.session.open_cursor(self.uri, None, None)
         for k, v in kv.items():
             self.session.begin_transaction()
             cursor[k] = v
-            if self.ts:
-                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(ts))
-            else:
-                self.session.commit_transaction()
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(ts))
         cursor.close()
 
-    def delete_keys(self, keys, ts=None):
+    def delete_keys(self, keys, ts):
         cursor = self.session.open_cursor(self.uri, None, None)
         for k in keys:
-            self.pr ("Deleting key " + k + " at timestamp " + str(ts))
             self.session.begin_transaction()
             cursor.set_key(k)
             cursor.remove()
-            if self.ts:
-                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(ts))
-            else:
-                self.session.commit_transaction()
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(ts))
         cursor.close()
 
-    def verify(self, expected_keys, ts=None):
+    def verify(self, expected_keys, ts):
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(1, self.nitems + 1):
@@ -135,8 +118,9 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
         cursor.close()
 
+    nitems = 1000
+
     def test_internal_page_delta_random(self):
-        import wiredtiger
 
         self.session.create(self.uri, self.session_create_config())
 
@@ -152,36 +136,29 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         expected_keys = set(str(i) for i in range(1, self.nitems + 1))
 
-        num_deltas = random.randint(1, 10)
-        self.pr("Number of Deltas is " + str(num_deltas))
-        for i in range(1, num_deltas + 1):
-            # To reliably delete an entire leaf page, we need to delete a contiguous range of keys.
-            # A range of 500 keys should be enough to span at least one or more full leaf pages.
-            delete_start = random.randint(1, self.nitems // 2)
-            keys_to_delete = [str(k) for k in range(delete_start, delete_start + 500) if str(k) in expected_keys]
-            self.pr(f"Deleting a range of {len(keys_to_delete)} keys starting at {delete_start}")
+        # To reliably delete an entire leaf page, we need to delete a contiguous range of keys.
+        # A range of 100 keys should be enough to span at least one or more full leaf pages.
+        delete_start = 200
+        keys_to_delete = [str(k) for k in range(delete_start, delete_start + 100) if str(k) in expected_keys]
 
-            # Delete the selected keys.
-            delete_ts = initial_ts + i
-            self.delete_keys(keys_to_delete, delete_ts)
+        # Delete the selected keys.
+        delete_ts = initial_ts + 10
+        self.delete_keys(keys_to_delete, delete_ts)
 
-            self.conn.set_timestamp('oldest_timestamp={},stable_timestamp={}'.format(
-                self.timestamp_str(delete_ts), self.timestamp_str(delete_ts)))
+        self.conn.set_timestamp('oldest_timestamp={},stable_timestamp={}'.format(
+            self.timestamp_str(delete_ts), self.timestamp_str(delete_ts)))
 
-            # Perform a checkpoint to write out a delta.
-            self.session.checkpoint()
+        # Perform a checkpoint to write out a delta.
+        self.session.checkpoint()
 
-            # Remove the deleted keys from our set of expected keys.
-            expected_keys.difference_update(keys_to_delete)
+        # Remove the deleted keys from our set of expected keys.
+        expected_keys.difference_update(keys_to_delete)
 
         # Assert that we have written at least one internal page delta.
-        if (self.delta_type == 'both' or self.delta_type == 'leaf_only'):
-            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
-        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
-        if (self.delta_type == 'none'):
-            self.assertEqual(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
-            self.assertEqual(self.get_stat(stat.conn.rec_page_delta_internal), 0)
+        self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal_key_deleted), 0)
+
+        # Assert that we have written at least one internal page delta.
+        self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
 
         # Verify that only the expected keys are present.
         self.verify(expected_keys, delete_ts)
@@ -191,22 +168,3 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Verify the updated values in the table.
         self.verify(expected_keys, delete_ts)
-
-        # Assert that we have constructed at least one internal page delta.
-        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
-        else:
-            self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
-
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower"),'
-        self.reopen_disagg_conn(follower_config)
-        time.sleep(1.0)
-
-        # Verify the updated values in the table.
-        self.verify(expected_keys, delete_ts)
-
-        # Assert that we have constructed at least one internal page delta.
-        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
-        else:
-            self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)

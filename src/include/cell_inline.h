@@ -850,7 +850,7 @@ copy_cell_restart:
     /* Check for a validity window. */
     switch (unpack->raw) {
     case WT_CELL_ADDR_DEL:
-    case WT_CELL_ADDR_DEL_NULL:
+    case WT_CELL_ADDR_DEL_VISIBLE_ALL:
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
@@ -1082,7 +1082,7 @@ copy_cell_restart:
         /* FALLTHROUGH */
 
     case WT_CELL_ADDR_DEL:
-    case WT_CELL_ADDR_DEL_NULL:
+    case WT_CELL_ADDR_DEL_VISIBLE_ALL:
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
