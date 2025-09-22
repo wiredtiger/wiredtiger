@@ -193,7 +193,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
                 /*
                  * If preserve prepared is enabled, we still need to append the tombstone if there
                  * is nothing between the prepared update and the on-page value. Otherwise, we may
-                 * wronglg leave this key as prepared indefinitely if we rollback the prepared
+                 * wrongly leave this key as prepared indefinitely if we rollback the prepared
                  * update.
                  */
                 if (seen_committed || !write_prepared)
@@ -1226,7 +1226,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
     WT_PAGE *page;
     WT_UPDATE *first_txn_upd, *first_upd, *onpage_upd, *upd;
     size_t upd_memsize;
-    bool has_newer_updates, supd_restore, upd_saved, write_prepare;
+    bool has_newer_updates, supd_restore, write_prepare;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -1237,7 +1237,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
     page = r->page;
     first_txn_upd = onpage_upd = upd = NULL;
     upd_memsize = 0;
-    has_newer_updates = supd_restore = upd_saved = false;
+    has_newer_updates = supd_restore = false;
 
     /*
      * If called with a WT_INSERT item, use its WT_UPDATE list (which must exist), otherwise check
@@ -1369,7 +1369,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
         upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
         WT_RET(__rec_update_save(session, r, ins, rip, onpage_upd, upd_select->tombstone,
           &upd_select->tw, supd_restore, upd_memsize));
-        upd_saved = upd_select->upd_saved = true;
+        upd_select->upd_saved = true;
     }
 
     /*
@@ -1412,7 +1412,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      */
     if (upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
       !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)) &&
-      (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
+      (upd_select->upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
         WT_RET(__rec_append_orig_value(
           session, page, upd_select->upd, vpack, WT_TIME_WINDOW_HAS_PREPARE(&upd_select->tw)));
 
