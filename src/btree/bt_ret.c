@@ -186,7 +186,6 @@ __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
     case WT_PAGE_COL_FIX:
         if (cbt->recno >= cbt->ref->ref_recno + cbt->ref->page->entries)
             return (false);
-
         return (__col_fix_get_time_window(session, cbt->ref, cbt->recno, tw));
     }
     return (true);
