@@ -88,8 +88,8 @@ __rec_delete_hs_upd_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *
  *     WT_TXN_NONE and timestamps to WT_TS_NONE in time window for in-memory databases.
  */
 static int
-__rec_append_orig_value(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK_KV *unpack)
+__rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
+  WT_CELL_UNPACK_KV *unpack, bool write_prepared)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
@@ -179,7 +179,8 @@ __rec_append_orig_value(
              * the entries in the history store, we can't change the history store entries. This is
              * not correct but we hope we can get away with it.
              */
-            if (unpack->tw.durable_stop_ts != WT_TS_NONE && tombstone_globally_visible)
+            if (unpack->tw.durable_stop_ts != WT_TS_NONE && tombstone_globally_visible &&
+              !write_prepared)
                 return (0);
 
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
@@ -1151,7 +1152,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
             (!F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS)),
           "A tombstone written to the disk image except for disaggregated storage or history store "
           "should be accompanied by the full value.");
-        WT_RET(__rec_append_orig_value(session, page, tombstone, vpack));
+        WT_RET(__rec_append_orig_value(session, page, tombstone, vpack, write_prepare));
 
         /*
          * We may have updated the global transaction concurrently and the tombstone is now globally
@@ -1395,7 +1396,8 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
     if (upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
       !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)) &&
       (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
-        WT_RET(__rec_append_orig_value(session, page, upd_select->upd, vpack));
+        WT_RET(__rec_append_orig_value(
+          session, page, upd_select->upd, vpack, WT_TIME_WINDOW_HAS_PREPARE(&upd_select->tw)));
 
     __wti_rec_time_window_clear_obsolete(session, upd_select, NULL, r);
 

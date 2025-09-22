@@ -1224,12 +1224,11 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     case RESOLVE_UPDATE_CHAIN:
         /*
          * If the prepared update is the only update on the update chain and there is no on-disk
-         * value or the on-disk value has a globally visible tombstone. Delete the key with a
-         * tombstone.
+         * value. Delete the key with a tombstone.
          */
         if (!commit && first_committed_upd == NULL) {
             tw_found = __wt_read_cell_time_window(cbt, &tw);
-            if (!tw_found || __wt_txn_tw_stop_visible_all(session, &tw))
+            if (!tw_found)
                 WT_ERR(__txn_prepare_rollback_delete_key(session, op, cbt));
             else
                 WT_ASSERT_ALWAYS(
