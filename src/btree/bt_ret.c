@@ -179,6 +179,10 @@ __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
     case WT_PAGE_ROW_LEAF:
         if (page->pg_row == NULL)
             return (false);
+
+        if (cbt->ins != NULL)
+            return (false);
+
         __wti_read_row_time_window(session, page, &page->pg_row[cbt->slot], tw);
         break;
     case WT_PAGE_COL_VAR:
