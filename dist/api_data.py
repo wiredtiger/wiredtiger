@@ -582,6 +582,15 @@ connection_runtime_config = [
     Config('cache_eviction_controls', '', r'''
         Controls the experimental incremental cache eviction features.''',
         type='category', subconfig=[
+            Config('app_eviction_min_cache_fill_ratio', '0', r'''
+                This setting establishes a minimum cache fill ratio that must be met before
+                application threads can start assisting with eviction. The value is a percentage
+                between 0 and 50, with 0 disabling the feature. For it to have any effect, this
+                minimum ratio must be higher than the existing \c eviction_dirty_trigger or
+                \c eviction_update_trigger and less than \c eviction_trigger. Essentially, the
+                standard dirty or update triggers won't become active until the cache fill ratio
+                first reaches this new, higher threshold.''',
+                min='0', max='50'),
             Config('incremental_app_eviction', 'false', r'''
                 Only a part of application threads will participate in cache management 
                 when a cache threshold reaches its trigger limit.''',

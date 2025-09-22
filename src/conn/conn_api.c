@@ -2309,27 +2309,30 @@ __wti_heuristic_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wti_cache_eviction_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_CACHE *cache;
     WT_CONFIG_ITEM cval;
-    WT_CONNECTION_IMPL *conn;
 
-    conn = S2C(session);
+    cache = S2C(session)->cache;
 
     WT_RET(
       __wt_config_gets(session, cfg, "cache_eviction_controls.incremental_app_eviction", &cval));
     if (cval.val != 0)
-        F_SET_ATOMIC_32(&(conn->cache->cache_eviction_controls), WT_CACHE_EVICT_INCREMENTAL_APP);
+        F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_EVICT_INCREMENTAL_APP);
 
     WT_RET(__wt_config_gets(
       session, cfg, "cache_eviction_controls.scrub_evict_under_target_limit", &cval));
     if (cval.val != 0)
-        F_SET_ATOMIC_32(&(conn->cache->cache_eviction_controls), WT_CACHE_EVICT_SCRUB_UNDER_TARGET);
+        F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_EVICT_SCRUB_UNDER_TARGET);
 
     WT_RET(
       __wt_config_gets(session, cfg, "cache_eviction_controls.skip_update_obsolete_check", &cval));
     if (cval.val != 0)
-        F_SET_ATOMIC_32(
-          &(conn->cache->cache_eviction_controls), WT_CACHE_EVICT_SKIP_UPDATE_OBSOLETE);
+        F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_SKIP_UPDATE_OBSOLETE_CHECK);
 
+    WT_RET(__wt_config_gets(
+      session, cfg, "cache_eviction_controls.app_eviction_min_cache_fill_ratio", &cval));
+    __wt_atomic_store8(
+      &cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio, (uint8_t)cval.val);
     return (0);
 }
 

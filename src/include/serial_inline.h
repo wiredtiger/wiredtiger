@@ -324,7 +324,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      * page reconciliation.
      */
     if (F_ISSET_ATOMIC_32(
-          &S2C(session)->cache->cache_eviction_controls, WT_CACHE_EVICT_SKIP_UPDATE_OBSOLETE))
+          &S2C(session)->cache->cache_eviction_controls, WT_CACHE_SKIP_UPDATE_OBSOLETE_CHECK))
         return (0);
 
     /*
