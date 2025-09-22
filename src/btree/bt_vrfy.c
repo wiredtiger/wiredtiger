@@ -1459,8 +1459,8 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
          * page. Change below warning to an error after root page discard is implemented, if a
          * mismatch is found this function will return the corresponding error code.
          */
-        __wt_verbose_warning(session, WT_VERB_VERIFY,
-          "Mismatch in the number of page IDs found from PALM and btree walk: PALM %" PRIu64
+        __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5, 
+        "Mismatch in the number of page IDs found from PALM and btree walk: PALM %" PRIu64
           " Btree walk %" PRIu64,
           (uint64_t)num_pages_found_in_palm, num_pages_found_in_btree);
     }
@@ -1479,7 +1479,7 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
              * root page. Change below warning to an error after root page discard is implemented,
              * if a mismatch is found this function will return the corresponding error code.
              */
-            __wt_verbose_warning(session, WT_VERB_VERIFY,
+            __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
               "Mismatch in page IDs from PALM and btree walk: PALM %" PRIu64 " Btree walk %" PRIu64,
               ((uint64_t *)item->data)[i], page_ids[i]);
         }
