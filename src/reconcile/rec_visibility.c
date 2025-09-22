@@ -97,7 +97,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
     WT_DECL_RET;
     WT_UPDATE *append, *oldest_upd, *tombstone;
     size_t size, total_size;
-    bool tombstone_globally_visible;
+    bool seen_committed, tombstone_globally_visible;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -110,7 +110,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
     append = tombstone = NULL;
     oldest_upd = upd;
     size = total_size = 0;
-    tombstone_globally_visible = false;
+    seen_committed = tombstone_globally_visible = false;
 
     /* Review the current update list, checking conditions that mean no work is needed. */
     for (;; upd = upd->next) {
@@ -154,6 +154,13 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
             return (0);
 
         oldest_upd = upd;
+        /*
+         * It is fine to race with prepare commit as the update is now really committed.
+         */
+        uint8_t prepare_state;
+        WT_READ_ONCE(prepare_state, upd->prepare_state);
+        seen_committed =
+          prepare_state != WT_PREPARE_INPROGRESS && prepare_state != WT_PREPARE_LOCKED;
 
         /* Leave reference pointing to the last item in the update list. */
         if (upd->next == NULL)
@@ -179,9 +186,19 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
              * the entries in the history store, we can't change the history store entries. This is
              * not correct but we hope we can get away with it.
              */
-            if (unpack->tw.durable_stop_ts != WT_TS_NONE && tombstone_globally_visible &&
-              !write_prepared)
-                return (0);
+            if (unpack->tw.durable_stop_ts != WT_TS_NONE && tombstone_globally_visible) {
+                if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
+                    return (0);
+
+                /*
+                 * If preserve prepared is enabled, we still need to append the tombstone if there
+                 * is nothing between the prepared update and the on-page value. Otherwise, we may
+                 * wronglg leave this key as prepared indefinitely if we rollback the prepared
+                 * update.
+                 */
+                if (seen_committed || !write_prepared)
+                    return (0);
+            }
 
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
             total_size += size;
