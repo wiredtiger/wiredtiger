@@ -85,6 +85,7 @@ func_ok()
         -e '/int __wt_curhs_search_near_before$/d' \
         -e '/int __wt_epoch$/d' \
         -e '/int __wt_errno$/d' \
+        -e '/int __wt_error_log_add$/d' \
         -e '/int __wt_futex_wait/d' \
         -e '/int __wt_futex_wake/d' \
         -e '/int __wt_get_vm_pagesize$/d' \
@@ -182,6 +183,7 @@ func_ok()
         -e '/int nop_terminate$/d' \
         -e '/int os_errno$/d' \
         -e '/int palm_err$/d' \
+        -e '/int palm_handle_get_previous_lsns$/d' \
         -e '/int palm_handle_verify_page$/d' \
         -e '/int palm_kv_err$/d' \
         -e '/int palm_set_last_materialized_lsn$/d' \
