@@ -1142,16 +1142,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
           __wt_timestamp_to_string(txn->rollback_timestamp, ts_string[1]));
 
     /*
-     * Aborted updates can exist in the update chain of our transaction due to reserved update. All
-     * the prepared updates on a key by a transaction will be resolved during the resolution of the
-     * first operation on that key. Hence the update chain could contain the prepared updates by
-     * another transaction when the transaction tries to resolve the subsequent operations on the
-     * same key.
+     * Aborted updates can exist in the update chain of our transaction due to reserved update. Skip
+     * aborted update until we see the first valid update.
      */
-    for (; upd != NULL &&
-         (upd->txnid != txn->id &&
-           (upd->prepared_id == WT_PREPARED_ID_NONE || upd->prepared_id != txn->prepared_id));
-         upd = upd->next)
+    for (; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
         ;
     head_upd = upd;
 
@@ -1342,8 +1336,13 @@ prepare_verify:
              */
             if (head_upd->txnid == WT_TXN_ABORTED)
                 continue;
-            /* Exit once we have visited all updates from the current transaction. */
-            if (head_upd->txnid != txn->id)
+            /*
+             * Exit once we have visited all updates from the current transaction. When a
+             * transaction is claim prepared, we don't assign a txn id to it so the txn id can be 0
+             * which is the same with head_upd if it's restored from disk, so we break if we find a
+             * complete update restored from DS
+             */
+            if (head_upd->txnid != txn->id || F_ISSET(head_upd, WT_UPDATE_RESTORED_FROM_DS))
                 break;
             /* Any update we find should be resolved. */
             WT_ASSERT_ALWAYS(session, head_upd->prepare_state == WT_PREPARE_RESOLVED,
