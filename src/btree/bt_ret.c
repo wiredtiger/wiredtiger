@@ -66,13 +66,17 @@ __key_return(WT_CURSOR_BTREE *cbt)
  * __read_col_time_window --
  *     Retrieve the time window from a column store cell.
  */
-static void
+static bool
 __read_col_time_window(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, WT_TIME_WINDOW *tw)
 {
     WT_CELL_UNPACK_KV unpack;
 
     __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
+    if (__wt_cell_type(cell) == WT_CELL_DEL)
+        return (false);
+
     WT_TIME_WINDOW_COPY(tw, &unpack.tw);
+    return (true);
 }
 
 /*
@@ -192,8 +196,8 @@ __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
          */
         if (page->pg_var == NULL || (cbt->ins != NULL && !F_ISSET(cbt, WT_CBT_VAR_ONPAGE_MATCH)))
             return (false);
-        __read_col_time_window(session, page, WT_COL_PTR(page, &page->pg_var[cbt->slot]), tw);
-        break;
+        retrun(
+          __read_col_time_window(session, page, WT_COL_PTR(page, &page->pg_var[cbt->slot]), tw));
     case WT_PAGE_COL_FIX:
         return (__col_fix_get_time_window(session, cbt->ref, cbt->recno, tw));
     }
