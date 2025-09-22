@@ -812,6 +812,7 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     dup_backup = false;
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, ret, open_cursor, config, cfg);
+    WT_CONFIG_ITEM cval;
 
     /*
      * Check for early usage of a user session to collect statistics. If the connection is not fully
@@ -829,6 +830,15 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     if ((to_dup == NULL && uri == NULL) || (to_dup != NULL && uri != NULL))
         WT_ERR_MSG(
           session, EINVAL, "should be passed either a URI or a cursor to duplicate, but not both");
+
+    /*
+     * Disallow cursor creation on a leaders ingest table if not configured with readonly
+     * configuration.
+     */
+    if (S2C(session)->layered_table_manager.leader && uri != NULL &&
+      WT_SUFFIX_MATCH(uri, ".wt_ingest"))
+        if ((ret = __wt_config_gets_def(session, cfg, "readonly", 0, &cval) == 0) && !cval.val)
+            WT_ERR_MSG(session, EINVAL, "writes to ingest tables are disallowed on leader nodes");
 
     __wt_cursor_get_hash(session, uri, to_dup, &hash_value);
     if ((ret = __wt_cursor_cache_get(session, uri, hash_value, to_dup, cfg, &cursor)) == 0)
