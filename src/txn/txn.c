@@ -1054,15 +1054,19 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
 
     /*
      * The previous loop exits on null, check that here. Additionally if the transaction id is then
-     * different we know we've reached the end of our update chain and don't need to look deeper.
+     * different or update's state is not in progress, we know we've reached the end of our update
+     * chain and don't need to look deeper.
      */
-    if (upd == NULL ||
-      (upd->txnid != session->txn->id &&
-        (upd->prepared_id == WT_PREPARED_ID_NONE || upd->prepared_id != session->txn->prepared_id)))
+    if (upd == NULL || (upd->txnid != WT_TXN_NONE && upd->txnid != session->txn->id))
+        return;
+
+    if (upd->prepare_state != WT_PREPARE_INPROGRESS)
         return;
 
     /* Go down the chain. Do the resolves on the way back up. */
     __txn_resolve_prepared_update_chain(session, upd->next, commit);
+    if (F_ISSET(upd, WT_UPDATE_PREPARE_TO_CLAIM) && upd->prepared_id == txn->prepared_id)
+        upd->txnid = txn->id;
 
     if (!commit) {
         /* As updating timestamp might not be an atomic operation, we will manage using state. */
@@ -1152,9 +1156,11 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          upd = upd->next)
         ;
 
-    /* if we find a prepared update with 0 txn id, this must be during prepare discover walk. Update
-     * the upd with txn id */
-    if (upd->txnid == WT_TXN_NONE) {
+    /*
+     * If we find a prepared update with 0 txn id, this must be during prepare discover walk. Update
+     * the upd with txn id
+     */
+    if (F_ISSET(upd, WT_UPDATE_PREPARE_TO_CLAIM)) {
         WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT));
         upd->txnid = txn->id;
     } else
@@ -1349,10 +1355,6 @@ prepare_verify:
              */
             if (head_upd->txnid == WT_TXN_ABORTED)
                 continue;
-            if (head_upd->txnid == WT_TXN_NONE && head_upd->prepared_id == txn->prepared_id) {
-                head_upd->txnid = txn->id;
-                continue;
-            }
             /* Exit once we have visited all updates from the current transaction. */
             if (head_upd->txnid != txn->id)
                 break;

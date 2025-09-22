@@ -792,6 +792,9 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         upd->upd_start_ts = unpack->tw.start_prepare_ts;
         upd->prepare_state = WT_PREPARE_INPROGRESS;
         F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
+        if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+          upd->prepared_id != WT_PREPARED_ID_NONE)
+            F_SET(upd, WT_UPDATE_PREPARE_TO_CLAIM);
         if (delta_enabled)
             F_SET(upd, WT_UPDATE_PREPARE_DURABLE);
     } else {
@@ -812,6 +815,9 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         tombstone->prepared_id = unpack->tw.stop_prepared_id;
         tombstone->prepare_state = WT_PREPARE_INPROGRESS;
         F_SET(tombstone, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
+        if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+          tombstone->prepared_id != WT_PREPARED_ID_NONE)
+            F_SET(tombstone, WT_UPDATE_PREPARE_TO_CLAIM);
         if (delta_enabled)
             F_SET(tombstone, WT_UPDATE_PREPARE_DURABLE);
         tombstone->next = upd;
