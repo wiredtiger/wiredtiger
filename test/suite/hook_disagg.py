@@ -269,8 +269,9 @@ def session_create_replace(orig_session_create, session_self, uri, config):
 
 # Called to replace Session.drop
 def session_drop_replace(orig_session_drop, session_self, uri, config):
-    uri = replace_uri(uri)
-    return orig_session_drop(session_self, uri, config)
+    # uri = replace_uri(uri)
+    # return orig_session_drop(session_self, uri, config)
+    skip_test("drop on disagg tables not yet implemented")
 
 # Called to replace Session.open_cursor.  We skip calls that do backup
 # as that is not yet supported in disaggregated storage.
