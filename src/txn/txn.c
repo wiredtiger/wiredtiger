@@ -1340,9 +1340,10 @@ prepare_verify:
              * Exit once we have visited all updates from the current transaction. When a
              * transaction is claim prepared, we don't assign a txn id to it so the txn id can be 0
              * which is the same with head_upd if it's restored from disk, so we break if we find a
-             * complete update restored from DS
+             * complete update restored from DS or HS.
              */
-            if (head_upd->txnid != txn->id || F_ISSET(head_upd, WT_UPDATE_RESTORED_FROM_DS))
+            if (head_upd->txnid != txn->id ||
+              F_ISSET(head_upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS))
                 break;
             /* Any update we find should be resolved. */
             WT_ASSERT_ALWAYS(session, head_upd->prepare_state == WT_PREPARE_RESOLVED,
