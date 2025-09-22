@@ -1273,10 +1273,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
              * we don't copy the prepared cell, which is now associated with a rolled back prepare,
              * and instead write nothing.
              */
-            if (!commit) {
-                printf("add global visible tombstone %" PRIu64 "\n", upd->prepared_id);
+            if (!commit)
                 WT_ERR(__txn_prepare_rollback_delete_key(session, op, cbt));
-            }
         }
         break;
     case RESOLVE_IN_MEMORY:
