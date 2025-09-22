@@ -653,7 +653,7 @@ functions:
 
         # Determine if we want to exclude or include disagg labels.
         disagg_filter=""
-        if [[ "${disagg_run}" == "true" ]]; then
+        if [[ "${disagg_run|false}" == "true" ]]; then
           disagg_filter='-L'  # Include labels
         else
           disagg_filter='-LE'  # Exclude labels
@@ -1465,7 +1465,8 @@ variables:
       - func: "fetch artifacts"
       - func: "format test disagg"
         vars:
-          format_args: disagg.mode=leader runs.rows=100000:300000 runs.tables=1:3 runs.timer=3
+          # FIXME-WT-14566 Limit the runs for now.
+          format_args: disagg.mode=leader runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
           times: 5
 
   - &format-stress-data-validation-test-disagg-leader
@@ -1487,7 +1488,8 @@ variables:
       - func: "fetch artifacts"
       - func: "format test disagg"
         vars:
-          format_args: disagg.mode=switch runs.tables=1 runs.timer=3
+          # FIXME-WT-14566 Limit the runs for now.
+          format_args: disagg.mode=switch runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
           times: 5
 
   - &format-stress-test-disagg-follower
@@ -1546,31 +1548,6 @@ variables:
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           format_test_script_args: -t 360
-
-  - &format-stress-asan-disagg-test
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_asan_mongodb_stable_clang_with_builtins
-      - func: "format test disagg"
-        vars:
-          additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_args: runs.rows=100000:300000 runs.tables=1:3
-          times: 5
-
-  - &race-condition-stress-asan-disagg-test
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_asan_mongodb_stable_clang_with_builtins
-      - func: "format test disagg"
-        vars:
-          additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          times: 5
 
   - &race-condition-stress-asan-test
     exec_timeout_secs: 25200
@@ -4221,22 +4198,6 @@ tasks:
             # Keep repeating the model test for 60 minutes
             ./model_test $disagg_args -l 100-200 -g -t 3600
 
-  - name: model-test-disagg-long-random-config
-    tags: ["stress-test-disagg-fail"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/test/model/tools"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-            # Keep repeating the model test for 60 minutes
-            ./model_test -D -l 100-200 -g -t 3600
-
   - name: model-test-long-with-coverage
     tags: ["model_checking"]
     commands:
@@ -4361,7 +4322,7 @@ tasks:
    # FIXME-WT-14566: Enable disagg leader mode on all platforms once failures has been resolved.
   - <<: *format-stress-test-disagg-leader
     name: format-stress-test-disagg-leader-1
-    tags: ["stress-test-disagg-fail"]
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-asan-fail"]
   - <<: *format-stress-test-disagg-leader
     name: format-stress-test-disagg-leader-2
     tags: ["stress-test-disagg-fail"]
@@ -4391,7 +4352,7 @@ tasks:
     tags: ["stress-test-disagg-fail"]
   - <<: *format-stress-test-disagg-follower
     name: format-stress-test-disagg-follower-1
-    tags: ["stress-test-disagg"]
+    tags: ["stress-test-disagg", "stress-test-disagg-asan-fail"]
   - <<: *format-stress-test-disagg-follower
     name: format-stress-test-disagg-follower-2
     tags: ["stress-test-disagg"]
@@ -4422,7 +4383,7 @@ tasks:
   # FIXME-WT-14566: Enable disagg switch mode on all platforms once failures has been resolved.
   - <<: *format-stress-test-disagg-switch
     name: format-stress-test-disagg-switch-1
-    tags: ["stress-test-disagg-fail"]
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-asan-fail"]
   - <<: *format-stress-test-disagg-switch
     name: format-stress-test-disagg-switch-2
     tags: ["stress-test-disagg-fail"]
@@ -4435,12 +4396,6 @@ tasks:
   - <<: *format-stress-test-disagg-switch
     name: format-stress-test-disagg-switch-5
     tags: ["stress-test-disagg-fail"]
-  - <<: *format-stress-asan-disagg-test
-    name: format-stress-asan-disagg-test-1
-    tags: ["stress-test-disagg-asan-fail"]
-  - <<: *race-condition-stress-asan-disagg-test
-    name: race-condition-stress-asan-disagg-test-1
-    tags: ["stress-test-disagg-asan-fail"]
 
   - name: format-stress-test-no-barrier
     tags: ["stress-test-no-barrier"]
@@ -7170,6 +7125,8 @@ buildvariants:
     - name: checkpoint-test
     - name: checkpoint-filetypes-predictable-test
     - name: checkpoint-filetypes-test
+    - name: model-test-long
+    - name: model-test-long-random-config
 
 - name: amazon2023-disagg-asan-stress
   display_name: "(ARMV9) Amazon 2023 ASAN Disagg Stress tests"
@@ -7184,5 +7141,8 @@ buildvariants:
       export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     disagg_run: true
+    <<: *configure_flags_asan_mongodb_stable_clang_with_builtins
+    additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
   tasks:
+    - name: compile
     - name: ".stress-test-disagg-asan-fail"
