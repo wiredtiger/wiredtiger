@@ -179,7 +179,7 @@ create_configs()
     echo "runs.type=row" >> $file_name                # WT-7379 - Temporarily disable column store tests
     echo "btree.huffman_value=0" >> $file_name        # WT-12456 - Never used, removed from newer releases
     echo "btree.prefix=0" >> $file_name               # WT-7579 - Prefix testing isn't portable between releases
-    echo "btree.prefix_len=0" >> $file_name           # WT-15375 - Not supported by older releases
+    echo "btree.prefix_len=0" >> $file_name           # WT-15548 - Not supported by older releases
     echo "cache=80" >> $file_name                     # Medium cache so there's eviction
     echo "checksum=on" >> $file_name                  # WT-7851 Fix illegal checksum configuration
     echo "checkpoints=1"  >> $file_name               # Force periodic writes

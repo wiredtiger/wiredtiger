@@ -916,4 +916,6 @@ __wt_error_log_to_handler(WT_SESSION_IMPL *session)
               entry->suberror == WT_NONE ? "" : __wt_strerror(session, entry->suberror, NULL, 0));
         }
     }
+
+    __wt_error_log_clear(); /* Avoid double reporting on the same. */
 }

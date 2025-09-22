@@ -289,7 +289,6 @@ __wt_tret_error_ok(int *pret, int a, int e)
 #define TRIGGER_ABORT(session, exp, ...)                                             \
     do {                                                                             \
         char _buf[WT_ERR_MSG_BUF_LEN];                                               \
-        __wt_error_log_to_handler(session);                                          \
         BUILD_ASSERTION_STRING(session, _buf, WT_ERR_MSG_BUF_LEN, exp, __VA_ARGS__); \
         __wt_errx(session, "%s", _buf);                                              \
         __wt_abort(session);                                                         \
