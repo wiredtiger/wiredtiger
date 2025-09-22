@@ -1187,8 +1187,7 @@ err:
         if (value == &cursor->value)
             F_SET(cursor, WT_CURSTD_VALUE_INT);
     } else {
-        WT_ASSERT(session, c != NULL);
-        WT_TRET(cursor->reset(c));
+        WT_TRET(cursor->reset(cursor));
     }
 
     return (ret);
