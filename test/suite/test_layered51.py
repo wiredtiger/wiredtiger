@@ -120,7 +120,7 @@ class test_layered51(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     nitems = 1000
 
-    def test_internal_page_delta_random(self):
+    def test_internal_page_delta_delete_leaf(self):
 
         self.session.create(self.uri, self.session_create_config())
 
