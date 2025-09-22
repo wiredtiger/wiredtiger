@@ -662,9 +662,9 @@ __clayered_get_current(
 
 err:
     if (ret != 0) {
-        /* Remove the position */
+        /* Clean up the position */
         F_CLR(c, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-        clayered->current_cursor = NULL;
+        WT_TRET(__clayered_reset_cursors(clayered, false));
     }
 
     return (ret);
@@ -1187,7 +1187,7 @@ err:
         if (value == &cursor->value)
             F_SET(cursor, WT_CURSTD_VALUE_INT);
     } else {
-        WT_TRET(cursor->reset(cursor));
+        WT_TRET(__clayered_reset_cursors(clayered, false));
     }
 
     return (ret);
