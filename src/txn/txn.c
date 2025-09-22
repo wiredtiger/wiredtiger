@@ -1064,7 +1064,7 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
         return;
 
     WT_ASSERT(session,
-      !F_ISSET(S2C(session, WT_CONN_PRESERVE_PREPARED) || upd->prepared_id == txn->prepared_id));
+      !F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) || upd->prepared_id == txn->prepared_id);
 
     /* Go down the chain. Do the resolves on the way back up. */
     __txn_resolve_prepared_update_chain(session, upd->next, commit);
