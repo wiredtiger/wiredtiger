@@ -42,11 +42,11 @@ typedef struct {
     int verify_err;
 } WT_VSTUFF;
 
-static int __verify_compare_page_id(const void *, const void *);
 static void __verify_checkpoint_reset(WT_VSTUFF *);
-static int __verify_page_content_int(
-  WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
+static int __verify_compare_page_id(const void *, const void *);
 static int __verify_page_content_fix(
+  WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
+static int __verify_page_content_int(
   WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
 static int __verify_page_content_leaf(
   WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
