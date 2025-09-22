@@ -571,6 +571,22 @@ fixup_format_extension_paths()
     fi
 }
 
+# Check if going from $from to $to is acceptable.
+check_dirty_restart_compatibility()
+{
+    local from="$1"
+    local to="$2"
+
+    # 6.0 introduced a new fast-truncate flag that 5.0 and earlier can't deal with.
+    if [[ "$from" > "mongodb-5.0" ]]; then
+        if [[ "$to" < "mongodb-6.0" ]]; then
+            return -1
+        fi
+    fi
+
+    return 0
+}
+
 # Run test/format from $src_branch, and crash. Recover using test/format from $dst_branch.
 test_dirty_restart()
 {
@@ -999,6 +1015,10 @@ if [ "$dirty_restart" = true ]; then
     for b1 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
         for b2 in "${upgrade_to_latest_upgrade_downgrade_release_branches[@]}"; do
             if [[ "$b1" != "$b2" ]]; then
+                if ! check_dirty_restart_compatibility "$src_branch" "$dst_branch"; then
+                    continue
+                fi
+
                 test_dirty_restart "$b1" "$b2"
             fi
         done
