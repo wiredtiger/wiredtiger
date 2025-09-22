@@ -113,8 +113,13 @@ __col_fix_get_time_window(WT_SESSION_IMPL *session, WT_REF *ref, uint64_t recno,
     page = ref->page;
     start_recno = ref->ref_recno;
 
-    if (!WT_COL_FIX_TWS_SET(page))
+    if (recno >= ref->ref_recno + ref->page->entries)
         return (false);
+
+    if (!WT_COL_FIX_TWS_SET(page)) {
+        WT_TIME_WINDOW_INIT(tw);
+        return (true);
+    }
 
     lo = 0;
     hi = page->pg_fix_numtws;
@@ -148,7 +153,9 @@ __col_fix_get_time_window(WT_SESSION_IMPL *session, WT_REF *ref, uint64_t recno,
 
         WT_ASSERT(session, lo < hi);
     }
-    return (false);
+
+    WT_TIME_WINDOW_INIT(tw);
+    return (true);
 }
 
 /*
@@ -184,8 +191,6 @@ __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
         __read_col_time_window(session, page, WT_COL_PTR(page, &page->pg_var[cbt->slot]), tw);
         break;
     case WT_PAGE_COL_FIX:
-        if (cbt->recno >= cbt->ref->ref_recno + cbt->ref->page->entries)
-            return (false);
         return (__col_fix_get_time_window(session, cbt->ref, cbt->recno, tw));
     }
     return (true);
