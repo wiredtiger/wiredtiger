@@ -29,7 +29,7 @@
 import wiredtiger, wttest
 from prepare_util import test_prepare_preserve_prepare_base
 
-# Test prepare insert/update rollback to delete the key with a rollback tombstone
+# Test prepare insert rollback to delete the key with a rollback tombstone
 
 class test_prepare42(test_prepare_preserve_prepare_base):
     uri = 'table:test_prepare42'
@@ -110,7 +110,7 @@ class test_prepare42(test_prepare_preserve_prepare_base):
         self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
     @wttest.skip_for_hook("disagg", "Skip test until cell packing/unpacking is supported for page delta")
-    def test_prepare_update(self):
+    def test_prepare_insert_rollback_with_globally_visible_stop_point(self):
         # Setup: Initialize timestamps with stable < prepare timestamp
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))

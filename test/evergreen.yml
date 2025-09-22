@@ -1502,7 +1502,7 @@ variables:
           <<: *configure_flags_with_builtins
       - func: "format test script"
         vars:
-          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360 -F
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
 
   - &format-stress-asan-ppc-test
     exec_timeout_secs: 25200
@@ -1528,7 +1528,7 @@ variables:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 360 -F
+          format_test_script_args: -t 360
 
   - &race-condition-stress-asan-test
     exec_timeout_secs: 25200
