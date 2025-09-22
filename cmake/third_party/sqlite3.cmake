@@ -2,11 +2,16 @@ if(ENABLE_INTERNAL_SQLITE3)
     message(CHECK_START "Looking for library SQLite3")
 
     set(SQLITE3_DIR ${CMAKE_SOURCE_DIR}/test/3rdparty/sqlite3)
+
     add_library(sqlite3_lib STATIC
         ${SQLITE3_DIR}/sqlite3.c
         ${SQLITE3_DIR}/sqlite3.h
     )
     target_include_directories(sqlite3_lib PUBLIC ${SQLITE3_DIR})
+    set_target_properties(sqlite3_lib PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+    )
+
     # Needed for SQLite3 on some platforms
     target_link_libraries(sqlite3_lib PUBLIC
         $<$<BOOL:${WT_POSIX}>:${HAVE_LIBPTHREAD}>

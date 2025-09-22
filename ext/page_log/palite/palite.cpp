@@ -96,49 +96,50 @@ namespace {
         }
         return true;
     }
-}
 
-const char* hexdump(const void* data, size_t size) {
-    thread_local char buffer[BUFFER_SIZE];
-    const auto* p = static_cast<const uint8_t*>(data);
-    char* buf_ptr = buffer;
-    std::span<const uint8_t> all_data(p, size);
+    const char* hexdump(const void* data, size_t size) {
+        thread_local char buffer[BUFFER_SIZE];
+        const auto* p = static_cast<const uint8_t*>(data);
+        char* buf_ptr = buffer;
+        std::span<const uint8_t> all_data(p, size);
 
-    for (size_t i = 0; i < size; i += BYTES_PER_LINE) {
-        if (!check_buffer_space(buf_ptr, buffer, i, size)) {
-            break;
+        for (size_t i = 0; i < size; i += BYTES_PER_LINE) {
+            if (!check_buffer_space(buf_ptr, buffer, i, size)) {
+                break;
+            }
+
+            // Write offset
+            buf_ptr = std::format_to(buf_ptr, "{:08x}  ", i);
+
+            size_t chunk_size = std::min(BYTES_PER_LINE, size - i);
+            std::span<const uint8_t> line_data = all_data.subspan(i, chunk_size);
+
+            // Write hex bytes
+            buf_ptr = write_hex_bytes(buf_ptr, line_data);
+
+            // Write ASCII representation
+            buf_ptr = std::format_to(buf_ptr, "|");
+            buf_ptr = write_ascii_chars(buf_ptr, line_data);
+            buf_ptr = std::format_to(buf_ptr, "|\n");
         }
 
-        // Write offset
-        buf_ptr = std::format_to(buf_ptr, "{:08x}  ", i);
+        // Write final offset if needed
+        if (buf_ptr < buffer + BUFFER_SIZE && (size % BYTES_PER_LINE != 0 || size == 0)) {
+            buf_ptr = std::format_to(buf_ptr, "{:08x}\n", size);
+        }
 
-        size_t chunk_size = std::min(BYTES_PER_LINE, size - i);
-        std::span<const uint8_t> line_data = all_data.subspan(i, chunk_size);
+        // Null-terminate safely
+        if (buf_ptr < buffer + BUFFER_SIZE) {
+            *buf_ptr = '\0';
+        } else {
+            buffer[BUFFER_SIZE - 1] = '\0';
+        }
 
-        // Write hex bytes
-        buf_ptr = write_hex_bytes(buf_ptr, line_data);
-
-        // Write ASCII representation
-        buf_ptr = std::format_to(buf_ptr, "|");
-        buf_ptr = write_ascii_chars(buf_ptr, line_data);
-        buf_ptr = std::format_to(buf_ptr, "|\n");
+        return buffer;
     }
+}   // namespace
 
-    // Write final offset if needed
-    if (buf_ptr < buffer + BUFFER_SIZE && (size % BYTES_PER_LINE != 0 || size == 0)) {
-        buf_ptr = std::format_to(buf_ptr, "{:08x}\n", size);
-    }
-
-    // Null-terminate safely
-    if (buf_ptr < buffer + BUFFER_SIZE) {
-        *buf_ptr = '\0';
-    } else {
-        buffer[BUFFER_SIZE - 1] = '\0';
-    }
-
-    return buffer;
-}
-
+static
 const char *palite_verbose_item(const WT_ITEM *buf) {
     return hexdump(buf->data, buf->size);
 }
@@ -298,8 +299,8 @@ void log(std::source_location loc, Config& config, WT_VERBOSE_LEVEL level,
 
 #define LOG_ERROR(...)   LOG_AT(WT_VERBOSE_ERROR,    __VA_ARGS__)
 #define LOG_WARN(...)    LOG_AT(WT_VERBOSE_WARNING,  __VA_ARGS__)
-#define LOG_NOTICE(...)  LOG_AT(WT_VERBOSE_NOTICE,   __VA_ARGS__)
-#define LOG_INFO(...)    LOG_AT(WT_VERBOSE_INFO,     __VA_ARGS__)
+//#define LOG_NOTICE(...)  LOG_AT(WT_VERBOSE_NOTICE,   __VA_ARGS__) // unused
+//#define LOG_INFO(...)    LOG_AT(WT_VERBOSE_INFO,     __VA_ARGS__) // unused
 #define LOG_DEBUG(...)   LOG_AT(WT_VERBOSE_DEBUG_1,  __VA_ARGS__)
 #define LOG_DIAG(...)    LOG_AT(WT_VERBOSE_DEBUG_2,  __VA_ARGS__)
 #define LOG_TRACE(...)   LOG_AT(WT_VERBOSE_DEBUG_5,  __VA_ARGS__)
@@ -515,25 +516,27 @@ public:
 
 // TODO: Handle SQLITE_BUSY in better way
 // SQLite3 busy handler - Experimental!
-extern "C" int db_busy_handler(void* ptr, int count) {
-    Config& config = *static_cast<Config*>(ptr);
-    LOG_TRACE("SQLite busy handler invoked (count={})", count);
+extern "C" {
+    static int db_busy_handler(void* ptr, int count) {
+        Config& config = *static_cast<Config*>(ptr);
+        LOG_TRACE("SQLite busy handler invoked (count={})", count);
 
-    // Backoff strategy:
-    // - Per-attempt sleep = 100ms
-    // - Stop retrying once total accumulated sleep would exceed 10s (10000 ms)
-    static constexpr int PER_ATTEMPT_MS = 100;
-    static constexpr int MAX_TOTAL_MS = 10'000;
+        // Backoff strategy:
+        // - Per-attempt sleep = 100ms
+        // - Stop retrying once total accumulated sleep would exceed 10s (10000 ms)
+        static constexpr int PER_ATTEMPT_MS = 100;
+        static constexpr int MAX_TOTAL_MS = 10'000;
 
-    if (PER_ATTEMPT_MS * count > MAX_TOTAL_MS) {
-        LOG_TRACE("Busy handler giving up (projected total sleep={} ms)",
-            PER_ATTEMPT_MS * count);
-        return 0; // Stop retrying
+        if (PER_ATTEMPT_MS * count > MAX_TOTAL_MS) {
+            LOG_TRACE("Busy handler giving up (projected total sleep={} ms)",
+                PER_ATTEMPT_MS * count);
+            return 0; // Stop retrying
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(PER_ATTEMPT_MS));
+        return 1; // Retry
     }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(PER_ATTEMPT_MS));
-    return 1; // Retry
-}
+} // extern "C"
 
 // Storage layer
 //
@@ -1119,11 +1122,10 @@ public:
     void discard_page(Connection& conn, uint64_t table_id, uint64_t page_id, uint64_t lsn,
         WT_PAGE_LOG_DISCARD_ARGS* args) {
         WT_ITEM dummy_page{};
-        WT_PAGE_LOG_PUT_ARGS put_args{
-            .backlink_lsn = args->backlink_lsn,
-            .base_lsn = args->base_lsn,
-            .flags = Storage::WT_PAGE_LOG_DISCARDED
-        };
+        WT_PAGE_LOG_PUT_ARGS put_args{};
+        put_args.backlink_lsn = args->backlink_lsn;
+        put_args.base_lsn = args->base_lsn;
+        put_args.flags = Storage::WT_PAGE_LOG_DISCARDED;
         put_page(conn, table_id, page_id, lsn, &put_args, &dummy_page);
     }
 };
@@ -1142,7 +1144,8 @@ public:
 
     ~PaliteHandle() = default;
     PaliteHandle(WT_PAGE_LOG* palite, Config& cfg, Storage& store, uint64_t tid)
-        : WT_PAGE_LOG_HANDLE{.page_log = palite}, table_id(tid), config(cfg), storage(store) {
+        : WT_PAGE_LOG_HANDLE{}, table_id(tid), config(cfg), storage(store) {
+        WT_PAGE_LOG_HANDLE::page_log = palite;
         initialize_interface();
         LOG_DEBUG("Created PaliteHandle for table_id={}", table_id);
     }
@@ -1217,55 +1220,57 @@ public:
     }
 };
 
-extern "C" int palite_handle_put(
-    WT_PAGE_LOG_HANDLE* plh,
-    WT_SESSION* sess,
-    uint64_t page_id,
-    uint64_t checkpoint_id,
-    WT_PAGE_LOG_PUT_ARGS* args,
-    const WT_ITEM* buf) {
-    return safe_call<PaliteHandle>(sess, plh, &PaliteHandle::put,
-        page_id, checkpoint_id, args, buf);
-}
+extern "C" {
+    static int palite_handle_put(
+        WT_PAGE_LOG_HANDLE* plh,
+        WT_SESSION* sess,
+        uint64_t page_id,
+        uint64_t checkpoint_id,
+        WT_PAGE_LOG_PUT_ARGS* args,
+        const WT_ITEM* buf) {
+        return safe_call<PaliteHandle>(sess, plh, &PaliteHandle::put,
+            page_id, checkpoint_id, args, buf);
+    }
 
-extern "C" int palite_handle_get(
-    WT_PAGE_LOG_HANDLE* plh,
-    WT_SESSION* sess,
-    uint64_t page_id,
-    uint64_t checkpoint_id,
-    WT_PAGE_LOG_GET_ARGS* args,
-    WT_ITEM* results_array,
-    uint32_t* results_count) {
-    return safe_call<PaliteHandle>(sess, plh, &PaliteHandle::get,
-        page_id, checkpoint_id, args, results_array, results_count);
-}
+    static int palite_handle_get(
+        WT_PAGE_LOG_HANDLE* plh,
+        WT_SESSION* sess,
+        uint64_t page_id,
+        uint64_t checkpoint_id,
+        WT_PAGE_LOG_GET_ARGS* args,
+        WT_ITEM* results_array,
+        uint32_t* results_count) {
+        return safe_call<PaliteHandle>(sess, plh, &PaliteHandle::get,
+            page_id, checkpoint_id, args, results_array, results_count);
+    }
 
-extern "C" int palite_handle_get_page_ids(
-    WT_PAGE_LOG_HANDLE* plh,
-    WT_SESSION* sess,
-    uint64_t checkpoint_lsn,
-    uint64_t table_id,
-    WT_ITEM* page_ids,
-    size_t* page_count) {
-    return safe_call<PaliteHandle>(sess, plh, &PaliteHandle::get_page_ids,
-        checkpoint_lsn, table_id, page_ids, page_count);
-}
+    static int palite_handle_get_page_ids(
+        WT_PAGE_LOG_HANDLE* plh,
+        WT_SESSION* sess,
+        uint64_t checkpoint_lsn,
+        uint64_t table_id,
+        WT_ITEM* page_ids,
+        size_t* page_count) {
+        return safe_call<PaliteHandle>(sess, plh, &PaliteHandle::get_page_ids,
+            checkpoint_lsn, table_id, page_ids, page_count);
+    }
 
-extern "C" int palite_handle_discard(
-    WT_PAGE_LOG_HANDLE* plh,
-    WT_SESSION* sess,
-    uint64_t page_id,
-    uint64_t checkpoint_id,
-    WT_PAGE_LOG_DISCARD_ARGS* args) {
-    return safe_call<PaliteHandle>(sess, plh, &PaliteHandle::discard,
-        page_id, checkpoint_id, args);
-}
+    static int palite_handle_discard(
+        WT_PAGE_LOG_HANDLE* plh,
+        WT_SESSION* sess,
+        uint64_t page_id,
+        uint64_t checkpoint_id,
+        WT_PAGE_LOG_DISCARD_ARGS* args) {
+        return safe_call<PaliteHandle>(sess, plh, &PaliteHandle::discard,
+            page_id, checkpoint_id, args);
+    }
 
-extern "C" int palite_handle_close(
-    WT_PAGE_LOG_HANDLE* plh,
-    WT_SESSION* sess) {
-    return safe_call<PaliteHandle>(sess, plh, &PaliteHandle::close);
-}
+    static int palite_handle_close(
+        WT_PAGE_LOG_HANDLE* plh,
+        WT_SESSION* sess) {
+        return safe_call<PaliteHandle>(sess, plh, &PaliteHandle::close);
+    }
+} // extern "C"
 
 void PaliteHandle::initialize_interface() {
     plh_put = palite_handle_put;
@@ -1419,67 +1424,69 @@ public:
     }
 };
 
-extern "C" int palite_add_reference(
-    WT_PAGE_LOG* page_log) {
-    return safe_call<Palite>(nullptr, page_log, &Palite::add_reference);
-}
+extern "C" {
+    static int palite_add_reference(
+        WT_PAGE_LOG* page_log) {
+        return safe_call<Palite>(nullptr, page_log, &Palite::add_reference);
+    }
 
-extern "C" int palite_begin_checkpoint(
-    WT_PAGE_LOG* page_log,
-    WT_SESSION* sess,
-    uint64_t checkpoint_id) {
-    return safe_call<Palite>(sess, page_log, &Palite::begin_checkpoint, checkpoint_id);
-}
+    static int palite_begin_checkpoint(
+        WT_PAGE_LOG* page_log,
+        WT_SESSION* sess,
+        uint64_t checkpoint_id) {
+        return safe_call<Palite>(sess, page_log, &Palite::begin_checkpoint, checkpoint_id);
+    }
 
-extern "C" int palite_complete_checkpoint_ext(
-    WT_PAGE_LOG* page_log,
-    WT_SESSION* sess,
-    uint64_t checkpoint_id,
-    uint64_t checkpoint_timestamp,
-    const WT_ITEM* checkpoint_metadata,
-    uint64_t* lsnp) {
-        return safe_call<Palite>(sess, page_log, &Palite::complete_checkpoint_ext,
-            checkpoint_id, checkpoint_timestamp, checkpoint_metadata, lsnp);
-}
+    static int palite_complete_checkpoint_ext(
+        WT_PAGE_LOG* page_log,
+        WT_SESSION* sess,
+        uint64_t checkpoint_id,
+        uint64_t checkpoint_timestamp,
+        const WT_ITEM* checkpoint_metadata,
+        uint64_t* lsnp) {
+            return safe_call<Palite>(sess, page_log, &Palite::complete_checkpoint_ext,
+                checkpoint_id, checkpoint_timestamp, checkpoint_metadata, lsnp);
+    }
 
-extern "C" int palite_get_complete_checkpoint_ext(
-    WT_PAGE_LOG* page_log,
-    WT_SESSION* sess,
-    uint64_t* checkpoint_lsn,
-    uint64_t* checkpoint_id,
-    uint64_t* checkpoint_timestamp,
-    WT_ITEM* checkpoint_metadata) {
-        return safe_call<Palite>(sess, page_log, &Palite::get_complete_checkpoint_ext,
-            checkpoint_lsn, checkpoint_id, checkpoint_timestamp, checkpoint_metadata);
-}
+    static int palite_get_complete_checkpoint_ext(
+        WT_PAGE_LOG* page_log,
+        WT_SESSION* sess,
+        uint64_t* checkpoint_lsn,
+        uint64_t* checkpoint_id,
+        uint64_t* checkpoint_timestamp,
+        WT_ITEM* checkpoint_metadata) {
+            return safe_call<Palite>(sess, page_log, &Palite::get_complete_checkpoint_ext,
+                checkpoint_lsn, checkpoint_id, checkpoint_timestamp, checkpoint_metadata);
+    }
 
-extern "C" int palite_get_last_lsn(
-    WT_PAGE_LOG* page_log,
-    WT_SESSION* sess,
-    uint64_t* lsn) {
-    return safe_call<Palite>(sess, page_log, &Palite::get_last_lsn, lsn);
-}
+    static int palite_get_last_lsn(
+        WT_PAGE_LOG* page_log,
+        WT_SESSION* sess,
+        uint64_t* lsn) {
+        return safe_call<Palite>(sess, page_log, &Palite::get_last_lsn, lsn);
+    }
 
-extern "C" int palite_open_handle(
-    WT_PAGE_LOG* page_log,
-    WT_SESSION* sess,
-    uint64_t table_id,
-    WT_PAGE_LOG_HANDLE** plh) {
-    return safe_call<Palite>(sess, page_log, &Palite::open_handle, table_id, plh);
-}
+    static int palite_open_handle(
+        WT_PAGE_LOG* page_log,
+        WT_SESSION* sess,
+        uint64_t table_id,
+        WT_PAGE_LOG_HANDLE** plh) {
+        return safe_call<Palite>(sess, page_log, &Palite::open_handle, table_id, plh);
+    }
 
-extern "C" int palite_set_last_materialized_lsn(
-    WT_PAGE_LOG* page_log,
-    WT_SESSION* sess,
-    uint64_t lsn) {
-    return safe_call<Palite>(sess, page_log, &Palite::set_last_materialized_lsn, lsn);
-}
+    static int palite_set_last_materialized_lsn(
+        WT_PAGE_LOG* page_log,
+        WT_SESSION* sess,
+        uint64_t lsn) {
+        return safe_call<Palite>(sess, page_log, &Palite::set_last_materialized_lsn, lsn);
+    }
 
-extern "C" int palite_terminate(
-    WT_PAGE_LOG* page_log,
-    WT_SESSION* sess) {
-    return safe_call<Palite>(sess, page_log, &Palite::terminate);
-}
+    static int palite_terminate(
+        WT_PAGE_LOG* page_log,
+        WT_SESSION* sess) {
+        return safe_call<Palite>(sess, page_log, &Palite::terminate);
+    }
+} // extern "C"
 
 void Palite::initialize_interface() {
     pl_add_reference = palite_add_reference;
@@ -1496,9 +1503,9 @@ void Palite::initialize_interface() {
  * palite_extension_init --
  *     A standalone, durable implementation of the WT_PAGE_LOG interface (PALI).
  */
-extern "C"
-int
-palite_extension_init(WT_CONNECTION* connection, WT_CONFIG_ARG* cfg_arg)
+extern "C" {
+static
+int palite_extension_init(WT_CONNECTION* connection, WT_CONFIG_ARG* cfg_arg)
 {
     int ret = 0;
     session(nullptr);
@@ -1538,6 +1545,7 @@ palite_extension_init(WT_CONNECTION* connection, WT_CONFIG_ARG* cfg_arg)
 
     return ret;
 }
+} // extern "C"
 
 /*
  * We have to remove this symbol when building as a builtin extension
