@@ -1594,12 +1594,11 @@ struct __wt_update {
 #define WT_UPDATE_PREPARE_DURABLE 0x0020u /* Prepared update has been durable. */
 #define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x0040u /* Prepared update restored from data store. */
 #define WT_UPDATE_PREPARE_ROLLBACK 0x0080u /* Tombstone that rolled back by a prepared update.*/
-#define WT_UPDATE_PREPARE_TO_CLAIM 0x0100u /* Prepared update pending to be claimed. */
-#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x0200u /* Fast truncate instantiation. */
-#define WT_UPDATE_RESTORED_FROM_DELTA 0x0400u    /* Update restored from delta. */
-#define WT_UPDATE_RESTORED_FROM_DS 0x0800u       /* Update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_HS 0x1000u       /* Update restored from history store. */
-#define WT_UPDATE_RTS_DRYRUN_ABORT 0x2000u       /* Used by dry run to mark a would-be abort. */
+#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x0100u /* Fast truncate instantiation. */
+#define WT_UPDATE_RESTORED_FROM_DELTA 0x0200u    /* Update restored from delta. */
+#define WT_UPDATE_RESTORED_FROM_DS 0x0400u       /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x0800u       /* Update restored from history store. */
+#define WT_UPDATE_RTS_DRYRUN_ABORT 0x1000u       /* Used by dry run to mark a would-be abort. */
                                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t flags;
 

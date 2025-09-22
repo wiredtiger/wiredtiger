@@ -1065,8 +1065,6 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
 
     /* Go down the chain. Do the resolves on the way back up. */
     __txn_resolve_prepared_update_chain(session, upd->next, commit);
-    if (F_ISSET(upd, WT_UPDATE_PREPARE_TO_CLAIM) && upd->prepared_id == txn->prepared_id)
-        upd->txnid = txn->id;
 
     if (!commit) {
         /* As updating timestamp might not be an atomic operation, we will manage using state. */
@@ -1155,16 +1153,6 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
            (upd->prepared_id == WT_PREPARED_ID_NONE || upd->prepared_id != txn->prepared_id));
          upd = upd->next)
         ;
-
-    /*
-     * If we find a prepared update with 0 txn id, this must be during prepare discover walk. Update
-     * the upd with txn id
-     */
-    if (F_ISSET(upd, WT_UPDATE_PREPARE_TO_CLAIM)) {
-        WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT));
-        upd->txnid = txn->id;
-    } else
-        WT_ASSERT(session, upd->txnid == txn->id);
 
     head_upd = upd;
 
