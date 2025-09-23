@@ -122,14 +122,6 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
     # a single connection.
     testcase.disagg_leader = (disagg_parameters.role == "leader")
 
-    def should_bump_cache(test) -> (bool):
-        test_class = str(test).strip().split('.', 1)[0]
-        bump_tests = {
-            'test_cache_evict_config02', # Inserts large values
-            'test_error_info02',         # Inserts large values
-        }
-        return str(test_class) in bump_tests
-
     # Build the extension strings, we'll need to merge it with any extensions
     # already in the configuration.
     ext_string = 'extensions=['
@@ -139,6 +131,14 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
         if end < 0:
             raise Exception('hook_disagg: bad extensions in config \"%s\"' % conn_config)
         ext_string = conn_config[start: end]
+
+    def should_bump_cache(test) -> (bool):
+        test_class = str(test).strip().split('.', 1)[0]
+        bump_tests = {
+            'test_cache_evict_config02', # Inserts large values
+            'test_error_info02',         # Inserts large values
+        }
+        return str(test_class) in bump_tests
 
     if should_bump_cache(testcase): # bump for specific tests
         if not page_log_config:
