@@ -345,6 +345,7 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
             __wt_row_leaf_value_cell(session, page, rip, &unpack);
             if (unpack.type == WT_CELL_VALUE_OVFL)
                 ++ovfl_cnt;
+            /* Tombstone on the disk is a delete. */
             if (WT_TIME_WINDOW_HAS_STOP(&unpack.tw))
                 --entry_cnt;
         }
