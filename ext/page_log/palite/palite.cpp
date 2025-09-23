@@ -556,9 +556,10 @@ db_busy_handler(void *ptr, int count)
     Config &config = *static_cast<Config *>(ptr);
     LOG_TRACE("SQLite busy handler invoked (count={})", count);
 
-    // Backoff strategy:
-    // - Per-attempt sleep = 100ms
-    // - Stop retrying once total accumulated sleep would exceed 10s (10000 ms)
+    /* Backoff strategy:
+    - Per-attempt sleep = 100ms
+    - Stop retrying once total accumulated sleep would exceed 10s (10000 ms)
+    */
     static constexpr int PER_ATTEMPT_MS = 100;
     static constexpr int MAX_TOTAL_MS = 10'000;
 
@@ -975,11 +976,11 @@ public:
 
 #define SQ_CHECK(func, ...) SQL_CALL_CHECK(conn.db_instance(), func, __VA_ARGS__)
 
-    // Transaction begin_transaction( ) {
-    //     StatementPtr stmt = db_statement(Statement::BEGIN);
-    //     SQ_CHECK(sqlite3_step, stmt.get());
-    //     return Transaction{this, [](Storage* s) { s->rollback_transaction(); }};
-    // }
+    /* Transaction begin_transaction( ) {
+        StatementPtr stmt = db_statement(Statement::BEGIN);
+        SQ_CHECK(sqlite3_step, stmt.get());
+        return Transaction{this, [](Storage* s) { s->rollback_transaction(); }};
+    } */
     Transaction
     begin_transaction(std::source_location loc = std::source_location::current())
     {
