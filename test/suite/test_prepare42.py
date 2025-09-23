@@ -182,7 +182,7 @@ class test_prepare42(test_prepare_preserve_prepare_base):
             wiredtiger.stat.dsrc.rec_time_window_prepared: True,
         }, self.uri)
 
-        # Force the page to be evicted
+        # Force the page to be evicted to trigger update restore eviction
         session_evict.begin_transaction("ignore_prepare=true")
         for i in range(1, 19):
             evict_cursor.set_key(i)

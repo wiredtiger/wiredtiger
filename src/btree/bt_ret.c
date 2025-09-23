@@ -165,7 +165,7 @@ __col_fix_get_time_window(WT_SESSION_IMPL *session, WT_REF *ref, uint64_t recno,
 
 /*
  * __wt_read_cell_time_window --
- *     Read the time window from the cell.
+ *     Read the time window from the cell. Returns false if there is no time window.
  */
 bool
 __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)

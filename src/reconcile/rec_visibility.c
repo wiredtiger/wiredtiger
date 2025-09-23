@@ -97,7 +97,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
     WT_DECL_RET;
     WT_UPDATE *append, *oldest_upd, *tombstone;
     size_t size, total_size;
-    bool seen_committed, tombstone_globally_visible;
+    bool seen_resolved, tombstone_globally_visible;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -110,7 +110,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
     append = tombstone = NULL;
     oldest_upd = upd;
     size = total_size = 0;
-    seen_committed = tombstone_globally_visible = false;
+    seen_resolved = tombstone_globally_visible = false;
 
     /* Review the current update list, checking conditions that mean no work is needed. */
     for (;; upd = upd->next) {
@@ -160,7 +160,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
          */
         uint8_t prepare_state;
         WT_READ_ONCE(prepare_state, upd->prepare_state);
-        seen_committed =
+        seen_resolved =
           prepare_state != WT_PREPARE_INPROGRESS && prepare_state != WT_PREPARE_LOCKED;
 
         /* Leave reference pointing to the last item in the update list. */
@@ -197,7 +197,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
                  * wrongly leave this key as prepared indefinitely if we rollback the prepared
                  * update.
                  */
-                if (seen_committed || !write_prepared)
+                if (seen_resolved || !write_prepared)
                     return (0);
             }
 
