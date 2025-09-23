@@ -630,12 +630,12 @@ function(add_cmake_compiler_flags)
         foreach(build_type ${COMPILER_FLAGS_BUILD_TYPES})
             # Convert build type to uppercase for CMAKE variable names
             string(TOUPPER "${build_type}" build_type_upper)
-            
+
             # Initialize the flags variable if not already defined
             if(NOT DEFINED CMAKE_${lang}_FLAGS_${build_type_upper})
                 set(CMAKE_${lang}_FLAGS_${build_type_upper} "")
             endif()
-            
+
             # Add each flag while avoiding duplication
             foreach(flag ${COMPILER_FLAGS_FLAGS})
                 add_cmake_flag(CMAKE_${lang}_FLAGS_${build_type_upper} "${flag}")
@@ -643,6 +643,53 @@ function(add_cmake_compiler_flags)
         endforeach()
     endforeach()
 endfunction()
+
+# add_cmake_linker_flags(FLAGS <flags...> BINARIES <binaries...> BUILD_TYPES <build_types...>)
+# A helper function that adds one or more linker flags to specified binary types and build types,
+# avoiding duplication by using the existing add_cmake_flag function.
+#   FLAGS <flags...> - one or more linker flags to add
+#   BINARIES <binaries...> - one or more binary types (EXE, SHARED, MODULE, etc.)
+#   BUILD_TYPES <build_types...> - one or more build types (Debug, RelWithDebInfo, Release, etc.)
+function(add_cmake_linker_flags)
+    cmake_parse_arguments(
+        PARSE_ARGV
+        0
+        "LINKER_FLAGS"
+        ""
+        ""
+        "FLAGS;BINARIES;BUILD_TYPES"
+    )
+
+    # Validate required arguments
+    if(NOT LINKER_FLAGS_FLAGS)
+        message(FATAL_ERROR "add_cmake_linker_flags: FLAGS argument is required")
+    endif()
+    if(NOT LINKER_FLAGS_BINARIES)
+        message(FATAL_ERROR "add_cmake_linker_flags: BINARIES argument is required")
+    endif()
+    if(NOT LINKER_FLAGS_BUILD_TYPES)
+        message(FATAL_ERROR "add_cmake_linker_flags: BUILD_TYPES argument is required")
+    endif()
+
+    # Add each flag to each binary_type/build_type combination
+    foreach(binary ${LINKER_FLAGS_BINARIES})
+        foreach(build_type ${LINKER_FLAGS_BUILD_TYPES})
+            # Convert build type to uppercase for CMAKE variable names
+            string(TOUPPER "${build_type}" build_type_upper)
+
+            # Initialize the flags variable if not already defined
+            if(NOT DEFINED CMAKE_${binary}_LINKER_FLAGS_${build_type_upper})
+                set(CMAKE_${binary}_LINKER_FLAGS_${build_type_upper} "")
+            endif()
+
+            # Add each flag while avoiding duplication
+            foreach(flag ${LINKER_FLAGS_FLAGS})
+                add_cmake_flag(CMAKE_${binary}_LINKER_FLAGS_${build_type_upper} "${flag}")
+            endforeach()
+        endforeach()
+    endforeach()
+endfunction()
+
 
 # replace_compile_options(flag_var [REMOVE <flags...>] [ADD <flags...>])
 # A helper function that removes specified compiler flags from a flag variable and optionally adds new ones.
@@ -659,17 +706,17 @@ function(replace_compile_options flag_var)
         ""
         "REMOVE;ADD"
     )
-    
+
     # Remove existing flags
     foreach(flag ${REPLACE_REMOVE})
         string(REPLACE "${flag}" "" ${flag_var} ${${flag_var}})
     endforeach()
-    
+
     # Add custom flags if provided
     foreach(flag ${REPLACE_ADD})
         set(${flag_var} "${${flag_var}} ${flag}")
     endforeach()
-    
+
     # Clean up extra spaces
     string(STRIP "${${flag_var}}" ${flag_var})
     set(${flag_var} "${${flag_var}}" CACHE STRING "" FORCE)

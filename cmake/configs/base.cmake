@@ -398,51 +398,44 @@ if (HAVE_DIAGNOSTIC)
 endif()
 
 # Setup debug info if enabled.
-if(ENABLE_DEBUG_INFO)
+# Only set initial debug flags once to preserve user customizations.
+if(ENABLE_DEBUG_INFO AND NOT WT_DEBUG_FLAGS_INITIALIZED)
     set(BUILD_TYPES_WITH_DEBUG_INFO ${BUILD_MODES})
     list(REMOVE_ITEM BUILD_TYPES_WITH_DEBUG_INFO Release)
 
-    # Only set initial debug flags once to preserve user customizations
-    if(NOT WT_DEBUG_FLAGS_INITIALIZED)
-        if(GNU_C_COMPILER OR CLANG_C_COMPILER)
-            # Higher debug levels `-g3`/`-ggdb3` emit additional debug information, including
-            # macro definitions that allow us to evaluate macros such as `p S2C(session)` inside of gdb.
-            # This needs to be in DWARF version 2 format or later - and should be by default - but
-            # we'll specify version 4 here to be safe.
-            add_cmake_compiler_flags(
-                FLAGS -g3 -gdwarf-4
-                LANGUAGES C CXX
-                BUILD_TYPES ${BUILD_TYPES_WITH_DEBUG_INFO}
-            )
-            if(CLANG_C_COMPILER)
-                # Clang requires one additional flag to output macro debug information.
-                add_cmake_compiler_flags(
-                    FLAGS -glldb -fdebug-macro
-                    LANGUAGES C CXX
-                    BUILD_TYPES ${BUILD_TYPES_WITH_DEBUG_INFO}
-                )
-            else()
-                add_cmake_compiler_flags(
-                    FLAGS -ggdb3
-                    LANGUAGES C CXX
-                    BUILD_TYPES ${BUILD_TYPES_WITH_DEBUG_INFO}
-                )
-            endif()
+    set(DEBUG_INFO_FLAGS)
+    if(GNU_C_COMPILER OR CLANG_C_COMPILER)
+        # Higher debug levels `-g3`/`-ggdb3` emit additional debug information, including
+        # macro definitions that allow us to evaluate macros such as `p S2C(session)` inside of gdb.
+        # This needs to be in DWARF version 2 format or later - and should be by default - but
+        # we'll specify version 4 here to be safe.
+        list(APPEND DEBUG_INFO_FLAGS -g3 -gdwarf-4)
+        if(CLANG_C_COMPILER)
+            # Clang requires one additional flag to output macro debug information.
+            list(APPEND DEBUG_INFO_FLAGS -glldb -fdebug-macro)
+        else()
+            list(APPEND DEBUG_INFO_FLAGS -ggdb3)
         endif()
 
-        # MSVC: ensure linker produces PDBs.
-        if(MSVC_C_COMPILER)
-            foreach(binary_type EXE SHARED)
-                foreach(build_type ${BUILD_TYPES_WITH_DEBUG_INFO})
-                    string(TOUPPER "${build_type}" build_type_upper)
-                    add_cmake_flag(CMAKE_${binary_type}_LINKER_FLAGS_${build_type_upper} "/DEBUG")
-                endforeach()
-            endforeach()
-        endif()
-        
-        # Mark that we've set the initial debug flags
-        set(WT_DEBUG_FLAGS_INITIALIZED TRUE CACHE INTERNAL "WiredTiger debug flags have been initialized")
+        add_cmake_compiler_flags(
+            FLAGS ${DEBUG_INFO_FLAGS}
+            LANGUAGES C CXX
+            BUILD_TYPES ${BUILD_TYPES_WITH_DEBUG_INFO}
+        )
     endif()
+
+    # MSVC: ensure linker produces PDBs.
+    if(MSVC_C_COMPILER)
+        add_cmake_linker_flags(
+            FLAGS "/DEBUG"
+            BINARIES EXE SHARED
+            BUILD_TYPES ${BUILD_TYPES_WITH_DEBUG_INFO}
+        )
+    endif()
+
+    # Mark that we've set the initial debug flags
+    set(WT_DEBUG_FLAGS_INITIALIZED TRUE CACHE INTERNAL
+        "WiredTiger debug flags have been initialized")
 endif()
 
 # Ref tracking is always enabled in diagnostic build.
