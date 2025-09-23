@@ -1319,7 +1319,7 @@ sub start_server() {
     $read_user_input //= sub {
       my $ret = `
         bash -c '
-          export HISTFILE="\$HOME/.callhraph_history"
+          export HISTFILE="\$HOME/.callgraph_history"
           history -r
           read -e -p "callgraph> " -r && echo "\$REPLY" && [[ -n "\$REPLY" ]] && echo "\$REPLY" >> \$HISTFILE
         '
