@@ -35,6 +35,10 @@
 void
 wts_prepare_discover(WT_CONNECTION *conn)
 {
+    /* Claim prepare is not supported in in-memory runs. */
+    if (GV(RUNS_IN_MEMORY))
+        return;
+
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION *session;
@@ -71,16 +75,14 @@ wts_prepare_discover(WT_CONNECTION *conn)
         testutil_check(cursor->get_key(cursor, &prepared_id));
 
         trace_msg(session, "Discovered prepared transaction with ID: %" PRIu64, prepared_id);
-        /*
-         * TODO: randomly decide to claim all prepared txn or leave some?
-         */
+
         /* Claim the prepared transaction */
         testutil_snprintf(buf, sizeof(buf), "claim_prepared_id=%" PRIx64, prepared_id);
         testutil_check(session->begin_transaction(session, buf));
 
         /* Randomly decide whether to commit or roll back */
         rand_val = mmrand(&g.extra_rnd, 0, 9);
-        should_commit = (rand_val < 5); /* 80% chance to commit */
+        should_commit = (rand_val < 5); /* 50% chance to commit */
 
         if (should_commit) {
             /*
@@ -113,11 +115,9 @@ wts_prepare_discover(WT_CONNECTION *conn)
           discover_count, claim_count);
     }
     testutil_check(cursor->close(cursor));
-    /* TODO - only enable precise checkpoint if global checkpoint is on */
-    if (!GV(RUNS_IN_MEMORY)) {
-        const char *checkpoint_name = "WiredTigerCheckpoint";
-        session->checkpoint(session, NULL);
-        wts_verify_mirrors(g.wts_conn, checkpoint_name, NULL);
-    }
+
+    const char *checkpoint_name = "WiredTigerCheckpoint";
+    session->checkpoint(session, NULL);
+    wts_verify_mirrors(g.wts_conn, checkpoint_name, NULL);
     testutil_check(session->close(session, NULL));
 }
