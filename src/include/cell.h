@@ -107,7 +107,7 @@
  * reference the original.
  */
 #define WT_CELL_ADDR_DEL (0)                   /* Address: deleted */
-#define WT_CELL_ADDR_DEL_VISIBLE_ALL (13 << 4) /* Address: deleted (null) */
+#define WT_CELL_ADDR_DEL_VISIBLE_ALL (13 << 4) /* Address: deleted visible all */
 #define WT_CELL_ADDR_INT (1 << 4)              /* Address: internal  */
 #define WT_CELL_ADDR_LEAF (2 << 4)             /* Address: leaf */
 #define WT_CELL_ADDR_LEAF_NO (3 << 4)          /* Address: leaf no overflow */

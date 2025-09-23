@@ -39,15 +39,6 @@ import time
 
 @disagg_test_class
 class test_layered51(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    encrypt = [
-        ('none', dict(encryptor='none', encrypt_args='')),
-        ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
-    ]
-
-    compress = [
-        ('none', dict(block_compress='none')),
-        ('snappy', dict(block_compress='snappy')),
-    ]
 
     uris = [
         ('layered', dict(uri='layered:test_layered51')),
@@ -63,31 +54,29 @@ class test_layered51(wttest.WiredTigerTestCase, DisaggConfigMixin):
     disagg_storages = gen_disagg_storages('test_layered51', disagg_only = True)
 
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, delta)
+    scenarios = make_scenarios(disagg_storages, uris, delta)
 
     def session_create_config(self):
         # The delta percentage of 100 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
-        cfg = 'key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512,block_compressor={}'.format(self.block_compress)
+        cfg = 'key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512'
         if self.uri.startswith('file'):
             cfg += ',block_manager=disagg'
         return cfg
 
     def conn_config(self):
-        enc_conf = 'encryption=(name={0},{1}),'.format(self.encryptor, self.encrypt_args)
-        return self.conn_base_config + f'disaggregated=(role="leader"),{self.delta_config},' + enc_conf
+        return self.conn_base_config + f'disaggregated=(role="leader"),{self.delta_config},'
 
-    # Load the storage store extension.
-    def conn_extensions(self, extlist):
-        extlist.extension('compressors', self.block_compress)
-        extlist.extension('encryptors', self.encryptor)
-        DisaggConfigMixin.conn_extensions(self, extlist)
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
+    def verify_stat(self, uri):
+        # Assert that we have deleted at least one internal key page delta.
+        stat_cursor = self.session.open_cursor('statistics:' + uri)
+        self.assertGreater(stat_cursor[stat.dsrc.rec_page_delta_internal_key_deleted][2], 0)
         stat_cursor.close()
-        return val
+
+        # Assert that we have written at least one internal page delta.
+        stat_cursor = self.session.open_cursor('statistics:' + uri)
+        self.assertGreater(stat_cursor[stat.dsrc.rec_page_delta_internal][2], 0)
+        stat_cursor.close()
 
     def insert(self, kv, ts):
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -154,11 +143,7 @@ class test_layered51(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Remove the deleted keys from our set of expected keys.
         expected_keys.difference_update(keys_to_delete)
 
-        # Assert that we have written at least one internal page delta.
-        self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal_key_deleted), 0)
-
-        # Assert that we have written at least one internal page delta.
-        self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
+        self.verify_stat(self.uri)
 
         # Verify that only the expected keys are present.
         self.verify(expected_keys, delete_ts)

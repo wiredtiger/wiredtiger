@@ -2210,10 +2210,9 @@ __wti_rec_pack_delta_internal(
 
     /*
      * If the value is NULL then write the zeroed out values and set the cell type to
-     * WT_CELL_ADDR_DEL.
+     * WT_CELL_ADDR_DEL_VISIBLE_ALL.
      */
     if (value == NULL) {
-        printf("Value is NULL\n");
         t_kv = &t_kv_struct;
         t_kv->buf.data = NULL;
         t_kv->buf.size = 0;
@@ -2229,10 +2228,10 @@ __wti_rec_pack_delta_internal(
         t_kv->len = t_kv->cell_len + t_kv->buf.size;
         __wti_rec_kv_copy(session, p, t_kv);
         packed_size += t_kv->len;
-        WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal_key_deleted);
+        ++r->count_internal_page_delta_key_deleted;
     } else {
         __wti_rec_kv_copy(session, p, value);
-        WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal_key_updated);
+        ++r->count_internal_page_delta_key_updated;
     }
 
     r->delta.size += packed_size;
@@ -2569,6 +2568,17 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     delta_pct = (r->delta.size * 100) / chunk->image.size;
     if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
+        /*
+         * If we decide to write the delta we packed, track the number of internal keys deleted and
+         * inserted/updated
+         */
+        if (r->count_internal_page_delta_key_deleted != 0)
+            WT_STAT_CONN_DSRC_INCRV(session, rec_page_delta_internal_key_deleted,
+              r->count_internal_page_delta_key_deleted);
+        if (r->count_internal_page_delta_key_updated != 0)
+            WT_STAT_CONN_DSRC_INCRV(session, rec_page_delta_internal_key_updated,
+              r->count_internal_page_delta_key_updated);
+
         WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal);
 
         /*
@@ -2966,6 +2976,7 @@ copy_image:
 
     /* Whether we wrote or not, clear the accumulated time statistics. */
     __rec_page_time_stats_clear(r);
+    __rec_page_delta_stats_clear(r);
 
     return (0);
 }
