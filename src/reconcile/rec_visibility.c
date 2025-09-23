@@ -876,10 +876,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
 
                     /*
                      * If we write a prepared update that is rolled back in eviction, it cannot be
-                     * the only update on the update chain. This is a conservative and inaccurate
-                     * check as it is difficult to skip all the aborted updates. It is also
-                     * difficult to check in checkpoint because we may race with prepare
-                     * commit/rollback. But it is enough to help us catch some issues.
+                     * the only update on the update chain and the disk image. This is a
+                     * conservative and inaccurate check as it is difficult to skip all the aborted
+                     * updates. It is also difficult to check this in checkpoint because we may race
+                     * with prepare commit/rollback. But it is enough to help us catch some issues.
                      */
                     WT_ASSERT_ALWAYS(session,
                       !F_ISSET(r, WT_REC_EVICT) || prepare_rollback_tombstone != NULL ||
