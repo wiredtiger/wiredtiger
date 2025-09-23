@@ -224,6 +224,7 @@ __stat_page_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
     WT_COL_FOREACH (page, cip, i) {
         cell = WT_COL_PTR(page, cip);
         __wt_cell_unpack_kv(session, page->dsk, cell, unpack);
+        /* A stop time point is a delete. */
         if (unpack->type == WT_CELL_DEL || WT_TIME_WINDOW_HAS_STOP(&unpack->tw)) {
             orig_deleted = true;
             deleted_cnt += __wt_cell_rle(unpack);
@@ -345,7 +346,7 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
             __wt_row_leaf_value_cell(session, page, rip, &unpack);
             if (unpack.type == WT_CELL_VALUE_OVFL)
                 ++ovfl_cnt;
-            /* Tombstone on the disk is a delete. */
+            /* A stop time point is a delete. */
             if (WT_TIME_WINDOW_HAS_STOP(&unpack.tw))
                 --entry_cnt;
         }
