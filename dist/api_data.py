@@ -582,11 +582,11 @@ connection_runtime_config = [
     Config('cache_eviction_controls', '', r'''
         Controls the experimental incremental cache eviction features.''',
         type='category', subconfig=[
-            Config('incremental_app_eviction', 'false', r'''
+            Config('incremental_app_eviction', 'true', r'''
                 Only a part of application threads will participate in cache management 
                 when a cache threshold reaches its trigger limit.''',
                 type='boolean'),
-            Config('scrub_evict_under_target_limit', 'false', 
+            Config('scrub_evict_under_target_limit', 'true',
                 r'''Change the eviction strategy to scrub eviction when the cache usage is under
                 the target limit.''',
                 type='boolean'),
