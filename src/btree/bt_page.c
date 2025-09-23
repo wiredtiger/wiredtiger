@@ -120,6 +120,19 @@ err:
 }
 
 /*
+ * __is_delta_cell_type_visible_all --
+ *     Check if the value cell type is WT_CELL_ADDR_DEL_VISIBLE_ALL.
+ */
+static bool
+__is_delta_cell_type_visible_all(WT_CELL_UNPACK_DELTA_INT *unpack_delta)
+{
+    uint8_t cell_type;
+
+    cell_type = __wt_cell_type_raw(unpack_delta->value.cell);
+    return (cell_type == WT_CELL_ADDR_DEL_VISIBLE_ALL);
+}
+
+/*
  * __page_merge_internal_delta_with_base_image --
  *     Merge the consolidated delta array with the base image.
  */
@@ -173,7 +186,7 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
             WT_ERR(__page_build_ref(
               session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
         } else if (cmp >= 0) {
-            if (__wt_cell_type_raw(delta[j]->value.cell) != WT_CELL_ADDR_DEL_VISIBLE_ALL)
+            if (!__is_delta_cell_type_visible_all(delta[j]))
                 WT_ERR(__page_build_ref(
                   session, ref, NULL, NULL, delta[j], false, &refs[final_entries++], incr));
             if (cmp == 0)
@@ -189,7 +202,7 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
           session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
     }
     for (; j < delta_entries; j++)
-        if (__wt_cell_type_raw(delta[j]->value.cell) != WT_CELL_ADDR_DEL_VISIBLE_ALL)
+        if (!__is_delta_cell_type_visible_all(delta[j]))
             WT_ERR(__page_build_ref(
               session, ref, NULL, NULL, delta[j], false, &refs[final_entries++], incr));
 

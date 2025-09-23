@@ -2225,7 +2225,7 @@ __wti_rec_pack_delta_internal(
 
         t_kv->cell_len = __wt_cell_pack_addr(
           session, &t_kv->cell, WT_CELL_ADDR_DEL_VISIBLE_ALL, WT_RECNO_OOB, NULL, &local_ta, 0);
-        t_kv->len = t_kv->cell_len + t_kv->buf.size;
+        t_kv->len = t_kv->cell_len;
         __wti_rec_kv_copy(session, p, t_kv);
         packed_size += t_kv->len;
         ++r->count_internal_page_delta_key_deleted;
@@ -2236,7 +2236,11 @@ __wti_rec_pack_delta_internal(
 
     r->delta.size += packed_size;
 
-    header->u.entries += 2; /* Two entries: key and value. */
+    /*
+     * Each delta entry consists of two components: a key and a value. If the value is NULL, a cell
+     * of type WT_CELL_ADDR_DEL_VISIBLE_ALL is used to represent the deletion.
+     */
+    header->u.entries += 2;
     header->mem_size = (uint32_t)r->delta.size;
 
     return (0);

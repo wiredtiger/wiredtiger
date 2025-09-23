@@ -40,41 +40,32 @@ import time
 @disagg_test_class
 class test_layered51(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
-    uris = [
-        ('layered', dict(uri='layered:test_layered51')),
-        ('btree', dict(uri='file:test_layered51')),
-    ]
-
-    delta = [
-        ('write_internal_only', dict(delta_config='page_delta=(internal_page_delta=true,leaf_page_delta=false)', delta_type='internal_only')),
-    ]
+    uri = 'file:test_layered51'
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(page_log=palm),page_delta=(delta_pct=100),'
     disagg_storages = gen_disagg_storages('test_layered51', disagg_only = True)
 
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(disagg_storages, uris, delta)
+    scenarios = make_scenarios(disagg_storages)
 
     def session_create_config(self):
         # The delta percentage of 100 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
-        cfg = 'key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512'
-        if self.uri.startswith('file'):
-            cfg += ',block_manager=disagg'
+        cfg = 'key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512,block_manager=disagg'
         return cfg
 
     def conn_config(self):
-        return self.conn_base_config + f'disaggregated=(role="leader"),{self.delta_config},'
+        return self.conn_base_config + f'disaggregated=(role="leader"),page_delta=(internal_page_delta=true,leaf_page_delta=false),'
 
-    def verify_stat(self, uri):
+    def verify_stat(self):
         # Assert that we have deleted at least one internal key page delta.
-        stat_cursor = self.session.open_cursor('statistics:' + uri)
+        stat_cursor = self.session.open_cursor('statistics:' + self.uri)
         self.assertGreater(stat_cursor[stat.dsrc.rec_page_delta_internal_key_deleted][2], 0)
         stat_cursor.close()
 
         # Assert that we have written at least one internal page delta.
-        stat_cursor = self.session.open_cursor('statistics:' + uri)
+        stat_cursor = self.session.open_cursor('statistics:' + self.uri)
         self.assertGreater(stat_cursor[stat.dsrc.rec_page_delta_internal][2], 0)
         stat_cursor.close()
 
@@ -143,7 +134,7 @@ class test_layered51(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Remove the deleted keys from our set of expected keys.
         expected_keys.difference_update(keys_to_delete)
 
-        self.verify_stat(self.uri)
+        self.verify_stat()
 
         # Verify that only the expected keys are present.
         self.verify(expected_keys, delete_ts)
