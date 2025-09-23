@@ -567,7 +567,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
             WT_UPDATE_PREPARE_RESTORED_FROM_DS))
         return (0);
 
-    /* Loop forward from update after the selected on-page update. */
+    /* Loop forward from update after the selected onpage update. */
     for (prev_upd = select_upd, upd = select_upd->next; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
