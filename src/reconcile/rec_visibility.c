@@ -880,11 +880,12 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                      * check as it is difficult to skip all the aborted updates. But it is enough to
                      * help us catch some issues.
                      */
-                    WT_ASSERT(session,
+                    WT_ASSERT_ALWAYS(session,
                       !F_ISSET(r, WT_REC_EVICT) || prepare_rollback_tombstone != NULL ||
                         upd->next != NULL ||
                         (vpack != NULL && vpack->type != WT_CELL_DEL &&
-                          !WT_TIME_WINDOW_HAS_PREPARE(&vpack->tw)));
+                          !WT_TIME_WINDOW_HAS_PREPARE(&vpack->tw)),
+                      "leaked prepared update.");
                 } else
                     WT_ASSERT(session, !*has_newer_updatesp);
 
