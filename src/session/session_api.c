@@ -837,7 +837,7 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
      */
     if (S2C(session)->layered_table_manager.leader && uri != NULL &&
       WT_SUFFIX_MATCH(uri, ".wt_ingest") && !F_ISSET(session, WT_SESSION_INTERNAL))
-        if ((ret = __wt_config_gets_def(session, cfg, "readonly", 0, &cval) == 0) && !cval.val)
+        if ((__wt_config_gets_def(session, cfg, "readonly", 0, &cval) == 0) && !cval.val)
             WT_ERR_MSG(session, EINVAL, "writes to ingest tables are disallowed on leader nodes");
 
     __wt_cursor_get_hash(session, uri, to_dup, &hash_value);
