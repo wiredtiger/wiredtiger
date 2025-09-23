@@ -353,7 +353,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     /*
      * Fail 1% of the time after we have built the disk image but before we wrap up reconciliation.
      */
-    if (__wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP, 100))
+    if (F_ISSET(r, WT_REC_EVICT) &&
+      __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP, 100))
         ret = __wt_set_return(session, EBUSY);
 
     /*
