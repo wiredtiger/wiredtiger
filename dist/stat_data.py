@@ -1222,6 +1222,8 @@ conn_dsrc_stats = [
     CursorStat('cursor_next_skip_lt_100', 'cursor next calls that skip greater than 1 and fewer than 100 entries'),
     CursorStat('cursor_next_skip_total', 'Total number of entries skipped by cursor next calls'),
     CursorStat('cursor_open_count', 'open cursor count', 'no_clear,no_scale'),
+    CursorStat('cursor_open_time_internal_usecs', 'open cursor time internal (usecs)', 'no_clear,no_scale'),
+    CursorStat('cursor_open_time_user_usecs', 'open cursor time application (usecs)', 'no_clear,no_scale'),
     CursorStat('cursor_prev_hs_tombstone', 'cursor prev calls that skip due to a globally visible history store tombstone'),
     CursorStat('cursor_prev_skip_ge_100', 'cursor prev calls that skip greater than or equal to 100 entries'),
     CursorStat('cursor_prev_skip_lt_100', 'cursor prev calls that skip less than 100 entries'),
@@ -1293,6 +1295,8 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_upgrade_stable', 'Layered table cursor upgrade state for stable table'),
 
     LayeredStat('layered_table_manager_checkpoints', 'checkpoints performed on this table by the layered table manager'),
+    LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_failed', 'disagg pick up checkpoints failed'),
+    LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_succeed', 'disagg pick up checkpoints succeeded'),
     LayeredStat('layered_table_manager_checkpoints_refreshed', 'checkpoints refreshed on shared layered constituents'),
     LayeredStat('layered_table_manager_logops_applied', 'how many log applications the layered table manager applied on this tree'),
     LayeredStat('layered_table_manager_logops_skipped', 'how many log applications the layered table manager skipped on this tree'),

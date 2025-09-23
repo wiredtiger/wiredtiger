@@ -873,6 +873,8 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
     upd = NULL;
     total_size = 0;
 
+    WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_READONLY));
+
     /* We don't handle in-memory prepare resolution here. */
     WT_ASSERT(
       session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(btree, WT_BTREE_IN_MEMORY));
@@ -1247,7 +1249,7 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp,
                 }
                 page->pg_fix_tws[entry_num].recno_offset = recno_offset;
                 page->pg_fix_tws[entry_num].cell_offset = WT_PAGE_DISK_OFFSET(page, unpack.cell);
-                if (WT_TIME_WINDOW_HAS_PREPARE(&(unpack.tw)))
+                if (!F_ISSET(btree, WT_BTREE_READONLY) && WT_TIME_WINDOW_HAS_PREPARE(&(unpack.tw)))
                     instantiate_upd = true;
                 entry_num++;
             } else
@@ -1409,6 +1411,7 @@ static int
 __inmem_col_var(
   WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t recno, bool *instantiate_updp, size_t *sizep)
 {
+    WT_BTREE *btree;
     WT_CELL_UNPACK_KV unpack;
     WT_COL *cip;
     WT_COL_RLE *repeats;
@@ -1420,6 +1423,7 @@ __inmem_col_var(
 
     repeats = NULL;
     repeat_off = 0;
+    btree = S2BT(session);
     instantiate_upd = false;
 
     /*
@@ -1456,7 +1460,7 @@ __inmem_col_var(
         }
 
         /* If we find a prepare, we'll have to instantiate it in the update chain later. */
-        if (WT_TIME_WINDOW_HAS_PREPARE(&(unpack.tw)))
+        if (!F_ISSET(btree, WT_BTREE_READONLY) && WT_TIME_WINDOW_HAS_PREPARE(&(unpack.tw)))
             instantiate_upd = true;
 
         indx++;
@@ -1631,6 +1635,7 @@ __inmem_row_leaf_entries(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, ui
 static int
 __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp)
 {
+    WT_BTREE *btree;
     WT_CELL_UNPACK_KV unpack;
     WT_DECL_RET;
     WT_ROW *rip;
@@ -1640,6 +1645,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp
     bool instantiate_upd, delta_enabled;
 
     last_slot = 0;
+    btree = S2BT(session);
     instantiate_upd = false;
     delta_enabled = WT_DELTA_LEAF_ENABLED(session);
 
@@ -1751,8 +1757,9 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp
          * instantiate the tombstone if leaf delta is enabled. We need the tombstone to trace
          * whether we have included the delete in the delta or not.
          */
-        if (WT_TIME_WINDOW_HAS_PREPARE(&(unpack.tw)) ||
-          (delta_enabled && WT_TIME_WINDOW_HAS_STOP(&unpack.tw)))
+        if (!F_ISSET(btree, WT_BTREE_READONLY) &&
+          (WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw) ||
+            (delta_enabled && WT_TIME_WINDOW_HAS_STOP(&unpack.tw))))
             instantiate_upd = true;
     }
     WT_CELL_FOREACH_END;
