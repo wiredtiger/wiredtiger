@@ -155,7 +155,8 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
 
         oldest_upd = upd;
         /*
-         * It is fine to race with prepare commit as the update is now really committed.
+         * It is fine to race with prepare commit as we don't need to append the globally visible
+         * tombstone for the commit case anyway.
          */
         uint8_t prepare_state;
         WT_READ_ONCE(prepare_state, upd->prepare_state);
@@ -713,9 +714,9 @@ __rec_calc_upd_memsize(WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, size_t upd_m
  *     to write as committed.
  */
 static int
-__rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_upd,
-  WTI_UPDATE_SELECT *upd_select, WT_UPDATE **first_txn_updp, bool *has_newer_updatesp,
-  bool *write_prepare, size_t *upd_memsizep)
+__rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *vpack,
+  WT_UPDATE *first_upd, WTI_UPDATE_SELECT *upd_select, WT_UPDATE **first_txn_updp,
+  bool *has_newer_updatesp, bool *write_prepare, size_t *upd_memsizep)
 {
     WT_CONNECTION_IMPL *conn;
     WT_UPDATE *upd, *prepare_rollback_tombstone;
@@ -778,10 +779,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             return (__wt_set_return(session, EBUSY));
 
         /*
-         * Track the first update in the chain that is not aborted and the maximum transaction ID.
+         * Track the first update in the chain that is not aborted or its rollback timestamp is not
+         * stable.
          */
-        if (*first_txn_updp == NULL)
-            *first_txn_updp = upd;
+        *first_txn_updp = upd;
 
         /*
          * Special handling for application threads evicting their own updates.
@@ -872,6 +873,18 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                 if (F_ISSET(r, WT_REC_CHECKPOINT) || upd->txnid == WT_TXN_ABORTED) {
                     WT_ASSERT(session, !is_hs_page);
                     *has_newer_updatesp = true;
+
+                    /*
+                     * If we write a prepared update that is rolled back in eviction, it cannot be
+                     * the only update on the update chain. This is a conservative and inaccurate
+                     * check as it is difficult to skip all the aborted updates. But it is enough to
+                     * help us catch some issues.
+                     */
+                    WT_ASSERT(session,
+                      !F_ISSET(r, WT_REC_EVICT) || prepare_rollback_tombstone != NULL ||
+                        upd->next != NULL ||
+                        (vpack != NULL && vpack->type != WT_CELL_DEL &&
+                          !WT_TIME_WINDOW_HAS_PREPARE(&vpack->tw)));
                 } else
                     WT_ASSERT(session, !*has_newer_updatesp);
 
@@ -1253,8 +1266,8 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
             return (0);
     }
 
-    WT_RET(__rec_upd_select(session, r, first_upd, upd_select, &first_txn_upd, &has_newer_updates,
-      &write_prepare, &upd_memsize));
+    WT_RET(__rec_upd_select(session, r, vpack, first_upd, upd_select, &first_txn_upd,
+      &has_newer_updates, &write_prepare, &upd_memsize));
 
     /* Keep track of the selected update. */
     upd = upd_select->upd;

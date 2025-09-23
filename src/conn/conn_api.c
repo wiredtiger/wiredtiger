@@ -3274,18 +3274,19 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * not ready for that yet. Enable precise checkpoint automatically for disaggregated storage in
      * the future.
      */
-    if (cval.val)
+    if (cval.val && !F_ISSET(conn, WT_CONN_IN_MEMORY))
         F_SET(conn, WT_CONN_PRECISE_CHECKPOINT);
     else
         F_CLR(conn, WT_CONN_PRECISE_CHECKPOINT);
 
     WT_ERR(__wt_config_gets(session, cfg, "preserve_prepared", &cval));
-    if (cval.val) {
+    if (cval.val && !F_ISSET(conn, WT_CONN_IN_MEMORY)) {
         if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
             WT_ERR_MSG(session, EINVAL,
               "Preserve prepared configuration incompatible with fuzzy checkpoint");
         F_SET(conn, WT_CONN_PRESERVE_PREPARED);
-    }
+    } else
+        F_CLR(conn, WT_CONN_PRESERVE_PREPARED);
 
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     if (cval.val) {
