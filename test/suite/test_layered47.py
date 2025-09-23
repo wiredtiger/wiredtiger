@@ -30,12 +30,8 @@ import errno, os, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# Regression test for WT-15158
-# Before the fix, during the initialization of an ingest table, `prune_timestamp` was initialized to the last checkpoint timestamp.
-# During the subsequent checkpoint operation, it should be updated to the most recent checkpoint in use.
-# This test is designed to initialize the `prune_timestamp` to `ckpt2` while `ckpt1` is still in use,
-# in order to create a conflict by updating the timestamp to an older one (to `ckpt1`) during the checkpoint operation.
-
+# test_layered47.py
+#    Test pruning of ingest tables on the follower during checkpoint pick-ups.
 @disagg_test_class
 class test_layered47(wttest.WiredTigerTestCase, DisaggConfigMixin):
     disagg_storages = gen_disagg_storages('test_layered47', disagg_only = True)
@@ -76,7 +72,16 @@ class test_layered47(wttest.WiredTigerTestCase, DisaggConfigMixin):
                                                 self.conn_config_follower)
         self.session_follow = self.conn_follow.open_session('')
 
-    def test_layered47(self):
+    def follower_open_close_dummy_cursor(self, uri):
+        cursor = self.session_follow.open_cursor(uri, None, None)
+        cursor.close()
+
+    # Regression test for WT-15158
+    # Before the fix, during the initialization of an ingest table, `prune_timestamp` was set to the last checkpoint timestamp.
+    # During a subsequent checkpoint operation, it should be updated to the most recent checkpoint currently in use.
+    # This test initializes the `prune_timestamp` to `ckpt2` while `ckpt1` is still in use,
+    # creating a conflict by attempting to update the timestamp to an older checkpoint (`ckpt1`) during the checkpoint operation.
+    def test_prune_timestamp_initialization(self):
         # Setup
         self.session.create(self.uris[0], self.table_cfg)
         self.session.create(self.uris[1], self.table_cfg)
@@ -108,6 +113,43 @@ class test_layered47(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.checkpoint()
         self.disagg_advance_checkpoint(self.conn_follow)
 
+        cursor2.close()
         cursor.close()
+        self.session_follow.close()
+        self.conn_follow.close()
+
+    # Regression test for WT-15192
+    # The root cause of the issue reproduced here is that the logic for selecting a prune
+    # timestamp was based on the metadata checkpoint order. However, this order is table-local,
+    # and different tables could have a different order for the same checkpoint, so that logic
+    # could easily be broken.
+    def test_checkpoint_order_mismatch(self):
+        # Setup: create tables, put some content to them and pick them up on the follower
+        # Checkpoint order for both tables is 1 after this step
+        self.session.create(self.uris[0], self.table_cfg)
+        self.session.create(self.uris[1], self.table_cfg)
+        self.create_follower()
+        self.leader_put_data(self.uris[0])
+        self.leader_put_data(self.uris[1])
+        self.checkpoint()
+        self.disagg_advance_checkpoint(self.conn_follow)
+
+        # Open ingest tables on the follower to make them participate in pruning during pick-ups
+        self.follower_open_close_dummy_cursor(self.uris[0])
+        self.follower_open_close_dummy_cursor(self.uris[1])
+
+        # Create more checkpoints for the first table only
+        # Assuming that checkpoint order for metadata and uris[0] after that is 11
+        for i in range(0, 10):
+            self.leader_put_data(self.uris[0], str(i))
+            self.checkpoint()
+        self.disagg_advance_checkpoint(self.conn_follow)
+
+        # Put more content and create new checkpoint for uris[1]
+        # Checkpoint order for it would be 2 which is different from metadata and uris[0] checkpoints
+        self.leader_put_data(self.uris[1])
+        self.checkpoint()
+        self.disagg_advance_checkpoint(self.conn_follow)
+
         self.session_follow.close()
         self.conn_follow.close()
