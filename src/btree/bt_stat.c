@@ -270,7 +270,6 @@ __stat_page_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
         case WT_UPDATE_RESERVE:
             break;
         case WT_UPDATE_TOMBSTONE:
-            ++deleted_cnt;
             break;
         }
 
