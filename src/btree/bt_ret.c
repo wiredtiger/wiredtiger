@@ -64,7 +64,7 @@ __key_return(WT_CURSOR_BTREE *cbt)
 
 /*
  * __read_col_time_window --
- *     Retrieve the time window from a column store cell.
+ *     Retrieve the time window from a column store cell. Returns false if there is no time window.
  */
 static bool
 __read_col_time_window(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, WT_TIME_WINDOW *tw)
@@ -103,7 +103,8 @@ __wti_read_row_time_window(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip,
 
 /*
  * __col_fix_get_time_window --
- *     Look for a time window on a fixed-length column page.
+ *     Look for a time window on a fixed-length column page. Returns false if there is no time
+ *     window.
  */
 static bool
 __col_fix_get_time_window(WT_SESSION_IMPL *session, WT_REF *ref, uint64_t recno, WT_TIME_WINDOW *tw)
