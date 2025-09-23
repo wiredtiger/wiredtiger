@@ -1012,7 +1012,7 @@ functions:
         for i in $(seq ${times}); do
           echo Iteration $i/${times}
           rm -rf RUNDIR
-          ./t -c ../../../test/format/CONFIG.disagg ${format_args|} ${extra_arg|} || fail
+          ./t -c ../../../test/format/failure_configs/CONFIG.WT-15539 ${format_args|} ${extra_arg|} || fail
           ./t -R $format_args ${extra_args|} || fail
         done
   "many dbs test":
