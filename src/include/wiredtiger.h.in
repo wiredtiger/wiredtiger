@@ -2939,8 +2939,8 @@ struct __wt_connection {
         uint64_t value);
 
     /*!
-     * Dump any logged error messages into the event handler. This works only if this level of
-     * diagnostics is enabled.
+     * Dump any logged error messages into the event handler and clear the error log. This works
+     * only if this level of diagnostics is enabled.
      *
      * @param connection the connection handle
      * @errors
@@ -3556,6 +3556,19 @@ int wiredtiger_open(const char *home,
  * @returns a string representation of the error
  */
 const char *wiredtiger_strerror(int error) WT_ATTRIBUTE_LIBRARY_VISIBLE;
+
+#if !defined(DOXYGEN)
+/*!
+ * Dump any logged error messages into the provided function, one per line, and clear the error log.
+ * This works only if this level of diagnostics is enabled. See WT_CONNECTION::dump_error_log for a
+ * similar function, which dumps the error information to the event handler associated with the
+ * connection.
+ *
+ * @param callback the callback for each line of the error log; use NULL to print to stderr.
+ * @errors
+ */
+int wiredtiger_dump_error_log(int (*callback)(const char *)) WT_ATTRIBUTE_LIBRARY_VISIBLE;
+#endif
 
 /*! WT_EVENT_HANDLER::special event types */
 typedef enum {
