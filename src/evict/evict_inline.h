@@ -642,9 +642,9 @@ __evict_check_user_ok_with_eviction(WT_SESSION_IMPL *session, bool interruptible
  * All the application threads will perform eviction only when the dirty content reaches 24% of
  *     cache.
  *
- * Based on the % of cache usage above trigger level with respect to tolerance level, incrementally
- *     involve the app threads for eviction.
-
+ * Based on the % of cache usage above trigger level with respect to tolerance level,
+ *     incrementally involve the app threads for eviction.
+ *
  *     Usage between 00% - 20% --> No application threads involve in eviction.
  *     Usage between 20% - 40% --> 20% of application threads involve in eviction.
  *     Usage between 40% - 60% --> 40% of application threads involve in eviction.
@@ -652,7 +652,6 @@ __evict_check_user_ok_with_eviction(WT_SESSION_IMPL *session, bool interruptible
  *     Usage between 80% - 100% --> 80% of application threads involve in eviction.
  *     Usage above 100%, above tolerance level --> involve all application threads.
  */
-
 static WT_INLINE bool
 __evict_is_session_cache_trigger_tolerant(WT_SESSION_IMPL *session, uint8_t cache_tolerance)
 {
