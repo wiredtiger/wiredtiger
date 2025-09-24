@@ -713,11 +713,15 @@ __evict_is_session_cache_trigger_tolerant(WT_SESSION_IMPL *session, uint8_t cach
 
     bytes_updates = __wt_cache_bytes_updates(S2C(session)->cache);
     bytes_updates_trigger = (uint64_t)(updates_trigger * bytes_max) / 100;
+    /*
+     * bytes_updates_tolerance = number of bytes over the update trigger based on configured
+     * cache_tolerance
+     */
     bytes_updates_tolerance = (uint64_t)(bytes_updates_trigger * cache_tolerance) / 100;
 
     if (bytes_updates > bytes_updates_trigger) {
         /*
-         *  Dirty content is more than dirty trigger
+         *  Updates content is more than update trigger
          */
         bytes_over_updates_trigger = bytes_dirty - bytes_dirty_trigger;
 
