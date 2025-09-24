@@ -1471,17 +1471,29 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
      */
     __wt_qsort(page_ids, num_pages_found_in_btree, sizeof(uint64_t), __verify_compare_page_id);
 
-    for (size_t i = 0; i < num_pages_found_in_palm; i++) {
-        /* FIXME-WT-15451: Print mismatch page IDs for discard verify. */
-        if (((uint64_t *)item->data)[i] != page_ids[i]) {
-            /*
-             * FIXME-WT-14700: Investigate whether we need to do anything special when freeing a
-             * root page. Change below warning to an error after root page discard is implemented,
-             * if a mismatch is found this function will return the corresponding error code.
-             */
+    size_t i = 0, j = 0;
+    while (i <= num_pages_found_in_palm && j <= num_pages_found_in_btree) {
+        uint64_t id_in_palm = 0, id_in_btree = 0;
+        if (i == num_pages_found_in_palm && j == num_pages_found_in_btree) {
+            break;
+        }
+        if (i < num_pages_found_in_palm) {
+            id_in_palm = ((uint64_t *)item->data)[i];
+        }
+        if (j < num_pages_found_in_btree) {
+            id_in_btree = page_ids[j];
+        }
+        if (j == num_pages_found_in_btree || id_in_palm < id_in_btree) {
             __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
-              "Mismatch in page IDs from PALM and btree walk: PALM %" PRIu64 " Btree walk %" PRIu64,
-              ((uint64_t *)item->data)[i], page_ids[i]);
+              "Missing in page IDs from PALM and btree walk: PALM %" PRIu64, id_in_palm);
+            i++;
+        } else if (i == num_pages_found_in_palm || id_in_palm > id_in_btree) {
+            __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
+              "Missing in page IDs from PALM and btree walk: BTREE %" PRIu64, id_in_btree);
+            j++;
+        } else {
+            i++;
+            j++;
         }
     }
 
