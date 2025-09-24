@@ -32,12 +32,12 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_stora
 from wtscenario import make_scenarios
 
 
-# test_layered51.py
+# test_layered52.py
 #    Test accessing ingest tables.
 
 @disagg_test_class
-class test_layered51(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    disagg_storages = gen_disagg_storages('test_layered51', disagg_only = True)
+class test_layered52(wttest.WiredTigerTestCase, DisaggConfigMixin):
+    disagg_storages = gen_disagg_storages('test_layered52', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     conn_base_config = 'disaggregated=(page_log=palm),'
@@ -49,9 +49,9 @@ class test_layered51(wttest.WiredTigerTestCase, DisaggConfigMixin):
     session_follow = None
     conn_follow = None
 
-    uri = 'layered:test_layered51'
+    uri = 'layered:test_layered52'
     # Use internals to test a specific edge case scenario.
-    ingest_uri = 'file:test_layered51.wt_ingest'
+    ingest_uri = 'file:test_layered52.wt_ingest'
 
     msg = '/writes to ingest tables are disallowed on leader nodes/'
 
