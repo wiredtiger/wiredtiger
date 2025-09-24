@@ -666,7 +666,7 @@ __wt_cell_type(WT_CELL *cell)
 }
 
 /*
- * __is_delta_cell_type_visible_all --
+ * __wt_delta_cell_type_visible_all --
  *     Check if the value cell type is WT_CELL_ADDR_DEL_VISIBLE_ALL.
  */
 static WT_INLINE bool
