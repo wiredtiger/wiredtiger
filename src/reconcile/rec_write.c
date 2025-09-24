@@ -2209,8 +2209,9 @@ __wti_rec_pack_delta_internal(
     p += key->len;
 
     /*
-     * If the value is NULL then write the zeroed out values and set the cell type to
-     * WT_CELL_ADDR_DEL_VISIBLE_ALL.
+     * If the value is NULL, write a cell with zeroed-out values and a data size of zero, setting
+     * the cell type to WT_CELL_ADDR_DEL_VISIBLE_ALL. This approach allows for potential future
+     * extensions where additional information might be added to the delete cell.
      */
     if (value == NULL) {
         t_kv = &t_kv_struct;
