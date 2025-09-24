@@ -780,7 +780,11 @@ palm_handle_verify_page(
 #endif
 
         /* Validate base LSN. */
-        PALM_VERIFY_EQUAL(matches.base_lsn, matched_pages[0].lsn);
+        if (count == 1) {
+            PALM_VERIFY_EQUAL(matches.base_lsn, last_lsn);
+        } else if (count > 1) {
+            PALM_VERIFY_EQUAL(matches.base_lsn, last_base_lsn);
+        }
 
         /* Validate backlink LSN. */
         if ((matches.flags & WT_PALM_KV_TOMBSTONE) == 0)
