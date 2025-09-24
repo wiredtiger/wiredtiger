@@ -642,13 +642,14 @@ __evict_check_user_ok_with_eviction(WT_SESSION_IMPL *session, bool interruptible
  * All the application threads will perform eviction only when the dirty content reaches 24% of
  *     cache.
  *
- * Based on the tolerance level, incrementally involve the app threads for eviction. tolerance level
- *     :: % of application threads involved in eviction. --------------- ::
- *     --------------------------------------------- 0% - 20% :: No application thread involvement
- *     in eviction. 20% - 40% :: 20% of application threads. 40% - 60% :: involve 40% of application
- *     threads. 60% - 80% :: involve 60% of application threads. 80% - 100% :: involve 80% of
- *     application threads. Above tolerance level, involve all application threads.
+ * Based on the tolerance level, incrementally involve the app threads for eviction. Tolerance level
+ *     :: % of application threads involved in eviction. ---------------
+ *     ::--------------------------------------------- 00% - 20% :: No application thread
+ *     involvement in eviction. 20% - 40% :: 20% of application threads. 40% - 60% :: involve 40% of
+ *     application threads. 60% - 80% :: involve 60% of application threads. 80% - 100% :: involve
+ *     80% of application threads. Above tolerance level, involve all application threads.
  */
+
 static WT_INLINE bool
 __evict_is_session_cache_trigger_tolerant(WT_SESSION_IMPL *session, uint8_t cache_tolerance)
 {
@@ -676,25 +677,25 @@ __evict_is_session_cache_trigger_tolerant(WT_SESSION_IMPL *session, uint8_t cach
              * More than 100% of tolerance level. 100% of the app threads are non-tolerant.
              */
             return (false);
-        } else if (bytes_over_dirty_trigger * 5 > bytes_updates_tolerance * 4) {
+        } else if (bytes_over_dirty_trigger * 5 > bytes_dirty_tolerance * 4) {
             /*
              * 80% - 100% of tolerance level. 80% of app threads are non-tolerant.
              */
             if ((session->id % 5) > 0)
                 return (false);
-        } else if (bytes_over_dirty_trigger * 5 > bytes_updates_tolerance * 3) {
+        } else if (bytes_over_dirty_trigger * 5 > bytes_dirty_tolerance * 3) {
             /*
              * 60% - 80% of tolerance level. 60% of app threads are non-tolerant.
              */
             if ((session->id % 5) > 1)
                 return (false);
-        } else if (bytes_over_dirty_trigger * 5 > bytes_updates_tolerance * 2) {
+        } else if (bytes_over_dirty_trigger * 5 > bytes_dirty_tolerance * 2) {
             /*
              * 40% - 60% of tolerance level. 40% of app threads are non-tolerant.
              */
             if ((session->id % 5) > 2)
                 return (false);
-        } else if (bytes_over_dirty_trigger * 5 > bytes_updates_tolerance * 1) {
+        } else if (bytes_over_dirty_trigger * 5 > bytes_dirty_tolerance * 1) {
             /*
              * 20% - 40% of tolerance level. 20% of app threads are non-tolerant.
              */
