@@ -44,12 +44,6 @@ target_compile_options(
         ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 
-target_compile_features(
-    wiredtiger_palite
-    PRIVATE
-        cxx_std_20
-)
-
 # For MacOS builds we need to generate a dSYM bundle that contains the debug
 # symbols for each executable. The name of the binary will either be the name
 # of the target or some other name passed to this function. We need to use the
