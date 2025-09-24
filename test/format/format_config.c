@@ -344,7 +344,7 @@ config_table(TABLE *table, void *arg)
              ".runs.rows to %d if realloc_exact or realloc_malloc has been automatically set",
           table->id, WT_MILLION);
     }
-
+    /* FIXME-WT-15565 Write prepared truncate operation to disk. */
     if (GV(PRECISE_CHECKPOINT) && GV(OPS_PREPARE))
         config_off(table, "ops.truncate");
 
