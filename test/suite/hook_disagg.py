@@ -132,6 +132,20 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
             raise Exception('hook_disagg: bad extensions in config \"%s\"' % conn_config)
         ext_string = conn_config[start: end]
 
+    def should_bump_cache(test) -> (bool):
+        test_class = str(test).strip().split('.', 1)[0]
+        bump_tests = {
+            'test_cache_evict_config02', # Inserts large values
+            'test_error_info02',         # Inserts large values
+        }
+        return str(test_class) in bump_tests
+
+    if should_bump_cache(testcase): # bump for specific tests
+        if not page_log_config:
+            page_log_config = "cache_size_mb=2048"
+        elif "cache_size_mb=" not in page_log_config: # don't override user-specified size
+            page_log_config = f"cache_size_mb=2048,{page_log_config}"
+
     if page_log_config == None:
         ext_lib = '\"%s\"' % extension_libs[0]
     else:
@@ -243,13 +257,16 @@ def session_create_replace(orig_session_create, session_self, uri, config):
 
     # Check if log table is enabled at connection level. If it is, by default session will create a log table unless explicitly disabled in session config.
     # Skip test if it is enabled
-    # FIXME-WT-15221 Should throw an error when this is set in disagg"
     conn_config = testcase.conn_config
     if hasattr(conn_config, '__call__'):
         conn_config = testcase.conn_config()
     log_enabled = re.search(r'log=\(enabled(?:=true|,|\))', conn_config) is not None
     if log_enabled and 'log=(enabled=false' not in config:
         skip_test("Log tables are not supported in disagg.")
+
+    import_enabled = config and 'import=(enabled' in config
+    if import_enabled:
+        skip_test("Import does not work in disagg storage")
 
     if uri.startswith("index:"):
         # URI is index:base_name:index_name
@@ -266,6 +283,12 @@ def session_create_replace(orig_session_create, session_self, uri, config):
 
     ret = orig_session_create(session_self, uri, config_str)
     return ret
+
+# Called to replace Session.drop
+def session_drop_replace(orig_session_drop, session_self, uri, config):
+    # uri = replace_uri(uri)
+    # return orig_session_drop(session_self, uri, config)
+    skip_test("drop on disagg tables not yet implemented")
 
 # Called to replace Session.open_cursor.  We skip calls that do backup
 # as that is not yet supported in disaggregated storage.
@@ -290,9 +313,9 @@ def session_salvage_replace(orig_session_salvage, session_self, uri, config):
 
 # Called to replace Session.truncate.
 def session_truncate_replace(orig_session_truncate, session_self, uri, start, stop, config):
-    #uri = replace_uri(uri)
-    #return orig_session_truncate(session_self, uri, start, stop, config)
-    skip_test("truncate on disagg tables not yet implemented")
+    if (uri != None):
+        uri = replace_uri(uri)
+    return orig_session_truncate(session_self, uri, start, stop, config)
 
 # Called to replace Session.verify
 def session_verify_replace(orig_session_verify, session_self, uri, config):
@@ -326,8 +349,8 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
             ("test_config_json",     "Disagg hook's create function can't handle a json config string"),
             ("test_cursor_big",      "Cursor caching verified with stats"),
             ("test_cursor_bound",    "Can't use cursor bounds with a disagg table"),
+            ("test_import",          "Can't import a disagg table"),
             ("test_salvage",         "Salvage tests directly name files ending in '.wt'"),
-            ("test_truncate",        "Truncate on disagg tables not yet implemented"),
             ("tiered",               "Tiered tests do not apply to disagg"),
         ]
 
@@ -363,6 +386,10 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
         orig_session_create = self.Session['create']
         self.Session['create'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
           session_create_replace(orig_session_create, s, uri, config))
+
+        orig_session_drop = self.Session['drop']
+        self.Session['drop'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
+          session_drop_replace(orig_session_drop, s, uri, config))
 
         orig_session_open_cursor = self.Session['open_cursor']
         self.Session['open_cursor'] = (wthooks.HOOK_REPLACE, lambda s, uri, todup=None, config=None:
