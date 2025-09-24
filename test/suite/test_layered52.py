@@ -64,6 +64,7 @@ class test_layered52(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.session.begin_transaction()
             cursor[str(i)] = str(i)
             self.session.commit_transaction(f"commit_timestamp={self.timestamp_str(10)}")
+        cursor.close()
 
         self.conn.set_timestamp(f"stable_timestamp={self.timestamp_str(10)}")
         self.session.checkpoint()
@@ -91,6 +92,8 @@ class test_layered52(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.session_follow.begin_transaction()
             cursor[str(i)] = str(i) + "b"
             self.session_follow.commit_transaction(f"commit_timestamp={self.timestamp_str(30)}")
+        cursor.close()
+
         self.conn_follow.set_timestamp(f"stable_timestamp={self.timestamp_str(30)}")
         self.session_follow.checkpoint()
         _, _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
