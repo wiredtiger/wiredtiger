@@ -283,7 +283,8 @@ log_runtime_config = [
         ::wiredtiger_open''',
         type='category', subconfig=[
         Config('enabled', 'true', r'''
-            if false, this object has checkpoint-level durability''',
+            if false, this object has checkpoint-level durability. Not supported for layered
+            tables''',
             type='boolean'),
         ]),
 ]
