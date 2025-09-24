@@ -35,10 +35,6 @@
 void
 wts_prepare_discover(WT_CONNECTION *conn)
 {
-    /* Claim prepare is not supported in in-memory runs. */
-    if (GV(RUNS_IN_MEMORY))
-        return;
-
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION *session;
