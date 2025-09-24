@@ -107,14 +107,15 @@ main(int argc, char *argv[])
     g.hs_checkpoint_timing_stress = false;
     g.checkpoint_slow_timing_stress = false;
     g.no_ts_deletes = false;
+    g.precise_checkpoint = false;
     g.predictable_replay = false;
     runs = 1;
     verify_only = false;
 
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, &g.opts);
 
-    while ((ch = __wt_getopt(
-              progname, argc, argv, "C:c:d:Dk:l:mn:pr:Rs:S:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv,
+              "C:c:d:Dk:l:mn:pPr:Rs:S:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
         case 'c':
             g.checkpoint_name = __wt_optarg;
@@ -147,6 +148,9 @@ main(int argc, char *argv[])
             break;
         case 'p': /* prepare */
             g.prepare = true;
+            break;
+        case 'P': /* precise checkpoint */
+            g.precise_checkpoint = true;
             break;
         case 'r': /* runs */
             runs = atoi(__wt_optarg);
@@ -234,6 +238,10 @@ main(int argc, char *argv[])
 
     if (g.stop_ts > 0 && (!g.predictable_replay || !g.use_timestamps)) {
         fprintf(stderr, "-S is only valid if specified along with -X and -R.\n");
+        return (EXIT_FAILURE);
+    }
+    if (g.precise_checkpoint && !g.use_timestamps) {
+        fprintf(stderr, "precise checkpoint (-P) is only valid if specified along with -x.\n");
         return (EXIT_FAILURE);
     }
 
@@ -382,7 +390,6 @@ enable_disagg(const char *mode)
 
 #define DEBUG_MODE_CFG ",debug_mode=(eviction=true,table_logging=true),verbose=(recovery)"
 #define SWEEP_CFG ",file_manager=(close_handle_minimum=1,close_idle_time=1,close_scan_interval=1)"
-
 /*
  * wt_connect --
  *     Configure the WiredTiger connection.
@@ -429,7 +436,11 @@ wt_connect(const char *config_open)
      */
     if (g.sweep_stress)
         strcat(config, SWEEP_CFG);
-
+    /*
+     * Add config for preserve prepared and precise config
+     */
+    if (g.precise_checkpoint)
+        strcat(config, ",precise_checkpoint=true,preserve_prepared=true");
     /*
      * If we are using tiered add in the extension and tiered storage configuration.
      */
@@ -735,7 +746,7 @@ usage(void)
 {
     fprintf(stderr,
       "usage: %s\n"
-      "    [-DmpRvXx] [-C wiredtiger-config] [-c checkpoint] [-d disagg-mode] [-h home] [-k keys] "
+      "    [-DmpPRvXx] [-C wiredtiger-config] [-c checkpoint] [-d disagg-mode] [-h home] [-k keys] "
       "[-l log]\n"
       "    [-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t f|r|v]\n"
       "    [-W workers]\n",
@@ -751,6 +762,7 @@ usage(void)
       "\t-m perform delete operations without timestamps\n"
       "\t-n set number of operations each thread does\n"
       "\t-p use prepare\n"
+      "\t-P use precise checkpoint\n"
       "\t-r set number of runs (0 for continuous)\n"
       "\t-R configure predictable replay\n"
       "\t-s specify which timing stress configuration to use ( 1 | 2 | 3 | 4 | 5 )\n"
