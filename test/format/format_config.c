@@ -344,9 +344,6 @@ config_table(TABLE *table, void *arg)
              ".runs.rows to %d if realloc_exact or realloc_malloc has been automatically set",
           table->id, WT_MILLION);
     }
-    /* FIXME-WT-15565 Write prepared truncate operation to disk. */
-    if (GV(PRECISE_CHECKPOINT) && GV(OPS_PREPARE))
-        config_off(table, "ops.truncate");
 
 #ifndef WT_STANDALONE_BUILD
     /*
@@ -1015,6 +1012,8 @@ config_in_memory(void)
         return;
     if (config_explicit(NULL, "runs.predictable_replay"))
         return;
+    if (config_explicit(NULL, "precise_checkpoint"))
+        return;
 
     if (!config_explicit(NULL, "runs.in_memory") && mmrand(&g.extra_rnd, 1, 20) == 1) {
         config_single(NULL, "runs.in_memory=1", false);
@@ -1063,6 +1062,8 @@ config_in_memory_reset(void)
         config_off(NULL, "ops.verify");
     if (!config_explicit(NULL, "prefetch"))
         config_off(NULL, "prefetch");
+    if (!config_explicit(NULL, "precise_checkpoint"))
+        config_off(NULL, "precise_checkpoint");
 }
 
 /*
@@ -1628,6 +1629,14 @@ config_transaction(void)
         config_off(NULL, "ops.prepare");
         config_off(NULL, "precise_checkpoint");
         config_off(NULL, "preserve_prepared");
+    }
+    /* FIXME-WT-15565 Write prepared truncate operation to disk. */
+    if (GV(PRECISE_CHECKPOINT) && GV(OPS_PREPARE)) {
+        if (config_explicit(NULL, "ops.truncate")) {
+            WARN("%s" PRIu32,
+              "turning off ops.truncate to work with ops.prepare and precise checkpoint");
+        }
+        config_off(NULL, "ops.truncate");
     }
 
     /* Set a default transaction timeout limit if one is not specified. */
