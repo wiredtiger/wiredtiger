@@ -1008,11 +1008,11 @@ config_in_memory(void)
         return;
     if (config_explicit(NULL, "ops.verify"))
         return;
+    if (config_explicit(NULL, "precise_checkpoint"))
+        return;
     if (config_explicit(NULL, "runs.mirror"))
         return;
     if (config_explicit(NULL, "runs.predictable_replay"))
-        return;
-    if (config_explicit(NULL, "precise_checkpoint"))
         return;
 
     if (!config_explicit(NULL, "runs.in_memory") && mmrand(&g.extra_rnd, 1, 20) == 1) {
@@ -1060,10 +1060,10 @@ config_in_memory_reset(void)
         config_off(NULL, "ops.salvage");
     if (!config_explicit(NULL, "ops.verify"))
         config_off(NULL, "ops.verify");
-    if (!config_explicit(NULL, "prefetch"))
-        config_off(NULL, "prefetch");
     if (!config_explicit(NULL, "precise_checkpoint"))
         config_off(NULL, "precise_checkpoint");
+    if (!config_explicit(NULL, "prefetch"))
+        config_off(NULL, "prefetch");
 }
 
 /*

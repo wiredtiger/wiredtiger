@@ -35,11 +35,19 @@
 void
 wts_prepare_discover(WT_CONNECTION *conn)
 {
+    /*
+     * Since RTS is not ran with precise checkpoint, we need to use prepare discover cursor to claim
+     * all pending prepared transactions. When precise checkpoint is not configure, there's no need
+     * to run prepare discover.
+     */
+    if (!GV(PRECISE_CHECKPOINT) || !GV(OPS_PREPARE))
+        return;
+
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION *session;
     uint64_t prepared_id, ts;
-    uint32_t claim_count, discover_count, rand_val;
+    uint32_t discover_count, rand_val;
     char buf[128];
     bool should_commit;
     /*
@@ -65,7 +73,6 @@ wts_prepare_discover(WT_CONNECTION *conn)
 
     /* Iterate through all prepared transactions and claim pending prepared transactions. */
     discover_count = 0;
-    claim_count = 0;
     while ((ret = cursor->next(cursor)) == 0) {
         discover_count++;
         testutil_check(cursor->get_key(cursor, &prepared_id));
@@ -98,17 +105,14 @@ wts_prepare_discover(WT_CONNECTION *conn)
             trace_msg(
               session, "Claimed and rolled back prepared transaction %" PRIu64, prepared_id);
         }
-
-        claim_count++;
     }
     /* WT_NOTFOUND is expected when we reach the end of the cursor */
     testutil_assert(ret == WT_NOTFOUND);
 
     /* Report what we found and did */
     if (discover_count > 0) {
-        trace_msg(session,
-          "Prepare discover: found %" PRIu32 " prepared transactions, claimed %" PRIu32,
-          discover_count, claim_count);
+        trace_msg(session, "Prepare discover: found and claimed %" PRIu32 " prepared transactions",
+          discover_count);
     }
     testutil_check(cursor->close(cursor));
 

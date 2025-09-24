@@ -348,12 +348,8 @@ main(int argc, char *argv[])
         wts_open(g.home, &g.wts_conn, true);
         timestamp_init();
     }
-    /*
-     * Since RTS is not ran with precise checkpoint, we need to use prepare discover cursor to claim
-     * all pending prepared transactions.
-     */
-    if (GV(PRECISE_CHECKPOINT))
-        wts_prepare_discover(g.wts_conn);
+
+    wts_prepare_discover(g.wts_conn);
     locks_init(g.wts_conn);
 
     /*

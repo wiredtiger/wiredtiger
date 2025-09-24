@@ -50,12 +50,8 @@ check_copy(WT_SESSION *session, uint64_t id)
     g.backup_verify = true;
     wts_open(to_path, &conn, false);
     g.backup_verify = false;
-    /*
-     * Since RTS is not ran with precise checkpoint, we need to use prepare discover cursor to claim
-     * all pending prepared transactions.
-     */
-    if (GV(PRECISE_CHECKPOINT))
-        wts_prepare_discover(conn);
+
+    wts_prepare_discover(conn);
     /* Verify the objects. */
     trace_msg(session, "Start %s backup verify in %s",
       GV(BACKUP_LIVE_RESTORE) ? "live restore" : "copied", to_path);
