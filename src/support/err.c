@@ -950,7 +950,7 @@ wiredtiger_dump_error_log(int (*callback)(const char *))
         WT_ERR_NOLOG(callback(buf));
     }
 
-    __wt_error_log_clear(); /* Avoid double reporting on the same. */
+    __wt_error_log_clear(); /* Avoid double reporting the same errors. */
 
 err:
     __wt_free(NULL, buf);
@@ -983,5 +983,5 @@ __wt_error_log_to_handler(WT_SESSION_IMPL *session)
           entry->suberror == WT_NONE ? "" : __wt_strerror(session, entry->suberror, NULL, 0));
     }
 
-    __wt_error_log_clear(); /* Avoid double reporting on the same. */
+    __wt_error_log_clear(); /* Avoid double reporting the same errors. */
 }
