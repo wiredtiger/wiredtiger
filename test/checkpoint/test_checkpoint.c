@@ -436,9 +436,7 @@ wt_connect(const char *config_open)
      */
     if (g.sweep_stress)
         strcat(config, SWEEP_CFG);
-    /*
-     * Add config for preserve prepared and precise config
-     */
+    /* Add config for preserve prepared and precise config */
     if (g.precise_checkpoint)
         strcat(config, ",precise_checkpoint=true,preserve_prepared=true");
     /*
