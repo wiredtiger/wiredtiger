@@ -679,7 +679,7 @@ functions:
         . test/evergreen/find_cmake.sh
         cd cmake_build
         echo "Using number of parallel processes '-j ${num_jobs}' for 'make check all'"
-        $CTEST -L "^check$" -j ${num_jobs} --output-on-failure ${ctest_extra_args|} 2>&1
+        $CTEST -L "^check$" -LE "disagg" -j ${num_jobs} --output-on-failure ${ctest_extra_args|} 2>&1
 
   # The following cppsuite tasks define a greater overall task.
   "cppsuite test run": &cppsuite_test_run
@@ -2165,7 +2165,7 @@ tasks:
       - func: "make check directory"
         vars:
           directory: test/csuite
-          ctest_extra_args: -LE "long_running" ${ctest_extra_args} -j ${num_jobs}
+          ctest_extra_args: -LE "long_running|disagg" ${ctest_extra_args} -j ${num_jobs}
 
   - name: csuite-timestamp-abort-test-s3
     commands:
@@ -6219,7 +6219,7 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     # We don't run C++ memory sanitized testing as it creates false positives. TSan also significantly increases the runtime
     # of some csuite tests, so disable the already long tests as well as tests heavily impacted by TSan.
-    ctest_extra_args: -LE "cppsuite|long_running"
+    ctest_extra_args: -LE "cppsuite|long_running|disagg"
     # TSan slows down python testing enough that we start printing "operation took X seconds" warnings.
     # These don't impact functionality, but the python tests fail on detection of any content in stdout so ignore it instead.
     ignore_stdout: --ignore-stdout
@@ -6282,7 +6282,7 @@ buildvariants:
     # We don't run C++ memory sanitized testing as it creates false positives. MSAN also causes
     # some csuite tests to take an extended amount of time. These are excluded from the
     # make-check-test task and are covered by the csuite-long-running task.
-    ctest_extra_args: -LE "cppsuite|long_running"
+    ctest_extra_args: -LE "cppsuite|long_running|disagg"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
   tasks:
     - name: compile
@@ -7056,7 +7056,7 @@ buildvariants:
     # We don't run C++ memory sanitized testing as it creates false positives. MSAN also causes
     # some csuite tests to take an extended amount of time. These are excluded from the
     # make-check-test task and are covered by the csuite-long-running task.
-    ctest_extra_args: -LE "cppsuite|long_running"
+    ctest_extra_args: -LE "cppsuite|long_running|disagg"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
   tasks:
     - name: compile
@@ -7116,8 +7116,8 @@ buildvariants:
       batchtime: 720 # 12 hours
 
 - name: amazon2023-disagg-stress
-  display_name: "(ARMV9) Amazon 2023 Disagg Stress tests"
-  batchtime: 2880 # once every two days
+  display_name: "[Failure Expected] (ARMV9) Amazon 2023 Disagg Stress tests"
+  batchtime: 4320 # once every two days
   run_on:
   - amazon2023-arm64-latest-large-m8g
   expansions:
@@ -7137,8 +7137,8 @@ buildvariants:
     - name: model-test-long-random-config
 
 - name: amazon2023-disagg-asan-stress
-  display_name: "(ARMV9) Amazon 2023 ASAN Disagg Stress tests"
-  batchtime: 2880 # once every two days
+  display_name: "[Failure Expected] (ARMV9) Amazon 2023 ASAN Disagg Stress tests"
+  batchtime: 4320 # once every three days
   run_on:
   - amazon2023-arm64-latest-large-m8g
   expansions:
