@@ -1470,7 +1470,7 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
      * walk.
      */
     __wt_qsort(page_ids, num_pages_found_in_btree, sizeof(uint64_t), __verify_compare_page_id);
-    
+
     for (size_t i = 0, j = 0; i <= num_pages_found_in_palm && j <= num_pages_found_in_btree;) {
         if (i == num_pages_found_in_palm && j == num_pages_found_in_btree)
             break;
@@ -1478,11 +1478,13 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
         uint64_t id_in_btree = j < num_pages_found_in_btree ? page_ids[j] : 0;
         if (j == num_pages_found_in_btree || id_in_palm < id_in_btree) {
             __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
-              "Missing in page IDs from PALM and btree walk: PALM[%" PRIu64 "] %" PRIu64, i, id_in_palm);
+              "Missing in page IDs from PALM and btree walk: PALM[%" PRIu64 "] %" PRIu64, i,
+              id_in_palm);
             i++;
         } else if (i == num_pages_found_in_palm || id_in_palm > id_in_btree) {
             __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
-              "Missing in page IDs from PALM and btree walk: BTREE[%" PRIu64 "] %" PRIu64, j, id_in_btree);
+              "Missing in page IDs from PALM and btree walk: BTREE[%" PRIu64 "] %" PRIu64, j,
+              id_in_btree);
             j++;
         } else {
             i++;
