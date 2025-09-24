@@ -43,7 +43,6 @@ test_empty.py
 test_encrypt06.py
 test_env01.py
 test_error_info01.py
-test_error_info02.py
 test_error_info03.py
 test_eviction02.py
 test_eviction03.py

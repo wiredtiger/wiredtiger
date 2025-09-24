@@ -132,6 +132,20 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
             raise Exception('hook_disagg: bad extensions in config \"%s\"' % conn_config)
         ext_string = conn_config[start: end]
 
+    def should_bump_cache(test) -> (bool):
+        test_class = str(test).strip().split('.', 1)[0]
+        bump_tests = {
+            'test_cache_evict_config02', # Inserts large values
+            'test_error_info02',         # Inserts large values
+        }
+        return str(test_class) in bump_tests
+
+    if should_bump_cache(testcase): # bump for specific tests
+        if not page_log_config:
+            page_log_config = "cache_size_mb=2048"
+        elif "cache_size_mb=" not in page_log_config: # don't override user-specified size
+            page_log_config = f"cache_size_mb=2048,{page_log_config}"
+
     if page_log_config == None:
         ext_lib = '\"%s\"' % extension_libs[0]
     else:
