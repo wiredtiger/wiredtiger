@@ -33,7 +33,7 @@ from wtscenario import make_scenarios
 
 
 # test_layered51.py
-#    Test accessing ingest tables (WT-15301)
+#    Test accessing ingest tables.
 
 @disagg_test_class
 class test_layered51(wttest.WiredTigerTestCase, DisaggConfigMixin):
