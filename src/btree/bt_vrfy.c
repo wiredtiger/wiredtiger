@@ -1473,16 +1473,10 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
 
     size_t i = 0, j = 0;
     while (i <= num_pages_found_in_palm && j <= num_pages_found_in_btree) {
-        uint64_t id_in_palm = 0, id_in_btree = 0;
-        if (i == num_pages_found_in_palm && j == num_pages_found_in_btree) {
+        if (i == num_pages_found_in_palm && j == num_pages_found_in_btree)
             break;
-        }
-        if (i < num_pages_found_in_palm) {
-            id_in_palm = ((uint64_t *)item->data)[i];
-        }
-        if (j < num_pages_found_in_btree) {
-            id_in_btree = page_ids[j];
-        }
+        uint64_t id_in_palm = i < num_pages_found_in_palm ? ((uint64_t *)item->data)[i] : 0;
+        uint64_t id_in_btree = j < num_pages_found_in_btree ? page_ids[j] : 0;
         if (j == num_pages_found_in_btree || id_in_palm < id_in_btree) {
             __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
               "Missing in page IDs from PALM and btree walk: PALM %" PRIu64, id_in_palm);
