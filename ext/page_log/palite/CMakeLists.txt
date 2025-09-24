@@ -27,7 +27,7 @@ add_library(wiredtiger_palite MODULE
 target_link_libraries(
     wiredtiger_palite
     PRIVATE
-        SQLite::SQLite3
+        wt::sqlite3
 )
 
 target_include_directories(

@@ -19,7 +19,7 @@ if(ENABLE_INTERNAL_SQLITE3)
         $<$<BOOL:${WT_POSIX}>:m>
     )
 
-    add_library(SQLite::SQLite3 ALIAS sqlite3_lib)
+    add_library(wt::sqlite3 ALIAS sqlite3_lib)
 
     add_executable(sqlite3
         ${SQLITE3_DIR}/shell.c
@@ -32,8 +32,9 @@ if(ENABLE_INTERNAL_SQLITE3)
     # Extract the version string (e.g., "3.XX.YY") from the matched line
     string(REGEX MATCH "\"[.0-9]+\"" SQLITE3_VERSION "${SQLITE_VERSION_LINE}")
 
-    message(CHECK_PASS "found internal SQLite3 ${SQLITE3_VERSION}, "
-        "include path ${SQLITE3_DIR}")
+    message(CHECK_PASS "Found internal SQLite3: ${SQLITE3_DIR}"
+        " (found version ${SQLITE3_VERSION})")
 else()
     find_package(SQLite3 REQUIRED)
+    add_library(wt::sqlite3 ALIAS SQLite::SQLite3)
 endif()
