@@ -60,7 +60,7 @@ class test_layered51(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.create(self.uri, self.table_cfg)
         self.session.checkpoint()
 
-        # Open an ingest cursor on leader. We bypass __clayered_put and attempt to
+        # Open an ingest cursor on leader. We bypass __clayered_open_cursors and attempt to
         # open a cursor externally through __session_open_cursor to write to leader.
         # This should fail.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,

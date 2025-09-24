@@ -832,13 +832,16 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
           session, EINVAL, "should be passed either a URI or a cursor to duplicate, but not both");
 
     /*
-     * Disallow cursor creation on a leaders ingest table if not configured with readonly
+     * Disallow external cursor creation on a leaders ingest table if not configured with readonly
      * configuration.
      */
     if (S2C(session)->layered_table_manager.leader && uri != NULL &&
-      WT_SUFFIX_MATCH(uri, ".wt_ingest") && !F_ISSET(session, WT_SESSION_INTERNAL))
-        if ((__wt_config_gets_def(session, cfg, "readonly", 0, &cval) == 0) && !cval.val)
+      WT_SUFFIX_MATCH(uri, ".wt_ingest") && !F_ISSET(session, WT_SESSION_INTERNAL)) {
+        ret = __wt_config_gets_def(session, cfg, "readonly", 0, &cval);
+        if (ret == 0 && !cval.val)
             WT_ERR_MSG(session, EINVAL, "writes to ingest tables are disallowed on leader nodes");
+        WT_ERR_NOTFOUND_OK(ret, false);
+    }
 
     __wt_cursor_get_hash(session, uri, to_dup, &hash_value);
     if ((ret = __wt_cursor_cache_get(session, uri, hash_value, to_dup, cfg, &cursor)) == 0)
