@@ -3079,8 +3079,15 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          * confirm backing blocks we care about, and free any disk image/saved updates.
          */
         if (multi->addr.block_cookie != NULL) {
-            WT_RET(__wt_btree_block_free(session, multi->addr.block_cookie,
-              multi->addr.block_cookie_size, r->multi_next == 1));
+            if (multi->block_meta == NULL)
+                WT_RET(__wt_btree_block_free(
+                  session, multi->addr.block_cookie, multi->addr.block_cookie_size));
+            /* Free disagg block only if it is not a block replacement. */
+            else if (r->multi_next != 1) {
+                WT_RET(__wt_btree_block_free(
+                  session, multi->addr.block_cookie, multi->addr.block_cookie_size));
+                multi->block_meta->page_id = WT_BLOCK_INVALID_PAGE_ID;
+            }
             __wt_free(session, multi->addr.block_cookie);
         }
     }
@@ -3276,9 +3283,17 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                     if (!F_ISSET(r, WT_REC_EMPTY_DELTA))
                         WT_RET(__wt_ref_block_free(session, ref, r->multi_next == 1));
                 }
-            } else
-                WT_RET(__wt_btree_block_free(session, mod->mod_replace.block_cookie,
-                  mod->mod_replace.block_cookie_size, r->multi_next == 1));
+            } else {
+                if (page->disagg_info == NULL)
+                    WT_RET(__wt_btree_block_free(
+                      session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
+                /* Free disagg block only if it is not a block replacement. */
+                else if (r->multi_next != 1) {
+                    WT_RET(__wt_btree_block_free(
+                      session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
+                    page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+                }
+            }
         }
 
         /* Discard the replacement page's address and disk image. */
@@ -3395,14 +3410,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_SPLIT, WT_VERBOSE_DEBUG_2))
             WT_RET(__rec_split_dump_keys(session, r));
 
-        /*
-         * Mark it as invalid. We may reconcile this page again. Force it to write a new page
-         * instead of reusing the existing page id. Building deltas on the split page is a future
-         * thing.
-         */
-        if (page->disagg_info != NULL)
-            page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
-
 split:
         mod->mod_multi = r->multi;
         mod->mod_multi_entries = r->multi_next;
@@ -3491,20 +3498,18 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         if (multi->addr.block_cookie != NULL) {
-            int ret_tmp = __wt_btree_block_free(
-              session, multi->addr.block_cookie, multi->addr.block_cookie_size, r->multi_next == 1);
-            if (ret_tmp != 0) {
-                if (multi->block_meta != NULL)
-                    __wt_verbose_error(session, WT_VERB_RECONCILE,
-                      "failed to free the block in reconciliation failure: page id %" PRIu64
-                      " base lsn %" PRIu64 " backlink lsn %" PRIu64 "",
-                      multi->block_meta->page_id, multi->block_meta->base_lsn,
-                      multi->block_meta->backlink_lsn);
-                else
+            /*
+             * No need to free the blocks for disagg in the failure cases as they should be
+             * discarded by the page service.
+             */
+            if (page->disagg_info == NULL) {
+                int ret_tmp = __wt_btree_block_free(
+                  session, multi->addr.block_cookie, multi->addr.block_cookie_size);
+                if (ret_tmp != 0)
                     __wt_verbose_error(session, WT_VERB_RECONCILE, "%s",
                       "failed to free the block in reconciliation failure");
+                WT_TRET(ret_tmp);
             }
-            WT_TRET(ret_tmp);
         }
     }
 
