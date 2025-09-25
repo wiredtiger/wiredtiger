@@ -1019,6 +1019,35 @@ __wti_disagg_set_last_materialized_lsn(WT_SESSION_IMPL *session, uint64_t lsn)
 }
 
 /*
+ * __disagg_abandon_checkpoint --
+ *     Abandon the current checkpoint.
+ */
+static int
+__disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGGREGATED_STORAGE *disagg;
+
+    conn = S2C(session);
+    disagg = &conn->disaggregated_storage;
+
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+
+    /* Only the leader can abandon a checkpoint. */
+    if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
+        WT_RET(EINVAL);
+
+    /* This is an optional operation for testing, so ignore it if it's not supported. */
+    if (disagg->npage_log->page_log->pl_abandon_checkpoint == NULL)
+        return (0);
+
+    WT_RET(disagg->npage_log->page_log->pl_abandon_checkpoint(
+      disagg->npage_log->page_log, &session->iface, 0));
+
+    return (0);
+}
+
+/*
  * __disagg_begin_checkpoint --
  *     Begin the next checkpoint.
  */
@@ -1111,6 +1140,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
         /* Follower step-up. */
         if (reconfig && !was_leader && leader) {
+            WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_abandon_checkpoint(session));
+            WT_ERR_MSG_CHK(session, ret, "Failed to abandon the incomplete checkpoint");
+
             WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_begin_checkpoint(session));
             WT_ERR_MSG_CHK(session, ret, "Failed to begin a new checkpoint");
 
@@ -1153,6 +1185,12 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     /* FIXME-WT-14965: Exit the function immediately if this check returns false. */
     if (__wt_conn_is_disagg(session)) {
         WT_ERR(__layered_table_manager_start(session));
+
+        /* If we are starting as a primary, abandon a previous incomplete checkpoint. */
+        if (leader) {
+            WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_abandon_checkpoint(session));
+            WT_ERR_MSG_CHK(session, ret, "Failed to abandon the incomplete checkpoint");
+        }
 
         /* Initialize the shared metadata table. */
         WT_ERR(__disagg_metadata_table_init(session));
