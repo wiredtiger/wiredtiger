@@ -400,19 +400,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
-
-#ifdef HAVE_DIAGNOSTIC
-        WT_DECL_ITEM(key_string);
-        size_t old_key_size;
-        void *old_key;
-        __wt_ref_key(ref->home, ref, &old_key, &old_key_size);
-        WT_RET(__wt_scr_alloc(session, 0, &key_string));
-        __wt_verbose(session, WT_VERB_PAGE_DELTA,
-          "Reconciling an internal Page Key - %s, Ref Address - %p\n",
-          __wt_key_string(session, old_key, old_key_size, btree->key_format, key_string),
-          (void *)ref);
-        __wt_scr_free(session, &key_string);
-#endif
         /*
          * FIXME-WT-14880: build delta for split pages.
          *

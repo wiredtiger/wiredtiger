@@ -129,13 +129,17 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
   size_t *incr)
 {
     WT_CELL_UNPACK_ADDR *base, *base_key, *base_val;
-    WT_DECL_ITEM(key_string);
+
     WT_DECL_RET;
     WT_ITEM base_key_buf, delta_key_buf;
     WT_PAGE *page;
     WT_REF **refs;
     size_t base_entries, estimated_entries, final_entries, i, j, k;
     int cmp;
+
+#ifdef HAVE_DIAGNOSTIC
+    WT_DECL_ITEM(key_string);
+#endif
 
     final_entries = i = j = k = 0;
     page = ref->page;

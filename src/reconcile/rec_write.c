@@ -2944,27 +2944,27 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         WT_ASSERT(session, last_block);
         WT_RET(__rec_write_delta(session, r, chunk, addr, &addr_size, &compressed_size));
 #ifdef HAVE_DIAGNOSTIC
-        WT_CELL_UNPACK_DELTA_INT unpacked_deltas;
-        WT_DECL_ITEM(key_string);
-        WT_RET(__wt_scr_alloc(session, 0, &key_string));
-
-        WT_CELL_FOREACH_DELTA_INT(session, r->delta.data, header, unpacked_deltas)
-        {
-            __wt_verbose(session, WT_VERB_PAGE_DELTA, "Writing Delta - Delta Key %s\n",
-              __wt_key_string(session, unpacked_deltas.key.data, unpacked_deltas.key.size,
-                btree->key_format, key_string));
+        if (WT_PAGE_IS_INTERNAL(page)) {
+            WT_CELL_UNPACK_DELTA_INT unpacked_deltas;
+            WT_DECL_ITEM(key_string);
+            WT_RET(__wt_scr_alloc(session, 0, &key_string));
+            WT_CELL_FOREACH_DELTA_INT(session, r->delta.data, header, unpacked_deltas)
+            {
+                __wt_verbose(session, WT_VERB_PAGE_DELTA, "Writing Delta - Delta Key %s\n",
+                  __wt_key_string(session, unpacked_deltas.key.data, unpacked_deltas.key.size,
+                    btree->key_format, key_string));
+            }
+            WT_CELL_FOREACH_END;
+            WT_CELL_UNPACK_ADDR unpacked_kv;
+            WT_CELL_FOREACH_ADDR (session, (WT_PAGE_HEADER *)chunk->image.data, unpacked_kv) {
+                if (unpacked_kv.type == WT_CELL_KEY)
+                    __wt_verbose(session, WT_VERB_PAGE_DELTA, "Writing Delta - Full Disk Key %s\n",
+                      __wt_key_string(session, unpacked_kv.data, unpacked_kv.size,
+                        btree->key_format, key_string));
+            }
+            WT_CELL_FOREACH_END;
+            __wt_scr_free(session, &key_string);
         }
-        WT_CELL_FOREACH_END;
-
-        WT_CELL_UNPACK_ADDR unpacked_kv;
-        WT_CELL_FOREACH_ADDR (session, (WT_PAGE_HEADER *)chunk->image.data, unpacked_kv) {
-            if (unpacked_kv.type == WT_CELL_KEY)
-                __wt_verbose(session, WT_VERB_PAGE_DELTA, "Writing Delta - Full Disk Key %s\n",
-                  __wt_key_string(
-                    session, unpacked_kv.data, unpacked_kv.size, btree->key_format, key_string));
-        }
-        WT_CELL_FOREACH_END;
-        __wt_scr_free(session, &key_string);
 #endif
     } else {
         WT_RET(
