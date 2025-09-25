@@ -3248,9 +3248,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          * We need to retain the block address if we skipped writing an empty delta or we are
          * rewriting a delta to a full page.
          */
-        if (F_ISSET(r, WT_REC_EMPTY_DELTA | WT_REC_REWRITE_DELTA) && ref->addr != NULL &&
-          r->multi->addr.block_cookie == NULL) {
-            WT_ASSERT(session, WT_DELTA_ENABLED_FOR_PAGE(session, page->type));
+        if (F_ISSET(r, WT_REC_EMPTY_DELTA | WT_REC_REWRITE_DELTA) && ref->addr != NULL) {
+            WT_ASSERT(session,
+              WT_DELTA_ENABLED_FOR_PAGE(session, page->type) &&
+                r->multi->addr.block_cookie == NULL);
             break;
         }
 
