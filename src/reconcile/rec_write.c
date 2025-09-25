@@ -2651,8 +2651,10 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                 multi->block_meta->backlink_lsn = multi->block_meta->disagg_lsn;
             multi->block_meta->delta_count = 0;
             multi->block_meta->base_lsn = WT_DISAGG_LSN_NONE;
-        } else
+        } else {
             __wt_page_block_meta_assign(session, multi->block_meta);
+            F_SET(r, WT_REC_DISAGG_NEW_PAGE);
+        }
 
         multi->block_meta->image_size = chunk->image.size;
     }
@@ -2836,8 +2838,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
          * We need to assign a new page id for the root every time. We don't support delta for root
          * page yet.
          */
-        if (page->disagg_info != NULL)
+        if (page->disagg_info != NULL) {
             __wt_page_block_meta_assign(session, &r->wrapup_checkpoint_block_meta);
+            F_SET(r, WT_REC_DISAGG_NEW_PAGE);
+        }
 
         return (0);
     }
@@ -3503,16 +3507,25 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         if (multi->addr.block_cookie != NULL) {
             /*
-             * No need to free the blocks for disagg in the failure cases as they should be
-             * discarded by the page service.
+             * Don't free the page if it is a replacement page in disaggregated storage and it is
+             * not the root page.
              */
-            if (page->disagg_info == NULL) {
+            if (page->disagg_info == NULL || r->multi_next != 1 ||
+              F_ISSET(r, WT_REC_DISAGG_NEW_PAGE) || __wt_ref_is_root(r->ref)) {
                 int ret_tmp = __wt_btree_block_free(
                   session, multi->addr.block_cookie, multi->addr.block_cookie_size);
-                if (ret_tmp != 0)
-                    __wt_verbose_error(session, WT_VERB_RECONCILE, "%s",
-                      "failed to free the block in reconciliation failure");
-                WT_TRET(ret_tmp);
+                if (ret_tmp != 0) {
+                    if (multi->block_meta != NULL)
+                        __wt_verbose_error(session, WT_VERB_RECONCILE,
+                          "failed to free the block in reconciliation failure: page id %" PRIu64
+                          " base lsn %" PRIu64 " backlink lsn %" PRIu64 "",
+                          multi->block_meta->page_id, multi->block_meta->base_lsn,
+                          multi->block_meta->backlink_lsn);
+                    else
+                        __wt_verbose_error(session, WT_VERB_RECONCILE, "%s",
+                          "failed to free the block in reconciliation failure");
+                    WT_TRET(ret_tmp);
+                }
             }
         }
     }
