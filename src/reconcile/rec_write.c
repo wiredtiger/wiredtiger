@@ -2188,7 +2188,6 @@ int
 __wti_rec_pack_delta_internal(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *key, WTI_REC_KV *value)
 {
-    WT_DECL_ITEM(key_string);
     WT_PAGE_HEADER *header;
     WTI_REC_KV t_kv_struct, *t_kv;
     size_t packed_size;
@@ -2198,6 +2197,7 @@ __wti_rec_pack_delta_internal(
     header = (WT_PAGE_HEADER *)r->delta.data;
 
 #ifdef HAVE_DIAGNOSTIC
+    WT_DECL_ITEM(key_string);
     WT_RET(__wt_scr_alloc(session, 0, &key_string));
     __wt_verbose(session, WT_VERB_PAGE_DELTA, "Packing delta internal key %s\n",
       __wt_key_string(
