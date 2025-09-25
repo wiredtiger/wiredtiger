@@ -1281,7 +1281,7 @@ session_config = [
     Config('isolation', 'snapshot', r'''
         the default isolation level for operations in this session''',
         choices=['read-uncommitted', 'read-committed', 'snapshot']),
-    Config('prefetch', '', r'''
+    Config('prefetch2', '', r'''
         Enable automatic detection of scans by applications, and attempt to pre-fetch future
         content into the cache''',
         type='category', subconfig=[
@@ -2213,7 +2213,7 @@ methods = {
         max=10),     # !!! Must match WT_RTS_MAX_WORKERS
 ]),
 
-'WT_SESSION.reconfigure' : Method(session_config),
+'WT_SESSION.reconfigure' : Method(session_config, compilable=True),
 
 # There are 4 variants of the wiredtiger_open configurations.
 # wiredtiger_open:

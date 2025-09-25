@@ -41,13 +41,14 @@
 #define WT_CONF_ID_Lsm 105ULL
 #define WT_CONF_ID_Operation_tracking 272ULL
 #define WT_CONF_ID_Page_delta 274ULL
-#define WT_CONF_ID_Prefetch 300ULL
+#define WT_CONF_ID_Prefetch 331ULL
+#define WT_CONF_ID_Prefetch2 300ULL
 #define WT_CONF_ID_Rollback_to_stable 280ULL
 #define WT_CONF_ID_Roundup_timestamps 168ULL
 #define WT_CONF_ID_Shared_cache 282ULL
 #define WT_CONF_ID_Statistics_log 286ULL
 #define WT_CONF_ID_Tiered_storage 51ULL
-#define WT_CONF_ID_Transaction_sync 339ULL
+#define WT_CONF_ID_Transaction_sync 340ULL
 #define WT_CONF_ID_access_pattern_hint 12ULL
 #define WT_CONF_ID_action 88ULL
 #define WT_CONF_ID_allocation_size 13ULL
@@ -56,7 +57,7 @@
 #define WT_CONF_ID_archive 266ULL
 #define WT_CONF_ID_auth_token 52ULL
 #define WT_CONF_ID_auto_throttle 106ULL
-#define WT_CONF_ID_available 331ULL
+#define WT_CONF_ID_available 332ULL
 #define WT_CONF_ID_background 92ULL
 #define WT_CONF_ID_background_compact 218ULL
 #define WT_CONF_ID_backup 181ULL
@@ -129,7 +130,7 @@
 #define WT_CONF_ID_cursor_copy 222ULL
 #define WT_CONF_ID_cursor_reposition 223ULL
 #define WT_CONF_ID_cursors 183ULL
-#define WT_CONF_ID_default 332ULL
+#define WT_CONF_ID_default 333ULL
 #define WT_CONF_ID_delta_pct 275ULL
 #define WT_CONF_ID_dhandle_buckets 321ULL
 #define WT_CONF_ID_dictionary 19ULL
@@ -207,7 +208,7 @@
 #define WT_CONF_ID_internal_key_truncate 32ULL
 #define WT_CONF_ID_internal_page_delta 277ULL
 #define WT_CONF_ID_internal_page_max 33ULL
-#define WT_CONF_ID_interval 338ULL
+#define WT_CONF_ID_interval 339ULL
 #define WT_CONF_ID_isolation 164ULL
 #define WT_CONF_ID_json 287ULL
 #define WT_CONF_ID_json_output 265ULL
@@ -274,7 +275,7 @@
 #define WT_CONF_ID_prepare_timestamp 171ULL
 #define WT_CONF_ID_prepared 169ULL
 #define WT_CONF_ID_prepared_id 172ULL
-#define WT_CONF_ID_preserve_prepared 333ULL
+#define WT_CONF_ID_preserve_prepared 334ULL
 #define WT_CONF_ID_priority 167ULL
 #define WT_CONF_ID_quota 284ULL
 #define WT_CONF_ID_raw 144ULL
@@ -302,12 +303,12 @@
 #define WT_CONF_ID_rollback_error 229ULL
 #define WT_CONF_ID_rollback_timestamp 173ULL
 #define WT_CONF_ID_run_once 96ULL
-#define WT_CONF_ID_salvage 334ULL
+#define WT_CONF_ID_salvage 335ULL
 #define WT_CONF_ID_scrub_evict_under_target_limit 202ULL
 #define WT_CONF_ID_secretkey 316ULL
-#define WT_CONF_ID_session_max 335ULL
-#define WT_CONF_ID_session_scratch_max 336ULL
-#define WT_CONF_ID_session_table_cache 337ULL
+#define WT_CONF_ID_session_max 336ULL
+#define WT_CONF_ID_session_scratch_max 337ULL
+#define WT_CONF_ID_session_table_cache 338ULL
 #define WT_CONF_ID_sessions 187ULL
 #define WT_CONF_ID_shared 58ULL
 #define WT_CONF_ID_size 194ULL
@@ -346,21 +347,21 @@
 #define WT_CONF_ID_txn 188ULL
 #define WT_CONF_ID_type 9ULL
 #define WT_CONF_ID_update_restore_evict 234ULL
-#define WT_CONF_ID_use_environment 340ULL
-#define WT_CONF_ID_use_environment_priv 341ULL
+#define WT_CONF_ID_use_environment 341ULL
+#define WT_CONF_ID_use_environment_priv 342ULL
 #define WT_CONF_ID_use_timestamp 178ULL
 #define WT_CONF_ID_value_format 59ULL
 #define WT_CONF_ID_verbose 10ULL
-#define WT_CONF_ID_verify_metadata 342ULL
+#define WT_CONF_ID_verify_metadata 343ULL
 #define WT_CONF_ID_version 69ULL
 #define WT_CONF_ID_visible_only 128ULL
 #define WT_CONF_ID_wait 209ULL
-#define WT_CONF_ID_write_through 343ULL
+#define WT_CONF_ID_write_through 344ULL
 #define WT_CONF_ID_write_timestamp 5ULL
 #define WT_CONF_ID_write_timestamp_usage 11ULL
 #define WT_CONF_ID_zero_fill 271ULL
 
-#define WT_CONF_ID_COUNT 344
+#define WT_CONF_ID_COUNT 345
 /*
  * API configuration keys: END
  */
@@ -558,6 +559,9 @@ static const struct {
         uint64_t available;
         uint64_t _default;
     } Prefetch;
+    struct {
+        uint64_t enabled;
+    } Prefetch2;
     struct {
         uint64_t threads;
     } Rollback_to_stable;
@@ -957,6 +961,9 @@ static const struct {
   {
     WT_CONF_ID_Prefetch | (WT_CONF_ID_available << 16),
     WT_CONF_ID_Prefetch | (WT_CONF_ID_default << 16),
+  },
+  {
+    WT_CONF_ID_Prefetch2 | (WT_CONF_ID_enabled << 16),
   },
   {
     WT_CONF_ID_Rollback_to_stable | (WT_CONF_ID_threads << 16),
