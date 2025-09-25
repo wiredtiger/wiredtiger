@@ -1161,6 +1161,8 @@ struct __wt_connection_stats {
     int64_t rec_page_delete_fast;
     int64_t rec_page_full_image_internal;
     int64_t rec_page_full_image_leaf;
+    int64_t rec_page_delta_internal_key_deleted;
+    int64_t rec_page_delta_internal_key_updated;
     int64_t rec_page_delta_internal;
     int64_t rec_multiblock_internal;
     int64_t rec_page_delta_leaf;
@@ -1648,6 +1650,8 @@ struct __wt_dsrc_stats {
     int64_t rec_page_delete_fast;
     int64_t rec_page_full_image_internal;
     int64_t rec_page_full_image_leaf;
+    int64_t rec_page_delta_internal_key_deleted;
+    int64_t rec_page_delta_internal_key_updated;
     int64_t rec_page_delta_internal;
     int64_t rec_suffix_compression;
     int64_t rec_multiblock_internal;
