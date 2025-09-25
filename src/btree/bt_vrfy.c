@@ -1471,22 +1471,32 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
      */
     __wt_qsort(page_ids, num_pages_found_in_btree, sizeof(uint64_t), __verify_compare_page_id);
 
-    for (size_t i = 0, j = 0; i <= num_pages_found_in_palm && j <= num_pages_found_in_btree;) {
-        if (i == num_pages_found_in_palm && j == num_pages_found_in_btree)
+    for (size_t index_in_palm = 0, index_in_btree = 0;
+         index_in_palm <= num_pages_found_in_palm && index_in_btree <= num_pages_found_in_btree;) {
+        if (index_in_palm == num_pages_found_in_palm && index_in_btree == num_pages_found_in_btree)
             break;
-        uint64_t id_in_palm = i < num_pages_found_in_palm ? ((uint64_t *)item->data)[i] : 0;
-        uint64_t id_in_btree = j < num_pages_found_in_btree ? page_ids[j] : 0;
-        if (j == num_pages_found_in_btree || id_in_palm < id_in_btree) {
+        uint64_t id_in_palm =
+          index_in_palm < num_pages_found_in_palm ? ((uint64_t *)item->data)[index_in_palm] : 0;
+        uint64_t id_in_btree =
+          index_in_btree < num_pages_found_in_btree ? page_ids[index_in_btree] : 0;
+        /*
+         * FIXME-WT-14700: Investigate whether we need to do anything special when freeing a root
+         * page. Change below warning to an error after root page discard is implemented, if a
+         * mismatch is found this function will return the corresponding error code.
+         */
+        if (index_in_btree == num_pages_found_in_btree || id_in_palm < id_in_btree) {
             __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
-              "Unreferenced page was not discarded: PALM[%" PRIu64 "] %" PRIu64, i, id_in_palm);
-            i++;
-        } else if (i == num_pages_found_in_palm || id_in_palm > id_in_btree) {
+              "Unreferenced page was not discarded: PALM[%" PRIu64 "] %" PRIu64, index_in_palm,
+              id_in_palm);
+            index_in_palm++;
+        } else if (index_in_palm == num_pages_found_in_palm || id_in_palm > id_in_btree) {
             __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
-              "Discarded page is still in use: BTREE[%" PRIu64 "] %" PRIu64, j, id_in_btree);
-            j++;
+              "Discarded page is still in use: BTREE[%" PRIu64 "] %" PRIu64, index_in_btree,
+              id_in_btree);
+            index_in_btree++;
         } else {
-            i++;
-            j++;
+            index_in_palm++;
+            index_in_btree++;
         }
     }
 
