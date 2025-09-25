@@ -471,8 +471,8 @@ check_compiling_configurations(TEST_OPTS *opts, CUSTOM_EVENT_HANDLER *handler,
 
     /* Now we can use the API. */
     if (strcmp(method_name, "WT_SESSION.begin_transaction") == 0) {
-    testutil_check(opts->session->begin_transaction(opts->session, compiled_ptr));
-    testutil_check(opts->session->rollback_transaction(opts->session, NULL));
+        testutil_check(opts->session->begin_transaction(opts->session, compiled_ptr));
+        testutil_check(opts->session->rollback_transaction(opts->session, NULL));
     } else if (strcmp(method_name, "WT_SESSION.reconfigure") == 0)
         testutil_check(opts->session->reconfigure(opts->session, compiled_ptr));
     else

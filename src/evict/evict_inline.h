@@ -413,8 +413,8 @@ __wti_evict_dirty_target(WT_EVICT *evict)
 {
     double dirty_target, scrub_target;
 
-    dirty_target = __wt_read_shared_double(&evict->eviction_dirty_target);
-    scrub_target = __wt_read_shared_double(&evict->eviction_scrub_target);
+    dirty_target = __wt_atomic_load_double(&evict->eviction_dirty_target);
+    scrub_target = __wt_atomic_load_double(&evict->eviction_scrub_target);
 
     return (scrub_target > 0 && scrub_target < dirty_target ? scrub_target : dirty_target);
 }
@@ -438,6 +438,7 @@ static WT_INLINE bool
 __wt_evict_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 {
     uint64_t bytes_dirty, bytes_max;
+    double dirty_trigger = __wt_atomic_load_double(&S2C(session)->evict->eviction_dirty_trigger);
 
     /*
      * Avoid division by zero if the cache size has not yet been set in a shared cache.
@@ -448,8 +449,7 @@ __wt_evict_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
     if (pct_fullp != NULL)
         *pct_fullp = (100.0 * bytes_dirty) / bytes_max;
 
-    return (
-      bytes_dirty > (uint64_t)(S2C(session)->evict->eviction_dirty_trigger * bytes_max) / 100);
+    return (bytes_dirty > (uint64_t)(dirty_trigger * bytes_max) / 100);
 }
 
 /* !!!
@@ -508,7 +508,7 @@ static WT_INLINE bool
 __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pct_fullp)
 {
     WT_EVICT *evict;
-    double pct_dirty, pct_full, pct_updates;
+    double pct_dirty, pct_full, pct_updates, dirty_trigger;
     bool clean_needed, dirty_needed, updates_needed;
 
     evict = S2C(session)->evict;
@@ -521,6 +521,20 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pc
         return (false);
 
     clean_needed = __wt_evict_clean_needed(session, &pct_full);
+
+    /*
+     * We must check if application threads are allowed to participate in eviction based on the
+     * minimum cache fill ratio that is configured. A clean eviction is required only when the
+     * minimum cache fill ratio is set to a value higher than the eviction trigger. This means we
+     * should check for the scenario where a clean eviction is not required.
+     */
+    if (!clean_needed) {
+        uint8_t min_cache_fill_ratio = __wt_atomic_load8(
+          &S2C(session)->cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio);
+        if (min_cache_fill_ratio > 0 && pct_full < min_cache_fill_ratio)
+            return (false);
+    }
+
     if (readonly) {
         dirty_needed = updates_needed = false;
         pct_dirty = pct_updates = 0.0;
@@ -533,11 +547,11 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pc
      * Calculate the cache full percentage; anything over the trigger means we involve the
      * application thread.
      */
+    dirty_trigger = __wt_atomic_load_double(&evict->eviction_dirty_trigger);
     if (pct_fullp != NULL)
         *pct_fullp = WT_MAX(0.0,
           100.0 -
-            WT_MIN(
-              WT_MIN(evict->eviction_trigger - pct_full, evict->eviction_dirty_trigger - pct_dirty),
+            WT_MIN(WT_MIN(evict->eviction_trigger - pct_full, dirty_trigger - pct_dirty),
               evict->eviction_updates_trigger - pct_updates));
 
     /*
@@ -570,8 +584,8 @@ __wt_evict_favor_clearing_dirty_cache(WT_SESSION_IMPL *session)
      * Ramp the eviction dirty target down to encourage eviction threads to clear dirty content out
      * of cache.
      */
-    __wt_set_shared_double(&evict->eviction_dirty_trigger, 1.0);
-    __wt_set_shared_double(&evict->eviction_dirty_target, 0.1);
+    __wt_atomic_store_double(&evict->eviction_dirty_trigger, 1.0);
+    __wt_atomic_store_double(&evict->eviction_dirty_target, 0.1);
 }
 
 /*

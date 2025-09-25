@@ -185,6 +185,8 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",failpoint_eviction_split");
     if (GV(STRESS_FAILPOINT_HS_DELETE_KEY_FROM_TS))
         CONFIG_APPEND(*p, ",failpoint_history_store_delete_key_from_ts");
+    if (GV(STRESS_FAILPOINT_REC_BEFORE_WRAPUP))
+        CONFIG_APPEND(*p, ",failpoint_rec_before_wrapup");
     if (GV(STRESS_HS_CHECKPOINT_DELAY))
         CONFIG_APPEND(*p, ",history_store_checkpoint_delay");
     if (GV(STRESS_HS_SEARCH))
@@ -425,6 +427,14 @@ configure_prefetch(char **p, size_t max)
 static void
 configure_obsolete_cleanup(char **p, size_t max)
 {
+    /*
+     * If it's all off, don't even generate the outer checkpoint_cleanup config. It's not compatible
+     * with older branches, so take both options being configured off as a proxy for the whole
+     * feature being turned off.
+     */
+    if (strcmp(GVS(OBSOLETE_CLEANUP_METHOD), "off") == 0 && GV(OBSOLETE_CLEANUP_WAIT) == 0)
+        return;
+
     CONFIG_APPEND(*p, ",checkpoint_cleanup=[");
 
     /* Strategy. */
@@ -432,7 +442,8 @@ configure_obsolete_cleanup(char **p, size_t max)
         CONFIG_APPEND(*p, "method=%s", (char *)GVS(OBSOLETE_CLEANUP_METHOD));
 
     /* Interval. */
-    CONFIG_APPEND(*p, ",wait=%" PRIu32, GV(OBSOLETE_CLEANUP_WAIT));
+    if (GV(OBSOLETE_CLEANUP_WAIT) != 0)
+        CONFIG_APPEND(*p, ",wait=%" PRIu32, GV(OBSOLETE_CLEANUP_WAIT));
 
     CONFIG_APPEND(*p, "]");
 }

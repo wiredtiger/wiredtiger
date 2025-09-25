@@ -283,7 +283,8 @@ log_runtime_config = [
         ::wiredtiger_open''',
         type='category', subconfig=[
         Config('enabled', 'true', r'''
-            if false, this object has checkpoint-level durability''',
+            if false, this object has checkpoint-level durability. Not supported for layered
+            tables''',
             type='boolean'),
         ]),
 ]
@@ -590,6 +591,15 @@ connection_runtime_config = [
                 r'''Change the eviction strategy to scrub eviction when the cache usage is under
                 the target limit.''',
                 type='boolean'),
+            Config('app_eviction_min_cache_fill_ratio', '0', r'''
+                This setting establishes a minimum cache fill ratio that must be met before
+                application threads can start assisting with eviction. The value is a percentage
+                between 0 and 50, with 0 disabling the feature. For it to have any effect, this
+                minimum ratio must be higher than the existing \c eviction_dirty_trigger or
+                \c eviction_update_trigger and less than \c eviction_trigger. Essentially, the
+                standard dirty or update triggers won't become active until the cache fill ratio
+                first reaches this new, higher threshold.''',
+                min='0', max='50'),
         ]),
     Config('cache_size', '100MB', r'''
         maximum heap memory to allocate for the cache. A database should configure either
@@ -948,12 +958,12 @@ connection_runtime_config = [
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'conn_close_stress_log_printf', 'evict_reposition',
         'failpoint_eviction_split', 'failpoint_history_store_delete_key_from_ts',
-        'history_store_checkpoint_delay', 'history_store_search', 'history_store_sweep_race',
-        'live_restore_clean_up', 'open_index_slow', 'prefetch_1', 'prefetch_2', 'prefetch_3',
-        'prefix_compare', 'prepare_checkpoint_delay', 'prepare_resolution_1',
-        'prepare_resolution_2', 'session_alter_slow', 'sleep_before_read_overflow_onpage',
-        'split_1', 'split_2', 'split_3', 'split_4', 'split_5', 'split_6', 'split_7',
-        'split_8','tiered_flush_finish']),
+        'failpoint_rec_before_wrapup', 'history_store_checkpoint_delay', 'history_store_search',
+        'history_store_sweep_race', 'live_restore_clean_up', 'open_index_slow', 'prefetch_1',
+        'prefetch_2', 'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay',
+        'prepare_resolution_1', 'prepare_resolution_2', 'session_alter_slow',
+        'sleep_before_read_overflow_onpage', 'split_1', 'split_2', 'split_3', 'split_4',
+        'split_5', 'split_6', 'split_7', 'split_8','tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
