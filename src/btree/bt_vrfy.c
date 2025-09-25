@@ -1478,13 +1478,11 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
         uint64_t id_in_btree = j < num_pages_found_in_btree ? page_ids[j] : 0;
         if (j == num_pages_found_in_btree || id_in_palm < id_in_btree) {
             __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
-              "Missing in page IDs from PALM and btree walk: PALM[%" PRIu64 "] %" PRIu64, i,
-              id_in_palm);
+              "Unreferenced page was not discarded: PALM[%" PRIu64 "] %" PRIu64, i, id_in_palm);
             i++;
         } else if (i == num_pages_found_in_palm || id_in_palm > id_in_btree) {
             __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
-              "Missing in page IDs from PALM and btree walk: BTREE[%" PRIu64 "] %" PRIu64, j,
-              id_in_btree);
+              "Discarded page is still in use: BTREE[%" PRIu64 "] %" PRIu64, j, id_in_btree);
             j++;
         } else {
             i++;
