@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import random, wttest
+import wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
@@ -86,7 +86,6 @@ class test_layered53(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor.close()
 
     def verify(self, kv):
-        # Verify the values in the table.
         cursor = self.session.open_cursor(self.uri, None, None)
         for k, v in kv.items():
             cursor.set_key(k)
@@ -104,7 +103,6 @@ class test_layered53(wttest.WiredTigerTestCase, DisaggConfigMixin):
         kv = {f'{initial_key}{i}': initial_value for i in range(1, self.nrows + 1)}
         self.insert(kv, initial_ts)
         self.session.checkpoint()
-
         # We should see suffix compression happened.
         self.assertGreater(self.get_stat(stat.dsrc.rec_suffix_compression, self.uri), 0)
         # We should see prefix compression happened if it is configured.
@@ -115,16 +113,43 @@ class test_layered53(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Re-open the connection to clear contents out of memory.
         self.reopen_disagg_conn(self.conn_config())
+        # Perform two small updates.
+        kv_modified = {str(10): "10abc", str(220): "220abc"}
+        self.insert(kv_modified, initial_ts + 1)
+        # Perform a checkpoint to write out a delta.
+        self.session.checkpoint()
+        # Verify delta built.
+        if (self.delta_type == 'both' or self.delta_type == 'leaf_only'):
+            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
+        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
+            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
+        if (self.delta_type == 'none'):
+            self.assertEqual(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
+            self.assertEqual(self.get_stat(stat.conn.rec_page_delta_internal), 0)
 
-        # Verify the updated values in the table.
+        # Re-open the connection to clear contents out of memory.
+        self.reopen_disagg_conn(self.conn_config())
+        # Verify the k/v pairs in the table.
         self.verify(kv)
+        self.verify(kv_modified)
+         # Assert that we have constructed at least one internal page delta.
+        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
+            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+        else:
+            self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
 
+        # Re-open the connection on follower.
         follower_config = self.conn_base_config + 'disaggregated=(role="follower"),'
         self.reopen_disagg_conn(follower_config)
         time.sleep(1.0)
-
-        # Verify the updated values in the table.
+        # Verify the k/v pairs in the table.
         self.verify(kv)
+        self.verify(kv_modified)
+        # Assert that we have constructed at least one internal page delta.
+        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
+            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+        else:
+            self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
 
     def test_prefix_suffix_compression1(self):
         self.session.create(self.uri, self.session_create_config())
