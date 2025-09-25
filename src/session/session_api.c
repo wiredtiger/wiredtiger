@@ -2766,8 +2766,8 @@ __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open
 
 #ifdef HAVE_UNITTEST
 int
-__ut_session_config_int(WT_SESSION_IMPL *session, const char *config)
+__ut_session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
 {
-    return (__session_config_int(session, config));
+    return (__session_config_int(session, conf));
 }
 #endif
