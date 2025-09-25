@@ -12,6 +12,7 @@ set(default_enable_iaa OFF)
 set(default_enable_debug_info ON)
 set(default_enable_static OFF)
 set(default_enable_shared ON)
+set(default_internal_sqlite3 ON)
 
 if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo)$")
     set(default_have_diagnostics OFF)
@@ -49,6 +50,13 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
     set(default_enable_debug_info OFF)
 endif()
 
+# Use system provided sqlite3 if available.
+find_package(SQLite3 QUIET)
+
+if(SQLite3_FOUND)
+    set(default_internal_sqlite3 OFF)
+endif()
+
 if(WT_WIN)
     # We force a static compilation to generate a ".lib" file. We can then
     # additionally generate a dll file using a *DEF file.
@@ -82,6 +90,7 @@ config_bool(
     ENABLE_ANTITHESIS
     "Enable the Antithesis random library"
     DEFAULT OFF
+    DEPENDS "WT_POSIX"
 )
 
 config_bool(
@@ -348,6 +357,12 @@ config_bool(
     DEFAULT ${default_enable_debug_info}
 )
 
+config_bool(
+    ENABLE_INTERNAL_SQLITE3
+    "Enable internal SQLite3 library. If disabled, the system SQLite3 library will be used."
+    DEFAULT ${default_internal_sqlite3}
+)
+
 set(default_optimize_level "-Og")
 if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo)$")
     if(WT_WIN)
@@ -366,8 +381,6 @@ config_string(
     "CC optimization level"
     DEFAULT "${default_optimize_level}"
 )
-
-add_compile_options("${CC_OPTIMIZE_LEVEL}")
 
 config_string(
     VERSION_MAJOR
@@ -399,25 +412,44 @@ if (HAVE_DIAGNOSTIC)
 endif()
 
 # Setup debug info if enabled.
-if(ENABLE_DEBUG_INFO)
-    if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
-        # Produce full symbolic debugging information.
-        add_compile_options(/Z7)
-        # Ensure a PDB file can be generated for debugging symbols.
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG")
-    else()
+# Only set initial debug flags once to preserve user customizations.
+if(ENABLE_DEBUG_INFO AND NOT WT_DEBUG_FLAGS_INITIALIZED)
+    set(BUILD_TYPES_WITH_DEBUG_INFO ${BUILD_MODES})
+    list(REMOVE_ITEM BUILD_TYPES_WITH_DEBUG_INFO Release)
+
+    set(DEBUG_INFO_FLAGS)
+    if(GNU_C_COMPILER OR CLANG_C_COMPILER)
         # Higher debug levels `-g3`/`-ggdb3` emit additional debug information, including
         # macro definitions that allow us to evaluate macros such as `p S2C(session)` inside of gdb.
         # This needs to be in DWARF version 2 format or later - and should be by default - but
         # we'll specify version 4 here to be safe.
-        add_compile_options(-g3)
-        add_compile_options(-ggdb3)
-        add_compile_options(-gdwarf-4)
-        if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+        list(APPEND DEBUG_INFO_FLAGS -g3 -gdwarf-4)
+        if(CLANG_C_COMPILER)
             # Clang requires one additional flag to output macro debug information.
-            add_compile_options(-fdebug-macro)
+            list(APPEND DEBUG_INFO_FLAGS -glldb -fdebug-macro)
+        else()
+            list(APPEND DEBUG_INFO_FLAGS -ggdb3)
         endif()
+
+        add_cmake_compiler_flags(
+            FLAGS ${DEBUG_INFO_FLAGS}
+            LANGUAGES C CXX
+            BUILD_TYPES ${BUILD_TYPES_WITH_DEBUG_INFO}
+        )
     endif()
+
+    # MSVC: ensure linker produces PDBs.
+    if(MSVC_C_COMPILER)
+        add_cmake_linker_flags(
+            FLAGS "/DEBUG"
+            BINARIES EXE SHARED
+            BUILD_TYPES ${BUILD_TYPES_WITH_DEBUG_INFO}
+        )
+    endif()
+
+    # Mark that we've set the initial debug flags
+    set(WT_DEBUG_FLAGS_INITIALIZED TRUE CACHE INTERNAL
+        "WiredTiger debug flags have been initialized")
 endif()
 
 # Ref tracking is always enabled in diagnostic build.
@@ -438,13 +470,15 @@ if(WT_WIN)
     # Check if we a using the dynamic or static run-time library.
     if(DYNAMIC_CRT)
         # Use the multithread-specific and DLL-specific version of the run-time library (MSVCRT.lib).
-        add_compile_options(/MD)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
     else()
         # Use the multithread, static version of the run-time library.
-        add_compile_options(/MT)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
     endif()
 endif()
 
 if(ENABLE_ANTITHESIS)
-    add_compile_options(-fsanitize-coverage=trace-pc-guard)
+    foreach(lang C CXX)
+        add_cmake_flag(CMAKE_${lang}_FLAGS -fsanitize-coverage=trace-pc-guard)
+    endforeach()
 endif()
