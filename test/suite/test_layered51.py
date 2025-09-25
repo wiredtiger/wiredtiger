@@ -98,7 +98,7 @@ class test_layered51(wttest.WiredTigerTestCase, DisaggConfigMixin):
         prefix_compression_cfg = ',prefix_compression=' + ('true' if prefix_compression else 'false')
         self.session.create(self.uri, self.session_create_config() + prefix_compression_cfg)
         # Populate the table with nrows.
-        initial_key = "abc"
+        initial_key = "abc" * 4
         initial_value = "abc" * 10
         initial_ts = 5
         kv = {f'{initial_key}{i}': initial_value for i in range(1, self.nrows + 1)}
@@ -129,6 +129,6 @@ class test_layered51(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def test_prefix_suffix_compression1(self):
         self.session.create(self.uri, self.session_create_config())
         self.verify_compression(False)
-    
+
     def test_prefix_suffix_compression2(self):
         self.verify_compression(True)
