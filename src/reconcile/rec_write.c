@@ -3244,8 +3244,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             break;
 
         /* We need to retain the block address if we skipped writing an empty delta. */
-        if (F_ISSET(r, WT_REC_EMPTY_DELTA) && ref->addr != NULL)
+        if (F_ISSET(r, WT_REC_EMPTY_DELTA) && ref->addr != NULL &&
+          r->multi->addr.block_cookie == NULL) {
+            WT_ASSERT(
+              session, WT_DELTA_ENABLED_FOR_PAGE(session, page->type) && r->multi_next == 1);
             break;
+        }
 
         WT_RET(__wt_ref_block_free(session, ref, r->multi_next == 1));
         break;
@@ -3280,7 +3284,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                  * Free the block address otherwise if it is available.
                  */
                 if (ref->addr != NULL) {
-                    if (!F_ISSET(r, WT_REC_EMPTY_DELTA))
+                    if (!F_ISSET(r, WT_REC_EMPTY_DELTA) || r->multi->addr.block_cookie != NULL)
                         WT_RET(__wt_ref_block_free(session, ref, r->multi_next == 1));
                 }
             } else {
