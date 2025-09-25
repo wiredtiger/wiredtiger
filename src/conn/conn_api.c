@@ -2315,8 +2315,8 @@ __wti_cache_eviction_controls_config(WT_SESSION_IMPL *session, const char *cfg[]
     cache = S2C(session)->cache;
 
     /*
-     * The cache tolerance is in multiples of 10.
-     * Given percentage floor value is considered.
+     * The cache tolerance is a percentage value with range 0 - 100, inclusive.
+     * Given input percentage is considered in multiples of 10 only, by applying floor().
      * 00 < value < 10  -> 00
      * 10 < value < 20  -> 10
      * 20 < value < 30  -> 20
