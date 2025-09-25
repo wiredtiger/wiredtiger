@@ -328,7 +328,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * checkpoint.
      */
     if (ret == 0 && !(btree->evict_disabled > 0 || !F_ISSET(btree->dhandle, WT_DHANDLE_OPEN)) &&
-      F_ISSET(r, WT_REC_EVICT) && !WT_PAGE_IS_INTERNAL(r->ref->page) && r->multi_next == 1 &&
+      F_ISSET(r, WT_REC_EVICT) && !WT_PAGE_IS_INTERNAL(page) && r->multi_next == 1 &&
       F_ISSET(r, WT_REC_CALL_URGENT) && !r->update_used && r->cache_write_restore_invisible &&
       !r->cache_upd_chain_all_aborted) {
         /*
@@ -336,7 +336,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
          * reconciled before as we don't make any progress.
          */
         WT_ASSERT(session,
-          !WT_DELTA_LEAF_ENABLED(session) || F_ISSET(r, WT_REC_EMPTY_DELTA) ||
+          !WT_DELTA_ENABLED_FOR_PAGE(session, page->type) || F_ISSET(r, WT_REC_EMPTY_DELTA) ||
             page->disagg_info->block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID);
         /*
          * If eviction didn't make any progress, let application threads know they should refresh
@@ -2829,9 +2829,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
      * the wrapup code, and we don't have a code path from here to there.)
      */
     if (last_block && r->multi_next == 1 && __rec_is_checkpoint(session, r)) {
-        WT_ASSERT_ALWAYS(
-          session, r->supd_next == 0, "Attempting to write final block but further updates found");
-
         r->wrapup_checkpoint = &chunk->image;
 
         /*
@@ -3247,11 +3244,13 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         if (__wt_ref_is_root(ref))
             break;
 
-        /* We need to retain the block address if we skipped writing an empty delta. */
-        if (F_ISSET(r, WT_REC_EMPTY_DELTA) && ref->addr != NULL &&
+        /*
+         * We need to retain the block address if we skipped writing an empty delta or we are
+         * rewriting a delta to a full page.
+         */
+        if (F_ISSET(r, WT_REC_EMPTY_DELTA | WT_REC_REWRITE_DELTA) && ref->addr != NULL &&
           r->multi->addr.block_cookie == NULL) {
-            WT_ASSERT(
-              session, WT_DELTA_ENABLED_FOR_PAGE(session, page->type) && r->multi_next == 1);
+            WT_ASSERT(session, WT_DELTA_ENABLED_FOR_PAGE(session, page->type));
             break;
         }
 
@@ -3282,13 +3281,13 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
              * from disk.
              */
             if (mod->mod_replace.block_cookie == NULL) {
-                WT_ASSERT(session, WT_DELTA_LEAF_ENABLED(session));
+                WT_ASSERT(session, WT_DELTA_ENABLED_FOR_PAGE(session, page->type));
                 /*
                  * We need to retain the block address if we skipped writing an empty delta again.
                  * Free the block address otherwise if it is available.
                  */
                 if (ref->addr != NULL) {
-                    if (!F_ISSET(r, WT_REC_EMPTY_DELTA) || r->multi->addr.block_cookie != NULL)
+                    if (!F_ISSET(r, WT_REC_EMPTY_DELTA))
                         WT_RET(__wt_ref_block_free(session, ref, r->multi_next == 1));
                 }
             } else {
@@ -3507,11 +3506,11 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         if (multi->addr.block_cookie != NULL) {
             /*
-             * Don't free the page if it is a replacement page in disaggregated storage and it is
-             * not the root page.
+             * Don't free the block if it is a replacement page in disaggregated storage. Root page
+             * is never a replacement page so its failed block will be freed here if we fail to
+             * reconcile a root page.
              */
-            if (page->disagg_info == NULL || r->multi_next != 1 ||
-              F_ISSET(r, WT_REC_DISAGG_NEW_PAGE) || __wt_ref_is_root(r->ref)) {
+            if (page->disagg_info == NULL || F_ISSET(r, WT_REC_DISAGG_NEW_PAGE)) {
                 int ret_tmp = __wt_btree_block_free(
                   session, multi->addr.block_cookie, multi->addr.block_cookie_size);
                 if (ret_tmp != 0) {
@@ -3526,7 +3525,8 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                           "failed to free the block in reconciliation failure");
                     WT_TRET(ret_tmp);
                 }
-            }
+            } else
+                WT_ASSERT(session, !__wt_ref_is_root(r->ref));
         }
     }
 
