@@ -244,7 +244,7 @@ rollback_to_stable(WT_SESSION *session)
     /* Rollback-to-stable is not supported for precise checkpoint. */
     if (GV(PRECISE_CHECKPOINT))
         return;
-        
+
     /*
      * Rollback the system using up to 10 threads. Extend to 11 values to cover the NULL config
      * case.
