@@ -780,9 +780,7 @@ __clayered_iterate_constituent(WT_CURSOR_LAYERED *clayered, WT_CURSOR *constitue
     ret = __clayered_position_constituent(clayered, constituent, true, &cmp);
     WT_RET_NOTFOUND_OK(ret);
 
-    /* The key was found and current cursor is not set - update the current cursor.
-     * The order is important here, we want to first check the ingest table and then the stable one.
-     */
+    /* The key was found and current cursor is not set - update the current cursor. */
     if (ret == 0 && cmp == 0 && clayered->current_cursor == NULL)
         clayered->current_cursor = constituent;
 
@@ -811,6 +809,7 @@ __clayered_next(WT_CURSOR *cursor)
 
     /* If we aren't positioned for a forward scan, get started. */
     if (clayered->current_cursor == NULL || !F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT)) {
+        /* The order matters: check the ingest table before the stable one. */
         WT_ERR(__clayered_iterate_constituent(clayered, clayered->ingest_cursor, true));
         WT_ERR(__clayered_iterate_constituent(clayered, clayered->stable_cursor, true));
         F_SET(clayered, WT_CLAYERED_ITERATE_NEXT);
@@ -878,6 +877,7 @@ __layered_prev_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 
     /* If we aren't positioned for a reverse scan, get started. */
     if (clayered->current_cursor == NULL || !F_ISSET(clayered, WT_CLAYERED_ITERATE_PREV)) {
+        /* The order matters: check the ingest table before the stable one. */
         WT_ERR(__clayered_iterate_constituent(clayered, clayered->ingest_cursor, false));
         WT_ERR(__clayered_iterate_constituent(clayered, clayered->stable_cursor, false));
         F_SET(clayered, WT_CLAYERED_ITERATE_PREV);
