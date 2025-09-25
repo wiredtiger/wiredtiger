@@ -2188,6 +2188,7 @@ int
 __wti_rec_pack_delta_internal(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *key, WTI_REC_KV *value)
 {
+    WT_DECL_ITEM(key_string);
     WT_PAGE_HEADER *header;
     WTI_REC_KV t_kv_struct, *t_kv;
     size_t packed_size;
@@ -2195,6 +2196,14 @@ __wti_rec_pack_delta_internal(
 
     WT_CLEAR(t_kv_struct);
     header = (WT_PAGE_HEADER *)r->delta.data;
+
+#ifdef HAVE_DIAGNOSTIC
+    WT_RET(__wt_scr_alloc(session, 0, &key_string));
+    __wt_verbose(session, WT_VERB_PAGE_DELTA, "Packing delta internal key %s\n",
+      __wt_key_string(
+        session, key->buf.data, key->buf.size, S2BT(session)->key_format, key_string));
+    __wt_scr_free(session, &key_string);
+#endif
 
     packed_size = key->len;
     if (value != NULL)
@@ -2934,11 +2943,47 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         /* We must only have one delta. Building deltas for split case is a future thing. */
         WT_ASSERT(session, last_block);
         WT_RET(__rec_write_delta(session, r, chunk, addr, &addr_size, &compressed_size));
+#ifdef HAVE_DIAGNOSTIC
+        WT_CELL_UNPACK_DELTA_INT unpacked_deltas;
+        WT_DECL_ITEM(key_string);
+        WT_RET(__wt_scr_alloc(session, 0, &key_string));
+
+        WT_CELL_FOREACH_DELTA_INT(session, r->delta.data, header, unpacked_deltas)
+        {
+            __wt_verbose(session, WT_VERB_PAGE_DELTA, "Writing Delta - Delta Key %s\n",
+              __wt_key_string(session, unpacked_deltas.key.data, unpacked_deltas.key.size,
+                btree->key_format, key_string));
+        }
+        WT_CELL_FOREACH_END;
+
+        WT_CELL_UNPACK_ADDR unpacked_kv;
+        WT_CELL_FOREACH_ADDR (session, (WT_PAGE_HEADER *)chunk->image.data, unpacked_kv) {
+            if (unpacked_kv.type == WT_CELL_KEY)
+                __wt_verbose(session, WT_VERB_PAGE_DELTA, "Writing Delta - Full Disk Key %s\n",
+                  __wt_key_string(
+                    session, unpacked_kv.data, unpacked_kv.size, btree->key_format, key_string));
+        }
+        WT_CELL_FOREACH_END;
+        __wt_scr_free(session, &key_string);
+#endif
     } else {
         WT_RET(
           __rec_write_image(session, r, chunk, addr, &addr_size, &compressed_size, last_block));
 #ifdef HAVE_DIAGNOSTIC
         verify_image = true;
+        if (r->page->type == WT_PAGE_ROW_INT) {
+            WT_CELL_UNPACK_ADDR unpacked_kv;
+            WT_DECL_ITEM(key_string);
+            WT_RET(__wt_scr_alloc(session, 0, &key_string));
+            WT_CELL_FOREACH_ADDR (session, (WT_PAGE_HEADER *)chunk->image.data, unpacked_kv) {
+                if (unpacked_kv.type == WT_CELL_KEY)
+                    __wt_verbose(session, WT_VERB_PAGE_DELTA, "Writing Full Disk Image - Key %s\n",
+                      __wt_key_string(session, unpacked_kv.data, unpacked_kv.size,
+                        btree->key_format, key_string));
+            }
+            WT_CELL_FOREACH_END;
+            __wt_scr_free(session, &key_string);
+        }
 #endif
     }
     WT_RET(__wt_memdup(session, addr, addr_size, &multi->addr.block_cookie));

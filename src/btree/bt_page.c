@@ -129,6 +129,7 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
   size_t *incr)
 {
     WT_CELL_UNPACK_ADDR *base, *base_key, *base_val;
+    WT_DECL_ITEM(key_string);
     WT_DECL_RET;
     WT_ITEM base_key_buf, delta_key_buf;
     WT_PAGE *page;
@@ -160,6 +161,18 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
 
     /* Perform a merge sort between the base array and the delta array. */
     while (i < base_entries && j < delta_entries) {
+#ifdef HAVE_DIAGNOSTIC
+        WT_ERR(__wt_scr_alloc(session, 0, &key_string));
+        __wt_verbose(session, WT_VERB_PAGE_DELTA, "Reconstruct Base Key - %s, Ref Address - %p\n",
+          __wt_key_string(
+            session, base[i].data, base[i].size, S2BT(session)->key_format, key_string),
+          (void *)ref);
+        __wt_verbose(session, WT_VERB_PAGE_DELTA, "Reconstruct Delta Key - %s, Ref Address - %p\n",
+          __wt_key_string(
+            session, delta[j]->key.data, delta[j]->key.size, S2BT(session)->key_format, key_string),
+          (void *)ref);
+        __wt_scr_free(session, &key_string);
+#endif
         /* Compare the keys of the base entry and the delta entry. */
         base_key_buf.data = base[i].data;
         base_key_buf.size = base[i].size;
@@ -172,10 +185,29 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
             base_val = &base[i++];
             WT_ERR(__page_build_ref(
               session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
+#ifdef HAVE_DIAGNOSTIC
+            WT_ERR(__wt_scr_alloc(session, 0, &key_string));
+            __wt_verbose(session, WT_VERB_PAGE_DELTA,
+              "Using Base image to build ref Key - %s, Ref Address - %p\n",
+              __wt_key_string(
+                session, base_key->data, base_key->size, S2BT(session)->key_format, key_string),
+              (void *)ref);
+            __wt_scr_free(session, &key_string);
+#endif
         } else if (cmp >= 0) {
-            if (!__wt_delta_cell_type_visible_all(delta[j]))
+            if (!__wt_delta_cell_type_visible_all(delta[j])) {
                 WT_ERR(__page_build_ref(
                   session, ref, NULL, NULL, delta[j], false, &refs[final_entries++], incr));
+#ifdef HAVE_DIAGNOSTIC
+                WT_ERR(__wt_scr_alloc(session, 0, &key_string));
+                __wt_verbose(session, WT_VERB_PAGE_DELTA,
+                  "Using Delta to build ref Key - %s, Ref Address - %p\n",
+                  __wt_key_string(session, delta[j]->key.data, delta[j]->key.size,
+                    S2BT(session)->key_format, key_string),
+                  (void *)ref);
+                __wt_scr_free(session, &key_string);
+#endif
+            }
             if (cmp == 0)
                 i += 2; /* Skip the current key and value. */
             j++;

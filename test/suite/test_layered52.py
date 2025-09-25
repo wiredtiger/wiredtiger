@@ -43,7 +43,7 @@ class test_layered51(wttest.WiredTigerTestCase, DisaggConfigMixin):
     uri = 'file:test_layered51'
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(page_log=palm),page_delta=(delta_pct=100),'
+                     + 'disaggregated=(page_log=palm),page_delta=(delta_pct=100),verbose=(page_delta:5),'
     disagg_storages = gen_disagg_storages('test_layered51', disagg_only = True)
 
     # Make scenarios for different cloud service providers
@@ -102,6 +102,7 @@ class test_layered51(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     def test_internal_page_delta_delete_leaf(self):
 
+        self.ignoreStdoutPattern('WT_VERB_PAGE_DELTA')
         self.session.create(self.uri, self.session_create_config())
 
         # Populate the table with nitems.
