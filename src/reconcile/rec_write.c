@@ -3082,9 +3082,8 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             if (multi->block_meta == NULL)
                 WT_RET(__wt_btree_block_free(
                   session, multi->addr.block_cookie, multi->addr.block_cookie_size));
-            /* Free disagg block only if it is not a block replacement. */
-            else if (r->multi_next != 1) {
-                WT_ASSERT(session, !__wt_ref_is_root(r->ref));
+            /* Free disagg block only if it is not a block replacement or it is the root page. */
+            else if (r->multi_next != 1 || __wt_ref_is_root(r->ref)) {
                 WT_RET(__wt_btree_block_free(
                   session, multi->addr.block_cookie, multi->addr.block_cookie_size));
                 multi->block_meta->page_id = WT_BLOCK_INVALID_PAGE_ID;
