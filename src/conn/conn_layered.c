@@ -1208,14 +1208,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
         /* If we are starting as primary (e.g., for internal testing), begin the checkpoint. */
         if (leader && !picked_up) {
-            WT_ERR(__wt_config_gets(session, cfg, "create", &cval));
-            if (cval.val == 0) {
-                ret = __layered_get_disagg_checkpoint(
-                  session, cfg, NULL, NULL, &complete_checkpoint_meta);
-                if (ret == WT_NOTFOUND)
-                    WT_ERR_MSG(session, ret, "disaggregated checkpoint not found.");
-                WT_ERR(ret);
-
+            ret =
+              __layered_get_disagg_checkpoint(session, cfg, NULL, NULL, &complete_checkpoint_meta);
+            WT_ERR_NOTFOUND_OK(ret, true);
+            if (ret == 0) {
+                /* Pick up the checkpoint we just found. */
                 WT_WITH_CHECKPOINT_LOCK(session,
                   ret = __disagg_pick_up_checkpoint_meta_item(session, &complete_checkpoint_meta));
 
