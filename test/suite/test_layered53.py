@@ -46,7 +46,7 @@ class test_layered53(wttest.WiredTigerTestCase, DisaggConfigMixin):
         ('write_both', dict(delta_config='page_delta=(internal_page_delta=true,leaf_page_delta=true)', delta_type='both')),
     ]
 
-    conn_base_config = 'cache_size=256MB,transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_base_config = 'cache_size=32MB,transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(page_log=palm),page_delta=(delta_pct=100),'
     disagg_storages = gen_disagg_storages('test_layered53', disagg_only = True)
 
