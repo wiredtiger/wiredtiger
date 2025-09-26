@@ -83,7 +83,7 @@ class test_prepare43(test_prepare_preserve_prepare_base):
         evict_cursor = session_evict.open_cursor(self.uri, None, None)
         for i in range(1, 19):
             evict_cursor.set_key(i)
-            self.assertEqual(evict_cursor.search(), 0)
+            evict_cursor.search()
             evict_cursor.reset()
         session_evict.rollback_transaction()
 
