@@ -2765,11 +2765,11 @@ __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open
 }
 
 #ifdef HAVE_UNITTEST
-int
-__ut_session_config_int(WT_SESSION_IMPL *session, const char *config)
-{
-    /* Disable temporarily as it's not compatible with compiled configurations.
-     * return (__session_config_int(session, config));
-     */
-}
+/* Disable temporarily as the test is not compatible with compiled configurations.
+ * int
+ * __ut_session_config_int(WT_SESSION_IMPL *session, const char *config)
+ * {
+ *    return (__session_config_int(session, config));
+ * }
+ */
 #endif
