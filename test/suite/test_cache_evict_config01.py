@@ -58,9 +58,9 @@ class test_cache_evict_config01(wttest.WiredTigerTestCase):
 
         # Try different eviction failure reconfigurations.
         failure_configs = [
-            #"cache_eviction_controls=[app_eviction_min_cache_fill_ratio=-1]",
-            #"cache_eviction_controls=[app_eviction_min_cache_fill_ratio=60]",
-            #"cache_eviction_controls=[app_eviction_min_cache_fill_ratio=110]",
+            "cache_eviction_controls=[app_eviction_min_cache_fill_ratio=-1]",
+            "cache_eviction_controls=[app_eviction_min_cache_fill_ratio=60]",
+            "cache_eviction_controls=[app_eviction_min_cache_fill_ratio=110]",
             "cache_eviction_controls=[cache_tolerance_for_app_eviction=-1]",
             "cache_eviction_controls=[cache_tolerance_for_app_eviction=110]",
         ]
