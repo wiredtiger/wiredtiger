@@ -57,38 +57,35 @@ class test_prepare43(test_prepare_preserve_prepare_base):
         # Insert a value and commit for keys 1-19
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-        for i in range(1, 20):
+        for i in range(1, 100):
             value = i if self.value_format == '8t' else "commit_value"
             cursor[i] = value
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(21))
 
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-        for i in range(1, 20):
+        for i in range(1, 100):
             cursor.set_key(i)
             cursor.remove()
         self.session.prepare_transaction(f"prepare_timestamp={self.timestamp_str(25)},prepared_id={self.prepared_id_str(123)}")
-
         # move the stable ts to be past prepare ts
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(26))
 
-        self.session.rollback_transaction(f"rollback_timestamp={self.timestamp_str(30)}")
+        session2 = self.conn.open_session()
+        session2.checkpoint()
 
-        self.session.checkpoint()
-
-        # Force the page to be evicted, since rollback timestamp is not durable yet,
-        # checkpoint will write the tombstone as prepared
+        # Force the page to be evicted, checkpoint will write the tombstone as prepared
         session_evict = self.conn.open_session("debug=(release_evict_page=true)")
         session_evict.begin_transaction("ignore_prepare=true")
         evict_cursor = session_evict.open_cursor(self.uri, None, None)
-        for i in range(1, 19):
+        for i in range(1, 100):
             evict_cursor.set_key(i)
             evict_cursor.search()
             evict_cursor.reset()
         session_evict.rollback_transaction()
 
         # Check that we can open a checkpoint cursor and find all keys
-        cursor = self.session.open_cursor(
+        cursor = session2.open_cursor(
             self.uri, None, "checkpoint=WiredTigerCheckpoint")
         i = 1
         while True:
@@ -98,4 +95,4 @@ class test_prepare43(test_prepare_preserve_prepare_base):
             self.assertEqual(cursor.get_key(), i)
             self.assertEqual(cursor.get_value(), i if self.value_format == '8t' else "commit_value")
             i += 1
-        self.assertEqual(i, 20)
+        self.assertEqual(i, 100)
