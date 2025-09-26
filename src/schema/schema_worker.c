@@ -111,9 +111,29 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     WT_WITHOUT_DHANDLE(session,
       stable_ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
 
-    if (stable_ret != 0 && stable_ret != EBUSY)
-        WT_ERR_MSG(session, stable_ret, "Verify (layered): %s stable table verification failed. ",
-          stable_uri);
+    if (stable_ret != 0 && stable_ret != EBUSY) {
+        /*
+         * If we are a follower, and the stable table is missing, it may be because we have not yet
+         * picked up a checkpoint. In that case, skip the error.
+         */
+        uint64_t lsn;
+        WT_ACQUIRE_READ(lsn, conn->disaggregated_storage.last_checkpoint_meta_lsn);
+        /*
+         * If the lsn == 0: No checkpoint has ever been picked up, so no stable constituents exist.
+         * If the lsn != 0: At least one checkpoint has been picked up, so stable constituents
+         * should exist.
+         */
+        if (stable_ret == ENOENT && !conn->layered_table_manager.leader &&
+          lsn == WT_DISAGG_LSN_NONE) {
+            stable_ret = 0;
+            __wt_verbose_level(session, WT_VERB_VERIFY, WT_VERBOSE_DEBUG_2,
+              "Verify (layered): Skipping stable table verification for %s - "
+              "follower has not picked up any checkpoint",
+              uri);
+        } else
+            WT_ERR_MSG(session, stable_ret,
+              "Verify (layered): %s stable table verification failed. ", stable_uri);
+    }
 
     /*
      * Verify the ingest table of the layered table. FIXME-WT-15047: Implement ingest table

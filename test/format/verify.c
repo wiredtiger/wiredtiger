@@ -46,20 +46,18 @@ table_verify(TABLE *table, void *arg)
     /*
      * FIXME-WT-14885: We can run verify on layered tables when deltas are written as a full image.
      */
-    if (TV(DISAGG_ENABLED)) {
-        printf("table.%u skipped verify because verify does not support disagg delta pages. ",
-          table->id);
-        fflush(stdout);
-        return;
-    }
+    // if (TV(DISAGG_ENABLED)) {
+    //     printf("table.%u skipped verify because verify does not support disagg delta pages. ",
+    //       table->id);
+    //     fflush(stdout);
+    //     return;
+    // }
 
     memset(&sap, 0, sizeof(sap));
     wt_wrap_open_session(conn, &sap, table->track_prefix,
       enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
     ret = session->verify(session, table->uri, "strict");
-    testutil_assert(ret == 0 || ret == EBUSY ||
-      /* FIXME-WT-15413: Verify on follower may return ENOENT if stable uri is missing. */
-      (g.disagg_storage_config && !g.disagg_leader && ret == ENOENT));
+    testutil_assert(ret == 0 || ret == EBUSY);
 
     if (ret == EBUSY)
         WARN("table.%u skipped verify because of EBUSY", table->id);
