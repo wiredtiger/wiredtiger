@@ -76,7 +76,7 @@ class test_layered53(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Advance the checkpoint on the follower.
         self.disagg_advance_checkpoint(self.conn_follow)
 
-        # Advance the stable timestamp on the leader without dirtying any check that we indeed
+        # Advance the stable timestamp on the leader without dirtying anything, check that we indeed
         # created a checkpoint.
         self.conn.set_timestamp(f"stable_timestamp={self.timestamp_str(20)}")
         self.session.checkpoint()
