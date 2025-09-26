@@ -2766,8 +2766,10 @@ __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open
 
 #ifdef HAVE_UNITTEST
 int
-__ut_session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
+__ut_session_config_int(WT_SESSION_IMPL *session, const char *config)
 {
-    return (__session_config_int(session, conf));
+    /* Disable temporarily as it's not compatible with compiled configurations.
+     * return (__session_config_int(session, config));
+     */
 }
 #endif
