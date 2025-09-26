@@ -31,7 +31,7 @@ from prepare_util import test_prepare_preserve_prepare_base
 from wtscenario import make_scenarios
 
 # Test that prepared transactions are properly handled during page eviction and checkpointing.
-# Verify that pages with prepared transaction data are not incorrectly skipped during walks when opening a checkpoint cursor
+# Verify that pages with prepared transaction data are not incorrectly skipped during walks when opening a cursor
 
 class test_prepare43(test_prepare_preserve_prepare_base):
     uri = 'table:test_prepare43'
@@ -85,8 +85,7 @@ class test_prepare43(test_prepare_preserve_prepare_base):
         session_evict.rollback_transaction()
 
         # Check that we can open a checkpoint cursor and find all keys
-        cursor = session2.open_cursor(
-            self.uri, None, "checkpoint=WiredTigerCheckpoint")
+        cursor = session2.open_cursor(self.uri, None, 'ignore_prepare=true')
         i = 1
         while True:
             ret = cursor.next()
