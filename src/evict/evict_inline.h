@@ -863,11 +863,13 @@ __wt_evict_app_assist_worker_check(
      * If the cache tolerance is configured, check if the session can be tolerant. if tolerant,
      * don't involve in eviction.
      */
-    uint8_t cache_tolerance =
-      __wt_atomic_load8(&conn->cache->cache_eviction_controls.cache_tolerance_for_app_eviction);
-    if ((cache_tolerance != 0) &&
-      (__evict_is_session_cache_trigger_tolerant(session, cache_tolerance)))
-        return (0);
+    if (pct_full <= evict->eviction_trigger) {
+        uint8_t cache_tolerance =
+          __wt_atomic_load8(&conn->cache->cache_eviction_controls.cache_tolerance_for_app_eviction);
+        if ((cache_tolerance != 0) &&
+          (__evict_is_session_cache_trigger_tolerant(session, cache_tolerance)))
+            return (0);
+    }
 
     /*
      * Some callers (those waiting for slow operations), will sleep if there was no cache work to
