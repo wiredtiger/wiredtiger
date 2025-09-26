@@ -66,9 +66,6 @@ test_prefetch02.py
 test_prepare03.py
 test_prepare11.py
 test_prepare13.py
-test_prepare22.py
-test_prepare23.py
-test_prepare27.py
 test_prepare28.py
 test_prepare29.py
 test_prepare_cursor01.py
