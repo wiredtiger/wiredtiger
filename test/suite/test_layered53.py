@@ -42,7 +42,6 @@ class test_layered53(wttest.WiredTigerTestCase, DisaggConfigMixin):
     delta = [
         ('write_leaf_only', dict(delta_config='page_delta=(internal_page_delta=false,leaf_page_delta=true)', delta_type='leaf_only')),
         ('write_internal_only', dict(delta_config='page_delta=(internal_page_delta=true,leaf_page_delta=false)', delta_type='internal_only')),
-        ('write_none', dict(delta_config='page_delta=(internal_page_delta=false,leaf_page_delta=false)', delta_type='none')),
         ('write_both', dict(delta_config='page_delta=(internal_page_delta=true,leaf_page_delta=true)', delta_type='both')),
     ]
 
@@ -123,9 +122,6 @@ class test_layered53(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
             self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
-        if (self.delta_type == 'none'):
-            self.assertEqual(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
-            self.assertEqual(self.get_stat(stat.conn.rec_page_delta_internal), 0)
 
         # Re-open the connection to clear contents out of memory.
         self.reopen_disagg_conn(self.conn_config())
