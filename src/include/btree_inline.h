@@ -1649,11 +1649,13 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool page_replacement
     if (!__wt_ref_addr_copy(session, ref, &addr))
         goto err;
 
-    if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) || !page_replacement)
+    if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
         WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
-
-    if (!page_replacement && ref->page != NULL && ref->page->disagg_info != NULL)
-        ref->page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+    else if (!page_replacement) {
+        WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
+        if (ref->page != NULL)
+            ref->page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+    }
 
     /* Clear the address (so we don't free it twice). */
     __wt_ref_addr_free(session, ref);
