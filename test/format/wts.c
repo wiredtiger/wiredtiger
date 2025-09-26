@@ -185,6 +185,8 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",failpoint_eviction_split");
     if (GV(STRESS_FAILPOINT_HS_DELETE_KEY_FROM_TS))
         CONFIG_APPEND(*p, ",failpoint_history_store_delete_key_from_ts");
+    if (GV(STRESS_FAILPOINT_REC_BEFORE_WRAPUP))
+        CONFIG_APPEND(*p, ",failpoint_rec_before_wrapup");
     if (GV(STRESS_HS_CHECKPOINT_DELAY))
         CONFIG_APPEND(*p, ",history_store_checkpoint_delay");
     if (GV(STRESS_HS_SEARCH))
@@ -425,6 +427,14 @@ configure_prefetch(char **p, size_t max)
 static void
 configure_obsolete_cleanup(char **p, size_t max)
 {
+    /*
+     * If it's all off, don't even generate the outer checkpoint_cleanup config. It's not compatible
+     * with older branches, so take both options being configured off as a proxy for the whole
+     * feature being turned off.
+     */
+    if (strcmp(GVS(OBSOLETE_CLEANUP_METHOD), "off") == 0 && GV(OBSOLETE_CLEANUP_WAIT) == 0)
+        return;
+
     CONFIG_APPEND(*p, ",checkpoint_cleanup=[");
 
     /* Strategy. */
@@ -432,7 +442,8 @@ configure_obsolete_cleanup(char **p, size_t max)
         CONFIG_APPEND(*p, "method=%s", (char *)GVS(OBSOLETE_CLEANUP_METHOD));
 
     /* Interval. */
-    CONFIG_APPEND(*p, ",wait=%" PRIu32, GV(OBSOLETE_CLEANUP_WAIT));
+    if (GV(OBSOLETE_CLEANUP_WAIT) != 0)
+        CONFIG_APPEND(*p, ",wait=%" PRIu32, GV(OBSOLETE_CLEANUP_WAIT));
 
     CONFIG_APPEND(*p, "]");
 }
@@ -517,6 +528,13 @@ create_database(const char *home, WT_CONNECTION **connp)
 
     if (GV(DISK_DATA_EXTEND))
         CONFIG_APPEND(p, ",file_extend=(data=8MB)");
+
+    if (GV(PRECISE_CHECKPOINT))
+        CONFIG_APPEND(p, ",precise_checkpoint=true");
+
+    /* If prepared is not enabled, this will be a no-op. */
+    if (GV(PRESERVE_PREPARED))
+        CONFIG_APPEND(p, ",preserve_prepared=true");
 
     /* Optional timing stress. */
     configure_timing_stress(&p, max);
@@ -680,17 +698,16 @@ create_object(TABLE *table, void *arg)
 }
 
 /*
- * disagg_conn_init --
- *     For disaggregated storage, do some extra initialization of a connection.
+ * precise_checkpoint_init --
+ *     If precise checkpoint is enabled, do some extra initialization of a connection.
  */
 static void
-disagg_conn_init(WT_CONNECTION *conn)
+precise_checkpoint_init(WT_CONNECTION *conn)
 {
     /*
      * We do a separate wiredtiger_open call to create the database and tables, and when we close
-     * that connection, a checkpoint is done. Disaggregated storage uses precise checkpoints, which
-     * require the stable timestamp to be set. Set it to the minimum value, which should not
-     * interfere with any later operations.
+     * that connection, a checkpoint is done. Precise checkpoints requires the stable timestamp to
+     * be set. Set it to the minimum value, which should not interfere with any later operations.
      */
     testutil_check(conn->set_timestamp(conn, "stable_timestamp=1"));
 }
@@ -715,8 +732,8 @@ wts_create_database(void)
     WT_CONNECTION *conn;
 
     create_database(g.home, &conn);
-    if (g.disagg_storage_config)
-        disagg_conn_init(conn);
+    if (GV(PRECISE_CHECKPOINT))
+        precise_checkpoint_init(conn);
 
     g.wts_conn = conn;
     tables_apply(create_object, g.wts_conn);
@@ -784,12 +801,13 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
             CONFIG_APPEND(p, ",%s", s);
         if (g.config_open != NULL)
             CONFIG_APPEND(p, ",%s", g.config_open);
-        /*
-         * FIXME-WT-14979: Precise checkpoints are incompatible with the on-disk block manager.
-         * Ideally we would not gate precise checkpoints on disagg also being enabled.
-         */
-        if (g.disagg_storage_config && GV(CHECKPOINT_PRECISE))
+
+        if (GV(PRECISE_CHECKPOINT))
             CONFIG_APPEND(p, ",precise_checkpoint=true");
+
+        /* If prepared is not enabled, this will be a no-op. */
+        if (GV(PRESERVE_PREPARED))
+            CONFIG_APPEND(p, ",preserve_prepared=true");
 
 #if WIREDTIGER_VERSION_MAJOR >= 10
         if (GV(OPS_VERIFY) && verify_metadata)

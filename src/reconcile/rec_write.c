@@ -69,6 +69,9 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     else
         WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_gt500);
 
+    WT_ASSERT_ALWAYS(
+      session, !F_ISSET(btree, WT_BTREE_READONLY), "Attempting reconciliation on a read-only page");
+
     /*
      * Sanity check flags.
      *
@@ -77,7 +80,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      * isolation.
      */
     WT_ASSERT_ALWAYS(session,
-      !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_CHECKPOINT) ||
+      !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_NO_SNAPSHOT) ||
         F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT),
       "Attempting an eviction with transaction visibility and no snapshot");
 
@@ -339,6 +342,13 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         ret = __wt_set_return(session, EBUSY);
     }
     addr = ref->addr;
+
+    /*
+     * Fail 1% of the time after we have built the disk image but before we wrap up reconciliation.
+     */
+    if (F_ISSET(r, WT_REC_EVICT) && !F_ISSET(r, WT_REC_EVICT_CALL_CLOSING) &&
+      __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP, 100))
+        ret = __wt_set_return(session, EBUSY);
 
     /*
      * If we fail the reconciliation prior to calling __rec_write_wrapup then we can clean up our
@@ -672,25 +682,29 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     else
         r->rec_prune_timestamp = WT_TS_NONE;
 
-    /*
-     * Cache the checkpoint's pinned transaction ID. This forbids eviction to evict anything that is
-     * not visible to the current checkpoint.
-     */
-    if (LF_ISSET(WT_REC_VISIBLE_CHECKPOINT)) {
+    if (LF_ISSET(WT_REC_VISIBLE_NO_SNAPSHOT)) {
         WT_ASSERT(session, LF_ISSET(WT_REC_EVICT));
         WT_TXN_GLOBAL *txn_global = &conn->txn_global;
-        WT_ACQUIRE_READ(r->rec_start_ckpt_pinned_id, txn_global->checkpoint_txn_shared.pinned_id);
-        if (r->rec_start_ckpt_pinned_id == WT_TXN_NONE)
-            WT_ACQUIRE_READ(r->rec_start_ckpt_pinned_id, txn_global->last_running);
+        /*
+         * If precise checkpoint is enabled, set the reconciliation's pinned id to the checkpoint's
+         * pinned id. This forbids eviction to evict anything that is not visible to the current
+         * checkpoint.
+         */
+        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+            WT_ACQUIRE_READ(r->rec_start_pinned_id, txn_global->checkpoint_txn_shared.pinned_id);
+            if (r->rec_start_pinned_id == WT_TXN_NONE)
+                WT_ACQUIRE_READ(r->rec_start_pinned_id, txn_global->last_running);
+        } else
+            WT_ACQUIRE_READ(r->rec_start_pinned_id, txn_global->last_running);
 
         if (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) {
             uint64_t ckpt_txn;
             WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
-            if (ckpt_txn != WT_TXN_NONE && ckpt_txn < r->rec_start_ckpt_pinned_id)
-                r->rec_start_ckpt_pinned_id = ckpt_txn;
+            if (ckpt_txn != WT_TXN_NONE && ckpt_txn < r->rec_start_pinned_id)
+                r->rec_start_pinned_id = ckpt_txn;
         }
     } else
-        r->rec_start_ckpt_pinned_id = WT_TXN_NONE;
+        r->rec_start_pinned_id = WT_TXN_NONE;
 
     /* When operating on the history store table, we should never try history store eviction. */
     WT_ASSERT_ALWAYS(session, !F_ISSET(btree->dhandle, WT_DHANDLE_HS) || !LF_ISSET(WT_REC_HS),
@@ -722,6 +736,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     /* The list of saved updates is reused. */
     r->supd_next = 0;
+    r->supd_onpage_or_restore = 0;
     r->supd_memsize = 0;
 
     /* The list of updates to be deleted from the history store. */
@@ -1910,6 +1925,7 @@ __rec_split_write_supd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK
     if (last_block) {
         WT_RET(__rec_supd_move(session, multi, r->supd, r->supd_next));
         r->supd_next = 0;
+        r->supd_onpage_or_restore = 0;
         r->supd_memsize = 0;
         return (ret);
     }
@@ -1952,6 +1968,7 @@ __rec_split_write_supd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK
          * appended to the list).
          */
         r->supd_memsize = 0;
+        r->supd_onpage_or_restore = 0;
         for (j = 0; i < r->supd_next; ++j, ++i) {
             /* Account for the remaining update memory. */
             if (r->supd[i].ins == NULL)
@@ -1959,7 +1976,11 @@ __rec_split_write_supd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK
                 upd = page->modify->mod_row_update[WT_ROW_SLOT(page, r->supd[i].rip)];
             else
                 upd = r->supd[i].ins->upd;
-            r->supd_memsize += __wt_update_list_memsize(upd);
+            /* Only count the size if we need to restore or have an onpage value. */
+            if (r->supd[i].onpage_upd != NULL || r->supd[i].restore) {
+                r->supd_memsize += __wt_update_list_memsize(upd);
+                ++r->supd_onpage_or_restore;
+            }
             r->supd[j] = r->supd[i];
         }
         r->supd_next = j;
@@ -2168,35 +2189,59 @@ __wti_rec_pack_delta_internal(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *key, WTI_REC_KV *value)
 {
     WT_PAGE_HEADER *header;
+    WTI_REC_KV t_kv_struct, *t_kv;
     size_t packed_size;
-    uint8_t flags;
-    uint8_t *p, *head_byte;
+    uint8_t *p;
 
-    flags = 0;
-
+    WT_CLEAR(t_kv_struct);
     header = (WT_PAGE_HEADER *)r->delta.data;
 
-    packed_size = 1 + key->len;
+    packed_size = key->len;
     if (value != NULL)
         packed_size += value->len;
 
     if (r->delta.size + packed_size > r->delta.memsize)
         WT_RET(__wt_buf_grow(session, &r->delta, r->delta.size + packed_size));
 
-    head_byte = (uint8_t *)r->delta.data + r->delta.size;
-    p = head_byte + 1;
+    p = (uint8_t *)r->delta.data + r->delta.size;
 
     __wti_rec_kv_copy(session, p, key);
     p += key->len;
-    if (value == NULL)
-        LF_SET(WT_DELTA_INT_IS_DELETE);
-    else
+
+    /*
+     * If the value is NULL, write a cell with zeroed-out values and a data size of zero, setting
+     * the cell type to WT_CELL_ADDR_DEL_VISIBLE_ALL. This approach allows for potential future
+     * extensions where additional information might be added to the delete cell.
+     */
+    if (value == NULL) {
+        t_kv = &t_kv_struct;
+        t_kv->buf.data = NULL;
+        t_kv->buf.size = 0;
+        /*
+         * Initialize an empty instance of WT_TIME_AGGREGATE to avoid writing a page deleted
+         * structure to disk.
+         */
+        static WT_TIME_AGGREGATE local_ta;
+        WT_TIME_AGGREGATE_INIT(&local_ta);
+
+        t_kv->cell_len = __wt_cell_pack_addr(
+          session, &t_kv->cell, WT_CELL_ADDR_DEL_VISIBLE_ALL, WT_RECNO_OOB, NULL, &local_ta, 0);
+        t_kv->len = t_kv->cell_len;
+        __wti_rec_kv_copy(session, p, t_kv);
+        packed_size += t_kv->len;
+        ++r->count_internal_page_delta_key_deleted;
+    } else {
         __wti_rec_kv_copy(session, p, value);
+        ++r->count_internal_page_delta_key_updated;
+    }
 
     r->delta.size += packed_size;
-    *head_byte = flags;
 
-    ++header->u.entries;
+    /*
+     * Each delta entry consists of two components: a key and a value. If the value is NULL, a cell
+     * of type WT_CELL_ADDR_DEL_VISIBLE_ALL is used to represent the deletion.
+     */
+    header->u.entries += 2;
     header->mem_size = (uint32_t)r->delta.size;
 
     return (0);
@@ -2528,6 +2573,17 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     delta_pct = (r->delta.size * 100) / chunk->image.size;
     if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
+        /*
+         * If we decide to write the delta we packed, track the number of internal keys deleted and
+         * inserted/updated
+         */
+        if (r->count_internal_page_delta_key_deleted != 0)
+            WT_STAT_CONN_DSRC_INCRV(session, rec_page_delta_internal_key_deleted,
+              r->count_internal_page_delta_key_deleted);
+        if (r->count_internal_page_delta_key_updated != 0)
+            WT_STAT_CONN_DSRC_INCRV(session, rec_page_delta_internal_key_updated,
+              r->count_internal_page_delta_key_updated);
+
         WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal);
 
         /*
@@ -2671,8 +2727,6 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
               mod->mod_replace.block_cookie_size, &multi->addr.block_cookie));
             multi->addr.block_cookie_size = mod->mod_replace.block_cookie_size;
             multi->addr.type = mod->mod_replace.type;
-            __wt_free(session, mod->mod_replace.block_cookie);
-            mod->mod_replace.block_cookie_size = 0;
         } else
             WT_ASSERT(session, r->ref->addr != NULL);
         break;
@@ -2684,8 +2738,6 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
               mod->mod_multi->addr.block_cookie_size, &multi->addr.block_cookie));
             multi->addr.block_cookie_size = mod->mod_multi->addr.block_cookie_size;
             multi->addr.type = mod->mod_multi->addr.type;
-            __wt_free(session, mod->mod_multi->addr.block_cookie);
-            mod->mod_multi->addr.block_cookie_size = 0;
         } else
             WT_ASSERT(session, r->ref->addr != NULL);
         break;
@@ -2771,6 +2823,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
         /* We have an empty page. Free the multi. */
         if (chunk->entries == 0 && !multi->supd_restore) {
+            WT_ASSERT_ALWAYS(session, last_block, "Write an empty page in split.");
             WT_ASSERT(session, WT_DELTA_LEAF_ENABLED(session));
             __rec_set_updates_durable(session, multi);
             if (btree->type == BTREE_ROW)
@@ -2923,6 +2976,7 @@ copy_image:
 
     /* Whether we wrote or not, clear the accumulated time statistics. */
     __rec_page_time_stats_clear(r);
+    __rec_page_delta_stats_clear(r);
 
     return (0);
 }

@@ -1125,23 +1125,57 @@ __wt_txn_upd_value_visible_all(WT_SESSION_IMPL *session, WT_UPDATE_VALUE *upd_va
  * __wt_txn_tw_stop_visible --
  *     Is the given stop time window visible?
  */
-static WT_INLINE bool
+static WT_INLINE WT_VISIBLE_TYPE
 __wt_txn_tw_stop_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    return (WT_TIME_WINDOW_HAS_STOP(tw) && !WT_TIME_WINDOW_HAS_STOP_PREPARE(tw) &&
-      __wt_txn_visible(session, tw->stop_txn, tw->stop_ts, tw->durable_stop_ts));
+    if (!WT_TIME_WINDOW_HAS_STOP(tw))
+        return (WT_VISIBLE_FALSE);
+
+    if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw)) {
+        /*
+         * For btrees that are not read-only, we must have seen the prepared update on the update
+         * chain and returned visible prepare if it is visible. For a checkpoint, prepared update is
+         * always not visible.
+         */
+        if (F_ISSET(S2BT(session), WT_BTREE_READONLY) &&
+          !WT_DHANDLE_IS_CHECKPOINT(session->dhandle) &&
+          __wt_txn_visible(session, tw->stop_txn, tw->stop_prepare_ts, tw->stop_prepare_ts))
+            return (WT_VISIBLE_PREPARE);
+
+        return (WT_VISIBLE_FALSE);
+    }
+
+    if (__wt_txn_visible(session, tw->stop_txn, tw->stop_ts, tw->durable_stop_ts))
+        return (WT_VISIBLE_TRUE);
+
+    return (WT_VISIBLE_FALSE);
 }
 
 /*
  * __wt_txn_tw_start_visible --
  *     Is the given start time window visible?
  */
-static WT_INLINE bool
+static WT_INLINE WT_VISIBLE_TYPE
 __wt_txn_tw_start_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    if (WT_TIME_WINDOW_HAS_START_PREPARE(tw))
-        return (false);
-    return (__wt_txn_visible(session, tw->start_txn, tw->start_ts, tw->durable_start_ts));
+    if (WT_TIME_WINDOW_HAS_START_PREPARE(tw)) {
+        /*
+         * For btrees that are not read-only, we must have seen the prepared update on the update
+         * chain and returned visible prepare if it is visible. For a checkpoint, prepared update is
+         * always not visible.
+         */
+        if (F_ISSET(S2BT(session), WT_BTREE_READONLY) &&
+          !WT_DHANDLE_IS_CHECKPOINT(session->dhandle) &&
+          __wt_txn_visible(session, tw->start_txn, tw->start_prepare_ts, tw->start_prepare_ts))
+            return (WT_VISIBLE_PREPARE);
+
+        return (WT_VISIBLE_FALSE);
+    }
+
+    if (__wt_txn_visible(session, tw->start_txn, tw->start_ts, tw->durable_start_ts))
+        return (WT_VISIBLE_TRUE);
+
+    return (WT_VISIBLE_FALSE);
 }
 
 /*
@@ -1650,13 +1684,23 @@ retry:
              * tombstone and should return "not found", except scanning the history store during
              * rollback to stable and when we are told to ignore non-globally visible tombstones.
              */
-            if (!have_stop_tw && __wt_txn_tw_stop_visible(session, &tw) &&
-              !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE)) {
-                cbt->upd_value->buf.data = NULL;
-                cbt->upd_value->buf.size = 0;
-                cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
-                WT_TIME_WINDOW_COPY_STOP(&cbt->upd_value->tw, &tw);
-                return (0);
+            if (!have_stop_tw) {
+                WT_VISIBLE_TYPE visible_type = __wt_txn_tw_stop_visible(session, &tw);
+                /*
+                 * FIXME-WT-15465: handle cursor walks for prepared updates on the stable table for
+                 * standby.
+                 */
+                if (visible_type == WT_VISIBLE_PREPARE) {
+                    if (!F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
+                        return (WT_PREPARE_CONFLICT);
+                } else if (visible_type == WT_VISIBLE_TRUE &&
+                  !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE)) {
+                    cbt->upd_value->buf.data = NULL;
+                    cbt->upd_value->buf.size = 0;
+                    cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
+                    WT_TIME_WINDOW_COPY_STOP(&cbt->upd_value->tw, &tw);
+                    return (0);
+                }
             }
 
             /* Store the stop time pair of the history store record that is returning. */
@@ -1668,7 +1712,26 @@ retry:
              * 1. The record is from the history store.
              * 2. It is visible to the reader.
              */
-            if (WT_IS_HS(session->dhandle) || __wt_txn_tw_start_visible(session, &tw)) {
+            if (WT_IS_HS(session->dhandle)) {
+                if (cbt->upd_value->skip_buf) {
+                    cbt->upd_value->buf.data = NULL;
+                    cbt->upd_value->buf.size = 0;
+                }
+                cbt->upd_value->type = WT_UPDATE_STANDARD;
+
+                WT_TIME_WINDOW_COPY_START(&cbt->upd_value->tw, &tw);
+                return (0);
+            }
+
+            WT_VISIBLE_TYPE visible_type = __wt_txn_tw_start_visible(session, &tw);
+            /*
+             * FIXME-WT-15465: handle cursor walks for prepared updates on the stable table for
+             * standby.
+             */
+            if (visible_type == WT_VISIBLE_PREPARE) {
+                if (!F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
+                    return (WT_PREPARE_CONFLICT);
+            } else if (visible_type == WT_VISIBLE_TRUE) {
                 if (cbt->upd_value->skip_buf) {
                     cbt->upd_value->buf.data = NULL;
                     cbt->upd_value->buf.size = 0;
@@ -1823,18 +1886,17 @@ __txn_remove_from_global_table(WT_SESSION_IMPL *session)
  *     Claim a prepared transaction.
  */
 static WT_INLINE int
-__wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, wt_timestamp_t prepared_transaction_id)
+__wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
 {
     WT_DECL_RET;
     WT_PENDING_PREPARED_ITEM *prepared_item;
     WT_TXN *txn;
     WT_TXN_OP *tmp_mod;
     txn = session->txn;
-    WT_RET(__wt_prepared_discover_find_item(session, prepared_transaction_id, &prepared_item));
-    F_SET(txn, WT_TXN_PREPARE | WT_TXN_HAS_PREPARED_ID | WT_TXN_RUNNING);
-    txn->prepared_id = prepared_transaction_id;
-    txn->prepare_timestamp = prepared_transaction_id;
-
+    WT_RET(__wt_prepared_discover_find_item(session, prepared_id, &prepared_item));
+    txn->prepared_id = prepared_id;
+    txn->prepare_timestamp = prepared_item->prepare_timestamp;
+    F_SET(txn, WT_TXN_PREPARE | WT_TXN_HAS_PREPARED_ID | WT_TXN_HAS_TS_PREPARE | WT_TXN_RUNNING);
     /*
      * Swap mod array with prepared_item to avoid double-free on cursor close and when
      * commit/rollback.
@@ -1852,6 +1914,7 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, wt_timestamp_t prepared_tr
     txn->prepare_count = prepared_item->prepare_count;
     prepared_item->prepare_count = 0;
 #endif
+    WT_RET(__wt_prepared_discover_remove_item(session, prepared_id));
 
     /* There's no txn id since claimed prepared txn is from recovery */
     WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_HAS_ID));
@@ -1867,7 +1930,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 {
     WT_CONFIG_ITEM cval;
     WT_TXN *txn;
-    wt_timestamp_t prepared_transaction_id;
+    uint64_t prepared_id;
 
     txn = session->txn;
     txn->isolation = session->isolation;
@@ -1884,8 +1947,8 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     if (conf != NULL) {
         WT_RET(__wt_conf_gets_def(session, conf, claim_prepared_id, 0, &cval));
         if (cval.len != 0) {
-            WT_RET(__wt_txn_parse_prepared_id(session, &prepared_transaction_id, &cval));
-            WT_RET(__wt_txn_claim_prepared_txn(session, prepared_transaction_id));
+            WT_RET(__wt_txn_parse_prepared_id(session, &prepared_id, &cval));
+            WT_RET(__wt_txn_claim_prepared_txn(session, prepared_id));
             return (0);
         }
     }

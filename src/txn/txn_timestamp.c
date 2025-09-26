@@ -33,8 +33,7 @@ __txn_parse_hex_raw(
 
     /* Protect against unexpectedly long hex strings. */
     if (cval->len > 2 * sizeof(uint64_t))
-        WT_RET_MSG(
-          session, EINVAL, "%s timestamp too long '%.*s'", name, (int)cval->len, cval->str);
+        WT_RET_MSG(session, EINVAL, "%s too long '%.*s'", name, (int)cval->len, cval->str);
 
     for (value = 0, hex_itr = cval->str, len = cval->len; len > 0; --len) {
         if ((size_t)*hex_itr < WT_ELEMENTS(hextable))
@@ -312,7 +311,7 @@ __wti_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 
     /* Scan to find the global pinned timestamp. */
     __wti_txn_get_pinned_timestamp(session, &pinned_timestamp, WT_TXN_TS_INCLUDE_OLDEST);
-    if (pinned_timestamp == 0)
+    if (pinned_timestamp == WT_TS_NONE)
         return;
 
     if (txn_global->has_pinned_timestamp && !force) {

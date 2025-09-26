@@ -467,7 +467,13 @@ functions:
           set -o errexit
           set -o verbose
           ${PREPARE_TEST_ENV}
-          ../../../tools/run_parallel.sh 'nice ./recovery-test.sh "${data_validation_stress_test_args} ${run_test_checkpoint_args}" WT_TEST.$t test_checkpoint' ${validation_stress_num_runs|120}
+
+          # Check if we running in disagg mode.
+          disagg_args=""
+          if [[ "${disagg_run|false}" == "true" ]]; then
+              disagg_args="-d leader -t row"
+          fi
+          ../../../tools/run_parallel.sh "nice ./recovery-test.sh \"${data_validation_stress_test_args} ${run_test_checkpoint_args} $disagg_args\" WT_TEST.\$t test_checkpoint" ${validation_stress_num_runs|120}
   "run tiered storage test":
     - command: shell.exec
       params:
@@ -644,7 +650,22 @@ functions:
         ${PREPARE_TEST_ENV}
         . test/evergreen/find_cmake.sh
         cd cmake_build/${directory}
-        $CTEST ${ctest_extra_args} --output-on-failure 2>&1
+
+        # Determine if we want to exclude or include disagg labels.
+        disagg_filter=""
+        if [[ "${disagg_run|false}" == "true" ]]; then
+          disagg_filter='-L'  # Include labels
+        else
+          disagg_filter='-LE'  # Exclude labels
+        fi
+        # Create new disagg label filter or append to the existing one.
+        ctest_args='${ctest_extra_args}'
+        if $(echo "$ctest_args" | grep -q -w -- "$disagg_filter"); then
+          ctest_args=$(echo "$ctest_args" | sed -E "s/$disagg_filter \"([^\"]*)\"/$disagg_filter \"\1|disagg\"/")
+        else
+          ctest_args+=" $disagg_filter \"disagg\""
+        fi
+        eval $CTEST $ctest_args --output-on-failure 2>&1
 
   "make check all":
     command: shell.exec
@@ -658,7 +679,7 @@ functions:
         . test/evergreen/find_cmake.sh
         cd cmake_build
         echo "Using number of parallel processes '-j ${num_jobs}' for 'make check all'"
-        $CTEST -L check -j ${num_jobs} --output-on-failure ${ctest_extra_args|} 2>&1
+        $CTEST -L "^check$" -LE "disagg" -j ${num_jobs} --output-on-failure ${ctest_extra_args|} 2>&1
 
   # The following cppsuite tasks define a greater overall task.
   "cppsuite test run": &cppsuite_test_run
@@ -816,6 +837,26 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_TEST_ENV}
+        # no_run will contain a list of files we don't want to run,
+        # do_run will contain a list of files we want to run.
+        no_run=$(mktemp)
+        do_run=$(mktemp)
+
+        # We need a local variable for this. If unit_test_ignore isn't provided by the caller, it
+        # ends up substituting a blank value. This breaks the -n check below, since there will be a
+        # bare -n with no arguments (which returns true, for some reason).
+        ignore="${unit_test_ignore}"
+
+        if [ -n "$ignore" ]; then
+            sed -e 's/ *#.*//' -e '/^$/d' < "$ignore" > $no_run
+            (cd ./test/suite; ls test_*.py) | fgrep -vf $no_run > $do_run
+        else
+            # Some hooks prune out specific tests if we don't give them a list, e.g. hook_tiered.
+            # But if there's anything in the list, they'll run that directly instead of pruning, so
+            # generate an empty list.
+            echo > $do_run
+        fi
+
         cd cmake_build
         threads_command=""
         if [[ -n "${num_jobs}" ]]; then
@@ -823,9 +864,9 @@ functions:
           threads_command="-j ${num_jobs}"
         fi
         if [ ${check_coverage|false} = true ]; then
-            ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1 || echo "Ignoring failed test as we are checking test coverage"
+            ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command $(cat $do_run) 2>&1 || echo "Ignoring failed test as we are checking test coverage"
         else
-            ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1
+            ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command $(cat $do_run) 2>&1
         fi
 
   "unit test parallel":
@@ -841,7 +882,7 @@ functions:
         # do_run will contain a list of files we want to run.
         no_run=$(mktemp)
         do_run=$(mktemp)
-        sed -e 's/ *#.*//' -e '/^$/d' < ${unit_test_parallel_ignore} > $no_run
+        sed -e 's/ *#.*//' -e '/^$/d' ${unit_test_parallel_ignore} > $no_run
         (cd ./test/suite; ls test_*.py) | fgrep -vf $no_run > $do_run
         cd cmake_build
         threads_command="-j ${nproc}"
@@ -850,12 +891,7 @@ functions:
         fi
         py=${python_binary|python3}
         echo "Using $threads_command for 'unit test parallel'"
-        if [[ $TESTUTIL_TSAN -eq 1 ]]; then
-            export TSAN_OPTIONS="$TSAN_OPTIONS:log_path=$(git rev-parse --show-toplevel)/tsan_logs:exitcode=0"
-            ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1 || echo "Ignoring failed test as we are checking test coverage"
-        else
-            ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1
-        fi
+        ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1
 
   "tsan warning metric":
     command: shell.exec
@@ -866,8 +902,7 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_PATH}
-        # Track warnings only after time 2025-08-06 06:07:50.655735+00:00
-        python3 test/evergreen/tsan_warnings_analysis.py --timestamp 1754460496
+        python3 test/evergreen/tsan_warnings_analysis.py --timestamp ${timestamp}
 
   "code coverage analysis":
     command: shell.exec
@@ -988,6 +1023,7 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_TEST_ENV}
+        ${additional_san_vars}
         # Fail, show the configuration file.
         fail() {
           echo "======= FAILURE =========="
@@ -1144,7 +1180,12 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_TEST_ENV}
-        ./test_checkpoint ${checkpoint_args} 2>&1
+        # Check if we running in disagg mode.
+        disagg_args=""
+        if [[ "${disagg_run|false}" == "true" ]]; then
+            disagg_args="-d leader -t row -x"
+        fi
+        ./test_checkpoint ${checkpoint_args} $disagg_args  2>&1
 
   "checkpoint test predictable":
     command: shell.exec
@@ -1156,8 +1197,11 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_TEST_ENV}
-
-        ../../../test/evergreen/checkpoint_test_predictable.sh ${times} ${checkpoint_args}
+        disagg_args=""
+        if [[ "${disagg_run|false}" == "true" ]]; then
+            disagg_args="-d leader -t row -x"
+        fi
+        ../../../test/evergreen/checkpoint_test_predictable.sh ${times} "${checkpoint_args} $disagg_args"
 
   "checkpoint stress test":
     command: shell.exec
@@ -1390,6 +1434,7 @@ variables:
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     ENABLE_CPPSUITE: -DENABLE_CPPSUITE=0
+    ENABLE_TCMALLOC: 0
 
   # Template for Mac tests
   - &mac_test_template
@@ -1427,6 +1472,60 @@ variables:
 # the number of runs adjusted to provide aproximately six hours of testing.
 #########################################################################################
 
+  - &format-stress-test-disagg-leader
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # FIXME-WT-14566 Limit the runs for now.
+          format_args: disagg.mode=leader runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
+          times: 5
+
+  - &format-stress-data-validation-test-disagg-leader
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # Validate data with a non-layered table.
+          # FIXME-WT-14566 Limit the runs for now.
+          format_args: disagg.mode=leader ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.tables=2 runs.rows=100000 runs.ops=300000
+          times: 5
+
+  - &format-stress-test-disagg-switch
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # FIXME-WT-14566 Limit the runs for now.
+          format_args: disagg.mode=switch runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
+          times: 5
+
+  - &format-stress-test-disagg-follower
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.mode=follower
+          times: 5
+
+  - &format-stress-data-validation-test-disagg-follower
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.mode=follower ops.verify=1 runs.mirror=1
+          times: 5
+
   - &format-stress-test
     exec_timeout_secs: 25200
     commands:
@@ -1459,9 +1558,9 @@ variables:
       - func: "compile wiredtiger"
         vars:
           <<: *configure_flags_asan_mongodb_stable_clang_with_builtins
-          additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
       - func: "format test script"
         vars:
+          additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           format_test_script_args: -t 360
 
   - &race-condition-stress-asan-test
@@ -1638,6 +1737,19 @@ tasks:
 
   - name: make-check-test
     commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check all"
+
+  # This task is the same as make-check-test but fits for lower specs by allowing a bigger timeout.
+  - name: make-check-test-low-perf
+    commands:
+      - command: timeout.update
+        params:
+          # Allow the overall task to run for a maximum time of 4h.
+          exec_timeout_secs: 14400
+          # Slow scenarios will not output anything and Evergreen kills them after 2h. Allow 4h of silence.
+          timeout_secs: 14400
       - func: "get project"
       - func: "compile wiredtiger"
       - func: "make check all"
@@ -2067,7 +2179,7 @@ tasks:
       - func: "make check directory"
         vars:
           directory: test/csuite
-          ctest_extra_args: -LE "long_running" ${ctest_extra_args} -j ${num_jobs}
+          ctest_extra_args: -LE "long_running|disagg" ${ctest_extra_args} -j ${num_jobs}
 
   - name: csuite-timestamp-abort-test-s3
     commands:
@@ -2227,33 +2339,178 @@ tasks:
           upload_source_dir: "wiredtiger"
           upload_filename: unit-test-tsan.tgz
 
+  - name: unit-test-disagg-leader-tsan
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test parallel"
+        vars:
+          # Run the set of tests that are not in the fail list.
+          unit_test_parallel_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          # The timeout for this command is on a test file basis. Make the timeouts long,
+          # as there are a few files that contain a large number of slower tests.
+          unit_test_parallel_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)"
+      - func: "upload artifact"
+        vars:
+          upload_source_dir: "wiredtiger"
+          upload_filename: unit-test-disagg-leader-tsan.tgz
+
+  - name: unit-test-disagg-follower-tsan
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          # As follower, run a minimal functionality test
+          unit_test_args: -v 2 --timeout 60 --hook "disagg=(role=follower)" base01
+      - func: "upload artifact"
+        vars:
+          upload_source_dir: "wiredtiger"
+          upload_filename: unit-test-disagg-follower-tsan.tgz
+
   - name: unit-test-hook-disagg-leader
     tags: ["python"]
     depends_on:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "unit test parallel"
+      - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_parallel_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
-          unit_test_parallel_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)"
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 0/5
 
-  - name: unit-test-hook-disagg-leader-table
-    tags: ["python"]
+  - name: unit-test-hook-disagg-leader-bucket01
+    tags: ["pull_request", "python"]
     depends_on:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "unit test parallel"
+      - func: "unit test"
         vars:
           # As leader, run the set of tests that are not in the fail list.
-          unit_test_parallel_ignore: test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
-          unit_test_parallel_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)"
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 1/5
+
+  - name: unit-test-hook-disagg-leader-bucket02
+    tags: ["pull_request", "python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          # As leader, run the set of tests that are not in the fail list.
+          unit_test_ignore: test/suite/hook_disagg.fail
+          # The timeout for this command is on a test file basis. Make the timeouts long,
+          # as there are a few files that contain a large number of slower tests.
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 2/5
+
+  - name: unit-test-hook-disagg-leader-bucket03
+    tags: ["pull_request", "python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          # As leader, run the set of tests that are not in the fail list.
+          unit_test_ignore: test/suite/hook_disagg.fail
+          # The timeout for this command is on a test file basis. Make the timeouts long,
+          # as there are a few files that contain a large number of slower tests.
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 3/5
+
+  - name: unit-test-hook-disagg-leader-bucket04
+    tags: ["pull_request", "python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          # As leader, run the set of tests that are not in the fail list.
+          unit_test_ignore: test/suite/hook_disagg.fail
+          # The timeout for this command is on a test file basis. Make the timeouts long,
+          # as there are a few files that contain a large number of slower tests.
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 4/5
+
+  - name: unit-test-hook-disagg-leader-table-bucket00
+    tags: ["pull_request", "python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          # As leader, run the set of tests that are not in the fail list.
+          unit_test_ignore: test/suite/hook_disagg.fail
+          # The timeout for this command is on a test file basis. Make the timeouts long,
+          # as there are a few files that contain a large number of slower tests.
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 0/5
+
+  - name: unit-test-hook-disagg-leader-table-bucket01
+    tags: ["pull_request", "python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          # As leader, run the set of tests that are not in the fail list.
+          unit_test_ignore: test/suite/hook_disagg.fail
+          # The timeout for this command is on a test file basis. Make the timeouts long,
+          # as there are a few files that contain a large number of slower tests.
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 1/5
+
+  - name: unit-test-hook-disagg-leader-table-bucket02
+    tags: ["pull_request", "python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          # As leader, run the set of tests that are not in the fail list.
+          unit_test_ignore: test/suite/hook_disagg.fail
+          # The timeout for this command is on a test file basis. Make the timeouts long,
+          # as there are a few files that contain a large number of slower tests.
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 2/5
+
+  - name: unit-test-hook-disagg-leader-table-bucket03
+    tags: ["pull_request", "python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          # As leader, run the set of tests that are not in the fail list.
+          unit_test_ignore: test/suite/hook_disagg.fail
+          # The timeout for this command is on a test file basis. Make the timeouts long,
+          # as there are a few files that contain a large number of slower tests.
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 3/5
+
+  - name: unit-test-hook-disagg-leader-table-bucket04
+    tags: ["pull_request", "python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          # As leader, run the set of tests that are not in the fail list.
+          unit_test_ignore: test/suite/hook_disagg.fail
+          # The timeout for this command is on a test file basis. Make the timeouts long,
+          # as there are a few files that contain a large number of slower tests.
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 4/5
 
   - name: unit-test-hook-disagg-follower
     tags: ["python"]
@@ -2793,6 +3050,13 @@ tasks:
             ${PREPARE_TEST_ENV}
             # By default the test_push_pull uses dir_store as a storage source.
             ./test_push_pull -PT
+
+  - name: compatibility-test-dirty-restart
+    commands:
+      - func: "get project"
+      - func: "compatibility test"
+        vars:
+          compat_test_args: -d
 
   - name: compatibility-test-for-newer-releases
     commands:
@@ -3565,41 +3829,6 @@ tasks:
 
             RW_LOCK_FILE=$(pwd)/../../cmake_build/test/csuite/rwlock/test_rwlock ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
 
-  - name: format-disagg-leader-test
-    # FIXME-WT-14566: Enable disagg leader mode once failure has been resolved.
-    # tags: ["stress-disagg-test"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test disagg"
-        vars:
-          format_args: disagg.mode=leader
-          times: 10
-
-  - name: format-disagg-follower-test
-    tags: ["stress-disagg-test"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test disagg"
-        vars:
-          format_args: disagg.mode=follower
-          times: 10
-
-  - name: format-disagg-switch-test
-    # FIXME-WT-14566: Enable disagg switch mode once failure has been resolved.
-    # tags: ["stress-disagg-test"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test disagg"
-        vars:
-          format_args: disagg.mode=switch
-          times: 10
-
   - name: format-mirror-test
     commands:
       - func: "get project"
@@ -3703,6 +3932,28 @@ tasks:
             g++ -o memory_model_test -O2 memory_model_test.cpp -lpthread -std=c++17 -Wall -Werror -DAVOID_CPP20_SEMAPHORE
             ./memory_model_test -n 100000000
 
+  - name: tsan-playground-test
+    exec_timeout_secs: 86400
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            ../tools/tsan_playground/collect_warnings.sh
+
+  - name: data-validation-disagg-stress-test-checkpoint
+    depends_on:
+    - name: compile
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -x -C cache_size=100MB
+
   - name: data-validation-stress-test-checkpoint
     tags: ["data-validation-stress-test"]
     depends_on:
@@ -3710,7 +3961,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -C cache_size=100MB
+          run_test_checkpoint_args: -x -p -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-no-timestamp
     tags: ["data-validation-stress-test"]
@@ -3728,7 +3979,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 1 -C cache_size=100MB
+          run_test_checkpoint_args: -x -p -s 1 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-no-timestamp
     tags: ["data-validation-stress-test"]
@@ -3746,7 +3997,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 2 -C cache_size=100MB
+          run_test_checkpoint_args: -x -p -s 2 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3
     tags: ["data-validation-stress-test"]
@@ -3755,7 +4006,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 3 -C cache_size=100MB
+          run_test_checkpoint_args: -x -p -s 3 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-no-timestamp
     tags: ["data-validation-stress-test"]
@@ -3773,7 +4024,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 4 -C cache_size=100MB
+          run_test_checkpoint_args: -x -p -s 4 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
     tags: ["data-validation-stress-test"]
@@ -3782,7 +4033,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 5 -C cache_size=100MB
+          run_test_checkpoint_args: -x -p -s 5 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp
     tags: ["data-validation-stress-test"]
@@ -3800,7 +4051,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 6 -C cache_size=100MB
+          run_test_checkpoint_args: -x -p -s 6 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7
     tags: ["data-validation-stress-test"]
@@ -3809,7 +4060,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 7 -C cache_size=100MB
+          run_test_checkpoint_args: -x -p -s 7 -C cache_size=100MB
 
   - name: data-validation-stress-test-precise-checkpoint
     tags: ["data-validation-stress-test"]
@@ -3818,7 +4069,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -C cache_size=1000MB,precise_checkpoint=true
+          run_test_checkpoint_args: -x -p -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
 
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s1
     tags: ["data-validation-stress-test"]
@@ -3827,7 +4078,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 1 -C cache_size=1000MB,precise_checkpoint=true
+          run_test_checkpoint_args: -x -p -s 1 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
 
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s2
     tags: ["data-validation-stress-test"]
@@ -3836,7 +4087,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 2 -C cache_size=1000MB,precise_checkpoint=true
+          run_test_checkpoint_args: -x -p -s 2 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
 
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s3
     tags: ["data-validation-stress-test"]
@@ -3845,7 +4096,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 3 -C cache_size=1000MB,precise_checkpoint=true
+          run_test_checkpoint_args: -x -p -s 3 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
 
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s4
     tags: ["data-validation-stress-test"]
@@ -3854,7 +4105,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 4 -C cache_size=1000MB,precise_checkpoint=true
+          run_test_checkpoint_args: -x -p -s 4 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
 
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s5
     tags: ["data-validation-stress-test"]
@@ -3863,7 +4114,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 5 -C cache_size=1000MB,precise_checkpoint=true
+          run_test_checkpoint_args: -x -p -s 5 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
 
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s6
     tags: ["data-validation-stress-test"]
@@ -3872,7 +4123,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 6 -C cache_size=1000MB,precise_checkpoint=true
+          run_test_checkpoint_args: -x -p -s 6 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
 
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s7
     tags: ["data-validation-stress-test"]
@@ -3881,7 +4132,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 7 -C cache_size=1000MB,precise_checkpoint=true
+          run_test_checkpoint_args: -x -s 7 -C cache_size=1000MB,precise_checkpoint=true,preserve_prepared=true
 
   - name: format-failure-configs-test
     depends_on:
@@ -4083,8 +4334,14 @@ tasks:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
+            # Check if we running in disagg mode.
+            disagg_args=""
+            if [[ "${disagg_run|false}" == "true" ]]; then
+                disagg_args="-D"
+            fi
+            echo "./model_test $disagg_args -l 2000-3000 -t 3600"
             # Keep repeating the model test for 60 minutes
-            ./model_test -l 2000-3000 -t 3600
+            ./model_test $disagg_args -l 2000-3000 -t 3600
 
   - name: model-test-long-random-config
     tags: ["model_checking"]
@@ -4099,8 +4356,14 @@ tasks:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
+            # Check if we running in disagg mode.
+            disagg_args=""
+            if [[ "${disagg_run|false}" == "true" ]]; then
+                disagg_args="-D"
+            fi
+
             # Keep repeating the model test for 60 minutes
-            ./model_test -l 100-200 -g -t 3600
+            ./model_test $disagg_args -l 100-200 -g -t 3600
 
   - name: model-test-long-with-coverage
     tags: ["model_checking"]
@@ -4223,6 +4486,83 @@ tasks:
   - <<: *recovery-stress-test
     name: recovery-stress-test-3
     tags: ["stress-test-3", "stress-test-zseries-3"]
+   # FIXME-WT-14566: Enable disagg leader mode on all platforms once failures has been resolved.
+  - <<: *format-stress-test-disagg-leader
+    name: format-stress-test-disagg-leader-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-asan-fail"]
+  - <<: *format-stress-test-disagg-leader
+    name: format-stress-test-disagg-leader-2
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-leader
+    name: format-stress-test-disagg-leader-3
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-leader
+    name: format-stress-test-disagg-leader-4
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-leader
+    name: format-stress-test-disagg-leader-5
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-data-validation-test-disagg-leader
+    name: format-stress-data-validation-test-disagg-leader-1
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-data-validation-test-disagg-leader
+    name: format-stress-data-validation-test-disagg-leader-2
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-data-validation-test-disagg-leader
+    name: format-stress-data-validation-test-disagg-leader-3
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-data-validation-test-disagg-leader
+    name: format-stress-data-validation-test-disagg-leader-4
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-data-validation-test-disagg-leader
+    name: format-stress-data-validation-test-disagg-leader-5
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-follower
+    name: format-stress-test-disagg-follower-1
+    tags: ["stress-test-disagg", "stress-test-disagg-asan-fail"]
+  - <<: *format-stress-test-disagg-follower
+    name: format-stress-test-disagg-follower-2
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-follower
+    name: format-stress-test-disagg-follower-3
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-follower
+    name: format-stress-test-disagg-follower-4
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-test-disagg-follower
+    name: format-stress-test-disagg-follower-5
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-data-validation-test-disagg-follower
+    name: format-stress-data-validation-test-disagg-follower-1
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-data-validation-test-disagg-follower
+    name: format-stress-data-validation-test-disagg-follower-2
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-data-validation-test-disagg-follower
+    name: format-stress-data-validation-test-disagg-follower-3
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-data-validation-test-disagg-follower
+    name: format-stress-data-validation-test-disagg-follower-4
+    tags: ["stress-test-disagg"]
+  - <<: *format-stress-data-validation-test-disagg-follower
+    name: format-stress-data-validation-test-disagg-follower-5
+    tags: ["stress-test-disagg"]
+  # FIXME-WT-14566: Enable disagg switch mode on all platforms once failures has been resolved.
+  - <<: *format-stress-test-disagg-switch
+    name: format-stress-test-disagg-switch-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-asan-fail"]
+  - <<: *format-stress-test-disagg-switch
+    name: format-stress-test-disagg-switch-2
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-switch
+    name: format-stress-test-disagg-switch-3
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-switch
+    name: format-stress-test-disagg-switch-4
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-switch
+    name: format-stress-test-disagg-switch-5
+    tags: ["stress-test-disagg-fail"]
 
   - name: format-stress-test-no-barrier
     tags: ["stress-test-no-barrier"]
@@ -4442,6 +4782,29 @@ tasks:
           dependent_task: unit-test-tsan
           destination: wiredtiger/unit-test-tsan
       - func: "tsan warning metric"
+        vars:
+          # Track warnings only after time 2025-08-06 06:07:50.655735+00:00
+          timestamp: 1754460496
+
+  - name: generate-tsan-metric-disagg
+    tags: ["pull_request_code_statistics"]
+    depends_on:
+      - name: "unit-test-disagg-leader-tsan"
+      - name: "unit-test-disagg-follower-tsan"
+    commands:
+      - func: "get project"
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: unit-test-disagg-leader-tsan
+          destination: wiredtiger/unit-test-disagg-leader-tsan
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: unit-test-disagg-follower-tsan
+          destination: wiredtiger/unit-test-disagg-follower-tsan
+      - func: "tsan warning metric"
+        vars:
+          # Track warnings right before disagg merge 2025-08-02.
+          timestamp: 1746576000
 
     ###############################
     # Performance Tests for btree #
@@ -5923,9 +6286,7 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-random-seed
-    - name: unit-test-hook-disagg-leader
     - name: unit-test-hook-disagg-follower
-    - name: unit-test-hook-disagg-leader-table
     - name: unit-test-hook-disagg-follower-table
     - name: unit-test-hook-tiered
     - name: unit-test-hook-tiered-with-delays
@@ -6013,7 +6374,13 @@ buildvariants:
     - name: examples-c-test
     - name: unit-test-tsan
       distros: ubuntu2004-large
+    - name: unit-test-disagg-leader-tsan
+      distros: ubuntu2004-large
+    - name: unit-test-disagg-follower-tsan
+      distros: ubuntu2004-large
     - name: generate-tsan-metric
+    - name: tsan-playground-test
+    - name: generate-tsan-metric-disagg
 
 # FIXME-WT-13256
 # This variant runs all possible tasks under TSan but instructs TSan to not report any issues it
@@ -6037,7 +6404,7 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     # We don't run C++ memory sanitized testing as it creates false positives. TSan also significantly increases the runtime
     # of some csuite tests, so disable the already long tests as well as tests heavily impacted by TSan.
-    ctest_extra_args: -LE "cppsuite|long_running"
+    ctest_extra_args: -LE "cppsuite|long_running|disagg"
     # TSan slows down python testing enough that we start printing "operation took X seconds" warnings.
     # These don't impact functionality, but the python tests fail on detection of any content in stdout so ignore it instead.
     ignore_stdout: --ignore-stdout
@@ -6100,7 +6467,7 @@ buildvariants:
     # We don't run C++ memory sanitized testing as it creates false positives. MSAN also causes
     # some csuite tests to take an extended amount of time. These are excluded from the
     # make-check-test task and are covered by the csuite-long-running task.
-    ctest_extra_args: -LE "cppsuite|long_running"
+    ctest_extra_args: -LE "cppsuite|long_running|disagg"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
   tasks:
     - name: compile
@@ -6158,7 +6525,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: ".stress-test-no-barrier"
       distros: ubuntu2004-medium
     - name: format-abort-recovery-stress-test
@@ -6179,8 +6546,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-disagg-test"
-    - name: ".stress-test-no-barrier"
+    - name: ".stress-test-disagg"
     - name: checkpoint-stress-test-tiered
     - name: precise-checkpoint-stress-test-tiered
     - name: format-abort-recovery-stress-test
@@ -6256,7 +6622,8 @@ buildvariants:
     python_binary: "/cygdrive/c/python/Python311/python"
   tasks:
     - name: compile
-    - name: make-check-test
+    # Windows hosts are slow, use the designed low-perf task to avoid timeout failures.
+    - name: make-check-test-low-perf
     - name: ".unit_test"
     - name: fops
     - name: catch2-test
@@ -6508,7 +6875,7 @@ buildvariants:
     - name: compile
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
 
@@ -6525,7 +6892,7 @@ buildvariants:
     - name: compile
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: format-abort-recovery-stress-test
 
 - name: ubuntu2004-nonstandalone
@@ -6560,7 +6927,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: ".stress-test-no-barrier"
       distros: ubuntu2004-medium
     - name: format-abort-recovery-stress-test
@@ -6586,7 +6953,7 @@ buildvariants:
       distros: ubuntu2004-test
     - name: format-abort-recovery-stress-test
       distros: ubuntu2004-test
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: make-check-test
     - name: unit-test
 
@@ -6611,7 +6978,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
@@ -6635,7 +7002,7 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: format-abort-recovery-stress-test
       distros: ubuntu2004-arm64-large
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: make-check-test
     - name: unit-test
     - name: unit-test-extra-long
@@ -6679,7 +7046,7 @@ buildvariants:
       distros: amazon2023-arm64-latest-large-m8g
     - name: format-abort-recovery-stress-test
       distros: amazon2023-arm64-latest-large-m8g
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: make-check-test
     - name: unit-test
     - name: unit-test-extra-long
@@ -6706,7 +7073,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
@@ -6809,7 +7176,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
@@ -6874,7 +7241,7 @@ buildvariants:
     # We don't run C++ memory sanitized testing as it creates false positives. MSAN also causes
     # some csuite tests to take an extended amount of time. These are excluded from the
     # make-check-test task and are covered by the csuite-long-running task.
-    ctest_extra_args: -LE "cppsuite|long_running"
+    ctest_extra_args: -LE "cppsuite|long_running|disagg"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
   tasks:
     - name: compile
@@ -6927,8 +7294,48 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-disagg-test"
+    - name: ".stress-test-disagg"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
       batchtime: 720 # 12 hours
+
+- name: amazon2023-disagg-stress
+  display_name: "[Failure Expected] (ARMV9) Amazon 2023 Disagg Stress tests"
+  batchtime: 4320 # once every two days
+  run_on:
+  - amazon2023-arm64-latest-large-m8g
+  expansions:
+    ENABLE_TCMALLOC: 1
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    disagg_run: true
+  tasks:
+    - name: compile
+    - name: ".stress-test-disagg-fail"
+    - name: data-validation-disagg-stress-test-checkpoint
+      batchtime: 10080 # once every week
+    - name: checkpoint-test-long-running
+    - name: checkpoint-test
+    - name: checkpoint-filetypes-predictable-test
+    - name: checkpoint-filetypes-test
+    - name: model-test-long
+    - name: model-test-long-random-config
+
+- name: amazon2023-disagg-asan-stress
+  display_name: "[Failure Expected] (ARMV9) Amazon 2023 ASAN Disagg Stress tests"
+  batchtime: 4320 # once every three days
+  run_on:
+  - amazon2023-arm64-latest-large-m8g
+  expansions:
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
+    ENABLE_TCMALLOC: 0
+    additional_env_vars: |
+      export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    disagg_run: true
+    <<: *configure_flags_asan_mongodb_stable_clang_with_builtins
+    additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
+  tasks:
+    - name: compile
+    - name: ".stress-test-disagg-asan-fail"

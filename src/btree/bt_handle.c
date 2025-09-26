@@ -324,7 +324,8 @@ __btree_setup_page_log(WT_SESSION_IMPL *session, WT_BTREE *btree)
     cfg = btree->dhandle->cfg;
 
     /* Setup any configured page log on the data handle */
-    WT_RET_NOTFOUND_OK(__wt_config_gets(session, cfg, "disaggregated.page_log", &page_log_item));
+    ret = __wt_config_gets(session, cfg, "disaggregated.page_log", &page_log_item);
+    WT_RET_NOTFOUND_OK(ret);
     if (ret == WT_NOTFOUND || page_log_item.len == 0) {
         npage_log = S2C(session)->disaggregated_storage.npage_log;
         if (npage_log != NULL)
@@ -1136,8 +1137,9 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      * In-memory configuration overrides any key/value sizes, there's no such thing as an overflow
      * item in an in-memory configuration.
      *
-     * FIXME-WT-14722: the disaggregated check is a workaround for the disaggregated block manager
-     * not yet supporting overflow items.
+     * Writing overflow keys and values isn't possible with disaggregated storage because overflow
+     * items are stored on a different page within the same tree, which cannot be handled by
+     * disaggregated storage.
      */
     if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY) ||
       F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {

@@ -241,7 +241,7 @@ CONFIG configuration_list[] = {
 
 {"obsolete_cleanup.method", "obsolete cleanup strategy", C_IGNORE | C_STRING, 0, 0, 0}
 
-{"obsolete_cleanup.wait", "obsolete cleanup interval in seconds", 0x0, 1, 3600, 100000}
+{"obsolete_cleanup.wait", "obsolete cleanup interval in seconds", 0x0, 0, 3600, 100000}
 
 {"ops.alter", "configure table alterations", C_BOOL, 10, 0, 0}
 
@@ -282,6 +282,8 @@ CONFIG configuration_list[] = {
 {"prefetch", "configure prefetch", C_BOOL, 50, 0, 0}
 
 {"precise_checkpoint", "Precise checkpoint", C_BOOL, 50, 0, 0}
+
+{"preserve_prepared", "Preserve prepared", C_BOOL, 50, 0, 0}
 
 {"quiet", "quiet run (same as -q)", C_BOOL | C_IGNORE, 0, 0, 1}
 
@@ -332,6 +334,8 @@ CONFIG configuration_list[] = {
 {"stress.failpoint_eviction_split", "stress failpoint eviction split", C_BOOL, 30, 0, 0}
 
 {"stress.failpoint_hs_delete_key_from_ts", "stress failpoint history store delete key from ts", C_BOOL, 30, 0, 0}
+
+{"stress.failpoint_rec_before_wrapup", "stress failpoint reconciliation before wrapup", C_BOOL, 1, 0, 0}
 
 {"stress.hs_checkpoint_delay", "stress history store checkpoint delay", C_BOOL, 2, 0, 0}
 
