@@ -147,17 +147,13 @@ __wt_page_is_reconciling(WT_PAGE *page)
  *     Helper function to free a block from the current tree.
  */
 static WT_INLINE int
-__wt_btree_block_free(
-  WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool page_replacement)
+__wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
     WT_BM *bm;
     WT_BTREE *btree;
 
     btree = S2BT(session);
     bm = btree->bm;
-
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && page_replacement)
-        return (0);
 
     return (bm->free(bm, session, addr, addr_size));
 }
@@ -1654,10 +1650,13 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool page_replacement
     if (!__wt_ref_addr_copy(session, ref, &addr))
         goto err;
 
-    WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size, page_replacement));
-
-    if (!page_replacement && ref->page != NULL && ref->page->disagg_info != NULL)
-        ref->page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+    if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+        WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
+    else if (!page_replacement) {
+        WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
+        if (ref->page != NULL)
+            ref->page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+    }
 
     /* Clear the address (so we don't free it twice). */
     __wt_ref_addr_free(session, ref);
