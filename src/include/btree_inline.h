@@ -2464,7 +2464,7 @@ __wt_btcur_skip_page(
             *skipp = true;
             walk_skip_stats->total_del_pages_skipped++;
         }
-    } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) && !addr.ta.prepare &&
+    } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare &&
       __wt_txn_snap_min_visible(
         session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
         /*
