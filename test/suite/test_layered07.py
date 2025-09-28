@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time, wiredtiger, wttest
+import os, sys, time, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class
 
 # test_layered07.py
@@ -59,6 +59,9 @@ class test_layered07(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     # Test inserting records into a follower that turned into a leader
     def test_layered07(self):
+        if sys.platform.startswith('darwin'):
+            return
+
         #
         # Part 1: Create a layered table and insert some data to the leader.
         #

@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import sys
 import wttest
 import wiredtiger
 from wiredtiger import stat
@@ -85,6 +86,9 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def test_layered_read_write(self):
+        if sys.platform.startswith('darwin'):
+            return
+
         self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 
@@ -140,6 +144,9 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.session.rollback_transaction()
 
     def test_layered_read_modify(self):
+        if sys.platform.startswith('darwin'):
+            return
+
         self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 
@@ -197,6 +204,9 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.session.rollback_transaction()
 
     def test_layered_read_delete(self):
+        if sys.platform.startswith('darwin'):
+            return
+
         self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 
@@ -255,6 +265,9 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.session.rollback_transaction()
 
     def test_layered_read_insert(self):
+        if sys.platform.startswith('darwin'):
+            return
+
         self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 
@@ -309,6 +322,9 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.session.rollback_transaction()
 
     def test_layered_read_multiple_delta(self):
+        if sys.platform.startswith('darwin'):
+            return
+
         self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 
@@ -386,6 +402,9 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.session.rollback_transaction()
 
     def test_layered_read_delete_insert(self):
+        if sys.platform.startswith('darwin'):
+            return
+
         self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 

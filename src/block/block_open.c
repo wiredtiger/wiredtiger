@@ -487,8 +487,7 @@ __wt_block_manager_size(WT_BM *bm, WT_SESSION_IMPL *session, wt_off_t *sizep)
 /*
  * __wt_block_manager_named_size --
  *     Return the size of a named file - this currently avoids using the block manager interface.
- *     That should be changed - otherwise it isn't possible to have pluggable block manager
- *     implementations.
+ *     That should be changed - FIXME-WT-14600.
  */
 int
 __wt_block_manager_named_size(WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)

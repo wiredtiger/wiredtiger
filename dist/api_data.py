@@ -158,8 +158,6 @@ disaggregated_config_common = [
         by layered tables to back their stable component in shared/object based storage''',
         type='string', undoc=True),
 ]
-# FIXME: We cannot set undoc=True, because an undocumented category must be the same for all
-# methods, but we need different sets supported fields for connection open, reconfigure, and create.
 connection_disaggregated_config = [
     Config('disaggregated', '', r'''
         configure disaggregated storage for this connection''',
@@ -1084,11 +1082,10 @@ log_configuration_common = [
         manually write zeroes into log files''',
         type='boolean')
 ]
-
 connection_reconfigure_log_configuration = [
     Config('log', '', r'''
         enable logging. Enabling logging uses three sessions from the configured session_max''',
-        type='category', subconfig=log_configuration_common),
+        type='category', subconfig=log_configuration_common)
 ]
 wiredtiger_open_log_configuration = [
     Config('log', '', r'''
