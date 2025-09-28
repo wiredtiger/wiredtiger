@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -26,70 +26,47 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import random, wttest
+import os, random, string, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
-import time
 
 # test_layered48.py
-# Test that we write internal page deltas to the page log extension.
+#    Ensure overflow keys and values are not being generated in disaggregated storage.
 
 @disagg_test_class
 class test_layered48(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    encrypt = [
-        ('none', dict(encryptor='none', encrypt_args='')),
-        ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
-    ]
+    nitems = 500
+    key_to_update = 0
+    num_updates = 10
 
-    compress = [
-        ('none', dict(block_compress='none')),
-        ('snappy', dict(block_compress='snappy')),
-    ]
+    conn_base_config = 'statistics=(all),' \
+                     + 'statistics_log=(wait=1,json=true,on_close=true),' \
+                     + 'precise_checkpoint=true,disaggregated=(page_log=palm),'
+    conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
-    uris = [
-        ('layered', dict(uri='layered:test_layered48')),
-        ('btree', dict(uri='file:test_layered48')),
-    ]
+    create_session_config = 'key_format=S,value_format=S,leaf_key_max=256,leaf_value_max=256'
 
-    ts = [
-        ('ts', dict(ts=True)),
-        ('non-ts', dict(ts=False)),
-    ]
+    table_name = "test_layered48"
 
-    delta = [
-        ('write_leaf_only', dict(delta_config='internal_page_delta=false,leaf_page_delta=true', delta_type='leaf_only')),
-        ('write_internal_only', dict(delta_config='internal_page_delta=true,leaf_page_delta=false', delta_type='internal_only')),
-        ('write_none', dict(delta_config='internal_page_delta=false,leaf_page_delta=false', delta_type='none')),
-        ('write_both', dict(delta_config='internal_page_delta=true,leaf_page_delta=true', delta_type='both')),
-    ]
-
-    conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(page_log=palm),'
     disagg_storages = gen_disagg_storages('test_layered48', disagg_only = True)
+    scenarios = make_scenarios(disagg_storages, [
+        ('layered', dict(prefix='layered:')),
+        ('shared', dict(prefix='table:')),
+    ])
 
-    # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, ts, delta)
-
-    nitems = 10_000
-
-    def session_create_config(self):
-        # The delta percentage of 100 is an arbitrary large value, intended to produce
-        # deltas a lot of the time.
-        cfg = 'disaggregated=(delta_pct=100),key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512,block_compressor={}'.format(self.block_compress)
-        if self.uri.startswith('file'):
-            cfg += ',block_manager=disagg'
-        return cfg
-
-    def conn_config(self):
-        enc_conf = 'encryption=(name={0},{1}),'.format(self.encryptor, self.encrypt_args)
-        return self.conn_base_config + f'disaggregated=(role="leader",{self.delta_config}),' + enc_conf
-
-    # Load the storage store extension.
+    # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
-        extlist.extension('compressors', self.block_compress)
-        extlist.extension('encryptors', self.encryptor)
+        if os.name == 'nt':
+            extlist.skip_if_missing = True
         DisaggConfigMixin.conn_extensions(self, extlist)
+
+    # Custom test case setup
+    def early_setup(self):
+        os.mkdir('follower')
+        # Create the home directory for the PALM k/v store, and share it with the follower.
+        os.mkdir('kv_home')
+        os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
@@ -97,140 +74,54 @@ class test_layered48(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor.close()
         return val
 
-    def insert(self, kv, ts=None):
+    def generate_random_string(self, length):
+        characters = string.ascii_letters + string.digits + string.punctuation
+        random_string = ''.join(random.choices(characters, k=length))
+        return random_string
+
+    # Test overflow keys and values.
+    def test_layered48(self):
+
+        # Create table
+        self.uri = self.prefix + self.table_name
+        table_config = self.create_session_config
+        if not self.uri.startswith('layered'):
+            table_config += ',block_manager=disagg,log=(enabled=false)'
+        self.session.create(self.uri, table_config)
+
+        # Put big data to the table
+        key_prefix1 = self.generate_random_string(1000)
+        value_prefix1 = 'matcha'
+        timestamp1 = 100
+
         cursor = self.session.open_cursor(self.uri, None, None)
-        for k, v in kv.items():
+        for i in range(self.nitems):
+            # Don't make the transaction too long due to eviction hangs.
             self.session.begin_transaction()
-            cursor[k] = v
-            if self.ts:
-                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(ts))
-            else:
-                self.session.commit_transaction()
+            cursor[key_prefix1 + str(i)] = value_prefix1 + str(i)
+            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(timestamp1)}')
         cursor.close()
 
-    def verify(self, expected_kv, expected_initial_val):
-        # Verify the values in the table.
-        cursor = self.session.open_cursor(self.uri, None, None)
-        for i in range(1, self.nitems + 1):
-            cursor.set_key(str(i))
-            cursor.search()
-            if str(i) in expected_kv:
-                self.assertEqual(cursor.get_value(), expected_kv[str(i)])
-            else:
-                self.assertEqual(cursor.get_value(), expected_initial_val)
-        cursor.close()
+        # Assert that no overflow values were generated.
+        self.assertEqual(self.get_stat(stat.conn.rec_overflow_key_leaf), 0)
+        self.assertEqual(self.get_stat(stat.conn.rec_overflow_value), 0)
 
-    def test_internal_page_delta_simple(self):
-        self.session.create(self.uri, self.session_create_config())
-
-        # Populate the table with nitems.
-        inital_value = "abc" * 10
-        inital_ts = 5
-        kv = {str(i): inital_value for i in range(1, self.nitems + 1)}
-        self.insert(kv, inital_ts)
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(timestamp1)}')
         self.session.checkpoint()
 
-        # Re-open the connection to clear contents out of memory.
-        self.reopen_disagg_conn(self.conn_config())
+        # Create several updates with big values.
+        timestamp2 = 200
+        value_prefix2 = self.generate_random_string(1000)
+        for n in range(1, self.num_updates):
+            self.session.begin_transaction()
+            cursor = self.session.open_cursor(self.uri, None, None)
+            cursor[key_prefix1 + str(n * 100)] = value_prefix2  + '-' + str(n)
+            cursor.close()
 
-        # Perform two small updates.
-        kv_modfied = {str(10): "10abc", str(220): "220abc"}
-        self.insert(kv_modfied, inital_ts + 1)
-        # Perform a checkpoint to write out a delta.
+            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(timestamp2)}')
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(timestamp2)}')
         self.session.checkpoint()
 
-        if (self.delta_type == 'both' or self.delta_type == 'leaf_only'):
-            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
-        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
-        if (self.delta_type == 'none'):
-            self.assertEqual(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
-            self.assertEqual(self.get_stat(stat.conn.rec_page_delta_internal), 0)
-
-        # Re-open the connection to clear contents out of memory.
-        self.reopen_disagg_conn(self.conn_config())
-
-        # Verify the updated values in the table.
-        self.verify(kv_modfied, inital_value)
-
-        # Assert that we have constructed at least one internal page delta.
-        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
-        else:
-            self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
-
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower"),'
-        self.reopen_disagg_conn(follower_config)
-        time.sleep(1.0)
-
-        # Verify the updated values in the table.
-        self.verify(kv_modfied, inital_value)
-
-        # Assert that we have constructed at least one internal page delta.
-        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
-        else:
-            self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
-
-    def test_internal_page_delta_random(self):
-        self.session.create(self.uri, self.session_create_config())
-
-        # Populate the table with nitems.
-        inital_value = "abc" * 10
-        inital_ts = 5
-        kv = {str(i): inital_value for i in range(1, self.nitems + 1)}
-        self.insert(kv, inital_ts)
-        self.session.checkpoint()
-
-        # Re-open the connection to clear contents out of memory.
-        self.reopen_disagg_conn(self.conn_config())
-
-        kv_modfied = {}
-        num_deltas = random.randint(1, 10)
-        for i in range(1, num_deltas + 1):
-            # Generate a random number of keys to insert.
-            random_key_range = random.randint(10, 2000)
-            kv = {
-                str(random.randint(1, self.nitems)): f"{i + j * i}abc"
-                for j in range(random_key_range)
-            }
-            # Insert random keys into the table.
-            self.insert(kv, inital_ts + i)
-            # Perform a checkpoint to write out a delta.
-            self.session.checkpoint()
-            # Merge kv into our cumulative dictionary
-            kv_modfied.update(kv)
-
-        # Assert that we have written at least one internal page delta.
-        if (self.delta_type == 'both' or self.delta_type == 'leaf_only'):
-            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
-        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
-        if (self.delta_type == 'none'):
-            self.assertEqual(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
-            self.assertEqual(self.get_stat(stat.conn.rec_page_delta_internal), 0)
-
-        # Re-open the connection to clear contents out of memory.
-        self.reopen_disagg_conn(self.conn_config())
-
-        # Verify the updated values in the table.
-        self.verify(kv_modfied, inital_value)
-
-        # Assert that we have constructed at least one internal page delta.
-        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
-        else:
-            self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
-
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower"),'
-        self.reopen_disagg_conn(follower_config)
-        time.sleep(1.0)
-
-        # Verify the updated values in the table.
-        self.verify(kv_modfied, inital_value)
-
-        # Assert that we have constructed at least one internal page delta.
-        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
-        else:
-            self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+        # Assert that no overflow values were generated.
+        self.assertEqual(self.get_stat(stat.conn.rec_overflow_key_leaf), 0)
+        self.assertEqual(self.get_stat(stat.conn.rec_overflow_value), 0)

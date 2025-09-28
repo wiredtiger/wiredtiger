@@ -265,6 +265,7 @@ typedef struct {
     WT_RAND_STATE extra_rnd; /* Global RNG state for extra operations */
 
     uint64_t timestamp;        /* Counter for timestamps */
+    uint64_t prepared_id;      /* Counter for prepared id */
     uint64_t oldest_timestamp; /* Last timestamp used for oldest */
     uint64_t stable_timestamp; /* Last timestamp used for stable */
 
@@ -483,6 +484,7 @@ uint64_t timestamp_minimum_committed(void);
 void timestamp_once(WT_SESSION *, bool, bool);
 void replay_adjust_key(TINFO *, uint64_t);
 uint64_t replay_commit_ts(TINFO *);
+uint64_t replay_rollback_ts(TINFO *);
 void replay_committed(TINFO *);
 void replay_end_timed_run(void);
 void replay_loop_begin(TINFO *, bool);
@@ -520,6 +522,7 @@ void wts_open(const char *, WT_CONNECTION **, bool);
 void wts_read_scan(TABLE *, void *);
 void wts_reopen(void);
 void wts_salvage(TABLE *, void *);
+void wts_prepare_discover(WT_CONNECTION *);
 void wts_stats(void);
 void wts_verify(WT_CONNECTION *, bool);
 void wts_verify_mirrored_truncate(TINFO *tinfo);

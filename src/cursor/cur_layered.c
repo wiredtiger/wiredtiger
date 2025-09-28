@@ -688,7 +688,7 @@ __clayered_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     /*
      * Confirm both cursors refer to the same source and have keys, then compare the keys.
      */
-    if (strcmp(a->uri, b->uri) != 0)
+    if (strcmp(a->internal_uri, b->internal_uri) != 0)
         WT_ERR_MSG(session, EINVAL, "comparison method cursors must reference the same object");
 
     /* Both cursors are from the same tree - they share the same collator */
@@ -1519,7 +1519,7 @@ __clayered_remove_int(
 
     if (S2C(session)->layered_table_manager.leader) {
         c = clayered->stable_cursor;
-        clayered->current_cursor = c;
+        /* There is no content on the ingest table. We must be positioned on the stable table. */
         if (!positioned) {
             /*
              * Clear the existing cursor position. Don't clear the primary cursor: we're about to
@@ -1532,10 +1532,11 @@ __clayered_remove_int(
         } else
             WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
         WT_RET(c->remove(c));
+        clayered->current_cursor = c;
     } else {
         c = clayered->ingest_cursor;
-        clayered->current_cursor = c;
-        if (!positioned) {
+        /* If we are positioned on the stable table, we need to set the key. */
+        if (!positioned || clayered->current_cursor != c) {
             /*
              * Clear the existing cursor position. Don't clear the primary cursor: we're about to
              * use it anyway. No need to do another search if we are already positioned.
@@ -1546,6 +1547,7 @@ __clayered_remove_int(
             WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
         c->set_value(c, &__wt_tombstone);
         WT_RET(c->update(c));
+        clayered->current_cursor = c;
     }
 
     return (0);
@@ -2174,9 +2176,6 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     cursor->key_format = layered->key_format;
     cursor->value_format = layered->value_format;
 
-    /* Try to find the cursor in the cache. */
-    WT_ERR(__wt_cursor_init(cursor, uri, owner, cfg, cursorp));
-
     WT_ERR(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
     if (cval.val != 0) {
         F_SET(clayered, WT_CLAYERED_RANDOM);
@@ -2191,8 +2190,12 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
         cacheable = false;
     }
 
+    /* Set the cache flag before finding a cursor handle. */
     if (cacheable)
         F_SET(cursor, WT_CURSTD_CACHEABLE);
+
+    /* Try to find the cursor in the cache. */
+    WT_ERR(__wt_cursor_init(cursor, uri, owner, cfg, cursorp));
 
     /* Layered cursor is not compatible with cursor_copy config. */
     F_CLR(cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE);

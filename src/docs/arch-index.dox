@@ -380,12 +380,12 @@ operation.
 
 */
 
-/*! @page arch-toc-disaggregated-storage Disaggregated Storage Support
+/*! @page arch-toc-disaggregated-storage Disaggregated Storage
 
 @subpage arch-disagg-layered
 
-WiredTiger includes some experimental support for a disaggregated storage layer, allowing persisted data
-to be stored and retrieved using network services. This work is in active development, so documentation
-found here may not be synchronized with the code.
+WiredTiger includes support for a disaggregated storage layer, allowing persisted data
+to be stored and retrieved using network services. This work is in active development, so
+documentation found here may not be synchronized with the code.
 
 */

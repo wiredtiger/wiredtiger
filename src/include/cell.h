@@ -106,19 +106,20 @@
  * if the two values are the same, we only store them once and have any second and subsequent uses
  * reference the original.
  */
-#define WT_CELL_ADDR_DEL (0)            /* Address: deleted */
-#define WT_CELL_ADDR_INT (1 << 4)       /* Address: internal  */
-#define WT_CELL_ADDR_LEAF (2 << 4)      /* Address: leaf */
-#define WT_CELL_ADDR_LEAF_NO (3 << 4)   /* Address: leaf no overflow */
-#define WT_CELL_DEL (4 << 4)            /* Deleted value */
-#define WT_CELL_KEY (5 << 4)            /* Key */
-#define WT_CELL_KEY_OVFL (6 << 4)       /* Overflow key */
-#define WT_CELL_KEY_OVFL_RM (12 << 4)   /* Overflow key (removed) */
-#define WT_CELL_KEY_PFX (7 << 4)        /* Key with prefix byte */
-#define WT_CELL_VALUE (8 << 4)          /* Value */
-#define WT_CELL_VALUE_COPY (9 << 4)     /* Value copy */
-#define WT_CELL_VALUE_OVFL (10 << 4)    /* Overflow value */
-#define WT_CELL_VALUE_OVFL_RM (11 << 4) /* Overflow value (removed) */
+#define WT_CELL_ADDR_DEL (0)                   /* Address: deleted */
+#define WT_CELL_ADDR_DEL_VISIBLE_ALL (13 << 4) /* Address: deleted visible all */
+#define WT_CELL_ADDR_INT (1 << 4)              /* Address: internal  */
+#define WT_CELL_ADDR_LEAF (2 << 4)             /* Address: leaf */
+#define WT_CELL_ADDR_LEAF_NO (3 << 4)          /* Address: leaf no overflow */
+#define WT_CELL_DEL (4 << 4)                   /* Deleted value */
+#define WT_CELL_KEY (5 << 4)                   /* Key */
+#define WT_CELL_KEY_OVFL (6 << 4)              /* Overflow key */
+#define WT_CELL_KEY_OVFL_RM (12 << 4)          /* Overflow key (removed) */
+#define WT_CELL_KEY_PFX (7 << 4)               /* Key with prefix byte */
+#define WT_CELL_VALUE (8 << 4)                 /* Value */
+#define WT_CELL_VALUE_COPY (9 << 4)            /* Value copy */
+#define WT_CELL_VALUE_OVFL (10 << 4)           /* Overflow value */
+#define WT_CELL_VALUE_OVFL_RM (11 << 4)        /* Overflow value (removed) */
 
 #define WT_CELL_TYPE_MASK (0x0fU << 4) /* Maximum 16 cell types */
 #define WT_CELL_TYPE(v) ((v)&WT_CELL_TYPE_MASK)
@@ -152,6 +153,23 @@ struct __wt_cell {
      * or even most cases.
      */
     uint8_t __chunk[98];
+};
+
+/*
+ * WT_DELTA_CELL_LEAF --
+ *	Variable-length, delta leaf cell header.
+ */
+struct __wt_delta_cell_leaf {
+    /*
+     * Maximum of 65 bytes:
+     *  1: cell descriptor byte
+     * 54: 4 timestamps and 2 transaction ids		(uint64_t encoding, max 9 bytes)
+     *  5: key length		                        (uint32_t encoding, max 5 bytes)
+     *  5: value length		                        (uint32_t encoding, max 5 bytes)
+     *
+     * This calculation is pessimistic: the timestamps are optional.
+     */
+    uint8_t __chunk[65];
 };
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -227,22 +245,25 @@ struct __wt_cell_unpack_delta_int {
     WT_CELL_UNPACK_ADDR value;
 };
 
-#define WT_VALUE_IS_DELETE 0x01u
-
-#define WT_DELTA_LEAF_VALUE_FORMAT WT_UNCHECKED_STRING(Bu)
-
 /*
- * WT_CELL_UNPACK_DELTA_LEAF_KV --
- *     Unpacked leaf delta k/v pair.
+ * WT_CELL_UNPACK_DELTA_LEAF --
+ *     Unpacked leaf delta cell.
  */
-struct __wt_cell_unpack_delta_leaf_kv {
-    WT_CELL_UNPACK_KV delta_key;
-    WT_CELL_UNPACK_KV delta_value;
+struct __wt_cell_unpack_delta_leaf {
+    uint32_t __len;
+    const void *key;
+    uint32_t key_size;
+    const void *value;
+    uint32_t value_size;
 
-    WT_ITEM delta_value_data;
+    WT_TIME_WINDOW tw;
 
-/* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_DELTA_LEAF_IS_DELETE 0x1u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+#define WT_DELTA_LEAF_HAS_START_TXN_ID 0x01u
+#define WT_DELTA_LEAF_HAS_START_TS 0x02u
+#define WT_DELTA_LEAF_HAS_START_DURABLE_TS 0x04u
+#define WT_DELTA_LEAF_HAS_STOP_TXN_ID 0x08u
+#define WT_DELTA_LEAF_HAS_STOP_TS 0x10u
+#define WT_DELTA_LEAF_HAS_STOP_DURABLE_TS 0x20u
+#define WT_DELTA_LEAF_IS_DELETE 0x40u
     uint8_t flags;
 };

@@ -8,6 +8,7 @@ set(format_sources
     format_config.c
     format_config_def.c
     format_disagg.c
+    format_prepare_discover.c
     format_salvage.c
     format_timestamp.c
     format_util.c

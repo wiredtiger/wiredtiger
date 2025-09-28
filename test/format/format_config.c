@@ -432,8 +432,16 @@ config_table(TABLE *table, void *arg)
     config_pct(table);
 
     /* Column-store tables require special row insert resolution. */
-    if (table->type != ROW)
+    if (table->type != ROW) {
         g.column_store_config = true;
+        /* FIXME-WT-15274 Support column store with precise checkpoint */
+        if (GV(PRECISE_CHECKPOINT)) {
+            if (config_explicit(NULL, "precise_checkpoint"))
+                WARN("turning off precise_checkpoint as table%" PRIu32 " is a column-store",
+                  table->id);
+            config_off(NULL, "precise_checkpoint");
+        }
+    }
 
     /* Only row-store tables support a collation order. */
     if (table->type != ROW)
@@ -672,6 +680,10 @@ config_cache(void)
 
     /* Check if both min and max cache sizes have been specified and if they're consistent. */
     if (config_explicit(NULL, "cache")) {
+        if (GV(CACHE) < 4086) {
+            config_off(NULL, "preserve_prepared");
+            config_off(NULL, "precise_checkpoint");
+        }
         if (config_explicit(NULL, "cache.minimum") && GV(CACHE) < GV(CACHE_MINIMUM))
             testutil_die(EINVAL, "minimum cache set larger than cache (%" PRIu32 " > %" PRIu32 ")",
               GV(CACHE_MINIMUM), GV(CACHE));
@@ -722,17 +734,21 @@ config_cache(void)
     cache *= workers;
     cache *= 2;
 
-    if (GV(CHECKPOINT_PRECISE))
-        cache *= 4;
+    if (GV(PRECISE_CHECKPOINT))
+        cache *= 6;
 
     if (GV(CACHE) < cache)
         GV(CACHE) = (uint32_t)cache;
 
-    if (GV(CHECKPOINT_PRECISE) && GV(CACHE) < 2048)
-        GV(CACHE) = 2048;
+    if (GV(PRECISE_CHECKPOINT) && GV(CACHE) < 4086)
+        GV(CACHE) = 4086;
 
-    if (cache_maximum_explicit && GV(CACHE) > GV(CACHE_MAXIMUM))
-        GV(CACHE) = GV(CACHE_MAXIMUM);
+    if (cache_maximum_explicit && GV(CACHE) > GV(CACHE_MAXIMUM)) {
+        if (GV(PRECISE_CHECKPOINT) && GV(CACHE_MAXIMUM) < 4086)
+            config_off(NULL, "cache.maximum");
+        else
+            GV(CACHE) = GV(CACHE_MAXIMUM);
+    }
 
     /* Give any block cache 20% of the total cache size, over and above the cache. */
     if (GV(BLOCK_CACHE) != 0)
@@ -759,6 +775,11 @@ dirty_eviction_config:
           "avoid operation thread stalls.");
         config_single(NULL, "cache.eviction_dirty_trigger=95", false);
         config_single(NULL, "cache.eviction_updates_trigger=95", false);
+    }
+
+    if (GV(PRECISE_CHECKPOINT) && GV(CACHE) < 4086) {
+        WARN("%s", "Setting cache to minimum of 4086MB due to precise_checkpoint");
+        config_single(NULL, "cache=4086", false);
     }
 }
 
@@ -789,8 +810,8 @@ config_checkpoint(void)
             break;
         }
 
-    if (GV(OPS_PREPARE))
-        config_off(NULL, "precise_checkpoint");
+    if (!GV(PRECISE_CHECKPOINT))
+        config_off(NULL, "preserve_prepared");
 }
 
 /*
@@ -987,6 +1008,8 @@ config_in_memory(void)
         return;
     if (config_explicit(NULL, "ops.verify"))
         return;
+    if (config_explicit(NULL, "precise_checkpoint"))
+        return;
     if (config_explicit(NULL, "runs.mirror"))
         return;
     if (config_explicit(NULL, "runs.predictable_replay"))
@@ -1037,6 +1060,8 @@ config_in_memory_reset(void)
         config_off(NULL, "ops.salvage");
     if (!config_explicit(NULL, "ops.verify"))
         config_off(NULL, "ops.verify");
+    if (!config_explicit(NULL, "precise_checkpoint"))
+        config_off(NULL, "precise_checkpoint");
     if (!config_explicit(NULL, "prefetch"))
         config_off(NULL, "prefetch");
 }
@@ -1515,11 +1540,11 @@ config_disagg_storage(void)
         config_single(NULL, "transaction.timestamps=on", true);
 
         /* It makes sense to do checkpoints. */
-        config_single(NULL, "checkpoint=on", false);
+        if (!config_explicit(NULL, "checkpoint"))
+            config_single(NULL, "checkpoint=on", false);
 
         /* TODO: Some operations are not yet supported for disaggregated storage. */
         config_off(NULL, "ops.salvage");
-        config_off(NULL, "ops.verify");
         config_off(NULL, "backup");
         config_off(NULL, "backup.incremental");
         config_off(NULL, "ops.compaction");
@@ -1603,6 +1628,15 @@ config_transaction(void)
     if (!GV(TRANSACTION_TIMESTAMPS)) {
         config_off(NULL, "ops.prepare");
         config_off(NULL, "precise_checkpoint");
+        config_off(NULL, "preserve_prepared");
+    }
+    /* FIXME-WT-15565 Write prepared truncate operation to disk. */
+    if (GV(PRECISE_CHECKPOINT) && GV(OPS_PREPARE)) {
+        if (config_explicit(NULL, "ops.truncate")) {
+            WARN("%s" PRIu32,
+              "turning off ops.truncate to work with ops.prepare and precise checkpoint");
+        }
+        config_off(NULL, "ops.truncate");
     }
 
     /* Set a default transaction timeout limit if one is not specified. */
@@ -1611,6 +1645,7 @@ config_transaction(void)
 
     g.operation_timeout_ms = GV(TRANSACTION_OPERATION_TIMEOUT_MS);
     g.transaction_timestamps_config = GV(TRANSACTION_TIMESTAMPS) != 0;
+    g.prepared_id = 1;
 }
 
 /*

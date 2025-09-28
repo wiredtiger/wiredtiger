@@ -505,7 +505,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 static WT_INLINE void
 __checkpoint_set_scrub_target(WT_SESSION_IMPL *session, double target)
 {
-    __wt_set_shared_double(&S2C(session)->evict->eviction_scrub_target, target);
+    __wt_atomic_store_double(&S2C(session)->evict->eviction_scrub_target, target);
     WT_STAT_CONN_SET(session, checkpoint_scrub_target, (int64_t)target);
 }
 
@@ -814,11 +814,11 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
         /* Precise checkpoint doesn't support non-timestamped checkpoint. */
         if (!use_timestamp)
-            return (EINVAL);
+            WT_ERR(EINVAL);
 
         /* Precise checkpoint needs the stable timestamp. */
         if (txn_global->stable_timestamp == WT_TS_NONE)
-            return (EINVAL);
+            WT_ERR_MSG(session, EINVAL, "Precise checkpoint requires a stable timestamp");
     }
 
     /*
@@ -1650,8 +1650,20 @@ err:
     }
 
     /*
-     * Update the global checkpoint ID in disaggregated storage. This has to be done after
-     * checkpoint resolve, which happens when we turn off metadata tracking above.
+     * If the stable timestamp advanced, ensure that we reflect it in the checkpoint metadata in
+     * disaggregated storage, even if there were no other changes.
+     */
+    WT_ACQUIRE_READ(num_meta_put, conn->disaggregated_storage.num_meta_put);
+    if (!failed && __wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
+      conn->disaggregated_storage.num_meta_put_at_ckpt_begin == num_meta_put &&
+      ckpt_tmp_ts != conn->disaggregated_storage.last_checkpoint_timestamp)
+        WT_TRET(__wt_disagg_put_checkpoint_meta(
+          session, conn->disaggregated_storage.last_checkpoint_root, 0, ckpt_tmp_ts));
+
+    /*
+     * Advance to the next checkpoint in disaggregated storage if we updated the checkpoint metadata
+     * in the page log. This has to be done after checkpoint resolve, which happens when we turn off
+     * metadata tracking above.
      *
      * Ensure that turning off meta tracking worked.
      */
@@ -2471,7 +2483,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     WT_DECL_RET;
     WT_LSN ckptlsn;
     WT_TIME_AGGREGATE ta;
-    const char ckptlsn_str[WT_MAX_LSN_STRING];
+    char ckptlsn_str[WT_MAX_LSN_STRING];
     bool fake_ckpt, resolve_bm;
 
     WT_UNUSED(cfg);
@@ -2574,8 +2586,8 @@ fake:
     if (WT_IS_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING))
         WT_ERR(__wt_checkpoint_sync(session, NULL));
 
-    WT_ERR(__wt_lsn_string(&ckptlsn, sizeof(ckptlsn_str), (char *)ckptlsn_str));
-    WT_ERR(__wt_meta_ckptlist_set(session, dhandle, btree->ckpt, ckptlsn_str));
+    WT_ERR(__wt_lsn_string(&ckptlsn, sizeof(ckptlsn_str), ckptlsn_str));
+    WT_ERR(__wt_meta_ckptlist_set(session, dhandle, btree->ckpt, (const char *)ckptlsn_str));
 
     /*
      * If we wrote a checkpoint (rather than faking one), we have to resolve it. Normally, tracking

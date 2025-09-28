@@ -757,6 +757,7 @@ dstrndup
 dsync
 dup
 dv
+dylib
 eee
 eg
 ejnprx
@@ -1426,6 +1427,7 @@ unallocated
 unbare
 unbuffered
 uncached
+unclosed
 unconfigured
 uncustomized
 undef

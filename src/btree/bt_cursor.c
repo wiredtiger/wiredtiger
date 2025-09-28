@@ -677,6 +677,14 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
             upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
         break;
     case BTREE_COL_FIX:
+        /*
+         * Any update must be in the insert list and we want the most recent update (any update
+         * attempted after the prepare would have failed).
+         */
+        if (cbt->ins != NULL)
+            upd = cbt->ins->upd;
+
+        break;
     case BTREE_COL_VAR:
         /*
          * Any update must be in the insert list and we want the most recent update (any update
@@ -684,6 +692,7 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
          */
         if (cbt->ins != NULL)
             upd = cbt->ins->upd;
+
         break;
     }
 

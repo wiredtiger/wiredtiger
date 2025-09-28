@@ -21,6 +21,13 @@ target_compile_options(
     PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
 )
 
+if(${CMAKE_C_BYTE_ORDER} STREQUAL "BIG_ENDIAN")
+    target_compile_options(
+      wiredtiger_palm
+      PRIVATE -DWORDS_BIGENDIAN=1
+    )
+endif()
+
 if(WT_DARWIN)
   set_property(
     SOURCE ../../../third_party/openldap_liblmdb/mdb.c

@@ -2309,21 +2309,40 @@ __wti_heuristic_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wti_cache_eviction_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_CACHE *cache;
     WT_CONFIG_ITEM cval;
-    WT_CONNECTION_IMPL *conn;
 
-    conn = S2C(session);
+    cache = S2C(session)->cache;
+
+    /*
+     * The cache tolerance is a percentage value with range 0 - 100, inclusive.
+     * Given input percentage is considered in multiples of 10 only, by applying floor().
+     * 00 < value < 10  -> 00
+     * 10 < value < 20  -> 10
+     * 20 < value < 30  -> 20
+     * ...
+     * 90 < value < 100 -> 90
+     * value is 100     -> 100
+     */
+    WT_RET(__wt_config_gets(
+      session, cfg, "cache_eviction_controls.cache_tolerance_for_app_eviction", &cval));
+    __wt_atomic_store8(&cache->cache_eviction_controls.cache_tolerance_for_app_eviction,
+      (((uint8_t)cval.val / 10) * 10));
 
     WT_RET(
       __wt_config_gets(session, cfg, "cache_eviction_controls.incremental_app_eviction", &cval));
     if (cval.val != 0)
-        F_SET(&conn->cache_eviction_controls, WT_CACHE_EVICT_INCREMENTAL_APP);
+        F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_EVICT_INCREMENTAL_APP);
 
     WT_RET(__wt_config_gets(
       session, cfg, "cache_eviction_controls.scrub_evict_under_target_limit", &cval));
     if (cval.val != 0)
-        F_SET(&conn->cache_eviction_controls, WT_CACHE_EVICT_SCRUB_UNDER_TARGET);
+        F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_EVICT_SCRUB_UNDER_TARGET);
 
+    WT_RET(__wt_config_gets(
+      session, cfg, "cache_eviction_controls.app_eviction_min_cache_fill_ratio", &cval));
+    __wt_atomic_store8(
+      &cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio, (uint8_t)cval.val);
     return (0);
 }
 
@@ -2921,6 +2940,53 @@ __conn_version_verify(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __conn_set_context_uint --
+ *     Set a global context parameter.
+ */
+static int
+__conn_set_context_uint(WT_CONNECTION *wt_conn, WT_CONTEXT_TYPE which, uint64_t value)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+
+    CONNECTION_API_CALL_NOCONF(conn, session, set_context_uint);
+
+    switch (which) {
+    case WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN:
+        WT_ERR(__wti_disagg_set_last_materialized_lsn(session, value));
+        break;
+    }
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
+ * __conn_dump_error_log --
+ *     Dump any logged error messages into the event handler. This works only if this level of
+ *     diagnostics is enabled.
+ */
+static int
+__conn_dump_error_log(WT_CONNECTION *wt_conn)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+
+    CONNECTION_API_CALL_NOCONF_NOERRCLEAR(conn, session, dump_error_log);
+
+    __wt_error_log_to_handler(session);
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
  * wiredtiger_open --
  *     Main library entry point: open a new connection to a WiredTiger database.
  */
@@ -2933,7 +2999,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
       __conn_open_session, __conn_query_timestamp, __conn_set_timestamp, __conn_rollback_to_stable,
       __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
       __conn_add_encryptor, __conn_set_file_system, __conn_add_page_log, __conn_add_storage_source,
-      __conn_get_page_log, __conn_get_storage_source, __conn_get_extension_api};
+      __conn_get_page_log, __conn_get_storage_source, __conn_set_context_uint,
+      __conn_dump_error_log, __conn_get_extension_api};
     static const WT_NAME_FLAG file_types[] = {
       {"data", WT_FILE_TYPE_DATA}, {"log", WT_FILE_TYPE_LOG}, {NULL, 0}};
 
@@ -3226,18 +3293,29 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * not ready for that yet. Enable precise checkpoint automatically for disaggregated storage in
      * the future.
      */
-    if (cval.val)
-        F_SET(conn, WT_CONN_PRECISE_CHECKPOINT);
-    else
+    if (cval.val) {
+        if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+            __wt_verbose_warning(session, WT_VERB_CHECKPOINT, "%s",
+              "precise checkpoint is ignored in in-memory database");
+            F_CLR(conn, WT_CONN_PRECISE_CHECKPOINT);
+        } else
+            F_SET(conn, WT_CONN_PRECISE_CHECKPOINT);
+    } else
         F_CLR(conn, WT_CONN_PRECISE_CHECKPOINT);
 
     WT_ERR(__wt_config_gets(session, cfg, "preserve_prepared", &cval));
     if (cval.val) {
-        if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
+        if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+            __wt_verbose_warning(session, WT_VERB_CHECKPOINT, "%s",
+              "preserve prepared is ignored in in-memory database");
+            F_CLR(conn, WT_CONN_PRESERVE_PREPARED);
+        } else if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
             WT_ERR_MSG(session, EINVAL,
               "Preserve prepared configuration incompatible with fuzzy checkpoint");
-        F_SET(conn, WT_CONN_PRESERVE_PREPARED);
-    }
+        else
+            F_SET(conn, WT_CONN_PRESERVE_PREPARED);
+    } else
+        F_CLR(conn, WT_CONN_PRESERVE_PREPARED);
 
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     if (cval.val) {
@@ -3480,7 +3558,7 @@ err:
          * detected the corruption above, set it here after closing.
          */
         if (try_salvage)
-            ret = WT_TRY_SALVAGE;
+            ret = WT_ERROR_LOG_ADD(WT_TRY_SALVAGE);
     }
 
     return (ret);

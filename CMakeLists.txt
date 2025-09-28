@@ -69,6 +69,7 @@ include(cmake/third_party/zlib.cmake)
 include(cmake/third_party/zstd.cmake)
 include(cmake/third_party/iaa.cmake)
 include(cmake/third_party/voidstar.cmake)
+include(cmake/third_party/sqlite3.cmake)
 
 # Skip the AZURE SDK build step if the extension is not enabled.
 if(ENABLE_AZURE)
@@ -87,26 +88,28 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(ENABLE_COLORIZE_OUTPUT)
     # Colorize the build error output
-    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
-        add_compile_options(-fdiagnostics-color=always)
-    elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-        add_compile_options(-fcolor-diagnostics)
+    if(GNU_C_COMPILER OR GNU_CXX_COMPILER)
+        add_cmake_flag(CMAKE_C_FLAGS "-fdiagnostics-color=always")
+        add_cmake_flag(CMAKE_CXX_FLAGS "-fdiagnostics-color=always")
+    elseif(CLANG_C_COMPILER OR CLANG_CXX_COMPILER)
+        add_cmake_flag(CMAKE_C_FLAGS "-fcolor-diagnostics")
+        add_cmake_flag(CMAKE_CXX_FLAGS "-fcolor-diagnostics")
     endif()
 endif()
 
 if(ENABLE_STRICT)
-    if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
+    if(GNU_C_COMPILER)
         include(cmake/strict/gcc_strict.cmake)
-    elseif("${CMAKE_C_COMPILER_ID}" MATCHES "^(Apple)?(C|c?)lang")
+    elseif(CLANG_C_COMPILER)
         include(cmake/strict/clang_strict.cmake)
-    elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+    elseif(MSVC_C_COMPILER)
         include(cmake/strict/cl_strict.cmake)
     endif()
-    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+    if(GNU_CXX_COMPILER)
         include(cmake/strict/gxx_strict.cmake)
-    elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "^(Apple)?(C|c?)lang")
+    elseif(CLANG_CXX_COMPILER)
         include(cmake/strict/clangxx_strict.cmake)
-    elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+    elseif(MSVC_CXX_COMPILER)
         include(cmake/strict/clxx_strict.cmake)
     endif()
 endif()
@@ -243,7 +246,7 @@ if(ENABLE_SHARED)
 
     setup_gdb_autoloader()
 
-    # For MacOS builds we need to generate a dSYM bundle that contains the debug symbols for the 
+    # For MacOS builds we need to generate a dSYM bundle that contains the debug symbols for the
     # WiredTiger library.
     if (WT_DARWIN)
         add_custom_command(
@@ -275,7 +278,7 @@ include(cmake/install/install.cmake)
 if(ENABLE_PYTHON)
     find_package(Python3 ${PYTHON3_REQUIRED_VERSION}
         COMPONENTS Interpreter Development REQUIRED)
-    
+
     find_package(SWIG ${SWIG_REQUIRED_VERSION} COMPONENTS python REQUIRED)
     include(UseSWIG)
 
@@ -293,6 +296,9 @@ add_subdirectory(test)
 
 # Build the WiredTiger tools.
 add_subdirectory(tools/checksum_bitflip)
+if(CMAKE_BUILD_TYPE STREQUAL "TSan")
+    add_subdirectory(tools/tsan_playground)
+endif()
 
 if(ENABLE_LLVM)
     add_subdirectory(tools/xray_to_optrack)

@@ -678,7 +678,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     evict = conn->evict;
 
     dirty_target = __wti_evict_dirty_target(evict);
-    dirty_trigger = evict->eviction_dirty_trigger;
+    dirty_trigger = __wt_atomic_load_double(&evict->eviction_dirty_trigger);
     target = evict->eviction_target;
     trigger = evict->eviction_trigger;
     updates_target = evict->eviction_updates_target;
@@ -798,13 +798,21 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
      * because the cost of retrieving a recently reconciled page is higher in that configuration. In
      * the local storage case scrub dirty pages and keep them in cache if we are less than half way
      * to the clean, dirty and updates triggers.
+     *
+     * There's an experimental flag WT_CACHE_EVICT_SCRUB_UNDER_TARGET that can be turned on to
+     * enable scrub eviction as long as cache usage overall is under half way to the trigger limit.
      */
     if (__wt_conn_is_disagg(session) && bytes_inuse < (uint64_t)(trigger * bytes_max) / 100)
         LF_SET(WT_EVICT_CACHE_SCRUB);
     else if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200) {
-        if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200 &&
-          bytes_updates < (uint64_t)((updates_target + updates_trigger) * bytes_max) / 200)
+        if (F_ISSET_ATOMIC_32(
+              &(conn->cache->cache_eviction_controls), WT_CACHE_EVICT_SCRUB_UNDER_TARGET)) {
             LF_SET(WT_EVICT_CACHE_SCRUB);
+        } else if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200 &&
+          bytes_updates < (uint64_t)((updates_target + updates_trigger) * bytes_max) / 200) {
+            LF_SET(WT_EVICT_CACHE_SCRUB);
+        }
+
     } else
         LF_SET(WT_EVICT_CACHE_NOKEEP);
 

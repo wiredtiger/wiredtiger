@@ -1,163 +1,107 @@
 /*! @arch_page arch-disagg-layered Layered Tables
 
-The Overall idea is that layered tables consist of an ingest table, which
-is periodically flushed out to the stable table. The stable table - as the
-name suggests - only contains committed transactions. To enable this, we
-require that layered tables are logged.
+Layered tables are an access method designed to support distributed systems that
+leverage shared storage for the majority of a table's data. Generally speaking, a layered table is
+not a table in the traditional sense, but rather an adapter that splits data access between two
+layers.
 
-@section disagg-layered-schema Schema
+This mechanism enables a single leader node to perform writes to the stable table, while other follower
+nodes maintain a consistent view by tracking recent changes. Having followers track recent changes allows
+for two key features:
+- Follower nodes can serve read operations on recent data without needing to access the shared
+storage directly.
+- Follower nodes can quickly transition to take over write responsibilities if the current leader
+(writer) becomes unavailable.
 
-If the dhandle type is \c WT_DHANDLE_TYPE_LAYERED, we use
-\c __schema_open_layered. This opens the data handle for a layered table.
-This sets up a \c WT_LAYERED structure with the key format, value format,
-ingest URI, and stable URI.
+@section shared-tables Shared vs local tables
 
-The other important member of a \c WT_LAYERED is \c WT_DATA_HANDLE iface,
-which means we can cast a \c WT_LAYERED to/from a \c WT_DATA_HANDLE.
+Tables can be distinguished by the backing storage mechanism. A shared table is a table whose data
+is stored in a shared storage back-end. Whereas a local or regular table is a table whose data is
+locally, either in-memory or on disk. In a layered table, the stable table is shared, and the ingest
+table is local.
 
-Once this is set up, we no longer have the table write lock. We continue to
-open the ingest and stable members without the lock, which is a pretty
-simple operation: get the \c dhandle for the URI, bump the in-use counter
-(separate to what getting the \c dhandle did), set the \c WT_LAYERED
-structure's pointer to the \c dhandle we got, and then release the \c dhandle.
-Note that the "leaking" behavior of the \c dhandle reference count is
-intentional here.
+There are also shared tables that are not part of any layered table (e.g., a shared history store
+table or a shared metadata table). The key difference between a regular table and a shared table is
+that the shared one uses the disaggregated block manager.
 
-This functionality will also ensure the layered table manager thread is started,
-and add the ingest and stable tables to the layered table manager. The details of
-this are in another section.
+The following diagram is not meant to strictly represent entities relationships, but rather to aid
+in understanding the high-level design.
 
-Upon closing a layered table (e.g. as part of the sweep server's normal
-operation), we free the key/value formats, free the URIs, remove the table
-from the layered table manager, and decrement the in-use counts of the data
-handles for the \c WT_DATA_HANDLE structures in the \c WT_LAYERED. This
-decrement mirrors the increment we performed when opening.
+\image html shared_table_oop_view.png
 
-Another part of this change was altering the dhandle/cursor macros, as they
-assumed there was a dhandle with a B-Tree under a cursor, which is no longer
-true with layered tables. So they were changed to directly accept a dhandle
-rather than a B-Tree.
+@section layered-arch High-level architecture
 
-@section disagg-layered-manager Layered table manager
+These semantics are achieved by using two underlying constituents: a shared stable table and an
+ingest table. The node responsible for writing to shared storage operates directly on a single
+shared table and has the guarantee that no other node will perform writes to that table.
+All other nodes will also have an ingest table, which holds a short-term view of recent changes.
 
-The layered table manager consists of two threads.
+The ingest table's view is layered over the shared stable table, so any read operations on a node with
+both an ingest and stable table will first look for a result in the ingest table, and if no result
+is found, fall back on the shared table.
 
-@subsection disagg-layered-log-thread Log application thread
+Layered tables are primarily for Disaggregated Storage Clusters (DSC) but can also be used outside
+of DSC for testing purposes, in particular, via local Page and Log Mock (PALM) infrastructure.
 
-The first thread, the "log application" thread, first checks to make sure
-that it's the only thread doing log application by using an atomic CAS. This
-is possibly redundant given the guards around starting the layered table manager
-more broadly. Anyway, once it's passed this test and decided to do some log
-catch up, it applies \c __layered_table_log_replay to all log records since it last
-performed log application.
+\image html shared_cluster.png
 
-To identify these records, it saves the last applied LSN on the
-\c WT_LAYERED_TABLE_MANAGER structure. For the startup case, this is zero, and we
-we set \c WT_LOGSCAN_FIRST so we see the earliest available record and start
-applying from there.
+Stable Table:
+- A table shared across nodes in the cluster
+- Backed by the disaggregated block manager that uses shared storage and supports having multiple different
+WiredTiger nodes share the same underlying data structure
 
-\c __layered_table_log_replay will only do work for commit records (to maintain
-the invariant that the stable table only contains committed content). When
-it spots such a record, it unpacks the transaction ID from the log record
-(in order to save it as the high water mark for next time), and replays the
-commit by applying the commit's constituent operations.
+Ingest Table:
+- An in-memory table that stores data that has been changed more recently than what is in the stable table
+- Doesn't contain checkpoints
+- Supersedes checkpointed content in the stable table
+- This table is specific to a particular node
 
-For each operation in the commit, the high-level idea is that we unpack the
-operation based on the type and apply it to our stable table.
+@section layered-api-restrictions API restrictions
 
-This mechanism relies on logs not being cleaned up for some amount of time.
-Currently logging only archives a log after a checkpoint has been completed
-that contains all relevant content. This has worked fine so far.
+Layered tables support all the regular tables operations, with exceptions listed here:
 
-@subsection disagg-layered-checkpoint-thread Checkpoint thread
+- All writes, from all nodes, must be timestamped
+- All nodes must use the same URI for the same table
+- All nodes must use byte-wise identical keys, values, and timestamps for the same records.
+- Table compaction is not supported on layered tables
+- Backup cursors will not return information about layered tables
+- Bulk cursors are not supported on layered tables
 
-The second thread, the "checkpoint" thread, reviews the layered tables and
-checkpoints the first with enough accumulated content. It will likely be
-changed in future to be more fair.
+@section layered-implementation Implementation aspects
 
-The definition of "enough" content is hard-coded right now, but once we do
-the checkpoint there's a little bookkeeping for the transaction ID, where we
-save the maximum applied transaction ID to the ingest B-Tree's
-\c oldest_live_txnid member so the ingest table knows what information can be
-garbage collected. (The garbage collection is performed as part of
-reconciliation, specifically \c __wt_update_obsolete_check.)
+__Note:__ This section is closely tied to the source code and may become outdated if not
+maintained in sync with implementation changes.
 
-@subsection disagg-layered-add-remove Adding/removing entries
+@subsection layered-leader-follower Leader vs Follower
+- Leader (Primary):
+    - All operations (including writes) go directly to the stable table
+    - The ingest table remains empty
+    - Can create new checkpoints
+- Follower (Standby):
+    - The stable table contains read-only checkpointed data from the leader
+    - The ingest table holds changes applied since the last checkpoint
+    - When a new checkpoint is fetched, the ingest table is cleaned up
 
-When adding a table to the layered table manager, we append a
-\c WT_LAYERED_TABLE_MANAGER_ENTRY structure to the \c WT_LAYERED_TABLE_MANAGER entry
-array. Right now, this array only supports 1000 entries - this is temporary.
-We take the \c layered_table_lock, allocate an entry, fill in the ingest ID,
-stable ID and the \c dhandle pointer. We need to pick a transaction ID to
-support the garbage collection process (which needs the oldest checkpoint ID
-to start collecting from). To this end, we conservatively choose the global
-oldest ID since nothing will have been written to the ingest table at that
-point.
+@subsection layered-metadata Layered tables metadata representation and related files
 
-Removing an entry is simpler - simply close the cursor then free/null the
-entry. There is a little bit of a dance around shutdown, where the function
-gets called redundantly. To avoid any issues, we set a flag
-(\c WT_LAYERED_TABLE_MANAGER_OFF) when the layered table manager is destroyed, and
-no-op the removal if this is set.
+Each layered table contains three related entries in metadata:
 
-@section disagg-layered-cursors Layered table cursors
+```
+layered:foo.wt
+    disaggregated=(page_log=palm),ingest="file:foo.wt_ingest",log=(enabled=false),stable="file:foo.wt_stable"
+file:foo.wt_ingest
+file:foo.wt_stable
+```
 
-These offer the same API as any other cursor, including some of the "usual"
-restrictions around not supporting bulk-loading, random positioning,
-in-memory databases, or being opened as part of a checkpoint.
+The ingest and stable table could also have table: prefixed metadata entries if the table was created
+with the `block_manager=disagg,type=layered` config.
 
-The unique part is the notion of "constituent cursors". A layered table is
-backed by two "real" tables (the ingest and stable tables), so we maintain
-two \c WT_CURSOR pointers for these tables. (We also maintain a third such
-pointer so we can remember where we are across iterations, but more on that
-later.)
+Since shared metadata and history store tables are shared but not layered tables, they both have
+`.wt_stable` suffixed metadata entries but no associated `layered:` ones:
 
-Closing a layered cursor is relatively normal - we close our constituent
-ingest and stable cursors, close out any running operation, and then fall
-back to the generic \c __wt_cursor_close functionality.
+```
+file:WiredTigerShared.wt_stable
+file:WiredTigerSharedHS.wt_stable
+```
 
-Most typical cursor operations (\c next, \c reserve, etc) are wrapped in a
-pair of \c __clayered_enter and \c __clayered_leave calls. These calls are
-essentially for lifetime management: we need to make sure the two
-constituent cursors are reset, opened and closed at the same time, as well
-as making sure \c session->ncursors is handled correctly (otherwise it would
-be possible to open the layered table, open the constituent cursors, close
-them later, and have the session closed with the "parent" layered table cursor
-left open).
-
-We also use these to be a little bit clever, since cursors open for updates
-will only touch the ingest table, so we can save some work.
-
-The data manipulation functions for these cursors follow a pattern of (1)
-finding whether to use the ingest or stable table, and (2) performing the
-operation there. The worker function here is \c __clayered_put, which uses a
-set of boolean arguments to determine which call to make to the sub-cursor.
-
-\c __clayered_put is also used for removing data, where we "put" a tombstone
-in place of calling \c cursor->remove. This is so a deletion leaves us with
-something to shuffle across to the stable table, instead of having values
-silently remain (as they would if we didn't have a way to spot them go
-missing). Note that the tombstones here are not a "typical" tombstone as
-you'd see on the update chain - rather, it's a special key/value. It's
-theoretically possible for an application to write the special key/value,
-but all that'd happen is a wasted copy from the ingress to the stable table.
-
-The search code is substantially more fiddly than the modification code. We
-can't just call \c search_near on the current cursor, as the other
-constituent table might have a key that's closer. The semantics are:
-
-- An exact match always wins
-- A larger key is preferred if one exists
-- Otherwise, a smaller key is returned
-- If both constituent tables have a larger key, return the closest.
-
-The search functions rely on a different helper function to the modification
-calls, leaning on \c __clayered_lookup. This isn't particularly complicated,
-and mostly exists to encapsulate the logic of "falling back" to the stable
-table if a key wasn't found in the ingest table.
-
-\c __clayered_prev (and the related \c next call) has a subtlety caused by
-the "two sub-cursors" situation. For both directions, we need to move the
-"smallest" cursor in the relevant direction, so this involves comparing the
-keys of both the ingest and stable sub-cursors.
 */

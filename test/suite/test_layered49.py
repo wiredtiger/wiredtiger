@@ -26,139 +26,124 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
+import wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered49.py
-#    Test passing encryption keys to and from the PALI interface.
+# Test we don't revome the user tombstones from the ingest table until they are included in a checkpoint.
+
 @disagg_test_class
 class test_layered49(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    nitems = 500
-
-    # The keys in this test are integer values less than nitems that have been "stringized".
-    # Make an array of the keys in sort order so we can verify the results from scanning.
-    keys_in_order = sorted([str(k) for k in range(nitems)])
-
-    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(page_log=palm),'
-    conn_config = conn_base_config + 'disaggregated=(role="leader")'
-
-    create_session_config = 'key_format=S,value_format=S'
-
-    uri = "layered:test_layered49a"
-
     disagg_storages = gen_disagg_storages('test_layered49', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
-    # Load the page log extension, which has disaggregated storage support
-    def conn_extensions(self, extlist):
-        # Tell PALM to be verbose, and send that output to the WT
-        # extension message API.  This guarantees that it will be captured
-        # in the Python stdout file. Regular PALM verbose messages are not
-        # captured.
-        self.palm_debug = True
-        self.palm_config = 'verbose_msg=1'
+    conn_base_config = 'disaggregated=(page_log=palm),cache_size=10MB,'
+    conn_config = conn_base_config + 'disaggregated=(role="leader")'
+    conn_config_follower = conn_base_config + 'disaggregated=(role="follower")'
 
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
-        DisaggConfigMixin.conn_extensions(self, extlist)
+    nitems = 100
+    timestamp = 1
 
-    def put_data(self, value_prefix, low = 0, high = nitems, session = None):
-        if session == None:
-            session = self.session   # leader by default
-        cursor = session.open_cursor(self.uri, None, None)
+    session_follow = None
+    conn_follow = None
+
+    def leader_put_data(self, uri, value_prefix = '', low = 1, high = nitems):
+        cursor = self.session.open_cursor(uri, None, None)
         for i in range(low, high):
+            self.session.begin_transaction()
             cursor[str(i)] = value_prefix + str(i)
+            self.timestamp += 1
+            ts_cfg = "commit_timestamp=" + self.timestamp_str(self.timestamp)
+            self.session.commit_transaction(ts_cfg)
         cursor.close()
 
-    def check_data(self, cursor, value_prefix, low = 0, high = nitems):
-        for i in range(low, high):
-            self.assertEqual(cursor[str(i)], value_prefix + str(i))
-
-    # Scan data from low to high expecting to see all the keys and values using the given prefix.
-    #
-    # This function is sometimes called doing partial scans, and later, after a state change,
-    # continuing using the same cursor.  We are promised that cursor iteration results aren't
-    # affected by other transactions. Extending this reasoning to state changes, like picking up
-    # checkpoints and stepping up to leader, cursors should similarly be unaffected by state
-    # changes happening concurrently to the lifetime of the cursor.
-    def scan_data(self, cursor, value_prefix, low = 0, high = nitems):
-        if value_prefix == 'eee':
-            self.session_follow.breakpoint()
-        uri = self.uri
-
-        found = 0
-        for i in range(low, high):
-            ret = cursor.next()
-            if ret == wiredtiger.WT_NOTFOUND:
-                break
-            self.assertEqual(ret, 0)
-            expected_key = self.keys_in_order[i]
-            self.assertEqual(cursor.get_key(), expected_key)
-            self.assertEqual(cursor.get_value(), value_prefix + expected_key)
-            found += 1
-        self.assertEqual(found, high - low)
-
-    # This test was copied from layered31, but has been simplified a lot.
-    # We want to establish a leader and follower, and have the follower
-    # step up to a leader and make changes.  This guarantees (on the follower),
-    # that page(s) have been read from disaggregated storage and that we
-    # are making changes to those changes.  The pages we receieved from DS
-    # have dek (encryption keys), and when we write deltas for those pages,
-    # we want to make sure we use those encryption keys.  We check this by reading
-    # the verbose output, looking for a message that we've used a saved key.
-    #
-    def test_layered49(self):
-        cfg = self.create_session_config
-        self.session.create(self.uri, cfg)
-
-        # Create the follower
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + \
-                                           self.conn_base_config + 'disaggregated=(role="follower")')
-        session_follow = conn_follow.open_session('')
-
-        self.session_follow = session_follow   # Useful for convenience functions
-
-        # Put data to the leader table
-        value_prefix0 = '---'
-        self.put_data(value_prefix0)
+    def checkpoint(self):
+        self.timestamp += 1
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.timestamp))
         self.session.checkpoint()
 
-        # Check data in the follower
-        self.disagg_advance_checkpoint(conn_follow)
-        follower_cursor = self.session_follow.open_cursor(self.uri)
-        self.check_data(follower_cursor, value_prefix0)
-        follower_cursor.close()
+    def create_follower(self):
+        self.conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
+                                                self.conn_config_follower)
+        self.session_follow = self.conn_follow.open_session('')
 
-        # Make a change on the leader, and propogate to the follower.
-        value_prefix1 = '+++'
-        self.put_data(value_prefix1)
+    def test_remove(self):
+        uri = "layered:test_layered49"
+        # Setup
+        self.session.create(uri, 'key_format=S,value_format=S')
+        self.create_follower()
 
-        # Advance the checkpoint.
-        self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
+        # Insert some data and checkpoint
+        self.leader_put_data(uri)
+        self.checkpoint()
+        self.disagg_advance_checkpoint(self.conn_follow)
 
-        # Step up. We have two connections, our old leader and the follower that is becoming
-        # the new leader. Close the old leader first so there's no confusion within this test.
-        self.conn.close()
-        conn_follow.reconfigure('disaggregated=(role="leader")')
+        cursor = self.session_follow.open_cursor(uri, None, None)
 
-        # Now check that after closing, we get the new value
-        follower_cursor = self.session_follow.open_cursor(self.uri)
-        self.scan_data(follower_cursor, value_prefix1)
-        follower_cursor.close()
+        # Delete all the data
+        for i in range(1, self.nitems):
+            self.session_follow.begin_transaction()
+            cursor.set_key(str(i))
+            cursor.remove()
+            self.timestamp += 1
+            self.session_follow.commit_transaction("commit_timestamp=" + self.timestamp_str(self.timestamp))
 
-        value_prefix2 = '!!!'
-        self.put_data(value_prefix2, session = self.session_follow)
+        # Make the delete globally visible
+        self.conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(self.timestamp) + ',oldest_timestamp=' + self.timestamp_str(self.timestamp))
 
-        # Now, the encryption part of the test. Remove all output up to now. We've previously
-        # told PALM to be verbose and we're looking for a message that we've used the
-        # encryption key. Doing a checkpoint should trigger the message.  Close down the connection
-        # as well, as that generates other PALM verbose output that must be ignored.
-        self.cleanStderr()
-        self.cleanStdout()
-        with self.expectedStdoutPattern('.*palm using saved dek.*', maxchars=10000):
-            self.session_follow.checkpoint()
-            session_follow.close()
-            conn_follow.close()
+        # Force the page to be evicted
+        session_evict = self.conn_follow.open_session("debug=(release_evict_page=true)")
+        session_evict.begin_transaction("ignore_prepare=true")
+        evict_cursor = session_evict.open_cursor(uri, None, None)
+        for i in range(1, self.nitems):
+            evict_cursor.set_key(str(i))
+            self.assertEqual(evict_cursor.search(), wiredtiger.WT_NOTFOUND)
+            evict_cursor.reset()
+        evict_cursor.close()
+
+        # Verify that the data is still not visible
+        self.session_follow.begin_transaction("read_timestamp=" + self.timestamp_str(self.timestamp))
+        for i in range(1, self.nitems):
+            cursor.set_key(str(i))
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+        self.session_follow.rollback_transaction()
+
+    def test_truncate(self):
+        uri = "layered:test_layered49"
+        # Setup
+        self.session.create(uri, 'key_format=S,value_format=S')
+        self.create_follower()
+
+        # Insert some data and checkpoint
+        self.leader_put_data(uri)
+        self.checkpoint()
+        self.disagg_advance_checkpoint(self.conn_follow)
+
+        cursor = self.session_follow.open_cursor(uri, None, None)
+        cursor.next()
+
+        # Truncate all the data
+        self.session_follow.begin_transaction()
+        self.session_follow.truncate(None, cursor, None, None)
+        self.timestamp = self.timestamp + 1
+        self.session_follow.commit_transaction("commit_timestamp=" + self.timestamp_str(self.timestamp))
+
+        # Make the delete globally visible
+        self.conn_follow.set_timestamp('stable_timestamp=' + self.timestamp_str(self.timestamp) + ',oldest_timestamp=' + self.timestamp_str(self.timestamp))
+
+        # Force the page to be evicted
+        session_evict = self.conn_follow.open_session("debug=(release_evict_page=true)")
+        session_evict.begin_transaction("ignore_prepare=true")
+        evict_cursor = session_evict.open_cursor(uri, None, None)
+        for i in range(1, self.nitems):
+            evict_cursor.set_key(str(i))
+            self.assertEqual(evict_cursor.search(), wiredtiger.WT_NOTFOUND)
+            evict_cursor.reset()
+        evict_cursor.close()
+
+        # Verify that the data is still not visible
+        self.session_follow.begin_transaction("read_timestamp=" + self.timestamp_str(self.timestamp))
+        for i in range(1, self.nitems):
+            cursor.set_key(str(i))
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+        self.session_follow.rollback_transaction()

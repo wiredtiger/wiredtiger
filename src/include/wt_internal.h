@@ -125,8 +125,8 @@ struct __wt_cell_unpack_common;
 typedef struct __wt_cell_unpack_common WT_CELL_UNPACK_COMMON;
 struct __wt_cell_unpack_delta_int;
 typedef struct __wt_cell_unpack_delta_int WT_CELL_UNPACK_DELTA_INT;
-struct __wt_cell_unpack_delta_leaf_kv;
-typedef struct __wt_cell_unpack_delta_leaf_kv WT_CELL_UNPACK_DELTA_LEAF_KV;
+struct __wt_cell_unpack_delta_leaf;
+typedef struct __wt_cell_unpack_delta_leaf WT_CELL_UNPACK_DELTA_LEAF;
 struct __wt_cell_unpack_kv;
 typedef struct __wt_cell_unpack_kv WT_CELL_UNPACK_KV;
 struct __wt_checkpoint_cleanup;
@@ -227,6 +227,8 @@ struct __wt_data_handle;
 typedef struct __wt_data_handle WT_DATA_HANDLE;
 struct __wt_data_handle_cache;
 typedef struct __wt_data_handle_cache WT_DATA_HANDLE_CACHE;
+struct __wt_delta_cell_leaf;
+typedef struct __wt_delta_cell_leaf WT_DELTA_CELL_LEAF;
 struct __wt_disagg_copy_metadata;
 typedef struct __wt_disagg_copy_metadata WT_DISAGG_COPY_METADATA;
 struct __wt_disaggregated_checkpoint_track;
@@ -351,6 +353,10 @@ struct __wt_page_modify;
 typedef struct __wt_page_modify WT_PAGE_MODIFY;
 struct __wt_page_walk_skip_stats;
 typedef struct __wt_page_walk_skip_stats WT_PAGE_WALK_SKIP_STATS;
+struct __wt_pending_prepared_item;
+typedef struct __wt_pending_prepared_item WT_PENDING_PREPARED_ITEM;
+struct __wt_pending_prepared_map;
+typedef struct __wt_pending_prepared_map WT_PENDING_PREPARED_MAP;
 struct __wt_prefetch;
 typedef struct __wt_prefetch WT_PREFETCH;
 struct __wt_prefetch_queue_entry;
@@ -561,6 +567,7 @@ typedef uint64_t wt_timestamp_t;
 #include "timestamp.h"    /* required by reconcile.h */
 #include "thread_group.h" /* required by rollback_to_stable.h */
 #include "verbose.h"      /* required by rollback_to_stable.h */
+#include "error.h"        /* required by api.h */
 
 #include "api.h"
 #include "bitstring.h"
@@ -581,7 +588,6 @@ typedef uint64_t wt_timestamp_t;
 #include "conf.h"
 #include "config.h"
 #include "dlh.h"
-#include "error.h"
 #include "futex.h"
 #include "generation.h"
 #include "hash_map.h"

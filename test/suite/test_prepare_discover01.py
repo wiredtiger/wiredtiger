@@ -27,8 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_prepare_discover01.py
-#   Test discovering prepared transaction artifacts after recovery
-#
+#   Test that pending prepared transaction artifacts can be discovered after recovery
+#   and rolled back
 
 import random, sys
 from suite_subprocess import suite_subprocess
@@ -93,8 +93,8 @@ class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
         while prepared_discover_cursor.next() == 0:
             count += 1
             prepared_id = prepared_discover_cursor.get_key()
-            self.assertEqual(prepared_id, 100)
-            c2s2.begin_transaction("claim_prepared=" + self.timestamp_str(prepared_id))
+            self.assertEqual(prepared_id, 123)
+            c2s2.begin_transaction("claim_prepared_id=" + self.timestamp_str(prepared_id))
             c2s2.rollback_transaction("rollback_timestamp=" + self.timestamp_str(200))
         self.assertEqual(count, 1)
 

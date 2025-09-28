@@ -53,6 +53,7 @@
 
 /* Basic constants. */
 #define WT_MILLION_LITERAL 1000000
+#define WT_HUNDRED (100)
 #define WT_THOUSAND (1000)
 #define WT_MILLION (WT_MILLION_LITERAL)
 #define WT_BILLION (1000000000)
@@ -100,6 +101,9 @@
 #define WT_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define WT_MAX(a, b) ((a) < (b) ? (b) : (a))
 #define WT_CLAMP(x, low, high) (WT_MIN(WT_MAX((x), (low)), (high)))
+
+/* Check and reset, implicitly reset to 0. */
+#define WT_CHECK_AND_RESET(a, v) ((a) == (v) ? ((a) = 0, true) : false)
 
 /* Ceil for unsigned/positive real numbers. */
 #define WT_CEIL_POS(a) ((a) - (double)(uintmax_t)(a) > 0.0 ? (uintmax_t)(a) + 1 : (uintmax_t)(a))

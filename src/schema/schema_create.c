@@ -1011,6 +1011,7 @@ err:
 static int
 __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
 {
+    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(disagg_config);
     WT_DECL_ITEM(ingest_uri_buf);
@@ -1031,6 +1032,11 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     constituent_cfg = NULL;
     tablecfg = NULL;
     meta_value = NULL;
+
+    ret = __wt_config_getones(session, config, "log.enabled", &cval);
+    WT_RET_NOTFOUND_OK(ret);
+    if (ret == 0 && cval.val > 0)
+        WT_RET_MSG(session, EINVAL, "Logging is not supported for layered.");
 
     WT_RET(__wt_scr_alloc(session, 0, &disagg_config));
     WT_ERR(__wt_scr_alloc(session, 0, &ingest_uri_buf));
@@ -1455,6 +1461,14 @@ __schema_create_config_check(
         WT_RET_MSG(session, ENOTSUP,
           "unsupported type configuration: %.*s: type must be file for tiered storage",
           (int)cval.len, cval.str);
+
+    /* In disaggregated storage we should write everything with a timestamp. */
+    bool write_ts_never =
+      __wt_config_getones(session, config, "write_timestamp_usage", &cval) == 0 &&
+      WT_CONFIG_LIT_MATCH("never", cval);
+    if (__wt_conn_is_disagg(session) && write_ts_never)
+        WT_RET_SUB(session, EINVAL, WT_CONFLICT_DISAGG,
+          "write_timestamp_usage cannot be set to never when disaggregated storage is enabled");
 
     return (0);
 }
