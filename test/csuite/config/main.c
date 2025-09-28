@@ -151,14 +151,14 @@ static KEY_VALUES begin_txn_kv[] = {
  * Check compiling configuration strings for reconfigure.
  *
  *   "cache_cursor=%s,cache_max_wait_ms=%s,ignore_cache_size=%s,"
- *   "isolation=%s,prefetch2=(enabled=%s),"
+ *   "isolation=%s,prefetch=(enabled=%s),"
  *   "debug=(checkpoint_fail_before_turtle_update=%s,release_evict_page=%s)";
  */
 
 /*
  * The complete set of configuration keys for reconfigure, along with valid/invalid pairs for each.
  */
-static KEY_VALUES reconfigure_prefetch2_kv[] = {
+static KEY_VALUES reconfigure_prefetch_kv[] = {
   {"enabled", valid_bool, invalid_bool, NULL}, {NULL, NULL, NULL, NULL}};
 static KEY_VALUES reconfigure_debug_kv[] = {
   {"checkpoint_fail_before_turtle_update", valid_bool, invalid_bool, NULL},
@@ -167,7 +167,7 @@ static KEY_VALUES reconfigure_kv[] = {{"cache_cursors", valid_bool, invalid_bool
   {"cache_max_wait_ms", valid_nonnegative_int, invalid_nonnegative_int, NULL},
   {"ignore_cache_size", valid_bool, invalid_bool, NULL},
   {"isolation", valid_isolation, invalid_isolation, NULL},
-  {"prefetch2", NULL, NULL, reconfigure_prefetch2_kv}, {"debug", NULL, NULL, reconfigure_debug_kv},
+  {"prefetch", NULL, NULL, reconfigure_prefetch_kv}, {"debug", NULL, NULL, reconfigure_debug_kv},
   {"debug", NULL, NULL, reconfigure_debug_kv}, {NULL, NULL, NULL, NULL}};
 
 /*
