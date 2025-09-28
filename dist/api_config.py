@@ -52,7 +52,10 @@ class KeyNumber:
             self.numbering[name] = len(self.numbering)
 
     def get(self, name):
-        return self.numbering[name]
+        try:
+            return self.numbering[name]
+        except KeyError:
+            return -1
 
     def count(self):
         return len(self.numbering)
@@ -180,6 +183,7 @@ def getcompstr(c, keynumber):
     # E.g. "WT_CONFIG_COMPILED_TYPE_INT"
     comptype = 'WT_CONFIG_COMPILED_TYPE_' + ty.upper()
     offset = keynumber.get(gen_id_name(c.name, ty))
+    assert offset != -1
     checks = c.flags
     minval = 'INT64_MIN'
     maxval = 'INT64_MAX'
@@ -239,6 +243,11 @@ def add_conf_keys_one(c, conf_keys):
     ctype = gettype(c)
     idname = gen_id_name(c.name, ctype)
     if ctype == 'category':
+        if idname in conf_keys and idname == 'Prefetch':
+            # If duplicated config name is found for prefetch, append a suffix
+            # to make it unique. This is to make compiled configuration work.
+            suffix = 1
+            idname = idname + str(suffix)
         subconf_keys = dict()
         add_conf_keys(c.subconfig, subconf_keys, False)
         conf_keys[idname] = subconf_keys
@@ -278,6 +287,11 @@ def add_keys(keynumber, configs, prefix):
     for c in configs:
         ty = gettype(c)
         idname = gen_id_name(c.name, ty)
+        if keynumber.get(idname) != -1 and idname == 'Prefetch':
+            # If duplicated config name is found for prefetch, append a suffix
+            # to make it unique. This is to make compiled configuration work.
+            suffix = 1
+            idname = idname + str(suffix)
         keynumber.add(idname)
         if not c.name in config_key:
             config_names[c.name] = c.name
@@ -746,6 +760,7 @@ if not test_config:
         count = 0
         for name in sorted(keynumber.numbering.keys()):
             off = keynumber.get(name)
+            assert off != -1
             tfile.write('#define WT_CONF_ID_{} {}ULL\n'.format(name, off))
             count += 1
         assert count == keynumber.count()

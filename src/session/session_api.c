@@ -488,7 +488,7 @@ __session_config_prefetch(WT_SESSION_IMPL *session, WT_CONF *conf)
      * Override any connection-level pre-fetch settings if a specific session-level setting was
      * provided.
      */
-    if (__wt_conf_gets_def(session, conf, Prefetch2.enabled, 0, &cval) == 0) {
+    if (__wt_conf_gets_def(session, conf, Prefetch.enabled, 0, &cval) == 0) {
         if (cval.val) {
             if (!S2C(session)->prefetch_available) {
                 F_CLR(session, WT_SESSION_PREFETCH_ENABLED);
