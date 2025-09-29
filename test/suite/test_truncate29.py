@@ -34,7 +34,7 @@ from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
 
 # test_truncate29.py
-# Test that verify handles timestamp usage checks correctly after timestampped fast truncate operations were enabled.
+# Test that verify handles timestamp usage checks correctly after timestamped fast truncate operations were enabled.
 
 class test_truncate29(wttest.WiredTigerTestCase):
     uri = 'file:test_truncate29'
