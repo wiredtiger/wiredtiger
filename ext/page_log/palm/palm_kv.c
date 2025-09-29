@@ -380,6 +380,10 @@ palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id, 
     return (mdb_put(context->lmdb_txn, context->env->lmdb_pages_dbi, &kval, &vval, 0));
 }
 
+/*
+ * palm_kv_abandon_after --
+ *     Abandon (delete) all page log entries with an LSN greater than the given LSN.
+ */
 int
 palm_kv_abandon_after(PALM_KV_CONTEXT *context, uint64_t abandon_after_lsn)
 {
@@ -400,6 +404,11 @@ palm_kv_abandon_after(PALM_KV_CONTEXT *context, uint64_t abandon_after_lsn)
         ret = 0;
         goto err;
     }
+
+    /*
+     * TODO: We probably also need to delete the checkpoint completion records, if we are not
+     * abandoning the most recent checkpoint.
+     */
 
     /*
      * Iterate through the pages table, looking for pages that have an LSN greater than the given
