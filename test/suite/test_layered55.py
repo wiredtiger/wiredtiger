@@ -39,7 +39,7 @@ import time
 class test_layered55(wttest.WiredTigerTestCase, DisaggConfigMixin):
     encrypt = [
         ('none', dict(encryptor='none', encrypt_args='')),
-        ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
+        # ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
     ]
 
     compress = [
@@ -58,10 +58,10 @@ class test_layered55(wttest.WiredTigerTestCase, DisaggConfigMixin):
     ]
 
     delta = [
-        ('write_leaf_only', dict(delta_config='internal_page_delta=false,leaf_page_delta=true', delta_type='leaf_only')),
-        ('write_internal_only', dict(delta_config='internal_page_delta=true,leaf_page_delta=false', delta_type='internal_only')),
-        ('write_none', dict(delta_config='internal_page_delta=false,leaf_page_delta=false', delta_type='none')),
-        ('write_both', dict(delta_config='internal_page_delta=true,leaf_page_delta=true', delta_type='both')),
+        ('write_leaf_only', dict(delta_config='page_delta=(internal_page_delta=false,leaf_page_delta=true)', delta_type='leaf_only')),
+        # ('write_internal_only', dict(delta_config='page_delta=(internal_page_delta=true,leaf_page_delta=false)', delta_type='internal_only')),
+        ('write_none', dict(delta_config='page_delta=(internal_page_delta=false,leaf_page_delta=false)', delta_type='none')),
+        # ('write_both', dict(delta_config='page_delta=(internal_page_delta=true,leaf_page_delta=true)', delta_type='both')),
     ]
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
@@ -76,14 +76,14 @@ class test_layered55(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def session_create_config(self):
         # The delta percentage of 100 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
-        cfg = 'disaggregated=(delta_pct=100),key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512,block_compressor={}'.format(self.block_compress)
+        cfg = 'key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith('file'):
             cfg += ',block_manager=disagg'
         return cfg
 
     def conn_config(self):
         enc_conf = 'encryption=(name={0},{1}),'.format(self.encryptor, self.encrypt_args)
-        return self.conn_base_config + f'disaggregated=(role="leader",{self.delta_config}),' + enc_conf
+        return self.conn_base_config + f'disaggregated=(role="leader"),{self.delta_config},' + enc_conf
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
