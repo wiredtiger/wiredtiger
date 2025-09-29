@@ -547,7 +547,7 @@ __wt_evict_needed(
 
         /*
          * Temporary solution to not do updates and dirty eviction using application threads. Log an
-         * error and panic if the cache is full of updates or dirty pages.
+         * error and log an error if the cache is full of updates or dirty pages.
          */
         if (ignore_updates_dirty && __wt_conn_is_disagg(session) &&
           !conn->layered_table_manager.leader) {
@@ -561,7 +561,8 @@ __wt_evict_needed(
             if (dirty_needed || updates_needed)
                 WT_STAT_CONN_DSRC_INCR(session, cache_eviction_app_threads_skip_updates_dirty_page);
 
-            *pct_fullp = pct_full;
+            if (pct_fullp != NULL)
+                *pct_fullp = 100.0 - (evict->eviction_trigger - pct_full);
             return (clean_needed);
         }
     }
