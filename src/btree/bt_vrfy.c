@@ -1471,7 +1471,7 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
      */
     __wt_qsort(page_ids, num_pages_found_in_btree, sizeof(uint64_t), __verify_compare_page_id);
 
-    for (size_t index_in_palm = 0, index_in_btree = 0;
+    for (uint32_t index_in_palm = 0, index_in_btree = 0;
          index_in_palm <= num_pages_found_in_palm && index_in_btree <= num_pages_found_in_btree;) {
         if (index_in_palm == num_pages_found_in_palm && index_in_btree == num_pages_found_in_btree)
             break;
@@ -1486,12 +1486,12 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
          */
         if (index_in_btree == num_pages_found_in_btree || id_in_palm < id_in_btree) {
             __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
-              "Unreferenced page was not discarded: PALM[%" PRIu64 "] %" PRIu64, index_in_palm,
+              "Unreferenced page was not discarded: PALM[%" PRIu32 "] %" PRIu64, index_in_palm,
               id_in_palm);
             index_in_palm++;
         } else if (index_in_palm == num_pages_found_in_palm || id_in_palm > id_in_btree) {
             __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
-              "Discarded page is still in use: BTREE[%" PRIu64 "] %" PRIu64, index_in_btree,
+              "Discarded page is still in use: BTREE[%" PRIu32 "] %" PRIu64, index_in_btree,
               id_in_btree);
             index_in_btree++;
         } else {
