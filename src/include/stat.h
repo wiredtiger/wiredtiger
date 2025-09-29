@@ -513,6 +513,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_app_threads_fill_ratio_25_50;
     int64_t cache_eviction_app_threads_fill_ratio_50_75;
     int64_t cache_eviction_app_threads_fill_ratio_gt_75;
+    int64_t cache_eviction_app_threads_skip_updates_dirty_page;
     int64_t cache_read_app_count;
     int64_t cache_read_app_time;
     int64_t cache_write_app_count;
@@ -1388,6 +1389,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_app_threads_fill_ratio_25_50;
     int64_t cache_eviction_app_threads_fill_ratio_50_75;
     int64_t cache_eviction_app_threads_fill_ratio_gt_75;
+    int64_t cache_eviction_app_threads_skip_updates_dirty_page;
     int64_t cache_bytes_inuse;
     int64_t cache_bytes_dirty_total;
     int64_t cache_bytes_read;

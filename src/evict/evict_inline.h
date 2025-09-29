@@ -558,6 +558,7 @@ __wt_evict_needed(
                 __wt_verbose_warning(
                   session, WT_VERB_EVICTION, "%s", "cache is full of dirty pages");
 
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_app_threads_skip_updates_dirty_page);
             return (false);
         }
     }
