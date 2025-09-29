@@ -2314,6 +2314,21 @@ __wti_cache_eviction_controls_config(WT_SESSION_IMPL *session, const char *cfg[]
 
     cache = S2C(session)->cache;
 
+    /*
+     * The cache tolerance is a percentage value with range 0 - 100, inclusive.
+     * Given input percentage is considered in multiples of 10 only, by applying floor().
+     * 00 < value < 10  -> 00
+     * 10 < value < 20  -> 10
+     * 20 < value < 30  -> 20
+     * ...
+     * 90 < value < 100 -> 90
+     * value is 100     -> 100
+     */
+    WT_RET(__wt_config_gets(
+      session, cfg, "cache_eviction_controls.cache_tolerance_for_app_eviction", &cval));
+    __wt_atomic_store8(&cache->cache_eviction_controls.cache_tolerance_for_app_eviction,
+      (((uint8_t)cval.val / 10) * 10));
+
     WT_RET(
       __wt_config_gets(session, cfg, "cache_eviction_controls.incremental_app_eviction", &cval));
     if (cval.val != 0)
@@ -3278,18 +3293,29 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * not ready for that yet. Enable precise checkpoint automatically for disaggregated storage in
      * the future.
      */
-    if (cval.val)
-        F_SET(conn, WT_CONN_PRECISE_CHECKPOINT);
-    else
+    if (cval.val) {
+        if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+            __wt_verbose_warning(session, WT_VERB_CHECKPOINT, "%s",
+              "precise checkpoint is ignored in in-memory database");
+            F_CLR(conn, WT_CONN_PRECISE_CHECKPOINT);
+        } else
+            F_SET(conn, WT_CONN_PRECISE_CHECKPOINT);
+    } else
         F_CLR(conn, WT_CONN_PRECISE_CHECKPOINT);
 
     WT_ERR(__wt_config_gets(session, cfg, "preserve_prepared", &cval));
     if (cval.val) {
-        if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
+        if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+            __wt_verbose_warning(session, WT_VERB_CHECKPOINT, "%s",
+              "preserve prepared is ignored in in-memory database");
+            F_CLR(conn, WT_CONN_PRESERVE_PREPARED);
+        } else if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
             WT_ERR_MSG(session, EINVAL,
               "Preserve prepared configuration incompatible with fuzzy checkpoint");
-        F_SET(conn, WT_CONN_PRESERVE_PREPARED);
-    }
+        else
+            F_SET(conn, WT_CONN_PRESERVE_PREPARED);
+    } else
+        F_CLR(conn, WT_CONN_PRESERVE_PREPARED);
 
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     if (cval.val) {

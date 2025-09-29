@@ -903,6 +903,8 @@ struct __wt_connection_stats {
     int64_t cursor_update_bytes_changed;
     int64_t cursor_reopen;
     int64_t cursor_open_count;
+    int64_t cursor_open_time_user_usecs;
+    int64_t cursor_open_time_internal_usecs;
     int64_t dh_conn_handle_table_count;
     int64_t dh_conn_handle_tiered_count;
     int64_t dh_conn_handle_tiered_tree_count;
@@ -1158,6 +1160,8 @@ struct __wt_connection_stats {
     int64_t rec_page_delete_fast;
     int64_t rec_page_full_image_internal;
     int64_t rec_page_full_image_leaf;
+    int64_t rec_page_delta_internal_key_deleted;
+    int64_t rec_page_delta_internal_key_updated;
     int64_t rec_page_delta_internal;
     int64_t rec_multiblock_internal;
     int64_t rec_page_delta_leaf;
@@ -1586,6 +1590,8 @@ struct __wt_dsrc_stats {
     int64_t cursor_modify_bytes_touch;
     int64_t cursor_next;
     int64_t cursor_open_count;
+    int64_t cursor_open_time_user_usecs;
+    int64_t cursor_open_time_internal_usecs;
     int64_t cursor_restart;
     int64_t cursor_prev;
     int64_t cursor_remove;
@@ -1642,6 +1648,8 @@ struct __wt_dsrc_stats {
     int64_t rec_page_delete_fast;
     int64_t rec_page_full_image_internal;
     int64_t rec_page_full_image_leaf;
+    int64_t rec_page_delta_internal_key_deleted;
+    int64_t rec_page_delta_internal_key_updated;
     int64_t rec_page_delta_internal;
     int64_t rec_suffix_compression;
     int64_t rec_multiblock_internal;
