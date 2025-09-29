@@ -504,7 +504,7 @@ __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
  *     Return `true` if the cache usage exceeds any of the clean/dirty/update eviction trigger
  *     thresholds.
  */
-static WT_INLINE int
+static WT_INLINE bool
 __wt_evict_needed(
   WT_SESSION_IMPL *session, bool busy, bool readonly, bool ignore_updates_dirty, double *pct_fullp)
 {
