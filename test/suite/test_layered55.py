@@ -39,6 +39,7 @@ import time
 class test_layered55(wttest.WiredTigerTestCase, DisaggConfigMixin):
     encrypt = [
         ('none', dict(encryptor='none', encrypt_args='')),
+        # FIXME-WT-15610 This is not working with this encryptor
         # ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
     ]
 
@@ -58,6 +59,7 @@ class test_layered55(wttest.WiredTigerTestCase, DisaggConfigMixin):
     ]
 
     delta = [
+        # FIXME-WT-15610 This is not working with internal page deltas -- all stats return zero.
         ('write_leaf_only', dict(delta_config='page_delta=(internal_page_delta=false,leaf_page_delta=true)', delta_type='leaf_only')),
         # ('write_internal_only', dict(delta_config='page_delta=(internal_page_delta=true,leaf_page_delta=false)', delta_type='internal_only')),
         ('write_none', dict(delta_config='page_delta=(internal_page_delta=false,leaf_page_delta=false)', delta_type='none')),

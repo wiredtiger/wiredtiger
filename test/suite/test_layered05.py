@@ -37,7 +37,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 class test_layered05(wttest.WiredTigerTestCase):
     nitems = 100000
     uri_base = "test_layered05"
-    # TODO why is this not working with lose_all_my_data
+    # FIXME-WT-15609 This is not working with lose_all_my_data configured true
     base_conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                 + 'disaggregated=(page_log=palm,lose_all_my_data=false),'
     conn_config = base_conn_config + 'disaggregated=(role="leader"),'
