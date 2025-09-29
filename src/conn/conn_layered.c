@@ -1020,7 +1020,8 @@ __wti_disagg_set_last_materialized_lsn(WT_SESSION_IMPL *session, uint64_t lsn)
 
 /*
  * __disagg_abandon_checkpoint --
- *     Abandon the current checkpoint.
+ *     Abandon the current incomplete checkpoint, if the operation is supported by the provided PALI
+ *     implementation. It is a no-op if the operation is not supported.
  */
 static int
 __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
@@ -1041,8 +1042,14 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
     if (disagg->npage_log->page_log->pl_abandon_checkpoint == NULL)
         return (0);
 
+    /*
+     * Call the PALI function to abandon the checkpoint. Since we are not specifying the latest
+     * complete checkpoint, the implementation of this function would identify the LSN of the last
+     * checkpoint completion record and drop all later records. If there are no more updates after
+     * the last complete checkpoint, the function would have no effect.
+     */
     WT_RET(disagg->npage_log->page_log->pl_abandon_checkpoint(
-      disagg->npage_log->page_log, &session->iface, 0));
+      disagg->npage_log->page_log, &session->iface, WT_PAGE_LOG_LAST_CHECKPOINT));
 
     return (0);
 }
@@ -1218,7 +1225,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
                 __wt_buf_free(session, &complete_checkpoint_meta);
                 WT_ERR_MSG_CHK(session, ret, "Failed to pick up checkpoint metadata");
-            }
+            } else if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND))
+                __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
+                  "Did not find any complete checkpoint to pick up at startup");
             WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_begin_checkpoint(session));
             WT_ERR_MSG_CHK(session, ret, "Failed to begin a new checkpoint");
         }
