@@ -628,9 +628,8 @@ __clayered_get_current(
     if (clayered->stable_cursor != NULL && F_ISSET(clayered->stable_cursor, WT_CURSTD_KEY_INT))
         stable_positioned = true;
 
-    if (!ingest_positioned && !stable_positioned) {
+    if (!ingest_positioned && !stable_positioned)
         WT_ERR(WT_NOTFOUND);
-    }
 
     __clayered_get_collator(clayered, &collator);
 
