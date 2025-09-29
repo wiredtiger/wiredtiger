@@ -837,9 +837,9 @@ __bm_verify_addr(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_
  *     End a block manager verify.
  */
 static int
-__bm_verify_end(WT_BM *bm, WT_SESSION_IMPL *session, int ret)
+__bm_verify_end(WT_BM *bm, WT_SESSION_IMPL *session, bool verify_success)
 {
-    return (__wt_block_verify_end(session, bm->block, ret));
+    return (__wt_block_verify_end(session, bm->block, verify_success));
 }
 
 /*
