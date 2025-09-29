@@ -42,9 +42,6 @@ class test_layered55(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     nitems = 1000
 
-    session_follow = None
-    conn_follow = None
-
     def generate_random_string(self, length):
         characters = string.ascii_letters + string.digits + string.punctuation
         random_string = ''.join(random.choices(characters, k=length))
