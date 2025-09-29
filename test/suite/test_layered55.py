@@ -60,7 +60,6 @@ class test_layered55(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor[self.generate_random_string(1000) + str(i)] = self.generate_random_string(1000) + str(i)
             self.session.commit_transaction(f"commit_timestamp={self.timestamp_str(10)}")
 
-        # Assert that we have deleted at least one internal key page delta.
-        stat_cursor = self.session.open_cursor('statistics:' + uri)
-        self.assertEqual(stat_cursor[stat.dsrc.cache_eviction_app_threads_skip_updates_dirty_page][2], 0)
+        stat_cursor = self.session.open_cursor('statistics:')
+        self.assertGreater(stat_cursor[stat.conn.cache_eviction_app_threads_skip_updates_dirty_page][2], 0)
         stat_cursor.close()
