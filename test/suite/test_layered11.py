@@ -93,7 +93,7 @@ class test_layered11(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         self.session.checkpoint()
 
-        # FIXME SLS-759: Check that we also retry reading the checkpoint metadata, e.g.
+        # FIXME WT-14482: Check that we also retry reading the checkpoint metadata, e.g.
         # with self.expectedStdoutPattern('retry', maxchars=100000):
         if True:
             self.pr('opening the follower')

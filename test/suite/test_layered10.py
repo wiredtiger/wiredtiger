@@ -64,7 +64,6 @@ class test_layered10(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         self.session.create(self.uri, session_config)
 
-        # TODO figure out self.extensionsConfig()
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + "disaggregated=(role=\"follower\")")
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, session_config)

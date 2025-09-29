@@ -45,7 +45,6 @@ class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
         ('100k', dict(nitems=100000)),
     ])
 
-    # TODO do Python tests expect a field named uri?
     uri = "layered:test_layered06"
 
     # Load the page log extension, which has object storage support
@@ -73,7 +72,6 @@ class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.create(self.uri, session_config)
 
         self.pr("create second WT")
-        # TODO figure out self.extensionsConfig()
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + "disaggregated=(role=\"follower\")")
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, session_config)
