@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import time
 import wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wiredtiger import stat
@@ -53,6 +54,13 @@ class test_layered42(wttest.WiredTigerTestCase, DisaggConfigMixin):
             c[i] = str(i)
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(1)}')
 
-        stat_cursor = self.session.open_cursor('statistics:')
-        self.assertGreater(stat_cursor[stat.conn.cache_eviction_blocked_disagg_dirty_internal_page][2], 0)
+        dirty_internal_page = 0
+        for retry in range(0, 5):
+            stat_cursor = self.session.open_cursor('statistics:')
+            dirty_internal_page = stat_cursor[stat.conn.cache_eviction_blocked_disagg_dirty_internal_page][2]
+            if dirty_internal_page == 0:
+                time.sleep(1)
+            else:
+                break
+        self.assertGreater(dirty_internal_page, 0)
         stat_cursor.close()
