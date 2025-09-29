@@ -79,9 +79,9 @@ class test_truncate29(wttest.WiredTigerTestCase):
         # Have a long-running transaction. Don't commit or roll this back.
         s1 = self.conn.open_session()
         s1.begin_transaction()
-        pc = s1.open_cursor(self.uri, None)
-        pc.set_key(ds.key(100))
-        pc.search()
+        pinned_cursor = s1.open_cursor(self.uri, None)
+        pinned_cursor.set_key(ds.key(100))
+        pinned_cursor.search()
 
         # Truncate everything.
         self.session.begin_transaction('no_timestamp=true')
@@ -94,7 +94,7 @@ class test_truncate29(wttest.WiredTigerTestCase):
         # Do a checkpoint.
         self.session.checkpoint()
 
-        pc.close()
+        pinned_cursor.close()
         s1.rollback_transaction()
 
         self.session.verify(self.uri, None)
