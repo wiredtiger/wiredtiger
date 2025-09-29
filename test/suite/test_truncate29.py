@@ -28,7 +28,7 @@
 
 import random
 import string
-import wiredtiger, wttest
+import wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
