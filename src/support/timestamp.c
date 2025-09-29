@@ -298,7 +298,7 @@ __wt_time_aggregate_validate(
      *
      */
 
-    if (ta->oldest_start_ts > ta->newest_stop_ts)
+    if (ta->newest_stop_ts != WT_TS_NONE && ta->oldest_start_ts > ta->newest_stop_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has an oldest start time after its newest stop time; time "
           "aggregate %s",
@@ -328,7 +328,8 @@ __wt_time_aggregate_validate(
      * stop are equal first and then check the newest start durable timestamp against newest stop
      * durable timestamp if all the data on the page are deleted.
      */
-    if (ta->newest_start_durable_ts != ta->newest_stop_durable_ts &&
+    if (ta->newest_stop_durable_ts != WT_TS_NONE &&
+      ta->newest_start_durable_ts != ta->newest_stop_durable_ts &&
       ta->newest_stop_ts != WT_TS_MAX && ta->newest_start_durable_ts > ta->newest_stop_durable_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has a newest start durable time after its newest stop durable "
