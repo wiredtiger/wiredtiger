@@ -848,7 +848,7 @@ functions:
             ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command $(cat $do_run) 2>&1
         fi
 
-  "unit test parallel":
+  "unit test tsan parallel":
     command: shell.exec
     params:
       working_dir: "wiredtiger"
@@ -869,8 +869,8 @@ functions:
           threads_command="-j ${num_jobs}"
         fi
         py=${python_binary|python3}
-        echo "Using $threads_command for 'unit test parallel'"
-        ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1
+        echo "Using $threads_command for 'unit test tsan parallel'"
+        ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1 || echo "Ignoring failed test as we are checking for tsan warnings"
 
   "tsan warning metric":
     command: shell.exec
@@ -2296,7 +2296,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "unit test parallel"
+      - func: "unit test tsan parallel"
         vars:
           # Run the set of tests that are not in the fail list.
           unit_test_parallel_ignore: test/suite/tsan.fail
@@ -2312,7 +2312,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "unit test parallel"
+      - func: "unit test tsan parallel"
         vars:
           # Run the set of tests that are not in the fail list.
           unit_test_parallel_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
