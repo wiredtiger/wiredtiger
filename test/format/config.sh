@@ -187,13 +187,15 @@ CONFIG configuration_list[] = {
 
 {"debug.update_restore_evict", "control all dirty page evictions through forcing update restore eviction", C_BOOL, 2, 0, 0}
 
-{"disagg.page_log", "configure page log for disaggregated storage (off | palm)", C_IGNORE | C_STRING, 0, 0, 0}
-
-{"disagg.mode", "configure mode for disaggregated storage (follower | leader | switch)", C_IGNORE | C_STRING, 0, 0, 0}
+{"disagg.disable_deltas", "disable writing deltas for internal and leaf pages", C_IGNORE | C_BOOL, 0, 0, 0}
 
 {"disagg.enabled", "configure disaggregated storage", C_IGNORE | C_BOOL | C_TABLE | C_TYPE_ROW, 0, 0, 0}
 
 {"disagg.layered", "use layered URI for any disaggregated tables", C_BOOL, 100, 1, 0}
+
+{"disagg.mode", "configure mode for disaggregated storage (follower | leader | switch)", C_IGNORE | C_STRING, 0, 0, 0}
+
+{"disagg.page_log", "configure page log for disaggregated storage (off | palm | palite)", C_IGNORE | C_STRING, 0, 0, 0}
 
 {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 

@@ -1510,46 +1510,55 @@ config_tiered_storage(void)
 static void
 config_disagg_storage(void)
 {
+    int disable_deltas;
     char buf[128];
     const char *mode, *page_log;
 
     page_log = GVS(DISAGG_PAGE_LOG);
 
     g.disagg_storage_config = (strcmp(page_log, "off") != 0 && strcmp(page_log, "none") != 0);
-    if (g.disagg_storage_config) {
-        if (!config_explicit(NULL, "disagg.mode")) {
-            /* Randomly assign "leader" or "follower" to disagg.mode with equal probability. */
-            testutil_snprintf(buf, sizeof(buf), "disagg.mode=%s",
-              mmrand(&g.data_rnd, 1, 100) <= 50 ? "leader" : "follower");
-            config_single(NULL, buf, false);
-        }
+    if (!g.disagg_storage_config)
+        return; /* Disaggregated storage not enabled. */
 
-        mode = GVS(DISAGG_MODE);
-        if (strcmp(mode, "leader") != 0 && strcmp(mode, "follower") != 0 &&
-          strcmp(mode, "switch") != 0)
-            testutil_die(EINVAL, "illegal disagg.mode configuration: %s", mode);
-
-        if (strcmp(mode, "switch") == 0)
-            /* Randomly assign "leader" or "follower". */
-            g.disagg_leader = mmrand(&g.data_rnd, 0, 1);
-        else
-            g.disagg_leader = strcmp(mode, "leader") == 0;
-
-        /* Disaggregated storage requires timestamps. */
-        config_off(NULL, "transaction.implicit");
-        config_single(NULL, "transaction.timestamps=on", true);
-
-        /* It makes sense to do checkpoints. */
-        if (!config_explicit(NULL, "checkpoint"))
-            config_single(NULL, "checkpoint=on", false);
-
-        /* TODO: Some operations are not yet supported for disaggregated storage. */
-        config_off(NULL, "ops.salvage");
-        config_off(NULL, "backup");
-        config_off(NULL, "backup.incremental");
-        config_off(NULL, "ops.compaction");
-        config_off(NULL, "background_compact");
+    if (!config_explicit(NULL, "disagg.mode")) {
+        /* Randomly assign "leader" or "follower" to disagg.mode with equal probability. */
+        testutil_snprintf(buf, sizeof(buf), "disagg.mode=%s",
+          mmrand(&g.data_rnd, 1, 100) <= 50 ? "leader" : "follower");
+        config_single(NULL, buf, false);
     }
+
+    mode = GVS(DISAGG_MODE);
+    if (strcmp(mode, "leader") != 0 && strcmp(mode, "follower") != 0 && strcmp(mode, "switch") != 0)
+        testutil_die(EINVAL, "illegal disagg.mode configuration: %s", mode);
+
+    if (strcmp(mode, "switch") == 0)
+        /* Randomly assign "leader" or "follower". */
+        g.disagg_leader = mmrand(&g.data_rnd, 0, 1);
+    else
+        g.disagg_leader = strcmp(mode, "leader") == 0;
+
+    if (config_explicit(NULL, "disagg.disable_deltas")) {
+        disable_deltas = GV(DISAGG_DISABLE_DELTAS) != 0 ? 1 : 0;
+        testutil_snprintf(buf, sizeof(buf), "internal_page_delta=%d", disable_deltas);
+        config_single(NULL, buf, true);
+        testutil_snprintf(buf, sizeof(buf), "leaf_page_delta=%d", disable_deltas);
+        config_single(NULL, buf, true);
+    }
+
+    /* Disaggregated storage requires timestamps. */
+    config_off(NULL, "transaction.implicit");
+    config_single(NULL, "transaction.timestamps=on", true);
+
+    /* It makes sense to do checkpoints. */
+    if (!config_explicit(NULL, "checkpoint"))
+        config_single(NULL, "checkpoint=on", false);
+
+    /* TODO: Some operations are not yet supported for disaggregated storage. */
+    config_off(NULL, "ops.salvage");
+    config_off(NULL, "backup");
+    config_off(NULL, "backup.incremental");
+    config_off(NULL, "ops.compaction");
+    config_off(NULL, "background_compact");
 }
 
 /*
