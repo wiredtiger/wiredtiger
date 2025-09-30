@@ -408,6 +408,7 @@ palm_kv_abandon_after(PALM_KV_CONTEXT *context, uint64_t abandon_after_lsn)
     /*
      * TODO: We probably also need to delete the checkpoint completion records, if we are not
      * abandoning the most recent checkpoint.
+     * Note: PALM is being deprecated, won't be addressed.
      */
 
     /*
