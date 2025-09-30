@@ -10,8 +10,8 @@
 
 static int __disagg_copy_shared_metadata_one(WT_SESSION_IMPL *session, const char *uri);
 static int __layered_drain_ingest_tables(WT_SESSION_IMPL *session);
-static int __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session,
-                                                              wt_timestamp_t checkpoint_timestamp);
+static int __layered_update_gc_ingest_tables_prune_timestamps(
+  WT_SESSION_IMPL *session, wt_timestamp_t checkpoint_timestamp);
 static int __layered_track_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_timestamp);
 static int __layered_last_checkpoint_order(
   WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order);
@@ -588,7 +588,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
       "Updating disagg checkpoint tracking failed");
 
     /* Update ingest tables' prune timestamps. */
-    WT_ERR_MSG_CHK(session, __layered_update_gc_ingest_tables_prune_timestamps(internal_session, checkpoint_timestamp),
+    WT_ERR_MSG_CHK(session,
+      __layered_update_gc_ingest_tables_prune_timestamps(internal_session, checkpoint_timestamp),
       "Updating prune timestamp failed");
 
     /* Log the completion of the checkpoint pick-up. */
@@ -1895,8 +1896,8 @@ err:
  *     Update the timestamp we can prune the ingest tables.
  */
 static int
-__layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session,
-                                                   wt_timestamp_t checkpoint_timestamp)
+__layered_update_gc_ingest_tables_prune_timestamps(
+  WT_SESSION_IMPL *session, wt_timestamp_t checkpoint_timestamp)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
@@ -1917,6 +1918,7 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session,
     min_ckpt_inuse = ds->ckpt_track_cnt;
     uri_at_checkpoint = NULL;
     uri_alloc = 0;
+    prune_timestamp = WT_TS_NONE;
 
     WT_ASSERT(session, manager->state == WT_LAYERED_TABLE_MANAGER_RUNNING);
 
@@ -1948,7 +1950,7 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session,
             len = strlen(layered_table->stable_uri) + strlen(WT_CHECKPOINT) + 20;
             WT_ERR(__wt_realloc_def(session, &uri_alloc, len, &uri_at_checkpoint));
 
-            /* Track the stable table's last checkpoint timestamp for further checkpo*/
+            /* Track the stable table's last checkpoint timestamp */
             WT_ERR(__wt_snprintf(uri_at_checkpoint, uri_alloc, "%s/%s.%" PRId64,
               layered_table->stable_uri, WT_CHECKPOINT, last_ckpt));
             WT_ERR(__wt_session_get_dhandle(session, uri_at_checkpoint, NULL, NULL, 0));
@@ -2006,12 +2008,6 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session,
                 for (track = 0; track < ds->ckpt_track_cnt; ++track)
                     if (ds->ckpt_track[track].ckpt_order == ckpt_inuse)
                         break;
-                // if (track >= ds->ckpt_track_cnt)
-                //     WT_ERR_MSG(session, WT_NOTFOUND,
-                //       "could not find checkpoint order %" PRId64 " in list of tracked checkpoints",
-                //       ckpt_inuse);
-
-                // prune_timestamp = ds->ckpt_track[track].timestamp;
 
                 /*
                  * Set the prune timestamp in the btree if it is open, typically it is. However,
