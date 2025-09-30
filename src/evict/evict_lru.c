@@ -3079,7 +3079,7 @@ __wti_evict_app_assist_worker(
 
         /* See if eviction is still needed. */
         double pct_full;
-        if (!__wt_evict_needed(session, busy, readonly, &pct_full) ||
+        if (!__wt_evict_needed(session, busy, readonly, true, &pct_full) ||
           (pct_full < 100.0 &&
             (__wt_atomic_loadv64(&evict->eviction_progress) > initial_progress + max_progress)))
             break;
