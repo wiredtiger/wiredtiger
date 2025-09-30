@@ -551,11 +551,12 @@ __wt_evict_needed(
          */
         if (ignore_updates_dirty && __wt_conn_is_disagg(session) &&
           !conn->layered_table_manager.leader) {
-            if (pct_updates > 95)
+            double cache_full = (evict->eviction_target + evict->eviction_trigger) / 2;
+            if (pct_updates > cache_full)
                 __wt_verbose_warning(
                   session, WT_VERB_EVICTION, "cache is full of updates: %f percent", pct_updates);
 
-            if (pct_dirty > 95)
+            if (pct_dirty > cache_full)
                 __wt_verbose_warning(
                   session, WT_VERB_EVICTION, "cache is full of dirty pages: %f percent", pct_dirty);
 
