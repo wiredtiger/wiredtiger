@@ -100,7 +100,6 @@ LLC
 LLVM
 LLVMFuzzerTestOneInput
 LOGREC
-LOGSCAN
 LRU
 LSB
 LSM
@@ -261,7 +260,6 @@ checksums
 chunkcache
 ckp
 ckpt
-clayered
 clickable
 cmake
 colgroup
@@ -269,7 +267,6 @@ colgroups
 colspan
 combinatorial
 command's
-commit's
 comparator
 compressibility
 cond
@@ -557,7 +554,6 @@ mygcc
 mytable
 namespace
 nav
-ncursors
 ndary
 ndbm
 newsite
