@@ -1880,6 +1880,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server skips trees because there are too many active walks",
   "cache: eviction server skips trees that are being checkpointed",
   "cache: eviction server skips trees that are configured to stick in cache",
+  "cache: eviction server skips trees that are read-only if it is not looking for clean pages",
   "cache: eviction server skips trees that disable eviction",
   "cache: eviction server skips trees that were not useful before",
   "cache: eviction server slept, because we did not make progress with eviction",
@@ -2858,6 +2859,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_server_skip_trees_too_many_active_walks = 0;
     stats->eviction_server_skip_checkpointing_trees = 0;
     stats->eviction_server_skip_trees_stick_in_cache = 0;
+    stats->eviction_server_skip_trees_read_only = 0;
     stats->eviction_server_skip_trees_eviction_disabled = 0;
     stats->eviction_server_skip_trees_not_useful_before = 0;
     stats->eviction_server_slept = 0;
@@ -3831,6 +3833,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_server_skip_checkpointing_trees);
     to->eviction_server_skip_trees_stick_in_cache +=
       WT_STAT_CONN_READ(from, eviction_server_skip_trees_stick_in_cache);
+    to->eviction_server_skip_trees_read_only +=
+      WT_STAT_CONN_READ(from, eviction_server_skip_trees_read_only);
     to->eviction_server_skip_trees_eviction_disabled +=
       WT_STAT_CONN_READ(from, eviction_server_skip_trees_eviction_disabled);
     to->eviction_server_skip_trees_not_useful_before +=

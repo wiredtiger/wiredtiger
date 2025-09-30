@@ -514,13 +514,13 @@ struct __wt_page_modify {
  * The page state is incremented when a page is modified.
  *
  * WT_PAGE_CLEAN --
- *	The page is clean.
+ *  The page is clean.
  * WT_PAGE_DIRTY_FIRST --
- *	The page is in this state after the first operation that marks a
- *	page dirty, or when reconciliation is checking to see if it has
- *	done enough work to be able to mark the page clean.
+ *  The page is in this state after the first operation that marks a
+ *  page dirty, or when reconciliation is checking to see if it has
+ *  done enough work to be able to mark the page clean.
  * WT_PAGE_DIRTY --
- *	Two or more updates have been added to the page.
+ *  Two or more updates have been added to the page.
  */
 #define WT_PAGE_CLEAN 0
 #define WT_PAGE_DIRTY_FIRST 1

@@ -381,6 +381,7 @@ conn_stats = [
     EvictStat('eviction_server_skip_pages_retry', 'eviction server skips pages that previously failed eviction and likely will again'),
     EvictStat('eviction_server_skip_trees_eviction_disabled', 'eviction server skips trees that disable eviction'),
     EvictStat('eviction_server_skip_trees_not_useful_before', 'eviction server skips trees that were not useful before'),
+    EvictStat('eviction_server_skip_trees_read_only', 'eviction server skips trees that are read-only if it is not looking for clean pages'),
     EvictStat('eviction_server_skip_trees_stick_in_cache', 'eviction server skips trees that are configured to stick in cache'),
     EvictStat('eviction_server_skip_trees_too_many_active_walks', 'eviction server skips trees because there are too many active walks'),
     EvictStat('eviction_server_skip_unwanted_pages', 'eviction server skips pages that we do not want to evict'),
