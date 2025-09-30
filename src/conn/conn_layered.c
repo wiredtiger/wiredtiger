@@ -10,7 +10,8 @@
 
 static int __disagg_copy_shared_metadata_one(WT_SESSION_IMPL *session, const char *uri);
 static int __layered_drain_ingest_tables(WT_SESSION_IMPL *session);
-static int __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session);
+static int __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session,
+                                                              wt_timestamp_t checkpoint_timestamp);
 static int __layered_track_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_timestamp);
 static int __layered_last_checkpoint_order(
   WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order);
@@ -587,7 +588,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
       "Updating disagg checkpoint tracking failed");
 
     /* Update ingest tables' prune timestamps. */
-    WT_ERR_MSG_CHK(session, __layered_update_gc_ingest_tables_prune_timestamps(internal_session),
+    WT_ERR_MSG_CHK(session, __layered_update_gc_ingest_tables_prune_timestamps(internal_session, checkpoint_timestamp),
       "Updating prune timestamp failed");
 
     /* Log the completion of the checkpoint pick-up. */
@@ -1894,7 +1895,8 @@ err:
  *     Update the timestamp we can prune the ingest tables.
  */
 static int
-__layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
+__layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session,
+                                                   wt_timestamp_t checkpoint_timestamp)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
@@ -1941,6 +1943,20 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
             }
 
             /*
+             * Allocate enough room for the uri and the WiredTigerCheckpoint.NNN
+             */
+            len = strlen(layered_table->stable_uri) + strlen(WT_CHECKPOINT) + 20;
+            WT_ERR(__wt_realloc_def(session, &uri_alloc, len, &uri_at_checkpoint));
+
+            /* Track the stable table's last checkpoint timestamp for further checkpo*/
+            WT_ERR(__wt_snprintf(uri_at_checkpoint, uri_alloc, "%s/%s.%" PRId64,
+              layered_table->stable_uri, WT_CHECKPOINT, last_ckpt));
+            WT_ERR(__wt_session_get_dhandle(session, uri_at_checkpoint, NULL, NULL, 0));
+            btree = (WT_BTREE *)session->dhandle->handle;
+            btree->ckpt_timestamp = checkpoint_timestamp;
+
+            WT_ERR(__wt_session_release_dhandle(session));
+            /*
              * For each layered table, we want to see what is the oldest checkpoint on that table
              * that is in use by any open cursor. Even if there are no open cursors on it, the most
              * recent checkpoint on the table is always considered in use. The basic plan is to
@@ -1952,29 +1968,12 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
              * including in one of the checkpoints we're saving, and thus can be removed.
              */
             ckpt_inuse = layered_table->last_ckpt_inuse;
+
+            /* Picking up a checkpoint the first time, so it's OK to set it to the current one. */
             if (ckpt_inuse == 0) {
-                /*
-                 * If we've never checked this layered table before, it's safe to start at the
-                 * oldest checkpoint that we're tracking. There are no cursors in the system that
-                 * are open at checkpoints older than that one. It's probably impossible that we
-                 * haven't tracked any checkpoints, if that happens, we'll start checking at zero.
-                 */
-                if (ds->ckpt_track_cnt > 0)
-                    ckpt_inuse = ds->ckpt_track[0].ckpt_order;
+                ckpt_inuse = last_ckpt;
             }
 
-            /*
-             * Allocate enough room for the uri and the WiredTigerCheckpoint.NNN
-             */
-            len = strlen(layered_table->stable_uri) + strlen(WT_CHECKPOINT) + 20;
-            WT_ERR(__wt_realloc_def(session, &uri_alloc, len, &uri_at_checkpoint));
-
-            /*
-             * For each checkpoint, see of the handle is in use. If not, it is safe to gc.
-             * FIXME-WT-15192: `ckpt_inuse` and `last_ckpt` could be obtained from different tables
-             * and that's not correct to compare checkpoint orders from different tables since they
-             * are unrelated.
-             */
             while (ckpt_inuse < last_ckpt) {
                 WT_ERR(__wt_snprintf(uri_at_checkpoint, uri_alloc, "%s/%s.%" PRId64,
                   layered_table->stable_uri, WT_CHECKPOINT, ckpt_inuse));
@@ -1984,11 +1983,18 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
                   session, (ret = __wt_conn_dhandle_find(session, uri_at_checkpoint, NULL)));
 
                 /* If it's in use by any session, then we're done. */
-                if (ret == 0 && session->dhandle->session_inuse > 0)
+                if (ret == 0 && session->dhandle->session_inuse > 0) {
+                    btree = (WT_BTREE *)session->dhandle->handle;
+                    prune_timestamp = btree->ckpt_timestamp;
                     break;
+                }
 
                 WT_ERR_NOTFOUND_OK(ret, false);
                 ++ckpt_inuse;
+            }
+
+            if (ckpt_inuse == last_ckpt) {
+                prune_timestamp = checkpoint_timestamp;
             }
 
             /*
@@ -2000,12 +2006,12 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
                 for (track = 0; track < ds->ckpt_track_cnt; ++track)
                     if (ds->ckpt_track[track].ckpt_order == ckpt_inuse)
                         break;
-                if (track >= ds->ckpt_track_cnt)
-                    WT_ERR_MSG(session, WT_NOTFOUND,
-                      "could not find checkpoint order %" PRId64 " in list of tracked checkpoints",
-                      ckpt_inuse);
+                // if (track >= ds->ckpt_track_cnt)
+                //     WT_ERR_MSG(session, WT_NOTFOUND,
+                //       "could not find checkpoint order %" PRId64 " in list of tracked checkpoints",
+                //       ckpt_inuse);
 
-                prune_timestamp = ds->ckpt_track[track].timestamp;
+                // prune_timestamp = ds->ckpt_track[track].timestamp;
 
                 /*
                  * Set the prune timestamp in the btree if it is open, typically it is. However,
