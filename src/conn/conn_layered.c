@@ -1056,7 +1056,7 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
      * the last complete checkpoint, the function would have no effect.
      */
     WT_RET(disagg->npage_log->page_log->pl_abandon_checkpoint(
-      disagg->npage_log->page_log, &session->iface, WT_PAGE_LOG_LAST_CHECKPOINT));
+      disagg->npage_log->page_log, &session->iface, WT_PAGE_LOG_LSN_MAX));
 
     return (0);
 }

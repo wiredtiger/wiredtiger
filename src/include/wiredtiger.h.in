@@ -5517,9 +5517,9 @@ struct __wt_storage_source {
 };
 
 /*!
- * The most recently completed checkpoint.
+ * The maximum page log LSN, which can be used by some calls to identify the most recent log entry.
  */
-#define WT_PAGE_LOG_LAST_CHECKPOINT UINT64_MAX
+#define WT_PAGE_LOG_LSN_MAX UINT64_MAX
 
 /*!
  * The interface implemented by applications to provide a page log service
@@ -5559,7 +5559,7 @@ struct __wt_page_log {
      * @param page_log the WT_PAGE_LOG
      * @param session the current WiredTiger session
      * @param last_checkpoint_lsn the LSN of the last completed checkpoint (use
-     *        WT_PAGE_LOG_LAST_CHECKPOINT for the most recent checkpoint)
+     *        WT_PAGE_LOG_LSN_MAX for the most recent checkpoint)
      */
     int (*pl_abandon_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session,
         uint64_t last_checkpoint_lsn);
