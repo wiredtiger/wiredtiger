@@ -28,6 +28,41 @@
 
 import inspect, os, re, shutil, sys, time, traceback, unittest
 
+class TeeFile(object):
+    """
+    A file-like object that writes to multiple destinations simultaneously.
+    Useful for capturing output while still showing it on the terminal.
+    """
+    def __init__(self, files):
+        self.files = files
+
+    def add_file(self, file):
+        self.files.append(file)
+
+    def write(self, text):
+        for f in self.files:
+            f.write(text)
+            f.flush()  # Ensure immediate output
+
+    def flush(self):
+        for f in self.files:
+            f.flush()
+
+    def fileno(self):
+        # Return the fileno of the first file
+        return self.files[0].fileno()
+
+    def close(self):
+        for f in self.files:
+            # Check if file is already closed
+            if hasattr(f, 'closed') and f.closed:
+                continue  # Skip already closed files
+            # Don't close the original stdout/stderr
+            if hasattr(f, 'fileno') and f.fileno() in (1, 2):
+                continue
+            if hasattr(f, 'close'):
+                f.close()
+
 def shortenWithEllipsis(s, maxlen):
     if len(s) > maxlen:
         s = s[0:maxlen-3] + '...'
@@ -213,6 +248,7 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
     # Placeholder configuration, in the case no one calls the setup functions.
     _dupout = sys.stdout
     _ignoreStdout = False
+    _realtimeStdout = False
     _parentTestdir = None
     _resultFile = sys.stdout
     _stderr = sys.stderr
@@ -287,7 +323,8 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
     #
 
     @staticmethod
-    def setupIO(resultFileName = 'results.txt', ignoreStdout = False, verbose = 1):
+    def setupIO(resultFileName = 'results.txt', ignoreStdout = False, realtimeOutput = False,
+                verbose = 1):
         '''
         Set up I/O for the test.
         '''
@@ -297,6 +334,7 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
             os.path.join(AbstractWiredTigerTestCase._parentTestdir, resultFileName))
 
         AbstractWiredTigerTestCase._ignoreStdout = ignoreStdout
+        AbstractWiredTigerTestCase._realtimeOutput = realtimeOutput
         AbstractWiredTigerTestCase._resultFileName = resultFilePath
         AbstractWiredTigerTestCase._verbose = verbose
 
@@ -323,10 +361,23 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
         '''
         Set up stderr/stdout after a test.
         '''
+        # Create capture object to intercept the output and check for unexpected entries
         self.captureout = CapturedFd('stdout.txt', 'standard output')
         self.captureerr = CapturedFd('stderr.txt', 'error output')
-        sys.stdout = self.captureout.capture()
-        sys.stderr = self.captureerr.capture()
+
+        # Create tee objects that write to both capture files and original stdout/stderr
+        self.tee_stdout = TeeFile([self.captureout.capture()])
+        self.tee_stderr = TeeFile([self.captureerr.capture()])
+
+        # If real-time output is enabled, add the original stdout/stderr BEFORE replacing sys.stdout/stderr
+        if (self._realtimeOutput):
+            self.tee_stdout.add_file(sys.stdout)
+            self.tee_stderr.add_file(sys.stderr)
+
+        # Now replace sys.stdout and sys.stderr with the tee objects
+        sys.stdout = self.tee_stdout
+        sys.stderr = self.tee_stderr
+
         if self.ignore_regex is not None:
             self.captureout.setIgnorePattern(self.ignore_regex)
 
@@ -334,8 +385,14 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
         '''
         Restore stderr/stdout after a test.
         '''
+        # Release capturing objects
         self.captureout.release()
         self.captureerr.release()
+
+        # Close tee objects
+        self.tee_stdout.close()
+        self.tee_stderr.close()
+
         sys.stdout = AbstractWiredTigerTestCase._stdout
         sys.stderr = AbstractWiredTigerTestCase._stderr
 
