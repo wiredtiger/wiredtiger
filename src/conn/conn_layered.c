@@ -1627,9 +1627,10 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
 
         /* We assume the updates returned will be in timestamp order. */
         if (prev_upd != NULL) {
-            /* If we see a single tombstone in the previous iteration, we must be reaching the end
-             * and should never be here. */
-            WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
+	    /*
+	     * FIXME-WT-14732: Tombstones are possible here, see the FIXME comment below.
+	     */
+            WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD || prev_upd->type == WT_UPDATE_TOMBSTONE);
             WT_ASSERT(session,
               tw.stop_txn <= prev_upd->txnid && tw.stop_ts <= prev_upd->upd_start_ts &&
                 tw.durable_stop_ts <= prev_upd->upd_durable_ts);
