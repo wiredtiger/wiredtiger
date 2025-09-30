@@ -709,8 +709,11 @@ function(replace_compile_options flag_var)
 
     # Remove existing flags
     foreach(flag ${REPLACE_REMOVE})
-        string(REPLACE "${flag}" "" ${flag_var} ${${flag_var}})
+        string(REPLACE " ${flag} " "" ${flag_var} " ${${flag_var}} ")
     endforeach()
+
+    # Clean up extra spaces
+    string(STRIP "${${flag_var}}" ${flag_var})
 
     # Add custom flags if provided
     foreach(flag ${REPLACE_ADD})
@@ -719,5 +722,6 @@ function(replace_compile_options flag_var)
 
     # Clean up extra spaces
     string(STRIP "${${flag_var}}" ${flag_var})
+
     set(${flag_var} "${${flag_var}}" CACHE STRING "" FORCE)
 endfunction()
