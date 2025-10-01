@@ -48,7 +48,6 @@ if(NOT HAVE_BUILTIN_EXTENSION_IAA)
     set(default_enable_iaa ${HAVE_LIBQPL})
 endif()
 
-
 if(${CMAKE_BUILD_TYPE_UPPER} STREQUAL "RELEASE")
     set(default_enable_debug_info OFF)
 endif()
