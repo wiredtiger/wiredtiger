@@ -842,7 +842,6 @@ retry:
         goto retry;
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_next);
-
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_next_ingest);
     else
@@ -910,7 +909,6 @@ retry:
         goto retry;
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev);
-
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev_ingest);
     else
@@ -1322,7 +1320,6 @@ __clayered_search(WT_CURSOR *cursor)
     ret = __clayered_lookup(session, clayered, &cursor->value);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_search);
-
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_ingest);
     else
@@ -1466,7 +1463,6 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
         *exactp = cmp;
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_near);
-
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_near_ingest);
     else
