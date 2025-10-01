@@ -1424,10 +1424,9 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
          * Use dynamically allocated array to track page IDs as we don't know the number of pages
          *  here. Check if the array size needs to grow.
          */
-        if (num_pages_found_in_btree == capacity) {
-            uint64_t new_capacity = (capacity * 2 + 1) * sizeof(uint64_t);
-            WT_RET(__wt_realloc_def(session, &capacity, new_capacity, &page_ids));
-            capacity = new_capacity;
+        if (num_pages_found_in_btree == (capacity / sizeof(uint64_t))) {
+            uint64_t new_capacity_count = num_pages_found_in_btree * 2 + 1;
+            WT_RET(__wt_realloc_def(session, &capacity, new_capacity_count, &page_ids));
         }
 
         if (page != NULL) {
