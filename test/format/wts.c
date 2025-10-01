@@ -503,7 +503,7 @@ create_object(TABLE *table, void *arg)
     WT_CONNECTION *conn;
     WT_SESSION *session;
     size_t max;
-    uint32_t maxleafkey, maxleafvalue;
+    uint32_t maxleafkey;
     char config[4096], *p;
     const char *s;
 
@@ -529,10 +529,10 @@ create_object(TABLE *table, void *arg)
     maxleafkey = mmrand(&g.extra_rnd, table->max_leaf_page / 50, table->max_leaf_page / 40);
     if (maxleafkey > 20)
         CONFIG_APPEND(p, ",leaf_key_max=%" PRIu32, maxleafkey);
-    maxleafvalue = mmrand(&g.extra_rnd, table->max_leaf_page * 10, table->max_leaf_page / 40);
-    if (maxleafvalue > 40 && maxleafvalue < 100 * 1024)
-        CONFIG_APPEND(p, ",leaf_value_max=%" PRIu32, maxleafvalue);
-
+    // maxleafvalue = mmrand(&g.extra_rnd, table->max_leaf_page * 10, table->max_leaf_page / 40);
+    // if (maxleafvalue > 40 && maxleafvalue < 100 * 1024)
+    //     CONFIG_APPEND(p, ",leaf_value_max=%" PRIu32, maxleafvalue);
+    CONFIG_APPEND(p, ",leaf_value_max=10B");
     switch (table->type) {
     case FIX:
         CONFIG_APPEND(p, ",value_format=%" PRIu32 "t", TV(BTREE_BITCNT));
