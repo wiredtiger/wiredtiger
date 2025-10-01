@@ -3980,7 +3980,7 @@ tasks:
       - func: "format test script"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -t 360
+          format_test_script_args: -t 360 -F
 
   - name: race-condition-stress-sanitizer-test-no-barrier
     tags: ["stress-test-sanitizer"]
