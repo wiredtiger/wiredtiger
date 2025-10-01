@@ -1892,14 +1892,6 @@ __layered_update_gc_ingest_tables_prune_timestamps(
             len = strlen(layered_table->stable_uri) + strlen(WT_CHECKPOINT) + 20;
             WT_ERR(__wt_realloc_def(session, &uri_alloc, len, &uri_at_checkpoint));
 
-            /* Track the stable table's last checkpoint timestamp */
-            WT_ERR(__wt_snprintf(uri_at_checkpoint, uri_alloc, "%s/%s.%" PRId64,
-              layered_table->stable_uri, WT_CHECKPOINT, last_ckpt));
-            WT_ERR(__wt_session_get_dhandle(session, uri_at_checkpoint, NULL, NULL, 0));
-            btree = (WT_BTREE *)session->dhandle->handle;
-            btree->ckpt_timestamp = checkpoint_timestamp;
-
-            WT_ERR(__wt_session_release_dhandle(session));
             /*
              * For each layered table, we want to see what is the oldest checkpoint on that table
              * that is in use by any open cursor. Even if there are no open cursors on it, the most
@@ -1913,11 +1905,18 @@ __layered_update_gc_ingest_tables_prune_timestamps(
              */
             ckpt_inuse = layered_table->last_ckpt_inuse;
 
-            /* Picking up a checkpoint the first time, so it's OK to set it to the current one. */
-            if (ckpt_inuse == 0) {
-                ckpt_inuse = last_ckpt;
-            }
+            /*
+             * If we are setting a prune timestamp the first time, the previous checkpoint could
+             * still be in use, so start from it.
+             */
+            if (ckpt_inuse == 0)
+                ckpt_inuse = (last_ckpt > 1) ? last_ckpt - 1 : last_ckpt;
 
+            /* Allocate enough room for the uri and the WiredTigerCheckpoint.NNN */
+            len = strlen(layered_table->stable_uri) + strlen(WT_CHECKPOINT) + 20;
+            WT_ERR(__wt_realloc_def(session, &uri_alloc, len, &uri_at_checkpoint));
+
+            /* Find the last checkpoint which is still in use. */
             while (ckpt_inuse < last_ckpt) {
                 WT_ERR(__wt_snprintf(uri_at_checkpoint, uri_alloc, "%s/%s.%" PRId64,
                   layered_table->stable_uri, WT_CHECKPOINT, ckpt_inuse));
@@ -1937,9 +1936,8 @@ __layered_update_gc_ingest_tables_prune_timestamps(
                 ++ckpt_inuse;
             }
 
-            if (ckpt_inuse == last_ckpt) {
+            if (ckpt_inuse == last_ckpt)
                 prune_timestamp = checkpoint_timestamp;
-            }
 
             /*
              * We now have the oldest checkpoint in use for this table. If it's different from the
@@ -1948,8 +1946,12 @@ __layered_update_gc_ingest_tables_prune_timestamps(
              */
             if (ckpt_inuse != layered_table->last_ckpt_inuse) {
                 for (track = 0; track < ds->ckpt_track_cnt; ++track)
-                    if (ds->ckpt_track[track].ckpt_order == ckpt_inuse)
+                    if (ds->ckpt_track[track].ckpt_order == ckpt_inuse) {
+                        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+                          "GC %s: global TS is %" PRIu64,
+                          layered_table->iface.name, ds->ckpt_track[track].timestamp);
                         break;
+                    }
 
                 /*
                  * Set the prune timestamp in the btree if it is open, typically it is. However,
