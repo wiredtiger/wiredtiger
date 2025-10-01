@@ -48,11 +48,12 @@ __layered_get_disagg_checkpoint(WT_SESSION_IMPL *session, const char **cfg,
     if (page_log->pl_get_complete_checkpoint_ext == NULL)
         WT_ERR(ENOTSUP);
 
-    WT_ERR(page_log->pl_get_complete_checkpoint_ext(page_log, &session->iface,
-      complete_checkpoint_lsn, NULL, complete_checkpoint_timestamp, complete_checkpoint_metadata));
+    ret = page_log->pl_get_complete_checkpoint_ext(page_log, &session->iface,
+      complete_checkpoint_lsn, NULL, complete_checkpoint_timestamp, complete_checkpoint_metadata);
+    WT_ERR_NOTFOUND_OK(ret, true);
 
 err:
-    if (page_log != NULL)
+    if (ret != 0 && ret != WT_NOTFOUND && page_log != NULL)
         WT_TRET(page_log->terminate(page_log, &session->iface)); /* dereference */
     __wt_free(session, page_log_name);
     return (ret);
