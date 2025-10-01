@@ -370,7 +370,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
     if (meta_lsn == current_meta_lsn) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_WARNING,
           "Picking up the same checkpoint again: metadata LSN = %" PRIu64, meta_lsn);
-        ret = 0;
+        /* Keep previous ret value to avoid overlapping error message */
         goto err;
     }
 
