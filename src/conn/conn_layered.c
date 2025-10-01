@@ -10,9 +10,10 @@
 
 static int __disagg_copy_shared_metadata_one(WT_SESSION_IMPL *session, const char *uri);
 static int __layered_drain_ingest_tables(WT_SESSION_IMPL *session);
+static void __layered_update_prune_timestamps_print_update_logs(WT_SESSION_IMPL *session,
+  WT_LAYERED_TABLE *layered_table, wt_timestamp_t prune_timestamp, int64_t ckpt_inuse);
 static int __layered_update_gc_ingest_tables_prune_timestamps(
   WT_SESSION_IMPL *session, wt_timestamp_t checkpoint_timestamp);
-static int __layered_track_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_timestamp);
 static int __layered_last_checkpoint_order(
   WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order);
 
@@ -582,10 +583,6 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
     /* Remember the root config of the last checkpoint. */
     __wt_free(session, conn->disaggregated_storage.last_checkpoint_root);
     WT_ERR(__wt_strdup(session, root, &conn->disaggregated_storage.last_checkpoint_root));
-
-    /* Keep a record of past checkpoints, they will be needed for ingest garbage collection. */
-    WT_ERR_MSG_CHK(session, __layered_track_checkpoint(session, checkpoint_timestamp),
-      "Updating disagg checkpoint tracking failed");
 
     /* Update ingest tables' prune timestamps. */
     WT_ERR_MSG_CHK(session,
@@ -1892,6 +1889,23 @@ err:
 }
 
 /*
+ * __layered_update_prune_timestamps_print_update_logs --
+ *     Print logs for the prune timestamp update.
+ */
+static void
+__layered_update_prune_timestamps_print_update_logs(WT_SESSION_IMPL *session,
+  WT_LAYERED_TABLE *layered_table, wt_timestamp_t prune_timestamp, int64_t ckpt_inuse)
+{
+    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+      "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64, layered_table->iface.name,
+      S2BT(session)->prune_timestamp, prune_timestamp);
+
+    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+      "GC %s: update checkpoint in use from %" PRId64 " to %" PRId64, layered_table->iface.name,
+      layered_table->last_ckpt_inuse, ckpt_inuse);
+}
+
+/*
  * __layered_update_gc_ingest_tables_prune_timestamps --
  *     Update the timestamp we can prune the ingest tables.
  */
@@ -1902,20 +1916,16 @@ __layered_update_gc_ingest_tables_prune_timestamps(
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_DISAGGREGATED_STORAGE *ds;
     WT_LAYERED_TABLE *layered_table;
     WT_LAYERED_TABLE_MANAGER *manager;
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     wt_timestamp_t prune_timestamp;
     size_t i, len, table_count, uri_alloc;
-    int64_t ckpt_inuse, last_ckpt, min_ckpt_inuse;
-    uint32_t track;
+    int64_t ckpt_inuse, last_ckpt;
     char *uri_at_checkpoint;
 
     conn = S2C(session);
     manager = &conn->layered_table_manager;
-    ds = &conn->disaggregated_storage;
-    min_ckpt_inuse = ds->ckpt_track_cnt;
     uri_at_checkpoint = NULL;
     uri_alloc = 0;
     prune_timestamp = WT_TS_NONE;
@@ -1991,18 +2001,9 @@ __layered_update_gc_ingest_tables_prune_timestamps(
 
             /*
              * We now have the oldest checkpoint in use for this table. If it's different from the
-             * last time we checked, find out what timestamp that checkpoint corresponds to. That
-             * will be the timestamp we use for pruning.
+             * last time we checked, update the timestamp for pruning
              */
             if (ckpt_inuse != layered_table->last_ckpt_inuse) {
-                for (track = 0; track < ds->ckpt_track_cnt; ++track)
-                    if (ds->ckpt_track[track].ckpt_order == ckpt_inuse) {
-                        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-                          "GC %s: global TS is %" PRIu64, layered_table->iface.name,
-                          ds->ckpt_track[track].timestamp);
-                        break;
-                    }
-
                 /*
                  * Set the prune timestamp in the btree if it is open, typically it is. However,
                  * it's possible that it hasn't been opened yet. In that case, we need to skip
@@ -2015,16 +2016,13 @@ __layered_update_gc_ingest_tables_prune_timestamps(
                 if (ret != WT_NOTFOUND) {
                     btree = (WT_BTREE *)session->dhandle->handle;
 
-                    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-                      "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64,
-                      layered_table->iface.name, btree->prune_timestamp, prune_timestamp);
+                    __layered_update_prune_timestamps_print_update_logs(
+                      session, layered_table, prune_timestamp, ckpt_inuse);
+
                     WT_ASSERT(session, prune_timestamp >= btree->prune_timestamp);
                     WT_RELEASE_WRITE(btree->prune_timestamp, prune_timestamp);
-
-                    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-                      "GC %s: update checkpoint in use from %" PRId64 " to %" PRId64,
-                      layered_table->iface.name, layered_table->last_ckpt_inuse, ckpt_inuse);
                     layered_table->last_ckpt_inuse = ckpt_inuse;
+
                     WT_ERR(__wt_session_release_dhandle(session));
                 } else {
                     __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
@@ -2033,10 +2031,8 @@ __layered_update_gc_ingest_tables_prune_timestamps(
                     ret = 0;
                 }
             }
-            min_ckpt_inuse = WT_MIN(layered_table->last_ckpt_inuse, min_ckpt_inuse);
         }
     }
-    ds->ckpt_min_inuse = min_ckpt_inuse;
 
 err:
     if (ret != 0)
@@ -2081,57 +2077,6 @@ __layered_last_checkpoint_order(
 
     /* These should always be the same. */
     WT_ASSERT(session, *ckpt_order == order_from_name);
-
-    return (0);
-}
-
-/*
- * __layered_track_checkpoint --
- *     Keep a record of past checkpoints, they will be needed for ingest garbage collection.
- */
-static int
-__layered_track_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_timestamp)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_DISAGGREGATED_STORAGE *ds;
-    int64_t order;
-    uint32_t entry, expire;
-
-    conn = S2C(session);
-    ds = &conn->disaggregated_storage;
-
-    WT_RET_NOTFOUND_OK(
-      ret = __layered_last_checkpoint_order(session, WT_DISAGG_METADATA_URI, &order));
-
-    /* If we didn't find a checkpoint, it means that there are no data in the shared storage. */
-    if (ret == WT_NOTFOUND)
-        return (0);
-
-    /* Figure out how many entries at the beginning are no longer useful. */
-    for (expire = 0; expire < ds->ckpt_track_cnt; ++expire) {
-        if (ds->ckpt_track[expire].ckpt_order >= ds->ckpt_min_inuse)
-            break;
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "expiring tracked checkpoint: %" PRId64 " %" PRIu64 "\n",
-          ds->ckpt_track[expire].ckpt_order, ds->ckpt_track[expire].timestamp);
-    }
-
-    /* Shift the array of tracked items down to remove any expired entries. */
-    if (expire != 0) {
-        memmove(&ds->ckpt_track[0], &ds->ckpt_track[expire],
-          sizeof(ds->ckpt_track[0]) * (ds->ckpt_track_cnt - expire));
-        ds->ckpt_track_cnt -= expire;
-    }
-
-    /* Allocate one more, and fill it. */
-    entry = ds->ckpt_track_cnt;
-    WT_RET(__wt_realloc_def(session, &ds->ckpt_track_alloc, entry + 1, &ds->ckpt_track));
-    ds->ckpt_track[entry].ckpt_order = order;
-    ds->ckpt_track[entry].timestamp = checkpoint_timestamp;
-    ++ds->ckpt_track_cnt;
-    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-      "tracking checkpoint: %" PRId64 " %" PRIu64 "\n", order, checkpoint_timestamp);
 
     return (0);
 }

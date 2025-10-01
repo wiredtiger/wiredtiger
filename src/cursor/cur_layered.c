@@ -251,10 +251,12 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
     WT_SESSION_IMPL *session;
     const char *cfg[4] = {WT_CONFIG_BASE(CUR2S(clayered), WT_SESSION_open_cursor), "", NULL, NULL};
     const char *checkpoint_name, *stable_uri;
+    wt_timestamp_t last_ckpt_timestamp;
 
     session = CUR2S(clayered);
     layered = (WT_LAYERED_TABLE *)clayered->dhandle;
     stable_uri = layered->stable_uri;
+    last_ckpt_timestamp = S2C(session)->disaggregated_storage.last_checkpoint_timestamp;
 
     WT_RET(__wt_scr_alloc(session, 0, &random_config));
     /* Get the configuration for random cursors, if any. */
@@ -318,9 +320,10 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
         /* Layered cursor is not compatible with cursor_copy config. */
         F_CLR(clayered->stable_cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE);
 
-        /* Update stable table checkpoint timestamp */
-        S2BT(session)->ckpt_timestamp =
-          S2C(session)->disaggregated_storage.last_checkpoint_timestamp;
+        /* Update the stable table checkpoint timestamp. */
+        WT_ASSERT(
+          session, __wt_atomic_load64(&S2BT(session)->ckpt_timestamp) <= last_ckpt_timestamp);
+        __wt_atomic_store64(&S2BT(session)->ckpt_timestamp, last_ckpt_timestamp);
     }
 
 err:
