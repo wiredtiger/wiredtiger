@@ -317,6 +317,9 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
 
         /* Layered cursor is not compatible with cursor_copy config. */
         F_CLR(clayered->stable_cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE);
+
+        /* Update stable table checkpoint timestamp */
+        S2BT(session)->ckpt_timestamp = S2C(session)->disaggregated_storage.last_checkpoint_timestamp;
     }
 
 err:

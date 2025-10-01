@@ -78,7 +78,7 @@ class test_layered38(wttest.WiredTigerTestCase, DisaggConfigMixin):
             session.rollback_transaction()
         return count
 
-    def test_gc_ingest_table(self):
+    def setup(self):
         # Create the oplog
         oplog = Oplog(value_size=500)
 
@@ -91,6 +91,10 @@ class test_layered38(wttest.WiredTigerTestCase, DisaggConfigMixin):
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, "allocation_size=512,leaf_page_max=512,key_format=S,value_format=S")
+        return (oplog, t, conn_follow, session_follow)
+
+    def test_gc_ingest_table(self):
+        oplog, t, conn_follow, session_follow = self.setup()
 
         # Load the data for oplog
         oplog.insert(t, self.nitems)
@@ -137,18 +141,7 @@ class test_layered38(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(count, 0)
 
     def test_gc_ingest_table_with_remove(self):
-        # Create the oplog
-        oplog = Oplog(value_size=500)
-
-        # Create the table on leader and tell oplog about it
-        self.session.create(self.uri, "allocation_size=512,leaf_page_max=512,key_format=S,value_format=S")
-        t = oplog.add_uri(self.uri)
-
-        # Create the follower and create its table
-        # To keep this test relatively easy, we're only using a single URI.
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
-        session_follow = conn_follow.open_session('')
-        session_follow.create(self.uri, "allocation_size=512,leaf_page_max=512,key_format=S,value_format=S")
+        oplog, t, conn_follow, session_follow = self.setup()
 
         # Load the data for oplog
         oplog.insert(t, self.nitems)
@@ -239,21 +232,7 @@ class test_layered38(wttest.WiredTigerTestCase, DisaggConfigMixin):
         Test picking up the first checkpoint when an ingest talbe has some data and a cursor pointed
         to this data.
         '''
-        if platform.processor() == 's390x':
-            self.skipTest("FIXME-WT-15000: not working on zSeries")
-
-        # Create the oplog
-        oplog = Oplog(value_size=500)
-
-        # Create the table on leader and tell oplog about it
-        self.session.create(self.uri, "allocation_size=512,leaf_page_max=512,key_format=S,value_format=S")
-        t = oplog.add_uri(self.uri)
-
-        # Create the follower and create its table
-        # To keep this test relatively easy, we're only using a single URI.
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
-        session_follow = conn_follow.open_session('')
-        session_follow.create(self.uri, "allocation_size=512,leaf_page_max=512,key_format=S,value_format=S")
+        oplog, t, conn_follow, session_follow = self.setup()
 
         oplog.insert(t, self.nitems)
 
