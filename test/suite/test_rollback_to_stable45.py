@@ -72,15 +72,15 @@ class test_rollback_to_stable45(wttest.WiredTigerTestCase):
 
         # Check that recovery didn't roll us back.
         c = self.session.open_cursor(uri, None)
-        self.assertEqual(c[ds.key(10)], ds.value(100))
-        self.assertEqual(c[ds.key(11)], ds.value(101))
-        self.assertEqual(c[ds.key(12)], ds.value(102))
+        self.assertEquals(c[ds.key(10)], ds.value(100))
+        self.assertEquals(c[ds.key(11)], ds.value(101))
+        self.assertEquals(c[ds.key(12)], ds.value(102))
         c.close()
 
         # Runtime RTS should still work.
         self.conn.rollback_to_stable()
         c = self.session.open_cursor(uri, None)
-        self.assertEqual(c[ds.key(10)], ds.value(10))
-        self.assertEqual(c[ds.key(11)], ds.value(11))
-        self.assertEqual(c[ds.key(12)], ds.value(12))
+        self.assertEquals(c[ds.key(10)], ds.value(10))
+        self.assertEquals(c[ds.key(11)], ds.value(11))
+        self.assertEquals(c[ds.key(12)], ds.value(12))
         c.close()

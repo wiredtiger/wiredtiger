@@ -26,161 +26,59 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import random, wttest
+import wttest
+from eviction_util import eviction_util
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
-from wtscenario import make_scenarios
 from wiredtiger import stat
-import time
+from wtscenario import make_scenarios
 
-# test_layered55.py
-# Test that we write internal page deltas to the page log extension.
 
+# Test we don't review obsolete time window for readonly btree in follower.
 @disagg_test_class
-class test_layered55(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    encrypt = [
-        ('none', dict(encryptor='none', encrypt_args='')),
-        # FIXME-WT-15610 This is not working with this encryptor
-        # ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
-    ]
+class test_layered55(eviction_util, wttest.WiredTigerTestCase, DisaggConfigMixin):
+    conn_base_config = 'disaggregated=(page_log=palm),cache_size=10MB,'
 
-    compress = [
-        ('none', dict(block_compress='none')),
-        ('snappy', dict(block_compress='snappy')),
-    ]
-
-    uris = [
-        ('layered', dict(uri='layered:test_layered55')),
-        ('btree', dict(uri='file:test_layered55')),
-    ]
-
-    ts = [
-        ('ts', dict(ts=True)),
-        ('non-ts', dict(ts=False)),
-    ]
-
-    delta = [
-        # FIXME-WT-15610 This is not working with internal page deltas -- all stats return zero.
-        ('write_leaf_only', dict(delta_config='page_delta=(internal_page_delta=false,leaf_page_delta=true)', delta_type='leaf_only')),
-        # ('write_internal_only', dict(delta_config='page_delta=(internal_page_delta=true,leaf_page_delta=false)', delta_type='internal_only')),
-        ('write_none', dict(delta_config='page_delta=(internal_page_delta=false,leaf_page_delta=false)', delta_type='none')),
-        # ('write_both', dict(delta_config='page_delta=(internal_page_delta=true,leaf_page_delta=true)', delta_type='both')),
-    ]
-
-    conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(page_log=palm),'
     disagg_storages = gen_disagg_storages('test_layered55', disagg_only = True)
-
-    # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, ts, delta)
-
-    nitems = 10_000
-
-    def session_create_config(self):
-        # The delta percentage of 100 is an arbitrary large value, intended to produce
-        # deltas a lot of the time.
-        cfg = 'key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512,block_compressor={}'.format(self.block_compress)
-        if self.uri.startswith('file'):
-            cfg += ',block_manager=disagg'
-        return cfg
+    scenarios = make_scenarios(disagg_storages)
+    uri='layered:test_layered55'
 
     def conn_config(self):
-        enc_conf = 'encryption=(name={0},{1}),'.format(self.encryptor, self.encrypt_args)
-        return self.conn_base_config + f'disaggregated=(role="leader"),{self.delta_config},' + enc_conf
+        return self.conn_base_config + 'disaggregated=(role="leader"),'
 
-    # Load the storage store extension.
-    def conn_extensions(self, extlist):
-        extlist.extension('compressors', self.block_compress)
-        extlist.extension('encryptors', self.encryptor)
-        DisaggConfigMixin.conn_extensions(self, extlist)
+    def conn_config_follower(self):
+        return self.conn_base_config + 'disaggregated=(role="follower"),'
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
-    def insert(self, kv, ts=None):
+    def read(self, nrows):
         cursor = self.session.open_cursor(self.uri, None, None)
-        for k, v in kv.items():
-            self.session.begin_transaction()
-            cursor[k] = v
-            if self.ts:
-                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(ts))
-            else:
-                self.session.commit_transaction()
-        cursor.close()
-
-    def verify(self, expected_kv, expected_initial_val):
-        # Verify the values in the table.
-        cursor = self.session.open_cursor(self.uri, None, None)
-        for i in range(1, self.nitems + 1):
-            cursor.set_key(str(i))
+        for i in range(nrows):
+            cursor.set_key(i)
             cursor.search()
-            if str(i) in expected_kv:
-                self.assertEqual(cursor.get_value(), expected_kv[str(i)])
-            else:
-                self.assertEqual(cursor.get_value(), expected_initial_val)
+            if i % 5 == 0:
+                cursor.reset()
         cursor.close()
 
-    def test_internal_page_delta_random(self):
-        self.session.create(self.uri, self.session_create_config())
+    def test_obsolete_time_window(self):
+        create_params = 'key_format=i,value_format=S,block_manager=disagg'
+        nrows = 10000
+        value = 'k' * 1024
 
-        # Populate the table with nitems.
-        inital_value = "abc" * 10
-        inital_ts = 5
-        kv = {str(i): inital_value for i in range(1, self.nitems + 1)}
-        self.insert(kv, inital_ts)
+        self.session.create(self.uri, create_params)
+
+        # Write some data on leader mode.
+        self.populate(self.uri, 0, nrows, value)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(nrows))
         self.session.checkpoint()
+        # Reopen as follower.
+        self.reopen_disagg_conn(self.conn_config_follower())
+        # Read data into cache.
+        self.read(nrows)
 
-        # Re-open the connection to clear contents out of memory.
-        self.reopen_disagg_conn(self.conn_config())
-
-        kv_modfied = {}
-        num_deltas = random.randint(1, 10)
-        for i in range(1, num_deltas + 1):
-            # Generate a random number of keys to insert.
-            random_key_range = random.randint(10, 2000)
-            kv = {
-                str(random.randint(1, self.nitems)): f"{i + j * i}abc"
-                for j in range(random_key_range)
-            }
-            # Insert random keys into the table.
-            self.insert(kv, inital_ts + i)
-            # Perform a checkpoint to write out a delta.
-            self.session.checkpoint()
-            # Merge kv into our cumulative dictionary
-            kv_modfied.update(kv)
-
-        # Assert that we have written at least one internal page delta.
-        if (self.delta_type == 'both' or self.delta_type == 'leaf_only'):
-            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
-        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
-        if (self.delta_type == 'none'):
-            self.assertEqual(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
-            self.assertEqual(self.get_stat(stat.conn.rec_page_delta_internal), 0)
-
-        # Re-open the connection to clear contents out of memory.
-        self.reopen_disagg_conn(self.conn_config())
-
-        # Verify the updated values in the table.
-        self.verify(kv_modfied, inital_value)
-
-        # Assert that we have constructed at least one internal page delta.
-        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
-        else:
-            self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
-
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower"),'
-        self.reopen_disagg_conn(follower_config)
-        time.sleep(1.0)
-
-        # Verify the updated values in the table.
-        self.verify(kv_modfied, inital_value)
-
-        # Assert that we have constructed at least one internal page delta.
-        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
-        else:
-            self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+        # Set oldest timestamp to an older value.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(nrows // 2))
+        # Read data again which triggers eviction.
+        self.read(nrows)
+        # We should not review obsolete time window as btree is readonly.
+        btree_stat = self.get_stat(stat.dsrc.cache_eviction_dirty_obsolete_tw, self.uri)
+        conn_stat = self.get_stat(stat.conn.cache_eviction_dirty_obsolete_tw)
+        self.assertEqual(btree_stat, 0)
+        self.assertEqual(conn_stat, 0)

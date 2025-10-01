@@ -332,11 +332,7 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
       WT_SESSION_IMPL *session, uint64_t msecs)                 \
     {                                                           \
         WT_STAT_CONN_INCRV(session, stat##_total_msecs, msecs); \
-        if (msecs < 2)                                          \
-            WT_STAT_CONN_INCR(session, stat##_lt2);             \
-        else if (msecs < 5)                                     \
-            WT_STAT_CONN_INCR(session, stat##_lt5);             \
-        else if (msecs < 10)                                    \
+        if (msecs < 10)                                         \
             WT_STAT_CONN_INCR(session, stat##_lt10);            \
         else if (msecs < 50)                                    \
             WT_STAT_CONN_INCR(session, stat##_lt50);            \
@@ -365,10 +361,6 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
             WT_STAT_CONN_INCR(session, stat##_lt500);           \
         else if (usecs < WT_THOUSAND)                           \
             WT_STAT_CONN_INCR(session, stat##_lt1000);          \
-        else if (usecs < 2500)                                  \
-            WT_STAT_CONN_INCR(session, stat##_lt2500);          \
-        else if (usecs < 5 * WT_THOUSAND)                       \
-            WT_STAT_CONN_INCR(session, stat##_lt5000);          \
         else if (usecs < 10 * WT_THOUSAND)                      \
             WT_STAT_CONN_INCR(session, stat##_lt10000);         \
         else                                                    \
@@ -521,6 +513,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_app_threads_fill_ratio_25_50;
     int64_t cache_eviction_app_threads_fill_ratio_50_75;
     int64_t cache_eviction_app_threads_fill_ratio_gt_75;
+    int64_t cache_eviction_app_threads_skip_updates_dirty_page;
     int64_t cache_read_app_count;
     int64_t cache_read_app_time;
     int64_t cache_write_app_count;
@@ -665,6 +658,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_trigger_dirty_reached;
     int64_t cache_eviction_trigger_reached;
     int64_t cache_eviction_trigger_updates_reached;
+    int64_t cache_obsolete_updates_removed;
     int64_t eviction_timed_out_ops;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
@@ -1397,6 +1391,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_app_threads_fill_ratio_25_50;
     int64_t cache_eviction_app_threads_fill_ratio_50_75;
     int64_t cache_eviction_app_threads_fill_ratio_gt_75;
+    int64_t cache_eviction_app_threads_skip_updates_dirty_page;
     int64_t cache_bytes_inuse;
     int64_t cache_bytes_dirty_total;
     int64_t cache_bytes_read;
@@ -1459,6 +1454,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_trigger_dirty_reached;
     int64_t cache_eviction_trigger_reached;
     int64_t cache_eviction_trigger_updates_reached;
+    int64_t cache_obsolete_updates_removed;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
     int64_t cache_eviction_blocked_materialization;
