@@ -58,8 +58,6 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_follow = None
 
     uri = 'layered:test_verify_disagg'
-    # Use internals to test a specific edge case scenario.
-    ingest_uri = 'file:test_verify_disagg.wt_ingest'
 
     def leader_put_data(self, value_prefix = '', low = 1, high = nitems):
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -101,9 +99,9 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # ingest constituents. They see stable through checkpoint or step-up.
         self.verify([self.session])
 
-        # Follower has not picked up a checkpoint yet, so it has no stable constituent yet
-        # FIXME-WT-15413 - until this is fixed, expect ENOENT
-        self.verify([self.session_follow], errno.ENOENT)
+        # The follower has not picked up its first checkpoint. The follower will not recognize
+        # the layered URI while in this transient state. Skip verification and return success.
+        self.verify([self.session_follow])
 
         # Create an empty checkpoint
         self.session.checkpoint()
