@@ -51,11 +51,12 @@ class KeyNumber:
         if not name in self.numbering:
             self.numbering[name] = len(self.numbering)
 
+    def has(self, name):
+        return name in self.numbering
+
     def get(self, name):
-        try:
+        if self.has(name):
             return self.numbering[name]
-        except KeyError:
-            return -1
 
     def count(self):
         return len(self.numbering)
@@ -183,7 +184,6 @@ def getcompstr(c, keynumber):
     # E.g. "WT_CONFIG_COMPILED_TYPE_INT"
     comptype = 'WT_CONFIG_COMPILED_TYPE_' + ty.upper()
     offset = keynumber.get(gen_id_name(c.name, ty))
-    assert offset != -1
     checks = c.flags
     minval = 'INT64_MIN'
     maxval = 'INT64_MAX'
@@ -291,7 +291,7 @@ def add_keys(keynumber, configs, prefix):
         idname = gen_id_name(c.name, ty)
         # FIXME-WT-15615: We should implement a better way to handle duplicate
         # config names than appending a suffix.
-        if keynumber.get(idname) != -1 and idname == 'Prefetch':
+        if keynumber.has(idname) and idname == 'Prefetch':
             # If duplicated config name is found for prefetch, append a suffix
             # to make it unique. This is to make compiled configuration work.
             suffix = 1
@@ -764,7 +764,6 @@ if not test_config:
         count = 0
         for name in sorted(keynumber.numbering.keys()):
             off = keynumber.get(name)
-            assert off != -1
             tfile.write('#define WT_CONF_ID_{} {}ULL\n'.format(name, off))
             count += 1
         assert count == keynumber.count()

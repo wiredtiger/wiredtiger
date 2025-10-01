@@ -156,8 +156,8 @@ static KEY_VALUES begin_txn_kv[] = {
  */
 
 /*
- * The complete set of configuration keys for WT_SESSION.reconfigure, along with valid/invalid
- * pairs for each.
+ * The complete set of configuration keys for WT_SESSION.reconfigure, along with valid/invalid pairs
+ * for each.
  */
 static KEY_VALUES reconfigure_prefetch_kv[] = {
   {"enabled", valid_bool, invalid_bool, NULL}, {NULL, NULL, NULL, NULL}};
