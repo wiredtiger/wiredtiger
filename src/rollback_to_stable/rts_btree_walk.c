@@ -409,6 +409,10 @@ __wti_rts_btree_walk_btree_apply(
           prepared_updates ? "true" : "false", rollback_txnid, S2C(session)->recovery_ckpt_snap_min,
           has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
 
+    if (file_skipped)
+        WT_STAT_CONN_DSRC_INCR(session, txn_rts_btrees_skipped);
+    else
+        WT_STAT_CONN_DSRC_INCR(session, txn_rts_btrees_processed);
     /*
      * Truncate history store entries for the non-timestamped table.
      * Exceptions:

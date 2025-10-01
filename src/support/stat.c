@@ -391,8 +391,10 @@ static const char *const __stats_dsrc_desc[] = {
   "transaction: rollback to stable keys restored",
   "transaction: rollback to stable keys that would have been removed in non-dryrun mode",
   "transaction: rollback to stable keys that would have been restored in non-dryrun mode",
+  "transaction: rollback to stable processed btrees",
   "transaction: rollback to stable restored tombstones from history store",
   "transaction: rollback to stable restored updates from history store",
+  "transaction: rollback to stable skipped btrees",
   "transaction: rollback to stable skipping delete rle",
   "transaction: rollback to stable skipping stable rle",
   "transaction: rollback to stable sweeping history store keys",
@@ -812,8 +814,10 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->txn_rts_keys_restored = 0;
     stats->txn_rts_keys_removed_dryrun = 0;
     stats->txn_rts_keys_restored_dryrun = 0;
+    stats->txn_rts_btrees_processed = 0;
     stats->txn_rts_hs_restore_tombstones = 0;
     stats->txn_rts_hs_restore_updates = 0;
+    stats->txn_rts_btrees_skipped = 0;
     stats->txn_rts_delete_rle_skipped = 0;
     stats->txn_rts_stable_rle_skipped = 0;
     stats->txn_rts_sweep_hs_keys = 0;
@@ -1241,8 +1245,10 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->txn_rts_keys_restored += from->txn_rts_keys_restored;
     to->txn_rts_keys_removed_dryrun += from->txn_rts_keys_removed_dryrun;
     to->txn_rts_keys_restored_dryrun += from->txn_rts_keys_restored_dryrun;
+    to->txn_rts_btrees_processed += from->txn_rts_btrees_processed;
     to->txn_rts_hs_restore_tombstones += from->txn_rts_hs_restore_tombstones;
     to->txn_rts_hs_restore_updates += from->txn_rts_hs_restore_updates;
+    to->txn_rts_btrees_skipped += from->txn_rts_btrees_skipped;
     to->txn_rts_delete_rle_skipped += from->txn_rts_delete_rle_skipped;
     to->txn_rts_stable_rle_skipped += from->txn_rts_stable_rle_skipped;
     to->txn_rts_sweep_hs_keys += from->txn_rts_sweep_hs_keys;
@@ -1713,8 +1719,10 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->txn_rts_keys_restored += WT_STAT_DSRC_READ(from, txn_rts_keys_restored);
     to->txn_rts_keys_removed_dryrun += WT_STAT_DSRC_READ(from, txn_rts_keys_removed_dryrun);
     to->txn_rts_keys_restored_dryrun += WT_STAT_DSRC_READ(from, txn_rts_keys_restored_dryrun);
+    to->txn_rts_btrees_processed += WT_STAT_DSRC_READ(from, txn_rts_btrees_processed);
     to->txn_rts_hs_restore_tombstones += WT_STAT_DSRC_READ(from, txn_rts_hs_restore_tombstones);
     to->txn_rts_hs_restore_updates += WT_STAT_DSRC_READ(from, txn_rts_hs_restore_updates);
+    to->txn_rts_btrees_skipped += WT_STAT_DSRC_READ(from, txn_rts_btrees_skipped);
     to->txn_rts_delete_rle_skipped += WT_STAT_DSRC_READ(from, txn_rts_delete_rle_skipped);
     to->txn_rts_stable_rle_skipped += WT_STAT_DSRC_READ(from, txn_rts_stable_rle_skipped);
     to->txn_rts_sweep_hs_keys += WT_STAT_DSRC_READ(from, txn_rts_sweep_hs_keys);
@@ -2650,8 +2658,10 @@ static const char *const __stats_connection_desc[] = {
   "transaction: rollback to stable keys that would have been removed in non-dryrun mode",
   "transaction: rollback to stable keys that would have been restored in non-dryrun mode",
   "transaction: rollback to stable pages visited",
+  "transaction: rollback to stable processed btrees",
   "transaction: rollback to stable restored tombstones from history store",
   "transaction: rollback to stable restored updates from history store",
+  "transaction: rollback to stable skipped btrees",
   "transaction: rollback to stable skipping delete rle",
   "transaction: rollback to stable skipping stable rle",
   "transaction: rollback to stable sweeping history store keys",
@@ -3610,8 +3620,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_rts_keys_removed_dryrun = 0;
     stats->txn_rts_keys_restored_dryrun = 0;
     stats->txn_rts_pages_visited = 0;
+    stats->txn_rts_btrees_processed = 0;
     stats->txn_rts_hs_restore_tombstones = 0;
     stats->txn_rts_hs_restore_updates = 0;
+    stats->txn_rts_btrees_skipped = 0;
     stats->txn_rts_delete_rle_skipped = 0;
     stats->txn_rts_stable_rle_skipped = 0;
     stats->txn_rts_sweep_hs_keys = 0;
@@ -4758,8 +4770,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_rts_keys_removed_dryrun += WT_STAT_CONN_READ(from, txn_rts_keys_removed_dryrun);
     to->txn_rts_keys_restored_dryrun += WT_STAT_CONN_READ(from, txn_rts_keys_restored_dryrun);
     to->txn_rts_pages_visited += WT_STAT_CONN_READ(from, txn_rts_pages_visited);
+    to->txn_rts_btrees_processed += WT_STAT_CONN_READ(from, txn_rts_btrees_processed);
     to->txn_rts_hs_restore_tombstones += WT_STAT_CONN_READ(from, txn_rts_hs_restore_tombstones);
     to->txn_rts_hs_restore_updates += WT_STAT_CONN_READ(from, txn_rts_hs_restore_updates);
+    to->txn_rts_btrees_skipped += WT_STAT_CONN_READ(from, txn_rts_btrees_skipped);
     to->txn_rts_delete_rle_skipped += WT_STAT_CONN_READ(from, txn_rts_delete_rle_skipped);
     to->txn_rts_stable_rle_skipped += WT_STAT_CONN_READ(from, txn_rts_stable_rle_skipped);
     to->txn_rts_sweep_hs_keys += WT_STAT_CONN_READ(from, txn_rts_sweep_hs_keys);
