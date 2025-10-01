@@ -148,7 +148,7 @@ static KEY_VALUES begin_txn_kv[] = {
   {"sync", valid_bool, invalid_bool, NULL}, {NULL, NULL, NULL, NULL}};
 
 /*
- * Check compiling configuration strings for reconfigure.
+ * Check compiling configuration strings for WT_SESSION.reconfigure.
  *
  *   "cache_cursor=%s,cache_max_wait_ms=%s,ignore_cache_size=%s,"
  *   "isolation=%s,prefetch=(enabled=%s),"
@@ -156,7 +156,8 @@ static KEY_VALUES begin_txn_kv[] = {
  */
 
 /*
- * The complete set of configuration keys for reconfigure, along with valid/invalid pairs for each.
+ * The complete set of configuration keys for WT_SESSION.reconfigure, along with valid/invalid
+ * pairs for each.
  */
 static KEY_VALUES reconfigure_prefetch_kv[] = {
   {"enabled", valid_bool, invalid_bool, NULL}, {NULL, NULL, NULL, NULL}};

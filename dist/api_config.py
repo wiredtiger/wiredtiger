@@ -243,6 +243,8 @@ def add_conf_keys_one(c, conf_keys):
     ctype = gettype(c)
     idname = gen_id_name(c.name, ctype)
     if ctype == 'category':
+        # FIXME-WT-15615: We should implement a better way to handle duplicate
+        # config names than appending a suffix.
         if idname in conf_keys and idname == 'Prefetch':
             # If duplicated config name is found for prefetch, append a suffix
             # to make it unique. This is to make compiled configuration work.
@@ -287,6 +289,8 @@ def add_keys(keynumber, configs, prefix):
     for c in configs:
         ty = gettype(c)
         idname = gen_id_name(c.name, ty)
+        # FIXME-WT-15615: We should implement a better way to handle duplicate
+        # config names than appending a suffix.
         if keynumber.get(idname) != -1 and idname == 'Prefetch':
             # If duplicated config name is found for prefetch, append a suffix
             # to make it unique. This is to make compiled configuration work.
