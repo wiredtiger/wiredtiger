@@ -33,35 +33,38 @@ class TeeFile(object):
     A file-like object that writes to multiple destinations simultaneously.
     Useful for capturing output while still showing it on the terminal.
     """
-    def __init__(self, files):
-        self.files = files
+    capture_file = None
+    std_file = None
 
-    def add_file(self, file):
-        self.files.append(file)
+    def __init__(self, capture_file):
+        self.capture_file = capture_file
+
+    def add_std_file(self, std_file):
+        self.std_file = std_file
+
+    def get_files(self):
+        files = [self.capture_file]
+        if (self.std_file):
+            files.append(self.std_file)
+        return files
 
     def write(self, text):
-        for f in self.files:
+        for f in self.get_files():
             f.write(text)
-            f.flush()  # Ensure immediate output
+            f.flush()
 
     def flush(self):
-        for f in self.files:
+        for f in self.get_files():
             f.flush()
 
     def fileno(self):
-        # Return the fileno of the first file
-        return self.files[0].fileno()
+        if self.std_file:
+            return self.std_file.fileno()
+        return self.capture_file.fileno()
 
     def close(self):
-        for f in self.files:
-            # Check if file is already closed
-            if hasattr(f, 'closed') and f.closed:
-                continue  # Skip already closed files
-            # Don't close the original stdout/stderr
-            if hasattr(f, 'fileno') and f.fileno() in (1, 2):
-                continue
-            if hasattr(f, 'close'):
-                f.close()
+        # We shouldn't close std file
+        self.capture_file.close()
 
 def shortenWithEllipsis(s, maxlen):
     if len(s) > maxlen:
@@ -248,7 +251,7 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
     # Placeholder configuration, in the case no one calls the setup functions.
     _dupout = sys.stdout
     _ignoreStdout = False
-    _realtimeStdout = False
+    _printOutput = False
     _parentTestdir = None
     _resultFile = sys.stdout
     _stderr = sys.stderr
@@ -323,7 +326,7 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
     #
 
     @staticmethod
-    def setupIO(resultFileName = 'results.txt', ignoreStdout = False, realtimeOutput = False,
+    def setupIO(resultFileName = 'results.txt', ignoreStdout = False, printOutput = False,
                 verbose = 1):
         '''
         Set up I/O for the test.
@@ -334,7 +337,7 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
             os.path.join(AbstractWiredTigerTestCase._parentTestdir, resultFileName))
 
         AbstractWiredTigerTestCase._ignoreStdout = ignoreStdout
-        AbstractWiredTigerTestCase._realtimeOutput = realtimeOutput
+        AbstractWiredTigerTestCase._printOutput = printOutput
         AbstractWiredTigerTestCase._resultFileName = resultFilePath
         AbstractWiredTigerTestCase._verbose = verbose
 
@@ -366,13 +369,13 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
         self.captureerr = CapturedFd('stderr.txt', 'error output')
 
         # Create tee objects that write to both capture files and original stdout/stderr
-        self.tee_stdout = TeeFile([self.captureout.capture()])
-        self.tee_stderr = TeeFile([self.captureerr.capture()])
+        self.tee_stdout = TeeFile(self.captureout.capture())
+        self.tee_stderr = TeeFile(self.captureerr.capture())
 
         # If real-time output is enabled, add the original stdout/stderr BEFORE replacing sys.stdout/stderr
-        if (self._realtimeOutput):
-            self.tee_stdout.add_file(sys.stdout)
-            self.tee_stderr.add_file(sys.stderr)
+        if (self._printOutput):
+            self.tee_stdout.add_std_file(sys.stdout)
+            self.tee_stderr.add_std_file(sys.stderr)
 
         # Now replace sys.stdout and sys.stderr with the tee objects
         sys.stdout = self.tee_stdout
