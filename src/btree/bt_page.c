@@ -467,7 +467,8 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
                     standard_value->prepare_ts = unpack.tw.start_prepare_ts;
                     standard_value->prepare_state = WT_PREPARE_INPROGRESS;
                     F_SET(standard_value,
-                      WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS);
+                      WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS |
+                        WT_UPDATE_RESTORED_FROM_DELTA);
                 }
                 upd = standard_value;
             }
