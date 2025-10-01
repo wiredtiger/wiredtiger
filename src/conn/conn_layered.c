@@ -50,7 +50,7 @@ __layered_get_disagg_checkpoint(WT_SESSION_IMPL *session, const char **cfg,
 
     ret = page_log->pl_get_complete_checkpoint_ext(page_log, &session->iface,
       complete_checkpoint_lsn, NULL, complete_checkpoint_timestamp, complete_checkpoint_metadata);
-    WT_RET_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, true);
 
 err:
     if (page_log != NULL)
