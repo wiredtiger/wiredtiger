@@ -1868,12 +1868,23 @@ __layered_update_gc_ingest_tables_prune_timestamps(
 
     table_count = manager->open_layered_table_count;
 
+    /*
+     * For each layered table, we want to see what is the oldest checkpoint on that table that is in
+     * use by any open cursor. Even if there are no open cursors on it, the most recent checkpoint
+     * on the table is always considered in use. The basic plan is to start with the last checkpoint
+     * in use that we knew about, and check it again. If it's no longer in use, we go to the next
+     * one, etc. This gives us a list (possibly zero length), of checkpoints that are no longer in
+     * use by cursors on this table. Thus, the timestamp associated with the newest such checkpoint
+     * can be used for garbage collection pruning. Any item in the ingest table older than that
+     * timestamp must be including in one of the checkpoints we're saving, and thus can be removed.
+     */
     for (i = 0; i < table_count; i++) {
         if ((entry = manager->entries[i]) != NULL) {
             layered_table = entry->layered_table;
             WT_ERR_NOTFOUND_OK(
               __layered_last_checkpoint_order(session, layered_table->stable_uri, &last_ckpt),
               true);
+
             /*
              * If we've never seen a checkpoint, then there's nothing in the ingest table we can
              * remove. Move on.
@@ -1887,28 +1898,10 @@ __layered_update_gc_ingest_tables_prune_timestamps(
             }
 
             /*
-             * Allocate enough room for the uri and the WiredTigerCheckpoint.NNN
-             */
-            len = strlen(layered_table->stable_uri) + strlen(WT_CHECKPOINT) + 20;
-            WT_ERR(__wt_realloc_def(session, &uri_alloc, len, &uri_at_checkpoint));
-
-            /*
-             * For each layered table, we want to see what is the oldest checkpoint on that table
-             * that is in use by any open cursor. Even if there are no open cursors on it, the most
-             * recent checkpoint on the table is always considered in use. The basic plan is to
-             * start with the last checkpoint in use that we knew about, and check it again. If it's
-             * no longer in use, we go to the next one, etc. This gives us a list (possibly zero
-             * length), of checkpoints that are no longer in use by cursors on this table. Thus, the
-             * timestamp associated with the newest such checkpoint can be used for garbage
-             * collection pruning. Any item in the ingest table older than that timestamp must be
-             * including in one of the checkpoints we're saving, and thus can be removed.
-             */
-            ckpt_inuse = layered_table->last_ckpt_inuse;
-
-            /*
              * If we are setting a prune timestamp the first time, the previous checkpoint could
              * still be in use, so start from it.
              */
+            ckpt_inuse = layered_table->last_ckpt_inuse;
             if (ckpt_inuse == 0)
                 ckpt_inuse = (last_ckpt > 1) ? last_ckpt - 1 : last_ckpt;
 
@@ -1927,8 +1920,7 @@ __layered_update_gc_ingest_tables_prune_timestamps(
 
                 /* If it's in use by any session, then we're done. */
                 if (ret == 0 && session->dhandle->session_inuse > 0) {
-                    btree = (WT_BTREE *)session->dhandle->handle;
-                    prune_timestamp = btree->ckpt_timestamp;
+                    prune_timestamp = S2BT(session)->ckpt_timestamp;
                     break;
                 }
 
@@ -1948,8 +1940,8 @@ __layered_update_gc_ingest_tables_prune_timestamps(
                 for (track = 0; track < ds->ckpt_track_cnt; ++track)
                     if (ds->ckpt_track[track].ckpt_order == ckpt_inuse) {
                         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-                          "GC %s: global TS is %" PRIu64,
-                          layered_table->iface.name, ds->ckpt_track[track].timestamp);
+                          "GC %s: global TS is %" PRIu64, layered_table->iface.name,
+                          ds->ckpt_track[track].timestamp);
                         break;
                     }
 
