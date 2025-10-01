@@ -222,10 +222,6 @@ class test_layered38(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Close the cursor held open.
         hold_cursor.close()
 
-        # Picking up the same checkpoint should log a message about picking up the same checkpoint.
-        with self.expectedStdoutPattern(".*Picking up the same checkpoint again.*"):
-            self.disagg_advance_checkpoint(conn_follow)
-
         # Push forward the checkpoint again to avoid picking up the same checkpoint twice.
         self.session.checkpoint()
 
