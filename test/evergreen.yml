@@ -4516,7 +4516,7 @@ tasks:
   - <<: *recovery-stress-test
     name: recovery-stress-test-3
     tags: ["stress-test-3", "stress-test-zseries-3"]
-   # FIXME-WT-14566: Enable disagg leader mode on all platforms once failures has been resolved.
+   # FIXME-WT-14566: Enable disagg leader mode on all platforms once failures have been resolved.
   - <<: *format-stress-test-disagg-leader
     name: format-stress-test-disagg-leader-1
     tags: ["stress-test-disagg-fail"]
@@ -4577,7 +4577,7 @@ tasks:
   - <<: *format-stress-data-validation-test-disagg-follower
     name: format-stress-data-validation-test-disagg-follower-5
     tags: ["stress-test-disagg"]
-  # FIXME-WT-14566: Enable disagg switch mode on all platforms once failures has been resolved.
+  # FIXME-WT-14566: Enable disagg switch mode on all platforms once failures have been resolved.
   - <<: *format-stress-test-disagg-switch
     name: format-stress-test-disagg-switch-1
     tags: ["stress-test-disagg-fail"]
@@ -4594,7 +4594,7 @@ tasks:
     name: format-stress-test-disagg-switch-5
     tags: ["stress-test-disagg-fail"]
 
-   # FIXME-WT-14566: Enable disagg leader mode on all platforms once failures has been resolved.
+   # FIXME-WT-14566: Enable disagg leader mode on all platforms once failures have been resolved.
   - <<: *format-stress-test-disagg-leader-palite
     name: format-stress-test-disagg-leader-palite-1
     tags: ["stress-test-disagg-fail"]
@@ -4655,7 +4655,7 @@ tasks:
   - <<: *format-stress-data-validation-test-disagg-follower-palite
     name: format-stress-data-validation-test-disagg-follower-palite-5
     tags: ["stress-test-disagg"]
-  # FIXME-WT-14566: Enable disagg switch mode on all platforms once failures has been resolved.
+  # FIXME-WT-14566: Enable disagg switch mode on all platforms once failures have been resolved.
   - <<: *format-stress-test-disagg-switch-palite
     name: format-stress-test-disagg-switch-palite-1
     tags: ["stress-test-disagg-fail"]
