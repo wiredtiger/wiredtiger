@@ -1943,7 +1943,7 @@ __layered_update_gc_ingest_tables_prune_timestamps(
 
             /*
              * We now have the oldest checkpoint in use for this table. If it's different from the
-             * last time we checked, update the timestamp for pruning
+             * last time we checked, update the timestamp for pruning.
              */
             if (ckpt_inuse != layered_table->last_ckpt_inuse) {
                 /*

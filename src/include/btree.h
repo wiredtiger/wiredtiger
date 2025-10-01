@@ -147,12 +147,7 @@ struct __wt_btree {
     bool prefix_compression;      /* Prefix compression */
     u_int prefix_compression_min; /* Prefix compression min */
 
-    /*
-     * prune_timestamp is used only for ingest tables, and ckpt_timestamp is used only for stable
-     * tables. These fields could be combined into a single field or a union. However, since it's
-     * just two fields for now and the space overhead is minimal, it was decided to leave them as
-     * is.
-     */
+    /* FIXME-WT-15633: Combine `prune_timestamp` and `ckpt_timestamp` into one variable */
     wt_shared wt_timestamp_t prune_timestamp; /* Ingest table GC collection timestamp */
     wt_shared wt_timestamp_t ckpt_timestamp;  /* Stable table checkpoint timestamp */
 
