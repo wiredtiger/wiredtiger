@@ -1571,10 +1571,10 @@ __clayered_remove_int(
 
 /*
  * __clayered_modify_int --
- *     Put an modify into the desired tree.
+ *     Put a modify into the desired tree.
  */
 static WT_INLINE int
-__clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key,
+__clayered_modify_int_old(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key,
   WT_MODIFY *entries, int nentries)
 {
     WT_CURSOR *c;
@@ -2062,34 +2062,112 @@ err:
 }
 
 /*
+ * __clayered_modify_leader --
+ *     Apply a modify on a leader node.
+ */
+static int
+__clayered_modify_leader(WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, WT_MODIFY *entries,
+  int nentries)
+{
+    WT_CURSOR *c = clayered->stable_cursor;
+
+    c->set_key(c, key);
+    WT_RET(c->modify(c, entries, nentries));
+
+    clayered->current_cursor = c;
+
+    return (0);
+}
+
+/*
+ * __clayered_modify_follower_helper --
+ *     When we're modifying on a follower, it's possible that the ingest table doesn't have an
+ *     existing value to apply the modify on top of. In this case, we must read the value from the
+ *     stable table, insert it to the ingest table, then apply the modify on that. This function
+ *     does the read/insert part of that work.
+ */
+static int
+__clayered_modify_follower_helper(WT_CURSOR_LAYERED *clayered, const WT_ITEM *key)
+{
+    WT_CURSOR *ingest = clayered->ingest_cursor;
+    WT_CURSOR *stable = clayered->stable_cursor;
+
+    stable->set_key(stable, key);
+    WT_RET(stable->search(stable)); /* WT_NOTFOUND is unacceptable here. */
+    clayered->current_cursor = stable;
+
+    WT_RET(__cursor_needkey(stable));
+    WT_RET(__cursor_needvalue(stable));
+
+    WT_RET(__clayered_copy_duplicate_kv(ingest));
+    WT_RET(ingest->insert(ingest));
+
+    return (0);
+}
+
+/*
+ * __clayered_modify_follower --
+ *     Apply a modify on a follower node.
+ */
+static int
+__clayered_modify_follower(WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, WT_MODIFY *entries,
+  int nentries)
+{
+    WT_DECL_RET;
+
+    WT_CURSOR *ingest = clayered->ingest_cursor;
+    WT_CURSOR *stable = clayered->stable_cursor;
+
+    // TODO reset stable cursor?
+    WT_UNUSED(stable);
+
+    ingest->set_key(ingest, key);
+    ret = ingest->search(ingest);
+    if (ret == WT_NOTFOUND) {
+        WT_RET(__clayered_modify_follower_helper(clayered, key));
+    } else if (ret != 0) {
+        WT_RET(ret);
+    }
+    WT_RET(ingest->modify(ingest, entries, nentries));
+
+    clayered->current_cursor = ingest;
+    return (0);
+}
+
+/*
+ * __clayered_modify_int --
+ *     Direct a modify into the right tree.
+ */
+static int
+__clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *layered, const WT_ITEM *key,
+  WT_MODIFY *entries, int nentries)
+{
+    if (S2C(session)->layered_table_manager.leader)
+        WT_RET(__clayered_modify_leader(layered, key, entries, nentries));
+    else
+        WT_RET(__clayered_modify_follower(layered, key, entries, nentries));
+
+    return (0);
+}
+
+/*
  * __clayered_modify --
- *     WT_CURSOR->modify method for the layered cursor type. This function assumes the modify will
- *     be done on the btree that we originally calculate the diff from. Currently, we only allow
- *     writes to the stable table so the assumption holds. FIXME-WT-14737: revisit this now that
- *     we've enabled writing to the ingest table.
+ *     Modify method for layered cursors.
  */
 static int
 __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
-    WT_ITEM value;
     WT_SESSION_IMPL *session;
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
+
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__clayered_enter(clayered, false, true, false));
 
-    if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
-        WT_ERR(__clayered_lookup(session, clayered, &value));
-        /*
-         * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may
-         * have landed on.
-         */
-        WT_ERR(__cursor_needkey(cursor));
-    }
     WT_ERR(__clayered_modify_int(session, clayered, &cursor->key, entries, nentries));
 
     /*
@@ -2099,8 +2177,6 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
     WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
     WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
-    WT_ASSERT(
-      session, F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
     F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_update);
@@ -2110,6 +2186,58 @@ err:
     CURSOR_UPDATE_API_END(session, ret);
     return (ret);
 }
+
+/*
+ * __clayered_modify --
+ *     WT_CURSOR->modify method for the layered cursor type. The overall idea is to (1) check if the
+ *     cursor is positioned. If it's positioned, we're good to do a modify. (TODO: check this, what
+ *     if we're positioned on the stable table of a follower?). Otherwise, the cursor was
+ *     positioned. We need to check where that position is -- 
+ *     we've enabled writing to the ingest table.
+ */
+/* static int */
+/* __clayered_modify_old(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries) */
+/* { */
+/*     WT_CURSOR_LAYERED *clayered; */
+/*     WT_DECL_RET; */
+/*     WT_ITEM value; */
+/*     WT_SESSION_IMPL *session; */
+
+/*     clayered = (WT_CURSOR_LAYERED *)cursor; */
+
+/*     CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle); */
+/*     WT_ERR(__cursor_needkey(cursor)); */
+/*     WT_ERR(__clayered_enter(clayered, false, true, false)); */
+
+/*     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) { */
+/*         WT_ERR(__clayered_lookup(session, clayered, &value)); */
+
+/*         /\* */
+/*          * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may */
+/*          * have landed on. */
+/*          *\/ */
+/*         WT_ERR(__cursor_needkey(cursor)); */
+/*     } */
+/*     WT_ERR(__clayered_modify_int(session, clayered, &cursor->key, entries, nentries)); */
+
+/*     /\* */
+/*      * Set the cursor to reference the internal key/value of the positioned cursor. */
+/*      *\/ */
+/*     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET); */
+/*     WT_ITEM_SET(cursor->key, clayered->current_cursor->key); */
+/*     WT_ITEM_SET(cursor->value, clayered->current_cursor->value); */
+/*     WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT); */
+/*     WT_ASSERT( */
+/*       session, F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT); */
+/*     F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT); */
+
+/*     WT_STAT_CONN_DSRC_INCR(session, layered_curs_update); */
+
+/* err: */
+/*     __clayered_leave(clayered); */
+/*     CURSOR_UPDATE_API_END(session, ret); */
+/*     return (ret); */
+/* } */
 
 /*
  * __wt_clayered_open --
