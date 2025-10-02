@@ -131,6 +131,9 @@ typedef struct {
     uint32_t local_retention;  /* Local retention for tiered storage */
     uint64_t palm_map_size_mb; /* Megabytes of map size for PALM database */
 
+    int internal_page_delta; /* Use internal page deltas */
+    int leaf_page_delta;     /* Use leaf page deltas */
+
     bool absolute_bucket_dir;  /* Use an absolute bucket path when it is a directory */
     bool compat;               /* Compatibility */
     bool disagg_storage;       /* Uses disaggregated storage */

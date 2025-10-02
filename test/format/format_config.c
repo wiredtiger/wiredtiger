@@ -1538,13 +1538,13 @@ config_disagg_storage(void)
 
     if (config_explicit(NULL, "disagg.internal_page_delta")) {
         int internal_page_delta = GV(DISAGG_INTERNAL_PAGE_DELTA) != 0 ? 1 : 0;
-        testutil_snprintf(buf, sizeof(buf), "internal_page_delta=%d", internal_page_delta);
+        testutil_snprintf(buf, sizeof(buf), "disagg.internal_page_delta=%d", internal_page_delta);
         config_single(NULL, buf, true);
     }
 
     if (config_explicit(NULL, "disagg.leaf_page_delta")) {
         int leaf_page_delta = GV(DISAGG_LEAF_PAGE_DELTA) != 0 ? 1 : 0;
-        testutil_snprintf(buf, sizeof(buf), "leaf_page_delta=%d", leaf_page_delta);
+        testutil_snprintf(buf, sizeof(buf), "disagg.leaf_page_delta=%d", leaf_page_delta);
         config_single(NULL, buf, true);
     }
 

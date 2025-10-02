@@ -44,6 +44,25 @@ testutil_disagg_storage_configuration(TEST_OPTS *opts, const char *home, char *d
 
         testutil_snprintf(disagg_cfg, disagg_cfg_size, TESTUTIL_ENV_CONFIG_DISAGG,
           opts->disagg_mode, opts->disagg_page_log);
+
+        /* Page delta configuration */
+        char deltas_cfg[128] = "";
+
+        if (opts->internal_page_delta != -1) {
+            char *pcfg = deltas_cfg + strlen(deltas_cfg);
+            size_t remaining = sizeof(deltas_cfg) - strlen(deltas_cfg);
+            testutil_snprintf(
+              pcfg, remaining, ",internal_page_delta=%d", opts->internal_page_delta);
+        }
+
+        if (opts->leaf_page_delta != -1) {
+            char *pcfg = deltas_cfg + strlen(deltas_cfg);
+            size_t remaining = sizeof(deltas_cfg) - strlen(deltas_cfg);
+            testutil_snprintf(pcfg, remaining, ",leaf_page_delta=%d", opts->leaf_page_delta);
+        }
+
+        testutil_strcat(disagg_cfg, disagg_cfg_size, deltas_cfg);
+
     } else {
         testutil_snprintf(ext_cfg, ext_cfg_size, "\"\"");
         testutil_assert(disagg_cfg_size > 0);
