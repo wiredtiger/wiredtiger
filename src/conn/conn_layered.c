@@ -1863,8 +1863,8 @@ __layered_update_gc_ingest_tables_prune_timestamps(
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     wt_timestamp_t prune_timestamp, btree_checkpoint_timestamp;
     size_t i, len, table_count, uri_alloc;
-    int32_t dhandle_inuse;
     int64_t ckpt_inuse, last_ckpt;
+    int32_t dhandle_inuse;
     char *uri_at_checkpoint;
 
     conn = S2C(session);
