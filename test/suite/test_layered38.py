@@ -229,7 +229,7 @@ class test_layered38(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     def test_gc_ingest_with_cursor(self):
         '''
-        Test picking up the first checkpoint when an ingest talbe has some data and a cursor pointed
+        Test picking up the first checkpoint when an ingest table has some data and a cursor pointed
         to this data.
         '''
         oplog, t, conn_follow, session_follow = self.setup()
