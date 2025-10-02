@@ -1288,7 +1288,10 @@ struct __wt_connection_stats {
     int64_t txn_prepare_rollback;
     int64_t txn_query_ts;
     int64_t txn_read_race_prepare_update;
+    int64_t txn_rts_btrees_applied;
+    int64_t txn_rts_btrees_tolerated;
     int64_t txn_rts;
+    int64_t txn_rts_btrees_failed;
     int64_t txn_rts_sweep_hs_keys_dryrun;
     int64_t txn_rts_hs_stop_older_than_newer_start;
     int64_t txn_rts_inconsistent_ckpt;
@@ -1297,7 +1300,6 @@ struct __wt_connection_stats {
     int64_t txn_rts_keys_removed_dryrun;
     int64_t txn_rts_keys_restored_dryrun;
     int64_t txn_rts_pages_visited;
-    int64_t txn_rts_btrees_processed;
     int64_t txn_rts_hs_restore_tombstones;
     int64_t txn_rts_hs_restore_updates;
     int64_t txn_rts_btrees_skipped;
@@ -1703,6 +1705,9 @@ struct __wt_dsrc_stats {
     int64_t txn_read_race_prepare_commit;
     int64_t txn_read_overflow_remove;
     int64_t txn_read_race_prepare_update;
+    int64_t txn_rts_btrees_applied;
+    int64_t txn_rts_btrees_tolerated;
+    int64_t txn_rts_btrees_failed;
     int64_t txn_rts_sweep_hs_keys_dryrun;
     int64_t txn_rts_hs_stop_older_than_newer_start;
     int64_t txn_rts_inconsistent_ckpt;
@@ -1710,7 +1715,6 @@ struct __wt_dsrc_stats {
     int64_t txn_rts_keys_restored;
     int64_t txn_rts_keys_removed_dryrun;
     int64_t txn_rts_keys_restored_dryrun;
-    int64_t txn_rts_btrees_processed;
     int64_t txn_rts_hs_restore_tombstones;
     int64_t txn_rts_hs_restore_updates;
     int64_t txn_rts_btrees_skipped;

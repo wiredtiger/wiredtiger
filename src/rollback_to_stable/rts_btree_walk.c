@@ -244,6 +244,7 @@ __rts_btree(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_t
     WT_DECL_RET;
 
     ret = __rts_btree_int(session, uri, rollback_timestamp);
+    WT_STAT_CONN_DSRC_INCR(session, txn_rts_btrees_applied);
     /*
      * Ignore rollback to stable failures on files that don't exist or files where corruption is
      * detected.
@@ -255,6 +256,9 @@ __rts_btree(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_t
           "%s: skipped performing rollback to stable because the file %s",
           uri, ret == ENOENT ? "does not exist" : "is corrupted.");
         ret = 0;
+        WT_STAT_CONN_DSRC_INCR(session, txn_rts_btrees_tolerated);
+    } else if (ret != 0) {
+        WT_STAT_CONN_DSRC_INCR(session, txn_rts_btrees_failed);
     }
     return (ret);
 }
@@ -411,8 +415,7 @@ __wti_rts_btree_walk_btree_apply(
 
     if (file_skipped)
         WT_STAT_CONN_DSRC_INCR(session, txn_rts_btrees_skipped);
-    else
-        WT_STAT_CONN_DSRC_INCR(session, txn_rts_btrees_processed);
+
     /*
      * Truncate history store entries for the non-timestamped table.
      * Exceptions:
