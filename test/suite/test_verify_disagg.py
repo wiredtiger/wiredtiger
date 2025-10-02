@@ -154,6 +154,13 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # the layered URI while in this transient state. Expect ENOENT.
         self.verify([self.session_follow], errno.ENOENT)
 
+        # Create an empty checkpoint
+        self.session.checkpoint()
+        # Load the latest checkpoint to the follower
+        self.disagg_advance_checkpoint(self.conn_follow)
+        # Follower verification now succeeds
+        self.verify([self.session_follow])
+
         self.session_follow.close()
         self.conn_follow.close()
 
@@ -173,6 +180,13 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # does not exist, so we expect ENOENT. Followers are only able to create their ingest
         # constituents. They see stable through checkpoint or step-up.
         self.verify([self.session_follow], errno.ENOENT)
+
+        # Create an empty checkpoint
+        self.session.checkpoint()
+        # Load the latest checkpoint to the follower
+        self.disagg_advance_checkpoint(self.conn_follow)
+        # Follower verification now succeeds
+        self.verify([self.session_follow])
 
         self.session_follow.close()
         self.conn_follow.close()
