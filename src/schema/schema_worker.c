@@ -84,24 +84,7 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     conn = S2C(session);
     ingest_ret = 0;
 
-    ret = __wt_session_get_dhandle(session, uri, NULL, NULL, open_flags);
-    if (ret == ENOENT) {
-        if (!conn->layered_table_manager.leader) {
-            /*
-             * We've called verify on the follower before it has picked up its first checkpoint. The
-             * follower will not recognize the layered URI while in this transient state.
-             */
-            __wt_verbose_level(session, WT_VERB_VERIFY, WT_VERBOSE_DEBUG_2,
-              "Verify (layered): Skipping verification for %s - "
-              "the follower has not picked up a checkpoint",
-              uri);
-            return (0);
-        }
-        /* We are a leader. Report real error. */
-        WT_RET(ret);
-    }
-    WT_RET(ret);
-
+    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags));
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)session->dhandle;
 
     const char *ingest_uri = layered->ingest_uri;
@@ -121,22 +104,9 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     /* Verify the stable table of the layered table. */
     WT_WITHOUT_DHANDLE(session,
       stable_ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
-
-    if (stable_ret != 0 && stable_ret != EBUSY) {
-        /*
-         * If we are a follower, and the stable table is missing, it may be because we have not yet
-         * picked up a checkpoint. In that case, skip the error.
-         */
-        if (stable_ret == ENOENT && !conn->layered_table_manager.leader) {
-            __wt_verbose_level(session, WT_VERB_VERIFY, WT_VERBOSE_DEBUG_2,
-              "Verify (layered): Skipping stable table verification for %s - "
-              "no stable table exists as the follower has not picked up a checkpoint",
-              uri);
-            stable_ret = 0;
-        } else
-            WT_ERR_MSG(session, stable_ret,
-              "Verify (layered): %s stable table verification failed. ", stable_uri);
-    }
+    if (stable_ret != 0 && stable_ret != EBUSY)
+        WT_ERR_MSG(session, stable_ret,
+            "Verify (layered): %s stable table verification failed ", stable_uri);
 
     /*
      * Verify the ingest table of the layered table. FIXME-WT-15047: Implement ingest table

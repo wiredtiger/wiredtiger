@@ -83,6 +83,7 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
                                                 self.conn_config_follower)
         self.session_follow = self.conn_follow.open_session('')
 
+
     def test_verify_disagg(self):
         if self.fill_hs:
             self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.timestamp))
@@ -100,8 +101,8 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.verify([self.session])
 
         # The follower has not picked up its first checkpoint. The follower will not recognize
-        # the layered URI while in this transient state. Skip verification and return success.
-        self.verify([self.session_follow])
+        # the layered URI while in this transient state. ENOENT
+        self.verify([self.session_follow], errno.ENOENT)
 
         # Create an empty checkpoint
         self.session.checkpoint()
@@ -136,3 +137,42 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.verify([self.session])
         # FIXME-WT-14700: remove ignore after freeing root pages is addressed.
         self.ignoreStdoutPattern("Mismatch in page IDs")
+
+    def test_verify_leader_no_table(self):
+        # Layered table does not exist, expect ENOENT
+        self.verify([self.session], errno.ENOENT)
+
+    def test_verify_follower_no_metadata(self):
+         # Create a layered table on the leader
+        self.session.create(self.uri, self.table_cfg)
+        # Verify the empty leader's table
+        self.verify([self.session])
+
+        # Create a follower
+        self.create_follower()
+        # The follower has not picked up its first checkpoint. The follower will not recognize
+        # the layered URI while in this transient state. Return ENOENT.
+        self.verify([self.session_follow], errno.ENOENT)
+
+        self.session_follow.close()
+        self.conn_follow.close()
+
+    def test_verify_follower_no_checkpoint(self):
+        # Create a layered table on the leader
+        self.session.create(self.uri, self.table_cfg)
+        # Verify the empty leader's table
+        self.verify([self.session])
+
+        # Create a follower
+        self.create_follower()
+        # Create a table on the follower
+        self.session_follow.create(self.uri, self.table_cfg)
+
+        # The follower has not picked up its first checkpoint. But since we created the layered
+        # table, it should be able to run verify on the layered URI. However,the stable table
+        # does not exist, so we expect ENOENT. Followers are only able to create their ingest
+        # constituents. They see stable through checkpoint or step-up.
+        self.verify([self.session_follow], errno.ENOENT)
+
+        self.session_follow.close()
+        self.conn_follow.close()
