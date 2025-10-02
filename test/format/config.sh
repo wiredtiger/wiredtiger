@@ -187,7 +187,9 @@ CONFIG configuration_list[] = {
 
 {"debug.update_restore_evict", "control all dirty page evictions through forcing update restore eviction", C_BOOL, 2, 0, 0}
 
-{"disagg.disable_deltas", "disable writing deltas for internal and leaf pages", C_IGNORE | C_BOOL, 0, 0, 0}
+{"disagg.internal_page_delta", "writing deltas for internal pages", C_IGNORE | C_BOOL, 1, 0, 0}
+
+{"disagg.leaf_page_delta", "writing deltas for leaf pages", C_IGNORE | C_BOOL, 1, 0, 0}
 
 {"disagg.enabled", "configure disaggregated storage", C_IGNORE | C_BOOL | C_TABLE | C_TYPE_ROW, 0, 0, 0}
 

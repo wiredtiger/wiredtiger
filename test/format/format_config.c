@@ -1510,7 +1510,6 @@ config_tiered_storage(void)
 static void
 config_disagg_storage(void)
 {
-    int disable_deltas;
     char buf[128];
     const char *mode, *page_log;
 
@@ -1537,11 +1536,15 @@ config_disagg_storage(void)
     else
         g.disagg_leader = strcmp(mode, "leader") == 0;
 
-    if (config_explicit(NULL, "disagg.disable_deltas")) {
-        disable_deltas = GV(DISAGG_DISABLE_DELTAS) != 0 ? 1 : 0;
-        testutil_snprintf(buf, sizeof(buf), "internal_page_delta=%d", disable_deltas);
+    if (config_explicit(NULL, "disagg.internal_page_delta")) {
+        int internal_page_delta = GV(DISAGG_INTERNAL_PAGE_DELTA) != 0 ? 1 : 0;
+        testutil_snprintf(buf, sizeof(buf), "internal_page_delta=%d", internal_page_delta);
         config_single(NULL, buf, true);
-        testutil_snprintf(buf, sizeof(buf), "leaf_page_delta=%d", disable_deltas);
+    }
+
+    if (config_explicit(NULL, "disagg.leaf_page_delta")) {
+        int leaf_page_delta = GV(DISAGG_LEAF_PAGE_DELTA) != 0 ? 1 : 0;
+        testutil_snprintf(buf, sizeof(buf), "leaf_page_delta=%d", leaf_page_delta);
         config_single(NULL, buf, true);
     }
 
