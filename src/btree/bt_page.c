@@ -425,7 +425,8 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
                 standard_value->prepare_ts = unpack.tw.start_prepare_ts;
                 standard_value->prepare_state = WT_PREPARE_INPROGRESS;
 
-                F_SET(standard_value, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
+                F_SET(standard_value,
+                  WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DELTA);
             } else
                 F_SET(standard_value, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
             size += tmp_size;
@@ -440,15 +441,17 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
                     tombstone->prepared_id = unpack.tw.stop_prepared_id;
                     tombstone->prepare_ts = unpack.tw.stop_prepare_ts;
                     tombstone->prepare_state = WT_PREPARE_INPROGRESS;
-                    F_SET(
-                      tombstone, WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS);
+                    F_SET(tombstone,
+                      WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS |
+                        WT_UPDATE_RESTORED_FROM_DELTA);
 
                     if (WT_TIME_WINDOW_HAS_START_PREPARE(&unpack.tw)) {
                         standard_value->prepared_id = unpack.tw.start_prepared_id;
                         standard_value->prepare_ts = unpack.tw.start_prepare_ts;
                         standard_value->prepare_state = WT_PREPARE_INPROGRESS;
                         F_SET(standard_value,
-                          WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS);
+                          WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS |
+                            WT_UPDATE_RESTORED_FROM_DELTA);
                     }
                 } else
                     F_SET(tombstone, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
@@ -464,7 +467,8 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
                     standard_value->prepare_ts = unpack.tw.start_prepare_ts;
                     standard_value->prepare_state = WT_PREPARE_INPROGRESS;
                     F_SET(standard_value,
-                      WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS);
+                      WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS |
+                        WT_UPDATE_RESTORED_FROM_DELTA);
                 }
                 upd = standard_value;
             }
