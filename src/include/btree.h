@@ -149,7 +149,7 @@ struct __wt_btree {
 
     /* FIXME-WT-15633: Combine `prune_timestamp` and `ckpt_timestamp` into one variable */
     wt_shared wt_timestamp_t prune_timestamp; /* Ingest table GC collection timestamp */
-    wt_shared wt_timestamp_t ckpt_timestamp;  /* Stable table checkpoint timestamp */
+    wt_timestamp_t checkpoint_timestamp;      /* Stable table checkpoint timestamp */
 
 #define WT_SPLIT_DEEPEN_MIN_CHILD_DEF (10 * WT_THOUSAND)
     u_int split_deepen_min_child; /* Minimum entries to deepen tree */

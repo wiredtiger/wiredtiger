@@ -639,9 +639,6 @@ __schema_open_layered_ingest(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered
     /* Flag the ingest btree as participating in automatic garbage collection */
     F_SET(ingest_btree, WT_BTREE_GARBAGE_COLLECT);
 
-    WT_ACQUIRE_READ(
-      ingest_btree->prune_timestamp, S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
-
     WT_RET(__wt_session_release_dhandle(session));
     return (0);
 }
