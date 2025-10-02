@@ -47,7 +47,7 @@ table_verify(TABLE *table, void *arg)
      * FIXME-WT-14885: We can run verify on layered tables when deltas are written as a full image.
      */
     if (TV(DISAGG_ENABLED)) {
-        printf("table.%u skipped verify because verify does not support disagg delta pages. ",
+        printf("table.%u skipped verify because verify does not support disagg delta pages.\n",
           table->id);
         fflush(stdout);
         return;
