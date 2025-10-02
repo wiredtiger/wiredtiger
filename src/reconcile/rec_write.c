@@ -2202,7 +2202,6 @@ __wti_rec_pack_delta_internal(
     uint8_t *p;
 
     WT_CLEAR(t_kv_struct);
-    header = (WT_PAGE_HEADER *)r->delta.data;
 
     packed_size = key->len;
     if (value != NULL)
@@ -2211,6 +2210,8 @@ __wti_rec_pack_delta_internal(
     if (r->delta.size + packed_size > r->delta.memsize)
         WT_RET(__wt_buf_grow(session, &r->delta, r->delta.size + packed_size));
 
+    /* Recompute header and p after potential realloc */
+    header = (WT_PAGE_HEADER *)r->delta.data;
     p = (uint8_t *)r->delta.data + r->delta.size;
 
     __wti_rec_kv_copy(session, p, key);
