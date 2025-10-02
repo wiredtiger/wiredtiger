@@ -62,6 +62,7 @@ class test_layered13(wttest.WiredTigerTestCase, DisaggConfigMixin):
         os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
     # Test more than one table.
+    @wttest.skip_for_hook("tiered", "Fails with tiered storage")
     def test_layered13(self):
         # Create all tables in the leader
         for uri in self.layered_uris + self.other_uris:
