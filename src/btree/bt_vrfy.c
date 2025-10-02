@@ -1425,7 +1425,7 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
          *  here. Check if the array size needs to grow.
          */
         if (num_pages_found_in_btree == (capacity_in_bytes / sizeof(*page_ids))) {
-            uint64_t new_capacity_count = num_pages_found_in_btree * 2 + 1;
+            uint64_t new_capacity_count = num_pages_found_in_btree * 2 + 10;
             WT_RET(__wt_realloc_def(session, &capacity_in_bytes, new_capacity_count, &page_ids));
         }
 
