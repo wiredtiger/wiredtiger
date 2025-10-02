@@ -1500,7 +1500,7 @@ variables:
       - func: "fetch artifacts"
       - func: "format test disagg"
         vars:
-          format_args: disagg.page_log=palite disagg.mode=leader runs.tables=1 runs.timer=3
+          format_args: disagg.page_log=palite disagg.mode=leader runs.tables=1
           times: 5
 
   - &format-stress-data-validation-test-disagg-leader-palite
@@ -1521,7 +1521,7 @@ variables:
       - func: "fetch artifacts"
       - func: "format test disagg"
         vars:
-          format_args: disagg.page_log=palite disagg.mode=switch runs.tables=1 runs.timer=3
+          format_args: disagg.page_log=palite disagg.mode=switch runs.tables=1
           times: 5
 
   - &format-stress-test-disagg-follower-palite
