@@ -1892,7 +1892,7 @@ err:
  * __layered_update_prune_timestamps_print_update_logs --
  *     Print logs for the prune timestamp update.
  */
-static void
+static WT_INLINE void
 __layered_update_prune_timestamps_print_update_logs(WT_SESSION_IMPL *session,
   WT_LAYERED_TABLE *layered_table, wt_timestamp_t prune_timestamp, int64_t ckpt_inuse)
 {
@@ -1919,8 +1919,9 @@ __layered_update_gc_ingest_tables_prune_timestamps(
     WT_LAYERED_TABLE *layered_table;
     WT_LAYERED_TABLE_MANAGER *manager;
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
-    wt_timestamp_t prune_timestamp;
+    wt_timestamp_t prune_timestamp, btree_checkpoint_timestamp;
     size_t i, len, table_count, uri_alloc;
+    int32_t dhandle_inuse;
     int64_t ckpt_inuse, last_ckpt;
     char *uri_at_checkpoint;
 
@@ -1979,20 +1980,32 @@ __layered_update_gc_ingest_tables_prune_timestamps(
 
             /* Find the last checkpoint which is still in use. */
             while (ckpt_inuse < last_ckpt) {
+                btree_checkpoint_timestamp = WT_TS_NONE;
+                dhandle_inuse = 0;
+
                 WT_ERR(__wt_snprintf(uri_at_checkpoint, uri_alloc, "%s/%s.%" PRId64,
                   layered_table->stable_uri, WT_CHECKPOINT, ckpt_inuse));
 
                 /* If it's in use, then it must be in the connection cache. */
-                WT_WITH_HANDLE_LIST_READ_LOCK(
-                  session, (ret = __wt_conn_dhandle_find(session, uri_at_checkpoint, NULL)));
+                WT_WITH_HANDLE_LIST_READ_LOCK(session,
+                  if ((ret = __wt_conn_dhandle_find(session, uri_at_checkpoint, NULL)) == 0)
+                    WT_DHANDLE_ACQUIRE(session->dhandle));
 
-                /* If it's in use by any session, then we're done. */
-                if (ret == 0 && session->dhandle->session_inuse > 0) {
-                    prune_timestamp = S2BT(session)->ckpt_timestamp;
-                    break;
+                /* If one exists, read all the required info, then release. */
+                if (ret == 0) {
+                    dhandle_inuse = session->dhandle->session_inuse;
+                    btree_checkpoint_timestamp = S2BT(session)->checkpoint_timestamp;
+                    WT_DHANDLE_RELEASE(session->dhandle);
                 }
 
                 WT_ERR_NOTFOUND_OK(ret, false);
+
+                /* If it's in use by any session, then we're done. */
+                if (dhandle_inuse > 0) {
+                    prune_timestamp = btree_checkpoint_timestamp;
+                    break;
+                }
+
                 ++ckpt_inuse;
             }
 
