@@ -72,9 +72,8 @@ class test_verify2(wttest.WiredTigerTestCase):
         # modified.
         self.assertEqual(self.session.verify(self.uri, None), 0)
 
-    # write test just doing session.verify
     def test_verify_empty(self):
         #  Verifying a non existant table should return ENOENT
-        self.assertRaisesException(wiredtiger.WiredTigerError,   
-                              lambda: self.session.verify(self.uri, None),  
+        self.assertRaisesException(wiredtiger.WiredTigerError,
+                              lambda: self.session.verify(self.uri, None),
                               os.strerror(errno.ENOENT))

@@ -104,9 +104,10 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     /* Verify the stable table of the layered table. */
     WT_WITHOUT_DHANDLE(session,
       stable_ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
+
     if (stable_ret != 0 && stable_ret != EBUSY)
-        WT_ERR_MSG(session, stable_ret,
-            "Verify (layered): %s stable table verification failed ", stable_uri);
+        WT_ERR_MSG(session, stable_ret, "Verify (layered): %s stable table verification failed ",
+          stable_uri);
 
     /*
      * Verify the ingest table of the layered table. FIXME-WT-15047: Implement ingest table
