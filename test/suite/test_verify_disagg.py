@@ -101,7 +101,7 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.verify([self.session])
 
         # The follower has not picked up its first checkpoint. The follower will not recognize
-        # the layered URI while in this transient state. ENOENT
+        # the layered URI while in this transient state, expect ENOENT.
         self.verify([self.session_follow], errno.ENOENT)
 
         # Create an empty checkpoint
