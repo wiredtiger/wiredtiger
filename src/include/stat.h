@@ -332,7 +332,11 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
       WT_SESSION_IMPL *session, uint64_t msecs)                 \
     {                                                           \
         WT_STAT_CONN_INCRV(session, stat##_total_msecs, msecs); \
-        if (msecs < 10)                                         \
+        if (msecs < 2)                                          \
+            WT_STAT_CONN_INCR(session, stat##_lt2);             \
+        else if (msecs < 5)                                     \
+            WT_STAT_CONN_INCR(session, stat##_lt5);             \
+        else if (msecs < 10)                                    \
             WT_STAT_CONN_INCR(session, stat##_lt10);            \
         else if (msecs < 50)                                    \
             WT_STAT_CONN_INCR(session, stat##_lt50);            \
@@ -361,6 +365,10 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
             WT_STAT_CONN_INCR(session, stat##_lt500);           \
         else if (usecs < WT_THOUSAND)                           \
             WT_STAT_CONN_INCR(session, stat##_lt1000);          \
+        else if (usecs < 2500)                                  \
+            WT_STAT_CONN_INCR(session, stat##_lt2500);          \
+        else if (usecs < 5 * WT_THOUSAND)                       \
+            WT_STAT_CONN_INCR(session, stat##_lt5000);          \
         else if (usecs < 10 * WT_THOUSAND)                      \
             WT_STAT_CONN_INCR(session, stat##_lt10000);         \
         else                                                    \
