@@ -3123,6 +3123,7 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             }
             __wt_free(session, multi->addr.block_cookie);
         }
+        __wt_free(session, multi->block_meta);
     }
     __wt_free(session, mod->mod_multi);
     mod->mod_multi_entries = 0;
