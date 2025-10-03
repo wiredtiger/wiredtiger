@@ -186,6 +186,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     if (S2BT(session)->evict_disabled > 0)
         WT_ERR(EBUSY);
 
+    /* In a rare case, we may race with another thread trying to push the same page to the queue. */
     if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH))
         goto err;
 
