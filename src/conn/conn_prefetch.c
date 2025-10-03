@@ -188,7 +188,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* In a rare case, we may race with another thread trying to push the same page to the queue. */
     if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH))
-        goto err;
+        goto done;
 
     /* Encourage races. */
     __wt_timing_stress(session, WT_TIMING_STRESS_PREFETCH_3, NULL);
@@ -202,7 +202,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
      * else must have started to operate on it. Ignore this page without waiting.
      */
     if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
-        goto err;
+        goto done;
 
     WT_ERR(__wt_calloc_one(session, &pe));
     pe->ref = ref;
@@ -225,6 +225,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     return (0);
 
 err:
+done:
     __wt_spin_unlock(session, &conn->prefetch_lock);
     return (ret);
 }
