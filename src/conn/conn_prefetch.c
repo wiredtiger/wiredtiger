@@ -183,15 +183,11 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
 
     __wt_spin_lock(session, &conn->prefetch_lock);
     /* Don't queue pages for trees that have eviction disabled. */
-    if (S2BT(session)->evict_disabled > 0) {
-        __wt_spin_unlock(session, &conn->prefetch_lock);
-        return (EBUSY);
-    }
+    if (S2BT(session)->evict_disabled > 0)
+        WT_ERR(EBUSY);
 
-    if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH)) {
-        __wt_spin_unlock(session, &conn->prefetch_lock);
-        return (0);
-    }
+    if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH))
+        goto err;
 
     /* Encourage races. */
     __wt_timing_stress(session, WT_TIMING_STRESS_PREFETCH_3, NULL);
@@ -204,10 +200,8 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
      * set. Lock the ref to ensure those cases cannot happen. If we fail to lock the ref, someone
      * else must have started to operate on it. Ignore this page without waiting.
      */
-    if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
-        __wt_spin_unlock(session, &conn->prefetch_lock);
-        return (0);
-    }
+    if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
+        goto err;
 
     WT_ERR(__wt_calloc_one(session, &pe));
     pe->ref = ref;
