@@ -368,10 +368,7 @@ __verify_row_key_order_check(
       __wt_buf_set_printable_format(
         vi->session, current->data, current->size, btree->key_format, false, tmp2));
 err:
-#ifdef HAVE_DIAGNOSTIC
-    if (ret == WT_ERROR)
-        __wt_abort(vi->session);
-#endif
+    WT_ASSERT(vi->session, ret != WT_ERROR);
     __wt_scr_free(vi->session, &tmp1);
     __wt_scr_free(vi->session, &tmp2);
     return (ret);
