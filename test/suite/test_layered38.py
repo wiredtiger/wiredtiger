@@ -251,7 +251,7 @@ class test_layered38(wttest.WiredTigerTestCase, DisaggConfigMixin):
         oplog.apply(self, session_follow, 0, self.nitems)
         oplog.check(self, session_follow, 0, self.nitems)
 
-        # Hold a cursor open on the layered table, and on the ingest as well.
+        # Hold a cursor open on the layered table, and on the ingest one as well.
         session_follow2 = conn_follow.open_session('')
         hold_cursor = session_follow2.open_cursor(self.uri)
         hold_cursor.next()
@@ -262,4 +262,9 @@ class test_layered38(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Close the cursor held open.
         hold_cursor.close()
+
+        # Push forward the checkpoint again to avoid picking up the same checkpoint twice.
+        self.session.checkpoint()
+
+        # Pickup the last checkpoint and perform the final garbage collection
         self.disagg_advance_checkpoint(conn_follow)
