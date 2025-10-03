@@ -860,6 +860,10 @@ __wt_blkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     if (blkcache->type != WT_BLKCACHE_UNCONFIGURED && !reconfig)
         WT_RET_MSG(session, EINVAL, "block cache setup requested for a configured cache");
 
+    /* FIXME-WT-15663 Disable block cache in disagg mode */
+    if (__wt_conn_is_disagg(session))
+        return (0);
+
     /* When reconfiguring, check if there are any modifications that we care about. */
     if (blkcache->type != WT_BLKCACHE_UNCONFIGURED && reconfig) {
         if ((ret = __wt_config_gets(session, cfg + 1, "block_cache", &cval)) == WT_NOTFOUND)
