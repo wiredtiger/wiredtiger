@@ -1512,6 +1512,8 @@ config_disagg_storage(void)
 {
     char buf[128];
     const char *mode, *page_log;
+    const char *page_delta;
+    bool explicit;
 
     page_log = GVS(DISAGG_PAGE_LOG);
 
@@ -1536,17 +1538,25 @@ config_disagg_storage(void)
     else
         g.disagg_leader = strcmp(mode, "leader") == 0;
 
-    if (config_explicit(NULL, "disagg.internal_page_delta")) {
-        int internal_page_delta = GV(DISAGG_INTERNAL_PAGE_DELTA) != 0 ? 1 : 0;
-        testutil_snprintf(buf, sizeof(buf), "disagg.internal_page_delta=%d", internal_page_delta);
-        config_single(NULL, buf, true);
-    }
+    /* Configure page deltas if explicitly set. Otherwise, use WT defaults. */
 
-    if (config_explicit(NULL, "disagg.leaf_page_delta")) {
-        int leaf_page_delta = GV(DISAGG_LEAF_PAGE_DELTA) != 0 ? 1 : 0;
-        testutil_snprintf(buf, sizeof(buf), "disagg.leaf_page_delta=%d", leaf_page_delta);
-        config_single(NULL, buf, true);
+    page_delta = "default";
+    explicit = config_explicit(NULL, "disagg.internal_page_delta");
+    if (explicit) {
+        page_delta = GVS(DISAGG_INTERNAL_PAGE_DELTA);
+        testutil_assert(strcmp(page_delta, "on") == 0 || strcmp(page_delta, "off") == 0);
     }
+    testutil_snprintf(buf, sizeof(buf), "disagg.internal_page_delta=%s", page_delta);
+    config_single(NULL, buf, explicit);
+
+    page_delta = "default";
+    explicit = config_explicit(NULL, "disagg.leaf_page_delta");
+    if (explicit) {
+        page_delta = GVS(DISAGG_LEAF_PAGE_DELTA);
+        testutil_assert(strcmp(page_delta, "on") == 0 || strcmp(page_delta, "off") == 0);
+    }
+    testutil_snprintf(buf, sizeof(buf), "disagg.leaf_page_delta=%s", page_delta);
+    config_single(NULL, buf, explicit);
 
     /* Disaggregated storage requires timestamps. */
     config_off(NULL, "transaction.implicit");

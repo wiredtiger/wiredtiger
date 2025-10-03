@@ -171,11 +171,11 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
     "control all dirty page evictions through forcing update restore eviction", C_BOOL, 2, 0, 0,
     V_GLOBAL_DEBUG_UPDATE_RESTORE_EVICT},
 
-  {"disagg.internal_page_delta", "writing deltas for internal pages", C_IGNORE | C_BOOL, 1, 0, 0,
-    V_GLOBAL_DISAGG_INTERNAL_PAGE_DELTA},
+  {"disagg.internal_page_delta", "writing deltas for internal pages (default | on | off)",
+    C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_DISAGG_INTERNAL_PAGE_DELTA},
 
-  {"disagg.leaf_page_delta", "writing deltas for leaf pages", C_IGNORE | C_BOOL, 1, 0, 0,
-    V_GLOBAL_DISAGG_LEAF_PAGE_DELTA},
+  {"disagg.leaf_page_delta", "writing deltas for leaf pages (default | on | off)",
+    C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_DISAGG_LEAF_PAGE_DELTA},
 
   {"disagg.enabled", "configure disaggregated storage", C_IGNORE | C_BOOL | C_TABLE | C_TYPE_ROW, 0,
     0, 0, V_TABLE_DISAGG_ENABLED},

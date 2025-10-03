@@ -48,6 +48,7 @@ testutil_disagg_storage_configuration(TEST_OPTS *opts, const char *home, char *d
         /* Page delta configuration */
         char deltas_cfg[128] = "";
 
+        /* Only set the page delta values if they were explicitly configured. */
         if (opts->internal_page_delta != -1) {
             char *pcfg = deltas_cfg + strlen(deltas_cfg);
             size_t remaining = sizeof(deltas_cfg) - strlen(deltas_cfg);
