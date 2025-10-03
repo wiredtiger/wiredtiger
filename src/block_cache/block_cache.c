@@ -871,12 +871,14 @@ __wt_blkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     if (cval.val == 0)
         return (0);
 
-    /* FIXME-WT-15663 Disable block cache before it's stable */
-    __wt_verbose_warning(session, WT_VERB_BLKCACHE,
-      "Block cache is currently disabled (wait WT-15663). Continuing without block cache, "
-      "enable:%" PRIi64,
-      cval.val);
-    return (0);
+    /* FIXME-WT-15663 Disable block cache until it is stable */
+    if (cval.val == 1) {
+        __wt_verbose_warning(session, WT_VERB_BLKCACHE,
+          "Block cache is currently disabled. Continuing without block cache "
+          "enable:%" PRIi64,
+          cval.val);
+        return (0);
+    }
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.size", &cval));
     if ((cache_size = (uint64_t)cval.val) <= 0)
