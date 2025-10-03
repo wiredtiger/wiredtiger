@@ -1623,15 +1623,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             }
             break;
         case WT_TXN_OP_REF_DELETE:
-            /*
-             * For non-standalone builds, skip truncate commit timestamp validation, as MongoDB
-             * doesn't use timestamps with truncate operations.
-             */
-#ifdef WT_STANDALONE_BUILD
             WT_ERR(__wt_txn_op_set_timestamp(session, op, true));
-#else
-            WT_ERR(__wt_txn_op_set_timestamp(session, op, false));
-#endif
             break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
@@ -2515,7 +2507,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          * Perform rollback to stable to ensure that the stable version is written to disk on a
          * clean shutdown.
          */
-        if (use_timestamp && !conn_is_disagg) {
+        if (use_timestamp && !conn_is_disagg && !F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
             const char *rts_cfg[] = {
               WT_CONFIG_BASE(session, WT_CONNECTION_rollback_to_stable), NULL, NULL};
             if (conn->rts->cfg_threads_num != 0) {

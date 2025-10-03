@@ -54,9 +54,6 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
     def test_drain_insert_update(self):
-        if platform.processor() == 's390x':
-            self.skipTest("FIXME-WT-15000: not working on zSeries")
-
         # Create the oplog
         oplog = Oplog()
 
@@ -84,8 +81,10 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Add some more traffic
         oplog.insert(t, 100 * self.multiplier)
         oplog.update(t, 200 * self.multiplier)
-        oplog.apply(self, self.session, 100 * self.multiplier, 300 * self.multiplier)
-        oplog.check(self, self.session, 0, 400 * self.multiplier)
+
+        # FIXME-WT-15388: Re-enable once we can abandon changes after stepping down.
+        # oplog.apply(self, self.session, 100 * self.multiplier, 300 * self.multiplier)
+        # oplog.check(self, self.session, 0, 400 * self.multiplier)
 
         # On the follower -
         # Apply all the entries to follower
@@ -99,6 +98,7 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.disagg_advance_checkpoint(conn_follow)
         oplog.check(self, session_follow, 0, 400 * self.multiplier)
 
+        self.conn.reconfigure(f'disaggregated=(role=follower)') # Prevent checkpoint during close.
         self.conn.close()
         conn_follow.reconfigure('disaggregated=(role="leader")')
 
@@ -115,9 +115,6 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         oplog.check(self, session_follow, 0, 400 * self.multiplier)
 
     def test_drain_remove(self):
-        if platform.processor() == 's390x':
-            self.skipTest("FIXME-WT-15000: not working on zSeries")
-
         # Create the oplog
         oplog = Oplog()
 
@@ -144,8 +141,10 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Delete some updates
         oplog.remove(t, 100 * self.multiplier)
-        oplog.apply(self, self.session, 100 * self.multiplier, 100 * self.multiplier)
-        oplog.check(self, self.session, 0, 200 * self.multiplier)
+
+        # FIXME-WT-15388: Re-enable once we can abandon changes after stepping down.
+        # oplog.apply(self, self.session, 100 * self.multiplier, 100 * self.multiplier)
+        # oplog.check(self, self.session, 0, 200 * self.multiplier)
 
         # On the follower -
         # Apply all the entries to follower
@@ -159,6 +158,7 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.disagg_advance_checkpoint(conn_follow)
         oplog.check(self, session_follow, 0, 200 * self.multiplier)
 
+        self.conn.reconfigure(f'disaggregated=(role=follower)') # Prevent checkpoint during close.
         self.conn.close()
         conn_follow.reconfigure('disaggregated=(role="leader")')
 
@@ -202,8 +202,10 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Delete some updates
         oplog.remove(t, 100 * self.multiplier)
         oplog.insert(t, 100 * self.multiplier, 0)
-        oplog.apply(self, self.session, 100 * self.multiplier, 200 * self.multiplier)
-        oplog.check(self, self.session, 0, 300 * self.multiplier)
+
+        # FIXME-WT-15388: Re-enable once we can abandon changes after stepping down.
+        # oplog.apply(self, self.session, 100 * self.multiplier, 200 * self.multiplier)
+        # oplog.check(self, self.session, 0, 300 * self.multiplier)
 
         # On the follower -
         # Apply all the entries to follower
@@ -217,6 +219,7 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.disagg_advance_checkpoint(conn_follow)
         oplog.check(self, session_follow, 0, 300 * self.multiplier)
 
+        self.conn.reconfigure(f'disaggregated=(role=follower)') # Prevent checkpoint during close.
         self.conn.close()
         conn_follow.reconfigure('disaggregated=(role="leader")')
 
