@@ -181,20 +181,17 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     if (__wt_evict_clean_pressure(session))
         return (EBUSY);
 
-    WT_RET(__wt_calloc_one(session, &pe));
-    pe->ref = ref;
-    pe->first_home = ref->home;
-    pe->dhandle = session->dhandle;
-
     __wt_spin_lock(session, &conn->prefetch_lock);
     /* Don't queue pages for trees that have eviction disabled. */
     if (S2BT(session)->evict_disabled > 0) {
         __wt_spin_unlock(session, &conn->prefetch_lock);
-        WT_ERR(EBUSY);
+        return (EBUSY);
     }
 
-    /* We should never add a ref that is already in the prefetch queue. */
-    WT_ASSERT(session, !F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH));
+    if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH)) {
+        __wt_spin_unlock(session, &conn->prefetch_lock);
+        return (0);
+    }
 
     /* Encourage races. */
     __wt_timing_stress(session, WT_TIMING_STRESS_PREFETCH_3, NULL);
@@ -209,8 +206,13 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
         __wt_spin_unlock(session, &conn->prefetch_lock);
-        goto err;
+        return (0);
     }
+
+    WT_ERR(__wt_calloc_one(session, &pe));
+    pe->ref = ref;
+    pe->first_home = ref->home;
+    pe->dhandle = session->dhandle;
 
     /*
      * On top of indicating the leaf page is now in the prefetch queue, the prefetch flag also
@@ -225,11 +227,10 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_spin_unlock(session, &conn->prefetch_lock);
     __wt_cond_signal(session, conn->prefetch_threads.wait_cond);
 
-    if (0) {
-err:
-        __wt_free(session, pe);
-    }
+    return (0);
 
+err:
+    __wt_spin_unlock(session, &conn->prefetch_lock);
     return (ret);
 }
 
