@@ -19,6 +19,7 @@ static int __cursor_prepared_discover_setup(WT_SESSION_IMPL *, WT_CURSOR_PREPARE
 static int
 __cursor_prepared_discover_next(WT_CURSOR *cursor)
 {
+    TracyCZoneScoped(nextZone, true);
     WT_CURSOR_PREPARE_DISCOVERED *cursor_prepare;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -73,6 +74,7 @@ err:
 static int
 __cursor_prepared_discover_close(WT_CURSOR *cursor)
 {
+    TracyCZoneScoped(closeZone, true);
     WT_CURSOR_PREPARE_DISCOVERED *cursor_prepare;
     WT_DECL_RET;
     WT_PENDING_PREPARED_ITEM *item;
@@ -126,6 +128,7 @@ int
 __wt_cursor_prepared_discover_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
   const char *cfg[], WT_CURSOR **cursorp)
 {
+    TracyCZoneScoped(openZone, true);
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
       __wti_cursor_get_value_notsup,                  /* get-value */
       __wti_cursor_get_raw_key_value_notsup,          /* get-raw-key-value */
@@ -200,6 +203,7 @@ static int
 __cursor_prepared_discover_setup(
   WT_SESSION_IMPL *session, WT_CURSOR_PREPARE_DISCOVERED *cursor_prepare)
 {
+    TracyCZoneScoped(setupZone, true);
     WT_RET(__wt_prepared_discover_filter_apply_handles(session));
     WT_RET(__cursor_prepared_discover_list_create(session, cursor_prepare));
     return (0);
@@ -215,6 +219,7 @@ static int
 __cursor_prepared_discover_list_create(
   WT_SESSION_IMPL *session, WT_CURSOR_PREPARE_DISCOVERED *cursor_prepare)
 {
+    TracyCZoneScoped(createZone, true);
     WT_PENDING_PREPARED_ITEM *item;
     WT_PENDING_PREPARED_MAP *pending_prepare_items;
     WT_TXN_GLOBAL *txn_global;

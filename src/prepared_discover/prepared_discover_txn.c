@@ -68,6 +68,7 @@ static int
 __prepared_discover_find_or_create_item(WT_SESSION_IMPL *session, uint64_t prepared_id,
   wt_timestamp_t prepare_timestamp, WT_PENDING_PREPARED_ITEM **prepared_item)
 {
+    TracyCZoneScoped(findZone, true);
     WT_CONNECTION_IMPL *conn;
     WT_PENDING_PREPARED_ITEM *item;
     WT_PENDING_PREPARED_MAP *pending_prepare_items;
@@ -81,16 +82,19 @@ __prepared_discover_find_or_create_item(WT_SESSION_IMPL *session, uint64_t prepa
     txn_global = &conn->txn_global;
     pending_prepare_items = &txn_global->pending_prepare_items;
     if (pending_prepare_items->hash == NULL) {
+        TracyCZoneScoped(initZone, true);
         WT_RET(__pending_prepare_items_init(session, pending_prepare_items,
           /* hash size*/ WT_DEFAULT_PENDING_PREPARED_DISCOVER_HASHSIZE));
     }
-
-    WT_RET(__wt_calloc_one(session, &item));
-    item->prepared_id = prepared_id;
-    item->prepare_timestamp = prepare_timestamp;
-    bucket = prepared_id & (pending_prepare_items->hash_size - 1);
-    TAILQ_INSERT_HEAD(&pending_prepare_items->hash[bucket], item, hashq);
-    *prepared_item = item;
+    {
+        TracyCZoneScoped(callocZone, true);
+        WT_RET(__wt_calloc_one(session, &item));
+        item->prepared_id = prepared_id;
+        item->prepare_timestamp = prepare_timestamp;
+        bucket = prepared_id & (pending_prepare_items->hash_size - 1);
+        TAILQ_INSERT_HEAD(&pending_prepare_items->hash[bucket], item, hashq);
+        *prepared_item = item;
+    }
     return (0);
 }
 

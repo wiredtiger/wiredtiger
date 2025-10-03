@@ -361,28 +361,36 @@ __prepared_discover_tree_walk_skip(
 static int
 __prepared_discover_walk_one_tree(WT_SESSION_IMPL *session, const char *uri)
 {
+    TracyCZoneScoped(discover_walk, true);
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_REF *ref;
     uint32_t flags;
 
     /* Open a handle for processing. */
-    ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
-    if (ret != 0)
-        WT_RET_MSG(session, ret, "%s: unable to open handle%s", uri,
-          ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");
-
+    {
+        TracyCZoneScopedC(get_handle, PALETTE_YELLOW, true);
+        TracyCZoneName(get_handle, "handle", 6);
+        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
+        if (ret != 0)
+            WT_RET_MSG(session, ret, "%s: unable to open handle%s", uri,
+            ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");
+    }
     btree = S2BT(session);
     /* There is nothing to do on an empty tree. */
-    if (btree->root.page != NULL) {
-        flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED | WT_READ_SEE_DELETED;
-        ref = NULL;
-        while ((ret = __wt_tree_walk_custom_skip(
-                  session, &ref, __prepared_discover_tree_walk_skip, NULL, flags)) == 0 &&
-          ref != NULL) {
+    {
+        TracyCZoneScopedC(prepare_walk, PALETTE_YELLOW, true);
+        TracyCZoneName(prepare_walk, "prepare_walk", 6);
+        if (btree->root.page != NULL) {
+            flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED | WT_READ_SEE_DELETED;
+            ref = NULL;
+            while ((ret = __wt_tree_walk_custom_skip(
+                    session, &ref, __prepared_discover_tree_walk_skip, NULL, flags)) == 0 &&
+            ref != NULL) {
 
-            if (F_ISSET(ref, WT_REF_FLAG_LEAF))
-                WT_ERR(__prepared_discover_process_leaf_page(session, ref));
+                if (F_ISSET(ref, WT_REF_FLAG_LEAF))
+                    WT_ERR(__prepared_discover_process_leaf_page(session, ref));
+            }
         }
     }
 err:
@@ -398,6 +406,7 @@ err:
 int
 __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
 {
+    TracyCZoneScopedC(prepare_discover_zone, PALETTE_RED, true);
     WT_CURSOR *cursor;
     WT_DECL_RET;
     const char *uri, *config;
@@ -408,15 +417,23 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
      * to be exclusive in some way it should probably accumulate a set of relevant handles before
      * releasing that access and doing the processing after generating the list.
      */
-    WT_RET(__wt_metadata_cursor(session, &cursor));
-
+    {
+        TracyCZoneScoped(cursor_zone, true);
+        TracyCZoneName(cursor_zone, "open cursor", 12);
+        WT_RET(__wt_metadata_cursor(session, &cursor));
+    }
     while ((ret = cursor->next(cursor)) == 0) {
+        TracyCZoneScopedC(cursor_search, PALETTE_ORANGE, true);
+        TracyCZoneName(cursor_search, "search", 7);
         WT_ERR(cursor->get_key(cursor, &uri));
         /* Only interested in btree handles that aren't the metadata */
         if (!WT_BTREE_PREFIX(uri) || strcmp(uri, WT_METAFILE_URI) == 0)
             continue;
-
-        WT_ERR_NOTFOUND_OK(cursor->get_value(cursor, &config), true);
+        {
+            TracyCZoneScoped(cursor_get_value, true);
+            TracyCZoneName(cursor_get_value, "get_value", 7);
+            WT_ERR_NOTFOUND_OK(cursor->get_value(cursor, &config), true);
+        }
         if (ret == WT_NOTFOUND)
             config = NULL;
         /* Check to see if there is any prepared content in the handle */
