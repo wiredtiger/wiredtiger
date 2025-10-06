@@ -424,13 +424,13 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
                 standard_value->prepare_state = WT_PREPARE_INPROGRESS;
                 standard_value->upd_start_ts = unpack.delta_value.tw.start_prepare_ts;
 
-                F_SET(standard_value, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
+                F_SET(standard_value,
+                  WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS |
+                    WT_UPDATE_RESTORED_FROM_DELTA);
             } else {
                 standard_value->upd_start_ts = unpack.delta_value.tw.start_ts;
                 standard_value->upd_durable_ts = unpack.delta_value.tw.durable_start_ts;
-                F_SET(standard_value,
-                  WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA |
-                    WT_UPDATE_RESTORED_FROM_DELTA);
+                F_SET(standard_value, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
             }
             size += tmp_size;
 
