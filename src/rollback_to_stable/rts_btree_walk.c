@@ -256,9 +256,6 @@ __rts_btree(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_t
           "%s: skipped performing rollback to stable because the file %s",
           uri, ret == ENOENT ? "does not exist" : "is corrupted.");
         ret = 0;
-        WT_STAT_CONN_DSRC_INCR(session, txn_rts_btrees_tolerated);
-    } else if (ret != 0) {
-        WT_STAT_CONN_DSRC_INCR(session, txn_rts_btrees_failed);
     }
     return (ret);
 }
