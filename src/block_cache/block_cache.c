@@ -873,10 +873,8 @@ __wt_blkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 
     /* FIXME-WT-15663 Disable block cache until it is stable */
     if (cval.val == 1) {
-        __wt_verbose_warning(session, WT_VERB_BLKCACHE,
-          "Block cache is currently disabled. Continuing without block cache "
-          "enable:%" PRIi64,
-          cval.val);
+        __wt_verbose_warning(session, WT_VERB_BLKCACHE, "%s",
+          "Block cache is currently disabled. Continuing without block cache enable.");
         return (0);
     }
 
