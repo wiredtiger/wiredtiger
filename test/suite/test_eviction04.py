@@ -34,6 +34,7 @@ from wiredtiger import stat
 # Test that reconciliation is performing in-memory restoration due to invisible updates
 # during eviction.
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
+@wttest.skip_for_hook("disagg", "Fails due to evict a page.")
 class test_eviction04(wttest.WiredTigerTestCase):
 
     def conn_config(self):
