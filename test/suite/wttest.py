@@ -147,8 +147,8 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def globalSetup(command_line_vars, preserveFiles = False, removeAtStart = True, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
                     longtest = False, extralongtest = False, zstdtest = False, ignoreStdout = False,
-                    seedw = 0, seedz = 0, hookmgr = None, ss_random_prefix = 0, timeout = 0):
-
+                    printOutput = False, seedw = 0, seedz = 0, hookmgr = None,
+                    ss_random_prefix = 0, timeout = 0):
         # Make a readonly view of the command line options passed in.
         # This view will be shared by all test cases.
         WiredTigerTestCase._command_line_vars = ReadonlySimpleNamespace(command_line_vars)
@@ -172,7 +172,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         WiredTigerTestCase.hook_names = hookmgr.get_hook_names()
 
         WiredTigerTestCase.setupTestDir(parentTestDir, preserveFiles, removeAtStart, useTimestamp)
-        WiredTigerTestCase.setupIO('results.txt', ignoreStdout, verbose)
+        WiredTigerTestCase.setupIO('results.txt', ignoreStdout, printOutput, verbose)
         WiredTigerTestCase.setupRandom(seedw, seedz)
         WiredTigerTestCase._globalSetup = True
 

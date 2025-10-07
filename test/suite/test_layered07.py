@@ -70,12 +70,13 @@ class test_layered07(wttest.WiredTigerTestCase):
         # Ensure that all data makes it to the follower.
         cursor.close()
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
 
         #
         # Part 2: The big switcheroo
         #
         self.pr('switch the leader and the follower')
+
+        # This function call implies the follower will pick up a new checkpoint.
         self.disagg_switch_follower_and_leader(conn_follow, self.conn)
 
         #
