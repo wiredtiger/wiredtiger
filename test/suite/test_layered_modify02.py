@@ -32,7 +32,7 @@ import wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-r = random.Random(43) # Make things repeatable
+r = random.Random(42) # Make things repeatable
 
 @disagg_test_class
 class test_layered_modify02(wttest.WiredTigerTestCase, DisaggConfigMixin):

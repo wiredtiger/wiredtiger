@@ -34,19 +34,6 @@ from wtscenario import make_scenarios
 
 r = random.Random(42) # Make things repeatable
 
-# test_calc_modify.py
-#   Test the wiredtiger_calc_modify API
-#
-# Try many combinations of:
-# - data size
-# - data randomness ('a' * N, repeated patterns, uniform random)
-# - number and type of modifications (add, remove, replace)
-# - space between the modifications
-#
-# Check that wiredtiger_calc_modify finds a set of modifies when the edit
-# difference is under the specified limits, and that applying those
-# modifications produces the expected result.  If the edit difference is
-# larger than the limits, it okay for the call to fail.
 @disagg_test_class
 class test_layered_modify01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'disaggregated=(page_log=palm),page_delta=(delta_pct=100),'
@@ -60,9 +47,14 @@ class test_layered_modify01(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     valuefmt = [
         ('item', dict(valuefmt='u')),
-        # ('string', dict(valuefmt='S')),
+        ('string', dict(valuefmt='S')),
     ]
-    scenarios = make_scenarios(disagg_storages, valuefmt)
+
+    modes = [
+        ('leader', dict(mode='leader')),
+        ('follower', dict(mode='follower')),
+    ]
+    scenarios = make_scenarios(disagg_storages, valuefmt, modes)
 
     def conn_config(self):
         return self.conn_base_config + f'disaggregated=(role="leader"),'
@@ -124,6 +116,10 @@ class test_layered_modify01(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     def test_layered_modify(self):
         self.session.create(self.uri, 'key_format=i,value_format=' + self.valuefmt)
+
+        if self.mode == 'follower':
+            self.conn.reconfigure('disaggregated=(role="follower")')
+
         c = self.session.open_cursor(self.uri)
         for k in range(1000):
             size = r.randint(1000, 10000)
