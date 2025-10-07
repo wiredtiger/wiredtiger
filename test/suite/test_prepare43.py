@@ -26,14 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
-from prepare_util import test_prepare_preserve_prepare_base
+import wttest
 from wtscenario import make_scenarios
 
 # Test that prepared transactions are properly handled during page eviction and checkpointing.
 # Verify that pages with prepared tombstones are not incorrectly skipped during walks when opening a cursor
 
-class test_prepare43(test_prepare_preserve_prepare_base):
+class test_prepare43(wttest.WiredTigerTestCase):
     uri = 'table:test_prepare43'
 
     format_values = [
@@ -67,7 +66,7 @@ class test_prepare43(test_prepare_preserve_prepare_base):
         for i in range(1, 100):
             cursor.set_key(i)
             cursor.remove()
-        self.session.prepare_transaction(f"prepare_timestamp={self.timestamp_str(25)},prepared_id={self.prepared_id_str(123)}")
+        self.session.prepare_transaction(f"prepare_timestamp={self.timestamp_str(25)}")
         # move the stable ts to be past prepare ts
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(26))
 
