@@ -29,6 +29,7 @@
 import random, string
 import wiredtiger, wttest
 
+from modify_utils import mkstring
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -38,7 +39,7 @@ r = random.Random(42) # Make things repeatable
 class test_layered_modify01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'disaggregated=(page_log=palm),page_delta=(delta_pct=100),'
     disagg_storages = gen_disagg_storages('test_layered_modify01', disagg_only=True)
-    uri = 'layered:test_calc_modify'
+    uri = 'layered:test_calc_modify01'
 
     # operation types
     ADD = 1
@@ -59,16 +60,8 @@ class test_layered_modify01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def conn_config(self):
         return self.conn_base_config + f'disaggregated=(role="leader"),'
 
-    def mkstring(self, size, repeat_size=1):
-        choices = string.ascii_letters + string.digits
-        if self.valuefmt == 'S':
-            pattern = ''.join(r.choice(choices) for _ in range(repeat_size))
-        else:
-            pattern = b''.join(bytes([r.choice(choices.encode())]) for _ in range(repeat_size))
-        return (pattern * ((size + repeat_size - 1) // repeat_size))[:size]
-
     def one_test(self, c, k, oldsz, repeatsz, nmod, maxdiff):
-        oldv = self.mkstring(oldsz, repeatsz)
+        oldv = mkstring(r, oldsz, repeatsz, self.valuefmt)
 
         offsets = sorted(r.sample(range(oldsz), nmod))
         modsizes = sorted(r.sample(range(maxdiff), nmod + 1))
@@ -88,11 +81,11 @@ class test_layered_modify01(wttest.WiredTigerTestCase, DisaggConfigMixin):
             newv += orig[:(offsets[i]-offsets[i-1])]
             orig = orig[(offsets[i]-offsets[i-1]):]
             if modtypes[i] == self.ADD:
-                newv += self.mkstring(lengths[i], r.randint(1, lengths[i]))
+                newv += mkstring(r, lengths[i], r.randint(1, lengths[i]), self.valuefmt)
             elif modtypes[i] == self.REMOVE:
                 orig = orig[lengths[i]:]
             elif modtypes[i] == self.REPLACE:
-                newv += self.mkstring(lengths[i], r.randint(1, lengths[i]))
+                newv += mkstring(r, lengths[i], r.randint(1, lengths[i]), self.valuefmt)
                 orig = orig[lengths[i]:]
         newv += orig
 
