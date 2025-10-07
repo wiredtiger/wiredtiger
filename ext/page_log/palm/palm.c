@@ -524,11 +524,11 @@ palm_add_reference(WT_PAGE_LOG *page_log)
     palm = (PALM *)page_log;
 
     /*
-     * Missing reference or overflow?
+     * Missing reference or overflow? Assume the first ref will not race the creation.
      */
     if (palm->reference_count == 0 || palm->reference_count + 1 == 0)
         return (EINVAL);
-    ++palm->reference_count;
+    (void)__wt_atomic_add32(&palm->reference_count, 1);
     return (0);
 }
 
@@ -1241,7 +1241,8 @@ palm_terminate(WT_PAGE_LOG *storage, WT_SESSION *session)
     ret = 0;
     palm = (PALM *)storage;
 
-    if (--palm->reference_count != 0)
+    uint32_t new_ref_count = __wt_atomic_add32(&palm->reference_count, (uint32_t)-1);
+    if (new_ref_count != 0)
         return (0);
 
     /*
