@@ -1504,6 +1504,25 @@ config_tiered_storage(void)
 }
 
 /*
+ * config_disagg_delta --
+ *     Disaggregated storage page delta configuration.
+ */
+static void
+config_disagg_delta(const char *name, const char *value)
+{
+    const char *const valid_values[] = {"on", "off", "default"};
+    bool valid = false;
+    for (size_t i = 0; i < WT_ELEMENTS(valid_values) && !valid; i++) {
+        valid = valid || (strcmp(value, valid_values[i]) == 0);
+    }
+    testutil_assert(valid);
+
+    char buf[128];
+    testutil_snprintf(buf, sizeof(buf), "%s=%s", name, value);
+    config_single(NULL, buf, config_explicit(NULL, name));
+}
+
+/*
  * config_disagg_storage --
  *     Disaggregated storage configuration.
  */
@@ -1512,8 +1531,6 @@ config_disagg_storage(void)
 {
     char buf[128];
     const char *mode, *page_log;
-    const char *page_delta;
-    bool explicit;
 
     page_log = GVS(DISAGG_PAGE_LOG);
 
@@ -1538,25 +1555,9 @@ config_disagg_storage(void)
     else
         g.disagg_leader = strcmp(mode, "leader") == 0;
 
-    /* Configure page deltas if explicitly set. Otherwise, use WT defaults. */
-
-    page_delta = "default";
-    explicit = config_explicit(NULL, "disagg.internal_page_delta");
-    if (explicit) {
-        page_delta = GVS(DISAGG_INTERNAL_PAGE_DELTA);
-        testutil_assert(strcmp(page_delta, "on") == 0 || strcmp(page_delta, "off") == 0);
-    }
-    testutil_snprintf(buf, sizeof(buf), "disagg.internal_page_delta=%s", page_delta);
-    config_single(NULL, buf, explicit);
-
-    page_delta = "default";
-    explicit = config_explicit(NULL, "disagg.leaf_page_delta");
-    if (explicit) {
-        page_delta = GVS(DISAGG_LEAF_PAGE_DELTA);
-        testutil_assert(strcmp(page_delta, "on") == 0 || strcmp(page_delta, "off") == 0);
-    }
-    testutil_snprintf(buf, sizeof(buf), "disagg.leaf_page_delta=%s", page_delta);
-    config_single(NULL, buf, explicit);
+    /* Configure page deltas. */
+    config_disagg_delta("disagg.internal_page_delta", GVS(DISAGG_INTERNAL_PAGE_DELTA));
+    config_disagg_delta("disagg.leaf_page_delta", GVS(DISAGG_LEAF_PAGE_DELTA));
 
     /* Disaggregated storage requires timestamps. */
     config_off(NULL, "transaction.implicit");

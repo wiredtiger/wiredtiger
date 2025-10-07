@@ -208,7 +208,6 @@ extern u_int ntables;
 #define GV(off) (tables[0]->v[V_GLOBAL_##off].v)
 #define GVS(off) \
     (tables[0]->v[V_GLOBAL_##off].vstr == NULL ? "off" : tables[0]->v[V_GLOBAL_##off].vstr)
-#define GV_EXPLICIT_SET(off) (tables[0]->v[V_GLOBAL_##off].set)
 #define NTV(table, off) ((table)->v[V_TABLE_##off].v)
 #define NTVS(table, off) \
     ((table)->v[V_TABLE_##off].vstr == NULL ? "off" : (table)->v[V_TABLE_##off].vstr)

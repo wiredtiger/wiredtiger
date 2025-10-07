@@ -311,6 +311,7 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
 {
     TEST_OPTS opts;
     char disagg_cfg[1024];
+    const char *page_delta;
 
     if (!g.disagg_storage_config) {
         testutil_assert(ext_cfg_size > 0);
@@ -338,10 +339,12 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
     opts.leaf_page_delta = -1;
 
     /* Only set the page delta values if they were explicitly configured. */
-    if (GV_EXPLICIT_SET(DISAGG_INTERNAL_PAGE_DELTA))
-        opts.internal_page_delta = strcmp(GVS(DISAGG_INTERNAL_PAGE_DELTA), "on") == 0 ? 1 : 0;
-    if (GV_EXPLICIT_SET(DISAGG_LEAF_PAGE_DELTA))
-        opts.leaf_page_delta = strcmp(GVS(DISAGG_LEAF_PAGE_DELTA), "on") == 0 ? 1 : 0;
+    page_delta = GVS(DISAGG_INTERNAL_PAGE_DELTA);
+    if (strcmp(page_delta, "default") != 0)
+        opts.internal_page_delta = strcmp(page_delta, "on") == 0 ? 1 : 0;
+    page_delta = GVS(DISAGG_LEAF_PAGE_DELTA);
+    if (strcmp(page_delta, "default") != 0)
+        opts.leaf_page_delta = strcmp(page_delta, "on") == 0 ? 1 : 0;
 
     testutil_disagg_storage_configuration(
       &opts, home, disagg_cfg, sizeof(disagg_cfg), ext_cfg, ext_cfg_size);
