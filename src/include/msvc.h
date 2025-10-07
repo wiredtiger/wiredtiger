@@ -94,23 +94,23 @@ WT_ATOMIC_FUNC(iv64, int64_t, volatile int64_t, 64, __int64)
 WT_ATOMIC_FUNC(size, size_t, size_t, 64, __int64)
 
 /*
- * __wt_atomic_load_double --
+ * __wt_atomic_load_double_relaxed --
  *     Read a double variable. These reads are non-atomic due to MSVC lacking Interlocked intrinsics
  *     for relaxed memory per the comment above.
  */
 static inline double
-__wt_atomic_load_double(double *vp)
+__wt_atomic_load_double_relaxed(double *vp)
 {
     return (*vp);
 }
 
 /*
- * __wt_atomic_store_double --
+ * __wt_atomic_store_double_relaxed --
  *     Set a double variable. These reads are non-atomic due to MSVC lacking Interlocked intrinsics
  *     for relaxed memory per the comment above.
  */
 static inline void
-__wt_atomic_store_double(double *vp, double v)
+__wt_atomic_store_double_relaxed(double *vp, double v)
 {
     *vp = v;
 }
@@ -122,34 +122,34 @@ __wt_atomic_store_double(double *vp, double v)
  */
 
 /*
- * __wt_atomic_loadbool --
+ * __wt_atomic_load_bool_relaxed --
  *     Read a boolean. These reads are non-atomic due to MSVC lacking Interlocked intrinsics for
  *     booleans per the comment above.
  */
 static inline bool
-__wt_atomic_loadbool(bool *vp)
+__wt_atomic_load_bool_relaxed(bool *vp)
 {
     return (*(vp));
 }
 
 /*
- * __wt_atomic_storebool --
+ * __wt_atomic_store_bool_relaxed --
  *     Set a boolean. These reads are non-atomic due to MSVC lacking Interlocked intrinsics for
  *     booleans per the comment above.
  */
 static inline void
-__wt_atomic_storebool(bool *vp, bool v)
+__wt_atomic_store_bool_relaxed(bool *vp, bool v)
 {
     *(vp) = (v);
 }
 
 /*
- * __wt_atomic_loadvbool --
+ * __wt_atomic_load_bool_v_relaxed --
  *     Read a volatile boolean. These reads are non-atomic due to MSVC lacking Interlocked
  *     intrinsics for booleans per the comment above.
  */
 static inline bool
-__wt_atomic_loadvbool(volatile bool *vp)
+__wt_atomic_load_bool_v_relaxed(volatile bool *vp)
 {
     return (*(vp));
 }

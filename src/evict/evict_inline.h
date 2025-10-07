@@ -413,8 +413,8 @@ __wti_evict_dirty_target(WT_EVICT *evict)
 {
     double dirty_target, scrub_target;
 
-    dirty_target = __wt_atomic_load_double(&evict->eviction_dirty_target);
-    scrub_target = __wt_atomic_load_double(&evict->eviction_scrub_target);
+    dirty_target = __wt_atomic_load_double_relaxed(&evict->eviction_dirty_target);
+    scrub_target = __wt_atomic_load_double_relaxed(&evict->eviction_scrub_target);
 
     return (scrub_target > 0 && scrub_target < dirty_target ? scrub_target : dirty_target);
 }
@@ -438,7 +438,7 @@ static WT_INLINE bool
 __wt_evict_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 {
     uint64_t bytes_dirty, bytes_max;
-    double dirty_trigger = __wt_atomic_load_double(&S2C(session)->evict->eviction_dirty_trigger);
+    double dirty_trigger = __wt_atomic_load_double_relaxed(&S2C(session)->evict->eviction_dirty_trigger);
 
     /*
      * Avoid division by zero if the cache size has not yet been set in a shared cache.
@@ -574,7 +574,7 @@ __wt_evict_needed(
      * Calculate the cache full percentage; anything over the trigger means we involve the
      * application thread.
      */
-    dirty_trigger = __wt_atomic_load_double(&evict->eviction_dirty_trigger);
+    dirty_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger);
     if (pct_fullp != NULL)
         *pct_fullp = WT_MAX(0.0,
           100.0 -
@@ -611,8 +611,8 @@ __wt_evict_favor_clearing_dirty_cache(WT_SESSION_IMPL *session)
      * Ramp the eviction dirty target down to encourage eviction threads to clear dirty content out
      * of cache.
      */
-    __wt_atomic_store_double(&evict->eviction_dirty_trigger, 1.0);
-    __wt_atomic_store_double(&evict->eviction_dirty_target, 0.1);
+    __wt_atomic_store_double_relaxed(&evict->eviction_dirty_trigger, 1.0);
+    __wt_atomic_store_double_relaxed(&evict->eviction_dirty_target, 0.1);
 }
 
 /*
@@ -682,7 +682,7 @@ __evict_check_user_ok_with_eviction(WT_SESSION_IMPL *session, bool interruptible
 static WT_INLINE bool
 __evict_is_session_cache_trigger_tolerant(WT_SESSION_IMPL *session, uint8_t cache_tolerance)
 {
-    double dirty_trigger = __wt_atomic_load_double(&S2C(session)->evict->eviction_dirty_trigger);
+    double dirty_trigger = __wt_atomic_load_double_relaxed(&S2C(session)->evict->eviction_dirty_trigger);
     uint64_t bytes_dirty_trigger = 0, bytes_max = 0;
     uint64_t bytes_dirty = 0, bytes_dirty_tolerance = 0, bytes_over_dirty_trigger = 0;
 
@@ -722,7 +722,7 @@ __evict_is_session_cache_trigger_tolerant(WT_SESSION_IMPL *session, uint8_t cach
     }
 
     double updates_trigger =
-      __wt_atomic_load_double(&S2C(session)->evict->eviction_updates_trigger);
+      __wt_atomic_load_double_relaxed(&S2C(session)->evict->eviction_updates_trigger);
     uint64_t bytes_updates_trigger = 0;
     uint64_t bytes_updates = 0, bytes_updates_tolerance = 0, bytes_over_updates_trigger = 0;
 
@@ -788,7 +788,7 @@ __wt_evict_app_assist_worker_check(
 
     /* It is not safe to proceed if the eviction server threads aren't setup yet. */
     WT_CONNECTION_IMPL *conn = S2C(session);
-    if (!__wt_atomic_loadbool(&conn->evict_server_running))
+    if (!__wt_atomic_load_bool_relaxed(&conn->evict_server_running))
         return (0);
 
     /* Eviction causes reconciliation. So don't evict if we can't reconcile */

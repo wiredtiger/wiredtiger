@@ -505,7 +505,7 @@ __wt_cache_page_byte_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t 
          */
         WT_ACQUIRE_READ_WITH_BARRIER(orig, page->modify->bytes_dirty);
         decr = WT_MIN(size, orig);
-        if (__wt_atomic_cas64(&page->modify->bytes_dirty, orig, orig - decr))
+        if (__wt_atomic_cas_uint64(&page->modify->bytes_dirty, orig, orig - decr))
             break;
     }
 
@@ -547,7 +547,7 @@ __wt_cache_page_byte_updates_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_
     for (i = 0; i < 5; ++i) {
         WT_ACQUIRE_READ_WITH_BARRIER(orig, page->modify->bytes_updates);
         decr = WT_MIN(size, orig);
-        if (__wt_atomic_cas64(&page->modify->bytes_updates, orig, orig - decr))
+        if (__wt_atomic_cas_uint64(&page->modify->bytes_updates, orig, orig - decr))
             break;
     }
 

@@ -442,3 +442,101 @@ __wt_atomic_store_double(double *vp, double v)
 #else
 #define WT_RELEASE_WRITE(v, val) __atomic_store_n(&(v), (val), __ATOMIC_RELEASE)
 #endif
+
+
+#define WT_ATOMIC_FUNC_STORE_LOAD_NEW(name, ret, vp_arg, v_arg)                                   \
+    /*                                                                                            \
+     * !!!                                                                                        \
+     * The following atomic functions are ATOMIC_RELAXED while the preceding calls are            \
+     * ATOMIC_SEQ_CST. Mixing RELAXED and SEQ_CST means we will *not* get sequentially consistent \
+     * guarantees.                                                                                \
+     * Historically WiredTiger mixed the SEQ_CST calls above with non-atomic accesses to memory,  \
+     * and these non-atomic calls are being replaced with atomic calls. Using these new atomic    \
+     * functions with SEQ_CST memory ordering comes with a moderate performance cost so we're     \
+     * using RELAXED to maintain performance. In future these atomics will need to be reviewed    \
+     * and selectively moved to the appropriate memory ordering.                                  \
+     */                                                                                           \
+    static inline ret __wt_atomic_load_##name##_relaxed(vp_arg)                                   \
+    {                                                                                             \
+        return (__atomic_load_n(vp, __ATOMIC_RELAXED));                                           \
+    }                                                                                             \
+    static inline void __wt_atomic_store_##name##_relaxed(vp_arg, v_arg)                          \
+    {                                                                                             \
+        __atomic_store_n(vp, v, __ATOMIC_RELAXED);                                                \
+    }                                                                                             \
+    static inline ret __wt_atomic_load_##name##_acquire(vp_arg)                                   \
+    {                                                                                             \
+        ret result;                              \
+        WT_ACQUIRE_READ(result, *(vp));                \
+        return result;                           \
+    }                                                                                             \
+    static inline void __wt_atomic_store_##name##_release(vp_arg, v_arg)                          \
+    {                                                                                             \
+        WT_RELEASE_WRITE(*(vp), v);                                              \
+    }
+
+#define WT_ATOMIC_CAS_FUNC_NEW(name, vp_arg, old_arg, newv_arg)         \
+    static inline bool __wt_atomic_cas_##name(vp_arg, old_arg, newv_arg) \
+    {                                                                   \
+        return (WT_ATOMIC_CAS(vp, &old, newv));                         \
+    }
+
+#define WT_ATOMIC_FUNC_NEW(name, ret, vp_arg, v_arg)                                              \
+    static inline ret __wt_atomic_add_##name(vp_arg, v_arg)                                       \
+    {                                                                                             \
+        return (__atomic_add_fetch(vp, v, __ATOMIC_SEQ_CST));                                     \
+    }                                                                                             \
+    static inline ret __wt_atomic_fetch_add_##name(vp_arg, v_arg)                                 \
+    {                                                                                             \
+        return (__atomic_fetch_add(vp, v, __ATOMIC_SEQ_CST));                                     \
+    }                                                                                             \
+    static inline ret __wt_atomic_sub_##name(vp_arg, v_arg)                                       \
+    {                                                                                             \
+        return (__atomic_sub_fetch(vp, v, __ATOMIC_SEQ_CST));                                     \
+    }                                                                                             \
+    WT_ATOMIC_CAS_FUNC_NEW(name, vp_arg, ret old, ret newv)                                       \
+    WT_ATOMIC_FUNC_STORE_LOAD_NEW(name, ret, vp_arg, v_arg)
+
+
+WT_ATOMIC_FUNC_NEW(uint8, uint8_t, uint8_t *vp, uint8_t v)
+WT_ATOMIC_FUNC_NEW(uint8_v, uint8_t, volatile uint8_t *vp, volatile uint8_t v)
+WT_ATOMIC_FUNC_NEW(uint16, uint16_t, uint16_t *vp, uint16_t v)
+WT_ATOMIC_FUNC_NEW(uint32, uint32_t, uint32_t *vp, uint32_t v)
+WT_ATOMIC_FUNC_NEW(uint64, uint64_t, uint64_t *vp, uint64_t v)
+WT_ATOMIC_FUNC_NEW(int8, int32_t, int32_t *vp, int32_t v)
+WT_ATOMIC_FUNC_NEW(int16, int32_t, int32_t *vp, int32_t v)
+WT_ATOMIC_FUNC_NEW(int32, int32_t, int32_t *vp, int32_t v)
+WT_ATOMIC_FUNC_NEW(int64, int64_t, int64_t *vp, int64_t v)
+WT_ATOMIC_FUNC_NEW(size, size_t, size_t *vp, size_t v)
+
+WT_ATOMIC_FUNC_STORE_LOAD_NEW(bool, bool, bool *vp, bool v)
+WT_ATOMIC_FUNC_STORE_LOAD_NEW(bool_v, bool, volatile bool *vp, volatile bool v)
+
+/*
+ * __wt_atomic_load_double_relaxed --
+ *     Atomically read a double variable.
+ */
+static inline double
+__wt_atomic_load_double_relaxed(double *vp)
+{
+    double value;
+    __atomic_load(vp, &value, __ATOMIC_RELAXED);
+    return (value);
+}
+
+/*
+ * __wt_atomic_store_double_relaxed --
+ *     Atomically set a double variable.
+ */
+static inline void
+__wt_atomic_store_double_relaxed(double *vp, double v)
+{
+    __atomic_store(vp, &v, __ATOMIC_RELAXED);
+}
+
+#define __wt_atomic_load_enum_relaxed(vp) __atomic_load_n(vp, __ATOMIC_RELAXED)
+#define __wt_atomic_store_enum_relaxed(vp, v) __atomic_store_n(vp, v, __ATOMIC_RELAXED)
+#define __wt_atomic_and_generic_relaxed(vp, v) __atomic_and_fetch(vp, v, __ATOMIC_RELAXED)
+#define __wt_atomic_or_generic_relaxed(vp, v) __atomic_or_fetch(vp, v, __ATOMIC_RELAXED)
+#define __wt_atomic_load_generic_relaxed(vp) __atomic_load_n(vp, __ATOMIC_RELAXED)
+#define __wt_atomic_store_generic_relaxed(vp, v) __atomic_store_n(vp, v, __ATOMIC_RELAXED)

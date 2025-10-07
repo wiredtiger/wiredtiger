@@ -318,7 +318,7 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * waiting for the first file to drain from the eviction queue. See WT-5946 for details.
      */
     WT_ERR(__wt_curhs_cache(session));
-    if (__wt_atomic_loadbool(&conn->evict_server_running) &&
+    if (__wt_atomic_load_bool_relaxed(&conn->evict_server_running) &&
       __wt_spin_trylock(session, &evict->evict_pass_lock) == 0) {
         /*
          * Cannot use WTI_WITH_PASS_LOCK because this is a try lock. Fix when that is supported. We
@@ -456,7 +456,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
      * no hazard pointers are leaked in case the setting is reconfigured while eviction pass is
      * running.
      */
-    evict->use_npos_in_pass = __wt_atomic_loadbool(&conn->evict_use_npos);
+    evict->use_npos_in_pass = __wt_atomic_load_bool_relaxed(&conn->evict_use_npos);
 
     /* Evict pages from the cache as needed. */
     WT_RET(__evict_pass(session));
@@ -611,7 +611,7 @@ __wt_evict_threads_create(WT_SESSION_IMPL *session)
     /*
      * Allow queues to be populated now that the eviction threads are running.
      */
-    __wt_atomic_storebool(&conn->evict_server_running, true);
+    __wt_atomic_store_bool_relaxed(&conn->evict_server_running, true);
 
     return (0);
 }
@@ -631,7 +631,7 @@ __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     /* We are done if the eviction server didn't start successfully. */
-    if (!__wt_atomic_loadbool(&conn->evict_server_running))
+    if (!__wt_atomic_load_bool_relaxed(&conn->evict_server_running))
         return (0);
 
     __wt_verbose_info(session, WT_VERB_EVICTION, "%s", "stopping eviction threads");
@@ -643,7 +643,7 @@ __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
      * Signal the threads to finish and stop populating the queue.
      */
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_EVICTION);
-    __wt_atomic_storebool(&conn->evict_server_running, false);
+    __wt_atomic_store_bool_relaxed(&conn->evict_server_running, false);
     __wt_evict_server_wake(session);
 
     __wt_verbose_info(session, WT_VERB_EVICTION, "%s", "waiting for eviction threads to stop");
@@ -678,7 +678,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     evict = conn->evict;
 
     dirty_target = __wti_evict_dirty_target(evict);
-    dirty_trigger = __wt_atomic_load_double(&evict->eviction_dirty_trigger);
+    dirty_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger);
     target = evict->eviction_target;
     trigger = evict->eviction_trigger;
     updates_target = evict->eviction_updates_target;

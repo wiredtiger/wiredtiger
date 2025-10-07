@@ -302,7 +302,7 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
     WT_ASSERT_ALWAYS(session, txn_id != WT_TXN_ABORTED,
       "Assert failure: session: %s: txn->id == WT_TXN_ABORTED", session->name);
     while (btree_txn_id_prev < txn_id) {
-        if (__wt_atomic_cas64(&op->btree->max_upd_txn, btree_txn_id_prev, txn_id))
+        if (__wt_atomic_cas_uint64(&op->btree->max_upd_txn, btree_txn_id_prev, txn_id))
             break;
         btree_txn_id_prev = op->btree->max_upd_txn;
     }

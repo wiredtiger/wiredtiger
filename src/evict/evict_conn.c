@@ -222,7 +222,7 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     conn->evict_sample_inmem = cval.val != 0;
 
     WT_RET(__wt_config_gets(session, cfg, "eviction.evict_use_softptr", &cval));
-    __wt_atomic_storebool(&conn->evict_use_npos, cval.val != 0);
+    __wt_atomic_store_bool_relaxed(&conn->evict_use_npos, cval.val != 0);
 
     WT_RET(__wt_config_gets(session, cfg, "eviction.legacy_page_visit_strategy", &cval));
     conn->evict_legacy_page_visit_strategy = cval.val != 0;
@@ -440,7 +440,7 @@ __wt_evict_stats_update(WT_SESSION_IMPL *session)
      * The number of files with active walks ~= number of hazard pointers in the walk session. Note:
      * reading without locking.
      */
-    if (__wt_atomic_loadbool(&conn->evict_server_running))
+    if (__wt_atomic_load_bool_relaxed(&conn->evict_server_running))
         WT_STATP_CONN_SET(
           session, stats, eviction_walks_active, evict->walk_session->hazards.num_active);
 }

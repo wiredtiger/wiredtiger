@@ -1805,7 +1805,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (update_durable_ts)
         while (candidate_durable_timestamp > prev_durable_timestamp) {
-            if (__wt_atomic_cas64(&txn_global->durable_timestamp, prev_durable_timestamp,
+            if (__wt_atomic_cas_uint64(&txn_global->durable_timestamp, prev_durable_timestamp,
                   candidate_durable_timestamp)) {
                 txn_global->has_durable_timestamp = true;
                 break;
@@ -2796,7 +2796,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_RET(__wt_msg(
       session, "has_durable_timestamp: %s", txn_global->has_durable_timestamp ? "yes" : "no"));
     WT_RET(__wt_msg(session, "has_oldest_timestamp: %s",
-      __wt_atomic_loadbool(&txn_global->has_oldest_timestamp) ? "yes" : "no"));
+      __wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp) ? "yes" : "no"));
     WT_RET(__wt_msg(
       session, "has_pinned_timestamp: %s", txn_global->has_pinned_timestamp ? "yes" : "no"));
     WT_RET(__wt_msg(
@@ -2805,7 +2805,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_RET(__wt_msg(session, "stable_is_pinned: %s", txn_global->stable_is_pinned ? "yes" : "no"));
 
     WT_RET(__wt_msg(session, "checkpoint running: %s",
-      __wt_atomic_loadvbool(&txn_global->checkpoint_running) ? "yes" : "no"));
+      __wt_atomic_load_bool_v_relaxed(&txn_global->checkpoint_running) ? "yes" : "no"));
     WT_RET(
       __wt_msg(session, "checkpoint generation: %" PRIu64, __wt_gen(session, WT_GEN_CHECKPOINT)));
     WT_RET(__wt_msg(session, "checkpoint pinned ID: %" PRIu64,

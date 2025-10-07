@@ -101,7 +101,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
      * - Move the objects.
      */
     __wt_atomic_storev32(&conn->flush_state, 0);
-    __wt_atomic_storebool(&conn->flush_ckpt_complete, false);
+    __wt_atomic_store_bool_relaxed(&conn->flush_ckpt_complete, false);
     /* Flushing is part of a checkpoint, use the session's checkpoint time. */
     conn->flush_most_recent = session->ckpt.current_sec;
     /* Storing the last flush timestamp here for the future and for debugging. */
@@ -505,7 +505,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 static WT_INLINE void
 __checkpoint_set_scrub_target(WT_SESSION_IMPL *session, double target)
 {
-    __wt_atomic_store_double(&S2C(session)->evict->eviction_scrub_target, target);
+    __wt_atomic_store_double_relaxed(&S2C(session)->evict->eviction_scrub_target, target);
     WT_STAT_CONN_SET(session, checkpoint_scrub_target, (int64_t)target);
 }
 
@@ -906,7 +906,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
          */
         if (txn_global->has_stable_timestamp) {
             /* A checkpoint should never proceed when timestamps are out of order. */
-            if (__wt_atomic_loadbool(&txn_global->has_oldest_timestamp) &&
+            if (__wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp) &&
               txn_global->oldest_timestamp > txn_global->stable_timestamp) {
                 __wt_writeunlock(session, &txn_global->rwlock);
                 WT_ASSERT_ALWAYS(session, false,
@@ -1109,7 +1109,7 @@ __checkpoint_establish_time(WT_SESSION_IMPL *session)
         WT_ACQUIRE_READ_WITH_BARRIER(most_recent, conn->ckpt.most_recent);
         if (ckpt_sec <= most_recent)
             ckpt_sec = most_recent + 1;
-        if (__wt_atomic_cas64(&conn->ckpt.most_recent, most_recent, ckpt_sec))
+        if (__wt_atomic_cas_uint64(&conn->ckpt.most_recent, most_recent, ckpt_sec))
             break;
     }
 
@@ -1751,7 +1751,7 @@ __checkpoint_db_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
      * flush units. Indicate that the checkpoint has completed.
      */
     if (conn->tiered_cond != NULL) {
-        __wt_atomic_storebool(&conn->flush_ckpt_complete, true);
+        __wt_atomic_store_bool_relaxed(&conn->flush_ckpt_complete, true);
         __wt_cond_signal(session, conn->tiered_cond);
     }
 
