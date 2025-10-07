@@ -78,11 +78,11 @@ extern "C" {
 #define TESTUTIL_ENV_CONFIG_DISAGG         \
     ",disaggregated=(role=%s,page_log=%s)" \
     ",precise_checkpoint=true"             \
-    ",internal_page_delta=%" PRIu32 ",leaf_page_delta=%" PRIu32
+    ",internal_page_delta=%s,leaf_page_delta=%s"
 #define TESTUTIL_ENV_CONFIG_DISAGG_EXT                                         \
     "\"%s/ext/page_log/%s/libwiredtiger_%s.so\"=("                             \
     "config=\"(delay_ms=%" PRIu64 ",error_ms=%" PRIu64 ",force_delay=%" PRIu64 \
-    ",force_error=%" PRIu64 ",cache_size_mb=%" PRIu64 ",verbose=0)\")"
+    ",force_error=%" PRIu64 ",cache_size_mb=%" PRIu64 ",verbose=%" PRIu32 ")\")"
 #define TESTUTIL_ENV_CONFIG_TIERED               \
     ",tiered_storage=(bucket=%s"                 \
     ",bucket_prefix=%s,local_retention=%" PRIu32 \
@@ -131,6 +131,7 @@ typedef struct {
     uint64_t force_error;      /* Force a simulated network error every N operations */
     uint32_t local_retention;  /* Local retention for tiered storage */
     uint64_t palm_map_size_mb; /* Megabytes of map size for PALM database */
+    uint32_t page_log_verbose; /* Page log verbosity; see WT_VERBOSE_LEVEL */
 
     bool internal_page_delta; /* Use internal page deltas */
     bool leaf_page_delta;     /* Use leaf page deltas */

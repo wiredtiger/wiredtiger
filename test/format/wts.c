@@ -332,6 +332,7 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
     opts.home = (char *)home;
     opts.build_dir = (char *)BUILDDIR;
     opts.palm_map_size_mb = 2048; /* 2 Gigabytes for PALM map */
+    opts.page_log_verbose = GV(DISAGG_PAGE_LOG_VERBOSE);
 
     /* Set page deltas. */
     opts.internal_page_delta = GV(DISAGG_INTERNAL_PAGE_DELTA) != 0;
