@@ -241,6 +241,13 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     else
         deltas = NULL;
 
+    /* Build a full disk image of the page after reading from disk. */
+    if (count > 1) {
+        ret = __wti_build_full_disk_image_on_read(session, ref, deltas, count - 1);
+        for (i = 0; i < count - 1; ++i)
+            __wt_buf_free(session, &deltas[i]);
+        WT_ERR(ret);
+    }
     /*
      * Build the in-memory version of the page. Clear our local reference to the allocated copy of
      * the disk image on return, the in-memory object steals it.
