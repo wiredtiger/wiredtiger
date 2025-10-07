@@ -6792,13 +6792,16 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_EVICTION_WALK			1276
 /*! cache: pages written from cache */
 #define	WT_STAT_CONN_CACHE_WRITE			1277
-/*! cache: pages written requiring in-memory restoration */
-#define	WT_STAT_CONN_CACHE_WRITE_RESTORE		1278
 /*!
  * cache: pages written requiring in-memory restoration due to invisible
  * updates
  */
-#define	WT_STAT_CONN_CACHE_WRITE_RESTORE_INVISIBLE	1279
+#define	WT_STAT_CONN_CACHE_WRITE_RESTORE_INVISIBLE	1278
+/*!
+ * cache: pages written requiring in-memory restoration due to scrub
+ * eviction
+ */
+#define	WT_STAT_CONN_CACHE_WRITE_RESTORE_SCRUB		1279
 /*! cache: percentage overhead */
 #define	WT_STAT_CONN_CACHE_OVERHEAD			1280
 /*!
@@ -8803,13 +8806,16 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CACHE_EVICTION_PAGES_SEEN		2131
 /*! cache: pages written from cache */
 #define	WT_STAT_DSRC_CACHE_WRITE			2132
-/*! cache: pages written requiring in-memory restoration */
-#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE		2133
 /*!
  * cache: pages written requiring in-memory restoration due to invisible
  * updates
  */
-#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE_INVISIBLE	2134
+#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE_INVISIBLE	2133
+/*!
+ * cache: pages written requiring in-memory restoration due to scrub
+ * eviction
+ */
+#define	WT_STAT_DSRC_CACHE_WRITE_RESTORE_SCRUB		2134
 /*!
  * cache: precise checkpoint caused an eviction to be skipped because any
  * dirty content needs to remain in cache
