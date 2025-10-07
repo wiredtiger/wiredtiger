@@ -75,9 +75,10 @@ extern "C" {
 #define DIR_STORE "dir_store"
 #define S3_STORE "s3_store"
 
-#define TESTUTIL_ENV_CONFIG_DISAGG          \
-    ",disaggregated=(role=%s,page_log=%s)," \
-    "precise_checkpoint=true"
+#define TESTUTIL_ENV_CONFIG_DISAGG         \
+    ",disaggregated=(role=%s,page_log=%s)" \
+    ",precise_checkpoint=true"             \
+    ",internal_page_delta=%" PRIu32 ",leaf_page_delta=%" PRIu32
 #define TESTUTIL_ENV_CONFIG_DISAGG_EXT                                         \
     "\"%s/ext/page_log/%s/libwiredtiger_%s.so\"=("                             \
     "config=\"(delay_ms=%" PRIu64 ",error_ms=%" PRIu64 ",force_delay=%" PRIu64 \
@@ -131,8 +132,8 @@ typedef struct {
     uint32_t local_retention;  /* Local retention for tiered storage */
     uint64_t palm_map_size_mb; /* Megabytes of map size for PALM database */
 
-    int internal_page_delta; /* Use internal page deltas */
-    int leaf_page_delta;     /* Use leaf page deltas */
+    bool internal_page_delta; /* Use internal page deltas */
+    bool leaf_page_delta;     /* Use leaf page deltas */
 
     bool absolute_bucket_dir;  /* Use an absolute bucket path when it is a directory */
     bool compat;               /* Compatibility */

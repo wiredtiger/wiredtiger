@@ -1508,17 +1508,10 @@ config_tiered_storage(void)
  *     Disaggregated storage page delta configuration.
  */
 static void
-config_disagg_delta(const char *name, const char *value)
+config_disagg_delta(const char *name, uint32_t value)
 {
-    const char *const valid_values[] = {"on", "off", "default"};
-    bool valid = false;
-    for (size_t i = 0; i < WT_ELEMENTS(valid_values) && !valid; i++) {
-        valid = valid || (strcmp(value, valid_values[i]) == 0);
-    }
-    testutil_assert(valid);
-
     char buf[128];
-    testutil_snprintf(buf, sizeof(buf), "%s=%s", name, value);
+    testutil_snprintf(buf, sizeof(buf), "%s=%" PRIu32, name, value);
     config_single(NULL, buf, config_explicit(NULL, name));
 }
 
@@ -1556,8 +1549,8 @@ config_disagg_storage(void)
         g.disagg_leader = strcmp(mode, "leader") == 0;
 
     /* Configure page deltas. */
-    config_disagg_delta("disagg.internal_page_delta", GVS(DISAGG_INTERNAL_PAGE_DELTA));
-    config_disagg_delta("disagg.leaf_page_delta", GVS(DISAGG_LEAF_PAGE_DELTA));
+    config_disagg_delta("disagg.internal_page_delta", GV(DISAGG_INTERNAL_PAGE_DELTA));
+    config_disagg_delta("disagg.leaf_page_delta", GV(DISAGG_LEAF_PAGE_DELTA));
 
     /* Disaggregated storage requires timestamps. */
     config_off(NULL, "transaction.implicit");

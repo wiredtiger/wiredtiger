@@ -43,27 +43,8 @@ testutil_disagg_storage_configuration(TEST_OPTS *opts, const char *home, char *d
           opts->force_delay, opts->force_error, opts->palm_map_size_mb);
 
         testutil_snprintf(disagg_cfg, disagg_cfg_size, TESTUTIL_ENV_CONFIG_DISAGG,
-          opts->disagg_mode, opts->disagg_page_log);
-
-        /* Page delta configuration */
-        char deltas_cfg[128] = "";
-
-        /* Only set the page delta values if they were explicitly configured. */
-        if (opts->internal_page_delta != -1) {
-            char *pcfg = deltas_cfg + strlen(deltas_cfg);
-            size_t remaining = sizeof(deltas_cfg) - strlen(deltas_cfg);
-            testutil_snprintf(
-              pcfg, remaining, ",internal_page_delta=%d", opts->internal_page_delta);
-        }
-
-        if (opts->leaf_page_delta != -1) {
-            char *pcfg = deltas_cfg + strlen(deltas_cfg);
-            size_t remaining = sizeof(deltas_cfg) - strlen(deltas_cfg);
-            testutil_snprintf(pcfg, remaining, ",leaf_page_delta=%d", opts->leaf_page_delta);
-        }
-
-        testutil_strcat(disagg_cfg, disagg_cfg_size, deltas_cfg);
-
+          opts->disagg_mode, opts->disagg_page_log, opts->internal_page_delta,
+          opts->leaf_page_delta);
     } else {
         testutil_snprintf(ext_cfg, ext_cfg_size, "\"\"");
         testutil_assert(disagg_cfg_size > 0);

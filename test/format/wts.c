@@ -311,7 +311,6 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
 {
     TEST_OPTS opts;
     char disagg_cfg[1024];
-    const char *page_delta;
 
     if (!g.disagg_storage_config) {
         testutil_assert(ext_cfg_size > 0);
@@ -334,17 +333,9 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
     opts.build_dir = (char *)BUILDDIR;
     opts.palm_map_size_mb = 2048; /* 2 Gigabytes for PALM map */
 
-    /* Use WT defaults for page deltas if not explicitly configured. */
-    opts.internal_page_delta = -1;
-    opts.leaf_page_delta = -1;
-
-    /* Only set the page delta values if they were explicitly configured. */
-    page_delta = GVS(DISAGG_INTERNAL_PAGE_DELTA);
-    if (strcmp(page_delta, "default") != 0)
-        opts.internal_page_delta = strcmp(page_delta, "on") == 0 ? 1 : 0;
-    page_delta = GVS(DISAGG_LEAF_PAGE_DELTA);
-    if (strcmp(page_delta, "default") != 0)
-        opts.leaf_page_delta = strcmp(page_delta, "on") == 0 ? 1 : 0;
+    /* Set page deltas. */
+    opts.internal_page_delta = GV(DISAGG_INTERNAL_PAGE_DELTA) != 0;
+    opts.leaf_page_delta = GV(DISAGG_LEAF_PAGE_DELTA) != 0;
 
     testutil_disagg_storage_configuration(
       &opts, home, disagg_cfg, sizeof(disagg_cfg), ext_cfg, ext_cfg_size);
