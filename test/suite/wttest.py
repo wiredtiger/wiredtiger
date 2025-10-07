@@ -266,7 +266,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         return self._builddir
 
     def skipTest(self, reason):
-        self.pdb()
         self.skipped = True
         super(WiredTigerTestCase, self).skipTest(reason)
 
