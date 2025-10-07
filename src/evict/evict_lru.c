@@ -1745,7 +1745,7 @@ __evict_walk_target(WT_SESSION_IMPL *session)
  * __evict_skip_dirty_candidate --
  *     Check if eviction should skip the dirty page.
  */
-static WT_INLINE bool
+static inline bool
 __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_CONNECTION_IMPL *conn;
