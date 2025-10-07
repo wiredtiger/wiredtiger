@@ -2266,13 +2266,14 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(custom_value);
     WT_DECL_RET;
-    WT_ITEM *key, *value;
+    WT_ITEM *key, value;
     uint8_t flags, *p;
     bool ovfl_key;
 
     cbt = &r->update_modify_cbt;
     flags = 0;
     ovfl_key = false;
+    WT_CLEAR(value);
     WT_ERR(__wt_scr_alloc(session, 0, &custom_value));
 
     /* Get the key data and pack it into a key cell. */
@@ -2284,7 +2285,6 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
      * Build the customized value. The value for a leaf page delta looks very similar to a standard
      * value, but has an additional byte before the value data to hold metadata for the delta.
      */
-    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &value));
     if (supd->onpage_upd != NULL) {
         if (supd->onpage_upd->type == WT_UPDATE_MODIFY) {
             if (supd->rip != NULL)
@@ -2294,11 +2294,11 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
             WT_ERR(__wt_modify_reconstruct_from_upd_list(
               session, cbt, supd->onpage_upd, cbt->upd_value, WT_OPCTX_RECONCILATION));
             __wt_value_return(cbt, cbt->upd_value);
-            value->data = cbt->upd_value->buf.data;
-            value->size = cbt->upd_value->buf.size;
+            value.data = cbt->upd_value->buf.data;
+            value.size = cbt->upd_value->buf.size;
         } else {
-            value->data = supd->onpage_upd->data;
-            value->size = supd->onpage_upd->size;
+            value.data = supd->onpage_upd->data;
+            value.size = supd->onpage_upd->size;
         }
     } else {
         WT_ASSERT(session,
@@ -2306,15 +2306,15 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
             __wt_txn_upd_visible_all(session, supd->onpage_tombstone));
         /* The delta is a delete, set the relevant metadata to be packed. */
         LF_SET(WT_VALUE_IS_DELETE);
-        value->data = NULL;
-        value->size = 0;
+        value.data = NULL;
+        value.size = 0;
     }
 
     /* Pack the flags and delta value into a custom value. */
-    WT_ERR(__wt_buf_init(session, custom_value, 1 + value->size));
-    custom_value->size = 1 + value->size;
+    WT_ERR(__wt_buf_init(session, custom_value, 1 + value.size));
+    custom_value->size = 1 + value.size;
     WT_ERR(__wt_struct_pack(session, (void *)custom_value->data, custom_value->size,
-      WT_DELTA_LEAF_VALUE_FORMAT, flags, value));
+      WT_DELTA_LEAF_VALUE_FORMAT, flags, &value));
 
     /* Pack the custom value into a standard cell structure. */
     WT_ERR(
@@ -2331,7 +2331,6 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
 
 err:
     __wt_scr_free(session, &key);
-    __wt_scr_free(session, &value);
     __wt_scr_free(session, &custom_value);
     return (ret);
 }
