@@ -524,6 +524,7 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
     WT_LOG_MANAGER *log_mgr;
     u_int i, reccount;
     char **recfiles;
+    uint32_t prep_missed;
 
     log_mgr = &S2C(session)->log_mgr;
     log = log_mgr->log;
@@ -541,7 +542,7 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
      * Adjust the number of files to pre-allocate if we find that the critical path had to allocate
      * them since we last ran.
      */
-    uint32_t prep_missed = __wt_atomic_load32(&log->prep_missed);
+    prep_missed = __wt_atomic_load32(&log->prep_missed);
     if (prep_missed > 0) {
         log_mgr->prealloc += prep_missed;
         __wt_verbose(session, WT_VERB_LOG, "Missed %" PRIu32 ". Now pre-allocating up to %" PRIu32,
