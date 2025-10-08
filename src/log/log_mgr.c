@@ -698,10 +698,10 @@ __log_file_server(void *arg)
                     WT_ERR_ERROR_OK(ret, ENOTSUP, false);
                 }
                 WT_SET_LSN(&close_end_lsn, close_end_lsn.l.file + 1, 0);
-                __wt_spin_lock(session, &log->log_sync_lock); // Lock is being held
+                __wt_spin_lock(session, &log->log_sync_lock);
                 WT_ERR(__wt_close(session, &close_fh));
                 WT_ASSERT(session, __wt_log_cmp(&close_end_lsn, &log->sync_lsn) >= 0);
-                WT_ASSIGN_LSN(&log->sync_lsn, &close_end_lsn); // Write 1
+                WT_ASSIGN_LSN(&log->sync_lsn, &close_end_lsn);
                 __wt_cond_signal(session, log->log_sync_cond);
                 __wt_spin_unlock(session, &log->log_sync_lock);
             }

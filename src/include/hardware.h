@@ -204,12 +204,14 @@
     ;
 
 /*
- * This section was created for functions that should be used for fine-grained TSAN warnings
- * suppression. Since TSAN supports only suppressions on functions level, but one function could
- * contain multiple unrelated warnings, it is preferable to use one of the following functions
- * (or create a new one) to suppress them.
+ * This section was created for functions intended for fine-grained suppression of TSAN warnings.
+ * Since TSAN only supports suppression at the function level, but a single function may trigger
+ * multiple unrelated warnings, it is preferable to use one of the following functions (or create a
+ * new one) to suppress them.
  */
 
-static inline uint32_t __wt_tsan_suppress_load_uint32(uint32_t *var) {
+static inline uint32_t
+__wt_tsan_suppress_load_uint32(uint32_t *var)
+{
     return (*var);
 }

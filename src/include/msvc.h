@@ -38,15 +38,15 @@
 #define WT_GCC_FUNC_DECL_ATTRIBUTE(x)
 
 /*
- * MSVC doesn’t provide an API to perform relaxed CAS/RMW operations, so we use seq-cst in that
- * cases instead.
+ * MSVC does not provide an API to perform relaxed CAS/RMW operations, so we use sequential
+ * consistent memory order in those cases instead.
  */
 #define WT_ATOMIC_FUNC(name, ret, type, s, t)                                                      \
     static inline ret __wt_atomic_add##name(type *vp, type v)                                      \
     {                                                                                              \
         return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)) + (v));                              \
     }                                                                                              \
-    static inline ret __wt_atomic_add##name##_relaxed(type *vp, type v)                              \
+    static inline ret __wt_atomic_add##name##_relaxed(type *vp, type v)                            \
     {                                                                                              \
         return (_InterlockedExchangeAdd##s((t *)(vp), (t)(v)) + (v));                              \
     }                                                                                              \
