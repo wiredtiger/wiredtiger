@@ -33,8 +33,6 @@ from modify_utils import create_mods, mkstring
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-r = random.Random(42) # Make things repeatable
-
 @disagg_test_class
 class test_layered_modify01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'disaggregated=(page_log=palm),page_delta=(delta_pct=100),'
@@ -55,55 +53,8 @@ class test_layered_modify01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def conn_config(self):
         return self.conn_base_config + f'disaggregated=(role="leader"),'
 
-    def one_test(self, c, k, oldsz, repeatsz, nmod, maxdiff):
-        oldv = mkstring(r, oldsz, repeatsz, self.valuefmt)
-
-        offsets = sorted(r.sample(range(oldsz), nmod))
-        modsizes = sorted(r.sample(range(maxdiff), nmod + 1))
-        lengths = [modsizes[i+1] - modsizes[i] for i in range(nmod)]
-        modtypes = [r.choice((self.ADD, self.REMOVE, self.REPLACE)) for _ in range(nmod)]
-
-        self.pr("offsets: %s" % offsets)
-        self.pr("modsizes: %s" % modsizes)
-        self.pr("lengths: %s" % lengths)
-        self.pr("modtypes: %s" % modtypes)
-
-        orig = oldv
-        newv = '' if self.valuefmt == 'S' else b''
-        for i in range(1, nmod):
-            if offsets[i] - offsets[i - 1] < maxdiff:
-                continue
-            newv += orig[:(offsets[i]-offsets[i-1])]
-            orig = orig[(offsets[i]-offsets[i-1]):]
-            if modtypes[i] == self.ADD:
-                newv += mkstring(r, lengths[i], r.randint(1, lengths[i]), self.valuefmt)
-            elif modtypes[i] == self.REMOVE:
-                orig = orig[lengths[i]:]
-            elif modtypes[i] == self.REPLACE:
-                newv += mkstring(r, lengths[i], r.randint(1, lengths[i]), self.valuefmt)
-                orig = orig[lengths[i]:]
-        newv += orig
-
-        self.pr("oldv: %s" % oldv)
-        self.pr("newv: %s" % newv)
-        try:
-            mods = wiredtiger.wiredtiger_calc_modify(None, oldv, newv, max(maxdiff, nmod * 64), nmod)
-            self.pr("calculated mods: %s" % mods)
-        except wiredtiger.WiredTigerError:
-            # When the data repeats, the algorithm can register the "wrong" repeated sequence.  Retry...
-            mods = wiredtiger.wiredtiger_calc_modify(None, oldv, newv, nmod * (64 + repeatsz), nmod)
-            self.pr("calculated mods (round 2): %s" % mods)
-        self.assertIsNotNone(mods)
-
-        c[k] = oldv
-        self.session.begin_transaction()
-        c.set_key(k)
-        c.modify(mods)
-        self.session.commit_transaction()
-        self.assertEqual(c[k], newv)
-
     def test_layered_modify(self):
-        # r = random.Random(42)
+        r = random.Random(42) # Make things repeatable
 
         self.session.create(self.uri, 'key_format=i,value_format=' + self.valuefmt)
 
@@ -116,6 +67,7 @@ class test_layered_modify01(wttest.WiredTigerTestCase, DisaggConfigMixin):
             repeats = r.randint(1, size)
             nmods = r.randint(1, 10)
             maxdiff = r.randint(64, size // 10)
+
             self.pr("size %s, repeats %s, nmods %s, maxdiff %s" % (size, repeats, nmods, maxdiff))
             (oldv, mods, newv) = create_mods(r, size, repeats, nmods, maxdiff, self.valuefmt)
 
@@ -127,4 +79,3 @@ class test_layered_modify01(wttest.WiredTigerTestCase, DisaggConfigMixin):
             c.modify(mods)
             self.session.commit_transaction()
             self.assertEqual(c[k], newv)
-            # self.one_test(c, k, size, repeats, nmods, maxdiff)
