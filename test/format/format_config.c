@@ -1536,21 +1536,6 @@ config_disagg_storage(void)
     else
         g.disagg_leader = strcmp(mode, "leader") == 0;
 
-    if (!config_explicit(NULL, "disagg.page_log.verbose")) {
-        testutil_snprintf(
-          buf, sizeof(buf), "disagg.page_log.verbose=%" PRIu32, GV(DISAGG_PAGE_LOG_VERBOSE));
-        config_single(NULL, buf, false);
-    }
-
-    /* Configure page deltas. */
-    testutil_snprintf(
-      buf, sizeof(buf), "disagg.internal_page_delta=%" PRIu32, GV(DISAGG_INTERNAL_PAGE_DELTA));
-    config_single(NULL, buf, config_explicit(NULL, "disagg.internal_page_delta"));
-
-    testutil_snprintf(
-      buf, sizeof(buf), "disagg.leaf_page_delta=%" PRIu32, GV(DISAGG_LEAF_PAGE_DELTA));
-    config_single(NULL, buf, config_explicit(NULL, "disagg.leaf_page_delta"));
-
     /* Disaggregated storage requires timestamps. */
     config_off(NULL, "transaction.implicit");
     config_single(NULL, "transaction.timestamps=on", true);
