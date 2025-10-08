@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -26,63 +26,107 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time, wiredtiger, wttest
-from helper_disagg import disagg_test_class
+import random, string, sys
+import wiredtiger, wttest
 
-StorageSource = wiredtiger.StorageSource  # easy access to constants
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from wtscenario import make_scenarios
 
-# test_layered03.py
-#    Basic layered tree cursor insert and read
+r = random.Random(43) # Make things repeatable
+
 @disagg_test_class
-class test_layered03(wttest.WiredTigerTestCase):
+class test_layered_modify04(wttest.WiredTigerTestCase, DisaggConfigMixin):
+    conn_base_config = 'disaggregated=(page_log=palm),page_delta=(delta_pct=100),'
+    disagg_storages = gen_disagg_storages('test_layered_modify04', disagg_only=True)
+    uri = 'layered:test_calc_modify'
 
-    uri_base = "test_layered03"
-    conn_config = 'verbose=[layered],disaggregated=(role="leader"),' \
-                + 'disaggregated=(page_log=palm,lose_all_my_data=true),'
+    # operation types
+    ADD = 1
+    REMOVE = 2
+    REPLACE = 3
 
-    uri = "layered:" + uri_base
+    valuefmt = [
+        ('item', dict(valuefmt='u')),
+        ('string', dict(valuefmt='S')),
+    ]
+    scenarios = make_scenarios(disagg_storages, valuefmt)
 
-    # Load the page log extension, which has object storage support
-    def conn_extensions(self, extlist):
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
-        extlist.extension('page_log', 'palm')
+    def conn_config(self):
+        return self.conn_base_config + f'disaggregated=(role="leader"),'
 
-    # Test inserting a record into a layered tree
-    def test_layered03(self):
-        base_create = 'key_format=S,value_format=S'
+    def mkstring(self, size, repeat_size=1):
+        choices = string.ascii_letters + string.digits
+        if self.valuefmt == 'S':
+            pattern = ''.join(r.choice(choices) for _ in range(repeat_size))
+        else:
+            pattern = b''.join(bytes([r.choice(choices.encode())]) for _ in range(repeat_size))
+        return (pattern * ((size + repeat_size - 1) // repeat_size))[:size]
 
-        self.pr("create layered tree")
-        self.session.create(self.uri, base_create)
+    def one_test(self, c, k, oldsz, repeatsz, nmod, maxdiff, as_leader, old_oldv):
+        oldv = self.mkstring(oldsz, repeatsz)
+        if as_leader:
+            c[k] = oldv
+            return oldv
+        else:
+            oldv = old_oldv
 
-        self.pr('opening cursor')
-        cursor = self.session.open_cursor(self.uri, None, None)
+        offsets = sorted(r.sample(range(oldsz), nmod))
+        modsizes = sorted(r.sample(range(maxdiff), nmod + 1))
+        lengths = [modsizes[i+1] - modsizes[i] for i in range(nmod)]
+        modtypes = [r.choice((self.ADD, self.REMOVE, self.REPLACE)) for _ in range(nmod)]
 
-        self.pr('Inserting a value')
-        cursor["Hello"] = "World"
-        cursor["Hi"] = "There"
-        cursor["OK"] = "Go"
+        self.pr("offsets: %s" % offsets)
+        self.pr("modsizes: %s" % modsizes)
+        self.pr("lengths: %s" % lengths)
+        self.pr("modtypes: %s" % modtypes)
 
-        cursor.set_key("Hello")
-        cursor.search()
-        value = cursor.get_value()
-        value = cursor["Hello"]
-        self.pr("Search retrieved: " + cursor.get_key() + ":" + cursor.get_value())
+        orig = oldv
+        newv = '' if self.valuefmt == 'S' else b''
+        for i in range(1, nmod):
+            if offsets[i] - offsets[i - 1] < maxdiff:
+                continue
+            newv += orig[:(offsets[i]-offsets[i-1])]
+            orig = orig[(offsets[i]-offsets[i-1]):]
+            if modtypes[i] == self.ADD:
+                newv += self.mkstring(lengths[i], r.randint(1, lengths[i]))
+            elif modtypes[i] == self.REMOVE:
+                orig = orig[lengths[i]:]
+            elif modtypes[i] == self.REPLACE:
+                newv += self.mkstring(lengths[i], r.randint(1, lengths[i]))
+                orig = orig[lengths[i]:]
+        newv += orig
 
-        cursor.reset()
-        while cursor.next() == 0:
-            self.pr("Traversal retrieved: " + cursor.get_key() + ":" + cursor.get_value())
+        # self.pr("oldv: %s" % oldv)
+        # self.pr("newv: %s" % newv)
+        # print("oldv: %s" % oldv, file=sys.stderr)
+        # print("newv: %s" % newv, file=sys.stderr)
+        try:
+            mods = wiredtiger.wiredtiger_calc_modify(None, oldv, newv, max(maxdiff, nmod * 64), nmod)
+            self.pr("calculated mods: %s" % mods)
+        except wiredtiger.WiredTigerError:
+            # When the data repeats, the algorithm can register the "wrong" repeated sequence.  Retry...
+            mods = wiredtiger.wiredtiger_calc_modify(None, oldv, newv, nmod * (64 + repeatsz), nmod)
+            self.pr("calculated mods (round 2): %s" % mods)
+        self.assertIsNotNone(mods)
 
-        cursor.reset()
-        while cursor.prev() == 0:
-            self.pr("Traversal retrieved: " + cursor.get_key() + ":" + cursor.get_value())
+        self.session.begin_transaction()
+        c.set_key(k)
+        c.modify(mods)
+        self.session.commit_transaction()
+        self.assertEqual(c[k], newv)
 
-        self.pr('closing cursor')
-        time.sleep(0.5)
-        cursor.close()
+    def test_layered_modify(self):
+        self.session.create(self.uri, 'key_format=i,value_format=' + self.valuefmt)
+        # self.conn.reconfigure('disaggregated=(role="follower")')
+        c = self.session.open_cursor(self.uri)
+        size = r.randint(1000, 10000)
+        repeats = r.randint(1, size)
+        nmods = r.randint(1, 10)
+        maxdiff = r.randint(64, size // 10)
+        oldv = self.one_test(c, 0, size, repeats, nmods, maxdiff, True, None)
+        self.session.checkpoint()
 
-        self.pr('closing cursor')
-        cursor = self.session.open_cursor(self.uri, None, None)
-        while cursor.next() == 0:
-            self.pr("Traversal retrieved: " + cursor.get_key() + ":" + cursor.get_value())
-
+        self.reopen_conn(config=self.conn_base_config + f'disaggregated=(role="follower",checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")')
+        c = self.session.open_cursor(self.uri)
+        # self.pr("size %s, repeats %s, nmods %s, maxdiff %s" % (size, repeats, nmods, maxdiff))
+        self.one_test(c, 0, size, repeats, nmods, maxdiff, False, oldv)

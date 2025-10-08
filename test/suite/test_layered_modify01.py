@@ -29,13 +29,15 @@
 import random, string
 import wiredtiger, wttest
 
-from modify_utils import create_mods, mkstring
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from modify_utils import create_mods
 from wtscenario import make_scenarios
 
+# Simple modify test on a layered table, in both leader and follower
+# modes.
 @disagg_test_class
 class test_layered_modify01(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    conn_base_config = 'disaggregated=(page_log=palm),page_delta=(delta_pct=100),'
+    conn_base_config = 'disaggregated=(page_log=palm),'
     disagg_storages = gen_disagg_storages('test_layered_modify01', disagg_only=True)
     uri = 'layered:test_calc_modify01'
 
@@ -53,7 +55,7 @@ class test_layered_modify01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def conn_config(self):
         return self.conn_base_config + f'disaggregated=(role="leader"),'
 
-    def test_layered_modify(self):
+    def test_layered_modify01(self):
         r = random.Random(42) # Make things repeatable
 
         self.session.create(self.uri, 'key_format=i,value_format=' + self.valuefmt)

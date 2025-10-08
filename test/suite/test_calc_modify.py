@@ -28,7 +28,7 @@
 
 import random, string
 import wiredtiger, wttest
-from modify_utils import create_mods, mkstring
+from modify_utils import create_mods
 from wtscenario import make_scenarios
 
 # test_calc_modify.py
