@@ -27,6 +27,7 @@
  */
 
 #include "format.h"
+#include <sys/wait.h>
 
 GLOBAL g;
 
@@ -176,16 +177,19 @@ main(int argc, char *argv[])
 {
     READ_SCAN_ARGS scan_args;
     WT_DECL_RET;
+    pid_t pid;
     uint64_t now, start;
     u_int leader_ops_seconds, ops_seconds, reps;
     int ch;
     const char *config, *home;
+    char home_buf[128];
     bool is_backup, quiet_flag, verify_only;
     wt_thread_t follower_tid;
 
     custom_die = format_die; /* Local death handler. */
 
     config = NULL;
+    pid = -1;
 
     (void)testutil_set_progname(argv);
 
@@ -267,9 +271,6 @@ main(int argc, char *argv[])
     tables[0]->id = 1;
     g.multi_table_config = !g.backward_compatible;
 
-    /* Set up paths. */
-    path_setup(home);
-
     /*
      * If it's a reopen, use the already existing home directory's CONFIG file. Otherwise, if we
      * weren't given a configuration file, set values from "CONFIG", if it exists. Small hack to
@@ -310,14 +311,36 @@ main(int argc, char *argv[])
      */
     if (quiet_flag || !isatty(1))
         GV(QUIET) = 1;
+    
+    config_random_generators(); /* Configure the random number generators. */
+    if (disagg_is_mode_multi()) {
+        testutil_assert((pid = fork()) >= 0);
+        if (pid == 0) { /* child */
+            config_single(NULL, "disagg.mode=follower", true);
+            testutil_snprintf(home_buf, sizeof(home_buf), "%s/follower", home ? home : "RUNDIR");
+            path_setup(home_buf);
+        } else if (pid > 0) { /* Parent */
+            config_single(NULL, "disagg.mode=leader", true);
+            testutil_snprintf(home_buf, sizeof(home_buf), "%s/leader", home ? home : "RUNDIR");
+            path_setup(home_buf);
+        }
+    }
 
     /* Configure the run. */
     config_run();
     g.configured = true;
 
     /* If checking a CONFIG file syntax, we're done. */
-    if (syntax_check)
+    if (syntax_check) {
+
+        // if (pid > 0) {
+        //     // Optional: parent waits for child to finish
+        //     wait(NULL);
+        //     printf("[parent] done waiting\n");
+        // }
+
         exit(0);
+    }
 
     __wt_seconds(NULL, &start);
     track("starting up", 0ULL);
@@ -346,11 +369,15 @@ main(int argc, char *argv[])
         config_print(false);
         trace_init();
         wts_create_database();
-        wts_open(wts_get_home(), &g.wts_conn, true);
+        wts_open(g.home, &g.wts_conn, true);
         timestamp_init();
     }
-    /* Optionally start followers in disagg multi mode. */
-    follower_setup(&follower_tid);
+
+    if (disagg_is_mode_multi() && !g.disagg_leader) {
+        testutil_assert(pid == 0);
+        /* Optionally start followers in disagg multi mode. */
+        follower_setup(&follower_tid);
+    }
 
     locks_init(g.wts_conn);
 
@@ -403,7 +430,7 @@ main(int argc, char *argv[])
     }
 
     /* Copy out the run's statistics. */
-    // TIMED_MAJOR_OP(wts_stats());
+    TIMED_MAJOR_OP(wts_stats());
 
 skip_operations:
     locks_destroy(g.wts_conn);
@@ -415,7 +442,10 @@ skip_operations:
      */
     if (!verify_only)
         TIMED_MAJOR_OP(wts_verify(g.wts_conn, true));
-
+if (disagg_is_mode_multi() && !g.disagg_leader) {
+        testutil_assert(pid == 0);
+        follower_shutdown(&follower_tid);
+    }
     track("shutting down", 0ULL);
     wts_close(&g.wts_conn);
 
@@ -424,7 +454,14 @@ skip_operations:
         TIMED_MAJOR_OP(tables_apply(wts_salvage, NULL));
 
     trace_teardown();
-    follower_shutdown(&follower_tid);
+
+    if (disagg_is_mode_multi()) {
+        if (pid > 0) {
+            // Optional: parent waits for child to finish
+            wait(NULL);
+            printf("[parent] done waiting\n");
+        }
+    }
 
     /* Overwrite the progress line with a completion line. */
     if (!GV(QUIET))

@@ -191,6 +191,8 @@ CONFIG configuration_list[] = {
 
 {"disagg.mode", "configure mode for disaggregated storage (follower | leader | switch)", C_IGNORE | C_STRING, 0, 0, 0}
 
+{"disagg.multi", "configure multiple nodes for disaggregated storage", C_IGNORE | C_BOOL , 0, 0, 0}
+
 {"disagg.enabled", "configure disaggregated storage", C_IGNORE | C_BOOL | C_TABLE | C_TYPE_ROW, 0, 0, 0}
 
 {"disagg.layered", "use layered URI for any disaggregated tables", C_BOOL, 100, 1, 0}

@@ -112,6 +112,9 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
 
     /* Get the maximum not-in-use timestamp, noting that it may not be set. */
     oldest_timestamp = stable_timestamp = timestamp_minimum_committed();
+    // printf("global stable is %lu and global oldest is %lu\n", g.stable_timestamp,
+    // g.oldest_timestamp); printf("stable %lu, oldest %lu, stop ts %lu\n", stable_timestamp,
+    // oldest_timestamp, g.stop_timestamp);
     if (oldest_timestamp == 0)
         return;
 

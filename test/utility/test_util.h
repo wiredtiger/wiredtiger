@@ -78,8 +78,8 @@ extern "C" {
 #define TESTUTIL_ENV_CONFIG_DISAGG          \
     ",disaggregated=(role=%s,page_log=%s)," \
     "precise_checkpoint=true"
-#define TESTUTIL_ENV_CONFIG_DISAGG_EXT                                         \
-    "\"%s/ext/page_log/%s/libwiredtiger_%s.so\"=("                             \
+#define TESTUTIL_ENV_CONFIG_DISAGG_EXT                                                 \
+    "\"%s/ext/page_log/%s/libwiredtiger_%s.so\"=("                                     \
     "config=\"(home=%s,delay_ms=%" PRIu64 ",error_ms=%" PRIu64 ",force_delay=%" PRIu64 \
     ",force_error=%" PRIu64 ",cache_size_mb=%" PRIu64 ",verbose=0)\")"
 #define TESTUTIL_ENV_CONFIG_TIERED               \
@@ -103,12 +103,12 @@ typedef struct {
     const char *argv0; /* Exec name */
     char usage[512];   /* Usage string for this parser */
 
-    const char *progname;        /* Truncated program name */
-    char *build_dir;             /* Build directory path */
-    const char *disagg_mode;     /* Disaggregated storage mode */
-    const char *disagg_page_log; /* Page and log service for disaggregated storage */
+    const char *progname;             /* Truncated program name */
+    char *build_dir;                  /* Build directory path */
+    const char *disagg_mode;          /* Disaggregated storage mode */
+    const char *disagg_page_log;      /* Page and log service for disaggregated storage */
     const char *disagg_page_log_home; /* Page and log service for disaggregated storage */
-    char *tiered_storage_source; /* Tiered storage source */
+    char *tiered_storage_source;      /* Tiered storage source */
 
     enum {
         TABLE_NOT_SET = 0, /* Not explicitly set */

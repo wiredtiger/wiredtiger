@@ -328,7 +328,7 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
     opts.disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
     opts.disagg_mode = (char *)(g.disagg_leader ? "leader" : "follower");
     opts.home = (char *)home;
-    opts.disagg_page_log_home = disagg_is_mode_multi() ? g.home : home;
+    opts.disagg_page_log_home = disagg_is_mode_multi() ? "RUNDIR" : home;
     opts.build_dir = (char *)BUILDDIR;
     opts.palm_map_size_mb = 2048; /* 2 Gigabytes for PALM map */
 
@@ -710,23 +710,6 @@ void
 wts_create_home(void)
 {
     testutil_recreate_dir(g.home);
-
-    if (disagg_is_mode_multi()) {
-        testutil_recreate_dir(g.home_leader);
-        testutil_recreate_dir(g.home_follower);
-    }
-}
-
-/*
- * wts_get_home --
- *     Return the database home directory.
- */
-const char *
-wts_get_home(void)
-{
-    if (disagg_is_mode_multi())
-        return g.home_leader;
-    return g.home;
 }
 
 /*
@@ -738,25 +721,17 @@ wts_create_database(void)
 {
     WT_CONNECTION *conn;
 
-    create_database(wts_get_home(), &conn);
-    g.wts_conn = conn;
+    create_database(g.home, &conn);
 
     if (GV(PRECISE_CHECKPOINT))
-        precise_checkpoint_init(g.wts_conn);
-
+        precise_checkpoint_init(conn);
+    g.wts_conn = conn;
     tables_apply(create_object, g.wts_conn);
     if (GV(RUNS_IN_MEMORY) != 0)
         g.wts_conn_inmemory = g.wts_conn;
     else
         testutil_check(conn->close(conn, NULL));
     g.wts_conn = NULL;
-
-    if (disagg_is_mode_multi()) {
-        g.disagg_leader = false;
-        create_database(g.home_follower, &conn);
-        g.disagg_leader = true;
-        g.wts_conn_follower = conn;
-    }
 }
 
 /*
@@ -849,12 +824,10 @@ wts_db_verify(WT_CONNECTION *leader, WT_CONNECTION *follower)
     uint64_t range_begin, range_end, rows, leader_table_keyno, follower_table_keyno;
 
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(
-      leader, &sap, NULL, NULL, &leader_session);
-    wt_wrap_open_session(
-      follower, &sap, NULL, NULL, &follower_session);
+    wt_wrap_open_session(leader, &sap, NULL, NULL, &leader_session);
+    wt_wrap_open_session(follower, &sap, NULL, NULL, &follower_session);
 
-    for (i = 1; i <= ntables; ++i) { 
+    for (i = 1; i <= ntables; ++i) {
         table = tables[i];
         printf("===>table %u: %s\n", i, table->uri);
         wt_wrap_open_cursor(leader_session, table->uri, NULL, &leader_table_cursor);
@@ -864,17 +837,22 @@ wts_db_verify(WT_CONNECTION *leader, WT_CONNECTION *follower)
         range_end = TV(RUNS_ROWS);
         printf("Range: %" PRIu64 " to %" PRIu64 "\n", range_begin, range_end);
         for (rows = range_begin; rows <= range_end; ++rows) {
-            leader_table_ret = table_mirror_row_next(table, leader_table_cursor, &leader_table_key, &leader_table_keyno);
-            follower_table_ret = table_mirror_row_next(table, follower_table_cursor, &follower_table_key, &follower_table_keyno);
+            leader_table_ret = table_mirror_row_next(
+              table, leader_table_cursor, &leader_table_key, &leader_table_keyno);
+            follower_table_ret = table_mirror_row_next(
+              table, follower_table_cursor, &follower_table_key, &follower_table_keyno);
             testutil_assert(leader_table_ret == follower_table_ret);
             if (leader_table_ret == WT_NOTFOUND)
                 break;
             testutil_check(leader_table_ret);
-            testutil_check(leader_table_keyno == follower_table_keyno);
-            testutil_check(leader_table_cursor->get_value(leader_table_cursor, &leader_table_value));
-            testutil_check(follower_table_cursor->get_value(follower_table_cursor, &follower_table_value));
-            testutil_check(leader_table_value.size == follower_table_value.size);
-            testutil_check(memcmp(leader_table_value.data, follower_table_value.data, leader_table_value.size) == 0);
+            testutil_assert(leader_table_keyno == follower_table_keyno);
+            testutil_check(
+              leader_table_cursor->get_value(leader_table_cursor, &leader_table_value));
+            testutil_check(
+              follower_table_cursor->get_value(follower_table_cursor, &follower_table_value));
+            testutil_assert(leader_table_value.size == follower_table_value.size);
+            testutil_assert(memcmp(leader_table_value.data, follower_table_value.data,
+                              leader_table_value.size) == 0);
         }
 
         testutil_check(leader_table_cursor->close(leader_table_cursor));
@@ -892,17 +870,7 @@ void
 wts_close(WT_CONNECTION **connp)
 {
     WT_CONNECTION *conn;
-    WT_SESSION *session;
     conn = *connp;
-
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    testutil_check(session->checkpoint(session, NULL));
-    testutil_check(session->close(session, NULL));
-
-    /* give follower time to read ckpt. */
-    sleep(5);
-
-    wts_db_verify(g.wts_conn, g.wts_conn_follower);
 
     *connp = NULL;
 

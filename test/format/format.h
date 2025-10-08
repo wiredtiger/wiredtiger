@@ -220,7 +220,6 @@ extern u_int ntables;
 
 typedef struct {
     WT_CONNECTION *wts_conn;
-    WT_CONNECTION *wts_conn_follower;
     WT_CONNECTION *wts_conn_inmemory;
 
     bool backward_compatible; /* Backward compatibility testing */
@@ -248,9 +247,7 @@ typedef struct {
     char *home;        /* Home directory */
     char *home_backup; /* Backup file name */
     char *home_config; /* Run CONFIG file path */
-    char *home_follower;
     char *home_key;    /* Key file filename */
-    char *home_leader;
     char *home_stats;  /* Statistics file path */
 
     char *config_open; /* Command-line configuration */
@@ -456,6 +453,7 @@ void config_compat(const char **);
 void config_error(void);
 void config_file(const char *);
 void config_print(bool);
+void config_random_generators(void);
 void config_run(void);
 void config_single(TABLE *, const char *, bool);
 void create_database(const char *home, WT_CONNECTION **connp);
@@ -526,7 +524,6 @@ void wts_close(WT_CONNECTION **);
 void wts_create_database(void);
 void wts_create_home(void);
 void wts_dump(const char *, bool);
-const char *wts_get_home(void);
 void wts_load(void);
 void wts_open(const char *, WT_CONNECTION **, bool);
 void wts_db_verify(WT_CONNECTION *, WT_CONNECTION *);

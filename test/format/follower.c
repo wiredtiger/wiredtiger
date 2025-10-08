@@ -46,7 +46,7 @@ follower(void *arg)
 
     (void)(arg);
 
-    conn = g.wts_conn_follower;
+    conn = g.wts_conn;
 
     memset(&sap, 0, sizeof(sap));
     memset(&checkpoint_metadata, 0, sizeof(checkpoint_metadata));
@@ -59,9 +59,9 @@ follower(void *arg)
         testutil_snprintf(config, sizeof(config), "disaggregated=(checkpoint_meta=\"%.*s\")",
           (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data);
         testutil_check(conn->reconfigure(conn, config));
-        // printf("checkpoint ts is %" PRIu64 "\n", checkpoint_ts);
+        printf("checkpoint ts is %" PRIu64 "<===\n", checkpoint_ts);
 
-        __wt_sleep(0, 300);
+        __wt_sleep(3, 0);
     }
 
     wt_wrap_close_session(session);
@@ -92,9 +92,7 @@ follower_shutdown(wt_thread_t *follower_tid)
 {
     if (!disagg_is_mode_multi())
         return;
-
+    __wt_sleep(20, 0);
     g.follower_shutdown = true;
     testutil_check(__wt_thread_join(NULL, follower_tid));
-    wts_close(&g.wts_conn_follower);
-    g.wts_conn_follower = NULL;
 }

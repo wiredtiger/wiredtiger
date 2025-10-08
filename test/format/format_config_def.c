@@ -177,6 +177,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"disagg.mode", "configure mode for disaggregated storage (follower | leader | switch)",
     C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_DISAGG_MODE},
 
+  {"disagg.multi", "configure multiple nodes for disaggregated storage", C_IGNORE | C_BOOL, 0, 0, 0,
+    V_GLOBAL_DISAGG_MULTI},
+
   {"disagg.enabled", "configure disaggregated storage", C_IGNORE | C_BOOL | C_TABLE | C_TYPE_ROW, 0,
     0, 0, V_TABLE_DISAGG_ENABLED},
 

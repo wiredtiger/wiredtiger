@@ -157,7 +157,7 @@ static int palm_get_dek(PALM *, WT_SESSION *, const WT_PAGE_LOG_ENCRYPTION *, ui
   bool, uint64_t, WT_PAGE_LOG_ENCRYPTION *);
 static void palm_init_context(PALM *, PALM_KV_CONTEXT *);
 static int palm_init_lsn(PALM *);
-static int palm_setup_home(PALM *, WT_CONNECTION*, WT_CONFIG_ITEM *);
+static int palm_setup_home(PALM *, WT_CONNECTION *, WT_CONFIG_ITEM *);
 
 /*
  * Forward function declarations for page log API implementation
@@ -172,7 +172,7 @@ static int palm_terminate(WT_PAGE_LOG *, WT_SESSION *);
 static int
 palm_setup_home(PALM *palm, WT_CONNECTION *connection, WT_CONFIG_ITEM *cval)
 {
-    const char* home;
+    const char *home;
     size_t len, total_len;
     int ret;
 
@@ -202,10 +202,10 @@ palm_setup_home(PALM *palm, WT_CONNECTION *connection, WT_CONFIG_ITEM *cval)
         }
     }
 
-    if (0) { 
+    if (0) {
 err:
-    if (palm->kv_home != NULL)
-        free(palm->kv_home);
+        if (palm->kv_home != NULL)
+            free(palm->kv_home);
     }
     return (ret);
 }
@@ -245,8 +245,7 @@ palm_configure(PALM *palm, WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     if ((ret = palm_configure_int(palm, env_parser, config, "force_error", &palm->force_error)) !=
       0)
         goto err;
-    if ((ret = palm_configure_str(palm, env_parser, config, "home", &cval)) !=
-      0)
+    if ((ret = palm_configure_str(palm, env_parser, config, "home", &cval)) != 0)
         goto err;
     /* Set up PALM home path */
     palm_setup_home(palm, connection, &cval);

@@ -35,9 +35,8 @@
 bool
 disagg_is_mode_multi(void)
 {
-    return (g.disagg_storage_config && strcmp(GVS(DISAGG_MODE), "multi") == 0);
+    return (GV(DISAGG_MULTI));
 }
-
 
 /*
  * disagg_is_mode_switch --

@@ -179,7 +179,7 @@ path_setup(const char *home)
 
     /* Home directory. */
     g.home = dstrdup(home == NULL ? "RUNDIR" : home);
-
+    printf("%s\n", g.home);
     /* Backup file. */
     name = "WiredTiger.backup";
     len = strlen(g.home) + strlen(name) + 2;
@@ -203,17 +203,6 @@ path_setup(const char *home)
     len = strlen(g.home) + strlen(name) + 2;
     g.home_stats = dmalloc(len);
     testutil_snprintf(g.home_stats, len, "%s/%s", g.home, name);
-
-    name = "leader";
-    len = strlen(g.home) + strlen(name) + 2;
-    g.home_leader = dmalloc(len);
-    testutil_snprintf(g.home_leader, len, "%s/%s", g.home, name);
-
-    name = "follower";
-    len = strlen(g.home) + strlen(name) + 2;
-    g.home_follower = dmalloc(len);
-    testutil_snprintf(g.home_follower, len, "%s/%s", g.home, name);
-
 }
 
 /*

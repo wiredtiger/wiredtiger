@@ -576,7 +576,7 @@ void
 testutil_recreate_dir(const char *dir)
 {
     testutil_remove(dir);
-    testutil_mkdir(dir);
+    testutil_mkdir_ext(dir, &(WT_MKDIR_OPTS){.can_exist = false, .parents = true});
 }
 
 /*

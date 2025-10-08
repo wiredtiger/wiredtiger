@@ -91,7 +91,7 @@ config_random_generator(
  * config_random_generators --
  *     Initialize our global random generators using provided seeds.
  */
-static void
+void
 config_random_generators(void)
 {
     config_random_generator("random.data_seed", GV(RANDOM_DATA_SEED), 0, &g.data_rnd);
@@ -447,8 +447,6 @@ config_table(TABLE *table, void *arg)
 void
 config_run(void)
 {
-    config_random_generators(); /* Configure the random number generators. */
-
     config_random(tables[0], false); /* Configure the remaining global name space. */
 
     /*
@@ -1511,17 +1509,14 @@ config_disagg_storage(void)
               mmrand(&g.data_rnd, 1, 100) <= 50 ? "leader" : "follower");
             config_single(NULL, buf, false);
         }
-
         mode = GVS(DISAGG_MODE);
         if (strcmp(mode, "leader") != 0 && strcmp(mode, "follower") != 0 &&
-          strcmp(mode, "switch") != 0 && strcmp(mode, "multi") != 0)
+          strcmp(mode, "switch") != 0)
             testutil_die(EINVAL, "illegal disagg.mode configuration: %s", mode);
 
         if (strcmp(mode, "switch") == 0)
             /* Randomly assign "leader" or "follower". */
             g.disagg_leader = mmrand(&g.data_rnd, 0, 1);
-        else if (strcmp(mode, "multi") == 0)
-            g.disagg_leader = 1;
         else
             g.disagg_leader = strcmp(mode, "leader") == 0;
 
