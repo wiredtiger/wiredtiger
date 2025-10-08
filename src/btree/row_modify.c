@@ -183,9 +183,9 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
             /*
              * If we restore an update chain in update restore eviction, there should be no update
              * or a restored tombstone on the existing update chain except for btrees with leaf
-             * delta enabled or a prepared update if the preserve prepared config is enabled.
-             * FIXME-WT-14885: No need to consider the delta case if we have implemented delta
-             * consolidation.
+             * delta enabled or a prepared update if the preserve prepared config is enabled. FIXME-
+             * WT-15619 and WT-15618: No need to consider the delta case if we have implemented
+             * delta consolidation.
              */
             WT_ASSERT_ALWAYS(session,
               !restore ||
@@ -426,9 +426,6 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
             first = NULL;
     }
 
-    if (first != NULL && first->next != NULL)
-        __wt_free_obsolete_updates(session, page, first);
-
     /*
      * Force evict a page when there are more than WT_THOUSAND updates to a single item. Increasing
      * the minSnapshotHistoryWindowInSeconds to 300 introduced a performance regression in which the
@@ -440,16 +437,16 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
         __wt_evict_page_soon(session, cbt->ref);
     }
 
-    if (first == NULL) {
+    if (first != NULL && first->next != NULL)
+        __wt_free_obsolete_updates(session, page, first);
+    else if (count > 20) {
         /*
          * If the list is long, don't retry checks on this page until the transaction state has
          * moved forwards.
          */
-        if (count > 20) {
-            page->modify->obsolete_check_txn = __wt_atomic_loadv64(&txn_global->last_running);
-            if (txn_global->has_pinned_timestamp)
-                page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
-        }
+        page->modify->obsolete_check_txn = __wt_atomic_loadv64(&txn_global->last_running);
+        if (txn_global->has_pinned_timestamp)
+            page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
     }
 
     WT_PAGE_UNLOCK(session, page);
