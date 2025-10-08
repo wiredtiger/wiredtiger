@@ -183,9 +183,9 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
             /*
              * If we restore an update chain in update restore eviction, there should be no update
              * or a restored tombstone on the existing update chain except for btrees with leaf
-             * delta enabled or a prepared update if the preserve prepared config is enabled.
-             * FIXME-WT-14885: No need to consider the delta case if we have implemented delta
-             * consolidation.
+             * delta enabled or a prepared update if the preserve prepared config is enabled. FIXME-
+             * WT-15619 and WT-15618: No need to consider the delta case if we have implemented
+             * delta consolidation.
              */
             WT_ASSERT_ALWAYS(session,
               !restore ||
@@ -364,18 +364,15 @@ err:
  *     Check for obsolete updates and force evict the page if the update list is too long.
  */
 void
-__wt_update_obsolete_check(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool update_accounting)
+__wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
     WT_PAGE *page;
     WT_TXN_GLOBAL *txn_global;
-    WT_UPDATE *first, *next;
+    WT_UPDATE *first;
     wt_timestamp_t prune_timestamp;
-    size_t delta_upd_size, size, upd_size;
     uint64_t oldest_id;
     u_int count;
 
-    next = NULL;
     page = cbt->ref->page;
     txn_global = &S2C(session)->txn_global;
 
@@ -430,37 +427,6 @@ __wt_update_obsolete_check(
     }
 
     /*
-     * We cannot discard this WT_UPDATE structure, we can only discard WT_UPDATE structures
-     * subsequent to it, other threads of control will terminate their walk in this element. Save a
-     * reference to the list we will discard, and terminate the list.
-     */
-    if (first != NULL && (next = first->next) != NULL) {
-        /*
-         * No need to use a compare and swap because we have obtained a lock at the start of the
-         * function.
-         */
-        first->next = NULL;
-
-        /*
-         * Decrement the dirty byte count while holding the page lock, else we can race with
-         * checkpoints cleaning a page.
-         */
-        if (update_accounting) {
-            for (delta_upd_size = 0, size = 0, upd = next; upd != NULL; upd = upd->next) {
-                upd_size = WT_UPDATE_MEMSIZE(upd);
-                size += upd_size;
-                if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA))
-                    delta_upd_size += upd_size;
-            }
-            if (size != 0) {
-                __wt_cache_page_inmem_decr(session, page, size);
-                if (delta_upd_size != 0)
-                    __wt_cache_page_inmem_decr_delta_updates(session, page, delta_upd_size);
-            }
-        }
-    }
-
-    /*
      * Force evict a page when there are more than WT_THOUSAND updates to a single item. Increasing
      * the minSnapshotHistoryWindowInSeconds to 300 introduced a performance regression in which the
      * average number of updates on a single item was approximately 1000 in write-heavy workloads.
@@ -471,18 +437,16 @@ __wt_update_obsolete_check(
         __wt_evict_page_soon(session, cbt->ref);
     }
 
-    if (next != NULL)
-        __wt_free_update_list(session, &next);
-    else {
+    if (first != NULL && first->next != NULL)
+        __wt_free_obsolete_updates(session, page, first);
+    else if (count > 20) {
         /*
          * If the list is long, don't retry checks on this page until the transaction state has
          * moved forwards.
          */
-        if (count > 20) {
-            page->modify->obsolete_check_txn = __wt_atomic_loadv64(&txn_global->last_running);
-            if (txn_global->has_pinned_timestamp)
-                page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
-        }
+        page->modify->obsolete_check_txn = __wt_atomic_loadv64(&txn_global->last_running);
+        if (txn_global->has_pinned_timestamp)
+            page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
     }
 
     WT_PAGE_UNLOCK(session, page);

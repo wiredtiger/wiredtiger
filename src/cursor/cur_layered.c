@@ -286,7 +286,7 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
              * wasteful, but it's a corner case, it will be resolved at the next checkpoint, and it
              * keeps the code easy.
              */
-            cfg[2] = "readonly,checkpoint_use_history=false";
+            cfg[2] = "checkpoint_use_history=false";
             F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
         } else {
             WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
@@ -297,7 +297,6 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
             WT_ERR(
               __wt_buf_fmt(session, stable_uri_buf, "%s/%s", layered->stable_uri, checkpoint_name));
             stable_uri = stable_uri_buf->data;
-            cfg[2] = "readonly";
         }
     }
     ret = __wt_open_cursor(session, stable_uri, &clayered->iface, cfg, &clayered->stable_cursor);
@@ -843,7 +842,7 @@ retry:
         goto retry;
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_next);
-    /* FIXME-WT-15543: Handle the case of current_cursor being NULL */
+    /* FIXME-WT-15545: Handle the case of current_cursor being NULL */
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_next_ingest);
     else
@@ -911,7 +910,7 @@ retry:
         goto retry;
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev);
-    /* FIXME-WT-15543: Handle the case of current_cursor being NULL */
+    /* FIXME-WT-15545: Handle the case of current_cursor being NULL */
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev_ingest);
     else
@@ -1323,7 +1322,7 @@ __clayered_search(WT_CURSOR *cursor)
     ret = __clayered_lookup(session, clayered, &cursor->value);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_search);
-    /* FIXME-WT-15543: Handle the case of current_cursor being NULL */
+    /* FIXME-WT-15545: Handle the case of current_cursor being NULL */
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_ingest);
     else
@@ -1467,7 +1466,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
         *exactp = cmp;
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_near);
-    /* FIXME-WT-15543: Handle the case of current_cursor being NULL */
+    /* FIXME-WT-15545: Handle the case of current_cursor being NULL */
     if (clayered->current_cursor == clayered->ingest_cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_near_ingest);
     else

@@ -381,6 +381,7 @@ conn_stats = [
     EvictStat('eviction_server_skip_pages_retry', 'eviction server skips pages that previously failed eviction and likely will again'),
     EvictStat('eviction_server_skip_trees_eviction_disabled', 'eviction server skips trees that disable eviction'),
     EvictStat('eviction_server_skip_trees_not_useful_before', 'eviction server skips trees that were not useful before'),
+    EvictStat('eviction_server_skip_trees_read_only', 'eviction server skips trees that are read-only if it is not looking for clean pages'),
     EvictStat('eviction_server_skip_trees_stick_in_cache', 'eviction server skips trees that are configured to stick in cache'),
     EvictStat('eviction_server_skip_trees_too_many_active_walks', 'eviction server skips trees because there are too many active walks'),
     EvictStat('eviction_server_skip_unwanted_pages', 'eviction server skips pages that we do not want to evict'),
@@ -1107,6 +1108,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_app_threads_fill_ratio_50_75', 'application threads eviction requested with cache fill ratio >= 50% and < 75%'),
     CacheStat('cache_eviction_app_threads_fill_ratio_gt_75', 'application threads eviction requested with cache fill ratio >= 75%'),
     CacheStat('cache_eviction_app_threads_fill_ratio_lt_25', 'application threads eviction requested with cache fill ratio < 25%'),
+    CacheStat('cache_eviction_app_threads_skip_updates_dirty_page', 'application threads eviction skip page with updates or dirty page'),
     CacheStat('cache_eviction_blocked_checkpoint', 'checkpoint blocked page eviction'),
     CacheStat('cache_eviction_blocked_checkpoint_hs', 'checkpoint of history store file blocked non-history store page eviction'),
     CacheStat('cache_eviction_blocked_disagg_dirty_internal_page', 'dirty internal page cannot be evicted in disaggregated storage'),
@@ -1172,6 +1174,7 @@ conn_dsrc_stats = [
     CacheStat('cache_hs_write_squash', 'history store table writes requiring squashed modifies'),
     CacheStat('cache_inmem_split', 'in-memory page splits'),
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
+    CacheStat('cache_obsolete_updates_removed', 'obsolete updates removed'),
     CacheStat('cache_pages_prefetch', 'pages requested from the cache due to pre-fetch'),
     CacheStat('cache_pages_requested', 'pages requested from the cache'),
     CacheStat('cache_pages_requested_internal', 'pages requested from the cache internal'),
@@ -1192,7 +1195,8 @@ conn_dsrc_stats = [
     CacheStat('cache_scrub_restore', 'reconciled pages scrubbed and added back to the cache clean'),
     CacheStat('cache_write', 'pages written from cache'),
     CacheStat('cache_write_hs', 'page written requiring history store records'),
-    CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
+    CacheStat('cache_write_restore_invisible', 'pages written requiring in-memory restoration due to invisible updates'),
+    CacheStat('cache_write_restore_scrub', 'pages written requiring in-memory restoration due to scrub eviction'),
 
     ##########################################
     # Checkpoint statistics

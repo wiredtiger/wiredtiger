@@ -513,6 +513,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_app_threads_fill_ratio_25_50;
     int64_t cache_eviction_app_threads_fill_ratio_50_75;
     int64_t cache_eviction_app_threads_fill_ratio_gt_75;
+    int64_t cache_eviction_app_threads_skip_updates_dirty_page;
     int64_t cache_read_app_count;
     int64_t cache_read_app_time;
     int64_t cache_write_app_count;
@@ -558,6 +559,7 @@ struct __wt_connection_stats {
     int64_t eviction_server_skip_trees_too_many_active_walks;
     int64_t eviction_server_skip_checkpointing_trees;
     int64_t eviction_server_skip_trees_stick_in_cache;
+    int64_t eviction_server_skip_trees_read_only;
     int64_t eviction_server_skip_trees_eviction_disabled;
     int64_t eviction_server_skip_trees_not_useful_before;
     int64_t eviction_server_slept;
@@ -656,6 +658,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_trigger_dirty_reached;
     int64_t cache_eviction_trigger_reached;
     int64_t cache_eviction_trigger_updates_reached;
+    int64_t cache_obsolete_updates_removed;
     int64_t eviction_timed_out_ops;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
@@ -692,7 +695,8 @@ struct __wt_connection_stats {
     int64_t eviction_fail_checkpoint_no_ts;
     int64_t eviction_walk;
     int64_t cache_write;
-    int64_t cache_write_restore;
+    int64_t cache_write_restore_invisible;
+    int64_t cache_write_restore_scrub;
     int64_t cache_overhead;
     int64_t cache_eviction_blocked_precise_checkpoint;
     int64_t cache_evict_split_failed_lock;
@@ -1388,6 +1392,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_app_threads_fill_ratio_25_50;
     int64_t cache_eviction_app_threads_fill_ratio_50_75;
     int64_t cache_eviction_app_threads_fill_ratio_gt_75;
+    int64_t cache_eviction_app_threads_skip_updates_dirty_page;
     int64_t cache_bytes_inuse;
     int64_t cache_bytes_dirty_total;
     int64_t cache_bytes_read;
@@ -1450,6 +1455,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_trigger_dirty_reached;
     int64_t cache_eviction_trigger_reached;
     int64_t cache_eviction_trigger_updates_reached;
+    int64_t cache_obsolete_updates_removed;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
     int64_t cache_eviction_blocked_materialization;
@@ -1468,7 +1474,8 @@ struct __wt_dsrc_stats {
     int64_t cache_pages_requested_leaf;
     int64_t cache_eviction_pages_seen;
     int64_t cache_write;
-    int64_t cache_write_restore;
+    int64_t cache_write_restore_invisible;
+    int64_t cache_write_restore_scrub;
     int64_t cache_eviction_blocked_precise_checkpoint;
     int64_t cache_evict_split_failed_lock;
     int64_t cache_eviction_blocked_recently_modified;

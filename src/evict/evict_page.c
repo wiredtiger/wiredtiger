@@ -702,7 +702,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /* The checkpoint cursor dhandle is read-only. Do not mark these pages as dirty. */
-    if (WT_READING_CHECKPOINT(session))
+    if (F_ISSET(btree, WT_BTREE_READONLY))
         return (0);
 
     /*
@@ -725,7 +725,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /* Don't add more cache pressure. */
-    if (__wt_evict_needed(session, false, false, NULL) || __wt_evict_cache_stuck(session))
+    if (__wt_evict_needed(session, false, false, false, NULL) || __wt_evict_cache_stuck(session))
         return (0);
 
     /*
