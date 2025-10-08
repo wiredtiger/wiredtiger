@@ -29,7 +29,7 @@
 import random, string
 import wiredtiger, wttest
 
-from modify_utils import mkstring
+from modify_utils import create_mods, mkstring
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -40,11 +40,6 @@ class test_layered_modify01(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'disaggregated=(page_log=palm),page_delta=(delta_pct=100),'
     disagg_storages = gen_disagg_storages('test_layered_modify01', disagg_only=True)
     uri = 'layered:test_calc_modify01'
-
-    # operation types
-    ADD = 1
-    REMOVE = 2
-    REPLACE = 3
 
     valuefmt = [
         ('item', dict(valuefmt='u')),
@@ -108,6 +103,8 @@ class test_layered_modify01(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(c[k], newv)
 
     def test_layered_modify(self):
+        # r = random.Random(42)
+
         self.session.create(self.uri, 'key_format=i,value_format=' + self.valuefmt)
 
         if self.mode == 'follower':
@@ -120,4 +117,14 @@ class test_layered_modify01(wttest.WiredTigerTestCase, DisaggConfigMixin):
             nmods = r.randint(1, 10)
             maxdiff = r.randint(64, size // 10)
             self.pr("size %s, repeats %s, nmods %s, maxdiff %s" % (size, repeats, nmods, maxdiff))
-            self.one_test(c, k, size, repeats, nmods, maxdiff)
+            (oldv, mods, newv) = create_mods(r, size, repeats, nmods, maxdiff, self.valuefmt)
+
+            self.assertIsNotNone(mods)
+
+            c[k] = oldv
+            self.session.begin_transaction()
+            c.set_key(k)
+            c.modify(mods)
+            self.session.commit_transaction()
+            self.assertEqual(c[k], newv)
+            # self.one_test(c, k, size, repeats, nmods, maxdiff)
