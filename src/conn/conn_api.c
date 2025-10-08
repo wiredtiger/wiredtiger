@@ -592,6 +592,7 @@ __conn_get_page_log(WT_CONNECTION *wt_conn, const char *name, WT_PAGE_LOG **page
     TAILQ_FOREACH (npage_log, &conn->pagelogqh, q)
         if (WT_STREQ(npage_log->name, name)) {
             page_log = npage_log->page_log;
+            WT_RET(page_log->pl_add_reference(page_log));
             *page_logp = page_log;
             ret = 0;
             break;

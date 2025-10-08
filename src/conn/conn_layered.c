@@ -53,7 +53,7 @@ __layered_get_disagg_checkpoint(WT_SESSION_IMPL *session, const char **cfg,
     WT_ERR_NOTFOUND_OK(ret, true);
 
 err:
-    if (ret != 0 && ret != WT_NOTFOUND && page_log != NULL)
+    if (page_log != NULL)
         WT_TRET(page_log->terminate(page_log, &session->iface)); /* dereference */
     __wt_free(session, page_log_name);
     return (ret);
