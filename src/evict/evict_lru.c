@@ -2636,7 +2636,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
          * statistic here during the walk and not at __evict_page because the evict_pass_gen is
          * reset here.
          */
-        if (__wt_atomic_load64(&evict->evict_pass_gen) == 0) {
+        if (page->evict_pass_gen == 0) {
             const uint64_t gen_gap =
               __wt_atomic_load64(&evict->evict_pass_gen) - page->cache_create_gen;
             if (gen_gap > __wt_atomic_load64(&evict->evict_max_unvisited_gen_gap))
