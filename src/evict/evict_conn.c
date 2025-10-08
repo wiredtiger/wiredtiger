@@ -240,9 +240,9 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_RET(__wt_config_gets(session, cfg, "cache_stuck_timeout_ms", &cval));
     evict->cache_stuck_timeout_ms = (uint64_t)cval.val;
 
-    WT_RET(__wt_config_gets(session, cfg, "eviction.scrub_evict_under_target_limit", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "eviction.prefer_scrub_eviction", &cval));
     if (cval.val != 0)
-        F_SET_ATOMIC_16(&(cache->cache_eviction_controls), WT_CACHE_EVICT_SCRUB_UNDER_TARGET);
+        F_SET_ATOMIC_16(&(cache->cache_eviction_controls), WT_CACHE_PREFER_SCRUB_EVICTION);
 
     /*
      * Resize the thread group if reconfiguring, otherwise the thread group will be initialized as

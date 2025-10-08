@@ -239,6 +239,7 @@
 #define WT_CONF_ID_pinned 181ULL
 #define WT_CONF_ID_prealloc 236ULL
 #define WT_CONF_ID_prealloc_init_count 237ULL
+#define WT_CONF_ID_prefer_scrub_eviction 210ULL
 #define WT_CONF_ID_prefix_compression 42ULL
 #define WT_CONF_ID_prefix_compression_min 43ULL
 #define WT_CONF_ID_prefix_search 75ULL
@@ -271,7 +272,6 @@
 #define WT_CONF_ID_rollback_error 195ULL
 #define WT_CONF_ID_run_once 84ULL
 #define WT_CONF_ID_salvage 298ULL
-#define WT_CONF_ID_scrub_evict_under_target_limit 210ULL
 #define WT_CONF_ID_secretkey 280ULL
 #define WT_CONF_ID_session_max 299ULL
 #define WT_CONF_ID_session_scratch_max 300ULL
@@ -417,7 +417,7 @@ static const struct {
         uint64_t evict_sample_inmem;
         uint64_t evict_use_softptr;
         uint64_t legacy_page_visit_strategy;
-        uint64_t scrub_evict_under_target_limit;
+        uint64_t prefer_scrub_eviction;
         uint64_t threads_max;
         uint64_t threads_min;
     } Eviction;
@@ -780,7 +780,7 @@ static const struct {
     WT_CONF_ID_Eviction | (WT_CONF_ID_evict_sample_inmem << 16),
     WT_CONF_ID_Eviction | (WT_CONF_ID_evict_use_softptr << 16),
     WT_CONF_ID_Eviction | (WT_CONF_ID_legacy_page_visit_strategy << 16),
-    WT_CONF_ID_Eviction | (WT_CONF_ID_scrub_evict_under_target_limit << 16),
+    WT_CONF_ID_Eviction | (WT_CONF_ID_prefer_scrub_eviction << 16),
     WT_CONF_ID_Eviction | (WT_CONF_ID_threads_max << 16),
     WT_CONF_ID_Eviction | (WT_CONF_ID_threads_min << 16),
   },
