@@ -2296,11 +2296,11 @@ struct __wt_connection {
      * for eviction.  Using this option is highly discouraged as it will re-introduce the bug
      * described in WT-9121., a boolean flag; default \c false.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-     * scrub_evict_under_target_limit, Change the eviction strategy to scrub eviction when the cache
-     * usage is under half way between the target limit to the trigger limit., a boolean flag;
-     * default \c false.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;skip_update_obsolete_check, Skip checking
-     * for obsolete updates whenever an update operation is performed., a boolean flag; default \c
+     * prefer_scrub_eviction, Change the eviction strategy to scrub eviction when the cache usage is
+     * under half way between the target limit to the trigger limit., a boolean flag; default \c
+     * false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;skip_update_obsolete_check, Skip checking for
+     * obsolete updates whenever an update operation is performed., a boolean flag; default \c
      * false.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number of threads WiredTiger
      * will start to help evict pages from cache.  The number of threads started will vary depending
@@ -3215,11 +3215,10 @@ struct __wt_connection {
  * eviction.  Using this option is highly discouraged as it will re-introduce the bug described in
  * WT-9121., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * scrub_evict_under_target_limit, Change the eviction strategy to scrub eviction when the cache
- * usage is under half way between the target limit to the trigger limit., a boolean flag; default
- * \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;skip_update_obsolete_check, Skip checking for obsolete
- * updates whenever an update operation is performed., a boolean flag; default \c false.}
+ * prefer_scrub_eviction, Change the eviction strategy to scrub eviction when the cache usage is
+ * under half way between the target limit to the trigger limit., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;skip_update_obsolete_check, Skip checking for obsolete updates
+ * whenever an update operation is performed., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number of threads WiredTiger will start to
  * help evict pages from cache.  The number of threads started will vary depending on the current
  * eviction load.  Each eviction worker thread uses a session from the configured session_max., an
