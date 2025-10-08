@@ -104,6 +104,6 @@ class test_layered56(wttest.WiredTigerTestCase, DisaggConfigMixin):
             # We created one delta.
             self.assertEqual(self.get_stat(stat.dsrc.rec_page_delta_leaf, self.uri), 1)
 
-            # Reopen the connection and valid a page split has not happened.
+            # Reopen the connection and validate that a page split did not occur.
             self.reopen_conn()
             self.assertEqual(self.get_stat(stat.dsrc.btree_row_leaf, self.uri), 1)
