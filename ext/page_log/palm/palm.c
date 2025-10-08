@@ -1241,7 +1241,7 @@ palm_terminate(WT_PAGE_LOG *storage, WT_SESSION *session)
     ret = 0;
     palm = (PALM *)storage;
 
-    uint32_t new_ref_count = __wt_atomic_add32(&palm->reference_count, (uint32_t)-1);
+    uint32_t new_ref_count = __wt_atomic_sub32(&palm->reference_count, 1);
     if (new_ref_count != 0)
         return (0);
 
