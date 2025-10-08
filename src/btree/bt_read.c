@@ -242,7 +242,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         deltas = NULL;
 
     /* Build a full disk image of the page after reading from disk. */
-    if (count > 1) {
+    if (/* DISABLES CODE */ (0) && count > 1) {
         ret = __wti_build_full_disk_image_on_read(session, ref, deltas, count - 1);
         for (i = 0; i < count - 1; ++i)
             __wt_buf_free(session, &deltas[i]);
