@@ -1576,6 +1576,8 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
                 __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
                 WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format,
                   recno, cbt->upd_value, &cbt->upd_value->buf));
+                if (cbt->upd_value->type == WT_UPDATE_INVALID)
+                    return (0);
                 return (0);
             }
         }
@@ -1608,7 +1610,8 @@ static WT_INLINE int
 __wt_txn_read_upd_list(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE *upd)
 {
-    return (__wt_txn_read_upd_list_internal(session, cbt, key, recno, upd, NULL, NULL));
+    WT_RET_NOTFOUND_OK(__wt_txn_read_upd_list_internal(session, cbt, key, recno, upd, NULL, NULL));
+    return (0);
 }
 
 /*
