@@ -31,8 +31,6 @@ from wiredtiger import stat
 
 # Test that cache eviction controls can be reconfigured dynamically
 # and that WT_CACHE_EVICT_SCRUB_UNDER_TARGET behaves correctly.
-# FIXME-WT-14684
-@wttest.skip_for_hook("disagg", "Fails with PALM mapsize limit reached")
 class test_cache_evict_config02(wttest.WiredTigerTestCase):
     conn_config = "cache_size=5MB,statistics=(all),cache_eviction_controls=[scrub_evict_under_target_limit=false]"
     uri = "table:eviction02"
@@ -49,7 +47,7 @@ class test_cache_evict_config02(wttest.WiredTigerTestCase):
 
         # Baseline eviction stats before enabling scrub
         stat_cursor = self.session.open_cursor("statistics:")
-        pages_scrubbed_baseline = stat_cursor[stat.conn.cache_write_restore][2]
+        pages_scrubbed_baseline = stat_cursor[stat.conn.cache_write_restore_scrub][2]
         stat_cursor.close()
 
         # Enable scrub_evict_under_target_limit flag
@@ -64,7 +62,7 @@ class test_cache_evict_config02(wttest.WiredTigerTestCase):
 
         # Check eviction stats after enabling scrub
         stat_cursor = self.session.open_cursor("statistics:")
-        pages_scrubbed_with_flag = stat_cursor[stat.conn.cache_write_restore][2]
+        pages_scrubbed_with_flag = stat_cursor[stat.conn.cache_write_restore_scrub][2]
         stat_cursor.close()
 
         # Check that by enabling scrub-under-target flag, more pages were scrub evicted

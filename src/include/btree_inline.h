@@ -147,17 +147,13 @@ __wt_page_is_reconciling(WT_PAGE *page)
  *     Helper function to free a block from the current tree.
  */
 static WT_INLINE int
-__wt_btree_block_free(
-  WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool page_replacement)
+__wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
     WT_BM *bm;
     WT_BTREE *btree;
 
     btree = S2BT(session);
     bm = btree->bm;
-
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && page_replacement)
-        return (0);
 
     return (bm->free(bm, session, addr, addr_size));
 }
@@ -255,7 +251,7 @@ __wt_btree_dirty_leaf_inuse(WT_SESSION_IMPL *session)
 
 /*
  * __wt_btree_bytes_updates --
- *     Return the number of bytes in use by dirty leaf pages.
+ *     Return the number of bytes used by updates on pages.
  */
 static WT_INLINE uint64_t
 __wt_btree_bytes_updates(WT_SESSION_IMPL *session)
@@ -728,6 +724,9 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_ASSERT_ALWAYS(session, !F_ISSET(page->modify, WT_PAGE_MODIFY_EXCLUSIVE),
       "Illegal attempt to modify a page that is being exclusively reconciled");
 
+    if (F_ISSET(S2BT(session), WT_BTREE_READONLY))
+        return;
+
     last_running = 0;
     if (__wt_atomic_load32(&page->modify->page_state) == WT_PAGE_CLEAN)
         last_running = __wt_atomic_loadv64(&S2C(session)->txn_global.last_running);
@@ -774,6 +773,9 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 static WT_INLINE void
 __wt_tree_modify_set(WT_SESSION_IMPL *session)
 {
+    if (F_ISSET(S2BT(session), WT_BTREE_READONLY))
+        return;
+
     /*
      * Test before setting the dirty flag, it's a hot cache line.
      *
@@ -793,6 +795,7 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
          * whenever a btree is checkpointed.
          */
         if (WT_SESSION_BTREE_SYNC(session) && !WT_IS_METADATA(session->dhandle) &&
+          !WT_IS_DISAGG_META(session->dhandle) &&
           !FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE)) {
             WT_ASSERT_ALWAYS(session, !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE), "%s",
               "A btree is marked dirty during RTS");
@@ -897,6 +900,9 @@ static WT_INLINE int
 __wt_page_parent_modify_set(WT_SESSION_IMPL *session, WT_REF *ref, bool page_only)
 {
     WT_PAGE *parent;
+
+    if (F_ISSET(S2BT(session), WT_BTREE_READONLY))
+        return (0);
 
     /*
      * This function exists as a place to stash this comment. There are a few places where we need
@@ -1644,10 +1650,13 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool page_replacement
     if (!__wt_ref_addr_copy(session, ref, &addr))
         goto err;
 
-    WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size, page_replacement));
-
-    if (!page_replacement && ref->page != NULL && ref->page->disagg_info != NULL)
-        ref->page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+    if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+        WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
+    else if (!page_replacement) {
+        WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
+        if (ref->page != NULL)
+            ref->page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+    }
 
     /* Clear the address (so we don't free it twice). */
     __wt_ref_addr_free(session, ref);
@@ -2446,15 +2455,16 @@ __wt_btcur_skip_page(
 
         /*
          * Otherwise, check the timestamp information. We base this decision on the aggregate stop
-         * point added to the page during the last reconciliation.
+         * point added to the page during the last reconciliation. Never skip a page with prepared
+         * transaction data.
          */
-        if (WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) &&
+        if (WT_TIME_AGGREGATE_HAS_STOP(&addr.ta) && !addr.ta.prepare &&
           __wt_txn_snap_min_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts,
             addr.ta.newest_stop_durable_ts)) {
             *skipp = true;
             walk_skip_stats->total_del_pages_skipped++;
         }
-    } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) &&
+    } else if (clean_page && __wt_get_page_modify_ta(session, ref->page, &ta) && !ta->prepare &&
       __wt_txn_snap_min_visible(
         session, ta->newest_stop_txn, ta->newest_stop_ts, ta->newest_stop_durable_ts)) {
         /*

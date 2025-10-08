@@ -171,11 +171,11 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
     "control all dirty page evictions through forcing update restore eviction", C_BOOL, 2, 0, 0,
     V_GLOBAL_DEBUG_UPDATE_RESTORE_EVICT},
 
-  {"disagg.page_log", "configure page log for disaggregated storage (off | palm)",
-    C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_DISAGG_PAGE_LOG},
+  {"disagg.internal_page_delta", "writing deltas for internal pages", C_BOOL, 95, 0, 0,
+    V_GLOBAL_DISAGG_INTERNAL_PAGE_DELTA},
 
-  {"disagg.mode", "configure mode for disaggregated storage (follower | leader | switch)",
-    C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_DISAGG_MODE},
+  {"disagg.leaf_page_delta", "writing deltas for leaf pages", C_BOOL, 95, 0, 0,
+    V_GLOBAL_DISAGG_LEAF_PAGE_DELTA},
 
   {"disagg.multi", "configure multiple nodes for disaggregated storage", C_IGNORE | C_BOOL, 0, 0, 0,
     V_GLOBAL_DISAGG_MULTI},
@@ -185,6 +185,15 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"disagg.layered", "use layered URI for any disaggregated tables", C_BOOL, 100, 1, 0,
     V_GLOBAL_DISAGG_LAYERED},
+
+  {"disagg.mode", "configure mode for disaggregated storage (follower | leader | switch)",
+    C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_DISAGG_MODE},
+
+  {"disagg.page_log", "configure page log for disaggregated storage (off | palm | palite)",
+    C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_DISAGG_PAGE_LOG},
+
+  {"disagg.page_log.verbose", "set page log verbosity (default=WT_VERBOSE_INFO)", C_IGNORE, 0, 0,
+    WT_VERBOSE_DEBUG_5, V_GLOBAL_DISAGG_PAGE_LOG_VERBOSE},
 
   {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)",
     C_IGNORE | C_STRING | C_TABLE, 0, 0, 0, V_TABLE_DISK_CHECKSUM},
@@ -250,7 +259,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"obsolete_cleanup.method", "obsolete cleanup strategy", C_IGNORE | C_STRING, 0, 0, 0,
     V_GLOBAL_OBSOLETE_CLEANUP_METHOD},
 
-  {"obsolete_cleanup.wait", "obsolete cleanup interval in seconds", 0x0, 1, 3600, 100000,
+  {"obsolete_cleanup.wait", "obsolete cleanup interval in seconds", 0x0, 0, 3600, 100000,
     V_GLOBAL_OBSOLETE_CLEANUP_WAIT},
 
   {"ops.alter", "configure table alterations", C_BOOL, 10, 0, 0, V_GLOBAL_OPS_ALTER},
@@ -369,6 +378,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"stress.failpoint_hs_delete_key_from_ts", "stress failpoint history store delete key from ts",
     C_BOOL, 30, 0, 0, V_GLOBAL_STRESS_FAILPOINT_HS_DELETE_KEY_FROM_TS},
+
+  {"stress.failpoint_rec_before_wrapup", "stress failpoint reconciliation before wrapup", C_BOOL, 1,
+    0, 0, V_GLOBAL_STRESS_FAILPOINT_REC_BEFORE_WRAPUP},
 
   {"stress.hs_checkpoint_delay", "stress history store checkpoint delay", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_HS_CHECKPOINT_DELAY},

@@ -413,8 +413,8 @@ __wti_evict_dirty_target(WT_EVICT *evict)
 {
     double dirty_target, scrub_target;
 
-    dirty_target = __wt_read_shared_double(&evict->eviction_dirty_target);
-    scrub_target = __wt_read_shared_double(&evict->eviction_scrub_target);
+    dirty_target = __wt_atomic_load_double(&evict->eviction_dirty_target);
+    scrub_target = __wt_atomic_load_double(&evict->eviction_scrub_target);
 
     return (scrub_target > 0 && scrub_target < dirty_target ? scrub_target : dirty_target);
 }
@@ -438,6 +438,7 @@ static WT_INLINE bool
 __wt_evict_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 {
     uint64_t bytes_dirty, bytes_max;
+    double dirty_trigger = __wt_atomic_load_double(&S2C(session)->evict->eviction_dirty_trigger);
 
     /*
      * Avoid division by zero if the cache size has not yet been set in a shared cache.
@@ -448,8 +449,7 @@ __wt_evict_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
     if (pct_fullp != NULL)
         *pct_fullp = (100.0 * bytes_dirty) / bytes_max;
 
-    return (
-      bytes_dirty > (uint64_t)(S2C(session)->evict->eviction_dirty_trigger * bytes_max) / 100);
+    return (bytes_dirty > (uint64_t)(dirty_trigger * bytes_max) / 100);
 }
 
 /* !!!
@@ -505,39 +505,79 @@ __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
  *     thresholds.
  */
 static WT_INLINE bool
-__wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pct_fullp)
+__wt_evict_needed(
+  WT_SESSION_IMPL *session, bool busy, bool readonly, bool ignore_updates_dirty, double *pct_fullp)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
-    double pct_dirty, pct_full, pct_updates;
+    double pct_dirty, pct_full, pct_updates, dirty_trigger;
     bool clean_needed, dirty_needed, updates_needed;
 
-    evict = S2C(session)->evict;
+    conn = S2C(session);
+    evict = conn->evict;
 
     /*
      * If the connection is closing we do not need eviction from an application thread. The eviction
      * subsystem is already closed.
      */
-    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING))
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING))
         return (false);
 
     clean_needed = __wt_evict_clean_needed(session, &pct_full);
+
+    /*
+     * We must check if application threads are allowed to participate in eviction based on the
+     * minimum cache fill ratio that is configured. A clean eviction is required only when the
+     * minimum cache fill ratio is set to a value higher than the eviction trigger. This means we
+     * should check for the scenario where a clean eviction is not required.
+     */
+    if (!clean_needed) {
+        uint8_t min_cache_fill_ratio = __wt_atomic_load8(
+          &conn->cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio);
+        if (min_cache_fill_ratio > 0 && pct_full < min_cache_fill_ratio)
+            return (false);
+    }
+
     if (readonly) {
         dirty_needed = updates_needed = false;
         pct_dirty = pct_updates = 0.0;
     } else {
         dirty_needed = __wt_evict_dirty_needed(session, &pct_dirty);
         updates_needed = __wti_evict_updates_needed(session, &pct_updates);
+
+        /*
+         * Temporary solution to not do updates and dirty eviction using application threads. Log an
+         * error and log an error if the cache is full of updates or dirty pages.
+         */
+        if (ignore_updates_dirty && __wt_conn_is_disagg(session) &&
+          !conn->layered_table_manager.leader) {
+            double cache_full = (evict->eviction_target + evict->eviction_trigger) / 2;
+            if (pct_updates > cache_full)
+                __wt_verbose_warning(
+                  session, WT_VERB_EVICTION, "cache is full of updates: %f percent", pct_updates);
+
+            if (pct_dirty > cache_full)
+                __wt_verbose_warning(
+                  session, WT_VERB_EVICTION, "cache is full of dirty pages: %f percent", pct_dirty);
+
+            if (dirty_needed || updates_needed)
+                WT_STAT_CONN_DSRC_INCR(session, cache_eviction_app_threads_skip_updates_dirty_page);
+
+            if (pct_fullp != NULL)
+                *pct_fullp = 100.0 - (evict->eviction_trigger - pct_full);
+            return (clean_needed);
+        }
     }
 
     /*
      * Calculate the cache full percentage; anything over the trigger means we involve the
      * application thread.
      */
+    dirty_trigger = __wt_atomic_load_double(&evict->eviction_dirty_trigger);
     if (pct_fullp != NULL)
         *pct_fullp = WT_MAX(0.0,
           100.0 -
-            WT_MIN(
-              WT_MIN(evict->eviction_trigger - pct_full, evict->eviction_dirty_trigger - pct_dirty),
+            WT_MIN(WT_MIN(evict->eviction_trigger - pct_full, dirty_trigger - pct_dirty),
               evict->eviction_updates_trigger - pct_updates));
 
     /*
@@ -570,8 +610,8 @@ __wt_evict_favor_clearing_dirty_cache(WT_SESSION_IMPL *session)
      * Ramp the eviction dirty target down to encourage eviction threads to clear dirty content out
      * of cache.
      */
-    __wt_set_shared_double(&evict->eviction_dirty_trigger, 1.0);
-    __wt_set_shared_double(&evict->eviction_dirty_target, 0.1);
+    __wt_atomic_store_double(&evict->eviction_dirty_trigger, 1.0);
+    __wt_atomic_store_double(&evict->eviction_dirty_target, 0.1);
 }
 
 /*
@@ -611,6 +651,114 @@ __evict_check_user_ok_with_eviction(WT_SESSION_IMPL *session, bool interruptible
         return (false);
     }
 
+    return (true);
+}
+
+/* !!!
+ * __evict_is_session_cache_trigger_tolerant --
+ *     Check if the session is cache tolerant for the configured trigger values. If tolerant,
+ *     session will not perform eviction.
+ *
+ * Cache tolerance is cache's ability to let application threads perform workload operations above
+ *     trigger levels. Cache tolerance is applicable only for dirty_trigger and updates_trigger.
+ *     Cache tolerance is expressed in % with respect to the trigger level. If cache tolerance is
+ *     configured as 20%, and dirty trigger is 20%, then application threads will be incrementally
+ *     involve in eviction as dirty content increases from 20% - 24%.
+ *
+ * All the application threads will perform eviction only when the dirty content reaches 24% of
+ *     cache.
+ *
+ * Based on the % of cache usage above trigger level with respect to tolerance level,
+ *     incrementally involve the app threads for eviction.
+ *
+ *     Usage between 00% - 20% --> No application threads involve in eviction.
+ *     Usage between 20% - 40% --> 20% of application threads involve in eviction.
+ *     Usage between 40% - 60% --> 40% of application threads involve in eviction.
+ *     Usage between 60% - 80% --> 60% of application threads involve in eviction.
+ *     Usage between 80% - 100% --> 80% of application threads involve in eviction.
+ *     Usage >= 100%, above tolerance level --> involve all application threads.
+ */
+static WT_INLINE bool
+__evict_is_session_cache_trigger_tolerant(WT_SESSION_IMPL *session, uint8_t cache_tolerance)
+{
+    double dirty_trigger = __wt_atomic_load_double(&S2C(session)->evict->eviction_dirty_trigger);
+    uint64_t bytes_dirty_trigger = 0, bytes_max = 0;
+    uint64_t bytes_dirty = 0, bytes_dirty_tolerance = 0, bytes_over_dirty_trigger = 0;
+
+    bytes_max = S2C(session)->cache_size + 1;
+    bytes_dirty = __wt_cache_dirty_leaf_inuse(S2C(session)->cache);
+    bytes_dirty_trigger = (uint64_t)(dirty_trigger * bytes_max) / 100;
+    /*
+     * bytes_dirty_tolerance = number of bytes over the dirty trigger based on configured
+     * cache_tolerance
+     */
+    bytes_dirty_tolerance = (uint64_t)(bytes_dirty_trigger * cache_tolerance) / 100;
+
+    if (bytes_dirty > bytes_dirty_trigger) {
+        /* Dirty content is more than dirty trigger. */
+        bytes_over_dirty_trigger = bytes_dirty - bytes_dirty_trigger;
+
+        if (bytes_over_dirty_trigger > bytes_dirty_tolerance) {
+            /* More than 100% of tolerance level. 100% of the app threads are non-tolerant. */
+            return (false);
+        } else if (bytes_over_dirty_trigger * 5 > bytes_dirty_tolerance * 4) {
+            /* 80% - 100% of tolerance level. 80% of app threads are non-tolerant. */
+            if ((session->id % 5) > 0)
+                return (false);
+        } else if (bytes_over_dirty_trigger * 5 > bytes_dirty_tolerance * 3) {
+            /* 60% - 80% of tolerance level. 60% of app threads are non-tolerant. */
+            if ((session->id % 5) > 1)
+                return (false);
+        } else if (bytes_over_dirty_trigger * 5 > bytes_dirty_tolerance * 2) {
+            /* 40% - 60% of tolerance level. 40% of app threads are non-tolerant. */
+            if ((session->id % 5) > 2)
+                return (false);
+        } else if (bytes_over_dirty_trigger * 5 > bytes_dirty_tolerance * 1) {
+            /* 20% - 40% of tolerance level. 20% of app threads are non-tolerant. */
+            if ((session->id % 5) > 3)
+                return (false);
+        }
+    }
+
+    double updates_trigger =
+      __wt_atomic_load_double(&S2C(session)->evict->eviction_updates_trigger);
+    uint64_t bytes_updates_trigger = 0;
+    uint64_t bytes_updates = 0, bytes_updates_tolerance = 0, bytes_over_updates_trigger = 0;
+
+    bytes_updates = __wt_cache_bytes_updates(S2C(session)->cache);
+    bytes_updates_trigger = (uint64_t)(updates_trigger * bytes_max) / 100;
+    /*
+     * bytes_updates_tolerance = number of bytes over the update trigger based on configured
+     * cache_tolerance
+     */
+    bytes_updates_tolerance = (uint64_t)(bytes_updates_trigger * cache_tolerance) / 100;
+
+    if (bytes_updates > bytes_updates_trigger) {
+        /* Updates content is more than update trigger. */
+        bytes_over_updates_trigger = bytes_dirty - bytes_dirty_trigger;
+
+        if (bytes_over_updates_trigger > bytes_updates_tolerance) {
+            /* More than 100% of tolerance level. 100% of the app threads are non-tolerant. */
+            return (false);
+        } else if (bytes_over_updates_trigger * 5 > bytes_updates_tolerance * 4) {
+            /* 80% - 100% of tolerance level. 80% of app threads are non-tolerant. */
+            if ((session->id % 5) > 0)
+                return (false);
+        } else if (bytes_over_updates_trigger * 5 > bytes_updates_tolerance * 3) {
+            /* 60% - 80% of tolerance level. 60% of app threads are non-tolerant. */
+            if ((session->id % 5) > 1)
+                return (false);
+        } else if (bytes_over_updates_trigger * 5 > bytes_updates_tolerance * 2) {
+            /* 40% - 60% of tolerance level. 40% of app threads are non-tolerant. */
+            if ((session->id % 5) > 2)
+                return (false);
+        } else if (bytes_over_updates_trigger * 5 > bytes_updates_tolerance * 1) {
+            /* 20% - 40% of tolerance level. 20% of app threads are non-tolerant. */
+            if ((session->id % 5) > 3)
+                return (false);
+        }
+    }
+    /* session is tolerant for both the dirty trigger and update trigger. */
     return (true);
 }
 
@@ -709,7 +857,7 @@ __wt_evict_app_assist_worker_check(
 
     /* Check if eviction is needed. */
     double pct_full;
-    if (!__wt_evict_needed(session, busy, readonly, &pct_full))
+    if (!__wt_evict_needed(session, busy, readonly, true, &pct_full))
         return (0);
 
     /*
@@ -734,6 +882,18 @@ __wt_evict_app_assist_worker_check(
       !__wt_evict_clean_needed(session, &pct_full)) {
         if (pct_full <= evict->eviction_target &&
           ((__wt_atomic_load32(&evict->evict_aggressive_score)) <= (session->id % 20)))
+            return (0);
+    }
+
+    /*
+     * If the cache tolerance is configured, check if the session can be tolerant. if tolerant,
+     * don't involve in eviction.
+     */
+    if (pct_full <= evict->eviction_trigger) {
+        uint8_t cache_tolerance =
+          __wt_atomic_load8(&conn->cache->cache_eviction_controls.cache_tolerance_for_app_eviction);
+        if ((cache_tolerance != 0) &&
+          (__evict_is_session_cache_trigger_tolerant(session, cache_tolerance)))
             return (0);
     }
 

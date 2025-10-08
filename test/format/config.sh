@@ -187,15 +187,21 @@ CONFIG configuration_list[] = {
 
 {"debug.update_restore_evict", "control all dirty page evictions through forcing update restore eviction", C_BOOL, 2, 0, 0}
 
-{"disagg.page_log", "configure page log for disaggregated storage (off | palm)", C_IGNORE | C_STRING, 0, 0, 0}
+{"disagg.internal_page_delta", "writing deltas for internal pages", C_BOOL, 95, 0, 0}
 
-{"disagg.mode", "configure mode for disaggregated storage (follower | leader | switch)", C_IGNORE | C_STRING, 0, 0, 0}
+{"disagg.leaf_page_delta", "writing deltas for leaf pages", C_BOOL, 95, 0, 0}
 
 {"disagg.multi", "configure multiple nodes for disaggregated storage", C_IGNORE | C_BOOL , 0, 0, 0}
 
 {"disagg.enabled", "configure disaggregated storage", C_IGNORE | C_BOOL | C_TABLE | C_TYPE_ROW, 0, 0, 0}
 
 {"disagg.layered", "use layered URI for any disaggregated tables", C_BOOL, 100, 1, 0}
+
+{"disagg.mode", "configure mode for disaggregated storage (follower | leader | switch)", C_IGNORE | C_STRING, 0, 0, 0}
+
+{"disagg.page_log", "configure page log for disaggregated storage (off | palm | palite)", C_IGNORE | C_STRING, 0, 0, 0}
+
+{"disagg.page_log.verbose", "set page log verbosity (default=WT_VERBOSE_INFO)", C_IGNORE, 0, 0, WT_VERBOSE_DEBUG_5}
 
 {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
@@ -243,7 +249,7 @@ CONFIG configuration_list[] = {
 
 {"obsolete_cleanup.method", "obsolete cleanup strategy", C_IGNORE | C_STRING, 0, 0, 0}
 
-{"obsolete_cleanup.wait", "obsolete cleanup interval in seconds", 0x0, 1, 3600, 100000}
+{"obsolete_cleanup.wait", "obsolete cleanup interval in seconds", 0x0, 0, 3600, 100000}
 
 {"ops.alter", "configure table alterations", C_BOOL, 10, 0, 0}
 
@@ -336,6 +342,8 @@ CONFIG configuration_list[] = {
 {"stress.failpoint_eviction_split", "stress failpoint eviction split", C_BOOL, 30, 0, 0}
 
 {"stress.failpoint_hs_delete_key_from_ts", "stress failpoint history store delete key from ts", C_BOOL, 30, 0, 0}
+
+{"stress.failpoint_rec_before_wrapup", "stress failpoint reconciliation before wrapup", C_BOOL, 1, 0, 0}
 
 {"stress.hs_checkpoint_delay", "stress history store checkpoint delay", C_BOOL, 2, 0, 0}
 

@@ -434,6 +434,7 @@ UnlockFile
 Unmap
 UnmapViewOfFile
 Unmount
+Unreferenced
 Uryyb
 VARCHAR
 VLCS
@@ -1150,6 +1151,7 @@ pT
 packv
 pageref
 pagesize
+palite
 param
 pareto
 parserp

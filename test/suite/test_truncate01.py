@@ -41,7 +41,6 @@ from wtscenario import make_scenarios
 
 class test_truncate_base(wttest.WiredTigerTestCase):
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ignoreStdoutPattern('WT_VERB_RTS')
@@ -250,7 +249,6 @@ class test_truncate_empty(test_truncate_base):
 # Test truncation timestamp handling.
 class test_truncate_timestamp(test_truncate_base):
     name = 'test_truncate'
-
     scenarios = make_scenarios([
         ('file', dict(type='file:')),
         ('table', dict(type='table:')),

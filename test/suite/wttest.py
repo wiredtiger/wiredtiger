@@ -41,6 +41,9 @@ from contextlib import contextmanager
 import errno, glob, os, re, shutil, sys, threading, time, traceback, types
 import abstract_test_case, test_result, wiredtiger, wthooks, wtscenario
 
+# The pattern for ignoring file/line number messages.
+WT_ERROR_LOG_PATTERN = "WT_VERB_ERROR_RETURNS.*Error at "
+
 # Use as "with timeout(seconds): ....". Argument of 0 means no timeout,
 # and only available (with non-zero argument) on Unix systems.
 class timeout(object):
@@ -135,7 +138,8 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def globalSetup(preserveFiles = False, removeAtStart = True, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
                     longtest = False, extralongtest = False, zstdtest = False, ignoreStdout = False,
-                    seedw = 0, seedz = 0, hookmgr = None, ss_random_prefix = 0, timeout = 0):
+                    printOutput = False, seedw = 0, seedz = 0, hookmgr = None,
+                    ss_random_prefix = 0, timeout = 0):
         parentTestDir = 'WT_TEST' if dirarg == None else dirarg
         wtscenario.set_long_run(longtest)
         WiredTigerTestCase._builddir = builddir
@@ -155,7 +159,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         WiredTigerTestCase.hook_names = hookmgr.get_hook_names()
 
         WiredTigerTestCase.setupTestDir(parentTestDir, preserveFiles, removeAtStart, useTimestamp)
-        WiredTigerTestCase.setupIO('results.txt', ignoreStdout, verbose)
+        WiredTigerTestCase.setupIO('results.txt', ignoreStdout, printOutput, verbose)
         WiredTigerTestCase.setupRandom(seedw, seedz)
         WiredTigerTestCase._globalSetup = True
 
@@ -624,28 +628,40 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         return name in WiredTigerTestCase.hook_names
 
     @contextmanager
-    def expectedStdout(self, expect):
-        self.captureout.check(self)
+    def expectedStdout(self, expect, ignore_pat=None):
+        """
+        Expect the given string on stdout. If ignore_pat is set, ignore any lines that match it.
+        """
+        self.captureout.check(self, ignore_pat=ignore_pat)
         yield
         self.captureout.checkAdditional(self, expect)
 
     @contextmanager
-    def expectedStderr(self, expect):
-        self.captureerr.check(self)
+    def expectedStderr(self, expect, ignore_pat=None):
+        """
+        Expect the given string on stderr. If ignore_pat is set, ignore any lines that match it.
+        """
+        self.captureerr.check(self, ignore_pat=ignore_pat)
         yield
         self.captureerr.checkAdditional(self, expect)
 
     @contextmanager
-    def expectedStdoutPattern(self, pat, re_flags=0, maxchars=1500):
-        self.captureout.check(self)
+    def expectedStdoutPattern(self, pat, re_flags=0, maxchars=1500, ignore_pat=None):
+        """
+        Expect a pattern on stdout. If ignore_pat is set, ignore any lines that match it.
+        """
+        self.captureout.check(self, ignore_pat=ignore_pat)
         yield
-        self.captureout.checkAdditionalPattern(self, pat, re_flags, maxchars)
+        self.captureout.checkAdditionalPattern(self, pat, re_flags, maxchars, ignore_pat)
 
     @contextmanager
-    def expectedStderrPattern(self, pat, re_flags=0, maxchars=1500):
-        self.captureerr.check(self)
+    def expectedStderrPattern(self, pat, re_flags=0, maxchars=1500, ignore_pat=None):
+        """
+        Expect a pattern on stderr. If ignore_pat is set, ignore any lines that match it.
+        """
+        self.captureerr.check(self, ignore_pat=ignore_pat)
         yield
-        self.captureerr.checkAdditionalPattern(self, pat, re_flags, maxchars)
+        self.captureerr.checkAdditionalPattern(self, pat, re_flags, maxchars, ignore_pat)
 
     @contextmanager
     def customStdoutPattern(self, f):
@@ -667,6 +683,12 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         if self.captureerr.hasUnexpectedOutput(self):
             self.captureerr.checkAdditionalPattern(self, pat, re_flags)
 
+    def skipStdoutLinesWithPattern(self, pat):
+        self.captureout.skipLinesWithPattern(pat)
+
+    def skipStderrLinesWithPattern(self, pat):
+        self.captureerr.skipLinesWithPattern(pat)
+
     def assertRaisesWithMessage(self, exceptionType, expr, message):
         """
         Like TestCase.assertRaises(), but also checks to see
@@ -677,10 +699,10 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         including any trailing newlines.
         """
         if len(message) > 2 and message[0] == '/' and message[-1] == '/':
-            with self.expectedStderrPattern(message[1:-1]):
+            with self.expectedStderrPattern(message[1:-1], ignore_pat=WT_ERROR_LOG_PATTERN):
                 self.assertRaises(exceptionType, expr)
         else:
-            with self.expectedStderr(message):
+            with self.expectedStderr(message, ignore_pat=WT_ERROR_LOG_PATTERN):
                 self.assertRaises(exceptionType, expr)
 
     def assertRaisesException(self, exceptionType, expr,
@@ -707,17 +729,25 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                 fail = False
                 self.pr('Expecting string msg: ' + exceptionString)
                 if len(exceptionString) > 2 and \
-                  exceptionString[0] == '/' and exceptionString[-1] == '/' :
-                      if re.search(exceptionString[1:-1], str(err)) == None:
+                  exceptionString[0] == '/' and exceptionString[-1] == '/':
+                    if re.search(exceptionString[1:-1], str(err)) == None:
                         fail = True
+                    else:
+                        # Skip stderr lines matching the exception pattern, if it was also printed.
+                        self.skipStderrLinesWithPattern(exceptionString[1:-1])
                 elif exceptionString != str(err):
                         fail = True
+                else:
+                    # Skip stderr lines matching the exception string, if it was also printed.
+                    self.skipStderrLinesWithPattern(exceptionString)
                 if fail:
                     self.fail('Exception with incorrect string raised, got: "' + \
                         str(err) + '" Expected: ' + exceptionString)
             raised = True
         if not raised and not optional:
             self.fail('no assertion raised')
+        # Ignore file/line number messages.
+        self.skipStderrLinesWithPattern(WT_ERROR_LOG_PATTERN)
         return raised
 
     def raisesBusy(self, expr):

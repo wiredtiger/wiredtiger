@@ -594,7 +594,7 @@ err:
  */
 static int
 __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *parent, size_t *decrp,
-  uint64_t split_gen, bool exclusive)
+  uint64_t split_gen, bool exclusive, bool page_replacement)
 {
     WT_DECL_RET;
     WT_IKEY *ikey;
@@ -622,7 +622,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     __wt_free(session, ref->page_del);
 
     /* Free the backing block and address. */
-    WT_TRET(__wt_ref_block_free(session, ref, false));
+    WT_TRET(__wt_ref_block_free(session, ref, page_replacement));
 
     /*
      * We cannot discard any ref in the prefetch queue, otherwise, the prefetch thread would read
@@ -832,14 +832,14 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
      */
     if (discard) {
         WT_ASSERT(session, exclusive || WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
-        WT_TRET(
-          __split_parent_discard_ref(session, ref, parent, &parent_decr, split_gen, exclusive));
+        WT_TRET(__split_parent_discard_ref(
+          session, ref, parent, &parent_decr, split_gen, exclusive, new_entries == 1));
     }
     for (i = 0; i < deleted_entries; ++i) {
         next_ref = pindex->index[deleted_refs[i]];
         WT_ASSERT(session, WT_REF_GET_STATE(next_ref) == WT_REF_LOCKED);
         WT_TRET(__split_parent_discard_ref(
-          session, next_ref, parent, &parent_decr, split_gen, exclusive));
+          session, next_ref, parent, &parent_decr, split_gen, exclusive, false));
     }
 
     /*
@@ -1656,8 +1656,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
              * tombstone) by the page in-memory code. Discard the re-instantiated prepared updates.
              *
              * If we have instantiated a tombstone when we read the page back into memory, discard
-             * it as well. FIXME-WT-14885: no need to consider the delta case after we have
-             * implemented delta consolidation
+             * it as well. FIXME- WT-15619 and WT-15618: no need to consider the delta case after we
+             * have implemented delta consolidation
              */
             if ((F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
                   WT_TIME_WINDOW_HAS_PREPARE(&supd->tw)) ||

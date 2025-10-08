@@ -69,15 +69,17 @@
               palm_kv_err(palm, session, _ret, "%s:%d: \"%s\": failed", __FILE__, __LINE__, #r)); \
     }
 
-#define PALM_KV_ERR(palm, session, r)                                                           \
+#define PALM_KV_ERR_GOTO(palm, session, r, label)                                               \
     {                                                                                           \
         ret = (r);                                                                              \
         if (ret != 0) {                                                                         \
             ret =                                                                               \
               palm_kv_err(palm, session, ret, "%s:%d: \"%s\": failed", __FILE__, __LINE__, #r); \
-            goto err;                                                                           \
+            goto label;                                                                         \
         }                                                                                       \
     }
+
+#define PALM_KV_ERR(palm, session, r) PALM_KV_ERR_GOTO(palm, session, r, err)
 
 #define PALM_ENCRYPTION_EQUAL(e1, e2) (memcmp((e1).dek, (e2).dek, sizeof((e1).dek)) == 0)
 /*
@@ -614,6 +616,49 @@ palm_add_reference(WT_PAGE_LOG *page_log)
 }
 
 /*
+ * palm_abandon_checkpoint --
+ *     Abandon an incomplete checkpoint. This is an optional function, required only for internal
+ *     testing.
+ */
+static int
+palm_abandon_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t last_checkpoint_lsn)
+{
+    PALM *palm;
+    PALM_KV_CONTEXT context;
+    uint64_t lsn;
+    int ret;
+
+    palm = (PALM *)page_log;
+    palm_init_context(palm, &context);
+
+    PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
+    if (last_checkpoint_lsn == WT_PAGE_LOG_LSN_MAX) {
+        ret = palm_kv_get_last_checkpoint(&context, &lsn, NULL, NULL, NULL);
+        if (ret == MDB_NOTFOUND) {
+            lsn = 0;
+            ret = 0;
+        }
+        PALM_KV_ERR(palm, session, ret);
+        last_checkpoint_lsn = lsn;
+    }
+
+    PALM_VERBOSE_PRINT(
+      palm, session, "palm_abandon_checkpoint(lsn=%" PRIu64 ")\n", last_checkpoint_lsn);
+
+    PALM_KV_ERR(palm, session, palm_kv_abandon_after(&context, last_checkpoint_lsn));
+    PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
+
+    if (0) {
+err:
+        palm_kv_rollback_transaction(&context);
+        PALM_VERBOSE_PRINT(palm, session, "palm_abandon_checkpoint(lsn=%" PRIu64 ") returned %d\n",
+          last_checkpoint_lsn, ret);
+    }
+
+    return (ret);
+}
+
+/*
  * palm_begin_checkpoint --
  *     Begin a checkpoint.
  */
@@ -654,6 +699,9 @@ palm_complete_checkpoint_ext(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_
         lsn = 1;
         ret = 0;
     }
+
+    PALM_VERBOSE_PRINT(palm, session, "palm_complete_checkpoint_ext(lsn=%" PRIu64 ")\n", lsn);
+
     PALM_KV_ERR(palm, session, ret);
     PALM_KV_ERR(palm, session,
       palm_kv_put_checkpoint(&context, lsn, checkpoint_timestamp, checkpoint_metadata));
@@ -794,17 +842,21 @@ err:
 }
 
 #define PALM_VERIFY_EQUAL(a, b)                                                                   \
-    {                                                                                             \
+    do {                                                                                          \
         if ((a) != (b)) {                                                                         \
             ret = palm_kv_err(palm, session, EINVAL,                                              \
               "%s:%d: Delta chain validation failed at position %" PRIu32                         \
               ": %s != %s. Page details: table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64 \
-              ", flags=%" PRIx32 ", %s=%" PRIu64 ", %s=%" PRIu64,                                 \
+              ", flags=0x%" PRIx32 ", %s=%" PRIu64 ", %s=%" PRIu64,                               \
               __func__, __LINE__, count, #a, #b, palm_handle->table_id, page_id, matches.lsn,     \
               matches.flags, #a, (a), #b, (b));                                                   \
             goto err;                                                                             \
         }                                                                                         \
-    }
+    } while (0)
+
+#ifndef WT_DELTA_LIMIT
+#define WT_DELTA_LIMIT 32
+#endif
 
 static int
 palm_handle_verify_page(
@@ -815,13 +867,15 @@ palm_handle_verify_page(
     PALM_HANDLE *palm_handle;
     PALM_KV_PAGE_MATCHES matches;
     uint32_t count;
-    uint64_t last_base_lsn, last_lsn;
-    bool last_tombstone;
+    bool seen_tombstone = false;
     int ret;
+    struct {
+        uint64_t lsn;
+        uint64_t backlink_lsn;
+        uint64_t base_lsn;
+        uint32_t flags;
+    } matched_pages[WT_DELTA_LIMIT + 1]; /* +1 for a tombstone */
 
-    count = 0;
-    last_base_lsn = last_lsn = 0;
-    last_tombstone = false;
     palm_handle = (PALM_HANDLE *)plh;
     palm = palm_handle->palm;
 
@@ -829,31 +883,57 @@ palm_handle_verify_page(
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
     PALM_KV_ERR(palm, session,
       palm_kv_get_page_matches(&context, palm_handle->table_id, page_id, lsn, true, &matches));
-    while (palm_kv_next_page_match(&matches)) {
+    for (count = 0; palm_kv_next_page_match(&matches); count++) {
+        assert(count < sizeof(matched_pages) / sizeof(*matched_pages));
+        matched_pages[count].lsn = matches.lsn;
+        matched_pages[count].backlink_lsn = matches.backlink_lsn;
+        matched_pages[count].base_lsn = matches.base_lsn;
+        matched_pages[count].flags = matches.flags;
 
-        /* FIXME-WT-15041: Enable the following once PALM can handle abandoned checkpoints. */
-        (void)last_tombstone;
-#if 0
-        /* Only the last page in the chain can be a tombstone. */
-        PALM_VERIFY_EQUAL(last_tombstone, false);
-
-        /* Validate backlink LSN. */
-        if (count > 0)
-            PALM_VERIFY_EQUAL(matches.backlink_lsn, last_lsn);
-#endif
-
-        /* Validate base LSN. */
-        if (count == 1) {
-            PALM_VERIFY_EQUAL(matches.base_lsn, last_lsn);
-        } else if (count > 1) {
-            PALM_VERIFY_EQUAL(matches.base_lsn, last_base_lsn);
+        if (count == 0) {
+            /* For the base page, just check flags. */
+            PALM_VERIFY_EQUAL(matches.flags & (WT_PALM_KV_TOMBSTONE | WT_PAGE_LOG_DELTA), 0);
+            continue;
         }
 
-        count++;
-        last_base_lsn = matches.base_lsn;
-        last_lsn = matches.lsn;
+        /* All subsequent pages are deltas. */
+        PALM_VERIFY_EQUAL(matches.flags & WT_PAGE_LOG_DELTA, WT_PAGE_LOG_DELTA);
+
+        /* Only the last page in the chain can be a tombstone. */
+        PALM_VERIFY_EQUAL(seen_tombstone, false);
         if ((matches.flags & WT_PALM_KV_TOMBSTONE) != 0)
-            last_tombstone = true;
+            seen_tombstone = true;
+
+        /* Validate base LSN. */
+        PALM_VERIFY_EQUAL(matches.base_lsn, matched_pages[0].lsn);
+
+        /* Validate backlink LSN. */
+        if ((matches.flags & WT_PALM_KV_TOMBSTONE) == 0)
+            PALM_VERIFY_EQUAL(matches.backlink_lsn, matched_pages[count - 1].lsn);
+        else {
+            /* Tombstone can backlink to any page that we've seen in the chain. */
+            for (int i = (int)count - 1; i >= 0; i--)
+                if (matches.backlink_lsn == matched_pages[i].lsn)
+                    goto ok; /* Found it! */
+
+            ret = EINVAL;
+            /* Print a comprehensive error message. */
+            palm_kv_err(palm, session, EINVAL,
+              "%s:%d: Delta chain validation failed at position %" PRIu32
+              ". Page details: table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
+              ", flags=0x%" PRIx32 ", backlink_lsn=%" PRIu64 ". Pages on stack:",
+              __func__, __LINE__, count, palm_handle->table_id, page_id, matches.lsn, matches.flags,
+              matches.backlink_lsn);
+            for (int i = 0; i < (int)count; i++)
+                palm_kv_err(palm, session, 0,
+                  "    [%" PRIu32 "] lsn=%" PRIu64 ", backlink_lsn=%" PRIu64 ", base_lsn=%" PRIu64
+                  ", flags=0x%" PRIx32,
+                  i, matched_pages[i].lsn, matched_pages[i].backlink_lsn, matched_pages[i].base_lsn,
+                  matched_pages[i].flags);
+            goto err;
+
+ok:;
+        }
     }
     PALM_KV_ERR(palm, session, matches.error);
 
@@ -913,12 +993,13 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
 
     /* Verify the delta chain. */
     if (palm->verify)
-        PALM_KV_ERR(palm, session, palm_handle_verify_page(plh, session, page_id, lsn));
+        PALM_KV_ERR_GOTO(
+          palm, session, palm_handle_verify_page(plh, session, page_id, lsn), err_no_rollback);
 
     if (0) {
 err:
         palm_kv_rollback_transaction(&context);
-
+err_no_rollback:
         PALM_VERBOSE_PRINT(palm_handle->palm, session,
           "palm_handle_discard(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
           ", is_delta=%d) returned %d\n",
@@ -936,7 +1017,7 @@ err:
             ret = palm_kv_err(palm, session, EINVAL,                                           \
               "%s:%d: LSN arguments validation failed"                                         \
               ": %s != %s. Page details: table_id=%" PRIu64 ", page_id=%" PRIu64               \
-              ", flags=%" PRIx64 ", %s=%" PRIu64 ", %s=%" PRIu64,                              \
+              ", flags=0x%" PRIx64 ", %s=%" PRIu64 ", %s=%" PRIu64,                            \
               __func__, __LINE__, #a, #b, palm_handle->table_id, page_id, put_args->flags, #a, \
               (a), #b, (b));                                                                   \
             goto err;                                                                          \
@@ -972,11 +1053,8 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
             PALM_PUT_VERIFY_EQUAL(put_args->base_lsn, prev_full_page_lsn);
             PALM_PUT_VERIFY_EQUAL(put_args->backlink_lsn, prev_lsn);
         } else {
-            /* FIXME-WT-15041: Enable this once PALM can handle abandoned checkpoints. */
-#if 0
             PALM_PUT_VERIFY_EQUAL(put_args->base_lsn, 0);
             PALM_PUT_VERIFY_EQUAL(put_args->backlink_lsn, prev_full_page_lsn);
-#endif
         }
     }
 
@@ -1023,7 +1101,7 @@ err:
 
 static int
 palm_handle_get_page_ids(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t checkpoint_lsn,
-  uint64_t table_id, WT_ITEM *item, size_t *size)
+  WT_ITEM *item, size_t *size)
 {
     PALM_KV_CONTEXT context;
     PALM_HANDLE *palm_handle = (PALM_HANDLE *)plh;
@@ -1034,7 +1112,7 @@ palm_handle_get_page_ids(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t 
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
 
     int ret;
-    ret = palm_kv_get_page_ids(&context, item, checkpoint_lsn, table_id, size);
+    ret = palm_kv_get_page_ids(&context, item, checkpoint_lsn, palm_handle->table_id, size);
 
     palm_kv_rollback_transaction(&context);
 
@@ -1295,6 +1373,7 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
      * us to treat references to either type of structure as a reference to the other type.
      */
     palm->page_log.pl_add_reference = palm_add_reference;
+    palm->page_log.pl_abandon_checkpoint = palm_abandon_checkpoint;
     palm->page_log.pl_begin_checkpoint = palm_begin_checkpoint;
     palm->page_log.pl_complete_checkpoint = NULL;
     palm->page_log.pl_complete_checkpoint_ext = palm_complete_checkpoint_ext;

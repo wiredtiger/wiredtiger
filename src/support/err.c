@@ -11,6 +11,42 @@
 /* Define the string representation of each verbose category. */
 static const char *verbose_category_strings[] = WT_VERBOSE_CATEGORY_STR_INIT;
 
+/* Keep a log of errors for each thread. */
+#define WT_MAX_ERROR_LOG_MAX 100
+
+typedef struct __wt_error_log_entry {
+    const char *file; /* The file where the error occurred. */
+    const char *func; /* The function where the error occurred. */
+    int line;         /* The line number. */
+    const char *expr; /* The expression inside WT_ERR or WT_RET. */
+    int error;        /* The error code. */
+    int suberror;     /* The sub-error code. */
+} WT_ERROR_LOG_ENTRY;
+
+typedef struct __wt_error_log {
+
+    /*
+     * A circular buffer of error logs. No synchronization is needed because the error log is
+     * thread-local.
+     */
+    int count; /* Including messages that did not fit into the log. */
+    int head;
+    int tail;
+    WT_ERROR_LOG_ENTRY log[WT_MAX_ERROR_LOG_MAX];
+} WT_ERROR_LOG;
+
+/*
+ * Thread-local storage for the error log. We do not store the error log in the session because we
+ * want to be able to log errors in functions that do not have a session handle and in cases where
+ * the session handle is NULL. We would also like to track errors across functions that use internal
+ * sessions.
+ */
+#ifdef _WIN32
+__declspec(thread) static WT_ERROR_LOG error_log = {0};
+#else
+_Thread_local static WT_ERROR_LOG error_log = {0};
+#endif
+
 /*
  * __handle_error_default --
  *     Default WT_EVENT_HANDLER->handle_error implementation: send to stderr.
@@ -529,6 +565,9 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      */
     conn = session != NULL ? S2C(session) : NULL;
 
+    /* Dump any previous errors. */
+    __wt_error_log_to_handler(session);
+
     /*
      * Ignore error returns from underlying event handlers, we already have an error value to
      * return.
@@ -802,4 +841,147 @@ __wt_unexpected_object_type(WT_SESSION_IMPL *session, const char *uri, const cha
   WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     WT_RET_MSG(session, EINVAL, "uri %s doesn't match expected \"%s\"", uri, expect);
+}
+
+/*
+ * __wt_error_log_add --
+ *     Add an entry to the error log.
+ */
+int
+__wt_error_log_add(
+  const char *file, const char *func, int line, const char *expr, int error, int suberror)
+{
+    WT_ERROR_LOG_ENTRY *entry;
+
+    if (error == 0)
+        return (0);
+
+    entry = &error_log.log[error_log.tail];
+    entry->file = file;
+    entry->func = func;
+    entry->line = line;
+    entry->expr = expr;
+    entry->error = error;
+    entry->suberror = suberror;
+
+    error_log.count++;
+    error_log.tail = (error_log.tail + 1) % WT_MAX_ERROR_LOG_MAX;
+    if (error_log.head == error_log.tail)
+        error_log.head = (error_log.head + 1) % WT_MAX_ERROR_LOG_MAX;
+    return (error);
+}
+
+/*
+ * __wt_error_log_clear --
+ *     Clear the error log.
+ */
+void
+__wt_error_log_clear(void)
+{
+    error_log.count = 0;
+    error_log.head = error_log.tail;
+}
+
+/*
+ * __simplify_path --
+ *     Simplify a file path by removing a redundant prefix.
+ */
+static const char *
+__simplify_path(const char *path)
+{
+    const char *p;
+
+    p = strstr(path, "/src/");
+    if (p == NULL)
+        p = path;
+    else
+        p += 1; /* Skip the leading '/'. */
+
+    return (p);
+}
+
+/*
+ * __fprintf_stderr --
+ *     Print to stderr.
+ */
+static int
+__fprintf_stderr(const char *msg)
+{
+    if (fprintf(stderr, "%s", msg) < 0)
+        return (EIO);
+    if (fflush(stderr) != 0)
+        return (EIO);
+    return (0);
+}
+
+/*
+ * wiredtiger_dump_error_log --
+ *     Dump any logged error messages into the provided function, one per line.
+ */
+int
+wiredtiger_dump_error_log(int (*callback)(const char *))
+{
+    WT_DECL_RET;
+    WT_ERROR_LOG_ENTRY *entry;
+    size_t buflen;
+    int i;
+    char *buf;
+
+    if (callback == NULL)
+        callback = __fprintf_stderr;
+
+    buf = NULL;
+    buflen = 4096;
+    WT_ERR_NOLOG(__wt_calloc_def(NULL, buflen, &buf));
+
+    if (error_log.count > WT_MAX_ERROR_LOG_MAX) {
+        WT_ERR_NOLOG(__wt_snprintf(buf, buflen, "%d errors occurred, only the last %d are shown\n",
+          error_log.count, WT_MAX_ERROR_LOG_MAX));
+        WT_ERR_NOLOG(callback(buf));
+    }
+
+    for (i = error_log.head; i != error_log.tail; i = (i + 1) % WT_MAX_ERROR_LOG_MAX) {
+        entry = &error_log.log[i];
+        WT_ERR_NOLOG(__wt_snprintf(buf, buflen, "Error at %s:%d: \"%s\" failed with %s (%d)%s%s\n",
+          __simplify_path(entry->file), entry->line, entry->expr,
+          __wt_strerror(NULL, entry->error, NULL, 0), entry->error,
+          entry->suberror == WT_NONE ? "" : ", ",
+          entry->suberror == WT_NONE ? "" : __wt_strerror(NULL, entry->suberror, NULL, 0)));
+        WT_ERR_NOLOG(callback(buf));
+    }
+
+    __wt_error_log_clear(); /* Avoid double reporting the same errors. */
+
+err:
+    __wt_free(NULL, buf);
+    return (ret);
+}
+
+/*
+ * __wt_error_log_to_handler --
+ *     Print all entries from the error log to the event handler.
+ */
+void
+__wt_error_log_to_handler(WT_SESSION_IMPL *session)
+{
+    WT_ERROR_LOG_ENTRY *entry;
+    int i;
+
+    if (session == NULL) {
+        wiredtiger_dump_error_log(NULL);
+        return;
+    }
+
+    if (error_log.count > WT_MAX_ERROR_LOG_MAX)
+        __wt_verbose_warning(session, WT_VERB_ERROR_RETURNS,
+          "%d errors occurred, only the last %d are shown", error_log.count, WT_MAX_ERROR_LOG_MAX);
+    for (i = error_log.head; i != error_log.tail; i = (i + 1) % WT_MAX_ERROR_LOG_MAX) {
+        entry = &error_log.log[i];
+        __wt_err_func(session, entry->error, entry->func, entry->line, WT_VERB_ERROR_RETURNS,
+          "Error at %s:%d: \"%s\" failed%s%s", __simplify_path(entry->file), entry->line,
+          entry->expr, entry->suberror == WT_NONE ? "" : " with ",
+          entry->suberror == WT_NONE ? "" : __wt_strerror(session, entry->suberror, NULL, 0));
+    }
+
+    __wt_error_log_clear(); /* Avoid double reporting the same errors. */
 }

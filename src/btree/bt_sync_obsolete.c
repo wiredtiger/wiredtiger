@@ -422,7 +422,7 @@ __checkpoint_cleanup_page_skip(
      * and also it can dirty the already existing in-memory page in the cache, skip if eviction is
      * needed.
      */
-    if (__wt_evict_needed(session, false, false, NULL) || __wt_evict_aggressive(session) ||
+    if (__wt_evict_needed(session, false, false, false, NULL) || __wt_evict_aggressive(session) ||
       __wt_cache_full(session) || __wt_evict_cache_stuck(session)) {
         *skipp = true;
         return (0);
@@ -506,6 +506,11 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     }
 
     btree = S2BT(session);
+
+    /* Skip read-only btrees. */
+    if (F_ISSET(btree, WT_BTREE_READONLY))
+        goto err;
+
     /* There is nothing to do on an empty tree. */
     if (btree->root.page == NULL)
         goto err;
@@ -782,6 +787,10 @@ __checkpoint_cleanup(void *arg)
             break;
 
         __wt_seconds(session, &now);
+
+        /* Skip running checkpoint cleanup if we are the follower. */
+        if (__wt_conn_is_disagg(session) && !conn->layered_table_manager.leader)
+            continue;
 
         /*
          * See if it is time to checkpoint cleanup. Checkpoint cleanup is an operation that

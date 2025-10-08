@@ -311,7 +311,7 @@ main(int argc, char *argv[])
      */
     if (quiet_flag || !isatty(1))
         GV(QUIET) = 1;
-    
+
     config_random_generators(); /* Configure the random number generators. */
     if (disagg_is_mode_multi()) {
         testutil_assert((pid = fork()) >= 0);
@@ -379,6 +379,7 @@ main(int argc, char *argv[])
         follower_setup(&follower_tid);
     }
 
+    wts_prepare_discover(g.wts_conn);
     locks_init(g.wts_conn);
 
     /*
@@ -442,7 +443,7 @@ skip_operations:
      */
     if (!verify_only)
         TIMED_MAJOR_OP(wts_verify(g.wts_conn, true));
-if (disagg_is_mode_multi() && !g.disagg_leader) {
+    if (disagg_is_mode_multi() && !g.disagg_leader) {
         testutil_assert(pid == 0);
         follower_shutdown(&follower_tid);
     }
