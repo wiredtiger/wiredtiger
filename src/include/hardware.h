@@ -202,3 +202,14 @@
     char __padding[WT_CACHE_LINE_ALIGNMENT]; \
     }                                        \
     ;
+
+/*
+ * This section was created for functions that should be used for fine-grained TSAN warnings
+ * suppression. Since TSAN supports only suppressions on functions level, but one function could
+ * contain multiple unrelated warnings, it is preferable to use one of the following functions
+ * (or create a new one) to suppress them.
+ */
+
+static inline uint32_t __wt_tsan_suppress_load_uint32(uint32_t *var) {
+    return (*var);
+}
