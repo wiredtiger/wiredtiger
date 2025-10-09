@@ -830,7 +830,7 @@ __wt_evict_app_assist_worker_check(
      * If the cache tolerance is configured, check if the session can be tolerant. if tolerant,
      * don't involve in eviction.
      */
-     WT_EVICT *evict = conn->evict;
+    WT_EVICT *evict = conn->evict;
     if (pct_full <= evict->eviction_trigger) {
         uint8_t cache_tolerance =
           __wt_atomic_load8(&conn->cache->cache_eviction_controls.cache_tolerance_for_app_eviction);
