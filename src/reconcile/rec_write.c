@@ -2269,7 +2269,7 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
     WT_DECL_ITEM(custom_value);
     WT_DECL_RET;
     WT_ITEM *key, value;
-    size_t size;
+    size_t custom_value_size, new_size;
     uint8_t flags, *p;
     bool ovfl_key;
 
@@ -2313,9 +2313,10 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
     }
 
     /* Pack the flags and delta value into a custom value. */
-    WT_ERR(__wt_struct_size(session, &size, WT_DELTA_LEAF_VALUE_FORMAT, &value, flags));
-    WT_ERR(__wt_scr_alloc(session, size, &custom_value));
-    custom_value->size = size;
+    WT_ERR(
+      __wt_struct_size(session, &custom_value_size, WT_DELTA_LEAF_VALUE_FORMAT, &value, flags));
+    WT_ERR(__wt_scr_alloc(session, custom_value_size, &custom_value));
+    custom_value->size = custom_value_size;
     WT_ERR(__wt_struct_pack(session, (void *)custom_value->data, custom_value->size,
       WT_DELTA_LEAF_VALUE_FORMAT, &value, flags));
 
@@ -2323,15 +2324,15 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
     WT_ERR(
       __wti_rec_cell_build_val(session, r, custom_value->data, custom_value->size, &supd->tw, 0));
 
-    size_t size = r->delta.size + r->k.len + r->v.len;
-    if (size > r->delta.memsize)
-        WT_ERR(__wt_buf_grow(session, &r->delta, size));
+    new_size = r->delta.size + r->k.len + r->v.len;
+    if (new_size > r->delta.memsize)
+        WT_ERR(__wt_buf_grow(session, &r->delta, new_size));
 
     p = (uint8_t *)r->delta.data + r->delta.size;
     __wti_rec_kv_copy(session, p, &r->k);
     p += r->k.len;
     __wti_rec_kv_copy(session, p, &r->v);
-    r->delta.size = size;
+    r->delta.size = new_size;
 
 err:
     __wt_scr_free(session, &key);
