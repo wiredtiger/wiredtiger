@@ -2305,7 +2305,7 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
           supd->onpage_tombstone != NULL &&
             __wt_txn_upd_visible_all(session, supd->onpage_tombstone));
         /* The delta is a delete, set the relevant metadata to be packed. */
-        LF_SET(WT_VALUE_IS_DELETE);
+        LF_SET(WT_DELTA_LEAF_IS_DELETE);
         value.data = NULL;
         value.size = 0;
     }
