@@ -1519,6 +1519,11 @@ config_disagg_storage(void)
     if (!g.disagg_storage_config)
         return; /* Disaggregated storage not enabled. */
 
+    if (GV(DISAGG_MULTI) && !GV(RUNS_PREDICTABLE_REPLAY))
+        testutil_die(EINVAL,
+          "Invalid configuration: multi-node in disagg requires predictable replay mode "
+          "(set runs.predictable_replay=1).");
+
     if (!config_explicit(NULL, "disagg.mode")) {
         /* Randomly assign "leader" or "follower" to disagg.mode with equal probability. */
         testutil_snprintf(buf, sizeof(buf), "disagg.mode=%s",
