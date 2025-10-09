@@ -2354,8 +2354,9 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
 
     WT_RET(__wti_rec_build_delta_init(session, r));
 
+    /* Disable prefix compression until the first key is written. */
     r->key_pfx_compress = false;
-    r->key_sfx_compress = false;
+    r->key_pfx_last = 0;
 
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
         if (supd->onpage_upd == NULL && supd->onpage_tombstone == NULL)
