@@ -2269,6 +2269,7 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
     WT_DECL_ITEM(custom_value);
     WT_DECL_RET;
     WT_ITEM *key, value;
+    size_t size;
     uint8_t flags, *p;
     bool ovfl_key;
 
@@ -2276,7 +2277,6 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
     flags = 0;
     ovfl_key = false;
     WT_CLEAR(value);
-    WT_ERR(__wt_scr_alloc(session, 0, &custom_value));
 
     /* Get the key data and pack it into a key cell. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
@@ -2313,8 +2313,9 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
     }
 
     /* Pack the flags and delta value into a custom value. */
-    WT_ERR(__wt_buf_init(session, custom_value, 1 + value.size));
-    custom_value->size = 1 + value.size;
+    WT_ERR(wiredtiger_struct_size(
+      (WT_SESSION *)session, &size, WT_DELTA_LEAF_VALUE_FORMAT, flags, &value));
+    WT_ERR(__wt_scr_alloc(session, size, &custom_value));
     WT_ERR(__wt_struct_pack(session, (void *)custom_value->data, custom_value->size,
       WT_DELTA_LEAF_VALUE_FORMAT, flags, &value));
 
