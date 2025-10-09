@@ -210,14 +210,14 @@
  * new one) to suppress them.
  *
  * We use relaxed atomic operations in these functions to provide minimal protection against
- * compiler optimizations while avoiding potential performance drops.
- * Using atomic variables should eliminate most warnings; however, we still add these functions to
- * the suppressions file to ensure we don't forget to properly fix them later and to highlight that
- * this is only a temporary solution while we investigate high-priority TSAN warnings.
+ * compiler optimizations while avoiding potential performance drops. Using atomic variables should
+ * eliminate most warnings; however, we still add these functions to the suppression file to ensure
+ * we don't forget to properly fix them later and to highlight that this is only a temporary
+ * solution while we investigate high-priority TSAN warnings.
  */
 
 static inline uint32_t
 __wt_tsan_suppress_load_uint32(uint32_t *var)
 {
-    return __wt_atomic_load32(var);
+    return (__wt_atomic_load32(var));
 }
