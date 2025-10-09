@@ -2315,7 +2315,7 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
     /* Pack the flags and delta value into a custom value. */
     WT_ERR(__wt_struct_size(session, &size, WT_DELTA_LEAF_VALUE_FORMAT, &value, flags));
     WT_ERR(__wt_scr_alloc(session, size, &custom_value));
-    WT_ERR(__wt_buf_init(session, custom_value, size));
+    custom_value->size = size;
     WT_ERR(__wt_struct_pack(session, (void *)custom_value->data, custom_value->size,
       WT_DELTA_LEAF_VALUE_FORMAT, &value, flags));
 
