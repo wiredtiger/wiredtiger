@@ -2323,14 +2323,15 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
     WT_ERR(
       __wti_rec_cell_build_val(session, r, custom_value->data, custom_value->size, &supd->tw, 0));
 
-    if (r->delta.size + key->size + custom_value->size > r->delta.memsize)
-        WT_ERR(__wt_buf_grow(session, &r->delta, r->delta.size + key->size + custom_value->size));
+    size_t size = r->delta.size + r->k.len + r->v.len;
+    if (size > r->delta.memsize)
+        WT_ERR(__wt_buf_grow(session, &r->delta, size));
 
     p = (uint8_t *)r->delta.data + r->delta.size;
     __wti_rec_kv_copy(session, p, &r->k);
     p += r->k.len;
     __wti_rec_kv_copy(session, p, &r->v);
-    r->delta.size += (r->k.len + r->v.len);
+    r->delta.size = size;
 
 err:
     __wt_scr_free(session, &key);
