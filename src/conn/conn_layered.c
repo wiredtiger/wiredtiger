@@ -695,7 +695,7 @@ __layered_table_manager_start(WT_SESSION_IMPL *session)
     manager->entries_allocated_bytes =
       manager->open_layered_table_count * sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY *);
 
-    WT_STAT_CONN_SET(session, layered_table_manager_running, 1);
+    WT_STAT_CONN_SET(session, layered_table_manager_init, 1);
     FLD_SET(conn->server_flags, WT_CONN_SERVER_LAYERED);
 
     manager->init = true;
@@ -727,8 +727,8 @@ __wt_layered_table_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_i
       "Adding a layered tree to tracking without the right dhandle context.");
     layered = (WT_LAYERED_TABLE *)session->dhandle;
 
-    WT_ASSERT_ALWAYS(session, manager->init,
-      "Adding a layered table, but the manager isn't initialized");
+    WT_ASSERT_ALWAYS(
+      session, manager->init, "Adding a layered table, but the manager isn't initialized");
     __wt_spin_lock(session, &manager->layered_table_lock);
 
     WT_ASSERT(session, manager->open_layered_table_count > 0);
@@ -881,7 +881,7 @@ __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
     manager->entries_allocated_bytes = 0;
 
     manager->init = false;
-    WT_STAT_CONN_SET(session, layered_table_manager_running, 0);
+    WT_STAT_CONN_SET(session, layered_table_manager_init, 0);
 
     __wt_spin_unlock(session, &manager->layered_table_lock);
     __wt_spin_destroy(session, &manager->layered_table_lock);

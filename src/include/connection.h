@@ -130,7 +130,7 @@ struct __wt_layered_table_manager_entry {
  *      Structure containing information related to running the layered table manager.
  */
 struct __wt_layered_table_manager {
-    bool init;                        /* Indicating the manager was initialized */
+    bool init; /* Indicating the manager was initialized */
 
     WT_SPINLOCK
     layered_table_lock; /* Lock used for managing changes to global layered table state */
