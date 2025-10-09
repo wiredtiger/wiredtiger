@@ -660,6 +660,10 @@ connection_runtime_config = [
                 Use legacy page visit strategy for eviction. Using this option is highly discouraged
                 as it will re-introduce the bug described in WT-9121.''',
                 type='boolean'),
+            Config('prefer_scrub_eviction', 'false',
+                r'''Change the eviction strategy to scrub eviction when the cache usage is under
+                half way between the target limit to the trigger limit.''',
+                type='boolean'),
             ]),
     Config('eviction_checkpoint_target', '1', r'''
         perform eviction at the beginning of checkpoints to bring the dirty content in cache
