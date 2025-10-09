@@ -684,10 +684,18 @@ class Storage {
                 a[GET_CHECKPOINT] = R"(
                     SELECT lsn, timestamp, checkpoint_metadata
                     FROM checkpoints
+                    WHERE (?1 = -1 OR lsn = ?1)
                     ORDER BY
                         lsn DESC,
                         timestamp DESC
                     LIMIT 1;)";
+                /* The sqlite bind call takes a signed 64 bit integer.
+                 * When we pass WT_PAGE_LOG_LSN_MAX (which happens to be the maximum unsigned 64 bit
+                 * integer) to the bind function, it is converted from unsigned max to signed -1.
+                 * Thus the -1 in the above SELECT statement is effectively standing in for
+                 * WT_PAGE_LOG_LSN_MAX.
+                 */
+                static_assert((int64_t)WT_PAGE_LOG_LSN_MAX == -1);
                 a[DELETE_CHECKPOINT] = R"(
                     DELETE FROM checkpoints
                     WHERE lsn > ?;)";
@@ -1058,8 +1066,8 @@ public:
     get_checkpoint(
       Connection &conn, uint64_t &lsn, uint64_t *timestamp, WT_ITEM *checkpoint_metadata)
     {
-        /* Get the most recent checkpoint. */
         StatementPtr stmt = conn.db_statement(Statement::GET_CHECKPOINT);
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(lsn));
         int ret = SQ_CHECK(sqlite3_step, stmt.get());
         if (ret == SQLITE_DONE) {
             // No checkpoint found
@@ -1550,7 +1558,7 @@ public:
         if (checkpoint_metadata)
             memset(checkpoint_metadata, 0, sizeof(WT_ITEM));
 
-        uint64_t query_lsn = 0;
+        uint64_t query_lsn = WT_PAGE_LOG_LSN_MAX; // most recent checkpoint
         Storage::Transaction txn = storage.begin_transaction();
         int ret =
           storage.get_checkpoint(txn.conn, query_lsn, checkpoint_timestamp, checkpoint_metadata);
