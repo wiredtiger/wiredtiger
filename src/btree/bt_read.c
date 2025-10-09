@@ -143,6 +143,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_ADDR_COPY addr;
     WT_DECL_RET;
     WT_ITEM *deltas;
+    WT_ITEM disk_image;
     WT_ITEM *tmp;
     WT_PAGE *page;
     WT_PAGE_BLOCK_META block_meta;
@@ -243,7 +244,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
     /* Build a full disk image of the page after reading from disk. */
     if (/* DISABLES CODE */ (0) && count > 1) {
-        ret = __wti_build_full_disk_image_on_read(session, ref, deltas, count - 1);
+        ret = __wti_build_full_disk_image_on_read(session, ref, deltas, count - 1, &disk_image);
         for (i = 0; i < count - 1; ++i)
             __wt_buf_free(session, &deltas[i]);
         WT_ERR(ret);
