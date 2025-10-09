@@ -228,7 +228,7 @@ struct __wt_cell_unpack_delta_int {
     WT_CELL_UNPACK_ADDR value;
 };
 
-#define WT_DELTA_LEAF_VALUE_FORMAT WT_UNCHECKED_STRING(Bu)
+#define WT_DELTA_LEAF_VALUE_FORMAT WT_UNCHECKED_STRING(uB)
 
 /*
  * WT_CELL_UNPACK_DELTA_LEAF_KV --
