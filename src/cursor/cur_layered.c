@@ -2071,10 +2071,7 @@ __clayered_modify_follower_helper(WT_CURSOR_LAYERED *clayered, const WT_ITEM *ke
 
     ingest->set_key(ingest, &stable->key);
     ingest->set_value(ingest, &stable->value);
-    WT_RET(ingest->insert(ingest));
-
-    /* The insert left us without a key. */
-    ingest->set_key(ingest, key);
+    WT_RET(ingest->update(ingest));
 
     return (0);
 }
