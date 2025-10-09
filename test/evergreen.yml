@@ -2431,8 +2431,8 @@ tasks:
           upload_source_dir: "wiredtiger"
           upload_filename: unit-test-disagg-follower-tsan.tgz
 
-  - name: unit-test-hook-disagg-leader
-    tags: ["python"]
+  - name: unit-test-hook-disagg-leader-bucket00
+    tags: ["pull_request", "python"]
     depends_on:
     - name: compile
     commands:
