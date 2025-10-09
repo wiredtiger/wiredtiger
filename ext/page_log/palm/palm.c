@@ -34,6 +34,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <stdatomic.h>
 
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
@@ -111,7 +112,7 @@ typedef struct {
     /*
      * Keep the number of references to this page log.
      */
-    uint32_t reference_count;
+    atomic_uint reference_count;
 
     uint32_t cache_size_mb;            /* Size of cache in megabytes */
     uint32_t delay_ms;                 /* Average length of delay when simulated */
@@ -524,11 +525,20 @@ palm_add_reference(WT_PAGE_LOG *page_log)
     palm = (PALM *)page_log;
 
     /*
-     * Missing reference or overflow? Assume the first ref will not race the creation.
+     * Need to use CAS operation to avoid race conditions. The reason for not using fetch_add is
+     * that we need early failure.
      */
-    if (palm->reference_count == 0 || palm->reference_count + 1 == 0)
-        return (EINVAL);
-    (void)__wt_atomic_add32(&palm->reference_count, 1);
+    do {
+        unsigned int cur_count = atomic_load_explicit(&palm->reference_count, memory_order_relaxed);
+        /*
+         * Missing reference or overflow? Assume the first ref will not race the creation.
+         */
+        if (cur_count == 0 || cur_count + 1 == 0)
+            return (EINVAL);
+        if (atomic_compare_exchange_strong_explicit(&palm->reference_count, &cur_count,
+              cur_count + 1, memory_order_acq_rel, memory_order_acquire))
+            break;
+    } while (true);
     return (0);
 }
 
@@ -1241,8 +1251,10 @@ palm_terminate(WT_PAGE_LOG *storage, WT_SESSION *session)
     ret = 0;
     palm = (PALM *)storage;
 
-    uint32_t new_ref_count = __wt_atomic_sub32(&palm->reference_count, 1);
-    if (new_ref_count != 0)
+    uint32_t new_ref_count =
+      atomic_fetch_sub_explicit(&palm->reference_count, 1, memory_order_acquire);
+    /* The last reference is 1. */
+    if (new_ref_count != 1)
         return (0);
 
     /*
@@ -1308,7 +1320,11 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     /*
      * The first reference is implied by the call to add_page_log.
      */
-    palm->reference_count = 1;
+    if (!atomic_compare_exchange_strong_explicit(
+          &palm->reference_count, &(uint32_t){0}, 1, memory_order_release, memory_order_relaxed)) {
+        ret = palm_err(palm, NULL, EINVAL, "reference count init twice");
+        goto err;
+    }
 
     /* Turn on verification by default, as PALM is used primarily for testing. */
     palm->verify = true;
