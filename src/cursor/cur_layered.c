@@ -2069,12 +2069,8 @@ __clayered_modify_follower_helper(WT_CURSOR_LAYERED *clayered, const WT_ITEM *ke
     WT_RET(__cursor_needkey(stable));
     WT_RET(__cursor_needvalue(stable));
 
-    WT_RET(stable->get_key(stable, &ingest->key));
-    F_SET(ingest, WT_CURSTD_KEY_INT);
-    WT_RET(stable->get_value(stable, &ingest->value));
-    F_SET(ingest, WT_CURSTD_VALUE_INT);
-    WT_RET(__wt_cursor_localkey(ingest));
-    WT_RET(__cursor_localvalue(ingest));
+    ingest->set_key(ingest, &stable->key);
+    ingest->set_value(ingest, &stable->value);
     WT_RET(ingest->insert(ingest));
 
     /* The insert left us without a key. */
