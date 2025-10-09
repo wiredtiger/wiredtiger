@@ -521,3 +521,44 @@ __wti_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WTI_UPDATE_SELECT
         }
     }
 }
+
+/*
+ * __wti_rec_key_state_update --
+ *     Update prefix and suffix compression based on the last key.
+ */
+static WT_INLINE void
+__wti_rec_key_state_update(WTI_RECONCILE *r, bool ovfl_key)
+{
+    WT_ITEM *a;
+
+    /*
+     * If writing an overflow key onto the page, don't update the "last key" value, and leave the
+     * state of prefix compression alone. (If we are currently doing prefix compression, we have a
+     * key state which will continue to work, we're just skipping the key just created because it's
+     * an overflow key and doesn't participate in prefix compression. If we are not currently doing
+     * prefix compression, we can't start, an overflow key doesn't give us any state.)
+     *
+     * Additionally, if we wrote an overflow key onto the page, turn off the suffix compression of
+     * row-store internal node keys. (When we split, "last key" is the largest key on the previous
+     * page, and "cur key" is the first key on the next page, which is being promoted. In some cases
+     * we can discard bytes from the "cur key" that are not needed to distinguish between the "last
+     * key" and "cur key", compressing the size of keys on internal nodes. If we just built an
+     * overflow key, we're not going to update the "last key", making suffix compression impossible
+     * for the next key. Alternatively, we could remember where the last key was on the page, detect
+     * it's an overflow key, read it from disk and do suffix compression, but that's too much work
+     * for an unlikely event.)
+     *
+     * If we're not writing an overflow key on the page, update the last-key value and turn on both
+     * prefix and suffix compression.
+     */
+    if (ovfl_key)
+        r->key_sfx_compress = false;
+    else {
+        a = r->cur;
+        r->cur = r->last;
+        r->last = a;
+
+        r->key_pfx_compress = r->key_pfx_compress_conf;
+        r->key_sfx_compress = r->key_sfx_compress_conf;
+    }
+}

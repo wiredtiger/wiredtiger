@@ -11,47 +11,6 @@
 #include "reconcile_inline.h"
 
 /*
- * __rec_key_state_update --
- *     Update prefix and suffix compression based on the last key.
- */
-static WT_INLINE void
-__rec_key_state_update(WTI_RECONCILE *r, bool ovfl_key)
-{
-    WT_ITEM *a;
-
-    /*
-     * If writing an overflow key onto the page, don't update the "last key" value, and leave the
-     * state of prefix compression alone. (If we are currently doing prefix compression, we have a
-     * key state which will continue to work, we're just skipping the key just created because it's
-     * an overflow key and doesn't participate in prefix compression. If we are not currently doing
-     * prefix compression, we can't start, an overflow key doesn't give us any state.)
-     *
-     * Additionally, if we wrote an overflow key onto the page, turn off the suffix compression of
-     * row-store internal node keys. (When we split, "last key" is the largest key on the previous
-     * page, and "cur key" is the first key on the next page, which is being promoted. In some cases
-     * we can discard bytes from the "cur key" that are not needed to distinguish between the "last
-     * key" and "cur key", compressing the size of keys on internal nodes. If we just built an
-     * overflow key, we're not going to update the "last key", making suffix compression impossible
-     * for the next key. Alternatively, we could remember where the last key was on the page, detect
-     * it's an overflow key, read it from disk and do suffix compression, but that's too much work
-     * for an unlikely event.)
-     *
-     * If we're not writing an overflow key on the page, update the last-key value and turn on both
-     * prefix and suffix compression.
-     */
-    if (ovfl_key)
-        r->key_sfx_compress = false;
-    else {
-        a = r->cur;
-        r->cur = r->last;
-        r->last = a;
-
-        r->key_pfx_compress = r->key_pfx_compress_conf;
-        r->key_sfx_compress = r->key_sfx_compress_conf;
-    }
-}
-
-/*
  * __rec_cell_build_int_key --
  *     Process a key and return a WT_CELL structure and byte string to be stored on a row-store
  *     internal page.
@@ -227,7 +186,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     WTI_REC_CHUNK_TA_UPDATE(session, r->cur_ptr, &tw);
 
     /* Update compression state. */
-    __rec_key_state_update(r, ovfl_key);
+    __wti_rec_key_state_update(r, ovfl_key);
 
     return (0);
 }
@@ -302,7 +261,7 @@ __rec_row_merge(
         WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &addr->ta);
 
         /* Update compression state. */
-        __rec_key_state_update(r, false);
+        __wti_rec_key_state_update(r, false);
 
         if (*build_delta && ref_changes > 0) {
             WT_ASSERT(session, mod->mod_multi_entries == 1);
@@ -609,7 +568,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ta);
 
         /* Update compression state. */
-        __rec_key_state_update(r, false);
+        __wti_rec_key_state_update(r, false);
 
         if (build_delta && prev_ref_changes > 0 && !retain_onpage)
             WT_ERR(__wti_rec_pack_delta_internal(session, r, key, val));
@@ -882,7 +841,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
         WTI_REC_CHUNK_TA_UPDATE(session, r->cur_ptr, &tw);
 
         /* Update compression state. */
-        __rec_key_state_update(r, ovfl_key);
+        __wti_rec_key_state_update(r, ovfl_key);
     }
 
 err:
@@ -1287,7 +1246,7 @@ slow:
         WTI_REC_CHUNK_TA_UPDATE(session, r->cur_ptr, twp);
 
         /* Update compression state. */
-        __rec_key_state_update(r, ovfl_key);
+        __wti_rec_key_state_update(r, ovfl_key);
 
 leaf_insert:
         /* Write any K/V pairs inserted into the page after this key. */

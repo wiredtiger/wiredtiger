@@ -552,6 +552,7 @@ static WT_INLINE void __wti_rec_image_copy(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *kv);
 static WT_INLINE void __wti_rec_incr(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint32_t v, size_t size);
+static WT_INLINE void __wti_rec_key_state_update(WTI_RECONCILE *r, bool ovfl_key);
 static WT_INLINE void __wti_rec_kv_copy(WT_SESSION_IMPL *session, uint8_t *p, WTI_REC_KV *kv);
 static WT_INLINE void __wti_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session,
   WTI_UPDATE_SELECT *upd_select, WT_CELL_UNPACK_KV *vpack, WTI_RECONCILE *r);

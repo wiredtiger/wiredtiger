@@ -2156,38 +2156,24 @@ __wti_rec_build_delta_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 }
 
 /*
- * __rec_delta_pack_key --
- *     Pack the delta key
+ * __rec_delta_get_key --
+ *     Get the delta key
  */
 static WT_INLINE int
-__rec_delta_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r, WT_INSERT *ins,
+__rec_delta_get_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r, WT_INSERT *ins,
   WT_ROW *rip, WT_ITEM *key)
 {
     WT_DECL_RET;
-    uint8_t *p;
 
-    switch (r->page->type) {
-    case WT_PAGE_COL_FIX:
-    case WT_PAGE_COL_VAR:
-        p = key->mem;
-        WT_RET(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(ins)));
-        key->size = WT_PTRDIFF(p, key->data);
-        break;
-    case WT_PAGE_ROW_LEAF:
-        if (ins == NULL) {
-            WT_WITH_BTREE(
-              session, btree, ret = __wt_row_leaf_key(session, r->page, rip, key, false));
-            WT_RET(ret);
-        } else {
-            key->data = WT_INSERT_KEY(ins);
-            key->size = WT_INSERT_KEY_SIZE(ins);
-        }
-        break;
-    default:
-        WT_RET(__wt_illegal_value(session, r->page->type));
+    if (ins == NULL) {
+        WT_WITH_BTREE(session, btree, ret = __wt_row_leaf_key(session, r->page, rip, key, false));
+        WT_RET(ret);
+    } else {
+        key->data = WT_INSERT_KEY(ins);
+        key->size = WT_INSERT_KEY_SIZE(ins);
     }
 
-    return (ret);
+    return (0);
 }
 
 /*
@@ -2279,9 +2265,10 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
     WT_CLEAR(value);
 
     /* Get the key data and pack it into a key cell. */
-    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
-    WT_ERR(__rec_delta_pack_key(session, S2BT(session), r, supd->ins, supd->rip, key));
+    WT_ERR(__wt_scr_alloc(session, 0, &key));
+    WT_ERR(__rec_delta_get_key(session, S2BT(session), r, supd->ins, supd->rip, key));
     WT_ERR(__wti_rec_cell_build_leaf_key(session, r, key->data, key->size, &ovfl_key));
+    WT_ASSERT(session, !ovfl_key);
 
     /*
      * Build the customized value. The value for a leaf page delta looks very similar to a standard
@@ -2317,12 +2304,12 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
       __wt_struct_size(session, &custom_value_size, WT_DELTA_LEAF_VALUE_FORMAT, &value, flags));
     WT_ERR(__wt_scr_alloc(session, custom_value_size, &custom_value));
     custom_value->size = custom_value_size;
-    WT_ERR(__wt_struct_pack(session, (void *)custom_value->data, custom_value->size,
+    WT_ERR(__wt_struct_pack(session, (void *)custom_value->data, custom_value_size,
       WT_DELTA_LEAF_VALUE_FORMAT, &value, flags));
 
     /* Pack the custom value into a standard cell structure. */
     WT_ERR(
-      __wti_rec_cell_build_val(session, r, custom_value->data, custom_value->size, &supd->tw, 0));
+      __wti_rec_cell_build_val(session, r, custom_value->data, custom_value_size, &supd->tw, 0));
 
     new_size = r->delta.size + r->k.len + r->v.len;
     if (new_size > r->delta.memsize)
@@ -2333,6 +2320,9 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *s
     p += r->k.len;
     __wti_rec_kv_copy(session, p, &r->v);
     r->delta.size = new_size;
+
+    /* Update compression state. */
+    __wti_rec_key_state_update(r, ovfl_key);
 
 err:
     __wt_scr_free(session, &key);
@@ -2363,6 +2353,9 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
     count = 0;
 
     WT_RET(__wti_rec_build_delta_init(session, r));
+
+    r->key_pfx_compress = false;
+    r->key_sfx_compress = false;
 
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
         if (supd->onpage_upd == NULL && supd->onpage_tombstone == NULL)
