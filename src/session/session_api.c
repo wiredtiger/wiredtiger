@@ -514,7 +514,7 @@ __session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
 
-    if ((ret = __wt_conf_gets_def(session, conf, ignore_cache_size, 0, &cval)) == 0) {
+    if ((ret = __wt_conf_gets_def(session, conf, ignore_cache_size, false, &cval)) == 0) {
         if (cval.val)
             F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
         else
@@ -522,7 +522,7 @@ __session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
     }
     WT_RET_NOTFOUND_OK(ret);
 
-    if ((ret = __wt_conf_gets_def(session, conf, cache_cursors, 0, &cval)) == 0) {
+    if ((ret = __wt_conf_gets_def(session, conf, cache_cursors, true, &cval)) == 0) {
         if (cval.val)
             F_SET(session, WT_SESSION_CACHE_CURSORS);
         else {
