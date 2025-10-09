@@ -31,6 +31,7 @@ from wtdataset import SimpleDataSet
 from wiredtiger import stat
 from wtscenario import make_scenarios
 from rollback_to_stable_util import test_rollback_to_stable_base
+from helper import WiredTigerStat
 
 # test_rollback_to_stable03.py
 # Test that rollback to stable clears the history store updates from reconciled pages.
@@ -115,15 +116,19 @@ class test_rollback_to_stable03(test_rollback_to_stable_base):
         self.check(valueb, uri, nrows, None, 20)
         self.check(valuea, uri, nrows, None, 10)
 
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        calls = stat_cursor[stat.conn.txn_rts][2]
-        hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
-        keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
-        keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
-        pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
-        upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
-        stat_cursor.close()
+        with WiredTigerStat(self.session) as stat_cursor:
+            calls = stat_cursor[stat.conn.txn_rts][2]
+            hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
+            keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
+            keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
+            pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
+            upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
+            rts_btrees_applied = stat_cursor[stat.conn.txn_rts_btrees_applied][2]
+            rts_btrees_skipped = stat_cursor[stat.conn.txn_rts_btrees_skipped][2]
 
+        self.assertEqual(rts_btrees_applied + rts_btrees_skipped, 1)
+        # One rollback should be valid
+        self.assertEqual(rts_btrees_applied, 1)
         self.assertEqual(calls, 1)
         self.assertEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
@@ -133,3 +138,12 @@ class test_rollback_to_stable03(test_rollback_to_stable_base):
         else:
             self.assertGreaterEqual(upd_aborted + hs_removed, nrows)
         self.assertGreater(pages_visited, 0)
+
+        self.conn.rollback_to_stable('threads=' + str(self.threads))
+        with WiredTigerStat(self.session) as stat_cursor:
+            rts_btrees_applied = stat_cursor[stat.conn.txn_rts_btrees_applied][2]
+            rts_btrees_skipped = stat_cursor[stat.conn.txn_rts_btrees_skipped][2]
+
+        # Two rollbacks should be called, but one should be skipped
+        self.assertEqual(rts_btrees_applied + rts_btrees_skipped, 2)
+        self.assertEqual(rts_btrees_skipped, 1)
