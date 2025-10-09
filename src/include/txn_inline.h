@@ -1637,6 +1637,10 @@ __wt_txn_read(
 retry:
     WT_RET(__wt_txn_read_upd_list_internal(
       session, cbt, key, recno, upd, &prepare_upd, &restored_upd, &seen_restored_delta));
+    /*
+     * If we see an update restored from delta, we must have already tried the history store if
+     * necessary. We are done.
+     */
     if (seen_restored_delta)
         return (0);
     if (WT_UPDATE_DATA_VALUE(cbt->upd_value) ||
