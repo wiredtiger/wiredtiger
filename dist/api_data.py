@@ -664,6 +664,14 @@ connection_runtime_config = [
                 r'''Change the eviction strategy to scrub eviction when the cache usage is under
                 half way between the target limit to the trigger limit.''',
                 type='boolean'),
+            Config('cache_tolerance_for_app_eviction', '0', r'''
+                This setting establishes a tolerance level for the configured
+                \c eviction_dirty_trigger and \c eviction_update_trigger.
+                The value is a percentage between 0 and 100, with 0 treating
+                \c eviction_dirty_trigger and \c eviction_update_trigger as hard limit.
+                The configured percentage will be taken in increments of 10 only,
+                by applying the floor to the given percentage value. ''',
+                min='0', max='100'),
             ]),
     Config('eviction_checkpoint_target', '1', r'''
         perform eviction at the beginning of checkpoints to bring the dirty content in cache
