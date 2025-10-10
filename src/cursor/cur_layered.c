@@ -301,7 +301,7 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
     }
     ret = __wt_open_cursor(session, stable_uri, &clayered->iface, cfg, &clayered->stable_cursor);
 
-    if (ret == WT_NOTFOUND) {
+    if (ret == ENOENT) {
         if (!leader)
             /*
              * This is fine. We may not have seen a checkpoint with this table yet. The open will be
