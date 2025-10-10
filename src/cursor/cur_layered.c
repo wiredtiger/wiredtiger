@@ -301,15 +301,16 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
     }
     ret = __wt_open_cursor(session, stable_uri, &clayered->iface, cfg, &clayered->stable_cursor);
 
-    if (ret == ENOENT && !leader) {
-        /*
-         * This is fine, we may not have seen a checkpoint with this table yet. The open will be
-         * deferred.
-         */
-        ret = 0;
-    } else if (ret == WT_NOTFOUND)
-        WT_ERR_PANIC(session, WT_PANIC, "Layered table could not access stable table on leader");
-    else
+    if (ret == WT_NOTFOUND) {
+        if (!leader)
+            /*
+             * This is fine. We may not have seen a checkpoint with this table yet. The open will be
+             * deferred.
+             */
+            ret = 0;
+        else 
+            WT_ERR_PANIC(session, WT_PANIC, "Layered table could not access stable table on leader");
+    } else
         WT_ERR(ret);
 
     if (clayered->stable_cursor != NULL) {
