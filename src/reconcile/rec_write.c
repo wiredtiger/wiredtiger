@@ -2210,7 +2210,7 @@ __wti_rec_pack_delta_internal(
         packed_size += value->len;
     else
         /* Add 2 extra bytes for the delete cell. */
-        packed_size += 2;
+        packed_size += WT_TWO;
 
     if (r->delta.size + packed_size > r->delta.memsize)
         WT_RET(__wt_buf_grow(session, &r->delta, r->delta.size + packed_size));

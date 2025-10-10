@@ -52,6 +52,7 @@
 #define WT_DIVIDER "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
 /* Basic constants. */
+#define WT_TWO (2)
 #define WT_MILLION_LITERAL 1000000
 #define WT_HUNDRED (100)
 #define WT_THOUSAND (1000)
