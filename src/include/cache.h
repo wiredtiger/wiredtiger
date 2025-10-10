@@ -25,7 +25,7 @@ typedef enum __wt_cache_op {
  *      cache usage is under half way between the target limit to the trigger limit.
  */
 struct __wt_cache_eviction_controls {
-
+    wt_shared uint8_t cache_tolerance_for_app_eviction; /* cache tolerance for app eviction.*/
 /* cache eviction controls bit positions */
 #define WT_CACHE_PREFER_SCRUB_EVICTION 0x1u
     wt_shared uint16_t flags_atomic;
