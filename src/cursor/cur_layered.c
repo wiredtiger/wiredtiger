@@ -308,8 +308,9 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
              * deferred.
              */
             ret = 0;
-        else 
-            WT_ERR_PANIC(session, WT_PANIC, "Layered table could not access stable table on leader");
+        else
+            WT_ERR_PANIC(
+              session, WT_PANIC, "Layered table could not access stable table on leader");
     } else
         WT_ERR(ret);
 
