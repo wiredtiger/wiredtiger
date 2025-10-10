@@ -10,6 +10,8 @@
 #include "reconcile_private.h"
 #include "reconcile_inline.h"
 
+#define WT_CELL_DEL_VISIBLE_ALL_LEN (2)
+
 static int __rec_cleanup(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __rec_destroy(WT_SESSION_IMPL *, void *);
 static int __rec_destroy_session(WT_SESSION_IMPL *);
@@ -2210,7 +2212,7 @@ __wti_rec_pack_delta_internal(
         packed_size += value->len;
     else
         /* Add 2 extra bytes for the delete cell. */
-        packed_size += WT_TWO;
+        packed_size += WT_CELL_DEL_VISIBLE_ALL_LEN;
 
     if (r->delta.size + packed_size > r->delta.memsize)
         WT_RET(__wt_buf_grow(session, &r->delta, r->delta.size + packed_size));
@@ -2241,6 +2243,7 @@ __wti_rec_pack_delta_internal(
         t_kv->cell_len = __wt_cell_pack_addr(
           session, &t_kv->cell, WT_CELL_ADDR_DEL_VISIBLE_ALL, WT_RECNO_OOB, NULL, &local_ta, 0);
         t_kv->len = t_kv->cell_len;
+        WT_ASSERT(session, t_kv->len == WT_CELL_DEL_VISIBLE_ALL_LEN);
         __wti_rec_kv_copy(session, p, t_kv);
         ++r->count_internal_page_delta_key_deleted;
     } else {
