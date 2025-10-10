@@ -2226,7 +2226,7 @@ __wti_rec_pack_delta_internal(
 
     /*
      * If the value is NULL, write a cell with zeroed-out values and a data size of zero, setting
-     * the cell type to WT_CELL_ADDR_DEL_VISIBLE_ALL. This approach allows for potential future
+     * the cell type to WT_CELL_DEL_VISIBLE_ALL_LEN. This approach allows for potential future
      * extensions where additional information might be added to the delete cell.
      */
     if (value == NULL) {
@@ -2241,7 +2241,7 @@ __wti_rec_pack_delta_internal(
         WT_TIME_AGGREGATE_INIT(&local_ta);
 
         t_kv->cell_len = __wt_cell_pack_addr(
-          session, &t_kv->cell, WT_CELL_ADDR_DEL_VISIBLE_ALL, WT_RECNO_OOB, NULL, &local_ta, 0);
+          session, &t_kv->cell, WT_CELL_DEL_VISIBLE_ALL, WT_RECNO_OOB, NULL, &local_ta, 0);
         t_kv->len = t_kv->cell_len;
         WT_ASSERT(session, t_kv->len == WT_CELL_DEL_VISIBLE_ALL_LEN);
         __wti_rec_kv_copy(session, p, t_kv);
@@ -2255,7 +2255,7 @@ __wti_rec_pack_delta_internal(
 
     /*
      * Each delta entry consists of two components: a key and a value. If the value is NULL, a cell
-     * of type WT_CELL_ADDR_DEL_VISIBLE_ALL is used to represent the deletion.
+     * of type WT_CELL_DEL_VISIBLE_ALL is used to represent the deletion.
      */
     header->u.entries += 2;
     header->mem_size = (uint32_t)r->delta.size;

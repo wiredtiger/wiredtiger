@@ -106,20 +106,20 @@
  * if the two values are the same, we only store them once and have any second and subsequent uses
  * reference the original.
  */
-#define WT_CELL_ADDR_DEL (0)                   /* Address: deleted */
-#define WT_CELL_ADDR_DEL_VISIBLE_ALL (13 << 4) /* Address: deleted visible all */
-#define WT_CELL_ADDR_INT (1 << 4)              /* Address: internal  */
-#define WT_CELL_ADDR_LEAF (2 << 4)             /* Address: leaf */
-#define WT_CELL_ADDR_LEAF_NO (3 << 4)          /* Address: leaf no overflow */
-#define WT_CELL_DEL (4 << 4)                   /* Deleted value */
-#define WT_CELL_KEY (5 << 4)                   /* Key */
-#define WT_CELL_KEY_OVFL (6 << 4)              /* Overflow key */
-#define WT_CELL_KEY_OVFL_RM (12 << 4)          /* Overflow key (removed) */
-#define WT_CELL_KEY_PFX (7 << 4)               /* Key with prefix byte */
-#define WT_CELL_VALUE (8 << 4)                 /* Value */
-#define WT_CELL_VALUE_COPY (9 << 4)            /* Value copy */
-#define WT_CELL_VALUE_OVFL (10 << 4)           /* Overflow value */
-#define WT_CELL_VALUE_OVFL_RM (11 << 4)        /* Overflow value (removed) */
+#define WT_CELL_ADDR_DEL (0)              /* Address: deleted */
+#define WT_CELL_ADDR_INT (1 << 4)         /* Address: internal  */
+#define WT_CELL_ADDR_LEAF (2 << 4)        /* Address: leaf */
+#define WT_CELL_ADDR_LEAF_NO (3 << 4)     /* Address: leaf no overflow */
+#define WT_CELL_DEL (4 << 4)              /* Deleted value */
+#define WT_CELL_DEL_VISIBLE_ALL (13 << 4) /* Deleted value visible all */
+#define WT_CELL_KEY (5 << 4)              /* Key */
+#define WT_CELL_KEY_OVFL (6 << 4)         /* Overflow key */
+#define WT_CELL_KEY_OVFL_RM (12 << 4)     /* Overflow key (removed) */
+#define WT_CELL_KEY_PFX (7 << 4)          /* Key with prefix byte */
+#define WT_CELL_VALUE (8 << 4)            /* Value */
+#define WT_CELL_VALUE_COPY (9 << 4)       /* Value copy */
+#define WT_CELL_VALUE_OVFL (10 << 4)      /* Overflow value */
+#define WT_CELL_VALUE_OVFL_RM (11 << 4)   /* Overflow value (removed) */
 
 #define WT_CELL_TYPE_MASK (0x0fU << 4) /* Maximum 16 cell types */
 #define WT_CELL_TYPE(v) ((v)&WT_CELL_TYPE_MASK)
