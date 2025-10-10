@@ -379,6 +379,7 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
     header = (WT_PAGE_HEADER *)delta->data;
     tmp_size = total_size = 0;
     page = ref->page;
+    standard_value = tombstone = NULL;
 
     WT_CLEAR(unpack);
 
