@@ -126,9 +126,9 @@ class test_rollback_to_stable03(test_rollback_to_stable_base):
             rts_btrees_applied = stat_cursor[stat.conn.txn_rts_btrees_applied][2]
             rts_btrees_skipped = stat_cursor[stat.conn.txn_rts_btrees_skipped][2]
 
-        self.assertEqual(rts_btrees_applied + rts_btrees_skipped, 1)
         # One rollback should be valid
         self.assertEqual(rts_btrees_applied, 1)
+        self.assertEqual(rts_btrees_skipped, 0)
         self.assertEqual(calls, 1)
         self.assertEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
@@ -144,9 +144,13 @@ class test_rollback_to_stable03(test_rollback_to_stable_base):
             rts_btrees_applied = stat_cursor[stat.conn.txn_rts_btrees_applied][2]
             rts_btrees_skipped = stat_cursor[stat.conn.txn_rts_btrees_skipped][2]
 
-        # Two rollbacks should be called
-        self.assertEqual(rts_btrees_applied + rts_btrees_skipped, 2)
         if not self.in_memory:
+            # Non-inmemory mode triggers an implicit checkpoint during RTS,
+            # which clears the modified flag, causing the next RTS to be skipped.
+            self.assertEqual(rts_btrees_applied, 1)
             self.assertEqual(rts_btrees_skipped, 1)
         else:
+            # In-memory mode skips the checkpoint, so the modified flag remains set
+            # and both RTS calls are applied.
+            self.assertEqual(rts_btrees_applied, 2)
             self.assertEqual(rts_btrees_skipped, 0)
