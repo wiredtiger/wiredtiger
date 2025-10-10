@@ -1305,6 +1305,8 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
         WT_RET(ds->f(ds, " | page_state: %" PRIu32, __wt_atomic_load32(&mod->page_state)));
     WT_RET(
       ds->f(ds, " | page_mem_size: %" WT_SIZET_FMT, __wt_atomic_loadsize(&page->memory_footprint)));
+    if (page->disagg_info != NULL)
+        WT_RET(ds->f(ds, " | delta_count: %" PRIu8, page->disagg_info->block_meta.delta_count));
     return (ds->f(ds, "\n"));
 }
 
