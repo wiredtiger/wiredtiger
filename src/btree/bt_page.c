@@ -366,6 +366,7 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
 {
     WT_CELL_UNPACK_DELTA_LEAF_KV unpack;
     WT_CURSOR_BTREE cbt;
+    WT_DECL_ITEM(lastkey);
     WT_DECL_RET;
     WT_ITEM key, value;
     WT_PAGE *page;
@@ -373,6 +374,7 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
     WT_ROW *rip;
     WT_UPDATE *first_upd, *standard_value, *tombstone, *upd;
     size_t size, tmp_size, total_size;
+    uint8_t key_prefix;
 
     header = (WT_PAGE_HEADER *)delta->data;
     tmp_size = total_size = 0;
@@ -383,15 +385,38 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
+    WT_RET(__wt_scr_alloc(session, 0, &lastkey));
+
     WT_CELL_FOREACH_DELTA_LEAF(session, header, &unpack)
     {
         key.data = unpack.delta_key.data;
         key.size = unpack.delta_key.size;
+        key_prefix = unpack.delta_key.prefix;
+        /*
+         * If the key has no prefix count, no prefix compression work is needed; else check for a
+         * previously built key big enough cover this key's prefix count.
+         */
+        if (key_prefix == 0) {
+            lastkey->data = key.data;
+            lastkey->size = key.size;
+        } else if (lastkey->size >= key_prefix) {
+            /*
+             * Grow the buffer as necessary as well as ensure data has been copied into local buffer
+             * space, then append the suffix to the prefix already in the buffer. Don't grow the
+             * buffer unnecessarily or copy data we don't need, truncate the item's CURRENT data
+             * length to the prefix bytes before growing the buffer.
+             */
+            lastkey->size = key_prefix;
+            WT_ERR(__wt_buf_grow(session, lastkey, key_prefix + key.size));
+            memcpy((uint8_t *)lastkey->mem + key_prefix, key.data, key.size);
+            lastkey->size = key_prefix + key.size;
+        }
+
         upd = standard_value = tombstone = NULL;
         size = 0;
 
         /* Search the page and apply the modification. */
-        WT_ERR(__wt_row_search(&cbt, &key, true, ref, true, NULL));
+        WT_ERR(__wt_row_search(&cbt, lastkey, true, ref, true, NULL));
         /*
          * Deltas are applied from newest to oldest, ignore keys that have already got a delta
          * update.
@@ -458,7 +483,7 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
                 upd = standard_value;
         }
 
-        WT_ERR(__wt_row_modify(&cbt, &key, NULL, &upd, WT_UPDATE_INVALID, true, true));
+        WT_ERR(__wt_row_modify(&cbt, lastkey, NULL, &upd, WT_UPDATE_INVALID, true, true));
 
         total_size += size;
     }
@@ -472,6 +497,7 @@ err:
         __wt_free(session, standard_value);
         __wt_free(session, tombstone);
     }
+    __wt_scr_free(session, &lastkey);
     WT_TRET(__wt_btcur_close(&cbt, true));
     return (ret);
 }
