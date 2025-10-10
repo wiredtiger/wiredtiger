@@ -112,7 +112,6 @@
 #define WT_CELL_ADDR_LEAF (2 << 4)             /* Address: leaf */
 #define WT_CELL_ADDR_LEAF_NO (3 << 4)          /* Address: leaf no overflow */
 #define WT_CELL_DEL (4 << 4)                   /* Deleted value */
-#define WT_CELL_DEL_VISIBLE_ALL (13 << 4)      /* Deleted value visible all */
 #define WT_CELL_KEY (5 << 4)                   /* Key */
 #define WT_CELL_KEY_OVFL (6 << 4)              /* Overflow key */
 #define WT_CELL_KEY_OVFL_RM (12 << 4)          /* Overflow key (removed) */

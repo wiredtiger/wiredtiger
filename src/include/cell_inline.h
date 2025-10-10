@@ -667,7 +667,7 @@ __wt_cell_type(WT_CELL *cell)
 
 /*
  * __wt_delta_cell_type_visible_all --
- *     Check if the value cell type is WT_CELL_DEL_VISIBLE_ALL.
+ *     Check if the value cell type is WT_CELL_ADDR_DEL_VISIBLE_ALL.
  */
 static WT_INLINE bool
 __wt_delta_cell_type_visible_all(WT_CELL_UNPACK_DELTA_INT *unpack_delta)
@@ -675,7 +675,7 @@ __wt_delta_cell_type_visible_all(WT_CELL_UNPACK_DELTA_INT *unpack_delta)
     u_int cell_type;
 
     cell_type = __wt_cell_type_raw(unpack_delta->value.cell);
-    return (cell_type == WT_CELL_DEL_VISIBLE_ALL);
+    return (cell_type == WT_CELL_ADDR_DEL_VISIBLE_ALL);
 }
 
 /*
@@ -863,7 +863,7 @@ copy_cell_restart:
     /* Check for a validity window. */
     switch (unpack->raw) {
     case WT_CELL_ADDR_DEL:
-    case WT_CELL_DEL_VISIBLE_ALL:
+    case WT_CELL_ADDR_DEL_VISIBLE_ALL:
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
@@ -1095,7 +1095,7 @@ copy_cell_restart:
         /* FALLTHROUGH */
 
     case WT_CELL_ADDR_DEL:
-    case WT_CELL_DEL_VISIBLE_ALL:
+    case WT_CELL_ADDR_DEL_VISIBLE_ALL:
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
