@@ -399,7 +399,8 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
         if (key_prefix == 0) {
             lastkey->data = key.data;
             lastkey->size = key.size;
-        } else if (lastkey->size >= key_prefix) {
+        } else {
+            WT_ASSERT(session, lastkey->size >= key_prefix);
             /*
              * Grow the buffer as necessary as well as ensure data has been copied into local buffer
              * space, then append the suffix to the prefix already in the buffer. Don't grow the
