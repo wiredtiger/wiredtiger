@@ -684,7 +684,7 @@ __layered_table_manager_start(WT_SESSION_IMPL *session)
     conn = S2C(session);
     manager = &conn->layered_table_manager;
 
-    WT_ASSERT_ALWAYS(session, manager->init, "Layered table manager initialization conflict");
+    WT_ASSERT_ALWAYS(session, manager->init == false, "Layered table manager initialization conflict");
 
     WT_RET(__wt_spin_init(session, &manager->layered_table_lock, "layered table manager"));
 
