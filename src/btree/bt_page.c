@@ -382,10 +382,10 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
 
     WT_CLEAR(unpack);
 
+    WT_RET(__wt_scr_alloc(session, 0, &lastkey));
+
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
-
-    WT_RET(__wt_scr_alloc(session, 0, &lastkey));
 
     WT_CELL_FOREACH_DELTA_LEAF(session, header, &unpack)
     {
