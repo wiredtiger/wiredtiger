@@ -724,6 +724,13 @@ precise_checkpoint_init(WT_CONNECTION *conn)
 void
 wts_create_home(void)
 {
+    /*
+     * In multi-node mode the directories had already been created in `disagg_setup_multi_node` .
+     * Nothing to do here for directory setup.
+     */
+    if (disagg_is_multi_node())
+        return;
+
     testutil_recreate_dir(g.home);
 }
 

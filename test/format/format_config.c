@@ -91,7 +91,7 @@ config_random_generator(
  * config_random_generators --
  *     Initialize our global random generators using provided seeds.
  */
-static void
+void
 config_random_generators(void)
 {
     config_random_generator("random.data_seed", GV(RANDOM_DATA_SEED), 0, &g.data_rnd);
@@ -455,8 +455,6 @@ config_table(TABLE *table, void *arg)
 void
 config_run(void)
 {
-    config_random_generators(); /* Configure the random number generators. */
-
     config_random(tables[0], false); /* Configure the remaining global name space. */
 
     /*

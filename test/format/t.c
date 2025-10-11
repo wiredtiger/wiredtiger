@@ -310,6 +310,15 @@ main(int argc, char *argv[])
     if (quiet_flag || !isatty(1))
         GV(QUIET) = 1;
 
+    /* Configure the random number generators. */
+    config_random_generators();
+
+    /*
+     * If disagg is enabled in multi-node, this call forks additional follower processes. Code that
+     * follows runs in each process.
+     */
+    disagg_setup_multi_node();
+
     /* Configure the run. */
     config_run();
     g.configured = true;
@@ -431,6 +440,8 @@ skip_operations:
     fflush(stdout);
 
     config_clear();
+
+    disagg_teardown_multi_node();
 
     return (EXIT_SUCCESS);
 }

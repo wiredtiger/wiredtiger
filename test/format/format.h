@@ -34,6 +34,7 @@
 #ifdef HAVE_SETRLIMIT
 #include <sys/resource.h>
 #endif
+#include <sys/wait.h>
 #include <signal.h>
 
 #define BUILDDIR "../../"
@@ -243,11 +244,11 @@ typedef struct {
 
     int trace_retain;
 
-    char *home;        /* Home directory */
-    char *home_backup; /* Backup file name */
-    char *home_config; /* Run CONFIG file path */
-    char *home_key;    /* Key file filename */
-    char *home_stats;  /* Statistics file path */
+    char home[256];        /* Home directory */
+    char home_backup[256]; /* Backup file name */
+    char home_config[256]; /* Run CONFIG file path */
+    char home_key[256];    /* Key file filename */
+    char home_stats[256];  /* Statistics file path */
 
     char *config_open; /* Command-line configuration */
 
@@ -310,6 +311,7 @@ typedef struct {
     uint32_t prefix_len_max;
 
     bool disagg_leader; /* If disaggregated storage role is configured as a leader. */
+    pid_t follower_pid; /* For multi-node disagg follower process */
 
     bool column_store_config;           /* At least one column-store table configured */
     bool disagg_storage_config;         /* If disaggregated storage is configured */
@@ -451,12 +453,16 @@ void config_compat(const char **);
 void config_error(void);
 void config_file(const char *);
 void config_print(bool);
+void config_random_generators(void);
 void config_run(void);
 void config_single(TABLE *, const char *, bool);
 void create_database(const char *home, WT_CONNECTION **connp);
 void cursor_dump_page(WT_CURSOR *, const char *);
 bool disagg_is_mode_switch(void);
+bool disagg_is_multi_node(void);
+void disagg_setup_multi_node(void);
 int disagg_switch_roles(void);
+void disagg_teardown_multi_node(void);
 bool enable_session_prefetch(void);
 void fclose_and_clear(FILE **);
 void key_gen_common(TABLE *, WT_ITEM *, uint64_t, const char *);
