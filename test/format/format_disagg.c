@@ -29,6 +29,33 @@
 #include "format.h"
 
 /*
+ * disagg_redirect_output --
+ *     Redirect output to a file in the run directory, unless running quietly.
+ */
+static void
+disagg_redirect_output(const char *output_file)
+{
+    char path[256];
+
+    if (GV(QUIET))
+        return;
+
+    testutil_snprintf(path, sizeof(path), "%s/%s", g.home, output_file);
+
+    printf("===> Output will be written to %s\n", path);
+    printf("     (If you want to watch live, run: tail -f %s)\n\n", path);
+    fflush(stdout);
+
+    if (freopen(path, "w", stdout) == NULL)
+        testutil_die(errno, "freopen stdout %s", path);
+    if (freopen(path, "w", stderr) == NULL)
+        testutil_die(errno, "freopen stderr %s", path);
+
+    __wt_stream_set_line_buffer(stdout);
+    __wt_stream_set_no_buffer(stderr);
+}
+
+/*
  * disagg_teardown_multi_node --
  *     Wait for and clean up any follower processes if we're in multi-node disagg mode.
  */
@@ -58,6 +85,7 @@ disagg_setup_multi_node(void)
     if (!disagg_is_multi_node())
         return;
 
+    fflush(NULL);
     testutil_snprintf(follower_home, sizeof(follower_home), "%s/follower", g.home);
 
     /*
@@ -74,8 +102,13 @@ disagg_setup_multi_node(void)
     if (pid == 0) { /* Child: follower */
         config_single(NULL, "disagg.mode=follower", true);
         path_setup(follower_home);
-    } else /* Parent: leader */
+        disagg_redirect_output("follower.out");
+        progname = "t[follower]";
+    } else { /* Parent: leader */
         config_single(NULL, "disagg.mode=leader", true);
+        disagg_redirect_output("leader.out");
+        progname = "t[leader]";
+    }
 
     g.follower_pid = pid;
 }
