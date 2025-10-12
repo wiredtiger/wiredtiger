@@ -601,7 +601,6 @@ static WT_INLINE int
 __rec_hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r, WT_INSERT *ins,
   WT_ROW *rip, WT_ITEM *key)
 {
-    WT_DECL_RET;
     WT_PAGE *page;
     uint8_t *p;
 
