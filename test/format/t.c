@@ -439,9 +439,9 @@ skip_operations:
     printf("%s: successful run completed (%" PRIu64 " seconds)\n ", progname, now - start);
     fflush(stdout);
 
-    config_clear();
-
     disagg_teardown_multi_node();
+
+    config_clear();
 
     return (EXIT_SUCCESS);
 }

@@ -174,7 +174,7 @@ static int palm_terminate(WT_PAGE_LOG *, WT_SESSION *);
 static int
 palm_setup_home(PALM *palm, WT_CONNECTION *connection, WT_CONFIG_ITEM *cval)
 {
-    const char *home;
+    const char *home, *suffix;
     size_t len, total_len;
     int ret;
 
@@ -186,7 +186,7 @@ palm_setup_home(PALM *palm, WT_CONNECTION *connection, WT_CONFIG_ITEM *cval)
         len = cval->len;
     }
 
-    const char *suffix = "/kv_home";
+    suffix = "/kv_home";
     total_len = len + strlen(suffix) + 1;
 
     palm->kv_home = malloc(total_len);
@@ -194,8 +194,7 @@ palm_setup_home(PALM *palm, WT_CONNECTION *connection, WT_CONFIG_ITEM *cval)
         ret = palm_err(palm, NULL, errno, "malloc");
         goto err;
     }
-    strncpy(palm->kv_home, home, len);
-    strncat(palm->kv_home, suffix, total_len);
+    snprintf(palm->kv_home, total_len, "%.*s%s", (int)len, home, suffix);
 
     /* Create the LMDB home, or if it exists, use what is already there. */
     ret = mkdir(palm->kv_home, 0777);
@@ -213,6 +212,7 @@ palm_setup_home(PALM *palm, WT_CONNECTION *connection, WT_CONFIG_ITEM *cval)
 err:
         if (palm->kv_home != NULL)
             free(palm->kv_home);
+        palm->kv_home = NULL;
     }
     return (ret);
 }
@@ -228,6 +228,8 @@ palm_configure(PALM *palm, WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     WT_CONFIG_PARSER *env_parser;
     const char *env_config;
     int ret, t_ret;
+
+    memset(&cval, 0, sizeof(cval));
 
     if ((env_config = getenv("WT_PALM_CONFIG")) == NULL)
         env_config = "";
