@@ -97,6 +97,9 @@ disagg_setup_multi_node(void)
         testutil_mkdir(follower_home);
     }
 
+    /* Initialize a shared page log directory path for all nodes. */
+    testutil_snprintf(g.home_page_log, sizeof(g.home_page_log), "%s", g.home);
+
     pid = fork();
     testutil_assert(pid >= 0);
     if (pid == 0) { /* Child: follower */

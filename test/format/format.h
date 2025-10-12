@@ -244,11 +244,12 @@ typedef struct {
 
     int trace_retain;
 
-    char home[256];        /* Home directory */
-    char home_backup[256]; /* Backup file name */
-    char home_config[256]; /* Run CONFIG file path */
-    char home_key[256];    /* Key file filename */
-    char home_stats[256];  /* Statistics file path */
+    char home[256];          /* Home directory */
+    char home_backup[256];   /* Backup file name */
+    char home_config[256];   /* Run CONFIG file path */
+    char home_key[256];      /* Key file filename */
+    char home_page_log[256]; /* Page and log service home dir (disagg) */
+    char home_stats[256];    /* Statistics file path */
 
     char *config_open; /* Command-line configuration */
 
