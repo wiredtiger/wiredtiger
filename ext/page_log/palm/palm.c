@@ -529,14 +529,13 @@ palm_add_reference(WT_PAGE_LOG *page_log)
      * that we need early failure.
      */
     do {
-        unsigned int cur_count = atomic_load_explicit(&palm->reference_count, memory_order_relaxed);
+        unsigned int cur_count = atomic_load(&palm->reference_count);
         /*
          * Missing reference or overflow? Assume the first ref will not race the creation.
          */
         if (cur_count == 0 || cur_count + 1 == 0)
             return (EINVAL);
-        if (atomic_compare_exchange_strong_explicit(&palm->reference_count, &cur_count,
-              cur_count + 1, memory_order_acq_rel, memory_order_acquire))
+        if (atomic_compare_exchange_strong(&palm->reference_count, &cur_count, cur_count + 1))
             break;
     } while (true);
     return (0);
@@ -1251,8 +1250,7 @@ palm_terminate(WT_PAGE_LOG *storage, WT_SESSION *session)
     ret = 0;
     palm = (PALM *)storage;
 
-    uint32_t new_ref_count =
-      atomic_fetch_sub_explicit(&palm->reference_count, 1, memory_order_acquire);
+    uint32_t new_ref_count = atomic_fetch_sub(&palm->reference_count, 1);
     /* The last reference is 1. */
     if (new_ref_count != 1)
         return (0);
@@ -1320,8 +1318,7 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     /*
      * The first reference is implied by the call to add_page_log.
      */
-    if (!atomic_compare_exchange_strong_explicit(
-          &palm->reference_count, &(uint32_t){0}, 1, memory_order_release, memory_order_relaxed)) {
+    if (!atomic_compare_exchange_strong(&palm->reference_count, &(uint32_t){0}, 1)) {
         ret = palm_err(palm, NULL, EINVAL, "reference count init twice");
         goto err;
     }
