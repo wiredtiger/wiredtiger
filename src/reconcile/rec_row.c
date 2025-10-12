@@ -247,11 +247,14 @@ __rec_pack_delta_row_int(
 
     WT_CLEAR(t_kv_struct);
 
+#define WT_CELL_ADDR_DEL_VISIBLE_ALL_LEN (2)
+
     packed_size = key->len;
     if (value != NULL)
         packed_size += value->len;
     else
-        packed_size += 2;
+        /* Add 2 extra bytes for the delete cell. */
+        packed_size += WT_CELL_ADDR_DEL_VISIBLE_ALL_LEN;
 
     if (r->delta.size + packed_size > r->delta.memsize)
         WT_RET(__wt_buf_grow(session, &r->delta, r->delta.size + packed_size));
@@ -282,6 +285,7 @@ __rec_pack_delta_row_int(
         t_kv->cell_len = __wt_cell_pack_addr(
           session, &t_kv->cell, WT_CELL_ADDR_DEL_VISIBLE_ALL, WT_RECNO_OOB, NULL, &local_ta, 0);
         t_kv->len = t_kv->cell_len;
+        WT_ASSERT(session, t_kv->len == WT_CELL_ADDR_DEL_VISIBLE_ALL_LEN);
         __wti_rec_kv_copy(session, p, t_kv);
         ++r->count_internal_page_delta_key_deleted;
     } else {
