@@ -267,8 +267,14 @@ __rec_row_merge(
             *build_delta = false;
             r->delta.size = 0;
         }
-    } else
+    } else {
         F_CLR(ref, WT_REF_FLAG_REC_MULTIPLE);
+
+        if (*build_delta && r->cell_zero && ref_changes > 0) {
+            *build_delta = false;
+            r->delta.size = 0;
+        }
+    }
 
     /* For each entry in the split array... */
     for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
@@ -280,7 +286,8 @@ __rec_row_merge(
         if (i == 0) {
             if (*build_delta) {
                 __wt_ref_key(ref->home, ref, &old_key, &old_key_size);
-                WT_RET(__rec_cell_build_int_key(session, r, old_key, old_key_size));
+                WT_RET(
+                  __rec_cell_build_int_key(session, r, old_key, r->cell_zero ? 1 : old_key_size));
             } else
                 WT_RET(__rec_cell_build_int_key(session, r, WT_IKEY_DATA(multi->key.ikey),
                   r->cell_zero ? 1 : multi->key.ikey->size));
@@ -443,7 +450,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
              * first key, which is a random value. We cannot reconstruct the delta in this case as
              * the key has changed.
              */
-            if (build_delta && r->cell_zero) {
+            if (build_delta && r->cell_zero && prev_ref_changes > 0) {
                 build_delta = false;
                 r->delta.size = 0;
             }
@@ -475,7 +482,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             switch (child->modify->rec_result) {
             case WT_PM_REC_EMPTY:
                 /* Cannot build delta if we decide to delete the first key. */
-                if (build_delta && r->cell_zero) {
+                if (build_delta && r->cell_zero && prev_ref_changes > 0) {
                     build_delta = false;
                     r->delta.size = 0;
                 }
@@ -587,13 +594,14 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 
         /* Build key cell. Truncate any 0th key, internal pages don't need 0th keys. */
         __wt_ref_key(page, ref, &p, &size);
-
-        /*
-         * Modifying keys when building delta can get us into trouble so it's best not to truncate
-         * the first key when building delta.
-         */
-        if (r->cell_zero && !build_delta)
+        if (r->cell_zero) {
             size = 1;
+
+            if (build_delta && prev_ref_changes > 0) {
+                build_delta = false;
+                r->delta.size = 0;
+            }
+        }
         WT_ERR(__rec_cell_build_int_key(session, r, p, size));
         r->cell_zero = false;
 
