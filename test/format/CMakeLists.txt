@@ -5,6 +5,7 @@ set(format_sources
     checkpoint.c
     compact.c
     config_compat.c
+    follower.c
     format_config.c
     format_config_def.c
     format_disagg.c

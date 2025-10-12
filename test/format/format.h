@@ -311,8 +311,9 @@ typedef struct {
 #define PREFIX_LEN_CONFIG_MAX 80
     uint32_t prefix_len_max;
 
-    bool disagg_leader; /* If disaggregated storage role is configured as a leader. */
-    pid_t follower_pid; /* For multi-node disagg follower process */
+    bool disagg_leader;          /* If disaggregated storage role is configured as a leader. */
+    pid_t follower_pid;          /* For multi-node disagg follower process */
+    uint64_t last_checkpoint_ts; /* Last checkpoint timestamp picked up by follower. */
 
     bool column_store_config;           /* At least one column-store table configured */
     bool disagg_storage_config;         /* If disaggregated storage is configured */
@@ -443,6 +444,7 @@ WT_THREAD_RET background_compact(void *);
 WT_THREAD_RET backup(void *);
 WT_THREAD_RET checkpoint(void *);
 WT_THREAD_RET compact(void *);
+WT_THREAD_RET follower(void *);
 WT_THREAD_RET hs_cursor(void *);
 WT_THREAD_RET import(void *);
 WT_THREAD_RET random_kv(void *);
