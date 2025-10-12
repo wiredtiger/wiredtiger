@@ -615,19 +615,13 @@ __rec_hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r, W
         key->size = WT_PTRDIFF(p, key->data);
         break;
     case WT_PAGE_ROW_LEAF:
-        if (ins == NULL) {
-            WT_WITH_BTREE(session, btree, ret = __wt_row_leaf_key(session, page, rip, key, false));
-            WT_RET(ret);
-        } else {
-            key->data = WT_INSERT_KEY(ins);
-            key->size = WT_INSERT_KEY_SIZE(ins);
-        }
+        WT_RET(__wti_rec_get_row_leaf_key(session, btree, r, ins, rip, key));
         break;
     default:
         WT_RET(__wt_illegal_value(session, page->type));
     }
 
-    return (ret);
+    return (0);
 }
 
 /*

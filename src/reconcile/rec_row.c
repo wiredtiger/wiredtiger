@@ -306,27 +306,6 @@ __rec_pack_delta_row_int(
 }
 
 /*
- * __rec_delta_get_key --
- *     Get the delta key
- */
-static WT_INLINE int
-__rec_delta_get_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r, WT_INSERT *ins,
-  WT_ROW *rip, WT_ITEM *key)
-{
-    WT_DECL_RET;
-
-    if (ins == NULL) {
-        WT_WITH_BTREE(session, btree, ret = __wt_row_leaf_key(session, r->page, rip, key, false));
-        WT_RET(ret);
-    } else {
-        key->data = WT_INSERT_KEY(ins);
-        key->size = WT_INSERT_KEY_SIZE(ins);
-    }
-
-    return (0);
-}
-
-/*
  * __wti_rec_pack_delta_row_leaf --
  *     Pack a delta key and a delta value for a leaf page.
  */
@@ -348,7 +327,7 @@ __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAV
 
     /* Get the key data and pack it into a key cell. */
     WT_ERR(__wt_scr_alloc(session, 0, &key));
-    WT_ERR(__rec_delta_get_key(session, S2BT(session), r, supd->ins, supd->rip, key));
+    WT_ERR(__wti_rec_get_row_leaf_key(session, S2BT(session), r, supd->ins, supd->rip, key));
     WT_ERR(__rec_cell_build_leaf_key(session, r, key->data, key->size, &ovfl_key));
     WT_ASSERT(session, !ovfl_key);
 
