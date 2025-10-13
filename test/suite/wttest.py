@@ -563,6 +563,28 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def addTearDownAction(self, action):
         self.teardown_actions.append(action)
 
+    def verifyLayered(self):
+        conn = self.conn
+        session = self.session
+        disagg = self.getDisaggParameters()
+        role = disagg.role
+
+        if conn is not None and session is not None:
+            cur = session.open_cursor('metadata:', None, None)
+            while cur.next() == 0:
+                uri = cur.get_key()
+                if uri.startswith('layered:') or uri.startswith('table:'):
+                    try:
+                        print("Verifying " + uri + " as " + role)
+                        session.verify(uri)
+                    except wiredtiger.WiredTigerError as e:
+                        if str(e) == os.strerror(errno.EBUSY):
+                            pass
+                        elif str(e) == os.strerror(errno.ENOENT) and role == 'follower':
+                            pass
+                        else:
+                            raise e
+
     def tearDown(self, dueToRetry=False):
         teardown_failed = False
         teardown_msg = None
@@ -581,6 +603,10 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                         teardown_msg = str(tmp[1])
                     else:
                         teardown_msg += "; " + str(tmp[1])
+
+        
+        if re.match("test_layered.*", str(self)):
+            self.verifyLayered()
 
         passed = not (self.failed() or teardown_failed)
 
