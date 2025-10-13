@@ -32,7 +32,7 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_stora
 from wtscenario import make_scenarios
 
 # test_layered59.py
-#    Test never build an internal page delta if the first is modified.
+#    Test never build an internal page delta if the first key is modified.
 @disagg_test_class
 class test_layered59(wttest.WiredTigerTestCase, DisaggConfigMixin):
     disagg_storages = gen_disagg_storages('test_layered59', disagg_only = True)
