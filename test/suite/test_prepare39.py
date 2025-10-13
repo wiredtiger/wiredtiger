@@ -66,7 +66,6 @@ class test_prepare39(test_prepare_preserve_prepare_base):
         self.assertEqual(read_cursor.get_value(), expected_value)
         self.session.rollback_transaction()
 
-    @wttest.skip_for_hook("disagg", "Skip test until cell packing/unpacking is supported for page delta")
     def test_hs_rollback_prepare(self):
         # Setup: Initialize timestamps with stable < prepare timestamp
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
