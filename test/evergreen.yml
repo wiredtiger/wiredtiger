@@ -1541,7 +1541,7 @@ variables:
       - func: "fetch artifacts"
       - func: "format test disagg"
         vars:
-          format_args: disagg.page_log=palite disagg.mode=leader runs.tables=3 runs.timer=15:30
+          format_args: disagg.page_log=palite disagg.mode=leader runs.tables=3 runs.timer=10:15
           times: 5
 
   - &format-stress-data-validation-test-disagg-leader-palite
@@ -1552,7 +1552,7 @@ variables:
       - func: "format test disagg"
         vars:
           # Validate data with a non-layered table.
-          format_args: disagg.page_log=palite disagg.mode=leader ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.tables=2 runs.timer=15:30
+          format_args: disagg.page_log=palite disagg.mode=leader ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.tables=2 runs.timer=10:15
           times: 5
 
   - &format-stress-test-disagg-switch-palite
@@ -1562,7 +1562,7 @@ variables:
       - func: "fetch artifacts"
       - func: "format test disagg"
         vars:
-          format_args: disagg.page_log=palite disagg.mode=switch runs.tables=1 runs.timer=15:30
+          format_args: disagg.page_log=palite disagg.mode=switch runs.tables=1 runs.timer=10:15
           times: 5
 
   - &format-stress-test-disagg-follower-palite
@@ -1572,7 +1572,7 @@ variables:
       - func: "fetch artifacts"
       - func: "format test disagg"
         vars:
-          format_args: disagg.page_log=palite disagg.mode=follower runs.timer=15:30
+          format_args: disagg.page_log=palite disagg.mode=follower runs.timer=10:15
           times: 10
 
   - &format-stress-data-validation-test-disagg-follower-palite
@@ -1582,7 +1582,7 @@ variables:
       - func: "fetch artifacts"
       - func: "format test disagg"
         vars:
-          format_args: disagg.page_log=palite disagg.mode=follower ops.verify=1 runs.mirror=1 runs.timer=15:30
+          format_args: disagg.page_log=palite disagg.mode=follower ops.verify=1 runs.mirror=1 runs.timer=10:15
           times: 10
 
   - &format-stress-test

@@ -77,7 +77,7 @@ define_test_variants(test_checkpoint
 # Define long running test variants for the disagg test
 define_test_variants(test_checkpoint
     VARIANTS
-        "disagg_leader_row_server_93028|-d leader -t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=250MB"
+        "disagg_leader_row_server_93028|-d leader -t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=1500MB"
     LABELS
         check
         disagg
