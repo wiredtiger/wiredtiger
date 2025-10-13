@@ -158,6 +158,12 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
     WT_ERR(__wt_calloc_def(session, estimated_entries, refsp));
     refs = *refsp;
 
+    /* Encode the first key always from the base image. */
+    base_key = &base[i++];
+    base_val = &base[i++];
+    WT_ERR(
+      __page_build_ref(session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
+
     /* Perform a merge sort between the base array and the delta array. */
     while (i < base_entries && j < delta_entries) {
         /* Compare the keys of the base entry and the delta entry. */
