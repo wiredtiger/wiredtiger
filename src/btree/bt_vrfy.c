@@ -319,8 +319,17 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * page discard function if we're in disagg mode.
              */
             if (ret == 0 && (ckpt + 1)->name == NULL) {
-                if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
                     WT_TRET(__verify_page_discard(session, bm));
+                    /*
+                     * FIXME-WT-15619 and WT-15618: We can run verify on layered tables when deltas
+                     * are written as a full image.
+                     */
+                    printf(
+                      "table %s skipped verify because verify does not support disagg delta "
+                      "pages.\n",
+                      session->dhandle->name);
+                }
 
                 if (!skip_hs)
                     WT_TRET(__wt_hs_verify_one(session, btree->id));
