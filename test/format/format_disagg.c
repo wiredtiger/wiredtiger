@@ -100,9 +100,6 @@ disagg_setup_multi_node(void)
     pid = fork();
     testutil_assert_errno(pid >= 0);
     if (pid == 0) { /* Child: follower */
-        /* Child auto-exit if parent dies */
-        prctl(PR_SET_PDEATHSIG, SIGTERM);
-
         progname = "t[follower]";
         config_single(NULL, "disagg.mode=follower", true);
         path_setup(follower_home);
