@@ -429,6 +429,10 @@ __rec_row_merge(
     } else {
         F_CLR(ref, WT_REF_FLAG_REC_MULTIPLE);
 
+        /*
+         * If we have changed the first key, don't build a delta as we will write a truncated key to
+         * disk.
+         */
         if (*build_delta && r->cell_zero && ref_changes > 0) {
             *build_delta = false;
             r->delta.size = 0;
@@ -604,10 +608,8 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         switch (cms.state) {
         case WTI_CHILD_IGNORE:
             /*
-             * Cannot build delta if we decide to delete the first key. The first key on the
-             * internal page is a random value. If we delete that, the next key will become the new
-             * first key, which is a random value. We cannot reconstruct the delta in this case as
-             * the key has changed.
+             * If we have changed the first key, don't build a delta as we will write a truncated
+             * key to disk.
              */
             if (build_delta && r->cell_zero && prev_ref_changes > 0) {
                 build_delta = false;
@@ -640,7 +642,10 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
              */
             switch (child->modify->rec_result) {
             case WT_PM_REC_EMPTY:
-                /* Cannot build delta if we decide to delete the first key. */
+                /*
+                 * If we have changed the first key, don't build a delta as we will write a
+                 * truncated key to disk.
+                 */
                 if (build_delta && r->cell_zero && prev_ref_changes > 0) {
                     build_delta = false;
                     r->delta.size = 0;
@@ -756,6 +761,10 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         if (r->cell_zero) {
             size = 1;
 
+            /*
+             * If we have changed the first key, don't build a delta as we will write a truncated
+             * key to disk.
+             */
             if (build_delta && prev_ref_changes > 0) {
                 build_delta = false;
                 r->delta.size = 0;
