@@ -106,7 +106,8 @@ reread:
           "retry #%" PRIu32 " for page_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64
           ", base_lsn %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
           retry, page_id, flags, lsn, base_lsn, size, checksum);
-        __wt_sleep(0, 10000 + retry * 5000);
+
+        __wt_sleep(0, WT_MIN(10000 + retry * 5000, 500000));
 
         for (i = 0; i < *results_count; i++)
             __wt_buf_free(session, &results_array[i]);
@@ -125,20 +126,13 @@ reread:
 
     if (*results_count == 0) {
         /*
-         * The page was not found for this page id. This would normally be an error, as we will
-         * never ask for a page that we haven't previously written. However, if it hasn't
-         * materialized yet in the page service, this can happen, so retry with a delay.
+         * We didn't get any data back from the page read. Retry a few times in case this is a
+         * transient error.
          *
-         * This code may go away once we establish a way to ask for a particular delta, and the PALI
-         * interface will be obligated to wait until it appears.
+         * XXX: Currently we retry forever as we would rather hang in testing so we can 
+         * more easily get a core dump if needed. 
          */
-        if (retry < 100)
-            goto reread;
-        __wt_verbose_error(session, WT_VERB_READ,
-          "%s: read failed for table ID %" PRIu64 ", page ID %" PRIu64 ", flags %" PRIx64
-          ", lsn %" PRIu64 ", base_lsn %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
-          block_disagg->name, block_disagg->tableid, page_id, flags, lsn, base_lsn, size, checksum);
-        WT_ERR(EIO);
+         goto reread;
     }
 
     last = (int32_t)(*results_count - 1);
