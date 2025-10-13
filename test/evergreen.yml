@@ -4908,7 +4908,7 @@ tasks:
           test-name: modularity_metrics
           collection: CodeModularityMetrics
 
-  - name: generate-tsan-metric
+  - name: generate-tsan-metric-timestamp
     tags: ["pull_request_code_statistics"]
     depends_on:
       - name: "unit-test-tsan"
@@ -4923,7 +4923,22 @@ tasks:
           # Track warnings only after time 2025-08-06 06:07:50.655735+00:00
           timestamp: 1754460496
 
-  - name: generate-tsan-metric-disagg
+  - name: generate-tsan-metric
+    tags: ["pull_request_code_statistics"]
+    depends_on:
+      - name: "unit-test-tsan"
+    commands:
+      - func: "get project"
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: unit-test-tsan
+          destination: wiredtiger/unit-test-tsan
+      - func: "tsan warning metric"
+        vars:
+          # Report all warnings
+          timestamp: 0
+
+  - name: generate-tsan-metric-disagg-timestamp
     tags: ["pull_request_code_statistics"]
     depends_on:
       - name: "unit-test-disagg-leader-tsan"
@@ -4942,6 +4957,26 @@ tasks:
         vars:
           # Track warnings right before disagg merge 2025-08-02.
           timestamp: 1746576000
+
+  - name: generate-tsan-metric-disagg
+    tags: ["pull_request_code_statistics"]
+    depends_on:
+      - name: "unit-test-disagg-leader-tsan"
+      - name: "unit-test-disagg-follower-tsan"
+    commands:
+      - func: "get project"
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: unit-test-disagg-leader-tsan
+          destination: wiredtiger/unit-test-disagg-leader-tsan
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: unit-test-disagg-follower-tsan
+          destination: wiredtiger/unit-test-disagg-follower-tsan
+      - func: "tsan warning metric"
+        vars:
+          # Generate all warnings
+          timestamp: 0
 
     ###############################
     # Performance Tests for btree #
@@ -6516,8 +6551,10 @@ buildvariants:
     - name: unit-test-disagg-follower-tsan
       distros: ubuntu2004-large
     - name: generate-tsan-metric
-    - name: tsan-playground-test
     - name: generate-tsan-metric-disagg
+    - name: generate-tsan-metric-timestamp
+    - name: generate-tsan-metric-disagg-timestamp
+    - name: tsan-playground-test
 
 # FIXME-WT-13256
 # This variant runs all possible tasks under TSan but instructs TSan to not report any issues it
@@ -7361,6 +7398,9 @@ buildvariants:
     - name: unit-test-tsan
       distros: amazon2023-arm64-latest-large-m8g
     - name: generate-tsan-metric
+    - name: generate-tsan-metric-disagg
+    - name: generate-tsan-metric-timestamp
+    - name: generate-tsan-metric-disagg-timestamp
 
 - name: amazon2023-armv9-msan
   display_name: "(ARMV9) Amazon Linux 2023 MSAN"
