@@ -1191,7 +1191,7 @@ functions:
         # Check if we running in disagg mode.
         disagg_args=""
         if [[ "${disagg_run|false}" == "true" ]]; then
-            disagg_args="-d leader -t row -x"
+            disagg_args="-d leader -t row"
         fi
         ./test_checkpoint ${checkpoint_args} $disagg_args  2>&1
 
