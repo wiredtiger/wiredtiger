@@ -112,10 +112,6 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
 
             __wt_sleep(0, WT_MIN(10000 + retry * 5000, 500000));
 
-            for (i = 0; i < *results_count; i++)
-                __wt_buf_free(session, &results_array[i]);
-
-            memset(results_array, 0, *results_count * sizeof(results_array[0]));
             *results_count = orig_count;
         }
         /*
