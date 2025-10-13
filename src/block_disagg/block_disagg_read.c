@@ -96,14 +96,14 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
 
     orig_count = *results_count;
 
-    for (retry = 0; ; retry++) {
+    for (retry = 0;; retry++) {
         if (retry > 0) {
             /*
-             * The page server didn't return any data. Retry a few times in case this is a 
-             * transient error.
+             * The page server didn't return any data. Retry a few times in case this is a transient
+             * error.
              *
-             * XXX: To support current testing, we never give up. It is better to hang here as
-             * that will allow us to generate a core dump if desired.
+             * XXX: To support current testing, we never give up. It is better to hang here as that
+             * will allow us to generate a core dump if desired.
              */
             __wt_verbose_notice(session, WT_VERB_READ,
               "retry #%" PRIu32 " for page_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64
