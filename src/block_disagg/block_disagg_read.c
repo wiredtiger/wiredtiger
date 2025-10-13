@@ -55,6 +55,8 @@ __block_disagg_read_checksum_err(WT_SESSION_IMPL *session, const char *name, uin
 /*
  * __block_disagg_check_lsn_frontier --
  *     Check that the LSN is not ahead of the materialization frontier.
+ *
+ * FIXME-WT-15760: make sure last_materialized_lsn is properly updated on secondaries.
  */
 static int
 __block_disagg_check_lsn_frontier(WT_SESSION_IMPL *session, uint64_t lsn)
@@ -63,8 +65,12 @@ __block_disagg_check_lsn_frontier(WT_SESSION_IMPL *session, uint64_t lsn)
 
     WT_ACQUIRE_READ(
       last_materialized_lsn, S2C(session)->disaggregated_storage.last_materialized_lsn);
-    /* last_materialized_lsn = 0 means it's not initialized yet. */
-    if (last_materialized_lsn != WT_DISAGG_LSN_NONE && lsn > last_materialized_lsn) {
+    if (last_materialized_lsn != WT_DISAGG_LSN_NONE &&
+      /*
+       * FIXME-WT-15759 last_materialized_lsn = 0 means it's not initialized yet but we're reading
+       * something.
+       */
+      lsn > last_materialized_lsn) {
         WT_RET_SUB_MSG(session, EINVAL, WT_DISAGG_BAD_LSN,
           "Attempted to read page with LSN %" PRIu64
           " ahead of the materialization frontier at "
