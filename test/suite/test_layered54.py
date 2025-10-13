@@ -84,12 +84,15 @@ class test_layered54(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(ts))
         cursor.close()
 
-    def verify(self, kv):
+    def verify(self, kv, kv_modified):
         cursor = self.session.open_cursor(self.uri, None, None)
         for k, v in kv.items():
             cursor.set_key(k)
             cursor.search()
-            self.assertEqual(cursor.get_value(), v)
+            if (k in kv_modified):
+                self.assertEqual(cursor.get_value(), kv_modified[k])
+            else:
+                self.assertEqual(cursor.get_value(), v)
         cursor.close()
 
     def verify_compression(self, prefix_compression):
@@ -113,7 +116,7 @@ class test_layered54(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Re-open the connection to clear contents out of memory.
         self.reopen_disagg_conn(self.conn_config())
         # Perform two small updates.
-        kv_modified = {str(10): "10abc", str(220): "220abc"}
+        kv_modified = {f'{initial_key}{400}': "10abc", f'{initial_key}{800}': "220abc"}
         self.insert(kv_modified, initial_ts + 1)
         # Perform a checkpoint to write out a delta.
         self.session.checkpoint()
@@ -126,8 +129,7 @@ class test_layered54(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Re-open the connection to clear contents out of memory.
         self.reopen_disagg_conn(self.conn_config())
         # Verify the k/v pairs in the table.
-        self.verify(kv)
-        self.verify(kv_modified)
+        self.verify(kv, kv_modified)
          # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
             self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
@@ -139,8 +141,7 @@ class test_layered54(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.reopen_disagg_conn(follower_config)
         time.sleep(1.0)
         # Verify the k/v pairs in the table.
-        self.verify(kv)
-        self.verify(kv_modified)
+        self.verify(kv, kv_modified)
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
             self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
