@@ -45,10 +45,10 @@ disagg_redirect_output(const char *output_file)
 
     if (freopen(path, "w", stdout) == NULL)
         testutil_die(errno, "freopen stdout %s", path);
-    if (freopen(path, "w", stderr) == NULL)
-        testutil_die(errno, "freopen stderr %s", path);
+    if (dup2(fileno(stdout), fileno(stderr)) == -1)
+        testutil_die(errno, "dup2 stderr->stdout");
 
-    __wt_stream_set_line_buffer(stdout);
+    __wt_stream_set_no_buffer(stdout);
     __wt_stream_set_no_buffer(stderr);
 }
 
