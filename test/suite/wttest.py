@@ -575,7 +575,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                 uri = cur.get_key()
                 if uri.startswith('layered:') or uri.startswith('table:'):
                     try:
-                        print("Verifying " + uri + " as " + role)
                         session.verify(uri)
                     except wiredtiger.WiredTigerError as e:
                         if str(e) == os.strerror(errno.EBUSY):
@@ -604,7 +603,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     else:
                         teardown_msg += "; " + str(tmp[1])
 
-        
         if re.match("test_layered.*", str(self)):
             self.verifyLayered()
 
