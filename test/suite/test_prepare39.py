@@ -46,7 +46,8 @@ class test_prepare39(test_prepare_preserve_prepare_base):
         session.checkpoint()
         count = 0
         # Check the history store file value.
-        cursor = session.open_cursor("file:WiredTigerHS.wt", None, 'checkpoint=WiredTigerCheckpoint')
+        cursor = session.open_cursor("file:WiredTigerSharedHS.wt_stable" if 'disagg' in self.hook_names
+                                     else "file:WiredTigerHS.wt", None, 'checkpoint=WiredTigerCheckpoint')
         for _, _, hs_start_ts, _, hs_stop_ts, _, type, value in cursor:
             # check that the update type is WT_UPDATE_STANDARD
             self.assertEqual(type, 3)
