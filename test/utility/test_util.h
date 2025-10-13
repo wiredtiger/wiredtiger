@@ -29,6 +29,7 @@
 #define TEST_UTIL_H
 
 #include "wt_internal.h"
+#include "signal.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -609,6 +610,9 @@ void testutil_tiered_sleep(TEST_OPTS *, WT_SESSION *, uint64_t, bool *);
 void testutil_tiered_storage_configuration(
   TEST_OPTS *, const char *, char *, size_t, char *, size_t);
 uint64_t testutil_time_us(WT_SESSION *);
+#ifndef _WIN32
+void testutil_timeout_wait(uint32_t, pid_t);
+#endif
 void testutil_verify_model(TEST_OPTS *opts, const char *);
 void testutil_work_dir_from_path(char *, size_t, const char *);
 WT_THREAD_RET thread_append(void *);

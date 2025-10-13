@@ -63,8 +63,8 @@ disagg_teardown_multi_node(void)
         return;
 
     if (g.follower_pid > 0) { /* Parent: leader */
-        /* Wait for the follower to exit. */
-        waitpid(g.follower_pid, NULL, 0);
+        /* Wait for the follower process to exit. */
+        testutil_timeout_wait(120, g.follower_pid);
         g.follower_pid = 0;
     }
 }
@@ -98,8 +98,11 @@ disagg_setup_multi_node(void)
 
     fflush(NULL);
     pid = fork();
-    testutil_assert(pid >= 0);
+    testutil_assert_errno(pid >= 0);
     if (pid == 0) { /* Child: follower */
+        /* Child auto-exit if parent dies */
+        prctl(PR_SET_PDEATHSIG, SIGTERM);
+
         progname = "t[follower]";
         config_single(NULL, "disagg.mode=follower", true);
         path_setup(follower_home);

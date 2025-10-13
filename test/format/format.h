@@ -34,7 +34,7 @@
 #ifdef HAVE_SETRLIMIT
 #include <sys/resource.h>
 #endif
-#include <sys/wait.h>
+#include <sys/prctl.h>
 #include <signal.h>
 
 #define BUILDDIR "../../"
