@@ -261,20 +261,32 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * force pages out before they're larger than the cache. We don't care about races, it's just a
      * statistic.
      */
-    if (__wt_atomic_loadsize(&page->memory_footprint) >
-      __wt_atomic_load64(&conn->evict->evict_max_page_size_per_checkpoint))
-        __wt_atomic_store64(&conn->evict->evict_max_page_size_per_checkpoint,
-          __wt_atomic_loadsize(&page->memory_footprint));
+    uint64_t page_size = __wt_atomic_loadsize(&page->memory_footprint);
 
-    if (__wt_atomic_loadsize(&page->memory_footprint) >
-      __wt_atomic_load64(&conn->evict->evict_max_page_size))
-        __wt_atomic_store64(
-          &conn->evict->evict_max_page_size, __wt_atomic_loadsize(&page->memory_footprint));
+    /* Track per-checkpoint maximum regardless of page type */
+    if (page_size > __wt_atomic_load64(&conn->evict->evict_max_page_size_per_checkpoint))
+        __wt_atomic_store64(&conn->evict->evict_max_page_size_per_checkpoint, page_size);
+
+    if (page_size > __wt_atomic_load64(&conn->evict->evict_max_page_size))
+        __wt_atomic_store64(&conn->evict->evict_max_page_size, page_size);
 
     /* Figure out whether reconciliation was done on the page */
     if (__wt_page_evict_clean(page)) {
         clean_page = true;
         FLD_SET(stats_flags, WT_EVICT_STATS_CLEAN);
+        /* Clean page */
+        if (page_size > __wt_atomic_load64(&conn->evict->evict_max_clean_page_size))
+            __wt_atomic_store64(&conn->evict->evict_max_clean_page_size, page_size);
+    } else {
+        /* Dirty page */
+        if (page_size > __wt_atomic_load64(&conn->evict->evict_max_dirty_page_size))
+            __wt_atomic_store64(&conn->evict->evict_max_dirty_page_size, page_size);
+        /* Check if the page has updates */
+        if (page->modify != NULL) {
+            /* Page with updates */
+            if (page_size > __wt_atomic_load64(&conn->evict->evict_max_updates_page_size))
+                __wt_atomic_store64(&conn->evict->evict_max_updates_page_size, page_size);
+        }
     }
 
     /* Update the reference and discard the page. */

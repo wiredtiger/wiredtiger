@@ -19,8 +19,12 @@ struct __wt_evict {
 
     wt_shared uint64_t evict_max_page_size; /* Largest page seen at eviction */
     wt_shared uint64_t
-      evict_max_page_size_per_checkpoint; /* Largest page seen at eviction per checkpoint */
-    wt_shared uint64_t evict_max_ms;      /* Longest milliseconds spent at a single eviction */
+      evict_max_page_size_per_checkpoint;         /* Largest page seen at eviction per checkpoint */
+    wt_shared uint64_t evict_max_clean_page_size; /* Largest clean page seen at eviction */
+    wt_shared uint64_t evict_max_dirty_page_size; /* Largest dirty page seen at eviction */
+    wt_shared uint64_t evict_max_updates_page_size; /* Largest updates page seen at eviction */
+
+    wt_shared uint64_t evict_max_ms; /* Longest milliseconds spent at a single eviction */
     wt_shared uint64_t
       evict_max_ms_per_checkpoint;   /* Longest milliseconds spent at a single eviction */
     uint64_t reentry_hs_eviction_ms; /* Total milliseconds spent inside a nested eviction */
