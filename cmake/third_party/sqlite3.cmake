@@ -2,7 +2,7 @@ if(NOT ENABLE_PALITE)
     return() # PALite is disabled, skip the rest of this file
 endif()
 
-if(NOT ENABLE_INTERNAL_SQLITE3)
+if(USE_SYSTEM_SQLITE3)
     find_package(SQLite3 ${SQLITE3_REQUIRED_VERSION} REQUIRED)
     add_library(wt::sqlite3 ALIAS SQLite::SQLite3)
     return()

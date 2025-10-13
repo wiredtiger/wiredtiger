@@ -365,9 +365,9 @@ config_string(
 )
 
 config_bool(
-    ENABLE_INTERNAL_SQLITE3
-    "Enable internal SQLite3 library. If disabled, the system SQLite3 library will be used."
-    DEFAULT ON
+    USE_SYSTEM_SQLITE3
+    "Use system SQLite3 library. If OFF, WiredTiger will use the bundled SQLite3 library."
+    DEFAULT OFF
 )
 
 set(default_optimize_level "-Og")
