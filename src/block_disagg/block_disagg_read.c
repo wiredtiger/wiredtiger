@@ -65,7 +65,7 @@ __block_disagg_check_lsn_frontier(WT_SESSION_IMPL *session, uint64_t lsn)
       last_materialized_lsn, S2C(session)->disaggregated_storage.last_materialized_lsn);
     /* last_materialized_lsn = 0 means it's not initialized yet. */
     if (last_materialized_lsn != 0 && lsn > last_materialized_lsn) {
-        WT_RET_SUB(session, EINVAL, WT_DISAGG_BAD_LSN,
+        WT_RET_MSG(session, EINVAL, WT_DISAGG_BAD_LSN,
           "Attempted to read page with LSN %" PRIu64
           " ahead of the materialization frontier at "
           "LSN %" PRIu64,
