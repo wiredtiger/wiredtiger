@@ -247,6 +247,9 @@ __rec_pack_delta_row_int(
 
     WT_CLEAR(t_kv_struct);
 
+    /* Ensure we never build a delta for the first key. */
+    WT_ASSERT(session, !r->cell_zero);
+
 #define WT_CELL_ADDR_DEL_VISIBLE_ALL_LEN (2)
 
     packed_size = key->len;
