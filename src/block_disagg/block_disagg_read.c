@@ -74,8 +74,6 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
 
     time_start = __wt_clock(session);
 
-    retry = 0;
-
     WT_CLEAR(get_args);
     get_args.lsn = lsn;
     WT_ASSERT(session, block_meta != NULL);
