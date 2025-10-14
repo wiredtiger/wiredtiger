@@ -152,9 +152,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
+    uint64_t page_size;
     uint8_t stats_flags;
     bool clean_page, closing, ebusy_only, inmem_split, tree_dead;
-    uint64_t page_size;
 
     conn = S2C(session);
     page = ref->page;
