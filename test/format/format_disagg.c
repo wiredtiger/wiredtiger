@@ -49,8 +49,8 @@ disagg_switch_roles(void)
 
     g.disagg_leader = !g.disagg_leader;
     /*
-     * FIXME-WT-15763: WT does not yet support graceful step-downs. Simply reconfiguring WT to step down may cause
-     * issues, so we reopen the connection when switching to follower mode.
+     * FIXME-WT-15763: WT does not yet support graceful step-downs. Simply reconfiguring WT to step
+     * down may cause issues, so we reopen the connection when switching to follower mode.
      */
     if (!g.disagg_leader)
         wts_reopen();
