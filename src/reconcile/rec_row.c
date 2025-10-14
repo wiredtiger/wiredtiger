@@ -522,7 +522,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     WT_TIME_AGGREGATE ft_ta, *source_ta, ta;
     size_t size;
     uint8_t prev_ref_changes;
-    bool build_delta, retain_onpage;
+    bool build_delta, cell_zero_tmp, retain_onpage;
     const void *p;
 
     btree = S2BT(session);
@@ -657,7 +657,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                 WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
                 continue;
             case WT_PM_REC_MULTIBLOCK:
-                bool cell_zero_tmp = r->cell_zero;
+                cell_zero_tmp = r->cell_zero;
                 WT_ERR(__rec_row_merge(session, r, ref, prev_ref_changes, &build_delta));
 
                 /*
