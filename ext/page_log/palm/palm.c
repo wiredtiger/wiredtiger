@@ -525,8 +525,8 @@ palm_add_reference(WT_PAGE_LOG *page_log)
     palm = (PALM *)page_log;
 
     /*
-     * Need to use CAS operation to avoid race conditions. The reason for not using fetch_add is
-     * that we need early failure.
+     * Check for missing reference or overflow before increment. Use CAS instead of fetch_add to
+     * avoid race conditions.
      */
     do {
         unsigned int cur_count = atomic_load(&palm->reference_count);
@@ -1250,9 +1250,9 @@ palm_terminate(WT_PAGE_LOG *storage, WT_SESSION *session)
     ret = 0;
     palm = (PALM *)storage;
 
-    uint32_t new_ref_count = atomic_fetch_sub(&palm->reference_count, 1);
-    /* The last reference is 1. */
-    if (new_ref_count != 1)
+    uint32_t old_ref_count = atomic_fetch_sub(&palm->reference_count, 1);
+    /* Do the cleanup for the last reference. */
+    if (old_ref_count != 1)
         return (0);
 
     /*
@@ -1318,7 +1318,7 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     /*
      * The first reference is implied by the call to add_page_log.
      */
-    if (!atomic_compare_exchange_strong(&palm->reference_count, &(uint32_t){0}, 1)) {
+    if (!atomic_compare_exchange_strong(&palm->reference_count, &(unsigned int){0}, 1)) {
         ret = palm_err(palm, NULL, EINVAL, "reference count init twice");
         goto err;
     }
