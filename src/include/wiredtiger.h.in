@@ -4361,7 +4361,7 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
 #define	WT_CONFLICT_CHECKPOINT_LOCK	(-32011)
 /*!
  * Read-uncommitted readers do not support reconstructing a record with modifies.
- * This sub-level error indicates that a reader with uncommitted isolation  is
+ * This sub-level error indicates that a reader with uncommitted isolation is
  * trying to reconstruct a record with modifies. This is not supported.
  */
 #define	WT_MODIFY_READ_UNCOMMITTED	(-32012)
@@ -4377,6 +4377,12 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * with disaggregated storage.
  */
 #define	WT_CONFLICT_DISAGG	(-32014)
+/*!
+ * Attempt to operate on a wrong LSN number.
+ * This sub-level error indicates that an operation with a bad LSN number was
+ * attempted.
+ */
+#define	WT_DISAGG_BAD_LSN	(-32015)
 /*
  * Sub-level error return section: END
  * DO NOT EDIT: automatically built by dist/api_err.py.
