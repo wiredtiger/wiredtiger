@@ -933,8 +933,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
 
     upd = NULL;
 
-    /* Temporary buffer in which to instantiate any uninstantiated keys or value items we need.
-     */
+    /* Temporary buffer in which to instantiate any uninstantiated keys or value items we need. */
     WT_RET(__wt_scr_alloc(session, 0, &tmpkey));
 
     for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
@@ -1146,8 +1145,7 @@ __wti_rec_row_leaf(
      */
     WT_ERR(__wt_scr_alloc(session, 0, &lastkey));
 
-    /* Temporary buffer in which to instantiate any uninstantiated keys or value items we need.
-     */
+    /* Temporary buffer in which to instantiate any uninstantiated keys or value items we need. */
     WT_ERR(__wt_scr_alloc(session, 0, &tmpkey));
 
     /* For each entry in the page... */
@@ -1330,8 +1328,7 @@ __wti_rec_row_leaf(
                     WT_ERR(__wt_ovfl_discard_add(session, page, kpack->cell));
                 }
 
-                /* Not creating a key so we can't use last-key as a prefix for a subsequent key.
-                 */
+                /* Not creating a key so we can't use last-key as a prefix for a subsequent key. */
                 lastkey->size = 0;
                 break;
             default:
