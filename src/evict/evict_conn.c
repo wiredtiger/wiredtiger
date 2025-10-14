@@ -190,12 +190,14 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
+    WT_CACHE *cache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
     uint32_t evict_threads_max, evict_threads_min;
 
     conn = S2C(session);
+    cache = conn->cache;
     evict = conn->evict;
 
     WT_ASSERT(session, evict != NULL);
@@ -237,6 +239,36 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     /* Retrieve the timeout value and convert from seconds */
     WT_RET(__wt_config_gets(session, cfg, "cache_stuck_timeout_ms", &cval));
     evict->cache_stuck_timeout_ms = (uint64_t)cval.val;
+
+    /*
+     * The cache tolerance is a percentage value with range 0 - 100, inclusive.
+     * Given input percentage is considered in multiples of 10 only, by applying floor().
+     * 00 < value < 10  -> 00
+     * 10 < value < 20  -> 10
+     * 20 < value < 30  -> 20
+     * ...
+     * 90 < value < 100 -> 90
+     * value is 100     -> 100
+     */
+    WT_RET(__wt_config_gets(session, cfg, "eviction.cache_tolerance_for_app_eviction", &cval));
+    __wt_atomic_store8(&cache->cache_eviction_controls.cache_tolerance_for_app_eviction,
+      (((uint8_t)cval.val / 10) * 10));
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction.incremental_app_eviction", &cval));
+    if (cval.val != 0)
+        F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_EVICT_INCREMENTAL_APP);
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction.prefer_scrub_eviction", &cval));
+    if (cval.val != 0)
+        F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_PREFER_SCRUB_EVICTION);
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction.skip_update_obsolete_check", &cval));
+    if (cval.val != 0)
+        F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_SKIP_UPDATE_OBSOLETE_CHECK);
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction.app_eviction_min_cache_fill_ratio", &cval));
+    __wt_atomic_store8(
+      &cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio, (uint8_t)cval.val);
 
     /*
      * Resize the thread group if reconfiguring, otherwise the thread group will be initialized as
@@ -375,12 +407,22 @@ __wt_evict_stats_update(WT_SESSION_IMPL *session)
 
     WT_STATP_CONN_SET(
       session, stats, eviction_maximum_page_size, __wt_atomic_load64(&evict->evict_max_page_size));
+    WT_STATP_CONN_SET(session, stats, eviction_maximum_page_size_per_checkpoint,
+      __wt_atomic_load64(&evict->evict_max_page_size_per_checkpoint));
     WT_STATP_CONN_SET(
       session, stats, eviction_maximum_milliseconds, __wt_atomic_load64(&evict->evict_max_ms));
+    WT_STATP_CONN_SET(session, stats, eviction_maximum_milliseconds_per_checkpoint,
+      __wt_atomic_load64(&evict->evict_max_ms_per_checkpoint));
     WT_STATP_CONN_SET(
       session, stats, eviction_reentry_hs_eviction_milliseconds, evict->reentry_hs_eviction_ms);
-    WT_STATP_CONN_SET(
-      session, stats, eviction_maximum_gen_gap, __wt_atomic_load64(&evict->evict_max_gen_gap));
+    WT_STATP_CONN_SET(session, stats, eviction_maximum_unvisited_gen_gap,
+      __wt_atomic_load64(&evict->evict_max_unvisited_gen_gap));
+    WT_STATP_CONN_SET(session, stats, eviction_maximum_unvisited_gen_gap_per_checkpoint,
+      __wt_atomic_load64(&evict->evict_max_unvisited_gen_gap_per_checkpoint));
+    WT_STATP_CONN_SET(session, stats, eviction_maximum_visited_gen_gap,
+      __wt_atomic_load64(&evict->evict_max_visited_gen_gap));
+    WT_STATP_CONN_SET(session, stats, eviction_maximum_visited_gen_gap_per_checkpoint,
+      __wt_atomic_load64(&evict->evict_max_visited_gen_gap_per_checkpoint));
     WT_STATP_CONN_SET(session, stats, eviction_state, __wt_atomic_load32(&evict->flags));
     WT_STATP_CONN_SET(session, stats, eviction_aggressive_set, evict->evict_aggressive_score);
     WT_STATP_CONN_SET(session, stats, eviction_empty_score, evict->evict_empty_score);

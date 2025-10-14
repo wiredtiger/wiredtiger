@@ -54,7 +54,7 @@ unittest = None
 def usage():
     print('Usage:\n\
   $ cd build\n\
-  $ python ../test/suite/run.py [ options ] [ tests ]\n\
+  $ python ../test/suite/run.py [ options | variables ] [ tests ]\n\
 \n\
 Options:\n\
             --asan               run with an ASAN enabled shared library\n\
@@ -84,10 +84,15 @@ Options:\n\
             --timeout N          have any test that exceeds N seconds throw an error.\n\
   -v N    | --verbose N          set verboseness to N (0<=N<=3, default=1)\n\
   -i      | --ignore-stdout      dont fail on unexpected stdout or stderr\n\
+  -P      | --print-output       duplicate all intercepted output to a standard stream\n\
   -R      | --randomseed         run with random seeds for generates random numbers\n\
   -S      | --seed               run with two seeds that generates random numbers, \n\
                                  format "seed1.seed2", seed1 or seed2 can\'t be zero\n\
   -z      | --zstd               run the zstd tests\n\
+\n\
+Variables, via name=value, default listed in brackets:\n\
+  page_log=[palm]                the Page and Log interface (PALI) implementation used\n\
+                                 for disaggregated storage tests\n\
 \n\
 Tests:\n\
   may be a file name in test/suite: (e.g. test_base01.py)\n\
@@ -155,6 +160,25 @@ def parse_int_list(str):
         # It's not valid syntax; give up.
         return None
     return ret
+
+def verify_command_line_vars(vars):
+    # The list of allowed variables, with defaults. Matches the usage message.
+    vars_allowed = {
+        'page_log' : 'palm'
+    }
+
+    for name in vars:
+        if not name in vars_allowed:
+            print(f'{name}: unknown command line variable')
+            usage()
+            sys.exit(1)
+
+    for name in vars_allowed:
+        if not name in vars:
+            # Set the default
+            vars[name] = vars_allowed[name]
+
+    return vars
 
 def restrictScenario(testcases, restrict):
     # Inner function to see if test case matches a scenario list
@@ -298,7 +322,7 @@ def error(exitval, prefix, msg):
 
 if __name__ == '__main__':
     # Turn numbers and ranges into test module names
-    preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = zstdtest = ignoreStdout = extralongtest = False
+    preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = zstdtest = ignoreStdout = printOutput = extralongtest = False
     removeAtStart = True
     asan = False
     parallel = 0
@@ -314,6 +338,7 @@ if __name__ == '__main__':
     testargs = []
     hook_names = []
     timeout = 0
+    command_line_vars = dict()
     # Generate a random string to use as a prefix for the tiered test objects to group them under
     # the same test run.
     ss_random_prefix = str(random.randrange(1, 2147483646))
@@ -432,6 +457,9 @@ if __name__ == '__main__':
             if option == '-ignore-stdout' or option == 'i':
                 ignoreStdout = True
                 continue
+            if option == '-print-output' or option == 'P':
+                printOutput = True
+                continue
             if option == '-config' or option == 'c':
                 if configfile != None or len(args) == 0:
                     usage()
@@ -462,6 +490,12 @@ if __name__ == '__main__':
             print('unknown arg: ' + arg)
             usage()
             sys.exit(2)
+        elif '=' in arg:
+            eq = arg.index('=')
+            left = arg[:eq]
+            right = arg[eq+1:]
+            command_line_vars[left] = right
+            continue
         testargs.append(arg)
 
     if asan:
@@ -543,12 +577,15 @@ if __name__ == '__main__':
 
     import wthooks
     hookmgr = wthooks.WiredTigerHookManager(hook_names)
+
+    command_line_vars = verify_command_line_vars(command_line_vars)
+
     # All global variables should be set before any test classes are loaded.
     # That way, verbose printing can be done at the class definition level.
-    wttest.WiredTigerTestCase.globalSetup(preserve, removeAtStart, timestamp, gdbSub, lldbSub,
-                                          verbose, wt_builddir, dirarg, longtest, extralongtest,
-                                          zstdtest, ignoreStdout, seedw, seedz, hookmgr,
-                                          ss_random_prefix, timeout)
+    wttest.WiredTigerTestCase.globalSetup(command_line_vars, preserve, removeAtStart, timestamp,
+                                          gdbSub, lldbSub, verbose, wt_builddir, dirarg, longtest,
+                                          extralongtest, zstdtest, ignoreStdout, printOutput,
+                                          seedw, seedz, hookmgr, ss_random_prefix, timeout)
 
     # Without any tests listed as arguments, do discovery
     if len(testargs) == 0:
