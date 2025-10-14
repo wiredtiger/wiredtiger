@@ -96,8 +96,9 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
      * If the page server returns no data but doesn't explicitly fail with an error, retry the the
      * read a few times in case the issue is transient.
      *
-     * XXX: To support current testing, we never give up. It is better to hang here as that will
-     * allow us to generate a core dump if desired.
+     * FIXME: WT-15768: To support current testing, we never give up. It is better to hang here as
+     * that will allow us to generate a core dump if desired. We should revisit this when we have
+     * more complete end-to-end story for handling read failures.
      */
     for (retry = 0, tmp_count = 0; tmp_count == 0; retry++) {
         if (retry > 0) {
