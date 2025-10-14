@@ -426,18 +426,8 @@ __rec_row_merge(
             *build_delta = false;
             r->delta.size = 0;
         }
-    } else {
+    } else
         F_CLR(ref, WT_REF_FLAG_REC_MULTIPLE);
-
-        /*
-         * If we have changed the first key, don't build a delta as we will write a truncated key to
-         * disk.
-         */
-        if (*build_delta && r->cell_zero && ref_changes > 0) {
-            *build_delta = false;
-            r->delta.size = 0;
-        }
-    }
 
     /* For each entry in the split array... */
     for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
@@ -561,6 +551,8 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
+        WT_ACQUIRE_READ(prev_ref_changes, ref->ref_changes);
+
         /*
          * FIXME-WT-15709: build delta for split pages.
          *
@@ -569,13 +561,17 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          * We write the child as multiple keys in the previous reconciliation. In this case, we
          * cannot delete the keys written in the previous reconciliation if we build a delta. Stop
          * building a delta.
+         *
+         * If we have changed the first key, don't build a delta as we will write a truncated key to
+         * disk.
          */
-        if (build_delta && (r->multi_next > 0 || F_ISSET(ref, WT_REF_FLAG_REC_MULTIPLE))) {
+        if (build_delta &&
+          (r->multi_next > 0 || F_ISSET(ref, WT_REF_FLAG_REC_MULTIPLE) ||
+            (r->cell_zero && prev_ref_changes > 0))) {
             build_delta = false;
             r->delta.size = 0;
         }
 
-        WT_ACQUIRE_READ(prev_ref_changes, ref->ref_changes);
         retain_onpage = false;
 
         /*
@@ -607,15 +603,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 
         switch (cms.state) {
         case WTI_CHILD_IGNORE:
-            /*
-             * If we have changed the first key, don't build a delta as we will write a truncated
-             * key to disk.
-             */
-            if (build_delta && r->cell_zero && prev_ref_changes > 0) {
-                build_delta = false;
-                r->delta.size = 0;
-            }
-
             if (build_delta && prev_ref_changes > 0) {
                 __wt_ref_key(page, ref, &p, &size);
                 WT_ERR(__rec_cell_build_int_key(session, r, p, size));
@@ -642,15 +629,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
              */
             switch (child->modify->rec_result) {
             case WT_PM_REC_EMPTY:
-                /*
-                 * If we have changed the first key, don't build a delta as we will write a
-                 * truncated key to disk.
-                 */
-                if (build_delta && r->cell_zero && prev_ref_changes > 0) {
-                    build_delta = false;
-                    r->delta.size = 0;
-                }
-
                 if (build_delta && prev_ref_changes > 0) {
                     __wt_ref_key(page, ref, &p, &size);
                     WT_ERR(__rec_cell_build_int_key(session, r, p, size));
@@ -758,18 +736,8 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 
         /* Build key cell. Truncate any 0th key, internal pages don't need 0th keys. */
         __wt_ref_key(page, ref, &p, &size);
-        if (r->cell_zero) {
+        if (r->cell_zero)
             size = 1;
-
-            /*
-             * If we have changed the first key, don't build a delta as we will write a truncated
-             * key to disk.
-             */
-            if (build_delta && prev_ref_changes > 0) {
-                build_delta = false;
-                r->delta.size = 0;
-            }
-        }
         WT_ERR(__rec_cell_build_int_key(session, r, p, size));
         r->cell_zero = false;
 
