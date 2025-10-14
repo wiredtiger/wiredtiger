@@ -671,11 +671,11 @@ err:
 }
 
 /*
- * __layered_table_manager_start --
+ * __layered_table_manager_init --
  *     Start the layered table manager thread
  */
 static int
-__layered_table_manager_start(WT_SESSION_IMPL *session)
+__layered_table_manager_init(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -696,7 +696,6 @@ __layered_table_manager_start(WT_SESSION_IMPL *session)
     manager->entries_allocated_bytes =
       manager->open_layered_table_count * sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY *);
 
-    WT_STAT_CONN_SET(session, layered_table_manager_init, 1);
     FLD_SET(conn->server_flags, WT_CONN_SERVER_LAYERED);
 
     manager->init = true;
@@ -882,7 +881,6 @@ __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
     manager->entries_allocated_bytes = 0;
 
     manager->init = false;
-    WT_STAT_CONN_SET(session, layered_table_manager_init, 0);
 
     __wt_spin_unlock(session, &manager->layered_table_lock);
     __wt_spin_destroy(session, &manager->layered_table_lock);
@@ -1218,7 +1216,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
     /* FIXME-WT-14965: Exit the function immediately if this check returns false. */
     if (__wt_conn_is_disagg(session)) {
-        WT_ERR(__layered_table_manager_start(session));
+        WT_ERR(__layered_table_manager_init(session));
 
         /* If we are starting as a primary, abandon a previous incomplete checkpoint. */
         if (leader) {
