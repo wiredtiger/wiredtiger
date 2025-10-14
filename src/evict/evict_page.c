@@ -154,9 +154,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_PAGE *page;
     uint8_t stats_flags;
     bool clean_page, closing, ebusy_only, inmem_split, tree_dead;
+    uint64_t page_size;
 
     conn = S2C(session);
     page = ref->page;
+    page_size = __wt_atomic_loadsize(&page->memory_footprint);
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     stats_flags = 0;
     clean_page = ebusy_only = false;
@@ -261,9 +263,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * force pages out before they're larger than the cache. We don't care about races, it's just a
      * statistic.
      */
-    uint64_t page_size = __wt_atomic_loadsize(&page->memory_footprint);
-
-    /* Track per-checkpoint maximum regardless of page type */
     if (page_size > __wt_atomic_load64(&conn->evict->evict_max_page_size_per_checkpoint))
         __wt_atomic_store64(&conn->evict->evict_max_page_size_per_checkpoint, page_size);
 
