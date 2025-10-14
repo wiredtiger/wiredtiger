@@ -582,7 +582,7 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_PREPARE_NOT_ALLOWED_NOCONF(session, ret, reconfigure);
+    SESSION_API_CALL_PREPARE_ALLOWED_NOCONF(session, reconfigure);
     SESSION_API_CONF(session, reconfigure, config, conf);
 
     WT_ERR(__wt_session_reset_cursors(session, false));
