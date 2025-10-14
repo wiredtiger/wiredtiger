@@ -3,6 +3,7 @@ include(cmake/configs/version.cmake)
 
 # Setup defaults based on the build type and available libraries.
 set(default_have_diagnostics ON)
+set(default_have_error_log ON)
 set(default_enable_python OFF)
 set(default_enable_lz4 OFF)
 set(default_enable_snappy OFF)
@@ -98,6 +99,12 @@ config_bool(
     HAVE_DIAGNOSTIC
     "Enable WiredTiger diagnostics. Automatically enables debug info."
     DEFAULT ${default_have_diagnostics}
+)
+
+config_bool(
+    HAVE_ERROR_LOG
+    "Enable WiredTiger error logging."
+    DEFAULT ${default_have_error_log}
 )
 
 config_bool(
@@ -496,6 +503,11 @@ endif()
 if (HAVE_DIAGNOSTIC AND NOT HAVE_REF_TRACK)
     set(HAVE_REF_TRACK ON CACHE BOOL "" FORCE)
     set(HAVE_REF_TRACK_DISABLED OFF CACHE INTERNAL "" FORCE)
+endif()
+
+# Error logging is always enabled in diagnostic build.
+if (HAVE_DIAGNOSTIC AND NOT HAVE_ERROR_LOG)
+    set(HAVE_ERROR_LOG ON CACHE BOOL "" FORCE)
 endif()
 
 if (NON_BARRIER_DIAGNOSTIC_YIELDS AND NOT HAVE_DIAGNOSTIC)
