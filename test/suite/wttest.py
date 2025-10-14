@@ -564,25 +564,30 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         self.teardown_actions.append(action)
 
     def verifyLayered(self):
-        conn = self.conn
-        session = self.session
+        if self.conn is None:
+            self.conn = self.setUpConnectionOpen(".")
+        sess = self.conn.open_session()
+
         disagg = self.getDisaggParameters()
         role = disagg.role
 
-        if conn is not None and session is not None:
-            cur = session.open_cursor('metadata:', None, None)
-            while cur.next() == 0:
-                uri = cur.get_key()
-                if uri.startswith('layered:') or uri.startswith('table:'):
+        cur = sess.open_cursor('metadata:', None, None)
+        while cur.next() == 0:
+            uri = cur.get_key()
+            if uri.startswith('layered:'):
+                while True:
                     try:
-                        session.verify(uri)
+                        self.pr('verifying ' + uri)
+                        sess.verify(uri)
                     except wiredtiger.WiredTigerError as e:
-                        if str(e) == os.strerror(errno.EBUSY):
-                            pass
-                        elif str(e) == os.strerror(errno.ENOENT) and role == 'follower':
-                            pass
-                        else:
+                        if str(e) != os.strerror(errno.EBUSY):
+                            if str(e) == os.strerror(errno.ENOENT) and role == 'follower':
+                                pass
                             raise e
+
+                        sess.checkpoint()
+                        self.session.breakpoint()
+        cur.close()
 
     def tearDown(self, dueToRetry=False):
         teardown_failed = False
@@ -605,7 +610,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
 
         if re.match("test_layered.*", str(self)):
             self.verifyLayered()
-
         passed = not (self.failed() or teardown_failed)
 
         try:
