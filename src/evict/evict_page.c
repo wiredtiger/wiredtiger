@@ -281,12 +281,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         /* Dirty page */
         if (page_size > __wt_atomic_load64(&conn->evict->evict_max_dirty_page_size))
             __wt_atomic_store64(&conn->evict->evict_max_dirty_page_size, page_size);
-        /* Check if the page has updates */
-        if (page->modify != NULL) {
-            /* Page with updates */
-            if (page_size > __wt_atomic_load64(&conn->evict->evict_max_updates_page_size))
-                __wt_atomic_store64(&conn->evict->evict_max_updates_page_size, page_size);
-        }
+    }
+    /* Check if the page has updates */
+    if (page->modify != NULL) {
+        if (page_size > __wt_atomic_load64(&conn->evict->evict_max_updates_page_size))
+            __wt_atomic_store64(&conn->evict->evict_max_updates_page_size, page_size);
     }
 
     /* Update the reference and discard the page. */
