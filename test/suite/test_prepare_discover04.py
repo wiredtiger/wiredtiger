@@ -44,7 +44,11 @@ class test_prepare_discover04(wttest.WiredTigerTestCase, suite_subprocess):
         ('txn_commit', dict(txn_commit=True)),
         ('txn_rollback', dict(txn_commit=False)),
     ]
-    scenarios = make_scenarios(txn_end)
+    move_stable_ts = [
+        ('move_stable_ts', dict(move_stable_ts=True)),
+        ('keep_stable_ts', dict(move_stable_ts=False)),
+    ]
+    scenarios = make_scenarios(txn_end, move_stable_ts)
 
     def test_prepare_discover04(self):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
@@ -95,5 +99,6 @@ class test_prepare_discover04(wttest.WiredTigerTestCase, suite_subprocess):
                 c2s2.rollback_transaction("rollback_timestamp=" + self.timestamp_str(200))
 
         self.assertEqual(count, 1)
-        conn2.set_timestamp('stable_timestamp=' + self.timestamp_str(220))
+        if self.move_stable_ts:
+            conn2.set_timestamp('stable_timestamp=' + self.timestamp_str(220))
         c2s2.checkpoint()
