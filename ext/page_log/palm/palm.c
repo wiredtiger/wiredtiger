@@ -530,9 +530,7 @@ palm_add_reference(WT_PAGE_LOG *page_log)
      */
     do {
         unsigned int cur_count = atomic_load(&palm->reference_count);
-        /*
-         * Missing reference or overflow? Assume the first ref will not race the creation.
-         */
+        /* Missing reference or overflow? */
         if (cur_count == 0 || cur_count + 1 == 0)
             return (EINVAL);
         if (atomic_compare_exchange_strong(&palm->reference_count, &cur_count, cur_count + 1))
