@@ -392,11 +392,11 @@ err:
 }
 
 /*
- * __rec_disable_delta_int --
+ * __rec_stop_build_delta_int --
  *     Disable delta building for internal page.
  */
 static WT_INLINE void
-__rec_disable_delta_int(WTI_RECONCILE *r, bool *build_deltap)
+__rec_stop_build_delta_int(WTI_RECONCILE *r, bool *build_deltap)
 {
     *build_deltap = false;
     r->delta.size = 0;
@@ -434,7 +434,7 @@ __rec_row_merge(
          */
         F_SET(ref, WT_REF_FLAG_REC_MULTIPLE);
         if (*build_deltap && ref_changes > 0)
-            __rec_disable_delta_int(r, build_deltap);
+            __rec_stop_build_delta_int(r, build_deltap);
     } else
         F_CLR(ref, WT_REF_FLAG_REC_MULTIPLE);
 
@@ -577,7 +577,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         if (build_delta &&
           (r->multi_next > 0 || F_ISSET(ref, WT_REF_FLAG_REC_MULTIPLE) ||
             (r->cell_zero && prev_ref_changes > 0)))
-            __rec_disable_delta_int(r, &build_delta);
+            __rec_stop_build_delta_int(r, &build_delta);
 
         retain_onpage = false;
 
@@ -621,10 +621,10 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
              * reconciling the internal page.
              */
             if (WT_DELTA_INT_ENABLED(btree, S2C(session))) {
-                /* If we race with reconciling the first child, give up building the delta. */
+                /* If there are concurrent changes to the first child, abort delta creation. */
                 if (!__wt_atomic_casv8(&ref->ref_changes, prev_ref_changes, 0) && build_delta &&
                   r->cell_zero)
-                    __rec_disable_delta_int(r, &build_delta);
+                    __rec_stop_build_delta_int(r, &build_delta);
             }
 
             F_CLR(ref, WT_REF_FLAG_REC_MULTIPLE);
@@ -647,10 +647,10 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                  * reconciling the internal page.
                  */
                 if (WT_DELTA_INT_ENABLED(btree, S2C(session))) {
-                    /* If we race with reconciling the first child, give up building the delta. */
+                    /* If there are concurrent changes to the first child, abort delta creation. */
                     if (!__wt_atomic_casv8(&ref->ref_changes, prev_ref_changes, 0) && build_delta &&
                       r->cell_zero)
-                        __rec_disable_delta_int(r, &build_delta);
+                        __rec_stop_build_delta_int(r, &build_delta);
                 }
 
                 F_CLR(ref, WT_REF_FLAG_REC_MULTIPLE);
@@ -665,10 +665,10 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                  * reconciling the internal page.
                  */
                 if (WT_DELTA_INT_ENABLED(btree, S2C(session))) {
-                    /* If we race with reconciling the first child, give up building the delta. */
+                    /* If there are concurrent changes to the first child, abort delta creation. */
                     if (!__wt_atomic_casv8(&ref->ref_changes, prev_ref_changes, 0) && build_delta &&
                       cell_zero_tmp)
-                        __rec_disable_delta_int(r, &build_delta);
+                        __rec_stop_build_delta_int(r, &build_delta);
                 }
 
                 WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
@@ -778,10 +778,10 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          * the internal page.
          */
         if (WT_DELTA_INT_ENABLED(btree, S2C(session))) {
-            /* If we race with reconciling the first child, give up building the delta. */
+            /* If there are concurrent changes to the first child, abort delta creation. */
             if (!__wt_atomic_casv8(&ref->ref_changes, prev_ref_changes, 0) && build_delta &&
               r->cell_zero)
-                __rec_disable_delta_int(r, &build_delta);
+                __rec_stop_build_delta_int(r, &build_delta);
         }
 
         r->cell_zero = false;
