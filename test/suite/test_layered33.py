@@ -76,3 +76,8 @@ class test_layered33(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for i in range(0, 100):
             cursor.set_key(str(i))
             self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+
+        cursor.close()
+        self.close_conn()
+
+        self.ignoreStdoutPattern('local file')

@@ -63,3 +63,6 @@ class test_layered57(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor = self.session.open_cursor('statistics:')
         self.assertGreater(stat_cursor[stat.conn.cache_eviction_app_threads_skip_updates_dirty_page][2], 0)
         stat_cursor.close()
+
+        # do a checkpoint
+        cursor.close()
