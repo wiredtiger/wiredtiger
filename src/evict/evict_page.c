@@ -154,14 +154,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_PAGE *page;
     uint64_t page_size;
     uint8_t stats_flags;
-    bool clean_page, closing, ebusy_only, has_updates, inmem_split, tree_dead;
+    bool clean_page, closing, ebusy_only, has_updates, inmem_split, is_dirty, tree_dead;
 
     conn = S2C(session);
     page = ref->page;
-    page_size = __wt_atomic_loadsize(&page->memory_footprint);
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
-    stats_flags = 0;
-    clean_page = ebusy_only = has_updates = false;
+    page_size = stats_flags = 0;
+    clean_page = ebusy_only = has_updates = is_dirty = false;
 
     __wt_verbose_debug3(
       session, WT_VERB_EVICTION, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -238,8 +237,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     }
 
     /* Check if the page has updates before reconciling */
+
     if (page->modify != NULL)
         has_updates = true;
+    if (__wt_page_is_modified(page))
+        is_dirty = true;
 
     /* No need to reconcile the page if it is from a dead tree or it is clean. */
     if (!tree_dead && __wt_page_is_modified(page))
@@ -267,14 +269,12 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * force pages out before they're larger than the cache. We don't care about races, it's just a
      * statistic.
      */
+    page_size = __wt_atomic_loadsize(&page->memory_footprint);
     if (page_size > __wt_atomic_load64(&conn->evict->evict_max_page_size))
         __wt_atomic_store64(&conn->evict->evict_max_page_size, page_size);
 
-    /* Figure out whether reconciliation was done on the page */
-    if (__wt_page_evict_clean(page)) {
-        clean_page = true;
-        FLD_SET(stats_flags, WT_EVICT_STATS_CLEAN);
-        /* Clean page */
+    /* Clean page */
+    if (!is_dirty) {
         if (page_size > __wt_atomic_load64(&conn->evict->evict_max_clean_page_size_per_checkpoint))
             __wt_atomic_store64(&conn->evict->evict_max_clean_page_size_per_checkpoint, page_size);
     } else {
@@ -282,12 +282,17 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         if (page_size > __wt_atomic_load64(&conn->evict->evict_max_dirty_page_size_per_checkpoint))
             __wt_atomic_store64(&conn->evict->evict_max_dirty_page_size_per_checkpoint, page_size);
     }
-
     if (has_updates) {
         if (page_size >
           __wt_atomic_load64(&conn->evict->evict_max_updates_page_size_per_checkpoint))
             __wt_atomic_store64(
               &conn->evict->evict_max_updates_page_size_per_checkpoint, page_size);
+    }
+
+    /* Figure out whether reconciliation was done on the page */
+    if (__wt_page_evict_clean(page)) {
+        clean_page = true;
+        FLD_SET(stats_flags, WT_EVICT_STATS_CLEAN);
     }
 
     /* Update the reference and discard the page. */
