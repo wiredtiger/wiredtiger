@@ -558,8 +558,9 @@ functions:
               if [ -d cmake_build ]; then rm -r cmake_build; fi
               mkdir -p cmake_build
               pushd cmake_build
-              # Adding -DENABLE_PYTHON=1 -DENABLE_STRICT=1 as 6.0 does not default these like develop.
-              $CMAKE -DCMAKE_C_FLAGS="-DMIGHT_NOT_RUN -Wno-error" -DENABLE_PYTHON=1 -DENABLE_STRICT=1 ../.
+              # Adding -DENABLE_PYTHON=ON -DENABLE_STRICT=ON as 6.0 does not default these like develop.
+              # Disable PALite build, as docs build does not need it and it can fail to build on some platforms.
+              $CMAKE -DCMAKE_C_FLAGS="-DMIGHT_NOT_RUN -Wno-error" -DENABLE_PYTHON=ON -DENABLE_STRICT=ON -DENABLE_PALITE=OFF ../.
               make -C lang/python -j ${num_jobs}
             fi
             # Pop to root project directory.
