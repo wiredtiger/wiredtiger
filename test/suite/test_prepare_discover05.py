@@ -95,5 +95,20 @@ class test_prepare_discover04(wttest.WiredTigerTestCase, suite_subprocess):
                 c2s2.rollback_transaction("rollback_timestamp=" + self.timestamp_str(200))
 
         self.assertEqual(count, 1)
-        conn2.set_timestamp('stable_timestamp=' + self.timestamp_str(220))
+
+        # Force eviction to trigger reconciliation, since we haven't moved stable timestamp, all updates should be saved to disk
+        # as prepared
+        session_evict = conn2.open_session("debug=(release_evict_page=true)")
+        session_evict.begin_transaction("ignore_prepare=true")
+        evict_cursor = session_evict.open_cursor(self.uri, None, None)
+        for i in range(1, 2):
+            evict_cursor.set_key(i)
+            evict_cursor.search()
+            evict_cursor.reset()
+        evict_cursor.close()
+        session_evict.rollback_transaction()
+        session_evict.close()
+
+        # Calling checkpoint, as part of disk verification it will try to unpack cells that were written by eviction.
+        # Unpacking these cells should not cause the program to crash
         c2s2.checkpoint()

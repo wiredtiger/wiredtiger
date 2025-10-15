@@ -955,7 +955,9 @@ copy_cell_restart:
                 /*
                  * This is a special case where both transaction start and stop are in prepared
                  * state. The prepared record is written with the preserve prepared config enabled.
-                 * The same prepared id is packed to WT_CELL_TS_DURABLE_START.
+                 * The same prepared id is packed to WT_CELL_TS_DURABLE_START. Since temp_stop_ts
+                 * here stores the difference between start_prepared_id and stop_prepared_id,
+                 * temp_stop_ts must be 0.
                  */
                 if (temp_durable_start_ts != WT_TS_NONE) {
                     WT_ASSERT(session, temp_durable_stop_ts == WT_TS_NONE);
