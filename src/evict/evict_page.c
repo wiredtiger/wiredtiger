@@ -159,8 +159,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
-    page_size = stats_flags = 0;
-    clean_page = ebusy_only = has_updates = is_dirty = false;
+    stats_flags = 0;
+    clean_page = ebusy_only = is_dirty = false;
 
     __wt_verbose_debug3(
       session, WT_VERB_EVICTION, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -236,15 +236,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         goto done;
     }
 
-    /* Check if the page has updates before reconciling */
-
-    if (page->modify != NULL)
-        has_updates = true;
     if (__wt_page_is_modified(page))
         is_dirty = true;
 
     /* No need to reconcile the page if it is from a dead tree or it is clean. */
-    if (!tree_dead && __wt_page_is_modified(page))
+    if (!tree_dead && is_dirty)
         WT_ERR(__evict_reconcile(session, ref, flags));
 
     /* After this spot, the only recoverable failure is EBUSY. */
@@ -282,7 +278,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         if (page_size > __wt_atomic_load64(&conn->evict->evict_max_dirty_page_size_per_checkpoint))
             __wt_atomic_store64(&conn->evict->evict_max_dirty_page_size_per_checkpoint, page_size);
     }
-    if (has_updates) {
+    /* Check if the page has updates */
+    if (page->modify != NULL) {
         if (page_size >
           __wt_atomic_load64(&conn->evict->evict_max_updates_page_size_per_checkpoint))
             __wt_atomic_store64(
