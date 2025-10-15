@@ -137,3 +137,5 @@ class test_layered20(wttest.WiredTigerTestCase, DisaggConfigMixin):
                     self.assertEqual(cursor[str(i)], str(10 + 5 * 31))
                 else:
                     self.assertEqual(cursor[str(i)], value1)
+
+        cursor.close()

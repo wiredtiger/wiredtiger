@@ -86,3 +86,5 @@ class test_layered08(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         for i in range(self.nitems):
             self.assertEqual(cursor["Hello " + str(i)], "World")
+
+        cursor.close()

@@ -118,3 +118,8 @@ class test_layered37(wttest.WiredTigerTestCase, DisaggConfigMixin):
         while cursor.next() == 0:
             count += 1
         self.assertEqual(count, self.nitems)
+
+        cursor.close()
+        self.close_conn()
+
+        self.ignoreStdoutPattern('local file')

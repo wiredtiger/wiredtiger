@@ -123,3 +123,5 @@ class test_layered19(wttest.WiredTigerTestCase, DisaggConfigMixin):
         read_delta = stat_cursor[stat.conn.cache_read_leaf_delta][2]
         self.assertEqual(read_delta, 0)
         stat_cursor.close()
+
+        cursor.close()

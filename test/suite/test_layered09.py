@@ -143,6 +143,8 @@ class test_layered09(wttest.WiredTigerTestCase):
         if self.ts:
             self.session.rollback_transaction()
 
+        cursor.close()
+
     def test_layered_read_modify(self):
         if sys.platform.startswith('darwin'):
             return
@@ -202,6 +204,8 @@ class test_layered09(wttest.WiredTigerTestCase):
                 self.assertEqual(cursor[str(i)], value1)
         if self.ts:
             self.session.rollback_transaction()
+
+        cursor.close()
 
     def test_layered_read_delete(self):
         if sys.platform.startswith('darwin'):
@@ -264,6 +268,8 @@ class test_layered09(wttest.WiredTigerTestCase):
         if self.ts:
             self.session.rollback_transaction()
 
+        cursor.close()
+
     def test_layered_read_insert(self):
         if sys.platform.startswith('darwin'):
             return
@@ -320,6 +326,8 @@ class test_layered09(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[str(i)], value1)
         if self.ts:
             self.session.rollback_transaction()
+
+        cursor.close()
 
     def test_layered_read_multiple_delta(self):
         if sys.platform.startswith('darwin'):
@@ -400,6 +408,8 @@ class test_layered09(wttest.WiredTigerTestCase):
                 self.assertEqual(cursor[str(i)], value1)
         if self.ts:
             self.session.rollback_transaction()
+
+        cursor.close()
 
     def test_layered_read_delete_insert(self):
         if sys.platform.startswith('darwin'):
@@ -484,3 +494,5 @@ class test_layered09(wttest.WiredTigerTestCase):
                 self.assertEqual(cursor[str(i)], value1)
         if self.ts:
             self.session.rollback_transaction()
+
+        cursor.close()

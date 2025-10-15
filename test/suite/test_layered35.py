@@ -122,3 +122,5 @@ class test_layered35(wttest.WiredTigerTestCase, DisaggConfigMixin):
         rec_page_delta_leaf = stat_cursor[stat.conn.rec_page_delta_leaf][2]
         self.assertEqual(rec_page_delta_leaf, 0)
         stat_cursor.close()
+
+        cursor.close()

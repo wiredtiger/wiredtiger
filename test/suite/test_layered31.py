@@ -311,5 +311,6 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
         #
         # Cleanup
         #
+
         session_follow.close()
         conn_follow.close()

@@ -79,3 +79,4 @@ class test_layered03(wttest.WiredTigerTestCase):
         while cursor.next() == 0:
             self.pr("Traversal retrieved: " + cursor.get_key() + ":" + cursor.get_value())
 
+        cursor.close()

@@ -110,3 +110,6 @@ class test_layered39(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.conn.set_context_uint(wiredtiger.WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN,
                                                last_lsn + 5))
+
+        self.close_conn()
+        self.ignoreStdoutPattern('local file')
