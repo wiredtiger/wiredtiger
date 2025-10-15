@@ -343,6 +343,7 @@ RETRYABLE
 RHEL
 RLE
 RLEs
+RMW
 RNG
 RNGs
 RPC
@@ -1151,6 +1152,7 @@ pT
 packv
 pageref
 pagesize
+palite
 param
 pareto
 parserp
