@@ -36,6 +36,14 @@
 #endif
 #include <signal.h>
 
+#if defined(__linux__)
+#include <linux/limits.h>
+#elif defined(__APPLE__)
+#include <sys/syslimits.h>
+#else
+#define PATH_MAX 4096 /* Fallback for unknown systems */
+#endif
+
 #define BUILDDIR "../../"
 #define EXTPATH BUILDDIR "ext/" /* Extensions path */
 #ifndef EXT_LIBPATH
@@ -243,12 +251,12 @@ typedef struct {
 
     int trace_retain;
 
-    char home[256];          /* Home directory */
-    char home_backup[256];   /* Backup file name */
-    char home_config[256];   /* Run CONFIG file path */
-    char home_key[256];      /* Key file filename */
-    char home_page_log[256]; /* Page and log service home dir (disagg) */
-    char home_stats[256];    /* Statistics file path */
+    char home[PATH_MAX];          /* Home directory */
+    char home_backup[PATH_MAX];   /* Backup file name */
+    char home_config[PATH_MAX];   /* Run CONFIG file path */
+    char home_key[PATH_MAX];      /* Key file filename */
+    char home_page_log[PATH_MAX]; /* Page and log service home dir (disagg) */
+    char home_stats[PATH_MAX];    /* Statistics file path */
 
     char *config_open; /* Command-line configuration */
 

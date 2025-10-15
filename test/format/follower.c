@@ -42,6 +42,7 @@ follower(void *arg)
     WT_SESSION *session;
     const char *disagg_page_log;
     char config[128];
+    u_int period;
     uint64_t checkpoint_ts;
 
     (void)(arg); /* Unused parameter */
@@ -54,6 +55,11 @@ follower(void *arg)
     testutil_check(conn->get_page_log(conn, disagg_page_log, &page_log));
 
     while (!g.workers_finished) {
+        /*
+         * FIXME-WT-15788: Eventually have the leader send checkpoint metadata to the follower (via
+         * shared memory or pipe) so it can be picked up. Required once we start running against the
+         * library version of PALI, which doesn't implement pl_get_complete_checkpoint_ext().
+         */
         testutil_check(page_log->pl_get_complete_checkpoint_ext(
           page_log, session, NULL, NULL, &checkpoint_ts, &checkpoint_metadata));
         /* Only reconfigure if there's a new checkpoint. */
@@ -65,7 +71,11 @@ follower(void *arg)
               (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data, checkpoint_ts);
             g.last_checkpoint_ts = checkpoint_ts;
         }
-        __wt_sleep(1, 0);
+        period = mmrand(&g.extra_rnd, 1, 3);
+        while (period > 0 && !g.workers_finished) {
+            --period;
+            __wt_sleep(1, 0);
+        }
     }
 
     wt_wrap_close_session(session);
