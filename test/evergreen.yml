@@ -280,6 +280,7 @@ functions:
           ${ENABLE_CPPSUITE|} \
           ${ENABLE_GCP|} \
           ${ENABLE_S3|} \
+          ${ENABLE_PALITE|-DENABLE_PALITE=ON} \
           ${IMPORT_AZURE_SDK|} \
           ${IMPORT_GCP_SDK|} \
           ${IMPORT_S3_SDK|} \
@@ -1716,18 +1717,22 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           GNU_C_VERSION: -DGNU_C_VERSION=7
+          ENABLE_PALITE: -DENABLE_PALITE=OFF
       - func: "compile wiredtiger"
         vars:
           GNU_C_VERSION: -DGNU_C_VERSION=8
           GNU_CXX_VERSION: -DGNU_CXX_VERSION=8
+          ENABLE_PALITE: -DENABLE_PALITE=OFF
       - func: "compile wiredtiger"
         vars:
           GNU_C_VERSION: -DGNU_C_VERSION=9
           GNU_CXX_VERSION: -DGNU_CXX_VERSION=9
+          ENABLE_PALITE: -DENABLE_PALITE=OFF
       - func: "compile wiredtiger"
         vars:
           GNU_C_VERSION: -DGNU_C_VERSION=11
           GNU_CXX_VERSION: -DGNU_CXX_VERSION=11
+          ENABLE_PALITE: -DENABLE_PALITE=OFF
 
   - name: compile-clang
     tags: ["pull_request", "pull_request_compilers"]
@@ -1749,30 +1754,37 @@ tasks:
         vars:
           CLANG_C_VERSION: -DCLANG_C_VERSION=7
           CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=7
+          ENABLE_PALITE: -DENABLE_PALITE=OFF
       - func: "compile wiredtiger"
         vars:
           CLANG_C_VERSION: -DCLANG_C_VERSION=8
           CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=8
+          ENABLE_PALITE: -DENABLE_PALITE=OFF
       - func: "compile wiredtiger"
         vars:
           CLANG_C_VERSION: -DCLANG_C_VERSION=9
           CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=9
+          ENABLE_PALITE: -DENABLE_PALITE=OFF
       - func: "compile wiredtiger"
         vars:
           CLANG_C_VERSION: -DCLANG_C_VERSION=10
           CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=10
+          ENABLE_PALITE: -DENABLE_PALITE=OFF
       - func: "compile wiredtiger"
         vars:
           CLANG_C_VERSION: -DCLANG_C_VERSION=11
           CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=12
+          ENABLE_PALITE: -DENABLE_PALITE=OFF
       - func: "compile wiredtiger"
         vars:
           CLANG_C_VERSION: -DCLANG_C_VERSION=13
           CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=13
+          ENABLE_PALITE: -DENABLE_PALITE=OFF
       - func: "compile wiredtiger"
         vars:
           CLANG_C_VERSION: -DCLANG_C_VERSION=14
           CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=14
+          ENABLE_PALITE: -DENABLE_PALITE=OFF
 
   # Compile WiredTiger with uncommon build flags to make sure we compile code that
   # is often pre-processed out.
