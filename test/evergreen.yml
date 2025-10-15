@@ -874,7 +874,7 @@ functions:
         # Set LD_PRELOAD to enable ASAN testing of python tests. Check that LD_PRELOAD isn't already
         # set as that would be incompatible.
         if [[ ! -z "${asan_preload}" ]]; then
-            if [[ ! -z "${LD_PRELOAD}"]]; then
+            if [[ ! -z "${LD_PRELOAD}" ]]; then
                 echo "ERROR: LD_PRELOAD is already set, this is incompatible with python asan testing"
                 exit 1
             fi
@@ -6498,8 +6498,11 @@ buildvariants:
     additional_env_vars: |
       export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
       export ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+      export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(dirname $(/opt/mongodbtoolchain/v5/bin/clang -print-file-name=libclang_rt.asan.so))"
       export PYTHONMALLOC=malloc
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    # ASan preload turns on LD_PRELOAD prior to execution of a python unit test. The reason we don't
+    # export LD_PRELOAD as part of additional_env_vars is that it breaks _everything_.
     asan_preload: true
     # Exclude wt12015_backup_corruption for ASan builds. It creates false positives when it deliberately kills processes that invoke corruption.
     ctest_extra_args: -E "wt12015_backup_corruption"
@@ -7350,7 +7353,11 @@ buildvariants:
     ENABLE_TCMALLOC: 0
     additional_env_vars: |
       export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
+      export ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+      export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(dirname $(/opt/mongodbtoolchain/v5/bin/clang -print-file-name=libclang_rt.asan.so)):."
+      export PYTHONMALLOC=malloc
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    asan_preload: true
     # Exclude wt12015_backup_corruption for ASan builds. It creates false positives when it deliberately kills processes that invoke corruption.
     ctest_extra_args: -E "wt12015_backup_corruption"
   tasks:
@@ -7363,6 +7370,7 @@ buildvariants:
       batchtime: 1440 # once a day
     - name: live-restore-long
     - name: ".stress-test-asan"
+    - name: ".unit_test"
 
 - name: amazon2023-armv9-tsan
   display_name: "(ARMV9) Amazon Linux 2023 TSAN"
