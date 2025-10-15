@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import platform, wttest
-from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from helper_disagg import disagg_test_class, gen_disagg_storages
 from test_layered23 import Oplog
 from wtscenario import make_scenarios
 
@@ -35,9 +35,9 @@ from wtscenario import make_scenarios
 # Test draining the ingest table
 @wttest.skip_for_hook("tiered", "FIXME-WT-14938: crashing with tiered hook.")
 @disagg_test_class
-class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered27(wttest.WiredTigerTestCase):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                 + 'disaggregated=(page_log=palm),'
+                 + ''
 
     sizes = [
         ('small', dict(multiplier=1)),
@@ -81,8 +81,10 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Add some more traffic
         oplog.insert(t, 100 * self.multiplier)
         oplog.update(t, 200 * self.multiplier)
-        oplog.apply(self, self.session, 100 * self.multiplier, 300 * self.multiplier)
-        oplog.check(self, self.session, 0, 400 * self.multiplier)
+
+        # FIXME-WT-15388: Re-enable once we can abandon changes after stepping down.
+        # oplog.apply(self, self.session, 100 * self.multiplier, 300 * self.multiplier)
+        # oplog.check(self, self.session, 0, 400 * self.multiplier)
 
         # On the follower -
         # Apply all the entries to follower
@@ -96,6 +98,7 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.disagg_advance_checkpoint(conn_follow)
         oplog.check(self, session_follow, 0, 400 * self.multiplier)
 
+        self.conn.reconfigure(f'disaggregated=(role=follower)') # Prevent checkpoint during close.
         self.conn.close()
         conn_follow.reconfigure('disaggregated=(role="leader")')
 
@@ -138,8 +141,10 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Delete some updates
         oplog.remove(t, 100 * self.multiplier)
-        oplog.apply(self, self.session, 100 * self.multiplier, 100 * self.multiplier)
-        oplog.check(self, self.session, 0, 200 * self.multiplier)
+
+        # FIXME-WT-15388: Re-enable once we can abandon changes after stepping down.
+        # oplog.apply(self, self.session, 100 * self.multiplier, 100 * self.multiplier)
+        # oplog.check(self, self.session, 0, 200 * self.multiplier)
 
         # On the follower -
         # Apply all the entries to follower
@@ -153,6 +158,7 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.disagg_advance_checkpoint(conn_follow)
         oplog.check(self, session_follow, 0, 200 * self.multiplier)
 
+        self.conn.reconfigure(f'disaggregated=(role=follower)') # Prevent checkpoint during close.
         self.conn.close()
         conn_follow.reconfigure('disaggregated=(role="leader")')
 
@@ -196,8 +202,10 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Delete some updates
         oplog.remove(t, 100 * self.multiplier)
         oplog.insert(t, 100 * self.multiplier, 0)
-        oplog.apply(self, self.session, 100 * self.multiplier, 200 * self.multiplier)
-        oplog.check(self, self.session, 0, 300 * self.multiplier)
+
+        # FIXME-WT-15388: Re-enable once we can abandon changes after stepping down.
+        # oplog.apply(self, self.session, 100 * self.multiplier, 200 * self.multiplier)
+        # oplog.check(self, self.session, 0, 300 * self.multiplier)
 
         # On the follower -
         # Apply all the entries to follower
@@ -211,6 +219,7 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.disagg_advance_checkpoint(conn_follow)
         oplog.check(self, session_follow, 0, 300 * self.multiplier)
 
+        self.conn.reconfigure(f'disaggregated=(role=follower)') # Prevent checkpoint during close.
         self.conn.close()
         conn_follow.reconfigure('disaggregated=(role="leader")')
 

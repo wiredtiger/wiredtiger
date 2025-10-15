@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.21)
 
 project(WiredTiger C CXX ASM)
 
+# Generate a compile_commands.json file containing the exact compiler calls for
+# all translation units of the project in machine-readable form.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Import our available build types prior to initializing the
 # project.
 include(cmake/configs/modes.cmake)

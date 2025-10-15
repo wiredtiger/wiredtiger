@@ -370,7 +370,7 @@ done:
 err:
     /* Inform the underlying block manager we're done. */
     if (bm_start)
-        WT_TRET(bm->verify_end(bm, session));
+        WT_TRET(bm->verify_end(bm, session, ret == 0));
 
     /* Discard the list of checkpoints. */
     if (ckptbase != NULL)
@@ -1408,7 +1408,7 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
 {
     WT_REF *ref = NULL;
     uint64_t num_pages_found_in_btree = 0;
-    size_t capacity = 0;
+    size_t capacity_in_bytes = 0;
     uint64_t *page_ids = NULL;
     int ret = 0;
 
@@ -1424,10 +1424,9 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
          * Use dynamically allocated array to track page IDs as we don't know the number of pages
          *  here. Check if the array size needs to grow.
          */
-        if (num_pages_found_in_btree == capacity) {
-            uint64_t new_capacity = (capacity * 2 + 1) * sizeof(uint64_t);
-            WT_RET(__wt_realloc_def(session, &capacity, new_capacity, &page_ids));
-            capacity = new_capacity;
+        if (num_pages_found_in_btree == (capacity_in_bytes / sizeof(*page_ids))) {
+            uint64_t new_capacity_count = num_pages_found_in_btree * 2 + 10;
+            WT_RET(__wt_realloc_def(session, &capacity_in_bytes, new_capacity_count, &page_ids));
         }
 
         if (page != NULL) {
@@ -1471,17 +1470,32 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
      */
     __wt_qsort(page_ids, num_pages_found_in_btree, sizeof(uint64_t), __verify_compare_page_id);
 
-    for (size_t i = 0; i < num_pages_found_in_palm; i++) {
-        /* FIXME-WT-15451: Print mismatch page IDs for discard verify. */
-        if (((uint64_t *)item->data)[i] != page_ids[i]) {
-            /*
-             * FIXME-WT-14700: Investigate whether we need to do anything special when freeing a
-             * root page. Change below warning to an error after root page discard is implemented,
-             * if a mismatch is found this function will return the corresponding error code.
-             */
+    for (uint32_t index_in_palm = 0, index_in_btree = 0;
+         index_in_palm <= num_pages_found_in_palm && index_in_btree <= num_pages_found_in_btree;) {
+        if (index_in_palm == num_pages_found_in_palm && index_in_btree == num_pages_found_in_btree)
+            break;
+        uint64_t id_in_palm =
+          index_in_palm < num_pages_found_in_palm ? ((uint64_t *)item->data)[index_in_palm] : 0;
+        uint64_t id_in_btree =
+          index_in_btree < num_pages_found_in_btree ? page_ids[index_in_btree] : 0;
+        /*
+         * FIXME-WT-14700: Investigate whether we need to do anything special when freeing a root
+         * page. Change below warning to an error after root page discard is implemented, if a
+         * mismatch is found this function will return the corresponding error code.
+         */
+        if (index_in_btree == num_pages_found_in_btree || id_in_palm < id_in_btree) {
             __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
-              "Mismatch in page IDs from PALM and btree walk: PALM %" PRIu64 " Btree walk %" PRIu64,
-              ((uint64_t *)item->data)[i], page_ids[i]);
+              "Unreferenced page was not discarded: PALM[%" PRIu32 "] %" PRIu64, index_in_palm,
+              id_in_palm);
+            index_in_palm++;
+        } else if (index_in_palm == num_pages_found_in_palm || id_in_palm > id_in_btree) {
+            __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
+              "Discarded page is still in use: BTREE[%" PRIu32 "] %" PRIu64, index_in_btree,
+              id_in_btree);
+            index_in_btree++;
+        } else {
+            index_in_palm++;
+            index_in_btree++;
         }
     }
 

@@ -3,6 +3,7 @@ include(cmake/configs/version.cmake)
 
 # Setup defaults based on the build type and available libraries.
 set(default_have_diagnostics ON)
+set(default_have_error_log ON)
 set(default_enable_python OFF)
 set(default_enable_lz4 OFF)
 set(default_enable_snappy OFF)
@@ -12,9 +13,10 @@ set(default_enable_iaa OFF)
 set(default_enable_debug_info ON)
 set(default_enable_static OFF)
 set(default_enable_shared ON)
-set(default_internal_sqlite3 ON)
 
-if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo)$")
+string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPER)
+
+if(${CMAKE_BUILD_TYPE_UPPER} MATCHES "^(RELEASE|RELWITHDEBINFO)$")
     set(default_have_diagnostics OFF)
 endif()
 
@@ -26,7 +28,7 @@ if(Python3_FOUND)
 endif()
 
 # MSan / UBSan fails on Python tests due to linking issue.
-if("${CMAKE_BUILD_TYPE}" MATCHES "^(MSan|UBSan)$")
+if(${CMAKE_BUILD_TYPE_UPPER} MATCHES "^(MSAN|UBSAN)$")
     set(default_enable_python OFF)
 endif()
 
@@ -46,15 +48,8 @@ if(NOT HAVE_BUILTIN_EXTENSION_IAA)
     set(default_enable_iaa ${HAVE_LIBQPL})
 endif()
 
-if("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
+if(${CMAKE_BUILD_TYPE_UPPER} STREQUAL "RELEASE")
     set(default_enable_debug_info OFF)
-endif()
-
-# Use system provided sqlite3 if available.
-find_package(SQLite3 QUIET)
-
-if(SQLite3_FOUND)
-    set(default_internal_sqlite3 OFF)
 endif()
 
 if(WT_WIN)
@@ -104,6 +99,12 @@ config_bool(
     HAVE_DIAGNOSTIC
     "Enable WiredTiger diagnostics. Automatically enables debug info."
     DEFAULT ${default_have_diagnostics}
+)
+
+config_bool(
+    HAVE_ERROR_LOG
+    "Enable WiredTiger error logging."
+    DEFAULT ${default_have_error_log}
 )
 
 config_bool(
@@ -346,6 +347,12 @@ config_bool(
 )
 
 config_bool(
+    ENABLE_PALITE
+    "Build the PALite storage extension (mock implementation of the PALI)"
+    DEFAULT ON
+)
+
+config_bool(
     ENABLE_LLVM
     "Enable compilation of LLVM-based tools and executables i.e. xray & fuzzer."
     DEFAULT OFF
@@ -357,14 +364,21 @@ config_bool(
     DEFAULT ${default_enable_debug_info}
 )
 
+config_string(
+    SQLITE3_REQUIRED_VERSION
+    "SQLite3 version to use when building PALite extension. \
+    Expected format of version string: major[.minor[.patch]]"
+    DEFAULT "3.8"   # Minimum version for partial indexes (used in PALite)
+)
+
 config_bool(
-    ENABLE_INTERNAL_SQLITE3
-    "Enable internal SQLite3 library. If disabled, the system SQLite3 library will be used."
-    DEFAULT ${default_internal_sqlite3}
+    USE_SYSTEM_SQLITE3
+    "Use system SQLite3 library. If OFF, WiredTiger will use the bundled SQLite3 library."
+    DEFAULT OFF
 )
 
 set(default_optimize_level "-Og")
-if("${CMAKE_BUILD_TYPE}" MATCHES "^(Release|RelWithDebInfo)$")
+if(${CMAKE_BUILD_TYPE_UPPER} MATCHES "^(RELEASE|RELWITHDEBINFO)$")
     if(WT_WIN)
         set(default_optimize_level "/O2")
     else()
@@ -452,10 +466,48 @@ if(ENABLE_DEBUG_INFO AND NOT WT_DEBUG_FLAGS_INITIALIZED)
         "WiredTiger debug flags have been initialized")
 endif()
 
+# We want to use the optimization level from CC_OPTIMIZE_LEVEL.
+if(NOT ("${WT_OPTIMIZE_FLAGS_SAVED}" STREQUAL "${CC_OPTIMIZE_LEVEL}"))
+    if(MSVC_C_COMPILER)
+        set(opt_flags "/O3" "/O2")
+    else()
+        set(opt_flags "-O3" "-O2")
+    endif()
+    set(prev_opt_flags "${WT_OPTIMIZE_FLAGS_SAVED}")
+    separate_arguments(prev_opt_flags)
+    list(APPEND opt_flags ${prev_opt_flags})
+
+    set(new_opt_flags "${CC_OPTIMIZE_LEVEL}")
+    separate_arguments(new_opt_flags)
+
+    foreach(lang C CXX)
+        foreach(build_type DEBUG RELEASE RELWITHDEBINFO)
+            replace_compile_options(CMAKE_${lang}_FLAGS_${build_type}
+                REMOVE ${opt_flags}
+                ADD ${new_opt_flags})
+        endforeach()
+    endforeach()
+
+    if(GNU_C_COMPILER OR GNU_CXX_COMPILER)
+        foreach(lang C CXX)
+            add_cmake_flag(CMAKE_${lang}_FLAGS -fno-strict-aliasing)
+        endforeach()
+    endif()
+
+    # Mark that we've set the initial optimize flags
+    set(WT_OPTIMIZE_FLAGS_SAVED "${CC_OPTIMIZE_LEVEL}" CACHE INTERNAL
+        "WiredTiger optimize flags have been initialized")
+endif()
+
 # Ref tracking is always enabled in diagnostic build.
 if (HAVE_DIAGNOSTIC AND NOT HAVE_REF_TRACK)
     set(HAVE_REF_TRACK ON CACHE BOOL "" FORCE)
     set(HAVE_REF_TRACK_DISABLED OFF CACHE INTERNAL "" FORCE)
+endif()
+
+# Error logging is always enabled in diagnostic build.
+if (HAVE_DIAGNOSTIC AND NOT HAVE_ERROR_LOG)
+    set(HAVE_ERROR_LOG ON CACHE BOOL "" FORCE)
 endif()
 
 if (NON_BARRIER_DIAGNOSTIC_YIELDS AND NOT HAVE_DIAGNOSTIC)

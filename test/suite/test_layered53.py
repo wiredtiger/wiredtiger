@@ -27,17 +27,17 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered53.py
 #    Check that we can create a checkpoint just to capture the stable timestamp update.
 @disagg_test_class
-class test_layered53(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered53(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages('test_layered53', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
-    conn_base_config = 'disaggregated=(page_log=palm),cache_size=10MB,statistics=(all),'
+    conn_base_config = 'cache_size=10MB,statistics=(all),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
     conn_config_follower = conn_base_config + 'disaggregated=(role="follower")'
 
@@ -98,3 +98,15 @@ class test_layered53(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session_follow.checkpoint()
         _, _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
         self.assertEqual(checkpoint_timestamp, 20)
+
+        # Idempotence check: advancing the follower again should *not* change state.
+        # It should simply log that the same checkpoint is being picked up again.
+        # And two conditions implied here:
+        # 1) The metadata LSN should not change.
+        # 2) Error log should be raised.
+        meta_lsn = self.disagg_get_complete_checkpoint_meta()
+        with self.expectedStdoutPattern(".*Picking up the same checkpoint again.*"):
+            self.disagg_advance_checkpoint(self.conn_follow)
+        # Check that the metadata LSN did not change.
+        current_meta_lsn = self.disagg_get_complete_checkpoint_meta()
+        self.assertEqual(meta_lsn, current_meta_lsn)
