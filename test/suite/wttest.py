@@ -568,20 +568,15 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             self.conn = self.setUpConnectionOpen(".")
         sess = self.conn.open_session()
 
-        # TODO: FIXME as role is hardcoded as leader
-        disagg = self.getDisaggParameters()
-        role = disagg.role
-
         cur = sess.open_cursor('metadata:', None, None)
         while cur.next() == 0:
             uri = cur.get_key()
             if uri.startswith('layered:'):
-                try:
-                    self.verifyUntilSuccess(sess, uri)
-                except wiredtiger.WiredTigerError as e:
-                    if str(e) == os.strerror(errno.ENOENT) and role == 'follower':
-                        pass
-                    raise e
+                # FIXME-WT-15786: For tests using a follower config, we cannot rely on the getDisaggParameters
+                # for the role, since it is currently hardcoded as "leader". Handle the transient state where
+                # a follower that has not yet taken its first checkpoint may fail with ENOENT due to missing
+                # its stable table.
+                self.verifyUntilSuccess(sess, uri)
         cur.close()
 
     def tearDown(self, dueToRetry=False):
@@ -603,8 +598,8 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     else:
                         teardown_msg += "; " + str(tmp[1])
 
-        if re.match("test_layered.*", str(self)):
-            #  17 stalling, 22 is mixed, others followers
+        if self.__module__.startswith("test_layered"):
+            # FIXME-WT-15786: the following tests have follower configurations, skip verification for now.
             if not re.match("test_layered(57|41|21|22|17)", str(self)):
                 self.verifyLayered()
 
