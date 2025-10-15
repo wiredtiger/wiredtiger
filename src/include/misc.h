@@ -534,3 +534,118 @@ __wt_atomic_decrement_if_positive(uint32_t *valuep)
             break;
     } while (!__wt_atomic_cas32(valuep, old_value, old_value - 1));
 }
+
+/*
+ * This section was created for functions intended for fine-grained suppression of TSAN warnings.
+ * Since TSAN only supports suppression at the function level, but a single function may trigger
+ * multiple unrelated warnings, it is preferable to use one of the following functions (or create a
+ * new one) to suppress them.
+ *
+ * We use relaxed atomic operations in these functions to provide minimal protection against
+ * compiler optimizations while avoiding potential performance drops. Using atomic variables should
+ * eliminate most warnings; however, we still add these functions to the suppression file to ensure
+ * we don't forget to properly fix them later and to highlight that this is only a temporary
+ * solution while we investigate high-priority TSAN warnings.
+ */
+
+static inline void
+__wt_tsan_suppress_store_uint8(uint8_t *vp, uint8_t v)
+{
+    __wt_atomic_store8(vp, v);
+}
+
+static inline uint32_t
+__wt_tsan_suppress_load_uint32(uint32_t *vp)
+{
+    return (__wt_atomic_load32(vp));
+}
+
+static inline void
+__wt_tsan_suppress_store_uint32(uint32_t *vp, uint32_t v)
+{
+    __wt_atomic_store32(vp, v);
+}
+
+static inline uint32_t
+__wt_tsan_suppress_load_vuint32(volatile uint32_t *vp)
+{
+    return (__wt_atomic_loadv32(vp));
+}
+
+static inline uint64_t
+__wt_tsan_suppress_load_uint64(uint64_t *vp)
+{
+    return (__wt_atomic_load64(vp));
+}
+
+static inline uint64_t
+__wt_tsan_suppress_load_vuint64(volatile uint64_t *vp)
+{
+    return (__wt_atomic_loadv64(vp));
+}
+
+static inline void
+__wt_tsan_suppress_store_uint64(uint64_t *vp, uint64_t v)
+{
+    __wt_atomic_store64(vp, v);
+}
+
+static inline void
+__wt_tsan_suppress_add_uint64(uint64_t *var, uint64_t value)
+{
+    *var += value;
+}
+
+static inline void
+__wt_tsan_suppress_sub_uint64(uint64_t *var, uint64_t value)
+{
+    *var -= value;
+}
+
+static inline void
+__wt_tsan_suppress_add_vuint64(volatile uint64_t *var, uint64_t value)
+{
+    *var += value;
+}
+
+static inline bool
+__wt_tsan_suppress_load_bool(bool *vp)
+{
+    return (__wt_atomic_loadbool(vp));
+}
+
+static inline void
+__wt_tsan_suppress_store_bool(bool *vp, bool v)
+{
+    __wt_atomic_storebool(vp, v);
+}
+
+static inline bool
+__wt_tsan_suppress_load_vbool(volatile bool *vp)
+{
+    return (__wt_atomic_loadvbool(vp));
+}
+
+static inline void
+__wt_tsan_suppress_store_vbool(volatile bool *vp, bool v)
+{
+    __wt_atomic_storevbool(vp, v);
+}
+
+static inline void *
+__wt_tsan_suppress_load_pointer(void **vp)
+{
+    return (__wt_atomic_load_pointer(vp));
+}
+
+static inline void
+__wt_tsan_suppress_store_pointer(void **vp, void *v)
+{
+    __wt_atomic_store_pointer(vp, v);
+}
+
+static inline void *
+__wt_tsan_suppress_memcpy(void *dest, void *src, size_t count)
+{
+    return (memcpy(dest, src, count));
+}

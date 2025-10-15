@@ -527,12 +527,12 @@ __background_compact_server(void *arg)
     WT_DECL_RET;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
-    bool cache_pressure, full_iteration, running;
+    bool cache_pressure, full_iteration, running, run_once;
 
     session = arg;
     conn = S2C(session);
     wt_session = (WT_SESSION *)session;
-    cache_pressure = full_iteration = running = false;
+    cache_pressure = full_iteration = running = run_once = false;
 
     WT_ERR(__wt_scr_alloc(session, 1024, &config));
     WT_ERR(__wt_scr_alloc(session, 1024, &next_uri));
@@ -566,11 +566,12 @@ __background_compact_server(void *arg)
              */
             if (uri->size == 0 || full_iteration) {
                 full_iteration = false;
+                run_once = __wt_tsan_suppress_load_bool(&conn->background_compact.run_once);
                 WT_ERR(__wt_buf_set(session, uri, WT_BACKGROUND_COMPACT_URI_PREFIX,
                   strlen(WT_BACKGROUND_COMPACT_URI_PREFIX) + 1));
                 __background_compact_list_cleanup(session,
-                  conn->background_compact.run_once ? BACKGROUND_COMPACT_CLEANUP_OFF :
-                                                      BACKGROUND_COMPACT_CLEANUP_STALE_STAT);
+                  run_once ? BACKGROUND_COMPACT_CLEANUP_OFF :
+                             BACKGROUND_COMPACT_CLEANUP_STALE_STAT);
             }
 
             if (cache_pressure) {
@@ -832,7 +833,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     if (enable) {
         /* The background compaction server can be configured to run once. */
         WT_ERR(__wt_config_getones(session, stripped_config, "run_once", &cval));
-        conn->background_compact.run_once = cval.val;
+        __wt_tsan_suppress_store_bool(&conn->background_compact.run_once, cval.val);
 
         /* Process excluded tables. */
         WT_ERR(__background_compact_exclude_list_process(session, config));
