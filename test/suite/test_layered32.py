@@ -105,7 +105,7 @@ class test_layered32(wttest.WiredTigerTestCase):
         self.reopen_disagg_conn(self.conn_config())
 
         # Perform two small updates.
-        kv_modified = {str(10): "10abc", str(220): "220abc"}
+        kv_modified = {str(100): "10abc", str(300): "220abc"}
         self.insert(kv_modified, inital_ts + 1)
         # Perform a checkpoint to write out a delta.
         self.session.checkpoint()

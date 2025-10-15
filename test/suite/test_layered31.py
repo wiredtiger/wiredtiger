@@ -297,9 +297,8 @@ class test_layered31(wttest.WiredTigerTestCase):
         # Pick up a non-existent checkpoint
         l = lambda: conn_follow.reconfigure('disaggregated=(checkpoint_meta="test")')
         self.assertRaisesException(wiredtiger.WiredTigerError, l, '/WT_NOTFOUND/')
-        if wiredtiger.diagnostic_build():
-            with self.expectedStderrPattern('WT_VERB_ERROR_RETURNS'):
-                conn_follow.dump_error_log()
+        with self.expectedStderrPattern('WT_VERB_ERROR_RETURNS'): # Check the error log
+            conn_follow.dump_error_log()
 
         #
         # Cleanup
