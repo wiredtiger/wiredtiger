@@ -7397,6 +7397,10 @@ buildvariants:
     - name: examples-c-test
     - name: unit-test-tsan
       distros: amazon2023-arm64-latest-large-m8g
+    - name: unit-test-disagg-leader-tsan
+      distros: amazon2023-arm64-latest-large-m8g
+    - name: unit-test-disagg-follower-tsan
+      distros: amazon2023-arm64-latest-large-m8g
     - name: generate-tsan-metric
     - name: generate-tsan-metric-disagg
     - name: generate-tsan-metric-timestamp
