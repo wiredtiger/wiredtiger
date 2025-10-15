@@ -18,6 +18,15 @@
 #define __wt_conf_gets(s, conf, key, cval) \
     __wt_conf_gets_func(s, conf, WT_CONF_ID_STRUCTURE.key, 0, false, false, cval)
 
+/*
+ * This is equivalent to the use of __wt_config_getones when using configuration strings for the
+ * case when there is a single configuration string supplied by the API caller, and a base "default"
+ * configuration string.  In this case, only the "API caller" configuration string is searched.
+ * __wt_conf_getones and __wt_config_getones would be different for an unusual case when there are
+ * multiple configuration strings grouped on top of the base default.  With __wt_config_getones you
+ * can search any specific configuration strings, whereas __wt_conf_getones searches them all in
+ * order, but ignores the last base default.
+ */
 #define __wt_conf_getones(s, conf, key, cval) \
     __wt_conf_gets_func(s, conf, WT_CONF_ID_STRUCTURE.key, 0, false, true, cval)
 
