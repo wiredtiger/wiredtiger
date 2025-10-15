@@ -1508,7 +1508,6 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
 
     __wt_free(session, disagg->last_checkpoint_root);
     __wt_free(session, disagg->page_log);
-    __wt_free(session, disagg->ckpt_track);
     return (ret);
 }
 
