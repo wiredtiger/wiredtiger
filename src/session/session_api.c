@@ -488,7 +488,7 @@ __session_config_prefetch(WT_SESSION_IMPL *session, WT_CONF *conf)
      * Override any connection-level pre-fetch settings if a specific session-level setting was
      * provided.
      */
-    if (__wt_conf_gets_def(session, conf, Prefetch.enabled, 0, &cval) == 0) {
+    if (__wt_conf_gets(session, conf, Prefetch.enabled, &cval) == 0) {
         if (cval.val) {
             if (!S2C(session)->prefetch_available) {
                 F_CLR(session, WT_SESSION_PREFETCH_ENABLED);
@@ -514,7 +514,7 @@ __session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
 
-    if ((ret = __wt_conf_gets_def(session, conf, ignore_cache_size, false, &cval)) == 0) {
+    if ((ret = __wt_conf_getones(session, conf, ignore_cache_size, &cval)) == 0) {
         if (cval.val)
             F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
         else
@@ -522,7 +522,7 @@ __session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
     }
     WT_RET_NOTFOUND_OK(ret);
 
-    if ((ret = __wt_conf_gets_def(session, conf, cache_cursors, true, &cval)) == 0) {
+    if ((ret = __wt_conf_getones(session, conf, cache_cursors, &cval)) == 0) {
         if (cval.val)
             F_SET(session, WT_SESSION_CACHE_CURSORS);
         else {
@@ -536,8 +536,8 @@ __session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
      * FIXME-WT-12021 Replace this debug option with the corresponding failpoint once this project
      * is completed.
      */
-    if ((ret = __wt_conf_gets_def(
-           session, conf, Debug.checkpoint_fail_before_turtle_update, 0, &cval)) == 0) {
+    if ((ret = __wt_conf_getones(
+           session, conf, Debug.checkpoint_fail_before_turtle_update, &cval)) == 0) {
         if (cval.val)
             F_SET(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_TURTLE_UPDATE);
         else
@@ -549,7 +549,7 @@ __session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
      * There is a session debug configuration which can be set to evict pages as they are released
      * and no longer needed.
      */
-    if ((ret = __wt_conf_gets_def(session, conf, Debug.release_evict_page, 0, &cval)) == 0) {
+    if ((ret = __wt_conf_getones(session, conf, Debug.release_evict_page, &cval)) == 0) {
         if (cval.val)
             F_SET(session, WT_SESSION_DEBUG_RELEASE_EVICT);
         else
@@ -557,7 +557,7 @@ __session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
     }
     WT_RET_NOTFOUND_OK(ret);
 
-    if ((ret = __wt_conf_gets_def(session, conf, cache_max_wait_ms, 0, &cval)) == 0) {
+    if ((ret = __wt_conf_getones(session, conf, cache_max_wait_ms, &cval)) == 0) {
         if (cval.val > 1)
             session->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
         else if (cval.val == 1)

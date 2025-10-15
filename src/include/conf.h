@@ -12,10 +12,14 @@
  * Sample usage:
  *  __wt_conf_gets(session, conf, statistics, &cval);
  *  __wt_conf_gets(session, conf, Operation_tracking.enabled, &cval);
+ *  __wt_conf_getones(session, conf, cache_cursors, &cval));
  *  __wt_conf_gets_def(session, conf, no_timestamp, 0, &cval));
  */
 #define __wt_conf_gets(s, conf, key, cval) \
-    __wt_conf_gets_func(s, conf, WT_CONF_ID_STRUCTURE.key, 0, false, cval)
+    __wt_conf_gets_func(s, conf, WT_CONF_ID_STRUCTURE.key, 0, false, false, cval)
+
+#define __wt_conf_getones(s, conf, key, cval) \
+    __wt_conf_gets_func(s, conf, WT_CONF_ID_STRUCTURE.key, 0, false, true, cval)
 
 #define __wt_conf_gets_def(s, conf, key, def, cval) \
     __wt_conf_gets_def_func(s, conf, WT_CONF_ID_STRUCTURE.key, def, cval)

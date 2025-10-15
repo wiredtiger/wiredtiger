@@ -736,7 +736,7 @@ __wt_txn_reconfigure(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     txn = session->txn;
 
-    ret = __wt_conf_gets_def(session, conf, isolation, 0, &cval);
+    ret = __wt_conf_getones(session, conf, isolation, &cval);
     if (ret == 0)
         /* Can only reconfigure this if transaction is not active. */
         WT_RET(__wt_txn_context_check(session, false));

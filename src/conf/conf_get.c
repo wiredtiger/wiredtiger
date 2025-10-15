@@ -16,7 +16,7 @@
  */
 int
 __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t orig_keys, int def,
-  bool use_def, WT_CONFIG_ITEM *value)
+  bool use_def, bool no_precompiled_def, WT_CONFIG_ITEM *value)
 {
     WT_CONFIG_ITEM_STATIC_INIT(false_value);
     WT_CONF_BIND_DESC *bind_desc;
@@ -48,6 +48,8 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
 
         switch (conf_value->type) {
         case CONF_VALUE_DEFAULT_ITEM:
+            if (no_precompiled_def)
+                return (WT_NOTFOUND);
             if (use_def) {
                 *value = false_value;
                 value->val = def;
