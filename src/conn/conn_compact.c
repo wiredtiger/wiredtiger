@@ -532,7 +532,7 @@ __background_compact_server(void *arg)
     session = arg;
     conn = S2C(session);
     wt_session = (WT_SESSION *)session;
-    cache_pressure = full_iteration = running = run_once = false;
+    cache_pressure = full_iteration = running = false;
 
     WT_ERR(__wt_scr_alloc(session, 1024, &config));
     WT_ERR(__wt_scr_alloc(session, 1024, &next_uri));
