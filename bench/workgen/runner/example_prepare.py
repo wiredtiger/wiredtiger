@@ -54,7 +54,7 @@ assert ret == 0, ret
 opread = Operation(Operation.OP_SEARCH, table)
 read_txn = txn(opread, 'read_timestamp')
 # read_timestamp_lag is the lag to the read_timestamp from current time
-read_txn.transaction.read_timestamp_lag = 2
+read_txn.transaction.read_timestamp_lag = 20
 treader = Thread(read_txn)
 
 opwrite = Operation(Operation.OP_INSERT, table)
