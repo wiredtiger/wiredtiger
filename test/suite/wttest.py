@@ -856,22 +856,29 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         # One last try, if it fails we let the exception propagate.
         return func()
 
+    # TODO-WT-15791 review instances of "session.compact(...)" and replace with "self.compactUntilSuccess" where appropriate.
     def compactUntilSuccess(self, session, uri, config=None):
         return self.retryEBUSY(session, lambda: session.compact(uri, config), checkpoint_on_busy=False, max_retries=100, sleep=0.1)
 
-    def dropUntilSuccess(self, session, uri, config=None):
+    # TODO-WT-15791 review instances of "session.drop(...)" and replace with "self.dropUntilSuccess" where appropriate.
+    def dropUntilSuccess(self, session=None, uri=None, config=None):
         # Most test cases consider a drop, and especially a 'drop until success',
         # to completely remove a file's artifacts, so that the name can be reused.
         # Require this behavior.
         self.requireDropRemovesNameConflict()
+        session = self.session if session is None else session
+        uri = self.uri if uri is None else uri
         return self.retryEBUSY(session, lambda: session.drop(uri, config))
 
-    def verifyUntilSuccess(self, session = None, uri = None, config=None):
+    def verifyUntilSuccess(self, session=None, uri=None, config=None):
         session = self.session if session is None else session
         uri = self.uri if uri is None else uri
         return self.retryEBUSY(session, lambda: session.verify(uri, config))
 
-    def salvageUntilSuccess(self, session, uri, config=None):
+    # TODO-WT-15791 review instances of "session.salvage(...)" and replace with "self.salvageUntilSuccess" where appropriate.
+    def salvageUntilSuccess(self, session=None, uri=None, config=None):
+        session = self.session if session is None else session
+        uri = self.uri if uri is None else uri
         return self.retryEBUSY(session, lambda: session.salvage(uri, config))
 
     def exceptionToStderr(self, expr):
