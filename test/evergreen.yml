@@ -320,6 +320,8 @@ functions:
 
           if [ "${build_variant|}" = "macos-14-arm64" ]; then
             DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPython3_EXECUTABLE=$SYSPY -DPython3_LIBRARY=$SYSPYLIB -DPython3_INCLUDE_DIR=$SYSPYINCDEF"
+            # FIXME-WT-15777 PALite currently does not build on macOS 14 (ARM64) because of outdated CLang.
+            DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DENABLE_PALITE=OFF"
           else
             DEFINED_EVERGREEN_CONFIG_FLAGS="$DEFINED_EVERGREEN_CONFIG_FLAGS -DPYTHON_EXECUTABLE:FILEPATH=$SYSPY -DPYTHON_LIBRARY=$SYSPYLIB -DPYTHON_INCLUDE_DIR=$SYSPYINCDEF"
           fi
@@ -1459,6 +1461,8 @@ variables:
         export DYLD_LIBRARY_PATH=$WT_BUILDDIR
       # Must disable TCMALLOC as it may be picked up locally and its not on all hosts.
       ENABLE_TCMALLOC: 0
+      # FIXME-WT-15777 Use PALM for unit tests for now until we can build PALite on macos-14.
+      unit_test_variant_args: "page_log=palm"
     tasks:
       - name: compile
         # This is a special case and should *only* be used for the macOS buildvariant.

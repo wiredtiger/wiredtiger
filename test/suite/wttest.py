@@ -519,7 +519,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         # tearDown needs a conn field, set it here in case the open fails.
         self.conn = None
         try:
-            self.conn = self.setUpConnectionOpen(".")
+            self.conn = self.setUpConnectionOpen(self.testdir)
             self.session = self.setUpSessionOpen(self.conn)
         except:
             self.tearDown()

@@ -11,7 +11,7 @@ else()
 endif()
 
 if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS CXX_COMPILER_MIN_VERSION)
-    message(WARNING "Skipping PALite build: C++ compiler does not support C++20."
+    message(FATAL_ERROR "Cannot build PALite: C++ compiler does not support C++20."
         "Required version: ${CXX_COMPILER_MIN_VERSION}; found: ${CMAKE_CXX_COMPILER_VERSION}")
     return()
 endif()
