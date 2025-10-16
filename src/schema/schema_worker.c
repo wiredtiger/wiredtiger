@@ -78,7 +78,7 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
   int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], uint32_t open_flags)
 {
     /*
-     * FIXME-WT-15553 TODO-WT-15553
+     * FIXME-WT-15553
      *
      * This ifdef disables verification of layered tables as part of MongoDB while keeping it for
      * internal tests.
