@@ -834,7 +834,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         if self.runningHook('tiered'):
             self.skipTest('Test requires removal from cloud storage, which is not yet permitted')
 
-    def retryEBUSY(self, session, func, checkpoint_on_busy=True, max_retries=1, sleep=0):
+    def retryEBUSY(self, session, func, checkpoint_on_busy=True, max_retries=5, sleep=0):
         """
         Call the given function.
         If the function succeeds, the function's return value is returned.
@@ -857,31 +857,31 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         return func()
 
     # TODO-WT-15791 review instances of "session.compact(...)" and replace with "self.compactUntilSuccess" where appropriate.
-    def compactUntilSuccess(self, session=None, uri=None, config=None):
+    def compactUntilSuccess(self, session=None, uri=None, config=None, **kwargs):
         session = self.session if session is None else session
         uri = self.uri if uri is None else uri
-        return self.retryEBUSY(session, lambda: session.compact(uri, config), checkpoint_on_busy=False, max_retries=100, sleep=0.1)
+        return self.retryEBUSY(session, lambda: session.compact(uri, config), checkpoint_on_busy=False, max_retries=100, sleep=0.1, **kwargs)
 
     # TODO-WT-15791 review instances of "session.drop(...)" and replace with "self.dropUntilSuccess" where appropriate.
-    def dropUntilSuccess(self, session=None, uri=None, config=None):
+    def dropUntilSuccess(self, session=None, uri=None, config=None, **kwargs):
         # Most test cases consider a drop, and especially a 'drop until success',
         # to completely remove a file's artifacts, so that the name can be reused.
         # Require this behavior.
         self.requireDropRemovesNameConflict()
         session = self.session if session is None else session
         uri = self.uri if uri is None else uri
-        return self.retryEBUSY(session, lambda: session.drop(uri, config))
+        return self.retryEBUSY(session, lambda: session.drop(uri, config), **kwargs)
 
-    def verifyUntilSuccess(self, session=None, uri=None, config=None):
+    def verifyUntilSuccess(self, session=None, uri=None, config=None, **kwargs):
         session = self.session if session is None else session
         uri = self.uri if uri is None else uri
-        return self.retryEBUSY(session, lambda: session.verify(uri, config))
+        return self.retryEBUSY(session, lambda: session.verify(uri, config), **kwargs)
 
     # TODO-WT-15791 review instances of "session.salvage(...)" and replace with "self.salvageUntilSuccess" where appropriate.
-    def salvageUntilSuccess(self, session=None, uri=None, config=None):
+    def salvageUntilSuccess(self, session=None, uri=None, config=None, **kwargs):
         session = self.session if session is None else session
         uri = self.uri if uri is None else uri
-        return self.retryEBUSY(session, lambda: session.salvage(uri, config))
+        return self.retryEBUSY(session, lambda: session.salvage(uri, config), **kwargs)
 
     def exceptionToStderr(self, expr):
         """
