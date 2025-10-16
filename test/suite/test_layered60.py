@@ -149,6 +149,9 @@ class test_layered60(wttest.WiredTigerTestCase):
 
         checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
         self.restart_without_local_files()
+
+        # Pick up the latest checkpoint and then step up as the leader. Do this in two steps, to
+        # mimic the behavior of the server.
         self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
         self.conn.reconfigure(f'disaggregated=(role="leader")')
 
