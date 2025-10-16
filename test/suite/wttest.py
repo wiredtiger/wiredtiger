@@ -102,6 +102,8 @@ class TestSuiteConnection(object):
         if attr in self.__dict__:
             return getattr(self, attr)
         else:
+            if self._conn is None:
+                raise Exception('The connection is closed')
             return getattr(self._conn, attr)
 
 # Just like a list of strings, but with a convenience function

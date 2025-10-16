@@ -154,6 +154,6 @@ class test_autoclose(wttest.WiredTigerTestCase):
         """
         conn = self.conn
         self.close_conn()
-        self.assertRaisesHavingMessage(self.expected_exception,
+        self.assertRaisesHavingMessage(Exception,
                                        lambda: conn.open_session(None),
-                                       '/wt_connection.* is None/')
+                                       '/connection is closed/')

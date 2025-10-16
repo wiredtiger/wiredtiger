@@ -141,3 +141,5 @@ class test_layered30(wttest.WiredTigerTestCase):
             item_count += 1
         cursor.close()
         self.assertEqual(item_count, 0)
+
+        self.session.open_cursor(self.uri + 'y', None, None)
