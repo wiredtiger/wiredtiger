@@ -151,6 +151,7 @@ struct __wt_layered_table_manager {
 struct __wt_disagg_copy_metadata {
     char *stable_uri;                         /* The full URI of the stable component. */
     char *table_name;                         /* The table name without prefix or suffix. */
+    int retries_left;                         /* The number of retries left. */
     TAILQ_ENTRY(__wt_disagg_copy_metadata) q; /* Linked list of entries. */
 };
 
