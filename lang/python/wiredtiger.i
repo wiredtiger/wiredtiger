@@ -1464,10 +1464,6 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 %ignore wiredtiger_extension_terminate;
 
 
-/* Allow the checkpoint function to run without the GIL. */
-%thread __wt_session::checkpoint;
-
-
 /* Convert 'int *' to output args for wiredtiger_version */
 %apply int *OUTPUT { int * };
 %cstring_output_allocate(char **, );

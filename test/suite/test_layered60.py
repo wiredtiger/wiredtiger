@@ -65,11 +65,21 @@ class test_layered60(wttest.WiredTigerTestCase):
             if f.startswith('WiredTiger') or f.startswith('test_'):
                 os.rename(f, os.path.join(dir, f))
 
-        # Also save the PALM database (to aid debugging)
+        # Also save the PALI database (to aid debugging)
         shutil.copytree('kv_home', os.path.join(dir, 'kv_home'))
 
         # Reopen the connection
         self.open_conn()
+
+    # Wait for a checkpoint to start running
+    def wait_for_checkpoint_start(self):
+        while True:
+            stat_cursor = self.session.open_cursor('statistics:')
+            state = stat_cursor[wiredtiger.stat.conn.checkpoint_state][2]
+            stat_cursor.close()
+            if state != 0:
+                break
+            time.sleep(0.1)
 
     # Test creating an empty table while a checkpoint is running.
     def test_layered60(self):
@@ -89,12 +99,18 @@ class test_layered60(wttest.WiredTigerTestCase):
         def checkpoint_thread_fn(conn):
             session = conn.open_session('')
             self.pr('Checkpoint started')
+            # This checkpoint will take at least 10 seconds due to timing_stress_for_test
             session.checkpoint()
             self.pr('Checkpoint complete')
             session.close()
         checkpoint_thread = threading.Thread(target=checkpoint_thread_fn, args=(self.conn,))
         checkpoint_thread.start()
-        time.sleep(1)  # Wait a bit to ensure the checkpoint has started
+
+        # Wait for the checkpoint to start, and then a tiny bit more just in case. There should be
+        # enough time for us to do this, because the checkpoint will take at least 10 seconds due
+        # to the timing stress.
+        self.wait_for_checkpoint_start()
+        time.sleep(0.1)
 
         # Create an empty table and wait for the checkpoint to complete
         self.pr('Creating empty table')
