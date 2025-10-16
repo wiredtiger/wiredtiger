@@ -74,4 +74,6 @@ class test_layered33(wttest.WiredTigerTestCase):
         cursor.close()
         self.close_conn()
 
+        # Ignore "Removing local file due to disagg mode" messages printed by
+        # __wti_ensure_clean_startup_dir during disagg mode restarts.
         self.ignoreStdoutPattern('local file')
