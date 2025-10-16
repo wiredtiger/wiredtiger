@@ -572,10 +572,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         while cur.next() == 0:
             uri = cur.get_key()
             if uri.startswith('layered:'):
-                # FIXME-WT-15786: For tests using a follower config, we cannot rely on the getDisaggParameters
-                # for the role, since it is currently hardcoded as "leader". Handle the transient state where
-                # a follower that has not yet taken its first checkpoint may fail with ENOENT due to missing
-                # its stable table.
                 self.verifyUntilSuccess(sess, uri)
         cur.close()
 
@@ -599,7 +595,10 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                         teardown_msg += "; " + str(tmp[1])
 
         if self.__module__.startswith("test_layered"):
-            # FIXME-WT-15786: the following tests have follower configurations, skip verification for now.
+            # FIXME-WT-15786: For tests using a follower config, we cannot rely on the getDisaggParameters
+            # for the role, since it is currently hardcoded as "leader". Handle the transient state where
+            # a follower that has not yet taken its first checkpoint may fail with ENOENT due to missing
+            # its stable table.
             if not re.match("test_layered(57|41|21|22|17)", str(self)):
                 self.verifyLayered()
 
