@@ -288,7 +288,7 @@
 #define __WT_ATOMIC_CAS_INTERNAL(ptr, oldp, newv) \
     __atomic_compare_exchange_n(ptr, oldp, newv, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
 
-#define WT_ATOMIC_FUNC_STORE_LOAD_NEW(suffix, _type)                                       \
+#define WT_ATOMIC_FUNC_STORE_LOAD(suffix, _type)                                           \
     static inline _type __wt_atomic_load_##suffix##_relaxed(_type *vp)                     \
     {                                                                                      \
         return (__atomic_load_n(vp, __ATOMIC_RELAXED));                                    \
@@ -326,7 +326,7 @@
         __WT_RELEASE_WRITE_INTERNAL(*(vp), v);                                             \
     }
 
-#define WT_ATOMIC_CAS_FUNC_NEW(suffix, _type)                                                  \
+#define WT_ATOMIC_CAS_FUNC(suffix, _type)                                                      \
     static inline bool __wt_atomic_cas_##suffix(_type *vp, _type old, _type newv)              \
     {                                                                                          \
         return (__WT_ATOMIC_CAS_INTERNAL(vp, &old, newv));                                     \
@@ -336,7 +336,7 @@
         return (__WT_ATOMIC_CAS_INTERNAL(vp, &old, newv));                                     \
     }
 
-#define WT_ATOMIC_FUNC_NEW(suffix, _type)                                               \
+#define WT_ATOMIC_FUNC(suffix, _type)                                                   \
     static inline _type __wt_atomic_add_##suffix(_type *vp, _type v)                    \
     {                                                                                   \
         return (__atomic_add_fetch(vp, v, __ATOMIC_SEQ_CST));                           \
@@ -365,20 +365,20 @@
     {                                                                                   \
         return (__atomic_sub_fetch(vp, v, __ATOMIC_SEQ_CST));                           \
     }                                                                                   \
-    WT_ATOMIC_CAS_FUNC_NEW(suffix, _type)                                               \
-    WT_ATOMIC_FUNC_STORE_LOAD_NEW(suffix, _type)
+    WT_ATOMIC_CAS_FUNC(suffix, _type)                                                   \
+    WT_ATOMIC_FUNC_STORE_LOAD(suffix, _type)
 
-WT_ATOMIC_FUNC_NEW(uint8, uint8_t)
-WT_ATOMIC_FUNC_NEW(uint16, uint16_t)
-WT_ATOMIC_FUNC_NEW(uint32, uint32_t)
-WT_ATOMIC_FUNC_NEW(uint64, uint64_t)
-WT_ATOMIC_FUNC_NEW(int8, int8_t)
-WT_ATOMIC_FUNC_NEW(int16, int16_t)
-WT_ATOMIC_FUNC_NEW(int32, int32_t)
-WT_ATOMIC_FUNC_NEW(int64, int64_t)
-WT_ATOMIC_FUNC_NEW(size, size_t)
+WT_ATOMIC_FUNC(uint8, uint8_t)
+WT_ATOMIC_FUNC(uint16, uint16_t)
+WT_ATOMIC_FUNC(uint32, uint32_t)
+WT_ATOMIC_FUNC(uint64, uint64_t)
+WT_ATOMIC_FUNC(int8, int8_t)
+WT_ATOMIC_FUNC(int16, int16_t)
+WT_ATOMIC_FUNC(int32, int32_t)
+WT_ATOMIC_FUNC(int64, int64_t)
+WT_ATOMIC_FUNC(size, size_t)
 
-WT_ATOMIC_FUNC_STORE_LOAD_NEW(bool, bool)
+WT_ATOMIC_FUNC_STORE_LOAD(bool, bool)
 
 /*
  * __wt_atomic_load_double_relaxed --

@@ -28,10 +28,9 @@ TXN_API_CALL
 TXN_API_CALL_NOCONF
 TXN_API_END
 WIN32_LEAN_AND_MEAN
-WT_ACQUIRE_READ
-WT_ATOMIC_CAS
 WT_ATOMIC_CAS_FUNC
 WT_ATOMIC_FUNC
+WT_ATOMIC_FUNC_STORE_LOAD
 WT_BACKUP_INVALID
 WT_BLOCK_DESC_SIZE
 WT_BLOCK_DISAGG_CHECKPOINT_BUFFER
@@ -88,7 +87,6 @@ WT_READ_ONCE
 WT_REC_RESULT_SINGLE_PAGE
 WT_REF_SAVE_STATE_MAX
 WT_REF_SIZE
-WT_RELEASE_WRITE
 WT_SESSION_ID_INITIAL
 WT_SESSION_LOCKED_CHECKPOINT
 WT_SESSION_LOCKED_HANDLE_LIST_READ
@@ -139,10 +137,13 @@ pg_del_saved_txnid
 __WIREDTIGER_EXT_H_
 __WIREDTIGER_H_
 __WT_INTERNAL_H
-__wt_atomic_and_generic
-__wt_atomic_load_generic
-__wt_atomic_or_generic
-__wt_atomic_store_generic
+__WT_ACQUIRE_READ_INTERNAL
+__WT_ATOMIC_CAS_INTERNAL
+__WT_RELEASE_WRITE_INTERNAL
+__wt_atomic_and_generic_relaxed
+__wt_atomic_load_generic_relaxed
+__wt_atomic_or_generic_relaxed
+__wt_atomic_store_generic_relaxed
 __wt_bswap16
 __wt_checksum_with_seed
 __wt_conf_gets

@@ -934,11 +934,12 @@ __evict_pass(WT_SESSION_IMPL *session)
          * If there is still no progress after 2s, we will treat the cache as stuck and start
          * rolling back transactions and writing updates to the history store table.
          */
+        uint32_t aggressive_score = __wt_atomic_load_uint32_relaxed(&evict->evict_aggressive_score);
         if (eviction_progress == __wt_atomic_load_uint64_v_relaxed(&evict->eviction_progress)) {
             if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 && F_ISSET(evict, WT_EVICT_CACHE_HARD)) {
-                if (__wt_atomic_load_uint32_relaxed(&evict->evict_aggressive_score) <
-                  WT_EVICT_SCORE_MAX)
+                if (aggressive_score < WT_EVICT_SCORE_MAX)
                     (void)__wt_atomic_add_uint32_v(&evict->evict_aggressive_score, 1);
+
                 oldest_id = __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id);
                 if (prev_oldest_id == oldest_id &&
                   __wt_atomic_load_uint64_v_relaxed(&txn_global->current) != oldest_id &&
