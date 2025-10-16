@@ -1021,10 +1021,26 @@ private:
              PRIMARY KEY (table_id, page_id, lsn)
             );)",
 
-          /* !!! To gracefully handle write failures of delta pages we will keep
+          /* !!! This index exists for the case in which we have written a page
+          delta and then need to write it again.
+
+          This generally happens in eviction. We have a base page already written
+          and we now try to evict it. We finished writing a delta to disk but
+          then we fail the reconciliation. It is a delta so we cannot explicitly
+          free the write with the same page id. After a while, we retry the
+          eviction and this time we writes a delta based on the same base page.
+          Thus this write will have the same backlink_lsn to the previous write.
+
+          At this stage, there may be no checkpoint running so discarding the
+          unfinished checkpoint doesn't help in this case. It is also possible
+          that these two writes will be included in the same checkpoint that is
+          not discarded.
+
+          To gracefully handle write failures of delta pages we will keep
           track of the backlink_lsn within each delta chain. Tracking is done via
-          a partial unique index on (table_id, page_id, backlink_lsn) for delta
-          pages only (delta=1).
+          a *partial* unique index on (table_id, page_id, backlink_lsn) for
+          genuine delta pages only: delta=1 AND discarded=0.
+          (Partial index can include only a subset of rows in the table.)
 
           The primary key for the table (table_id, page_id, lsn) does not help
           because lsn is always increasing, making each record unique.
@@ -1052,7 +1068,7 @@ private:
           that there is at most one such delta page.
 
           The new page with lsn=9 will replace the failed page with lsn=8 because
-          pages inserted with 'INSERT OR REPLACE INTO pages'.
+          pages are inserted with 'INSERT OR REPLACE INTO pages'.
 
           See also PUT_PAGE statement. */
           R"(CREATE UNIQUE INDEX IF NOT EXISTS ux_delta
@@ -1071,12 +1087,15 @@ private:
                 checkpoint_metadata BLOB,
                 PRIMARY KEY (lsn, timestamp)
             );)",
+
           // These keys correspond to the GlobalKey enumeration.
           // Key 0: LSN, 1 will be used next
           "INSERT OR IGNORE INTO globals(key, val) VALUES (0, 1);",
+
           // TODO: remove if not needed
           // Key 1: Checkpoint completed
           "INSERT OR IGNORE INTO globals(key, val) VALUES (1, 0);",
+
           // Key 2: Checkpoint started
           "INSERT OR IGNORE INTO globals(key, val) VALUES (2, 0);"};
 
