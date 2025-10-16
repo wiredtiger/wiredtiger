@@ -857,7 +857,9 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         return func()
 
     # TODO-WT-15791 review instances of "session.compact(...)" and replace with "self.compactUntilSuccess" where appropriate.
-    def compactUntilSuccess(self, session, uri, config=None):
+    def compactUntilSuccess(self, session=None, uri=None, config=None):
+        session = self.session if session is None else session
+        uri = self.uri if uri is None else uri
         return self.retryEBUSY(session, lambda: session.compact(uri, config), checkpoint_on_busy=False, max_retries=100, sleep=0.1)
 
     # TODO-WT-15791 review instances of "session.drop(...)" and replace with "self.dropUntilSuccess" where appropriate.
