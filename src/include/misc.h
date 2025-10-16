@@ -608,6 +608,24 @@ __wt_tsan_suppress_add_vuint64(volatile uint64_t *var, uint64_t value)
     *var += value;
 }
 
+static inline void
+__wt_tsan_suppress_store_int64(int64_t *vp, int64_t v)
+{
+    __wt_atomic_storei64(vp, v);
+}
+
+static inline void
+__wt_tsan_suppress_add_int64(int64_t *var, int64_t value)
+{
+    *var += value;
+}
+
+static inline void
+__wt_tsan_suppress_sub_int64(int64_t *var, int64_t value)
+{
+    *var -= value;
+}
+
 static inline bool
 __wt_tsan_suppress_load_bool(bool *vp)
 {
