@@ -65,7 +65,7 @@ class test_layered33(wttest.WiredTigerTestCase):
 
         cursor.reset()
 
-        # Ensure there is nothing in the table
+        # Ensure there is nothing in the table.
         self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
         for i in range(0, 100):
             cursor.set_key(str(i))
