@@ -13,12 +13,6 @@
 #define TEST_ACQUIRE_TYPE(type)                      \
     TEST_CASE("Test acquiring a " #type, "[acqrel]") \
     {                                                \
-        type a = 5;                                  \
-        type *ap = &a;                               \
-        type a_result;                               \
-        WT_ACQUIRE_READ(a_result, *ap);              \
-        REQUIRE(a == a_result);                      \
-                                                     \
         type b = 10;                                 \
         type *bp = &b;                               \
         type b_result;                               \
@@ -29,12 +23,6 @@
 #define TEST_RELEASE_TYPE(type, value)               \
     TEST_CASE("Test releasing a " #type, "[acqrel]") \
     {                                                \
-        type a;                                      \
-        type *ap = &a;                               \
-        type a_set = value;                          \
-        WT_RELEASE_WRITE(*ap, a_set);                \
-        REQUIRE(a == a_set);                         \
-                                                     \
         type b;                                      \
         type *bp = &b;                               \
         type b_set = value;                          \
@@ -77,7 +65,7 @@ TEST_CASE("Demonstrate hash define int size workaround", "[acqrel]")
 
     int8_t a;
     int8_t *ap = &a;
-    WT_RELEASE_WRITE(*ap, TEST_VALUE);
+    __wt_atomic_store_uint64_release(&*ap, TEST_VALUE);
 
     REQUIRE(a == TEST_VALUE);
 }

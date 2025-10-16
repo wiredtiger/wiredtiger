@@ -332,13 +332,13 @@ __wti_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
     if (pinned_timestamp != WT_TS_NONE &&
       (!txn_global->has_pinned_timestamp || force ||
         txn_global->pinned_timestamp < pinned_timestamp)) {
-        WT_RELEASE_WRITE(txn_global->pinned_timestamp, pinned_timestamp);
+        __wt_atomic_store_uint64_release(&txn_global->pinned_timestamp, pinned_timestamp);
         /*
          * Release write requires the data and destination have exactly the same size. stdbool.h
          * only defines true as `#define true 1` so we need a bool cast to provide proper type
          * information.
          */
-        WT_RELEASE_WRITE(txn_global->has_pinned_timestamp, (bool)true);
+        __wt_atomic_store_bool_release(&txn_global->has_pinned_timestamp, true);
         txn_global->oldest_is_pinned = txn_global->pinned_timestamp == txn_global->oldest_timestamp;
         txn_global->stable_is_pinned = txn_global->pinned_timestamp == txn_global->stable_timestamp;
         __wt_verbose_timestamp(session, pinned_timestamp, "Updated pinned timestamp");
@@ -478,14 +478,14 @@ set:
 
     if (has_stable &&
       (!txn_global->has_stable_timestamp || force || stable_ts > txn_global->stable_timestamp)) {
-        WT_RELEASE_WRITE(txn_global->stable_timestamp, stable_ts);
+        __wt_atomic_store_uint64_release(&txn_global->stable_timestamp, stable_ts);
         WT_STAT_CONN_INCR(session, txn_set_ts_stable_upd);
         /*
          * Release write requires the data and destination have exactly the same size. stdbool.h
          * only defines true as `#define true 1` so we need a bool cast to provide proper type
          * information.
          */
-        WT_RELEASE_WRITE(txn_global->has_stable_timestamp, (bool)true);
+        __wt_atomic_store_bool_release(&txn_global->has_stable_timestamp, true);
         txn_global->stable_is_pinned = false;
         __wt_verbose_timestamp(session, stable_ts, "Updated global stable timestamp");
     }
@@ -687,7 +687,7 @@ __txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts)
 /* Used to define the granularity at which the shared global recent commit timestamp is updated. */
 #define WT_COMMIT_TS_UPDATE_THRESHOLD 10
     /* Don't be overly greedy about updating the commit timestamp, it's shared */
-    WT_ACQUIRE_READ(newest_commit_ts, txn_global->newest_seen_timestamp);
+    newest_commit_ts = __wt_atomic_load_uint64_acquire(&txn_global->newest_seen_timestamp);
     if (commit_ts > newest_commit_ts + WT_COMMIT_TS_UPDATE_THRESHOLD) {
         /* If our update failed, someone beat us to it - no problem. */
         __wt_atomic_cas_uint64(&txn_global->newest_seen_timestamp, newest_commit_ts, commit_ts);
