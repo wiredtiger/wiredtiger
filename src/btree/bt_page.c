@@ -248,8 +248,12 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
     uint32_t min_d;
     WT_REF **refs = *refsp;
     WT_PAGE *page = ref->page;
+
+    WT_UNUSED(disk_image);
     /*
-     * WT_PAGE_HEADER *hdr = NULL; uint8_t *p = NULL;
+     * !!!
+     * WT_PAGE_HEADER *hdr = NULL;
+     * uint8_t *p = NULL;
      */
     bool row_leaf_page = false, internal_page = false;
 
@@ -464,9 +468,12 @@ __page_merge_deltas_with_base_image_new(WT_SESSION_IMPL *session, WT_REF *ref, W
     WT_ERR(__wt_buf_init(session, disk_image, page->dsk->mem_size));
     WT_ERR(__wt_buf_extend(session, disk_image, sizeof(WT_PAGE_HEADER)));
     /*
-     * WT_PAGE_HEADER *hdr = (WT_PAGE_HEADER *)disk_image->data; memset(hdr, 0,
-     * sizeof(WT_PAGE_HEADER)); hdr->type = page->type;
+     * !!!
+     * WT_PAGE_HEADER *hdr = (WT_PAGE_HEADER *)disk_image->data;
+     * memset(hdr, 0, sizeof(WT_PAGE_HEADER));
+     * hdr->type = page->type;
      */
+
     /* Common merge logic (disk mode) */
     WT_ERR(__page_merge_deltas_common_merge_loop(session, base, base_entries, unpacked_deltas,
       delta_size_each, delta_idx, delta_size, ref, &refs, ref_entriesp, incr, disk_image, true));
