@@ -582,6 +582,13 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     else:
                         teardown_msg += "; " + str(tmp[1])
 
+        dumped_error_log = False
+        if self.failed():
+            dumped_error_log = True
+            # Dump the error log directly to stderr, as it is easier to read.
+            sys.stderr.write('\nWiredTiger error log:\n')
+            wiredtiger.wiredtiger_dump_error_log(lambda e: sys.stderr.write(e))
+
         passed = not (self.failed() or teardown_failed)
 
         try:
@@ -617,7 +624,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         self._connections = []
         try:
             self.fdTearDown()
-            if not (dueToRetry or self.ignoreTearDownLogs):
+            if not (dueToRetry or self.ignoreTearDownLogs or dumped_error_log):
                 self.captureout.check(self)
                 self.captureerr.check(self)
         finally:
