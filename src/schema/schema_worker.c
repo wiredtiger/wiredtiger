@@ -77,16 +77,6 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
   int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], uint32_t open_flags)
 {
-    /*
-     * FIXME-WT-15553
-     *
-     * This ifdef disables verification of layered tables as part of MongoDB while keeping it for
-     * internal tests.
-     *
-     * Once verification of layered tables with deltas is fully supported, this ifdef should be
-     * removed.
-     */
-#ifdef WT_STANDALONE_BUILD
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     int ingest_ret, stable_ret;
@@ -154,16 +144,6 @@ err:
     ret = ingest_ret != 0 ? ingest_ret : stable_ret;
 
     return (ret);
-#else
-    WT_UNUSED(session);
-    WT_UNUSED(uri);
-    WT_UNUSED(file_func);
-    WT_UNUSED(name_func);
-    WT_UNUSED(cfg);
-    WT_UNUSED(open_flags);
-
-    return (0);
-#endif
 }
 
 /*
