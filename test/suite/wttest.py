@@ -568,9 +568,10 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         self.teardown_actions.append(action)
 
     def verifyLayered(self):
-        if self.conn is None:
+        # Need to check ".this" because SWIG proxies don't evaluate to None even after being freed.
+        if self.conn is None or self.conn.this is None:
             self.conn = self.setUpConnectionOpen(".")
-        elif self.session.this is not None:
+        elif self.session is not None or self.session.this is not None:
             # Ensure all cursors are closed by closing the session
             self.session.close()
 

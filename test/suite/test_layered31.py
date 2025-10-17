@@ -247,7 +247,7 @@ class test_layered31(wttest.WiredTigerTestCase):
         # Step up, leaving cursors open
         # At this point, we have two connections, our old leader and the follower that is
         # becoming the new leader. Close the old leader first so there's no confusion within this test.
-        self.close_conn()
+        self.conn.close()
         conn_follow.reconfigure('disaggregated=(role="leader")')
 
         # Check the continuation of each scan.  Again, we are checking with layered URIs only.

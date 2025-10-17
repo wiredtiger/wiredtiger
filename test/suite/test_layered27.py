@@ -99,7 +99,7 @@ class test_layered27(wttest.WiredTigerTestCase):
         oplog.check(self, session_follow, 0, 400 * self.multiplier)
 
         self.conn.reconfigure(f'disaggregated=(role=follower)') # Prevent checkpoint during close.
-        self.close_conn()
+        self.conn.close()
         conn_follow.reconfigure('disaggregated=(role="leader")')
 
         # Checkpoint after draining the ingest table
@@ -159,7 +159,7 @@ class test_layered27(wttest.WiredTigerTestCase):
         oplog.check(self, session_follow, 0, 200 * self.multiplier)
 
         self.conn.reconfigure(f'disaggregated=(role=follower)') # Prevent checkpoint during close.
-        self.close_conn()
+        self.conn.close()
         conn_follow.reconfigure('disaggregated=(role="leader")')
 
         # Checkpoint after draining the ingest table
@@ -220,7 +220,7 @@ class test_layered27(wttest.WiredTigerTestCase):
         oplog.check(self, session_follow, 0, 300 * self.multiplier)
 
         self.conn.reconfigure(f'disaggregated=(role=follower)') # Prevent checkpoint during close.
-        self.close_conn()
+        self.conn.close()
         conn_follow.reconfigure('disaggregated=(role="leader")')
 
         # Checkpoint after draining the ingest table
