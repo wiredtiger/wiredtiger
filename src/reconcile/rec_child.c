@@ -347,7 +347,7 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
                     break;
 
                 /* This is a very small race window, but check just in case. */
-                if (mod->instantiated == false) {
+                if (!mod->instantiated) {
                     WT_REF_SET_STATE(ref, WT_REF_MEM);
                     /* Retry from the top; we may now have a rec_result. */
                     break;
