@@ -1039,6 +1039,7 @@ memcpy
 memdup
 memkind
 memmove
+memset
 memsize
 mergeable
 metaconf
