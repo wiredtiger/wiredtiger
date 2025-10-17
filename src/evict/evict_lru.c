@@ -1870,7 +1870,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     WT_REF *ref;
     WT_TXN *txn;
     uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
-    uint64_t min_pages, pages_already_queued, pages_queued, pages_seen, refs_walked;
+    uint64_t gen_gap, min_pages, pages_already_queued, pages_queued, pages_seen, refs_walked;
     uint64_t pages_seen_clean, pages_seen_dirty, pages_seen_updates;
     uint32_t read_flags, remaining_slots, target_pages, walk_flags;
     int restarts;
@@ -2126,7 +2126,7 @@ rand_next:
          * statistic here during the walk and not at __evict_page because the evict_pass_gen is
          * reset here.
          */
-        const uint64_t gen_gap = __wt_atomic_load64(&cache->evict_pass_gen) - page->evict_pass_gen;
+        gen_gap = __wt_atomic_load64(&cache->evict_pass_gen) - page->evict_pass_gen;
         if (gen_gap > __wt_atomic_load64(&cache->evict_max_gen_gap))
             __wt_atomic_store64(&cache->evict_max_gen_gap, gen_gap);
 
