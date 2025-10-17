@@ -143,4 +143,3 @@ class test_layered22(wttest.WiredTigerTestCase):
         random_cursor = self.session.open_cursor(self.uri, None, "next_random=true")
         self.assertEqual(random_cursor.next(), 0)
         self.assertTrue(random_cursor.get_key().startswith("Hello "))
-        random_cursor.close()
