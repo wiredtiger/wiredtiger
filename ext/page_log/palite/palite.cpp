@@ -658,6 +658,7 @@ class Storage {
         GET_GLOBAL,
         PUT_PAGE,
         GET_PAGE_IDS,
+        GET_FULL_PAGE_LSN,
         GET_PAGE_INFOS,
         GET_PAGES,
         DELETE_PAGES,
@@ -806,8 +807,28 @@ class Storage {
                             WHERE p2.table_id = p1.table_id
                               AND p2.page_id = p1.page_id
                               AND p2.lsn <= ?2
-                              AND (p2.flags & ?3) = 0
+                              AND p2.discarded = 1
                         );)";
+
+                /* !!! Get the LSN of the first non-discarded full page below the
+                given LSN. This is used with full page backlink verification.
+                Full page backlink_lsn always points to the previous full page LSN. */
+                a[GET_FULL_PAGE_LSN] = R"(
+                    SELECT p1.lsn
+                    FROM pages AS p1
+                    WHERE p1.table_id = ?1
+                        AND p1.page_id != ?2
+                        AND p1.lsn < ?3
+                        AND p1.delta = 0
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM pages AS p2
+                            WHERE p2.table_id = p1.table_id
+                              AND p2.page_id = p1.page_id
+                              AND p2.lsn < ?3
+                              AND p2.discarded = 1)
+                    ORDER BY p1.lsn DESC
+                    LIMIT 1;)";
 
                 /* !!! Retrieve information about entire delta chain stopping at
                 the first full page. The chain may include discarded page.
@@ -916,6 +937,7 @@ class Storage {
                 a[DELETE_PAGES] = R"(
                     DELETE FROM pages
                     WHERE lsn > ?;)";
+
                 return a;
             }
             ();
@@ -1440,8 +1462,11 @@ public:
             LOG_AND_THROW("Insufficient space in results_array: {}", *results_count);
         }
 
+        // Verify full page, if configured
+        const uint64_t prev_full_lsn =
+          config.verify ? get_prev_full_page_lsn(conn, table_id, page_id, args->lsn) : 0;
         // Always verify the delta chain when retrieving pages, even if config.verify=false.
-        verify_chain(pages);
+        verify_chain(pages, prev_full_lsn);
 
         // Fill args from the first found page. (It will be the last in returned array.)
         uint64_t save_lsn = args->lsn;
@@ -1465,7 +1490,7 @@ public:
     }
 
     void
-    verify_chain(const std::vector<PageInfo> &pages)
+    verify_chain(const std::vector<PageInfo> &pages, uint64_t prev_full_lsn = 0)
     {
         PageInfo prev{};
         PageInfo full{};
@@ -1478,6 +1503,11 @@ public:
 
             if (page.base_lsn != 0) {
                 LOG_AND_THROW("Full page base_lsn must be 0: {}", page);
+            }
+
+            if (prev_full_lsn != 0 && page.backlink_lsn != prev_full_lsn) {
+                LOG_AND_THROW(
+                  "Full page backlink_lsn mismatch: {}, expected: {}", page, prev_full_lsn);
             }
 
             if (page.flags & WT_PAGE_LOG_DISCARDED) {
@@ -1569,7 +1599,9 @@ public:
               "No pages found for table_id={}, page_id={} at lsn<={}", table_id, page_id, lsn);
         }
 
-        verify_chain(pages);
+        const uint64_t prev_full_lsn = get_prev_full_page_lsn(conn, table_id, page_id, lsn);
+
+        verify_chain(pages, prev_full_lsn);
 
         return 0;
     }
@@ -1581,8 +1613,6 @@ public:
         StatementPtr stmt = conn.db_statement(Statement::GET_PAGE_IDS);
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(checkpoint_lsn));
-        SQ_CHECK(
-          sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(WT_PAGE_LOG_DISCARDED));
 
         std::vector<uint64_t> ids;
         while (SQ_CHECK(sqlite3_step, stmt.get()) == SQLITE_ROW) {
@@ -1598,6 +1628,22 @@ public:
         }
 
         return 0;
+    }
+
+    uint64_t
+    get_prev_full_page_lsn(Connection &conn, uint64_t table_id, uint64_t page_id, uint64_t lsn)
+    {
+        StatementPtr stmt = conn.db_statement(Statement::GET_FULL_PAGE_LSN);
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(lsn));
+
+        int ret = SQ_CHECK(sqlite3_step, stmt.get());
+        if (ret == SQLITE_DONE) {
+            return 0; // No previous full page found
+        }
+
+        return static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 0));
     }
 
     void
