@@ -243,6 +243,7 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
             }
             ret = __rec_child_deleted(session, r, ref, cmsp);
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
+            WT_RET(ret);
             goto done;
 
         case WT_REF_LOCKED:
@@ -352,8 +353,9 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
                     break;
                 }
 
-                WT_RET(__rec_child_deleted(session, r, ref, cmsp));
+                ret = __rec_child_deleted(session, r, ref, cmsp);
                 WT_REF_SET_STATE(ref, WT_REF_MEM);
+                WT_RET(ret);
                 goto done;
             }
 
