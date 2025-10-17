@@ -1174,6 +1174,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
         /* Follower step-up. */
         if (reconfig && !was_leader && leader) {
+            F_SET(conn, WT_CONN_RECONFIGURING_STEP_UP);
             /* Abandon the current checkpoint if it is incomplete, and begin a new one. */
             WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_restart_checkpoint(session));
             WT_ERR(ret);
@@ -1185,6 +1186,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             /* Drain the ingest tables before switching to leader. */
             WT_ERR_MSG_CHK(
               session, __layered_drain_ingest_tables(session), "Failed to drain ingest tables");
+            F_CLR(conn, WT_CONN_RECONFIGURING_STEP_UP);
         }
 
         /* Leader step-down. */
