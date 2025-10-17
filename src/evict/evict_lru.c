@@ -1869,8 +1869,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     WT_PAGE *last_parent, *page;
     WT_REF *ref;
     WT_TXN *txn;
-    uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
     uint64_t gen_gap, min_pages, pages_already_queued, pages_queued, pages_seen, refs_walked;
+    uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
     uint64_t pages_seen_clean, pages_seen_dirty, pages_seen_updates;
     uint32_t read_flags, remaining_slots, target_pages, walk_flags;
     int restarts;
