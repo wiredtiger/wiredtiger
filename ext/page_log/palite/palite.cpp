@@ -165,6 +165,7 @@ now_us()
 struct Config {
     WT_EXTENSION_API *extapi = nullptr; // WiredTiger extension API
 
+    std::filesystem::path home_dir;        // Home directory for the extension
     uint32_t cache_size_mb = 500;          // Size of cache in megabytes (default)
     uint32_t delay_ms = 0;                 // Average length of delay when simulated
     uint32_t error_ms = 0;                 // Average length of sleep when simulated
@@ -184,6 +185,7 @@ struct Config {
 
         WTConfigParserPtr parser = open_config_parser();
 
+        configure_value(parser.get(), config, "home", home_dir);
         configure_value(parser.get(), config, "cache_size_mb", cache_size_mb);
         configure_value(parser.get(), config, "delay_ms", delay_ms);
         configure_value(parser.get(), config, "error_ms", error_ms);
@@ -223,14 +225,18 @@ private:
     void
     configure_value(WT_CONFIG_PARSER *parser, WT_CONFIG_ARG *config, const char *key, T &value)
     {
-        // Guard for supported types (bool and integral types)
-        static_assert(
-          std::is_same_v<T, bool> || std::is_integral_v<T>, "Unsupported type for configuration");
+        // Guard for supported types (bool, integral, string, and filesystem::path types)
+        static_assert(std::is_same_v<T, bool> || std::is_integral_v<T> ||
+            std::is_same_v<T, std::string> || std::is_same_v<T, std::filesystem::path>,
+          "Unsupported type for configuration");
 
         auto validate = [](WT_CONFIG_ITEM::WT_CONFIG_ITEM_TYPE type) {
             if constexpr (std::is_same_v<T, bool>) {
                 return type == WT_CONFIG_ITEM::WT_CONFIG_ITEM_NUM ||
                   type == WT_CONFIG_ITEM::WT_CONFIG_ITEM_BOOL;
+            } else if constexpr (std::is_same_v<T, std::string> ||
+              std::is_same_v<T, std::filesystem::path>) {
+                return type == WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRING;
             } else { // integral types
                 return type == WT_CONFIG_ITEM::WT_CONFIG_ITEM_NUM;
             }
@@ -244,7 +250,14 @@ private:
             if (v.len == 0 || !validate(v.type)) {
                 throw std::invalid_argument(std::string("Invalid type for config key: ") + key);
             }
-            value = static_cast<T>(v.val);
+
+            if constexpr (std::is_same_v<T, std::string>) {
+                value = std::string(v.str, v.len);
+            } else if constexpr (std::is_same_v<T, std::filesystem::path>) {
+                value = std::filesystem::path(std::string(v.str, v.len));
+            } else {
+                value = static_cast<T>(v.val);
+            }
         } else if (ret != WT_NOTFOUND) {
             throw std::runtime_error(std::string("Failed to get config for key: ") + key);
         }
@@ -1469,7 +1482,8 @@ public:
     std::filesystem::path
     initialize_directory(const std::filesystem::path &home_dir)
     {
-        std::filesystem::path kv_home = home_dir / "kv_home";
+        std::filesystem::path kv_home =
+          (!config.home_dir.empty() ? config.home_dir : home_dir) / "kv_home";
         if (!std::filesystem::exists(kv_home)) {
             std::filesystem::create_directories(kv_home);
             LOG_DEBUG("Created directory for Palite page log: {}", kv_home.string());
