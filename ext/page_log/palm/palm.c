@@ -359,7 +359,7 @@ palm_configure_str(PALM *palm, WT_CONFIG_PARSER *env_parser, WT_CONFIG_ARG *conf
      */
     if ((ret = env_parser->get(env_parser, key, v)) == 0 ||
       (ret = palm->wt_api->config_get(palm->wt_api, NULL, config, key, v)) == 0) {
-        if (v->len == 0 || v->type != WT_CONFIG_ITEM_ID)
+        if (v->len == 0 || v->type != WT_CONFIG_ITEM_STRING)
             ret = palm_err(palm, NULL, EINVAL, "force_error config arg: valid string required");
     } else if (ret == WT_NOTFOUND)
         ret = 0;

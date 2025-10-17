@@ -80,10 +80,10 @@ extern "C" {
     ",disaggregated=(role=%s,page_log=%s)" \
     ",precise_checkpoint=true"             \
     ",page_delta=(internal_page_delta=%s,leaf_page_delta=%s)"
-#define TESTUTIL_ENV_CONFIG_DISAGG_EXT                                                 \
-    "\"%s/ext/page_log/%s/libwiredtiger_%s.so\"=("                                     \
-    "config=\"(home=%s,delay_ms=%" PRIu64 ",error_ms=%" PRIu64 ",force_delay=%" PRIu64 \
-    ",force_error=%" PRIu64 ",cache_size_mb=%" PRIu64 ",verbose=%" PRIu32 ")\")"
+#define TESTUTIL_ENV_CONFIG_DISAGG_EXT                                                   \
+    "\"%s/ext/page_log/%s/libwiredtiger_%s.so\"=("                                       \
+    "config=(home=\"%s\",delay_ms=%" PRIu64 ",error_ms=%" PRIu64 ",force_delay=%" PRIu64 \
+    ",force_error=%" PRIu64 ",cache_size_mb=%" PRIu64 ",verbose=%" PRIu32 "))"
 #define TESTUTIL_ENV_CONFIG_TIERED               \
     ",tiered_storage=(bucket=%s"                 \
     ",bucket_prefix=%s,local_retention=%" PRIu32 \
