@@ -118,8 +118,6 @@ class test_layered22(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.search(), 0)
         self.assertEqual(cursor.search_near(), 0)
 
-        cursor.close()
-
     def test_largest_key_without_stable(self):
         self.session.create(self.uri, self.session_create_config())
 
@@ -133,8 +131,6 @@ class test_layered22(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri, None, None)
         self.assertEqual(cursor.largest_key(), 0)
         self.assertEqual(cursor.get_key(), "OK " + str(self.nitems - 1))
-
-        cursor.close()
 
     def test_getrandom_without_stable(self):
         self.session.create(self.uri, self.session_create_config())

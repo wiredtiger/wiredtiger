@@ -78,8 +78,6 @@ class test_layered59(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_internal][2], 0)
         stat_cursor.close()
 
-        cursor.close()
-
     def test_inserts_to_split(self):
         uri = "layered:test_layered59"
 
@@ -116,8 +114,6 @@ class test_layered59(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor = self.session.open_cursor('statistics:' + uri)
         self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_internal][2], 0)
         stat_cursor.close()
-
-        cursor.close()
 
     def test_deletes(self):
         uri = "layered:test_layered59"

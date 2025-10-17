@@ -67,5 +67,3 @@ class test_layered41(wttest.WiredTigerTestCase):
         self.assertRaisesHavingMessage(
             wiredtiger.WiredTigerError, lambda:c.insert(), '/WT_DUPLICATE_KEY/')
         self.assertEqual(c.get_value(), str(10))
-
-        c.close()

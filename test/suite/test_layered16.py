@@ -74,5 +74,3 @@ class test_layered16(wttest.WiredTigerTestCase):
 
         # Validate that we do see the correct value.
         self.assertEqual(cursor[str(1)],  value1 + 'AB')
-
-        cursor.close()

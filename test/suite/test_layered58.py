@@ -116,4 +116,3 @@ class test_layered58(wttest.WiredTigerTestCase):
             count += 1
         self.assertEqual(count, self.nitems - 2)
         self.session.rollback_transaction()
-        cursor.close()

@@ -71,7 +71,6 @@ class test_layered33(wttest.WiredTigerTestCase):
             cursor.set_key(str(i))
             self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
-        cursor.close()
         self.close_conn()
 
         # Ignore "Removing local file due to disagg mode" messages printed by

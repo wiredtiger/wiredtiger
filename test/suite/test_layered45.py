@@ -97,7 +97,6 @@ class test_layered45(wttest.WiredTigerTestCase):
         self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 1)
         stat_cursor.close()
 
-        cursor.close()
         cursor2.close()
         self.close_conn()
 
@@ -166,7 +165,6 @@ class test_layered45(wttest.WiredTigerTestCase):
         self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 2)
         stat_cursor.close()
 
-        cursor.close()
         cursor2.close()
         self.close_conn()
 
@@ -234,7 +232,6 @@ class test_layered45(wttest.WiredTigerTestCase):
         self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 2)
         stat_cursor.close()
 
-        cursor.close()
         cursor2.close()
         self.close_conn()
 
@@ -303,7 +300,6 @@ class test_layered45(wttest.WiredTigerTestCase):
         self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 2)
         stat_cursor.close()
 
-        cursor.close()
         cursor2.close()
         self.close_conn()
 
@@ -373,6 +369,5 @@ class test_layered45(wttest.WiredTigerTestCase):
         self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 2)
         stat_cursor.close()
 
-        cursor.close()
         cursor2.close()
         self.close_conn()

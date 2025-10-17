@@ -119,7 +119,6 @@ class test_layered37(wttest.WiredTigerTestCase):
             count += 1
         self.assertEqual(count, self.nitems)
 
-        cursor.close()
         self.close_conn()
 
         # Ignore "Removing local file due to disagg mode" messages printed by

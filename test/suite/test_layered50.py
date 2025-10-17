@@ -85,5 +85,3 @@ class test_layered50(wttest.WiredTigerTestCase):
         stat_cursor = self.session_follow.open_cursor('statistics:')
         self.assertGreater(stat_cursor[stat.conn.cache_eviction_clean][2], 0)
         stat_cursor.close()
-
-        cursor.close()

@@ -570,6 +570,10 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def verifyLayered(self):
         if self.conn is None:
             self.conn = self.setUpConnectionOpen(".")
+        elif self.session.this is not None:
+            # Ensure all cursors are closed by closing the session
+            self.session.close()
+
         sess = self.conn.open_session()
 
         cur = sess.open_cursor('metadata:', None, None)
@@ -598,13 +602,13 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     else:
                         teardown_msg += "; " + str(tmp[1])
 
-        if self.__module__.startswith("test_layered"):
+        passed = not (self.failed() or teardown_failed)
+
+        if passed and self.__module__.startswith("test_layered"):
             # FIXME-WT-15786: Handle the transient state where a follower that has not yet picked up
             # its first checkpoint may fail with ENOENT due to missing its stable table.
             if not re.match("test_layered(57|41|21|22|17)", str(self)):
                 self.verifyLayered()
-
-        passed = not (self.failed() or teardown_failed)
 
         try:
             self.platform_api.tearDown(self)

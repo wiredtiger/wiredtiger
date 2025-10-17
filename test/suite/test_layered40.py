@@ -51,7 +51,6 @@ class test_layered40(wttest.WiredTigerTestCase):
             cursor.set_key(key)
             self.assertEqual(cursor.search(), 0)
             self.assertTrue("log=(enabled=false)" in cursor.get_value())
-        cursor.close()
 
     def test_layered40(self):
         # Create tables
