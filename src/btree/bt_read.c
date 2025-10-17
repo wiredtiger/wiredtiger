@@ -126,8 +126,8 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         WT_ASSERT(session, !WT_READING_CHECKPOINT(session));
         ret = __wt_curhs_cache(session);
         if (ret != 0) {
-            if (locked)
-                WT_REF_SET_STATE(ref, previous_state);
+            WT_ASSERT(session, locked);
+            WT_REF_SET_STATE(ref, previous_state);
             return (ret);
         }
     }
