@@ -26,35 +26,27 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, os.path, shutil, wiredtiger, wttest
+import os, os.path, shutil, threading, time, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered30.py
-#    Test creating empty tables.
+# test_layered60.py
+#    Test creating empty tables while a checkpoint is running.
 @wttest.skip_for_hook("tiered", "FIXME-WT-14938: crashing with tiered hook.")
 @disagg_test_class
-class test_layered30(wttest.WiredTigerTestCase):
-    nitems = 500
-
+class test_layered60(wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),' \
                      + 'statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'precise_checkpoint=true,'
+                     + 'precise_checkpoint=true,' \
+                     + 'timing_stress_for_test=[checkpoint_slow],'
     conn_config = conn_base_config + 'disaggregated=(role="follower")'
 
-    create_session_config = 'key_format=S,value_format=S'
+    create_session_config = 'key_format=S,value_format=S,type=layered'
 
-    table_name = "test_layered30"
+    uri = "table:test_layered60"
 
-    disagg_storages = gen_disagg_storages('test_layered30', disagg_only = True)
-    scenarios = make_scenarios(disagg_storages, [
-        ('layered-prefix', dict(prefix='layered:', table_config='')),
-        ('layered-type', dict(prefix='table:', table_config='block_manager=disagg,type=layered')),
-    ],
-    [
-        ('one-table', dict(another_table=False)),
-        ('two-tables', dict(another_table=True)),
-    ])
+    disagg_storages = gen_disagg_storages('test_layered60', disagg_only = True)
+    scenarios = make_scenarios(disagg_storages)
 
     num_restarts = 0
 
@@ -73,31 +65,60 @@ class test_layered30(wttest.WiredTigerTestCase):
             if f.startswith('WiredTiger') or f.startswith('test_'):
                 os.rename(f, os.path.join(dir, f))
 
-        # Also save the PALM database (to aid debugging)
+        # Also save the PALI database (to aid debugging)
         shutil.copytree('kv_home', os.path.join(dir, 'kv_home'))
 
         # Reopen the connection
         self.open_conn()
 
-    # Test creating an empty table.
-    def test_layered30(self):
+    # Wait for a checkpoint to start running
+    def wait_for_checkpoint_start(self):
+        while True:
+            stat_cursor = self.session.open_cursor('statistics:')
+            state = stat_cursor[wiredtiger.stat.conn.checkpoint_state][2]
+            stat_cursor.close()
+            if state != 0:
+                break
+            time.sleep(0.1)
+
+    # Test creating an empty table while a checkpoint is running.
+    def test_layered60(self):
         # The node started as a follower, so step it up as the leader
         self.conn.reconfigure('disaggregated=(role="leader")')
 
         # Avoid checkpoint error with precise checkpoint
         self.conn.set_timestamp('stable_timestamp=1')
 
-        # Create table
-        self.uri = self.prefix + self.table_name
-        config = self.create_session_config + ',' + self.table_config
-        self.session.create(self.uri, config)
+        # Create a table with some data
+        self.session.create(self.uri + 'x', self.create_session_config)
+        cursor = self.session.open_cursor(self.uri + 'x', None, None)
+        cursor['a'] = 'b'
+        cursor.close()
 
-        # Create a second table (with some data)
-        if self.another_table:
-            self.session.create(self.uri + 'x', config)
-            cursor = self.session.open_cursor(self.uri + 'x', None, None)
-            cursor['a'] = 'b'
-            cursor.close()
+        # Start a checkpoint in a separate thread
+        def checkpoint_thread_fn(conn):
+            session = conn.open_session('')
+            self.pr('Checkpoint started')
+            # This checkpoint will take at least 10 seconds due to timing_stress_for_test
+            session.checkpoint()
+            self.pr('Checkpoint complete')
+            session.close()
+        checkpoint_thread = threading.Thread(target=checkpoint_thread_fn, args=(self.conn,))
+        checkpoint_thread.start()
+
+        # Wait for the checkpoint to start, and then a tiny bit more just in case. There should be
+        # enough time for us to do this, because the checkpoint will take at least 10 seconds due
+        # to the timing stress.
+        self.wait_for_checkpoint_start()
+        time.sleep(0.1)
+
+        # Create an empty table and wait for the checkpoint to complete
+        self.pr('Creating empty table')
+        self.session.create(self.uri, self.create_session_config)
+        checkpoint_thread.join()
+
+        # No need for a timing stress after this point
+        self.conn.reconfigure('timing_stress_for_test=[]')
 
         # Create a checkpoint
         self.session.checkpoint()
@@ -128,6 +149,9 @@ class test_layered30(wttest.WiredTigerTestCase):
 
         checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
         self.restart_without_local_files()
+
+        # Pick up the latest checkpoint and then step up as the leader. Do this in two steps, to
+        # mimic the behavior of the server.
         self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
         self.conn.reconfigure(f'disaggregated=(role="leader")')
 

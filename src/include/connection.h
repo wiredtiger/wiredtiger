@@ -130,10 +130,7 @@ struct __wt_layered_table_manager_entry {
  *      Structure containing information related to running the layered table manager.
  */
 struct __wt_layered_table_manager {
-
-#define WT_LAYERED_TABLE_MANAGER_OFF 0     /* The layered table manager is not running */
-#define WT_LAYERED_TABLE_MANAGER_RUNNING 1 /* The layered table manager is running */
-    uint32_t state;                        /* Indicating the manager is already running */
+    bool init; /* Indicating the manager was initialized */
 
     WT_SPINLOCK
     layered_table_lock; /* Lock used for managing changes to global layered table state */
@@ -148,15 +145,13 @@ struct __wt_layered_table_manager {
     WT_LAYERED_TABLE_MANAGER_ENTRY **entries;
     size_t entries_allocated_bytes;
 
-#define WT_LAYERED_TABLE_THREAD_COUNT 1
-    WT_THREAD_GROUP threads;
-
     bool leader;
 };
 
 struct __wt_disagg_copy_metadata {
     char *stable_uri;                         /* The full URI of the stable component. */
     char *table_name;                         /* The table name without prefix or suffix. */
+    int retries_left;                         /* The number of retries left. */
     TAILQ_ENTRY(__wt_disagg_copy_metadata) q; /* Linked list of entries. */
 };
 
@@ -1028,6 +1023,7 @@ struct __wt_connection_impl {
 #define WT_CONN_PANIC 0x00001000u
 #define WT_CONN_READY 0x00002000u
 #define WT_CONN_RECONFIGURING 0x00004000u
+#define WT_CONN_RECONFIGURING_STEP_UP 0x00008000u
 #define WT_CONN_TIERED_FIRST_FLUSH 0x00008000u
     /* AUTOMATIC ATOMIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags_atomic;
