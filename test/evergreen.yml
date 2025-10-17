@@ -1454,6 +1454,8 @@ variables:
         export DYLD_LIBRARY_PATH=$WT_BUILDDIR
       # Must disable TCMALLOC as it may be picked up locally and its not on all hosts.
       ENABLE_TCMALLOC: 0
+      # FIXME-WT-15777 Use PALM for unit tests for now until we can build PALite on macos-14.
+      unit_test_variant_args: "page_log=palm"
     tasks:
       - name: compile
         # This is a special case and should *only* be used for the macOS buildvariant.
