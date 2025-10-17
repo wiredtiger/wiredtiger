@@ -2119,6 +2119,17 @@ rand_next:
             continue;
 
         page = ref->page;
+
+        /*
+         * Update the maximum evict pass generation gap seen at time of eviction. This helps track
+         * how long it's been since a page was last queued for eviction. We need to update the
+         * statistic here during the walk and not at __evict_page because the evict_pass_gen is
+         * reset here.
+         */
+        const uint64_t gen_gap = __wt_atomic_load64(&cache->evict_pass_gen) - page->evict_pass_gen;
+        if (gen_gap > __wt_atomic_load64(&cache->evict_max_gen_gap))
+            __wt_atomic_store64(&cache->evict_max_gen_gap, gen_gap);
+
         modified = __wt_page_is_modified(page);
         page->evict_pass_gen = __wt_atomic_load64(&cache->evict_pass_gen);
 
@@ -2128,18 +2139,6 @@ rand_next:
             ++pages_seen_updates;
         else
             ++pages_seen_clean;
-
-        /*
-         * Update the maximum evict pass generation gap seen at time of eviction. This helps track
-         * how long it's been since a page was last queued for eviction. We need to update the
-         * statistic here during the walk and not at __evict_page because the evict_pass_gen is
-         * reset here.
-         */
-        const uint64_t gen_gap = cache->evict_pass_gen - page->evict_pass_gen;
-        if (gen_gap > cache->evict_max_gen_gap)
-            cache->evict_max_gen_gap = gen_gap;
-
-        page->evict_pass_gen = cache->evict_pass_gen;
 
         /* Count internal pages seen. */
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
