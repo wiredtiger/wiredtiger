@@ -64,8 +64,7 @@ TEST_CASE("Demonstrate hash define int size workaround", "[acqrel]")
 #define TEST_VALUE ((int8_t)6)
 
     int8_t a;
-    int8_t *ap = &a;
-    __wt_atomic_store_uint64_release(&*ap, TEST_VALUE);
+    __wt_atomic_store_int8_release(&a, TEST_VALUE);
 
     REQUIRE(a == TEST_VALUE);
 }

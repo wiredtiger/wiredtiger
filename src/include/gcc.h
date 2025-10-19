@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <assert.h>
+
 #define WT_PTRDIFFT_FMT "td" /* ptrdiff_t format string */
 #define WT_SIZET_FMT "zu"    /* size_t format string */
 
@@ -199,9 +201,6 @@
 #endif
 
 /*
- * __WT_ACQUIRE_READ_INTERNAL --
- *
- *
  * This macro is for internal use within this document only. For all other cases, please use
  *     __wt_atomic_load_<type>_acquire(...)
  *
@@ -245,9 +244,6 @@
 #endif
 
 /*
- * __WT_RELEASE_WRITE_INTERNAL --
- *
- *
  * This macro is for internal use within this document only. For all other cases, please use
  *     __wt_atomic_store_<type>_release(...)
  *
