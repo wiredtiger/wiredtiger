@@ -301,7 +301,7 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
     }
 
     ret = __wt_open_cursor(session, stable_uri, &clayered->iface, cfg, &clayered->stable_cursor);
-    /* Opening a cursor can return both of these, unfortunately. FIXME-WT-15743. */
+    /* Opening a cursor can return both of these, unfortunately. FIXME-WT-15816. */
     if ((ret == ENOENT || ret == WT_NOTFOUND) && !leader)
         /*
          * This is fine on followers, we simply may not have seen a checkpoint with this table yet.
