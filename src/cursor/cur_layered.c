@@ -301,16 +301,14 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
     }
 
     ret = __wt_open_cursor(session, stable_uri, &clayered->iface, cfg, &clayered->stable_cursor);
-    if (ret != 0) {
-        /* Opening a cursor can return both of these, unfortunately. */
-        if ((ret == ENOENT || ret == WT_NOTFOUND) && !leader)
-            /*
-             * This is fine on followers, we simply may not have seen a checkpoint with this table
-             * yet. Defer the open.
-             */
-            ret = 0;
-        WT_ERR(ret);
-    }
+    /* Opening a cursor can return both of these, unfortunately. FIXME-WT-15743. */
+    if ((ret == ENOENT || ret == WT_NOTFOUND) && !leader)
+        /*
+         * This is fine on followers, we simply may not have seen a checkpoint with this table yet.
+         * Defer the open.
+         */
+        ret = 0;
+    WT_ERR(ret);
 
     if (clayered->stable_cursor != NULL) {
         F_SET(clayered->stable_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
