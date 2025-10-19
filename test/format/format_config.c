@@ -734,6 +734,10 @@ config_cache(void)
     cache *= workers;
     cache *= 2;
 
+    /*
+     * FIXME-WT-15723: Re-evaluate whether setting large cache size is need after cache stuck issue
+     * is solved.
+     */
     if (GV(PRECISE_CHECKPOINT))
         cache *= 6;
 
