@@ -811,24 +811,39 @@ class Storage {
                         );)";
 
                 /* !!! Get the LSN of the first non-discarded full page below the
-                given LSN. This is used with full page backlink verification.
-                Full page backlink_lsn always points to the previous full page LSN. */
+                given LSN.
+
+                The query LSN may belong to a delta page. Therefore,
+                we find the corresponding full page LSN first. Then we look for
+                the previous full page LSN.
+                Assuming that given query LSN does not belong to discarded page.
+
+                This is used with full page backlink verification. */
                 a[GET_FULL_PAGE_LSN] = R"(
-                    SELECT p1.lsn
-                    FROM pages AS p1
+                    WITH full_page AS (
+                        SELECT MAX(p0.lsn) AS lsn
+                        FROM pages AS p0
+                        WHERE p0.table_id = ?1
+                          AND p0.page_id = ?2
+                          AND p0.lsn <= ?3
+                          AND p0.delta = 0
+                    )
+                    SELECT MAX(p1.lsn)
+                    FROM
+                      pages AS p1,
+                      full_page AS fp
                     WHERE p1.table_id = ?1
-                        AND p1.page_id != ?2
-                        AND p1.lsn < ?3
+                        AND p1.page_id = ?2
+                        AND p1.lsn < fp.lsn
                         AND p1.delta = 0
                         AND NOT EXISTS (
                             SELECT 1
                             FROM pages AS p2
                             WHERE p2.table_id = p1.table_id
                               AND p2.page_id = p1.page_id
-                              AND p2.lsn < ?3
-                              AND p2.discarded = 1)
-                    ORDER BY p1.lsn DESC
-                    LIMIT 1;)";
+                              AND p2.lsn < fp.lsn
+                              AND p2.discarded = 1
+                        );)";
 
                 /* !!! Retrieve information about entire delta chain stopping at
                 the first full page. The chain may include discarded page.
@@ -1489,8 +1504,9 @@ public:
         return 0;
     }
 
+    // UINT64_MAX is an invalid LSN, meaning "no check required".
     void
-    verify_chain(const std::vector<PageInfo> &pages, uint64_t prev_full_lsn = 0)
+    verify_chain(const std::vector<PageInfo> &pages, uint64_t prev_full_lsn = UINT64_MAX)
     {
         PageInfo prev{};
         PageInfo full{};
@@ -1505,7 +1521,7 @@ public:
                 LOG_AND_THROW("Full page base_lsn must be 0: {}", page);
             }
 
-            if (prev_full_lsn != 0 && page.backlink_lsn != prev_full_lsn) {
+            if (prev_full_lsn != UINT64_MAX && page.backlink_lsn != prev_full_lsn) {
                 LOG_AND_THROW(
                   "Full page backlink_lsn mismatch: {}, expected: {}", page, prev_full_lsn);
             }
