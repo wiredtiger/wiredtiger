@@ -394,7 +394,7 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
     }
     (void)__wt_atomic_addsize(&page->memory_footprint, size);
 
-    if (__wt_tsan_suppress_load_pointer((void **)&page->modify) != NULL) {
+    if (__wt_tsan_suppress_load_wt_page_modify_ptr(&page->modify) != NULL) {
         __txn_incr_bytes_dirty(session, size, new_update);
         if (!WT_PAGE_IS_INTERNAL(page)) {
             (void)__wt_atomic_add64(&cache->bytes_updates, size);

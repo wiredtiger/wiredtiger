@@ -554,7 +554,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
             __wt_verbose(session, WT_VERB_TRANSACTION,
               "oldest id %" PRIu64 " pinned in session %" PRIu32 " [%s] with snap_min %" PRIu64,
               oldest_id, oldest_session->id,
-              (const char *)__wt_tsan_suppress_load_pointer((void **)&oldest_session->lastop),
+              __wt_tsan_suppress_load_const_char_ptr(&oldest_session->lastop),
               oldest_session->txn->snapshot_data.snap_min);
         }
     }
