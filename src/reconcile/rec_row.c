@@ -80,7 +80,7 @@ __rec_cell_build_int_key(WT_SESSION_IMPL *session, WTI_RECONCILE *r, const void 
  */
 static int
 __rec_cell_build_leaf_key(WT_SESSION_IMPL *session, WTI_RECONCILE *r, const void *data, size_t size,
-  bool *is_ovflp, bool is_delta)
+  bool is_delta, bool *is_ovflp)
 {
     WT_BTREE *btree;
     WTI_REC_KV *key;
@@ -165,7 +165,7 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session, WTI_RECONCILE *r, const void
             *is_ovflp = true;
             return (__wti_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, 0));
         }
-        return (__rec_cell_build_leaf_key(session, r, NULL, 0, is_ovflp, is_delta));
+        return (__rec_cell_build_leaf_key(session, r, NULL, 0, is_delta, is_ovflp));
     }
 
     key->cell_len = __wt_cell_pack_leaf_key(&key->cell, pfx, key->buf.size);
@@ -196,7 +196,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     key = &r->k;
     val = &r->v;
     WT_RET(__rec_cell_build_leaf_key(session, r, /* Build key cell */
-      cursor->key.data, cursor->key.size, &ovfl_key, false));
+      cursor->key.data, cursor->key.size, false, &ovfl_key));
     if (cursor->value.size == 0)
         val->len = 0;
     else
@@ -213,7 +213,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
             r->key_pfx_compress = false;
             r->key_pfx_last = 0;
             if (!ovfl_key)
-                WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key, false));
+                WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0, false, &ovfl_key));
         }
         WT_RET(__wti_rec_split_crossing_bnd(session, r, key->len + val->len));
     }
@@ -335,7 +335,7 @@ __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAV
     /* Get the key data and pack it into a key cell. */
     WT_ERR(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wti_rec_get_row_leaf_key(session, S2BT(session), r, supd->ins, supd->rip, key));
-    WT_ERR(__rec_cell_build_leaf_key(session, r, key->data, key->size, &ovfl_key, true));
+    WT_ERR(__rec_cell_build_leaf_key(session, r, key->data, key->size, true, &ovfl_key));
     WT_ASSERT(session, !ovfl_key);
 
     /*
@@ -1023,7 +1023,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
 
         /* Build key cell. */
         WT_ERR(__rec_cell_build_leaf_key(
-          session, r, WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), &ovfl_key, false));
+          session, r, WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), false, &ovfl_key));
 
         /* Boundary: split or write the page. */
         if (__wti_rec_need_split(r, key->len + val->len)) {
@@ -1035,7 +1035,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
                 r->key_pfx_compress = false;
                 r->key_pfx_last = 0;
                 if (!ovfl_key)
-                    WT_ERR(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key, false));
+                    WT_ERR(__rec_cell_build_leaf_key(session, r, NULL, 0, false, &ovfl_key));
             }
 
             WT_ERR(__wti_rec_split_crossing_bnd(session, r, key->len + val->len));
@@ -1418,7 +1418,7 @@ slow:
             }
 
             WT_ERR(__rec_cell_build_leaf_key(
-              session, r, lastkey->data, lastkey->size, &ovfl_key, false));
+              session, r, lastkey->data, lastkey->size, false, &ovfl_key));
         }
 
         /* Boundary: split or write the page. */
@@ -1440,7 +1440,7 @@ slow:
                 r->key_pfx_compress = false;
                 r->key_pfx_last = 0;
                 if (!ovfl_key)
-                    WT_ERR(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key, false));
+                    WT_ERR(__rec_cell_build_leaf_key(session, r, NULL, 0, false, &ovfl_key));
             }
 
             WT_ERR(__wti_rec_split_crossing_bnd(session, r, key->len + val->len));
