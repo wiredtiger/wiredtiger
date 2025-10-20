@@ -597,11 +597,10 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
  *     Page switch from clean to dirty: increment the cache dirty page/byte counts.
  */
 static WT_INLINE void
-__wt_cache_dirty_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wt_cache_dirty_incr(WT_SESSION_IMPL *session, size_t size, bool is_internal)
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
-    size_t size;
 
     btree = S2BT(session);
     cache = S2C(session)->cache;
@@ -612,8 +611,7 @@ __wt_cache_dirty_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
      *
      * Take care to read the memory_footprint once in case we are racing with updates.
      */
-    size = __wt_atomic_loadsize(&page->memory_footprint);
-    if (WT_PAGE_IS_INTERNAL(page)) {
+    if (is_internal) {
         (void)__wt_atomic_add64(&cache->pages_dirty_intl, 1);
         (void)__wt_atomic_add64(&cache->bytes_dirty_intl, size);
         (void)__wt_atomic_add64(&btree->bytes_dirty_intl, size);
@@ -622,9 +620,41 @@ __wt_cache_dirty_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
         (void)__wt_atomic_add64(&btree->bytes_dirty_leaf, size);
         (void)__wt_atomic_add64(&cache->pages_dirty_leaf, 1);
     }
-    (void)__wt_atomic_add64(&cache->bytes_dirty_total, size);
-    (void)__wt_atomic_add64(&btree->bytes_dirty_total, size);
-    (void)__wt_atomic_add64(&page->modify->bytes_dirty, size);
+}
+
+/*
+ * __wt_cache_dirty_decr_tmp --
+ *     Page is already dirty, fix the cache increment.
+ */
+static WT_INLINE void
+__wt_cache_dirty_decr_tmp(WT_SESSION_IMPL *session, size_t size, bool is_internal)
+{
+    WT_BTREE *btree;
+    WT_CACHE *cache;
+
+    btree = S2BT(session);
+    cache = S2C(session)->cache;
+
+    /*
+     * Always increase the size in sequence of cache, btree, and page as we may race with other
+     * threads that are trying to decrease the sizes concurrently.
+     *
+     * Take care to read the memory_footprint once in case we are racing with updates.
+     */
+    if (is_internal) {
+        __wt_cache_decr_check_uint64(
+          session, &cache->pages_dirty_intl, 1, "dirty internal page count");
+        __wt_cache_decr_check_uint64(
+          session, &btree->bytes_dirty_intl, size, "WT_BTREE.bytes_dirty_intl");
+        __wt_cache_decr_check_uint64(
+          session, &cache->bytes_dirty_intl, size, "WT_CACHE.bytes_dirty_intl");
+    } else {
+        __wt_cache_decr_check_uint64(session, &cache->pages_dirty_leaf, 1, "dirty leaf page count");
+        __wt_cache_decr_check_uint64(
+          session, &btree->bytes_dirty_leaf, size, "WT_BTREE.bytes_dirty_leaf");
+        __wt_cache_decr_check_uint64(
+          session, &cache->bytes_dirty_leaf, size, "WT_CACHE.bytes_dirty_leaf");
+    }
 }
 
 /*
@@ -742,9 +772,12 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      * The page state can only ever be incremented above dirty by the number of concurrently running
      * threads, so the counter will never approach the point where it would wrap.
      */
+    size_t size = __wt_atomic_loadsize(&page->memory_footprint);
+    __wt_cache_dirty_incr(session, size, WT_PAGE_IS_INTERNAL(page));
     if (__wt_atomic_add32(&page->modify->page_state, 1) == WT_PAGE_DIRTY_FIRST) {
-        __wt_cache_dirty_incr(session, page);
-
+        (void)__wt_atomic_add64(&S2C(session)->cache->bytes_dirty_total, size);
+        (void)__wt_atomic_add64(&S2BT(session)->bytes_dirty_total, size);
+        (void)__wt_atomic_add64(&page->modify->bytes_dirty, size);
         __wt_evict_page_first_dirty(session, page);
 
         /*
@@ -759,7 +792,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
          */
         if (last_running != 0)
             page->modify->first_dirty_txn = last_running;
-    }
+    } else
+        __wt_cache_dirty_decr_tmp(session, size, WT_PAGE_IS_INTERNAL(page));
 
     /* Check if this is the largest transaction ID to update the page. */
     if (__wt_atomic_load64(&page->modify->update_txn) < session->txn->id)
