@@ -125,8 +125,8 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
          * the array.
          */
         for (hp = session->hazards.arr + session->hazards.num_active;; ++hp) {
-            if (hp >=
-              session->hazards.arr + __wt_atomic_load_uint32_relaxed(&session->hazards.inuse))
+            uint32_t inuse = __wt_atomic_load_uint32_relaxed(&session->hazards.inuse);
+            if (hp >= session->hazards.arr + inuse)
                 hp = session->hazards.arr;
             if (hp->ref == NULL)
                 break;

@@ -38,8 +38,8 @@ __wt_cache_bytes_plus_overhead(WT_CACHE *cache, uint64_t sz)
 static WT_INLINE uint64_t
 __wt_cache_bytes_inuse(WT_CACHE *cache)
 {
-    return (
-      __wt_cache_bytes_plus_overhead(cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_inmem)));
+    uint64_t bytes_inmem = __wt_atomic_load_uint64_relaxed(&cache->bytes_inmem);
+    return (__wt_cache_bytes_plus_overhead(cache, bytes_inmem));
 }
 
 /*
@@ -62,8 +62,8 @@ __wt_cache_dirty_inuse(WT_CACHE *cache)
 static WT_INLINE uint64_t
 __wt_cache_dirty_intl_inuse(WT_CACHE *cache)
 {
-    return (__wt_cache_bytes_plus_overhead(
-      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_intl)));
+    uint64_t bytes_dirty_intl = __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_intl);
+    return (__wt_cache_bytes_plus_overhead(cache, bytes_dirty_intl));
 }
 
 /*
@@ -73,8 +73,8 @@ __wt_cache_dirty_intl_inuse(WT_CACHE *cache)
 static WT_INLINE uint64_t
 __wt_cache_dirty_leaf_inuse(WT_CACHE *cache)
 {
-    return (__wt_cache_bytes_plus_overhead(
-      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_leaf)));
+    uint64_t bytes_dirty_leaf = __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_leaf);
+    return (__wt_cache_bytes_plus_overhead(cache, bytes_dirty_leaf));
 }
 
 /*
@@ -84,8 +84,8 @@ __wt_cache_dirty_leaf_inuse(WT_CACHE *cache)
 static WT_INLINE uint64_t
 __wt_cache_bytes_updates(WT_CACHE *cache)
 {
-    return (__wt_cache_bytes_plus_overhead(
-      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_updates)));
+    uint64_t bytes_updates = __wt_atomic_load_uint64_relaxed(&cache->bytes_updates);
+    return (__wt_cache_bytes_plus_overhead(cache, bytes_updates));
 }
 
 /*

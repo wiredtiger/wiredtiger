@@ -1880,8 +1880,8 @@ __txn_remove_from_global_table(WT_SESSION_IMPL *session)
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
     WT_ASSERT(session, txn->id >= __wt_atomic_load_uint64_v_relaxed(&txn_global->last_running));
-    WT_ASSERT(session,
-      txn->id != WT_TXN_NONE && __wt_atomic_load_uint64_v_relaxed(&txn_shared->id) != WT_TXN_NONE);
+    WT_ASSERT(session, txn->id != WT_TXN_NONE);
+    WT_ASSERT(session, __wt_atomic_load_uint64_v_relaxed(&txn_shared->id) != WT_TXN_NONE);
 #else
     WT_TXN_SHARED *txn_shared;
 
@@ -2414,13 +2414,13 @@ __wt_txn_cursor_op(WT_SESSION_IMPL *session)
      * further forward, so that once a read-uncommitted cursor is
      * positioned on a value, it can't be freed.
      */
+    uint64_t pinned_id = __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id);
+    uint64_t last_running = __wt_atomic_load_uint64_v_relaxed(&txn_global->last_running);
     if (txn->isolation == WT_ISO_READ_UNCOMMITTED) {
-        if (__wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) == WT_TXN_NONE)
-            __wt_atomic_store_uint64_v_relaxed(
-              &txn_shared->pinned_id, __wt_atomic_load_uint64_v_relaxed(&txn_global->last_running));
+        if (pinned_id == WT_TXN_NONE)
+            __wt_atomic_store_uint64_v_relaxed(&txn_shared->pinned_id, last_running);
         if (__wt_atomic_load_uint64_v_relaxed(&txn_shared->metadata_pinned) == WT_TXN_NONE)
-            __wt_atomic_store_uint64_v_relaxed(&txn_shared->metadata_pinned,
-              __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id));
+            __wt_atomic_store_uint64_v_relaxed(&txn_shared->metadata_pinned, pinned_id);
     } else if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         __wt_txn_get_snapshot(session);
 }
@@ -2448,10 +2448,9 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
      */
     WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
-    *txn_active = (__wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id) !=
-        __wt_atomic_load_uint64_v_relaxed(&txn_global->current) ||
-      __wt_atomic_load_uint64_v_relaxed(&txn_global->metadata_pinned) !=
-        __wt_atomic_load_uint64_v_relaxed(&txn_global->current));
+    uint64_t current = __wt_atomic_load_uint64_v_relaxed(&txn_global->current);
+    *txn_active = (__wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id) != current ||
+      __wt_atomic_load_uint64_v_relaxed(&txn_global->metadata_pinned) != current);
 
     return (0);
 }

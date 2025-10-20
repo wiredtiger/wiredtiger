@@ -393,8 +393,8 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     /* The oldest ID cannot change while we are holding the scan lock. */
     prev_oldest_id = __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id);
     last_running = oldest_id = __wt_atomic_load_uint64_v_relaxed(&txn_global->current);
-    if ((metadata_pinned = __wt_atomic_load_uint64_v_relaxed(
-           &txn_global->checkpoint_txn_shared.id)) == WT_TXN_NONE)
+    metadata_pinned = __wt_atomic_load_uint64_v_relaxed(&txn_global->checkpoint_txn_shared.id);
+    if (metadata_pinned == WT_TXN_NONE)
         metadata_pinned = oldest_id;
 
     /* Walk the array of concurrent transactions. */
@@ -402,8 +402,8 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         /* Update the last running transaction ID. */
-        while ((id = __wt_atomic_load_uint64_v_relaxed(&s->id)) != WT_TXN_NONE &&
-          prev_oldest_id <= id && id < last_running) {
+        id = __wt_atomic_load_uint64_v_relaxed(&s->id);
+        while (id != WT_TXN_NONE && prev_oldest_id <= id && id < last_running) {
             /*
              * If the transaction is still allocating its ID, then we spin here until it gets its
              * valid ID.
@@ -438,8 +438,8 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
          * table.  See the comment in __wt_txn_cursor_op for more
          * details.
          */
-        if ((id = __wt_atomic_load_uint64_v_relaxed(&s->pinned_id)) != WT_TXN_NONE &&
-          id < oldest_id) {
+        id = __wt_atomic_load_uint64_v_relaxed(&s->metadata_pinned);
+        if (id != WT_TXN_NONE && id < oldest_id) {
             oldest_id = id;
             oldest_session = &WT_CONN_SESSIONS_GET(conn)[i];
         }
@@ -2633,11 +2633,10 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     /*
      * Check if either the transaction's ID or its pinned ID is equal to the oldest transaction ID.
      */
-    bool is_txn_id_global_oldest;
-    if (((is_txn_id_global_oldest =
-            __wt_atomic_load_uint64_v_relaxed(&txn_shared->id) == global_oldest)) ||
-      __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) == global_oldest) {
-        if (is_txn_id_global_oldest)
+    uint64_t txn_id = __wt_atomic_load_uint64_v_relaxed(&txn_shared->id);
+    uint64_t pinned_id = __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id);
+    if (txn_id == global_oldest || pinned_id == global_oldest) {
+        if (txn_id == global_oldest)
             WT_STAT_CONN_INCR(session, txn_rollback_oldest_id);
         else
             WT_STAT_CONN_INCR(session, txn_rollback_oldest_pinned);

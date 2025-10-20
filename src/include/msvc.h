@@ -239,8 +239,9 @@ __wt_atomic_store_double_relaxed(double *vp, double v)
 static inline bool
 __wt_atomic_cas_ptr(void *vp, void *old, void *newv)
 {
-    return (_InterlockedCompareExchange64((volatile __int64 *)vp, (int64_t)newv, (int64_t)old) ==
-      ((int64_t)old));
+    int64_t current =
+      _InterlockedCompareExchange64((volatile __int64 *)vp, (int64_t)newv, (int64_t)old);
+    return (current == ((int64_t)old));
 }
 
 #define __wt_atomic_load_generic_relaxed(vp) (*(vp))

@@ -59,9 +59,11 @@ static void
 __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_EVICT *evict;
     uint64_t eviction_time, eviction_time_milliseconds;
 
     conn = S2C(session);
+    evict = conn->evict;
 
     if (session->evict_timeline.reentry_hs_eviction) {
         session->evict_timeline.reentry_hs_evict_finish = __wt_clock(session);
@@ -101,14 +103,9 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
     }
     if (!session->evict_timeline.reentry_hs_eviction) {
         eviction_time_milliseconds = eviction_time / WT_THOUSAND;
-        if (eviction_time_milliseconds >
-          __wt_atomic_load_uint64_relaxed(&conn->evict->evict_max_ms_per_checkpoint))
-            __wt_atomic_store_uint64_relaxed(
-              &conn->evict->evict_max_ms_per_checkpoint, eviction_time_milliseconds);
-        if (eviction_time_milliseconds >
-          __wt_atomic_load_uint64_relaxed(&conn->evict->evict_max_ms))
-            __wt_atomic_store_uint64_relaxed(
-              &conn->evict->evict_max_ms, eviction_time_milliseconds);
+        __wt_atomic_stats_max(&evict->evict_max_ms_per_checkpoint, eviction_time_milliseconds);
+        __wt_atomic_stats_max(&evict->evict_max_ms, eviction_time_milliseconds);
+
         if (eviction_time_milliseconds > WT_MINUTE * WT_THOUSAND)
             __wt_verbose_warning(session, WT_VERB_EVICTION,
               "Eviction took more than 1 minute (%" PRIu64 "us). Building disk image took %" PRIu64

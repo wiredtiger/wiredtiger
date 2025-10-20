@@ -150,12 +150,12 @@ static WT_INLINE void
 __wt_page_modify_update_timestamp(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     /* Race is OK here as it is an approximate value. */
-    wt_timestamp_t newest_seen_timestamp =
+    wt_timestamp_t *newest_commit_ts_ptr = &page->modify->newest_commit_timestamp;
+    wt_timestamp_t newest_seen_ts =
       __wt_atomic_load_uint64_relaxed(&S2C(session)->txn_global.newest_seen_timestamp);
-    if (newest_seen_timestamp >
-      __wt_atomic_load_uint64_relaxed(&page->modify->newest_commit_timestamp))
-        __wt_atomic_store_uint64_relaxed(
-          &page->modify->newest_commit_timestamp, newest_seen_timestamp);
+
+    if (newest_seen_ts > __wt_atomic_load_uint64_relaxed(newest_commit_ts_ptr))
+        __wt_atomic_store_uint64_relaxed(newest_commit_ts_ptr, newest_seen_ts);
 }
 
 /*

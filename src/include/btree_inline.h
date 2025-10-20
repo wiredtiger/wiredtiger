@@ -172,8 +172,8 @@ __wt_btree_bytes_inuse(WT_SESSION_IMPL *session)
     btree = S2BT(session);
     cache = S2C(session)->cache;
 
-    return (
-      __wt_cache_bytes_plus_overhead(cache, __wt_atomic_load_uint64_relaxed(&btree->bytes_inmem)));
+    uint64_t bytes_inmem = __wt_atomic_load_uint64_relaxed(&btree->bytes_inmem);
+    return (__wt_cache_bytes_plus_overhead(cache, bytes_inmem));
 }
 
 /*
@@ -233,8 +233,8 @@ __wt_btree_dirty_intl_inuse(WT_SESSION_IMPL *session)
     btree = S2BT(session);
     cache = S2C(session)->cache;
 
-    return (__wt_cache_bytes_plus_overhead(
-      cache, __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_intl)));
+    uint64_t bytes_dirty_intl = __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_intl);
+    return (__wt_cache_bytes_plus_overhead(cache, bytes_dirty_intl));
 }
 
 /*
@@ -250,8 +250,8 @@ __wt_btree_dirty_leaf_inuse(WT_SESSION_IMPL *session)
     btree = S2BT(session);
     cache = S2C(session)->cache;
 
-    return (__wt_cache_bytes_plus_overhead(
-      cache, __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_leaf)));
+    uint64_t bytes_dirty_leaf = __wt_atomic_load_uint64_relaxed(&btree->bytes_dirty_leaf);
+    return (__wt_cache_bytes_plus_overhead(cache, bytes_dirty_leaf));
 }
 
 /*
@@ -267,8 +267,8 @@ __wt_btree_bytes_updates(WT_SESSION_IMPL *session)
     btree = S2BT(session);
     cache = S2C(session)->cache;
 
-    return (__wt_cache_bytes_plus_overhead(
-      cache, __wt_atomic_load_uint64_relaxed(&btree->bytes_updates)));
+    uint64_t bytes_updates = __wt_atomic_load_uint64_relaxed(&btree->bytes_updates);
+    return (__wt_cache_bytes_plus_overhead(cache, bytes_updates));
 }
 
 /*
@@ -1908,9 +1908,8 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
      * Retry if a reasonable amount of eviction time has passed, the choice of 5 eviction passes as
      * a reasonable amount of time is currently pretty arbitrary.
      */
-    if (__wt_evict_aggressive(session) ||
-      mod->last_evict_pass_gen + 5 <
-        __wt_atomic_load_uint64_relaxed(&S2C(session)->evict->evict_pass_gen))
+    uint64_t evict_pass_gen = __wt_atomic_load_uint64_relaxed(&S2C(session)->evict->evict_pass_gen);
+    if (__wt_evict_aggressive(session) || mod->last_evict_pass_gen + 5 < evict_pass_gen)
         return (true);
 
     /* Retry if the global transaction state has moved forward. */
