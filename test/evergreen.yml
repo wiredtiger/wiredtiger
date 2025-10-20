@@ -55,7 +55,15 @@ functions:
             # variables.
             COMMON_SAN_OPTIONS="abort_on_error=1:disable_coredump=0"
             if [[ "${CMAKE_BUILD_TYPE|}" =~ ASan ]]; then
+              # PYTHONMALLOC is key to avoiding a long suppression list when running python under
+              # ASan. It turns off python's own allocators and uses the default system allocators.
+              # Then ASan symbolizer is intentionally set to toolchain v4 because the v5 symbolizer
+              # leaks memory which triggers recursion.
               export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
+              export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
+              export ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
+              export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(dirname $(/opt/mongodbtoolchain/v5/bin/clang -print-file-name=libclang_rt.asan.so))"
+              export PYTHONMALLOC=malloc
               export TESTUTIL_BYPASS_ASAN=1
             elif [[ "${CMAKE_BUILD_TYPE|}" =~ MSan ]]; then
               export MSAN_OPTIONS="$COMMON_SAN_OPTIONS:verbosity=3"
@@ -6491,15 +6499,6 @@ buildvariants:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
     ENABLE_TCMALLOC: 0
-    # PYTHONMALLOC is key to avoiding a long suppression list when running python under ASan. It
-    # turns off python's own allocators and uses the default system allocators.
-    # Then ASan symbolizer is intentionally set to toolchain v4 because the v5 symbolizer leaks
-    # memory which triggers recursion.
-    additional_env_vars: |
-      export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
-      export ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
-      export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(dirname $(/opt/mongodbtoolchain/v5/bin/clang -print-file-name=libclang_rt.asan.so))"
-      export PYTHONMALLOC=malloc
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     # ASan preload turns on LD_PRELOAD prior to execution of a python unit test. The reason we don't
     # export LD_PRELOAD as part of additional_env_vars is that it breaks _everything_.
@@ -7351,11 +7350,6 @@ buildvariants:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
     ENABLE_TCMALLOC: 0
-    additional_env_vars: |
-      export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
-      export ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer
-      export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$(dirname $(/opt/mongodbtoolchain/v5/bin/clang -print-file-name=libclang_rt.asan.so)):."
-      export PYTHONMALLOC=malloc
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     asan_preload: true
     # Exclude wt12015_backup_corruption for ASan builds. It creates false positives when it deliberately kills processes that invoke corruption.
@@ -7495,12 +7489,9 @@ buildvariants:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
     ENABLE_TCMALLOC: 0
-    additional_env_vars: |
-      export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     disagg_run: true
     <<: *configure_flags_asan_mongodb_stable_clang_with_builtins
-    additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
   tasks:
     - name: compile
     - name: ".stress-test-disagg-san-fail"
