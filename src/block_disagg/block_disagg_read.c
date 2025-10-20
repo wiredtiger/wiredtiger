@@ -63,8 +63,8 @@ __block_disagg_check_lsn_frontier(WT_SESSION_IMPL *session, uint64_t lsn)
 
     WT_ACQUIRE_READ(
       last_materialized_lsn, S2C(session)->disaggregated_storage.last_materialized_lsn);
-    if (last_materialized_lsn != WT_DISAGG_LSN_NONE &&
-      lsn > last_materialized_lsn) {
+    if (last_materialized_lsn != WT_DISAGG_LSN_NONE && lsn > last_materialized_lsn) {
+        /* FIXME-WT-15818 Consider crashing upon this check failure. */
         WT_STAT_CONN_INCR(session, disagg_block_read_ahead_frontier);
         __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
           "LSN frontier violation: read LSN %" PRIu64
