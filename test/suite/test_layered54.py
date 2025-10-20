@@ -111,7 +111,7 @@ class test_layered54(wttest.WiredTigerTestCase):
         else:
             self.assertEqual(self.get_stat(stat.dsrc.rec_prefix_compression_full, self.uri), 0)
 
-         # Re-open the connection to clear contents out of memory.
+        # Re-open the connection to clear contents out of memory.
         self.reopen_disagg_conn(self.conn_config())
         # Perform some updates.
         kv_modified = {}
