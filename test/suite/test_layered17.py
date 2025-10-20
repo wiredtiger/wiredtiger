@@ -164,3 +164,5 @@ class test_layered17(wttest.WiredTigerTestCase):
 
         session_follow.close()
         conn_follow.close()
+
+        self.close_conn()
