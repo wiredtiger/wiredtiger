@@ -336,11 +336,11 @@ err:
 }
 
 /*
- * __disagg_pick_up_checkpoint --
+ * __wti_disagg_pick_up_checkpoint --
  *     Pick up a new checkpoint.
  */
-static int
-__disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
+int
+__wti_disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -638,7 +638,7 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *meta_
     metadata_lsn = (uint64_t)cval.val;
 
     /* Now actually pick up the checkpoint. */
-    return (__disagg_pick_up_checkpoint(session, metadata_lsn));
+    return (__wti_disagg_pick_up_checkpoint(session, metadata_lsn));
 }
 
 /*
@@ -663,7 +663,7 @@ __disagg_pick_up_checkpoint_meta_item(WT_SESSION_IMPL *session, WT_ITEM *meta_it
     metadata_lsn = (uint64_t)cval.val;
 
     /* Now actually pick up the checkpoint. */
-    WT_ERR(__disagg_pick_up_checkpoint(session, metadata_lsn));
+    WT_ERR(__wti_disagg_pick_up_checkpoint(session, metadata_lsn));
 
 err:
     __wt_free(session, meta_str);

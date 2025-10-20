@@ -2914,6 +2914,9 @@ __conn_set_context_uint(WT_CONNECTION *wt_conn, WT_CONTEXT_TYPE which, uint64_t 
     case WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN:
         WT_ERR(__wti_disagg_set_last_materialized_lsn(session, value));
         break;
+    case WT_CONTEXT_TYPE_LAST_CHECKPOINT_LSN:
+        WT_ERR(__wti_disagg_pick_up_checkpoint(session, value));
+        break;
     }
 
 err:

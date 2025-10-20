@@ -1488,6 +1488,8 @@ extern int __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, 
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_disagg_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_disagg_set_last_materialized_lsn(WT_SESSION_IMPL *session, uint64_t lsn)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_ensure_clean_startup_dir(WT_SESSION_IMPL *session, const char *cfg[])

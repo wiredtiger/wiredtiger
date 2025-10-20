@@ -2047,6 +2047,7 @@ struct __wt_session {
 /*! WT_CONNECTION::set_context_uint types */
 typedef enum {
     WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN, /*!< The LSN of the last materialized page log entry. */
+    WT_CONTEXT_TYPE_LAST_CHECKPOINT_LSN,   /*!< The LSN of the last available checkpoint. */
 } WT_CONTEXT_TYPE;
 
 /*!
