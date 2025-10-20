@@ -756,20 +756,20 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
          * meantime, and the last_running field been updated past it. That is all very unlikely, but
          * not impossible, so we take care to read the global state before the atomic increment.
          *
-         * If the page was dirty on entry, then last_running == 0. The page could have become clean
-         * since then, if reconciliation completed. In that case, we leave the previous value for
-         * first_dirty_txn rather than potentially racing to update it, at worst, we'll
+         * If the page was dirty on entry, then last_running == WT_TXN_NONE. The page could have
+         * become clean since then, if reconciliation completed. In that case, we leave the previous
+         * value for first_dirty_txn rather than potentially racing to update it, at worst, we'll
          * unnecessarily write a page in a checkpoint.
          */
-        if (last_running != 0)
+        if (last_running != WT_TXN_NONE)
             page->modify->first_dirty_txn = last_running;
+
+        WT_RELEASE_WRITE(page->modify->modified, (bool)true);
     }
 
     /* Check if this is the largest transaction ID to update the page. */
     if (__wt_atomic_load64(&page->modify->update_txn) < session->txn->id)
         __wt_atomic_store64(&page->modify->update_txn, session->txn->id);
-
-    WT_RELEASE_WRITE(page->modify->modified, (bool)true);
 }
 
 /*
