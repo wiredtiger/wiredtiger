@@ -243,6 +243,3 @@ __wt_atomic_cas_ptr(void *vp, void *old, void *newv)
       _InterlockedCompareExchange64((volatile __int64 *)vp, (int64_t)newv, (int64_t)old);
     return (current == ((int64_t)old));
 }
-
-#define __wt_atomic_load_generic_relaxed(vp) (*(vp))
-#define __wt_atomic_store_generic_relaxed(vp, v) (*(vp) = (v))

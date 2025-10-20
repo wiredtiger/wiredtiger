@@ -438,7 +438,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
          * table.  See the comment in __wt_txn_cursor_op for more
          * details.
          */
-        id = __wt_atomic_load_uint64_v_relaxed(&s->metadata_pinned);
+        id = __wt_atomic_load_uint64_v_relaxed(&s->pinned_id);
         if (id != WT_TXN_NONE && id < oldest_id) {
             oldest_id = id;
             oldest_session = &WT_CONN_SESSIONS_GET(conn)[i];
