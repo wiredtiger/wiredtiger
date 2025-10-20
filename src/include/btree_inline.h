@@ -108,7 +108,7 @@ __wt_page_evict_clean(WT_PAGE *page)
      * free these structures).
      */
     return (page->modify == NULL ||
-      (!__wt_atomic_loadbool(&page->modify->dirty) && page->modify->rec_result == 0));
+      (!__wt_atomic_loadbool(&page->modify->modified) && page->modify->rec_result == 0));
 }
 
 /*
@@ -127,7 +127,7 @@ __wt_page_is_modified(WT_PAGE *page)
         return (false);
 
     bool dirty;
-    WT_ACQUIRE_READ(dirty, page->modify->dirty);
+    WT_ACQUIRE_READ(dirty, page->modify->modified);
     return (dirty);
 }
 
@@ -769,7 +769,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (__wt_atomic_load64(&page->modify->update_txn) < session->txn->id)
         __wt_atomic_store64(&page->modify->update_txn, session->txn->id);
 
-    WT_RELEASE_WRITE(page->modify->dirty, (bool)true);
+    WT_RELEASE_WRITE(page->modify->modified, (bool)true);
 }
 
 /*
@@ -857,7 +857,7 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
          * separate thread, there's no release barrier needed here.
          */
         __wt_atomic_store32(&page->modify->page_state, WT_PAGE_CLEAN);
-        __wt_atomic_storebool(&page->modify->dirty, false);
+        __wt_atomic_storebool(&page->modify->modified, false);
         page->modify->flags = 0;
         __wt_cache_dirty_decr(session, page);
     }

@@ -526,7 +526,7 @@ struct __wt_page_modify {
 #define WT_PAGE_DIRTY_FIRST 1
 #define WT_PAGE_DIRTY 2
     wt_shared uint32_t page_state;
-    wt_shared bool dirty;
+    wt_shared bool modified;
 
 #define WT_PM_REC_EMPTY 1      /* Reconciliation: no replacement */
 #define WT_PM_REC_MULTIBLOCK 2 /* Reconciliation: multiple blocks */

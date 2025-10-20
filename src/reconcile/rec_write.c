@@ -522,7 +522,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          * remains dirty (that can't happen when evicting, the page is exclusively locked).
          */
         if (__wt_atomic_cas32(&mod->page_state, WT_PAGE_DIRTY_FIRST, WT_PAGE_CLEAN)) {
-            WT_RELEASE_WRITE(mod->dirty, (bool)false);
+            WT_RELEASE_WRITE(mod->modified, (bool)false);
             __wt_cache_dirty_decr(session, page);
         } else
             WT_ASSERT_ALWAYS(
