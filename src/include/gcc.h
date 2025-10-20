@@ -202,25 +202,25 @@
 
 /*
  * This macro is for internal use within this document only. For all other cases, please use
- *     __wt_atomic_load_<type>_acquire(...)
+ * __wt_atomic_load_<type>_acquire(...)
  *
  * The below assembly implements the read-acquire semantic. Acquire semantics prevent memory
- *     reordering of the read-acquire with any load or store that follows it in program order.
+ * reordering of the read-acquire with any load or store that follows it in program order.
  *
  * The if branches get removed at compile time as the sizeof instruction evaluates at compile time.
- *     The inline assembly results in a loss of type checking, to circumvent this we utilize an
- *     unreachable if (0) block which contains the direct assignment. This forces the compiler to
- *     type check. We also statically assert that both types match in size to avoid potential loss
- *     of sign when loading from a smaller type to a larger type.
+ * The inline assembly results in a loss of type checking, to circumvent this we utilize an
+ * unreachable if (0) block which contains the direct assignment. This forces the compiler to
+ * type check. We also statically assert that both types match in size to avoid potential loss
+ * of sign when loading from a smaller type to a larger type.
  *
  * Depending on the size of the given type we choose the appropriate ldapr variant, additionally the
- *     W register variants are used if possible which map to the lower word of the associated X
- *     register. Finally the "Q" constraint is used for the given input operand, this instructs the
- *     compiler to generate offset free ldapr instructions. ldapr instructions, prior to version
- *     RCpc 3, don't support offsets.
+ * W register variants are used if possible which map to the lower word of the associated X
+ * register. Finally the "Q" constraint is used for the given input operand, this instructs the
+ * compiler to generate offset free ldapr instructions. ldapr instructions, prior to version
+ * RCpc 3, don't support offsets.
  *
  * The flag HAVE_RCPC is determined by the build system, if this macro is removed in the future be
- *     sure to remove that part of the compilation.
+ * sure to remove that part of the compilation.
  */
 #if defined(HAVE_RCPC) && !defined(TSAN_BUILD)
 #define __WT_ACQUIRE_READ_INTERNAL(v, val)                                                         \
@@ -245,16 +245,16 @@
 
 /*
  * This macro is for internal use within this document only. For all other cases, please use
- *     __wt_atomic_store_<type>_release(...)
+ * __wt_atomic_store_<type>_release(...)
  *
  * Write to a memory location using the ARM stlr instruction. This is also known as a write-release
- *     operation, and has the following semantics: Release semantics prevent memory reordering of
- *     the write-release with any read or write operation that precedes it in program order.
+ * operation, and has the following semantics: Release semantics prevent memory reordering of
+ * the write-release with any read or write operation that precedes it in program order.
  *
  * Usage of this macro should be paired with an associated WT_ACQUIRE_READ. As with the acquire
- *     version we avoid type checking loss by defining an unreachable if block, we also guard
- *     against misuse by statically asserting that the destination is the same size as the value
- *     being written.
+ * version we avoid type checking loss by defining an unreachable if block, we also guard
+ * against misuse by statically asserting that the destination is the same size as the value
+ * being written.
  */
 #if defined(HAVE_RCPC) && !defined(TSAN_BUILD)
 #define __WT_RELEASE_WRITE_INTERNAL(v, val)                                                        \
