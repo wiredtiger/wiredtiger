@@ -1035,8 +1035,9 @@ err:
 /*
  * __txn_resolve_prepared_update_chain --
  *     Helper for resolving updates. Recursively visit the update chain and resolve the updates on
- *     the way back out, so older updates are resolved first; this avoids a race with reconciliation
- *     (see WT-6778).
+ *     the way back out, so older updates are resolved first. This ensures that a reconciliation
+ *     racing with us will always see the newest update from the prepared transaction if any updates
+ *     still unresolved.
  */
 static void
 __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool commit)
