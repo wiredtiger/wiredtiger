@@ -276,7 +276,7 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
      * activity to drain to prevent any invalid ref uses.
      */
     if (!all) {
-        while (__wt_tsan_suppress_load_vuint32(&((WT_BTREE *)dhandle->handle)->prefetch_busy) > 0)
+        while (__wt_tsan_suppress_load_uint32_v(&((WT_BTREE *)dhandle->handle)->prefetch_busy) > 0)
             __wt_yield();
     }
 

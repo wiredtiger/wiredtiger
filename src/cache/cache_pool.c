@@ -752,7 +752,7 @@ __cache_pool_adjust(WT_SESSION_IMPL *session, uint64_t highest, uint64_t bump_th
             *adjustedp = true;
             if (grow) {
                 cache->cp_skip_count = WT_CACHE_POOL_BUMP_SKIPS;
-                __wt_tsan_suppress_add_vuint64(&entry->cache_size, adjustment);
+                __wt_tsan_suppress_add_uint64_v(&entry->cache_size, adjustment);
                 cp->currently_used += adjustment;
             } else {
                 cache->cp_skip_count = WT_CACHE_POOL_REDUCE_SKIPS;

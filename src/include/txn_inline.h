@@ -2072,7 +2072,7 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
     if (publish) {
         WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->is_allocating, true);
         WT_RELEASE_WRITE_WITH_BARRIER(
-          txn_shared->id, __wt_tsan_suppress_load_vuint64(&txn_global->current));
+          txn_shared->id, __wt_tsan_suppress_load_uint64_v(&txn_global->current));
         id = __wt_atomic_fetch_addv64(&txn_global->current, 1);
         session->txn->id = id;
         WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, id);

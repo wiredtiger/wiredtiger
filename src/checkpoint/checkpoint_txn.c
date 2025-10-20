@@ -539,7 +539,7 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
      * if we're transitioning to a shared cache via reconfigure. This avoids potential divide by
      * zero.
      */
-    if ((cache_size = __wt_tsan_suppress_load_vuint64(&conn->cache_size)) < 10 * WT_MEGABYTE)
+    if ((cache_size = __wt_tsan_suppress_load_uint64_v(&conn->cache_size)) < 10 * WT_MEGABYTE)
         return;
 
     current_dirty = (100.0 * __wt_cache_dirty_leaf_inuse(cache)) / cache_size;
@@ -1392,14 +1392,14 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
         time_start_hs = __wt_clock(session);
-        __wt_tsan_suppress_store_vbool(&conn->txn_global.checkpoint_running_hs, true);
+        __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, true);
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS);
 
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_file(session, cfg));
         if (hs_dhandle_shared != NULL)
             WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint_file(session, cfg));
 
-        __wt_tsan_suppress_store_vbool(&conn->txn_global.checkpoint_running_hs, false);
+        __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
         WT_ERR(ret);
 
         /*

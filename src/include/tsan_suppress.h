@@ -9,10 +9,10 @@
 #pragma once
 
 /*
- * This file was created for functions intended for fine-grained suppression of TSAN warnings.
- * Since TSAN only supports suppression at the function level, but a single function may trigger
- * multiple unrelated warnings, it is preferable to use one of the following functions (or create a
- * new one) to suppress them.
+ * This file was created for functions intended for fine-grained suppression of TSAN warnings. Since
+ * TSAN only supports suppression at the function level, but a single function may trigger multiple
+ * unrelated warnings, it is preferable to use one of the following functions (or create a new one)
+ * to suppress them.
  *
  * We use relaxed atomic operations in these functions to provide minimal protection against
  * compiler optimizations while avoiding potential performance drops. Using atomic variables should
@@ -52,11 +52,11 @@ __wt_tsan_suppress_store_uint32(uint32_t *vp, uint32_t v)
 }
 
 /*
- * __wt_tsan_suppress_load_vuint32 --
+ * __wt_tsan_suppress_load_uint32_v --
  *     TSAN warnings suppression for volatile uint32 load.
  */
 static WT_INLINE uint32_t
-__wt_tsan_suppress_load_vuint32(volatile uint32_t *vp)
+__wt_tsan_suppress_load_uint32_v(volatile uint32_t *vp)
 {
     return (__wt_atomic_loadv32(vp));
 }
@@ -72,11 +72,11 @@ __wt_tsan_suppress_load_uint64(uint64_t *vp)
 }
 
 /*
- * __wt_tsan_suppress_load_vuint64 --
+ * __wt_tsan_suppress_load_uint64_v --
  *     TSAN warnings suppression for volatile uint64 load.
  */
 static WT_INLINE uint64_t
-__wt_tsan_suppress_load_vuint64(volatile uint64_t *vp)
+__wt_tsan_suppress_load_uint64_v(volatile uint64_t *vp)
 {
     return (__wt_atomic_loadv64(vp));
 }
@@ -112,11 +112,11 @@ __wt_tsan_suppress_sub_uint64(uint64_t *var, uint64_t value)
 }
 
 /*
- * __wt_tsan_suppress_add_vuint64 --
+ * __wt_tsan_suppress_add_uint64_v --
  *     TSAN warnings suppression for volatile uint64 add.
  */
 static WT_INLINE void
-__wt_tsan_suppress_add_vuint64(volatile uint64_t *var, uint64_t value)
+__wt_tsan_suppress_add_uint64_v(volatile uint64_t *var, uint64_t value)
 {
     *var += value;
 }
@@ -172,21 +172,21 @@ __wt_tsan_suppress_store_bool(bool *vp, bool v)
 }
 
 /*
- * __wt_tsan_suppress_load_vbool --
+ * __wt_tsan_suppress_load_bool_v --
  *     TSAN warnings suppression for volatile bool load.
  */
 static WT_INLINE bool
-__wt_tsan_suppress_load_vbool(volatile bool *vp)
+__wt_tsan_suppress_load_bool_v(volatile bool *vp)
 {
     return (__wt_atomic_loadvbool(vp));
 }
 
 /*
- * __wt_tsan_suppress_store_vbool --
+ * __wt_tsan_suppress_store_bool_v --
  *     TSAN warnings suppression for volatile bool store.
  */
 static WT_INLINE void
-__wt_tsan_suppress_store_vbool(volatile bool *vp, bool v)
+__wt_tsan_suppress_store_bool_v(volatile bool *vp, bool v)
 {
     __wt_atomic_storevbool(vp, v);
 }
