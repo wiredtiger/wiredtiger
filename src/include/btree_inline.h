@@ -123,7 +123,12 @@ __wt_page_is_modified(WT_PAGE *page)
      * and we're not blocking checkpoints (although we must block eviction as it might clear and
      * free these structures).
      */
-    return (page->modify != NULL && __wt_atomic_loadbool(&page->modify->dirty));
+    if (page->modify == NULL)
+        return (false);
+
+    bool dirty;
+    WT_ACQUIRE_READ(dirty, page->modify->dirty);
+    return (dirty);
 }
 
 /*
