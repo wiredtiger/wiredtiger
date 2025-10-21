@@ -2464,14 +2464,14 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_split_leaf = 0;
     stats->cache_eviction_random_sample_inmem_root = 0;
     /* not clearing cache_bytes_max */
-    /* not clearing eviction_maximum_unvisited_gen_gap */
-    /* not clearing eviction_maximum_unvisited_gen_gap_per_checkpoint */
-    /* not clearing eviction_maximum_visited_gen_gap */
-    /* not clearing eviction_maximum_visited_gen_gap_per_checkpoint */
-    /* not clearing eviction_maximum_milliseconds */
-    /* not clearing eviction_maximum_milliseconds_per_checkpoint */
-    /* not clearing eviction_maximum_page_size */
-    /* not clearing eviction_maximum_page_size_per_checkpoint */
+    /* not clearing cache_eviction_maximum_unvisited_gen_gap */
+    /* not clearing cache_eviction_maximum_unvisited_gen_gap_per_checkpoint */
+    /* not clearing cache_eviction_maximum_visited_gen_gap */
+    /* not clearing cache_eviction_maximum_visited_gen_gap_per_checkpoint */
+    /* not clearing cache_eviction_maximum_milliseconds */
+    /* not clearing cache_eviction_maximum_milliseconds_per_checkpoint */
+    /* not clearing cache_eviction_maximum_page_size */
+    /* not clearing cache_eviction_maximum_page_size_per_checkpoint */
     stats->eviction_app_dirty_attempt = 0;
     stats->eviction_app_dirty_fail = 0;
     stats->cache_eviction_dirty = 0;
@@ -3255,29 +3255,28 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_split_internal += WT_STAT_READ(from, cache_eviction_split_internal);
     to->cache_eviction_split_leaf += WT_STAT_READ(from, cache_eviction_split_leaf);
     to->cache_eviction_random_sample_inmem_root +=
-      WT_STAT_CONN_READ(from, cache_eviction_random_sample_inmem_root);
-    to->cache_bytes_max += WT_STAT_CONN_READ(from, cache_bytes_max);
-    to->eviction_maximum_unvisited_gen_gap +=
-      WT_STAT_CONN_READ(from, eviction_maximum_unvisited_gen_gap);
-    to->eviction_maximum_unvisited_gen_gap_per_checkpoint +=
-      WT_STAT_CONN_READ(from, eviction_maximum_unvisited_gen_gap_per_checkpoint);
-    to->eviction_maximum_visited_gen_gap +=
-      WT_STAT_CONN_READ(from, eviction_maximum_visited_gen_gap);
-    to->eviction_maximum_visited_gen_gap_per_checkpoint +=
-      WT_STAT_CONN_READ(from, eviction_maximum_visited_gen_gap_per_checkpoint);
-    to->eviction_maximum_milliseconds += WT_STAT_CONN_READ(from, eviction_maximum_milliseconds);
-    to->eviction_maximum_milliseconds_per_checkpoint +=
-      WT_STAT_CONN_READ(from, eviction_maximum_milliseconds_per_checkpoint);
-    to->eviction_maximum_page_size += WT_STAT_CONN_READ(from, eviction_maximum_page_size);
-    to->eviction_maximum_page_size_per_checkpoint +=
-      WT_STAT_CONN_READ(from, eviction_maximum_page_size_per_checkpoint);
-    to->eviction_app_dirty_attempt += WT_STAT_CONN_READ(from, eviction_app_dirty_attempt);
-    to->eviction_app_dirty_fail += WT_STAT_CONN_READ(from, eviction_app_dirty_fail);
-    to->cache_eviction_dirty += WT_STAT_CONN_READ(from, cache_eviction_dirty);
-    to->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint +=
-      WT_STAT_CONN_READ(from, cache_eviction_blocked_multi_block_reconciliation_during_checkpoint);
-    if ((v = WT_STAT_CONN_READ(from, npos_read_walk_max)) > to->npos_read_walk_max)
-        to->npos_read_walk_max = v;
+      WT_STAT_READ(from, cache_eviction_random_sample_inmem_root);
+    to->cache_bytes_max += WT_STAT_READ(from, cache_bytes_max);
+    to->cache_eviction_maximum_unvisited_gen_gap +=
+      WT_STAT_READ(from, cache_eviction_maximum_unvisited_gen_gap);
+    to->cache_eviction_maximum_unvisited_gen_gap_per_checkpoint +=
+      WT_STAT_READ(from, cache_eviction_maximum_unvisited_gen_gap_per_checkpoint);
+    to->cache_eviction_maximum_visited_gen_gap +=
+      WT_STAT_READ(from, cache_eviction_maximum_visited_gen_gap);
+    to->cache_eviction_maximum_visited_gen_gap_per_checkpoint +=
+      WT_STAT_READ(from, cache_eviction_maximum_visited_gen_gap_per_checkpoint);
+    to->cache_eviction_maximum_milliseconds +=
+      WT_STAT_READ(from, cache_eviction_maximum_milliseconds);
+    to->cache_eviction_maximum_milliseconds_per_checkpoint +=
+      WT_STAT_READ(from, cache_eviction_maximum_milliseconds_per_checkpoint);
+    to->cache_eviction_maximum_page_size += WT_STAT_READ(from, cache_eviction_maximum_page_size);
+    to->cache_eviction_maximum_page_size_per_checkpoint +=
+      WT_STAT_READ(from, cache_eviction_maximum_page_size_per_checkpoint);
+    to->eviction_app_dirty_attempt += WT_STAT_READ(from, eviction_app_dirty_attempt);
+    to->eviction_app_dirty_fail += WT_STAT_READ(from, eviction_app_dirty_fail);
+    to->cache_eviction_dirty += WT_STAT_READ(from, cache_eviction_dirty);
+    to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
+      WT_STAT_READ(from, cache_eviction_blocked_multi_block_reconcilation_during_checkpoint);
     to->cache_eviction_trigger_dirty_reached +=
       WT_STAT_READ(from, cache_eviction_trigger_dirty_reached);
     to->cache_eviction_trigger_reached += WT_STAT_READ(from, cache_eviction_trigger_reached);
