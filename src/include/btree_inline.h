@@ -763,6 +763,22 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
          */
         if (last_running != WT_TXN_NONE)
             page->modify->first_dirty_txn = last_running;
+
+        /*
+         * Mark the page as dirty after increasing the dirty cache size. This ensures that the
+         * checkpoint does not visit and reconcile the page before the dirty cache size is
+         * increased. If the page is reconciled and cleaned before that, it could result in a
+         * decrease to the dirty cache size that hasn't been accounted for in the increase,
+         * potentially causing the dirty cache size to go negative. Since this is a newly modified
+         * page, reconciliation can only clean the page if it belongs to the metadata or the history
+         * store. It is acceptable for the checkpoint to skip these pages as:
+         *
+         * 1. Metadata is non-transactional, so consistency isn't a concern.
+         * 2. History store writes only contain data that has already been skipped in the data
+         * store checkpoint.
+         * 3. Updates to the data store remain invisible to the checkpoint.
+         */
+        WT_RELEASE_WRITE(page->modify->modified, (bool)true);
     }
 
     /* Check if this is the largest transaction ID to update the page. */
@@ -770,25 +786,12 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
         __wt_atomic_store64(&page->modify->update_txn, session->txn->id);
 
     /*
-     * Mark the page as dirty after increasing the dirty cache size. This ensures that the
-     * checkpoint does not visit and reconcile the page before the dirty cache size is
-     * increased. If the page is reconciled and cleaned before that, it could result in a
-     * decrease to the dirty cache size that hasn't been accounted for in the increase,
-     * potentially causing the dirty cache size to go negative. Since this is a newly modified
-     * page, reconciliation can only clean the page if it belongs to the metadata or the history
-     * store. It is acceptable for the checkpoint to skip these pages as:
-     *
-     * 1. Metadata is non-transactional, so consistency isn't a concern.
-     * 2. History store writes only contain data that has already been skipped in the data
-     * store checkpoint.
-     * 3. Updates to the data store remain invisible to the checkpoint.
-     *
      * We must ensure the page is marked as dirty, even if we are not the first operation to modify
      * it. Failing to do so could result in a scenario where the function exits without marking the
      * page as dirty, particularly if there's a race condition with the first dirty operation.
      */
-    if (!__wt_atomic_loadbool(&page->modify->modified))
-        WT_RELEASE_WRITE(page->modify->modified, (bool)true);
+    while (!__wt_atomic_loadbool(&page->modify->modified))
+        __wt_yield();
 }
 
 /*
