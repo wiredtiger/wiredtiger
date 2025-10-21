@@ -790,8 +790,9 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      * it. Failing to do so could result in a scenario where the function exits without marking the
      * page as dirty, particularly if there's a race condition with the first dirty operation.
      */
-    if (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
-      WT_IS_HS(session->dhandle)) {
+    if (!WT_IS_INTERNAL(page) &&
+      (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
+        WT_IS_HS(session->dhandle))) {
         while (!__wt_atomic_loadbool(&page->modify->modified))
             __wt_yield();
     } else if (!__wt_atomic_loadbool(&page->modify->modified))
