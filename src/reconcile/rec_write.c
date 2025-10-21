@@ -2562,6 +2562,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     verify_image = true;
 #endif
 
+    /* Fail 1% of the time when reconciling a page during a bulk load. */
+    if (r->is_bulk_load && !F_ISSET(r, WT_REC_EVICT_CALL_CLOSING) &&
+      __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_REC_SPLIT_WRITE, 100))
+        return (EBUSY);
+
     /*
      * If reconciliation requires multiple blocks and checkpoint is running we'll eventually fail,
      * unless we're the checkpoint thread. Big pages take a lot of writes, avoid wasting work.

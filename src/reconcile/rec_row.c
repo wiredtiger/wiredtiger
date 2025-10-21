@@ -182,6 +182,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     WTI_RECONCILE *r;
     WTI_REC_KV *key, *val;
     WT_TIME_WINDOW tw;
+    WT_DECL_RET;
     bool ovfl_key;
 
     r = cbulk->reconcile;
@@ -191,12 +192,12 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 
     key = &r->k;
     val = &r->v;
-    WT_RET(__rec_cell_build_leaf_key(session, r, /* Build key cell */
+    WT_ERR(__rec_cell_build_leaf_key(session, r, /* Build key cell */
       cursor->key.data, cursor->key.size, &ovfl_key));
     if (cursor->value.size == 0)
         val->len = 0;
     else
-        WT_RET(__wti_rec_cell_build_val(session, r, cursor->value.data, /* Build value cell */
+        WT_ERR(__wti_rec_cell_build_val(session, r, cursor->value.data, /* Build value cell */
           cursor->value.size, &tw, 0));
 
     /* Boundary: split or write the page. */
@@ -209,9 +210,10 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
             r->key_pfx_compress = false;
             r->key_pfx_last = 0;
             if (!ovfl_key)
-                WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
+                WT_ERR(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
         }
-        WT_RET(__wti_rec_split_crossing_bnd(session, r, key->len + val->len));
+
+        WT_ERR(__wti_rec_split_crossing_bnd(session, r, key->len + val->len));
     }
 
     /* Copy the key/value pair onto the page. */
@@ -221,7 +223,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     else {
         r->all_empty_value = false;
         if (btree->dictionary)
-            WT_RET(__wti_rec_dict_replace(session, r, &tw, 0, val));
+            WT_ERR(__wti_rec_dict_replace(session, r, &tw, 0, val));
         __wti_rec_image_copy(session, r, val);
     }
     WTI_REC_CHUNK_TA_UPDATE(session, r->cur_ptr, &tw);
@@ -229,7 +231,22 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     /* Update compression state. */
     __rec_key_state_update(r, ovfl_key);
 
-    return (0);
+    if (0) {
+err:
+        /*
+         * If we built an overflow key we need to clean it up now as the parent leaf page failed to
+         * split.
+         */
+        if (ovfl_key) {
+            __wt_verbose_warning(session, WT_VERB_OVERFLOW,
+              "page split failed during bulk load on key:  {%.*s}",
+              (int)WT_MIN(cursor->key.size, 40), (char *)cursor->key.data);
+
+            WT_TRET(__wt_btree_block_free(session, key->buf.data, key->buf.size));
+        }
+    }
+
+    return (ret);
 }
 
 /*
