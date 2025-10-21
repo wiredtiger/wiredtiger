@@ -265,28 +265,18 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * statistic.
      */
     page_size = __wt_atomic_load_size_relaxed(&page->memory_footprint);
-    if (page_size > __wt_atomic_load_uint64_relaxed(&conn->evict->evict_max_page_size))
-        __wt_atomic_store_uint64_relaxed(&conn->evict->evict_max_page_size, page_size);
+    __wt_atomic_stats_max(&conn->evict->evict_max_page_size, page_size);
 
     /* Clean page */
     if (!is_dirty) {
-        if (page_size >
-          __wt_atomic_load_uint64_relaxed(&conn->evict->evict_max_clean_page_size_per_checkpoint))
-            __wt_atomic_store_uint64_relaxed(
-              &conn->evict->evict_max_clean_page_size_per_checkpoint, page_size);
+        __wt_atomic_stats_max(&conn->evict->evict_max_clean_page_size_per_checkpoint, page_size);
     } else {
         /* Dirty page */
-        if (page_size >
-          __wt_atomic_load_uint64_relaxed(&conn->evict->evict_max_dirty_page_size_per_checkpoint))
-            __wt_atomic_store_uint64_relaxed(
-              &conn->evict->evict_max_dirty_page_size_per_checkpoint, page_size);
+        __wt_atomic_stats_max(&conn->evict->evict_max_dirty_page_size_per_checkpoint, page_size);
     }
     /* Check if the page has updates */
     if (page->modify != NULL) {
-        if (page_size >
-          __wt_atomic_load_uint64_relaxed(&conn->evict->evict_max_updates_page_size_per_checkpoint))
-            __wt_atomic_store_uint64_relaxed(
-              &conn->evict->evict_max_updates_page_size_per_checkpoint, page_size);
+        __wt_atomic_stats_max(&conn->evict->evict_max_updates_page_size_per_checkpoint, page_size);
     }
 
     /* Figure out whether reconciliation was done on the page */
