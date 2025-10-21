@@ -802,8 +802,20 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
               __wt_atomic_load64(&S2C(session)->cache->pages_dirty_leaf) < 10 &&
               (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
                 WT_IS_HS(session->dhandle)))) {
-            while (!__wt_atomic_loadbool(&page->modify->modified))
+            size_t count = 0;
+            /*
+             * We may become stuck in the loop if the checkpoint visits the page and cleans it
+             * before we wake up. To avoid this, limit the number of retries to a maximum of 5
+             * attempts, and then explicitly mark the page as dirty.
+             */
+            while (!__wt_atomic_loadbool(&page->modify->modified)) {
                 __wt_yield();
+                ++count;
+                if (count > 5) {
+                    WT_RELEASE_WRITE(page->modify->modified, (bool)true);
+                    break;
+                }
+            }
         } else
             WT_RELEASE_WRITE(page->modify->modified, (bool)true);
     }
