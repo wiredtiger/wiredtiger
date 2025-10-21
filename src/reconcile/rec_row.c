@@ -231,19 +231,17 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     /* Update compression state. */
     __rec_key_state_update(r, ovfl_key);
 
-    if (0) {
-err:
-        /*
-         * If we built an overflow key we need to clean it up now as the parent leaf page failed to
-         * split.
-         */
-        if (ovfl_key) {
-            __wt_verbose_warning(session, WT_VERB_OVERFLOW,
-              "page split failed during bulk load on key:  {%.*s}",
-              (int)WT_MIN(cursor->key.size, 40), (char *)cursor->key.data);
+    return (0);
 
-            WT_TRET(__wt_btree_block_free(session, key->buf.data, key->buf.size));
-        }
+err:
+    /*
+     * If we built an overflow key we need to clean it up now as the parent leaf page failed to
+     * split.
+     */
+    if (ovfl_key) {
+        __wt_verbose_warning(session, WT_VERB_OVERFLOW, "%s", "page split failed during bulk load");
+
+        WT_TRET(__wt_btree_block_free(session, key->buf.data, key->buf.size));
     }
 
     return (ret);
