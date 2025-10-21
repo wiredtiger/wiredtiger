@@ -541,9 +541,10 @@ __background_compact_server(void *arg)
     WT_STAT_CONN_SET(session, background_compact_running, 0);
 
     for (;;) {
+        run_once = __wt_tsan_suppress_load_bool(&conn->background_compact.run_once);
 
         /* If the server is configured to run once, stop it after a full iteration. */
-        if (full_iteration && conn->background_compact.run_once) {
+        if (full_iteration && run_once) {
             __wt_spin_lock(session, &conn->background_compact.lock);
             __wt_atomic_storebool(&conn->background_compact.running, false);
             running = false;
@@ -566,7 +567,6 @@ __background_compact_server(void *arg)
              */
             if (uri->size == 0 || full_iteration) {
                 full_iteration = false;
-                run_once = __wt_tsan_suppress_load_bool(&conn->background_compact.run_once);
                 WT_ERR(__wt_buf_set(session, uri, WT_BACKGROUND_COMPACT_URI_PREFIX,
                   strlen(WT_BACKGROUND_COMPACT_URI_PREFIX) + 1));
                 __background_compact_list_cleanup(session,
@@ -596,7 +596,7 @@ __background_compact_server(void *arg)
         if (conn->background_compact.signalled) {
 
             /* If configured to run once, start from the beginning. */
-            if (running && conn->background_compact.run_once)
+            if (running && run_once)
                 WT_ERR(__wt_buf_set(session, uri, WT_BACKGROUND_COMPACT_URI_PREFIX,
                   strlen(WT_BACKGROUND_COMPACT_URI_PREFIX) + 1));
 
