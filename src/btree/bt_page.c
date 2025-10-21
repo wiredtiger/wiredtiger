@@ -15,44 +15,52 @@ static int __inmem_row_int(WT_SESSION_IMPL *, WT_PAGE *, size_t *);
 static int __inmem_row_leaf(WT_SESSION_IMPL *, WT_PAGE *, bool *);
 static int __inmem_row_leaf_entries(WT_SESSION_IMPL *, const WT_PAGE_HEADER *, uint32_t *);
 
-#define __PAGE_FIND_MIN_DELTA(                                                                  \
-  session, unpacked_deltas, delta_size_each, delta_idx, delta_count, min_delta, min_d, ret)     \
-    do {                                                                                        \
-        size_t __d;                                                                             \
-        int __cmp;                                                                              \
-        *(min_delta) = NULL;                                                                    \
-        *(min_d) = UINT32_MAX;                                                                  \
-        for (__d = 0; __d < (delta_count); ++__d) {                                             \
-            if ((delta_idx)[__d] >= (delta_size_each)[__d])                                     \
-                continue;                                                                       \
-                                                                                                \
-            if (*(min_delta) == NULL) {                                                         \
-                *(min_delta) = &((unpacked_deltas)[__d][(delta_idx)[__d]]);                     \
-                *(min_d) = (uint32_t)__d;                                                       \
-            } else {                                                                            \
-                WT_ITEM __dk, __mk;                                                             \
-                __dk.data = (unpacked_deltas)[__d][(delta_idx)[__d]].key.data;                  \
-                __dk.size = (unpacked_deltas)[__d][(delta_idx)[__d]].key.size;                  \
-                __mk.data = (*(min_delta))->key.data;                                           \
-                __mk.size = (*(min_delta))->key.size;                                           \
-                (ret) = __wt_compare((session), S2BT(session)->collator, &__dk, &__mk, &__cmp); \
-                if ((ret) != 0)                                                                 \
-                    break;                                                                      \
-                if (__cmp < 0) {                                                                \
-                    *(min_delta) = &((unpacked_deltas)[__d][(delta_idx)[__d]]);                 \
-                    *(min_d) = (uint32_t)__d;                                                   \
-                }                                                                               \
-            }                                                                                   \
-        }                                                                                       \
-        if ((ret) == 0)                                                                         \
-            (ret) = 0;                                                                          \
-    } while (0)
-
 /*
  * Define functions that increment histogram statistics for reconstruction of pages with deltas.
  */
 WT_STAT_USECS_HIST_INCR_FUNC(internal_reconstruct, perf_hist_internal_reconstruct_latency)
 WT_STAT_USECS_HIST_INCR_FUNC(leaf_reconstruct, perf_hist_leaf_reconstruct_latency)
+
+/*
+ * __page_find_min_delta --
+ *     Find the smallest delta among multiple delta arrays.
+ */
+static inline int
+__page_find_min_delta(WT_SESSION_IMPL *session, WT_CELL_UNPACK_DELTA_INT **unpacked_deltas,
+  size_t *delta_size_each, size_t *delta_idx, size_t delta_count,
+  WT_CELL_UNPACK_DELTA_INT **min_delta, uint32_t *min_d)
+{
+    size_t d;
+    int cmp, ret = 0;
+
+    *min_delta = NULL;
+    *min_d = UINT32_MAX;
+
+    for (d = 0; d < delta_count; ++d) {
+        if (delta_idx[d] >= delta_size_each[d])
+            continue;
+
+        if (*min_delta == NULL) {
+            *min_delta = &unpacked_deltas[d][delta_idx[d]];
+            *min_d = (uint32_t)d;
+        } else {
+            WT_ITEM dk, mk;
+            dk.data = unpacked_deltas[d][delta_idx[d]].key.data;
+            dk.size = unpacked_deltas[d][delta_idx[d]].key.size;
+            mk.data = (*min_delta)->key.data;
+            mk.size = (*min_delta)->key.size;
+
+            WT_RET(__wt_compare(session, S2BT(session)->collator, &dk, &mk, &cmp));
+
+            if (cmp < 0) {
+                *min_delta = &unpacked_deltas[d][delta_idx[d]];
+                *min_d = (uint32_t)d;
+            }
+        }
+    }
+
+    return (ret);
+}
 
 /*
  * __page_build_ref --
@@ -290,8 +298,9 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
         WT_ITEM base_key_buf, delta_key_buf;
 
         /* Use the macro instead of the function */
-        __PAGE_FIND_MIN_DELTA(session, unpacked_deltas, delta_size_each, delta_idx, delta_size,
-          &min_delta, &min_d, ret);
+        WT_ERR(__page_find_min_delta(
+          session, unpacked_deltas, delta_size_each, delta_idx, delta_size, &min_delta, &min_d));
+
         WT_ERR(ret);
 
         if (i >= base_entries && min_delta == NULL)
