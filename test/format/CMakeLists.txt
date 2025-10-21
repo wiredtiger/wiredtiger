@@ -5,6 +5,7 @@ set(format_sources
     checkpoint.c
     compact.c
     config_compat.c
+    follower.c
     format_config.c
     format_config_def.c
     format_disagg.c
@@ -31,6 +32,7 @@ create_test_executable(test_format
     ADDITIONAL_FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/CONFIG.stress
         ${CMAKE_CURRENT_SOURCE_DIR}/format.sh
+        ${CMAKE_CURRENT_SOURCE_DIR}/format_disagg_multi.sh
         ${CMAKE_CURRENT_SOURCE_DIR}/smoke.sh
 )
 
