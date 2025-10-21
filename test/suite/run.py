@@ -35,7 +35,7 @@
 #
 
 from __future__ import print_function
-import glob, json, os, random, re, sys
+import glob, json, os, random, re, sys, platform
 
 if sys.version_info[0] <= 2:
     print('WiredTiger requires Python version 3.0 or above')
@@ -316,6 +316,16 @@ def testsFromArg(tests, loader, arg, scenario):
     for t in xrange(start, end+1):
         addScenarioTests(tests, loader, 'test%03d' % t, scenario)
 
+def getCpuArchitecture():
+    # Detects the CPU architecture and returns 'x86' or 'ARM'.
+    architecture = platform.machine().lower()
+    if "x86" in architecture or "amd64" in architecture:
+        return "x86"
+    elif "arm" in architecture or "aarch64" in architecture:
+        return "ARM"
+    else:
+        return "Unknown"
+
 def error(exitval, prefix, msg):
     print('*** ERROR: {}: {}'.format(prefix, msg.replace('\n', '\n*** ')))
     sys.exit(exitval)
@@ -503,6 +513,8 @@ if __name__ == '__main__':
         #    ASAN_SYMBOLIZER_PATH    full path to the llvm-symbolizer program
         #    LD_LIBRARY_PATH         includes path with wiredtiger shared object
         #    LD_PRELOAD              includes the ASAN runtime library
+        #    PYTHONMALLOC            turns off pythons own allocation functions instead using the
+        #                            default ones. This avoids ASan false positives.
         #
         # Note that LD_LIBRARY_PATH has already been set above. The trouble with
         # simply setting these variables in the Python environment is that it's
@@ -527,28 +539,45 @@ if __name__ == '__main__':
         # detect this error from here short of capturing/parsing all output
         # from the test run.
         ASAN_ENV = "__WT_TEST_SUITE_ASAN"    # if set, we've been here before
-        ASAN_SYMBOLIZER_PROG = "llvm-symbolizer"
         ASAN_SYMBOLIZER_ENV = "ASAN_SYMBOLIZER_PATH"
+        PYTHONMALLOC = "PYTHONMALLOC"
         LD_PRELOAD_ENV = "LD_PRELOAD"
-        SO_FILE_NAME = "libclang_rt.asan-x86_64.so"
-        if not os.environ.get(ASAN_ENV):
+        SO_FILE_NAME_ARM = "libclang_rt.asan.so"
+        SO_FILE_NAME_X86 = "libclang_rt.asan-x86_64.so"
+        print('Please log this ###' + str(os.environ.get(ASAN_ENV)) + "###")
+        if os.environ.get(ASAN_ENV) is None:
+            print('not asan env')
             if verbose >= 2:
                 print('Enabling ASAN environment and rerunning python')
+            # Check that we are on a compatible platform.
+            platform = getCpuArchitecture()
+            if platform == "Unknown":
+                print('Current CPU Architecture not available for ASAN mode.')
+                sys.exit(1)
+            if platform == "x86":
+                print('X86 detected opting to use:' + SO_FILE_NAME_X86)
+                SO_FILE_NAME = SO_FILE_NAME_X86
+            else:
+                SO_FILE_NAME = SO_FILE_NAME_ARM
             os.environ[ASAN_ENV] = "1"
             show_env(verbose, "LD_LIBRARY_PATH")
+            if not os.environ.get(PYTHONMALLOC):
+                os.environ[PYTHONMALLOC] = "malloc"
             if not os.environ.get(ASAN_SYMBOLIZER_ENV):
-                os.environ[ASAN_SYMBOLIZER_ENV] = which(ASAN_SYMBOLIZER_PROG)
+                os.environ[ASAN_SYMBOLIZER_ENV] = '/opt/mongodbtoolchain/v4/bin/llvm-symbolizer'
             if not os.environ.get(ASAN_SYMBOLIZER_ENV):
                 error(ASAN_SYMBOLIZER_ENV,
                       'symbolizer program not found in PATH')
             show_env(verbose, ASAN_SYMBOLIZER_ENV)
             if not os.environ.get(LD_PRELOAD_ENV):
+                print('no LDPRELOAD')
                 symbolizer = follow_symlinks(os.environ[ASAN_SYMBOLIZER_ENV])
                 bindir = os.path.dirname(symbolizer)
                 sofiles = []
                 if os.path.basename(bindir) == 'bin':
                     libdir = os.path.join(os.path.dirname(bindir), 'lib')
                     sofiles = find(libdir, SO_FILE_NAME)
+                    print(sofiles)
                 if len(sofiles) != 1:
                     if len(sofiles) == 0:
                         fmt = 'ASAN shared library file not found.\n' + \

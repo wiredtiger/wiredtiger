@@ -2971,7 +2971,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session, *verify_session;
     bool config_base_set, try_salvage, verify_meta;
-    const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
+    const char *enc_cfg[] = {NULL, NULL}, *merge_cfg, *tmp_ptr;
     char version[64];
 
     WT_VERIFY_OPAQUE_POINTER(WT_CONNECTION_IMPL);
@@ -2983,7 +2983,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     conn = NULL;
     session = verify_session = NULL;
-    merge_cfg = NULL;
+    merge_cfg = tmp_ptr = NULL;
     try_salvage = false;
     WT_NOT_READ(config_base_set, false);
     WT_NOT_READ(verify_meta, false);
@@ -3119,7 +3119,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * Merge the full configuration stack and save it for reconfiguration.
      */
     WT_ERR(__wt_config_merge(session, cfg, NULL, &merge_cfg));
-
+    tmp_ptr = merge_cfg;
     /*
      * Read-only and in-memory settings may have been set in a configuration file (not optimal, but
      * we can handle it). Get those settings again so we can override other configuration settings
@@ -3462,8 +3462,10 @@ err:
     __wt_scr_free(session, &i1);
     __wt_scr_free(session, &i2);
     __wt_scr_free(session, &i3);
-
     __wt_free(session, merge_cfg);
+    // WT_UNUSED(tmp_ptr);
+    __wt_free(session, tmp_ptr);
+
     /*
      * We may have allocated scratch memory when using the dummy session or the subsequently created
      * real session, and we don't want to tie down memory for the rest of the run in either of them.
