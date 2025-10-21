@@ -746,7 +746,9 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      * The page state can only ever be incremented above dirty by the number of concurrently running
      * threads, so the counter will never approach the point where it would wrap.
      */
+    bool race_win = false;
     if (__wt_atomic_add32(&page->modify->page_state, 1) == WT_PAGE_DIRTY_FIRST) {
+        race_win = true;
         __wt_cache_dirty_incr(session, page);
 
         __wt_evict_page_first_dirty(session, page);
@@ -790,14 +792,23 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      * it. Failing to do so could result in a scenario where the function exits without marking the
      * page as dirty, particularly if there's a race condition with the first dirty operation.
      */
-    if (!WT_PAGE_IS_INTERNAL(page) &&
-      __wt_atomic_load64(&S2C(session)->cache->pages_dirty_leaf) < 10 &&
-      (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
-        WT_IS_HS(session->dhandle))) {
-        while (!__wt_atomic_loadbool(&page->modify->modified))
-            __wt_yield();
-    } else if (!__wt_atomic_loadbool(&page->modify->modified))
-        WT_RELEASE_WRITE(page->modify->modified, (bool)true);
+    if (!race_win) {
+        /*
+         * For a leaf page, if the number of dirty pages is low and it belongs to either the
+         * metadata or the history store, wait for the winning thread to mark the page as dirty.
+         * Otherwise, the function may return before the dirty cache size is incremented, allowing
+         * the checkpoint to reconcile and clean the page. This could potentially lead to the dirty
+         * cache size going negative.
+         */
+        if (!WT_PAGE_IS_INTERNAL(page) &&
+          __wt_atomic_load64(&S2C(session)->cache->pages_dirty_leaf) < 10 &&
+          (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
+            WT_IS_HS(session->dhandle))) {
+            while (!__wt_atomic_loadbool(&page->modify->modified))
+                __wt_yield();
+        } else if (!__wt_atomic_loadbool(&page->modify->modified))
+            WT_RELEASE_WRITE(page->modify->modified, (bool)true);
+    }
 }
 
 /*
