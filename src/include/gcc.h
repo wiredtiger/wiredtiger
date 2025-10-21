@@ -223,7 +223,7 @@
  * sure to remove that part of the compilation.
  */
 #if defined(HAVE_RCPC) && !defined(TSAN_BUILD)
-#define __WT_ACQUIRE_READ_INTERNAL(v, val)                                                         \
+#define ACQUIRE_READ(v, val)                                                                       \
     do {                                                                                           \
         if (0) {                                                                                   \
             static_assert(sizeof((v)) == sizeof((val)), "sizes of provided variables must match"); \
@@ -240,7 +240,7 @@
         }                                                                                          \
     } while (0)
 #else
-#define __WT_ACQUIRE_READ_INTERNAL(v, val) (v) = __atomic_load_n(&(val), __ATOMIC_ACQUIRE)
+#define ACQUIRE_READ(v, val) (v) = __atomic_load_n(&(val), __ATOMIC_ACQUIRE)
 #endif
 
 /*
@@ -257,7 +257,7 @@
  * being written.
  */
 #if defined(HAVE_RCPC) && !defined(TSAN_BUILD)
-#define __WT_RELEASE_WRITE_INTERNAL(v, val)                                                        \
+#define RELEASE_WRITE(v, val)                                                                      \
     do {                                                                                           \
         if (0) {                                                                                   \
             static_assert(sizeof((v)) == sizeof((val)), "sizes of provided variables must match"); \
@@ -274,14 +274,14 @@
         }                                                                                          \
     } while (0)
 #else
-#define __WT_RELEASE_WRITE_INTERNAL(v, val) __atomic_store_n(&(v), (val), __ATOMIC_RELEASE)
+#define RELEASE_WRITE(v, val) __atomic_store_n(&(v), (val), __ATOMIC_RELEASE)
 #endif
 
 /*
  * This macro is for internal use within this document only. For all other cases, please use
  * __wt_atomic_cas_<type>(...)
  */
-#define __WT_ATOMIC_CAS_INTERNAL(ptr, oldp, newv) \
+#define ATOMIC_CAS(ptr, oldp, newv) \
     __atomic_compare_exchange_n(ptr, oldp, newv, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
 
 #define WT_ATOMIC_FUNC_STORE_LOAD(suffix, _type)                                           \
@@ -296,12 +296,12 @@
     static inline _type __wt_atomic_load_##suffix##_acquire(_type *vp)                     \
     {                                                                                      \
         _type result;                                                                      \
-        __WT_ACQUIRE_READ_INTERNAL(result, *(vp));                                         \
+        ACQUIRE_READ(result, *(vp));                                                       \
         return (result);                                                                   \
     }                                                                                      \
     static inline void __wt_atomic_store_##suffix##_release(_type *vp, _type v)            \
     {                                                                                      \
-        __WT_RELEASE_WRITE_INTERNAL(*(vp), v);                                             \
+        RELEASE_WRITE(*(vp), v);                                                           \
     }                                                                                      \
     static inline _type __wt_atomic_load_##suffix##_v_relaxed(volatile _type *vp)          \
     {                                                                                      \
@@ -314,22 +314,22 @@
     static inline _type __wt_atomic_load_##suffix##_v_acquire(volatile _type *vp)          \
     {                                                                                      \
         _type result;                                                                      \
-        __WT_ACQUIRE_READ_INTERNAL(result, *(vp));                                         \
+        ACQUIRE_READ(result, *(vp));                                                       \
         return (result);                                                                   \
     }                                                                                      \
     static inline void __wt_atomic_store_##suffix##_v_release(volatile _type *vp, _type v) \
     {                                                                                      \
-        __WT_RELEASE_WRITE_INTERNAL(*(vp), v);                                             \
+        RELEASE_WRITE(*(vp), v);                                                           \
     }
 
 #define WT_ATOMIC_CAS_FUNC(suffix, _type)                                                      \
     static inline bool __wt_atomic_cas_##suffix(_type *vp, _type old, _type newv)              \
     {                                                                                          \
-        return (__WT_ATOMIC_CAS_INTERNAL(vp, &old, newv));                                     \
+        return (ATOMIC_CAS(vp, &old, newv));                                                   \
     }                                                                                          \
     static inline bool __wt_atomic_cas_##suffix##_v(volatile _type *vp, _type old, _type newv) \
     {                                                                                          \
-        return (__WT_ATOMIC_CAS_INTERNAL(vp, &old, newv));                                     \
+        return (ATOMIC_CAS(vp, &old, newv));                                                   \
     }
 
 #define WT_ATOMIC_FUNC(suffix, _type)                                                   \
@@ -413,7 +413,7 @@ __wt_atomic_store_double_relaxed(double *vp, double v)
 static inline bool
 __wt_atomic_cas_ptr(void *vp, void *old, void *newv)
 {
-    return (__WT_ATOMIC_CAS_INTERNAL((void **)vp, &old, newv));
+    return (ATOMIC_CAS((void **)vp, &old, newv));
 }
 
 #define __wt_atomic_and_generic_relaxed(vp, v) __atomic_and_fetch(vp, v, __ATOMIC_RELAXED)
