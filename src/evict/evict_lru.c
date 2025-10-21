@@ -1203,7 +1203,7 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
  * acquire that lock here because there's a potential deadlock. When acquiring exclusive eviction
  * access, we acquire the eviction walk-lock and then the eviction's pass-intr lock. The eviction
  * server can hold the pass-intr lock and call into this function, which might deadlock with another
- * thread trying to get exclusive access.
+ * thread trying to get exclusive eviction access.
  */
 #if defined(HAVE_DIAGNOSTIC)
     {
