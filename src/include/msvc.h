@@ -176,14 +176,6 @@ WT_RELEASE_BARRIER(void)
         return (                                                                                  \
           _InterlockedCompareExchange##s((t *)(vp), (t)(new_val), (t)(old_val)) == (t)(old_val)); \
     }                                                                                             \
-    static inline bool __wt_atomic_cas_##suffix(_type *vp, _type old, _type newv)                 \
-    {                                                                                             \
-        return (_InterlockedCompareExchange##s((t *)(vp), (t)(newv), (t)(old)) == (t)(old));      \
-    }                                                                                             \
-    static inline bool __wt_atomic_cas_##suffix##_v(volatile _type *vp, _type old, _type newv)    \
-    {                                                                                             \
-        return (_InterlockedCompareExchange##s((t *)(vp), (t)(newv), (t)(old)) == (t)(old));      \
-    }                                                                                             \
     WT_ATOMIC_FUNC_STORE_LOAD(suffix, _type)
 
 WT_ATOMIC_FUNC(uint8, uint8_t, 8, char)
