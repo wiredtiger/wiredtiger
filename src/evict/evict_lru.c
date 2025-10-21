@@ -2128,18 +2128,18 @@ rand_next:
          */
         if (page->evict_pass_gen == 0) {
             const uint64_t gen_gap =
-              __wt_atomic_load64(&evict->evict_pass_gen) - page->cache_create_gen;
-            if (gen_gap > __wt_atomic_load64(&evict->evict_max_unvisited_gen_gap))
-                __wt_atomic_store64(&evict->evict_max_unvisited_gen_gap, gen_gap);
-            if (gen_gap > __wt_atomic_load64(&evict->evict_max_unvisited_gen_gap_per_checkpoint))
-                __wt_atomic_store64(&evict->evict_max_unvisited_gen_gap_per_checkpoint, gen_gap);
+              __wt_atomic_load64(&cache->evict_pass_gen) - page->cache_create_gen;
+            if (gen_gap > __wt_atomic_load64(&cache->evict_max_unvisited_gen_gap))
+                __wt_atomic_store64(&cache->evict_max_unvisited_gen_gap, gen_gap);
+            if (gen_gap > __wt_atomic_load64(&cache->evict_max_unvisited_gen_gap_per_checkpoint))
+                __wt_atomic_store64(&cache->evict_max_unvisited_gen_gap_per_checkpoint, gen_gap);
         } else {
             const uint64_t gen_gap =
-              __wt_atomic_load64(&evict->evict_pass_gen) - page->evict_pass_gen;
-            if (gen_gap > __wt_atomic_load64(&evict->evict_max_visited_gen_gap))
-                __wt_atomic_store64(&evict->evict_max_visited_gen_gap, gen_gap);
-            if (gen_gap > __wt_atomic_load64(&evict->evict_max_visited_gen_gap_per_checkpoint))
-                __wt_atomic_store64(&evict->evict_max_visited_gen_gap_per_checkpoint, gen_gap);
+              __wt_atomic_load64(&cache->evict_pass_gen) - page->evict_pass_gen;
+            if (gen_gap > __wt_atomic_load64(&cache->evict_max_visited_gen_gap))
+                __wt_atomic_store64(&cache->evict_max_visited_gen_gap, gen_gap);
+            if (gen_gap > __wt_atomic_load64(&cache->evict_max_visited_gen_gap_per_checkpoint))
+                __wt_atomic_store64(&cache->evict_max_visited_gen_gap_per_checkpoint, gen_gap);
         }
 
         modified = __wt_page_is_modified(page);
