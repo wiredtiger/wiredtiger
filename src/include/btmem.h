@@ -524,7 +524,6 @@ struct __wt_page_modify {
  */
 #define WT_PAGE_CLEAN 0
 #define WT_PAGE_DIRTY_FIRST 1
-#define WT_PAGE_DIRTY 2
     wt_shared uint32_t page_state;
     wt_shared bool modified;
 
