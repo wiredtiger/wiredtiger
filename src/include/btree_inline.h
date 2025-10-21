@@ -811,7 +811,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
             while (!__wt_atomic_loadbool(&page->modify->modified)) {
                 __wt_yield();
                 ++count;
-                if (count > 5) {
+                if (count >= 5) {
                     WT_RELEASE_WRITE(page->modify->modified, (bool)true);
                     break;
                 }
