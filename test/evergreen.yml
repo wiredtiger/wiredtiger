@@ -1563,17 +1563,6 @@ variables:
           format_args: disagg.page_log=palite disagg.mode=follower runs.timer=10:15
           times: 10
 
-  - &format-stress-test-disagg-follower-verify
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test disagg"
-        vars:
-          # FIXME-WT-15619 and FIXME-WT-15618 Remove this task when disagg verification is working reliably with deltas.
-          format_args: disagg.page_log=palite disagg.mode=follower runs.timer=10:15 ops.verify=1 disagg.leaf_page_delta=0 disagg.internal_page_delta=0
-          times: 10
-
   - &format-stress-data-validation-test-disagg-follower
     depends_on:
       - name: compile
@@ -4571,9 +4560,6 @@ tasks:
     tags: ["stress-test-disagg"]
   - <<: *format-stress-test-disagg-follower
     name: format-stress-test-disagg-follower-3
-    tags: ["stress-test-disagg"]
-  - <<: *format-stress-test-disagg-follower-verify
-    name: format-stress-test-disagg-follower-verify
     tags: ["stress-test-disagg"]
   - <<: *format-stress-data-validation-test-disagg-follower
     name: format-stress-data-validation-test-disagg-follower-1
