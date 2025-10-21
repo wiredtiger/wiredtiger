@@ -798,10 +798,10 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
          * the checkpoint to reconcile and clean the page. This could potentially lead to the dirty
          * cache size going negative.
          */
-        if (!WT_PAGE_IS_INTERNAL(page) &&
-          __wt_atomic_load64(&S2C(session)->cache->pages_dirty_leaf) < 10 &&
-          (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
-            WT_IS_HS(session->dhandle))) {
+        if (WT_UNLIKELY(!WT_PAGE_IS_INTERNAL(page) &&
+              __wt_atomic_load64(&S2C(session)->cache->pages_dirty_leaf) < 10 &&
+              (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
+                WT_IS_HS(session->dhandle)))) {
             while (!__wt_atomic_loadbool(&page->modify->modified))
                 __wt_yield();
         } else
