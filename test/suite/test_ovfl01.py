@@ -40,7 +40,6 @@ class test_ovfl01(wttest.WiredTigerTestCase):
     #.    - Set a small leaf_page_max to create more leaf pages and page splits.
     table_config = 'key_format=S,value_format=S,leaf_key_max=10B,leaf_page_max=4KB'
     conn_config = 'cache_size=100MB,statistics=(all),timing_stress_for_test=(failpoint_rec_split_write)'
-    # conn_config += ',verbose=[block:2,reconcile:4,overflow:4,api:4]'
     uri = 'table:test_ovfl01'
 
     num_keys = 10 * 1000
@@ -59,7 +58,7 @@ class test_ovfl01(wttest.WiredTigerTestCase):
                 if str(e) != os.strerror(errno.EBUSY):
                     raise e
 
-        # The closing the cursor might hit the failpoint if the page needs to split during
+        # Closing the cursor might hit the failpoint if the page needs to split during
         # reconciliation, try again if this occurs.
         while True:
             try:
