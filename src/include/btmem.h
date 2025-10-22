@@ -1204,7 +1204,7 @@ struct __wt_ref {
  * WT_REF_REC_DIRTY, this implies that the ref has been changed concurrently and that the ref
  * remains dirty after internal page reconciliation. It is possible for other operations such as
  * page splits and fast-truncate to concurrently mark WT_REF_REC_DIRTY to the ref, but depending on
- * timing or race conditions, it cannot be guaranteed that the new flag are included as part of the
+ * timing or race conditions, it cannot be guaranteed that the new change is included as part of the
  * reconciliation. The page would need to be reconciled again to ensure that these modifications are
  * included.
  */
