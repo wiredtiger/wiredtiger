@@ -542,35 +542,24 @@ if __name__ == '__main__':
         ASAN_SYMBOLIZER_ENV = "ASAN_SYMBOLIZER_PATH"
         PYTHONMALLOC = "PYTHONMALLOC"
         LD_PRELOAD_ENV = "LD_PRELOAD"
-        SO_FILE_NAME_ARM = "libclang_rt.asan.so"
-        SO_FILE_NAME_X86 = "libclang_rt.asan.so"
-        print('Please log this ###' + str(os.environ.get(ASAN_ENV)) + "###")
+        SO_FILE_NAME = "libclang_rt.asan.so"
         if os.environ.get(ASAN_ENV) is None:
-            print('not asan env')
             if verbose >= 2:
                 print('Enabling ASAN environment and rerunning python')
-            # Check that we are on a compatible platform.
-            platform = getCpuArchitecture()
-            if platform == "Unknown":
-                print('Current CPU Architecture not available for ASAN mode.')
-                sys.exit(1)
-            if platform == "x86":
-                print('X86 detected opting to use:' + SO_FILE_NAME_X86)
-                SO_FILE_NAME = SO_FILE_NAME_X86
-            else:
-                SO_FILE_NAME = SO_FILE_NAME_ARM
             os.environ[ASAN_ENV] = "1"
             show_env(verbose, "LD_LIBRARY_PATH")
             if not os.environ.get(PYTHONMALLOC):
                 os.environ[PYTHONMALLOC] = "malloc"
             if not os.environ.get(ASAN_SYMBOLIZER_ENV):
+                # Force usage of the toolchain symbolizer, we intentionally specify v4 here as the
+                # v5 version has memory leaks which cause recursion when ASan attempts to symbolize
+                # the stack traces.
                 os.environ[ASAN_SYMBOLIZER_ENV] = '/opt/mongodbtoolchain/v4/bin/llvm-symbolizer'
             if not os.environ.get(ASAN_SYMBOLIZER_ENV):
                 error(ASAN_SYMBOLIZER_ENV,
                       'symbolizer program not found in PATH')
             show_env(verbose, ASAN_SYMBOLIZER_ENV)
             if not os.environ.get(LD_PRELOAD_ENV):
-                print('no LDPRELOAD')
                 symbolizer = follow_symlinks('/opt/mongodbtoolchain/v5/bin/llvm-symbolizer')
                 bindir = os.path.dirname(symbolizer)
                 sofiles = []
