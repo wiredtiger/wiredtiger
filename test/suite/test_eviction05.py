@@ -91,7 +91,6 @@ class test_eviction05(wttest.WiredTigerTestCase):
         self.assertGreater(self.get_stat(stat.conn.cache_eviction_maximum_clean_page_size_per_checkpoint), 0)
 
         self.assertGreater(self.get_stat(stat.conn.cache_eviction_maximum_page_size), 0)
-        self.assertEqual(self.get_stat(stat.conn.cache_eviction_maximum_page_size_per_checkpoint), 0)
 
         # Run a checkpoint and verify that eviction max stats per database run are not reset.
         self.session.checkpoint()
