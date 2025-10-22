@@ -811,8 +811,7 @@ restart:
                 /*
                  * If we get here we have a slot to coalesce and free.
                  */
-                slot_last_offset =
-                  (uint32_t)__wt_atomic_load_int64_relaxed(&slot->slot_last_offset);
+                slot_last_offset = __wt_atomic_load_int64_relaxed(&slot->slot_last_offset);
                 __wt_atomic_store_int64_v_relaxed(&coalescing->slot_last_offset, slot_last_offset);
                 WT_ASSIGN_LSN(&coalescing->slot_end_lsn, &slot->slot_end_lsn);
                 WT_STAT_CONN_INCR(session, log_slot_coalesced);
