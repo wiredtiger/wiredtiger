@@ -3254,7 +3254,7 @@ split:
     }
 
     if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
-        __wt_atomic_addv8(&ref->ref_changes, 1);
+        WT_RELEASE_WRITE(ref->rec_state, (uint8_t)WT_REF_REC_DIRTY);
 
     /*
      * If the page has post-instantiation delete information, we don't need it any more. Note: this
