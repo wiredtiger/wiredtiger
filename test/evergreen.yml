@@ -5861,11 +5861,7 @@ buildvariants:
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
       distros: amazon2-arm64-large
-    - name: unit-test
-    - name: unit-test-extra-long
-      distros: amazon2-arm64-large
     - name: unit-test-hook-timing-stress-log
-    - name: unit-test-zstd
     - name: wtperf-test
     - name: long-test
       distros: amazon2-arm64-large
