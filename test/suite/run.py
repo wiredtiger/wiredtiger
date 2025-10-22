@@ -35,7 +35,7 @@
 #
 
 from __future__ import print_function
-import glob, json, os, random, re, sys, platform
+import glob, json, os, random, re, sys
 
 if sys.version_info[0] <= 2:
     print('WiredTiger requires Python version 3.0 or above')
@@ -316,16 +316,6 @@ def testsFromArg(tests, loader, arg, scenario):
     for t in xrange(start, end+1):
         addScenarioTests(tests, loader, 'test%03d' % t, scenario)
 
-def getCpuArchitecture():
-    # Detects the CPU architecture and returns 'x86' or 'ARM'.
-    architecture = platform.machine().lower()
-    if "x86" in architecture or "amd64" in architecture:
-        return "x86"
-    elif "arm" in architecture or "aarch64" in architecture:
-        return "ARM"
-    else:
-        return "Unknown"
-
 def error(exitval, prefix, msg):
     print('*** ERROR: {}: {}'.format(prefix, msg.replace('\n', '\n*** ')))
     sys.exit(exitval)
@@ -565,9 +555,7 @@ if __name__ == '__main__':
                 sofiles = []
                 if os.path.basename(bindir) == 'bin':
                     libdir = os.path.join(os.path.dirname(bindir), 'lib')
-                    print(libdir)
                     sofiles = find(libdir, SO_FILE_NAME)
-                    print(sofiles)
                 if len(sofiles) != 1:
                     if len(sofiles) == 0:
                         fmt = 'ASAN shared library file not found.\n' + \
