@@ -37,11 +37,11 @@ class test_hs07(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = ('cache_size=50MB,eviction_updates_trigger=95,eviction_updates_target=80')
 
-    format_values = (
+    format_values = [
         ('column', dict(key_format='r', value_format='S')),
         ('column-fix', dict(key_format='r', value_format='8t')),
         ('integer-row', dict(key_format='i', value_format='S'))
-    )
+    ]
     scenarios = make_scenarios(format_values)
 
     def large_updates(self, uri, value, ds, nrows, commit_ts):

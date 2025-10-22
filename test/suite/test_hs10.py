@@ -33,10 +33,10 @@ from wtscenario import make_scenarios
 # Verify modify read after eviction.
 class test_hs10(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=2MB,statistics=(all),eviction=(threads_max=1)'
-    key_format_values = (
+    key_format_values = [
         ('column', dict(key_format='r')),
         ('integer-row', dict(key_format='i'))
-    )
+    ]
     scenarios = make_scenarios(key_format_values)
 
     def get_stat(self, stat):

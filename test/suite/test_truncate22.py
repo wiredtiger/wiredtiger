@@ -37,10 +37,10 @@ from wtdataset import SimpleDataSet
 class test_truncate22(wttest.WiredTigerTestCase):
     uri = 'table:test_truncate22'
     conn_config = 'statistics=(all)'
-    key_format_values = (
+    key_format_values = [
         ('column', dict(key_format='r', value_format='S')),
         ('integer-row', dict(key_format='i', value_format='S'))
-    )
+    ]
     scenarios = make_scenarios(key_format_values)
     nrows = 10000
 
