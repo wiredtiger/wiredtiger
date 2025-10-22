@@ -1524,6 +1524,7 @@ __wt_session_range_truncate(
         actual_uri = start->internal_uri;
     else if (stop != NULL)
         actual_uri = stop->internal_uri;
+    WT_ASSERT(session, !WT_PREFIX_MATCH(actual_uri, "layered"));
 
     /*
      * Cursor truncate is only supported for some objects, check for a supporting compare method.

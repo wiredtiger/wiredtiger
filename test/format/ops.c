@@ -1841,7 +1841,7 @@ modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     bool modify_check;
 
     /* Periodically verify the WT_CURSOR.modify return. */
-    modify_check = positioned && mmrand(&tinfo->extra_rnd, 1, 20) == 1;
+    modify_check = positioned;// && mmrand(&tinfo->extra_rnd, 1, 20) == 1;
     if (modify_check) {
         testutil_check(cursor->get_value(cursor, &tinfo->moda));
         testutil_check(
