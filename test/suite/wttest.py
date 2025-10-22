@@ -88,8 +88,13 @@ class TestSuiteConnection(object):
         self._connlist = connlist
 
     def close(self, config=''):
+        conn = self._conn
         self._connlist.remove(self._conn)
-        return self._conn.close(config)
+        self._conn = None
+        return conn.close(config)
+
+    def is_open(self):
+        return self._conn is not None
 
     # Proxy everything except what we explicitly define to the
     # wrapped connection
@@ -97,6 +102,8 @@ class TestSuiteConnection(object):
         if attr in self.__dict__:
             return getattr(self, attr)
         else:
+            if self._conn is None:
+                raise Exception('The connection is closed')
             return getattr(self._conn, attr)
 
 # Just like a list of strings, but with a convenience function
@@ -297,7 +304,13 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     rollbacksAllowed -= 1
             except wiredtiger.WiredTigerError as err:
                 self.prexception(sys.exc_info())
-                self.conn.dump_error_log()
+                if self.conn is not None and self.conn.is_open():
+                    self.conn.dump_error_log()
+                else:
+                    sys.stderr.write('Error log after WiredTigerError exception, connection is closed:\n')
+                    wiredtiger.wiredtiger_dump_error_log(lambda e: sys.stderr.write(e))
+                # Prevent an unnecessary "unexpected output" error.
+                self.ignoreTearDownLogs = True
                 raise
 
     # Construct the expected filename for an extension library and return
@@ -585,6 +598,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         cur.close()
 
     def tearDown(self, dueToRetry=False):
+        dumped_error_log = False
         teardown_failed = False
         teardown_msg = None
         if not dueToRetry:
@@ -636,15 +650,26 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         # self.conn is on the list of active connections.
         if not self.conn in self._connections:
             self._connections.append(self.conn)
+        close_failed = False
         for conn in self._connections:
             try:
                 conn.close()
+            except wiredtiger.WiredTigerError as err:
+                # If the test already failed, we let the connection close fail silently to avoid
+                # unnecessary noise.
+                if passed:
+                    self.prexception(sys.exc_info())
+                    sys.stderr.write('Error log from closing a connection:\n')
+                    wiredtiger.wiredtiger_dump_error_log(lambda e: sys.stderr.write(e))
+                    close_failed = True
+                    dumped_error_log = True
+                    passed = False
             except:
                 pass
         self._connections = []
         try:
             self.fdTearDown()
-            if not (dueToRetry or self.ignoreTearDownLogs):
+            if not (dueToRetry or self.ignoreTearDownLogs or dumped_error_log):
                 self.captureout.check(self)
                 self.captureerr.check(self)
         finally:
@@ -673,6 +698,8 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             print("[pid:{}]: {}: {:.2f} seconds".format(os.getpid(), str(self), elapsed))
         if teardown_failed:
             self.fail(f'Teardown of {self} failed with message: {teardown_msg}')
+        if close_failed:
+            self.fail(f'Closing the connection failed')
         if (not passed or teardown_failed) and (not self.skipped):
             print("[pid:{}]: ERROR in {}".format(os.getpid(), str(self)))
             self.pr('FAIL')
