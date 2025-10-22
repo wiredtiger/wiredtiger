@@ -101,6 +101,7 @@ def check_scenarios(scenes):
     """
     Make sure all scenarios have unique case insensitive names
     """
+    assert isinstance(scenes, list), f"Input `scenes` must be of type 'list' (), got {type(scenes)}"
     assert len(scenes) == len(dict((k.lower(), v) for k, v in scenes))
     return scenes
 
