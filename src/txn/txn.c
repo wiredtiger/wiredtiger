@@ -402,8 +402,8 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         /* Update the last running transaction ID. */
-        while ((id = __wt_atomic_load_uint64_v_relaxed(&s->id)) != WT_TXN_NONE &&
-          prev_oldest_id <= id && id < last_running) {
+        id = __wt_atomic_load_uint64_v_relaxed(&s->id);
+        while (id != WT_TXN_NONE && prev_oldest_id <= id && id < last_running) {
             /*
              * If the transaction is still allocating its ID, then we spin here until it gets its
              * valid ID.
