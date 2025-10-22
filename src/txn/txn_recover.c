@@ -929,7 +929,7 @@ err:
  *     Run recovery.
  */
 int
-__wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
+__wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *metac;
@@ -1121,11 +1121,10 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
         goto done;
     }
 
-    if (!hs_exists_local || disagg) {
-        if (!disagg)
-            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
-              "Creating the history store before applying log records. Likely recovering after an"
-              "unclean shutdown on an earlier version");
+    if (!hs_exists_local) {
+        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
+          "Creating the history store before applying log records. Likely recovering after an"
+          "unclean shutdown on an earlier version");
         /*
          * Create the history store as we might need it while applying log records in recovery.
          */
@@ -1189,12 +1188,10 @@ done:
      * 1. The connection is not read-only. A read-only connection expects that there shouldn't be
      *    any changes that need to be done on the database other than reading.
      * 2. The history store file was found in the metadata.
-     * 3. We are not using disaggregated storage or precise checkpoint(In precise checkpoints,
-     * everything is stable except prepared txn. Disagg also uses precise checkpoint, so neither
-     * requires rollback to stable).
+     * 3. We are not using precise checkpoints. In precise checkpoints, everything is stable
+     *    except prepared txn.
      */
-    if (hs_exists_local && !F_ISSET(conn, WT_CONN_READONLY | WT_CONN_PRECISE_CHECKPOINT) &&
-      !disagg) {
+    if (hs_exists_local && !F_ISSET(conn, WT_CONN_READONLY | WT_CONN_PRECISE_CHECKPOINT)) {
         const char *rts_cfg[] = {
           WT_CONFIG_BASE(session, WT_CONNECTION_rollback_to_stable), NULL, NULL};
         __wt_timer_start(session, &rts_timer);
@@ -1232,9 +1229,6 @@ done:
         WT_TXN_GLOBAL *txn_global = &conn->txn_global;
         txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
         txn_global->durable_timestamp = txn_global->stable_timestamp;
-
-        if (disagg)
-            __wt_verbose_info(session, WT_VERB_RTS, "%s", "skipped recovery RTS due to disagg");
     }
 
     /*

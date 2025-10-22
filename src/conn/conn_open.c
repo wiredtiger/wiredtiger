@@ -257,7 +257,9 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      * having run recovery, so the config hack is the simplest way to break that dependency.
      */
     WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
-    WT_RET(__wt_txn_recover(session, cfg, cval.len != 0));
+    /* In disagg, skip recovery as we do not have any locally persisted data. */
+    if (cval.len == 0)
+        WT_RET(__wt_txn_recover(session, cfg));
 
     /*
      * If we're performing a live restore start the server. This is intentionally placed after
