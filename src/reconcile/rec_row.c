@@ -192,6 +192,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     r = cbulk->reconcile;
     btree = S2BT(session);
     cursor = &cbulk->cbt.iface;
+    ovfl_key = ovfl_val = false;
     WT_TIME_WINDOW_INIT(&tw);
 
     key = &r->k;

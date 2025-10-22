@@ -419,9 +419,6 @@ __wti_rec_cell_build_val(WT_SESSION_IMPL *session, WTI_RECONCILE *r, const void 
     btree = S2BT(session);
     val = &r->v;
 
-    if (ovfl_val != NULL)
-        *ovfl_val = false;
-
     /*
      * Unless necessary we don't copy the data into the buffer; start by just re-pointing the
      * buffer's data/length fields.
