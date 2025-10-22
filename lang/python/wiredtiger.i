@@ -1541,8 +1541,6 @@ wiredtiger_dump_error_log_helper(const char *message)
 	if (wiredtiger_dump_error_log_callback == NULL)
 		return (EINVAL);
 
-	SWIG_PYTHON_THREAD_BEGIN_BLOCK;
-
 	/* Build the argument list. */
 	if ((arglist = Py_BuildValue("(s)", message)) == NULL) {
 		ret = WT_ERROR;
@@ -1563,8 +1561,6 @@ wiredtiger_dump_error_log_helper(const char *message)
 err:
 	Py_XDECREF(arglist);
 	Py_XDECREF(result);
-
-	SWIG_PYTHON_THREAD_END_BLOCK;
 	return (ret);
 }
 
@@ -1576,11 +1572,19 @@ int _wiredtiger_dump_error_log(PyObject *callback)
 	if (callback == NULL || callback == Py_None)
 		ret = wiredtiger_dump_error_log(NULL);
 	else {
+		/*
+		 * Acquire the Global Interpreter Lock (GIL) to protect the Python object, and to call the
+		 * provided callback function safely.
+		 */
+		SWIG_PYTHON_THREAD_BEGIN_BLOCK;
 		Py_INCREF(callback);
+
 		wiredtiger_dump_error_log_callback = callback;
 		ret = wiredtiger_dump_error_log(wiredtiger_dump_error_log_helper);
 		wiredtiger_dump_error_log_callback = NULL;
+
 		Py_XDECREF(callback);
+		SWIG_PYTHON_THREAD_END_BLOCK;
 	}
 
 	return (ret);
