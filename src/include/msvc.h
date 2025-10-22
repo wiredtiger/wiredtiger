@@ -88,6 +88,7 @@ WT_RELEASE_BARRIER(void)
 {
     WT_COMPILER_BARRIER();
 }
+
 /*
  * !!!
  * The following functions do not use atomic accesses like they do in gcc.h. MSVC doesn't have
@@ -134,6 +135,16 @@ WT_RELEASE_BARRIER(void)
     {                                                                                      \
         WT_RELEASE_BARRIER();                                                              \
         *vp = v;                                                                           \
+    }
+
+#define WT_ATOMIC_CAS_FUNC(suffix, _type, s, t)                                                \
+    static inline bool __wt_atomic_cas_##suffix(_type *vp, _type old, _type newv)              \
+    {                                                                                          \
+        return (__WT_ATOMIC_CAS_INTERNAL(vp, &old, newv));                                     \
+    }                                                                                          \
+    static inline bool __wt_atomic_cas_##suffix##_v(volatile _type *vp, _type old, _type newv) \
+    {                                                                                          \
+        return (__WT_ATOMIC_CAS_INTERNAL(vp, &old, newv));                                     \
     }
 
 #define WT_ATOMIC_FUNC(suffix, _type, s, t)                                                       \
