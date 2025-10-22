@@ -749,7 +749,7 @@ connection_runtime_config = [
                 standard dirty or update triggers won't become active until the cache fill ratio
                 first reaches this new, higher threshold.''',
                 min='0', max='50'),
-            Config('cache_tolerance_for_app_eviction', '0', r'''
+            Config('cache_tolerance_for_app_eviction', '20', r'''
                 This setting establishes a tolerance level for the configured
                 \c eviction_dirty_trigger and \c eviction_update_trigger.
                 The value is a percentage between 0 and 100, with 0 treating
@@ -761,7 +761,7 @@ connection_runtime_config = [
                 Only a part of application threads will participate in cache management
                 when a cache threshold reaches its trigger limit.''',
                 type='boolean'),
-            Config('prefer_scrub_eviction', 'false',
+            Config('prefer_scrub_eviction', 'true',
                 r'''Change the eviction strategy to scrub eviction when the cache usage is under
                 half way between the target limit to the trigger limit.''',
                 type='boolean'),
