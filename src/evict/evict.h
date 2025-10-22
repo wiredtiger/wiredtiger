@@ -17,20 +17,35 @@ struct __wt_evict {
     uint64_t app_waits;  /* User threads waited for eviction */
     uint64_t app_evicts; /* Pages evicted by user threads */
 
-    wt_shared uint64_t evict_max_page_size; /* Largest page seen at eviction */
-    wt_shared uint64_t evict_max_ms;        /* Longest milliseconds spent at a single eviction */
-    uint64_t reentry_hs_eviction_ms;        /* Total milliseconds spent inside a nested eviction */
-    struct timespec stuck_time;             /* Stuck time */
+    wt_shared uint64_t evict_max_page_size;                      /* Largest page seen at eviction */
+    wt_shared uint64_t evict_max_clean_page_size_per_checkpoint; /* Largest clean page seen at
+                                                                    eviction per checkpoint */
+    wt_shared uint64_t evict_max_dirty_page_size_per_checkpoint; /* Largest dirty page seen at
+                                                                    eviction per checkpoint */
+    wt_shared uint64_t evict_max_updates_page_size_per_checkpoint; /* Largest updates page seen at
+                                                                      eviction per checkpoint */
+
+    wt_shared uint64_t evict_max_ms; /* Longest milliseconds spent at a single eviction */
+    wt_shared uint64_t
+      evict_max_ms_per_checkpoint;   /* Longest milliseconds spent at a single eviction */
+    uint64_t reentry_hs_eviction_ms; /* Total milliseconds spent inside a nested eviction */
+    struct timespec stuck_time;      /* Stuck time */
 
     /*
      * Read information.
      */
-    uint64_t read_gen;                    /* Current page read generation */
-    uint64_t read_gen_oldest;             /* Oldest read generation the eviction
-                                           * server saw in its last queue load */
-    uint64_t evict_pass_gen;              /* Number of eviction passes */
-    wt_shared uint64_t evict_max_gen_gap; /* Maximum gap between page and connection evict pass
-                                             generation */
+    uint64_t read_gen;                              /* Current page read generation */
+    uint64_t read_gen_oldest;                       /* Oldest read generation the eviction
+                                                     * server saw in its last queue load */
+    uint64_t evict_pass_gen;                        /* Number of eviction passes */
+    wt_shared uint64_t evict_max_unvisited_gen_gap; /* Maximum gap between page and connection evict
+                                             pass generation of unvisited pages */
+    wt_shared uint64_t evict_max_unvisited_gen_gap_per_checkpoint; /* Maximum gap between page and
+                                             connection evict pass generation of unvisited pages */
+    wt_shared uint64_t evict_max_visited_gen_gap; /* Maximum gap between page and connection evict
+                                             pass generation of visited pages */
+    wt_shared uint64_t evict_max_visited_gen_gap_per_checkpoint; /* Maximum gap between page and
+                                             connection evict pass generation of visited pages */
     /*
      * Eviction thread information.
      */
@@ -179,7 +194,7 @@ static WT_INLINE bool __wt_evict_clean_pressure(WT_SESSION_IMPL *session)
 static WT_INLINE bool __wt_evict_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly,
-  double *pct_fullp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  bool ignore_updates_dirty, double *pct_fullp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_evict_page_is_soon(WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_evict_page_is_soon_or_wont_need(WT_PAGE *page)

@@ -2303,35 +2303,6 @@ __wti_heuristic_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __wti_cache_eviction_controls_config --
- *     Set cache_eviction_controls configuration.
- */
-int
-__wti_cache_eviction_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
-{
-    WT_CACHE *cache;
-    WT_CONFIG_ITEM cval;
-
-    cache = S2C(session)->cache;
-
-    WT_RET(
-      __wt_config_gets(session, cfg, "cache_eviction_controls.incremental_app_eviction", &cval));
-    if (cval.val != 0)
-        F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_EVICT_INCREMENTAL_APP);
-
-    WT_RET(__wt_config_gets(
-      session, cfg, "cache_eviction_controls.scrub_evict_under_target_limit", &cval));
-    if (cval.val != 0)
-        F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_EVICT_SCRUB_UNDER_TARGET);
-
-    WT_RET(__wt_config_gets(
-      session, cfg, "cache_eviction_controls.app_eviction_min_cache_fill_ratio", &cval));
-    __wt_atomic_store8(
-      &cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio, (uint8_t)cval.val);
-    return (0);
-}
-
-/*
  * __wti_json_config --
  *     Set JSON output configuration.
  */
@@ -3278,18 +3249,29 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * not ready for that yet. Enable precise checkpoint automatically for disaggregated storage in
      * the future.
      */
-    if (cval.val)
-        F_SET(conn, WT_CONN_PRECISE_CHECKPOINT);
-    else
+    if (cval.val) {
+        if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+            __wt_verbose_warning(session, WT_VERB_CHECKPOINT, "%s",
+              "precise checkpoint is ignored in in-memory database");
+            F_CLR(conn, WT_CONN_PRECISE_CHECKPOINT);
+        } else
+            F_SET(conn, WT_CONN_PRECISE_CHECKPOINT);
+    } else
         F_CLR(conn, WT_CONN_PRECISE_CHECKPOINT);
 
     WT_ERR(__wt_config_gets(session, cfg, "preserve_prepared", &cval));
     if (cval.val) {
-        if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
+        if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+            __wt_verbose_warning(session, WT_VERB_CHECKPOINT, "%s",
+              "preserve prepared is ignored in in-memory database");
+            F_CLR(conn, WT_CONN_PRESERVE_PREPARED);
+        } else if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
             WT_ERR_MSG(session, EINVAL,
               "Preserve prepared configuration incompatible with fuzzy checkpoint");
-        F_SET(conn, WT_CONN_PRESERVE_PREPARED);
-    }
+        else
+            F_SET(conn, WT_CONN_PRESERVE_PREPARED);
+    } else
+        F_CLR(conn, WT_CONN_PRESERVE_PREPARED);
 
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     if (cval.val) {
@@ -3337,9 +3319,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Parse the heuristic_controls configuration. */
     WT_ERR(__wti_heuristic_controls_config(session, cfg));
-
-    /* Parse the cache_eviction_controls configuration. */
-    WT_ERR(__wti_cache_eviction_controls_config(session, cfg));
 
     /*
      * Load the extensions after initialization completes; extensions expect everything else to be

@@ -91,7 +91,7 @@ config_random_generator(
  * config_random_generators --
  *     Initialize our global random generators using provided seeds.
  */
-static void
+void
 config_random_generators(void)
 {
     config_random_generator("random.data_seed", GV(RANDOM_DATA_SEED), 0, &g.data_rnd);
@@ -432,8 +432,16 @@ config_table(TABLE *table, void *arg)
     config_pct(table);
 
     /* Column-store tables require special row insert resolution. */
-    if (table->type != ROW)
+    if (table->type != ROW) {
         g.column_store_config = true;
+        /* FIXME-WT-15274 Support column store with precise checkpoint */
+        if (GV(PRECISE_CHECKPOINT)) {
+            if (config_explicit(NULL, "precise_checkpoint"))
+                WARN("turning off precise_checkpoint as table%" PRIu32 " is a column-store",
+                  table->id);
+            config_off(NULL, "precise_checkpoint");
+        }
+    }
 
     /* Only row-store tables support a collation order. */
     if (table->type != ROW)
@@ -447,8 +455,6 @@ config_table(TABLE *table, void *arg)
 void
 config_run(void)
 {
-    config_random_generators(); /* Configure the random number generators. */
-
     config_random(tables[0], false); /* Configure the remaining global name space. */
 
     /*
@@ -726,6 +732,10 @@ config_cache(void)
     cache *= workers;
     cache *= 2;
 
+    /*
+     * FIXME-WT-15723: Re-evaluate whether setting large cache size is need after cache stuck issue
+     * is solved.
+     */
     if (GV(PRECISE_CHECKPOINT))
         cache *= 6;
 
@@ -1000,6 +1010,8 @@ config_in_memory(void)
         return;
     if (config_explicit(NULL, "ops.verify"))
         return;
+    if (config_explicit(NULL, "precise_checkpoint"))
+        return;
     if (config_explicit(NULL, "runs.mirror"))
         return;
     if (config_explicit(NULL, "runs.predictable_replay"))
@@ -1050,6 +1062,8 @@ config_in_memory_reset(void)
         config_off(NULL, "ops.salvage");
     if (!config_explicit(NULL, "ops.verify"))
         config_off(NULL, "ops.verify");
+    if (!config_explicit(NULL, "precise_checkpoint"))
+        config_off(NULL, "precise_checkpoint");
     if (!config_explicit(NULL, "prefetch"))
         config_off(NULL, "prefetch");
 }
@@ -1504,40 +1518,45 @@ config_disagg_storage(void)
     page_log = GVS(DISAGG_PAGE_LOG);
 
     g.disagg_storage_config = (strcmp(page_log, "off") != 0 && strcmp(page_log, "none") != 0);
-    if (g.disagg_storage_config) {
-        if (!config_explicit(NULL, "disagg.mode")) {
-            /* Randomly assign "leader" or "follower" to disagg.mode with equal probability. */
-            testutil_snprintf(buf, sizeof(buf), "disagg.mode=%s",
-              mmrand(&g.data_rnd, 1, 100) <= 50 ? "leader" : "follower");
-            config_single(NULL, buf, false);
-        }
+    if (!g.disagg_storage_config)
+        return; /* Disaggregated storage not enabled. */
 
-        mode = GVS(DISAGG_MODE);
-        if (strcmp(mode, "leader") != 0 && strcmp(mode, "follower") != 0 &&
-          strcmp(mode, "switch") != 0)
-            testutil_die(EINVAL, "illegal disagg.mode configuration: %s", mode);
+    if (GV(DISAGG_MULTI) && !GV(RUNS_PREDICTABLE_REPLAY))
+        testutil_die(EINVAL,
+          "Invalid configuration: multi-node in disagg requires predictable replay mode "
+          "(set runs.predictable_replay=1).");
 
-        if (strcmp(mode, "switch") == 0)
-            /* Randomly assign "leader" or "follower". */
-            g.disagg_leader = mmrand(&g.data_rnd, 0, 1);
-        else
-            g.disagg_leader = strcmp(mode, "leader") == 0;
-
-        /* Disaggregated storage requires timestamps. */
-        config_off(NULL, "transaction.implicit");
-        config_single(NULL, "transaction.timestamps=on", true);
-
-        /* It makes sense to do checkpoints. */
-        if (!config_explicit(NULL, "checkpoint"))
-            config_single(NULL, "checkpoint=on", false);
-
-        /* TODO: Some operations are not yet supported for disaggregated storage. */
-        config_off(NULL, "ops.salvage");
-        config_off(NULL, "backup");
-        config_off(NULL, "backup.incremental");
-        config_off(NULL, "ops.compaction");
-        config_off(NULL, "background_compact");
+    if (!config_explicit(NULL, "disagg.mode")) {
+        /* Randomly assign "leader" or "follower" to disagg.mode with equal probability. */
+        testutil_snprintf(buf, sizeof(buf), "disagg.mode=%s",
+          mmrand(&g.data_rnd, 1, 100) <= 50 ? "leader" : "follower");
+        config_single(NULL, buf, false);
     }
+
+    mode = GVS(DISAGG_MODE);
+    if (strcmp(mode, "leader") != 0 && strcmp(mode, "follower") != 0 && strcmp(mode, "switch") != 0)
+        testutil_die(EINVAL, "illegal disagg.mode configuration: %s", mode);
+
+    if (strcmp(mode, "switch") == 0)
+        /* Randomly assign "leader" or "follower". */
+        g.disagg_leader = mmrand(&g.data_rnd, 0, 1);
+    else
+        g.disagg_leader = strcmp(mode, "leader") == 0;
+
+    /* Disaggregated storage requires timestamps. */
+    config_off(NULL, "transaction.implicit");
+    config_single(NULL, "transaction.timestamps=on", true);
+
+    /* It makes sense to do checkpoints. */
+    if (!config_explicit(NULL, "checkpoint"))
+        config_single(NULL, "checkpoint=on", false);
+
+    /* TODO: Some operations are not yet supported for disaggregated storage. */
+    config_off(NULL, "ops.salvage");
+    config_off(NULL, "backup");
+    config_off(NULL, "backup.incremental");
+    config_off(NULL, "ops.compaction");
+    config_off(NULL, "background_compact");
 }
 
 /*
@@ -1617,6 +1636,14 @@ config_transaction(void)
         config_off(NULL, "ops.prepare");
         config_off(NULL, "precise_checkpoint");
         config_off(NULL, "preserve_prepared");
+    }
+    /* FIXME-WT-15565 Write prepared truncate operation to disk. */
+    if (GV(PRECISE_CHECKPOINT) && GV(OPS_PREPARE)) {
+        if (config_explicit(NULL, "ops.truncate")) {
+            WARN("%s" PRIu32,
+              "turning off ops.truncate to work with ops.prepare and precise checkpoint");
+        }
+        config_off(NULL, "ops.truncate");
     }
 
     /* Set a default transaction timeout limit if one is not specified. */

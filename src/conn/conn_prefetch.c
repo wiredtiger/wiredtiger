@@ -54,7 +54,7 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         }
 
         TAILQ_REMOVE(&conn->pfqh, pe, q);
-        --conn->prefetch_queue_count;
+        __wt_tsan_suppress_sub_uint64(&conn->prefetch_queue_count, 1);
 
         /*
          * If the cache is getting close to its eviction clean trigger, don't attempt to pre-fetch
@@ -181,20 +181,14 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     if (__wt_evict_clean_pressure(session))
         return (EBUSY);
 
-    WT_RET(__wt_calloc_one(session, &pe));
-    pe->ref = ref;
-    pe->first_home = ref->home;
-    pe->dhandle = session->dhandle;
-
     __wt_spin_lock(session, &conn->prefetch_lock);
     /* Don't queue pages for trees that have eviction disabled. */
-    if (S2BT(session)->evict_disabled > 0) {
-        __wt_spin_unlock(session, &conn->prefetch_lock);
+    if (S2BT(session)->evict_disabled > 0)
         WT_ERR(EBUSY);
-    }
 
-    /* We should never add a ref that is already in the prefetch queue. */
-    WT_ASSERT(session, !F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH));
+    /* In a rare case, we may race with another thread trying to push the same page to the queue. */
+    if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH))
+        goto done;
 
     /* Encourage races. */
     __wt_timing_stress(session, WT_TIMING_STRESS_PREFETCH_3, NULL);
@@ -207,10 +201,13 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
      * set. Lock the ref to ensure those cases cannot happen. If we fail to lock the ref, someone
      * else must have started to operate on it. Ignore this page without waiting.
      */
-    if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
-        __wt_spin_unlock(session, &conn->prefetch_lock);
-        goto err;
-    }
+    if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
+        goto done;
+
+    WT_ERR(__wt_calloc_one(session, &pe));
+    pe->ref = ref;
+    pe->first_home = ref->home;
+    pe->dhandle = session->dhandle;
 
     /*
      * On top of indicating the leaf page is now in the prefetch queue, the prefetch flag also
@@ -221,15 +218,17 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Unlock the ref. */
     WT_REF_SET_STATE(ref, WT_REF_DISK);
     TAILQ_INSERT_TAIL(&conn->pfqh, pe, q);
-    ++conn->prefetch_queue_count;
+    __wt_tsan_suppress_add_uint64(&conn->prefetch_queue_count, 1);
     __wt_spin_unlock(session, &conn->prefetch_lock);
     __wt_cond_signal(session, conn->prefetch_threads.wait_cond);
 
-    if (0) {
-err:
-        __wt_free(session, pe);
-    }
+    return (0);
 
+err:
+    /* Unlock the ref. */
+    WT_REF_SET_STATE(ref, WT_REF_DISK);
+done:
+    __wt_spin_unlock(session, &conn->prefetch_lock);
     return (ret);
 }
 
@@ -260,7 +259,7 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
             TAILQ_REMOVE(&conn->pfqh, pe, q);
             F_CLR_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH);
             __wt_free(session, pe);
-            --conn->prefetch_queue_count;
+            __wt_tsan_suppress_sub_uint64(&conn->prefetch_queue_count, 1);
         }
     }
     if (all)
@@ -279,7 +278,7 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
      * activity to drain to prevent any invalid ref uses.
      */
     if (!all) {
-        while (((WT_BTREE *)dhandle->handle)->prefetch_busy > 0)
+        while (__wt_tsan_suppress_load_uint32_v(&((WT_BTREE *)dhandle->handle)->prefetch_busy) > 0)
             __wt_yield();
     }
 

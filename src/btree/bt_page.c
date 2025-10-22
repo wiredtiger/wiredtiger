@@ -158,6 +158,15 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
     WT_ERR(__wt_calloc_def(session, estimated_entries, refsp));
     refs = *refsp;
 
+    /*
+     * Encode the first key always from the base image. The btrees using customized collator cannot
+     * handle the truncated first key.
+     */
+    base_key = &base[i++];
+    base_val = &base[i++];
+    WT_ERR(
+      __page_build_ref(session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
+
     /* Perform a merge sort between the base array and the delta array. */
     while (i < base_entries && j < delta_entries) {
         /* Compare the keys of the base entry and the delta entry. */
@@ -173,7 +182,7 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
             WT_ERR(__page_build_ref(
               session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
         } else if (cmp >= 0) {
-            if (!F_ISSET(delta[j], WT_DELTA_INT_IS_DELETE))
+            if (!__wt_delta_cell_type_visible_all(delta[j]))
                 WT_ERR(__page_build_ref(
                   session, ref, NULL, NULL, delta[j], false, &refs[final_entries++], incr));
             if (cmp == 0)
@@ -189,7 +198,7 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
           session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
     }
     for (; j < delta_entries; j++)
-        if (!F_ISSET(delta[j], WT_DELTA_INT_IS_DELETE))
+        if (!__wt_delta_cell_type_visible_all(delta[j]))
             WT_ERR(__page_build_ref(
               session, ref, NULL, NULL, delta[j], false, &refs[final_entries++], incr));
 
@@ -304,8 +313,9 @@ __page_reconstruct_internal_deltas(
     for (i = 0, j = 0; i < (uint32_t)delta_size; ++i, j = 0) {
         header = (WT_PAGE_HEADER *)deltas[i].data;
         WT_ASSERT(session, header->u.entries != 0);
-        delta_size_each[i] = (size_t)header->u.entries;
+        WT_ASSERT(session, header->u.entries % 2 == 0);
 
+        delta_size_each[i] = (size_t)header->u.entries / 2; /* Each entry has a key and a value. */
         WT_ERR(__wt_calloc_def(session, header->u.entries, &unpacked_deltas[i]));
         WT_CELL_FOREACH_DELTA_INT(session, ref->page->dsk, header, unpacked_deltas[i][j])
         {
@@ -363,8 +373,9 @@ err:
 static int
 __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
 {
-    WT_CELL_UNPACK_DELTA_LEAF unpack;
+    WT_CELL_UNPACK_DELTA_LEAF_KV unpack;
     WT_CURSOR_BTREE cbt;
+    WT_DECL_ITEM(lastkey);
     WT_DECL_RET;
     WT_ITEM key, value;
     WT_PAGE *page;
@@ -372,25 +383,51 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
     WT_ROW *rip;
     WT_UPDATE *first_upd, *standard_value, *tombstone, *upd;
     size_t size, tmp_size, total_size;
+    uint8_t key_prefix;
 
     header = (WT_PAGE_HEADER *)delta->data;
     tmp_size = total_size = 0;
     page = ref->page;
+    standard_value = tombstone = NULL;
 
     WT_CLEAR(unpack);
+
+    WT_RET(__wt_scr_alloc(session, 0, &lastkey));
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
-    WT_CELL_FOREACH_DELTA_LEAF(session, header, unpack)
+    WT_CELL_FOREACH_DELTA_LEAF(session, header, &unpack)
     {
-        key.data = unpack.key;
-        key.size = unpack.key_size;
+        key.data = unpack.delta_key.data;
+        key.size = unpack.delta_key.size;
+        key_prefix = unpack.delta_key.prefix;
+        /*
+         * If the key has no prefix count, no prefix compression work is needed; else check for a
+         * previously built key big enough cover this key's prefix count.
+         */
+        if (key_prefix == 0) {
+            lastkey->data = key.data;
+            lastkey->size = key.size;
+        } else {
+            WT_ASSERT(session, lastkey->size >= key_prefix);
+            /*
+             * Grow the buffer as necessary as well as ensure data has been copied into local buffer
+             * space, then append the suffix to the prefix already in the buffer. Don't grow the
+             * buffer unnecessarily or copy data we don't need, truncate the item's CURRENT data
+             * length to the prefix bytes before growing the buffer.
+             */
+            lastkey->size = key_prefix;
+            WT_ERR(__wt_buf_grow(session, lastkey, key_prefix + key.size));
+            memcpy((uint8_t *)lastkey->mem + key_prefix, key.data, key.size);
+            lastkey->size = key_prefix + key.size;
+        }
+
         upd = standard_value = tombstone = NULL;
         size = 0;
 
         /* Search the page and apply the modification. */
-        WT_ERR(__wt_row_search(&cbt, &key, true, ref, true, NULL));
+        WT_ERR(__wt_row_search(&cbt, lastkey, true, ref, true, NULL));
         /*
          * Deltas are applied from newest to oldest, ignore keys that have already got a delta
          * update.
@@ -413,63 +450,51 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
             size += tmp_size;
             upd = tombstone;
         } else {
-            value.data = unpack.value;
-            value.size = unpack.value_size;
+            value.data = unpack.delta_value_data.data;
+            value.size = unpack.delta_value_data.size;
             WT_ERR(__wt_upd_alloc(session, &value, WT_UPDATE_STANDARD, &standard_value, &tmp_size));
-            standard_value->txnid = unpack.tw.start_txn;
-            standard_value->upd_start_ts = unpack.tw.start_ts;
-            standard_value->upd_durable_ts = unpack.tw.durable_start_ts;
-            if (WT_TIME_WINDOW_HAS_START_PREPARE(&unpack.tw)) {
-                standard_value->prepared_id = unpack.tw.start_prepared_id;
-                standard_value->prepare_ts = unpack.tw.start_prepare_ts;
+            standard_value->txnid = unpack.delta_value.tw.start_txn;
+            if (WT_TIME_WINDOW_HAS_START_PREPARE(&unpack.delta_value.tw)) {
+                standard_value->prepared_id = unpack.delta_value.tw.start_prepared_id;
+                standard_value->prepare_ts = unpack.delta_value.tw.start_prepare_ts;
                 standard_value->prepare_state = WT_PREPARE_INPROGRESS;
+                standard_value->upd_start_ts = unpack.delta_value.tw.start_prepare_ts;
 
-                F_SET(standard_value, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
-            } else
+                F_SET(standard_value,
+                  WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS |
+                    WT_UPDATE_RESTORED_FROM_DELTA);
+            } else {
+                standard_value->upd_start_ts = unpack.delta_value.tw.start_ts;
+                standard_value->upd_durable_ts = unpack.delta_value.tw.durable_start_ts;
                 F_SET(standard_value, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
+            }
             size += tmp_size;
 
-            if (WT_TIME_WINDOW_HAS_STOP(&unpack.tw)) {
+            if (WT_TIME_WINDOW_HAS_STOP(&unpack.delta_value.tw)) {
                 WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &tmp_size));
-                tombstone->txnid = unpack.tw.stop_txn;
-                tombstone->upd_start_ts = unpack.tw.stop_ts;
-                tombstone->upd_durable_ts = unpack.tw.durable_stop_ts;
+                tombstone->txnid = unpack.delta_value.tw.stop_txn;
 
-                if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&unpack.tw)) {
-                    tombstone->prepared_id = unpack.tw.stop_prepared_id;
-                    tombstone->prepare_ts = unpack.tw.stop_prepare_ts;
+                if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&unpack.delta_value.tw)) {
+                    tombstone->prepared_id = unpack.delta_value.tw.stop_prepared_id;
+                    tombstone->prepare_ts = unpack.delta_value.tw.stop_prepare_ts;
                     tombstone->prepare_state = WT_PREPARE_INPROGRESS;
-                    F_SET(
-                      tombstone, WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS);
-
-                    if (WT_TIME_WINDOW_HAS_START_PREPARE(&unpack.tw)) {
-                        standard_value->prepared_id = unpack.tw.start_prepared_id;
-                        standard_value->prepare_ts = unpack.tw.start_prepare_ts;
-                        standard_value->prepare_state = WT_PREPARE_INPROGRESS;
-                        F_SET(standard_value,
-                          WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS);
-                    }
-                } else
+                    tombstone->upd_start_ts = unpack.delta_value.tw.stop_prepare_ts;
+                    F_SET(tombstone,
+                      WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS |
+                        WT_UPDATE_RESTORED_FROM_DELTA);
+                } else {
+                    tombstone->upd_start_ts = unpack.delta_value.tw.stop_ts;
+                    tombstone->upd_durable_ts = unpack.delta_value.tw.durable_stop_ts;
                     F_SET(tombstone, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
+                }
                 size += tmp_size;
                 tombstone->next = standard_value;
                 upd = tombstone;
-            } else {
-                if (WT_TIME_WINDOW_HAS_START_PREPARE(&unpack.tw)) {
-                    WT_ASSERT(session,
-                      unpack.tw.start_prepared_id != WT_PREPARED_ID_NONE &&
-                        unpack.tw.start_prepare_ts != WT_TS_NONE);
-                    standard_value->prepared_id = unpack.tw.start_prepared_id;
-                    standard_value->prepare_ts = unpack.tw.start_prepare_ts;
-                    standard_value->prepare_state = WT_PREPARE_INPROGRESS;
-                    F_SET(standard_value,
-                      WT_UPDATE_PREPARE_DURABLE | WT_UPDATE_PREPARE_RESTORED_FROM_DS);
-                }
+            } else
                 upd = standard_value;
-            }
         }
 
-        WT_ERR(__wt_row_modify(&cbt, &key, NULL, &upd, WT_UPDATE_INVALID, true, true));
+        WT_ERR(__wt_row_modify(&cbt, lastkey, NULL, &upd, WT_UPDATE_INVALID, true, true));
 
         total_size += size;
     }
@@ -483,6 +508,7 @@ err:
         __wt_free(session, standard_value);
         __wt_free(session, tombstone);
     }
+    __wt_scr_free(session, &lastkey);
     WT_TRET(__wt_btcur_close(&cbt, true));
     return (ret);
 }
@@ -519,7 +545,8 @@ __wti_page_reconstruct_deltas(
          * We may be in a reconciliation already. Don't rewrite in this case as reconciliation is
          * not reentrant.
          *
-         * FIXME-WT-14885: this should go away when we use an algorithm to directly rewrite delta.
+         * FIXME- WT-15619 and WT-15618: this should go away when we use an algorithm to directly
+         * rewrite delta.
          */
         if (F_ISSET(&S2C(session)->page_delta, WT_FLATTEN_LEAF_PAGE_DELTA) &&
           !__wt_rec_in_progress(session)) {
@@ -966,7 +993,8 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
               "Should never read an overflow removed value for a prepared update");
             first_upd = WT_ROW_UPDATE(page, rip);
             /*
-             * FIXME-WT-14885: This key must have been overwritten by a delta. Don't instantiate it.
+             * FIXME- WT-15619 and WT-15618: This key must have been overwritten by a delta. Don't
+             * instantiate it.
              */
             if (first_upd == NULL) {
                 WT_ERR(__page_inmem_update(session, value, &unpack, &upd, &size));
@@ -1080,7 +1108,7 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
 
     /* Allocate and initialize a new WT_PAGE. */
     WT_RET(__wt_page_alloc(session, dsk->type, alloc_entries, true, &page, flags));
-    page->dsk = dsk;
+    __wt_tsan_suppress_store_wt_page_header_ptr(&page->dsk, dsk);
     F_SET_ATOMIC_16(page, flags);
 
     /*
@@ -1283,8 +1311,8 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp,
          * If we skipped "quite a few" entries (threshold is arbitrary), and the tree is already
          * dirty and so will be written, mark the page dirty so it gets rewritten without them.
          */
-        if (btree->modified && skipped >= auxhdr.entries / 4 && skipped >= dsk->u.entries / 100 &&
-          skipped > 4) {
+        if (__wt_tsan_suppress_load_bool(&btree->modified) && skipped >= auxhdr.entries / 4 &&
+          skipped >= dsk->u.entries / 100 && skipped > 4) {
             WT_RET(__wt_page_modify_init(session, page));
             __wt_page_only_modify_set(session, page);
         }

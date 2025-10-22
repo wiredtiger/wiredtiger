@@ -539,7 +539,7 @@ __checkpoint_wait_reduce_dirty_cache(WT_SESSION_IMPL *session)
      * if we're transitioning to a shared cache via reconfigure. This avoids potential divide by
      * zero.
      */
-    if ((cache_size = conn->cache_size) < 10 * WT_MEGABYTE)
+    if ((cache_size = __wt_tsan_suppress_load_uint64_v(&conn->cache_size)) < 10 * WT_MEGABYTE)
         return;
 
     current_dirty = (100.0 * __wt_cache_dirty_leaf_inuse(cache)) / cache_size;
@@ -915,7 +915,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
                   __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[0]),
                   __wt_timestamp_to_string(txn_global->stable_timestamp, ts_string[1]));
             }
-            txn_global->checkpoint_timestamp = txn_global->stable_timestamp;
+            __wt_tsan_suppress_store_uint64(
+              &txn_global->checkpoint_timestamp, txn_global->stable_timestamp);
             if (!F_ISSET(conn, WT_CONN_RECOVERING))
                 txn_global->meta_ckpt_timestamp = txn_global->checkpoint_timestamp;
         } else if (!F_ISSET(conn, WT_CONN_RECOVERING))
@@ -1155,6 +1156,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     const char *name;
     bool can_skip, failed, idle, logging, tracking, use_timestamp;
     bool ckpt_crash_before_metadata_sync, ckpt_crash_before_metadata_update;
+    char ts_string[WT_TS_INT_STRING_SIZE];
     void *saved_meta_next;
 
     conn = S2C(session);
@@ -1196,9 +1198,12 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     logging = F_ISSET(&conn->log_mgr, WT_LOG_ENABLED);
 
     /* Reset the statistics tracked per checkpoint. */
-    __wt_atomic_store64(&evict->evict_max_gen_gap, 0);
-    __wt_atomic_store64(&evict->evict_max_page_size, 0);
-    __wt_atomic_store64(&evict->evict_max_ms, 0);
+    __wt_atomic_store64(&evict->evict_max_unvisited_gen_gap_per_checkpoint, 0);
+    __wt_atomic_store64(&evict->evict_max_visited_gen_gap_per_checkpoint, 0);
+    __wt_atomic_store64(&evict->evict_max_clean_page_size_per_checkpoint, 0);
+    __wt_atomic_store64(&evict->evict_max_dirty_page_size_per_checkpoint, 0);
+    __wt_atomic_store64(&evict->evict_max_updates_page_size_per_checkpoint, 0);
+    __wt_atomic_store64(&evict->evict_max_ms_per_checkpoint, 0);
     evict->reentry_hs_eviction_ms = 0;
     __wt_atomic_store32(&conn->heuristic_controls.obsolete_tw_btree_count, 0);
     conn->rec_maximum_hs_wrapup_milliseconds = 0;
@@ -1316,6 +1321,10 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * the checkpoint resolve of the shared metadata table.
      */
     conn->disaggregated_storage.cur_checkpoint_timestamp = ckpt_tmp_ts;
+    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader)
+        __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Starting disaggregated storage checkpoint with timestamp: %" PRIu64 " %s", ckpt_tmp_ts,
+          __wt_timestamp_to_string(ckpt_tmp_ts, ts_string));
 
     WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);
 
@@ -1385,14 +1394,14 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
         time_start_hs = __wt_clock(session);
-        conn->txn_global.checkpoint_running_hs = true;
+        __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, true);
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS);
 
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_file(session, cfg));
         if (hs_dhandle_shared != NULL)
             WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint_file(session, cfg));
 
-        conn->txn_global.checkpoint_running_hs = false;
+        __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
         WT_ERR(ret);
 
         /*
@@ -1654,11 +1663,14 @@ err:
      * disaggregated storage, even if there were no other changes.
      */
     WT_ACQUIRE_READ(num_meta_put, conn->disaggregated_storage.num_meta_put);
-    if (!failed && __wt_conn_is_disagg(session) &&
+    if (!failed && __wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
       conn->disaggregated_storage.num_meta_put_at_ckpt_begin == num_meta_put &&
       ckpt_tmp_ts != conn->disaggregated_storage.last_checkpoint_timestamp) {
         WT_TRET(__wt_disagg_put_checkpoint_meta(
           session, conn->disaggregated_storage.last_checkpoint_root, 0, ckpt_tmp_ts));
+        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
+          "Updated disaggregated storage checkpoint metadata because the stable timestamp "
+          "advanced");
     }
 
     /*
@@ -2542,7 +2554,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
      * modified flag. The "unless reconciliation skips updates" problem is handled in the
      * reconciliation code: if reconciliation skips updates, it sets the modified flag itself.
      */
-    btree->modified = false;
+    __wt_tsan_suppress_store_bool(&btree->modified, false);
     WT_FULL_BARRIER();
 
     /* Tell logging that a file checkpoint is starting. */

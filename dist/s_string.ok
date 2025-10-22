@@ -343,6 +343,7 @@ RETRYABLE
 RHEL
 RLE
 RLEs
+RMW
 RNG
 RNGs
 RPC
@@ -434,6 +435,7 @@ UnlockFile
 Unmap
 UnmapViewOfFile
 Unmount
+Unreferenced
 Uryyb
 VARCHAR
 VLCS
@@ -826,6 +828,7 @@ foward
 fprintf
 fread
 free'd
+freopen
 fs
 fscanf
 fseek
@@ -1002,6 +1005,7 @@ logpath
 logread
 logrec
 logsize
+logslot
 logtest
 lookaside
 lookups
@@ -1150,6 +1154,7 @@ pT
 packv
 pageref
 pagesize
+palite
 param
 pareto
 parserp
@@ -1407,6 +1412,7 @@ truncations
 trylock
 tryrdlock
 trywrlock
+tsan
 tsc
 tupdate
 tw

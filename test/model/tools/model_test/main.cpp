@@ -330,6 +330,7 @@ update_spec(model::kv_workload_generator_spec &spec, std::string &conn_config,
         UPDATE_SPEC(timing_stress_hs_sweep_race, float);
         UPDATE_SPEC(timing_stress_prepare_ckpt_delay, float);
         UPDATE_SPEC(timing_stress_commit_txn_slow, float);
+        UPDATE_SPEC(timing_stress_rec_before_wrapup, float);
 
         else if (k == "connection_config") conn_config += "," + m.get_string("connection_config");
 
@@ -714,6 +715,7 @@ usage(const char *progname)
     fprintf(stderr, "usage: %s [OPTIONS]\n\n", progname);
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -C CONFIG  specify WiredTiger's connection configuration\n");
+    fprintf(stderr, "  -D         use disaggregated storage (equivalent to -G disaggregated=1)\n");
     fprintf(stderr, "  -G CONFIG  specify the workload generator's configuration\n");
     fprintf(stderr, "  -g         generate random timing stress configuration\n");
     fprintf(stderr, "  -h HOME    specify the database directory\n");

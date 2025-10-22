@@ -32,6 +32,7 @@
  */
 %include <pybuffer.i>
 %include <cstring.i>
+%include <stdint.i>
 
 %define DOCSTRING
 "Python wrappers around the WiredTiger C API
@@ -582,6 +583,9 @@ def wiredtiger_calc_modify(session, oldv, newv, maxdiff, nmod):
 
 def wiredtiger_calc_modify_string(session, oldv, newv, maxdiff, nmod):
 	return _wiredtiger_calc_modify_string(session, oldv, newv, maxdiff, nmod)
+
+def wiredtiger_dump_error_log(callback=None):
+	return _wiredtiger_dump_error_log(callback)
 
 %}
 
@@ -1233,11 +1237,11 @@ SIDESTEP_METHOD(__wt_page_log, pl_get_complete_checkpoint_ext,
   (self, session, checkpoint_lsn, checkpoint_id, checkpoint_timestamp, checkpoint_metadata))
 
 SIDESTEP_METHOD(__wt_page_log, pl_get_last_lsn,
-  (WT_SESSION *session, int *lsn),
+  (WT_SESSION *session, uint64_t *lsn),
   (self, session, lsn))
 
 SIDESTEP_METHOD(__wt_page_log, pl_get_open_checkpoint,
-  (WT_SESSION *session, int *checkpoint_id),
+  (WT_SESSION *session, uint64_t *checkpoint_id),
   (self, session, checkpoint_id))
 
 SIDESTEP_METHOD(__wt_page_log, pl_open_handle,
@@ -1262,8 +1266,8 @@ SIDESTEP_METHOD(__wt_page_log_handle, plh_get,
   (self, session, page_id, checkpoint_id, get_args, results_array, results_count))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_get_page_ids,
-  (WT_SESSION *session, int checkpoint_lsn, int table_id, WT_ITEM *item, size_t *size),
-  (self, session, checkpoint_lsn, table_id, item, size))
+  (WT_SESSION *session, int checkpoint_lsn, WT_ITEM *item, size_t *size),
+  (self, session, checkpoint_lsn, item, size))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_discard,
   (WT_SESSION *session, int page_id, int checkpoint_id, WT_PAGE_LOG_DISCARD_ARGS *discard_args),
@@ -1460,12 +1464,14 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 %ignore wiredtiger_struct_unpack;
 
 %ignore wiredtiger_calc_modify;
+%ignore wiredtiger_dump_error_log;
 %ignore wiredtiger_extension_init;
 %ignore wiredtiger_extension_terminate;
 
 
 /* Convert 'int *' to output args for wiredtiger_version */
 %apply int *OUTPUT { int * };
+%apply uint64_t *OUTPUT { uint64_t * };
 %cstring_output_allocate(char **, );
 
 %rename(Cursor) __wt_cursor;
@@ -1495,6 +1501,10 @@ extern int _wiredtiger_calc_modify(WT_SESSION *session,
 extern int _wiredtiger_calc_modify_string(WT_SESSION *session,
     const WT_ITEM *oldv, const WT_ITEM *newv,
     size_t maxdiff, WT_MODIFY *entries_string, int *nentriesp);
+
+/* A wrapper function for wiredtiger_dump_error_log, which takes a function argument. */
+extern int _wiredtiger_dump_error_log(PyObject *callback);
+
 %{
 int _wiredtiger_calc_modify(WT_SESSION *session,
     const WT_ITEM *oldv, const WT_ITEM *newv,
@@ -1510,6 +1520,76 @@ int _wiredtiger_calc_modify_string(WT_SESSION *session,
 {
 	return (wiredtiger_calc_modify(
 	    session, oldv, newv, maxdiff, entries_string, nentriesp));
+}
+
+/* Python callback for wiredtiger_dump_error_log. */
+#ifdef _WIN32
+__declspec(thread) static PyObject *wiredtiger_dump_error_log_callback = NULL;
+#else
+_Thread_local static PyObject *wiredtiger_dump_error_log_callback = NULL;
+#endif
+
+/* The callback function for wiredtiger_dump_error_log. */
+static int
+wiredtiger_dump_error_log_helper(const char *message)
+{
+	PyObject *arglist, *result;
+	int ret;
+
+	ret = 0;
+	arglist = NULL;
+	result = NULL;
+
+	if (wiredtiger_dump_error_log_callback == NULL)
+		return (EINVAL);
+
+	/* Build the argument list. */
+	if ((arglist = Py_BuildValue("(s)", message)) == NULL) {
+		ret = WT_ERROR;
+		goto err;
+	}
+
+	/* Call the Python function. */
+	result = PyObject_CallObject(wiredtiger_dump_error_log_callback, arglist);
+	if (result == NULL) {
+		ret = WT_ERROR;
+		goto err;
+	}
+
+	/* Set the error code, if provided. */
+	if (PyLong_Check(result))
+		ret = (int)PyLong_AsLong(result);
+
+err:
+	Py_XDECREF(arglist);
+	Py_XDECREF(result);
+	return (ret);
+}
+
+/* A wrapper function for wiredtiger_dump_error_log, which takes a function argument. */
+int _wiredtiger_dump_error_log(PyObject *callback)
+{
+	int ret;
+
+	if (callback == NULL || callback == Py_None)
+		ret = wiredtiger_dump_error_log(NULL);
+	else {
+		/*
+		 * Acquire the Global Interpreter Lock (GIL) to protect the Python object, and to call the
+		 * provided callback function safely.
+		 */
+		SWIG_PYTHON_THREAD_BEGIN_BLOCK;
+		Py_INCREF(callback);
+
+		wiredtiger_dump_error_log_callback = callback;
+		ret = wiredtiger_dump_error_log(wiredtiger_dump_error_log_helper);
+		wiredtiger_dump_error_log_callback = NULL;
+
+		Py_XDECREF(callback);
+		SWIG_PYTHON_THREAD_END_BLOCK;
+	}
+
+	return (ret);
 }
 
 /* Add event handler support. */

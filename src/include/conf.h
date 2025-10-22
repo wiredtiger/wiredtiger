@@ -12,10 +12,23 @@
  * Sample usage:
  *  __wt_conf_gets(session, conf, statistics, &cval);
  *  __wt_conf_gets(session, conf, Operation_tracking.enabled, &cval);
+ *  __wt_conf_getones(session, conf, cache_cursors, &cval));
  *  __wt_conf_gets_def(session, conf, no_timestamp, 0, &cval));
  */
 #define __wt_conf_gets(s, conf, key, cval) \
-    __wt_conf_gets_func(s, conf, WT_CONF_ID_STRUCTURE.key, 0, false, cval)
+    __wt_conf_gets_func(s, conf, WT_CONF_ID_STRUCTURE.key, 0, false, false, cval)
+
+/*
+ * This is equivalent to the use of __wt_config_getones when using configuration strings for the
+ * case when there is a single configuration string supplied by the API caller, and a base "default"
+ * configuration string.  In this case, only the "API caller" configuration string is searched.
+ * __wt_conf_getones and __wt_config_getones would be different for an unusual case when there are
+ * multiple configuration strings grouped on top of the base default.  With __wt_config_getones you
+ * can search any specific configuration strings, whereas __wt_conf_getones searches them all in
+ * order, but ignores the last base default.
+ */
+#define __wt_conf_getones(s, conf, key, cval) \
+    __wt_conf_gets_func(s, conf, WT_CONF_ID_STRUCTURE.key, 0, false, true, cval)
 
 #define __wt_conf_gets_def(s, conf, key, def, cval) \
     __wt_conf_gets_def_func(s, conf, WT_CONF_ID_STRUCTURE.key, def, cval)
@@ -142,7 +155,7 @@ WT_CONF_API_DECLARE(WT_CONNECTION, debug_info, 1, 8);
 WT_CONF_API_DECLARE(WT_CONNECTION, load_extension, 1, 4);
 WT_CONF_API_DECLARE(WT_CONNECTION, open_session, 3, 9);
 WT_CONF_API_DECLARE(WT_CONNECTION, query_timestamp, 1, 1);
-WT_CONF_API_DECLARE(WT_CONNECTION, reconfigure, 21, 123);
+WT_CONF_API_DECLARE(WT_CONNECTION, reconfigure, 20, 124);
 WT_CONF_API_DECLARE(WT_CONNECTION, rollback_to_stable, 1, 2);
 WT_CONF_API_DECLARE(WT_CONNECTION, set_timestamp, 1, 4);
 WT_CONF_API_DECLARE(WT_CURSOR, bound, 1, 3);
@@ -173,10 +186,10 @@ WT_CONF_API_DECLARE(object, meta, 7, 71);
 WT_CONF_API_DECLARE(table, meta, 2, 13);
 WT_CONF_API_DECLARE(tier, meta, 7, 72);
 WT_CONF_API_DECLARE(tiered, meta, 7, 74);
-WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open, 26, 194);
-WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_all, 26, 195);
-WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_basecfg, 26, 189);
-WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_usercfg, 26, 188);
+WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open, 25, 195);
+WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_all, 25, 196);
+WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_basecfg, 25, 190);
+WT_CONF_API_DECLARE(GLOBAL, wiredtiger_open_usercfg, 25, 189);
 
 #define WT_CONF_API_ELEMENTS 56
 

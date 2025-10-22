@@ -907,7 +907,7 @@ __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinne
      * data being pinned. If a checkpoint is starting and we have to use the checkpoint timestamp,
      * we take the minimum of it with the stable timestamp, which is what we want.
      */
-    checkpoint_ts = txn_global->checkpoint_timestamp;
+    checkpoint_ts = __wt_tsan_suppress_load_uint64(&txn_global->checkpoint_timestamp);
 
     if (checkpoint_ts != 0 && checkpoint_ts < pinned_stable_ts)
         *pinned_stable_tsp = checkpoint_ts;
@@ -1439,7 +1439,7 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
      */
     WT_RET(__wt_calloc(session, 1, allocsz, &upd));
     if (value != NULL && value->size != 0) {
-        upd->size = WT_STORE_SIZE(value->size);
+        __wt_tsan_suppress_store_uint32(&upd->size, WT_STORE_SIZE(value->size));
         memcpy(upd->data, value->data, value->size);
     }
     upd->type = (uint8_t)modify_type;
@@ -1467,7 +1467,8 @@ __wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_UPDATE **updp, size_t *siz
  */
 static WT_INLINE int
 __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
-  uint64_t recno, WT_UPDATE *upd, WT_UPDATE **prepare_updp, WT_UPDATE **restored_updp)
+  uint64_t recno, WT_UPDATE *upd, WT_UPDATE **prepare_updp, WT_UPDATE **restored_updp,
+  bool *seen_restored_deltap)
 {
     WT_VISIBLE_TYPE upd_visible;
     uint64_t prepare_txnid;
@@ -1566,6 +1567,8 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
 
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA) && upd->type == WT_UPDATE_STANDARD) {
             WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY));
+            if (seen_restored_deltap != NULL)
+                *seen_restored_deltap = true;
             /*
              * If we see an update that is not visible to the reader and it is restored from delta,
              * we should search the history store.
@@ -1576,8 +1579,6 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
                 __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
                 WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format,
                   recno, cbt->upd_value, &cbt->upd_value->buf));
-                if (cbt->upd_value->type == WT_UPDATE_INVALID)
-                    return (WT_NOTFOUND);
                 return (0);
             }
         }
@@ -1610,7 +1611,7 @@ static WT_INLINE int
 __wt_txn_read_upd_list(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE *upd)
 {
-    return (__wt_txn_read_upd_list_internal(session, cbt, key, recno, upd, NULL, NULL));
+    return (__wt_txn_read_upd_list_internal(session, cbt, key, recno, upd, NULL, NULL, NULL));
 }
 
 /*
@@ -1627,14 +1628,21 @@ __wt_txn_read(
     WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd, *restored_upd;
-    bool have_stop_tw, prepare_retry, read_onpage;
+    bool have_stop_tw, prepare_retry, read_onpage, seen_restored_delta;
 
     prepare_upd = restored_upd = NULL;
     read_onpage = prepare_retry = true;
+    seen_restored_delta = false;
 
 retry:
-    WT_RET(
-      __wt_txn_read_upd_list_internal(session, cbt, key, recno, upd, &prepare_upd, &restored_upd));
+    WT_RET(__wt_txn_read_upd_list_internal(
+      session, cbt, key, recno, upd, &prepare_upd, &restored_upd, &seen_restored_delta));
+    /*
+     * If we see an update restored from delta, we must have already tried the history store if
+     * necessary. We are done.
+     */
+    if (seen_restored_delta)
+        return (0);
     if (WT_UPDATE_DATA_VALUE(cbt->upd_value) ||
       (cbt->upd_value->type == WT_UPDATE_MODIFY && cbt->upd_value->skip_buf))
         return (0);
@@ -1910,11 +1918,11 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
     prepared_item->mod = tmp_mod;
     prepared_item->mod_alloc = 0;
     prepared_item->mod_count = 0;
-    WT_RET(__wt_prepared_discover_remove_item(session, prepared_id));
 #ifdef HAVE_DIAGNOSTIC
     txn->prepare_count = prepared_item->prepare_count;
     prepared_item->prepare_count = 0;
 #endif
+    WT_RET(__wt_prepared_discover_remove_item(session, prepared_id));
 
     /* There's no txn id since claimed prepared txn is from recovery */
     WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_HAS_ID));
@@ -1930,7 +1938,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 {
     WT_CONFIG_ITEM cval;
     WT_TXN *txn;
-    wt_timestamp_t prepared_id;
+    uint64_t prepared_id;
 
     txn = session->txn;
     txn->isolation = session->isolation;
@@ -2063,7 +2071,8 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
      */
     if (publish) {
         WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->is_allocating, true);
-        WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, txn_global->current);
+        WT_RELEASE_WRITE_WITH_BARRIER(
+          txn_shared->id, __wt_tsan_suppress_load_uint64_v(&txn_global->current));
         id = __wt_atomic_fetch_addv64(&txn_global->current, 1);
         session->txn->id = id;
         WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, id);

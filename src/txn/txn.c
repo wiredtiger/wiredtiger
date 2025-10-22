@@ -113,7 +113,7 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
     /* Clear a checkpoint's pinned ID and timestamp. */
     if (WT_SESSION_IS_CHECKPOINT(session)) {
         __wt_atomic_storev64(&txn_global->checkpoint_txn_shared.pinned_id, WT_TXN_NONE);
-        txn_global->checkpoint_timestamp = WT_TS_NONE;
+        __wt_tsan_suppress_store_uint64(&txn_global->checkpoint_timestamp, WT_TS_NONE);
     }
 
     /* Leave the generation after releasing the snapshot. */
@@ -553,7 +553,8 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
           current_id - oldest_id > (10 * WT_THOUSAND) && oldest_session != NULL) {
             __wt_verbose(session, WT_VERB_TRANSACTION,
               "oldest id %" PRIu64 " pinned in session %" PRIu32 " [%s] with snap_min %" PRIu64,
-              oldest_id, oldest_session->id, oldest_session->lastop,
+              oldest_id, oldest_session->id,
+              __wt_tsan_suppress_load_const_char_ptr(&oldest_session->lastop),
               oldest_session->txn->snapshot_data.snap_min);
         }
     }
@@ -728,7 +729,7 @@ err:
  *     WT_SESSION::reconfigure for transactions.
  */
 int
-__wt_txn_reconfigure(WT_SESSION_IMPL *session, const char *config)
+__wt_txn_reconfigure(WT_SESSION_IMPL *session, WT_CONF *conf)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
@@ -736,7 +737,7 @@ __wt_txn_reconfigure(WT_SESSION_IMPL *session, const char *config)
 
     txn = session->txn;
 
-    ret = __wt_config_getones(session, config, "isolation", &cval);
+    ret = __wt_conf_getones(session, conf, isolation, &cval);
     if (ret == 0)
         /* Can only reconfigure this if transaction is not active. */
         WT_RET(__wt_txn_context_check(session, false));
@@ -935,7 +936,7 @@ done:
  */
 static int
 __txn_search_prepared_op(
-  WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR **cursorp, WT_UPDATE **updp, bool *has_onpagep)
+  WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR **cursorp, WT_UPDATE **updp)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -991,7 +992,7 @@ __txn_search_prepared_op(
     }
 
     F_CLR(txn, txn_flags);
-    WT_WITH_BTREE(session, op->btree, ret = __wt_btcur_search_prepared(cursor, updp, has_onpagep));
+    WT_WITH_BTREE(session, op->btree, ret = __wt_btcur_search_prepared(cursor, updp));
     F_SET(txn, txn_flags);
     F_CLR(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
     WT_RET(ret);
@@ -1063,6 +1064,9 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
     if (upd->prepare_state != WT_PREPARE_INPROGRESS)
         return;
 
+    WT_ASSERT(session,
+      !F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) || upd->prepared_id == txn->prepared_id);
+
     /* Go down the chain. Do the resolves on the way back up. */
     __txn_resolve_prepared_update_chain(session, upd->next, commit);
 
@@ -1116,7 +1120,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_UPDATE *head_upd;
     uint8_t hs_recno_key_buf[WT_INTPACK64_MAXSIZE], *p, resolve_case;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
-    bool has_onpage, tw_found;
+    bool tw_found;
 
     hs_cursor = NULL;
     txn = session->txn;
@@ -1125,7 +1129,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 #define RESOLVE_IN_MEMORY 2
     WT_NOT_READ(resolve_case, RESOLVE_UPDATE_CHAIN);
 
-    WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd, &has_onpage));
+    WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
 
     if (commit)
         __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
@@ -1223,10 +1227,15 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * If the prepared update is the only update on the update chain and there is no on-disk
          * value. Delete the key with a tombstone.
          */
-        if (!commit && first_committed_upd == NULL && !has_onpage)
-            WT_ERR(__txn_prepare_rollback_delete_key(session, op, cbt));
+        if (!commit && first_committed_upd == NULL) {
+            tw_found = __wt_read_cell_time_window(cbt, &tw);
+            if (!tw_found)
+                WT_ERR(__txn_prepare_rollback_delete_key(session, op, cbt));
+            else
+                WT_ASSERT_ALWAYS(
+                  session, !WT_TIME_WINDOW_HAS_PREPARE(&tw), "no committed update to fallback to.");
+        }
         break;
-
     case RESOLVE_PREPARE_ON_DISK:
         /*
          * Open a history store table cursor and scan the history store for the given btree and key
@@ -1615,15 +1624,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             }
             break;
         case WT_TXN_OP_REF_DELETE:
-            /*
-             * For non-standalone builds, skip truncate commit timestamp validation, as MongoDB
-             * doesn't use timestamps with truncate operations.
-             */
-#ifdef WT_STANDALONE_BUILD
             WT_ERR(__wt_txn_op_set_timestamp(session, op, true));
-#else
-            WT_ERR(__wt_txn_op_set_timestamp(session, op, false));
-#endif
             break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
@@ -1758,7 +1759,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 __wt_free(session, op->u.ref->page->modify->inst_updates);
             }
             if (op->u.ref->page_del != NULL)
-                op->u.ref->page_del->committed = true;
+                __wt_tsan_suppress_store_bool(&op->u.ref->page_del->committed, true);
             WT_REF_UNLOCK(op->u.ref, previous_state);
         }
         __wt_txn_op_free(session, op);
@@ -2507,7 +2508,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          * Perform rollback to stable to ensure that the stable version is written to disk on a
          * clean shutdown.
          */
-        if (use_timestamp && !conn_is_disagg) {
+        if (use_timestamp && !conn_is_disagg && !F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
             const char *rts_cfg[] = {
               WT_CONFIG_BASE(session, WT_CONNECTION_rollback_to_stable), NULL, NULL};
             if (conn->rts->cfg_threads_num != 0) {

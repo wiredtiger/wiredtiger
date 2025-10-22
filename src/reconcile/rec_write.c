@@ -69,8 +69,9 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     else
         WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_gt500);
 
-    WT_ASSERT_ALWAYS(
-      session, !F_ISSET(btree, WT_BTREE_READONLY), "Attempting reconciliation on a read-only page");
+    WT_ASSERT_ALWAYS(session,
+      FLD_ISSET(flags, WT_REC_REWRITE_DELTA) || !F_ISSET(btree, WT_BTREE_READONLY),
+      "Attempting reconciliation on a read-only page");
 
     /*
      * Sanity check flags.
@@ -91,7 +92,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     WT_UNUSED(btree);
 
     /* It's an error to be called with a clean page. */
-    WT_ASSERT(session, __wt_page_is_modified(page));
+    WT_ASSERT(session, FLD_ISSET(flags, WT_REC_REWRITE_DELTA) || __wt_page_is_modified(page));
 
     /*
      * Reconciliation acquires and releases pages, and in rare cases that page release triggers
@@ -207,8 +208,10 @@ __reconcile_post_wrapup(
         WT_STAT_CONN_DSRC_INCR(session, rec_pages_eviction);
     if (r->cache_write_hs)
         WT_STAT_CONN_DSRC_INCR(session, cache_write_hs);
-    if (r->cache_write_restore_invisible || F_ISSET(r, WT_REC_SCRUB))
-        WT_STAT_CONN_DSRC_INCR(session, cache_write_restore);
+    if (r->cache_write_restore_invisible)
+        WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_invisible);
+    else if (F_ISSET(r, WT_REC_SCRUB))
+        WT_STAT_CONN_DSRC_INCR(session, cache_write_restore_scrub);
     if (!WT_IS_HS(btree->dhandle)) {
         if (r->rec_page_cell_with_txn_id)
             WT_STAT_CONN_INCR(session, rec_pages_with_txn);
@@ -328,7 +331,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * checkpoint.
      */
     if (ret == 0 && !(btree->evict_disabled > 0 || !F_ISSET(btree->dhandle, WT_DHANDLE_OPEN)) &&
-      F_ISSET(r, WT_REC_EVICT) && !WT_PAGE_IS_INTERNAL(r->ref->page) && r->multi_next == 1 &&
+      F_ISSET(r, WT_REC_EVICT) && !WT_PAGE_IS_INTERNAL(page) && r->multi_next == 1 &&
       F_ISSET(r, WT_REC_CALL_URGENT) && !r->update_used && r->cache_write_restore_invisible &&
       !r->cache_upd_chain_all_aborted) {
         /*
@@ -336,7 +339,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
          * reconciled before as we don't make any progress.
          */
         WT_ASSERT(session,
-          !WT_DELTA_LEAF_ENABLED(session) || F_ISSET(r, WT_REC_EMPTY_DELTA) ||
+          !WT_DELTA_ENABLED_FOR_PAGE(session, page->type) || F_ISSET(r, WT_REC_EMPTY_DELTA) ||
             page->disagg_info->block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID);
         /*
          * If eviction didn't make any progress, let application threads know they should refresh
@@ -349,6 +352,13 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         ret = __wt_set_return(session, EBUSY);
     }
     addr = ref->addr;
+
+    /*
+     * Fail 1% of the time after we have built the disk image but before we wrap up reconciliation.
+     */
+    if (F_ISSET(r, WT_REC_EVICT) && !F_ISSET(r, WT_REC_EVICT_CALL_CLOSING) &&
+      __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_REC_BEFORE_WRAPUP, 100))
+        ret = __wt_set_return(session, EBUSY);
 
     /*
      * If we fail the reconciliation prior to calling __rec_write_wrapup then we can clean up our
@@ -2146,213 +2156,6 @@ __wti_rec_build_delta_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 }
 
 /*
- * __rec_delta_pack_key --
- *     Pack the delta key
- */
-static WT_INLINE int
-__rec_delta_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r, WT_INSERT *ins,
-  WT_ROW *rip, WT_ITEM *key)
-{
-    WT_DECL_RET;
-    uint8_t *p;
-
-    switch (r->page->type) {
-    case WT_PAGE_COL_FIX:
-    case WT_PAGE_COL_VAR:
-        p = key->mem;
-        WT_RET(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(ins)));
-        key->size = WT_PTRDIFF(p, key->data);
-        break;
-    case WT_PAGE_ROW_LEAF:
-        if (ins == NULL) {
-            WT_WITH_BTREE(
-              session, btree, ret = __wt_row_leaf_key(session, r->page, rip, key, false));
-            WT_RET(ret);
-        } else {
-            key->data = WT_INSERT_KEY(ins);
-            key->size = WT_INSERT_KEY_SIZE(ins);
-        }
-        break;
-    default:
-        WT_RET(__wt_illegal_value(session, r->page->type));
-    }
-
-    return (ret);
-}
-
-/*
- * __wti_rec_pack_delta_internal --
- *     Pack a delta for an internal page into a reconciliation structure
- */
-int
-__wti_rec_pack_delta_internal(
-  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *key, WTI_REC_KV *value)
-{
-    WT_PAGE_HEADER *header;
-    size_t packed_size;
-    uint8_t flags;
-    uint8_t *p, *head_byte;
-
-    flags = 0;
-
-    header = (WT_PAGE_HEADER *)r->delta.data;
-
-    packed_size = 1 + key->len;
-    if (value != NULL)
-        packed_size += value->len;
-
-    if (r->delta.size + packed_size > r->delta.memsize)
-        WT_RET(__wt_buf_grow(session, &r->delta, r->delta.size + packed_size));
-
-    head_byte = (uint8_t *)r->delta.data + r->delta.size;
-    p = head_byte + 1;
-
-    __wti_rec_kv_copy(session, p, key);
-    p += key->len;
-    if (value == NULL)
-        LF_SET(WT_DELTA_INT_IS_DELETE);
-    else
-        __wti_rec_kv_copy(session, p, value);
-
-    r->delta.size += packed_size;
-    *head_byte = flags;
-
-    ++header->u.entries;
-    header->mem_size = (uint32_t)r->delta.size;
-
-    return (0);
-}
-
-/*
- * __rec_pack_delta_leaf --
- *     Pack a delta for a leaf page
- */
-static int
-__rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *supd)
-{
-    WT_CURSOR_BTREE *cbt;
-    WT_DECL_RET;
-    WT_ITEM *key, value;
-    size_t max_packed_size;
-    uint8_t flags;
-    uint8_t *p, *head;
-
-    flags = 0;
-
-    cbt = &r->update_modify_cbt;
-
-    /* Ensure enough room for a column-store key without checking. */
-    WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
-
-    WT_ERR(__rec_delta_pack_key(session, S2BT(session), r, supd->ins, supd->rip, key));
-
-    if (supd->onpage_upd != NULL) {
-        if (supd->onpage_upd->type == WT_UPDATE_MODIFY) {
-            if (supd->rip != NULL)
-                cbt->slot = WT_ROW_SLOT(r->ref->page, supd->rip);
-            else
-                cbt->slot = UINT32_MAX;
-            WT_ERR(__wt_modify_reconstruct_from_upd_list(
-              session, cbt, supd->onpage_upd, cbt->upd_value, WT_OPCTX_RECONCILATION));
-            __wt_value_return(cbt, cbt->upd_value);
-            value.data = cbt->upd_value->buf.data;
-            value.size = cbt->upd_value->buf.size;
-        } else {
-            value.data = supd->onpage_upd->data;
-            value.size = supd->onpage_upd->size;
-        }
-    } else {
-        value.data = NULL;
-        value.size = 0;
-    }
-
-    /*
-     * The max length of a delta:
-     * 1 header byte
-     * 2 transaction ids
-     * 4 timestamps (4 * 9)
-     * key size (5)
-     * value size (5)
-     * key
-     * value
-     */
-    max_packed_size = 1 + 2 * 9 + 4 * 9 + 2 * 5 + key->size + value.size;
-
-    if (r->delta.size + max_packed_size > r->delta.memsize)
-        WT_ERR(__wt_buf_grow(session, &r->delta, r->delta.size + max_packed_size));
-
-    head = (uint8_t *)r->delta.data + r->delta.size;
-    p = head + 1;
-
-    if (supd->onpage_upd == NULL) {
-        WT_ASSERT(session,
-          supd->onpage_tombstone != NULL &&
-            __wt_txn_upd_visible_all(session, supd->onpage_tombstone));
-        LF_SET(WT_DELTA_LEAF_IS_DELETE);
-        WT_ERR(__wt_vpack_uint(&p, 0, key->size));
-        memcpy(p, key->data, key->size);
-        p += key->size;
-    } else {
-        /*
-         * FIXME-WT-14886: how should we handle the case that in the previous reconciliation, we
-         * write the full value and in this reconciliation, it is deleted by a tombstone. Should we
-         * still include the full value in the delta? We can omit it but it will make the rest of
-         * the system more complicated. Include it for now to simplify the prototype.
-         */
-        if (!__wt_txn_upd_visible_all(session, supd->onpage_upd)) {
-            if (supd->onpage_upd->txnid != WT_TXN_NONE) {
-                LF_SET(WT_DELTA_LEAF_HAS_START_TXN_ID);
-                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->txnid));
-            }
-
-            if (supd->onpage_upd->upd_start_ts != WT_TS_NONE) {
-                LF_SET(WT_DELTA_LEAF_HAS_START_TS);
-                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->upd_start_ts));
-            }
-
-            if (supd->onpage_upd->upd_durable_ts != WT_TS_NONE) {
-                LF_SET(WT_DELTA_LEAF_HAS_START_DURABLE_TS);
-                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->upd_durable_ts));
-            }
-        }
-
-        if (supd->onpage_tombstone != NULL) {
-            if (supd->onpage_tombstone->txnid != WT_TXN_MAX) {
-                LF_SET(WT_DELTA_LEAF_HAS_STOP_TXN_ID);
-                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->txnid));
-            }
-
-            if (supd->onpage_tombstone->upd_start_ts != WT_TS_MAX) {
-                LF_SET(WT_DELTA_LEAF_HAS_STOP_TS);
-                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->upd_start_ts));
-            }
-
-            if (supd->onpage_tombstone->upd_durable_ts != WT_TS_NONE) {
-                LF_SET(WT_DELTA_LEAF_HAS_STOP_DURABLE_TS);
-                WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->upd_durable_ts));
-            }
-        }
-
-        WT_ERR(__wt_vpack_uint(&p, 0, key->size));
-        WT_ERR(__wt_vpack_uint(&p, 0, value.size));
-
-        memcpy(p, key->data, key->size);
-        p += key->size;
-
-        memcpy(p, value.data, value.size);
-        p += value.size;
-    }
-
-    r->delta.size += WT_PTRDIFF(p, head);
-    *head = flags;
-
-    WT_ASSERT(session, p < head + max_packed_size);
-err:
-    __wt_scr_free(session, &key);
-    return (ret);
-}
-
-/*
  * __rec_build_delta_leaf --
  *     Build delta for leaf pages.
  */
@@ -2375,6 +2178,10 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
     count = 0;
 
     WT_RET(__wti_rec_build_delta_init(session, r));
+
+    /* Disable prefix compression until the first key is written. */
+    r->key_pfx_compress = false;
+    r->key_pfx_last = 0;
 
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
         if (supd->onpage_upd == NULL && supd->onpage_tombstone == NULL)
@@ -2409,14 +2216,14 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
             }
         }
 
-        WT_RET(__rec_pack_delta_leaf(session, r, supd));
+        WT_RET(__wti_rec_pack_delta_row_leaf(session, r, supd));
         ++count;
     }
 
     header = (WT_PAGE_HEADER *)r->delta.data;
     header->mem_size = (uint32_t)r->delta.size;
     header->type = r->ref->page->type;
-    header->u.entries = count;
+    header->u.entries = count * 2;
     header->write_gen = full_image->write_gen;
 
     stop = __wt_clock(session);
@@ -2549,6 +2356,17 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     delta_pct = (r->delta.size * 100) / chunk->image.size;
     if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
+        /*
+         * If we decide to write the delta we packed, track the number of internal keys deleted and
+         * inserted/updated
+         */
+        if (r->count_internal_page_delta_key_deleted != 0)
+            WT_STAT_CONN_DSRC_INCRV(session, rec_page_delta_internal_key_deleted,
+              r->count_internal_page_delta_key_deleted);
+        if (r->count_internal_page_delta_key_updated != 0)
+            WT_STAT_CONN_DSRC_INCRV(session, rec_page_delta_internal_key_updated,
+              r->count_internal_page_delta_key_updated);
+
         WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal);
 
         /*
@@ -2585,6 +2403,8 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_leaf);
         WT_STAT_CONN_INCRV(
           session, block_byte_write_saved_delta_leaf, chunk->image.size - r->delta.size);
+        WT_STAT_DSRC_INCRV(
+          session, rec_prefix_compression_delta, r->bytes_prefix_compression_delta);
 
         if (delta_pct <= 20)
             WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt20);
@@ -2644,8 +2464,10 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                 multi->block_meta->backlink_lsn = multi->block_meta->disagg_lsn;
             multi->block_meta->delta_count = 0;
             multi->block_meta->base_lsn = WT_DISAGG_LSN_NONE;
-        } else
+        } else {
             __wt_page_block_meta_assign(session, multi->block_meta);
+            F_SET(r, WT_REC_DISAGG_NEW_PAGE);
+        }
 
         multi->block_meta->image_size = chunk->image.size;
     }
@@ -2820,17 +2642,16 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
      * the wrapup code, and we don't have a code path from here to there.)
      */
     if (last_block && r->multi_next == 1 && __rec_is_checkpoint(session, r)) {
-        WT_ASSERT_ALWAYS(
-          session, r->supd_next == 0, "Attempting to write final block but further updates found");
-
         r->wrapup_checkpoint = &chunk->image;
 
         /*
          * We need to assign a new page id for the root every time. We don't support delta for root
          * page yet.
          */
-        if (page->disagg_info != NULL)
+        if (page->disagg_info != NULL) {
             __wt_page_block_meta_assign(session, &r->wrapup_checkpoint_block_meta);
+            F_SET(r, WT_REC_DISAGG_NEW_PAGE);
+        }
 
         return (0);
     }
@@ -2907,6 +2728,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     } else {
         WT_RET(
           __rec_write_image(session, r, chunk, addr, &addr_size, &compressed_size, last_block));
+        WT_STAT_DSRC_INCRV(session, rec_prefix_compression_full, r->bytes_prefix_compression_full);
 #ifdef HAVE_DIAGNOSTIC
         verify_image = true;
 #endif
@@ -2946,6 +2768,8 @@ copy_image:
 
     /* Whether we wrote or not, clear the accumulated time statistics. */
     __rec_page_time_stats_clear(r);
+    __rec_page_delta_stats_clear(r);
+    __rec_page_pfx_compression_stats_clear(r);
 
     return (0);
 }
@@ -3072,10 +2896,18 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          * confirm backing blocks we care about, and free any disk image/saved updates.
          */
         if (multi->addr.block_cookie != NULL) {
-            WT_RET(__wt_btree_block_free(session, multi->addr.block_cookie,
-              multi->addr.block_cookie_size, r->multi_next == 1));
+            if (multi->block_meta == NULL)
+                WT_RET(__wt_btree_block_free(
+                  session, multi->addr.block_cookie, multi->addr.block_cookie_size));
+            /* Free disagg block only if it is not a block replacement or it is the root page. */
+            else if (r->multi_next != 1 || __wt_ref_is_root(r->ref)) {
+                WT_RET(__wt_btree_block_free(
+                  session, multi->addr.block_cookie, multi->addr.block_cookie_size));
+                multi->block_meta->page_id = WT_BLOCK_INVALID_PAGE_ID;
+            }
             __wt_free(session, multi->addr.block_cookie);
         }
+        __wt_free(session, multi->block_meta);
     }
     __wt_free(session, mod->mod_multi);
     mod->mod_multi_entries = 0;
@@ -3229,9 +3061,16 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         if (__wt_ref_is_root(ref))
             break;
 
-        /* We need to retain the block address if we skipped writing an empty delta. */
-        if (F_ISSET(r, WT_REC_EMPTY_DELTA) && ref->addr != NULL)
+        /*
+         * We need to retain the block address if we skipped writing an empty delta or we are
+         * rewriting a delta to a full page.
+         */
+        if (F_ISSET(r, WT_REC_EMPTY_DELTA | WT_REC_REWRITE_DELTA) && ref->addr != NULL) {
+            WT_ASSERT(session,
+              WT_DELTA_ENABLED_FOR_PAGE(session, page->type) &&
+                r->multi->addr.block_cookie == NULL);
             break;
+        }
 
         WT_RET(__wt_ref_block_free(session, ref, r->multi_next == 1));
         break;
@@ -3260,7 +3099,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
              * from disk.
              */
             if (mod->mod_replace.block_cookie == NULL) {
-                WT_ASSERT(session, WT_DELTA_LEAF_ENABLED(session));
+                WT_ASSERT(session, WT_DELTA_ENABLED_FOR_PAGE(session, page->type));
                 /*
                  * We need to retain the block address if we skipped writing an empty delta again.
                  * Free the block address otherwise if it is available.
@@ -3269,9 +3108,17 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                     if (!F_ISSET(r, WT_REC_EMPTY_DELTA))
                         WT_RET(__wt_ref_block_free(session, ref, r->multi_next == 1));
                 }
-            } else
-                WT_RET(__wt_btree_block_free(session, mod->mod_replace.block_cookie,
-                  mod->mod_replace.block_cookie_size, r->multi_next == 1));
+            } else {
+                if (page->disagg_info == NULL)
+                    WT_RET(__wt_btree_block_free(
+                      session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
+                /* Free disagg block only if it is not a block replacement. */
+                else if (r->multi_next != 1) {
+                    WT_RET(__wt_btree_block_free(
+                      session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
+                    page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+                }
+            }
         }
 
         /* Discard the replacement page's address and disk image. */
@@ -3311,8 +3158,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         if (__wt_ref_is_root(ref)) {
             __wt_checkpoint_tree_reconcile_update(session, &ta);
             if (page->disagg_info != NULL &&
-              r->wrapup_checkpoint_block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID)
+              r->wrapup_checkpoint_block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID) {
                 __wt_page_block_meta_assign(session, &r->wrapup_checkpoint_block_meta);
+                F_SET(r, WT_REC_DISAGG_NEW_PAGE);
+            }
             WT_RET(bm->checkpoint(
               bm, session, NULL, &r->wrapup_checkpoint_block_meta, btree->ckpt, false));
             if (page->disagg_info != NULL)
@@ -3387,14 +3236,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         /* Optionally display the actual split keys in verbose mode. */
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_SPLIT, WT_VERBOSE_DEBUG_2))
             WT_RET(__rec_split_dump_keys(session, r));
-
-        /*
-         * Mark it as invalid. We may reconcile this page again. Force it to write a new page
-         * instead of reusing the existing page id. Building deltas on the split page is a future
-         * thing.
-         */
-        if (page->disagg_info != NULL)
-            page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
 split:
         mod->mod_multi = r->multi;
@@ -3484,20 +3325,28 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         if (multi->addr.block_cookie != NULL) {
-            int ret_tmp = __wt_btree_block_free(
-              session, multi->addr.block_cookie, multi->addr.block_cookie_size, r->multi_next == 1);
-            if (ret_tmp != 0) {
-                if (multi->block_meta != NULL)
-                    __wt_verbose_error(session, WT_VERB_RECONCILE,
-                      "failed to free the block in reconciliation failure: page id %" PRIu64
-                      " base lsn %" PRIu64 " backlink lsn %" PRIu64 "",
-                      multi->block_meta->page_id, multi->block_meta->base_lsn,
-                      multi->block_meta->backlink_lsn);
-                else
-                    __wt_verbose_error(session, WT_VERB_RECONCILE, "%s",
-                      "failed to free the block in reconciliation failure");
-            }
-            WT_TRET(ret_tmp);
+            /*
+             * Don't free the block if it is a replacement page in disaggregated storage. Root page
+             * is never a replacement page so its failed block will be freed here if we fail to
+             * reconcile a root page.
+             */
+            if (page->disagg_info == NULL || F_ISSET(r, WT_REC_DISAGG_NEW_PAGE)) {
+                int ret_tmp = __wt_btree_block_free(
+                  session, multi->addr.block_cookie, multi->addr.block_cookie_size);
+                if (ret_tmp != 0) {
+                    if (multi->block_meta != NULL)
+                        __wt_verbose_error(session, WT_VERB_RECONCILE,
+                          "failed to free the block in reconciliation failure: page id %" PRIu64
+                          " base lsn %" PRIu64 " backlink lsn %" PRIu64 "",
+                          multi->block_meta->page_id, multi->block_meta->base_lsn,
+                          multi->block_meta->backlink_lsn);
+                    else
+                        __wt_verbose_error(session, WT_VERB_RECONCILE, "%s",
+                          "failed to free the block in reconciliation failure");
+                    WT_TRET(ret_tmp);
+                }
+            } else
+                WT_ASSERT(session, !__wt_ref_is_root(r->ref));
         }
     }
 
@@ -3521,6 +3370,10 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     btree = S2BT(session);
 
+    /* Set a flag in the session to track that we're in HS wrapup */
+    F_SET(session, WT_SESSION_HS_WRAPUP);
+    session->reconcile_stats.hs_wrapup_next_prev_calls = 0;
+
     /*
      * Sanity check: Can't insert updates into history store from the history store itself or from
      * the metadata file.
@@ -3538,7 +3391,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         if (multi->supd != NULL) {
             WT_ERR(__wti_rec_hs_insert_updates(session, r, multi));
-            /* FIXME-WT-14880: build delta for split pages. */
+            /* FIXME-WT-15709: build delta for split pages. */
             if (!delta_enabled && !multi->supd_restore) {
                 __wt_free(session, multi->supd);
                 multi->supd_entries = 0;
@@ -3546,7 +3399,10 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         }
     }
 
+    WT_STAT_CONN_INCRV(
+      session, rec_hs_wrapup_next_prev_calls, session->reconcile_stats.hs_wrapup_next_prev_calls);
 err:
+    F_CLR(session, WT_SESSION_HS_WRAPUP);
     return (ret);
 }
 

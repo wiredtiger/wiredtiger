@@ -43,13 +43,30 @@ table_verify(TABLE *table, void *arg)
     conn = (WT_CONNECTION *)arg;
     testutil_assert(table != NULL);
 
+    /*
+     * FIXME-WT-15619 and FIXME-WT-15618: We can run verify on layered tables when deltas are
+     * written as a full image.
+     *
+     * Remove this check once both tickets are resolved.
+     */
+    if (TV(DISAGG_ENABLED) && (GV(DISAGG_LEAF_PAGE_DELTA) || GV(DISAGG_INTERNAL_PAGE_DELTA))) {
+        printf("table.%u skipped verify because verify does not support disagg delta pages.\n",
+          table->id);
+        fflush(stdout);
+        return;
+    }
+
     memset(&sap, 0, sizeof(sap));
     wt_wrap_open_session(conn, &sap, table->track_prefix,
       enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
     ret = session->verify(session, table->uri, "strict");
-    testutil_assert(ret == 0 || ret == EBUSY ||
-      /* FIXME-WT-15413: Verify on follower may return ENOENT if stable uri is missing. */
-      (g.disagg_storage_config && !g.disagg_leader && ret == ENOENT));
+    /*
+     * On followers, verify returns ENOENT if the stable constituent is missing. Before the first
+     * checkpoint is picked up or if the table has not been created locally, this is expected
+     * behavior.
+     */
+    testutil_assert(
+      ret == 0 || ret == EBUSY || (g.disagg_storage_config && !g.disagg_leader && ret == ENOENT));
 
     if (ret == EBUSY)
         WARN("table.%u skipped verify because of EBUSY", table->id);

@@ -90,12 +90,6 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     const char *ingest_uri = layered->ingest_uri;
     const char *stable_uri = layered->stable_uri;
 
-    /*
-     * FIXME-WT-15413 - Verify assumes the stable table always exists. However, on followers that
-     * have not yet picked up their first checkpoint, the stable constituent will be missing. We
-     * should handle this transient state by skipping stable verification instead of failing with
-     * ENOENT.
-     */
     WT_ASSERT(session, stable_uri != NULL);
     WT_ASSERT(session, ingest_uri != NULL);
     WT_ASSERT(session, file_func == __wt_verify);
@@ -111,8 +105,16 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     WT_WITHOUT_DHANDLE(session,
       stable_ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
 
+    /* On followers, it is possible not to have any stable table. This is a transient state. */
+    if (!conn->layered_table_manager.leader && stable_ret == ENOENT) {
+        __wt_verbose_level(session, WT_VERB_VERIFY, WT_VERBOSE_DEBUG_2,
+          "Verify (layered): %s stable table not found on follower, it can be a transient state.",
+          stable_uri);
+        stable_ret = 0;
+    }
+
     if (stable_ret != 0 && stable_ret != EBUSY)
-        WT_ERR_MSG(session, stable_ret, "Verify (layered): %s stable table verification failed. ",
+        WT_ERR_MSG(session, stable_ret, "Verify (layered): %s stable table verification failed ",
           stable_uri);
 
     /*
