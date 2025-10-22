@@ -245,7 +245,8 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 err:
     /*
      * If we built an overflow key we need to clean it up now as the parent leaf page failed to
-     * split.
+     * split. We can directly free the block here as the key/value pair have not yet been copied to
+     * the parent leaf page.
      */
     if (ovfl_key)
         WT_TRET(__wt_btree_block_free(session, key->buf.data, key->buf.size));
