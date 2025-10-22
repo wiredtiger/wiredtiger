@@ -533,7 +533,7 @@ if __name__ == '__main__':
         PYTHONMALLOC = "PYTHONMALLOC"
         LD_PRELOAD_ENV = "LD_PRELOAD"
         SO_FILE_NAME = "libclang_rt.asan.so"
-        if os.environ.get(ASAN_ENV) is None:
+        if not os.environ.get(ASAN_ENV):
             if verbose >= 2:
                 print('Enabling ASAN environment and rerunning python')
             os.environ[ASAN_ENV] = "1"
