@@ -543,7 +543,7 @@ if __name__ == '__main__':
         PYTHONMALLOC = "PYTHONMALLOC"
         LD_PRELOAD_ENV = "LD_PRELOAD"
         SO_FILE_NAME_ARM = "libclang_rt.asan.so"
-        SO_FILE_NAME_X86 = "libclang_rt.asan-x86_64.so"
+        SO_FILE_NAME_X86 = "libclang_rt.asan.so"
         print('Please log this ###' + str(os.environ.get(ASAN_ENV)) + "###")
         if os.environ.get(ASAN_ENV) is None:
             print('not asan env')
@@ -571,11 +571,12 @@ if __name__ == '__main__':
             show_env(verbose, ASAN_SYMBOLIZER_ENV)
             if not os.environ.get(LD_PRELOAD_ENV):
                 print('no LDPRELOAD')
-                symbolizer = follow_symlinks(os.environ[ASAN_SYMBOLIZER_ENV])
+                symbolizer = follow_symlinks('/opt/mongodbtoolchain/v5/bin/llvm-symbolizer')
                 bindir = os.path.dirname(symbolizer)
                 sofiles = []
                 if os.path.basename(bindir) == 'bin':
                     libdir = os.path.join(os.path.dirname(bindir), 'lib')
+                    print(libdir)
                     sofiles = find(libdir, SO_FILE_NAME)
                     print(sofiles)
                 if len(sofiles) != 1:
