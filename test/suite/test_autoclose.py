@@ -154,8 +154,6 @@ class test_autoclose(wttest.WiredTigerTestCase):
         """
         conn = self.conn
         self.close_conn()
-        # Check for Exception instead of self.expected_exception, because TestSuiteConnection checks
-        # whether the connection is open explicitly, instead of delegating to the SWIG layer.
-        self.assertRaisesHavingMessage(Exception,
+        self.assertRaisesHavingMessage(self.expected_exception,
                                        lambda: conn.open_session(None),
-                                       '/connection is closed/')
+                                       '/wt_connection.* is None/')
