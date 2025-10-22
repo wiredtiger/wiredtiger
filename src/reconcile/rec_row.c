@@ -187,7 +187,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     WTI_REC_KV *key, *val;
     WT_TIME_WINDOW tw;
     WT_DECL_RET;
-    bool ovfl_key;
+    bool ovfl_key, ovfl_val;
 
     r = cbulk->reconcile;
     btree = S2BT(session);
@@ -202,7 +202,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
         val->len = 0;
     else
         WT_ERR(__wti_rec_cell_build_val(session, r, cursor->value.data, /* Build value cell */
-          cursor->value.size, &tw, 0));
+          cursor->value.size, &tw, 0, &ovfl_val));
 
     /* Boundary: split or write the page. */
     if (WTI_CROSSING_SPLIT_BND(r, key->len + val->len)) {
@@ -217,7 +217,12 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
                 WT_ERR(__rec_cell_build_leaf_key(session, r, NULL, 0, false, &ovfl_key));
         }
 
-        WT_ERR(__wti_rec_split_crossing_bnd(session, r, key->len + val->len));
+        ret = __wti_rec_split_crossing_bnd(session, r, key->len + val->len);
+        if (ret != 0)
+            __wt_verbose_warning(
+              session, WT_VERB_SPLIT, "%s", "bulk insert failed during page split");
+
+        WT_ERR(ret);
     }
 
     /* Copy the key/value pair onto the page. */
@@ -242,11 +247,11 @@ err:
      * If we built an overflow key we need to clean it up now as the parent leaf page failed to
      * split.
      */
-    if (ovfl_key) {
-        __wt_verbose_warning(session, WT_VERB_OVERFLOW, "%s", "page split failed during bulk load");
-
+    if (ovfl_key)
         WT_TRET(__wt_btree_block_free(session, key->buf.data, key->buf.size));
-    }
+
+    if (ovfl_val)
+        WT_TRET(__wt_btree_block_free(session, val->buf.data, val->buf.size));
 
     return (ret);
 }
@@ -391,8 +396,8 @@ __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAV
       WT_DELTA_LEAF_VALUE_FORMAT, &value, flags));
 
     /* Pack the custom value into a standard cell structure. */
-    WT_ERR(
-      __wti_rec_cell_build_val(session, r, custom_value->data, custom_value_size, &supd->tw, 0));
+    WT_ERR(__wti_rec_cell_build_val(
+      session, r, custom_value->data, custom_value_size, &supd->tw, 0, NULL));
 
     new_size = r->delta.size + r->k.len + r->v.len;
     if (new_size > r->delta.memsize)
@@ -1007,14 +1012,14 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
               session, cbt, upd, cbt->upd_value, WT_OPCTX_RECONCILATION));
             __wt_value_return(cbt, cbt->upd_value);
             WT_ERR(__wti_rec_cell_build_val(
-              session, r, cbt->iface.value.data, cbt->iface.value.size, &tw, 0));
+              session, r, cbt->iface.value.data, cbt->iface.value.size, &tw, 0, NULL));
             break;
         case WT_UPDATE_STANDARD:
             if (upd->size == 0 && WT_TIME_WINDOW_IS_EMPTY(&tw))
                 val->len = 0;
             else
                 /* Take the value from the update. */
-                WT_ERR(__wti_rec_cell_build_val(session, r, upd->data, upd->size, &tw, 0));
+                WT_ERR(__wti_rec_cell_build_val(session, r, upd->data, upd->size, &tw, 0, NULL));
             break;
         case WT_UPDATE_TOMBSTONE:
             break;
@@ -1094,7 +1099,7 @@ __rec_cell_repack(
 
     p = vpack->data;
     size = vpack->size;
-    WT_ERR(__wti_rec_cell_build_val(session, r, p, size, tw, 0));
+    WT_ERR(__wti_rec_cell_build_val(session, r, p, size, tw, 0, NULL));
 
 err:
     __wt_scr_free(session, &tmpval);
@@ -1321,12 +1326,12 @@ __wti_rec_row_leaf(
                   session, cbt, upd, cbt->upd_value, WT_OPCTX_RECONCILATION));
                 __wt_value_return(cbt, cbt->upd_value);
                 WT_ERR(__wti_rec_cell_build_val(
-                  session, r, cbt->iface.value.data, cbt->iface.value.size, twp, 0));
+                  session, r, cbt->iface.value.data, cbt->iface.value.size, twp, 0, NULL));
                 dictionary = true;
                 break;
             case WT_UPDATE_STANDARD:
                 /* Take the value from the update. */
-                WT_ERR(__wti_rec_cell_build_val(session, r, upd->data, upd->size, twp, 0));
+                WT_ERR(__wti_rec_cell_build_val(session, r, upd->data, upd->size, twp, 0, NULL));
                 dictionary = true;
                 break;
             case WT_UPDATE_TOMBSTONE:
