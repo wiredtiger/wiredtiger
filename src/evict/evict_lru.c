@@ -938,12 +938,13 @@ __evict_pass(WT_SESSION_IMPL *session)
         if (eviction_progress == __wt_atomic_load_uint64_v_relaxed(&evict->eviction_progress)) {
             if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 && F_ISSET(evict, WT_EVICT_CACHE_HARD)) {
                 if (aggressive_score < WT_EVICT_SCORE_MAX)
-                    aggressive_score = __wt_atomic_add_uint32_v(&evict->evict_aggressive_score, 1);
+                    (void)__wt_atomic_add_uint32_v(&evict->evict_aggressive_score, 1);
 
                 oldest_id = __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id);
                 if (prev_oldest_id == oldest_id &&
                   __wt_atomic_load_uint64_v_relaxed(&txn_global->current) != oldest_id &&
-                  aggressive_score < WT_EVICT_SCORE_MAX)
+                  __wt_atomic_load_uint32_relaxed(&evict->evict_aggressive_score) <
+                    WT_EVICT_SCORE_MAX)
                     (void)__wt_atomic_add_uint32_v(&evict->evict_aggressive_score, 1);
                 time_prev = time_now;
                 prev_oldest_id = oldest_id;
@@ -1679,14 +1680,15 @@ __evict_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_CACHE *cache;
     WT_EVICT *evict;
-    uint64_t bytes_dirty, bytes_max, bytes_inmem, bytes_updates;
+    uint64_t bytes_dirty;
+    uint64_t bytes_max;
 
     cache = S2C(session)->cache;
     evict = S2C(session)->evict;
     bytes_max = S2C(session)->cache_size + 1;
 
-    bytes_inmem = __wt_atomic_load_uint64_relaxed(&btree->bytes_inmem);
-    if (__wt_cache_bytes_plus_overhead(cache, bytes_inmem) >
+    if (__wt_cache_bytes_plus_overhead(
+          cache, __wt_atomic_load_uint64_relaxed(&btree->bytes_inmem)) >
       (uint64_t)(0.5 * evict->eviction_target * bytes_max) / 100)
         return (true);
 
@@ -1695,9 +1697,8 @@ __evict_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
     if (__wt_cache_bytes_plus_overhead(cache, bytes_dirty) >
       (uint64_t)(0.5 * evict->eviction_dirty_target * bytes_max) / 100)
         return (true);
-
-    bytes_updates = __wt_atomic_load_uint64_relaxed(&btree->bytes_updates);
-    if (__wt_cache_bytes_plus_overhead(cache, bytes_updates) >
+    if (__wt_cache_bytes_plus_overhead(
+          cache, __wt_atomic_load_uint64_relaxed(&btree->bytes_updates)) >
       (uint64_t)(0.5 * evict->eviction_updates_target * bytes_max) / 100)
         return (true);
 
@@ -1966,10 +1967,9 @@ __evict_push_candidate(
     /* Adjust for size when doing dirty eviction. */
     if (F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_DIRTY) &&
       evict_entry->score != WT_READGEN_EVICT_SOON && evict_entry->score != UINT64_MAX &&
-      !__wt_page_is_modified(ref->page)) {
-        size_t memory_footprint = __wt_atomic_load_size_relaxed(&ref->page->memory_footprint);
-        evict_entry->score += WT_MEGABYTE - WT_MIN(WT_MEGABYTE, memory_footprint);
-    }
+      !__wt_page_is_modified(ref->page))
+        evict_entry->score += WT_MEGABYTE -
+          WT_MIN(WT_MEGABYTE, __wt_atomic_load_size_relaxed(&ref->page->memory_footprint));
 
     return (true);
 }
@@ -2653,15 +2653,21 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         if (page->evict_pass_gen == 0) {
             const uint64_t gen_gap =
               __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen) - page->cache_create_gen;
-
-            __wt_atomic_stats_max(&evict->evict_max_unvisited_gen_gap, gen_gap);
-            __wt_atomic_stats_max(&evict->evict_max_unvisited_gen_gap_per_checkpoint, gen_gap);
+            if (gen_gap > __wt_atomic_load_uint64_relaxed(&evict->evict_max_unvisited_gen_gap))
+                __wt_atomic_store_uint64_relaxed(&evict->evict_max_unvisited_gen_gap, gen_gap);
+            if (gen_gap >
+              __wt_atomic_load_uint64_relaxed(&evict->evict_max_unvisited_gen_gap_per_checkpoint))
+                __wt_atomic_store_uint64_relaxed(
+                  &evict->evict_max_unvisited_gen_gap_per_checkpoint, gen_gap);
         } else {
             const uint64_t gen_gap =
               __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen) - page->evict_pass_gen;
-
-            __wt_atomic_stats_max(&evict->evict_max_visited_gen_gap, gen_gap);
-            __wt_atomic_stats_max(&evict->evict_max_visited_gen_gap_per_checkpoint, gen_gap);
+            if (gen_gap > __wt_atomic_load_uint64_relaxed(&evict->evict_max_visited_gen_gap))
+                __wt_atomic_store_uint64_relaxed(&evict->evict_max_visited_gen_gap, gen_gap);
+            if (gen_gap >
+              __wt_atomic_load_uint64_relaxed(&evict->evict_max_visited_gen_gap_per_checkpoint))
+                __wt_atomic_store_uint64_relaxed(
+                  &evict->evict_max_visited_gen_gap_per_checkpoint, gen_gap);
         }
 
         page->evict_pass_gen = __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen);

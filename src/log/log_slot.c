@@ -512,9 +512,10 @@ __wti_log_slot_destroy(WT_SESSION_IMPL *session)
      */
     for (i = 0; i < WTI_SLOT_POOL; i++) {
         slot = &log->slot_pool[i];
-        int64_t slot_state = __wt_atomic_load_int64_v_relaxed(&slot->slot_state);
-        if (!FLD_LOG_SLOT_ISSET((uint64_t)slot_state, WTI_LOG_SLOT_RESERVED)) {
-            rel = WTI_LOG_SLOT_RELEASED_BUFFERED(slot_state);
+        if (!FLD_LOG_SLOT_ISSET((uint64_t)__wt_atomic_load_int64_v_relaxed(&slot->slot_state),
+              WTI_LOG_SLOT_RESERVED)) {
+            rel =
+              WTI_LOG_SLOT_RELEASED_BUFFERED(__wt_atomic_load_int64_v_relaxed(&slot->slot_state));
             if (rel != 0)
                 /* Writes are not throttled. */
                 WT_RET(__wt_write(session, slot->slot_fh,

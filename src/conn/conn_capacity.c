@@ -466,8 +466,8 @@ again:
                  * Give up our reservations and try again. We won't try to steal the next time.
                  */
                 (void)__wt_atomic_sub_uint64(reservation, WT_RESERVATION_NS(bytes, capacity));
-                uint64_t reservation_total = WT_RESERVATION_NS(bytes, total_capacity);
-                (void)__wt_atomic_sub_uint64(&cap->reservation_total, reservation_total);
+                (void)__wt_atomic_sub_uint64(
+                  &cap->reservation_total, WT_RESERVATION_NS(bytes, total_capacity));
                 goto again;
             }
 
