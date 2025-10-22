@@ -56,6 +56,7 @@ class test_ovfl01(wttest.WiredTigerTestCase):
                 c.insert()
             except wiredtiger.WiredTigerError as e:
                 self.pr(f'insert error: {str(e)}\non key: {key}')
+                # The EBUSY error means we have hit the fail point.
                 if str(e) != os.strerror(errno.EBUSY):
                     raise e
 
