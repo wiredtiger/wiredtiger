@@ -38,7 +38,7 @@ class test_ovfl01(wttest.WiredTigerTestCase):
     #     - Use strings as the key format to allow for very large key sizes.
     #     - Set a very small leaf_key_max. Keys larger than this will be stored as overflow keys.
     #.    - Set a small leaf_page_max to create more leaf pages and page splits.
-    table_config = 'key_format=S,value_format=S,leaf_key_max=10B,leaf_page_max=4KB'
+    table_config = 'key_format=S,value_format=S,leaf_key_max=10B,leaf_value_max=10B,leaf_page_max=4KB'
     conn_config = 'cache_size=100MB,statistics=(all),timing_stress_for_test=(failpoint_rec_split_write)'
     uri = 'table:test_ovfl01'
 
@@ -47,9 +47,10 @@ class test_ovfl01(wttest.WiredTigerTestCase):
     def populate(self, uri):
         c = self.session.open_cursor(uri, None, 'bulk')
         for k in range(0, self.num_keys):
-            key = str(k).zfill(10) + '_' + 'a' * 1024
+            key = str(k).zfill(10) + '_' + 'k' * 1024
+            value = str(k).zfill(10) + '_' + 'v' * 1024
             c.set_key(key)
-            c.set_value('')
+            c.set_value(value)
 
             try:
                 c.insert()
@@ -78,3 +79,5 @@ class test_ovfl01(wttest.WiredTigerTestCase):
 
         # Verify on disk contents.
         self.session.verify(self.uri)
+
+        self.ignoreStdoutPattern('bulk insert failed during page split')
