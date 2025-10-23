@@ -363,12 +363,14 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     WT_PAGE *page;
     WT_REF_STATE current_state;
     WT_TXN *txn;
+    size_t sleep_count;
     uint64_t sleep_usecs, yield_cnt;
     int force_attempts;
     bool busy, cache_work, evict_skip, read_from_disk, stalled, wont_need;
 
     btree = S2BT(session);
     txn = session->txn;
+    sleep_count = 0;
 
     if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE))
         LF_SET(WT_READ_IGNORE_CACHE_SIZE);
@@ -609,6 +611,10 @@ skip_evict:
                 continue;
         }
         __wt_spin_backoff(&yield_cnt, &sleep_usecs);
+        ++sleep_count;
+        if (sleep_count > 10 * WT_THOUSAND && sleep_count % 10 * WT_THOUSAND == 0)
+            __wt_verbose_warning(
+              session, WT_VERB_READ, "sleep to wait the page for %zu times", sleep_count);
         WT_STAT_CONN_INCRV(session, page_sleep, sleep_usecs);
     }
 }
