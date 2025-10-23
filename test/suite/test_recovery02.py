@@ -38,28 +38,28 @@ from wtscenario import make_scenarios
 class test_recovery02(wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),verbose=(recovery),' \
                      + 'disaggregated=(lose_all_my_data=true),'
-      
+
     uri = "layered:test_recovery02"
 
-    role_scenarios = [  
-        ('leader', dict(role='leader')),  
-        ('follower', dict(role='follower')),  
+    role_scenarios = [
+        ('leader', dict(role='leader')),
+        ('follower', dict(role='follower')),
     ]
-    disagg_storages = gen_disagg_storages('test_recovery02', disagg_only=True)  
-    scenarios = make_scenarios(disagg_storages, role_scenarios)  
+    disagg_storages = gen_disagg_storages('test_recovery02', disagg_only=True)
+    scenarios = make_scenarios(disagg_storages, role_scenarios)
 
-    def conn_config(self):  
-        return self.conn_base_config + f'disaggregated=(role="{self.role}")' 
+    def conn_config(self):
+        return self.conn_base_config + f'disaggregated=(role="{self.role}")'
 
     def test_recovery_bypassed_in_disagg(self):
-        # The connection is already open at this point with verbose=(recovery)  
+        # The connection is already open at this point with verbose=(recovery)
         # Check that we see the "skipping recovery" message in stdout
-        self.captureout.checkAdditionalPattern(  
+        self.captureout.checkAdditionalPattern(
             self, 'skipping recovery in disaggregated mode')
 
         # Check that we still see this message when reopening the connection.
         # Ignore "[WT_VERB_METADATA][WARNING]: Removing local file due to disagg mode"
         self.reopen_conn()
-        self.captureout.checkAdditionalPattern(    
-            self, 'skipping recovery in disaggregated mode',  
+        self.captureout.checkAdditionalPattern(
+            self, 'skipping recovery in disaggregated mode',
             ignore_pat='WT_VERB_METADATA')
