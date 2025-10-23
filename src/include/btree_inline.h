@@ -593,11 +593,11 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 }
 
 /*
- * __wt_cache_dirty_incr --
- *     Page switch from clean to dirty: increment the cache dirty page/byte counts.
+ * __wt_cache_dirty_incr_size --
+ *     Increase the dirty cache for the size.
  */
 static WT_INLINE void
-__wt_cache_dirty_incr(WT_SESSION_IMPL *session, size_t size, bool is_internal)
+__wt_cache_dirty_incr_size(WT_SESSION_IMPL *session, size_t size, bool is_internal)
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
@@ -616,18 +616,18 @@ __wt_cache_dirty_incr(WT_SESSION_IMPL *session, size_t size, bool is_internal)
         (void)__wt_atomic_add64(&cache->bytes_dirty_intl, size);
         (void)__wt_atomic_add64(&btree->bytes_dirty_intl, size);
     } else {
+        (void)__wt_atomic_add64(&cache->pages_dirty_leaf, 1);
         (void)__wt_atomic_add64(&cache->bytes_dirty_leaf, size);
         (void)__wt_atomic_add64(&btree->bytes_dirty_leaf, size);
-        (void)__wt_atomic_add64(&cache->pages_dirty_leaf, 1);
     }
 }
 
 /*
- * __wt_cache_dirty_decr_tmp --
- *     Page is already dirty, fix the cache increment.
+ * __wt_cache_dirty_decr_size --
+ *     Decrease the dirty cache for the size.
  */
 static WT_INLINE void
-__wt_cache_dirty_decr_tmp(WT_SESSION_IMPL *session, size_t size, bool is_internal)
+__wt_cache_dirty_decr_size(WT_SESSION_IMPL *session, size_t size, bool is_internal)
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
@@ -747,7 +747,9 @@ __wt_page_modify_init(WT_SESSION_IMPL *session, WT_PAGE *page)
 static WT_INLINE void
 __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
+    size_t size;
     uint64_t last_running;
+    bool increase_dirty_size_first;
 
     WT_ASSERT(session, !F_ISSET(session->dhandle, WT_DHANDLE_DEAD));
 
@@ -771,10 +773,24 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      *
      * The page state can only ever be incremented above dirty by the number of concurrently running
      * threads, so the counter will never approach the point where it would wrap.
+     *
+     * Increase the dirty cache size before performing the compare-and-swap operation when the dirty
+     * cache size is low. This ensures the checkpoint does not reconcile and clean the page before
+     * the dirty cache size is incremented, as this could otherwise result in the dirty cache size
+     * going negative. Note that the checkpoint can only clean the page if it belongs to the
+     * metadata or the history store.
      */
-    size_t size = __wt_atomic_loadsize(&page->memory_footprint);
-    __wt_cache_dirty_incr(session, size, WT_PAGE_IS_INTERNAL(page));
+    if (WT_UNLIKELY(!WT_PAGE_IS_INTERNAL(page) &&
+          __wt_atomic_load64(&S2C(session)->cache->pages_dirty_leaf) < 5 &&
+          (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
+            WT_IS_HS(session->dhandle)))) {
+        increase_dirty_size_first = true;
+        size = __wt_atomic_loadsize(&page->memory_footprint);
+        __wt_cache_dirty_incr_size(session, size, WT_PAGE_IS_INTERNAL(page));
+    }
     if (__wt_atomic_add32(&page->modify->page_state, 1) == WT_PAGE_DIRTY_FIRST) {
+        if (!increase_dirty_size_first)
+            __wt_cache_dirty_incr_size(session, size, WT_PAGE_IS_INTERNAL(page));
         (void)__wt_atomic_add64(&S2C(session)->cache->bytes_dirty_total, size);
         (void)__wt_atomic_add64(&S2BT(session)->bytes_dirty_total, size);
         (void)__wt_atomic_add64(&page->modify->bytes_dirty, size);
@@ -792,8 +808,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
          */
         if (last_running != 0)
             page->modify->first_dirty_txn = last_running;
-    } else
-        __wt_cache_dirty_decr_tmp(session, size, WT_PAGE_IS_INTERNAL(page));
+    } else if (WT_UNLIKELY(increase_dirty_size_first))
+        __wt_cache_dirty_decr_size(session, size, WT_PAGE_IS_INTERNAL(page));
 
     /* Check if this is the largest transaction ID to update the page. */
     if (__wt_atomic_load64(&page->modify->update_txn) < session->txn->id)
