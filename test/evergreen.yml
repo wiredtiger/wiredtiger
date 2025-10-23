@@ -1456,6 +1456,8 @@ variables:
         export DYLD_LIBRARY_PATH=$WT_BUILDDIR
       # Must disable TCMALLOC as it may be picked up locally and its not on all hosts.
       ENABLE_TCMALLOC: 0
+      # FIXME-WT-15777 Use PALM for unit tests for now until we can build PALite on macos-14.
+      unit_test_variant_args: "page_log=palm"
     tasks:
       - name: compile
         # This is a special case and should *only* be used for the macOS buildvariant.
@@ -1486,6 +1488,17 @@ variables:
         vars:
           # FIXME-WT-14566 Limit the runs for now.
           format_args: disagg.mode=leader runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
+          times: 5
+
+  - &format-stress-test-disagg-leader-verify
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # FIXME-WT-15619 and FIXME-WT-15618 Remove this task when disagg verification is working reliably with deltas.
+          format_args: disagg.mode=leader runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000 ops.verify=1 disagg.leaf_page_delta=0 disagg.internal_page_delta=0
           times: 5
 
   - &format-stress-data-validation-test-disagg-leader
@@ -4532,6 +4545,9 @@ tasks:
   - <<: *format-stress-test-disagg-leader
     name: format-stress-test-disagg-leader-3
     tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-leader-verify
+    name: format-stress-test-disagg-leader-verify
+    tags: ["stress-test-disagg-fail"]
   - <<: *format-stress-data-validation-test-disagg-leader
     name: format-stress-data-validation-test-disagg-leader-1
     tags: ["stress-test-disagg-fail"]
@@ -6344,6 +6360,7 @@ buildvariants:
     ENABLE_TCMALLOC: 1
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
+  tags: ["pull_request"]
   tasks:
     - name: ".pull_request !.pull_request_compilers"
     - name: ".lint"
@@ -6418,6 +6435,7 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     # Exclude wt12015_backup_corruption for ASan builds. It creates false positives when it deliberately kills processes that invoke corruption.
     ctest_extra_args: -E "wt12015_backup_corruption"
+  tags: ["pull_request", "sanitizer"]
   tasks:
     - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test"
     - name: examples-c-test
@@ -6440,6 +6458,7 @@ buildvariants:
     additional_env_vars: |
       export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
     num_jobs: 2
+  tags: ["sanitizer"]
   tasks:
     - name: compile
     - name: examples-c-test
@@ -6542,6 +6561,7 @@ buildvariants:
     # make-check-test task and are covered by the csuite-long-running task.
     ctest_extra_args: -LE "cppsuite|long_running|disagg"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
+  tags: ["sanitizer"]
   tasks:
     - name: compile
     - name: compile-production-disable-shared
@@ -6564,6 +6584,7 @@ buildvariants:
     CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
     ENABLE_TCMALLOC: 0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+  tags: ["sanitizer"]
   tasks:
     - name: compile
     - name: compile-production-disable-shared
@@ -6582,6 +6603,7 @@ buildvariants:
   expansions:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+  tags: ["pull_request"]
   tasks:
     - name: ".pull_request_compilers"
 

@@ -1072,7 +1072,8 @@ dsrc_stats = [
     ##########################################
     RecStat('rec_dictionary', 'dictionary matches'),
     RecStat('rec_multiblock_max', 'maximum blocks required for a page', 'max_aggregate,no_scale'),
-    RecStat('rec_prefix_compression', 'leaf page key bytes discarded using prefix compression', 'size'),
+    RecStat('rec_prefix_compression_delta', 'leaf delta page key bytes discarded using prefix compression', 'size'),
+    RecStat('rec_prefix_compression_full', 'leaf full page key bytes discarded using prefix compression', 'size'),
     RecStat('rec_suffix_compression', 'internal page key bytes discarded using suffix compression', 'size'),
 
     ##########################################
@@ -1281,6 +1282,7 @@ conn_dsrc_stats = [
     BlockDisaggStat('disagg_block_hs_put', 'Disaggregated block manager put to the shared history store in SLS'),
     BlockDisaggStat('disagg_block_page_discard', 'Disaggregated block manager page discard calls'),
     BlockDisaggStat('disagg_block_put', 'Disaggregated block manager put '),
+    BlockDisaggStat('disagg_block_read_ahead_frontier', 'Disaggregated block manager read ahead of materialization frontier'),
 
     ##########################################
     # Layered table statistics
