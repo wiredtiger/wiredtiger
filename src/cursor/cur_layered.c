@@ -391,8 +391,8 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
 
     /* Get the current checkpoint LSN. This only matters if we are a follower. */
     if (!current_leader)
-        WT_ACQUIRE_READ(
-          last_checkpoint_meta_lsn, conn->disaggregated_storage.last_checkpoint_meta_lsn);
+        last_checkpoint_meta_lsn =
+          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
     else
         last_checkpoint_meta_lsn = WT_DISAGG_LSN_NONE;
 
