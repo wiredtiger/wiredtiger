@@ -926,7 +926,7 @@ err:
 
 /*
  * __wt_txn_recover --
- *     Run recovery. This function must not be called in disagg mode.
+ *     Run recovery. This function must never be called in disagg mode.
  */
 int
 __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
@@ -945,7 +945,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
     bool do_checkpoint, eviction_started, hs_exists_local, needs_rec, rts_executed, was_backup;
 
     /* We skip recovery in disagg */
-    WT_ASSERT(session, !disagg);
+    WT_ASSERT_ALWAYS(session, !disagg, "Recovery not supported in disaggregated mode");
 
     conn = S2C(session);
     F_SET(conn, WT_CONN_RECOVERING);
