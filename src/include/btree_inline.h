@@ -780,10 +780,12 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      * going negative. Note that the checkpoint can only clean the page if it belongs to the
      * metadata or the history store.
      */
-    if (WT_UNLIKELY(!WT_PAGE_IS_INTERNAL(page) &&
-          __wt_atomic_load64(&S2C(session)->cache->pages_dirty_leaf) < 5 &&
-          (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
-            WT_IS_HS(session->dhandle)))) {
+    size = 0;
+    increase_dirty_size_first = WT_UNLIKELY(!WT_PAGE_IS_INTERNAL(page) &&
+      __wt_atomic_load64(&S2C(session)->cache->pages_dirty_leaf) < 5 &&
+      (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
+        WT_IS_HS(session->dhandle)));
+    if (increase_dirty_size_first) {
         increase_dirty_size_first = true;
         size = __wt_atomic_loadsize(&page->memory_footprint);
         __wt_cache_dirty_incr_size(session, size, WT_PAGE_IS_INTERNAL(page));
