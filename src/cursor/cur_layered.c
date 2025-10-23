@@ -2139,10 +2139,6 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
 
-    if (clayered->current_cursor) {
-        WT_ITEM_SET(clayered->current_cursor->value, cursor->value);
-        WT_ASSERT(session, cursor->value.size == clayered->current_cursor->value.size);
-    }
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__clayered_enter(clayered, false, true, false));
 
@@ -2155,6 +2151,8 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
     WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
     WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
+    WT_ASSERT(
+      session, F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
     F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_update);
