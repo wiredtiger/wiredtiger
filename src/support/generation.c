@@ -187,7 +187,9 @@ __gen_drain_callback(
             if (!timeout_triggered && time_diff_ms >= conn->gen_drain_timeout_ms) {
                 __wt_verbose_error(session, WT_VERB_GENERATION, "%s generation drain timed out",
                   __gen_name(cookie->base.which));
+#ifndef HAVE_DIAGNOSTIC
                 timeout_triggered = true;
+#endif
                 WT_ASSERT(session, false);
             }
         }
