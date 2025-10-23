@@ -504,7 +504,7 @@ struct __wt_name_flag {
     do {                                                                                       \
         WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HOTBACKUP_WRITE)); \
         (conn)->hot_backup_timestamp = (conn)->txn_global.last_ckpt_timestamp;                 \
-        __wt_atomic_store64(&(conn)->hot_backup_start, (conn)->ckpt.most_recent);              \
+        __wt_atomic_store_uint64_relaxed(&(conn)->hot_backup_start, (conn)->ckpt.most_recent); \
         (conn)->hot_backup_list = NULL;                                                        \
     } while (0)
 
