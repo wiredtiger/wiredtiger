@@ -6707,7 +6707,7 @@ buildvariants:
 - name: windows
   display_name: "! Windows"
   run_on:
-  - windows-2022-small
+  - windows-vsCurrent-large
   expansions:
     ENABLE_TCMALLOC: 0
     # Remove the default configurations for the toolchain, install prefix and number of jobs.
