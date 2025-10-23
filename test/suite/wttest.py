@@ -575,17 +575,18 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             for f in files:
                 os.chmod(os.path.join(root, f), 0o666)
 
-    # Return value of each action should be a tuple with the first value an integer (non-zero to indicate
-    # failure), and the second value a string suitable for printing when the test fails.
+    # Return value of each action should be a tuple with the first value an integer (non-zero to
+    # indicate failure), and the second value a string suitable for printing when the test fails.
     def addTearDownAction(self, action):
         self.teardown_actions.append(action)
 
     def verifyLayered(self):
-        # Need to check ".this" because SWIG proxies don't evaluate to None even after being freed.
-        if self.conn is None or self.conn.this is None:
+        if self.conn is None or not self.conn.is_open():
+            # If the connection is closed, reopen it.
             self.conn = self.setUpConnectionOpen(".")
         elif self.session is not None or self.session.this is not None:
-            # Ensure all cursors are closed by closing the session
+            # Need to check ".this" because SWIG proxies don't evaluate to None even after being
+            # freed. Ensure all cursors are closed by closing the session.
             self.session.close()
 
         sess = self.conn.open_session()
