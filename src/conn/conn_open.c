@@ -258,7 +258,7 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
     /* In disagg, skip recovery as we do not have any locally persisted data. */
-    bool disagg = cval.val != 0;
+    bool disagg = cval.len != 0;
     if (!disagg)
         WT_RET(__wt_txn_recover(session, cfg, false));
     else {
