@@ -181,9 +181,9 @@ class WiredTigerCursor:
         self.cursor = session.open_cursor(uri, *args, **kwargs)
 
     def __enter__(self):
-        # Get a statistics cursor
+        # Get the opened cursor
         return self.cursor
 
     def __exit__(self, exception_type, exception_value, exception_traceback):
-        # Close the statistics cursor
+        # Close the cursor
         self.cursor.close()
