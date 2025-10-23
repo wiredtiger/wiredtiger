@@ -2075,7 +2075,6 @@ __clayered_modify_follower_insert(WT_CURSOR_LAYERED *clayered, const WT_ITEM *ke
     ingest->set_value(ingest, &stable->value);
     WT_RET(__wt_modify_apply_api(ingest, entries, nentries));
     WT_RET(ingest->insert(ingest));
-    /* WT_RET(ingest->update(ingest)); */
 
     return (0);
 }
@@ -2091,7 +2090,6 @@ __clayered_modify_follower(
     WT_DECL_RET;
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
     WT_CURSOR *ingest = clayered->ingest_cursor;
-
 
     ingest->set_key(ingest, key);
     ret = ingest->search(ingest);
