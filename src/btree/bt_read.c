@@ -613,8 +613,8 @@ skip_evict:
         __wt_spin_backoff(&yield_cnt, &sleep_usecs);
         ++sleep_count;
         if (sleep_count > 10 * WT_THOUSAND && sleep_count % 10 * WT_THOUSAND == 0)
-            __wt_verbose_warning(
-              session, WT_VERB_READ, "sleep to wait the page for %zu times", sleep_count);
+            __wt_verbose_warning(session, WT_VERB_READ,
+              "sleep to wait the page for" WT_SIZET_FMT "times", sleep_count);
         WT_STAT_CONN_INCRV(session, page_sleep, sleep_usecs);
     }
 }

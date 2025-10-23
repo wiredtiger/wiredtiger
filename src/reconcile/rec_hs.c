@@ -925,8 +925,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
         }
 
         __wt_verbose_debug1(session, WT_VERB_RECONCILE,
-          "moving %zu updates to the history store for saved update list %u of %p", updates.size, i,
-          (void *)ref);
+          "moving" WT_SIZET_FMT "updates to the history store for saved update list %u of %p",
+          updates.size, i, (void *)ref);
 
         if (updates.size > 0) {
             __wt_update_vector_peek(&updates, &oldest_upd);
