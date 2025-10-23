@@ -110,9 +110,8 @@ filter_changed_files() {
   [[ -z "${EGREP:-}" ]] && use_pygrep
   local PREFIX="${1:-^}"
   local REGEX="$(changed_files | lines_to_regex)"
-  local REGEX="$PREFIX($REGEX)"
   if [[ -n "$REGEX" ]]; then
-    $EGREP $REGEX
+    $EGREP "$PREFIX($REGEX)"
   else
     cat > /dev/null # No regex - no files selected.
   fi
