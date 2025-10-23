@@ -540,7 +540,9 @@ if(WT_WIN)
 endif()
 
 # Suppress warnings for dangerous conversions to do some nasty stuff around C11 atomics.
-if (NOT MSVC_C_COMPILER)
+if (MSVC_C_COMPILER)
+    add_compile_options(/experimental:c11atomics)
+else()
     add_compile_options(-Wno-int-conversion)
     add_compile_options(-Wno-sign-conversion)
     add_compile_options(-Wno-error=sign-conversion)
