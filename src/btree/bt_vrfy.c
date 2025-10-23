@@ -1517,7 +1517,7 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
         }
     }
 
-    err:
+err:
 
     __wt_free(session, page_ids);
     __wt_scr_free(session, &item);
