@@ -926,7 +926,7 @@ err:
 
 /*
  * __wt_txn_recover --
- *     Run recovery.
+ *     Run recovery. This function must not be called in disagg mode.
  */
 int
 __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])

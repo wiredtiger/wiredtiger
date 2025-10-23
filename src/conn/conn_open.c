@@ -260,6 +260,9 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     /* In disagg, skip recovery as we do not have any locally persisted data. */
     if (cval.len == 0)
         WT_RET(__wt_txn_recover(session, cfg));
+    else
+        __wt_verbose_info(
+          session, WT_VERB_RECOVERY, "%s", "skipping recovery in disaggregated mode");
 
     /*
      * If we're performing a live restore start the server. This is intentionally placed after
