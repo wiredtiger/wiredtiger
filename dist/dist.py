@@ -80,12 +80,7 @@ def print_source_dirs():
 #    Compare two files, and if they differ, update the source file.
 def compare_srcfile(tmp, src):
     if not os.path.isfile(src) or not filecmp.cmp(tmp, src, shallow=False):
-        print(('Updating ' + src + ":"))
-        # run system diff to show the difference
-        try:
-            subprocess.check_call(['diff', '-u', src, tmp])
-        except subprocess.CalledProcessError:
-            pass
+        print(('Updating ' + src))
         shutil.copyfile(tmp, src)
     os.remove(tmp)
 
