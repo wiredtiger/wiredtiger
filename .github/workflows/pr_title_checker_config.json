@@ -1,0 +1,11 @@
+{
+  "CHECKS": {
+    "regexp": "^(Revert \")?WT-[0-9]+ ",
+    "alwaysPassCI": false
+  },
+  "MESSAGES": {
+    "success": "All OK",
+    "failure": "Failing CI test",
+    "notice": ""
+  }
+}
