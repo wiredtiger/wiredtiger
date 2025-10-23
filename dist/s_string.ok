@@ -411,6 +411,7 @@ ThreadListWrapper
 Timespec
 Tput
 TryCV
+Typedefs
 UBSAN
 UDF
 UID
@@ -828,6 +829,7 @@ foward
 fprintf
 fread
 free'd
+freopen
 fs
 fscanf
 fseek
@@ -896,7 +898,6 @@ icount
 idx
 ie
 iface
-ifdef
 ifdef's
 iff
 iiSii
@@ -1005,6 +1006,7 @@ logpath
 logread
 logrec
 logsize
+logslot
 logtest
 lookaside
 lookups
@@ -1411,6 +1413,7 @@ truncations
 trylock
 tryrdlock
 trywrlock
+tsan
 tsc
 tupdate
 tw

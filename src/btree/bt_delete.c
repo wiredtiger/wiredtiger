@@ -121,10 +121,14 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
             return (0);
         }
 
-        WT_RET(__wt_curhs_cache(session));
-        (void)__wt_atomic_addv32(&btree->evict_busy, 1);
+        ret = __wt_curhs_cache(session);
+        if (ret != 0) {
+            WT_REF_SET_STATE(ref, previous_state);
+            return (ret);
+        }
+        (void)__wt_atomic_add_uint32_v(&btree->evict_busy, 1);
         ret = __wt_evict(session, ref, previous_state, 0);
-        (void)__wt_atomic_subv32(&btree->evict_busy, 1);
+        (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
         WT_RET_BUSY_OK(ret);
         ret = 0;
     }
@@ -215,7 +219,7 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_STAT_CONN_DSRC_INCR(session, rec_page_delete_fast);
 
     if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
-        __wt_atomic_addv8(&ref->ref_changes, 1);
+        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
 
     /* Set the page to its new state. */
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
@@ -331,7 +335,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     }
 
     if (WT_DELTA_INT_ENABLED(op->btree, S2C(session)))
-        __wt_atomic_addv8(&ref->ref_changes, 1);
+        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
 
     WT_REF_SET_STATE(ref, current_state);
     return (0);

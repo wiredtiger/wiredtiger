@@ -41,7 +41,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
      * the disk image size takes into account large values that have
      * already been written and should not trigger forced eviction.
      */
-    footprint = __wt_atomic_loadsize(&page->memory_footprint);
+    footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
     if (page->dsk != NULL)
         footprint -= page->dsk->mem_size;
 
@@ -124,11 +124,16 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      */
     if (ref->page != NULL && !__wt_page_evict_clean(ref->page)) {
         WT_ASSERT(session, !WT_READING_CHECKPOINT(session));
-        WT_RET(__wt_curhs_cache(session));
+        ret = __wt_curhs_cache(session);
+        if (ret != 0) {
+            WT_ASSERT(session, locked);
+            WT_REF_SET_STATE(ref, previous_state);
+            return (ret);
+        }
     }
-    (void)__wt_atomic_addv32(&btree->evict_busy, 1);
+    (void)__wt_atomic_add_uint32_v(&btree->evict_busy, 1);
     ret = __wt_evict(session, ref, previous_state, evict_flags);
-    (void)__wt_atomic_subv32(&btree->evict_busy, 1);
+    (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
 
     return (ret);
 }

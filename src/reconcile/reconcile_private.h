@@ -305,6 +305,10 @@ struct __wti_reconcile {
     uint32_t count_internal_page_delta_key_deleted;
     uint32_t count_internal_page_delta_key_updated;
 
+    /* Stats for key bytes discarded using prefix compression.*/
+    uint32_t bytes_prefix_compression_delta;
+    uint32_t bytes_prefix_compression_full;
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WTI_REC_TIME_NEWEST_START_DURABLE_TS 0x01u
 #define WTI_REC_TIME_NEWEST_STOP_DURABLE_TS 0x02u
@@ -537,7 +541,7 @@ extern void __wti_rec_dictionary_reset(WTI_RECONCILE *r);
 static WT_INLINE bool __wti_rec_need_split(WTI_RECONCILE *r, size_t len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wti_rec_cell_build_val(WT_SESSION_IMPL *session, WTI_RECONCILE *r,
-  const void *data, size_t size, WT_TIME_WINDOW *tw, uint64_t rle)
+  const void *data, size_t size, WT_TIME_WINDOW *tw, uint64_t rle, bool *ovfl_val)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wti_rec_dict_replace(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_TIME_WINDOW *tw, uint64_t rle, WTI_REC_KV *val)

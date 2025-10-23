@@ -166,7 +166,8 @@ __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
     if (LF_ISSET(WT_REC_EVICT)) {
         mod->last_eviction_id = oldest_id;
         __wt_txn_pinned_timestamp(session, &mod->last_eviction_timestamp);
-        mod->last_evict_pass_gen = __wt_atomic_load64(&S2C(session)->evict->evict_pass_gen);
+        mod->last_evict_pass_gen =
+          __wt_atomic_load_uint64_relaxed(&S2C(session)->evict->evict_pass_gen);
     }
 
 #ifdef HAVE_DIAGNOSTIC
@@ -521,7 +522,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          * If the page state changed, the page has been written since reconciliation started and
          * remains dirty (that can't happen when evicting, the page is exclusively locked).
          */
-        if (__wt_atomic_cas32(&mod->page_state, WT_PAGE_DIRTY_FIRST, WT_PAGE_CLEAN))
+        if (__wt_atomic_cas_uint32(&mod->page_state, WT_PAGE_DIRTY_FIRST, WT_PAGE_CLEAN))
             __wt_cache_dirty_decr(session, page);
         else
             WT_ASSERT_ALWAYS(
@@ -672,7 +673,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * Update the page state to indicate that all currently installed updates will be included in
      * this reconciliation if it would mark the page clean.
      */
-    __wt_atomic_store32(&page->modify->page_state, WT_PAGE_DIRTY_FIRST);
+    __wt_atomic_store_uint32_relaxed(&page->modify->page_state, WT_PAGE_DIRTY_FIRST);
     WT_FULL_BARRIER();
 
     /*
@@ -688,7 +689,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
         r->rec_start_pinned_stable_ts = WT_TS_NONE;
 
     if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-        WT_ACQUIRE_READ(r->rec_prune_timestamp, btree->prune_timestamp);
+        r->rec_prune_timestamp = __wt_atomic_load_uint64_acquire(&btree->prune_timestamp);
     else
         r->rec_prune_timestamp = WT_TS_NONE;
 
@@ -701,11 +702,13 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
          * checkpoint.
          */
         if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
-            WT_ACQUIRE_READ(r->rec_start_pinned_id, txn_global->checkpoint_txn_shared.pinned_id);
+            r->rec_start_pinned_id =
+              __wt_atomic_load_uint64_v_acquire(&txn_global->checkpoint_txn_shared.pinned_id);
             if (r->rec_start_pinned_id == WT_TXN_NONE)
-                WT_ACQUIRE_READ(r->rec_start_pinned_id, txn_global->last_running);
+                r->rec_start_pinned_id =
+                  __wt_atomic_load_uint64_v_acquire(&txn_global->last_running);
         } else
-            WT_ACQUIRE_READ(r->rec_start_pinned_id, txn_global->last_running);
+            r->rec_start_pinned_id = __wt_atomic_load_uint64_v_acquire(&txn_global->last_running);
 
         if (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) {
             uint64_t ckpt_txn;
@@ -2023,7 +2026,7 @@ __rec_set_page_write_gen(WT_BTREE *btree, WT_PAGE_HEADER *dsk)
      * Other than salvage, the write generation number is used to reset the stale transaction id's
      * present on the page upon server restart.
      */
-    dsk->write_gen = __wt_atomic_add64(&btree->write_gen, 1);
+    dsk->write_gen = __wt_atomic_add_uint64(&btree->write_gen, 1);
 }
 
 /*
@@ -2396,13 +2399,15 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
             WT_STAT_CONN_DSRC_INCR(session, rec_pages_with_internal_deltas);
 
         if (multi->block_meta->delta_count >
-          __wt_atomic_load64(&conn->page_delta.max_internal_delta_count))
-            __wt_atomic_store64(
+          __wt_atomic_load_uint64_relaxed(&conn->page_delta.max_internal_delta_count))
+            __wt_atomic_store_uint64_relaxed(
               &conn->page_delta.max_internal_delta_count, multi->block_meta->delta_count);
     } else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
         WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_leaf);
         WT_STAT_CONN_INCRV(
           session, block_byte_write_saved_delta_leaf, chunk->image.size - r->delta.size);
+        WT_STAT_DSRC_INCRV(
+          session, rec_prefix_compression_delta, r->bytes_prefix_compression_delta);
 
         if (delta_pct <= 20)
             WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt20);
@@ -2422,8 +2427,8 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
             WT_STAT_CONN_DSRC_INCR(session, rec_pages_with_leaf_deltas);
 
         if (multi->block_meta->delta_count >
-          __wt_atomic_load64(&conn->page_delta.max_leaf_delta_count))
-            __wt_atomic_store64(
+          __wt_atomic_load_uint64_relaxed(&conn->page_delta.max_leaf_delta_count))
+            __wt_atomic_store_uint64_relaxed(
               &conn->page_delta.max_leaf_delta_count, multi->block_meta->delta_count);
     }
 
@@ -2561,6 +2566,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 #ifdef HAVE_DIAGNOSTIC
     verify_image = true;
 #endif
+
+    /* Fail 1% of the time when reconciling a page during a bulk load. */
+    if (r->is_bulk_load && !F_ISSET(r, WT_REC_EVICT_CALL_CLOSING) &&
+      __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_REC_SPLIT_WRITE, 100))
+        return (EBUSY);
 
     /*
      * If reconciliation requires multiple blocks and checkpoint is running we'll eventually fail,
@@ -2726,6 +2736,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     } else {
         WT_RET(
           __rec_write_image(session, r, chunk, addr, &addr_size, &compressed_size, last_block));
+        WT_STAT_DSRC_INCRV(session, rec_prefix_compression_full, r->bytes_prefix_compression_full);
 #ifdef HAVE_DIAGNOSTIC
         verify_image = true;
 #endif
@@ -2766,6 +2777,7 @@ copy_image:
     /* Whether we wrote or not, clear the accumulated time statistics. */
     __rec_page_time_stats_clear(r);
     __rec_page_delta_stats_clear(r);
+    __rec_page_pfx_compression_stats_clear(r);
 
     return (0);
 }
@@ -3250,7 +3262,7 @@ split:
     }
 
     if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
-        __wt_atomic_addv8(&ref->ref_changes, 1);
+        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
 
     /*
      * If the page has post-instantiation delete information, we don't need it any more. Note: this
@@ -3366,6 +3378,10 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     btree = S2BT(session);
 
+    /* Set a flag in the session to track that we're in HS wrapup */
+    F_SET(session, WT_SESSION_HS_WRAPUP);
+    session->reconcile_stats.hs_wrapup_next_prev_calls = 0;
+
     /*
      * Sanity check: Can't insert updates into history store from the history store itself or from
      * the metadata file.
@@ -3391,7 +3407,10 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         }
     }
 
+    WT_STAT_CONN_INCRV(
+      session, rec_hs_wrapup_next_prev_calls, session->reconcile_stats.hs_wrapup_next_prev_calls);
 err:
+    F_CLR(session, WT_SESSION_HS_WRAPUP);
     return (ret);
 }
 

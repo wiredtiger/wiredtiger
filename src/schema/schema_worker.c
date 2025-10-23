@@ -77,16 +77,6 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
   int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], uint32_t open_flags)
 {
-    /*
-     * FIXME-WT-15553
-     *
-     * This ifdef disables verification of layered tables as part of MongoDB while keeping it for
-     * internal tests.
-     *
-     * Once verification of layered tables with deltas is fully supported, this ifdef should be
-     * removed.
-     */
-#ifdef WT_STANDALONE_BUILD
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     int ingest_ret, stable_ret;
@@ -114,6 +104,14 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     /* Verify the stable table of the layered table. */
     WT_WITHOUT_DHANDLE(session,
       stable_ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
+
+    /* On followers, it is possible not to have any stable table. This is a transient state. */
+    if (!conn->layered_table_manager.leader && stable_ret == ENOENT) {
+        __wt_verbose_level(session, WT_VERB_VERIFY, WT_VERBOSE_DEBUG_2,
+          "Verify (layered): %s stable table not found on follower, it can be a transient state.",
+          stable_uri);
+        stable_ret = 0;
+    }
 
     if (stable_ret != 0 && stable_ret != EBUSY)
         WT_ERR_MSG(session, stable_ret, "Verify (layered): %s stable table verification failed ",
@@ -154,16 +152,6 @@ err:
     ret = ingest_ret != 0 ? ingest_ret : stable_ret;
 
     return (ret);
-#else
-    WT_UNUSED(session);
-    WT_UNUSED(uri);
-    WT_UNUSED(file_func);
-    WT_UNUSED(name_func);
-    WT_UNUSED(cfg);
-    WT_UNUSED(open_flags);
-
-    return (0);
-#endif
 }
 
 /*
