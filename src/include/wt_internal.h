@@ -531,7 +531,9 @@ typedef uint64_t wt_timestamp_t;
 /*******************************************
  * WiredTiger internal include files.
  *******************************************/
-#if defined(__GNUC__)
+#ifdef ENABLE_C11_ATOMICS
+#include "c11_atomics.h"
+#elif defined(__GNUC__)
 #include "gcc.h"
 #elif defined(_MSC_VER)
 #include "msvc.h"

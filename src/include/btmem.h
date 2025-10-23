@@ -656,7 +656,7 @@ struct __wt_page {
             WT_REF *parent_ref; /* Parent reference */
             uint64_t split_gen; /* Generation of last split */
 
-            wt_shared WT_PAGE_INDEX *volatile __index; /* Collated children */
+            wt_shared WT_PAGE_INDEX *__index; /* Collated children */
         } intl;
 #undef pg_intl_parent_ref
 #define pg_intl_parent_ref u.intl.parent_ref

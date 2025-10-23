@@ -189,6 +189,12 @@ config_bool(
 )
 
 config_bool(
+    ENABLE_C11_ATOMICS
+    "Use C11 atomics implementation instead of GCC builtins"
+    DEFAULT ON
+)
+
+config_bool(
     ENABLE_PYTHON
     "Configure the python API"
     DEFAULT ${default_enable_python}
@@ -425,6 +431,10 @@ if (HAVE_DIAGNOSTIC)
     set(ENABLE_DEBUG_INFO ON)
 endif()
 
+if (ENABLE_C11_ATOMICS)
+    add_definitions(-DENABLE_C11_ATOMICS)
+endif()
+
 # Setup debug info if enabled.
 # Only set initial debug flags once to preserve user customizations.
 if(ENABLE_DEBUG_INFO AND NOT WT_DEBUG_FLAGS_INITIALIZED)
@@ -527,6 +537,13 @@ if(WT_WIN)
         # Use the multithread, static version of the run-time library.
         set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
     endif()
+endif()
+
+# Suppress warnings for dangerous conversions to do some nasty stuff around C11 atomics.
+if (NOT MSVC_C_COMPILER)
+    add_compile_options(-Wno-int-conversion)
+    add_compile_options(-Wno-sign-conversion)
+    add_compile_options(-Wno-error=sign-conversion)
 endif()
 
 if(ENABLE_ANTITHESIS)

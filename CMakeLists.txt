@@ -6,6 +6,9 @@ project(WiredTiger C CXX ASM)
 # all translation units of the project in machine-readable form.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
 # Import our available build types prior to initializing the
 # project.
 include(cmake/configs/modes.cmake)
@@ -287,7 +290,7 @@ if(ENABLE_PYTHON)
     include(UseSWIG)
 
     add_subdirectory(lang/python)
-    add_subdirectory(bench/workgen)
+    # add_subdirectory(bench/workgen)
 endif()
 
 # Build the wiredtiger test suites.
