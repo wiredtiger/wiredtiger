@@ -396,7 +396,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
 
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
-        self.nentries = 10
         self.populate(self.tablename)
         """
         Insert some secret entries into the table
