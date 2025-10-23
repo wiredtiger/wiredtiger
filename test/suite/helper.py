@@ -176,7 +176,6 @@ class WiredTigerStat:
         self.stat_cursor.close()
 
 class WiredTigerCursor:
-
     def __init__(self, session, uri = 'statistics:', *args, **kwargs):
         self.cursor = session.open_cursor(uri, *args, **kwargs)
 
