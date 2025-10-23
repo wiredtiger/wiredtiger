@@ -793,7 +793,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
             WT_IS_HS(session->dhandle)))) {
         increase_dirty_size_first = true;
         size = __wt_atomic_load_size_relaxed(&page->memory_footprint);
-        __wt_cache_dirty_incr_size(session, size, WT_PAGE_IS_INTERNAL(page));
+        __wt_cache_dirty_incr_size(session, size, false);
     } else
         increase_dirty_size_first = false;
     if (__wt_atomic_add_uint32(&page->modify->page_state, 1) == WT_PAGE_DIRTY_FIRST) {
@@ -817,7 +817,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (last_running != 0)
             page->modify->first_dirty_txn = last_running;
     } else if (WT_UNLIKELY(increase_dirty_size_first))
-        __wt_cache_dirty_decr_size(session, size, WT_PAGE_IS_INTERNAL(page));
+        __wt_cache_dirty_decr_size(session, size, false);
 
     /* Check if this is the largest transaction ID to update the page. */
     if (__wt_atomic_load_uint64_relaxed(&page->modify->update_txn) < session->txn->id)
