@@ -170,7 +170,7 @@ __gen_drain_callback(
                     WT_VERBOSE_SET_AND_SAVE(
                       session, verbose_orig_level, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_1);
                     WT_VERBOSE_SET_AND_SAVE(
-                      session, verbose_orig_level, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_1);
+                      session, verbose_orig_level, WT_VERB_RECONCILE, WT_VERBOSE_DEBUG_1);
                 } else if (cookie->base.which == WT_GEN_CHECKPOINT) {
                     WT_VERBOSE_SET_AND_SAVE(
                       session, verbose_orig_level, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_1);
