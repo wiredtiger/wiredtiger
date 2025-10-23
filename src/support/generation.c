@@ -86,11 +86,11 @@ __gen_drain_callback(
   WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
 {
     struct timespec stop;
-    WT_CLEAR(verbose_orig_level);
     WT_CONNECTION_IMPL *conn;
     WT_GENERATION_DRAIN_COOKIE *cookie;
-    WT_VERBOSE_LEVEL verbose_orig_level[WT_VERB_NUM_CATEGORIES];
     uint64_t time_diff_ms, v;
+    WT_VERBOSE_LEVEL verbose_orig_level[WT_VERB_NUM_CATEGORIES];
+    WT_CLEAR(verbose_orig_level);
     bool timeout_triggered;
 
     cookie = (WT_GENERATION_DRAIN_COOKIE *)cookiep;
