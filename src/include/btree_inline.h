@@ -765,7 +765,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (F_ISSET(S2BT(session), WT_BTREE_READONLY))
         return;
 
-    last_running = 0;
+    last_running = WT_TXN_NONE;
     if (__wt_atomic_load_uint32_relaxed(&page->modify->page_state) == WT_PAGE_CLEAN)
         last_running = __wt_atomic_load_uint64_v_relaxed(&S2C(session)->txn_global.last_running);
 
@@ -809,12 +809,12 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
          * meantime, and the last_running field been updated past it. That is all very unlikely, but
          * not impossible, so we take care to read the global state before the atomic increment.
          *
-         * If the page was dirty on entry, then last_running == 0. The page could have become clean
-         * since then, if reconciliation completed. In that case, we leave the previous value for
-         * first_dirty_txn rather than potentially racing to update it, at worst, we'll
+         * If the page was dirty on entry, then last_running == WT_TXN_NONE. The page could have
+         * become clean since then, if reconciliation completed. In that case, we leave the previous
+         * value for first_dirty_txn rather than potentially racing to update it, at worst, we'll
          * unnecessarily write a page in a checkpoint.
          */
-        if (last_running != 0)
+        if (last_running != WT_TXN_NONE)
             page->modify->first_dirty_txn = last_running;
     } else if (WT_UNLIKELY(increase_dirty_size_first))
         __wt_cache_dirty_decr_size(session, size, false);
