@@ -1,7 +1,7 @@
 {
   "CHECKS": {
     "regexp": "^WT-[0-9]+ ",
-    "alwaysPassCI": "true"
+    "alwaysPassCI": "false"
   },
   "MESSAGES": {
     "success": "All OK",
