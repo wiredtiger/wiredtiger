@@ -253,6 +253,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         ret = __wti_build_full_disk_image_on_read(session, ref, deltas, count - 1, disk_image);
         for (i = 0; i < count - 1; ++i)
             __wt_buf_free(session, &deltas[i]);
+        __wt_buf_free(session, disk_image);
         WT_ERR(ret);
     }
     /*
@@ -348,7 +349,6 @@ err:
         __wt_free(session, tmp);
     }
 
-    __wt_buf_free(session, disk_image);
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, previous_state);
 

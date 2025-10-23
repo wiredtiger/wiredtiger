@@ -471,6 +471,7 @@ __page_build_and_merge_refs(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPAC
     bool row_leaf_page = false, internal_page = false;
     WT_PAGE *page = ref->page;
 
+    WT_UNUSED(disk_image);
     /* Step 4: Allocate space for final WT_REF array. */
     estimated_entries = (base_entries / 2) + merged_delta_size + 1;
     WT_RET(__wt_calloc_def(session, estimated_entries, &refs));
