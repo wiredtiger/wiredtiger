@@ -258,11 +258,15 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
     /* In disagg, skip recovery as we do not have any locally persisted data. */
-    if (cval.len == 0)
-        WT_RET(__wt_txn_recover(session, cfg));
-    else
+    bool disagg = cval.val != 0;
+    if (!disagg)
+        WT_RET(__wt_txn_recover(session, cfg, false));
+    else {
         __wt_verbose_info(
           session, WT_VERB_RECOVERY, "%s", "skipping recovery in disaggregated mode");
+        /* We need to set this flag for both disagg and non-disagg modes */
+        F_SET(S2C(session), WT_CONN_RECOVERY_COMPLETE);
+    }
 
     /*
      * If we're performing a live restore start the server. This is intentionally placed after

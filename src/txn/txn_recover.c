@@ -929,7 +929,7 @@ err:
  *     Run recovery. This function must not be called in disagg mode.
  */
 int
-__wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *metac;
@@ -943,6 +943,9 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     char conn_rts_cfg[16];
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool do_checkpoint, eviction_started, hs_exists_local, needs_rec, rts_executed, was_backup;
+
+    /* We skip recovery in disagg */
+    WT_ASSERT(session, !disagg);
 
     conn = S2C(session);
     F_SET(conn, WT_CONN_RECOVERING);
