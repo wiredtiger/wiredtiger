@@ -190,7 +190,7 @@ WT_ATOMIC_FUNC_STORE_LOAD(bool, bool, atomic_bool)
 static inline double
 __wt_atomic_load_double_relaxed(double *vp)
 {
-    return atomic_load_explicit((_Atomic double *)vp, memory_order_relaxed);
+    return (atomic_load_explicit((_Atomic double *)vp, memory_order_relaxed));
 }
 
 /*
@@ -204,7 +204,7 @@ __wt_atomic_store_double_relaxed(double *vp, double v)
 }
 
 /* Size-based generic atomic operations using sizeof() */
-#define ATOMIC_LOAD_GENERIC_BY_SIZE(vp)                                         \
+#define ATOMIC_LOAD_GENERIC_BY_SIZE(vp)                                             \
     (sizeof(*(vp)) == 1 ?                                                           \
         atomic_load_explicit((atomic_uint_least8_t *)(vp), memory_order_relaxed) :  \
         sizeof(*(vp)) == 2 ?                                                        \
@@ -213,7 +213,7 @@ __wt_atomic_store_double_relaxed(double *vp, double v)
         atomic_load_explicit((atomic_uint_least32_t *)(vp), memory_order_relaxed) : \
         atomic_load_explicit((atomic_uint_least64_t *)(vp), memory_order_relaxed))
 
-#define ATOMIC_STORE_GENERIC_BY_SIZE(vp, v)                                         \
+#define ATOMIC_STORE_GENERIC_BY_SIZE(vp, v)                                             \
     (sizeof(*(vp)) == 1 ?                                                               \
         atomic_store_explicit((atomic_uint_least8_t *)(vp), v, memory_order_relaxed) :  \
         sizeof(*(vp)) == 2 ?                                                            \

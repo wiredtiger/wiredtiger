@@ -1,4 +1,7 @@
 # List of WiredTiger #defines that are "unused", but it's OK.
+ACQUIRE_READ
+ATOMIC_CAS
+RELEASE_WRITE
 API_CALL
 API_CALL_NOCONF
 API_CALL_NOCONF_NOERRCLEAR
