@@ -2372,8 +2372,9 @@ struct __wt_connection {
      * \c 10.}
      * @config{ ),,}
      * @config{generation_drain_timeout_ms, the number of milliseconds to wait for a resource to
-     * drain before timing out in diagnostic mode.  Default will wait for 4 minutes\, 0 will wait
-     * forever., an integer greater than or equal to \c 0; default \c 240000.}
+     * drain before timing out.  In the diagnostic mode\, it will log an error and crash the system.
+     * In the production mode\, it will only log an error.  Default will wait for 4 minutes\, 0 will
+     * wait forever., an integer greater than or equal to \c 0; default \c 240000.}
      * @config{heuristic_controls = (, control the behavior of various optimizations.  This is
      * primarily used as a mechanism for rolling out changes to internal heuristics while providing
      * a mechanism for quickly reverting to prior behavior in the field., a set of related
@@ -3301,8 +3302,9 @@ struct __wt_connection {
  * files that are inactive and close them., an integer between \c 1 and \c 100000; default \c 10.}
  * @config{ ),,}
  * @config{generation_drain_timeout_ms, the number of milliseconds to wait for a resource to drain
- * before timing out in diagnostic mode.  Default will wait for 4 minutes\, 0 will wait forever., an
- * integer greater than or equal to \c 0; default \c 240000.}
+ * before timing out.  In the diagnostic mode\, it will log an error and crash the system.  In the
+ * production mode\, it will only log an error.  Default will wait for 4 minutes\, 0 will wait
+ * forever., an integer greater than or equal to \c 0; default \c 240000.}
  * @config{hash = (, manage resources used by hash bucket arrays.  All values must be a power of
  * two.  Note that setting large values can significantly increase memory usage inside WiredTiger.,
  * a set of related configuration options defined as follows.}
