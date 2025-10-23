@@ -86,16 +86,16 @@ __gen_drain_callback(
   WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
 {
     struct timespec stop;
+    WT_CLEAR(verbose_orig_level);
     WT_CONNECTION_IMPL *conn;
     WT_GENERATION_DRAIN_COOKIE *cookie;
-    uint64_t time_diff_ms, v;
-#ifdef HAVE_DIAGNOSTIC
     WT_VERBOSE_LEVEL verbose_orig_level[WT_VERB_NUM_CATEGORIES];
-    WT_CLEAR(verbose_orig_level);
-#endif
+    uint64_t time_diff_ms, v;
+    bool timeout_triggered;
 
     cookie = (WT_GENERATION_DRAIN_COOKIE *)cookiep;
     conn = S2C(session);
+    timeout_triggered = false;
 
     for (;;) {
         /* Ensure we only read the value once. */
@@ -109,10 +109,8 @@ __gen_drain_callback(
          */
         if (v == 0 || v >= cookie->base.target_generation) {
             /*
-             * We turn on additional logging just before generation drain times out, but it's
-             * possible that we get unblocked after increasing the traces but before hitting the
-             * timeout. If this occurs set verbose levels back to their original values so we can
-             * continue normal operation.
+             * We turn on additional logging just before generation drain times out, restore the
+             * original verbose level after we have been unblocked.
              */
             if (cookie->verbose_timeout_flags) {
                 if (cookie->base.which == WT_GEN_EVICT) {
@@ -186,7 +184,7 @@ __gen_drain_callback(
                 continue;
             }
 
-            if (time_diff_ms >= conn->gen_drain_timeout_ms) {
+            if (!timeout_triggered && time_diff_ms >= conn->gen_drain_timeout_ms) {
                 __wt_verbose_error(session, WT_VERB_GENERATION, "%s generation drain timed out",
                   __gen_name(cookie->base.which));
                 WT_ASSERT(session, false);
