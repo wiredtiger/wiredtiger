@@ -1476,7 +1476,7 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
          * page. Change below warning to an error after root page discard is implemented, if a
          * mismatch is found this function will return the corresponding error code.
          */
-        __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
+        WT_RET_MSG(session, EINVAL,
           "Mismatch in the number of page IDs found from PALM and btree walk: PALM %" PRIu64
           " Btree walk %" PRIu64,
           (uint64_t)num_pages_found_in_palm, num_pages_found_in_btree);
@@ -1502,12 +1502,12 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
          * mismatch is found this function will return the corresponding error code.
          */
         if (index_in_btree == num_pages_found_in_btree || id_in_palm < id_in_btree) {
-            __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
+            WT_RET_MSG(session, EINVAL,
               "Unreferenced page was not discarded: PALM[%" PRIu32 "] %" PRIu64, index_in_palm,
               id_in_palm);
             index_in_palm++;
         } else if (index_in_palm == num_pages_found_in_palm || id_in_palm > id_in_btree) {
-            __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
+            WT_RET_MSG(session, EINVAL,
               "Discarded page is still in use: BTREE[%" PRIu32 "] %" PRIu64, index_in_btree,
               id_in_btree);
             index_in_btree++;

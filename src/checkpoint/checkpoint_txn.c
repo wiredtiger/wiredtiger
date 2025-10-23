@@ -2630,42 +2630,43 @@ fake:
 
 err:
     /* Resolved the checkpoint for the block manager in the error path. */
-    if (resolve_bm)
+    if (resolve_bm) {
         WT_TRET(bm->checkpoint_resolve(bm, session, ret != 0));
 
-    WT_CKPT *ckptbase, *ckpt_temp;
+        if (ret == 0) {
+            WT_CKPT *ckptbase, *ckpt_temp;
 
-    ckptbase = btree->ckpt;
+            ckptbase = btree->ckpt;
 
-    WT_CKPT_FOREACH (ckptbase, ckpt_temp) {
-        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && F_ISSET(ckpt_temp, WT_CKPT_DELETE)) {
+            WT_CKPT_FOREACH (ckptbase, ckpt_temp) {
+                if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && F_ISSET(ckpt_temp, WT_CKPT_DELETE) &&
+                  ckpt_temp->raw.data)
+                    bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size);
+            }
         }
-        if (ckpt_temp->raw.data)
-            bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size);
     }
-}
 
-/*
- * If the checkpoint didn't complete successfully, make sure the tree is marked dirty.
- */
-if (ret != 0) {
-    btree->modified = true;
-    conn->modified = true;
-}
+    /*
+     * If the checkpoint didn't complete successfully, make sure the tree is marked dirty.
+     */
+    if (ret != 0) {
+        btree->modified = true;
+        conn->modified = true;
+    }
 
-/* For a successful checkpoint, post process the ckptlist, to keep a cached copy around. */
-if (WT_SESSION_IS_CHECKPOINT(session))
-    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_POSTPROCESS);
-if (ret != 0 || WT_IS_METADATA(session->dhandle) || F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING))
-    __wt_ckptlist_saved_free(session);
-else {
-    ret = __checkpoint_save_ckptlist(session, btree->ckpt);
-    /* Discard the saved checkpoint list if processing the list did not work. */
-    if (ret != 0)
+    /* For a successful checkpoint, post process the ckptlist, to keep a cached copy around. */
+    if (WT_SESSION_IS_CHECKPOINT(session))
+        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_POSTPROCESS);
+    if (ret != 0 || WT_IS_METADATA(session->dhandle) || F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING))
         __wt_ckptlist_saved_free(session);
-}
+    else {
+        ret = __checkpoint_save_ckptlist(session, btree->ckpt);
+        /* Discard the saved checkpoint list if processing the list did not work. */
+        if (ret != 0)
+            __wt_ckptlist_saved_free(session);
+    }
 
-return (ret);
+    return (ret);
 }
 
 /*
