@@ -524,7 +524,6 @@ struct __wt_page_modify {
  */
 #define WT_PAGE_CLEAN 0
 #define WT_PAGE_DIRTY_FIRST 1
-#define WT_PAGE_DIRTY 2
     wt_shared uint32_t page_state;
 
 #define WT_PM_REC_EMPTY 1      /* Reconciliation: no replacement */
@@ -691,16 +690,17 @@ struct __wt_page {
     } while (0)
 #else
 /* Use WT_ACQUIRE_READ to enforce acquire semantics rather than relying on address dependencies. */
-#define WT_INTL_INDEX_GET_SAFE(page, pindex) WT_ACQUIRE_READ((pindex), (page)->u.intl.__index)
+#define WT_INTL_INDEX_GET_SAFE(page, pindex) \
+    (pindex) = __wt_atomic_load_ptr_acquire(&(page)->u.intl.__index)
 #define WT_INTL_INDEX_GET(session, page, pindex)                          \
     do {                                                                  \
         WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0); \
         WT_INTL_INDEX_GET_SAFE(page, (pindex));                           \
     } while (0)
-#define WT_INTL_INDEX_SET(page, v)                               \
-    do {                                                         \
-        WT_RELEASE_BARRIER();                                    \
-        __wt_atomic_store_pointer(&(page)->u.intl.__index, (v)); \
+#define WT_INTL_INDEX_SET(page, v)                                   \
+    do {                                                             \
+        WT_RELEASE_BARRIER();                                        \
+        __wt_atomic_store_ptr_relaxed(&(page)->u.intl.__index, (v)); \
     } while (0)
 #endif
 

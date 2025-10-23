@@ -235,7 +235,7 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
-        WT_ACQUIRE_READ(prev_ref_changes, ref->ref_changes);
+        prev_ref_changes = __wt_atomic_load_uint8_v_acquire(&ref->ref_changes);
 
         /* Update the starting record number in case we split. */
         r->recno = ref->ref_recno;
@@ -333,7 +333,7 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
          * the internal page.
          */
         if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
-            __wt_atomic_casv8(&ref->ref_changes, prev_ref_changes, 0);
+            __wt_atomic_cas_uint8_v(&ref->ref_changes, prev_ref_changes, 0);
     }
     WT_INTL_FOREACH_END;
 
