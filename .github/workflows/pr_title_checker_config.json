@@ -1,0 +1,11 @@
+{
+  "CHECKS": {
+    "regexp": "^WT-[0-9]+ ",
+    "alwaysPassCI": "true"
+  },
+  "MESSAGES": {
+    "success": "All OK",
+    "failure": "Failing CI test",
+    "notice": ""
+  }
+}
