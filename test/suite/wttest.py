@@ -295,6 +295,10 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                         print("[pid:{}]: {}: restarting after rollback error".format(os.getpid(), self))
                     self.setUp()
                     rollbacksAllowed -= 1
+            except wiredtiger.WiredTigerError as err:
+                self.prexception(sys.exc_info())
+                self.conn.dump_error_log()
+                raise
 
     # Construct the expected filename for an extension library and return
     # the name if the file exists.
@@ -563,6 +567,23 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     def addTearDownAction(self, action):
         self.teardown_actions.append(action)
 
+    def verifyLayered(self):
+        # Need to check ".this" because SWIG proxies don't evaluate to None even after being freed.
+        if self.conn is None or self.conn.this is None:
+            self.conn = self.setUpConnectionOpen(".")
+        elif self.session is not None or self.session.this is not None:
+            # Ensure all cursors are closed by closing the session
+            self.session.close()
+
+        sess = self.conn.open_session()
+
+        cur = sess.open_cursor('metadata:', None, None)
+        while cur.next() == 0:
+            uri = cur.get_key()
+            if uri.startswith('layered:'):
+                self.verifyUntilSuccess(sess, uri)
+        cur.close()
+
     def tearDown(self, dueToRetry=False):
         teardown_failed = False
         teardown_msg = None
@@ -583,6 +604,12 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                         teardown_msg += "; " + str(tmp[1])
 
         passed = not (self.failed() or teardown_failed)
+
+        if passed and self.__module__.startswith("test_layered"):
+            # FIXME-WT-15786: Handle the transient state where a follower that has not yet picked up
+            # its first checkpoint may fail with ENOENT due to missing its stable table.
+            if not re.match("test_layered(57|41|21|22|17)", str(self)):
+                self.verifyLayered()
 
         try:
             self.platform_api.tearDown(self)
@@ -830,48 +857,54 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         if self.runningHook('tiered'):
             self.skipTest('Test requires removal from cloud storage, which is not yet permitted')
 
-    def compactUntilSuccess(self, session, uri, config=None):
-        while True:
+    def retryEBUSY(self, session, func, checkpoint_on_busy=True, max_retries=5, sleep=0):
+        """
+        Call the given function.
+        If the function succeeds, the function's return value is returned.
+        If the function raises any exception other than EBUSY, the exception is raised to the caller.
+        If the function raises a WiredTigerError with EBUSY, we call checkpoint and retry, up to max_retries times.
+        If the function continues to raise EBUSY after max_retries, the exception is raised to the caller.
+        In general, one retry after a checkpoint is sufficient as per test/suite/test_verify2.py.
+        """
+        for _ in range(max_retries):
             try:
-                session.compact(uri, config)
-                return
+                return func()
             except wiredtiger.WiredTigerError as err:
                 if str(err) != os.strerror(errno.EBUSY):
                     raise err
+                if checkpoint_on_busy:
+                    session.checkpoint()
+                if sleep > 0:
+                    time.sleep(sleep)
+        # One last try, if it fails we let the exception propagate.
+        return func()
 
-    def dropUntilSuccess(self, session, uri, config=None):
+    # FIXME-WT-15791 review instances of "session.compact(...)" and replace with "self.compactUntilSuccess" where appropriate.
+    def compactUntilSuccess(self, session=None, uri=None, config=None, **kwargs):
+        session = self.session if session is None else session
+        uri = self.uri if uri is None else uri
+        return self.retryEBUSY(session, lambda: session.compact(uri, config), checkpoint_on_busy=False, max_retries=100, sleep=0.1, **kwargs)
+
+    # FIXME-WT-15791 review instances of "session.drop(...)" and replace with "self.dropUntilSuccess" where appropriate.
+    def dropUntilSuccess(self, session=None, uri=None, config=None, **kwargs):
         # Most test cases consider a drop, and especially a 'drop until success',
         # to completely remove a file's artifacts, so that the name can be reused.
         # Require this behavior.
         self.requireDropRemovesNameConflict()
-        while True:
-            try:
-                session.drop(uri, config)
-                return
-            except wiredtiger.WiredTigerError as err:
-                if str(err) != os.strerror(errno.EBUSY):
-                    raise err
-                session.checkpoint()
+        session = self.session if session is None else session
+        uri = self.uri if uri is None else uri
+        return self.retryEBUSY(session, lambda: session.drop(uri, config), **kwargs)
 
-    def verifyUntilSuccess(self, session, uri, config=None):
-        while True:
-            try:
-                session.verify(uri, config)
-                return
-            except wiredtiger.WiredTigerError as err:
-                if str(err) != os.strerror(errno.EBUSY):
-                    raise err
-                session.checkpoint()
+    def verifyUntilSuccess(self, session=None, uri=None, config=None, **kwargs):
+        session = self.session if session is None else session
+        uri = self.uri if uri is None else uri
+        return self.retryEBUSY(session, lambda: session.verify(uri, config), **kwargs)
 
-    def salvageUntilSuccess(self, session, uri, config=None):
-        while True:
-            try:
-                session.salvage(uri, config)
-                return
-            except wiredtiger.WiredTigerError as err:
-                if str(err) != os.strerror(errno.EBUSY):
-                    raise err
-                session.checkpoint()
+    # FIXME-WT-15791 review instances of "session.salvage(...)" and replace with "self.salvageUntilSuccess" where appropriate.
+    def salvageUntilSuccess(self, session=None, uri=None, config=None, **kwargs):
+        session = self.session if session is None else session
+        uri = self.uri if uri is None else uri
+        return self.retryEBUSY(session, lambda: session.salvage(uri, config), **kwargs)
 
     def exceptionToStderr(self, expr):
         """

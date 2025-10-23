@@ -76,7 +76,7 @@ class test_verify_disagg(wttest.WiredTigerTestCase):
                 self.assertRaisesException(wiredtiger.WiredTigerError, \
                     lambda: session.verify(self.uri), os.strerror(expected_error))
             else:
-                session.verify(self.uri)
+                self.verifyUntilSuccess(session)
 
     def create_follower(self):
         self.conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
@@ -176,10 +176,10 @@ class test_verify_disagg(wttest.WiredTigerTestCase):
         self.session_follow.create(self.uri, self.table_cfg)
 
         # The follower has not picked up its first checkpoint. But since we created the layered
-        # table, it should be able to run verify on the layered URI. However,the stable table
-        # does not exist, so we expect ENOENT. Followers are only able to create their ingest
-        # constituents. They see stable through checkpoint or step-up.
-        self.verify([self.session_follow], errno.ENOENT)
+        # table, it should be able to run verify on the layered URI. However, the stable table
+        # does not exist, so we catch ENOENT and return 0. Followers are only able to create
+        # their ingest constituents. They see stable through checkpoint or step-up.
+        self.verify([self.session_follow])
 
         # Create an empty checkpoint
         self.session.checkpoint()
