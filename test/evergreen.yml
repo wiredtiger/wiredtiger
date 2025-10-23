@@ -2960,6 +2960,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build/"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -2974,6 +2975,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger/cmake_build/"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
