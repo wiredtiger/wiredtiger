@@ -89,13 +89,13 @@ __gen_drain_callback(
     WT_CONNECTION_IMPL *conn;
     WT_GENERATION_DRAIN_COOKIE *cookie;
     WT_VERBOSE_LEVEL verbose_orig_level[WT_VERB_NUM_CATEGORIES];
+    size_t counter;
     uint64_t time_diff_ms, v;
-    bool timeout_triggered;
 
     WT_CLEAR(verbose_orig_level);
     cookie = (WT_GENERATION_DRAIN_COOKIE *)cookiep;
     conn = S2C(session);
-    timeout_triggered = false;
+    counter = 0;
 
     for (;;) {
         /* Ensure we only read the value once. */
@@ -184,12 +184,11 @@ __gen_drain_callback(
                 continue;
             }
 
-            if (!timeout_triggered && time_diff_ms >= conn->gen_drain_timeout_ms) {
-                __wt_verbose_error(session, WT_VERB_GENERATION, "%s generation drain timed out",
-                  __gen_name(cookie->base.which));
-#ifndef HAVE_DIAGNOSTIC
-                timeout_triggered = true;
-#endif
+            if (time_diff_ms >= conn->gen_drain_timeout_ms) {
+                if (counter % 1000 == 0)
+                    __wt_verbose_error(session, WT_VERB_GENERATION, "%s generation drain timed out",
+                      __gen_name(cookie->base.which));
+                ++counter;
                 WT_ASSERT(session, false);
             }
         }
