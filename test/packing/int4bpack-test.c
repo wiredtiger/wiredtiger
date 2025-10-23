@@ -526,7 +526,7 @@ test_truncated_and_overcount_decode(void)
     print_hex_bin_columns(buf, used);
     printf("\n");
 
-    v = malloc(sizeof(uint64_t) * WT_ELEMENTS(vals));
+    v = dcalloc(WT_ELEMENTS(vals), sizeof(uint64_t));
     testutil_assert(v != NULL);
 
     /* Truncate by one byte: should fail to decode full sequence. */

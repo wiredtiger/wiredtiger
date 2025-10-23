@@ -61,10 +61,9 @@ __4b_pack_init(WT_4B_PACK_CONTEXT *ctx, uint8_t **pp, uint8_t *end)
 static WT_INLINE void
 __4b_pack_end(WT_4B_PACK_CONTEXT *ctx)
 {
-    if (ctx->nibble == 1) {
+    if (ctx->nibble == 1)
         /* We have written a low nibble but not yet the high nibble: advance the pointer. */
         (*ctx->pp)++;
-    }
 }
 
 /*
@@ -87,10 +86,9 @@ __4b_unpack_init(WT_4B_UNPACK_CONTEXT *ctx, const uint8_t **pp, const uint8_t *e
 static WT_INLINE void
 __4b_unpack_end(WT_4B_UNPACK_CONTEXT *ctx)
 {
-    if (ctx->nibble == 1) {
+    if (ctx->nibble == 1)
         /* We have read a low nibble but not yet the high nibble: advance the pointer. */
         (*ctx->pp)++;
-    }
 }
 
 /*
