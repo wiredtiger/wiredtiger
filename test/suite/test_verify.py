@@ -80,9 +80,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             f.close()
         return count
 
-    def check_file_contains(self, filename, content):
-        return super().check_file_contains(filename, content)
-
     # FIXME-WT-15064:
     @wttest.skip_for_hook("disagg", " We cannot access shared tables data directly")
     def open_and_position(self, tablename, pct):
