@@ -1261,10 +1261,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         /* Set the initial role. */
         conn->layered_table_manager.leader = leader;
         WT_STAT_CONN_SET(session, disagg_role_leader, leader ? 1 : 0);
-    } else if (!was_leader && leader)
+    } else if (!was_leader && leader) {
         /* Follower step-up. */
-        WT_WITH_CHECKPOINT_LOCK(session, __disagg_step_up(session));
-    else if (was_leader && !leader)
+        WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_step_up(session));
+        WT_ERR_MSG_CHK(session, ret, "Failed to step up to the leader role");
+    } else if (was_leader && !leader)
         /* Leader step-down. */
         WT_WITH_CHECKPOINT_LOCK(session, __disagg_step_down(session));
 
