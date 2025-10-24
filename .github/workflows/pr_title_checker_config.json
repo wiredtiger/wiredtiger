@@ -5,7 +5,7 @@
   },
   "MESSAGES": {
     "success": "All OK",
-    "failure": "Failing CI test",
+    "failure": "PR title does not match the regex: \"^(Revert \")?WT-[0-9]+ \"",
     "notice": ""
   }
 }
