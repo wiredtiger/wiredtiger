@@ -23,42 +23,84 @@ WT_STAT_USECS_HIST_INCR_FUNC(leaf_reconstruct, perf_hist_leaf_reconstruct_latenc
 
 /*
  * __page_find_min_delta --
- *     Find the smallest delta among multiple delta arrays.
+ *     Find the smallest key among all current delta entries. When keys are equal across deltas,
+ *     prefer the latest delta (higher index). Also advance older duplicates so only the latest
+ *     delta for a given key is emitted.
  */
 static inline int
 __page_find_min_delta(WT_SESSION_IMPL *session, WT_CELL_UNPACK_DELTA_INT **unpacked_deltas,
   size_t *delta_size_each, size_t *delta_idx, size_t delta_count,
   WT_CELL_UNPACK_DELTA_INT **min_delta, uint32_t *min_d)
 {
+    WT_DECL_RET;
+    WT_ITEM dk, mk;
     size_t d;
-    int cmp, ret = 0;
+    int cmp;
 
     *min_delta = NULL;
     *min_d = UINT32_MAX;
 
+    /* First pass: pick the smallest key among available deltas. Prefer later delta if equal. */
     for (d = 0; d < delta_count; ++d) {
+        /* Skip exhausted delta arrays */
         if (delta_idx[d] >= delta_size_each[d])
             continue;
 
+        WT_ASSERT(session, unpacked_deltas[d] != NULL);
+
+        dk.data = unpacked_deltas[d][delta_idx[d]].key.data;
+        dk.size = unpacked_deltas[d][delta_idx[d]].key.size;
+
         if (*min_delta == NULL) {
+            /* First available delta entry */
             *min_delta = &unpacked_deltas[d][delta_idx[d]];
             *min_d = (uint32_t)d;
-        } else {
-            WT_ITEM dk, mk;
-            dk.data = unpacked_deltas[d][delta_idx[d]].key.data;
-            dk.size = unpacked_deltas[d][delta_idx[d]].key.size;
-            mk.data = (*min_delta)->key.data;
-            mk.size = (*min_delta)->key.size;
+            continue;
+        }
 
-            WT_RET(__wt_compare(session, S2BT(session)->collator, &dk, &mk, &cmp));
+        mk.data = (*min_delta)->key.data;
+        mk.size = (*min_delta)->key.size;
 
-            if (cmp < 0) {
+        WT_ERR(__wt_compare(session, S2BT(session)->collator, &dk, &mk, &cmp));
+
+        if (cmp < 0) {
+            /* Found a strictly smaller key */
+            *min_delta = &unpacked_deltas[d][delta_idx[d]];
+            *min_d = (uint32_t)d;
+        } else if (cmp == 0) {
+            /* Same key: prefer latest delta (higher index) */
+            if ((uint32_t)d > *min_d) {
                 *min_delta = &unpacked_deltas[d][delta_idx[d]];
                 *min_d = (uint32_t)d;
             }
         }
     }
 
+    /* Second pass: advance other deltas that have the same key as the chosen min_delta */
+    if (*min_delta != NULL) {
+        for (d = 0; d < delta_count; ++d) {
+            if ((uint32_t)d == *min_d)
+                continue; /* skip the chosen min delta */
+
+            if (delta_idx[d] >= delta_size_each[d])
+                continue; /* skip exhausted arrays */
+
+            dk.data = unpacked_deltas[d][delta_idx[d]].key.data;
+            dk.size = unpacked_deltas[d][delta_idx[d]].key.size;
+            mk.data = (*min_delta)->key.data;
+            mk.size = (*min_delta)->key.size;
+
+            WT_ERR(__wt_compare(session, S2BT(session)->collator, &dk, &mk, &cmp));
+
+            if (cmp == 0) {
+                /* Skip older duplicate: move index forward safely */
+                delta_idx[d]++;
+                WT_ASSERT(session, delta_idx[d] <= delta_size_each[d]);
+            }
+        }
+    }
+
+err:
     return (ret);
 }
 
@@ -241,7 +283,8 @@ err:
 
 /*
  * __page_merge_deltas_common_merge_loop --
- *     Common merge loop for both old and new delta merge implementations.
+ *     Merge base and multiple delta arrays into a single set of WT_REFs. Always prefers the latest
+ *     version (delta) when keys are equal.
  */
 static int
 __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *base,
@@ -250,12 +293,19 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
   size_t *incr, WT_ITEM *disk_image, bool build_disk)
 {
     WT_CELL_UNPACK_ADDR *base_key, *base_val;
-    WT_DECL_RET;
+    WT_ITEM base_key_buf, delta_key_buf;
+    WT_REF **refs;
     size_t i = 0, final_entries = 0;
-    int cmp;
     uint32_t min_d;
-    WT_REF **refs = *refsp;
+    int cmp;
+    WT_DECL_RET;
     WT_PAGE *page = ref->page;
+
+    WT_ASSERT(session, base != NULL);
+    WT_ASSERT(session, base_entries != 0);
+    WT_ASSERT(session, refsp != NULL);
+
+    refs = *refsp;
 
     WT_UNUSED(disk_image);
     /*
@@ -292,21 +342,15 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
           session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
     }
 
-    /* Common merge loop */
     for (;;) {
         WT_CELL_UNPACK_DELTA_INT *min_delta = NULL;
-        WT_ITEM base_key_buf, delta_key_buf;
 
-        /* Use the macro instead of the function */
         WT_ERR(__page_find_min_delta(
           session, unpacked_deltas, delta_size_each, delta_idx, delta_size, &min_delta, &min_d));
-
-        WT_ERR(ret);
 
         if (i >= base_entries && min_delta == NULL)
             break;
 
-        /* Compare base and delta keys */
         if (i >= base_entries)
             cmp = 1;
         else if (min_delta == NULL)
@@ -319,22 +363,22 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
             WT_ERR(
               __wt_compare(session, S2BT(session)->collator, &base_key_buf, &delta_key_buf, &cmp));
         }
-
         /* Old implementation: build WT_REFs */
         if (!build_disk) {
-
             if (cmp < 0) {
+                /* Base key < Delta key -> emit base */
                 base_key = &base[i++];
                 base_val = &base[i++];
                 WT_ERR(__page_build_ref(
                   session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
             } else {
+                /* Either delta < base or delta == base --> emit delta (prefer latest) */
                 if (!__wt_delta_cell_type_visible_all(min_delta))
                     WT_ERR(__page_build_ref(
                       session, ref, NULL, NULL, min_delta, false, &refs[final_entries++], incr));
-                if (cmp == 0)
-                    i += 2;
                 delta_idx[min_d]++;
+                if (cmp == 0)
+                    i += 2; /* skip base key/value if keys equal */
             }
         } else {
             /* New implementation: build disk image */
