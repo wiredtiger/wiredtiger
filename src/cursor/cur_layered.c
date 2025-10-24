@@ -419,7 +419,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
          * go to it. Any writes we were about to make or have made to this table could never be
          * committed at this point.
          */
-        if (!current_leader && (session->txn->mod_count != 0)) {
+        if (!current_leader && session->txn->mod_count != 0) {
             __wt_txn_err_set(session, WT_ROLLBACK);
             /* Write operations are not allowed after stepping down from leader role. */
             WT_RET(WT_ROLLBACK);
