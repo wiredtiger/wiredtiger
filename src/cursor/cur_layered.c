@@ -417,8 +417,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
         /*
          * If we're stepping down, then we currently have a R/W stable cursor and all writes would
          * go to it. Any writes we were about to make or have made to this table could never be
-         * committed at this point. We're going to be a little more strict than that here and
-         * disallow continuing any transaction that has writes.
+         * committed at this point.
          */
         if (!current_leader && (session->txn->mod_count != 0)) {
             __wt_txn_err_set(session, WT_ROLLBACK);
