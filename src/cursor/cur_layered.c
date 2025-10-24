@@ -299,18 +299,16 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
             stable_uri = stable_uri_buf->data;
         }
     }
-    ret = __wt_open_cursor(session, stable_uri, &clayered->iface, cfg, &clayered->stable_cursor);
 
-    if (ret == ENOENT && !leader) {
+    ret = __wt_open_cursor(session, stable_uri, &clayered->iface, cfg, &clayered->stable_cursor);
+    /* Opening a cursor can return both of these, unfortunately. FIXME-WT-15816. */
+    if ((ret == ENOENT || ret == WT_NOTFOUND) && !leader)
         /*
-         * This is fine, we may not have seen a checkpoint with this table yet. The open will be
-         * deferred.
+         * This is fine on followers, we simply may not have seen a checkpoint with this table yet.
+         * Defer the open.
          */
         ret = 0;
-    } else if (ret == WT_NOTFOUND)
-        WT_ERR_PANIC(session, WT_PANIC, "Layered table could not access stable table on leader");
-    else
-        WT_ERR(ret);
+    WT_ERR(ret);
 
     if (clayered->stable_cursor != NULL) {
         F_SET(clayered->stable_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
@@ -392,8 +390,8 @@ __clayered_adjust_state(
 
     /* Get the current checkpoint LSN. This only matters if we are a follower. */
     if (!current_leader)
-        WT_ACQUIRE_READ(
-          last_checkpoint_meta_lsn, conn->disaggregated_storage.last_checkpoint_meta_lsn);
+        last_checkpoint_meta_lsn =
+          __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
     else
         last_checkpoint_meta_lsn = WT_DISAGG_LSN_NONE;
 
