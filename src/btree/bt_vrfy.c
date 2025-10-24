@@ -319,7 +319,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * page discard function if we're in disagg mode.
              */
             if (ret == 0 && (ckpt + 1)->name == NULL) {
-                if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->raw.data)
                     WT_TRET(__verify_page_discard(session, bm));
 
                 if (!skip_hs) {
@@ -1462,7 +1462,11 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
      */
     size_t num_pages_found_in_palm = 0;
     uint64_t checkpoint_lsn;
-    checkpoint_lsn = S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn;
+    checkpoint_lsn =
+      S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn == WT_DISAGG_LSN_NONE ?
+      INT_MAX :
+      S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn;
+
     WT_DECL_ITEM(item);
     WT_RET(__wt_scr_alloc(session, num_pages_found_in_palm, &item));
 
@@ -1477,7 +1481,7 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
          * mismatch is found this function will return the corresponding error code.
          */
         WT_ERR_MSG(session, EINVAL,
-          "Mismatch in the number of page IDs found from PALM and btree walk: PALM %" PRIu64
+          "Mismatch in the number of page IDs found from PALI and btree walk: PALI %" PRIu64
           " Btree walk %" PRIu64,
           (uint64_t)num_pages_found_in_palm, num_pages_found_in_btree);
     }
