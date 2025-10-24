@@ -1150,11 +1150,18 @@ __disagg_step_up(WT_SESSION_IMPL *session)
 
     F_SET(conn, WT_CONN_RECONFIGURING_STEP_UP);
 
-    /* Step up to the leader mode. */
+    /*
+     * Step up to the leader mode. We need to do this first, because the rest of the operations
+     * below depend on WiredTiger already being in the leader mode.
+     */
     conn->layered_table_manager.leader = true;
     WT_STAT_CONN_SET(session, disagg_role_leader, 1);
 
-    /* Abandon the current checkpoint if it is incomplete, and begin a new one. */
+    /*
+     * Abandon the current checkpoint if it is incomplete, and begin a new one. We need to do this
+     * before draining the ingest tables, so that the updates to the stable tables will be correctly
+     * included in the new checkpoint.
+     */
     WT_ERR(__disagg_restart_checkpoint(session));
 
     /*
