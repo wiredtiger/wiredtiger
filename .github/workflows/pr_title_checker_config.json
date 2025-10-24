@@ -1,6 +1,6 @@
 {
   "CHECKS": {
-    "regexp": "^WT-[0-9]+ ",
+    "regexp": "^(Revert \")?WT-[0-9]+ ",
     "alwaysPassCI": false
   },
   "MESSAGES": {
