@@ -12,6 +12,12 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
+      # Explicitly checkout the PR branch (head commit)
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      # Run the PR title checker
       - uses: thehanimo/pr-title-checker@v1.4.3
         continue-on-error: false # fail the job if the check fails
         with:
