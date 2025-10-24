@@ -799,8 +799,17 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (__wt_atomic_add_uint32(&page->modify->page_state, 1) == WT_PAGE_DIRTY_FIRST) {
         if (!increase_dirty_size_first)
             __wt_cache_dirty_incr_size(session, size, WT_PAGE_IS_INTERNAL(page));
+        /*
+         * These statistics are never decreased, so there is no need to increment them before
+         * performing the compare-and-swap operation.
+         */
         (void)__wt_atomic_add_uint64(&S2C(session)->cache->bytes_dirty_total, size);
         (void)__wt_atomic_add_uint64(&S2BT(session)->bytes_dirty_total, size);
+        /*
+         * The bytes dirty count for a page is decreased later when the page is marked clean, so
+         * there's no need to decrease it within this function. As a result, it also doesn't need to
+         * be incremented before the compare-and-swap operation.
+         */
         (void)__wt_atomic_add_uint64(&page->modify->bytes_dirty, size);
         __wt_evict_page_first_dirty(session, page);
 
