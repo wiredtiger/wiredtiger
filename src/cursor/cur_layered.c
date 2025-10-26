@@ -13,7 +13,7 @@ static int __clayered_lookup(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, WT_ITEM *);
 static int __clayered_open_cursors(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, bool);
 static int __clayered_reset_cursors(WT_CURSOR_LAYERED *, bool);
 static int __clayered_search_near(WT_CURSOR *, int *);
-static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool, bool, bool *);
+static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool, bool *);
 
 /*
  * __clayered_deleted --
@@ -132,7 +132,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update, bool iter
         WT_RET(__clayered_reset_cursors(clayered, false));
     }
 
-    WT_RET(__clayered_adjust_state(clayered, update, iteration, &external_state_change));
+    WT_RET(__clayered_adjust_state(clayered, iteration, &external_state_change));
 
     for (;;) {
         /*
@@ -255,6 +255,7 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
     session = CUR2S(clayered);
     layered = (WT_LAYERED_TABLE *)clayered->dhandle;
     stable_uri = layered->stable_uri;
+    checkpoint_name = NULL;
 
     WT_RET(__wt_scr_alloc(session, 0, &random_config));
     /* Get the configuration for random cursors, if any. */
@@ -273,7 +274,6 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
          */
 
         /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
-        checkpoint_name = NULL;
         WT_ERR_NOTFOUND_OK(
           __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL), true);
 
@@ -320,6 +320,7 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
 err:
     __wt_scr_free(session, &random_config);
     __wt_scr_free(session, &stable_uri_buf);
+    __wt_free(session, checkpoint_name);
 
     return (ret);
 }
@@ -374,8 +375,7 @@ __clayered_can_stable_upgrade(WT_CURSOR_LAYERED *clayered, bool iteration)
  *     them or close them, and let them be opened later as needed.
  */
 static int
-__clayered_adjust_state(
-  WT_CURSOR_LAYERED *clayered, bool update, bool iteration, bool *state_updated)
+__clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state_updated)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *old_stable;
@@ -416,10 +416,9 @@ __clayered_adjust_state(
         /*
          * If we're stepping down, then we currently have a R/W stable cursor and all writes would
          * go to it. Any writes we were about to make or have made to this table could never be
-         * committed at this point. We're going to be a little more strict than that here and
-         * disallow continuing any transaction that has writes.
+         * committed at this point.
          */
-        if (!current_leader && (update || session->txn->mod_count != 0)) {
+        if (!current_leader && session->txn->mod_count != 0) {
             __wt_txn_err_set(session, WT_ROLLBACK);
             /* Write operations are not allowed after stepping down from leader role. */
             WT_RET(WT_ROLLBACK);
@@ -518,7 +517,7 @@ __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, b
 
     c = &clayered->iface;
     conn = S2C(session);
-    layered = (WT_LAYERED_TABLE *)session->dhandle;
+    layered = (WT_LAYERED_TABLE *)clayered->dhandle;
 
     /*
      * Query operations need a full set of cursors. Overwrite cursors do queries in service of
