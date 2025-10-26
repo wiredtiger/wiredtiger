@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import errno, os, wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_verify_disagg.py
@@ -37,7 +37,7 @@ from wtscenario import make_scenarios
 #    (we already have an OpLog imitation in some tests for layered tables)
 
 @disagg_test_class
-class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_verify_disagg(wttest.WiredTigerTestCase):
     hs = [
         ('empty', dict(fill_hs=False)),
         ('populated', dict(fill_hs=True)),
@@ -48,7 +48,7 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 10000
     timestamp = 2
 
-    conn_base_config = 'disaggregated=(page_log=palm),'
+    conn_base_config = ''
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
     conn_config_follower = conn_base_config + 'disaggregated=(role="follower")'
 
@@ -76,7 +76,7 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertRaisesException(wiredtiger.WiredTigerError, \
                     lambda: session.verify(self.uri), os.strerror(expected_error))
             else:
-                session.verify(self.uri)
+                self.verifyUntilSuccess(session)
 
     def create_follower(self):
         self.conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
@@ -176,10 +176,10 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session_follow.create(self.uri, self.table_cfg)
 
         # The follower has not picked up its first checkpoint. But since we created the layered
-        # table, it should be able to run verify on the layered URI. However,the stable table
-        # does not exist, so we expect ENOENT. Followers are only able to create their ingest
-        # constituents. They see stable through checkpoint or step-up.
-        self.verify([self.session_follow], errno.ENOENT)
+        # table, it should be able to run verify on the layered URI. However, the stable table
+        # does not exist, so we catch ENOENT and return 0. Followers are only able to create
+        # their ingest constituents. They see stable through checkpoint or step-up.
+        self.verify([self.session_follow])
 
         # Create an empty checkpoint
         self.session.checkpoint()

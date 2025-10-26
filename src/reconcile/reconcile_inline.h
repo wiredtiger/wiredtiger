@@ -84,6 +84,17 @@ __rec_page_delta_stats_clear(WTI_RECONCILE *r)
 }
 
 /*
+ * __rec_page_pfx_compression_stats_clear --
+ *     Clear page prefix compression statistics.
+ */
+static WT_INLINE void
+__rec_page_pfx_compression_stats_clear(WTI_RECONCILE *r)
+{
+    r->bytes_prefix_compression_delta = 0;
+    r->bytes_prefix_compression_full = 0;
+}
+
+/*
  * __rec_page_time_stats --
  *     Update statistics about this page.
  */
@@ -400,7 +411,7 @@ __wti_rec_cell_build_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ADDR *a
  */
 static WT_INLINE int
 __wti_rec_cell_build_val(WT_SESSION_IMPL *session, WTI_RECONCILE *r, const void *data, size_t size,
-  WT_TIME_WINDOW *tw, uint64_t rle)
+  WT_TIME_WINDOW *tw, uint64_t rle, bool *ovfl_val)
 {
     WT_BTREE *btree;
     WTI_REC_KV *val;
@@ -419,6 +430,9 @@ __wti_rec_cell_build_val(WT_SESSION_IMPL *session, WTI_RECONCILE *r, const void 
     WT_ASSERT(session, btree->maxleafvalue > 0);
     if (val->buf.size > btree->maxleafvalue) {
         WT_STAT_CONN_DSRC_INCR(session, rec_overflow_value);
+
+        if (ovfl_val != NULL)
+            *ovfl_val = true;
 
         return (__wti_rec_cell_build_ovfl(session, r, val, WT_CELL_VALUE_OVFL, tw, rle));
     }
@@ -520,4 +534,25 @@ __wti_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WTI_UPDATE_SELECT
                 F_SET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
         }
     }
+}
+
+/*
+ * __wti_rec_get_row_leaf_key --
+ *     Get the delta key
+ */
+static WT_INLINE int
+__wti_rec_get_row_leaf_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r,
+  WT_INSERT *ins, WT_ROW *rip, WT_ITEM *key)
+{
+    WT_DECL_RET;
+
+    if (ins == NULL) {
+        WT_WITH_BTREE(session, btree, ret = __wt_row_leaf_key(session, r->page, rip, key, false));
+        WT_RET(ret);
+    } else {
+        key->data = WT_INSERT_KEY(ins);
+        key->size = WT_INSERT_KEY_SIZE(ins);
+    }
+
+    return (0);
 }

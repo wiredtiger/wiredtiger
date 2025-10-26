@@ -844,8 +844,9 @@ connection_runtime_config = [
             min=1, max=100000),
         ]),
     Config('generation_drain_timeout_ms', '240000', r'''
-        the number of milliseconds to wait for a resource to drain before timing out in diagnostic
-        mode. Default will wait for 4 minutes, 0 will wait forever''',
+        the number of milliseconds to wait for a resource to drain before timing out. In the
+        diagnostic mode, it will log an error and crash the system. In the production mode, it will
+        only log an error. Default will wait for 4 minutes, 0 will wait forever''',
         min=0),
     Config('heuristic_controls', '', r'''
         control the behavior of various optimizations. This is primarily used as a mechanism for
@@ -966,7 +967,8 @@ connection_runtime_config = [
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'conn_close_stress_log_printf', 'evict_reposition',
         'failpoint_eviction_split', 'failpoint_history_store_delete_key_from_ts',
-        'failpoint_rec_before_wrapup', 'history_store_checkpoint_delay', 'history_store_search',
+        'failpoint_rec_before_wrapup', 'failpoint_rec_split_write', 
+        'history_store_checkpoint_delay', 'history_store_search',
         'history_store_sweep_race', 'live_restore_clean_up', 'open_index_slow', 'prefetch_1',
         'prefetch_2', 'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay',
         'prepare_resolution_1', 'prepare_resolution_2', 'session_alter_slow',
@@ -2231,7 +2233,7 @@ methods = {
         max=10),     # !!! Must match WT_RTS_MAX_WORKERS
 ]),
 
-'WT_SESSION.reconfigure' : Method(session_config),
+'WT_SESSION.reconfigure' : Method(session_config, compilable=True),
 
 # There are 4 variants of the wiredtiger_open configurations.
 # wiredtiger_open:

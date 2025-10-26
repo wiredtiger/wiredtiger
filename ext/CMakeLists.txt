@@ -22,7 +22,9 @@ if(WT_POSIX)
 
     # Build the page log extensions.
     add_subdirectory(page_log/palm)
-    add_subdirectory(page_log/palite)
+    if(ENABLE_PALITE)
+        add_subdirectory(page_log/palite)
+    endif()
 
     # Build the storage_sources extensions.
     add_subdirectory(storage_sources/dir_store)

@@ -55,7 +55,7 @@ __layered_get_disagg_checkpoint(WT_SESSION_IMPL *session, const char **cfg,
     WT_ERR_NOTFOUND_OK(ret, true);
 
 err:
-    if (ret != 0 && ret != WT_NOTFOUND && page_log != NULL)
+    if (page_log != NULL)
         WT_TRET(page_log->terminate(page_log, &session->iface)); /* dereference */
     __wt_free(session, page_log_name);
     return (ret);
@@ -266,7 +266,7 @@ __disagg_put_meta(WT_SESSION_IMPL *session, uint64_t page_id, const WT_ITEM *ite
 
     if (lsnp != NULL)
         *lsnp = put_args.lsn;
-    __wt_atomic_addv64(&disagg->num_meta_put, 1);
+    __wt_atomic_add_uint64_v(&disagg->num_meta_put, 1);
     return (0);
 }
 
@@ -315,8 +315,8 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     WT_ERR(__disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, buf, &lsn));
 
     /* Do the bookkeeping. */
-    WT_RELEASE_WRITE(disagg->last_checkpoint_meta_lsn, lsn);
-    WT_RELEASE_WRITE(disagg->last_checkpoint_timestamp, checkpoint_timestamp);
+    __wt_atomic_store_uint64_release(&disagg->last_checkpoint_meta_lsn, lsn);
+    __wt_atomic_store_uint64_release(&disagg->last_checkpoint_timestamp, checkpoint_timestamp);
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Wrote disaggregated checkpoint metadata: lsn=%" PRIu64 ", timestamp=%" PRIu64
@@ -372,7 +372,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     /* We should not pick up a checkpoint with an earlier LSN. */
-    WT_ACQUIRE_READ(current_meta_lsn, conn->disaggregated_storage.last_checkpoint_meta_lsn);
+    current_meta_lsn =
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
     if (meta_lsn < current_meta_lsn)
         WT_RET_MSG(session, EINVAL,
           "Attempting to pick up an older checkpoint: current metadata LSN = %" PRIu64
@@ -575,10 +576,12 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
      * Update the checkpoint metadata LSN. This doesn't require further synchronization, because the
      * updates are protected by the checkpoint lock.
      */
-    WT_RELEASE_WRITE(conn->disaggregated_storage.last_checkpoint_meta_lsn, meta_lsn);
+    __wt_atomic_store_uint64_release(
+      &conn->disaggregated_storage.last_checkpoint_meta_lsn, meta_lsn);
 
     /* Update the checkpoint timestamp. */
-    WT_RELEASE_WRITE(conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);
+    __wt_atomic_store_uint64_release(
+      &conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);
 
     /* Remember the root config of the last checkpoint. */
     __wt_free(session, conn->disaggregated_storage.last_checkpoint_root);
@@ -671,59 +674,21 @@ err:
 }
 
 /*
- * __layered_table_manager_thread_chk --
- *     Check to decide if the layered table manager thread should continue running
- */
-static bool
-__layered_table_manager_thread_chk(WT_SESSION_IMPL *session)
-{
-    if (!S2C(session)->layered_table_manager.leader)
-        return (false);
-    return (__wt_atomic_load32(&S2C(session)->layered_table_manager.state) ==
-      WT_LAYERED_TABLE_MANAGER_RUNNING);
-}
-
-/*
- * __layered_table_manager_thread_run --
- *     Entry function for a layered table manager thread. This is called repeatedly from the thread
- *     group code so it does not need to loop itself.
- */
-static int
-__layered_table_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD *thread)
-{
-    WT_SESSION_IMPL *session;
-
-    WT_UNUSED(session_shared);
-    session = thread->session;
-    WT_ASSERT(session, !WT_SESSION_IS_DEFAULT(session));
-
-    WT_STAT_CONN_SET(session, layered_table_manager_active, 1);
-
-    /* Right now we just sleep. In the future, do whatever we need to do here. */
-    __wt_sleep(1, 0);
-
-    WT_STAT_CONN_SET(session, layered_table_manager_active, 0);
-
-    return (0);
-}
-
-/*
- * __layered_table_manager_start --
+ * __layered_table_manager_init --
  *     Start the layered table manager thread
  */
 static int
-__layered_table_manager_start(WT_SESSION_IMPL *session)
+__layered_table_manager_init(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_LAYERED_TABLE_MANAGER *manager;
-    uint32_t session_flags;
 
     conn = S2C(session);
     manager = &conn->layered_table_manager;
 
-    WT_ASSERT_ALWAYS(session, manager->state == WT_LAYERED_TABLE_MANAGER_OFF,
-      "Layered table manager initialization conflict");
+    WT_ASSERT_ALWAYS(
+      session, manager->init == false, "Layered table manager initialization conflict");
 
     WT_RET(__wt_spin_init(session, &manager->layered_table_lock, "layered table manager"));
 
@@ -734,17 +699,9 @@ __layered_table_manager_start(WT_SESSION_IMPL *session)
     manager->entries_allocated_bytes =
       manager->open_layered_table_count * sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY *);
 
-    session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
-    WT_ERR(__wt_thread_group_create(session, &manager->threads, "layered-table-manager",
-      WT_LAYERED_TABLE_THREAD_COUNT, WT_LAYERED_TABLE_THREAD_COUNT, session_flags,
-      __layered_table_manager_thread_chk, __layered_table_manager_thread_run, NULL));
-
-    WT_STAT_CONN_SET(session, layered_table_manager_running, 1);
-    __wt_verbose_level(
-      session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s", "__layered_table_manager_start");
     FLD_SET(conn->server_flags, WT_CONN_SERVER_LAYERED);
 
-    manager->state = WT_LAYERED_TABLE_MANAGER_RUNNING;
+    manager->init = true;
     return (0);
 
 err:
@@ -773,8 +730,8 @@ __wt_layered_table_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_i
       "Adding a layered tree to tracking without the right dhandle context.");
     layered = (WT_LAYERED_TABLE *)session->dhandle;
 
-    WT_ASSERT_ALWAYS(session, manager->state == WT_LAYERED_TABLE_MANAGER_RUNNING,
-      "Adding a layered table, but the manager isn't running");
+    WT_ASSERT_ALWAYS(
+      session, manager->init, "Adding a layered table, but the manager isn't initialized");
     __wt_spin_lock(session, &manager->layered_table_lock);
 
     WT_ASSERT(session, manager->open_layered_table_count > 0);
@@ -796,7 +753,7 @@ __wt_layered_table_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_i
      * There is a bootstrapping problem. Use the global oldest ID as a starting point. Nothing can
      * have been written into the ingest table, so it will be a conservative choice.
      */
-    entry->checkpoint_txn_id = __wt_atomic_loadv64(&conn->txn_global.oldest_id);
+    entry->checkpoint_txn_id = __wt_atomic_load_uint64_v_relaxed(&conn->txn_global.oldest_id);
 
     /*
      * It's safe to just reference the same string. The lifecycle of the layered tree is longer than
@@ -855,7 +812,7 @@ __wt_layered_table_manager_remove_table(WT_SESSION_IMPL *session, uint32_t inges
     manager = &S2C(session)->layered_table_manager;
 
     /* Shutdown calls this redundantly - ignore cases when the manager is already closed. */
-    if (manager->state == WT_LAYERED_TABLE_MANAGER_OFF)
+    if (manager->init == false)
         return;
 
     __wt_spin_lock(session, &manager->layered_table_lock);
@@ -910,17 +867,12 @@ __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
     __wt_verbose_level(
       session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s", "__wti_layered_table_manager_destroy");
 
-    if (__wt_atomic_load32(&manager->state) == WT_LAYERED_TABLE_MANAGER_OFF)
+    if (manager->init == false)
         return (0);
 
+    __wt_spin_lock(session, &manager->layered_table_lock);
     /* Ensure other things that engage with the layered table server know it's gone. */
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_LAYERED);
-
-    /* Let any running threads finish up. */
-    __wt_cond_signal(session, manager->threads.wait_cond);
-    __wt_writelock(session, &manager->threads.lock);
-
-    WT_RET(__wt_thread_group_destroy(session, &manager->threads));
 
     /* Close any cursors and free any related memory */
     for (i = 0; i < manager->open_layered_table_count; i++) {
@@ -931,9 +883,9 @@ __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
     manager->open_layered_table_count = 0;
     manager->entries_allocated_bytes = 0;
 
-    manager->state = WT_LAYERED_TABLE_MANAGER_OFF;
-    WT_STAT_CONN_SET(session, layered_table_manager_running, 0);
+    manager->init = false;
 
+    __wt_spin_unlock(session, &manager->layered_table_lock);
     __wt_spin_destroy(session, &manager->layered_table_lock);
 
     return (0);
@@ -956,6 +908,7 @@ __wt_disagg_copy_metadata_later(
     WT_RET(__wt_calloc_one(session, &entry));
     WT_RET(__wt_strdup(session, stable_uri, &entry->stable_uri));
     WT_RET(__wt_strdup(session, table_name, &entry->table_name));
+    entry->retries_left = 1;
 
     __wt_spin_lock(session, &conn->disaggregated_storage.copy_metadata_lock);
     TAILQ_INSERT_TAIL(&conn->disaggregated_storage.copy_metadata_qh, entry, q);
@@ -1005,17 +958,34 @@ __wt_disagg_copy_metadata_process(WT_SESSION_IMPL *session)
 
     __wt_spin_lock(session, &conn->disaggregated_storage.copy_metadata_lock);
 
-    WT_TAILQ_SAFE_REMOVE_BEGIN(entry, &conn->disaggregated_storage.copy_metadata_qh, q, tmp)
+    TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.copy_metadata_qh, q, tmp)
     {
-        WT_ERR(__disagg_copy_shared_metadata_one(session, entry->stable_uri));
-        WT_ERR(__wt_disagg_copy_shared_metadata_layered(session, entry->table_name));
+        WT_ERR_NOTFOUND_OK(__disagg_copy_shared_metadata_one(session, entry->stable_uri), true);
+
+        /*
+         * There are two reasons why we might not find the metadata for the table: either the table
+         * has been dropped, or the table has been created concurrently with the checkpoint, in
+         * which case the table would not be included in the checkpoint. There is no way to
+         * distinguish the two cases, so we retry at the following checkpoint, which would see the
+         * table if it still exists.
+         */
+        if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+            if (entry->retries_left > 0) {
+                __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+                  "Failed to find metadata for table \"%s\" to copy into shared metadata table, "
+                  "will retry later",
+                  entry->table_name);
+                entry->retries_left--;
+                continue;
+            }
+        } else
+            WT_ERR(__wt_disagg_copy_shared_metadata_layered(session, entry->table_name));
 
         TAILQ_REMOVE(&conn->disaggregated_storage.copy_metadata_qh, entry, q);
         __wt_free(session, entry->stable_uri);
         __wt_free(session, entry->table_name);
         __wt_free(session, entry);
     }
-    WT_TAILQ_SAFE_REMOVE_END
 
 err:
     __wt_spin_unlock(session, &conn->disaggregated_storage.copy_metadata_lock);
@@ -1057,12 +1027,12 @@ __wti_disagg_set_last_materialized_lsn(WT_SESSION_IMPL *session, uint64_t lsn)
     uint64_t cur_lsn;
 
     disagg = &S2C(session)->disaggregated_storage;
-    WT_ACQUIRE_READ(cur_lsn, disagg->last_materialized_lsn);
+    cur_lsn = __wt_atomic_load_uint64_acquire(&disagg->last_materialized_lsn);
 
     if (cur_lsn > lsn)
         return (EINVAL); /* Can't go backwards. */
 
-    WT_RELEASE_WRITE(disagg->last_materialized_lsn, lsn);
+    __wt_atomic_store_uint64_release(&disagg->last_materialized_lsn, lsn);
     return (0);
 }
 
@@ -1225,6 +1195,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
         /* Follower step-up. */
         if (reconfig && !was_leader && leader) {
+            F_SET(conn, WT_CONN_RECONFIGURING_STEP_UP);
             /* Abandon the current checkpoint if it is incomplete, and begin a new one. */
             WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_restart_checkpoint(session));
             WT_ERR(ret);
@@ -1236,6 +1207,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             /* Drain the ingest tables before switching to leader. */
             WT_ERR_MSG_CHK(
               session, __layered_drain_ingest_tables(session), "Failed to drain ingest tables");
+            F_CLR(conn, WT_CONN_RECONFIGURING_STEP_UP);
         }
 
         /* Leader step-down. */
@@ -1267,7 +1239,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
     /* FIXME-WT-14965: Exit the function immediately if this check returns false. */
     if (__wt_conn_is_disagg(session)) {
-        WT_ERR(__layered_table_manager_start(session));
+        WT_ERR(__layered_table_manager_init(session));
 
         /* If we are starting as a primary, abandon a previous incomplete checkpoint. */
         if (leader) {
@@ -1587,8 +1559,10 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
         return (0);
 
     WT_RET(__wt_scr_alloc(session, 0, &meta));
-    WT_ACQUIRE_READ(meta_lsn, conn->disaggregated_storage.last_checkpoint_meta_lsn);
-    WT_ACQUIRE_READ(checkpoint_timestamp, conn->disaggregated_storage.cur_checkpoint_timestamp);
+    meta_lsn =
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
+    checkpoint_timestamp =
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.cur_checkpoint_timestamp);
     WT_ASSERT(session, meta_lsn > 0); /* The metadata page should be written by now. */
 
     if (ckpt_success) {
@@ -1599,8 +1573,8 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
         WT_ERR(__wt_buf_fmt(session, meta, "metadata_lsn=%" PRIu64, meta_lsn));
         WT_ERR(disagg->npage_log->page_log->pl_complete_checkpoint_ext(disagg->npage_log->page_log,
           &session->iface, 0, (uint64_t)checkpoint_timestamp, meta, NULL));
-        WT_RELEASE_WRITE(
-          conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);
+        __wt_atomic_store_uint64_release(
+          &conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);
 
         __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
           "Completed disaggregated storage checkpoint: lsn=%" PRIu64 ", timestamp=%" PRIu64 " %s",
@@ -1691,8 +1665,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
     prev_upd = tombstone = upd = upds = NULL;
     WT_TIME_WINDOW_INIT(&tw);
 
-    WT_ACQUIRE_READ(
-      last_checkpoint_timestamp, S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
+    last_checkpoint_timestamp = __wt_atomic_load_uint64_acquire(
+      &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
     WT_RET(__layered_table_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
     cbt = (WT_CURSOR_BTREE *)stable_cursor;
     if (last_checkpoint_timestamp != WT_TS_NONE)
@@ -1931,7 +1905,7 @@ __layered_update_gc_ingest_tables_prune_timestamps(
     uri_alloc = 0;
     prune_timestamp = WT_TS_NONE;
 
-    WT_ASSERT(session, manager->state == WT_LAYERED_TABLE_MANAGER_RUNNING);
+    WT_ASSERT(session, manager->init);
 
     __wt_spin_lock(session, &manager->layered_table_lock);
 
@@ -2033,7 +2007,7 @@ __layered_update_gc_ingest_tables_prune_timestamps(
                       session, layered_table, prune_timestamp, ckpt_inuse);
 
                     WT_ASSERT(session, prune_timestamp >= btree->prune_timestamp);
-                    WT_RELEASE_WRITE(btree->prune_timestamp, prune_timestamp);
+                    __wt_atomic_store_uint64_release(&btree->prune_timestamp, prune_timestamp);
                     layered_table->last_ckpt_inuse = ckpt_inuse;
 
                     WT_ERR(__wt_session_release_dhandle(session));
@@ -2158,7 +2132,7 @@ __disagg_copy_shared_metadata_one(WT_SESSION_IMPL *session, const char *uri)
     md_cursor = NULL;
 
     WT_ERR(__wt_metadata_cursor(session, &md_cursor));
-    WT_ERR_NOTFOUND_OK(__disagg_copy_shared_metadata(session, md_cursor, uri), false);
+    WT_ERR(__disagg_copy_shared_metadata(session, md_cursor, uri));
 
 err:
     if (md_cursor != NULL)
