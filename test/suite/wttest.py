@@ -591,14 +591,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
 
         sess = self.conn.open_session()
 
-        # Config can be a string or a callable function.
-        config = self.conn_config
-        if hasattr(config, '__call__'):
-            config = self.conn_config()
-
-        # Check if the role is follower
-        follower = 'role="follower"' in config or 'role=follower' in config
-
         cur = sess.open_cursor('metadata:', None, None)
         while cur.next() == 0:
             uri = cur.get_key()
@@ -606,17 +598,10 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                 try:
                     self.verifyUntilSuccess(sess, uri)
                 except wiredtiger.WiredTigerError as e:
-                    # Handle the transient state where a follower that has not yet picked up
-                    # its first checkpoint may fail with ENOENT due to missing its stable table.
-                    if follower and str(e) == os.strerror(errno.ENOENT):
-                        self.pr(f"Skipping layered table verification for {uri} on follower due to \
-                                missing stable table.")
-                        self.ignoreStderrPatternIfExists("stable table verification failed.*No such \
-                                                         file or directory")
-                    else:
-                        raise
+                    raise Exception(f'Layered verification failed for {uri}: {str(e)}')
 
         cur.close()
+        sess.close()
 
     def tearDown(self, dueToRetry=False):
         dumped_error_log = False
