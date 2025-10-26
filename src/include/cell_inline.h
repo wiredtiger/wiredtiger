@@ -38,6 +38,14 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
 {
     uint8_t flags, *flagsp;
 
+    WT_ASSERT(session,
+      (tw->start_ts != WT_TS_NONE && tw->durable_start_ts != WT_TS_NONE) ||
+        !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT));
+    WT_ASSERT(session,
+      !WT_TIME_WINDOW_HAS_STOP(tw) ||
+        (tw->stop_ts != WT_TS_NONE && tw->durable_stop_ts != WT_TS_NONE) ||
+        !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT));
+
     /* Globally visible values have no associated validity window. */
     if (WT_TIME_WINDOW_IS_EMPTY(tw)) {
         ++*pp;
@@ -923,9 +931,8 @@ copy_cell_restart:
         temp_start_ts = temp_durable_start_ts = temp_durable_stop_ts = WT_TS_NONE;
         temp_stop_ts = WT_TS_MAX;
 
-        if (LF_ISSET(WT_CELL_TS_START)) {
+        if (LF_ISSET(WT_CELL_TS_START))
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_start_ts));
-        }
         if (LF_ISSET(WT_CELL_TXN_START))
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->start_txn));
         if (LF_ISSET(WT_CELL_TS_DURABLE_START))
@@ -1031,6 +1038,14 @@ copy_cell_restart:
             else if (tw->stop_ts != WT_TS_MAX)
                 tw->durable_stop_ts = tw->stop_ts;
         }
+
+        WT_ASSERT(session,
+          (tw->start_ts != WT_TS_NONE && tw->durable_start_ts != WT_TS_NONE) ||
+            !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT));
+        WT_ASSERT(session,
+          !WT_TIME_WINDOW_HAS_STOP(tw) ||
+            (tw->stop_ts != WT_TS_NONE && tw->durable_stop_ts != WT_TS_NONE) ||
+            !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT));
 
         WT_RET(__cell_check_value_validity(session, tw, end != NULL));
         break;
