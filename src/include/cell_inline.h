@@ -30,6 +30,22 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, bool e
 }
 
 /*
+ * __cell_assert_tw_has_ts_for_garbage_collection --
+ *     Assert that time window has timestamps if garbage collection is enabled for the btree.
+ */
+static WT_INLINE void
+__cell_assert_tw_has_ts_for_garbage_collection(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+{
+    WT_ASSERT(session,
+      (tw->start_ts != WT_TS_NONE && tw->durable_start_ts != WT_TS_NONE) ||
+        !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT));
+    WT_ASSERT(session,
+      !WT_TIME_WINDOW_HAS_STOP(tw) ||
+        (tw->stop_ts != WT_TS_NONE && tw->durable_stop_ts != WT_TS_NONE) ||
+        !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT));
+}
+
+/*
  * __cell_pack_value_validity --
  *     Pack the validity window for a value.
  */
@@ -38,13 +54,7 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
 {
     uint8_t flags, *flagsp;
 
-    WT_ASSERT(session,
-      (tw->start_ts != WT_TS_NONE && tw->durable_start_ts != WT_TS_NONE) ||
-        !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT));
-    WT_ASSERT(session,
-      !WT_TIME_WINDOW_HAS_STOP(tw) ||
-        (tw->stop_ts != WT_TS_NONE && tw->durable_stop_ts != WT_TS_NONE) ||
-        !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT));
+    __cell_assert_tw_has_ts_for_garbage_collection(session, tw);
 
     /* Globally visible values have no associated validity window. */
     if (WT_TIME_WINDOW_IS_EMPTY(tw)) {
@@ -1039,13 +1049,7 @@ copy_cell_restart:
                 tw->durable_stop_ts = tw->stop_ts;
         }
 
-        WT_ASSERT(session,
-          (tw->start_ts != WT_TS_NONE && tw->durable_start_ts != WT_TS_NONE) ||
-            !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT));
-        WT_ASSERT(session,
-          !WT_TIME_WINDOW_HAS_STOP(tw) ||
-            (tw->stop_ts != WT_TS_NONE && tw->durable_stop_ts != WT_TS_NONE) ||
-            !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT));
+        __cell_assert_tw_has_ts_for_garbage_collection(session, tw);
 
         WT_RET(__cell_check_value_validity(session, tw, end != NULL));
         break;
