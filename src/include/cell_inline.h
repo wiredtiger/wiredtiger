@@ -36,6 +36,9 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, bool e
 static WT_INLINE void
 __cell_assert_tw_has_ts_for_garbage_collection(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
+    WT_UNUSED(session);
+    WT_UNUSED(tw);
+
     WT_ASSERT(session,
       (tw->start_ts != WT_TS_NONE && tw->durable_start_ts != WT_TS_NONE) ||
         !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT));
