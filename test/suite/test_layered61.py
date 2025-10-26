@@ -31,7 +31,8 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered61.py
-# Test reconciliation never cleans the timestamp for the ingest table
+# Test the timestamps on the ingest tables are not cleared even they are globally
+# visible.
 @disagg_test_class
 class test_layered61(wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),' \

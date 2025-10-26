@@ -510,8 +510,10 @@ __wti_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WTI_UPDATE_SELECT
 
     btree = S2BT(session);
 
-    /* Never clear the timestamps from the ingest table. They are needed for step-up even they are
-     * globally visible. */
+    /*
+     * Never clear the timestamps on the ingest tables. They are needed for step-up even they are
+     * globally visible.
+     */
     if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
         return;
 
