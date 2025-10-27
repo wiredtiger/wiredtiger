@@ -1778,8 +1778,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp
                 break;
 
             /*
-             * We need the original timestamps of the ingest tables for the step-up even they are
-             * globally visible.
+             * We need the original timestamps of the ingest tables for the step-up even when they
+             * are globally visible.
              */
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
                 break;
