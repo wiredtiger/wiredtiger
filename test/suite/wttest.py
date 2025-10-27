@@ -623,7 +623,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         if passed and self.__module__.startswith("test_layered"):
             # FIXME-WT-15786: Handle the transient state where a follower that has not yet picked up
             # its first checkpoint may fail with ENOENT due to missing its stable table.
-            if not re.match("test_layered(61|57|41|22|21|17)", str(self)):
+            if not re.match("test_layered(57|41|22|21|17)", str(self)):
                 self.verifyLayered()
 
         try:
