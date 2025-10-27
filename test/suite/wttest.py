@@ -600,7 +600,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                 except wiredtiger.WiredTigerError as e:
                     raise Exception(f'Layered verification failed for {uri}: {str(e)}')
 
-        cur.close()
         sess.close()
 
     def tearDown(self, dueToRetry=False):
