@@ -23,9 +23,16 @@ WT_STAT_USECS_HIST_INCR_FUNC(leaf_reconstruct, perf_hist_leaf_reconstruct_latenc
 
 /*
  * __page_find_min_delta --
- *     Find the smallest key among all current delta entries. When keys are equal across deltas,
- *     prefer the latest delta (higher index). Also advance older duplicates so only the latest
- *     delta for a given key is emitted.
+ *     Find the smallest key among all current delta entries, and determine which delta stream
+ *     (min_d) it came from.
+ *
+ * This function is optimized by iterating the delta streams in reverse order (from 'latest' to
+ *     'earliest'). This single-pass backward iteration automatically enforces the "latest wins"
+ *     rule for duplicate keys: if the same key is found in a delta stream, it must be an older
+ *     duplicate and can be skipped immediately because the newer version (from a higher index)
+ *     would have been processed first.
+ *
+ * Returns 0 on success, WT_ERR code otherwise.
  */
 static inline int
 __page_find_min_delta(WT_SESSION_IMPL *session, WT_CELL_UNPACK_DELTA_INT **unpacked_deltas,
@@ -33,71 +40,63 @@ __page_find_min_delta(WT_SESSION_IMPL *session, WT_CELL_UNPACK_DELTA_INT **unpac
   WT_CELL_UNPACK_DELTA_INT **min_delta, uint32_t *min_d)
 {
     WT_DECL_RET;
-    WT_ITEM dk, mk;
-    size_t d;
+    WT_ITEM delta_key, min_delta_key;
+    ssize_t d;
     int cmp;
+    bool have_min = false;
 
+    /* Initialize output pointers to NULL/UINT32_MAX. */
     *min_delta = NULL;
     *min_d = UINT32_MAX;
 
-    /* First pass: pick the smallest key among available deltas. Prefer later delta if equal. */
-    for (d = 0; d < delta_count; ++d) {
-        /* Skip exhausted delta arrays */
+    /*
+     * Iterate backward from the latest delta stream (highest index) to the earliest (lowest index).
+     * This ensures that when we encounter a duplicate key, the one we already have is the LATEST.
+     */
+    for (d = (ssize_t)delta_count - 1; d >= 0; --d) {
+        /* If the current delta stream is exhausted, continue to the next one. */
         if (delta_idx[d] >= delta_size_each[d])
             continue;
 
         WT_ASSERT(session, unpacked_deltas[d] != NULL);
 
-        dk.data = unpacked_deltas[d][delta_idx[d]].key.data;
-        dk.size = unpacked_deltas[d][delta_idx[d]].key.size;
+        /* Get the key for the current delta entry in stream 'd'. */
+        delta_key.data = unpacked_deltas[d][delta_idx[d]].key.data;
+        delta_key.size = unpacked_deltas[d][delta_idx[d]].key.size;
 
-        if (*min_delta == NULL) {
-            /* First available delta entry */
+        /* If this is the first entry found, establish it as the initial minimum. */
+        if (!have_min) {
             *min_delta = &unpacked_deltas[d][delta_idx[d]];
             *min_d = (uint32_t)d;
+            have_min = true;
             continue;
         }
 
-        mk.data = (*min_delta)->key.data;
-        mk.size = (*min_delta)->key.size;
+        /* Get the key for the current minimum delta entry. */
+        min_delta_key.data = (*min_delta)->key.data;
+        min_delta_key.size = (*min_delta)->key.size;
 
-        WT_ERR(__wt_compare(session, S2BT(session)->collator, &dk, &mk, &cmp));
+        /*
+         * Compare the current delta key (delta_key) against the running minimum key
+         * (min_delta_key).
+         */
+        WT_ERR(__wt_compare(session, S2BT(session)->collator, &delta_key, &min_delta_key, &cmp));
 
         if (cmp < 0) {
-            /* Found a strictly smaller key */
+            /* Found a key that is strictly smaller --> replace the minimum. */
             *min_delta = &unpacked_deltas[d][delta_idx[d]];
             *min_d = (uint32_t)d;
         } else if (cmp == 0) {
-            /* Same key: prefer latest delta (higher index) */
-            if ((uint32_t)d > *min_d) {
-                *min_delta = &unpacked_deltas[d][delta_idx[d]];
-                *min_d = (uint32_t)d;
-            }
+            /*
+             * Keys are equal (delta_key == min_delta_key). Since we iterate from latest to earliest
+             * (d is decreasing): The current minimum (*min_delta) was found in a higher-indexed
+             * stream, making it the LATEST version. This current entry (at index d) is an older
+             * duplicate and can be skipped immediately by advancing its index.
+             */
+            delta_idx[d]++;
+            WT_ASSERT(session, delta_idx[d] <= delta_size_each[d]);
         }
-    }
-
-    /* Second pass: advance other deltas that have the same key as the chosen min_delta */
-    if (*min_delta != NULL) {
-        for (d = 0; d < delta_count; ++d) {
-            if ((uint32_t)d == *min_d)
-                continue; /* skip the chosen min delta */
-
-            if (delta_idx[d] >= delta_size_each[d])
-                continue; /* skip exhausted arrays */
-
-            dk.data = unpacked_deltas[d][delta_idx[d]].key.data;
-            dk.size = unpacked_deltas[d][delta_idx[d]].key.size;
-            mk.data = (*min_delta)->key.data;
-            mk.size = (*min_delta)->key.size;
-
-            WT_ERR(__wt_compare(session, S2BT(session)->collator, &dk, &mk, &cmp));
-
-            if (cmp == 0) {
-                /* Skip older duplicate: move index forward safely */
-                delta_idx[d]++;
-                WT_ASSERT(session, delta_idx[d] <= delta_size_each[d]);
-            }
-        }
+        /* If cmp > 0 (delta_key is larger), we do nothing and keep the current minimum. */
     }
 
 err:
