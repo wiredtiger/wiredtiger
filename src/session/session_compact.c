@@ -406,7 +406,7 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
     SESSION_API_CALL(session, ret, compact, config, cfg);
 
     if (__wt_conn_is_disagg(session))
-        WT_ERR_MSG(session, EINVAL, "Compaction does not work with Disagg.");
+        WT_ERR_MSG(session, ENOTSUP, "Compaction does not work with Disagg.");
 
     /* Trigger the background server. */
     if ((ret = __wt_config_getones(session, config, "background", &cval) == 0)) {
