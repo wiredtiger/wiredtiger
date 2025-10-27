@@ -40,8 +40,8 @@ class test_layered61(wttest.WiredTigerTestCase):
                      + 'precise_checkpoint=true,'
     conn_config = conn_base_config + 'disaggregated=(role="follower")'
 
-    create_session_config = 'key_format=S,value_format=S,type=layered'
-    uri = "table:test_layered61"
+    create_session_config = 'key_format=S,value_format=S'
+    uri = "layered:test_layered61"
 
     disagg_storages = gen_disagg_storages('test_layered61', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
