@@ -1870,8 +1870,7 @@ __layered_update_prune_timestamps_print_update_logs(WT_SESSION_IMPL *session,
 
 /*
  * __layered_update_ingest_table_prune_timestamp --
- *     Update the prune timestamp of the specified ingest table. The `uri_at_checkpoint_buf`
- *     argument is used only to avoid extra allocations between consecutive calls.
+ *     Update the prune timestamp of the specified ingest table.
  *
  * We want to see what is the oldest checkpoint on the provided table that is in use by any open
  *     cursor. Even if there are no open cursors on it, the most recent checkpoint on the table is
@@ -1881,6 +1880,9 @@ __layered_update_prune_timestamps_print_update_logs(WT_SESSION_IMPL *session,
  *     on this table. Thus, the timestamp associated with the newest such checkpoint can be used for
  *     garbage collection pruning. Any item in the ingest table older than that timestamp must be
  *     including in one of the checkpoints we're saving, and thus can be removed.
+ *
+ * The `uri_at_checkpoint_buf` argument is used only to avoid extra allocations between consecutive
+ *     calls.
  */
 static int
 __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const char *layered_uri,
@@ -1963,11 +1965,10 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     if (ckpt_inuse == last_ckpt)
         prune_timestamp = checkpoint_timestamp;
 
-    /*
-     * We now have the oldest checkpoint in use for this table. If it's the same with the tables
-     * one, no need to update.
-     */
     if (ckpt_inuse == layered_table->last_ckpt_inuse) {
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+          "GC %s: Nothing to update - the last checkpoint is still in use %" PRId64,
+          layered_table->iface.name, ckpt_inuse);
         ret = 0;
         goto err;
     }
