@@ -145,7 +145,7 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
          * which means we want the previous value seen, not the current value.
          */
         WT_RET(__wti_rec_cell_build_val(
-          session, r, cbulk->last->data, cbulk->last->size, &tw, cbulk->rle));
+          session, r, cbulk->last->data, cbulk->last->size, &tw, cbulk->rle, NULL));
 
     /* Boundary: split or write the page. */
     if (WTI_CROSSING_SPLIT_BND(r, val->len))
@@ -219,7 +219,6 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
     WTI_REC_KV *val;
     WT_REF *ref;
     WT_TIME_AGGREGATE ft_ta, ta;
-    uint8_t prev_ref_changes;
 
     btree = S2BT(session);
     page = pageref->page;
@@ -235,7 +234,7 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
-        WT_ACQUIRE_READ(prev_ref_changes, ref->ref_changes);
+        __wt_atomic_cas_uint8_v(&ref->rec_state, WT_REF_REC_DIRTY, WT_REF_REC_CLEAN);
 
         /* Update the starting record number in case we split. */
         r->recno = ref->ref_recno;
@@ -327,13 +326,6 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
         if (page_del != NULL)
             WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ft_ta);
         WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ta);
-
-        /*
-         * Set the ref_changes state to zero if there were no concurrent changes while reconciling
-         * the internal page.
-         */
-        if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
-            __wt_atomic_casv8(&ref->ref_changes, prev_ref_changes, 0);
     }
     WT_INTL_FOREACH_END;
 
@@ -434,7 +426,7 @@ __rec_col_fix_addtw(
     key->len = key->cell_len + key->buf.size;
 
     /* Pack the value, which is empty, but with a time window. */
-    WT_RET(__wti_rec_cell_build_val(session, r, NULL, 0, tw, 0));
+    WT_RET(__wti_rec_cell_build_val(session, r, NULL, 0, tw, 0, NULL));
 
     /* Figure how much space we need, and reallocate the page if about to run out. */
     len = key->len + val->len;
@@ -478,6 +470,7 @@ __wti_rec_col_fix(
     WT_BTREE *btree;
     WT_CELL *cell;
     WT_CELL_UNPACK_KV unpack;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_INSERT *ins;
     WT_PAGE *page;
@@ -488,6 +481,7 @@ __wti_rec_col_fix(
     uint8_t val;
 
     btree = S2BT(session);
+    conn = S2C(session);
     /*
      * Blank the unpack record in case we need to use it before unpacking anything into it. The
      * visibility code currently only uses the value and the time window, and asserts about the
@@ -775,6 +769,13 @@ __wti_rec_col_fix(
              * future changes, assert that there's nothing to do.
              */
             WT_ASSERT(session, WT_TIME_WINDOW_IS_EMPTY(&upd_select.tw));
+            /*
+             * If preserve prepared update is enabled, we must select an update to replace the
+             * onpage prepared update. Otherwise, we leak the prepared update.
+             */
+            WT_ASSERT_ALWAYS(session,
+              !F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || !WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw),
+              "leaked prepared update.");
             continue;
         }
 
@@ -1174,7 +1175,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SALVAGE_COOK
         val->len = val->cell_len + value->size;
         *ovfl_usedp = true;
     } else
-        WT_RET(__wti_rec_cell_build_val(session, r, value->data, value->size, tw, rle));
+        WT_RET(__wti_rec_cell_build_val(session, r, value->data, value->size, tw, rle, NULL));
 
     /* Boundary: split or write the page. */
     if (__wti_rec_need_split(r, val->len))
@@ -1211,6 +1212,7 @@ __wti_rec_col_var(
     WT_CELL *cell;
     WT_CELL_UNPACK_KV *vpack, _vpack;
     WT_COL *cip;
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(orig);
     WT_DECL_RET;
@@ -1226,6 +1228,7 @@ __wti_rec_col_var(
     const void *data;
 
     btree = S2BT(session);
+    conn = S2C(session);
     vpack = &_vpack;
     page = pageref->page;
     WT_TIME_WINDOW_INIT(&clear_tw);
@@ -1367,6 +1370,13 @@ record_loop:
                     goto compare;
                 }
                 twp = &vpack->tw;
+                /*
+                 * If preserve prepared update is enabled, we must select an update to replace the
+                 * onpage prepared update. Otherwise, we leak the prepared update.
+                 */
+                WT_ASSERT_ALWAYS(session,
+                  !F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || !WT_TIME_WINDOW_HAS_PREPARE(twp),
+                  "leaked prepared update.");
 
                 /* Clear the on-disk cell time window if it is obsolete. */
                 __wti_rec_time_window_clear_obsolete(session, NULL, vpack, r);
@@ -1424,9 +1434,17 @@ record_loop:
                     ovfl_state = OVFL_IGNORE;
                     break;
                 case OVFL_IGNORE:
-                    /* The original wasn't an overflow item. */
-                    data = vpack->data;
-                    size = vpack->size;
+                    /*
+                     * Use the copied original value if the on-page value is an overflow value.
+                     * Otherwise, use the on-page value.
+                     */
+                    if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)) {
+                        data = orig->data;
+                        size = (uint32_t)orig->size;
+                    } else {
+                        data = vpack->data;
+                        size = vpack->size;
+                    }
                     break;
                 }
             } else {

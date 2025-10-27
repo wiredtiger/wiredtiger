@@ -587,7 +587,8 @@ __recovery_set_oldest_timestamp(WT_RECOVERY *r)
      */
     WT_RET(__wt_meta_read_checkpoint_oldest(r->session, NULL, &oldest_timestamp, NULL));
     conn->txn_global.oldest_timestamp = oldest_timestamp;
-    __wt_atomic_storebool(&conn->txn_global.has_oldest_timestamp, oldest_timestamp != WT_TS_NONE);
+    __wt_atomic_store_bool_relaxed(
+      &conn->txn_global.has_oldest_timestamp, oldest_timestamp != WT_TS_NONE);
 
     __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "Set global oldest timestamp: %s",
       __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string));
@@ -1192,10 +1193,9 @@ done:
      * 3. We are not using disaggregated storage or precise checkpoint(In precise checkpoints,
      * everything is stable except prepared txn. Disagg also uses precise checkpoint, so neither
      * requires rollback to stable).
-     * FIXME-WT-15343 Disable RTS for precise checkpoint when claim prepared is implemented in test
-     * format
      */
-    if (hs_exists_local && !F_ISSET(conn, WT_CONN_READONLY) && !disagg) {
+    if (hs_exists_local && !F_ISSET(conn, WT_CONN_READONLY | WT_CONN_PRECISE_CHECKPOINT) &&
+      !disagg) {
         const char *rts_cfg[] = {
           WT_CONFIG_BASE(session, WT_CONNECTION_rollback_to_stable), NULL, NULL};
         __wt_timer_start(session, &rts_timer);

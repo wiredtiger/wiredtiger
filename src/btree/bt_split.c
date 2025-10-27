@@ -594,7 +594,7 @@ err:
  */
 static int
 __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *parent, size_t *decrp,
-  uint64_t split_gen, bool exclusive)
+  uint64_t split_gen, bool exclusive, bool page_replacement)
 {
     WT_DECL_RET;
     WT_IKEY *ikey;
@@ -622,7 +622,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     __wt_free(session, ref->page_del);
 
     /* Free the backing block and address. */
-    WT_TRET(__wt_ref_block_free(session, ref, false));
+    WT_TRET(__wt_ref_block_free(session, ref, page_replacement));
 
     /*
      * We cannot discard any ref in the prefetch queue, otherwise, the prefetch thread would read
@@ -660,7 +660,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     size_t parent_decr, size;
     uint64_t split_gen;
     uint32_t deleted_entries, *deleted_refs, hint, i, j, parent_entries, result_entries;
-    uint8_t ref_changes;
+    uint8_t rec_state;
     bool empty_parent;
 
 #ifdef HAVE_DIAGNOSTIC
@@ -711,10 +711,10 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
              * the prefetch thread would crash if it sees a freed ref.
              */
             if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
-                WT_ACQUIRE_READ(ref_changes, next_ref->ref_changes);
+                rec_state = __wt_atomic_load_uint8_v_acquire(&next_ref->rec_state);
             else
-                ref_changes = 0;
-            if (ref_changes == 0 && next_ref != ref &&
+                rec_state = WT_REF_REC_CLEAN;
+            if (rec_state == WT_REF_REC_CLEAN && next_ref != ref &&
               WT_REF_GET_STATE(next_ref) == WT_REF_DELETED &&
               (btree->type != BTREE_COL_VAR || i != 0) &&
               !F_ISSET_ATOMIC_8(next_ref, WT_REF_FLAG_PREFETCH) &&
@@ -832,14 +832,14 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
      */
     if (discard) {
         WT_ASSERT(session, exclusive || WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
-        WT_TRET(
-          __split_parent_discard_ref(session, ref, parent, &parent_decr, split_gen, exclusive));
+        WT_TRET(__split_parent_discard_ref(
+          session, ref, parent, &parent_decr, split_gen, exclusive, new_entries == 1));
     }
     for (i = 0; i < deleted_entries; ++i) {
         next_ref = pindex->index[deleted_refs[i]];
         WT_ASSERT(session, WT_REF_GET_STATE(next_ref) == WT_REF_LOCKED);
         WT_TRET(__split_parent_discard_ref(
-          session, next_ref, parent, &parent_decr, split_gen, exclusive));
+          session, next_ref, parent, &parent_decr, split_gen, exclusive, false));
     }
 
     /*
@@ -1287,7 +1287,7 @@ __split_internal_should_split(WT_SESSION_IMPL *session, WT_REF *ref)
      * Deepen the tree if the page's memory footprint is larger than the maximum size for a page in
      * memory (presumably putting eviction pressure on the cache).
      */
-    if (__wt_atomic_loadsize(&page->memory_footprint) > btree->maxmempage)
+    if (__wt_atomic_load_size_relaxed(&page->memory_footprint) > btree->maxmempage)
         return (true);
 
     /*
@@ -1656,8 +1656,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
              * tombstone) by the page in-memory code. Discard the re-instantiated prepared updates.
              *
              * If we have instantiated a tombstone when we read the page back into memory, discard
-             * it as well. FIXME-WT-14885: no need to consider the delta case after we have
-             * implemented delta consolidation
+             * it as well. FIXME- WT-15619 and WT-15618: no need to consider the delta case after we
+             * have implemented delta consolidation
              */
             if ((F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
                   WT_TIME_WINDOW_HAS_PREPARE(&supd->tw)) ||
@@ -1878,7 +1878,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
     }
 
     if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
-        __wt_atomic_addv8(&ref->ref_changes, 1);
+        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
 
     switch (page->type) {
     case WT_PAGE_COL_INT:
@@ -2500,7 +2500,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool 
 
     /* Swap the new page into place. */
     if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
-        __wt_atomic_addv8(&ref->ref_changes, 1);
+        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
     ref->page = new->page;
 
     if (change_ref_state)

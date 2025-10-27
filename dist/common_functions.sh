@@ -85,7 +85,7 @@ has_file_args() {
 # Check if the fast mode is requested and is available.
 # Set variables appropriately or exit with an error.
 check_fast_mode_flag() {
-  is_fast_mode || return
+  is_fast_mode || return 0
   check_fast_mode
   if [[ -n "${FAST_FLAG:-}" ]] && has_file_args; then
     echo "ERROR: Fast mode (-F flag) cannot be used with file arguments"
@@ -110,8 +110,11 @@ filter_changed_files() {
   [[ -z "${EGREP:-}" ]] && use_pygrep
   local PREFIX="${1:-^}"
   local REGEX="$(changed_files | lines_to_regex)"
-  local REGEX="$PREFIX($REGEX)"
-  $EGREP $REGEX
+  if [[ -n "$REGEX" ]]; then
+    $EGREP "$PREFIX($REGEX)"
+  else
+    cat > /dev/null # No regex - no files selected.
+  fi
 }
 
 # If fast mode is requested,

@@ -43,12 +43,14 @@ typedef struct {
 } WT_VSTUFF;
 
 static void __verify_checkpoint_reset(WT_VSTUFF *);
-static int __verify_page_content_int(
-  WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
+static int __verify_compare_page_id(const void *, const void *);
 static int __verify_page_content_fix(
+  WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
+static int __verify_page_content_int(
   WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
 static int __verify_page_content_leaf(
   WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
+static int __verify_page_discard(WT_SESSION_IMPL *, WT_BM *);
 static int __verify_row_int_key_order(
   WT_SESSION_IMPL *, WT_PAGE *, WT_REF *, uint32_t, WT_VSTUFF *);
 static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
@@ -240,14 +242,18 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
         goto done;
 
     /*
-     * Get a list of the checkpoints for this file. Empty objects have no checkpoints, in which case
-     * there's no work to do.
+     * Get a list of the checkpoints for this file. Empty objects and ingest tables have no
+     * checkpoints, in which case there's no work to do.
      */
     WT_ERR_NOTFOUND_OK(__wt_meta_ckptlist_get(session, name, false, &ckptbase, NULL), true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;
-    }
+    } else if (WT_SUFFIX_MATCH(name, ".wt_ingest"))
+        WT_ERR_MSG(session, WT_ERROR,
+          "verify (layered): ingest table %s unexpectedly has checkpoints. This is a fatal "
+          "violation as the ingest table does not get checkpointed.",
+          name);
 
     /* Inform the underlying block manager we're verifying. */
     WT_ERR(bm->verify_start(bm, session, ckptbase, cfg));
@@ -309,10 +315,17 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
             /*
              * The checkpoints are in time-order, so the last one in the list is the most recent. If
-             * this is the most recent checkpoint, verify the history store against it.
+             * this is the most recent checkpoint, verify the history store against it, also verify
+             * page discard function if we're in disagg mode.
              */
-            if (ret == 0 && (ckpt + 1)->name == NULL && !skip_hs) {
-                WT_TRET(__wt_hs_verify_one(session, btree->id));
+            if (ret == 0 && (ckpt + 1)->name == NULL) {
+                if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                    WT_TRET(__verify_page_discard(session, bm));
+
+                if (!skip_hs) {
+                    __wt_verbose(session, WT_VERB_VERIFY, "%s: verify against history store", name);
+                    WT_TRET(__wt_hs_verify_one(session, btree->id));
+                }
                 /*
                  * We cannot error out here. If we got an error verifying the history store, we need
                  * to follow through with reacquiring the exclusive call below. We'll error out
@@ -359,7 +372,7 @@ done:
 err:
     /* Inform the underlying block manager we're done. */
     if (bm_start)
-        WT_TRET(bm->verify_end(bm, session));
+        WT_TRET(bm->verify_end(bm, session, ret == 0));
 
     /* Discard the list of checkpoints. */
     if (ckptbase != NULL)
@@ -412,9 +425,9 @@ __verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
 
     if (__wt_ref_addr_copy(session, ref, &addr)) {
-        WT_ERR(
-          __wt_buf_fmt(session, buf, "%s %s", __wt_addr_string(session, addr.addr, addr.size, tmp),
-            __wt_time_aggregate_to_string(&addr.ta, time_string)));
+        WT_ERR(__wt_buf_fmt(session, buf, "address:%s, time-window: %s",
+          __wt_addr_string(session, addr.addr, addr.size, tmp),
+          __wt_time_aggregate_to_string(&addr.ta, time_string)));
     } else
         WT_ERR(__wt_buf_fmt(session, buf, "%s -/-,-/-", __wt_addr_string(session, NULL, 0, tmp)));
 
@@ -535,8 +548,9 @@ __verify_tree(
     if (__wt_session_prefetch_check(session, ref))
         WT_RET(__wti_btree_prefetch(session, ref));
 
-    __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __verify_addr_string(session, ref, vs->tmp1),
-      __wt_page_type_string(page->type));
+    __wt_verbose(session, WT_VERB_VERIFY, "%s, %s, write gen: %" PRIu64 ", entries: %" PRIu32,
+      __wt_page_type_string(page->type), __verify_addr_string(session, ref, vs->tmp1),
+      page->dsk->write_gen, page->entries);
 
     /* Optionally dump address information. */
     if (vs->dump_address)
@@ -646,7 +660,7 @@ __verify_tree(
      * (just created), it won't have a disk image; if there is no disk image, there is no page
      * content to check.
      */
-    if (page->dsk != NULL) {
+    if (__wt_tsan_suppress_load_wt_page_header_ptr(&page->dsk) != NULL) {
         /*
          * Compare the write generation number on the page to the write generation number on the
          * parent. Since a parent page's reconciliation takes place once all of its child pages have
@@ -1007,6 +1021,9 @@ __verify_overflow(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
 
     bm = S2BT(session)->bm;
 
+    __wt_verbose_debug3(session, WT_VERB_VERIFY, "read overflow page at: %s",
+      __wt_addr_string(session, addr, addr_size, vs->tmp1));
+
     /* Read and verify the overflow item. */
     WT_RET(__wt_blkcache_read(session, vs->tmp1, NULL, addr, addr_size));
 
@@ -1164,6 +1181,10 @@ __verify_page_content_int(
     WT_CELL_FOREACH_ADDR (session, dsk, unpack) {
         ++cell_num;
 
+        __wt_verbose_debug3(session, WT_VERB_VERIFY,
+          "cell num: %" PRIu32 ", cell type: %s, page type: %s", cell_num - 1,
+          __wti_cell_type_string(unpack.type), __wt_page_type_string(dsk->type));
+
         if (!__wti_cell_type_check(unpack.type, dsk->type))
             WT_RET_MSG(session, WT_ERROR,
               "illegal cell and page type combination: cell %" PRIu32
@@ -1301,6 +1322,7 @@ __verify_page_content_leaf(
     uint64_t recno, rle;
     uint32_t cell_num;
     uint8_t *p;
+    char tw_string[WT_TIME_STRING_SIZE];
     bool found_ovfl;
 
     page = ref->page;
@@ -1314,6 +1336,10 @@ __verify_page_content_leaf(
     cell_num = 0;
     WT_CELL_FOREACH_KV (session, dsk, unpack) {
         ++cell_num;
+
+        __wt_verbose_debug3(session, WT_VERB_VERIFY,
+          "cell num: %" PRIu32 ", cell type: %s, page type: %s", cell_num - 1,
+          __wti_cell_type_string(unpack.type), __wt_page_type_string(dsk->type));
 
         if (!__wti_cell_type_check(unpack.type, dsk->type))
             WT_RET_MSG(session, WT_ERROR,
@@ -1341,6 +1367,9 @@ __verify_page_content_leaf(
         case WT_CELL_VALUE_COPY:
         case WT_CELL_VALUE_OVFL:
         case WT_CELL_VALUE_SHORT:
+            __wt_verbose_debug3(session, WT_VERB_VERIFY, "cell num: %" PRIu32 ", time window: %s",
+              cell_num - 1, __wt_time_window_to_string(tw, tw_string));
+
             if ((ret = __wt_time_value_validate(session, tw, &parent->ta, false)) != 0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32 " on page at %s failed timestamp validation", cell_num - 1,
@@ -1384,6 +1413,130 @@ __verify_page_content_leaf(
           "overflow items",
           __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(ref->page->type),
           __wti_cell_type_string(parent->raw));
+
+    return (0);
+}
+
+/*
+ * __verify_page_discard --
+ *     Verify all live pages in disagg mode, ensuring that no pages were incorrectly discarded.
+ */
+static int
+__verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
+{
+    WT_REF *ref = NULL;
+    uint64_t num_pages_found_in_btree = 0;
+    size_t capacity_in_bytes = 0;
+    uint64_t *page_ids = NULL;
+    int ret = 0;
+
+    /*
+     * Walk the btree to retrieve the page IDs for all pages in the btree at the loaded checkpoint
+     * time.
+     */
+    while ((ret = (__wt_tree_walk(session, &ref, WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED))) == 0 &&
+      ref != NULL) {
+        WT_PAGE *page = ref->page;
+
+        /*
+         * Use dynamically allocated array to track page IDs as we don't know the number of pages
+         *  here. Check if the array size needs to grow.
+         */
+        if (num_pages_found_in_btree == (capacity_in_bytes / sizeof(*page_ids))) {
+            uint64_t new_capacity_count = num_pages_found_in_btree * 2 + 10;
+            WT_RET(__wt_realloc_def(session, &capacity_in_bytes, new_capacity_count, &page_ids));
+        }
+
+        if (page != NULL) {
+            WT_ASSERT(session, page->disagg_info != NULL);
+            page_ids[num_pages_found_in_btree++] = page->disagg_info->block_meta.page_id;
+        }
+    }
+
+    WT_RET_NOTFOUND_OK(ret);
+
+    /*
+     * Track the number of pages found in the PALM walk. This value is tracked separately because
+     * WT_ITEM->size must match the allocated memory, while the actual number of pages found may be
+     * smaller than that allocation.
+     */
+    size_t num_pages_found_in_palm = 0;
+    uint64_t checkpoint_lsn;
+    checkpoint_lsn = S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn;
+    WT_DECL_ITEM(item);
+    WT_RET(__wt_scr_alloc(session, num_pages_found_in_palm, &item));
+
+    WT_ASSERT(session, bm->get_page_ids != NULL);
+    /* Get page IDs from PALM. */
+    WT_RET(bm->get_page_ids(bm, session, item, &num_pages_found_in_palm, checkpoint_lsn));
+
+    if ((uint64_t)num_pages_found_in_palm != num_pages_found_in_btree) {
+        /*
+         * FIXME-WT-14700: Investigate whether we need to do anything special when freeing a root
+         * page. Change below warning to an error after root page discard is implemented, if a
+         * mismatch is found this function will return the corresponding error code.
+         */
+        __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
+          "Mismatch in the number of page IDs found from PALM and btree walk: PALM %" PRIu64
+          " Btree walk %" PRIu64,
+          (uint64_t)num_pages_found_in_palm, num_pages_found_in_btree);
+    }
+
+    /*
+     * Sort the btree walk array by page ID in ascending order to match the order used in the PALM
+     * walk.
+     */
+    __wt_qsort(page_ids, num_pages_found_in_btree, sizeof(uint64_t), __verify_compare_page_id);
+
+    for (uint32_t index_in_palm = 0, index_in_btree = 0;
+         index_in_palm <= num_pages_found_in_palm && index_in_btree <= num_pages_found_in_btree;) {
+        if (index_in_palm == num_pages_found_in_palm && index_in_btree == num_pages_found_in_btree)
+            break;
+        uint64_t id_in_palm =
+          index_in_palm < num_pages_found_in_palm ? ((uint64_t *)item->data)[index_in_palm] : 0;
+        uint64_t id_in_btree =
+          index_in_btree < num_pages_found_in_btree ? page_ids[index_in_btree] : 0;
+        /*
+         * FIXME-WT-14700: Investigate whether we need to do anything special when freeing a root
+         * page. Change below warning to an error after root page discard is implemented, if a
+         * mismatch is found this function will return the corresponding error code.
+         */
+        if (index_in_btree == num_pages_found_in_btree || id_in_palm < id_in_btree) {
+            __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
+              "Unreferenced page was not discarded: PALM[%" PRIu32 "] %" PRIu64, index_in_palm,
+              id_in_palm);
+            index_in_palm++;
+        } else if (index_in_palm == num_pages_found_in_palm || id_in_palm > id_in_btree) {
+            __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
+              "Discarded page is still in use: BTREE[%" PRIu32 "] %" PRIu64, index_in_btree,
+              id_in_btree);
+            index_in_btree++;
+        } else {
+            index_in_palm++;
+            index_in_btree++;
+        }
+    }
+
+    __wt_free(session, page_ids);
+    __wt_scr_free(session, &item);
+
+    return (ret);
+}
+
+/*
+ * __verify_compare_page_id --
+ *     Compare two page IDs for qsort, sorts in ascending order.
+ */
+static int
+__verify_compare_page_id(const void *a, const void *b)
+{
+    const uint64_t *id_a = (const uint64_t *)a;
+    const uint64_t *id_b = (const uint64_t *)b;
+
+    if (*id_a < *id_b)
+        return (-1);
+    if (*id_a > *id_b)
+        return (1);
 
     return (0);
 }

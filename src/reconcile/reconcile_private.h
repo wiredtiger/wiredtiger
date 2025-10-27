@@ -167,10 +167,10 @@ struct __wti_reconcile {
     WT_PAGE *page;
     uint32_t flags; /* Caller's configuration */
 
-    /* Track the oldest running transaction. */
-    uint64_t last_running;
+    /* Track the pinned id for the reconciliation if without a snapshot. */
+    uint64_t rec_start_pinned_id;
 
-    /* Track the oldest running id. This one doesn't consider checkpoint. */
+    /* Track the oldest id that is needed. */
     uint64_t rec_start_oldest_id;
 
     /* Track the pinned timestamp at the time reconciliation started. */
@@ -298,6 +298,17 @@ struct __wti_reconcile {
     uint32_t count_stop_txn;
     uint32_t count_prepare;
 
+    /*
+     * Counters for tracking the number of key deletions and key insertions or updates in internal
+     * page deltas.
+     */
+    uint32_t count_internal_page_delta_key_deleted;
+    uint32_t count_internal_page_delta_key_updated;
+
+    /* Stats for key bytes discarded using prefix compression.*/
+    uint32_t bytes_prefix_compression_delta;
+    uint32_t bytes_prefix_compression_full;
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WTI_REC_TIME_NEWEST_START_DURABLE_TS 0x01u
 #define WTI_REC_TIME_NEWEST_STOP_DURABLE_TS 0x02u
@@ -316,6 +327,8 @@ struct __wti_reconcile {
      */
     WT_SAVE_UPD *supd; /* Saved updates */
     uint32_t supd_next;
+    uint32_t supd_onpage_or_restore; /* Number of the saved updates have onpage value or should be
+                                        restored */
     size_t supd_allocated;
     size_t supd_memsize; /* Size of saved update structures */
 
@@ -450,8 +463,8 @@ typedef struct {
         (r)->ref->page->modify->mod_multi_entries == 1))
 
 /* Called after building the disk image. */
-#define WT_BUILD_DELTA_LEAF(session, r)                                           \
-    WT_DELTA_LEAF_ENABLED((session)) && (r)->multi_next == 1 && !r->ovfl_items && \
+#define WT_BUILD_DELTA_LEAF(session, r)                         \
+    WT_DELTA_LEAF_ENABLED((session)) && (r)->multi_next == 1 && \
       WT_REC_RESULT_SINGLE_PAGE((session), (r))
 
 /*
@@ -501,8 +514,8 @@ extern int __wti_rec_hs_delete_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *multi)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_rec_pack_delta_internal(WT_SESSION_IMPL *session, WTI_RECONCILE *r,
-  WTI_REC_KV *key, WTI_REC_KV *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r,
+  WT_SAVE_UPD *supd) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref,
@@ -528,10 +541,13 @@ extern void __wti_rec_dictionary_reset(WTI_RECONCILE *r);
 static WT_INLINE bool __wti_rec_need_split(WTI_RECONCILE *r, size_t len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wti_rec_cell_build_val(WT_SESSION_IMPL *session, WTI_RECONCILE *r,
-  const void *data, size_t size, WT_TIME_WINDOW *tw, uint64_t rle)
+  const void *data, size_t size, WT_TIME_WINDOW *tw, uint64_t rle, bool *ovfl_val)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wti_rec_dict_replace(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_TIME_WINDOW *tw, uint64_t rle, WTI_REC_KV *val)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE int __wti_rec_get_row_leaf_key(WT_SESSION_IMPL *session, WT_BTREE *btree,
+  WTI_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip, WT_ITEM *key)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE void __wti_rec_auximage_copy(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint32_t count, WTI_REC_KV *kv);

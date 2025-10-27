@@ -343,6 +343,7 @@ RETRYABLE
 RHEL
 RLE
 RLEs
+RMW
 RNG
 RNGs
 RPC
@@ -410,6 +411,7 @@ ThreadListWrapper
 Timespec
 Tput
 TryCV
+Typedefs
 UBSAN
 UDF
 UID
@@ -434,6 +436,7 @@ UnlockFile
 Unmap
 UnmapViewOfFile
 Unmount
+Unreferenced
 Uryyb
 VARCHAR
 VLCS
@@ -757,6 +760,7 @@ dstrndup
 dsync
 dup
 dv
+dylib
 eee
 eg
 ejnprx
@@ -825,6 +829,7 @@ foward
 fprintf
 fread
 free'd
+freopen
 fs
 fscanf
 fseek
@@ -1001,6 +1006,7 @@ logpath
 logread
 logrec
 logsize
+logslot
 logtest
 lookaside
 lookups
@@ -1149,6 +1155,7 @@ pT
 packv
 pageref
 pagesize
+palite
 param
 pareto
 parserp
@@ -1406,6 +1413,7 @@ truncations
 trylock
 tryrdlock
 trywrlock
+tsan
 tsc
 tupdate
 tw
@@ -1425,6 +1433,7 @@ unallocated
 unbare
 unbuffered
 uncached
+unclosed
 unconfigured
 uncustomized
 undef

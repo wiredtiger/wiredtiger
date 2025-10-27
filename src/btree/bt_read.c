@@ -41,7 +41,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
      * the disk image size takes into account large values that have
      * already been written and should not trigger forced eviction.
      */
-    footprint = __wt_atomic_loadsize(&page->memory_footprint);
+    footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
     if (page->dsk != NULL)
         footprint -= page->dsk->mem_size;
 
@@ -124,11 +124,16 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      */
     if (ref->page != NULL && !__wt_page_evict_clean(ref->page)) {
         WT_ASSERT(session, !WT_READING_CHECKPOINT(session));
-        WT_RET(__wt_curhs_cache(session));
+        ret = __wt_curhs_cache(session);
+        if (ret != 0) {
+            WT_ASSERT(session, locked);
+            WT_REF_SET_STATE(ref, previous_state);
+            return (ret);
+        }
     }
-    (void)__wt_atomic_addv32(&btree->evict_busy, 1);
+    (void)__wt_atomic_add_uint32_v(&btree->evict_busy, 1);
     ret = __wt_evict(session, ref, previous_state, evict_flags);
-    (void)__wt_atomic_subv32(&btree->evict_busy, 1);
+    (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
 
     return (ret);
 }
@@ -144,7 +149,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_DECL_RET;
     WT_ITEM *deltas;
     WT_ITEM *tmp;
-    WT_PAGE *notused;
+    WT_PAGE *page;
     WT_PAGE_BLOCK_META block_meta;
     WT_REF_STATE previous_state;
     size_t count, i;
@@ -155,6 +160,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     tmp = NULL;
     count = 0;
     disk_image_freed = false;
+    page = NULL;
 
     /* Lock the WT_REF. */
     switch (previous_state = WT_REF_GET_STATE(ref)) {
@@ -256,12 +262,13 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         FLD_SET(page_flags, WT_PAGE_PREFETCH);
     if (deltas != NULL)
         FLD_SET(page_flags, WT_PAGE_WITH_DELTAS);
-    WT_ERR(__wti_page_inmem(session, ref, tmp[0].data, page_flags, &notused, &instantiate_upd));
+    WT_ERR(__wti_page_inmem(session, ref, tmp[0].data, page_flags, &page, &instantiate_upd));
+    WT_ASSERT(session, ref->page == page);
     tmp[0].mem = NULL;
-    if (ref->page->disagg_info != NULL) {
-        ref->page->disagg_info->block_meta = block_meta;
-        ref->page->disagg_info->old_rec_lsn_max = block_meta.disagg_lsn;
-        ref->page->disagg_info->rec_lsn_max = block_meta.disagg_lsn;
+    if (page->disagg_info != NULL) {
+        page->disagg_info->block_meta = block_meta;
+        page->disagg_info->old_rec_lsn_max = block_meta.disagg_lsn;
+        page->disagg_info->rec_lsn_max = block_meta.disagg_lsn;
     }
 
     /* Reconstruct deltas*/
@@ -296,14 +303,17 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
     if (previous_state == WT_REF_DELETED) {
         if (F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
-            WT_ERR(__wt_page_modify_init(session, ref->page));
+            WT_ERR(__wt_page_modify_init(session, page));
             ref->page->modify->instantiated = true;
         } else
             WT_ERR(__wti_delete_page_instantiate(session, ref));
     }
 
     /* Track page reads for debugging purposes. */
-    WT_ERR(__wt_conn_page_history_track_read(session, ref->page));
+    WT_ERR(__wt_conn_page_history_track_read(session, page));
+
+    /* Read only page must be clean. */
+    WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_READONLY) || !__wt_page_is_modified(page));
 
 skip_read:
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
@@ -317,9 +327,9 @@ err:
      * If the function building an in-memory version of the page failed, it discarded the page, but
      * not the disk image. Discard the page and separately discard the disk image in all cases.
      */
-    if (ref->page != NULL) {
-        disk_image_freed = ref->page->dsk != NULL;
-        __wt_page_modify_clear(session, ref->page);
+    if (page != NULL) {
+        disk_image_freed = page->dsk != NULL;
+        __wt_page_modify_clear(session, page);
         __wt_ref_out(session, ref);
     }
 
@@ -353,12 +363,14 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     WT_PAGE *page;
     WT_REF_STATE current_state;
     WT_TXN *txn;
+    size_t sleep_count;
     uint64_t sleep_usecs, yield_cnt;
     int force_attempts;
     bool busy, cache_work, evict_skip, read_from_disk, stalled, wont_need;
 
     btree = S2BT(session);
     txn = session->txn;
+    sleep_count = 0;
 
     if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE))
         LF_SET(WT_READ_IGNORE_CACHE_SIZE);
@@ -369,6 +381,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
      */
     if (!LF_ISSET(WT_READ_CACHE)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_pages_requested);
+        if (WT_IS_HS(session->dhandle))
+            WT_STAT_CONN_DSRC_INCR(session, cache_pages_requested_hs);
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
             WT_STAT_CONN_DSRC_INCR(session, cache_pages_requested_internal);
         else
@@ -599,6 +613,10 @@ skip_evict:
                 continue;
         }
         __wt_spin_backoff(&yield_cnt, &sleep_usecs);
+        ++sleep_count;
+        if (sleep_count > 10 * WT_THOUSAND && sleep_count % 10 * WT_THOUSAND == 0)
+            __wt_verbose_warning(session, WT_VERB_READ,
+              "sleep to wait the page %p for %" WT_SIZET_FMT " times", (void *)ref, sleep_count);
         WT_STAT_CONN_INCRV(session, page_sleep, sleep_usecs);
     }
 }

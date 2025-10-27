@@ -71,7 +71,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     btree = S2BT(session);
     dhandle = session->dhandle;
     dhandle_name = dhandle->name;
-    checkpoint = dhandle->checkpoint;
+    checkpoint = NULL;
     WT_CLEAR(lr_fh_meta);
 
     /*
@@ -96,7 +96,12 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     WT_ERR(__wt_btree_shared_base_name(session, &dhandle_name, &checkpoint, &name_buf));
 
     /* Get the checkpoint information for this name/checkpoint pair. */
-    WT_ERR(__wt_meta_checkpoint(session, dhandle_name, dhandle->checkpoint, &ckpt, &lr_fh_meta));
+    if (checkpoint != NULL) {
+        WT_ERR(__wt_meta_checkpoint(session, dhandle_name, checkpoint, &ckpt, &lr_fh_meta));
+        F_SET(btree, WT_BTREE_READONLY);
+    } else
+        WT_ERR(
+          __wt_meta_checkpoint(session, dhandle_name, dhandle->checkpoint, &ckpt, &lr_fh_meta));
 
     /* Set the order number. */
     dhandle->checkpoint_order = ckpt.order;
@@ -324,7 +329,8 @@ __btree_setup_page_log(WT_SESSION_IMPL *session, WT_BTREE *btree)
     cfg = btree->dhandle->cfg;
 
     /* Setup any configured page log on the data handle */
-    WT_RET_NOTFOUND_OK(__wt_config_gets(session, cfg, "disaggregated.page_log", &page_log_item));
+    ret = __wt_config_gets(session, cfg, "disaggregated.page_log", &page_log_item);
+    WT_RET_NOTFOUND_OK(ret);
     if (ret == WT_NOTFOUND || page_log_item.len == 0) {
         npage_log = S2C(session)->disaggregated_storage.npage_log;
         if (npage_log != NULL)
@@ -614,8 +620,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
 
     btree->modified = false; /* Clean */
 
-    __wt_atomic_store_enum(&btree->syncing, WT_BTREE_SYNC_OFF);   /* Not syncing */
-    btree->checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT); /* Checkpoint generation */
+    __wt_atomic_store_enum_relaxed(&btree->syncing, WT_BTREE_SYNC_OFF); /* Not syncing */
+    btree->checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);       /* Checkpoint generation */
 
     /*
      * The first time we open a btree, we'll be initializing the write gen to the connection-wide
@@ -664,7 +670,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         btree->base_write_gen = ckpt->run_write_gen;
 
     /* Load the next page ID for disaggregated storage. */
-    if (ckpt->raw.size == 0)
+    if (ckpt->next_page_id == 0)
         btree->next_page_id = WT_BLOCK_MIN_PAGE_ID; /* Should this be in create? */
     else
         btree->next_page_id = ckpt->next_page_id;
@@ -680,9 +686,10 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     if (F_ISSET(session, WT_SESSION_IMPORT))
         btree->modified = true;
 
-    /* FIXME-WT-15192: Consider setting `prune_timestamp` to `last_checkpoint_timestamp` */
+    btree->checkpoint_timestamp =
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
     if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-        btree->prune_timestamp = WT_TS_NONE;
+        btree->prune_timestamp = btree->checkpoint_timestamp;
 
     return (0);
 }
@@ -1136,8 +1143,9 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      * In-memory configuration overrides any key/value sizes, there's no such thing as an overflow
      * item in an in-memory configuration.
      *
-     * FIXME-WT-14722: the disaggregated check is a workaround for the disaggregated block manager
-     * not yet supporting overflow items.
+     * Writing overflow keys and values isn't possible with disaggregated storage because overflow
+     * items are stored on a different page within the same tree, which cannot be handled by
+     * disaggregated storage.
      */
     if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY) ||
       F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {

@@ -43,11 +43,31 @@ table_verify(TABLE *table, void *arg)
     conn = (WT_CONNECTION *)arg;
     testutil_assert(table != NULL);
 
+    /*
+     * FIXME-WT-15619 and FIXME-WT-15618: We can run verify on layered tables when deltas are
+     * written as a full image.
+     *
+     * Remove this check once both tickets are resolved.
+     */
+    if (TV(DISAGG_ENABLED) && (GV(DISAGG_LEAF_PAGE_DELTA) || GV(DISAGG_INTERNAL_PAGE_DELTA))) {
+        printf("table.%u skipped verify because verify does not support disagg delta pages.\n",
+          table->id);
+        fflush(stdout);
+        return;
+    }
+
     memset(&sap, 0, sizeof(sap));
     wt_wrap_open_session(conn, &sap, table->track_prefix,
       enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
     ret = session->verify(session, table->uri, "strict");
-    testutil_assert(ret == 0 || ret == EBUSY);
+    /*
+     * On followers, verify returns ENOENT if the stable constituent is missing. Before the first
+     * checkpoint is picked up or if the table has not been created locally, this is expected
+     * behavior.
+     */
+    testutil_assert(
+      ret == 0 || ret == EBUSY || (g.disagg_storage_config && !g.disagg_leader && ret == ENOENT));
+
     if (ret == EBUSY)
         WARN("table.%u skipped verify because of EBUSY", table->id);
     wt_wrap_close_session(session);
@@ -198,8 +218,8 @@ table_verify_mirror(
     uint64_t range_begin, range_end;
     char buf[256], tagbuf[128];
 
-    base_keyno = table_keyno = 0;             /* -Wconditional-uninitialized */
-    base_bitv = table_bitv = FIX_VALUE_WRONG; /* -Wconditional-uninitialized */
+    base_id = base_keyno = table_id = table_keyno = 0; /* -Wconditional-uninitialized */
+    base_bitv = table_bitv = FIX_VALUE_WRONG;          /* -Wconditional-uninitialized */
     base_ret = table_ret = 0;
     last_match = 0;
     failures = 0;
@@ -218,10 +238,12 @@ table_verify_mirror(
      */
     for (;;) {
         wt_wrap_open_cursor(session, base->uri, checkpoint == NULL ? NULL : buf, &base_cursor);
-        base_id = base_cursor->checkpoint_id(base_cursor);
         wt_wrap_open_cursor(session, table->uri, checkpoint == NULL ? NULL : buf, &table_cursor);
-        table_id = table_cursor->checkpoint_id(table_cursor);
 
+        if (checkpoint != NULL) {
+            base_id = base_cursor->checkpoint_id(base_cursor);
+            table_id = table_cursor->checkpoint_id(table_cursor);
+        }
         testutil_assert((checkpoint == NULL && base_id == 0 && table_id == 0) ||
           (checkpoint != NULL && base_id != 0 && table_id != 0));
 

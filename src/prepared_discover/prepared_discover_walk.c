@@ -268,6 +268,7 @@ __prepared_discover_process_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
         break;
     case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_VAR:
+        /* FIXME-WT-15274 Support column store with prepared discovery */
         WT_ASSERT_ALWAYS(session, false, "Prepared discovery does not support column stores");
         /* Fall through. */
     case WT_PAGE_COL_INT:
@@ -311,6 +312,7 @@ __prepared_discover_tree_walk_skip(
         page_del = ref->page_del;
         WT_ASSERT_ALWAYS(session, page_del->prepare_state == WT_PREPARE_INIT,
           "Prepared transaction discovery does not support truncate operations");
+        WT_REF_SET_STATE(ref, WT_REF_DELETED);
     }
     /*
      * Any other deleted page can't have prepared content that needs to be discovered, so it is safe

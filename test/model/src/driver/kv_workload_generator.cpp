@@ -93,6 +93,7 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     timing_stress_hs_sweep_race = 0.1;
     timing_stress_prepare_ckpt_delay = 0.1;
     timing_stress_commit_txn_slow = 0.1;
+    timing_stress_rec_before_wrapup = 0.1;
 }
 
 /*
@@ -360,6 +361,8 @@ kv_workload_generator::generate_connection_stress_config()
           "timing_stress_for_test=[prepare_checkpoint_delay]";
         probability_case(_spec.timing_stress_commit_txn_slow) wt_env_config +=
           "timing_stress_for_test=[commit_transaction_slow]";
+        probability_case(_spec.timing_stress_rec_before_wrapup) wt_env_config +=
+          "timing_stress_for_test=[failpoint_rec_before_wrapup]";
     }
     return wt_env_config;
 }
@@ -558,10 +561,6 @@ kv_workload_generator::run()
 
         /* FIXME-WT-15040 Prepared transactions are not yet supported. */
         _spec.prepared_transaction = 0;
-
-        /* FIXME-WT-15041 Handling abandoned checkpoints is not yet supported. */
-        _spec.crash = 0;
-        _spec.checkpoint_crash = 0;
     }
 
     /* Create tables. */

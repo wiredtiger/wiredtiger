@@ -5,8 +5,6 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
 if (NOT VCPKG_TOOLCHAIN)
   find_package(PkgConfig)
   pkg_check_modules(GTKMM gtkmm-4.0)

@@ -114,8 +114,10 @@ def copy_wiredtiger_home(testcase, olddir, newdir, aligned=True):
         raise AssertionError(
             'copy_wiredtiger_home: unaligned copy impossible on Windows')
     shutil.rmtree(newdir, ignore_errors=True)
+    # Get the list of files first to avoid recursion.
+    files = list(os.listdir(olddir))
     os.mkdir(newdir)
-    for fname in os.listdir(olddir):
+    for fname in files:
         fullname = os.path.join(olddir, fname)
         # Skip lock file, on Windows it is locked.
         # Skip temporary log files.
@@ -144,6 +146,8 @@ def copy_wiredtiger_home(testcase, olddir, newdir, aligned=True):
                 cmd_list = ['dd', inpf, outf, 'bs=300']
                 a = subprocess.Popen(cmd_list)
                 a.wait()
+        elif os.path.isdir(fullname):
+            shutil.copytree(fullname, os.path.join(newdir, fname))
 
 # Simulate a crash from olddir and restart in newdir.
 def simulate_crash_restart(testcase, olddir, newdir):
@@ -156,3 +160,29 @@ def simulate_crash_restart(testcase, olddir, newdir):
     testcase.close_conn()
     testcase.conn = testcase.setUpConnectionOpen(newdir)
     testcase.session = testcase.setUpSessionOpen(testcase.conn)
+
+class WiredTigerStat:
+
+    def __init__(self, session):
+        self.session = session
+
+    def __enter__(self, uri = 'statistics:'):
+        # Get a statistics cursor
+        self.stat_cursor = self.session.open_cursor(uri, None, None)
+        return self.stat_cursor
+
+    def __exit__(self, exception_type, exception_value, exception_traceback):
+        # Close the statistics cursor
+        self.stat_cursor.close()
+
+class WiredTigerCursor:
+    def __init__(self, session, uri = 'statistics:', *args, **kwargs):
+        self.cursor = session.open_cursor(uri, *args, **kwargs)
+
+    def __enter__(self):
+        # Get the opened cursor
+        return self.cursor
+
+    def __exit__(self, exception_type, exception_value, exception_traceback):
+        # Close the cursor
+        self.cursor.close()

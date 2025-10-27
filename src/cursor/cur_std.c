@@ -757,7 +757,7 @@ __wti_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
     TAILQ_REMOVE(&session->cursors, cursor, q);
     TAILQ_INSERT_HEAD(&session->cursor_cache[bucket], cursor, q);
 
-    (void)__wt_atomic_sub32(&S2C(session)->open_cursor_count, 1);
+    (void)__wt_atomic_sub_uint32(&S2C(session)->open_cursor_count, 1);
     WT_STAT_CONN_INCR_ATOMIC(session, cursor_cached_count);
     WT_STAT_DSRC_DECR(session, cursor_open_count);
     F_SET(cursor, WT_CURSTD_CACHED);
@@ -787,7 +787,7 @@ __wti_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
     __wt_cursor_dhandle_incr_use(session);
     WT_DHANDLE_RELEASE(dhandle);
 
-    (void)__wt_atomic_add32(&S2C(session)->open_cursor_count, 1);
+    (void)__wt_atomic_add_uint32(&S2C(session)->open_cursor_count, 1);
     WT_STAT_CONN_DECR_ATOMIC(session, cursor_cached_count);
     WT_STAT_DSRC_INCR(session, cursor_open_count);
 
@@ -1140,7 +1140,7 @@ __wt_cursor_close(WT_CURSOR *cursor)
     if (F_ISSET(cursor, WT_CURSTD_OPEN)) {
         TAILQ_REMOVE(&session->cursors, cursor, q);
 
-        (void)__wt_atomic_sub32(&S2C(session)->open_cursor_count, 1);
+        (void)__wt_atomic_sub_uint32(&S2C(session)->open_cursor_count, 1);
         WT_STAT_DSRC_DECR(session, cursor_open_count);
     }
     __wt_buf_free(session, &cursor->key);
@@ -1463,6 +1463,7 @@ __wt_cursor_dup_position(WT_CURSOR *to_dup, WT_CURSOR *cursor)
      */
     WT_RET(__wt_cursor_get_raw_key(to_dup, &key));
     __wt_cursor_set_raw_key(cursor, &key);
+    WT_RET(__wt_cursor_localkey(cursor));
 
     /*
      * We now have a reference to the raw key, but we don't know anything about the memory in which
@@ -1489,6 +1490,7 @@ __wt_cursor_init(
 {
     WT_CONFIG_ITEM cval;
     WT_CURSOR *cdump;
+    WT_DECL_RET;
     WT_SESSION_IMPL *session;
     bool readonly;
 
@@ -1501,13 +1503,13 @@ __wt_cursor_init(
     }
 
     /* WT_CURSTD_OVERWRITE */
-    WT_RET(__wt_config_gets_def(session, cfg, "overwrite", 1, &cval));
+    WT_ERR(__wt_config_gets_def(session, cfg, "overwrite", 1, &cval));
     if (cval.val)
         F_SET(cursor, WT_CURSTD_OVERWRITE);
     else
         F_CLR(cursor, WT_CURSTD_OVERWRITE);
 
-    WT_RET(__cursor_reuse_or_init(session, cursor, cfg, &readonly, &owner, &cdump));
+    WT_ERR(__cursor_reuse_or_init(session, cursor, cfg, &readonly, &owner, &cdump));
 
     if (readonly) {
         cursor->insert = __wt_cursor_notsup;
@@ -1542,9 +1544,16 @@ __wt_cursor_init(
 
     /* WT_CURSTD_OPEN */
     F_SET(cursor, WT_CURSTD_OPEN);
-    (void)__wt_atomic_add32(&S2C(session)->open_cursor_count, 1);
+    (void)__wt_atomic_add_uint32(&S2C(session)->open_cursor_count, 1);
     WT_STAT_DSRC_INCR(session, cursor_open_count);
 
     *cursorp = (cdump != NULL) ? cdump : cursor;
     return (0);
+
+err:
+    if (ret != 0) {
+        __wt_free(session, cursor->internal_uri);
+        cursor->internal_uri = NULL;
+    }
+    return (ret);
 }

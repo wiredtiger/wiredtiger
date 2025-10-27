@@ -88,7 +88,7 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty);
 
         /* Count page evictions in parallel with checkpoint. */
-        if (__wt_atomic_loadvbool(&conn->txn_global.checkpoint_running))
+        if (__wt_atomic_load_bool_v_relaxed(&conn->txn_global.checkpoint_running))
             WT_STAT_CONN_INCR(session, eviction_pages_in_parallel_with_checkpoint);
     } else {
         if (LF_ISSET(WT_EVICT_STATS_URGENT)) {
@@ -101,8 +101,9 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
     }
     if (!session->evict_timeline.reentry_hs_eviction) {
         eviction_time_milliseconds = eviction_time / WT_THOUSAND;
-        if (eviction_time_milliseconds > __wt_atomic_load64(&conn->evict->evict_max_ms))
-            __wt_atomic_store64(&conn->evict->evict_max_ms, eviction_time_milliseconds);
+        __wt_atomic_stats_max(
+          &conn->evict->evict_max_ms_per_checkpoint, eviction_time_milliseconds);
+        __wt_atomic_stats_max(&conn->evict->evict_max_ms, eviction_time_milliseconds);
         if (eviction_time_milliseconds > WT_MINUTE * WT_THOUSAND)
             __wt_verbose_warning(session, WT_VERB_EVICTION,
               "Eviction took more than 1 minute (%" PRIu64 "us). Building disk image took %" PRIu64
@@ -148,14 +149,15 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
+    uint64_t page_size;
     uint8_t stats_flags;
-    bool clean_page, closing, ebusy_only, inmem_split, tree_dead;
+    bool clean_page, closing, ebusy_only, inmem_split, is_dirty, tree_dead;
 
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     stats_flags = 0;
-    clean_page = ebusy_only = false;
+    clean_page = ebusy_only = is_dirty = false;
 
     __wt_verbose_debug3(
       session, WT_VERB_EVICTION, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -231,8 +233,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         goto done;
     }
 
+    if (__wt_page_is_modified(page))
+        is_dirty = true;
+
     /* No need to reconcile the page if it is from a dead tree or it is clean. */
-    if (!tree_dead && __wt_page_is_modified(page))
+    if (!tree_dead && is_dirty)
         WT_ERR(__evict_reconcile(session, ref, flags));
 
     /* After this spot, the only recoverable failure is EBUSY. */
@@ -257,10 +262,20 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * force pages out before they're larger than the cache. We don't care about races, it's just a
      * statistic.
      */
-    if (__wt_atomic_loadsize(&page->memory_footprint) >
-      __wt_atomic_load64(&conn->evict->evict_max_page_size))
-        __wt_atomic_store64(
-          &conn->evict->evict_max_page_size, __wt_atomic_loadsize(&page->memory_footprint));
+    page_size = __wt_atomic_load_size_relaxed(&page->memory_footprint);
+    __wt_atomic_stats_max(&conn->evict->evict_max_page_size, page_size);
+
+    /* Clean page */
+    if (!is_dirty) {
+        __wt_atomic_stats_max(&conn->evict->evict_max_clean_page_size_per_checkpoint, page_size);
+    } else {
+        /* Dirty page */
+        __wt_atomic_stats_max(&conn->evict->evict_max_dirty_page_size_per_checkpoint, page_size);
+    }
+    /* Check if the page has updates */
+    if (page->modify != NULL) {
+        __wt_atomic_stats_max(&conn->evict->evict_max_updates_page_size_per_checkpoint, page_size);
+    }
 
     /* Figure out whether reconciliation was done on the page */
     if (__wt_page_evict_clean(page)) {
@@ -329,7 +344,7 @@ __evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     if (!LF_ISSET(WT_EVICT_CALL_NO_SPLIT | WT_EVICT_CALL_CLOSING)) {
         parent = ref->home;
         WT_INTL_INDEX_GET(session, parent, pindex);
-        ndeleted = __wt_atomic_addv32(&pindex->deleted_entries, 1);
+        ndeleted = __wt_atomic_add_uint32_v(&pindex->deleted_entries, 1);
 
         /*
          * If more than 10% of the parent references are deleted, try a reverse split. Don't bother
@@ -474,7 +489,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             *addr = mod->mod_replace;
             mod->mod_replace.block_cookie = NULL;
             mod->mod_replace.block_cookie_size = 0;
-            ref->addr = addr;
+            __wt_tsan_suppress_store_wt_addr_ptr(&ref->addr, addr);
         } else
             WT_ASSERT(
               session, WT_DELTA_ENABLED_FOR_PAGE(session, ref->page->type) && ref->addr != NULL);
@@ -644,7 +659,6 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
                 visible = true;
             else
                 visible = __wt_page_del_visible_all(session, child->page_del, false);
-            /* FIXME-WT-9780: is there a reason this doesn't use WT_REF_UNLOCK? */
             WT_REF_SET_STATE(child, WT_REF_DELETED);
             if (!visible)
                 return (__wt_set_return(session, EBUSY));
@@ -680,7 +694,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     conn = S2C(session);
 
     /* Too many pages have been cleaned for this btree. */
-    if (__wt_atomic_load32(&btree->eviction_obsolete_tw_pages) >=
+    if (__wt_atomic_load_uint32_relaxed(&btree->eviction_obsolete_tw_pages) >=
       conn->heuristic_controls.eviction_obsolete_tw_pages_dirty_max)
         return (0);
 
@@ -702,7 +716,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /* The checkpoint cursor dhandle is read-only. Do not mark these pages as dirty. */
-    if (WT_READING_CHECKPOINT(session))
+    if (F_ISSET(btree, WT_BTREE_READONLY))
         return (0);
 
     /*
@@ -718,14 +732,14 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /* Limit the number of btrees that can be cleaned up. */
-    if (__wt_atomic_load32(&btree->eviction_obsolete_tw_pages) == 0 &&
-      __wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0 &&
-      __wt_atomic_load32(&conn->heuristic_controls.obsolete_tw_btree_count) >=
+    if (__wt_atomic_load_uint32_relaxed(&btree->eviction_obsolete_tw_pages) == 0 &&
+      __wt_atomic_load_uint32_relaxed(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0 &&
+      __wt_atomic_load_uint32_relaxed(&conn->heuristic_controls.obsolete_tw_btree_count) >=
         conn->heuristic_controls.obsolete_tw_btree_max)
         return (0);
 
     /* Don't add more cache pressure. */
-    if (__wt_evict_needed(session, false, false, NULL) || __wt_evict_cache_stuck(session))
+    if (__wt_evict_needed(session, false, false, false, NULL) || __wt_evict_cache_stuck(session))
         return (0);
 
     /*
@@ -766,10 +780,10 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
          * Save that another tree has been processed if that's the first time it gets cleaned and
          * update the number of pages made dirty for that tree.
          */
-        if (__wt_atomic_load32(&btree->eviction_obsolete_tw_pages) == 0 &&
-          __wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0)
-            __wt_atomic_addv32(&conn->heuristic_controls.obsolete_tw_btree_count, 1);
-        __wt_atomic_addv32(&btree->eviction_obsolete_tw_pages, 1);
+        if (__wt_atomic_load_uint32_relaxed(&btree->eviction_obsolete_tw_pages) == 0 &&
+          __wt_atomic_load_uint32_relaxed(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0)
+            __wt_atomic_add_uint32_v(&conn->heuristic_controls.obsolete_tw_btree_count, 1);
+        __wt_atomic_add_uint32_v(&btree->eviction_obsolete_tw_pages, 1);
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_obsolete_tw);
     }
 
@@ -861,8 +875,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * while checkpoint is operating on the HS file, we can end up in a situation where we exceed
      * the cache size limit.
      */
-    if (conn->txn_global.checkpoint_running_hs && !WT_IS_HS(btree->dhandle) &&
-      __wti_evict_hs_dirty(session) && __wt_cache_full(session)) {
+    if (__wt_tsan_suppress_load_bool_v(&conn->txn_global.checkpoint_running_hs) &&
+      !WT_IS_HS(btree->dhandle) && __wti_evict_hs_dirty(session) && __wt_cache_full(session)) {
         WT_STAT_CONN_INCR(session, cache_eviction_blocked_checkpoint_hs);
         return (__wt_set_return(session, EBUSY));
     }
@@ -872,7 +886,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * services the checkpoint, don't try again. Reconciling the page again without the timestamp
      * moving would result in the same page being written out as last time.
      */
-    WT_ACQUIRE_READ(checkpoint_timestamp, conn->txn_global.checkpoint_timestamp);
+    checkpoint_timestamp = __wt_atomic_load_uint64_acquire(&conn->txn_global.checkpoint_timestamp);
     if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && checkpoint_timestamp != WT_TS_NONE &&
       page->modify->rec_pinned_stable_timestamp >= checkpoint_timestamp) {
         WT_STAT_CONN_INCR(session, cache_eviction_blocked_precise_checkpoint);
@@ -938,7 +952,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     else if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY))
         LF_SET(WT_REC_IN_MEMORY | WT_REC_SCRUB);
     /* For data store leaf pages, write the history to history store except for metadata. */
-    else if (!WT_IS_METADATA(btree->dhandle)) {
+    else if (!WT_IS_METADATA(btree->dhandle) && !WT_IS_DISAGG_META(btree->dhandle)) {
         LF_SET(WT_REC_HS);
 
         /*
@@ -987,9 +1001,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * running application transaction.
      */
     use_snapshot_for_app_thread = !F_ISSET(session, WT_SESSION_INTERNAL) &&
-      !WT_IS_METADATA(session->dhandle) &&
-      __wt_atomic_loadv64(&WT_SESSION_TXN_SHARED(session)->id) != WT_TXN_NONE &&
-      F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) && !F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT);
+      !WT_IS_METADATA(session->dhandle) && F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) &&
+      !F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT);
     is_eviction_thread = F_ISSET(session, WT_SESSION_EVICTION);
 
     /* Make sure that both conditions above are not true at the same time. */
@@ -999,7 +1012,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * If checkpoint is running concurrently, set the checkpoint running flag and we will abort the
      * eviction if we detect any updates without timestamps.
      */
-    if (__wt_atomic_loadvbool(&conn->txn_global.checkpoint_running))
+    if (__wt_atomic_load_bool_v_relaxed(&conn->txn_global.checkpoint_running))
         LF_SET(WT_REC_CHECKPOINT_RUNNING);
 
     /* Eviction thread doing eviction. */
@@ -1010,9 +1023,19 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          * being processed. Therefore, we use snapshot API that doesn't publish shared IDs to the
          * outside world.
          */
-        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
-            LF_SET(WT_REC_VISIBLE_ALL);
-        else
+        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && !F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
+            uint64_t btree_ckpt_gen, ckpt_gen;
+            /*
+             * If precise checkpoint is configured, only evict the updates that visible to the
+             * ongoing checkpoint for trees haven't been visited by the checkpoint.
+             */
+            btree_ckpt_gen = __wt_atomic_load_uint64_acquire(&btree->checkpoint_gen);
+            ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+            if (btree_ckpt_gen < ckpt_gen)
+                LF_SET(WT_REC_VISIBLE_NO_SNAPSHOT);
+            else
+                __wt_txn_bump_snapshot(session);
+        } else
             __wt_txn_bump_snapshot(session);
     } else if (use_snapshot_for_app_thread) {
         /*
@@ -1029,9 +1052,10 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
 
         LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
     } else if (!WT_SESSION_BTREE_SYNC(session))
-        LF_SET(WT_REC_VISIBLE_ALL);
+        LF_SET(WT_REC_VISIBLE_NO_SNAPSHOT);
 
-    WT_ASSERT(session, LF_ISSET(WT_REC_VISIBLE_ALL) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
+    WT_ASSERT(
+      session, LF_ISSET(WT_REC_VISIBLE_NO_SNAPSHOT) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /* We should not be trying to evict using a checkpoint-cursor transaction. */
     WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT));
@@ -1040,7 +1064,8 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * Reconcile the page. Force read-committed isolation level if we are using snapshots for
      * eviction workers or application threads.
      */
-    if (is_eviction_thread || use_snapshot_for_app_thread)
+    if ((is_eviction_thread && F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) ||
+      use_snapshot_for_app_thread)
         WT_WITH_TXN_ISOLATION(
           session, WT_ISO_READ_COMMITTED, ret = __wt_reconcile(session, ref, NULL, flags));
     else
@@ -1061,7 +1086,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      */
     WT_ASSERT(session,
       !__wt_page_is_modified(ref->page) || LF_ISSET(WT_REC_HS | WT_REC_IN_MEMORY) ||
-        WT_IS_METADATA(btree->dhandle));
+        WT_IS_METADATA(btree->dhandle) || WT_IS_DISAGG_META(btree->dhandle));
 
     return (0);
 }

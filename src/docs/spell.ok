@@ -41,14 +41,17 @@ DCMAKE
 DENABLE
 DHANDLE
 DHAVE
+DISAGG
 DNON
 DONTNEED
+DSC
 DSPINLOCK
 DWT
 Datastore
 DbCursor
 DbEnv
 DbMultiple
+Disaggregated
 Durations
 EAGAIN
 EB
@@ -122,6 +125,7 @@ NOTFOUND
 NSEC
 NUMA
 NoSQL
+OOP
 OPTYPE
 PMU
 PPC
@@ -144,6 +148,7 @@ SCons
 SDK
 SDK's
 SDKs
+SLS
 SYSV
 Sanitizer
 Seward's
@@ -175,6 +180,8 @@ WiredTigerLog
 WiredTigerPanicException
 WiredTigerPreplog
 WiredTigerRollbackException
+WiredTigerShared
+WiredTigerSharedHS
 WiredTigerStat
 WiredTigerTestCase
 WiredTigerTmplog
@@ -323,6 +330,8 @@ dhandle's
 dhandles
 dir
 dirstore
+disagg
+disaggregated
 disjunction
 disjunctions
 distclean
@@ -573,6 +582,8 @@ objectsin
 ol
 oltp
 oob
+oop
+oplog
 optrack
 optype
 os
@@ -711,6 +722,7 @@ sys
 syscalls
 sz
 tRuE
+table's
 tablename
 tagrex
 tcl

@@ -354,9 +354,16 @@ conn_stats = [
     EvictStat('eviction_internal_pages_queued', 'internal pages queued for eviction'),
     EvictStat('eviction_internal_pages_seen', 'internal pages seen by eviction walk'),
     EvictStat('eviction_interupted_by_app', 'application requested eviction interrupt'),
-    EvictStat('eviction_maximum_gen_gap', 'maximum gap between page and connection evict pass generation seen at eviction', 'no_clear,no_scale,size'),
+    EvictStat('eviction_maximum_clean_page_size_per_checkpoint', 'maximum clean page size seen at eviction per checkpoint', 'no_clear,no_scale,size'),
+    EvictStat('eviction_maximum_dirty_page_size_per_checkpoint', 'maximum dirty page size seen at eviction per checkpoint', 'no_clear,no_scale,size'),
     EvictStat('eviction_maximum_milliseconds', 'maximum milliseconds spent at a single eviction', 'no_clear,no_scale,size'),
+    EvictStat('eviction_maximum_milliseconds_per_checkpoint', 'maximum milliseconds spent at a single eviction per checkpoint', 'no_clear,no_scale,size'),
     EvictStat('eviction_maximum_page_size', 'maximum page size seen at eviction', 'no_clear,no_scale,size'),
+    EvictStat('eviction_maximum_unvisited_gen_gap', 'maximum gap between unvisited page and connection evict pass generation seen at eviction', 'no_clear,no_scale,size'),
+    EvictStat('eviction_maximum_unvisited_gen_gap_per_checkpoint', 'maximum gap between unvisited page and connection evict pass generation seen at eviction per checkpoint', 'no_clear,no_scale,size'),
+    EvictStat('eviction_maximum_updates_page_size_per_checkpoint', 'maximum updates page size seen at eviction per checkpoint', 'no_clear,no_scale,size'),
+    EvictStat('eviction_maximum_visited_gen_gap', 'maximum gap between visited page and connection evict pass generation seen at eviction', 'no_clear,no_scale,size'),
+    EvictStat('eviction_maximum_visited_gen_gap_per_checkpoint', 'maximum gap between visited page and connection evict pass generation seen at eviction per checkpoint', 'no_clear,no_scale,size'),
     EvictStat('eviction_pages_already_queued', 'pages seen by eviction walk that are already queued'),
     EvictStat('eviction_pages_in_parallel_with_checkpoint', 'pages evicted in parallel with checkpoint'),
     EvictStat('eviction_pages_ordinary_queued', 'pages queued for eviction'),
@@ -381,6 +388,7 @@ conn_stats = [
     EvictStat('eviction_server_skip_pages_retry', 'eviction server skips pages that previously failed eviction and likely will again'),
     EvictStat('eviction_server_skip_trees_eviction_disabled', 'eviction server skips trees that disable eviction'),
     EvictStat('eviction_server_skip_trees_not_useful_before', 'eviction server skips trees that were not useful before'),
+    EvictStat('eviction_server_skip_trees_read_only', 'eviction server skips trees that are read-only if it is not looking for clean pages'),
     EvictStat('eviction_server_skip_trees_stick_in_cache', 'eviction server skips trees that are configured to stick in cache'),
     EvictStat('eviction_server_skip_trees_too_many_active_walks', 'eviction server skips trees because there are too many active walks'),
     EvictStat('eviction_server_skip_unwanted_pages', 'eviction server skips pages that we do not want to evict'),
@@ -577,8 +585,6 @@ conn_stats = [
     ##########################################
     # Layered table statistics
     ##########################################
-    LayeredStat('layered_table_manager_active', 'whether the layered table manager thread is currently busy doing work'),
-    LayeredStat('layered_table_manager_running', 'whether the layered table manager thread has been started'),
     LayeredStat('layered_table_manager_tables', 'the number of tables the layered table manager has open'),
 
     ##########################################
@@ -1066,7 +1072,8 @@ dsrc_stats = [
     ##########################################
     RecStat('rec_dictionary', 'dictionary matches'),
     RecStat('rec_multiblock_max', 'maximum blocks required for a page', 'max_aggregate,no_scale'),
-    RecStat('rec_prefix_compression', 'leaf page key bytes discarded using prefix compression', 'size'),
+    RecStat('rec_prefix_compression_delta', 'leaf delta page key bytes discarded using prefix compression', 'size'),
+    RecStat('rec_prefix_compression_full', 'leaf full page key bytes discarded using prefix compression', 'size'),
     RecStat('rec_suffix_compression', 'internal page key bytes discarded using suffix compression', 'size'),
 
     ##########################################
@@ -1107,6 +1114,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_app_threads_fill_ratio_50_75', 'application threads eviction requested with cache fill ratio >= 50% and < 75%'),
     CacheStat('cache_eviction_app_threads_fill_ratio_gt_75', 'application threads eviction requested with cache fill ratio >= 75%'),
     CacheStat('cache_eviction_app_threads_fill_ratio_lt_25', 'application threads eviction requested with cache fill ratio < 25%'),
+    CacheStat('cache_eviction_app_threads_skip_updates_dirty_page', 'application threads eviction skip page with updates or dirty page'),
     CacheStat('cache_eviction_blocked_checkpoint', 'checkpoint blocked page eviction'),
     CacheStat('cache_eviction_blocked_checkpoint_hs', 'checkpoint of history store file blocked non-history store page eviction'),
     CacheStat('cache_eviction_blocked_disagg_dirty_internal_page', 'dirty internal page cannot be evicted in disaggregated storage'),
@@ -1172,8 +1180,10 @@ conn_dsrc_stats = [
     CacheStat('cache_hs_write_squash', 'history store table writes requiring squashed modifies'),
     CacheStat('cache_inmem_split', 'in-memory page splits'),
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
+    CacheStat('cache_obsolete_updates_removed', 'obsolete updates removed'),
     CacheStat('cache_pages_prefetch', 'pages requested from the cache due to pre-fetch'),
     CacheStat('cache_pages_requested', 'pages requested from the cache'),
+    CacheStat('cache_pages_requested_hs', 'pages requested from the history store'),
     CacheStat('cache_pages_requested_internal', 'pages requested from the cache internal'),
     CacheStat('cache_pages_requested_leaf', 'pages requested from the cache leaf'),
     CacheStat('cache_read', 'pages read into cache'),
@@ -1192,7 +1202,8 @@ conn_dsrc_stats = [
     CacheStat('cache_scrub_restore', 'reconciled pages scrubbed and added back to the cache clean'),
     CacheStat('cache_write', 'pages written from cache'),
     CacheStat('cache_write_hs', 'page written requiring history store records'),
-    CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
+    CacheStat('cache_write_restore_invisible', 'pages written requiring in-memory restoration due to invisible updates'),
+    CacheStat('cache_write_restore_scrub', 'pages written requiring in-memory restoration due to scrub eviction'),
 
     ##########################################
     # Checkpoint statistics
@@ -1222,6 +1233,8 @@ conn_dsrc_stats = [
     CursorStat('cursor_next_skip_lt_100', 'cursor next calls that skip greater than 1 and fewer than 100 entries'),
     CursorStat('cursor_next_skip_total', 'Total number of entries skipped by cursor next calls'),
     CursorStat('cursor_open_count', 'open cursor count', 'no_clear,no_scale'),
+    CursorStat('cursor_open_time_internal_usecs', 'open cursor time internal (usecs)', 'no_clear,no_scale'),
+    CursorStat('cursor_open_time_user_usecs', 'open cursor time application (usecs)', 'no_clear,no_scale'),
     CursorStat('cursor_prev_hs_tombstone', 'cursor prev calls that skip due to a globally visible history store tombstone'),
     CursorStat('cursor_prev_skip_ge_100', 'cursor prev calls that skip greater than or equal to 100 entries'),
     CursorStat('cursor_prev_skip_lt_100', 'cursor prev calls that skip less than 100 entries'),
@@ -1270,6 +1283,7 @@ conn_dsrc_stats = [
     BlockDisaggStat('disagg_block_hs_put', 'Disaggregated block manager put to the shared history store in SLS'),
     BlockDisaggStat('disagg_block_page_discard', 'Disaggregated block manager page discard calls'),
     BlockDisaggStat('disagg_block_put', 'Disaggregated block manager put '),
+    BlockDisaggStat('disagg_block_read_ahead_frontier', 'Disaggregated block manager read ahead of materialization frontier'),
 
     ##########################################
     # Layered table statistics
@@ -1293,7 +1307,8 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_upgrade_stable', 'Layered table cursor upgrade state for stable table'),
 
     LayeredStat('layered_table_manager_checkpoints', 'checkpoints performed on this table by the layered table manager'),
-    LayeredStat('layered_table_manager_checkpoints_refreshed', 'checkpoints refreshed on shared layered constituents'),
+    LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_failed', 'disagg pick up checkpoints failed'),
+    LayeredStat('layered_table_manager_checkpoints_disagg_pick_up_succeed', 'disagg pick up checkpoints succeeded'),
     LayeredStat('layered_table_manager_logops_applied', 'how many log applications the layered table manager applied on this tree'),
     LayeredStat('layered_table_manager_logops_skipped', 'how many log applications the layered table manager skipped on this tree'),
     LayeredStat('layered_table_manager_skip_lsn', 'how many previously-applied LSNs the layered table manager skipped on this tree'),
@@ -1314,6 +1329,8 @@ conn_dsrc_stats = [
     RecStat('rec_page_delete', 'pages deleted'),
     RecStat('rec_page_delete_fast', 'fast-path pages deleted'),
     RecStat('rec_page_delta_internal', 'internal page deltas written'),
+    RecStat('rec_page_delta_internal_key_deleted', 'internal page delta keys deleted'),
+    RecStat('rec_page_delta_internal_key_updated', 'internal page delta keys updated/inserted'),
     RecStat('rec_page_delta_leaf', 'leaf page deltas written'),
     RecStat('rec_page_full_image_internal', 'full internal pages written instead of a page delta'),
     RecStat('rec_page_full_image_leaf', 'full leaf pages written instead of a page delta'),
@@ -1365,6 +1382,8 @@ conn_dsrc_stats = [
     TxnStat('txn_read_overflow_remove', 'number of times overflow removed value is read'),
     TxnStat('txn_read_race_prepare_commit', 'a reader raced with a prepared transaction commit and skipped an update or updates'),
     TxnStat('txn_read_race_prepare_update', 'race to read prepared update retry'),
+    TxnStat('txn_rts_btrees_applied', 'rollback to stable applied btrees'),
+    TxnStat('txn_rts_btrees_skipped', 'rollback to stable skipped btrees'),
     TxnStat('txn_rts_delete_rle_skipped', 'rollback to stable skipping delete rle'),
     TxnStat('txn_rts_hs_removed', 'rollback to stable updates removed from history store'),
     TxnStat('txn_rts_hs_removed_dryrun', 'rollback to stable updates that would have been removed from history store in non-dryrun mode'),

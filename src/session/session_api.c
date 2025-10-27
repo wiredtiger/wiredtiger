@@ -175,7 +175,7 @@ __wt_session_copy_values(WT_SESSION_IMPL *session)
              */
             WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
             WT_ASSERT(session,
-              __wt_atomic_loadv64(&txn_shared->pinned_id) != WT_TXN_NONE ||
+              __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) != WT_TXN_NONE ||
                 (WT_BTREE_PREFIX(cursor->uri) &&
                   WT_DHANDLE_IS_CHECKPOINT(((WT_CURSOR_BTREE *)cursor)->dhandle)));
 #endif
@@ -245,10 +245,9 @@ __session_clear(WT_SESSION_IMPL *session)
      */
     memset(session, 0, WT_SESSION_CLEAR_SIZE);
 
-    __wt_atomic_store32(&session->hazards.inuse, 0);
+    __wt_atomic_store_uint32_relaxed(&session->hazards.inuse, 0);
     session->hazards.num_active = 0;
 }
-
 /*
  * __session_close_cursors --
  *     Close all cursors in a list.
@@ -276,6 +275,8 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
             WT_TRET(session->event_handler->handle_close(
               session->event_handler, &session->iface, cursor));
 
+        if (WT_PREFIX_MATCH(cursor->internal_uri, "layered:"))
+            F_SET(cursor, WT_CURSTD_CONSTITUENT_DEAD);
         WT_TRET(cursor->close(cursor));
     }
     WT_TAILQ_SAFE_REMOVE_END
@@ -453,8 +454,9 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
      * not be at the end of the array, step toward the beginning of the array until we reach an
      * active session.
      */
-    while (WT_CONN_SESSIONS_GET(conn)[__wt_atomic_load32(&conn->session_array.cnt) - 1].active == 0)
-        if (__wt_atomic_sub32(&conn->session_array.cnt, 1) == 0)
+    while (WT_CONN_SESSIONS_GET(conn)[__wt_atomic_load_uint32_relaxed(&conn->session_array.cnt) - 1]
+             .active == 0)
+        if (__wt_atomic_sub_uint32(&conn->session_array.cnt, 1) == 0)
             break;
 
     __wt_spin_unlock(session, &conn->api_lock);
@@ -474,7 +476,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
  *     Configure pre-fetch flags on the session.
  */
 static int
-__session_config_prefetch(WT_SESSION_IMPL *session, const char **cfg)
+__session_config_prefetch(WT_SESSION_IMPL *session, WT_CONF *conf)
 {
     WT_CONFIG_ITEM cval;
 
@@ -487,7 +489,7 @@ __session_config_prefetch(WT_SESSION_IMPL *session, const char **cfg)
      * Override any connection-level pre-fetch settings if a specific session-level setting was
      * provided.
      */
-    if (__wt_config_gets(session, cfg + 1, "prefetch.enabled", &cval) == 0) {
+    if (__wt_conf_gets(session, conf, Prefetch.enabled, &cval) == 0) {
         if (cval.val) {
             if (!S2C(session)->prefetch_available) {
                 F_CLR(session, WT_SESSION_PREFETCH_ENABLED);
@@ -508,12 +510,12 @@ __session_config_prefetch(WT_SESSION_IMPL *session, const char **cfg)
  *     Configure basic flags and values on the session. Tested via a unit test.
  */
 static int
-__session_config_int(WT_SESSION_IMPL *session, const char *config)
+__session_config_int(WT_SESSION_IMPL *session, WT_CONF *conf)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
 
-    if ((ret = __wt_config_getones(session, config, "ignore_cache_size", &cval)) == 0) {
+    if ((ret = __wt_conf_getones(session, conf, ignore_cache_size, &cval)) == 0) {
         if (cval.val)
             F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
         else
@@ -521,7 +523,7 @@ __session_config_int(WT_SESSION_IMPL *session, const char *config)
     }
     WT_RET_NOTFOUND_OK(ret);
 
-    if ((ret = __wt_config_getones(session, config, "cache_cursors", &cval)) == 0) {
+    if ((ret = __wt_conf_getones(session, conf, cache_cursors, &cval)) == 0) {
         if (cval.val)
             F_SET(session, WT_SESSION_CACHE_CURSORS);
         else {
@@ -535,8 +537,8 @@ __session_config_int(WT_SESSION_IMPL *session, const char *config)
      * FIXME-WT-12021 Replace this debug option with the corresponding failpoint once this project
      * is completed.
      */
-    if ((ret = __wt_config_getones(
-           session, config, "debug.checkpoint_fail_before_turtle_update", &cval)) == 0) {
+    if ((ret = __wt_conf_getones(
+           session, conf, Debug.checkpoint_fail_before_turtle_update, &cval)) == 0) {
         if (cval.val)
             F_SET(session, WT_SESSION_DEBUG_CHECKPOINT_FAIL_BEFORE_TURTLE_UPDATE);
         else
@@ -548,7 +550,7 @@ __session_config_int(WT_SESSION_IMPL *session, const char *config)
      * There is a session debug configuration which can be set to evict pages as they are released
      * and no longer needed.
      */
-    if ((ret = __wt_config_getones(session, config, "debug.release_evict_page", &cval)) == 0) {
+    if ((ret = __wt_conf_getones(session, conf, Debug.release_evict_page, &cval)) == 0) {
         if (cval.val)
             F_SET(session, WT_SESSION_DEBUG_RELEASE_EVICT);
         else
@@ -556,7 +558,7 @@ __session_config_int(WT_SESSION_IMPL *session, const char *config)
     }
     WT_RET_NOTFOUND_OK(ret);
 
-    if ((ret = __wt_config_getones(session, config, "cache_max_wait_ms", &cval)) == 0) {
+    if ((ret = __wt_conf_getones(session, conf, cache_max_wait_ms, &cval)) == 0) {
         if (cval.val > 1)
             session->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
         else if (cval.val == 1)
@@ -576,11 +578,13 @@ __session_config_int(WT_SESSION_IMPL *session, const char *config)
 static int
 __session_reconfigure(WT_SESSION *wt_session, const char *config)
 {
+    WT_DECL_CONF(WT_SESSION, reconfigure, conf);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_PREPARE_ALLOWED(session, reconfigure, config, cfg);
+    SESSION_API_CALL_PREPARE_ALLOWED_NOCONF(session, reconfigure);
+    SESSION_API_CONF(session, reconfigure, config, conf);
 
     WT_ERR(__wt_session_reset_cursors(session, false));
 
@@ -588,7 +592,7 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
      * Note that this method only checks keys that are passed in by the application: we don't want
      * to reset other session settings to their default values.
      */
-    ret = __wt_txn_reconfigure(session, config);
+    ret = __wt_txn_reconfigure(session, conf);
     if (ret == EINVAL) {
         /*
          * EINVAL is returned iff there is an active transaction and txn is being reconfigured. In
@@ -598,10 +602,11 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
         goto err;
     }
 
-    WT_ERR(__session_config_int(session, config));
+    WT_ERR(__session_config_int(session, conf));
 
-    WT_ERR(__session_config_prefetch(session, cfg));
+    WT_ERR(__session_config_prefetch(session, conf));
 err:
+    API_CONF_END(session, conf);
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -730,11 +735,8 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
     if (*cursorp == NULL)
         return (__wt_bad_object_type(session, uri));
 
-    if (owner != NULL) {
-        /*
-         * We support caching simple cursors that have no children. If this cursor is a child, we're
-         * not going to cache this child or its parent.
-         */
+    /* Support caching simple cursors that have no children or if the owner is a layered cursor. */
+    if (owner != NULL && !WT_PREFIX_MATCH(owner->internal_uri, "layered:")) {
         F_CLR(owner, WT_CURSTD_CACHEABLE);
         F_CLR(*cursorp, WT_CURSTD_CACHEABLE);
     }
@@ -767,6 +769,18 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
     uint64_t hash_value;
 
     hash_value = 0;
+    /* Don't require a NULL input cursor */
+    *cursorp = NULL;
+
+#ifdef HAVE_DIAGNOSTIC
+    struct timespec end_time, start_time;
+    bool cursor_timing = false;
+    if (session->cursor_open_timer_running == false) {
+        session->cursor_open_timer_running = true;
+        cursor_timing = true;
+        __wt_epoch(session, &start_time);
+    }
+#endif
     WT_NOT_READ(txn_global, &S2C(session)->txn_global);
 
     /*
@@ -778,19 +792,42 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
      */
     WT_ASSERT(session,
       WT_IS_URI_HS(uri) ||
-        (WT_IS_URI_METADATA(uri) && __wt_atomic_loadvbool(&txn_global->checkpoint_running)) ||
+        (WT_IS_URI_METADATA(uri) &&
+          __wt_atomic_load_bool_v_relaxed(&txn_global->checkpoint_running)) ||
         session->hs_cursor_counter == 0 || F_ISSET(session, WT_SESSION_INTERNAL) ||
         (S2BT_SAFE(session) != NULL && F_ISSET(S2BT(session), WT_BTREE_VERIFY)));
 
-    /* We do not cache any subordinate tables/files cursors. */
-    if (owner == NULL) {
+    if (owner != NULL && !WT_PREFIX_MATCH(owner->internal_uri, "layered:")) {
+        WT_ERR(__session_open_cursor_int(session, uri, owner, NULL, cfg, hash_value, cursorp));
+    } else {
+        /* Try to find the cursor in the cache. */
         __wt_cursor_get_hash(session, uri, NULL, &hash_value);
-        if ((ret = __wt_cursor_cache_get(session, uri, hash_value, NULL, cfg, cursorp)) == 0)
-            return (0);
-        WT_RET_NOTFOUND_OK(ret);
+        WT_ERR_NOTFOUND_OK(
+          __wt_cursor_cache_get(session, uri, hash_value, NULL, cfg, cursorp), false);
+
+        /* Open a new cursor if no cached cursor was found. */
+        if (*cursorp == NULL)
+            WT_ERR(__session_open_cursor_int(session, uri, owner, NULL, cfg, hash_value, cursorp));
     }
 
-    return (__session_open_cursor_int(session, uri, owner, NULL, cfg, hash_value, cursorp));
+err:
+    /* Always close out the timing information regardless of success. */
+#ifdef HAVE_DIAGNOSTIC
+    if (cursor_timing) {
+        session->cursor_open_timer_running = false;
+        __wt_epoch(session, &end_time);
+        uint64_t time_diff_usec = WT_TIMEDIFF_US(end_time, start_time);
+        /*
+         * We may not have a valid dhandle when EBUSY is returned. In that case only increment the
+         * connection statistics
+         */
+        if (ret != EBUSY)
+            WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
+        else
+            WT_STAT_CONN_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
+    }
+#endif
+    return (ret);
 }
 
 /*
@@ -806,12 +843,26 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     WT_SESSION_IMPL *session;
     uint64_t hash_value;
     bool dup_backup;
+#ifdef HAVE_DIAGNOSTIC
+    struct timespec end_time, start_time;
+    bool cursor_timing;
 
+    cursor_timing = false;
+#endif
     cursor = *cursorp = NULL;
+
     hash_value = 0;
     dup_backup = false;
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, ret, open_cursor, config, cfg);
+
+#ifdef HAVE_DIAGNOSTIC
+    if (session->cursor_open_timer_running == false) {
+        session->cursor_open_timer_running = true;
+        cursor_timing = true;
+        __wt_epoch(session, &start_time);
+    }
+#endif
 
     /*
      * Check for early usage of a user session to collect statistics. If the connection is not fully
@@ -864,6 +915,30 @@ err:
         if (cursor != NULL)
             WT_TRET(cursor->close(cursor));
     }
+    /* Always close out the timing information regardless of success. */
+#ifdef HAVE_DIAGNOSTIC
+    if (cursor_timing) {
+        session->cursor_open_timer_running = false;
+        __wt_epoch(session, &end_time);
+        uint64_t time_diff_usec = WT_TIMEDIFF_US(end_time, start_time);
+        /*
+         * It's considered a user open if it comes via a top-level API call. This could
+         * alternatively decide the statistic based on whether it's a user or internal session.
+         *
+         * We may not have a valid dhandle when EBUSY is returned. In that case only increment the
+         * connection statistics
+         */
+        if (ret != EBUSY)
+            if (API_USER_ENTRY(session))
+                WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_user_usecs, time_diff_usec);
+            else
+                WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
+        else if (API_USER_ENTRY(session))
+            WT_STAT_CONN_INCRV(session, cursor_open_time_user_usecs, time_diff_usec);
+        else
+            WT_STAT_CONN_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
+    }
+#endif
     /*
      * Opening a cursor on a non-existent data source will set ret to either of ENOENT or
      * WT_NOTFOUND at this point. However, applications may reasonably do this inside a transaction
@@ -930,7 +1005,7 @@ __session_blocking_checkpoint(WT_SESSION_IMPL *session)
          * This loop only checks objects that are declared volatile, therefore no barriers are
          * needed.
          */
-        if (!__wt_atomic_loadvbool(&txn_global->checkpoint_running) ||
+        if (!__wt_atomic_load_bool_v_relaxed(&txn_global->checkpoint_running) ||
           txn_gen != __wt_gen(session, WT_GEN_CHECKPOINT))
             break;
     }
@@ -2284,16 +2359,17 @@ __session_transaction_pinned_range(WT_SESSION *wt_session, uint64_t *prange)
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /* Assign pinned to the lesser of id or snap_min */
-    if (__wt_atomic_loadv64(&txn_shared->id) != WT_TXN_NONE &&
-      __wt_atomic_loadv64(&txn_shared->id) < __wt_atomic_loadv64(&txn_shared->pinned_id))
-        pinned = __wt_atomic_loadv64(&txn_shared->id);
+    if (__wt_atomic_load_uint64_v_relaxed(&txn_shared->id) != WT_TXN_NONE &&
+      __wt_atomic_load_uint64_v_relaxed(&txn_shared->id) <
+        __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id))
+        pinned = __wt_atomic_load_uint64_v_relaxed(&txn_shared->id);
     else
-        pinned = __wt_atomic_loadv64(&txn_shared->pinned_id);
+        pinned = __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id);
 
     if (pinned == WT_TXN_NONE)
         *prange = 0;
     else
-        *prange = __wt_atomic_loadv64(&S2C(session)->txn_global.current) - pinned;
+        *prange = __wt_atomic_load_uint64_v_relaxed(&S2C(session)->txn_global.current) - pinned;
 
 err:
     API_END_RET(session, ret);
@@ -2494,8 +2570,9 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      * session count on error, as long as we don't mark this session as active, we'll clean it up on
      * close.
      */
-    if (i >= __wt_atomic_load32(&conn->session_array.cnt)) /* Defend against off-by-one errors. */
-        __wt_atomic_store32(&conn->session_array.cnt, i + 1);
+    if (i >= __wt_atomic_load_uint32_relaxed(
+               &conn->session_array.cnt)) /* Defend against off-by-one errors. */
+        __wt_atomic_store_uint32_relaxed(&conn->session_array.cnt, i + 1);
 
     /* Find the set of methods appropriate to this session. */
     if (F_ISSET_ATOMIC_32(conn, WT_CONN_MINIMAL) && !F_ISSET(session, WT_SESSION_INTERNAL))
@@ -2562,7 +2639,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         WT_ERR(
           __wt_calloc_def(session, WT_SESSION_INITIAL_HAZARD_SLOTS, &session_ret->hazards.arr));
         session_ret->hazards.size = WT_SESSION_INITIAL_HAZARD_SLOTS;
-        __wt_atomic_store32(&session_ret->hazards.inuse, 0);
+        __wt_atomic_store_uint32_relaxed(&session_ret->hazards.inuse, 0);
         session_ret->hazards.num_active = 0;
     }
 
@@ -2692,9 +2769,11 @@ __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open
 }
 
 #ifdef HAVE_UNITTEST
-int
-__ut_session_config_int(WT_SESSION_IMPL *session, const char *config)
-{
-    return (__session_config_int(session, config));
-}
+/* Disable temporarily as the test is not compatible with compiled configurations.
+ * int
+ * __ut_session_config_int(WT_SESSION_IMPL *session, const char *config)
+ * {
+ *    return (__session_config_int(session, config));
+ * }
+ */
 #endif

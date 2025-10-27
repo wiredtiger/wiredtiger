@@ -185,6 +185,8 @@ configure_timing_stress(char **p, size_t max)
         CONFIG_APPEND(*p, ",failpoint_eviction_split");
     if (GV(STRESS_FAILPOINT_HS_DELETE_KEY_FROM_TS))
         CONFIG_APPEND(*p, ",failpoint_history_store_delete_key_from_ts");
+    if (GV(STRESS_FAILPOINT_REC_BEFORE_WRAPUP))
+        CONFIG_APPEND(*p, ",failpoint_rec_before_wrapup");
     if (GV(STRESS_HS_CHECKPOINT_DELAY))
         CONFIG_APPEND(*p, ",history_store_checkpoint_delay");
     if (GV(STRESS_HS_SEARCH))
@@ -326,10 +328,16 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
      * the options struct on a temporary basis to help create the disagg configuration.
      */
     opts.disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
+    opts.disagg_page_log_home = disagg_is_multi_node() ? g.home_page_log : (char *)home;
     opts.disagg_mode = (char *)(g.disagg_leader ? "leader" : "follower");
     opts.home = (char *)home;
     opts.build_dir = (char *)BUILDDIR;
     opts.palm_map_size_mb = 2048; /* 2 Gigabytes for PALM map */
+    opts.page_log_verbose = GV(DISAGG_PAGE_LOG_VERBOSE);
+
+    /* Set page deltas. */
+    opts.internal_page_delta = (bool)GV(DISAGG_INTERNAL_PAGE_DELTA);
+    opts.leaf_page_delta = (bool)GV(DISAGG_LEAF_PAGE_DELTA);
 
     testutil_disagg_storage_configuration(
       &opts, home, disagg_cfg, sizeof(disagg_cfg), ext_cfg, ext_cfg_size);
@@ -425,6 +433,14 @@ configure_prefetch(char **p, size_t max)
 static void
 configure_obsolete_cleanup(char **p, size_t max)
 {
+    /*
+     * If it's all off, don't even generate the outer checkpoint_cleanup config. It's not compatible
+     * with older branches, so take both options being configured off as a proxy for the whole
+     * feature being turned off.
+     */
+    if (strcmp(GVS(OBSOLETE_CLEANUP_METHOD), "off") == 0 && GV(OBSOLETE_CLEANUP_WAIT) == 0)
+        return;
+
     CONFIG_APPEND(*p, ",checkpoint_cleanup=[");
 
     /* Strategy. */
@@ -432,7 +448,8 @@ configure_obsolete_cleanup(char **p, size_t max)
         CONFIG_APPEND(*p, "method=%s", (char *)GVS(OBSOLETE_CLEANUP_METHOD));
 
     /* Interval. */
-    CONFIG_APPEND(*p, ",wait=%" PRIu32, GV(OBSOLETE_CLEANUP_WAIT));
+    if (GV(OBSOLETE_CLEANUP_WAIT) != 0)
+        CONFIG_APPEND(*p, ",wait=%" PRIu32, GV(OBSOLETE_CLEANUP_WAIT));
 
     CONFIG_APPEND(*p, "]");
 }
@@ -708,6 +725,13 @@ precise_checkpoint_init(WT_CONNECTION *conn)
 void
 wts_create_home(void)
 {
+    /*
+     * In multi-node mode the directories had already been created in `disagg_setup_multi_node` .
+     * Nothing to do here for directory setup.
+     */
+    if (disagg_is_multi_node())
+        return;
+
     testutil_recreate_dir(g.home);
 }
 
@@ -835,6 +859,17 @@ wts_close(WT_CONNECTION **connp)
         testutil_check(conn->reconfigure(conn, "compatibility=(release=3.3)"));
 
     testutil_check(conn->close(conn, GV(WIREDTIGER_LEAK_MEMORY) ? "leak_memory" : NULL));
+}
+
+/*
+ * wts_reopen --
+ *     Reopen the database.
+ */
+void
+wts_reopen(void)
+{
+    wts_close(&g.wts_conn);
+    wts_open(g.home, &g.wts_conn, false);
 }
 
 struct stats_args {

@@ -403,6 +403,46 @@ testutil_wiredtiger_open(TEST_OPTS *opts, const char *home, const char *config,
 }
 
 #ifndef _WIN32
+
+/*
+ * testutil_timeout_wait --
+ *     Wait for a process up to a number of seconds, then time out.
+ */
+void
+testutil_timeout_wait(uint32_t timeout_seconds, pid_t pid)
+{
+    pid_t got;
+    uint32_t remaining_seconds;
+    int status;
+
+    remaining_seconds = timeout_seconds;
+    while (remaining_seconds > 0) {
+        if ((got = waitpid(pid, &status, WNOHANG)) == pid) {
+            if (WIFEXITED(status) && WEXITSTATUS(status) != EXIT_SUCCESS)
+                testutil_die(
+                  EINVAL, "child process %d exited with status %d", (int)pid, WEXITSTATUS(status));
+            if (WIFSIGNALED(status)) {
+#ifdef WCOREDUMP
+                if (WCOREDUMP(status))
+                    testutil_die(EINVAL, "child process %d killed by signal %d (core dumped)\n",
+                      (int)pid, WTERMSIG(status));
+#endif
+                testutil_die(
+                  EINVAL, "child process %d terminated with signal %d", (int)pid, WTERMSIG(status));
+            }
+            return;
+        } else if (got == -1)
+            testutil_die(errno, "waitpid");
+
+        --remaining_seconds;
+        sleep(1);
+    }
+    testutil_assert_errno(kill(pid, SIGKILL) == 0);
+    testutil_assert_errno(waitpid(pid, &status, 0) != -1);
+    testutil_die(EINVAL, "child process %d killed, timed out after " PRIu32 " seconds\n", (int)pid,
+      timeout_seconds);
+}
+
 /*
  * testutil_sleep_wait --
  *     Wait for a process up to a number of seconds.
@@ -476,6 +516,9 @@ dcalloc(size_t number, size_t size)
 {
     void *p;
 
+    /* Fix so that any NULL return from calloc can be treated as an error. */
+    if (number == 0 || size == 0)
+        number = size = 1;
     if ((p = calloc(number, size)) != NULL)
         return (p);
     testutil_die(errno, "calloc: %" WT_SIZET_FMT "B", number * size);
@@ -490,6 +533,9 @@ dmalloc(size_t len)
 {
     void *p;
 
+    /* Fix so that any NULL return from malloc can be treated as an error. */
+    if (len == 0)
+        len = 1;
     if ((p = malloc(len)) != NULL)
         return (p);
     testutil_die(errno, "malloc: %" WT_SIZET_FMT "B", len);
@@ -504,6 +550,9 @@ drealloc(void *p, size_t len)
 {
     void *t;
 
+    /* Fix so that any NULL return from realloc can be treated as an error. */
+    if (len == 0)
+        len = 1;
     if ((t = realloc(p, len)) != NULL)
         return (t);
     testutil_die(errno, "realloc: %" WT_SIZET_FMT "B", len);

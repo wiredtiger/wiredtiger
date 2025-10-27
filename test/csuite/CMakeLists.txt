@@ -375,7 +375,7 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET wt13867_interrupt_eviction_handler
+    TARGET test_wt13867_interrupt_eviction_handler
     SOURCES wt13867_interrupt_eviction_handler/main.c
     DIR_NAME wt13867_interrupt_eviction_handler
     ARGUMENTS

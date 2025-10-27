@@ -483,7 +483,6 @@ __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     WT_ERR(__wti_debug_mode_config(session, cfg));
     WT_ERR(__wti_disagg_conn_config(session, cfg, true));
     WT_ERR(__wti_heuristic_controls_config(session, cfg));
-    WT_ERR(__wti_cache_eviction_controls_config(session, cfg));
     WT_ERR(__wti_extra_diagnostics_config(session, cfg));
     WT_ERR(__wt_hs_config(session, cfg));
     WT_ERR(__wt_logmgr_reconfig(session, cfg));
@@ -496,8 +495,12 @@ __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     WT_ERR(__wt_rollback_to_stable_reconfig(session, cfg));
 
 done:
-    /* Third, merge everything together, creating a new connection state. */
-    WT_ERR(__wt_config_merge(session, cfg, NULL, &p));
+    /*
+     * Third, merge everything together, creating a new connection state. Exclude any configuration
+     * parameters that should not be preserved across calls to reconfigure.
+     */
+    WT_ERR(__wt_config_merge(
+      session, cfg, "disaggregated=(checkpoint_meta=,last_materialized_lsn=)", &p));
     __wt_free(session, conn->cfg);
     conn->cfg = p;
 

@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import errno, os, wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_verify_disagg.py
@@ -37,7 +37,7 @@ from wtscenario import make_scenarios
 #    (we already have an OpLog imitation in some tests for layered tables)
 
 @disagg_test_class
-class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_verify_disagg(wttest.WiredTigerTestCase):
     hs = [
         ('empty', dict(fill_hs=False)),
         ('populated', dict(fill_hs=True)),
@@ -48,7 +48,7 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 10000
     timestamp = 2
 
-    conn_base_config = 'disaggregated=(page_log=palm),'
+    conn_base_config = ''
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
     conn_config_follower = conn_base_config + 'disaggregated=(role="follower")'
 
@@ -76,26 +76,32 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertRaisesException(wiredtiger.WiredTigerError, \
                     lambda: session.verify(self.uri), os.strerror(expected_error))
             else:
-                session.verify(self.uri)
+                self.verifyUntilSuccess(session)
 
     def create_follower(self):
         self.conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
                                                 self.conn_config_follower)
         self.session_follow = self.conn_follow.open_session('')
 
+
     def test_verify_disagg(self):
         if self.fill_hs:
             self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.timestamp))
 
-        # Create a table in the leader
+        # Create a layered table on the leader
         self.session.create(self.uri, self.table_cfg)
         # Verify the empty leader's table
         self.verify([self.session])
 
         # Create a follower
         self.create_follower()
-        # The leader's table stays empty, the follower creation doesn't mean loading tables from the leader (it requires reconfiguration)
+        # The leader's table stays empty, the follower creation doesn't mean loading tables
+        # from the leader (it requires reconfiguration). Followers are only able to create their
+        # ingest constituents. They see stable through checkpoint or step-up.
         self.verify([self.session])
+
+        # The follower has not picked up its first checkpoint. The follower will not recognize
+        # the layered URI while in this transient state, expect ENOENT.
         self.verify([self.session_follow], errno.ENOENT)
 
         # Create an empty checkpoint
@@ -111,7 +117,7 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Perform update operations to fill HS
         self.leader_put_data(value_prefix = 'aaa')
         self.leader_put_data(value_prefix = 'bbb')
-        # That's not allowed to perform verification if there is some dirty data
+        # We're not allowed to perform verification if there is some dirty data
         self.verify([self.session], errno.EBUSY)
 
         # Checkpoint the data on the leader
@@ -129,3 +135,58 @@ class test_verify_disagg(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # The leader is still alive, verify it.
         self.verify([self.session])
+        # FIXME-WT-14700: remove ignore after freeing root pages is addressed.
+        self.ignoreStdoutPattern("Mismatch in page IDs")
+
+    def test_verify_leader_no_table(self):
+        # Layered table does not exist, expect ENOENT
+        self.verify([self.session], errno.ENOENT)
+
+    def test_verify_follower_no_metadata(self):
+         # Create a layered table on the leader
+        self.session.create(self.uri, self.table_cfg)
+        # Verify the empty leader's table
+        self.verify([self.session])
+
+        # Create a follower
+        self.create_follower()
+        # The follower has not picked up its first checkpoint. The follower will not recognize
+        # the layered URI while in this transient state. Expect ENOENT.
+        self.verify([self.session_follow], errno.ENOENT)
+
+        # Create an empty checkpoint
+        self.session.checkpoint()
+        # Load the latest checkpoint to the follower
+        self.disagg_advance_checkpoint(self.conn_follow)
+        # Follower verification now succeeds
+        self.verify([self.session_follow])
+
+        self.session_follow.close()
+        self.conn_follow.close()
+
+    def test_verify_follower_no_checkpoint(self):
+        # Create a layered table on the leader
+        self.session.create(self.uri, self.table_cfg)
+        # Verify the empty leader's table
+        self.verify([self.session])
+
+        # Create a follower
+        self.create_follower()
+        # Create a table on the follower
+        self.session_follow.create(self.uri, self.table_cfg)
+
+        # The follower has not picked up its first checkpoint. But since we created the layered
+        # table, it should be able to run verify on the layered URI. However, the stable table
+        # does not exist, so we catch ENOENT and return 0. Followers are only able to create
+        # their ingest constituents. They see stable through checkpoint or step-up.
+        self.verify([self.session_follow])
+
+        # Create an empty checkpoint
+        self.session.checkpoint()
+        # Load the latest checkpoint to the follower
+        self.disagg_advance_checkpoint(self.conn_follow)
+        # Follower verification now succeeds
+        self.verify([self.session_follow])
+
+        self.session_follow.close()
+        self.conn_follow.close()

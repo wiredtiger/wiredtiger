@@ -57,11 +57,11 @@ __rec_child_deleted(
      * setting the page delete structure committed flag cannot overlap with us checking the flag.
      */
     if (__wt_page_del_committed_set(page_del)) {
-        if (F_ISSET(r, WT_REC_VISIBLE_ALL)) {
-            visible = page_del->txnid <= r->last_running;
+        if (F_ISSET(r, WT_REC_VISIBLE_NO_SNAPSHOT)) {
+            visible = page_del->txnid < r->rec_start_pinned_id;
 
             if (visible) {
-                WT_ACQUIRE_READ(prepare_state, page_del->prepare_state);
+                prepare_state = __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state);
                 if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
                     visible = false;
             }
@@ -145,7 +145,7 @@ __rec_child_deleted(
      * evict prepared truncates, the page apparently being clean might lead to truncations being
      * lost in hard-to-debug ways.
      */
-    WT_ACQUIRE_READ(prepare_state, page_del->prepare_state);
+    prepare_state = __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state);
     if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
         WT_ASSERT_ALWAYS(session, !F_ISSET(r, WT_REC_EVICT),
           "In progress prepares should never be seen in eviction");
@@ -243,6 +243,7 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
             }
             ret = __rec_child_deleted(session, r, ref, cmsp);
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
+            WT_RET(ret);
             goto done;
 
         case WT_REF_LOCKED:
@@ -346,14 +347,15 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
                     break;
 
                 /* This is a very small race window, but check just in case. */
-                if (mod->instantiated == false) {
+                if (!mod->instantiated) {
                     WT_REF_SET_STATE(ref, WT_REF_MEM);
                     /* Retry from the top; we may now have a rec_result. */
                     break;
                 }
 
-                WT_RET(__rec_child_deleted(session, r, ref, cmsp));
+                ret = __rec_child_deleted(session, r, ref, cmsp);
                 WT_REF_SET_STATE(ref, WT_REF_MEM);
+                WT_RET(ret);
                 goto done;
             }
 

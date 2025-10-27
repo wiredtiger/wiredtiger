@@ -39,6 +39,9 @@ from wiredtiger import stat
 # test_checkpoint_snapshot03.py
 #   This test is to check RTS skips the unnecessary pages when the table has more than the
 #   checkpoint snapshot.
+
+# FIXME-WT-15487
+@wttest.skip_for_hook("disagg", "very long eviction can cause tests to time out")
 class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
 
     # Create a table.
@@ -87,10 +90,6 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
         self.assertEqual(count, nrows + 1 if flcs_tolerance else nrows)
 
     def test_checkpoint_snapshot(self):
-        # FIXME-WT-14986
-        if self.runningHook('disagg') and self.key_format == 'S':
-            self.skipTest('crashes with checkpoint_id assertion')
-
         ds = SimpleDataSet(self, self.uri, 0, \
                 key_format=self.key_format, value_format=self.value_format, \
                 config='leaf_page_max=4k')
@@ -144,9 +143,6 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
         session1.rollback_transaction()
 
         # Simulate a server crash and restart.
-        # FIXME-WT-14944  Works up to this point, then fails.
-        if self.runningHook('disagg'):
-            self.skipTest('After simulated crash restart, the URI is not found')
         simulate_crash_restart(self, ".", "RESTART")
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
@@ -157,8 +153,11 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
         upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
         stat_cursor.close()
 
-        self.assertGreater(inconsistent_ckpt, 0)
         self.assertEqual(upd_aborted, 0)
         self.assertGreaterEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
-        self.assertGreater(pages_skipped, 0)
+        if not self.runningHook('disagg'): # Disagg doesn't have inconsistent checkpoints or RTS.
+            self.assertGreater(inconsistent_ckpt, 0)
+            self.assertGreater(pages_skipped, 0)
+
+        self.ignoreStdoutPatternIfExists('Eviction took more than 1 minute') # FIXME-WT-15478

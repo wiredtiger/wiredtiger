@@ -58,7 +58,8 @@ from wtscenario import make_scenarios
 # That currently asserts. The fix for this is likely to disable the optimization when in
 # verify, so the only real purpose of this test is to prevent the behavior from regressing.
 # It is therefore not full of scenarios but specific to this one problem.
-
+# FIXME-WT-15430: Re-enable once disaggregated storage works with fast truncate tests.
+@wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate18(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
     session_config = 'isolation=snapshot'
@@ -215,4 +216,4 @@ class test_truncate18(wttest.WiredTigerTestCase):
         self.reopen_conn()
 
         # Now verify the tree. In the problem scenario described above, this will assert.
-        self.session.verify(ds.uri, None)
+        self.verifyUntilSuccess(uri=ds.uri)
