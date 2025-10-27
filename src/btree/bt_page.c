@@ -292,6 +292,7 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
   size_t *incr, WT_ITEM *disk_image, bool build_disk)
 {
     WT_CELL_UNPACK_ADDR *base_key, *base_val;
+    WT_CELL_UNPACK_DELTA_INT *min_delta;
     WT_ITEM base_key_buf, delta_key_buf;
     WT_REF **refs;
     size_t i = 0, final_entries = 0;
@@ -305,6 +306,8 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
     WT_ASSERT(session, refsp != NULL);
 
     refs = *refsp;
+    min_d = 0;
+    min_delta = NULL;
 
     WT_UNUSED(disk_image);
     /*
@@ -342,33 +345,28 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
     }
 
     for (;;) {
-        WT_CELL_UNPACK_DELTA_INT *min_delta = NULL;
 
-        WT_ERR(__page_find_min_delta(
-          session, unpacked_deltas, delta_size_each, delta_idx, delta_size, &min_delta, &min_d));
+        /* Only find next delta when needed */
+        if (min_delta == NULL)
+            WT_ERR(__page_find_min_delta(
+              session, unpacked_deltas, delta_size_each, delta_idx, delta_size, &min_delta, &min_d));
 
-        /*
-         * Check if both base and all deltas are exhausted.
-         */
+        /* Check if both base and all deltas are exhausted. */
         if (i >= base_entries && min_delta == NULL)
             break;
 
-        /*
-         * Diagnostics: detect early exhaustion of base keys or deltas.
-         */
-        if (i >= base_entries && min_delta != NULL) {
-            __wt_verbose(session, WT_VERB_PAGE_DELTA,
+        /* Diagnostics: detect early exhaustion of base keys or deltas. */
+        if (i >= base_entries && min_delta != NULL)
+            __wt_verbose_debug2(session, WT_VERB_PAGE_DELTA,
               "__page_merge_deltas_common_merge_loop: ran out of base keys before deltas "
               "(base_entries=%" PRIu64 ", delta=%" PRIu64 "/%" PRIu64 ")",
               (uint64_t)base_entries, (uint64_t)min_d, (uint64_t)delta_size);
-        }
 
-        if (i < base_entries && min_delta == NULL) {
-            __wt_verbose(session, WT_VERB_PAGE_DELTA,
+        if (i < base_entries && min_delta == NULL)
+            __wt_verbose_debug2(session, WT_VERB_PAGE_DELTA,
               "__page_merge_deltas_common_merge_loop: ran out of deltas before base keys "
               "(base_entries=%" PRIu64 ", i=%" PRIu64 ")",
               (uint64_t)base_entries, (uint64_t)i);
-        }
 
         if (i >= base_entries)
             cmp = 1;
@@ -398,6 +396,8 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
                 delta_idx[min_d]++;
                 if (cmp == 0)
                     i += 2; /* skip base key/value if keys equal */
+                /* We consumed this delta, so recompute next round */
+                min_delta = NULL;
             }
         } else {
             /* New implementation: build disk image */
@@ -437,6 +437,8 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
                 if (cmp == 0)
                     i += 2;
                 delta_idx[min_d]++;
+                /* We consumed this delta, so recompute next round */
+                min_delta = NULL;
             }
 
             final_entries++;
@@ -603,9 +605,6 @@ __page_reconstruct_internal_deltas(
     /* Install the reconstructed page index into the internal page. */
     WT_INTL_INDEX_SET(ref->page, pindex);
     __wt_cache_page_inmem_incr(session, ref->page, incr, false);
-
-    /* Cleanup the refs array (the actual WT_REFs are now owned by the page index) */
-    __wt_free(session, refs);
 
     if (0) {
 err:
@@ -785,8 +784,6 @@ __wti_build_full_disk_image_on_read(
       session, ref, deltas, delta_size, &refs, &refs_entries, &incr, disk_image));
 
 err:
-    /* Cleanup the refs array (the actual WT_REFs are now owned by the page index) */
-    __wt_free(session, refs);
     return (ret);
 }
 

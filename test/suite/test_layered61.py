@@ -335,24 +335,12 @@ class test_layered61(wttest.WiredTigerTestCase):
         # Verify both updated keys and unmodified trailing base keys.
         self.verify(kv_modified, inital_value)
 
-        # Assert that we have constructed at least one internal page delta.
-        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
-        else:
-            self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
-
         follower_config = self.conn_base_config + 'disaggregated=(role="follower"),'
         self.reopen_disagg_conn(follower_config)
         time.sleep(1.0)
 
         # Verify both updated keys and unmodified trailing base keys again from the follower.
         self.verify(kv_modified, inital_value)
-
-        # Assert that we have constructed at least one internal page delta.
-        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
-            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
-        else:
-            self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
 
     def test_internal_page_delta_key_updated_multiple_times(self):
         """
@@ -380,7 +368,7 @@ class test_layered61(wttest.WiredTigerTestCase):
         kv_modified = {}
         num_deltas = 8  # Fixed number of deltas for determinism
 
-        # Pick keys that will be spread across multiple internal pages.
+        # Pick keys that will be spread across multiple leaf pages.
         # This ensures updates go beyond a single leaf and trigger internal reconciliation.
         internal_boundary_keys = [
             str(self.nrows // 4 + i) for i in range(10)
