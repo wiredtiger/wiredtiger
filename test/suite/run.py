@@ -164,8 +164,7 @@ def parse_int_list(str):
 def verify_command_line_vars(vars):
     # The list of allowed variables, with defaults. Matches the usage message.
     vars_allowed = {
-        'page_log' : 'palite',
-        'page_log_verbose' : '0'  # INFO level logging by default
+        'page_log' : 'palite'
     }
 
     for name in vars:
