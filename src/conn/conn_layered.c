@@ -1148,6 +1148,8 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      */
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
+    __wt_verbose_debug1(
+      session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping up to the leader mode");
     F_SET(conn, WT_CONN_RECONFIGURING_STEP_UP);
 
     /*
@@ -1195,6 +1197,9 @@ __disagg_step_down(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
+
+    __wt_verbose_debug1(
+      session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping down to the follower mode");
 
     conn->layered_table_manager.leader = false;
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);

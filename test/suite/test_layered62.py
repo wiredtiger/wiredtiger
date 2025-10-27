@@ -31,7 +31,18 @@ from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered62.py
-#    Test stepping up concurrently with a checkpoint.
+#    Test stepping up and stepping down concurrently with a checkpoint.
+#
+# If WiredTiger makes a role change while a checkpoint is running, it could cause a part of a
+# checkpoint to complete with the old role and a part with the new role, which would lead to an
+# inconsistent checkpoint. This test verifies that stepping up and stepping down are properly
+# synchronized with the checkpoint process.
+#
+# The test attempts to perform a role change while a checkpoint is running by starting the
+# checkpoint in a separate thread, waiting for it to start, and then performing the role change.
+# It then verifies that the checkpoint completed correctly with the old role, given that the role
+# change happened after the checkpoint started.
+#
 @disagg_test_class
 class test_layered62(wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),' \
