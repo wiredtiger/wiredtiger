@@ -345,6 +345,8 @@ CONFIG configuration_list[] = {
 
 {"stress.failpoint_rec_before_wrapup", "stress failpoint reconciliation before wrapup", C_BOOL, 1, 0, 0}
 
+{"stress.failpoint_rec_split_write", "stress failpoint reconciliation split write", C_BOOL, 1, 0, 0}
+
 {"stress.hs_checkpoint_delay", "stress history store checkpoint delay", C_BOOL, 2, 0, 0}
 
 {"stress.hs_search", "stress history store search", C_BOOL, 2, 0, 0}

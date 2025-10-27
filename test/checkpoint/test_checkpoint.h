@@ -102,6 +102,7 @@ typedef struct {
     bool failpoint_eviction_split;        /* Fail point for eviction split. */
     bool failpoint_hs_delete_key_from_ts; /* Failpoint for hs key deletion. */
     bool failpoint_rec_before_wrapup;     /* Failpoint for reconciliation before wrapup */
+    bool failpoint_rec_split_write;       /* Failpoint for reconciliation split write */
     bool no_ts_deletes;                   /* Run with deletes without timestamps */
     bool prepare;                         /* Use prepare transactions */
     bool race_timestamps;                 /* Async update to oldest timestamp */

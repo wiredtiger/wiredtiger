@@ -94,6 +94,7 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     timing_stress_prepare_ckpt_delay = 0.1;
     timing_stress_commit_txn_slow = 0.1;
     timing_stress_rec_before_wrapup = 0.1;
+    timing_stress_rec_split_write = 0.1;
 }
 
 /*
@@ -363,6 +364,8 @@ kv_workload_generator::generate_connection_stress_config()
           "timing_stress_for_test=[commit_transaction_slow]";
         probability_case(_spec.timing_stress_rec_before_wrapup) wt_env_config +=
           "timing_stress_for_test=[failpoint_rec_before_wrapup]";
+        probability_case(_spec.timing_stress_rec_split_write) wt_env_config +=
+          "timing_stress_for_test=[failpoint_rec_split_write]";
     }
     return wt_env_config;
 }

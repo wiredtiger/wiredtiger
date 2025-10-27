@@ -382,6 +382,9 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"stress.failpoint_rec_before_wrapup", "stress failpoint reconciliation before wrapup", C_BOOL, 1,
     0, 0, V_GLOBAL_STRESS_FAILPOINT_REC_BEFORE_WRAPUP},
 
+  {"stress.failpoint_rec_split_write", "stress failpoint reconciliation split write", C_BOOL, 1, 0,
+    0, V_GLOBAL_STRESS_FAILPOINT_REC_SPLIT_WRITE},
+
   {"stress.hs_checkpoint_delay", "stress history store checkpoint delay", C_BOOL, 2, 0, 0,
     V_GLOBAL_STRESS_HS_CHECKPOINT_DELAY},
 
