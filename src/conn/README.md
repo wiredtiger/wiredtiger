@@ -13,7 +13,7 @@ They key heuristics used to determine whether a file should be compacted are cov
 These include (order matters):
 1. A table can be configured to be skipped by compaction using the parameter `exclude=["table:a.wt"]`, the configuration is parsed in [__background_compact_exclude_list_process](https://github.com/wiredtiger/wiredtiger/blob/cec2d68c2a51be610745b4ab481c572aaec08d3c/src/conn/conn_compact.c#L100-L120) , you can find an example in [test_compact06](https://github.com/wiredtiger/wiredtiger/blob/cec2d68c2a51be610745b4ab481c572aaec08d3c/test/suite/test_compact06.py#L38)
 1. File size < `1MB`
-1. `background_compact.max_file_skip_time` (unit of Seconds), If the elapsed time since the last compaction run for the same URI does not exceed this threshold, the compaction will be skipped.
+1. `background_compact.max_file_skip_time` (unit of Seconds). If the elapsed time since the last compaction run for the same URI has exceeded this threshold, the file is selected for compaction.
    1. The configuration of `debug_mode.background_compact` controls the value, we have [hardcoded configurations](https://github.com/wiredtiger/wiredtiger/blob/cec2d68c2a51be610745b4ab481c572aaec08d3c/src/conn/conn_api.c#L2158-L2176).
 1. A previous compaction failure occurred. 
    1. Assume the last compaction failed — retrying too soon is likely to fail again, so the retry is skipped to prevent repeated failures.
