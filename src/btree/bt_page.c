@@ -347,8 +347,28 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
         WT_ERR(__page_find_min_delta(
           session, unpacked_deltas, delta_size_each, delta_idx, delta_size, &min_delta, &min_d));
 
+        /*
+         * Check if both base and all deltas are exhausted.
+         */
         if (i >= base_entries && min_delta == NULL)
             break;
+
+        /*
+         * Diagnostics: detect early exhaustion of base keys or deltas.
+         */
+        if (i >= base_entries && min_delta != NULL) {
+            __wt_verbose(session, WT_VERB_PAGE_DELTA,
+              "__page_merge_deltas_common_merge_loop: ran out of base keys before deltas "
+              "(base_entries=%" PRIu64 ", delta=%" PRIu64 "/%" PRIu64 ")",
+              (uint64_t)base_entries, (uint64_t)min_d, (uint64_t)delta_size);
+        }
+
+        if (i < base_entries && min_delta == NULL) {
+            __wt_verbose(session, WT_VERB_PAGE_DELTA,
+              "__page_merge_deltas_common_merge_loop: ran out of deltas before base keys "
+              "(base_entries=%" PRIu64 ", i=%" PRIu64 ")",
+              (uint64_t)base_entries, (uint64_t)i);
+        }
 
         if (i >= base_entries)
             cmp = 1;
