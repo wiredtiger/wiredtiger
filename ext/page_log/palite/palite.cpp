@@ -1046,6 +1046,7 @@ private:
     {
         std::call_once(
           db_init, [this](sqlite3 *d) { create_tables(d); }, db);
+        configure_connection(db);
     }
 
     void
@@ -1154,6 +1155,42 @@ private:
         }
 
         LOG_DEBUG("SQLite database schema initialized");
+    }
+
+    void
+    configure_connection(sqlite3 *db)
+    {
+        // The WAL journaling mode uses a write-ahead log instead of a rollback
+        // journal to implement transactions. This significantly improves performance.
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA journal_mode = WAL;", nullptr, nullptr, nullptr);
+
+        // Turn Synchronous mode OFF for better performance.
+        // We don't care about database corruption in case of OS crash or power failure.
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA synchronous = OFF;", nullptr, nullptr, nullptr);
+
+        // For temporary store use memory instead of disk.
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA temp_store = MEMORY;", nullptr, nullptr, nullptr);
+
+        // Uses memory mapping instead of read/write calls when the database
+        // is < mmap_size in bytes. Set to 8GB (8,589,934,592 Bytes).
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA mmap_size = 8589934592;", nullptr, nullptr, nullptr);
+
+        // Increase page size to 16KB (default is 4KB). This improves performance
+        // for tables with BLOBs.
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA page_size = 16384;", nullptr, nullptr, nullptr);
+
+        // Set cache size to 524,288 pages (8GB with 16KB page size).
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA cache_size = 524288;", nullptr, nullptr, nullptr);
+
+        // Set busy timeout to 10 seconds.
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA busy_timeout = 10000;", nullptr, nullptr, nullptr);
     }
 
     void
