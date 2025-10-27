@@ -2642,6 +2642,13 @@ err:
             ckptbase = btree->ckpt;
 
             WT_CKPT_FOREACH (ckptbase, ckpt_temp) {
+                /*
+                 * In disagg, checkpoint cookie is the same as address cookie of the root page, this
+                 * applies to disagg only and not classic WT. Currently all checkpoint root page are
+                 * written with an unique page ID, therefore discarding the old checkpoint root page
+                 * here is appropriate. If the logic for writing checkpoint root pages ever change,
+                 * the discard logic would also need to be reconsidered.
+                 */
                 if (F_ISSET(ckpt_temp, WT_CKPT_DELETE) && ckpt_temp->raw.data)
                     bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size);
             }
