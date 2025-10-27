@@ -339,7 +339,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * the internal pages to improve cleanup.)
          */
         if (btree->type == BTREE_ROW || btree->type == BTREE_COL_VAR)
-            internal_cleanup = !F_ISSET(conn, WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT);
+            internal_cleanup = !F_ISSET(conn, WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT) &&
+              !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE);
         else {
             LF_SET(WT_READ_CACHE);
             internal_cleanup = false;
