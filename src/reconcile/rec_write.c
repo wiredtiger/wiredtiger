@@ -133,7 +133,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     if (ret != 0)
         F_SET_ATOMIC_16(ref->page, WT_PAGE_REC_FAIL);
     else
-        F_CLR_ATOMIC_16(ref->page, WT_PAGE_REC_FAIL);
+        F_CLR_ATOMIC_16(ref->page, WT_PAGE_REC_FAIL | WT_PAGE_INMEM_SPLIT);
 
 err:
     if (page_locked)

@@ -463,9 +463,9 @@ typedef struct {
         (r)->ref->page->modify->mod_multi_entries == 1))
 
 /* Called after building the disk image. */
-#define WT_BUILD_DELTA_LEAF(session, r)                         \
-    WT_DELTA_LEAF_ENABLED((session)) && (r)->multi_next == 1 && \
-      WT_REC_RESULT_SINGLE_PAGE((session), (r))
+#define WT_BUILD_DELTA_LEAF(session, r)                                                     \
+    WT_DELTA_LEAF_ENABLED((session)) && !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT) && \
+      (r)->multi_next == 1 && WT_REC_RESULT_SINGLE_PAGE((session), (r))
 
 /*
  * Called when building the internal page image to indicate should we start to build a delta for the
