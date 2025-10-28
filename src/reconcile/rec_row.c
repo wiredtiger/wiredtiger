@@ -1241,6 +1241,7 @@ __wti_rec_row_leaf(
                       r->rec_prune_timestamp != WT_TS_NONE &&
                       twp->durable_stop_ts <= r->rec_prune_timestamp) {
                         upd = &upd_tombstone;
+                        r->key_removed_from_disk_image = true;
                         WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
                     }
                 } else {
@@ -1248,6 +1249,7 @@ __wti_rec_row_leaf(
                       r->rec_prune_timestamp != WT_TS_NONE &&
                       twp->durable_start_ts <= r->rec_prune_timestamp) {
                         upd = &upd_tombstone;
+                        r->key_removed_from_disk_image = true;
                         WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
                     }
                 }
