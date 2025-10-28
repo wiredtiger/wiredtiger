@@ -2636,6 +2636,8 @@ err:
         /*
          * If in disaggregated mode, discard the root page associated with checkpoints that are
          * marked for deletion.
+         *
+         * FIXME-WT-15879: Fix up layering for checkpoint root page discard
          */
         if (ret == 0 && F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
             WT_CKPT *ckptbase, *ckpt_temp;
