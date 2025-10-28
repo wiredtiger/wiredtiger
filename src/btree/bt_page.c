@@ -501,8 +501,8 @@ __page_merge_deltas_with_base_image_new(WT_SESSION_IMPL *session, WT_REF *ref, W
     WT_PAGE *page = ref->page;
     WT_REF **refs = NULL;
     size_t *delta_size_each = NULL, *delta_idx = NULL;
-    size_t base_entries, estimated_entries, k;
-    uint32_t d, new_image_buf_size, split_size;
+    size_t base_entries, estimated_entries, k, new_image_buf_size;
+    uint32_t d, split_size;
 
     WT_RET(__page_unpack_deltas_common(
       session, page, deltas, delta_size, &unpacked_deltas, &delta_size_each));
