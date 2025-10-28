@@ -89,7 +89,9 @@ static WT_INLINE bool
 __block_first_srch(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t size, WT_EXT ***stack)
 {
     WT_EXT *ext;
-    uint64_t time_start = __wt_clock(session);
+    uint64_t elapsed, time_start, time_stop;
+
+    time_start = __wt_clock(session);
 
     /*
      * Linear walk of the available chunks in offset order; take the first one that's large enough.
@@ -98,8 +100,8 @@ __block_first_srch(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t size, WT_EX
         if (ext->size >= size)
             break;
 
-    uint64_t time_stop = __wt_clock(session);
-    uint64_t elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
+    time_stop = __wt_clock(session);
+    elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
     WT_STAT_CONN_SET(session, block_first_srch_walk_time, elapsed);
 
     if (ext == NULL)
