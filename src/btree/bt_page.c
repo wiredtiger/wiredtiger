@@ -275,7 +275,7 @@ static int
 __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *base,
   size_t base_entries, WT_CELL_UNPACK_DELTA_INT **unpacked_deltas, size_t *delta_size_each,
   size_t *delta_idx, size_t delta_size, WT_REF *ref, WT_REF ***refsp, size_t *ref_entriesp,
-  size_t *incr, WT_ITEM *base_image, bool build_disk)
+  size_t *incr, WT_ITEM *new_image, bool build_disk)
 {
     WT_CELL_UNPACK_ADDR *base_key, *base_val;
     WT_CELL_UNPACK_DELTA_INT *min_delta;
@@ -294,7 +294,7 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
     min_d = 0;
     min_delta = NULL;
 
-    WT_UNUSED(base_image);
+    WT_UNUSED(new_image);
     /*
      * !!!
      * WT_PAGE_HEADER *hdr = NULL;
@@ -303,9 +303,9 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
     bool row_leaf_page = false, internal_page = false;
 
     if (build_disk) {
-        WT_ASSERT(session, base_image != NULL);
+        WT_ASSERT(session, new_image != NULL);
         /*
-         * hdr = (WT_PAGE_HEADER *)base_image->data; p = (uint8_t *)hdr + sizeof(WT_PAGE_HEADER);
+         * hdr = (WT_PAGE_HEADER *)new_image->data; p = (uint8_t *)hdr + sizeof(WT_PAGE_HEADER);
          */
 
         switch (page->type) {
@@ -493,7 +493,7 @@ err:
  */
 static int
 __page_merge_deltas_with_base_image_new(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas,
-  size_t delta_size, WT_REF ***refsp, size_t *ref_entriesp, size_t *incr, WT_ITEM *base_image)
+  size_t delta_size, WT_REF ***refsp, size_t *ref_entriesp, size_t *incr, WT_ITEM *new_image)
 {
     WT_CELL_UNPACK_ADDR *base = NULL;
     WT_CELL_UNPACK_DELTA_INT **unpacked_deltas = NULL;
@@ -502,7 +502,7 @@ __page_merge_deltas_with_base_image_new(WT_SESSION_IMPL *session, WT_REF *ref, W
     WT_REF **refs = NULL;
     size_t *delta_size_each = NULL, *delta_idx = NULL;
     size_t base_entries, estimated_entries, k;
-    uint32_t d;
+    uint32_t d, new_image_buf_size, split_size;
 
     WT_RET(__page_unpack_deltas_common(
       session, page, deltas, delta_size, &unpacked_deltas, &delta_size_each));
@@ -521,18 +521,22 @@ __page_merge_deltas_with_base_image_new(WT_SESSION_IMPL *session, WT_REF *ref, W
     WT_ERR(__wt_calloc_def(session, estimated_entries, &refs));
     WT_ERR(__wt_calloc_def(session, delta_size, &delta_idx));
 
-    WT_ERR(__wt_buf_init(session, base_image, page->dsk->mem_size));
-    WT_ERR(__wt_buf_extend(session, base_image, sizeof(WT_PAGE_HEADER)));
+    /* Allocate enough size for the new image, similar to __rec_split_chunk_init. */
+    split_size = __wt_split_page_size(
+      S2BT(session)->split_pct, S2BT(session)->maxleafpage, S2BT(session)->allocsize);
+    new_image_buf_size =
+      2 * WT_ALIGN(WT_MAX(S2BT(session)->maxleafpage, split_size), S2BT(session)->allocsize);
+    WT_ERR(__wt_buf_init(session, new_image, new_image_buf_size));
     /*
      * !!!
-     * WT_PAGE_HEADER *hdr = (WT_PAGE_HEADER *)base_image->data;
+     * WT_PAGE_HEADER *hdr = (WT_PAGE_HEADER *)new_image->data;
      * memset(hdr, 0, sizeof(WT_PAGE_HEADER));
      * hdr->type = page->type;
      */
 
     /* Common merge logic (disk mode) */
     WT_ERR(__page_merge_deltas_common_merge_loop(session, base, base_entries, unpacked_deltas,
-      delta_size_each, delta_idx, delta_size, ref, &refs, ref_entriesp, incr, base_image, true));
+      delta_size_each, delta_idx, delta_size, ref, &refs, ref_entriesp, incr, new_image, true));
 
     *refsp = refs;
     return (0);
@@ -752,7 +756,7 @@ err:
  */
 int
 __wti_build_full_disk_image_on_read(
-  WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas, size_t delta_size, WT_ITEM *base_image)
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas, size_t delta_size, WT_ITEM *new_image)
 {
     WT_REF **refs;
     size_t refs_entries, incr;
@@ -763,7 +767,7 @@ __wti_build_full_disk_image_on_read(
 
     /* Merge deltas directly with the base image to build refs in a single pass. */
     WT_RET(__page_merge_deltas_with_base_image_new(
-      session, ref, deltas, delta_size, &refs, &refs_entries, &incr, base_image));
+      session, ref, deltas, delta_size, &refs, &refs_entries, &incr, new_image));
 
     return (0);
 }
