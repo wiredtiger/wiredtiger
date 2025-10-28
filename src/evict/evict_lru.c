@@ -2092,11 +2092,13 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
         WT_STAT_CONN_INCR(session, eviction_server_skip_pages_last_running);
         return (true);
     } else if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+        WT_BTREE *btree = S2BT(session);
         wt_timestamp_t newest_commit_timestamp =
           __wt_atomic_load_uint64_relaxed(&page->modify->newest_commit_timestamp);
-        WT_BTREE *btree = S2BT(session);
         if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
-            if (newest_commit_timestamp > btree->prune_timestamp) {
+            wt_timestamp_t prune_timestamp =
+              __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
+            if (newest_commit_timestamp > prune_timestamp) {
                 WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp);
                 return (true);
             }
