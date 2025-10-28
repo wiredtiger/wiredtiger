@@ -1124,85 +1124,6 @@ err:
 }
 
 /*
- * __disagg_step_up --
- *     Step up to the node to the leader mode.
- */
-static int
-__disagg_step_up(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-
-    conn = S2C(session);
-
-    /*
-     * We need to hold the checkpoint lock while stepping up, because if we change the role
-     * concurrently with a checkpoint, it would do only a part of the work required for the new
-     * role, leaving the database in an inconsistent state.
-     */
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
-
-    __wt_verbose_debug1(
-      session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping up to the leader mode");
-    F_SET(conn, WT_CONN_RECONFIGURING_STEP_UP);
-
-    /*
-     * Step up to the leader mode. We need to do this first, because the rest of the operations
-     * below depend on WiredTiger already being in the leader mode.
-     */
-    conn->layered_table_manager.leader = true;
-    WT_STAT_CONN_SET(session, disagg_role_leader, 1);
-
-    /*
-     * Abandon the current checkpoint if it is incomplete, and begin a new one. We need to do this
-     * before draining the ingest tables, so that the updates to the stable tables will be correctly
-     * included in the new checkpoint.
-     */
-    WT_ERR(__disagg_restart_checkpoint(session));
-
-    /*
-     * We might not need to hold a checkpoint lock below this point, but we will keep it just to be
-     * safe. If this becomes a problem, we can revisit whether we really need to hold the lock for
-     * the remaining operations.
-     */
-
-    /* Create any missing stable tables. */
-    WT_ERR_MSG_CHK(session, __layered_create_missing_stable_tables(session),
-      "Failed to create missing stable tables");
-
-    /* Drain the ingest tables before switching to leader. */
-    WT_ERR_MSG_CHK(
-      session, __layered_drain_ingest_tables(session), "Failed to drain ingest tables");
-
-err:
-    F_CLR(conn, WT_CONN_RECONFIGURING_STEP_UP);
-    return (ret);
-}
-
-/*
- * __disagg_step_down --
- *     Step down to the follower mode.
- */
-static void
-__disagg_step_down(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-
-    WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
-
-    __wt_verbose_debug1(
-      session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping down to the follower mode");
-
-    conn->layered_table_manager.leader = false;
-    WT_STAT_CONN_SET(session, disagg_role_leader, 0);
-
-    /* Do some cleanup as we are abandoning the current checkpoint. */
-    __disagg_copy_metadata_clear(session);
-}
-
-/*
  * __wti_disagg_conn_config --
  *     Parse and setup the disaggregated server options for the connection.
  */
@@ -1256,24 +1177,39 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
     /* Set the role. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.role", &cval));
-    if (cval.len == 0 || WT_CONFIG_LIT_MATCH("follower", cval))
-        leader = false;
-    else if (WT_CONFIG_LIT_MATCH("leader", cval))
-        leader = true;
-    else
-        WT_ERR_MSG(session, EINVAL, "Invalid node role");
+    if (cval.len == 0)
+        conn->layered_table_manager.leader = leader = false;
+    else {
+        if (WT_CONFIG_LIT_MATCH("follower", cval))
+            conn->layered_table_manager.leader = leader = false;
+        else if (WT_CONFIG_LIT_MATCH("leader", cval))
+            conn->layered_table_manager.leader = leader = true;
+        else
+            WT_ERR_MSG(session, EINVAL, "Invalid node role");
 
-    if (!reconfig) {
-        /* Set the initial role. */
-        conn->layered_table_manager.leader = leader;
-        WT_STAT_CONN_SET(session, disagg_role_leader, leader ? 1 : 0);
-    } else if (!was_leader && leader) {
         /* Follower step-up. */
-        WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_step_up(session));
-        WT_ERR_MSG_CHK(session, ret, "Failed to step up to the leader role");
-    } else if (was_leader && !leader)
+        if (reconfig && !was_leader && leader) {
+            F_SET(conn, WT_CONN_RECONFIGURING_STEP_UP);
+            /* Abandon the current checkpoint if it is incomplete, and begin a new one. */
+            WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_restart_checkpoint(session));
+            WT_ERR(ret);
+
+            /* Create any missing stable tables. */
+            WT_ERR_MSG_CHK(session, __layered_create_missing_stable_tables(session),
+              "Failed to create missing stable tables");
+
+            /* Drain the ingest tables before switching to leader. */
+            WT_ERR_MSG_CHK(
+              session, __layered_drain_ingest_tables(session), "Failed to drain ingest tables");
+            F_CLR(conn, WT_CONN_RECONFIGURING_STEP_UP);
+        }
+
         /* Leader step-down. */
-        WT_WITH_CHECKPOINT_LOCK(session, __disagg_step_down(session));
+        if (reconfig && was_leader && !leader)
+            /* Do some cleanup as we are abandoning the current checkpoint. */
+            __disagg_copy_metadata_clear(session);
+    }
+    WT_STAT_CONN_SET(session, disagg_role_leader, leader ? 1 : 0);
 
     /* Connection init settings only. */
 
