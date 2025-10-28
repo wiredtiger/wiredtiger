@@ -1656,8 +1656,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
              * tombstone) by the page in-memory code. Discard the re-instantiated prepared updates.
              *
              * If we have instantiated a tombstone when we read the page back into memory, discard
-             * it as well. FIXME- WT-15619 and WT-15618: no need to consider the delta case after we
-             * have implemented delta consolidation
+             * it as well.
              */
             if ((F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
                   WT_TIME_WINDOW_HAS_PREPARE(&supd->tw)) ||
@@ -1668,7 +1667,13 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             /* Apply the modification. */
             WT_ERR(__wt_row_modify(&cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
 
-            if (last_upd != NULL && last_upd->next != NULL) {
+            /*
+             * Free the restored updates except for the restored tombstone as it may still be needed
+             * for delta building.
+             */
+            if (last_upd != NULL && last_upd->next != NULL &&
+              (last_upd->next->type != WT_UPDATE_TOMBSTONE ||
+                last_upd->next->prepare_state == WT_PREPARE_INPROGRESS)) {
                 WT_ASSERT(session,
                   F_ISSET(last_upd->next,
                     WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DS));
