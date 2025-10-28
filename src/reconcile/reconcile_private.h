@@ -194,8 +194,8 @@ struct __wti_reconcile {
      */
     bool update_used;
 
-    /* Track if all updates in the chain are aborted */
-    bool upd_chain_all_aborted;
+    /* Track if there is any update chain with its updates all aborted. */
+    bool has_upd_chain_all_aborted;
 
     /* Track if any key is removed from the disk image due to its delete is globally visible. */
     bool key_removed_from_disk_image;
