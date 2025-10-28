@@ -11,7 +11,7 @@
 #include <catch2/catch.hpp>
 
 #include "wt_internal.h"
-#include "../../wrappers/mock_session.h"
+#include "wrappers/mock_session.h"
 
 struct ExtentWrapper {
     ExtentWrapper(WT_EXT *raw) : _raw(raw) {}
@@ -326,8 +326,8 @@ TEST_CASE("Extent Lists: block_off_srch", "[extent_list]")
 TEST_CASE("Extent Lists: block_first_srch", "[extent_list]")
 {
     std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
-    std::shared_ptr<mock_session> mock_session = mock_session::build_test_mock_session();
-    WT_SESSION_IMPL *session = mock_session->get_wt_session_impl();
+    std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
+    WT_SESSION_IMPL *session = mock_session->getWtSessionImpl();
 
     /*
      * Note that we're not checking stack here, since __block_first_srch delegates most of its work
