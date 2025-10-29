@@ -357,7 +357,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
             WT_STAT_CONN_INCR(session, checkpoint_pages_reconciled);
             WT_STAT_CONN_INCRV(session, checkpoint_pages_reconciled_bytes,
-                __wt_tsan_suppress_load_uint64(&page->memory_footprint));
+              __wt_tsan_suppress_load_uint64(&page->memory_footprint));
             WT_STATP_DSRC_INCR(session, btree->dhandle->stats, btree_checkpoint_pages_reconciled);
             if (WT_IS_HS(btree->dhandle))
                 WT_STAT_CONN_INCR(session, checkpoint_hs_pages_reconciled);

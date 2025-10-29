@@ -1366,8 +1366,8 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
             return (WT_VISIBLE_TRUE);
 
         /* FIXME-WT-15884: data race around accesses to upd_start_ts and upd_durable_ts */
-        upd_visible = __wt_txn_visible(session, upd->txnid,
-            __wt_tsan_suppress_load_uint64(&upd->upd_start_ts),
+        upd_visible =
+          __wt_txn_visible(session, upd->txnid, __wt_tsan_suppress_load_uint64(&upd->upd_start_ts),
             __wt_tsan_suppress_load_uint64(&upd->upd_durable_ts));
 
         /*
