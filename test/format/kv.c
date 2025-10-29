@@ -334,8 +334,5 @@ val_gen(TABLE *table, WT_RAND_STATE *rnd, WT_ITEM *value, uint64_t keyno)
         memcpy(p, table->val_base, value->size);
         u64_to_string_zf(keyno, p, 11);
         p[10] = '/';
-
-        /* Randomize the first character. */
-        p[11] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"[mmrand(rnd, 0, 51)];
     }
 }

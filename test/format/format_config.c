@@ -2193,7 +2193,7 @@ config_map_file_type(const char *s, u_int *vp)
      * Handle multiple configurations. Variable-length column-store is 40% vs row.
      */
     v = mmrand(&g.data_rnd, 1, 10);
-    if (var && (v < 4 || !row))
+    if (var && (v < 5 || !row))
         *vp = VAR;
     else
         *vp = ROW;
