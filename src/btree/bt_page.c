@@ -329,6 +329,39 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
           session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
     }
 
+    /*
+     * !!!
+     * Example: Demonstration of how the merge logic works with base and multiple delta arrays.
+     *
+     * Suppose we have a base array and three delta arrays (D1 = oldest, D3 = latest):
+     *
+     *   Base:  [1, 3, 5, 7]
+     *   D1:    [2, 3, 6]
+     *   D2:    [3, 4, 6, 8]
+     *   D3:    [3, 5, 9]
+     *
+     * Processing steps:
+     *   1. __page_find_min_delta() scans D3  D2  D1 (latest  oldest) to find the smallest key
+     *      among the current delta heads. When duplicates are found, newer deltas (higher index)
+     *      take precedence.
+     *
+     *   2. Initially:
+     *        - Base points to 1
+     *        - D3 points to 3, D2  3, D1  2
+     *      Minimum key = 1 (from Base)  emit Base(1)
+     *
+     *   3. Next smallest across deltas = 2 (from D1)  emit D1(2)
+     *
+     *   4. Keys 3 appear in D3, D2, and D1. Because D3 is the latest, its version of key 3 wins.
+     *      Older duplicates in D2 and D1 are skipped by advancing their indices.
+     *
+     *   5. Continue merging in ascending order:
+     *        Emit D3(3), Base(5 skipped since D3 overrides it), D2(4), D3(5), D1(6), D2(8), D3(9)
+     *
+     * Final merged output:
+     *   [1(base), 2(D1), 3(D3), 4(D2), 5(D3), 6(D1), 8(D2), 9(D3)]
+     *
+     */
     for (;;) {
 
         /* Only find next delta when needed */
@@ -495,6 +528,7 @@ static int
 __page_merge_deltas_with_base_image_new(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas,
   size_t delta_size, WT_REF ***refsp, size_t *ref_entriesp, size_t *incr, WT_ITEM *new_image)
 {
+    WT_BTREE *btree;
     WT_CELL_UNPACK_ADDR *base = NULL;
     WT_CELL_UNPACK_DELTA_INT **unpacked_deltas = NULL;
     WT_DECL_RET;
@@ -504,6 +538,7 @@ __page_merge_deltas_with_base_image_new(WT_SESSION_IMPL *session, WT_REF *ref, W
     size_t base_entries, estimated_entries, k, new_image_buf_size;
     uint32_t d, split_size;
 
+    btree = S2BT(session);
     WT_RET(__page_unpack_deltas_common(
       session, page, deltas, delta_size, &unpacked_deltas, &delta_size_each));
 
@@ -522,10 +557,8 @@ __page_merge_deltas_with_base_image_new(WT_SESSION_IMPL *session, WT_REF *ref, W
     WT_ERR(__wt_calloc_def(session, delta_size, &delta_idx));
 
     /* Allocate enough size for the new image, similar to __rec_split_chunk_init. */
-    split_size = __wt_split_page_size(
-      S2BT(session)->split_pct, S2BT(session)->maxleafpage, S2BT(session)->allocsize);
-    new_image_buf_size =
-      2 * WT_ALIGN(WT_MAX(S2BT(session)->maxleafpage, split_size), S2BT(session)->allocsize);
+    split_size = __wt_split_page_size(btree->split_pct, btree->maxleafpage, btree->allocsize);
+    new_image_buf_size = 2 * WT_ALIGN(WT_MAX(btree->maxleafpage, split_size), btree->allocsize);
     WT_ERR(__wt_buf_init(session, new_image, new_image_buf_size));
     /*
      * !!!
