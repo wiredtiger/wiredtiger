@@ -28,7 +28,6 @@
 
 import wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, gen_disagg_storages
-from wtscenario import make_scenarios
 
 # test_disagg02.py
 # Note: This test focuses on validating the behavioral differences of
