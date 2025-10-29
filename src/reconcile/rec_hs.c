@@ -661,6 +661,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size, modify_cnt, txnid, txnid_prepared;
     uint64_t cache_hs_insert_full_update, cache_hs_insert_reverse_modify, cache_hs_write_squash;
+    uint64_t cache_hs_key_processed, cache_hs_update_processed;
     uint32_t i;
     int nentries;
     bool check_prepared, enable_reverse_modify, error_on_ts_ordering, hs_inserted, squashed,
@@ -677,6 +678,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     error_on_ts_ordering = F_ISSET(r, WT_REC_CHECKPOINT_RUNNING) ||
       FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING);
     cache_hs_insert_full_update = cache_hs_insert_reverse_modify = cache_hs_write_squash = 0;
+    cache_hs_key_processed = cache_hs_update_processed = 0;
 
     WT_RET(__wt_curhs_open(session, btree->id, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
@@ -726,6 +728,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
         ref_upd = list->onpage_upd;
 
         __wt_update_vector_clear(&updates);
+
+        cache_hs_key_processed++;
 
         /*
          * Reverse modifies are only supported on 'S' and 'u' value formats. Disable reverse
@@ -884,6 +888,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              * stack.
              */
             WT_ERR(__wt_update_vector_push(&updates, upd));
+
+            cache_hs_update_processed++;
 
             prev_upd = upd;
 
@@ -1173,6 +1179,7 @@ err:
     WT_STAT_CONN_DSRC_INCRV(
       session, cache_hs_insert_reverse_modify, cache_hs_insert_reverse_modify);
     WT_STAT_CONN_DSRC_INCRV(session, cache_hs_write_squash, cache_hs_write_squash);
+    WT_STAT_CONN_DSRC_INCRV(session, cache_hs_key_processed, cache_hs_key_processed);
 
     return (ret);
 }
