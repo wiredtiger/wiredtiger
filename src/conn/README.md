@@ -1,4 +1,4 @@
-# Connection (conn)
+# Connection
 
 ## Background Compaction
 
