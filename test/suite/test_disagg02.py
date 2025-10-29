@@ -30,9 +30,6 @@ import wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtscenario import make_scenarios
 
-def encode_bytes(str):
-    return bytes(str, 'utf-8')
-
 # test_disagg02.py
 # Note: This test focuses on validating the behavioral differences of
 # WiredTiger API calls when operating in a disaggregated storage environment.
@@ -41,10 +38,6 @@ class test_disagg02(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     disagg_storages = gen_disagg_storages('test_disagg02', disagg_only = True)
 
-    # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(disagg_storages)
-
-    # Load the storage store extension.
     def conn_extensions(self, extlist):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
