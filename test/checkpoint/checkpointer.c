@@ -459,7 +459,7 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts, bool use_check
     }
 
     /* Use the first table as the reference table. */
-    reference_table = 1;
+    reference_table = 0;
     while (ret == 0) {
         /* Advance the reference table's cursor. */
         ret = do_cursor_next(cursors[reference_table]);
