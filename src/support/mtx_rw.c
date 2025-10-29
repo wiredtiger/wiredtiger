@@ -258,9 +258,11 @@ stall:
         __wt_tsan_suppress_add_int64(&stats[session->stat_conn_bucket][l->stat_read_count_off], 1);
         session_stats = (int64_t *)&(session->stats);
         if (F_ISSET(session, WT_SESSION_INTERNAL))
-            __wt_tsan_suppress_add_int64(&stats[session->stat_conn_bucket][l->stat_int_usecs_off], (int64_t)time_diff);
+            __wt_tsan_suppress_add_int64(
+              &stats[session->stat_conn_bucket][l->stat_int_usecs_off], (int64_t)time_diff);
         else {
-            __wt_tsan_suppress_add_int64(&stats[session->stat_conn_bucket][l->stat_app_usecs_off], (int64_t)time_diff);
+            __wt_tsan_suppress_add_int64(
+              &stats[session->stat_conn_bucket][l->stat_app_usecs_off], (int64_t)time_diff);
         }
 
         /*
@@ -268,7 +270,8 @@ stall:
          * initialized to determine whether they are enabled.
          */
         if (l->stat_session_usecs_off != -1)
-            __wt_tsan_suppress_add_int64(&session_stats[l->stat_session_usecs_off], (int64_t)time_diff);
+            __wt_tsan_suppress_add_int64(
+              &session_stats[l->stat_session_usecs_off], (int64_t)time_diff);
     }
 
     /*
@@ -445,16 +448,19 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
         __wt_tsan_suppress_add_int64(&stats[session->stat_conn_bucket][l->stat_write_count_off], 1);
         session_stats = (int64_t *)&(session->stats);
         if (F_ISSET(session, WT_SESSION_INTERNAL))
-            __wt_tsan_suppress_add_int64(&stats[session->stat_conn_bucket][l->stat_int_usecs_off], (int64_t)time_diff);
+            __wt_tsan_suppress_add_int64(
+              &stats[session->stat_conn_bucket][l->stat_int_usecs_off], (int64_t)time_diff);
         else
-            __wt_tsan_suppress_add_int64(&stats[session->stat_conn_bucket][l->stat_app_usecs_off], (int64_t)time_diff);
+            __wt_tsan_suppress_add_int64(
+              &stats[session->stat_conn_bucket][l->stat_app_usecs_off], (int64_t)time_diff);
 
         /*
          * Not all read-write locks increment session statistics. Check whether the offset is
          * initialized to determine whether they are enabled.
          */
         if (l->stat_session_usecs_off != -1)
-            __wt_tsan_suppress_add_int64(&session_stats[l->stat_session_usecs_off], (int64_t)time_diff);
+            __wt_tsan_suppress_add_int64(
+              &session_stats[l->stat_session_usecs_off], (int64_t)time_diff);
     }
 
     /*
