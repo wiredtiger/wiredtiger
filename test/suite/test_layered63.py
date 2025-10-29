@@ -34,7 +34,7 @@ import time
 
 
 # test_layered63.py
-# Test that we write internal page deltas to the page log extension.
+# Test that we write internal page deltas.
 
 @disagg_test_class
 class test_layered63(wttest.WiredTigerTestCase):
