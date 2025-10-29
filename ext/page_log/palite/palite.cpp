@@ -781,13 +781,18 @@ class Storage {
                     DELETE FROM checkpoints
                     WHERE lsn > ?;)";
 
-                /* Autoincrement LSN and get the value. */
+                /* Increment LSN and get the value. */
                 a[GET_NEXT_LSN] = R"(
-                    INSERT INTO lsn DEFAULT VALUES RETURNING lsn;)";
+                    UPDATE lsn
+                    SET lsn = lsn + 1
+                    WHERE id = 0
+                    RETURNING lsn;)";
 
                 /* Get the last LSN. */
                 a[GET_LAST_LSN] = R"(
-                    SELECT MAX(lsn) FROM lsn;)";
+                    SELECT lsn
+                    FROM lsn
+                    WHERE id = 0;)";
 
                 /* !!! Insert new pages or replace write failures.
 
@@ -1143,28 +1148,21 @@ private:
              ON pages (table_id, page_id, backlink_lsn)
              WHERE delta = 1 AND discarded = 0;)",
 
-          /* !!! LSN table; The 'lsn' column is an alias for the rowid.
-
-          All rows within SQLite tables have a 64-bit signed integer key that
-          uniquely identifies the row within its table: rowid.
-          The LSN table contains only one column 'lsn' that is the primary key.
-
-          By declaring the column as 'INTEGER PRIMARY KEY' we create an alias
-          for the rowid.
-
-          The 'lsn' field will be automatically incremented by SQLite when new
-          rows are inserted with 'INSERT INTO lsn DEFAULT VALUES;'. */
+          /* LSN counter table. */
           R"(CREATE TABLE IF NOT EXISTS lsn (
-                lsn INTEGER PRIMARY KEY
+                id INTEGER PRIMARY KEY DEFAULT 0 CHECK (id = 0),
+                lsn INTEGER NOT NULL
             );)",
+
+          /* Init LSN counter, if the table is empty; do nothing otherwise. */
+          R"(INSERT OR IGNORE INTO lsn(id, lsn) VALUES (0, 0);)"
 
           R"(CREATE TABLE IF NOT EXISTS checkpoints (
                 lsn INTEGER NOT NULL,
                 timestamp INTEGER NOT NULL,
                 checkpoint_metadata BLOB,
                 PRIMARY KEY (lsn, timestamp)
-            );)"
-        };
+            );)"};
 
         for (const char *sql : create_statements) {
             SQL_CALL_CHECK(db, sqlite3_exec, db, sql, nullptr, nullptr, nullptr);
