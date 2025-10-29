@@ -85,7 +85,7 @@ char *
 write_ascii_chars(char *buf_ptr, std::span<const uint8_t> line_data)
 {
     for (uint8_t c : line_data) {
-        *buf_ptr++ = std::isprint(c) ? c : '.';
+        *buf_ptr++ = isascii(c) && std::isprint(c) ? c : '.';
     }
     return buf_ptr;
 }
@@ -178,6 +178,20 @@ join(const Range &range, const Separator &sep)
     return ss.str();
 }
 
+// Base-2 (binary) units
+constexpr uint64_t operator""_KB(unsigned long long val)
+{
+    return val * 1024;
+}
+constexpr uint64_t operator""_MB(unsigned long long val)
+{
+    return val * 1024 * 1024;
+}
+constexpr uint64_t operator""_GB(unsigned long long val)
+{
+    return val * 1024 * 1024 * 1024;
+}
+
 // Unix epoch microseconds
 inline auto
 now_us()
@@ -191,7 +205,8 @@ struct Config {
     WT_EXTENSION_API *extapi = nullptr; // WiredTiger extension API
 
     std::filesystem::path home_dir;        // Home directory for the extension
-    uint32_t cache_size_mb = 500;          // Size of cache in megabytes (default)
+    uint32_t cache_size_mb = 8'192;        // Size of cache in megabytes (default)
+    uint32_t mmap_size_mb = 8'192;         // Size of memory map in megabytes (default)
     uint32_t delay_ms = 0;                 // Average length of delay when simulated
     uint32_t error_ms = 0;                 // Average length of sleep when simulated
     uint32_t force_delay = 0;              // Force a simulated network delay every N operations
@@ -213,6 +228,7 @@ struct Config {
 
         configure_value(parser.get(), config, "home", home_dir);
         configure_value(parser.get(), config, "cache_size_mb", cache_size_mb);
+        configure_value(parser.get(), config, "mmap_size_mb", mmap_size_mb);
         configure_value(parser.get(), config, "delay_ms", delay_ms);
         configure_value(parser.get(), config, "error_ms", error_ms);
         configure_value(parser.get(), config, "force_delay", force_delay);
@@ -302,12 +318,12 @@ template <> struct std::formatter<Config> {
     format(const Config &cfg, format_context &ctx) const
     {
         return std::format_to(ctx.out(),
-          "{{cache_size_mb={}, delay_ms={}, error_ms={}, force_delay={}, "
+          "{{cache_size_mb={:L}, mmap_size_mb={:L}, delay_ms={}, error_ms={}, force_delay={}, "
           "force_error={}, materialization_delay_ms={}, last_materialized_lsn={}, "
           "verbose={}, verbose_msg={}, sql_trace={}, verify={}}}",
-          cfg.cache_size_mb, cfg.delay_ms, cfg.error_ms, cfg.force_delay, cfg.force_error,
-          cfg.materialization_delay_ms, cfg.last_materialized_lsn, cfg.verbose, cfg.verbose_msg,
-          cfg.sql_trace, cfg.verify);
+          cfg.cache_size_mb, cfg.mmap_size_mb, cfg.delay_ms, cfg.error_ms, cfg.force_delay,
+          cfg.force_error, cfg.materialization_delay_ms, cfg.last_materialized_lsn, cfg.verbose,
+          cfg.verbose_msg, cfg.sql_trace, cfg.verify);
     }
 };
 
@@ -333,7 +349,7 @@ log(Config &config, WT_VERBOSE_LEVEL level, std::format_string<Args...> fmt, Arg
           (level <= WT_VERBOSE_WARNING) ? config.extapi->err_printf : config.extapi->msg_printf;
         api_printf(config.extapi, session(), "%s", message.c_str());
     } else {
-        std::cerr << message;
+        std::cerr << message << std::endl;
     }
 }
 
@@ -363,7 +379,7 @@ log(std::source_location loc, Config &config, WT_VERBOSE_LEVEL level,
 //#define LOG_INFO(...)    LOG_AT(WT_VERBOSE_INFO,     __VA_ARGS__) // unused
 #define LOG_DEBUG(...) LOG_AT(WT_VERBOSE_DEBUG_1, __VA_ARGS__)
 #define LOG_DIAG(...) LOG_AT(WT_VERBOSE_DEBUG_2, __VA_ARGS__)
-#define LOG_TRACE(...) LOG_AT(WT_VERBOSE_DEBUG_5, __VA_ARGS__)
+#define LOG_TRACE(...) LOG_AT(WT_VERBOSE_DEBUG_3, __VA_ARGS__)
 
 #define LOG_SQL_TRACE(fmt, ...)         \
     do {                                \
@@ -1046,6 +1062,7 @@ private:
     {
         std::call_once(
           db_init, [this](sqlite3 *d) { create_tables(d); }, db);
+        configure_connection(db);
     }
 
     void
@@ -1154,6 +1171,46 @@ private:
         }
 
         LOG_DEBUG("SQLite database schema initialized");
+    }
+
+    void
+    configure_connection(sqlite3 *db)
+    {
+        // The WAL journaling mode uses a write-ahead log instead of a rollback
+        // journal to implement transactions. This significantly improves performance.
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA journal_mode = WAL;", nullptr, nullptr, nullptr);
+
+        // Turn Synchronous mode OFF for better performance.
+        // We don't care about database corruption in case of OS crash or power failure.
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA synchronous = OFF;", nullptr, nullptr, nullptr);
+
+        // For temporary store use memory instead of disk.
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA temp_store = MEMORY;", nullptr, nullptr, nullptr);
+
+        // Uses memory mapping instead of read/write calls when the database
+        // is < mmap_size in bytes.
+        const uint64_t MMAP_SIZE = config.mmap_size_mb * 1_MB;
+        SQL_CALL_CHECK(db, sqlite3_exec, db,
+          std::format("PRAGMA mmap_size = {};", MMAP_SIZE).c_str(), nullptr, nullptr, nullptr);
+
+        // Increase page size to 16KB (default is 4KB). This improves performance
+        // for tables with BLOBs.
+        const uint64_t PAGE_SIZE = 16_KB;
+        SQL_CALL_CHECK(db, sqlite3_exec, db,
+          std::format("PRAGMA page_size = {};", PAGE_SIZE).c_str(), nullptr, nullptr, nullptr);
+
+        // Set cache size as configured.
+        // Cache size is specified in megabytes. Convert to number of pages.
+        const uint64_t CACHE_PAGES = (config.cache_size_mb * 1_MB) / PAGE_SIZE;
+        SQL_CALL_CHECK(db, sqlite3_exec, db,
+          std::format("PRAGMA cache_size = {};", CACHE_PAGES).c_str(), nullptr, nullptr, nullptr);
+
+        // Set busy timeout to 10 seconds.
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA busy_timeout = 10000;", nullptr, nullptr, nullptr);
     }
 
     void
@@ -1748,7 +1805,7 @@ public:
         uint32_t flags = 0;
         storage.get_pages(txn.conn, table_id, page_id, args, &flags, results_array, results_count);
         storage.commit_transaction(txn);
-        LOG_DIAG(
+        LOG_DEBUG(
           "Get page_id={} at lsn={}, returned {} entries, "
           "backlink_lsn={}, base_lsn={}, flags={:#x}",
           page_id, args->lsn, *results_count, args->backlink_lsn, args->base_lsn, flags);
@@ -1944,7 +2001,7 @@ public:
           "checkpoint_id={}, timestamp={}, lsn={}", checkpoint_id, checkpoint_timestamp, lsn);
         LOG_TRACE("checkpoint_metadata (size={}) =====\n{}",
           checkpoint_metadata ? checkpoint_metadata->size : 0,
-          palite_verbose_item(checkpoint_metadata));
+          checkpoint_metadata ? palite_verbose_item(checkpoint_metadata) : "<none>");
 
         if (lsnp) {
             *lsnp = lsn;
@@ -1963,8 +2020,6 @@ public:
             *checkpoint_id = 0;
         if (checkpoint_timestamp)
             *checkpoint_timestamp = 0;
-        if (checkpoint_metadata)
-            memset(checkpoint_metadata, 0, sizeof(WT_ITEM));
 
         uint64_t query_lsn = WT_PAGE_LOG_LSN_MAX; // most recent checkpoint
         Storage::Transaction txn = storage.begin_transaction();
@@ -1976,7 +2031,7 @@ public:
           checkpoint_timestamp ? *checkpoint_timestamp : 0);
         LOG_TRACE("checkpoint_metadata (size={}) =====\n{}",
           checkpoint_metadata ? checkpoint_metadata->size : 0,
-          palite_verbose_item(checkpoint_metadata));
+          checkpoint_metadata ? palite_verbose_item(checkpoint_metadata) : "<none>");
 
         if (checkpoint_lsn)
             *checkpoint_lsn = query_lsn;
