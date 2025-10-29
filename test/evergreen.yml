@@ -6436,7 +6436,7 @@ buildvariants:
       batchtime: 1440 # once a day
     - name: live-restore-long
     - name: ".stress-test-asan"
-    - name: unit-test
+    - name: ".unit_test"
     - name: ".unit_test_long"
 
 - name: ubuntu2004-tsan
@@ -7294,7 +7294,7 @@ buildvariants:
       batchtime: 1440 # once a day
     - name: live-restore-long
     - name: ".stress-test-asan"
-    - name: unit-test
+    - name: ".unit_test"
     - name: ".unit_test_long"
 
 - name: amazon2023-armv9-tsan
