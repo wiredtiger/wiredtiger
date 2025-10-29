@@ -50,5 +50,5 @@ class test_disagg02(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     def test_disagg_compact(self):
         # Test that compact operation fails in disaggregated storage mode.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.compact('table:test_disagg01'),
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.compact('table:test_disagg02'),
                 '/Operation not supported/')
