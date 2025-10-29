@@ -130,7 +130,7 @@ __wt_try_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
     WT_STAT_CONN_INCR(session, rwlock_read);
     if (l->stat_read_count_off != -1 && WT_STAT_ENABLED(session)) {
         stats = (int64_t **)S2C(session)->stats;
-        stats[session->stat_conn_bucket][l->stat_read_count_off]++;
+        __wt_tsan_suppress_add_int64(&stats[session->stat_conn_bucket][l->stat_read_count_off], 1);
     }
 
     old.u.v = __wt_atomic_load_uint64_v_relaxed(&l->u.v);

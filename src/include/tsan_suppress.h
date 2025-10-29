@@ -22,6 +22,16 @@
  */
 
 /*
+ * __wt_tsan_suppress_store_uint8_v --
+ *     TSAN warnings suppression for volatile uint8 store.
+ */
+static WT_INLINE void
+__wt_tsan_suppress_store_uint8_v(volatile uint8_t *vp, uint8_t v)
+{
+    __wt_atomic_store_uint8_v_relaxed(vp, v);
+}
+
+/*
  * __wt_tsan_suppress_store_uint8 --
  *     TSAN warnings suppression for uint8 store.
  */
