@@ -411,7 +411,7 @@ __wti_rec_cell_build_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ADDR *a
  */
 static WT_INLINE int
 __wti_rec_cell_build_val(WT_SESSION_IMPL *session, WTI_RECONCILE *r, const void *data, size_t size,
-  WT_TIME_WINDOW *tw, uint64_t rle)
+  WT_TIME_WINDOW *tw, uint64_t rle, bool *ovfl_val)
 {
     WT_BTREE *btree;
     WTI_REC_KV *val;
@@ -430,6 +430,9 @@ __wti_rec_cell_build_val(WT_SESSION_IMPL *session, WTI_RECONCILE *r, const void 
     WT_ASSERT(session, btree->maxleafvalue > 0);
     if (val->buf.size > btree->maxleafvalue) {
         WT_STAT_CONN_DSRC_INCR(session, rec_overflow_value);
+
+        if (ovfl_val != NULL)
+            *ovfl_val = true;
 
         return (__wti_rec_cell_build_ovfl(session, r, val, WT_CELL_VALUE_OVFL, tw, rle));
     }
@@ -498,11 +501,21 @@ static WT_INLINE void
 __wti_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WTI_UPDATE_SELECT *upd_select,
   WT_CELL_UNPACK_KV *vpack, WTI_RECONCILE *r)
 {
+    WT_BTREE *btree;
     WT_TIME_WINDOW *tw;
 
     WT_ASSERT(
       session, (upd_select != NULL && vpack == NULL) || (upd_select == NULL && vpack != NULL));
     tw = upd_select != NULL ? &upd_select->tw : &vpack->tw;
+
+    btree = S2BT(session);
+
+    /*
+     * Never clear the timestamps on the ingest tables. They are needed for step-up even when they
+     * are globally visible.
+     */
+    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+        return;
 
     /* Return if the start time window is empty. */
     if (!WT_TIME_WINDOW_HAS_START(tw))
@@ -514,7 +527,7 @@ __wti_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WTI_UPDATE_SELECT
      * disk image value to the update chain.
      */
     if (!WT_TIME_WINDOW_HAS_PREPARE(tw) && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-      !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) {
+      !F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
         /*
          * Check if the start of the time window is globally visible, and if so remove unnecessary
          * values.

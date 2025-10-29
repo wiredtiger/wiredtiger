@@ -202,20 +202,20 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
         if (WT_STAT_ENABLED(session))                                     \
             __wt_tsan_suppress_sub_int64(&(stat)->fld, (int64_t)(value)); \
     } while (0)
-#define WT_STAT_DECRV_ATOMIC_BASE(session, stat, fld, value)          \
-    do {                                                              \
-        if (WT_STAT_ENABLED(session))                                 \
-            (void)__wt_atomic_subi64(&(stat)->fld, (int64_t)(value)); \
+#define WT_STAT_DECRV_ATOMIC_BASE(session, stat, fld, value)             \
+    do {                                                                 \
+        if (WT_STAT_ENABLED(session))                                    \
+            (void)__wt_atomic_sub_int64(&(stat)->fld, (int64_t)(value)); \
     } while (0)
 #define WT_STAT_INCRV_BASE(session, stat, fld, value)                     \
     do {                                                                  \
         if (WT_STAT_ENABLED(session))                                     \
             __wt_tsan_suppress_add_int64(&(stat)->fld, (int64_t)(value)); \
     } while (0)
-#define WT_STAT_INCRV_ATOMIC_BASE(session, stat, fld, value)          \
-    do {                                                              \
-        if (WT_STAT_ENABLED(session))                                 \
-            (void)__wt_atomic_addi64(&(stat)->fld, (int64_t)(value)); \
+#define WT_STAT_INCRV_ATOMIC_BASE(session, stat, fld, value)             \
+    do {                                                                 \
+        if (WT_STAT_ENABLED(session))                                    \
+            (void)__wt_atomic_add_int64(&(stat)->fld, (int64_t)(value)); \
     } while (0)
 
 /*
@@ -469,6 +469,7 @@ struct __wt_connection_stats {
     int64_t disagg_block_page_discard;
     int64_t disagg_block_put;
     int64_t disagg_block_hs_put;
+    int64_t disagg_block_read_ahead_frontier;
     int64_t block_preload;
     int64_t block_read;
     int64_t block_write;
@@ -549,12 +550,15 @@ struct __wt_connection_stats {
     int64_t eviction_queue_empty;
     int64_t eviction_queue_not_empty;
     int64_t eviction_server_skip_dirty_pages_during_checkpoint;
+    int64_t eviction_server_skip_ingest_trees;
     int64_t eviction_server_skip_intl_page_with_active_child;
     int64_t eviction_server_skip_metatdata_with_history;
     int64_t eviction_server_skip_pages_checkpoint_timestamp;
     int64_t eviction_server_skip_pages_last_running;
+    int64_t eviction_server_skip_pages_prune_timestamp;
     int64_t eviction_server_skip_pages_retry;
     int64_t eviction_server_skip_unwanted_pages;
+    int64_t eviction_server_skip_stable_trees;
     int64_t eviction_server_skip_unwanted_tree;
     int64_t eviction_server_skip_trees_too_many_active_walks;
     int64_t eviction_server_skip_checkpointing_trees;
@@ -694,6 +698,7 @@ struct __wt_connection_stats {
     int64_t cache_pages_prefetch;
     int64_t cache_pages_requested_internal;
     int64_t cache_pages_requested_leaf;
+    int64_t cache_pages_requested_hs;
     int64_t cache_eviction_pages_seen;
     int64_t eviction_pages_already_queued;
     int64_t eviction_fail;
@@ -951,7 +956,6 @@ struct __wt_connection_stats {
     int64_t layered_curs_upgrade_ingest;
     int64_t layered_curs_upgrade_stable;
     int64_t layered_table_manager_checkpoints;
-    int64_t layered_table_manager_checkpoints_refreshed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_failed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_succeed;
     int64_t layered_table_manager_logops_applied;
@@ -1359,6 +1363,7 @@ struct __wt_dsrc_stats {
     int64_t disagg_block_page_discard;
     int64_t disagg_block_put;
     int64_t disagg_block_hs_put;
+    int64_t disagg_block_read_ahead_frontier;
     int64_t block_extension;
     int64_t block_alloc;
     int64_t block_free;
@@ -1479,6 +1484,7 @@ struct __wt_dsrc_stats {
     int64_t cache_pages_prefetch;
     int64_t cache_pages_requested_internal;
     int64_t cache_pages_requested_leaf;
+    int64_t cache_pages_requested_hs;
     int64_t cache_eviction_pages_seen;
     int64_t cache_write;
     int64_t cache_write_restore_invisible;
@@ -1637,7 +1643,6 @@ struct __wt_dsrc_stats {
     int64_t layered_curs_upgrade_ingest;
     int64_t layered_curs_upgrade_stable;
     int64_t layered_table_manager_checkpoints;
-    int64_t layered_table_manager_checkpoints_refreshed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_failed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_succeed;
     int64_t layered_table_manager_logops_applied;

@@ -624,7 +624,7 @@ __wt_page_block_meta_assign(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
      * Allocate an interim page ID. If the page is actually being loaded from disk, it's ok to waste
      * some IDs for now.
      */
-    page_id = __wt_atomic_fetch_add64(&btree->next_page_id, 1);
+    page_id = __wt_atomic_fetch_add_uint64(&btree->next_page_id, 1);
     WT_ASSERT(session, page_id >= WT_BLOCK_MIN_PAGE_ID);
 
     meta->page_id = page_id;
@@ -740,8 +740,8 @@ err:
 
     /* Increment the cache statistics. */
     __wt_cache_page_inmem_incr(session, page, size, false);
-    (void)__wt_atomic_add64(&S2C(session)->cache->pages_inmem, 1);
-    page->cache_create_gen = __wt_atomic_load64(&S2C(session)->evict->evict_pass_gen);
+    (void)__wt_atomic_add_uint64(&S2C(session)->cache->pages_inmem, 1);
+    page->cache_create_gen = __wt_atomic_load_uint64_relaxed(&S2C(session)->evict->evict_pass_gen);
 
     *pagep = page;
     return (0);
@@ -1773,20 +1773,27 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp
             ++rip;
             continue;
         case WT_CELL_VALUE:
+            /* Checkpoints use a different visibility model, so avoid clearing the timestamps. */
+            if (WT_READING_CHECKPOINT(session))
+                break;
+
+            /*
+             * We need the original timestamps of the ingest tables for the step-up even when they
+             * are globally visible.
+             */
+            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+                break;
+
             /*
              * Simple values without compression can be directly referenced on the page to avoid
              * repeatedly unpacking their cells.
              *
              * The visibility information is not referenced on the page so we need to ensure that
              * the value is globally visible at the point in time where we read the page into cache.
-             * Pages from checkpoint-related files that have been pushed onto the pre-fetch queue
-             * will be comprised of data that is globally visible, and so the reader thread which
-             * attempts to read the page into cache can skip the visible all check.
              */
-            if (!(WT_READING_CHECKPOINT(session) && F_ISSET(session, WT_SESSION_PREFETCH_THREAD)) &&
-              (WT_TIME_WINDOW_IS_EMPTY(&unpack.tw) ||
-                (!WT_TIME_WINDOW_HAS_STOP(&unpack.tw) &&
-                  __wt_txn_tw_start_visible_all(session, &unpack.tw))))
+            if (WT_TIME_WINDOW_IS_EMPTY(&unpack.tw) ||
+              (!WT_TIME_WINDOW_HAS_STOP(&unpack.tw) &&
+                __wt_txn_tw_start_visible_all(session, &unpack.tw)))
                 __wt_row_leaf_value_set(rip - 1, &unpack);
             break;
         case WT_CELL_VALUE_OVFL:

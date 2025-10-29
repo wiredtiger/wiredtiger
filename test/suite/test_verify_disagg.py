@@ -135,8 +135,6 @@ class test_verify_disagg(wttest.WiredTigerTestCase):
 
         # The leader is still alive, verify it.
         self.verify([self.session])
-        # FIXME-WT-14700: remove ignore after freeing root pages is addressed.
-        self.ignoreStdoutPattern("Mismatch in page IDs")
 
     def test_verify_leader_no_table(self):
         # Layered table does not exist, expect ENOENT
@@ -176,10 +174,10 @@ class test_verify_disagg(wttest.WiredTigerTestCase):
         self.session_follow.create(self.uri, self.table_cfg)
 
         # The follower has not picked up its first checkpoint. But since we created the layered
-        # table, it should be able to run verify on the layered URI. However,the stable table
-        # does not exist, so we expect ENOENT. Followers are only able to create their ingest
-        # constituents. They see stable through checkpoint or step-up.
-        self.verify([self.session_follow], errno.ENOENT)
+        # table, it should be able to run verify on the layered URI. However, the stable table
+        # does not exist, so we catch ENOENT and return 0. Followers are only able to create
+        # their ingest constituents. They see stable through checkpoint or step-up.
+        self.verify([self.session_follow])
 
         # Create an empty checkpoint
         self.session.checkpoint()

@@ -660,7 +660,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     size_t parent_decr, size;
     uint64_t split_gen;
     uint32_t deleted_entries, *deleted_refs, hint, i, j, parent_entries, result_entries;
-    uint8_t ref_changes;
+    uint8_t rec_state;
     bool empty_parent;
 
 #ifdef HAVE_DIAGNOSTIC
@@ -711,10 +711,10 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
              * the prefetch thread would crash if it sees a freed ref.
              */
             if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
-                WT_ACQUIRE_READ(ref_changes, next_ref->ref_changes);
+                rec_state = __wt_atomic_load_uint8_v_acquire(&next_ref->rec_state);
             else
-                ref_changes = 0;
-            if (ref_changes == 0 && next_ref != ref &&
+                rec_state = WT_REF_REC_CLEAN;
+            if (rec_state == WT_REF_REC_CLEAN && next_ref != ref &&
               WT_REF_GET_STATE(next_ref) == WT_REF_DELETED &&
               (btree->type != BTREE_COL_VAR || i != 0) &&
               !F_ISSET_ATOMIC_8(next_ref, WT_REF_FLAG_PREFETCH) &&
@@ -1287,7 +1287,7 @@ __split_internal_should_split(WT_SESSION_IMPL *session, WT_REF *ref)
      * Deepen the tree if the page's memory footprint is larger than the maximum size for a page in
      * memory (presumably putting eviction pressure on the cache).
      */
-    if (__wt_atomic_loadsize(&page->memory_footprint) > btree->maxmempage)
+    if (__wt_atomic_load_size_relaxed(&page->memory_footprint) > btree->maxmempage)
         return (true);
 
     /*
@@ -1655,13 +1655,11 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
              * will find we have already instantiated a prepared update (possibly with a prepared
              * tombstone) by the page in-memory code. Discard the re-instantiated prepared updates.
              *
-             * If we have instantiated a tombstone when we read the page back into memory, discard
-             * it as well. FIXME- WT-15619 and WT-15618: no need to consider the delta case after we
-             * have implemented delta consolidation
+             * If we have instantiated a tombstone when we read the page back into memory, don't
+             * discard it as it may still be needed for delta building.
              */
-            if ((F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
-                  WT_TIME_WINDOW_HAS_PREPARE(&supd->tw)) ||
-              WT_DELTA_LEAF_ENABLED(session))
+            if (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+              WT_TIME_WINDOW_HAS_PREPARE(&supd->tw))
                 for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
                     ;
 
@@ -1669,9 +1667,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             WT_ERR(__wt_row_modify(&cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
 
             if (last_upd != NULL && last_upd->next != NULL) {
-                WT_ASSERT(session,
-                  F_ISSET(last_upd->next,
-                    WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DS));
+                WT_ASSERT(session, F_ISSET(last_upd->next, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
                 __split_free_update_list(session, last_upd, &free_size);
             }
             break;
@@ -1878,7 +1874,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
     }
 
     if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
-        __wt_atomic_addv8(&ref->ref_changes, 1);
+        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
 
     switch (page->type) {
     case WT_PAGE_COL_INT:
@@ -2144,7 +2140,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      * page is not skipped by a checkpoint.
      */
     page->modify->first_dirty_txn = WT_TXN_FIRST;
-
+    F_SET_ATOMIC_16(page, WT_PAGE_INMEM_SPLIT);
     /*
      * We modified the page above, which will have set the first dirty transaction to the last
      * transaction current running. However, the updates we installed may be older than that. Set
@@ -2500,7 +2496,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool 
 
     /* Swap the new page into place. */
     if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
-        __wt_atomic_addv8(&ref->ref_changes, 1);
+        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
     ref->page = new->page;
 
     if (change_ref_state)
