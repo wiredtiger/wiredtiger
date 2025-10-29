@@ -93,8 +93,7 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     WT_ASSERT(session, file_func == __wt_verify);
 
     /*
-     * Verifying stable tables of layered tables uses the existing verify logic. Ingest tables,
-     * however, must be empty of no-op. We only verify the ingest tables of leaders.
+     * Verifying stable tables of layered tables uses the existing verify logic. The same applies to ingest tables of leaders. However, on followers ingest tables must be empty.
      */
 
     /* Verify the stable table of the layered table. */
