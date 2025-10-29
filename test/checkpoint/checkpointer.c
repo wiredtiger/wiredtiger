@@ -458,8 +458,8 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts, bool use_check
         }
     }
 
-    /* Pick a reference table at random. */
-    reference_table = (int)(__wt_random(&g.opts.extra_rnd) % (uint32_t)g.ntables);
+    /* Use the first table as the reference table. */
+    reference_table = 1;
     while (ret == 0) {
         /* Advance the reference table's cursor. */
         ret = do_cursor_next(cursors[reference_table]);
