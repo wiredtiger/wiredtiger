@@ -1471,6 +1471,7 @@ record_loop:
                 case WT_UPDATE_TOMBSTONE:
                     deleted = true;
                     twp = &clear_tw;
+                    r->key_removed_from_disk_image = true;
                     break;
                 default:
                     WT_ERR(__wt_illegal_value(session, upd->type));

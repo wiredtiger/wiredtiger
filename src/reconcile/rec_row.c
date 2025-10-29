@@ -1361,6 +1361,7 @@ __wti_rec_row_leaf(
 
                 /* Not creating a key so we can't use last-key as a prefix for a subsequent key. */
                 lastkey->size = 0;
+                r->key_removed_from_disk_image = true;
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, upd->type));
