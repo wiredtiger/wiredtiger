@@ -38,11 +38,11 @@
 #define ERR_DATA_MISMATCH 0x200002
 
 /*
- * There are three different table types in the test, and a 'special' type of mixed (i.e a mixture
+ * There are two different table types in the test, and a 'special' type of mixed (i.e a mixture
  * of the other three types.
  */
-#define MAX_TABLE_TYPE 3
-typedef enum { MIX = 0, COL, ROW } table_type; /* File type */
+#define MAX_TABLE_TYPE 2
+typedef enum { MIX = 0, ROW, COL } table_type; /* File type */
 
 /*
  * For a predictable run we reserve timestamps for each thread for the entire run. The timestamp for
