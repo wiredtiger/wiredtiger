@@ -2140,7 +2140,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      * page is not skipped by a checkpoint.
      */
     page->modify->first_dirty_txn = WT_TXN_FIRST;
-
+    F_SET_ATOMIC_16(page, WT_PAGE_INMEM_SPLIT);
     /*
      * We modified the page above, which will have set the first dirty transaction to the last
      * transaction current running. However, the updates we installed may be older than that. Set
