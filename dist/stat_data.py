@@ -222,6 +222,7 @@ conn_stats = [
     BlockStat('block_byte_write_checkpoint', 'bytes written for checkpoint', 'size'),
     BlockStat('block_byte_write_mmap', 'bytes written via memory map API', 'size'),
     BlockStat('block_byte_write_syscall', 'bytes written via system call API', 'size'),
+    BlockStat('block_first_srch_walk_time', 'time spent(usecs) on the most recent linear walk of extents during first-fit allocation', 'no_clear,no_scale'),
     BlockStat('block_map_read', 'mapped blocks read'),
     BlockStat('block_preload', 'blocks pre-loaded'),
     BlockStat('block_read', 'blocks read'),

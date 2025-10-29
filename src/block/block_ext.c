@@ -86,9 +86,12 @@ __block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
  *     Search the skiplist for the first available slot.
  */
 static inline bool
-__block_first_srch(WT_EXT **head, wt_off_t size, WT_EXT ***stack)
+__block_first_srch(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t size, WT_EXT ***stack)
 {
     WT_EXT *ext;
+    uint64_t elapsed, time_start, time_stop;
+
+    time_start = __wt_clock(session);
 
     /*
      * Linear walk of the available chunks in offset order; take the first one that's large enough.
@@ -96,6 +99,11 @@ __block_first_srch(WT_EXT **head, wt_off_t size, WT_EXT ***stack)
     WT_EXT_FOREACH (ext, head)
         if (ext->size >= size)
             break;
+
+    time_stop = __wt_clock(session);
+    elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
+    WT_STAT_CONN_SET(session, block_first_srch_walk_time, elapsed);
+
     if (ext == NULL)
         return (false);
 
@@ -511,7 +519,7 @@ __wt_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_o
     if (block->live.avail.bytes < (uint64_t)size)
         goto append;
     if (block->allocfirst) {
-        if (!__block_first_srch(block->live.avail.off, size, estack))
+        if (!__block_first_srch(session, block->live.avail.off, size, estack))
             goto append;
         ext = *estack[0];
     } else {
@@ -1402,9 +1410,9 @@ __ut_block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
 }
 
 bool
-__ut_block_first_srch(WT_EXT **head, wt_off_t size, WT_EXT ***stack)
+__ut_block_first_srch(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t size, WT_EXT ***stack)
 {
-    return (__block_first_srch(head, size, stack));
+    return (__block_first_srch(session, head, size, stack));
 }
 
 void
