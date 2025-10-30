@@ -178,6 +178,20 @@ join(const Range &range, const Separator &sep)
     return ss.str();
 }
 
+// Base-2 (binary) units
+constexpr uint64_t operator""_KB(unsigned long long val)
+{
+    return val * 1024;
+}
+constexpr uint64_t operator""_MB(unsigned long long val)
+{
+    return val * 1024 * 1024;
+}
+constexpr uint64_t operator""_GB(unsigned long long val)
+{
+    return val * 1024 * 1024 * 1024;
+}
+
 // Unix epoch microseconds
 inline auto
 now_us()
@@ -191,7 +205,8 @@ struct Config {
     WT_EXTENSION_API *extapi = nullptr; // WiredTiger extension API
 
     std::filesystem::path home_dir;        // Home directory for the extension
-    uint32_t cache_size_mb = 500;          // Size of cache in megabytes (default)
+    uint32_t cache_size_mb = 8'192;        // Size of cache in megabytes (default)
+    uint32_t mmap_size_mb = 8'192;         // Size of memory map in megabytes (default)
     uint32_t delay_ms = 0;                 // Average length of delay when simulated
     uint32_t error_ms = 0;                 // Average length of sleep when simulated
     uint32_t force_delay = 0;              // Force a simulated network delay every N operations
@@ -213,6 +228,7 @@ struct Config {
 
         configure_value(parser.get(), config, "home", home_dir);
         configure_value(parser.get(), config, "cache_size_mb", cache_size_mb);
+        configure_value(parser.get(), config, "mmap_size_mb", mmap_size_mb);
         configure_value(parser.get(), config, "delay_ms", delay_ms);
         configure_value(parser.get(), config, "error_ms", error_ms);
         configure_value(parser.get(), config, "force_delay", force_delay);
@@ -302,12 +318,12 @@ template <> struct std::formatter<Config> {
     format(const Config &cfg, format_context &ctx) const
     {
         return std::format_to(ctx.out(),
-          "{{cache_size_mb={}, delay_ms={}, error_ms={}, force_delay={}, "
+          "{{cache_size_mb={:L}, mmap_size_mb={:L}, delay_ms={}, error_ms={}, force_delay={}, "
           "force_error={}, materialization_delay_ms={}, last_materialized_lsn={}, "
           "verbose={}, verbose_msg={}, sql_trace={}, verify={}}}",
-          cfg.cache_size_mb, cfg.delay_ms, cfg.error_ms, cfg.force_delay, cfg.force_error,
-          cfg.materialization_delay_ms, cfg.last_materialized_lsn, cfg.verbose, cfg.verbose_msg,
-          cfg.sql_trace, cfg.verify);
+          cfg.cache_size_mb, cfg.mmap_size_mb, cfg.delay_ms, cfg.error_ms, cfg.force_delay,
+          cfg.force_error, cfg.materialization_delay_ms, cfg.last_materialized_lsn, cfg.verbose,
+          cfg.verbose_msg, cfg.sql_trace, cfg.verify);
     }
 };
 
@@ -644,8 +660,6 @@ template <> struct std::formatter<PageInfo> {
     }
 };
 
-enum class GlobalKey : uint64_t { LSN = 0, CHECKPOINT_COMPLETED = 1, CHECKPOINT_STARTED = 2 };
-
 class Storage {
     enum Statement {
         BEGIN,
@@ -654,8 +668,8 @@ class Storage {
         PUT_CHECKPOINT,
         GET_CHECKPOINT,
         DELETE_CHECKPOINTS,
-        PUT_GLOBAL,
-        GET_GLOBAL,
+        GET_NEXT_LSN,
+        GET_LAST_LSN,
         PUT_PAGE,
         GET_PAGE_IDS,
         GET_FULL_PAGE_LSN,
@@ -766,11 +780,19 @@ class Storage {
                 a[DELETE_CHECKPOINTS] = R"(
                     DELETE FROM checkpoints
                     WHERE lsn > ?;)";
-                a[PUT_GLOBAL] = R"(
-                    INSERT OR REPLACE INTO globals (key, val)
-                    VALUES (?, ?);)";
-                a[GET_GLOBAL] = R"(
-                    SELECT val FROM globals WHERE key = ?;)";
+
+                /* Increment LSN and get the value. */
+                a[GET_NEXT_LSN] = R"(
+                    UPDATE lsn
+                    SET lsn = lsn + 1
+                    WHERE id = 0
+                    RETURNING lsn;)";
+
+                /* Get the last LSN. */
+                a[GET_LAST_LSN] = R"(
+                    SELECT lsn
+                    FROM lsn
+                    WHERE id = 0;)";
 
                 /* !!! Insert new pages or replace write failures.
 
@@ -1046,6 +1068,7 @@ private:
     {
         std::call_once(
           db_init, [this](sqlite3 *d) { create_tables(d); }, db);
+        configure_connection(db);
     }
 
     void
@@ -1125,35 +1148,67 @@ private:
              ON pages (table_id, page_id, backlink_lsn)
              WHERE delta = 1 AND discarded = 0;)",
 
-          R"(CREATE TABLE IF NOT EXISTS globals (
-                key INTEGER NOT NULL,
-                val INTEGER NOT NULL,
-                PRIMARY KEY (key)
+          /* LSN counter table. */
+          R"(CREATE TABLE IF NOT EXISTS lsn (
+                id INTEGER PRIMARY KEY DEFAULT 0 CHECK (id = 0),
+                lsn INTEGER NOT NULL
             );)",
+
+          /* Init LSN counter, if the table is empty; do nothing otherwise. */
+          R"(INSERT OR IGNORE INTO lsn(id, lsn) VALUES (0, 0);)"
 
           R"(CREATE TABLE IF NOT EXISTS checkpoints (
                 lsn INTEGER NOT NULL,
                 timestamp INTEGER NOT NULL,
                 checkpoint_metadata BLOB,
                 PRIMARY KEY (lsn, timestamp)
-            );)",
-
-          // These keys correspond to the GlobalKey enumeration.
-          // Key 0: LSN, 1 will be used next
-          "INSERT OR IGNORE INTO globals(key, val) VALUES (0, 1);",
-
-          // TODO: remove if not needed
-          // Key 1: Checkpoint completed
-          "INSERT OR IGNORE INTO globals(key, val) VALUES (1, 0);",
-
-          // Key 2: Checkpoint started
-          "INSERT OR IGNORE INTO globals(key, val) VALUES (2, 0);"};
+            );)"};
 
         for (const char *sql : create_statements) {
             SQL_CALL_CHECK(db, sqlite3_exec, db, sql, nullptr, nullptr, nullptr);
         }
 
         LOG_DEBUG("SQLite database schema initialized");
+    }
+
+    void
+    configure_connection(sqlite3 *db)
+    {
+        // The WAL journaling mode uses a write-ahead log instead of a rollback
+        // journal to implement transactions. This significantly improves performance.
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA journal_mode = WAL;", nullptr, nullptr, nullptr);
+
+        // Turn Synchronous mode OFF for better performance.
+        // We don't care about database corruption in case of OS crash or power failure.
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA synchronous = OFF;", nullptr, nullptr, nullptr);
+
+        // For temporary store use memory instead of disk.
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA temp_store = MEMORY;", nullptr, nullptr, nullptr);
+
+        // Uses memory mapping instead of read/write calls when the database
+        // is < mmap_size in bytes.
+        const uint64_t MMAP_SIZE = config.mmap_size_mb * 1_MB;
+        SQL_CALL_CHECK(db, sqlite3_exec, db,
+          std::format("PRAGMA mmap_size = {};", MMAP_SIZE).c_str(), nullptr, nullptr, nullptr);
+
+        // Increase page size to 16KB (default is 4KB). This improves performance
+        // for tables with BLOBs.
+        const uint64_t PAGE_SIZE = 16_KB;
+        SQL_CALL_CHECK(db, sqlite3_exec, db,
+          std::format("PRAGMA page_size = {};", PAGE_SIZE).c_str(), nullptr, nullptr, nullptr);
+
+        // Set cache size as configured.
+        // Cache size is specified in megabytes. Convert to number of pages.
+        const uint64_t CACHE_PAGES = (config.cache_size_mb * 1_MB) / PAGE_SIZE;
+        SQL_CALL_CHECK(db, sqlite3_exec, db,
+          std::format("PRAGMA cache_size = {};", CACHE_PAGES).c_str(), nullptr, nullptr, nullptr);
+
+        // Set busy timeout to 10 seconds.
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA busy_timeout = 10000;", nullptr, nullptr, nullptr);
     }
 
     void
@@ -1300,21 +1355,23 @@ public:
     }
 
     uint64_t
-    get_global(Connection &conn, GlobalKey key)
+    get_lsn(Connection &conn, Statement stmt_type)
     {
-        StatementPtr stmt = conn.db_statement(Statement::GET_GLOBAL);
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(key));
+        StatementPtr stmt = conn.db_statement(stmt_type);
         SQ_CHECK(sqlite3_step, stmt.get());
         return sqlite3_column_int64(stmt.get(), 0);
     }
 
-    void
-    put_global(Connection &conn, GlobalKey key, uint64_t val)
+    uint64_t
+    get_next_lsn(Connection &conn)
     {
-        StatementPtr stmt = conn.db_statement(Statement::PUT_GLOBAL);
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(key));
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(val));
-        SQ_CHECK(sqlite3_step, stmt.get());
+        return get_lsn(conn, Statement::GET_NEXT_LSN);
+    }
+
+    uint64_t
+    get_last_lsn(Connection &conn)
+    {
+        return get_lsn(conn, Statement::GET_LAST_LSN);
     }
 
     void
@@ -1722,10 +1779,9 @@ public:
         // TODO: handle dek encryption
 
         Storage::Transaction txn = storage.begin_transaction();
-        uint64_t lsn = storage.get_global(txn.conn, GlobalKey::LSN);
+        uint64_t lsn = storage.get_next_lsn(txn.conn);
         storage.put_page(txn.conn, table_id, page_id, lsn, args, buf);
         storage.verify_page_chain(txn.conn, table_id, page_id, lsn);
-        storage.put_global(txn.conn, GlobalKey::LSN, lsn + 1);
         storage.commit_transaction(txn);
         args->lsn = lsn;
 
@@ -1774,10 +1830,9 @@ public:
     {
         storage.simulate_unstable_network();
         Storage::Transaction txn = storage.begin_transaction();
-        uint64_t lsn = storage.get_global(txn.conn, GlobalKey::LSN);
+        uint64_t lsn = storage.get_next_lsn(txn.conn);
         storage.discard_page(txn.conn, table_id, page_id, lsn, args);
         storage.verify_page_chain(txn.conn, table_id, page_id, lsn);
-        storage.put_global(txn.conn, GlobalKey::LSN, lsn + 1);
         storage.commit_transaction(txn);
         args->lsn = lsn;
         LOG_DEBUG("Discard page_id={} at lsn={}, backlink_lsn={}, base_lsn={}", page_id, lsn,
@@ -1935,9 +1990,8 @@ public:
       const WT_ITEM *checkpoint_metadata, uint64_t *lsnp)
     {
         Storage::Transaction txn = storage.begin_transaction();
-        uint64_t lsn = storage.get_global(txn.conn, GlobalKey::LSN);
+        uint64_t lsn = storage.get_next_lsn(txn.conn);
         storage.put_checkpoint(txn.conn, lsn, checkpoint_timestamp, checkpoint_metadata);
-        storage.put_global(txn.conn, GlobalKey::LSN, lsn + 1);
         storage.commit_transaction(txn);
 
         LOG_DEBUG(
@@ -1991,7 +2045,7 @@ public:
         }
 
         Storage::Transaction txn = storage.begin_transaction();
-        *lsn = storage.get_global(txn.conn, GlobalKey::LSN);
+        *lsn = storage.get_last_lsn(txn.conn);
         storage.commit_transaction(txn);
         LOG_TRACE("last_lsn={}", *lsn);
 
