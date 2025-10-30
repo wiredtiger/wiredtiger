@@ -145,8 +145,8 @@ class test_hs01(wttest.WiredTigerTestCase):
         cache_hs_key_processed = self.get_stat(stat.conn.cache_hs_key_processed)
         cache_hs_update_processed = self.get_stat(stat.conn.cache_hs_update_processed)
         self.assertEqual(hs_writes, nrows-1)
-        self.assertEqual(cache_hs_key_processed,nrows-1)
-        self.assertEqual(cache_hs_update_processed,nrows-1)
+        self.assertEqual(cache_hs_key_processed, nrows-1)
+        self.assertEqual(cache_hs_update_processed, nrows-1)
 
         # Check to see the latest updated value after recovery.
         self.durable_check(bigvalue2, uri, ds)
@@ -170,6 +170,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         # The stats was already set at: nrows-1 (previous hs stats)
         # Total: (nrows-1)*3
         self.assertEqual(hs_writes, (nrows-1) * 3)
+
         # Check to see the modified value after recovery.
         self.durable_check(bigvalue3, uri, ds)
         session2.rollback_transaction()
