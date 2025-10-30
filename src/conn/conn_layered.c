@@ -12,7 +12,7 @@ static int __disagg_copy_shared_metadata_one(WT_SESSION_IMPL *session, const cha
 static int __layered_drain_ingest_tables(WT_SESSION_IMPL *session);
 static void __layered_update_prune_timestamps_print_update_logs(WT_SESSION_IMPL *session,
   WT_LAYERED_TABLE *layered_table, wt_timestamp_t prune_timestamp, int64_t ckpt_inuse);
-static int __layered_update_gc_ingest_tables_prune_timestamps(
+static int __layered_iterate_ingest_tables_for_gc_pruning(
   WT_SESSION_IMPL *session, wt_timestamp_t checkpoint_timestamp);
 static int __layered_last_checkpoint_order(
   WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order);
@@ -583,7 +583,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
 
     /* Update ingest tables' prune timestamps. */
     WT_ERR_MSG_CHK(session,
-      __layered_update_gc_ingest_tables_prune_timestamps(internal_session, checkpoint_timestamp),
+      __layered_iterate_ingest_tables_for_gc_pruning(internal_session, checkpoint_timestamp),
       "Updating prune timestamp failed");
 
     /* Log the completion of the checkpoint pick-up. */
@@ -2008,11 +2008,11 @@ err:
 }
 
 /*
- * __layered_update_gc_ingest_tables_prune_timestamps --
+ * __layered_iterate_ingest_tables_for_gc_pruning --
  *     Iterate over all ingest tables and check whether their prune timestamps could be updated.
  */
 static int
-__layered_update_gc_ingest_tables_prune_timestamps(
+__layered_iterate_ingest_tables_for_gc_pruning(
   WT_SESSION_IMPL *session, wt_timestamp_t checkpoint_timestamp)
 {
     WT_CONNECTION_IMPL *conn;
@@ -2039,6 +2039,10 @@ __layered_update_gc_ingest_tables_prune_timestamps(
         /*
          * Unlock the mutex while handling a table since while updating the prune timestamp we get a
          * dhandle lock which could cause a deadlock.
+         *
+         * Releasing the mutex may allow the table to grow, shrink or be modified during this
+         * operation. It's okay to prune an element twice in a loop (the second pruning will
+         * probably do nothing), or miss an element to prune (it will be visited next time).
          */
         __wt_spin_unlock(session, &manager->layered_table_lock);
         WT_ERR(__layered_update_ingest_table_prune_timestamp(
