@@ -932,9 +932,9 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
           "moving %" WT_SIZET_FMT " updates to the history store in saved update list %u of ref %p",
           updates.size, i, (void *)ref);
 
-        cache_hs_update_processed += updates.size;
-
         if (updates.size > 0) {
+            cache_hs_update_processed += updates.size;
+
             __wt_update_vector_peek(&updates, &oldest_upd);
 
             WT_ASSERT(session,
