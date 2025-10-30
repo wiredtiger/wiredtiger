@@ -1719,53 +1719,53 @@ __debug_update_dump_flags(WT_DBG *ds, WT_UPDATE *upd)
         int flag_num = 0;
         if (F_ISSET(upd, WT_UPDATE_DELETE_DURABLE)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "delete-durable") : ds->f(ds, ", delete-durable"));
-            flag_num++;
+            ++flag_num;
         }
         if (F_ISSET(upd, WT_UPDATE_DS)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "data-store") : ds->f(ds, ", data-store"));
-            flag_num++;
+            ++flag_num;
         }
         if (F_ISSET(upd, WT_UPDATE_DURABLE)) {
-            WT_RET(flag_num == 0 ? ds->f(ds, "durable") : ds->f(ds, ", data-store"));
-            flag_num++;
+            WT_RET(flag_num == 0 ? ds->f(ds, "durable") : ds->f(ds, ", durable"));
+            ++flag_num;
         }
         if (F_ISSET(upd, WT_UPDATE_HS)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "history-store") : ds->f(ds, ", history-store"));
-            flag_num++;
+            ++flag_num;
         }
         if (F_ISSET(upd, WT_UPDATE_HS_MAX_STOP)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "hs-max-stop") : ds->f(ds, ", hs-max-stop"));
-            flag_num++;
+            ++flag_num;
         }
         if (F_ISSET(upd, WT_UPDATE_PREPARE_DURABLE)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "prepare-durable") : ds->f(ds, ", prepare-durable"));
-            flag_num++;
+            ++flag_num;
         }
         if (F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "prepare-restored-from-ds") :
                                    ds->f(ds, ", prepare-restored-from-ds"));
-            flag_num++;
+            ++flag_num;
         }
         if (F_ISSET(upd, WT_UPDATE_PREPARE_ROLLBACK)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "prepare-rollback") : ds->f(ds, ", prepare-rollback"));
-            flag_num++;
+            ++flag_num;
         }
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FAST_TRUNCATE)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "fast-truncate") : ds->f(ds, ", fast-truncate"));
-            flag_num++;
+            ++flag_num;
         }
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "restored-from-delta") :
                                    ds->f(ds, ", restored-from-delta"));
-            flag_num++;
+            ++flag_num;
         }
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "restored-from-ds") : ds->f(ds, ", restored-from-ds"));
-            flag_num++;
+            ++flag_num;
         }
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "restored-from-hs") : ds->f(ds, ", restored-from-hs"));
-            flag_num++;
+            ++flag_num;
         }
         WT_RET(ds->f(ds, "]\n"));
     }
