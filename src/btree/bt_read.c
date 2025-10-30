@@ -154,12 +154,12 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_REF_STATE previous_state;
     size_t count, i;
     uint32_t page_flags;
-    bool instantiate_upd, disk_image_freed;
+    bool instantiate_upd, disk_image_freed, page_change;
 
     WT_CLEAR(block_meta);
     tmp = NULL;
     count = 0;
-    disk_image_freed = false;
+    disk_image_freed = page_change = false;
     page = NULL;
 
     /* Lock the WT_REF. */
@@ -278,12 +278,15 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             __wt_buf_free(session, &deltas[i]);
         WT_ERR(ret);
         /* The page may be changed if we consolidate the deltas to a new page. */
-        page = ref->page;
+        if (page != ref->page) {
+            page = ref->page;
+            page_change = true;
+        }
     }
 
     __wt_free(session, tmp);
 
-    if (instantiate_upd && !WT_IS_HS(session->dhandle))
+    if (!page_change && instantiate_upd && !WT_IS_HS(session->dhandle))
         WT_ERR(__wti_page_inmem_updates(session, ref));
 
     /*
