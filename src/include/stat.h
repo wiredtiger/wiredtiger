@@ -550,12 +550,15 @@ struct __wt_connection_stats {
     int64_t eviction_queue_empty;
     int64_t eviction_queue_not_empty;
     int64_t eviction_server_skip_dirty_pages_during_checkpoint;
+    int64_t eviction_server_skip_ingest_trees;
     int64_t eviction_server_skip_intl_page_with_active_child;
     int64_t eviction_server_skip_metatdata_with_history;
     int64_t eviction_server_skip_pages_checkpoint_timestamp;
     int64_t eviction_server_skip_pages_last_running;
+    int64_t eviction_server_skip_pages_prune_timestamp;
     int64_t eviction_server_skip_pages_retry;
     int64_t eviction_server_skip_unwanted_pages;
+    int64_t eviction_server_skip_stable_trees;
     int64_t eviction_server_skip_unwanted_tree;
     int64_t eviction_server_skip_trees_too_many_active_walks;
     int64_t eviction_server_skip_checkpointing_trees;
@@ -616,6 +619,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_hs_cursor_not_cached;
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
+    int64_t cache_hs_key_processed;
     int64_t cache_hs_ondisk_max;
     int64_t cache_hs_ondisk;
     int64_t cache_hs_read;
@@ -631,6 +635,7 @@ struct __wt_connection_stats {
     int64_t cache_hs_btree_truncate_dryrun;
     int64_t cache_hs_key_truncate_rts_unstable_dryrun;
     int64_t cache_hs_key_truncate_rts_dryrun;
+    int64_t cache_hs_update_processed;
     int64_t cache_hs_order_reinsert;
     int64_t cache_hs_write_squash;
     int64_t cache_inmem_splittable;
@@ -953,7 +958,6 @@ struct __wt_connection_stats {
     int64_t layered_curs_upgrade_ingest;
     int64_t layered_curs_upgrade_stable;
     int64_t layered_table_manager_checkpoints;
-    int64_t layered_table_manager_checkpoints_refreshed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_failed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_succeed;
     int64_t layered_table_manager_logops_applied;
@@ -1434,6 +1438,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_hs_cursor_not_cached;
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
+    int64_t cache_hs_key_processed;
     int64_t cache_hs_read;
     int64_t cache_hs_read_miss;
     int64_t cache_hs_read_squash;
@@ -1447,6 +1452,7 @@ struct __wt_dsrc_stats {
     int64_t cache_hs_btree_truncate_dryrun;
     int64_t cache_hs_key_truncate_rts_unstable_dryrun;
     int64_t cache_hs_key_truncate_rts_dryrun;
+    int64_t cache_hs_update_processed;
     int64_t cache_hs_order_reinsert;
     int64_t cache_hs_write_squash;
     int64_t cache_inmem_splittable;
@@ -1641,7 +1647,6 @@ struct __wt_dsrc_stats {
     int64_t layered_curs_upgrade_ingest;
     int64_t layered_curs_upgrade_stable;
     int64_t layered_table_manager_checkpoints;
-    int64_t layered_table_manager_checkpoints_refreshed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_failed;
     int64_t layered_table_manager_checkpoints_disagg_pick_up_succeed;
     int64_t layered_table_manager_logops_applied;

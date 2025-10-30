@@ -50,7 +50,7 @@ def gen_disagg_storages(test_name='', disagg_only = False):
             is_local_storage = True,
             num_ops=100,
             ds_name = page_log,
-            disagg_verbose = page_log_verbose)),
+            disagg_verbose = int(page_log_verbose))),
         # This must be the last item as we separate the non-disagg from the disagg items later on.
         ('non_disagg', dict(is_disagg = False)),
     ]

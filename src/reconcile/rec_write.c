@@ -133,7 +133,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     if (ret != 0)
         F_SET_ATOMIC_16(ref->page, WT_PAGE_REC_FAIL);
     else
-        F_CLR_ATOMIC_16(ref->page, WT_PAGE_REC_FAIL);
+        F_CLR_ATOMIC_16(ref->page, WT_PAGE_REC_FAIL | WT_PAGE_INMEM_SPLIT);
 
 err:
     if (page_locked)
@@ -334,7 +334,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     if (ret == 0 && !(btree->evict_disabled > 0 || !F_ISSET(btree->dhandle, WT_DHANDLE_OPEN)) &&
       F_ISSET(r, WT_REC_EVICT) && !WT_PAGE_IS_INTERNAL(page) && r->multi_next == 1 &&
       F_ISSET(r, WT_REC_CALL_URGENT) && !r->update_used && r->cache_write_restore_invisible &&
-      !r->cache_upd_chain_all_aborted) {
+      !r->has_upd_chain_all_aborted && !r->key_removed_from_disk_image) {
         /*
          * If leaf delta is enabled, we should have built an empty delta if this page has been
          * reconciled before as we don't make any progress.
@@ -525,9 +525,10 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          * If the page state changed, the page has been written since reconciliation started and
          * remains dirty (that can't happen when evicting, the page is exclusively locked).
          */
-        if (__wt_atomic_cas_uint32(&mod->page_state, WT_PAGE_DIRTY_FIRST, WT_PAGE_CLEAN))
-            __wt_cache_dirty_decr(session, page);
-        else
+        if (__wt_atomic_cas_uint32(&mod->page_state, WT_PAGE_DIRTY_FIRST, WT_PAGE_CLEAN)) {
+            if (!F_ISSET(r, WT_REC_REWRITE_DELTA))
+                __wt_cache_dirty_decr(session, page);
+        } else
             WT_ASSERT_ALWAYS(
               session, !F_ISSET(r, WT_REC_EVICT), "Page state has been modified during eviction");
     }
@@ -740,6 +741,12 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     /* Track if updates were used and/or uncommitted. */
     r->update_used = false;
 
+    /* Track if there is any update chain with its updates all aborted. */
+    r->has_upd_chain_all_aborted = false;
+
+    /* Track if any key on the disk image is removed because of its deletion is globally visible. */
+    r->key_removed_from_disk_image = false;
+
     /* Track if the page can be marked clean. */
     r->leave_dirty = false;
 
@@ -804,7 +811,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     r->salvage = salvage;
 
-    r->cache_write_hs = r->cache_write_restore_invisible = r->cache_upd_chain_all_aborted = false;
+    r->cache_write_hs = r->cache_write_restore_invisible = false;
 
     /*
      * The fake cursor used to figure out modified update values points to the enclosing WT_REF as a
@@ -2674,8 +2681,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
      * If we are rewriting a page restored from delta, no need to write it but directly instantiate
      * it into memory.
      */
-    if (F_ISSET(r, WT_REC_IN_MEMORY | WT_REC_REWRITE_DELTA))
+    if (F_ISSET(r, WT_REC_IN_MEMORY | WT_REC_REWRITE_DELTA)) {
+        if (page->disagg_info != NULL)
+            *multi->block_meta = page->disagg_info->block_meta;
         goto copy_image;
+    }
 
     /* Check the eviction flag as checkpoint also saves updates. */
     if (F_ISSET(r, WT_REC_EVICT) && multi->supd != NULL) {
@@ -3065,9 +3075,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
              *
              * The exception is root pages are never tracked or free'd, they
              * are checkpoints, and must be explicitly dropped.
-             *
-             * FIXME-WT-14700: Does the root work for the same way in disagg? Do we need a separate
-             * API to tell the SLS that we are discarding a root page?
              */
         if (__wt_ref_is_root(ref))
             break;
@@ -3099,10 +3106,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                              *
                              * The exception is root pages are never tracked or free'd, they are
                              * checkpoints, and must be explicitly dropped.
-                             *
-                             * FIXME-WT-14700: Does the root work for the same way in disagg? Do we
-                             * need a separate API to tell the SLS that we are discarding a root
-                             * page?
                              */
         if (!__wt_ref_is_root(ref)) {
             /*
