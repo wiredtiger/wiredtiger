@@ -1718,7 +1718,7 @@ __debug_update_dump_flags(WT_DBG *ds, WT_UPDATE *upd)
         WT_RET(ds->f(ds, " | flags: ["));
         int flag_num = 0;
         if (F_ISSET(upd, WT_UPDATE_DELETE_DURABLE)) {
-            WT_RET(flag_num == 0 ? ds->f(ds, "delete-durable") : ds->f(ds, ", delete-durable"));
+            WT_RET(ds->f(ds, "delete-durable"));
             ++flag_num;
         }
         if (F_ISSET(upd, WT_UPDATE_DS)) {
