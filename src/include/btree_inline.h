@@ -789,8 +789,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     size = 0;
     if (WT_UNLIKELY(!WT_PAGE_IS_INTERNAL(page) &&
           __wt_atomic_load_uint64_relaxed(&S2C(session)->cache->pages_dirty_leaf) < 10 &&
-          (F_ISSET(session, WT_SESSION_INTERNAL) || WT_IS_METADATA(session->dhandle) ||
-            WT_IS_DISAGG_META(session->dhandle) || WT_IS_HS(session->dhandle)))) {
+          (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
+            WT_IS_HS(session->dhandle)))) {
         increase_dirty_size_first = true;
         size = __wt_atomic_load_size_relaxed(&page->memory_footprint);
         __wt_cache_dirty_incr_size(session, size, false);
