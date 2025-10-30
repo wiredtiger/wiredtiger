@@ -142,7 +142,11 @@ class test_hs01(wttest.WiredTigerTestCase):
         # Checkpoint and then assert that the (nrows-1) insertions were moved to history store from data store.
         self.session.checkpoint()
         hs_writes = self.get_stat(stat.conn.cache_hs_insert)
+        cache_hs_key_processed = self.get_stat(stat.conn.cache_hs_key_processed)
+        cache_hs_update_processed = self.get_stat(stat.conn.cache_hs_update_processed)
         self.assertEqual(hs_writes, nrows-1)
+        self.assertEqual(cache_hs_key_processed,nrows-1)
+        self.assertEqual(cache_hs_update_processed,nrows-1)
 
         # Check to see the latest updated value after recovery.
         self.durable_check(bigvalue2, uri, ds)
@@ -154,7 +158,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         # Open session 2.
         session2 = self.conn.open_session()
         session2.begin_transaction()
-        # Apply two modify operations (session1)- replacing the first two letters with 'A'.
+        # Apply two modify operations (sßession1)- replacing the first two letters with 'A'.
         self.large_modifies(self.session, uri, 0, ds, nrows)
         self.large_modifies(self.session, uri, 1, ds, nrows)
 
@@ -166,7 +170,6 @@ class test_hs01(wttest.WiredTigerTestCase):
         # The stats was already set at: nrows-1 (previous hs stats)
         # Total: (nrows-1)*3
         self.assertEqual(hs_writes, (nrows-1) * 3)
-
         # Check to see the modified value after recovery.
         self.durable_check(bigvalue3, uri, ds)
         session2.rollback_transaction()
