@@ -1854,6 +1854,7 @@ modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     }
 
     WT_RET(cursor->modify(cursor, tinfo->entries, tinfo->nentries));
+    /* fprintf(stderr, "modify key {%.*s}\n", (int)cursor->key.size, (char *)cursor->key.data); */
 
     testutil_check(cursor->get_value(cursor, tinfo->new_value));
 

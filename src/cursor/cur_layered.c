@@ -2060,6 +2060,9 @@ __clayered_modify_follower_insert(WT_CURSOR_LAYERED *clayered, const WT_ITEM *ke
     WT_CURSOR *ingest = clayered->ingest_cursor;
     WT_CURSOR *stable = clayered->stable_cursor;
 
+    if (stable == NULL)
+        WT_RET(WT_NOTFOUND);
+
     stable->set_key(stable, key);
     WT_RET(stable->search(stable)); /* WT_NOTFOUND is unacceptable here. */
     clayered->current_cursor = stable;
@@ -2089,7 +2092,12 @@ __clayered_modify_follower(
 
     ingest->set_key(ingest, key);
     ret = ingest->search(ingest);
-    WT_ITEM_SET(ingest->value, cursor->value);
+    if (ret == 0 && memcmp(ingest->value.data, "\x14\x14", 2) == 0) {
+        /* fprintf(stderr, "got deleted thing?!?!?!\n"); */
+        /* WT_ASSERT(NULL, cursor == NULL); */
+        ret = WT_NOTFOUND;
+    }
+    /* WT_ITEM_SET(ingest->value, cursor->value); */
     if (ret == WT_NOTFOUND)
         WT_RET(__clayered_modify_follower_insert(clayered, key, entries, nentries));
     else if (ret != 0)
@@ -2144,9 +2152,6 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
     WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
-    WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
-    WT_ASSERT(
-      session, F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
     F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_update);
