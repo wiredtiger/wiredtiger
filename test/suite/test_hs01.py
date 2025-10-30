@@ -158,7 +158,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         # Open session 2.
         session2 = self.conn.open_session()
         session2.begin_transaction()
-        # Apply two modify operations (sßession1)- replacing the first two letters with 'A'.
+        # Apply two modify operations (session1)- replacing the first two letters with 'A'.
         self.large_modifies(self.session, uri, 0, ds, nrows)
         self.large_modifies(self.session, uri, 1, ds, nrows)
 
