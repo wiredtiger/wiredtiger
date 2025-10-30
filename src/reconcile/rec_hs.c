@@ -1180,7 +1180,7 @@ err:
       session, cache_hs_insert_reverse_modify, cache_hs_insert_reverse_modify);
     WT_STAT_CONN_DSRC_INCRV(session, cache_hs_write_squash, cache_hs_write_squash);
     WT_STAT_CONN_DSRC_INCRV(session, cache_hs_key_processed, cache_hs_key_processed);
-    WT_STAT_CONN_DSRC_INCRV(session, cache_hs_key_processed, cache_hs_update_processed);
+    WT_STAT_CONN_DSRC_INCRV(session, cache_hs_update_processed, cache_hs_update_processed);
 
     return (ret);
 }
