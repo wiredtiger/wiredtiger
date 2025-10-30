@@ -729,7 +729,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
 
         __wt_update_vector_clear(&updates);
 
-        cache_hs_key_processed++;
+        ++cache_hs_key_processed;
 
         /*
          * Reverse modifies are only supported on 'S' and 'u' value formats. Disable reverse
@@ -889,8 +889,6 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              */
             WT_ERR(__wt_update_vector_push(&updates, upd));
 
-            cache_hs_update_processed++;
-
             prev_upd = upd;
 
             /*
@@ -933,6 +931,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
         __wt_verbose_debug1(session, WT_VERB_RECONCILE,
           "moving %" WT_SIZET_FMT " updates to the history store in saved update list %u of ref %p",
           updates.size, i, (void *)ref);
+
+        cache_hs_update_processed += updates.size;
 
         if (updates.size > 0) {
             __wt_update_vector_peek(&updates, &oldest_upd);
@@ -1180,6 +1180,7 @@ err:
       session, cache_hs_insert_reverse_modify, cache_hs_insert_reverse_modify);
     WT_STAT_CONN_DSRC_INCRV(session, cache_hs_write_squash, cache_hs_write_squash);
     WT_STAT_CONN_DSRC_INCRV(session, cache_hs_key_processed, cache_hs_key_processed);
+    WT_STAT_CONN_DSRC_INCRV(session, cache_hs_key_processed, cache_hs_update_processed);
 
     return (ret);
 }
