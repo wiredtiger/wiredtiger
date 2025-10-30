@@ -44,22 +44,24 @@ __block_disagg_read_err(WT_SESSION_IMPL *session, const char *name, uint32_t siz
   uint64_t lsn, bool is_delta, int32_t delta_seq, const char *context_msg_fmt, ...)
 {
     WT_DECL_RET;
+
     char context_msg_src[256];
     const char *context_msg = context_msg_src;
     va_list args;
     va_start(args, context_msg_fmt);
     WT_ERR(__wt_vsnprintf(context_msg_src, sizeof(context_msg_src), context_msg_fmt, args));
+
     char page_desc[32];
     if (is_delta)
-        WT_ERR(__wt_snprintf(page_desc, sizeof(page_desc), "base image "));
+        WT_ERR(__wt_snprintf(page_desc, sizeof(page_desc), "delta page: %" PRId32, delta_seq));
     else
-        WT_ERR(
-          __wt_snprintf(page_desc, sizeof(page_desc), "delta page: %" PRId32 "th ", delta_seq));
+        WT_ERR(__wt_snprintf(page_desc, sizeof(page_desc), "base image"));
 
     if (0) {
 err:
-        /* If the context message is too big, print the format string and drop parameters. */
+        /* If something went wrong, print the format string and drop parameters. */
         context_msg = context_msg_fmt;
+        page_desc[0] = '\0';
     }
     va_end(args);
 
@@ -199,7 +201,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                     __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn,
                       is_delta, result,
                       "compatible version error, version %" PRIu8
-                      ": is greater than compatible version of %" PRIu8,
+                      " is greater than compatible version of %" PRIu8,
                       swap.compatible_version, compatible_version);
                     goto corrupt;
                 }
@@ -241,11 +243,11 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
             if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
                 __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn, is_delta,
                   result,
-                  "calculated checksum of %" PRIu32 " doesn't match expected checksum of %" PRIu32,
+                  "calculated checksum of %" PRIx32 " doesn't match expected checksum of %" PRIx32,
                   swap.checksum, checksum);
         } else if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
             __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn, is_delta,
-              result, "header checksum of %" PRIu32 " doesn't match expected checksum of %" PRIu32,
+              result, "header checksum of %" PRIx32 " doesn't match expected checksum of %" PRIx32,
               swap.checksum, checksum);
 
 corrupt:
