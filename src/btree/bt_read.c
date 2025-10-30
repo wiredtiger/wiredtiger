@@ -277,6 +277,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         for (i = 0; i < count - 1; ++i)
             __wt_buf_free(session, &deltas[i]);
         WT_ERR(ret);
+        /* The page may be changed if we consolidate the deltas to a new page. */
+        page = ref->page;
     }
 
     __wt_free(session, tmp);
