@@ -148,6 +148,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_ADDR_COPY addr;
     WT_DECL_RET;
     WT_ITEM *deltas;
+    WT_ITEM *new_image;
     WT_ITEM *tmp;
     WT_PAGE *page;
     WT_PAGE_BLOCK_META block_meta;
@@ -246,6 +247,14 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     else
         deltas = NULL;
 
+    /* Build a full disk image of the page after reading from disk. */
+    if (/* DISABLES CODE */ (0) && count > 1) {
+        ret = __wti_build_full_disk_image_on_read(session, ref, deltas, count - 1, new_image);
+        for (i = 0; i < count - 1; ++i)
+            __wt_buf_free(session, &deltas[i]);
+        __wt_buf_free(session, new_image);
+        WT_ERR(ret);
+    }
     /*
      * Build the in-memory version of the page. Clear our local reference to the allocated copy of
      * the disk image on return, the in-memory object steals it.
