@@ -565,6 +565,9 @@ __wti_session_compact_readonly(WT_SESSION *wt_session, const char *uri, const ch
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_NOCONF(session, compact);
 
+    if (__wt_conn_is_disagg(session))
+        WT_ERR_MSG(session, ENOTSUP, "Compaction does not work with disaggregated storage.");
+
     WT_STAT_CONN_INCR(session, session_table_compact_fail);
     ret = __wti_session_notsup(session);
 err:
