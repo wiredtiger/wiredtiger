@@ -41,7 +41,7 @@ err:
  */
 static void
 __block_disagg_read_err(WT_SESSION_IMPL *session, const char *name, uint32_t size, uint64_t page_id,
-  uint64_t lsn, int32_t delta, const char *context_msg_fmt, ...)
+  uint64_t lsn, bool is_delta, int32_t delta_seq, const char *context_msg_fmt, ...)
 {
     WT_DECL_RET;
     char context_msg_src[256];
@@ -49,6 +49,12 @@ __block_disagg_read_err(WT_SESSION_IMPL *session, const char *name, uint32_t siz
     va_list args;
     va_start(args, context_msg_fmt);
     WT_ERR(__wt_vsnprintf(context_msg_src, sizeof(context_msg_src), context_msg_fmt, args));
+    char page_desc[32];
+    if (is_delta)
+        WT_ERR(__wt_snprintf(page_desc, sizeof(page_desc), "base image "));
+    else
+        WT_ERR(
+          __wt_snprintf(page_desc, sizeof(page_desc), "delta page: %" PRId32 "th ", delta_seq));
 
     if (0) {
 err:
@@ -60,8 +66,8 @@ err:
     __wt_errx(session,
       "%s: read error for %" PRIu32
       "B block at "
-      "page %" PRIu64 ", lsn %" PRIu64 ", delta %" PRId32 ", %s",
-      name, size, page_id, lsn, delta, context_msg);
+      "page %" PRIu64 ", lsn %" PRIu64 ", %s, %s",
+      name, size, page_id, lsn, page_desc, context_msg);
 }
 
 /*
@@ -182,15 +188,16 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                 expected_magic =
                   (is_delta ? WT_BLOCK_DISAGG_MAGIC_DELTA : WT_BLOCK_DISAGG_MAGIC_BASE);
                 if (swap.magic != expected_magic) {
-                    __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn, result,
-                      "magic %" PRIu8 ": doesn't match expected magic of %" PRIu8, swap.magic,
-                      expected_magic);
+                    __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn,
+                      is_delta, result, "magic %" PRIu8 ": doesn't match expected magic of %" PRIu8,
+                      swap.magic, expected_magic);
                     goto corrupt;
                 }
                 /* TODO: workaround MacOS build failure when passing macro to a string format. */
                 compatible_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
                 if (swap.compatible_version > compatible_version) {
-                    __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn, result,
+                    __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn,
+                      is_delta, result,
                       "compatible version error, version %" PRIu8
                       ": is greater than compatible version of %" PRIu8,
                       swap.compatible_version, compatible_version);
@@ -232,13 +239,13 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
             }
 
             if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-                __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn, result,
-                  "calculated block checksum of %" PRIu32
-                  " doesn't match expected checksum of %" PRIu32,
+                __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn, is_delta,
+                  result,
+                  "calculated checksum of %" PRIu32 " doesn't match expected checksum of %" PRIu32,
                   swap.checksum, checksum);
         } else if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-            __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn, result,
-              "block header checksum of %" PRIu32 " doesn't match expected checksum of %" PRIu32,
+            __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn, is_delta,
+              result, "header checksum of %" PRIu32 " doesn't match expected checksum of %" PRIu32,
               swap.checksum, checksum);
 
 corrupt:
