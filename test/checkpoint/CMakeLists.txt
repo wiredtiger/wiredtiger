@@ -20,15 +20,7 @@ define_test_variants(test_checkpoint
         "4_runs_sweep|-t m -T 4 -W 3 -r 20 -n 1000 -s 1"
         "4_runs_timestamps|-t m -T 4 -W 3 -r 20 -x -n 1000"
 
-        # 2. FLCS cases.
-        "6_fixed|-t f -T 6"
-        "6_fixed_named|-t f -T 6 -c TeSt"
-        "6_fixed_prepare|-t f -T 6 -p"
-        "6_fixed_named_prepare|-t f -T 6 -c TeSt -p"
-        "fixed_stress_sweep_timestamps|-t f -W 3 -r 2 -s 1 -x -n 100000 -k 100000 -D"
-        "fixed_sweep_timestamps|-t f -W 3 -r 2 -s 1 -x -n 100000 -k 100000"
-
-        # 3. VLCS cases.
+        # 2. VLCS cases.
         "6_column|-t c -T 6"
         "6_column_named|-t c -T 6 -c TeSt"
         "6_column_prepare|-t c -T 6 -p"
@@ -36,7 +28,7 @@ define_test_variants(test_checkpoint
         "column_stress_sweep_timestamps|-t c -W 3 -r 2 -s 1 -x -n 100000 -k 100000 -D"
         "column_sweep_timestamps|-t c -W 3 -r 2 -s 1 -x -n 100000 -k 100000"
 
-        # 4. Row-store cases.
+        # 3. Row-store cases.
         "6_row|-t r -T 6"
         "6_row_named|-t r -T 6 -c TeSt"
         "6_row_prepare|-t r -T 6 -p"
