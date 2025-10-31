@@ -759,12 +759,16 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
     uint64_t max_txn, session_txnid, txnid;
     uint8_t prepare_state;
     bool is_hs_page;
+    bool is_inmem_btree;
+    WT_UPDATE *oldest_visible_upd = NULL;
 
     conn = S2C(session);
     prepare_rollback_tombstone = NULL;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
     is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
+    is_inmem_btree =
+      F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY);
     session_txnid = __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->id);
     *write_prepare = false;
 
@@ -790,7 +794,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                      * If we have seen a tombstone that rolled back the prepared update, delete the
                      * key from the disk.
                      */
-                    if (prepare_rollback_tombstone != NULL)
+                    if (prepare_rollback_tombstone != NULL) // do we need to break here
                         break;
                     continue;
                 }
@@ -1019,6 +1023,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                 prepare_rollback_tombstone = NULL;
             }
         }
+        if (is_inmem_btree)
+            oldest_visible_upd = upd;
 
         /* Track the selected update transaction id and timestamp. */
         if (max_txn < txnid)
@@ -1044,14 +1050,15 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
          * with read uncommitted isolation and we may see a committed update followed by uncommitted
          * updates
          */
-        if (!F_ISSET(r, WT_REC_EVICT) || !WT_IS_METADATA(session->dhandle))
+        if (!is_inmem_btree && (!F_ISSET(r, WT_REC_EVICT) || !WT_IS_METADATA(session->dhandle)))
             break;
     }
 
     /* The prepare rollback is stable. Delete the key by selecting the rollback tombstone. */
     if (upd_select->upd == NULL && prepare_rollback_tombstone != NULL)
         upd_select->upd = prepare_rollback_tombstone;
-
+    if (is_inmem_btree && oldest_visible_upd != NULL)
+        upd_select->upd = oldest_visible_upd;
     /*
      * Track the most recent transaction in the page. We store this in the tree at the end of
      * reconciliation in the service of checkpoints, it is used to avoid discarding trees from
@@ -1292,7 +1299,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
     /*
      * If called with a WT_INSERT item, use its WT_UPDATE list (which must exist), otherwise check
      * for an on-page row-store WT_UPDATE list (which may not exist). Return immediately if the item
-     * has no updates.
+     * has no updates.22
      */
     if (ins != NULL)
         first_upd = ins->upd;
@@ -1302,7 +1309,10 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
         if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
             return (0);
     }
-
+    // if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
+    //   WT_RET(__rec_upd_select_inmem(session, r, vpack, first_upd, upd_select, &first_txn_upd,
+    //     &has_newer_updates, &write_prepare, &upd_memsize));
+    // else
     WT_RET(__rec_upd_select(session, r, vpack, first_upd, upd_select, &first_txn_upd,
       &has_newer_updates, &write_prepare, &upd_memsize));
 

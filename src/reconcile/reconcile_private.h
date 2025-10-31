@@ -435,7 +435,7 @@ struct __wti_reconcile {
         WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta_after_split_boundary, (ta_agg)); \
     } while (0)
 
-typedef struct {
+struct __wti_update_select {
     WT_UPDATE *upd;       /* Update to write (or NULL) */
     WT_UPDATE *tombstone; /* The tombstone to write (or NULL) */
 
@@ -443,7 +443,7 @@ typedef struct {
 
     bool upd_saved;       /* An element on the row's update chain was saved */
     bool no_ts_tombstone; /* Tombstone without a timestamp */
-} WTI_UPDATE_SELECT;
+};
 
 #define WTI_UPDATE_SELECT_INIT(upd_select)      \
     do {                                        \
