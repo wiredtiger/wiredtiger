@@ -2058,7 +2058,7 @@ __clayered_modify_leader(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *entri
  */
 static int
 __clayered_modify_follower_insert(
-                                  WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, WT_MODIFY *entries, int nentries, struct __wt_mod_crap *crap)
+  WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, WT_MODIFY *entries, int nentries, struct __wt_mod_crap *crap)
 {
     WT_CURSOR *ingest = clayered->ingest_cursor;
     WT_CURSOR *stable = clayered->stable_cursor;
@@ -2083,6 +2083,7 @@ __clayered_modify_follower_insert(
     ingest->set_value(ingest, &stable->value);
     WT_RET(__wt_modify_apply_api(ingest, entries, nentries));
     WT_RET(ingest->update(ingest));
+    WT_RET(__cursor_needvalue(ingest));
 
     return (0);
 }
@@ -2100,8 +2101,7 @@ __clayered_modify_follower(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *ent
 
     ingest->set_key(ingest, key);
     ret = ingest->search(ingest);
-    WT_RET(__cursor_needkey(ingest));
-    WT_RET(__cursor_needvalue(ingest));
+    WT_RET(__cursor_localvalue(ingest));
 
     crap->original_ret_mod_follower = ret;
     if (ret == 0 && __wt_clayered_deleted(&ingest->value)) {
@@ -2117,6 +2117,7 @@ __clayered_modify_follower(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *ent
         WT_RET(ingest->modify(ingest, entries, nentries));
     }
 
+    /* WT_RET(__cursor_needvalue(ingest)); */
     clayered->current_cursor = ingest;
     return (0);
 }
@@ -2127,7 +2128,7 @@ __clayered_modify_follower(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *ent
  */
 static int
 __clayered_modify_int(
-                      WT_SESSION_IMPL *session, WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *entries, int nentries, struct __wt_mod_crap *crap)
+  WT_SESSION_IMPL *session, WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *entries, int nentries, struct __wt_mod_crap *crap)
 {
     if (S2C(session)->layered_table_manager.leader) {
         crap->leader = true;
@@ -2162,8 +2163,14 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     crap.original_curr = clayered->current_cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
-    WT_ERR(__cursor_needkey(cursor));
+    WT_ERR(__cursor_copy_release(cursor));
+    WT_ERR(__cursor_checkkey(cursor));
+    /* WT_ERR(__cursor_needkey(cursor)); */
     WT_ERR(__clayered_enter(clayered, false, true, false));
+
+    /* Check for a rational modify vector count. */
+    if (nentries <= 0)
+        WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
 
     WT_ERR(__clayered_modify_int(session, cursor, &cursor->key, entries, nentries, &crap));
 
@@ -2173,15 +2180,17 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
     WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
+
+    /*
+     * Modify maintains a position, key and value. Unlike update, it's not always an internal value.
+     */
     WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
+    WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET) != 0);
 
-    if (!(F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT)) {
-        fprintf(stderr, "leader? %s\n", crap.leader ? "leader" : "follower");
-        WT_ASSERT(session, crap.original_key_data == NULL);
-    }
-    F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+    F_SET(cursor, WT_CURSTD_KEY_INT | F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET));
 
-    WT_STAT_CONN_DSRC_INCR(session, layered_curs_update);
+    /* TODO */
+    /* WT_STAT_CONN_DSRC_INCR(session, layered_curs_update); */
 
 err:
     __clayered_leave(clayered);
