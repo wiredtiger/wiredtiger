@@ -29,18 +29,17 @@
 import wttest
 import os
 from wiredtiger import stat
-from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered45.py
 # Entires have been durable are not included in the new delta
 
 @disagg_test_class
-class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered45(wttest.WiredTigerTestCase):
     uri = "layered:test_layered45"
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),transaction_sync=(enabled,method=fsync),' \
-                     + 'page_delta=(delta_pct=100),disaggregated=(page_log=palm),precise_checkpoint=true,preserve_prepared=true,'
-    #conn_config = conn_base_config + 'disaggregated=(role="leader")'
+                     + 'page_delta=(delta_pct=100),precise_checkpoint=true,preserve_prepared=true,'
     disagg_storages = gen_disagg_storages('test_layered45', disagg_only = True)
 
     # Make scenarios for different cloud service providers
@@ -55,12 +54,6 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader")'
-
-    # Load the storage store extension.
-    def conn_extensions(self, extlist):
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
-        extlist.extension('page_log', 'palm')
 
     def test_normal_update(self):
         self.session.create(self.uri, self.session_create_config())
@@ -103,6 +96,9 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor = self.session.open_cursor('statistics:' + self.uri)
         self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 1)
         stat_cursor.close()
+
+        session2.close()
+        cursor.close()
 
     def test_delete(self):
         self.session.create(self.uri, self.session_create_config())
@@ -156,6 +152,7 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 2)
         stat_cursor.close()
 
+        session2.close()
         session2 = self.conn.open_session()
         # Do an uncommitted update
         session2.begin_transaction()
@@ -168,6 +165,85 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor = self.session.open_cursor('statistics:' + self.uri)
         self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 2)
         stat_cursor.close()
+
+        session2.close()
+        cursor.close()
+
+    def test_delete_update_restore(self):
+        self.session.create(self.uri, self.session_create_config())
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        value1 = "a"
+
+        for i in range(self.nitems):
+            self.session.begin_transaction()
+            cursor[str(i)] = value1
+            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(5)}')
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
+
+        self.session.checkpoint()
+
+        self.session.begin_transaction()
+        cursor.set_key(str(5))
+        cursor.remove()
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(10)}')
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+
+        # We should build a delta
+        self.session.checkpoint()
+        stat_cursor = self.session.open_cursor('statistics:' + self.uri)
+        self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 1)
+        stat_cursor.close()
+
+        session2 = self.conn.open_session()
+        # Do an uncommitted update on the deleted key
+        session2.begin_transaction()
+        cursor2 = session2.open_cursor(self.uri, None, None)
+        cursor2[str(5)] = value1
+
+        # Evict the data and we should build an empty delta
+        session3 = self.conn.open_session("debug=(release_evict_page)")
+        evict_cursor = session3.open_cursor(self.uri, None, None)
+        session3.begin_transaction()
+        evict_cursor.set_key(str(4))
+        evict_cursor.search()
+        evict_cursor.close()
+        session3.rollback_transaction()
+        session3.close()
+
+        stat_cursor = self.session.open_cursor('statistics:' + self.uri)
+        self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 1)
+        stat_cursor.close()
+
+        session2.rollback_transaction()
+
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(20)},oldest_timestamp={self.timestamp_str(20)}')
+
+        # We should build a delta with delete
+        self.session.checkpoint()
+
+        stat_cursor = self.session.open_cursor('statistics:' + self.uri)
+        self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 2)
+        stat_cursor.close()
+
+        session2.close()
+        session2 = self.conn.open_session()
+        # Do an uncommitted update
+        session2.begin_transaction()
+        cursor2 = session2.open_cursor(self.uri, None, None)
+        cursor2[str(2)] = value1
+
+        # We should build an empty delta
+        self.session.checkpoint()
+
+        stat_cursor = self.session.open_cursor('statistics:' + self.uri)
+        self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 2)
+        stat_cursor.close()
+
+        session2.close()
+        cursor.close()
 
     def test_prepare_update(self):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
@@ -232,6 +308,10 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor = session2.open_cursor('statistics:' + self.uri)
         self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 2)
         stat_cursor.close()
+
+        session3.close()
+        session2.close()
+        cursor.close()
 
     def test_prepare_delete(self):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
@@ -298,6 +378,10 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 2)
         stat_cursor.close()
 
+        session3.close()
+        session2.close()
+        cursor.close()
+
     def test_prepare_update_delete(self):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         self.session.create(self.uri, self.session_create_config())
@@ -363,3 +447,7 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor = session2.open_cursor('statistics:' + self.uri)
         self.assertEqual(stat_cursor[stat.dsrc.rec_page_delta_leaf][2], 2)
         stat_cursor.close()
+
+        session3.close()
+        session2.close()
+        cursor.close()

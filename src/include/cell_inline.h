@@ -30,6 +30,23 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, bool e
 }
 
 /*
+ * __cell_assert_tw_has_ts_for_garbage_collection_table --
+ *     Assert that time window has timestamps if garbage collection is enabled for the btree.
+ */
+static WT_INLINE void
+__cell_assert_tw_has_ts_for_garbage_collection_table(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+{
+    WT_UNUSED(session);
+    WT_UNUSED(tw);
+
+    WT_ASSERT(
+      session, tw->start_ts != WT_TS_NONE || !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT));
+    WT_ASSERT(session,
+      !WT_TIME_WINDOW_HAS_STOP(tw) || tw->stop_ts != WT_TS_NONE ||
+        !F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT));
+}
+
+/*
  * __cell_pack_value_validity --
  *     Pack the validity window for a value.
  */
@@ -37,6 +54,8 @@ static WT_INLINE int
 __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDOW *tw)
 {
     uint8_t flags, *flagsp;
+
+    __cell_assert_tw_has_ts_for_garbage_collection_table(session, tw);
 
     /* Globally visible values have no associated validity window. */
     if (WT_TIME_WINDOW_IS_EMPTY(tw)) {
@@ -923,9 +942,8 @@ copy_cell_restart:
         temp_start_ts = temp_durable_start_ts = temp_durable_stop_ts = WT_TS_NONE;
         temp_stop_ts = WT_TS_MAX;
 
-        if (LF_ISSET(WT_CELL_TS_START)) {
+        if (LF_ISSET(WT_CELL_TS_START))
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_start_ts));
-        }
         if (LF_ISSET(WT_CELL_TXN_START))
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->start_txn));
         if (LF_ISSET(WT_CELL_TS_DURABLE_START))
@@ -951,15 +969,13 @@ copy_cell_restart:
              * recovering, all transaction ids are reset to WT_TXN_NONE, so we cannot compare the
              * transaction ids.
              */
-            if (tw->start_txn == tw->stop_txn) {
+            if (tw->start_txn == tw->stop_txn && temp_stop_ts == WT_TS_NONE) {
                 /*
                  * This is a special case where both transaction start and stop are in prepared
-                 * state.
-                 */
-                WT_ASSERT(session, temp_stop_ts == WT_TS_NONE);
-                /*
-                 * The prepared record is written with the preserve prepared config enabled. The
-                 * same prepared id is packed to WT_CELL_TS_DURABLE_START.
+                 * state. The prepared record is written with the preserve prepared config enabled.
+                 * The same prepared id is packed to WT_CELL_TS_DURABLE_START. Since temp_stop_ts
+                 * here stores the difference between start_prepared_id and stop_prepared_id,
+                 * temp_stop_ts must be 0.
                  */
                 if (temp_durable_start_ts != WT_TS_NONE) {
                     WT_ASSERT(session, temp_durable_stop_ts == WT_TS_NONE);
@@ -1001,7 +1017,7 @@ copy_cell_restart:
                       "Read prepared record with no prepared id when preserve prepared is "
                       "enabled.");
             } else {
-                WT_ASSERT(session, tw->start_ts == WT_TXN_NONE);
+                WT_ASSERT(session, tw->start_ts == WT_TS_NONE);
                 /*
                  * This case happens when only transaction start is prepared, and there is no
                  * transaction stop. In this case, we store the prepare ts in WT_CELL_TS_START.
@@ -1033,6 +1049,8 @@ copy_cell_restart:
             else if (tw->stop_ts != WT_TS_MAX)
                 tw->durable_stop_ts = tw->stop_ts;
         }
+
+        __cell_assert_tw_has_ts_for_garbage_collection_table(session, tw);
 
         WT_RET(__cell_check_value_validity(session, tw, end != NULL));
         break;

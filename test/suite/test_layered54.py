@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
 import time
@@ -37,7 +37,7 @@ import time
 # Tests that prefix and suffix compression are working properly for page deltas.
 
 @disagg_test_class
-class test_layered54(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered54(wttest.WiredTigerTestCase):
 
     delta = [
         ('write_leaf_only', dict(delta_config='page_delta=(internal_page_delta=false,leaf_page_delta=true)', delta_type='leaf_only')),
@@ -46,7 +46,7 @@ class test_layered54(wttest.WiredTigerTestCase, DisaggConfigMixin):
     ]
 
     conn_base_config = 'cache_size=32MB,transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(page_log=palm),page_delta=(delta_pct=100),'
+                     + 'page_delta=(delta_pct=100),'
     disagg_storages = gen_disagg_storages('test_layered54', disagg_only = True)
 
     nrows = 1000
@@ -64,10 +64,6 @@ class test_layered54(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def conn_config(self):
         return self.conn_base_config + f'disaggregated=(role="leader"),{self.delta_config},'
 
-    # Load the storage store extension.
-    def conn_extensions(self, extlist):
-        DisaggConfigMixin.conn_extensions(self, extlist)
-
     def get_stat(self, stat, uri = None):
         if not uri:
             uri = ''
@@ -76,7 +72,7 @@ class test_layered54(wttest.WiredTigerTestCase, DisaggConfigMixin):
         stat_cursor.close()
         return val
 
-    def insert(self, kv, ts):
+    def insert_or_update(self, kv, ts):
         cursor = self.session.open_cursor(self.uri, None, None)
         for k, v in kv.items():
             self.session.begin_transaction()
@@ -84,12 +80,15 @@ class test_layered54(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(ts))
         cursor.close()
 
-    def verify(self, kv):
+    def verify(self, kv, kv_modified):
         cursor = self.session.open_cursor(self.uri, None, None)
         for k, v in kv.items():
             cursor.set_key(k)
             cursor.search()
-            self.assertEqual(cursor.get_value(), v)
+            if (k in kv_modified):
+                self.assertEqual(cursor.get_value(), kv_modified[k])
+            else:
+                self.assertEqual(cursor.get_value(), v)
         cursor.close()
 
     def verify_compression(self, prefix_compression):
@@ -100,34 +99,39 @@ class test_layered54(wttest.WiredTigerTestCase, DisaggConfigMixin):
         initial_value = "abc" * 10
         initial_ts = 5
         kv = {f'{initial_key}{i}': initial_value for i in range(1, self.nrows + 1)}
-        self.insert(kv, initial_ts)
+        self.insert_or_update(kv, initial_ts)
         self.session.checkpoint()
         # We should see suffix compression happened.
         self.assertGreater(self.get_stat(stat.dsrc.rec_suffix_compression, self.uri), 0)
-        # We should see prefix compression happened if it is configured.
+        # There's no prefix compression for delta yet.
+        self.assertEqual(self.get_stat(stat.dsrc.rec_prefix_compression_delta, self.uri), 0)
+        # We should see prefix compression for full page if it is configured.
         if (prefix_compression):
-            self.assertGreater(self.get_stat(stat.dsrc.rec_prefix_compression, self.uri), 0)
+            self.assertGreater(self.get_stat(stat.dsrc.rec_prefix_compression_full, self.uri), 0)
         else:
-            self.assertEqual(self.get_stat(stat.dsrc.rec_prefix_compression, self.uri), 0)
+            self.assertEqual(self.get_stat(stat.dsrc.rec_prefix_compression_full, self.uri), 0)
 
         # Re-open the connection to clear contents out of memory.
         self.reopen_disagg_conn(self.conn_config())
-        # Perform two small updates.
-        kv_modified = {str(10): "10abc", str(220): "220abc"}
-        self.insert(kv_modified, initial_ts + 1)
-        # Perform a checkpoint to write out a delta.
+        # Perform some updates.
+        kv_modified = {}
+        for i in range(1, 20):
+            kv_modified[f'{initial_key}{i}'] = '10abc'
+        self.insert_or_update(kv_modified, initial_ts + 1)
         self.session.checkpoint()
-        # Verify delta built.
         if (self.delta_type == 'both' or self.delta_type == 'leaf_only'):
             self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
+            # We should see prefix compression for delta and there's no prefix compression for full page.
+            if (prefix_compression):
+                self.assertGreater(self.get_stat(stat.dsrc.rec_prefix_compression_delta, self.uri), 0)
+                self.assertEqual(self.get_stat(stat.dsrc.rec_prefix_compression_full, self.uri), 0)
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
             self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
 
         # Re-open the connection to clear contents out of memory.
         self.reopen_disagg_conn(self.conn_config())
         # Verify the k/v pairs in the table.
-        self.verify(kv)
-        self.verify(kv_modified)
+        self.verify(kv, kv_modified)
          # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
             self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
@@ -139,8 +143,7 @@ class test_layered54(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.reopen_disagg_conn(follower_config)
         time.sleep(1.0)
         # Verify the k/v pairs in the table.
-        self.verify(kv)
-        self.verify(kv_modified)
+        self.verify(kv, kv_modified)
         # Assert that we have constructed at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
             self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)

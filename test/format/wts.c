@@ -328,6 +328,7 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
      * the options struct on a temporary basis to help create the disagg configuration.
      */
     opts.disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
+    opts.disagg_page_log_home = disagg_is_multi_node() ? g.home_page_log : (char *)home;
     opts.disagg_mode = (char *)(g.disagg_leader ? "leader" : "follower");
     opts.home = (char *)home;
     opts.build_dir = (char *)BUILDDIR;
@@ -724,6 +725,13 @@ precise_checkpoint_init(WT_CONNECTION *conn)
 void
 wts_create_home(void)
 {
+    /*
+     * In multi-node mode the directories had already been created in `disagg_setup_multi_node` .
+     * Nothing to do here for directory setup.
+     */
+    if (disagg_is_multi_node())
+        return;
+
     testutil_recreate_dir(g.home);
 }
 
@@ -851,6 +859,17 @@ wts_close(WT_CONNECTION **connp)
         testutil_check(conn->reconfigure(conn, "compatibility=(release=3.3)"));
 
     testutil_check(conn->close(conn, GV(WIREDTIGER_LEAK_MEMORY) ? "leak_memory" : NULL));
+}
+
+/*
+ * wts_reopen --
+ *     Reopen the database.
+ */
+void
+wts_reopen(void)
+{
+    wts_close(&g.wts_conn);
+    wts_open(g.home, &g.wts_conn, false);
 }
 
 struct stats_args {

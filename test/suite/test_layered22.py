@@ -27,18 +27,17 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os
-import time
 import wiredtiger
 import wttest
-from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered22.py
 # Test a secondary can perform reads and writes to the ingest component
 # of a layered table, without the stable component.
-class test_layered22(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    conn_base_config = 'transaction_sync=(enabled,method=fsync),' \
-                     + 'disaggregated=(page_log=palm),'
+@disagg_test_class
+class test_layered22(wttest.WiredTigerTestCase):
+    conn_base_config = 'transaction_sync=(enabled,method=fsync),'
 
     disagg_storages = gen_disagg_storages('test_layered22', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
@@ -46,29 +45,8 @@ class test_layered22(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 10000
     uri = 'layered:test_layered22'
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
-
-    # Load the page log extension, which has object storage support
-    def conn_extensions(self, extlist):
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
-        extlist.extension('page_log', 'palm')
-
-    # Custom test case setup
-    def early_setup(self):
-        os.mkdir('follower')
-        # Create the home directory for the PALM k/v store, and share it with the follower.
-        os.mkdir('kv_home')
-        os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
-
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="follower"),'
-
-    # Load the storage store extension.
-    def conn_extensions(self, extlist):
-        DisaggConfigMixin.conn_extensions(self, extlist)
 
     def session_create_config(self):
         return 'key_format=S,value_format=S,'
@@ -78,9 +56,11 @@ class test_layered22(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
+            self.session.begin_transaction()
             cursor["Hello " + str(i)] = "World"
             cursor["Hi " + str(i)] = "There"
             cursor["OK " + str(i)] = "Go"
+            self.session.commit_transaction(f"commit_timestamp={self.timestamp_str(10)}")
         cursor.close()
 
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -106,7 +86,9 @@ class test_layered22(wttest.WiredTigerTestCase, DisaggConfigMixin):
         value2 = "abaa"
 
         for i in range(self.nitems):
+            self.session.begin_transaction()
             cursor[str(i)] = value1
+            self.session.commit_transaction(f"commit_timestamp={self.timestamp_str(10)}")
 
         for i in range(self.nitems):
             if i % 10 == 0:
@@ -114,7 +96,7 @@ class test_layered22(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 cursor.set_key(str(i))
                 mods = [wiredtiger.Modify('b', 1, 1)]
                 self.assertEqual(cursor.modify(mods), 0)
-                self.session.commit_transaction()
+                self.session.commit_transaction(f"commit_timestamp={self.timestamp_str(20)}")
 
         cursor.close()
 
@@ -135,7 +117,9 @@ class test_layered22(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
         self.assertEqual(cursor.search_near(), wiredtiger.WT_NOTFOUND)
 
+        self.session.begin_transaction()
         cursor["found"] = "yes"
+        self.session.commit_transaction(f"commit_timestamp={self.timestamp_str(10)}")
         cursor.set_key("found")
         self.assertEqual(cursor.search(), 0)
         self.assertEqual(cursor.search_near(), 0)
@@ -145,9 +129,11 @@ class test_layered22(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
+            self.session.begin_transaction()
             cursor["Hello " + str(i)] = "World"
             cursor["Hi " + str(i)] = "There"
             cursor["OK " + str(i)] = "Go"
+            self.session.commit_transaction(f"commit_timestamp={self.timestamp_str(10)}")
         cursor.close()
 
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -159,7 +145,9 @@ class test_layered22(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
+            self.session.begin_transaction()
             cursor["Hello " + str(i)] = "World"
+            self.session.commit_transaction(f"commit_timestamp={self.timestamp_str(10)}")
         cursor.close()
 
         random_cursor = self.session.open_cursor(self.uri, None, "next_random=true")

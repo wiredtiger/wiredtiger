@@ -32,6 +32,8 @@
 #include <sqlite3.h>
 
 #include <algorithm>
+#include <atomic>
+#include <cassert>
 #include <chrono>
 #include <cerrno>
 #include <cstring>
@@ -83,7 +85,7 @@ char *
 write_ascii_chars(char *buf_ptr, std::span<const uint8_t> line_data)
 {
     for (uint8_t c : line_data) {
-        *buf_ptr++ = std::isprint(c) ? c : '.';
+        *buf_ptr++ = isascii(c) && std::isprint(c) ? c : '.';
     }
     return buf_ptr;
 }
@@ -153,19 +155,58 @@ palite_verbose_item(const WT_ITEM *buf)
     return hexdump(buf->data, buf->size);
 }
 
+// Simple joiner for collections
+template <typename Range, typename Separator>
+std::string
+join(const Range &range, const Separator &sep)
+{
+    std::stringstream ss;
+    auto it = std::begin(range);
+    auto end = std::end(range);
+
+    if (it != end) {
+        ss << *it; // Add the first element
+        ++it;
+    }
+
+    while (it != end) {
+        ss << sep; // Add separator before the next element
+        ss << *it; // Add the element
+        ++it;
+    }
+
+    return ss.str();
+}
+
+// Base-2 (binary) units
+constexpr uint64_t operator""_KB(unsigned long long val)
+{
+    return val * 1024;
+}
+constexpr uint64_t operator""_MB(unsigned long long val)
+{
+    return val * 1024 * 1024;
+}
+constexpr uint64_t operator""_GB(unsigned long long val)
+{
+    return val * 1024 * 1024 * 1024;
+}
+
 // Unix epoch microseconds
 inline auto
 now_us()
 {
     using namespace std::chrono;
-    return duration_cast<microseconds>(system_clock::now().time_since_epoch()).count();
+    return duration_cast<microseconds>(steady_clock::now().time_since_epoch()).count();
 }
 
 // Configuration settings with defaults
 struct Config {
     WT_EXTENSION_API *extapi = nullptr; // WiredTiger extension API
 
-    uint32_t cache_size_mb = 500;          // Size of cache in megabytes (default)
+    std::filesystem::path home_dir;        // Home directory for the extension
+    uint32_t cache_size_mb = 8'192;        // Size of cache in megabytes (default)
+    uint32_t mmap_size_mb = 8'192;         // Size of memory map in megabytes (default)
     uint32_t delay_ms = 0;                 // Average length of delay when simulated
     uint32_t error_ms = 0;                 // Average length of sleep when simulated
     uint32_t force_delay = 0;              // Force a simulated network delay every N operations
@@ -175,6 +216,7 @@ struct Config {
     uint32_t verbose = WT_VERBOSE_INFO;    // Verbose level
     bool verbose_msg = true;               // Send verbose messages to msg callback interface
     bool sql_trace = false;                // Trace all SQLite calls
+    bool verify = true;                    // Verify integrity of page delta chains
 
     Config() = default;
     Config(WT_EXTENSION_API *wt_api, WT_CONFIG_ARG *config) : extapi(wt_api)
@@ -184,7 +226,9 @@ struct Config {
 
         WTConfigParserPtr parser = open_config_parser();
 
+        configure_value(parser.get(), config, "home", home_dir);
         configure_value(parser.get(), config, "cache_size_mb", cache_size_mb);
+        configure_value(parser.get(), config, "mmap_size_mb", mmap_size_mb);
         configure_value(parser.get(), config, "delay_ms", delay_ms);
         configure_value(parser.get(), config, "error_ms", error_ms);
         configure_value(parser.get(), config, "force_delay", force_delay);
@@ -193,6 +237,7 @@ struct Config {
         configure_value(parser.get(), config, "verbose", verbose);
         configure_value(parser.get(), config, "verbose_msg", verbose_msg);
         configure_value(parser.get(), config, "sql_trace", sql_trace);
+        configure_value(parser.get(), config, "verify", verify);
     }
 
 private:
@@ -223,14 +268,18 @@ private:
     void
     configure_value(WT_CONFIG_PARSER *parser, WT_CONFIG_ARG *config, const char *key, T &value)
     {
-        // Guard for supported types (bool and integral types)
-        static_assert(
-          std::is_same_v<T, bool> || std::is_integral_v<T>, "Unsupported type for configuration");
+        // Guard for supported types (bool, integral, string, and filesystem::path types)
+        static_assert(std::is_same_v<T, bool> || std::is_integral_v<T> ||
+            std::is_same_v<T, std::string> || std::is_same_v<T, std::filesystem::path>,
+          "Unsupported type for configuration");
 
         auto validate = [](WT_CONFIG_ITEM::WT_CONFIG_ITEM_TYPE type) {
             if constexpr (std::is_same_v<T, bool>) {
                 return type == WT_CONFIG_ITEM::WT_CONFIG_ITEM_NUM ||
                   type == WT_CONFIG_ITEM::WT_CONFIG_ITEM_BOOL;
+            } else if constexpr (std::is_same_v<T, std::string> ||
+              std::is_same_v<T, std::filesystem::path>) {
+                return type == WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRING;
             } else { // integral types
                 return type == WT_CONFIG_ITEM::WT_CONFIG_ITEM_NUM;
             }
@@ -244,7 +293,14 @@ private:
             if (v.len == 0 || !validate(v.type)) {
                 throw std::invalid_argument(std::string("Invalid type for config key: ") + key);
             }
-            value = static_cast<T>(v.val);
+
+            if constexpr (std::is_same_v<T, std::string>) {
+                value = std::string(v.str, v.len);
+            } else if constexpr (std::is_same_v<T, std::filesystem::path>) {
+                value = std::filesystem::path(std::string(v.str, v.len));
+            } else {
+                value = static_cast<T>(v.val);
+            }
         } else if (ret != WT_NOTFOUND) {
             throw std::runtime_error(std::string("Failed to get config for key: ") + key);
         }
@@ -262,12 +318,12 @@ template <> struct std::formatter<Config> {
     format(const Config &cfg, format_context &ctx) const
     {
         return std::format_to(ctx.out(),
-          "{{cache_size_mb={}, delay_ms={}, error_ms={}, force_delay={}, "
+          "{{cache_size_mb={:L}, mmap_size_mb={:L}, delay_ms={}, error_ms={}, force_delay={}, "
           "force_error={}, materialization_delay_ms={}, last_materialized_lsn={}, "
-          "verbose={}, verbose_msg={}, sql_trace={}}}",
-          cfg.cache_size_mb, cfg.delay_ms, cfg.error_ms, cfg.force_delay, cfg.force_error,
-          cfg.materialization_delay_ms, cfg.last_materialized_lsn, cfg.verbose, cfg.verbose_msg,
-          cfg.sql_trace);
+          "verbose={}, verbose_msg={}, sql_trace={}, verify={}}}",
+          cfg.cache_size_mb, cfg.mmap_size_mb, cfg.delay_ms, cfg.error_ms, cfg.force_delay,
+          cfg.force_error, cfg.materialization_delay_ms, cfg.last_materialized_lsn, cfg.verbose,
+          cfg.verbose_msg, cfg.sql_trace, cfg.verify);
     }
 };
 
@@ -293,7 +349,7 @@ log(Config &config, WT_VERBOSE_LEVEL level, std::format_string<Args...> fmt, Arg
           (level <= WT_VERBOSE_WARNING) ? config.extapi->err_printf : config.extapi->msg_printf;
         api_printf(config.extapi, session(), "%s", message.c_str());
     } else {
-        std::cerr << message;
+        std::cerr << message << std::endl;
     }
 }
 
@@ -323,7 +379,7 @@ log(std::source_location loc, Config &config, WT_VERBOSE_LEVEL level,
 //#define LOG_INFO(...)    LOG_AT(WT_VERBOSE_INFO,     __VA_ARGS__) // unused
 #define LOG_DEBUG(...) LOG_AT(WT_VERBOSE_DEBUG_1, __VA_ARGS__)
 #define LOG_DIAG(...) LOG_AT(WT_VERBOSE_DEBUG_2, __VA_ARGS__)
-#define LOG_TRACE(...) LOG_AT(WT_VERBOSE_DEBUG_5, __VA_ARGS__)
+#define LOG_TRACE(...) LOG_AT(WT_VERBOSE_DEBUG_3, __VA_ARGS__)
 
 #define LOG_SQL_TRACE(fmt, ...)         \
     do {                                \
@@ -576,7 +632,33 @@ db_busy_handler(void *ptr, int count)
 // Storage layer
 //
 
-enum class GlobalKey : uint64_t { LSN = 0, CHECKPOINT_COMPLETED = 1, CHECKPOINT_STARTED = 2 };
+struct PageInfo {
+    uint64_t table_id;
+    uint64_t page_id;
+    uint64_t lsn;
+    uint64_t backlink_lsn;
+    uint64_t base_lsn;
+    uint32_t flags;
+    WT_PAGE_LOG_ENCRYPTION encryption;
+};
+
+template <> struct std::formatter<PageInfo> {
+    constexpr auto
+    parse(std::format_parse_context &ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto
+    format(const PageInfo &page, format_context &ctx) const
+    {
+        // TODO: print encryption if special formatting is given, e.g. {:e}
+        return std::format_to(ctx.out(),
+          "{{table_id={}, page_id={}, lsn={}, backlink_lsn={}, base_lsn={}, "
+          "flags={:#x}}}",
+          page.table_id, page.page_id, page.lsn, page.backlink_lsn, page.base_lsn, page.flags);
+    }
+};
 
 class Storage {
     enum Statement {
@@ -585,19 +667,21 @@ class Storage {
         ROLLBACK,
         PUT_CHECKPOINT,
         GET_CHECKPOINT,
-        DELETE_CHECKPOINT,
-        PUT_GLOBAL,
-        GET_GLOBAL,
+        DELETE_CHECKPOINTS,
+        GET_NEXT_LSN,
+        GET_LAST_LSN,
         PUT_PAGE,
         GET_PAGE_IDS,
-        GET_PAGE,
-        DELETE_PAGE,
+        GET_FULL_PAGE_LSN,
+        GET_PAGE_INFOS,
+        GET_PAGES,
+        DELETE_PAGES,
         COUNT // must be last
     };
 
     // Our flags start at the 16th bit (0x10000u) to avoid
     // conflicts with WT_PAGE_LOG_PUT_ARGS flags.
-    const uint32_t WT_PAGE_LOG_DISCARDED = 0x10000u;
+    static constexpr uint32_t WT_PAGE_LOG_DISCARDED = 0x10000u;
 
     Config &config;
 
@@ -660,7 +744,6 @@ class Storage {
             LOG_DEBUG("Opened SQLite database: {} ({})", pdb, db_path.c_str());
 
             init_db(pdb);
-            // std::call_once(db_init, [this](sqlite3* d){ init_db(d); }, *db);
 
             SQL_CALL_CHECK(
               pdb, sqlite3_busy_handler, pdb, &db_busy_handler, static_cast<void *>(&config));
@@ -681,29 +764,45 @@ class Storage {
                 a[PUT_CHECKPOINT] = R"(
                     INSERT INTO checkpoints (lsn, timestamp, checkpoint_metadata)
                     VALUES (?, ?, ?);)";
+
+                /* !!! Get the latest checkpoint (i.e., checkpoint with the
+                highest lsn) if query lsn equals to WT_PAGE_LOG_LSN_MAX (
+                passed as parameter: ?2); otherwise get the checkpoint with the
+                given lsn. */
                 a[GET_CHECKPOINT] = R"(
                     SELECT lsn, timestamp, checkpoint_metadata
                     FROM checkpoints
-                    WHERE (?1 = -1 OR lsn = ?1)
+                    WHERE (?1 = ?2 OR lsn = ?1)
                     ORDER BY
                         lsn DESC,
                         timestamp DESC
                     LIMIT 1;)";
-                /* The sqlite bind call takes a signed 64 bit integer.
-                 * When we pass WT_PAGE_LOG_LSN_MAX (which happens to be the maximum unsigned 64 bit
-                 * integer) to the bind function, it is converted from unsigned max to signed -1.
-                 * Thus the -1 in the above SELECT statement is effectively standing in for
-                 * WT_PAGE_LOG_LSN_MAX.
-                 */
-                static_assert((int64_t)WT_PAGE_LOG_LSN_MAX == -1);
-                a[DELETE_CHECKPOINT] = R"(
+                a[DELETE_CHECKPOINTS] = R"(
                     DELETE FROM checkpoints
                     WHERE lsn > ?;)";
-                a[PUT_GLOBAL] = R"(
-                    INSERT OR REPLACE INTO globals (key, val)
-                    VALUES (?, ?);)";
-                a[GET_GLOBAL] = R"(
-                    SELECT val FROM globals WHERE key = ?;)";
+
+                /* Increment LSN and get the value. */
+                a[GET_NEXT_LSN] = R"(
+                    UPDATE lsn
+                    SET lsn = lsn + 1
+                    WHERE id = 0
+                    RETURNING lsn;)";
+
+                /* Get the last LSN. */
+                a[GET_LAST_LSN] = R"(
+                    SELECT lsn
+                    FROM lsn
+                    WHERE id = 0;)";
+
+                /* !!! Insert new pages or replace write failures.
+
+                When writing a new delta page, if a delta page already exists with
+                the same (table_id, page_id, backlink_lsn), the existing page is
+                treated as a write failure and replaced.
+
+                This uniqueness constraint is enforced by a partial index that
+                applies only to delta pages. See the CREATE TABLE statement for
+                the 'pages' table. */
                 a[PUT_PAGE] = R"(
                     INSERT OR REPLACE INTO pages (
                         table_id,
@@ -712,25 +811,152 @@ class Storage {
                         backlink_lsn,
                         base_lsn,
                         flags,
-                        delta,
                         encryption,
                         timestamp_materialized_us,
                         page_data)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);)";
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);)";
+
+                /* !!! Get all unique page IDs for a given table that have their
+                latest page record with LSN <= query LSN and not discarded. */
                 a[GET_PAGE_IDS] = R"(
                     SELECT DISTINCT p1.page_id
                     FROM pages AS p1
-                    WHERE p1.table_id = ?
-                        AND p1.lsn <= ?
+                    WHERE p1.table_id = ?1
+                        AND p1.lsn <= ?2
                         AND NOT EXISTS (
                             SELECT 1
                             FROM pages AS p2
                             WHERE p2.table_id = p1.table_id
-                            AND p2.page_id = p1.page_id
-                            AND p2.lsn <= ?
-                            AND (p2.flags & ?) = 0
+                              AND p2.page_id = p1.page_id
+                              AND p2.lsn <= ?2
+                              AND p2.discarded = 1
                         );)";
-                a[GET_PAGE] = R"(
+
+                /* !!! Get the LSN of the first non-discarded full page below the
+                given LSN.
+
+                The query LSN may belong to a delta page. Therefore,
+                we find the corresponding full page LSN first. Then we look for
+                the previous full page LSN.
+                Assuming that given query LSN does not belong to discarded page.
+
+                This is used with full page backlink verification. */
+                a[GET_FULL_PAGE_LSN] = R"(
+                    WITH full_page AS (
+                        SELECT MAX(p0.lsn) AS lsn
+                        FROM pages AS p0
+                        WHERE p0.table_id = ?1
+                          AND p0.page_id = ?2
+                          AND p0.lsn <= ?3
+                          AND p0.delta = 0
+                    )
+                    SELECT MAX(p1.lsn)
+                    FROM
+                      pages AS p1,
+                      full_page AS fp
+                    WHERE p1.table_id = ?1
+                        AND p1.page_id = ?2
+                        AND p1.lsn < fp.lsn
+                        AND p1.delta = 0
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM pages AS p2
+                            WHERE p2.table_id = p1.table_id
+                              AND p2.page_id = p1.page_id
+                              AND p2.lsn < fp.lsn
+                              AND p2.discarded = 1
+                        );)";
+
+                /* !!! Retrieve information about entire delta chain stopping at
+                the first full page. The chain may include discarded page.
+
+                This query uses a window function OVER to assign a group number
+                to rows based on the 'delta' column. This is more performant
+                than discovering full page in a separate query as it may only
+                require a single scan over the data.
+
+                The window function works as follows:
+
+                First, the inner part:
+                    CASE
+                      WHEN delta = 0 THEN 1
+                      ELSE 0
+                    END
+
+                This expression looks at each row one by one. For delta pages
+                (where delta = 1), it produces a 0. For full pages (where
+                delta = 0), it produces a 1.
+
+                So, it's essentially a marker for the rows with full pages.
+                We consider such rows as terminators.
+
+                Next, the outer part:
+                    SUM(...) OVER (ORDER BY lsn DESC) as page_group
+
+                This expression takes the markers produced by the inner part
+                and computes a running total (SUM) of these markers, ordered
+                by LSN in descending order (from newest to oldest).
+
+                This creates a cumulative count of how many "terminating" rows
+                (delta = 0) have been seen so far.
+
+                Example:
+
+                lsn | delta | inner CASE | page_group | explanation
+                ----+-------+------------+------------+------------
+                10  | 1     | 0          | 0          | Sum of (0)
+                9   | 1     | 0          | 0          | Sum of (0, 0)
+                8   | 1     | 0          | 0          | Sum of (0, 0, 0)
+                7   | 0     | 1          | 1          | Sum of (0, 0, 0, 1)
+                6   | 0     | 1          | 2          | Sum of (0, 0, 0, 1, 1)
+
+                The entire chain of pages (lsn 10, 9, 8, 7) is returned, stopping
+                at the first full page (lsn 7). The next full page (lsn 6) is
+                not included because page_group becomes 2 and we explicitly check
+                for that:
+                    ...
+                    WHERE page_group = 0
+                      OR (page_group = 1 AND delta = 0)
+
+                This condition ensures that we get all delta pages in the chain
+                up to the first full page. */
+                a[GET_PAGE_INFOS] = R"(
+                    WITH chained_pages AS (
+                      SELECT
+                        table_id,
+                        page_id,
+                        lsn,
+                        backlink_lsn,
+                        base_lsn,
+                        flags,
+                        delta,
+                        SUM(CASE
+                              WHEN delta = 0 THEN 1
+                              ELSE 0
+                            END) OVER (ORDER BY lsn DESC) as page_group
+                      FROM pages
+                      WHERE table_id = ?
+                        AND page_id = ?
+                        AND lsn <= ?
+                        AND timestamp_materialized_us <= ?
+                    )
+                    SELECT
+                      table_id,
+                      page_id,
+                      lsn,
+                      backlink_lsn,
+                      base_lsn,
+                      flags
+                    FROM chained_pages
+                    WHERE page_group = 0
+                      OR (page_group = 1 AND delta = 0)
+                    ORDER BY lsn DESC;
+                )";
+
+                /* !!! Simple selection of all pages below the given LSN.
+                Verification of the delta chain and stopping at the terminating
+                full page is done in code. */
+                a[GET_PAGES] = R"(
                     SELECT
                         lsn,
                         backlink_lsn,
@@ -744,9 +970,11 @@ class Storage {
                         AND lsn <= ?
                         AND timestamp_materialized_us <= ?
                     ORDER BY lsn DESC;)";
-                a[DELETE_PAGE] = R"(
+
+                a[DELETE_PAGES] = R"(
                     DELETE FROM pages
                     WHERE lsn > ?;)";
+
                 return a;
             }
             ();
@@ -840,11 +1068,16 @@ private:
     {
         std::call_once(
           db_init, [this](sqlite3 *d) { create_tables(d); }, db);
+        configure_connection(db);
     }
 
     void
     create_tables(sqlite3 *db)
     {
+        // These flags used below in generated columns for 'pages' table.
+        static_assert(WT_PAGE_LOG_DELTA == 0x2, "WT_PAGE_LOG_DELTA value changed");
+        static_assert(WT_PAGE_LOG_DISCARDED == 0x10000, "WT_PAGE_LOG_DISCARDED value changed");
+
         static const char *create_statements[] = {
           R"(CREATE TABLE IF NOT EXISTS pages (
                 table_id INTEGER NOT NULL,
@@ -853,40 +1086,129 @@ private:
                 backlink_lsn INTEGER NOT NULL,
                 base_lsn INTEGER NOT NULL,
                 flags INTEGER NOT NULL,
-                delta INTEGER NOT NULL,
+                delta INTEGER AS ((flags & 0x2) != 0) VIRTUAL, -- WT_PAGE_LOG_DELTA
+                discarded INTEGER AS ((flags & 0x10000) != 0) VIRTUAL, -- WT_PAGE_LOG_DISCARDED
                 encryption STRING NOT NULL,
                 timestamp_materialized_us INTEGER NOT NULL,
                 page_data BLOB,
              PRIMARY KEY (table_id, page_id, lsn)
             );)",
+
+          /* !!! This index exists for the case in which we have written a page
+          delta and then need to write it again.
+
+          This generally happens in eviction. We have a base page already written
+          and we now try to evict it. We finished writing a delta to disk but
+          then we fail the reconciliation. It is a delta so we cannot explicitly
+          free the write with the same page id. After a while, we retry the
+          eviction and this time we writes a delta based on the same base page.
+          Thus this write will have the same backlink_lsn to the previous write.
+
+          At this stage, there may be no checkpoint running so discarding the
+          unfinished checkpoint doesn't help in this case. It is also possible
+          that these two writes will be included in the same checkpoint that is
+          not discarded.
+
+          To gracefully handle write failures of delta pages we will keep
+          track of the backlink_lsn within each delta chain. Tracking is done via
+          a *partial* unique index on (table_id, page_id, backlink_lsn) for
+          genuine delta pages only: delta=1 AND discarded=0.
+          (Partial index can include only a subset of rows in the table.)
+
+          The primary key for the table (table_id, page_id, lsn) does not help
+          because lsn is always increasing, making each record unique.
+
+          Including backlink_lsn in the primary key would not work because
+          together with always increasing lsn the constraint is always satisfied.
+
+          Hence, we need a separate unique index for delta pages only (excluding
+          discarded pages, which are a special case).
+
+          Example:
+
+            table_id | page_id | lsn | backlink_lsn | base_lsn | delta
+            ---------+---------+-----+--------------+----------+------
+                1    |   100   | 5   |      0       |   0      |   0
+                1    |   100   | 6   |      5       |   5      |   1
+                1    |   100   | 7   |      6       |   5      |   1
+                1    |   100   | 8   |      7       |   5      |   1    <-- write failure
+                1    |   100   | 9   |      7       |   5      |   1    <-- new delta page
+
+          Suppose, the page with lsn=8 is a write failure. When a new delta page
+          is written with (lsn=9, backlink_lsn=7, base_lsn=5), then it will
+          conflict with the existing page with lsn=8 because they have the same
+          (table_id, page_id, backlink_lsn). The partial index will ensure
+          that there is at most one such delta page.
+
+          The new page with lsn=9 will replace the failed page with lsn=8 because
+          pages are inserted with 'INSERT OR REPLACE INTO pages'.
+
+          See also PUT_PAGE statement. */
           R"(CREATE UNIQUE INDEX IF NOT EXISTS ux_delta
              ON pages (table_id, page_id, backlink_lsn)
-             WHERE delta = 1;)",
-          R"(CREATE TABLE IF NOT EXISTS globals (
-                key INTEGER NOT NULL,
-                val INTEGER NOT NULL,
-                PRIMARY KEY (key)
+             WHERE delta = 1 AND discarded = 0;)",
+
+          /* LSN counter table. */
+          R"(CREATE TABLE IF NOT EXISTS lsn (
+                id INTEGER PRIMARY KEY DEFAULT 0 CHECK (id = 0),
+                lsn INTEGER NOT NULL
             );)",
+
+          /* Init LSN counter, if the table is empty; do nothing otherwise. */
+          R"(INSERT OR IGNORE INTO lsn(id, lsn) VALUES (0, 0);)"
+
           R"(CREATE TABLE IF NOT EXISTS checkpoints (
                 lsn INTEGER NOT NULL,
                 timestamp INTEGER NOT NULL,
                 checkpoint_metadata BLOB,
                 PRIMARY KEY (lsn, timestamp)
-            );)",
-          // These keys correspond to the GlobalKey enumeration.
-          // Key 0: LSN, 1 will be used next
-          "INSERT OR IGNORE INTO globals(key, val) VALUES (0, 1);",
-          // TODO: remove if not needed
-          // Key 1: Checkpoint completed
-          "INSERT OR IGNORE INTO globals(key, val) VALUES (1, 0);",
-          // Key 2: Checkpoint started
-          "INSERT OR IGNORE INTO globals(key, val) VALUES (2, 0);"};
+            );)"};
 
         for (const char *sql : create_statements) {
             SQL_CALL_CHECK(db, sqlite3_exec, db, sql, nullptr, nullptr, nullptr);
         }
 
         LOG_DEBUG("SQLite database schema initialized");
+    }
+
+    void
+    configure_connection(sqlite3 *db)
+    {
+        // The WAL journaling mode uses a write-ahead log instead of a rollback
+        // journal to implement transactions. This significantly improves performance.
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA journal_mode = WAL;", nullptr, nullptr, nullptr);
+
+        // Turn Synchronous mode OFF for better performance.
+        // We don't care about database corruption in case of OS crash or power failure.
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA synchronous = OFF;", nullptr, nullptr, nullptr);
+
+        // For temporary store use memory instead of disk.
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA temp_store = MEMORY;", nullptr, nullptr, nullptr);
+
+        // Uses memory mapping instead of read/write calls when the database
+        // is < mmap_size in bytes.
+        const uint64_t MMAP_SIZE = config.mmap_size_mb * 1_MB;
+        SQL_CALL_CHECK(db, sqlite3_exec, db,
+          std::format("PRAGMA mmap_size = {};", MMAP_SIZE).c_str(), nullptr, nullptr, nullptr);
+
+        // Increase page size to 16KB (default is 4KB). This improves performance
+        // for tables with BLOBs.
+        const uint64_t PAGE_SIZE = 16_KB;
+        SQL_CALL_CHECK(db, sqlite3_exec, db,
+          std::format("PRAGMA page_size = {};", PAGE_SIZE).c_str(), nullptr, nullptr, nullptr);
+
+        // Set cache size as configured.
+        // Cache size is specified in megabytes. Convert to number of pages.
+        const uint64_t CACHE_PAGES = (config.cache_size_mb * 1_MB) / PAGE_SIZE;
+        SQL_CALL_CHECK(db, sqlite3_exec, db,
+          std::format("PRAGMA cache_size = {};", CACHE_PAGES).c_str(), nullptr, nullptr, nullptr);
+
+        // Set busy timeout to 10 seconds.
+        SQL_CALL_CHECK(
+          db, sqlite3_exec, db, "PRAGMA busy_timeout = 10000;", nullptr, nullptr, nullptr);
     }
 
     void
@@ -1033,21 +1355,23 @@ public:
     }
 
     uint64_t
-    get_global(Connection &conn, GlobalKey key)
+    get_lsn(Connection &conn, Statement stmt_type)
     {
-        StatementPtr stmt = conn.db_statement(Statement::GET_GLOBAL);
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(key));
+        StatementPtr stmt = conn.db_statement(stmt_type);
         SQ_CHECK(sqlite3_step, stmt.get());
         return sqlite3_column_int64(stmt.get(), 0);
     }
 
-    void
-    put_global(Connection &conn, GlobalKey key, uint64_t val)
+    uint64_t
+    get_next_lsn(Connection &conn)
     {
-        StatementPtr stmt = conn.db_statement(Statement::PUT_GLOBAL);
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(key));
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(val));
-        SQ_CHECK(sqlite3_step, stmt.get());
+        return get_lsn(conn, Statement::GET_NEXT_LSN);
+    }
+
+    uint64_t
+    get_last_lsn(Connection &conn)
+    {
+        return get_lsn(conn, Statement::GET_LAST_LSN);
     }
 
     void
@@ -1068,6 +1392,8 @@ public:
     {
         StatementPtr stmt = conn.db_statement(Statement::GET_CHECKPOINT);
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(lsn));
+        SQ_CHECK(
+          sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(WT_PAGE_LOG_LSN_MAX));
         int ret = SQ_CHECK(sqlite3_step, stmt.get());
         if (ret == SQLITE_DONE) {
             // No checkpoint found
@@ -1092,9 +1418,9 @@ public:
     }
 
     void
-    delete_checkpoint(Connection &conn, uint64_t lsn)
+    delete_checkpoints(Connection &conn, uint64_t lsn)
     {
-        StatementPtr stmt = conn.db_statement(Statement::DELETE_CHECKPOINT);
+        StatementPtr stmt = conn.db_statement(Statement::DELETE_CHECKPOINTS);
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(lsn));
         SQ_CHECK(sqlite3_step, stmt.get());
     }
@@ -1110,29 +1436,67 @@ public:
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 4, static_cast<sqlite3_int64>(args->backlink_lsn));
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 5, static_cast<sqlite3_int64>(args->base_lsn));
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 6, static_cast<sqlite3_int64>(args->flags));
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 7,
-          static_cast<sqlite3_int64>(args->flags & WT_PAGE_LOG_DELTA ? 1 : 0));
-        SQ_CHECK(sqlite3_bind_text, stmt.get(), 8, args->encryption.dek,
+        SQ_CHECK(sqlite3_bind_text, stmt.get(), 7, args->encryption.dek,
           strlen(args->encryption.dek), SQLITE_STATIC);
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 9,
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 8,
           static_cast<sqlite3_int64>(now_us() + (config.materialization_delay_ms * 1ms / 1us)));
-        SQ_CHECK(sqlite3_bind_blob, stmt.get(), 10, buf->data, buf->size, SQLITE_STATIC);
+        SQ_CHECK(sqlite3_bind_blob, stmt.get(), 9, buf->data, buf->size, SQLITE_STATIC);
         SQ_CHECK(sqlite3_step, stmt.get());
 
         object_puts++;
     }
 
     int
-    get_page(Connection &conn, uint64_t table_id, uint64_t page_id, WT_PAGE_LOG_GET_ARGS *args,
+    get_page_infos(Connection &conn, uint64_t table_id, uint64_t page_id, uint64_t lsn,
+      std::vector<PageInfo> &pages)
+    {
+        StatementPtr stmt = conn.db_statement(Statement::GET_PAGE_INFOS);
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(lsn));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 4, static_cast<sqlite3_int64>(now_us()));
+
+        pages.clear();
+        while (SQ_CHECK(sqlite3_step, stmt.get()) == SQLITE_ROW) {
+            pages.emplace_back(
+              PageInfo{.table_id = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 0)),
+                .page_id = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 1)),
+                .lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 2)),
+                .backlink_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 3)),
+                .base_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 4)),
+                .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt.get(), 5)),
+                .encryption = WT_PAGE_LOG_ENCRYPTION{}});
+        }
+
+        return 0;
+    }
+
+    int
+    get_pages(Connection &conn, uint64_t table_id, uint64_t page_id, WT_PAGE_LOG_GET_ARGS *args,
       uint32_t *flags, WT_ITEM *results_array, uint32_t *results_count)
     {
-        StatementPtr stmt = conn.db_statement(Statement::GET_PAGE);
+        StatementPtr stmt = conn.db_statement(Statement::GET_PAGES);
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(args->lsn));
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 4, now_us());
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 4, static_cast<sqlite3_int64>(now_us()));
 
-        /* Note: Results are ordered by lsn DESC, so the first row is the most recent.
+        auto make_page_info = [](uint64_t table_id, uint64_t page_id, sqlite3_stmt *stmt) {
+            PageInfo page{.table_id = table_id,
+              .page_id = page_id,
+              .lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 0)),
+              .backlink_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 1)),
+              .base_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 2)),
+              .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt, 3)),
+              .encryption = WT_PAGE_LOG_ENCRYPTION{}};
+
+            const char *enc = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4));
+            strncpy(page.encryption.dek, enc ? enc : "", sizeof(page.encryption.dek));
+
+            return std::move(page);
+        };
+
+        /* !!! Note: Results are ordered by lsn DESC, so the first row is the most recent.
          In case of a delta chain, deltas (D) appear first, followed by the full page (B):
               D2, D1, B
          We will reverse the order before returning to the caller:
@@ -1140,33 +1504,19 @@ public:
         */
         uint32_t count = 0;
         int ret = 0;
-        PageInfo prev_delta{};
-        while ((ret = SQ_CHECK(sqlite3_step, stmt.get())) == SQLITE_ROW && count < *results_count) {
-            PageInfo page{
-              .table_id = table_id,
-              .page_id = page_id,
-              .lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 0)),
-              .backlink_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 1)),
-              .base_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 2)),
-              .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt.get(), 3)),
-            };
-            validate_page(page, prev_delta);
-            prev_delta = page;
+        std::vector<PageInfo> pages;
 
-            const char *enc = reinterpret_cast<const char *>(sqlite3_column_text(stmt.get(), 4));
-            if (count == 0) { // First row will be the last in the returned array
-                strncpy(args->encryption.dek, enc ? enc : "", sizeof(args->encryption.dek));
+        while ((ret = SQ_CHECK(sqlite3_step, stmt.get())) == SQLITE_ROW && count < *results_count) {
+            pages.push_back(make_page_info(table_id, page_id, stmt.get()));
+            PageInfo &page = pages.back();
+
+            if (page.flags & WT_PAGE_LOG_DISCARDED) {
+                LOG_AND_THROW("Got discarded page: {}", page);
             }
 
             const void *blob = sqlite3_column_blob(stmt.get(), 5);
             int size = sqlite3_column_bytes(stmt.get(), 5);
             fill_item(&results_array[count], blob, static_cast<size_t>(size));
-
-            if (count == 0) { // First row will be the last in the returned array
-                args->backlink_lsn = page.backlink_lsn;
-                args->base_lsn = page.base_lsn;
-                *flags = page.flags;
-            }
 
             // Continue to next row
             count++;
@@ -1184,60 +1534,149 @@ public:
             LOG_AND_THROW("Insufficient space in results_array: {}", *results_count);
         }
 
+        // Verify full page, if configured
+        const uint64_t prev_full_lsn =
+          config.verify ? get_prev_full_page_lsn(conn, table_id, page_id, args->lsn) : 0;
+        // Always verify the delta chain when retrieving pages, even if config.verify=false.
+        verify_chain(pages, prev_full_lsn);
+
+        // Fill args from the first found page. (It will be the last in returned array.)
+        uint64_t save_lsn = args->lsn;
+        memset(args, 0, sizeof(*args));
+        args->lsn = save_lsn; // Preserve the requested LSN
+        if (!pages.empty()) {
+            const PageInfo &page = pages.front();
+            args->backlink_lsn = page.backlink_lsn;
+            args->base_lsn = page.base_lsn;
+            args->encryption = page.encryption;
+            assert(flags != nullptr);
+            *flags = page.flags;
+        }
+
         // Reverse the results array to have the full page first, followed by deltas.
         std::reverse(results_array, results_array + count);
-
         *results_count = count;
         object_gets += count;
 
         return 0;
     }
 
-    struct PageInfo {
-        uint64_t table_id;
-        uint64_t page_id;
-        uint64_t lsn;
-        uint64_t backlink_lsn;
-        uint64_t base_lsn;
-        uint32_t flags;
-
-        std::string
-        to_string() const
-        {
-            return std::format(
-              "{{table_id={}, page_id={}, lsn={}, backlink_lsn={}, base_lsn={}, "
-              "flags={:#x}}}",
-              table_id, page_id, lsn, backlink_lsn, base_lsn, flags);
-        }
-    };
-
+    // UINT64_MAX is an invalid LSN, meaning "no check required".
     void
-    validate_page(const PageInfo &page, const PageInfo &prev_delta)
+    verify_chain(const std::vector<PageInfo> &pages, uint64_t prev_full_lsn = UINT64_MAX)
     {
-        if (page.flags & WT_PAGE_LOG_DISCARDED) {
-            LOG_AND_THROW("Encountered discarded page: {}", page.to_string());
+        PageInfo prev{};
+        PageInfo full{};
+        PageInfo discarded{};
+
+        auto verify_full = [&](const PageInfo &page) {
+            if (full.lsn != 0) {
+                LOG_AND_THROW("Multiple full pages in chain: {}, {}", full, page);
+            }
+
+            if (page.base_lsn != 0) {
+                LOG_AND_THROW("Full page base_lsn must be 0: {}", page);
+            }
+
+            if (prev_full_lsn != UINT64_MAX && page.backlink_lsn != prev_full_lsn) {
+                LOG_AND_THROW(
+                  "Full page backlink_lsn mismatch: {}, expected: {}", page, prev_full_lsn);
+            }
+
+            if (page.flags & WT_PAGE_LOG_DISCARDED) {
+                LOG_AND_THROW("Full page cannot be discarded: {}", page);
+            }
+
+            if (discarded.lsn != 0) {
+                LOG_AND_THROW(
+                  "Discarded page cannot be followed by another page: {}, {}", discarded, page);
+            }
+
+            full = page;
+        };
+
+        auto verify_delta = [&](const PageInfo &page) {
+            assert(prev.lsn != 0); // Cannot be the first page in the chain
+
+            if (full.lsn == 0) {
+                LOG_AND_THROW("Delta page without full page: {}", page);
+            }
+
+            if (full.lsn != page.base_lsn) {
+                LOG_AND_THROW("Delta page base_lsn mismatch: {}, full page: {}", page, full);
+            }
+
+            // Discarded pages can backlink to any page that we've seen in the chain.
+            if (!(page.flags & WT_PAGE_LOG_DISCARDED) && page.backlink_lsn != prev.lsn) {
+                LOG_AND_THROW(
+                  "Delta chain backlink_lsn mismatch: {}, previous page: {}", page, prev);
+            }
+
+            if (page.flags & WT_PAGE_LOG_DISCARDED) {
+                if (discarded.lsn != 0) {
+                    LOG_AND_THROW("Multiple discarded pages in chain: {}, {}", discarded, page);
+                }
+                discarded = page;
+            } else if (discarded.lsn != 0) {
+                LOG_AND_THROW(
+                  "Discarded page cannot be followed by another page: {}, {}", discarded, page);
+            }
+        };
+
+        auto verify_page = [&](const PageInfo &page) {
+            if (page.flags & WT_PAGE_LOG_DELTA)
+                verify_delta(page);
+            else
+                verify_full(page);
+            prev = page;
+        };
+
+        // Iterate in reverse order to validate the chain from full page.
+        std::for_each(pages.rbegin(), pages.rend(), verify_page);
+
+        // Verify discarded page separately because it can backlink to any page in the chain.
+        if (discarded.lsn != 0) {
+            auto found_it = std::ranges::find_if(
+              pages, [&discarded](const PageInfo &p) { return p.lsn == discarded.backlink_lsn; });
+            if (found_it == pages.end()) {
+                LOG_AND_THROW("Discarded page backlink_lsn not found in chain: {}", discarded);
+            }
+        }
+    }
+
+    /* !!! Verify the entire page chain for consistency.
+
+    The pages are expected to be ordered by lsn DESC (newest first).
+    The chain may include a single discarded page as the first page,
+    zero or more deltas, and one terminating full page.
+    Discarded pages can backlink to any page in the chain.
+
+    Example of a valid chain:
+        Discarded (lsn=10, backlink_lsn=8, base_lsn=7, flags=DISCARDED|DELTA)
+        Delta     (lsn=9,  backlink_lsn=8, base_lsn=7, flags=DELTA)
+        Delta     (lsn=8,  backlink_lsn=7, base_lsn=7, flags=DELTA)
+        Full      (lsn=7,  backlink_lsn=0, base_lsn=0, flags=0)
+
+    Returns 0 on success or throws on error. */
+    int
+    verify_page_chain(Connection &conn, uint64_t table_id, uint64_t page_id, uint64_t lsn)
+    {
+        if (!config.verify) {
+            return 0;
         }
 
-        if (prev_delta.lsn == 0) {
-            return; // No previous delta to validate against
-        }
-
-        if (page.lsn != prev_delta.backlink_lsn) {
+        std::vector<PageInfo> pages;
+        get_page_infos(conn, table_id, page_id, lsn, pages);
+        if (pages.size() == 0) {
             LOG_AND_THROW(
-              "Delta chain validation failed: backlink mismatch. Previous delta: {}, current page: "
-              "{}",
-              prev_delta.to_string(), page.to_string());
+              "No pages found for table_id={}, page_id={} at lsn<={}", table_id, page_id, lsn);
         }
 
-        const bool is_delta = (page.flags & WT_PAGE_LOG_DELTA) != 0;
-        const uint64_t expected_lsn = is_delta ? page.base_lsn : page.lsn;
+        const uint64_t prev_full_lsn = get_prev_full_page_lsn(conn, table_id, page_id, lsn);
 
-        if (expected_lsn != prev_delta.base_lsn) {
-            LOG_AND_THROW(
-              "Delta chain validation failed: base_lsn mismatch. Previous delta: {}, current page: "
-              "{}",
-              prev_delta.to_string(), page.to_string());
-        }
+        verify_chain(pages, prev_full_lsn);
+
+        return 0;
     }
 
     int
@@ -1247,41 +1686,64 @@ public:
         StatementPtr stmt = conn.db_statement(Statement::GET_PAGE_IDS);
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(checkpoint_lsn));
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(checkpoint_lsn));
-        SQ_CHECK(
-          sqlite3_bind_int64, stmt.get(), 4, static_cast<sqlite3_int64>(WT_PAGE_LOG_DISCARDED));
 
         std::vector<uint64_t> ids;
         while (SQ_CHECK(sqlite3_step, stmt.get()) == SQLITE_ROW) {
             ids.push_back(sqlite3_column_int64(stmt.get(), 0));
         }
+        LOG_DEBUG("Found {} page IDs for table_id={} at checkpoint_lsn={}", ids.size(), table_id,
+          checkpoint_lsn);
+        LOG_DIAG("Page IDs: {}", join(ids, ", "));
 
         *page_count = ids.size();
         if (ids.size() > 0) {
             fill_item(page_ids, ids.data(), ids.size() * sizeof(uint64_t));
         }
 
-        return ids.size() > 0 ? 0 : WT_NOTFOUND;
+        return 0;
+    }
+
+    uint64_t
+    get_prev_full_page_lsn(Connection &conn, uint64_t table_id, uint64_t page_id, uint64_t lsn)
+    {
+        StatementPtr stmt = conn.db_statement(Statement::GET_FULL_PAGE_LSN);
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(lsn));
+
+        int ret = SQ_CHECK(sqlite3_step, stmt.get());
+        if (ret == SQLITE_DONE) {
+            return 0; // No previous full page found
+        }
+
+        return static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 0));
     }
 
     void
     discard_page(Connection &conn, uint64_t table_id, uint64_t page_id, uint64_t lsn,
       WT_PAGE_LOG_DISCARD_ARGS *args)
     {
+        if (args->flags != 0)
+            LOG_AND_THROW("Non-zero flags: {:#x}", args->flags);
+
         WT_PAGE_LOG_PUT_ARGS put_args{};
         put_args.backlink_lsn = args->backlink_lsn;
         put_args.base_lsn = args->base_lsn;
-        put_args.flags = args->flags | Storage::WT_PAGE_LOG_DISCARDED;
+        // Discarded pages are deltas
+        put_args.flags = WT_PAGE_LOG_DELTA | WT_PAGE_LOG_DISCARDED;
 
         WT_ITEM dummy_page{};
         put_page(conn, table_id, page_id, lsn, &put_args, &dummy_page);
         args->lsn = put_args.lsn;
+        LOG_DEBUG("Discarded page_id={} at lsn={}, backlink_lsn={}, base_lsn={}; discarded_lsn={}",
+          page_id, lsn, args->backlink_lsn, args->base_lsn, args->lsn);
     }
 
     void
-    delete_page(Connection &conn, uint64_t lsn)
+    delete_pages(Connection &conn, uint64_t lsn)
     {
-        StatementPtr stmt = conn.db_statement(Statement::DELETE_PAGE);
+        LOG_DEBUG("Deleting pages with lsn > {}", lsn);
+        StatementPtr stmt = conn.db_statement(Statement::DELETE_PAGES);
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(lsn));
         SQ_CHECK(sqlite3_step, stmt.get());
     }
@@ -1317,15 +1779,15 @@ public:
         // TODO: handle dek encryption
 
         Storage::Transaction txn = storage.begin_transaction();
-        uint64_t lsn = storage.get_global(txn.conn, GlobalKey::LSN);
+        uint64_t lsn = storage.get_next_lsn(txn.conn);
         storage.put_page(txn.conn, table_id, page_id, lsn, args, buf);
-        storage.put_global(txn.conn, GlobalKey::LSN, lsn + 1);
+        storage.verify_page_chain(txn.conn, table_id, page_id, lsn);
         storage.commit_transaction(txn);
         args->lsn = lsn;
 
         LOG_DIAG(
           "Put page_id={} at lsn={}, backlink_lsn={}, base_lsn={}, "
-          "flags=0x{:x}, image_size={}",
+          "flags={:#x}, image_size={}",
           page_id, lsn, args->backlink_lsn, args->base_lsn, args->flags, args->image_size);
         LOG_TRACE("Page data (size={}) =====\n{}", buf->size, palite_verbose_item(buf));
 
@@ -1340,11 +1802,11 @@ public:
 
         Storage::Transaction txn = storage.begin_transaction();
         uint32_t flags = 0;
-        storage.get_page(txn.conn, table_id, page_id, args, &flags, results_array, results_count);
+        storage.get_pages(txn.conn, table_id, page_id, args, &flags, results_array, results_count);
         storage.commit_transaction(txn);
-        LOG_DIAG(
+        LOG_DEBUG(
           "Get page_id={} at lsn={}, returned {} entries, "
-          "backlink_lsn={}, base_lsn={}, flags=0x{:x}",
+          "backlink_lsn={}, base_lsn={}, flags={:#x}",
           page_id, args->lsn, *results_count, args->backlink_lsn, args->base_lsn, flags);
         return 0;
     }
@@ -1368,9 +1830,9 @@ public:
     {
         storage.simulate_unstable_network();
         Storage::Transaction txn = storage.begin_transaction();
-        uint64_t lsn = storage.get_global(txn.conn, GlobalKey::LSN);
+        uint64_t lsn = storage.get_next_lsn(txn.conn);
         storage.discard_page(txn.conn, table_id, page_id, lsn, args);
-        storage.put_global(txn.conn, GlobalKey::LSN, lsn + 1);
+        storage.verify_page_chain(txn.conn, table_id, page_id, lsn);
         storage.commit_transaction(txn);
         args->lsn = lsn;
         LOG_DEBUG("Discard page_id={} at lsn={}, backlink_lsn={}, base_lsn={}", page_id, lsn,
@@ -1445,7 +1907,7 @@ public:
     uint64_t begin_lsn;
 
     // Reference counting for the page log service
-    int ref_count;
+    std::atomic_int ref_count;
 
     // Configuration
     Config config;
@@ -1463,13 +1925,14 @@ public:
         initialize_interface();
         get_last_lsn(&begin_lsn);
         LOG_DEBUG("Created Palite page log at '{}', ref_count={}, begin_lsn={}", home_dir.string(),
-          ref_count, begin_lsn);
+          ref_count.load(), begin_lsn);
     }
 
     std::filesystem::path
     initialize_directory(const std::filesystem::path &home_dir)
     {
-        std::filesystem::path kv_home = home_dir / "kv_home";
+        std::filesystem::path kv_home =
+          (!config.home_dir.empty() ? config.home_dir : home_dir) / "kv_home";
         if (!std::filesystem::exists(kv_home)) {
             std::filesystem::create_directories(kv_home);
             LOG_DEBUG("Created directory for Palite page log: {}", kv_home.string());
@@ -1485,7 +1948,7 @@ public:
     add_reference()
     {
         ++ref_count;
-        LOG_DEBUG("Adding reference to page log, new ref_count={}", ref_count);
+        LOG_DEBUG("Adding reference to page log, new ref_count={}", ref_count.load());
         return 0;
     }
 
@@ -1515,8 +1978,8 @@ public:
 
         LOG_DEBUG("Deleting pages and checkpoints with lsn > {}", checkpoint_lsn);
         Storage::Transaction txn = storage.begin_transaction();
-        storage.delete_page(txn.conn, checkpoint_lsn);
-        storage.delete_checkpoint(txn.conn, checkpoint_lsn);
+        storage.delete_pages(txn.conn, checkpoint_lsn);
+        storage.delete_checkpoints(txn.conn, checkpoint_lsn);
         // Note: global LSN counter is not decremented
         storage.commit_transaction(txn);
         return 0;
@@ -1527,16 +1990,15 @@ public:
       const WT_ITEM *checkpoint_metadata, uint64_t *lsnp)
     {
         Storage::Transaction txn = storage.begin_transaction();
-        uint64_t lsn = storage.get_global(txn.conn, GlobalKey::LSN);
+        uint64_t lsn = storage.get_next_lsn(txn.conn);
         storage.put_checkpoint(txn.conn, lsn, checkpoint_timestamp, checkpoint_metadata);
-        storage.put_global(txn.conn, GlobalKey::LSN, lsn + 1);
         storage.commit_transaction(txn);
 
         LOG_DEBUG(
           "checkpoint_id={}, timestamp={}, lsn={}", checkpoint_id, checkpoint_timestamp, lsn);
         LOG_TRACE("checkpoint_metadata (size={}) =====\n{}",
           checkpoint_metadata ? checkpoint_metadata->size : 0,
-          palite_verbose_item(checkpoint_metadata));
+          checkpoint_metadata ? palite_verbose_item(checkpoint_metadata) : "<none>");
 
         if (lsnp) {
             *lsnp = lsn;
@@ -1555,8 +2017,6 @@ public:
             *checkpoint_id = 0;
         if (checkpoint_timestamp)
             *checkpoint_timestamp = 0;
-        if (checkpoint_metadata)
-            memset(checkpoint_metadata, 0, sizeof(WT_ITEM));
 
         uint64_t query_lsn = WT_PAGE_LOG_LSN_MAX; // most recent checkpoint
         Storage::Transaction txn = storage.begin_transaction();
@@ -1568,7 +2028,7 @@ public:
           checkpoint_timestamp ? *checkpoint_timestamp : 0);
         LOG_TRACE("checkpoint_metadata (size={}) =====\n{}",
           checkpoint_metadata ? checkpoint_metadata->size : 0,
-          palite_verbose_item(checkpoint_metadata));
+          checkpoint_metadata ? palite_verbose_item(checkpoint_metadata) : "<none>");
 
         if (checkpoint_lsn)
             *checkpoint_lsn = query_lsn;
@@ -1585,7 +2045,7 @@ public:
         }
 
         Storage::Transaction txn = storage.begin_transaction();
-        *lsn = storage.get_global(txn.conn, GlobalKey::LSN);
+        *lsn = storage.get_last_lsn(txn.conn);
         storage.commit_transaction(txn);
         LOG_TRACE("last_lsn={}", *lsn);
 
@@ -1619,7 +2079,7 @@ public:
     terminate()
     {
         --ref_count;
-        LOG_DEBUG("Terminating page log, new ref_count={}", ref_count);
+        LOG_DEBUG("Terminating page log, new ref_count={}", ref_count.load());
         if (ref_count <= 0) {
             storage.close();
             LOG_DEBUG("Destroying Palite page log");

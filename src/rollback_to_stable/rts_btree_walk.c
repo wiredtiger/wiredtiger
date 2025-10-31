@@ -75,7 +75,6 @@ __rts_btree_walk_page_skip(
             WT_STAT_CONN_INCR(session, txn_rts_tree_walk_skip_pages);
             *skipp = true;
         }
-        WT_REF_SET_STATE(ref, WT_REF_DELETED);
 
         if (page_del != NULL)
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
@@ -85,6 +84,8 @@ __rts_btree_walk_page_skip(
               __wt_timestamp_to_string(page_del->pg_del_start_ts, time_string[0]),
               __wt_timestamp_to_string(page_del->pg_del_durable_ts, time_string[1]),
               __wt_timestamp_to_string(rollback_timestamp, time_string[2]), page_del->txnid);
+
+        WT_REF_SET_STATE(ref, WT_REF_DELETED);
         return (0);
     }
 
@@ -472,8 +473,8 @@ __wti_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
      * reflect that the tree only contains stable data. The fields are set in a way to ensure RTS
      * does not mark the btree as dirty when checkpoint is happening.
      */
-    oldest_id = __wt_atomic_loadv64(&conn->txn_global.oldest_id);
-    stable_timestamp = __wt_atomic_loadv64(&conn->txn_global.stable_timestamp);
+    oldest_id = __wt_atomic_load_uint64_v_relaxed(&conn->txn_global.oldest_id);
+    stable_timestamp = __wt_atomic_load_uint64_v_relaxed(&conn->txn_global.stable_timestamp);
     WT_ASSERT(session, oldest_id > WT_TXN_NONE);
     btree->rec_max_txn = oldest_id - 1;
     btree->rec_max_timestamp = stable_timestamp;

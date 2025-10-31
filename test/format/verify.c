@@ -44,10 +44,12 @@ table_verify(TABLE *table, void *arg)
     testutil_assert(table != NULL);
 
     /*
-     * FIXME-WT-15619 and WT-15618: We can run verify on layered tables when deltas are written as a
-     * full image.
+     * FIXME-WT-15619 and FIXME-WT-15618: We can run verify on layered tables when deltas are
+     * written as a full image.
+     *
+     * Remove this check once both tickets are resolved.
      */
-    if (TV(DISAGG_ENABLED)) {
+    if (TV(DISAGG_ENABLED) && (GV(DISAGG_LEAF_PAGE_DELTA) || GV(DISAGG_INTERNAL_PAGE_DELTA))) {
         printf("table.%u skipped verify because verify does not support disagg delta pages.\n",
           table->id);
         fflush(stdout);
@@ -62,9 +64,6 @@ table_verify(TABLE *table, void *arg)
      * On followers, verify returns ENOENT if the stable constituent is missing. Before the first
      * checkpoint is picked up or if the table has not been created locally, this is expected
      * behavior.
-     *
-     * FIXME-WT-15398: verify will always return ENOENT on followers until test/format supports
-     * checkpoint pickup.
      */
     testutil_assert(
       ret == 0 || ret == EBUSY || (g.disagg_storage_config && !g.disagg_leader && ret == ENOENT));

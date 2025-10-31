@@ -524,7 +524,6 @@ struct __wt_page_modify {
  */
 #define WT_PAGE_CLEAN 0
 #define WT_PAGE_DIRTY_FIRST 1
-#define WT_PAGE_DIRTY 2
     wt_shared uint32_t page_state;
 
 #define WT_PM_REC_EMPTY 1      /* Reconciliation: no replacement */
@@ -691,16 +690,17 @@ struct __wt_page {
     } while (0)
 #else
 /* Use WT_ACQUIRE_READ to enforce acquire semantics rather than relying on address dependencies. */
-#define WT_INTL_INDEX_GET_SAFE(page, pindex) WT_ACQUIRE_READ((pindex), (page)->u.intl.__index)
+#define WT_INTL_INDEX_GET_SAFE(page, pindex) \
+    (pindex) = __wt_atomic_load_ptr_acquire(&(page)->u.intl.__index)
 #define WT_INTL_INDEX_GET(session, page, pindex)                          \
     do {                                                                  \
         WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0); \
         WT_INTL_INDEX_GET_SAFE(page, (pindex));                           \
     } while (0)
-#define WT_INTL_INDEX_SET(page, v)                               \
-    do {                                                         \
-        WT_RELEASE_BARRIER();                                    \
-        __wt_atomic_store_pointer(&(page)->u.intl.__index, (v)); \
+#define WT_INTL_INDEX_SET(page, v)                                   \
+    do {                                                             \
+        WT_RELEASE_BARRIER();                                        \
+        __wt_atomic_store_ptr_relaxed(&(page)->u.intl.__index, (v)); \
     } while (0)
 #endif
 
@@ -775,20 +775,21 @@ struct __wt_page {
     uint32_t prefix_stop;  /* Maximum slot to which the best page prefix applies */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_PAGE_BUILD_KEYS 0x0001u         /* Keys have been built in memory */
-#define WT_PAGE_COMPACTION_WRITE 0x0002u   /* Writing the page for compaction */
-#define WT_PAGE_DISK_ALLOC 0x0004u         /* Disk image in allocated memory */
-#define WT_PAGE_DISK_MAPPED 0x0008u        /* Disk image in mapped memory */
-#define WT_PAGE_EVICT_LRU 0x0010u          /* Page is on the LRU queue */
-#define WT_PAGE_EVICT_LRU_URGENT 0x0020u   /* Page is in the urgent queue */
-#define WT_PAGE_EVICT_NO_PROGRESS 0x0040u  /* Eviction doesn't count as progress */
-#define WT_PAGE_INTL_OVERFLOW_KEYS 0x0080u /* Internal page has overflow keys (historic only) */
-#define WT_PAGE_INTL_PINDEX_UPDATE 0x0100u /* Page index updated */
-#define WT_PAGE_PREFETCH 0x0200u           /* The page is being pre-fetched */
-#define WT_PAGE_REC_FAIL 0x0400u           /* The previous reconciliation failed on the page. */
-#define WT_PAGE_SPLIT_INSERT 0x0800u       /* A leaf page was split for append */
-#define WT_PAGE_UPDATE_IGNORE 0x1000u      /* Ignore updates on page discard */
-#define WT_PAGE_WITH_DELTAS 0x2000u        /* Page was built with deltas */
+#define WT_PAGE_BUILD_KEYS 0x0001u        /* Keys have been built in memory */
+#define WT_PAGE_COMPACTION_WRITE 0x0002u  /* Writing the page for compaction */
+#define WT_PAGE_DISK_ALLOC 0x0004u        /* Disk image in allocated memory */
+#define WT_PAGE_DISK_MAPPED 0x0008u       /* Disk image in mapped memory */
+#define WT_PAGE_EVICT_LRU 0x0010u         /* Page is on the LRU queue */
+#define WT_PAGE_EVICT_LRU_URGENT 0x0020u  /* Page is in the urgent queue */
+#define WT_PAGE_EVICT_NO_PROGRESS 0x0040u /* Eviction doesn't count as progress */
+#define WT_PAGE_INMEM_SPLIT 0x0080u
+#define WT_PAGE_INTL_OVERFLOW_KEYS 0x0100u /* Internal page has overflow keys (historic only) */
+#define WT_PAGE_INTL_PINDEX_UPDATE 0x0200u /* Page index updated */
+#define WT_PAGE_PREFETCH 0x0400u           /* The page is being pre-fetched */
+#define WT_PAGE_REC_FAIL 0x0800u           /* The previous reconciliation failed on the page. */
+#define WT_PAGE_SPLIT_INSERT 0x1000u       /* A leaf page was split for append */
+#define WT_PAGE_UPDATE_IGNORE 0x2000u      /* Ignore updates on page discard */
+#define WT_PAGE_WITH_DELTAS 0x4000u        /* Page was built with deltas */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     wt_shared uint16_t flags_atomic;       /* Atomic flags, use F_*_ATOMIC_16 */
 
@@ -1198,17 +1199,19 @@ struct __wt_ref {
     wt_shared WT_PAGE *volatile home;        /* Reference page */
     wt_shared volatile uint32_t pindex_hint; /* Reference page index hint */
 
-    /*
-     * A counter used to track how many times a ref has changed during internal page reconciliation.
-     * The value is compared and swapped to 0 for each internal page reconciliation. If the counter
-     * has a value greater than zero, this implies that the ref has been changed concurrently and
-     * that the ref remains dirty after internal page reconciliation. It is possible for other
-     * operations such as page splits and fast-truncate to concurrently write new values to the ref,
-     * but depending on timing or race conditions, it cannot be guaranteed that these new values are
-     * included as part of the reconciliation. The page would need to be reconciled again to ensure
-     * that these modifications are included.
-     */
-    wt_shared volatile uint8_t ref_changes;
+/*
+ * A flag used to track a ref has changed during internal page reconciliation. The value is compared
+ * and swapped to WT_REF_REC_CLEAN for each internal page reconciliation. If the flag becomes
+ * WT_REF_REC_DIRTY, this implies that the ref has been changed concurrently and that the ref
+ * remains dirty after internal page reconciliation. It is possible for other operations such as
+ * page splits and fast-truncate to concurrently mark WT_REF_REC_DIRTY to the ref, but depending on
+ * timing or race conditions, it cannot be guaranteed that the new change is included as part of the
+ * reconciliation. The page would need to be reconciled again to ensure that these modifications are
+ * included.
+ */
+#define WT_REF_REC_CLEAN 0
+#define WT_REF_REC_DIRTY 1
+    wt_shared volatile uint8_t rec_state;
 
 /*
  * Define both internal- and leaf-page flags for now: we only need one, but it provides an easy way
@@ -1649,7 +1652,8 @@ struct __wt_update {
  * The memory size of an update: include some padding because this is such a common case that
  * overhead of tiny allocations can swamp our cache overhead calculation.
  */
-#define WT_UPDATE_MEMSIZE(upd) WT_ALIGN(WT_UPDATE_SIZE + (upd)->size, 32)
+#define WT_UPDATE_MEMSIZE(upd) \
+    WT_ALIGN(WT_UPDATE_SIZE + __wt_tsan_suppress_load_uint32(&(upd)->size), 32)
 
 /*
  * WT_UPDATE_VALUE --

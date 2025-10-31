@@ -91,7 +91,7 @@ config_random_generator(
  * config_random_generators --
  *     Initialize our global random generators using provided seeds.
  */
-static void
+void
 config_random_generators(void)
 {
     config_random_generator("random.data_seed", GV(RANDOM_DATA_SEED), 0, &g.data_rnd);
@@ -455,8 +455,6 @@ config_table(TABLE *table, void *arg)
 void
 config_run(void)
 {
-    config_random_generators(); /* Configure the random number generators. */
-
     config_random(tables[0], false); /* Configure the remaining global name space. */
 
     /*
@@ -496,7 +494,7 @@ config_run(void)
 
     tables_apply(config_table, NULL); /* Configure the tables. */
 
-    /* TODO: Temporarily disable salvage test due to increased failures. */
+    /* FIXME-WT-12983: Temporarily disable salvage test due to increased failures. */
     config_off(NULL, "ops.salvage");
 
     /* Order can be important, don't shuffle without careful consideration. */
@@ -680,7 +678,7 @@ config_cache(void)
 
     /* Check if both min and max cache sizes have been specified and if they're consistent. */
     if (config_explicit(NULL, "cache")) {
-        if (GV(CACHE) < 4086) {
+        if (GV(CACHE) < 2048) {
             config_off(NULL, "preserve_prepared");
             config_off(NULL, "precise_checkpoint");
         }
@@ -734,17 +732,21 @@ config_cache(void)
     cache *= workers;
     cache *= 2;
 
+    /*
+     * FIXME-WT-15723: Re-evaluate whether setting large cache size is need after cache stuck issue
+     * is solved.
+     */
     if (GV(PRECISE_CHECKPOINT))
-        cache *= 6;
+        cache *= 2;
 
     if (GV(CACHE) < cache)
         GV(CACHE) = (uint32_t)cache;
 
-    if (GV(PRECISE_CHECKPOINT) && GV(CACHE) < 4086)
-        GV(CACHE) = 4086;
+    if (GV(PRECISE_CHECKPOINT) && GV(CACHE) < 2048)
+        GV(CACHE) = 2048;
 
     if (cache_maximum_explicit && GV(CACHE) > GV(CACHE_MAXIMUM)) {
-        if (GV(PRECISE_CHECKPOINT) && GV(CACHE_MAXIMUM) < 4086)
+        if (GV(PRECISE_CHECKPOINT) && GV(CACHE_MAXIMUM) < 2048)
             config_off(NULL, "cache.maximum");
         else
             GV(CACHE) = GV(CACHE_MAXIMUM);
@@ -777,9 +779,9 @@ dirty_eviction_config:
         config_single(NULL, "cache.eviction_updates_trigger=95", false);
     }
 
-    if (GV(PRECISE_CHECKPOINT) && GV(CACHE) < 4086) {
-        WARN("%s", "Setting cache to minimum of 4086MB due to precise_checkpoint");
-        config_single(NULL, "cache=4086", false);
+    if (GV(PRECISE_CHECKPOINT) && GV(CACHE) < 2048) {
+        WARN("%s", "Setting cache to minimum of 2048MB due to precise_checkpoint");
+        config_single(NULL, "cache=2048", false);
     }
 }
 
@@ -1518,6 +1520,11 @@ config_disagg_storage(void)
     g.disagg_storage_config = (strcmp(page_log, "off") != 0 && strcmp(page_log, "none") != 0);
     if (!g.disagg_storage_config)
         return; /* Disaggregated storage not enabled. */
+
+    if (GV(DISAGG_MULTI) && !GV(RUNS_PREDICTABLE_REPLAY))
+        testutil_die(EINVAL,
+          "Invalid configuration: multi-node in disagg requires predictable replay mode "
+          "(set runs.predictable_replay=1).");
 
     if (!config_explicit(NULL, "disagg.mode")) {
         /* Randomly assign "leader" or "follower" to disagg.mode with equal probability. */

@@ -63,6 +63,7 @@ static int __debug_ref(WT_DBG *, WT_REF *);
 static int __debug_row_skip(WT_DBG *, WT_INSERT_HEAD *);
 static int __debug_tree(WT_SESSION_IMPL *, WT_REF *, const char *, uint32_t);
 static int __debug_update(WT_DBG *, WT_UPDATE *, bool);
+static int __debug_update_dump_flags(WT_DBG *ds, WT_UPDATE *upd);
 static int __debug_wrapup(WT_DBG *);
 
 /*
@@ -889,7 +890,7 @@ __debug_tree_shape_info(WT_REF *ref, char *buf, size_t len)
     const char *unit;
 
     page = ref->page;
-    v = __wt_atomic_loadsize(&page->memory_footprint);
+    v = __wt_atomic_load_size_relaxed(&page->memory_footprint);
 
     if (v > WT_GIGABYTE) {
         v /= WT_GIGABYTE;
@@ -1302,9 +1303,10 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
     if (split_gen != 0)
         WT_RET(ds->f(ds, " | split_gen: %" PRIu64, split_gen));
     if (mod != NULL)
-        WT_RET(ds->f(ds, " | page_state: %" PRIu32, __wt_atomic_load32(&mod->page_state)));
-    WT_RET(
-      ds->f(ds, " | page_mem_size: %" WT_SIZET_FMT, __wt_atomic_loadsize(&page->memory_footprint)));
+        WT_RET(
+          ds->f(ds, " | page_state: %" PRIu32, __wt_atomic_load_uint32_relaxed(&mod->page_state)));
+    WT_RET(ds->f(ds, " | page_mem_size: %" WT_SIZET_FMT,
+      __wt_atomic_load_size_relaxed(&page->memory_footprint)));
     if (page->disagg_info != NULL) {
         WT_RET(ds->f(ds, "\n\t> page_id: %" PRIu64, page->disagg_info->block_meta.page_id));
         WT_RET(ds->f(ds, " | disagg_lsn: %" PRIu64, page->disagg_info->block_meta.disagg_lsn));
@@ -1700,7 +1702,72 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
         if (prepare_state != NULL)
             WT_RET(ds->f(ds, ", prepare: %s", prepare_state));
 
-        WT_RET(ds->f(ds, ", flags: 0x%" PRIx16 "\n", upd->flags));
+        WT_RET(__debug_update_dump_flags(ds, upd));
+    }
+    return (0);
+}
+
+/*
+ * __debug_update_dump_flags --
+ *     Dump the list of flags set on an update
+ */
+static int
+__debug_update_dump_flags(WT_DBG *ds, WT_UPDATE *upd)
+{
+    if (upd->flags != 0) {
+        WT_RET(ds->f(ds, " | flags: ["));
+        int flag_num = 0;
+        if (F_ISSET(upd, WT_UPDATE_DELETE_DURABLE)) {
+            WT_RET(ds->f(ds, "delete-durable"));
+            ++flag_num;
+        }
+        if (F_ISSET(upd, WT_UPDATE_DS)) {
+            WT_RET(flag_num == 0 ? ds->f(ds, "data-store") : ds->f(ds, ", data-store"));
+            ++flag_num;
+        }
+        if (F_ISSET(upd, WT_UPDATE_DURABLE)) {
+            WT_RET(flag_num == 0 ? ds->f(ds, "durable") : ds->f(ds, ", durable"));
+            ++flag_num;
+        }
+        if (F_ISSET(upd, WT_UPDATE_HS)) {
+            WT_RET(flag_num == 0 ? ds->f(ds, "history-store") : ds->f(ds, ", history-store"));
+            ++flag_num;
+        }
+        if (F_ISSET(upd, WT_UPDATE_HS_MAX_STOP)) {
+            WT_RET(flag_num == 0 ? ds->f(ds, "hs-max-stop") : ds->f(ds, ", hs-max-stop"));
+            ++flag_num;
+        }
+        if (F_ISSET(upd, WT_UPDATE_PREPARE_DURABLE)) {
+            WT_RET(flag_num == 0 ? ds->f(ds, "prepare-durable") : ds->f(ds, ", prepare-durable"));
+            ++flag_num;
+        }
+        if (F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)) {
+            WT_RET(flag_num == 0 ? ds->f(ds, "prepare-restored-from-ds") :
+                                   ds->f(ds, ", prepare-restored-from-ds"));
+            ++flag_num;
+        }
+        if (F_ISSET(upd, WT_UPDATE_PREPARE_ROLLBACK)) {
+            WT_RET(flag_num == 0 ? ds->f(ds, "prepare-rollback") : ds->f(ds, ", prepare-rollback"));
+            ++flag_num;
+        }
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FAST_TRUNCATE)) {
+            WT_RET(flag_num == 0 ? ds->f(ds, "fast-truncate") : ds->f(ds, ", fast-truncate"));
+            ++flag_num;
+        }
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA)) {
+            WT_RET(flag_num == 0 ? ds->f(ds, "restored-from-delta") :
+                                   ds->f(ds, ", restored-from-delta"));
+            ++flag_num;
+        }
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS)) {
+            WT_RET(flag_num == 0 ? ds->f(ds, "restored-from-ds") : ds->f(ds, ", restored-from-ds"));
+            ++flag_num;
+        }
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS)) {
+            WT_RET(flag_num == 0 ? ds->f(ds, "restored-from-hs") : ds->f(ds, ", restored-from-hs"));
+            ++flag_num;
+        }
+        WT_RET(ds->f(ds, "]\n"));
     }
     return (0);
 }

@@ -319,11 +319,13 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * page discard function if we're in disagg mode.
              */
             if (ret == 0 && (ckpt + 1)->name == NULL) {
-                if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->raw.data)
                     WT_TRET(__verify_page_discard(session, bm));
 
-                if (!skip_hs)
+                if (!skip_hs) {
+                    __wt_verbose(session, WT_VERB_VERIFY, "%s: verify against history store", name);
                     WT_TRET(__wt_hs_verify_one(session, btree->id));
+                }
                 /*
                  * We cannot error out here. If we got an error verifying the history store, we need
                  * to follow through with reacquiring the exclusive call below. We'll error out
@@ -423,9 +425,9 @@ __verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
 
     if (__wt_ref_addr_copy(session, ref, &addr)) {
-        WT_ERR(
-          __wt_buf_fmt(session, buf, "%s %s", __wt_addr_string(session, addr.addr, addr.size, tmp),
-            __wt_time_aggregate_to_string(&addr.ta, time_string)));
+        WT_ERR(__wt_buf_fmt(session, buf, "address:%s, time-window: %s",
+          __wt_addr_string(session, addr.addr, addr.size, tmp),
+          __wt_time_aggregate_to_string(&addr.ta, time_string)));
     } else
         WT_ERR(__wt_buf_fmt(session, buf, "%s -/-,-/-", __wt_addr_string(session, NULL, 0, tmp)));
 
@@ -546,8 +548,9 @@ __verify_tree(
     if (__wt_session_prefetch_check(session, ref))
         WT_RET(__wti_btree_prefetch(session, ref));
 
-    __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __verify_addr_string(session, ref, vs->tmp1),
-      __wt_page_type_string(page->type));
+    __wt_verbose(session, WT_VERB_VERIFY, "%s, %s, write gen: %" PRIu64 ", entries: %" PRIu32,
+      __wt_page_type_string(page->type), __verify_addr_string(session, ref, vs->tmp1),
+      page->dsk->write_gen, page->entries);
 
     /* Optionally dump address information. */
     if (vs->dump_address)
@@ -657,7 +660,7 @@ __verify_tree(
      * (just created), it won't have a disk image; if there is no disk image, there is no page
      * content to check.
      */
-    if (page->dsk != NULL) {
+    if (__wt_tsan_suppress_load_wt_page_header_ptr(&page->dsk) != NULL) {
         /*
          * Compare the write generation number on the page to the write generation number on the
          * parent. Since a parent page's reconciliation takes place once all of its child pages have
@@ -1018,6 +1021,9 @@ __verify_overflow(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
 
     bm = S2BT(session)->bm;
 
+    __wt_verbose_debug3(session, WT_VERB_VERIFY, "read overflow page at: %s",
+      __wt_addr_string(session, addr, addr_size, vs->tmp1));
+
     /* Read and verify the overflow item. */
     WT_RET(__wt_blkcache_read(session, vs->tmp1, NULL, addr, addr_size));
 
@@ -1175,6 +1181,10 @@ __verify_page_content_int(
     WT_CELL_FOREACH_ADDR (session, dsk, unpack) {
         ++cell_num;
 
+        __wt_verbose_debug3(session, WT_VERB_VERIFY,
+          "cell num: %" PRIu32 ", cell type: %s, page type: %s", cell_num - 1,
+          __wti_cell_type_string(unpack.type), __wt_page_type_string(dsk->type));
+
         if (!__wti_cell_type_check(unpack.type, dsk->type))
             WT_RET_MSG(session, WT_ERROR,
               "illegal cell and page type combination: cell %" PRIu32
@@ -1312,6 +1322,7 @@ __verify_page_content_leaf(
     uint64_t recno, rle;
     uint32_t cell_num;
     uint8_t *p;
+    char tw_string[WT_TIME_STRING_SIZE];
     bool found_ovfl;
 
     page = ref->page;
@@ -1325,6 +1336,10 @@ __verify_page_content_leaf(
     cell_num = 0;
     WT_CELL_FOREACH_KV (session, dsk, unpack) {
         ++cell_num;
+
+        __wt_verbose_debug3(session, WT_VERB_VERIFY,
+          "cell num: %" PRIu32 ", cell type: %s, page type: %s", cell_num - 1,
+          __wti_cell_type_string(unpack.type), __wt_page_type_string(dsk->type));
 
         if (!__wti_cell_type_check(unpack.type, dsk->type))
             WT_RET_MSG(session, WT_ERROR,
@@ -1352,6 +1367,9 @@ __verify_page_content_leaf(
         case WT_CELL_VALUE_COPY:
         case WT_CELL_VALUE_OVFL:
         case WT_CELL_VALUE_SHORT:
+            __wt_verbose_debug3(session, WT_VERB_VERIFY, "cell num: %" PRIu32 ", time window: %s",
+              cell_num - 1, __wt_time_window_to_string(tw, tw_string));
+
             if ((ret = __wt_time_value_validate(session, tw, &parent->ta, false)) != 0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32 " on page at %s failed timestamp validation", cell_num - 1,
@@ -1444,22 +1462,21 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
      */
     size_t num_pages_found_in_palm = 0;
     uint64_t checkpoint_lsn;
-    checkpoint_lsn = S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn;
+    checkpoint_lsn =
+      S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn == WT_DISAGG_LSN_NONE ?
+      INT_MAX :
+      S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn;
+
     WT_DECL_ITEM(item);
     WT_RET(__wt_scr_alloc(session, num_pages_found_in_palm, &item));
 
     WT_ASSERT(session, bm->get_page_ids != NULL);
     /* Get page IDs from PALM. */
-    WT_RET(bm->get_page_ids(bm, session, item, &num_pages_found_in_palm, checkpoint_lsn));
+    WT_ERR(bm->get_page_ids(bm, session, item, &num_pages_found_in_palm, checkpoint_lsn));
 
     if ((uint64_t)num_pages_found_in_palm != num_pages_found_in_btree) {
-        /*
-         * FIXME-WT-14700: Investigate whether we need to do anything special when freeing a root
-         * page. Change below warning to an error after root page discard is implemented, if a
-         * mismatch is found this function will return the corresponding error code.
-         */
-        __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
-          "Mismatch in the number of page IDs found from PALM and btree walk: PALM %" PRIu64
+        WT_ERR_MSG(session, EINVAL,
+          "Mismatch in the number of page IDs found from PALI and btree walk: PALI %" PRIu64
           " Btree walk %" PRIu64,
           (uint64_t)num_pages_found_in_palm, num_pages_found_in_btree);
     }
@@ -1478,18 +1495,14 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
           index_in_palm < num_pages_found_in_palm ? ((uint64_t *)item->data)[index_in_palm] : 0;
         uint64_t id_in_btree =
           index_in_btree < num_pages_found_in_btree ? page_ids[index_in_btree] : 0;
-        /*
-         * FIXME-WT-14700: Investigate whether we need to do anything special when freeing a root
-         * page. Change below warning to an error after root page discard is implemented, if a
-         * mismatch is found this function will return the corresponding error code.
-         */
+
         if (index_in_btree == num_pages_found_in_btree || id_in_palm < id_in_btree) {
-            __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
+            WT_ERR_MSG(session, EINVAL,
               "Unreferenced page was not discarded: PALM[%" PRIu32 "] %" PRIu64, index_in_palm,
               id_in_palm);
             index_in_palm++;
         } else if (index_in_palm == num_pages_found_in_palm || id_in_palm > id_in_btree) {
-            __wt_verbose_level(session, WT_VERB_DISAGGREGATED_STORAGE, WT_VERBOSE_DEBUG_5,
+            WT_ERR_MSG(session, EINVAL,
               "Discarded page is still in use: BTREE[%" PRIu32 "] %" PRIu64, index_in_btree,
               id_in_btree);
             index_in_btree++;
@@ -1498,6 +1511,8 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
             index_in_btree++;
         }
     }
+
+err:
 
     __wt_free(session, page_ids);
     __wt_scr_free(session, &item);
