@@ -180,10 +180,15 @@ kv_table_verifier::verify(WT_CONNECTION *connection, kv_checkpoint_ptr ckpt)
          * Only do the verify if all the tests have passed. Make sure all cursors are closed before
          * calling verify to avoid EBUSY. We don't need to tolerate non-fatal errors for the final
          * step.
+         *
+         * FIXME-WT-15619 and FIXME-WT-15618: The disaggregated check should go away once it's
+         * ready.
          */
-        ret = session->verify(session, uri.c_str(), "strict");
-        if (ret != 0)
-            throw wiredtiger_exception(session, ret);
+        if (!_table.is_disaggregated()) {
+            ret = session->verify(session, uri.c_str(), "strict");
+            if (ret != 0)
+                throw wiredtiger_exception(session, ret);
+        }
 
     } catch (std::exception &e) {
         if (_verbose)
