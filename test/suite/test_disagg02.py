@@ -41,6 +41,8 @@ class test_disagg02(wttest.WiredTigerTestCase, DisaggConfigMixin):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def test_disagg_compact(self):
+        if self.runningHook('tiered'):
+            self.skipTest("compact operation cannot be performed on tiered tables")
         # Test that compact operation fails in disaggregated storage mode.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.compact('table:test_disagg02'),
