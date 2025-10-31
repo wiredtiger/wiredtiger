@@ -5525,7 +5525,7 @@ struct __wt_storage_source {
 /*!
  * LSN used by Server during node step up process to avoid evicting pages.
  */
-#define WT_DISAGG_START_LSN 1LL<<32
+#define WT_DISAGG_START_LSN (1LL<<32)
 
 /*!
  * The interface implemented by applications to provide a page log service
