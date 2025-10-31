@@ -52,6 +52,21 @@
 /* Maximum number of incremental backups. */
 #define WT_BLKINCR_MAX 2
 
+struct __wt_mod_crap {
+    bool leader;
+    const void *leader_orig_val_data;
+    size_t leader_orig_val_sz;
+    bool mod_insert_no_stable;
+    bool mod_insert_search_ok;
+    int original_ret_mod_follower;
+    bool mod_follower_fixup_ret;
+    const void *original_key_data;
+    size_t original_key_sz;
+    const void *original_val_data;
+    size_t original_val_sz;
+    WT_CURSOR *original_curr;
+};
+
 struct __wt_cursor_backup {
     WT_CURSOR iface;
 
