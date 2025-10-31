@@ -100,8 +100,6 @@ main(int argc, char *argv[])
 
     sharedopts->bloom = BLOOM;
     testutil_check(testutil_parse_opts(argc, argv, opts));
-    if (opts->table_type == TABLE_FIX)
-        testutil_die(ENOTSUP, "Fixed-length column store not supported");
     sharedopts->usecolumns = (opts->table_type == TABLE_COL);
 
     testutil_recreate_dir(opts->home);
