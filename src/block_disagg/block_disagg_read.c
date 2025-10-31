@@ -61,16 +61,15 @@ __block_disagg_check_lsn_frontier(WT_SESSION_IMPL *session, uint64_t lsn)
 {
     uint64_t last_materialized_lsn =
       __wt_atomic_load_uint64_acquire(&S2C(session)->disaggregated_storage.last_materialized_lsn);
-
-    if (last_materialized_lsn != WT_DISAGG_LSN_NONE && lsn > last_materialized_lsn) {
+    /* FIXME-WT-15914 Resolve special constant for materialization frontier LSN. */
+    if (last_materialized_lsn != WT_DISAGG_LSN_NONE &&
+      last_materialized_lsn != WT_DISAGG_START_LSN && lsn > last_materialized_lsn) {
         /* FIXME-WT-15818 Consider crashing upon this check failure. */
         WT_STAT_CONN_INCR(session, disagg_block_read_ahead_frontier);
-        /* FIXME-WT-15914 Fix magic number for special skip case. */
-        if (last_materialized_lsn != 4294967296)
-            __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "LSN frontier violation: read LSN %" PRIu64
-              " is ahead of the materialization frontier at LSN %" PRIu64,
-              lsn, last_materialized_lsn);
+        __wt_verbose_error(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "LSN frontier violation: read LSN %" PRIu64
+          " is ahead of the materialization frontier at LSN %" PRIu64,
+          lsn, last_materialized_lsn);
     }
 }
 
