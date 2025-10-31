@@ -2100,6 +2100,9 @@ __clayered_modify_follower(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *ent
 
     ingest->set_key(ingest, key);
     ret = ingest->search(ingest);
+    WT_RET(__cursor_needkey(ingest));
+    WT_RET(__cursor_needvalue(ingest));
+
     crap->original_ret_mod_follower = ret;
     if (ret == 0 && __wt_clayered_deleted(&ingest->value)) {
         ret = WT_NOTFOUND;
