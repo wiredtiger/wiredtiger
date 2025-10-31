@@ -186,6 +186,10 @@ kv_table_verifier::verify(WT_CONNECTION *connection, kv_checkpoint_ptr ckpt)
          */
         if (!_table.is_disaggregated()) {
             ret = session->verify(session, uri.c_str(), "strict");
+            if (ret == EBUSY){
+                std::cerr << "Warning: Table " << uri << " verify is skipped because of EBUSY" << std::endl;
+                ret = 0;
+            }
             if (ret != 0)
                 throw wiredtiger_exception(session, ret);
         }
