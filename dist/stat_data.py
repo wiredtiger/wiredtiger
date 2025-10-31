@@ -1081,6 +1081,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_blocked_multi_block_reconcilation_during_checkpoint', 'multi-block reconciliation blocked whilst checkpoint is running'),
     CacheStat('cache_pages_prefetch', 'pages requested from the cache due to pre-fetch'),
     CacheStat('cache_pages_requested', 'pages requested from the cache'),
+    CacheStat('cache_pages_requested_hs', 'pages requested from the history store'),
     CacheStat('cache_read', 'pages read into cache'),
     CacheStat('cache_read_checkpoint', 'pages read into cache by checkpoint'),
     CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
