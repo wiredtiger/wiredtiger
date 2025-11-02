@@ -753,8 +753,23 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
 
             /* The proxy cells of fast truncate pages must be handled in the above flows. */
-            WT_ASSERT_ALWAYS(session, vpack->type != WT_CELL_ADDR_DEL,
-              "Proxy cell is selected with original child image");
+            if (ref->page_del == NULL)
+                WT_ASSERT_ALWAYS(session, vpack->type != WT_CELL_ADDR_DEL,
+                  "Proxy cell is selected with original child image, vpack->type=%u, "
+                  "ref->page_del=NULL",
+                  vpack->type);
+            else {
+                char ts_string[2][WT_TS_INT_STRING_SIZE];
+                WT_ASSERT_ALWAYS(session, vpack->type != WT_CELL_ADDR_DEL,
+                  "Proxy cell is selected with original child image, vpack->type=%u, "
+                  "ref->page_del->txnid=%" PRIu64
+                  ", pg_del_durable_ts=%s, pg_del_start_ts=%s, committed=%s, selected_for_write=%s",
+                  vpack->type, ref->page_del->txnid,
+                  __wt_timestamp_to_string(ref->page_del->pg_del_durable_ts, ts_string[0]),
+                  __wt_timestamp_to_string(ref->page_del->pg_del_start_ts, ts_string[1]),
+                  ref->page_del->committed ? "true" : "false",
+                  ref->page_del->selected_for_write ? "true" : "false");
+            }
 
             if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
                 __wti_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
@@ -1232,14 +1247,16 @@ __wti_rec_row_leaf(
          * the table, and the value has become obsolete.
          */
         if (upd == NULL) {
-            if (__wt_txn_tw_stop_visible_all(session, twp))
+            if (__wt_txn_tw_stop_visible_all(session, twp)) {
                 upd = &upd_tombstone;
-            else if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
+                r->key_removed_from_disk_image = true;
+            } else if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
                 if (WT_TIME_WINDOW_HAS_STOP(twp)) {
                     if (twp->stop_txn < r->rec_start_oldest_id &&
                       r->rec_prune_timestamp != WT_TS_NONE &&
                       twp->durable_stop_ts <= r->rec_prune_timestamp) {
                         upd = &upd_tombstone;
+                        r->key_removed_from_disk_image = true;
                         WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
                     }
                 } else {
@@ -1247,6 +1264,7 @@ __wti_rec_row_leaf(
                       r->rec_prune_timestamp != WT_TS_NONE &&
                       twp->durable_start_ts <= r->rec_prune_timestamp) {
                         upd = &upd_tombstone;
+                        r->key_removed_from_disk_image = true;
                         WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
                     }
                 }
@@ -1358,6 +1376,7 @@ __wti_rec_row_leaf(
 
                 /* Not creating a key so we can't use last-key as a prefix for a subsequent key. */
                 lastkey->size = 0;
+                r->key_removed_from_disk_image = true;
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, upd->type));

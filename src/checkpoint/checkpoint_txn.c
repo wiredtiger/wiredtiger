@@ -871,7 +871,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * time and only write to the metadata.
      */
     __wt_writelock(session, &txn_global->rwlock);
-    txn_global->checkpoint_txn_shared = *txn_shared;
+    __wt_tsan_suppress_memcpy(&txn_global->checkpoint_txn_shared, txn_shared, sizeof(*txn_shared));
     __wt_atomic_store_uint64_v_relaxed(
       &txn_global->checkpoint_txn_shared.pinned_id, txn->snapshot_data.snap_min);
 
@@ -2630,8 +2630,32 @@ fake:
 
 err:
     /* Resolved the checkpoint for the block manager in the error path. */
-    if (resolve_bm)
+    if (resolve_bm) {
         WT_TRET(bm->checkpoint_resolve(bm, session, ret != 0));
+
+        /*
+         * If in disaggregated mode, discard the root page associated with checkpoints that are
+         * marked for deletion.
+         *
+         * FIXME-WT-15879: Fix up layering for checkpoint root page discard
+         */
+        if (ret == 0 && F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+            WT_CKPT *ckptbase, *ckpt_temp;
+            ckptbase = btree->ckpt;
+
+            WT_CKPT_FOREACH (ckptbase, ckpt_temp) {
+                /*
+                 * In disagg, checkpoint cookie is the same as address cookie of the root page, this
+                 * applies to disagg only and not classic WT. Currently all checkpoint root page are
+                 * written with an unique page ID, therefore discarding the old checkpoint root page
+                 * here is appropriate. If the logic for writing checkpoint root pages ever change,
+                 * the discard logic would also need to be reconsidered.
+                 */
+                if (F_ISSET(ckpt_temp, WT_CKPT_DELETE) && ckpt_temp->raw.data)
+                    bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size);
+            }
+        }
+    }
 
     /*
      * If the checkpoint didn't complete successfully, make sure the tree is marked dirty.

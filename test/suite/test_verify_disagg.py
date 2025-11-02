@@ -33,9 +33,6 @@ from wtscenario import make_scenarios
 # test_verify_disagg.py
 #    SESSION::verify() testing for disagg storage
 
-# FIXME-WT-15047: Implement tests for populated ingest tables verification
-#    (we already have an OpLog imitation in some tests for layered tables)
-
 @disagg_test_class
 class test_verify_disagg(wttest.WiredTigerTestCase):
     hs = [
@@ -135,8 +132,6 @@ class test_verify_disagg(wttest.WiredTigerTestCase):
 
         # The leader is still alive, verify it.
         self.verify([self.session])
-        # FIXME-WT-14700: remove ignore after freeing root pages is addressed.
-        self.ignoreStdoutPattern("Mismatch in page IDs")
 
     def test_verify_leader_no_table(self):
         # Layered table does not exist, expect ENOENT
