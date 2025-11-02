@@ -88,16 +88,14 @@ __wt_key_string(
   WT_SESSION_IMPL *session, const void *data_arg, size_t size, const char *key_format, WT_ITEM *buf)
 {
     WT_ITEM tmp;
-    WT_CLEAR(tmp);
-
-    const char *ret_str = "";
+    const char *ret_str = NULL;
 
 #ifdef HAVE_DIAGNOSTIC
-    if (session->dump_raw) {
-        ret_str = __wt_buf_set_printable(session, data_arg, size, false, buf);
-        goto cleanup;
-    }
+    if (session->dump_raw)
+        return (__wt_buf_set_printable(session, data_arg, size, false, buf));
 #endif
+
+    WT_CLEAR(tmp);
 
     /*
      * If the format is 'S', it's a string and our version of it may not yet be nul-terminated.
@@ -113,8 +111,6 @@ __wt_key_string(
     }
 
     ret_str = __wt_buf_set_printable_format(session, data_arg, size, key_format, false, buf);
-
-cleanup:
 
     /* Always clean up local wt_item */
     __wt_buf_free(session, &tmp);
