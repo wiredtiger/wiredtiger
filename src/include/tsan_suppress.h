@@ -133,7 +133,7 @@ __wt_tsan_suppress_add_uint64_v(volatile uint64_t *var, uint64_t value)
 
 /*
  * __wt_tsan_suppress_load_size --
- *     TSAN warnings suppression for uint64 load.
+ *     TSAN warnings suppression for size_t load.
  */
 static WT_INLINE size_t
 __wt_tsan_suppress_load_size(size_t *vp)
