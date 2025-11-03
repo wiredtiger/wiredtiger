@@ -2072,7 +2072,6 @@ __clayered_modify_follower_insert(
     stable->set_key(stable, key);
     WT_RET(stable->search(stable));
 
-    /* TODO remove these? */
     WT_RET(__cursor_needkey(stable));
     WT_RET(__cursor_needvalue(stable));
 
@@ -2080,7 +2079,7 @@ __clayered_modify_follower_insert(
     ingest->set_value(ingest, &stable->value);
     WT_RET(__wt_modify_apply_api(ingest, entries, nentries));
     WT_RET(ingest->update(ingest));
-    WT_RET(__cursor_needvalue(ingest)); /* TODO necessary? */
+    WT_RET(__cursor_needvalue(ingest));
 
     return (0);
 }
@@ -2110,7 +2109,6 @@ __clayered_modify_follower(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *ent
     else
         WT_RET(ingest->modify(ingest, entries, nentries));
 
-    /* WT_RET(__cursor_needvalue(ingest)); */
     clayered->current_cursor = ingest;
     return (0);
 }
