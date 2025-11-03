@@ -252,7 +252,7 @@ testutil_parse_begin_opt(int argc, char *const *argv, const char *getopts_string
         " [-PT] [-PSD<data_seed>,E<extra_seed>] [-Pd <force_delay>,<delay_ms>]"
         " [-Pe <force_error>,<error_ms>] [-Po storage source]"),
       USAGE_STR('p', " [-p]"), USAGE_STR('R', " [-R read thread count]"),
-      USAGE_STR('T', " [-T thread count]"), USAGE_STR('t', " [-t c|f|r table type]"),
+      USAGE_STR('T', " [-T thread count]"), USAGE_STR('t', " [-t c|r table type]"),
       USAGE_STR('v', " [-v]"), USAGE_STR('W', " [-W write thread count]"));
 }
 
@@ -357,9 +357,6 @@ testutil_parse_single_opt(TEST_OPTS *opts, int ch)
             opts->table_type = TABLE_COL;
             break;
         case 'F':
-        case 'f':
-            opts->table_type = TABLE_FIX;
-            break;
         case 'R':
         case 'r':
             opts->table_type = TABLE_ROW;
