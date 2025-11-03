@@ -390,7 +390,7 @@ __block_off_remove(
 #endif
 
     --el->entries;
-    el->bytes -= (uint64_t)ext->size;
+    __wt_atomic_sub_uint64_relaxed(&el->bytes, (uint64_t)ext->size);
 
     /* Return the record if our caller wants it, otherwise free it. */
     if (extp == NULL) {

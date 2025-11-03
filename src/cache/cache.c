@@ -128,14 +128,16 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
     WT_STATP_CONN_SET(session, stats, cache_bytes_other, __wt_cache_bytes_other(cache));
     WT_STATP_CONN_SET(session, stats, cache_bytes_updates, __wt_cache_bytes_updates(cache));
 
-    WT_STATP_CONN_SET(
-      session, stats, cache_pages_dirty, cache->pages_dirty_intl + cache->pages_dirty_leaf);
+    WT_STATP_CONN_SET(session, stats, cache_pages_dirty,
+      __wt_atomic_load_uint64_relaxed(&cache->pages_dirty_intl) +
+        __wt_atomic_load_uint64_relaxed(&cache->pages_dirty_leaf));
 
-    WT_STATP_CONN_SET(
-      session, stats, rec_maximum_hs_wrapup_milliseconds, conn->rec_maximum_hs_wrapup_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_maximum_hs_wrapup_milliseconds,
+      __wt_atomic_load_uint64_relaxed(&conn->rec_maximum_hs_wrapup_milliseconds));
     WT_STATP_CONN_SET(session, stats, rec_maximum_image_build_milliseconds,
-      conn->rec_maximum_image_build_milliseconds);
-    WT_STATP_CONN_SET(session, stats, rec_maximum_milliseconds, conn->rec_maximum_milliseconds);
+      __wt_atomic_load_uint64_relaxed(&conn->rec_maximum_image_build_milliseconds));
+    WT_STATP_CONN_SET(session, stats, rec_maximum_milliseconds,
+      __wt_atomic_load_uint64_relaxed(&conn->rec_maximum_milliseconds));
 
     avg_internal_chain = (uint64_t)WT_STAT_CONN_READ(stats, rec_pages_with_internal_deltas) == 0 ?
       0 :
