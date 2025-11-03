@@ -91,8 +91,8 @@ main(int argc, char *argv[])
 
     testutil_check(wiredtiger_open(opts->home, NULL, conn_config, &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
-    testutil_snprintf(tableconf, sizeof(tableconf), TABLE_CONFIG_FMT,
-      opts->table_type == TABLE_ROW ? "Q" : "r");
+    testutil_snprintf(
+      tableconf, sizeof(tableconf), TABLE_CONFIG_FMT, opts->table_type == TABLE_ROW ? "Q" : "r");
     testutil_check(session->create(session, opts->uri, tableconf));
 
     cs = clock();

@@ -113,8 +113,8 @@ main(int argc, char *argv[])
       "statistics_log=(json,on_close,wait=1)");
     testutil_check(wiredtiger_open(opts->home, NULL, buf, &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
-    testutil_snprintf(buf, sizeof(buf),
-      "key_format=r,value_format=S,allocation_size=4K,leaf_page_max=64K");
+    testutil_snprintf(
+      buf, sizeof(buf), "key_format=r,value_format=S,allocation_size=4K,leaf_page_max=64K");
     testutil_check(session->create(session, opts->uri, buf));
     testutil_check(session->close(session, NULL));
 
