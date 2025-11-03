@@ -2069,12 +2069,13 @@ __clayered_modify_follower_insert(
          */
         return (WT_NOTFOUND);
 
+    /* Pull the base value out of the stable table. */
     stable->set_key(stable, key);
     WT_RET(stable->search(stable));
-
     WT_RET(__cursor_needkey(stable));
     WT_RET(__cursor_needvalue(stable));
 
+    /* Insert that base value in the ingest table, then apply our modifications. */
     ingest->set_key(ingest, &stable->key);
     ingest->set_value(ingest, &stable->value);
     WT_RET(__wt_modify_apply_api(ingest, entries, nentries));
@@ -2095,13 +2096,19 @@ __clayered_modify_follower(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *ent
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
     WT_CURSOR *ingest = clayered->ingest_cursor;
 
+    /* Do we have a base value in the ingest table? */
     ingest->set_key(ingest, key);
     ret = ingest->search(ingest);
     WT_RET(__cursor_localvalue(ingest));
 
+    /* Manually handle deletes. */
     if (ret == 0 && __wt_clayered_deleted(&ingest->value))
         ret = WT_NOTFOUND;
 
+    /*
+     * If we have a base value, just delegate the work to the constituent cursor. Otherwise, we need
+     * to get a base value somehow -- pull it out of the stable table.
+     */
     if (ret == WT_NOTFOUND)
         WT_RET(__clayered_modify_follower_insert(clayered, key, entries, nentries));
     else if (ret != 0)
