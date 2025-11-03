@@ -1846,7 +1846,7 @@ modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     bool modify_check;
 
     /* Periodically verify the WT_CURSOR.modify return. */
-    modify_check = positioned; // && mmrand(&tinfo->extra_rnd, 1, 20) == 1;
+    modify_check = positioned && mmrand(&tinfo->extra_rnd, 1, 20) == 1;
     if (modify_check) {
         testutil_check(cursor->get_value(cursor, &tinfo->moda));
         testutil_check(
@@ -1854,7 +1854,6 @@ modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     }
 
     WT_RET(cursor->modify(cursor, tinfo->entries, tinfo->nentries));
-    /* fprintf(stderr, "modify key {%.*s}\n", (int)cursor->key.size, (char *)cursor->key.data); */
 
     testutil_check(cursor->get_value(cursor, tinfo->new_value));
 
