@@ -787,10 +787,11 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     }
 
     /*
-     * If application threads are blocked by the total volume of data in cache, try dirty pages as
-     * well.
+     * If application threads are blocked by the total volume of data in cache or we cannot find
+     * enough pages to evict, try dirty pages as well.
      */
-    if (__wt_evict_aggressive(session) && LF_ISSET(WT_EVICT_CACHE_CLEAN_HARD))
+    if ((__wt_evict_aggressive(session) || evict->evict_empty_score > WT_EVICT_SCORE_CUTOFF) &&
+      LF_ISSET(WT_EVICT_CACHE_CLEAN_HARD))
         LF_SET(WT_EVICT_CACHE_DIRTY);
 
     /*
@@ -2457,7 +2458,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
     WT_PAGE *page;
-    bool modified, want_page;
+    bool is_aggressive, modified, want_page;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -2465,6 +2466,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     page = ref->page;
     modified = __wt_page_is_modified(page);
     *queuedp = false;
+    is_aggressive = __wt_evict_aggressive(session);
 
     /* Don't queue dirty pages in trees during checkpoints. */
     if (modified && WT_BTREE_SYNCING(btree)) {
@@ -2544,13 +2546,12 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
             WT_STAT_CONN_INCR(session, eviction_server_skip_intl_page_with_active_child);
             return;
         }
-        if (__wt_atomic_load_uint32_relaxed(&btree->evict_walk_period) == 0 &&
-          !__wt_evict_aggressive(session))
+        if (__wt_atomic_load_uint32_relaxed(&btree->evict_walk_period) == 0 && !is_aggressive)
             return;
     }
 
     /* Evaluate dirty page candidacy, when eviction is not aggressive. */
-    if (!__wt_evict_aggressive(session) && modified && __evict_skip_dirty_candidate(session, page))
+    if (!is_aggressive && modified && __evict_skip_dirty_candidate(session, page))
         return;
 
 fast:
