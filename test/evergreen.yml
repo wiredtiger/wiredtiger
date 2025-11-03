@@ -876,7 +876,9 @@ functions:
         if [ ${check_coverage|false} = true ]; then
             ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command $(cat $do_run) 2>&1 || echo "Ignoring failed test as we are checking test coverage"
         else
-            ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command $(cat $do_run) 2>&1
+            for test in $(cat $do_run); do
+              ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command $test 2>&1
+            done
         fi
 
   "unit test tsan parallel":
@@ -901,7 +903,9 @@ functions:
         fi
         py=${python_binary|python3}
         echo "Using $threads_command for 'unit test tsan parallel'"
-        ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1 || echo "Ignoring failed test as we are checking for tsan warnings"
+        for test in $(cat $do_run); do
+          ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $test 2>&1 || echo "Ignoring failed test as we are checking for tsan warnings"
+        done
 
   "tsan warning metric":
     command: shell.exec
@@ -2431,6 +2435,28 @@ tasks:
           upload_source_dir: "wiredtiger"
           upload_filename: unit-test-disagg-leader-tsan.tgz
 
+  - name: unit-test-tsan-all-measure-time
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test tsan parallel"
+        vars:
+          unit_test_parallel_ignore: test/suite/tsan.fail
+          unit_test_parallel_args: -v 2
+
+  - name: unit-test-tsan-all-measure-time-hook-disagg-leader
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test tsan parallel"
+        vars:
+          unit_test_parallel_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          unit_test_parallel_args: -v 2 --hook "disagg=(role=leader)"
+
   - name: unit-test-disagg-follower-tsan
     tags: ["python"]
     depends_on:
@@ -2729,8 +2755,29 @@ tasks:
   # Break out Python unit tests into multiple buckets/tasks.  We have a fixed number of buckets,
   # and we use the -b option of the test/suite/run.py script to split up the tests.
 
-  - name: unit-test-bucket00
+  - name: unit-test-all-measure-time
     tags: ["pull_request", "python", "unit_test"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long
+
+  - name: unit-test-all-measure-time-hook-disagg-leader
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_ignore: test/suite/hook_disagg.fail
+          unit_test_args: -v 2 --long --hook "disagg=(role=leader)"
+
+  - name: unit-test-bucket00
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
@@ -6358,6 +6405,8 @@ buildvariants:
     - name: configure-combinations
     - name: syscall-linux
     - name: checkpoint-filetypes-test
+    - name: unit-test-all-measure-time
+    - name: unit-test-all-measure-time-hook-disagg-leader
     - name: unit-test-zstd
     - name: unit-test-random-seed
     - name: unit-test-hook-disagg-follower
@@ -6456,6 +6505,10 @@ buildvariants:
     - name: unit-test-disagg-leader-tsan
       distros: ubuntu2004-large
     - name: unit-test-disagg-follower-tsan
+      distros: ubuntu2004-large
+    - name: unit-test-tsan-all-measure-time
+      distros: ubuntu2004-large
+    - name: unit-test-tsan-all-measure-time-hook-disagg-leader
       distros: ubuntu2004-large
     - name: generate-tsan-metric
     - name: generate-tsan-metric-disagg
@@ -7205,6 +7258,8 @@ buildvariants:
     - name: chunkcache-test
     - name: compile
     - name: fops
+    - name: unit-test-all-measure-time
+    - name: unit-test-all-measure-time-hook-disagg-leader
     - name: format-failure-configs-test
       distros: amazon2023-arm64-latest-large-m8g
     - name: format-smoke-test
@@ -7315,6 +7370,10 @@ buildvariants:
     - name: unit-test-disagg-leader-tsan
       distros: amazon2023-arm64-latest-large-m8g
     - name: unit-test-disagg-follower-tsan
+      distros: amazon2023-arm64-latest-large-m8g
+    - name: unit-test-tsan-all-measure-time
+      distros: amazon2023-arm64-latest-large-m8g
+    - name: unit-test-tsan-all-measure-time-hook-disagg-leader
       distros: amazon2023-arm64-latest-large-m8g
     - name: generate-tsan-metric
     - name: generate-tsan-metric-disagg
