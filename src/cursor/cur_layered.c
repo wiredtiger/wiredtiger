@@ -2033,16 +2033,15 @@ err:
  *     Apply a modify on a leader node.
  */
 static int
-__clayered_modify_leader(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *entries, int nentries, struct __wt_mod_crap *crap)
+__clayered_modify_leader(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *entries, int nentries)
 {
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
     WT_CURSOR *c = clayered->stable_cursor;
-    crap->leader_orig_val_data = c->value.data;
-    crap->leader_orig_val_sz = c->value.size;
-    WT_ITEM_SET(c->value, cursor->value);
 
     c->set_key(c, key);
+    WT_RET(c->search(c));
     WT_RET(c->modify(c, entries, nentries));
+    WT_RET(__cursor_needvalue(c));
 
     clayered->current_cursor = c;
 
@@ -2058,24 +2057,22 @@ __clayered_modify_leader(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *entri
  */
 static int
 __clayered_modify_follower_insert(
-  WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, WT_MODIFY *entries, int nentries, struct __wt_mod_crap *crap)
+  WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, WT_MODIFY *entries, int nentries)
 {
     WT_CURSOR *ingest = clayered->ingest_cursor;
     WT_CURSOR *stable = clayered->stable_cursor;
 
-    if (stable == NULL) {
+    if (stable == NULL)
         /*
          * If we have no stable table, or we can't find the key in the stable table, then there's
          * nothing we can do -- the user is calling modify, but we can't get a base value.
          */
-        crap->mod_insert_no_stable = true;
         return (WT_NOTFOUND);
-    }
 
     stable->set_key(stable, key);
     WT_RET(stable->search(stable));
-    crap->mod_insert_search_ok = true;
 
+    /* TODO remove these? */
     WT_RET(__cursor_needkey(stable));
     WT_RET(__cursor_needvalue(stable));
 
@@ -2083,7 +2080,7 @@ __clayered_modify_follower_insert(
     ingest->set_value(ingest, &stable->value);
     WT_RET(__wt_modify_apply_api(ingest, entries, nentries));
     WT_RET(ingest->update(ingest));
-    WT_RET(__cursor_needvalue(ingest));
+    WT_RET(__cursor_needvalue(ingest)); /* TODO necessary? */
 
     return (0);
 }
@@ -2093,7 +2090,7 @@ __clayered_modify_follower_insert(
  *     Apply a modify on a follower node.
  */
 static int
-__clayered_modify_follower(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *entries, int nentries, struct __wt_mod_crap *crap)
+__clayered_modify_follower(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *entries, int nentries)
 {
     WT_DECL_RET;
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
@@ -2103,19 +2100,15 @@ __clayered_modify_follower(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *ent
     ret = ingest->search(ingest);
     WT_RET(__cursor_localvalue(ingest));
 
-    crap->original_ret_mod_follower = ret;
-    if (ret == 0 && __wt_clayered_deleted(&ingest->value)) {
+    if (ret == 0 && __wt_clayered_deleted(&ingest->value))
         ret = WT_NOTFOUND;
-        crap->mod_follower_fixup_ret = true;
-    }
 
     if (ret == WT_NOTFOUND)
-        WT_RET(__clayered_modify_follower_insert(clayered, key, entries, nentries, crap));
+        WT_RET(__clayered_modify_follower_insert(clayered, key, entries, nentries));
     else if (ret != 0)
         WT_RET(ret);
-    else {
+    else
         WT_RET(ingest->modify(ingest, entries, nentries));
-    }
 
     /* WT_RET(__cursor_needvalue(ingest)); */
     clayered->current_cursor = ingest;
@@ -2128,15 +2121,12 @@ __clayered_modify_follower(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *ent
  */
 static int
 __clayered_modify_int(
-  WT_SESSION_IMPL *session, WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *entries, int nentries, struct __wt_mod_crap *crap)
+  WT_SESSION_IMPL *session, WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *entries, int nentries)
 {
-    if (S2C(session)->layered_table_manager.leader) {
-        crap->leader = true;
-        WT_RET(__clayered_modify_leader(cursor, key, entries, nentries, crap));
-    } else {
-        crap->leader = false;
-        WT_RET(__clayered_modify_follower(cursor, key, entries, nentries, crap));
-    }
+    if (S2C(session)->layered_table_manager.leader)
+        WT_RET(__clayered_modify_leader(cursor, key, entries, nentries));
+    else
+        WT_RET(__clayered_modify_follower(cursor, key, entries, nentries));
 
     return (0);
 }
@@ -2151,28 +2141,19 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    struct __wt_mod_crap crap;
-    memset(&crap, 0, sizeof(crap));
-
-    crap.original_key_data = cursor->key.data;
-    crap.original_key_sz = cursor->key.size;
-    crap.original_val_data = cursor->value.data;
-    crap.original_val_sz = cursor->value.size;
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
-    crap.original_curr = clayered->current_cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
-    /* WT_ERR(__cursor_needkey(cursor)); */
     WT_ERR(__clayered_enter(clayered, false, true, false));
 
     /* Check for a rational modify vector count. */
     if (nentries <= 0)
         WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
 
-    WT_ERR(__clayered_modify_int(session, cursor, &cursor->key, entries, nentries, &crap));
+    WT_ERR(__clayered_modify_int(session, cursor, &cursor->key, entries, nentries));
 
     /*
      * Set the cursor to reference the internal key/value of the positioned cursor.
@@ -2189,12 +2170,11 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     F_SET(cursor, WT_CURSTD_KEY_INT | F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET));
 
-    /* TODO */
-    /* WT_STAT_CONN_DSRC_INCR(session, layered_curs_update); */
+    WT_STAT_CONN_DSRC_INCR(session, layered_curs_update);
 
 err:
     __clayered_leave(clayered);
-    CURSOR_UPDATE_API_END(session, ret);
+    CURSOR_UPDATE_API_END_STAT(session, ret, cursor_modify);
     return (ret);
 }
 
