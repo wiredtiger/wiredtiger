@@ -151,10 +151,10 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
       session, stats, rec_average_internal_page_delta_chain_length, avg_internal_chain);
     WT_STATP_CONN_SET(session, stats, rec_average_leaf_page_delta_chain_length, avg_leaf_chain);
 
-    WT_STATP_CONN_SET(
-      session, stats, rec_max_internal_page_deltas, conn->page_delta.max_internal_delta_count);
-    WT_STATP_CONN_SET(
-      session, stats, rec_max_leaf_page_deltas, conn->page_delta.max_leaf_delta_count);
+    WT_STATP_CONN_SET(session, stats, rec_max_internal_page_deltas,
+      __wt_atomic_load_uint64_relaxed(&conn->page_delta.max_internal_delta_count));
+    WT_STATP_CONN_SET(session, stats, rec_max_leaf_page_deltas,
+      __wt_atomic_load_uint64_relaxed(&conn->page_delta.max_leaf_delta_count));
 }
 
 /*
