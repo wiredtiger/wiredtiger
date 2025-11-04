@@ -30,7 +30,7 @@ import random, string, sys
 import wiredtiger, wttest
 
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
-from modify_utils import create_mods, mkstring
+from modify_utils import create_mods, create_value
 from wtscenario import make_scenarios
 
 # Test that a modify remains valid across a checkpoint update.
@@ -61,7 +61,7 @@ class test_layered_modify03(wttest.WiredTigerTestCase, DisaggConfigMixin):
             repeats = r.randint(1, size)
             nmods = r.randint(1, 10)
             maxdiff = r.randint(64, size // 10)
-            oldv = mkstring(r, size, repeats, self.valuefmt)
+            oldv = create_value(r, size, repeats, self.valuefmt)
 
             c[k] = oldv
             old_vals.append(oldv)

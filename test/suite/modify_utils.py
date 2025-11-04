@@ -10,7 +10,7 @@ class OpType(Enum):
     REMOVE = 2
     REPLACE = 3
 
-def mkstring(r, size, repeat_size, valuefmt):
+def create_value(r, size, repeat_size, valuefmt):
     choices = string.ascii_letters + string.digits
     if valuefmt == 'S':
         pattern = ''.join(r.choice(choices) for _ in range(repeat_size))
@@ -22,7 +22,7 @@ def mkstring(r, size, repeat_size, valuefmt):
 
 def create_mods(rand, oldsz, repeatsz, nmod, maxdiff, valuefmt, oldv=None):
     if oldv == None:
-        oldv = mkstring(rand, oldsz, repeatsz, valuefmt)
+        oldv = create_value(rand, oldsz, repeatsz, valuefmt)
 
     offsets = sorted(rand.sample(range(oldsz), nmod))
     modsizes = sorted(rand.sample(range(maxdiff), nmod + 1))
@@ -37,11 +37,11 @@ def create_mods(rand, oldsz, repeatsz, nmod, maxdiff, valuefmt, oldv=None):
         newv += orig[:(offsets[i]-offsets[i-1])]
         orig = orig[(offsets[i]-offsets[i-1]):]
         if modtypes[i] == OpType.ADD:
-            newv += mkstring(rand, lengths[i], rand.randint(1, lengths[i]), valuefmt)
+            newv += create_value(rand, lengths[i], rand.randint(1, lengths[i]), valuefmt)
         elif modtypes[i] == OpType.REMOVE:
             orig = orig[lengths[i]:]
         elif modtypes[i] == OpType.REPLACE:
-            newv += mkstring(rand, lengths[i], rand.randint(1, lengths[i]), valuefmt)
+            newv += create_value(rand, lengths[i], rand.randint(1, lengths[i]), valuefmt)
             orig = orig[lengths[i]:]
     newv += orig
 

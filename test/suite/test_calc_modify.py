@@ -53,9 +53,14 @@ class test_calc_modify(wttest.WiredTigerTestCase):
     ]
     scenarios = make_scenarios(valuefmt)
 
-    def test_calc_modify(self):
-        r = random.Random(42) # Make things repeatable
+    @wttest.longtest('run many modify tests with different random seeds')
+    def test_calc_modify_long(self):
+        for i in range(100):
+            r = random.Random(i)
+            self.test_calc_modify(r)
 
+    # Default random seed to make things repeatable.
+    def test_calc_modify(self, r = random.Random(42)):
         self.session.create(self.uri, 'key_format=i,value_format=' + self.valuefmt)
         c = self.session.open_cursor(self.uri)
 
