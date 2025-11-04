@@ -225,7 +225,7 @@ __block_ext_insert(WT_SESSION_IMPL *session, WT_EXTLIST *el, WT_EXT *ext)
     }
 
     ++el->entries;
-    el->bytes += (uint64_t)ext->size;
+    __wt_atomic_add_uint64_relaxed(&el->bytes, (uint64_t)ext->size);
 
     /* Update the cached end-of-list. */
     if (ext->next[0] == NULL)
