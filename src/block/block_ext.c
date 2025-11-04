@@ -1502,7 +1502,7 @@ err:
 
 /*
  * __wti_block_extlist_dump_all --
- *     Dump all extent lists as verbose messages including living checkpoint and historical ones. As
+ *     Dump all extent lists as verbose messages including the live checkpoint and historical ones. As
  *     this is a debug function, errors are ignored.
  */
 void
