@@ -112,7 +112,6 @@ __wt_key_string(
 
     ret_str = __wt_buf_set_printable_format(session, data_arg, size, key_format, false, buf);
 
-    /* Always clean up local wt_item */
     __wt_buf_free(session, &tmp);
     return (ret_str);
 }
