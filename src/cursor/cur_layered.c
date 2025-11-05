@@ -2099,6 +2099,7 @@ __clayered_modify_follower(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *ent
     /* Do we have a base value in the ingest table? */
     ingest->set_key(ingest, key);
     ret = ingest->search(ingest);
+    WT_RET_NOTFOUND_OK(ret);
 
     /* Manually handle deletes. */
     if (ret == 0 && __wt_clayered_deleted(&ingest->value))
@@ -2110,8 +2111,6 @@ __clayered_modify_follower(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *ent
      */
     if (ret == WT_NOTFOUND)
         WT_RET(__clayered_modify_follower_insert(clayered, key, entries, nentries));
-    else if (ret != 0)
-        WT_RET(ret);
     else {
         WT_RET(__cursor_localvalue(ingest));
         WT_RET(ingest->modify(ingest, entries, nentries));
