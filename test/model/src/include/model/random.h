@@ -131,7 +131,7 @@ private:
 /*
  * weight_init_block --
  *     A convenience macro to wrap initialization of weights that don't have to add up to 1.0. It
- * also creates a function for computing the sum of a set of weights.
+ *     also creates a function for computing the sum of a set of weights.
  */
 #define weight_init_block(total_func)                                                           \
     for (                                                                                       \

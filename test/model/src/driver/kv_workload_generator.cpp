@@ -84,7 +84,8 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     prepared_transaction_rollback_before_prepare = 0.1;
 
     /* Relative weights for the timing stress tests, which don't have to add up to 1.0. */
-    weight_init_block(timing_stress_total) {
+    weight_init_block(timing_stress_total)
+    {
         weight_init(timing_stress_ckpt_slow, 0.1f);
         weight_init(timing_stress_ckpt_evict_page, 0.1f);
         weight_init(timing_stress_ckpt_handle, 0.1f);
