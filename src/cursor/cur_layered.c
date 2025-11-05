@@ -2105,15 +2105,19 @@ __clayered_modify_follower(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *ent
     ret = ingest->search(ingest);
     WT_RET_NOTFOUND_OK(ret);
 
-    /* Manually handle deletes. */
+    /*
+     * Manually handle tombstones. We can't apply a modify on top of an explicitly deleted value, so
+     * bail out here if the ingest cursor finds a tombstone.
+     */
     if (ret == 0 && __wt_clayered_deleted(&ingest->value))
-        ret = WT_NOTFOUND;
+        WT_RET(WT_NOTFOUND);
 
     /*
      * If we have a base value, just delegate the work to the constituent cursor. Otherwise, we need
      * to get a base value somehow -- pull it out of the stable table.
      */
     if (ret == WT_NOTFOUND)
+        /*  We found nothing (not even a tombstone) in the stable table. */
         WT_RET(__clayered_modify_follower_insert(clayered, key, entries, nentries));
     else {
         WT_RET(__cursor_localvalue(ingest));
