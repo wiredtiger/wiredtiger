@@ -2041,7 +2041,6 @@ __clayered_modify_leader(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *entri
     c->set_key(c, key);
     WT_RET(c->search(c));
     WT_RET(c->modify(c, entries, nentries));
-    WT_RET(__cursor_needvalue(c));
 
     clayered->current_cursor = c;
 
@@ -2078,9 +2077,14 @@ __clayered_modify_follower_insert(
     /* Insert that base value in the ingest table, then apply our modifications. */
     ingest->set_key(ingest, &stable->key);
     ingest->set_value(ingest, &stable->value);
+
+    /*
+     * We use this instead of calling cursor->modify, since we just want to operate directly on the
+     * WT_ITEM behind ingest->value. The "normal" cursor operations don't do that, and expect the
+     * value to be in the btree.
+     */
     WT_RET(__wt_modify_apply_api(ingest, entries, nentries));
     WT_RET(ingest->update(ingest));
-    WT_RET(__cursor_needvalue(ingest));
 
     return (0);
 }
@@ -2150,6 +2154,11 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
+
+    if (session->txn->isolation != WT_ISO_SNAPSHOT)
+        WT_ERR_MSG(
+          session, ENOTSUP, "not supported in read-committed or read-uncommitted transactions");
+
     WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
     WT_ERR(__clayered_enter(clayered, false, true, false));
@@ -2164,13 +2173,15 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
      * Set the cursor to reference the internal key/value of the positioned cursor.
      */
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+    WT_ERR(__cursor_needkey(clayered->current_cursor));
+    WT_ERR(__cursor_needvalue(clayered->current_cursor));
     WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
     WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
 
     /*
      * Modify maintains a position, key and value. Unlike update, it's not always an internal value.
      */
-    WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
+    WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_KEY_SET) != 0);
     WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET) != 0);
 
     F_SET(cursor, WT_CURSTD_KEY_INT | F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET));
