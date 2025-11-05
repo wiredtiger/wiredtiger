@@ -246,6 +246,7 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
     WT_STAT_INCRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, value)
 #define WT_STAT_CONN_INCR(session, fld) WT_STAT_CONN_INCRV(session, fld, 1)
 
+/* FIXME-WT-15961 Introduce thread-safe stats interfaces. */
 #define WT_STATP_CONN_SET(session, stats, fld, value)                           \
     do {                                                                        \
         if (WT_STAT_ENABLED(session)) {                                         \
