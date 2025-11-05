@@ -786,8 +786,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      * going negative. Note that the checkpoint can only clean the page if it belongs to the
      * metadata or the history store.
      *
-     * If we need to increase the size before the atomic operation, read the page state using an acquire
-     * read to ensure the ordering.
+     * If we need to increase the size before the atomic operation, read the page state using an
+     * acquire read to ensure the ordering.
      */
     size = 0;
     increase_dirty_size_first = false;
