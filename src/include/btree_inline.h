@@ -785,20 +785,26 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      * the dirty cache size is incremented, as this could otherwise result in the dirty cache size
      * going negative. Note that the checkpoint can only clean the page if it belongs to the
      * metadata or the history store.
+     *
+     * If we need to increase the size before the atomic operation, read the page state using an acquire
+     * read to ensure the ordering.
      */
-    size = __wt_atomic_load_size_relaxed(&page->memory_footprint);
+    size = 0;
+    increase_dirty_size_first = false;
     if (WT_UNLIKELY(!WT_PAGE_IS_INTERNAL(page) &&
-          __wt_atomic_load_uint32_relaxed(&page->modify->page_state) == WT_PAGE_CLEAN &&
           __wt_atomic_load_uint64_relaxed(&S2C(session)->cache->pages_dirty_leaf) < 10 &&
+          __wt_atomic_load_uint32_acquire(&page->modify->page_state) == WT_PAGE_CLEAN &&
           (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
             WT_IS_HS(session->dhandle)))) {
         increase_dirty_size_first = true;
+        size = __wt_atomic_load_size_relaxed(&page->memory_footprint);
         __wt_cache_dirty_incr_size(session, size, false);
-    } else
-        increase_dirty_size_first = false;
+    }
     if (__wt_atomic_add_uint32(&page->modify->page_state, 1) == WT_PAGE_DIRTY_FIRST) {
-        if (!increase_dirty_size_first)
+        if (!increase_dirty_size_first) {
+            size = __wt_atomic_load_size_relaxed(&page->memory_footprint);
             __wt_cache_dirty_incr_size(session, size, WT_PAGE_IS_INTERNAL(page));
+        }
         /*
          * These statistics are never decreased, so there is no need to increment them before
          * performing the compare-and-swap operation.
