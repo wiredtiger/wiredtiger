@@ -155,13 +155,14 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_REF_STATE previous_state;
     size_t count, i;
     uint32_t page_flags;
-    bool instantiate_upd, disk_image_freed, page_change;
+    bool instantiate_upd, disk_image_freed, page_change, full_disk_image_build_from_deltas;
 
     WT_CLEAR(block_meta);
     tmp = NULL;
     count = 0;
-    disk_image_freed = page_change = false;
+    disk_image_freed = page_change = full_disk_image_build_from_deltas = false;
     page = NULL;
+    new_image = NULL;
 
     /* Lock the WT_REF. */
     switch (previous_state = WT_REF_GET_STATE(ref)) {
@@ -248,11 +249,26 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         deltas = NULL;
 
     /* Build a full disk image of the page after reading from disk. */
-    if (/* DISABLES CODE */ (0) && count > 1) {
+    //if (/* DISABLES CODE */ (0) && count > 1) {
+    // if ( ref->page != NULL && F_ISSET(ref, WT_REF_FLAG_INTERNAL) && count > 1) {
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && count > 1) {
+        size_t new_image_buf_size;
+        uint32_t split_size;
+        WT_BTREE *btree;
+
+        btree = S2BT(session);
+
+        /* Allocate enough size for the new image, similar to __rec_split_chunk_init. */
+        split_size = __wt_split_page_size(btree->split_pct, btree->maxleafpage, btree->allocsize);
+        new_image_buf_size = 2 * WT_ALIGN(WT_MAX(btree->maxleafpage, split_size), btree->allocsize);
+        WT_ERR(__wt_scr_alloc(session, 0, &new_image));
+        WT_ERR(__wt_buf_init(session, new_image, new_image_buf_size));
+
         ret = __wti_build_full_disk_image_on_read(session, ref, deltas, count - 1, new_image);
+        full_disk_image_build_from_deltas = true;
         for (i = 0; i < count - 1; ++i)
             __wt_buf_free(session, &deltas[i]);
-        __wt_buf_free(session, new_image);
+        //__wt_buf_free(session, new_image);
         WT_ERR(ret);
     }
     /*
@@ -271,7 +287,11 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         FLD_SET(page_flags, WT_PAGE_PREFETCH);
     if (deltas != NULL)
         FLD_SET(page_flags, WT_PAGE_WITH_DELTAS);
-    WT_ERR(__wti_page_inmem(session, ref, tmp[0].data, page_flags, &page, &instantiate_upd));
+    if (full_disk_image_build_from_deltas)
+        WT_ERR(
+          __wti_page_inmem(session, ref, new_image->data, page_flags, &page, &instantiate_upd));
+    else
+        WT_ERR(__wti_page_inmem(session, ref, tmp[0].data, page_flags, &page, &instantiate_upd));
     WT_ASSERT(session, ref->page == page);
     tmp[0].mem = NULL;
     if (page->disagg_info != NULL) {
@@ -281,7 +301,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     /* Reconstruct deltas*/
-    if (count > 1) {
+    if (count > 1 && !full_disk_image_build_from_deltas) {
         ret = __wti_page_reconstruct_deltas(session, ref, deltas, count - 1);
         for (i = 0; i < count - 1; ++i)
             __wt_buf_free(session, &deltas[i]);
