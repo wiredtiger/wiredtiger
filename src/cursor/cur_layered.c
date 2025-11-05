@@ -2030,7 +2030,7 @@ err:
 
 /*
  * __clayered_modify_leader --
- *     Apply a modify on a leader node.
+ *     Apply a modify on a leader node. Effectively calls modify for the stable constituent.
  */
 static int
 __clayered_modify_leader(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *entries, int nentries)
@@ -2099,7 +2099,6 @@ __clayered_modify_follower(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *ent
     /* Do we have a base value in the ingest table? */
     ingest->set_key(ingest, key);
     ret = ingest->search(ingest);
-    WT_RET(__cursor_localvalue(ingest));
 
     /* Manually handle deletes. */
     if (ret == 0 && __wt_clayered_deleted(&ingest->value))
@@ -2113,8 +2112,10 @@ __clayered_modify_follower(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *ent
         WT_RET(__clayered_modify_follower_insert(clayered, key, entries, nentries));
     else if (ret != 0)
         WT_RET(ret);
-    else
+    else {
+        WT_RET(__cursor_localvalue(ingest));
         WT_RET(ingest->modify(ingest, entries, nentries));
+    }
 
     clayered->current_cursor = ingest;
     return (0);

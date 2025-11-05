@@ -81,5 +81,5 @@ class test_layered_modify03(wttest.WiredTigerTestCase, DisaggConfigMixin):
             c.set_key(k)
             ret = c.modify(mods)
             self.assertEqual(ret, 0)
-            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str())
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(k+1))
             self.assertEqual(c[k], newv)
