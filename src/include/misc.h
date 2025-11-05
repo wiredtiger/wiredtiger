@@ -525,7 +525,7 @@ __wt_atomic_stats_max(uint64_t *stat, uint64_t value)
 
 /*
  * __wt_atomic_stats_min --
- *     Calculate max statistic values. Currently we use load + store for that purpose since
+ *     Calculate min statistic values. Currently we use load + store for that purpose since
  *     statistic is allowed to be fuzzy. FIXME-WT-15755: Consider using relaxed CAS instead to
  *     ensure it is lossless.
  */
