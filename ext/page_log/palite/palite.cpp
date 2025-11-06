@@ -1551,7 +1551,7 @@ struct Pages : public Table<Pages> {
         }
     }
 
-    int
+    void
     get(uint64_t table_id, uint64_t page_id, WT_PAGE_LOG_GET_ARGS *args, uint32_t *flags,
       WT_ITEM *results_array, uint32_t *results_count)
     {
@@ -1640,11 +1640,9 @@ struct Pages : public Table<Pages> {
         /* Reverse the results array to have the full page first, followed by deltas. */
         std::reverse(results_array, results_array + count);
         *results_count = count;
-
-        return 0;
     }
 
-    int
+    void
     get_ids(uint64_t checkpoint_lsn, uint64_t table_id, WT_ITEM *page_ids, size_t *page_count)
     {
         auto acc = request(AccessMode::READ);
@@ -1666,8 +1664,6 @@ struct Pages : public Table<Pages> {
         if (ids.size() > 0) {
             fill_item(page_ids, ids.data(), ids.size() * sizeof(uint64_t));
         }
-
-        return 0;
     }
 
     void
@@ -1802,7 +1798,7 @@ private:
         }
     }
 
-    int
+    void
     get_infos(Connection &conn, uint64_t table_id, uint64_t page_id, uint64_t lsn,
       std::vector<PageInfo> &pages)
     {
@@ -1823,8 +1819,6 @@ private:
                 .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt.get(), 5)),
                 .encryption = WT_PAGE_LOG_ENCRYPTION{}});
         }
-
-        return 0;
     }
 
     /*
@@ -1997,17 +1991,15 @@ public:
         object_puts++;
     }
 
-    int
+    void
     get_pages(uint64_t table_id, uint64_t page_id, WT_PAGE_LOG_GET_ARGS *args, uint32_t *flags,
       WT_ITEM *results_array, uint32_t *results_count)
     {
         Pages &table = get_table(table_id);
-        const int ret = table.get(table_id, page_id, args, flags, results_array, results_count);
+        table.get(table_id, page_id, args, flags, results_array, results_count);
 
         assert(results_count != nullptr);
         object_gets += *results_count;
-
-        return ret;
     }
 
     void
@@ -2303,17 +2295,17 @@ public:
         if (checkpoint_timestamp)
             *checkpoint_timestamp = 0;
 
-        uint64_t query_lsn = WT_PAGE_LOG_LSN_MAX; /* most recent checkpoint */
-        int ret = storage.get_checkpoint(query_lsn, checkpoint_timestamp, checkpoint_metadata);
+        uint64_t last_ckpt_lsn = WT_PAGE_LOG_LSN_MAX; /* most recent checkpoint */
+        int ret = storage.get_checkpoint(last_ckpt_lsn, checkpoint_timestamp, checkpoint_metadata);
 
-        LOG_DEBUG("checkpoint_lsn={}, timestamp={}", query_lsn,
+        LOG_DEBUG("checkpoint_lsn={}, timestamp={}", last_ckpt_lsn,
           checkpoint_timestamp ? *checkpoint_timestamp : 0);
         LOG_TRACE("checkpoint_metadata (size={}) =====\n{}",
           checkpoint_metadata ? checkpoint_metadata->size : 0,
           checkpoint_metadata ? verbose_item(checkpoint_metadata) : "<none>");
 
         if (checkpoint_lsn)
-            *checkpoint_lsn = query_lsn;
+            *checkpoint_lsn = last_ckpt_lsn;
 
         return ret;
     }
