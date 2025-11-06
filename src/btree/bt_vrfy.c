@@ -1417,6 +1417,8 @@ __verify_page_content_leaf(
     return (0);
 }
 
+static int __shit_count = 0;
+
 /*
  * __verify_page_discard --
  *     Verify all live pages in disagg mode, ensuring that no pages were incorrectly discarded.
@@ -1429,6 +1431,7 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
     size_t capacity_in_bytes = 0;
     uint64_t *page_ids = NULL;
     int ret = 0;
+    __shit_count ++;
 
     /*
      * Walk the btree to retrieve the page IDs for all pages in the btree at the loaded checkpoint
@@ -1474,8 +1477,10 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
     /* Get page IDs from PALM. */
     WT_ERR(bm->get_page_ids(bm, session, item, &num_pages_found_in_palm, checkpoint_lsn));
 
+    __wt_errx(session, "Shit count: %d -- PALM: %" PRIu64 " , Btree: %" PRIu64, __shit_count, num_pages_found_in_palm, num_pages_found_in_btree);
     if ((uint64_t)num_pages_found_in_palm != num_pages_found_in_btree) {
-        WT_ERR_MSG(session, EINVAL,
+        ret = EINVAL;
+        __wt_errx(session,
           "Mismatch in the number of page IDs found from PALI and btree walk: PALI %" PRIu64
           " Btree walk %" PRIu64,
           (uint64_t)num_pages_found_in_palm, num_pages_found_in_btree);
@@ -1497,12 +1502,14 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
           index_in_btree < num_pages_found_in_btree ? page_ids[index_in_btree] : 0;
 
         if (index_in_btree == num_pages_found_in_btree || id_in_palm < id_in_btree) {
-            WT_ERR_MSG(session, EINVAL,
+            ret = EINVAL;
+            __wt_errx(session,
               "Unreferenced page was not discarded: PALM[%" PRIu32 "] %" PRIu64, index_in_palm,
               id_in_palm);
             index_in_palm++;
         } else if (index_in_palm == num_pages_found_in_palm || id_in_palm > id_in_btree) {
-            WT_ERR_MSG(session, EINVAL,
+            ret = EINVAL;
+            __wt_errx(session,
               "Discarded page is still in use: BTREE[%" PRIu32 "] %" PRIu64, index_in_btree,
               id_in_btree);
             index_in_btree++;
@@ -1510,6 +1517,15 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
             index_in_palm++;
             index_in_btree++;
         }
+    }
+
+    if(ret){
+        // ret = 0;
+        // return __verify_page_discard(session, bm); // Print the page discard details again for easier debugging.
+        // WT_ERR(bm->get_page_ids(bm, session, item, &num_pages_found_in_palm, checkpoint_lsn));
+    }else{
+        __wt_errx(session, "Page discard verification successful: PALM and Btree walk both have %"
+          PRIu64 " pages", num_pages_found_in_btree);
     }
 
 err:

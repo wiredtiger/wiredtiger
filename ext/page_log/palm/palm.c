@@ -983,12 +983,13 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
         ret = 0;
     }
     PALM_KV_ERR(palm, session, ret);
-
+    palm_handle->palm->verbose = 1;
     PALM_VERBOSE_PRINT(palm_handle->palm, session,
       "palm_handle_discard(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", backlink_lsn=%" PRIu64
       ", base_lsn=%" PRIu64 ")\n",
       (void *)plh, palm_handle->table_id, page_id, discard_args->backlink_lsn,
       discard_args->base_lsn);
+    palm_handle->palm->verbose = 0;
 
     /* There should not be any flag set. */
     assert(discard_args->flags == 0);

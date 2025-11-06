@@ -281,6 +281,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             is_internal = F_ISSET(walk, WT_REF_FLAG_INTERNAL);
             page = walk->page;
 
+            if(page->disagg_info != NULL)
+                __wt_errx(session, "Sync page : %" PRIu64 , page->disagg_info->block_meta.page_id);
+
             if (is_internal)
                 WT_STAT_CONN_INCR(session, checkpoint_pages_visited_internal);
             else
@@ -302,6 +305,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
                     btree->rec_max_timestamp = mod->rec_max_timestamp;
 
+                if(page->disagg_info != NULL)
+                    __wt_errx(session, "Sync page skip for not dirty: %" PRIu64 , page->disagg_info->block_meta.page_id);
                 continue;
             }
 
@@ -312,6 +317,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              */
             if (__sync_checkpoint_can_skip(session, walk)) {
                 __wt_tree_modify_set(session);
+                if(page->disagg_info != NULL)
+                    __wt_errx(session, "Sync page for modify: %" PRIu64 , page->disagg_info->block_meta.page_id);
                 continue;
             }
 
@@ -351,6 +358,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 walk = prev;
                 prev = NULL;
                 tried_eviction = true;
+                if(page->disagg_info != NULL)
+                    __wt_errx(session, "Sync skip for non-internal : %" PRIu64 , page->disagg_info->block_meta.page_id);
                 continue;
             }
             tried_eviction = false;

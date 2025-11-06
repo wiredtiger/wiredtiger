@@ -39,6 +39,9 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     btree = S2BT(session);
     page = ref->page;
 
+    if(page->disagg_info != NULL)
+        __wt_errx(session, "Reconcile call : %" PRIu64 , page->disagg_info->block_meta.page_id);
+
     __wt_verbose_debug1(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
       LF_ISSET(WT_REC_HS) ? ", history store" : "");
@@ -3042,7 +3045,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     mod = page->modify;
     WT_TIME_AGGREGATE_INIT(&ta);
     previous_ref_state = 0;
-
+    if (page->disagg_info != NULL)
+        __wt_errx(session, "block free call : %" PRIu64 , page->disagg_info->block_meta.page_id);
     /*
      * If using the history store table eviction path and we found updates that weren't globally
      * visible when reconciling this page, copy them into the database's history store. This can
@@ -3068,6 +3072,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * replaced. Make sure it's discarded at some point, and clear the underlying modification
      * information, we're creating a new reality.
      */
+    if (page->disagg_info != NULL)
+        __wt_errx(session, "block free call - Res: %" PRIu8 ", P1 : %" PRIu64 ,mod->rec_result, page->disagg_info->block_meta.page_id);
+        
     switch (mod->rec_result) {
     case 0: /*
              * The page has never been reconciled before, free the original
@@ -3078,8 +3085,14 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
              * The exception is root pages are never tracked or free'd, they
              * are checkpoints, and must be explicitly dropped.
              */
-        if (__wt_ref_is_root(ref))
+            
+        if (__wt_ref_is_root(ref)){
+            
+            if (page->disagg_info != NULL)
+                __wt_errx(session, "block free call - Quit for root, P2 : %" PRIu64 ,page->disagg_info->block_meta.page_id);
+                
             break;
+        }
 
         /*
          * We need to retain the block address if we skipped writing an empty delta or we are
@@ -3089,8 +3102,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             WT_ASSERT(session,
               WT_DELTA_ENABLED_FOR_PAGE(session, page->type) &&
                 r->multi->addr.block_cookie == NULL);
+            if (page->disagg_info != NULL)
+                __wt_errx(session, "block free call - Quit for P3 : %" PRIu64 ,page->disagg_info->block_meta.page_id);
             break;
         }
+            if (page->disagg_info != NULL)
+                __wt_errx(session, "block free call - Free P4 : %" PRIu64 ,page->disagg_info->block_meta.page_id);
 
         WT_RET(__wt_ref_block_free(session, ref, r->multi_next == 1));
         break;
