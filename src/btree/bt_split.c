@@ -814,8 +814,10 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     split_gen = __wt_gen(session, WT_GEN_SPLIT);
     parent->pg_intl_split_gen = split_gen;
 
-    /* Mark the page ref as dirty. We cannot race with checkpoint as internal page cannot split
-     * during checkpoint. */
+    /*
+     * Mark the page ref as dirty. We cannot race with checkpoint as internal page cannot split
+     * during checkpoint.
+     */
     if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
         __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
 
