@@ -99,10 +99,6 @@ struct __wt_block_disagg_header;
 typedef struct __wt_block_disagg_header WT_BLOCK_DISAGG_HEADER;
 struct __wt_block_header;
 typedef struct __wt_block_header WT_BLOCK_HEADER;
-struct __wt_bloom;
-typedef struct __wt_bloom WT_BLOOM;
-struct __wt_bloom_hash;
-typedef struct __wt_bloom_hash WT_BLOOM_HASH;
 struct __wt_bm;
 typedef struct __wt_bm WT_BM;
 struct __wt_btree;
@@ -573,7 +569,6 @@ typedef uint64_t wt_timestamp_t;
 #include "block.h"
 #include "block_cache.h"
 #include "block_chunkcache.h"
-#include "bloom.h"
 #include "btmem.h"
 #include "btree.h"
 #include "cache.h"
