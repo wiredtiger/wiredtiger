@@ -46,7 +46,6 @@
 #include <mutex>
 #include <random>
 #include <ranges>
-#include <semaphore>
 #include <shared_mutex>
 #include <span>
 #include <source_location>
@@ -364,7 +363,7 @@ template <> struct std::formatter<Config> {
 };
 
 WT_SESSION *const INVALID_PTR = reinterpret_cast<WT_SESSION *>(-1);
-const uint64_t INVALID_LSN = UINT64_MAX;
+constexpr uint64_t INVALID_LSN = UINT64_MAX;
 
 static WT_SESSION *
 session(WT_SESSION *s = INVALID_PTR)
@@ -418,10 +417,10 @@ log(std::source_location loc, Config &config, WT_VERBOSE_LEVEL level,
 #define LOG_DIAG(...) LOG_AT(WT_VERBOSE_DEBUG_2, __VA_ARGS__)
 #define LOG_TRACE(...) LOG_AT(WT_VERBOSE_DEBUG_3, __VA_ARGS__)
 
-#define LOG_SQL_TRACE(fmt, ...)         \
-    do {                                \
-        if (config.sql_trace)           \
-            LOG_DIAG(fmt, __VA_ARGS__); \
+#define LOG_SQL_TRACE(str)       \
+    do {                         \
+        if (config.sql_trace)    \
+            LOG_DIAG("{}", str); \
     } while (0)
 
 /* Exception-safe template method that catches C++ exceptions */
@@ -478,10 +477,15 @@ log_and_throw(
 
 #define LOG_AND_THROW(...) log_and_throw(std::source_location::current(), config, __VA_ARGS__)
 
-/* Generic formatter for custom pointer types. */
+/*
+ * Generic formatter for custom pointer types. Excludes char* and void* specializations provided by
+ * the standard library.
+ */
 template <typename T>
-requires(!std::is_same_v<std::remove_cv_t<T>, char> &&
-  !std::is_void_v<std::remove_cv_t<T>>) struct std::formatter<T *, char> {
+concept custom_ptr_t =
+  !std::is_same_v<std::remove_cv_t<T>, char> && !std::is_void_v<std::remove_cv_t<T>>;
+
+template <custom_ptr_t T> struct std::formatter<T *, char> {
     /* Use the same format specifiers as for uintptr_t */
     std::formatter<std::uintptr_t, char> underlying;
 
@@ -513,14 +517,14 @@ class SQLiteCall {
     static consteval auto
     make_log_format(const char (&prefix)[K])
     {
-        constexpr std::size_t prefix_len = sizeof(prefix) - 1; /* exclude null terminator */
+        const std::size_t prefix_len = sizeof(prefix) - 1; /* exclude null terminator */
         /* Each argument contributes: 4 chars for "'{}'" plus 2 chars for ", " */
-        constexpr std::size_t braces_len = N == 0 ? 0 : (N * 6);
+        const std::size_t braces_len = N == 0 ? 0 : (N * 6);
         std::array<char, prefix_len + braces_len + 1> fmt{};
 
         std::copy_n(prefix, prefix_len, fmt.begin()); /* excludes null terminator */
 
-        constexpr const char c[] = "'{}', ";
+        const char c[] = "'{}', ";
         for (size_t i = prefix_len; i != fmt.size() - 1; ++i)
             fmt[i] = c[(i - prefix_len) % 6];
         fmt[fmt.size() - 3] = '\0';
@@ -561,7 +565,7 @@ public:
     exec(Func &&c_func, Args &&...args)
     {
         auto ret = std::invoke(std::forward<Func>(c_func), std::forward<Args>(args)...);
-        LOG_SQL_TRACE("{}", trace_sqlite3_call(ret, args...));
+        LOG_SQL_TRACE(trace_sqlite3_call(ret, args...));
 
         if (ret != SQLITE_OK && ret != SQLITE_ROW && ret != SQLITE_DONE) {
             std::string error_msg = trace_sqlite3_call(ret, args...);
@@ -640,8 +644,523 @@ public:
 #define SQ_CHECK(func, ...) SQL_CALL_CHECK(conn.db_instance(), func, __VA_ARGS__)
 
 /*
- * Storage layer
+ * SQLite database connection. Manages opening/closing the database and preparing statements.
  */
+class Connection {
+    Config &config;
+    sqlite3 *db = nullptr;
+    std::vector<sqlite3_stmt *> statements;
+
+public:
+    /* Common configuration parameters for connections */
+    constexpr static std::string_view config_statements[] = {
+      /*
+       * The WAL journaling mode uses a write-ahead log instead of a rollback journal to implement
+       * transactions. This significantly improves performance.
+       */
+      "PRAGMA journal_mode = WAL;",
+
+      /*
+       * Turn Synchronous mode OFF for better performance. We don't care about database corruption
+       * in case of OS crash or power failure.
+       */
+      "PRAGMA synchronous = OFF;",
+
+      /* For temporary store use memory instead of disk. */
+      "PRAGMA temp_store = MEMORY;",
+
+      /* Set busy timeout to 10 seconds. */
+      "PRAGMA busy_timeout = 10000;"};
+
+    using StatementPtr = std::unique_ptr<sqlite3_stmt, std::function<decltype(sqlite3_reset)>>;
+
+    ~Connection() = default;
+    Connection(Config &cfg, const std::filesystem::path &db_path)
+        : config(cfg), db(open_db(cfg, db_path))
+    {
+        configure(Connection::config_statements);
+    }
+
+    StatementPtr
+    db_statement(size_t idx)
+    {
+        return StatementPtr(statements[idx], [this](sqlite3_stmt *s) {
+            /* do not throw from d'tor */
+            return SQL_CALL_CHECK_NO_THROW(db, sqlite3_reset, s);
+        });
+    }
+
+    sqlite3 *
+    db_instance() const
+    {
+        return db;
+    }
+
+    template <typename Container>
+    void
+    configure(const Container &cfg_statements)
+    {
+        for (const auto &stmt : cfg_statements) {
+            SQL_CALL_CHECK(db, sqlite3_exec, db, stmt.data(), nullptr, nullptr, nullptr);
+        }
+    }
+
+    template <typename Container>
+    void
+    prepare_statements(const Container &sql_statements)
+    {
+        statements.clear();
+        for (const auto &stmt : sql_statements) {
+            sqlite3_stmt *prepared_stmt = nullptr;
+            SQL_CALL_CHECK(db, sqlite3_prepare_v2, db, stmt.data(), -1, &prepared_stmt, nullptr);
+            statements.push_back(prepared_stmt);
+        }
+    }
+
+    void
+    close()
+    {
+        finalize_statements();
+        close_db();
+    }
+
+private:
+    static sqlite3 *
+    open_db(Config &config, const std::filesystem::path &db_path)
+    {
+        const unsigned flags =
+          /*
+           * The database is opened for reading and writing, and is created if it does not already
+           * exist.
+           */
+          SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE |
+          /*
+           * Use the "multi-thread" threading mode. Cannot share this connection between threads.
+           */
+          SQLITE_OPEN_NOMUTEX;
+
+        sqlite3 *pdb = nullptr;
+        SQL_CALL_OPEN(sqlite3_open_v2, db_path.c_str(), &pdb, flags, nullptr);
+        LOG_DEBUG("Opened SQLite database: {} ({})", pdb, db_path.c_str());
+
+        return pdb;
+    }
+
+    void
+    finalize_statements()
+    {
+        std::ranges::for_each(
+          statements, [this](sqlite3_stmt *s) { SQL_CALL_CHECK(db, sqlite3_finalize, s); });
+        statements.clear();
+    }
+
+    void
+    close_db()
+    {
+        int ret = sqlite3_close(db);
+        if (ret == SQLITE_OK) {
+            LOG_DEBUG("Closed SQLite database: {}", db);
+        } else {
+            LOG_ERROR(
+              "Failed to close SQLite database: {}. Error: {} ({})", db, ret, sqlite3_errstr(ret));
+        }
+        db = nullptr;
+    }
+};
+
+/*
+ * Generic functionality of a database table. Manages connections per thread and provides access
+ * control.
+ */
+template <typename Traits> class Table {
+protected:
+    Config &config;
+    std::shared_mutex &store_access; /* Store-wide access mutex */
+
+    std::filesystem::path table_file;
+
+    std::once_flag create_table;
+    std::shared_mutex conn_state; /* protects 'connections' map */
+    std::unordered_map<std::thread::id, std::unique_ptr<Connection>> connections;
+
+public:
+    std::shared_mutex access; /* readers-writer mutex for table */
+
+    ~Table() = default;
+    Table(Config &cfg, std::shared_mutex &str_access, const std::filesystem::path &file)
+        : config(cfg), store_access(str_access), table_file(file)
+    {
+    }
+
+    void
+    close()
+    {
+        std::ranges::for_each(connections, [](auto &kv) { kv.second->close(); });
+        connections.clear();
+    }
+
+    enum AccessMode { READ, WRITE, BYPASS };
+
+protected:
+    class Access {
+        std::shared_lock<std::shared_mutex> store_lock;
+        std::shared_lock<std::shared_mutex> table_read_lock;
+        std::unique_lock<std::shared_mutex> table_write_lock;
+
+    public:
+        Connection &conn;
+
+        ~Access() = default;
+        Access(AccessMode mode, Connection &cn, std::shared_mutex &store_access,
+          std::shared_mutex &table_access)
+            : conn(cn)
+        {
+            switch (mode) {
+            case AccessMode::READ:
+                store_lock = std::shared_lock(store_access);
+                table_read_lock = std::shared_lock(table_access);
+                break;
+            case AccessMode::WRITE:
+                store_lock = std::shared_lock(store_access);
+                table_write_lock = std::unique_lock(table_access);
+                break;
+            case AccessMode::BYPASS:
+                /* no locking */
+                break;
+            default:
+                assert(false && "Invalid AccessMode");
+            }
+        }
+
+        Access(const Access &) = delete;
+        Access &operator=(const Access &) = delete;
+
+        void
+        release()
+        {
+            if (table_read_lock.owns_lock())
+                table_read_lock.unlock();
+            if (table_write_lock.owns_lock())
+                table_write_lock.unlock();
+            if (store_lock.owns_lock())
+                store_lock.unlock();
+        }
+    };
+
+    Access
+    request(AccessMode mode)
+    {
+        return Access{mode, conn(), store_access, access};
+    }
+
+private:
+    Connection &
+    conn()
+    {
+        {
+            std::shared_lock read_lock(conn_state);
+            auto it = connections.find(std::this_thread::get_id());
+            if (it != connections.end())
+                return *(it->second);
+        }
+
+        {
+            std::unique_lock write_lock(conn_state);
+            auto [it, inserted] = connections.try_emplace(
+              std::this_thread::get_id(), std::make_unique<Connection>(config, table_file));
+
+            if (!inserted)
+                LOG_AND_THROW("Connection already exists for this thread");
+
+            Connection &new_conn = *(it->second);
+            new_conn.configure(static_cast<Traits *>(this)->conn_config());
+
+            std::call_once(
+              create_table,
+              [this](Connection &c) {
+                  c.configure(Traits::create_statements);
+                  LOG_DEBUG("SQLite database schema initialized: {}", c.db_instance());
+              },
+              new_conn);
+
+            new_conn.prepare_statements(Traits::sql_statements);
+
+            return new_conn;
+        }
+    }
+};
+
+/*
+ * Specific Tables
+ */
+
+struct Globals : public Table<Globals> {
+    constexpr static std::string_view prefix = "globals";
+
+    enum Statement {
+        MAKE_NEXT_LSN,
+        GET_LAST_LSN,
+        ADD_TABLE_ID,
+        GET_TABLE_IDS,
+        COUNT /* number of statements */
+    };
+
+    constexpr static auto sql_statements = []() constexpr
+    {
+        std::array<std::string_view, COUNT> stmt{};
+
+        /* Increment LSN. */
+        stmt[MAKE_NEXT_LSN] =
+          R"(UPDATE globals
+             SET val = val + 1
+             WHERE id = 0
+             RETURNING val;)";
+
+        /* Get the last LSN. */
+        stmt[GET_LAST_LSN] =
+          R"(SELECT val
+             FROM globals
+             WHERE id = 0;)",
+
+        /* Add a new table ID if it does not already exist. */
+          stmt[ADD_TABLE_ID] =
+            R"(INSERT OR IGNORE INTO globals (id, val)
+               VALUES (1, ?);)";
+
+        /* Get all known table IDs. */
+        stmt[GET_TABLE_IDS] =
+          R"(SELECT val
+             FROM globals
+             WHERE id = 1;)";
+
+        return stmt;
+    }
+    ();
+
+    static_assert(
+      std::ranges::none_of(Globals::sql_statements, [](const auto &s) { return s.empty(); }),
+      "Not all SQL statements were initialized");
+
+    constexpr static std::string_view create_statements[] = {
+      /*
+       * Globals table to store LSN counter and known table IDs.
+       *  - LSN counter id = 0
+       *  - Table IDs id = 1
+       */
+      R"(CREATE TABLE IF NOT EXISTS globals (
+            id INTEGER CHECK (id = 0 OR id = 1),
+            val INTEGER NOT NULL,
+         PRIMARY KEY (id, val));)",
+
+      /* Init LSN counter, if the table is empty; do nothing otherwise. */
+      R"(INSERT INTO globals (id, val)
+         SELECT 0, 0
+         WHERE NOT EXISTS (SELECT 1 FROM globals WHERE id = 0);)"};
+
+    ~Globals() = default;
+    Globals(Config &cfg, std::shared_mutex &store_access, const std::filesystem::path &home)
+        : Table<Globals>(cfg, store_access, home / std::format("{}.db", Globals::prefix))
+    {
+    }
+
+    Globals(const Globals &) = delete;
+    Globals &operator=(const Globals &) = delete;
+
+    auto
+    conn_config() -> std::ranges::view auto
+    {
+        /* No special configuration is required for the 'globals' table. */
+        return std::views::empty<std::string_view>;
+    }
+
+    uint64_t
+    fetch_lsn(Connection &conn, Statement stmt_type)
+    {
+        Connection::StatementPtr stmt = conn.db_statement(stmt_type);
+        SQ_CHECK(sqlite3_step, stmt.get());
+
+        return sqlite3_column_int64(stmt.get(), 0);
+    }
+
+    uint64_t
+    make_next_lsn()
+    {
+        auto acc = request(AccessMode::WRITE);
+
+        return fetch_lsn(acc.conn, Statement::MAKE_NEXT_LSN);
+    }
+
+    uint64_t
+    get_last_lsn()
+    {
+        auto acc = request(AccessMode::READ);
+
+        return fetch_lsn(acc.conn, Statement::GET_LAST_LSN);
+    }
+
+    void
+    add_table_id(uint64_t table_id)
+    {
+        auto acc = request(AccessMode::WRITE);
+        Connection &conn = acc.conn;
+
+        Connection::StatementPtr stmt = conn.db_statement(Statement::ADD_TABLE_ID);
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
+        SQ_CHECK(sqlite3_step, stmt.get());
+    }
+
+    std::vector<uint64_t>
+    get_table_ids(AccessMode mode = AccessMode::READ)
+    {
+        auto acc = request(mode);
+        Connection &conn = acc.conn;
+
+        Connection::StatementPtr stmt = conn.db_statement(Statement::GET_TABLE_IDS);
+        std::vector<uint64_t> table_ids;
+        while (SQ_CHECK(sqlite3_step, stmt.get()) == SQLITE_ROW) {
+            table_ids.push_back(static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 0)));
+        }
+
+        return table_ids;
+    }
+};
+
+struct Checkpoints : public Table<Checkpoints> {
+    constexpr static std::string_view prefix = "checkpoints";
+
+    enum Statement {
+        PUT_CHECKPOINT,
+        GET_CHECKPOINT,
+        DELETE_CHECKPOINTS,
+        COUNT /* number of statements */
+    };
+
+    constexpr static auto sql_statements = []() constexpr
+    {
+        std::array<std::string_view, COUNT> stmt{};
+
+        /*
+         * Insert a new checkpoint.
+         */
+        stmt[PUT_CHECKPOINT] =
+          R"(INSERT INTO checkpoints (lsn, timestamp, checkpoint_metadata)
+             VALUES (?, ?, ?);)";
+
+        /*
+         * Get the latest checkpoint (i.e., checkpoint with the highest lsn) if query lsn equals to
+         * WT_PAGE_LOG_LSN_MAX ( passed as parameter: ?2); otherwise get the checkpoint with the
+         * given lsn.
+         */
+        stmt[GET_CHECKPOINT] =
+          R"(SELECT lsn, timestamp, checkpoint_metadata
+             FROM checkpoints
+             WHERE (?1 = ?2 OR lsn = ?1)
+             ORDER BY
+                 lsn DESC,
+                 timestamp DESC
+             LIMIT 1;)";
+
+        /*
+         * Delete all checkpoints with lsn greater than the given lsn.
+         */
+        stmt[DELETE_CHECKPOINTS] =
+          R"(DELETE FROM checkpoints
+             WHERE lsn > ?;)";
+
+        return stmt;
+    }
+    ();
+
+    static_assert(
+      std::ranges::none_of(Checkpoints::sql_statements, [](const auto &s) { return s.empty(); }),
+      "Not all SQL statements were initialized");
+
+    constexpr static std::string_view create_statements[] = {
+      R"(CREATE TABLE IF NOT EXISTS checkpoints (
+            lsn INTEGER NOT NULL,
+            timestamp INTEGER NOT NULL,
+            checkpoint_metadata BLOB,
+         PRIMARY KEY (lsn, timestamp));)"};
+
+    ~Checkpoints() = default;
+    Checkpoints(Config &cfg, std::shared_mutex &store_access, const std::filesystem::path &home)
+        : Table<Checkpoints>(cfg, store_access, home / std::format("{}.db", Checkpoints::prefix))
+    {
+    }
+
+    Checkpoints(const Checkpoints &) = delete;
+    Checkpoints &operator=(const Checkpoints &) = delete;
+
+    auto
+    conn_config() -> std::ranges::view auto
+    {
+        /* No special configuration is required for the 'checkpoints' table. */
+        return std::views::empty<std::string_view>;
+    }
+
+    void
+    put(uint64_t lsn, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata)
+    {
+        auto acc = request(AccessMode::WRITE);
+        Connection &conn = acc.conn;
+
+        Connection::StatementPtr stmt = conn.db_statement(Statement::PUT_CHECKPOINT);
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, lsn);
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, checkpoint_timestamp);
+        SQ_CHECK(sqlite3_bind_blob, stmt.get(), 3, checkpoint_metadata->data,
+          checkpoint_metadata->size, SQLITE_STATIC);
+        SQ_CHECK(sqlite3_step, stmt.get());
+    }
+
+    int
+    get(uint64_t &lsn, uint64_t *timestamp, WT_ITEM *checkpoint_metadata,
+      AccessMode mode = AccessMode::READ)
+    {
+        auto acc = request(mode);
+        Connection &conn = acc.conn;
+
+        Connection::StatementPtr stmt = conn.db_statement(Statement::GET_CHECKPOINT);
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(lsn));
+        SQ_CHECK(
+          sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(WT_PAGE_LOG_LSN_MAX));
+        int ret = SQ_CHECK(sqlite3_step, stmt.get());
+        if (ret == SQLITE_DONE) {
+            /* No checkpoint found */
+            if (timestamp)
+                *timestamp = 0;
+
+            if (checkpoint_metadata) {
+                checkpoint_metadata->data = nullptr;
+                checkpoint_metadata->size = 0;
+            }
+
+            return WT_NOTFOUND;
+        }
+
+        lsn = sqlite3_column_int64(stmt.get(), 0);
+        if (timestamp)
+            *timestamp = sqlite3_column_int64(stmt.get(), 1);
+
+        if (checkpoint_metadata) {
+            const void *blob = sqlite3_column_blob(stmt.get(), 2);
+            int size = sqlite3_column_bytes(stmt.get(), 2);
+            fill_item(checkpoint_metadata, blob, static_cast<size_t>(size));
+        }
+
+        return 0;
+    }
+
+    void
+    delete_many(uint64_t lsn, AccessMode mode = AccessMode::WRITE)
+    {
+        auto acc = request(mode);
+        Connection &conn = acc.conn;
+
+        Connection::StatementPtr stmt = conn.db_statement(Statement::DELETE_CHECKPOINTS);
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(lsn));
+        SQ_CHECK(sqlite3_step, stmt.get());
+    }
+};
 
 struct PageInfo {
     uint64_t table_id;
@@ -671,455 +1190,56 @@ template <> struct std::formatter<PageInfo> {
     }
 };
 
-class Storage {
-    Config &config;
-    const std::filesystem::path db_home;
+struct Pages : public Table<Pages> {
+    constexpr static std::string_view prefix = "pages";
 
-    class Connection {
-        Config &config;
-        sqlite3 *db = nullptr;
-        std::vector<sqlite3_stmt *> statements;
-
-    public:
-        /* Common configuration parameters for connections */
-        constexpr static std::string_view config_statements[] = {
-          /*
-           * The WAL journaling mode uses a write-ahead log instead of a rollback journal to
-           * implement transactions. This significantly improves performance.
-           */
-          "PRAGMA journal_mode = WAL;",
-
-          /*
-           * Turn Synchronous mode OFF for better performance. We don't care about database
-           * corruption in case of OS crash or power failure.
-           */
-          "PRAGMA synchronous = OFF;",
-
-          /* For temporary store use memory instead of disk. */
-          "PRAGMA temp_store = MEMORY;",
-
-          /* Set busy timeout to 10 seconds. */
-          "PRAGMA busy_timeout = 10000;"};
-
-        using StatementPtr = std::unique_ptr<sqlite3_stmt, std::function<decltype(sqlite3_reset)>>;
-
-        ~Connection() = default;
-        Connection(Config &cfg, const std::filesystem::path &db_path)
-            : config(cfg), db(open_db(cfg, db_path))
-        {
-            configure(Connection::config_statements);
-        }
-
-        StatementPtr
-        db_statement(size_t idx)
-        {
-            return StatementPtr(statements[idx], [this](sqlite3_stmt *s) {
-                /* do not throw from d'tor */
-                return SQL_CALL_CHECK_NO_THROW(db, sqlite3_reset, s);
-            });
-        }
-
-        sqlite3 *
-        db_instance() const
-        {
-            return db;
-        }
-
-        template <typename Container>
-        void
-        configure(const Container &cfg_statements)
-        {
-            for (const auto &stmt : cfg_statements) {
-                SQL_CALL_CHECK(db, sqlite3_exec, db, stmt.data(), nullptr, nullptr, nullptr);
-            }
-        }
-
-        template <typename Container>
-        void
-        prepare_statements(const Container &sql_statements)
-        {
-            statements.clear();
-            for (const auto &stmt : sql_statements) {
-                sqlite3_stmt *prepared_stmt = nullptr;
-                SQL_CALL_CHECK(
-                  db, sqlite3_prepare_v2, db, stmt.data(), -1, &prepared_stmt, nullptr);
-                statements.push_back(prepared_stmt);
-            }
-        }
-
-        void
-        close()
-        {
-            finalize_statements();
-            close_db();
-        }
-
-    private:
-        static sqlite3 *
-        open_db(Config &config, const std::filesystem::path &db_path)
-        {
-            const unsigned flags =
-              /*
-               * The database is opened for reading and writing, and is created if it does not
-               * already exist.
-               */
-              SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE |
-              /*
-               * Use the "multi-thread" threading mode. Cannot share this connection between
-               * threads.
-               */
-              SQLITE_OPEN_NOMUTEX;
-
-            sqlite3 *pdb = nullptr;
-            SQL_CALL_OPEN(sqlite3_open_v2, db_path.c_str(), &pdb, flags, nullptr);
-            LOG_DEBUG("Opened SQLite database: {} ({})", pdb, db_path.c_str());
-
-            return pdb;
-        }
-
-        void
-        finalize_statements()
-        {
-            std::ranges::for_each(
-              statements, [this](sqlite3_stmt *s) { SQL_CALL_CHECK(db, sqlite3_finalize, s); });
-            statements.clear();
-        }
-
-        void
-        close_db()
-        {
-            int ret = sqlite3_close(db);
-            if (ret == SQLITE_OK) {
-                LOG_DEBUG("Closed SQLite database: {}", db);
-            } else {
-                LOG_ERROR("Failed to close SQLite database: {}. Error: {} ({})", db, ret,
-                  sqlite3_errstr(ret));
-            }
-            db = nullptr;
-        }
-    };
-
-    template <typename Traits> class Table {
-    protected:
-        Config &config;
-        std::filesystem::path table_file;
-
-        std::once_flag create_table;
-        std::shared_mutex conn_state; /* protects 'connections' map */
-        std::unordered_map<std::thread::id, std::unique_ptr<Connection>> connections;
-
-    public:
-        std::shared_mutex access; /* readers-writer mutex for table */
-
-        ~Table() = default;
-        Table(Config &cfg, const std::filesystem::path &file) : config(cfg), table_file(file) {}
-
-        Connection &
-        conn()
-        {
-            {
-                std::shared_lock read_lock(conn_state);
-                auto it = connections.find(std::this_thread::get_id());
-                if (it != connections.end())
-                    return *(it->second);
-            }
-
-            {
-                std::unique_lock write_lock(conn_state);
-                auto [it, inserted] = connections.try_emplace(
-                  std::this_thread::get_id(), std::make_unique<Connection>(config, table_file));
-
-                if (!inserted)
-                    LOG_AND_THROW("Connection already exists for this thread");
-
-                Connection &new_conn = *(it->second);
-                new_conn.configure(static_cast<Traits *>(this)->conn_config());
-                create_tables(new_conn);
-                new_conn.prepare_statements(Traits::sql_statements);
-
-                return new_conn;
-            }
-        }
-
-        void
-        close()
-        {
-            std::ranges::for_each(connections, [](auto &kv) { kv.second->close(); });
-            connections.clear();
-        }
-
-    private:
-        void
-        create_tables(Connection &conn)
-        {
-            std::call_once(
-              create_table,
-              [this](sqlite3 *d) {
-                  for (const auto &stmt : Traits::create_statements) {
-                      SQL_CALL_CHECK(d, sqlite3_exec, d, stmt.data(), nullptr, nullptr, nullptr);
-                  }
-                  LOG_DEBUG("SQLite database schema initialized: {}", table_file.c_str());
-              },
-              conn.db_instance());
-        }
+    enum Statement {
+        PUT_PAGE,
+        GET_PAGE_IDS,
+        GET_FULL_PAGE_LSN,
+        GET_PAGE_INFOS,
+        GET_PAGES,
+        DELETE_PAGES,
+        COUNT /* number of statements */
     };
 
     /*
-     * Tables
+     * Our flags start at the 16th bit (0x10000u) to avoid conflicts with WT_PAGE_LOG_PUT_ARGS
+     * flags.
      */
+    static constexpr uint32_t WT_PAGE_LOG_DISCARDED = 0x10000u;
 
-    struct Globals : public Table<Globals> {
-        constexpr static std::string_view prefix = "globals";
-
-        enum Statement { MAKE_NEXT_LSN, GET_LAST_LSN, ADD_TABLE_ID, GET_TABLE_IDS };
-
-        constexpr static std::string_view sql_statements[] = {
-
-          /* MAKE_NEXT_LSN: Increment LSN. */
-          R"(UPDATE globals
-             SET val = val + 1
-             WHERE id = 0
-             RETURNING val;)",
-
-          /* GET_LAST_LSN: Get the last LSN. */
-          R"(SELECT val
-             FROM globals
-             WHERE id = 0;)",
-
-          /* ADD_TABLE_ID: Add a new table ID if it does not already exist. */
-          R"(INSERT OR IGNORE INTO globals (id, val)
-             VALUES (1, ?);)",
-
-          /* GET_TABLE_IDS: Get all known table IDs. */
-          R"(SELECT val
-             FROM globals
-             WHERE id = 1;)"};
-
-        constexpr static std::string_view create_statements[] = {
-          /*
-           * Globals table to store LSN counter and known table IDs.
-           *  - LSN counter id = 0
-           *  - Table IDs id = 1
-           */
-          R"(CREATE TABLE IF NOT EXISTS globals (
-                 id INTEGER CHECK (id = 0 OR id = 1),
-                 val INTEGER NOT NULL,
-             PRIMARY KEY (id, val));)",
-
-          /* Init LSN counter, if the table is empty; do nothing otherwise. */
-          R"(INSERT INTO globals (id, val)
-             SELECT 0, 0
-             WHERE NOT EXISTS (SELECT 1 FROM globals WHERE id = 0);)"};
-
-        ~Globals() = default;
-        Globals(Config &cfg, const std::filesystem::path &home)
-            : Table<Globals>(cfg, home / std::format("{}.db", Globals::prefix))
-        {
-        }
-
-        Globals(const Globals &) = delete;
-        Globals &operator=(const Globals &) = delete;
-
-        auto
-        conn_config() -> std::ranges::view auto
-        {
-            /* No special configuration is required for the 'globals' table. */
-            return std::views::empty<std::string_view>;
-        }
-
-        uint64_t
-        fetch_lsn(Connection &conn, Statement stmt_type)
-        {
-            Connection::StatementPtr stmt = conn.db_statement(stmt_type);
-            SQ_CHECK(sqlite3_step, stmt.get());
-            return sqlite3_column_int64(stmt.get(), 0);
-        }
-
-        uint64_t
-        make_next_lsn(Connection &conn)
-        {
-            return fetch_lsn(conn, Statement::MAKE_NEXT_LSN);
-        }
-
-        uint64_t
-        get_last_lsn(Connection &conn)
-        {
-            return fetch_lsn(conn, Statement::GET_LAST_LSN);
-        }
-
-        void
-        add_table_id(Connection &conn, uint64_t table_id)
-        {
-            Connection::StatementPtr stmt = conn.db_statement(Statement::ADD_TABLE_ID);
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
-            SQ_CHECK(sqlite3_step, stmt.get());
-        }
-
-        std::vector<uint64_t>
-        get_table_ids(Connection &conn)
-        {
-            Connection::StatementPtr stmt = conn.db_statement(Statement::GET_TABLE_IDS);
-            std::vector<uint64_t> table_ids;
-            while (SQ_CHECK(sqlite3_step, stmt.get()) == SQLITE_ROW) {
-                table_ids.push_back(static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 0)));
-            }
-            return table_ids;
-        }
-    };
-
-    struct Checkpoints : public Table<Checkpoints> {
-        constexpr static std::string_view prefix = "checkpoints";
-
-        enum Statement { PUT_CHECKPOINT, GET_CHECKPOINT, DELETE_CHECKPOINTS };
-
-        constexpr static std::string_view sql_statements[] = {
-          /*
-           * PUT_CHECKPOINT: Insert a new checkpoint.
-           */
-          R"(INSERT INTO checkpoints (lsn, timestamp, checkpoint_metadata)
-             VALUES (?, ?, ?);)",
-
-          /*
-           * GET_CHECKPOINT: Get the latest checkpoint (i.e., checkpoint with the highest lsn) if
-           * query lsn equals to WT_PAGE_LOG_LSN_MAX ( passed as parameter: ?2); otherwise get the
-           * checkpoint with the given lsn.
-           */
-          R"(SELECT lsn, timestamp, checkpoint_metadata
-             FROM checkpoints
-             WHERE (?1 = ?2 OR lsn = ?1)
-             ORDER BY
-                 lsn DESC,
-                 timestamp DESC
-             LIMIT 1;)",
-
-          /*
-           * DELETE_CHECKPOINTS: Delete all checkpoints with lsn greater than the given lsn.
-           */
-          R"(DELETE FROM checkpoints
-             WHERE lsn > ?;)"};
-
-        constexpr static std::string_view create_statements[] = {
-          R"(CREATE TABLE IF NOT EXISTS checkpoints (
-                lsn INTEGER NOT NULL,
-                timestamp INTEGER NOT NULL,
-                checkpoint_metadata BLOB,
-             PRIMARY KEY (lsn, timestamp));)"};
-
-        ~Checkpoints() = default;
-        Checkpoints(Config &cfg, const std::filesystem::path &home)
-            : Table<Checkpoints>(cfg, home / std::format("{}.db", Checkpoints::prefix))
-        {
-        }
-
-        Checkpoints(const Checkpoints &) = delete;
-        Checkpoints &operator=(const Checkpoints &) = delete;
-
-        auto
-        conn_config() -> std::ranges::view auto
-        {
-            /* No special configuration is required for the 'checkpoints' table. */
-            return std::views::empty<std::string_view>;
-        }
-
-        void
-        put(Connection &conn, uint64_t lsn, uint64_t checkpoint_timestamp,
-          const WT_ITEM *checkpoint_metadata)
-        {
-            Connection::StatementPtr stmt = conn.db_statement(Statement::PUT_CHECKPOINT);
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, lsn);
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, checkpoint_timestamp);
-            SQ_CHECK(sqlite3_bind_blob, stmt.get(), 3, checkpoint_metadata->data,
-              checkpoint_metadata->size, SQLITE_STATIC);
-            SQ_CHECK(sqlite3_step, stmt.get());
-        }
-
-        int
-        get(Connection &conn, uint64_t &lsn, uint64_t *timestamp, WT_ITEM *checkpoint_metadata)
-        {
-            Connection::StatementPtr stmt = conn.db_statement(Statement::GET_CHECKPOINT);
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(lsn));
-            SQ_CHECK(
-              sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(WT_PAGE_LOG_LSN_MAX));
-            int ret = SQ_CHECK(sqlite3_step, stmt.get());
-            if (ret == SQLITE_DONE) {
-                /* No checkpoint found */
-                if (timestamp)
-                    *timestamp = 0;
-
-                if (checkpoint_metadata) {
-                    checkpoint_metadata->data = nullptr;
-                    checkpoint_metadata->size = 0;
-                }
-
-                return WT_NOTFOUND;
-            }
-
-            lsn = sqlite3_column_int64(stmt.get(), 0);
-            if (timestamp)
-                *timestamp = sqlite3_column_int64(stmt.get(), 1);
-
-            if (checkpoint_metadata) {
-                const void *blob = sqlite3_column_blob(stmt.get(), 2);
-                int size = sqlite3_column_bytes(stmt.get(), 2);
-                fill_item(checkpoint_metadata, blob, static_cast<size_t>(size));
-            }
-
-            return 0;
-        }
-
-        void
-        delete_many(Connection &conn, uint64_t lsn)
-        {
-            Connection::StatementPtr stmt = conn.db_statement(Statement::DELETE_CHECKPOINTS);
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(lsn));
-            SQ_CHECK(sqlite3_step, stmt.get());
-        }
-    };
-
-    struct Pages : public Table<Pages> {
-        constexpr static std::string_view prefix = "pages";
-
-        enum Statement {
-            PUT_PAGE,
-            GET_PAGE_IDS,
-            GET_FULL_PAGE_LSN,
-            GET_PAGE_INFOS,
-            GET_PAGES,
-            DELETE_PAGES
-        };
+    constexpr static auto sql_statements = []() constexpr
+    {
+        std::array<std::string_view, COUNT> stmt{};
 
         /*
-         * Our flags start at the 16th bit (0x10000u) to avoid conflicts with WT_PAGE_LOG_PUT_ARGS
-         * flags.
+         * Insert new pages or replace write failures.
+         *
+         * When writing a new delta page, if a delta page already exists with the same (table_id,
+         * page_id, backlink_lsn), the existing page is treated as a write failure and replaced.
+         *
+         * This uniqueness constraint is enforced by a partial index that applies only to delta
+         * pages. See the CREATE TABLE statement for the 'pages' table.
          */
-        static constexpr uint32_t WT_PAGE_LOG_DISCARDED = 0x10000u;
-
-        constexpr static std::string_view sql_statements[] = {
-          /*
-           * PUT_PAGE: Insert new pages or replace write failures.
-           *
-           * When writing a new delta page, if a delta page already exists with the same (table_id,
-           * page_id, backlink_lsn), the existing page is treated as a write failure and replaced.
-           *
-           * This uniqueness constraint is enforced by a partial index that applies only to delta
-           * pages. See the CREATE TABLE statement for the 'pages' table.
-           */
+        stmt[PUT_PAGE] =
           R"(INSERT OR REPLACE INTO pages (
-                 table_id,
-                 page_id,
-                 lsn,
-                 backlink_lsn,
-                 base_lsn,
-                 flags,
-                 encryption,
-                 timestamp_materialized_us,
-                 page_data)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);)",
+                  table_id,
+                  page_id,
+                  lsn,
+                  backlink_lsn,
+                  base_lsn,
+                  flags,
+                  encryption,
+                  timestamp_materialized_us,
+                  page_data)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);)";
 
-          /*
-           * GET_PAGE_IDS: Get all unique page IDs for a given table that have their latest page
-           * record with LSN <= query LSN and not discarded.
-           */
+        /*
+         * Get all unique page IDs for a given table that have their latest page record with LSN <=
+         * query LSN and not discarded.
+         */
+        stmt[GET_PAGE_IDS] =
           R"(SELECT DISTINCT p1.page_id
              FROM pages AS p1
              WHERE p1.table_id = ?1
@@ -1131,25 +1251,25 @@ class Storage {
                          AND p2.page_id = p1.page_id
                          AND p2.lsn <= ?2
                          AND p2.discarded = 1
-                 );)",
+                 );)";
 
-          /*
-           * GET_FULL_PAGE_LSN: Get the LSN of the first non-discarded full page below the given
-           * LSN.
-           *
-           * The query LSN may belong to a delta page. Therefore, we find the corresponding full
-           * page LSN first. Then we look for the previous full page LSN. Assuming that given query
-           * LSN does not belong to discarded page.
-           *
-           * This is used with full page backlink verification.
-           */
+        /*
+         * Get the LSN of the first non-discarded full page below the given LSN.
+         *
+         * The query LSN may belong to a delta page. Therefore, we find the corresponding full page
+         * LSN first. Then we look for the previous full page LSN. Assuming that given query LSN
+         * does not belong to discarded page.
+         *
+         * This is used with full page backlink verification.
+         */
+        stmt[GET_FULL_PAGE_LSN] =
           R"(WITH full_page AS (
-               SELECT MAX(p0.lsn) AS lsn
-               FROM pages AS p0
-               WHERE p0.table_id = ?1
-                   AND p0.page_id = ?2
-                   AND p0.lsn <= ?3
-                   AND p0.delta = 0
+             SELECT MAX(p0.lsn) AS lsn
+             FROM pages AS p0
+             WHERE p0.table_id = ?1
+                 AND p0.page_id = ?2
+                 AND p0.lsn <= ?3
+                 AND p0.delta = 0
              )
              SELECT MAX(p1.lsn)
              FROM
@@ -1166,81 +1286,82 @@ class Storage {
                          AND p2.page_id = p1.page_id
                          AND p2.lsn < fp.lsn
                          AND p2.discarded = 1
-                 );)",
+                 );)";
 
-          /*
-           * GET_PAGE_INFOS: Retrieve information about entire delta chain
-           * stopping at the first full page. The chain may include discarded page.
-           *
-           * This query uses a window function OVER to assign a group number
-           * to rows based on the 'delta' column. This is more performant
-           * than discovering full page in a separate query as it may only
-           * require a single scan over the data.
-           *
-           * The window function works as follows:
-           *
-           * First, the inner part:
-           *     CASE
-           *         WHEN delta = 0 THEN 1
-           *         ELSE 0
-           *     END
-           *
-           * This expression looks at each row one by one. For delta pages
-           * (where delta = 1), it produces a 0. For full pages (where
-           * delta = 0), it produces a 1.
-           *
-           * So, it's essentially a marker for the rows with full pages.
-           * We consider such rows as terminators.
-           *
-           * Next, the outer part:
-           *     SUM(...) OVER (ORDER BY lsn DESC) as page_group
-           *
-           * This expression takes the markers produced by the inner part
-           * and computes a running total (SUM) of these markers, ordered
-           * by LSN in descending order (from newest to oldest).
-           *
-           * This creates a cumulative count of how many "terminating" rows
-           * (delta = 0) have been seen so far.
-           *
-           * Example:
-           *
-           *   lsn | delta | inner CASE | page_group | explanation
-           *   ----+-------+------------+------------+------------
-           *   10  | 1     | 0          | 0          | Sum of (0)
-           *   9   | 1     | 0          | 0          | Sum of (0, 0)
-           *   8   | 1     | 0          | 0          | Sum of (0, 0, 0)
-           *   7   | 0     | 1          | 1          | Sum of (0, 0, 0, 1)
-           *   6   | 0     | 1          | 2          | Sum of (0, 0, 0, 1, 1)
-           *
-           * The entire chain of pages (lsn 10, 9, 8, 7) is returned, stopping
-           * at the first full page (lsn 7). The next full page (lsn 6) is
-           * not included because page_group becomes 2 and we explicitly check
-           * for that:
-           *     ...
-           *     WHERE page_group = 0
-           *         OR (page_group = 1 AND delta = 0)
-           *
-           * This condition ensures that we get all delta pages in the chain
-           * up to the first full page.
-           */
+        /*
+         * Retrieve information about entire delta chain
+         * stopping at the first full page. The chain may include discarded page.
+         *
+         * This query uses a window function OVER to assign a group number
+         * to rows based on the 'delta' column. This is more performant
+         * than discovering full page in a separate query as it may only
+         * require a single scan over the data.
+         *
+         * The window function works as follows:
+         *
+         * First, the inner part:
+         *     CASE
+         *         WHEN delta = 0 THEN 1
+         *         ELSE 0
+         *     END
+         *
+         * This expression looks at each row one by one. For delta pages
+         * (where delta = 1), it produces a 0. For full pages (where
+         * delta = 0), it produces a 1.
+         *
+         * So, it's essentially a marker for the rows with full pages.
+         * We consider such rows as terminators.
+         *
+         * Next, the outer part:
+         *     SUM(...) OVER (ORDER BY lsn DESC) as page_group
+         *
+         * This expression takes the markers produced by the inner part
+         * and computes a running total (SUM) of these markers, ordered
+         * by LSN in descending order (from newest to oldest).
+         *
+         * This creates a cumulative count of how many "terminating" rows
+         * (delta = 0) have been seen so far.
+         *
+         * Example:
+         *
+         *   lsn | delta | inner CASE | page_group | explanation
+         *   ----+-------+------------+------------+------------
+         *   10  | 1     | 0          | 0          | Sum of (0)
+         *   9   | 1     | 0          | 0          | Sum of (0, 0)
+         *   8   | 1     | 0          | 0          | Sum of (0, 0, 0)
+         *   7   | 0     | 1          | 1          | Sum of (0, 0, 0, 1)
+         *   6   | 0     | 1          | 2          | Sum of (0, 0, 0, 1, 1)
+         *
+         * The entire chain of pages (lsn 10, 9, 8, 7) is returned, stopping
+         * at the first full page (lsn 7). The next full page (lsn 6) is
+         * not included because page_group becomes 2 and we explicitly check
+         * for that:
+         *     ...
+         *     WHERE page_group = 0
+         *         OR (page_group = 1 AND delta = 0)
+         *
+         * This condition ensures that we get all delta pages in the chain
+         * up to the first full page.
+         */
+        stmt[GET_PAGE_INFOS] =
           R"(WITH chained_pages AS (
-               SELECT
-                  table_id,
-                  page_id,
-                  lsn,
-                  backlink_lsn,
-                  base_lsn,
-                  flags,
-                  delta,
-                  SUM(CASE
-                          WHEN delta = 0 THEN 1
-                          ELSE 0
-                      END) OVER (ORDER BY lsn DESC) as page_group
-               FROM pages
-               WHERE table_id = ?
-                   AND page_id = ?
-                   AND lsn <= ?
-                   AND timestamp_materialized_us <= ?
+             SELECT
+                 table_id,
+                 page_id,
+                 lsn,
+                 backlink_lsn,
+                 base_lsn,
+                 flags,
+                 delta,
+                 SUM(CASE
+                         WHEN delta = 0 THEN 1
+                         ELSE 0
+                     END) OVER (ORDER BY lsn DESC) as page_group
+             FROM pages
+             WHERE table_id = ?
+                 AND page_id = ?
+                 AND lsn <= ?
+                 AND timestamp_materialized_us <= ?
              )
              SELECT
                  table_id,
@@ -1252,470 +1373,495 @@ class Storage {
              FROM chained_pages
              WHERE page_group = 0
                  OR (page_group = 1 AND delta = 0)
-             ORDER BY lsn DESC;)",
+             ORDER BY lsn DESC;)";
 
-          /*
-           * GET_PAGES: Simple selection of all pages below the given LSN. Verification of the delta
-           * chain and stopping at the terminating full page is done in code.
-           */
+        /*
+         * Simple selection of all pages below the given LSN. Verification of the delta chain and
+         * stopping at the terminating full page is done in code.
+         */
+        stmt[GET_PAGES] =
           R"(SELECT
-                lsn,
-                backlink_lsn,
-                base_lsn,
-                flags,
-                encryption,
-                page_data
+                  lsn,
+                  backlink_lsn,
+                  base_lsn,
+                  flags,
+                  encryption,
+                  page_data
              FROM pages
              WHERE table_id = ?
                  AND page_id = ?
                  AND lsn <= ?
                  AND timestamp_materialized_us <= ?
-             ORDER BY lsn DESC;)",
+             ORDER BY lsn DESC;)";
 
-          /* DELETE_PAGES: Remove all pages above the given LSN. */
+        /* Remove all pages above the given LSN. */
+        stmt[DELETE_PAGES] =
           R"(DELETE FROM pages
-             WHERE lsn > ?;)"};
+             WHERE lsn > ?;)";
 
-        /* These flags used below in generated columns for 'pages' table. */
-        static_assert(WT_PAGE_LOG_DELTA == 0x2, "WT_PAGE_LOG_DELTA value changed");
-        static_assert(WT_PAGE_LOG_DISCARDED == 0x10000, "WT_PAGE_LOG_DISCARDED value changed");
+        return stmt;
+    }
+    ();
 
-        constexpr static std::string_view create_statements[] = {
-          R"(CREATE TABLE IF NOT EXISTS pages (
-                  table_id INTEGER NOT NULL,
-                  page_id INTEGER NOT NULL,
-                  lsn INTEGER NOT NULL,
-                  backlink_lsn INTEGER NOT NULL,
-                  base_lsn INTEGER NOT NULL,
-                  flags INTEGER NOT NULL,
-                  delta INTEGER AS ((flags & 0x2) != 0) VIRTUAL, -- WT_PAGE_LOG_DELTA
-                  discarded INTEGER AS ((flags & 0x10000) != 0) VIRTUAL, -- WT_PAGE_LOG_DISCARDED
-                  encryption STRING NOT NULL,
-                  timestamp_materialized_us INTEGER NOT NULL,
-                  page_data BLOB,
-               PRIMARY KEY (table_id, page_id, lsn)
-             );)",
+    static_assert(
+      std::ranges::none_of(Pages::sql_statements, [](const auto &s) { return s.empty(); }),
+      "SQL statements must not be empty");
+
+    /* These flags used below in generated columns for 'pages' table. */
+    static_assert(WT_PAGE_LOG_DELTA == 0x2, "WT_PAGE_LOG_DELTA value changed");
+    static_assert(WT_PAGE_LOG_DISCARDED == 0x10000, "WT_PAGE_LOG_DISCARDED value changed");
+
+    constexpr static std::string_view create_statements[] = {
+      R"(CREATE TABLE IF NOT EXISTS pages (
+             table_id INTEGER NOT NULL,
+             page_id INTEGER NOT NULL,
+             lsn INTEGER NOT NULL,
+             backlink_lsn INTEGER NOT NULL,
+             base_lsn INTEGER NOT NULL,
+             flags INTEGER NOT NULL,
+             delta INTEGER AS ((flags & 0x2) != 0) VIRTUAL, -- WT_PAGE_LOG_DELTA
+             discarded INTEGER AS ((flags & 0x10000) != 0) VIRTUAL, -- WT_PAGE_LOG_DISCARDED
+             encryption STRING NOT NULL,
+             timestamp_materialized_us INTEGER NOT NULL,
+             page_data BLOB,
+         PRIMARY KEY (table_id, page_id, lsn));)",
+
+      /*
+       * This index exists for the case in which we have written a page
+       * delta and then need to write it again.
+       *
+       * This generally happens in eviction. We have a base page already written
+       * and we now try to evict it. We finished writing a delta to disk but
+       * then we fail the reconciliation. It is a delta so we cannot explicitly
+       * free the write with the same page id. After a while, we retry the
+       * eviction and this time we writes a delta based on the same base page.
+       * Thus this write will have the same backlink_lsn to the previous write.
+       *
+       * At this stage, there may be no checkpoint running so discarding the
+       * unfinished checkpoint doesn't help in this case. It is also possible
+       * that these two writes will be included in the same checkpoint that is
+       * not discarded.
+       *
+       * To gracefully handle write failures of delta pages we will keep
+       * track of the backlink_lsn within each delta chain. Tracking is done via
+       * a *partial* unique index on (table_id, page_id, backlink_lsn) for
+       * genuine delta pages only: delta=1 AND discarded=0.
+       * (Partial index can include only a subset of rows in the table.)
+       *
+       * The primary key for the table (table_id, page_id, lsn) does not help
+       * because lsn is always increasing, making each record unique.
+       *
+       * Including backlink_lsn in the primary key would not work because
+       * together with always increasing lsn the constraint is always satisfied.
+       *
+       * Hence, we need a separate unique index for delta pages only (excluding
+       * discarded pages, which are a special case).
+       *
+       * Example:
+       *
+       *   table_id | page_id | lsn | backlink_lsn | base_lsn | delta
+       *   ---------+---------+-----+--------------+----------+------
+       *       1    |   100   | 5   |      0       |   0      |   0
+       *       1    |   100   | 6   |      5       |   5      |   1
+       *       1    |   100   | 7   |      6       |   5      |   1
+       *       1    |   100   | 8   |      7       |   5      |   1    <-- write failure
+       *       1    |   100   | 9   |      7       |   5      |   1    <-- new delta page
+       *
+       * Suppose, the page with lsn=8 is a write failure. When a new delta page
+       * is written with (lsn=9, backlink_lsn=7, base_lsn=5), then it will
+       * conflict with the existing page with lsn=8 because they have the same
+       * (table_id, page_id, backlink_lsn). The partial index will ensure
+       * that there is at most one such delta page.
+       *
+       * The new page with lsn=9 will replace the failed page with lsn=8 because
+       * pages are inserted with 'INSERT OR REPLACE INTO pages'.
+       *
+       * See also PUT_PAGE statement.
+       */
+      R"(CREATE UNIQUE INDEX IF NOT EXISTS ux_delta
+         ON pages (table_id, page_id, backlink_lsn)
+         WHERE delta = 1 AND discarded = 0;)",
+    };
+
+    ~Pages() = default;
+    Pages(Config &cfg, std::shared_mutex &store_access, const std::filesystem::path &home,
+      uint64_t table_id)
+        : Table<Pages>(
+            cfg, store_access, home / std::format("{}_{:06}.db", Pages::prefix, table_id))
+    {
+    }
+
+    Pages(const Pages &) = delete;
+    Pages &operator=(const Pages &) = delete;
+
+    auto
+    conn_config() -> std::ranges::view auto
+    {
+        const uint64_t MMAP_SIZE = config.mmap_size_mb * 1_MB;
+        const uint64_t PAGE_SIZE = 16_KB;
+        const uint64_t CACHE_PAGES = (config.cache_size_mb * 1_MB) / PAGE_SIZE;
+
+        const static std::string config_statements[] = {
+          /*
+           * Uses memory mapping instead of read/write calls when the database is < mmap_size in
+           * bytes.
+           */
+          std::format("PRAGMA mmap_size = {};", MMAP_SIZE),
 
           /*
-           * This index exists for the case in which we have written a page
-           * delta and then need to write it again.
-           *
-           * This generally happens in eviction. We have a base page already written
-           * and we now try to evict it. We finished writing a delta to disk but
-           * then we fail the reconciliation. It is a delta so we cannot explicitly
-           * free the write with the same page id. After a while, we retry the
-           * eviction and this time we writes a delta based on the same base page.
-           * Thus this write will have the same backlink_lsn to the previous write.
-           *
-           * At this stage, there may be no checkpoint running so discarding the
-           * unfinished checkpoint doesn't help in this case. It is also possible
-           * that these two writes will be included in the same checkpoint that is
-           * not discarded.
-           *
-           * To gracefully handle write failures of delta pages we will keep
-           * track of the backlink_lsn within each delta chain. Tracking is done via
-           * a *partial* unique index on (table_id, page_id, backlink_lsn) for
-           * genuine delta pages only: delta=1 AND discarded=0.
-           * (Partial index can include only a subset of rows in the table.)
-           *
-           * The primary key for the table (table_id, page_id, lsn) does not help
-           * because lsn is always increasing, making each record unique.
-           *
-           * Including backlink_lsn in the primary key would not work because
-           * together with always increasing lsn the constraint is always satisfied.
-           *
-           * Hence, we need a separate unique index for delta pages only (excluding
-           * discarded pages, which are a special case).
-           *
-           * Example:
-           *
-           *   table_id | page_id | lsn | backlink_lsn | base_lsn | delta
-           *   ---------+---------+-----+--------------+----------+------
-           *       1    |   100   | 5   |      0       |   0      |   0
-           *       1    |   100   | 6   |      5       |   5      |   1
-           *       1    |   100   | 7   |      6       |   5      |   1
-           *       1    |   100   | 8   |      7       |   5      |   1    <-- write failure
-           *       1    |   100   | 9   |      7       |   5      |   1    <-- new delta page
-           *
-           * Suppose, the page with lsn=8 is a write failure. When a new delta page
-           * is written with (lsn=9, backlink_lsn=7, base_lsn=5), then it will
-           * conflict with the existing page with lsn=8 because they have the same
-           * (table_id, page_id, backlink_lsn). The partial index will ensure
-           * that there is at most one such delta page.
-           *
-           * The new page with lsn=9 will replace the failed page with lsn=8 because
-           * pages are inserted with 'INSERT OR REPLACE INTO pages'.
-           *
-           * See also PUT_PAGE statement.
+           * Increase page size to 16KB (default is 4KB). This improves performance for tables with
+           * BLOBs.
            */
-          R"(CREATE UNIQUE INDEX IF NOT EXISTS ux_delta
-             ON pages (table_id, page_id, backlink_lsn)
-             WHERE delta = 1 AND discarded = 0;)",
+          std::format("PRAGMA page_size = {};", PAGE_SIZE),
+
+          /*
+           * Set cache size as configured. Cache size is specified in megabytes. Convert to number
+           * of pages.
+           */
+          std::format("PRAGMA cache_size = {};", CACHE_PAGES)};
+
+        return std::views::all(config_statements);
+    }
+
+    void
+    put(uint64_t table_id, uint64_t page_id, uint64_t lsn, WT_PAGE_LOG_PUT_ARGS *args,
+      const WT_ITEM *buf)
+    {
+        auto acc_w = request(AccessMode::WRITE);
+        Connection &conn = acc_w.conn;
+
+        Connection::StatementPtr stmt = conn.db_statement(Statement::PUT_PAGE);
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(lsn));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 4, static_cast<sqlite3_int64>(args->backlink_lsn));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 5, static_cast<sqlite3_int64>(args->base_lsn));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 6, static_cast<sqlite3_int64>(args->flags));
+        SQ_CHECK(sqlite3_bind_text, stmt.get(), 7, args->encryption.dek,
+          strlen(args->encryption.dek), SQLITE_STATIC);
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 8,
+          static_cast<sqlite3_int64>(now_us() + (config.materialization_delay_ms * 1ms / 1us)));
+        SQ_CHECK(sqlite3_bind_blob, stmt.get(), 9, buf->data, buf->size, SQLITE_STATIC);
+        SQ_CHECK(sqlite3_step, stmt.get());
+        acc_w.release();
+
+        if (config.verify) {
+            auto acc_r = request(AccessMode::READ);
+            verify_chain(acc_r.conn, table_id, page_id, lsn);
+        }
+    }
+
+    int
+    get(uint64_t table_id, uint64_t page_id, WT_PAGE_LOG_GET_ARGS *args, uint32_t *flags,
+      WT_ITEM *results_array, uint32_t *results_count)
+    {
+        auto acc = request(AccessMode::READ);
+        Connection &conn = acc.conn;
+
+        Connection::StatementPtr stmt = conn.db_statement(Statement::GET_PAGES);
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(args->lsn));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 4, static_cast<sqlite3_int64>(now_us()));
+
+        auto make_page_info = [](uint64_t table_id, uint64_t page_id, sqlite3_stmt *stmt) {
+            PageInfo page{.table_id = table_id,
+              .page_id = page_id,
+              .lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 0)),
+              .backlink_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 1)),
+              .base_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 2)),
+              .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt, 3)),
+              .encryption = WT_PAGE_LOG_ENCRYPTION{}};
+
+            const char *enc = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4));
+            strncpy(page.encryption.dek, enc ? enc : "", sizeof(page.encryption.dek));
+
+            return std::move(page);
         };
 
-        ~Pages() = default;
-        Pages(Config &cfg, const std::filesystem::path &home, uint64_t table_id)
-            : Table<Pages>(cfg, home / std::format("{}_{:06}.db", Pages::prefix, table_id))
-        {
-        }
-
-        Pages(const Pages &) = delete;
-        Pages &operator=(const Pages &) = delete;
-
-        auto
-        conn_config() -> std::ranges::view auto
-        {
-            const uint64_t MMAP_SIZE = config.mmap_size_mb * 1_MB;
-            const uint64_t PAGE_SIZE = 16_KB;
-            const uint64_t CACHE_PAGES = (config.cache_size_mb * 1_MB) / PAGE_SIZE;
-
-            const static std::string config_statements[] = {
-              /*
-               * Uses memory mapping instead of read/write calls when the database is < mmap_size in
-               * bytes.
-               */
-              std::format("PRAGMA mmap_size = {};", MMAP_SIZE),
-
-              /*
-               * Increase page size to 16KB (default is 4KB). This improves performance for tables
-               * with BLOBs.
-               */
-              std::format("PRAGMA page_size = {};", PAGE_SIZE),
-
-              /*
-               * Set cache size as configured. Cache size is specified in megabytes. Convert to
-               * number of pages.
-               */
-              std::format("PRAGMA cache_size = {};", CACHE_PAGES)};
-
-            return std::views::all(config_statements);
-        }
-
-        void
-        put(Connection &conn, uint64_t table_id, uint64_t page_id, uint64_t lsn,
-          WT_PAGE_LOG_PUT_ARGS *args, const WT_ITEM *buf)
-        {
-            Connection::StatementPtr stmt = conn.db_statement(Statement::PUT_PAGE);
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(lsn));
-            SQ_CHECK(
-              sqlite3_bind_int64, stmt.get(), 4, static_cast<sqlite3_int64>(args->backlink_lsn));
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 5, static_cast<sqlite3_int64>(args->base_lsn));
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 6, static_cast<sqlite3_int64>(args->flags));
-            SQ_CHECK(sqlite3_bind_text, stmt.get(), 7, args->encryption.dek,
-              strlen(args->encryption.dek), SQLITE_STATIC);
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 8,
-              static_cast<sqlite3_int64>(now_us() + (config.materialization_delay_ms * 1ms / 1us)));
-            SQ_CHECK(sqlite3_bind_blob, stmt.get(), 9, buf->data, buf->size, SQLITE_STATIC);
-            SQ_CHECK(sqlite3_step, stmt.get());
-
-            if (config.verify) {
-                verify_chain(conn, table_id, page_id, lsn);
-            }
-        }
-
-        int
-        get_infos(Connection &conn, uint64_t table_id, uint64_t page_id, uint64_t lsn,
-          std::vector<PageInfo> &pages)
-        {
-            Connection::StatementPtr stmt = conn.db_statement(Statement::GET_PAGE_INFOS);
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(lsn));
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 4, static_cast<sqlite3_int64>(now_us()));
-
-            pages.clear();
-            while (SQ_CHECK(sqlite3_step, stmt.get()) == SQLITE_ROW) {
-                pages.emplace_back(
-                  PageInfo{.table_id = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 0)),
-                    .page_id = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 1)),
-                    .lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 2)),
-                    .backlink_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 3)),
-                    .base_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 4)),
-                    .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt.get(), 5)),
-                    .encryption = WT_PAGE_LOG_ENCRYPTION{}});
-            }
-
-            return 0;
-        }
-
-        int
-        get(Connection &conn, uint64_t table_id, uint64_t page_id, WT_PAGE_LOG_GET_ARGS *args,
-          uint32_t *flags, WT_ITEM *results_array, uint32_t *results_count)
-        {
-            Connection::StatementPtr stmt = conn.db_statement(Statement::GET_PAGES);
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(args->lsn));
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 4, static_cast<sqlite3_int64>(now_us()));
-
-            auto make_page_info = [](uint64_t table_id, uint64_t page_id, sqlite3_stmt *stmt) {
-                PageInfo page{.table_id = table_id,
-                  .page_id = page_id,
-                  .lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 0)),
-                  .backlink_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 1)),
-                  .base_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 2)),
-                  .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt, 3)),
-                  .encryption = WT_PAGE_LOG_ENCRYPTION{}};
-
-                const char *enc = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4));
-                strncpy(page.encryption.dek, enc ? enc : "", sizeof(page.encryption.dek));
-
-                return std::move(page);
-            };
-
-            /*
-             * Note: Results are ordered by lsn DESC, so the first row is the most recent.
-             * In case of a delta chain, deltas (D) appear first, followed by the full page (B):
-             *     D2, D1, B
-             * We will reverse the order before returning to the caller:
-             *     B, D1, D2
-             */
-            uint32_t count = 0;
-            int ret = 0;
-            std::vector<PageInfo> pages;
-
-            while (
-              (ret = SQ_CHECK(sqlite3_step, stmt.get())) == SQLITE_ROW && count < *results_count) {
-                pages.push_back(make_page_info(table_id, page_id, stmt.get()));
-                PageInfo &page = pages.back();
-
-                if (page.flags & WT_PAGE_LOG_DISCARDED) {
-                    LOG_AND_THROW("Got discarded page: {}", page);
-                }
-
-                const void *blob = sqlite3_column_blob(stmt.get(), 5);
-                int size = sqlite3_column_bytes(stmt.get(), 5);
-                fill_item(&results_array[count], blob, static_cast<size_t>(size));
-
-                /* Continue to next row */
-                count++;
-
-                if (!(page.flags & WT_PAGE_LOG_DELTA)) {
-                    /* Stop if this is a full page */
-                    ret = SQLITE_DONE;
-                    break;
-                }
-            }
-            /* By now ret is either SQLITE_DONE or SQLITE_ROW. */
-
-            /* SQLITE_ROW means there are more rows available than space in results_array. */
-            if (ret == SQLITE_ROW) {
-                LOG_AND_THROW("Insufficient space in results_array: {}", *results_count);
-            }
-
-            /* Verify full page, if configured */
-            const uint64_t prev_full_lsn =
-              config.verify ? get_prev_full_page_lsn(conn, table_id, page_id, args->lsn) : 0;
-            /* Always verify the delta chain when retrieving pages, even if config.verify=false. */
-            verify_chain(pages, prev_full_lsn);
-
-            /* Fill args from the first found page. (It will be the last in returned array.) */
-            uint64_t save_lsn = args->lsn;
-            memset(args, 0, sizeof(*args));
-            args->lsn = save_lsn; /* Preserve the requested LSN */
-            if (!pages.empty()) {
-                const PageInfo &page = pages.front();
-                args->backlink_lsn = page.backlink_lsn;
-                args->base_lsn = page.base_lsn;
-                args->encryption = page.encryption;
-                assert(flags != nullptr);
-                *flags = page.flags;
-            }
-
-            /* Reverse the results array to have the full page first, followed by deltas. */
-            std::reverse(results_array, results_array + count);
-            *results_count = count;
-
-            return 0;
-        }
-
-        /* Invalid LSN means "no check required". */
-        void
-        verify_chain(const std::vector<PageInfo> &pages, uint64_t prev_full_lsn = INVALID_LSN)
-        {
-            PageInfo prev{};
-            PageInfo full{};
-            PageInfo discarded{};
-
-            auto verify_full = [&](const PageInfo &page) {
-                if (full.lsn != 0) {
-                    LOG_AND_THROW("Multiple full pages in chain: {}, {}", full, page);
-                }
-
-                if (page.base_lsn != 0) {
-                    LOG_AND_THROW("Full page base_lsn must be 0: {}", page);
-                }
-
-                if (prev_full_lsn != INVALID_LSN && page.backlink_lsn != prev_full_lsn) {
-                    LOG_AND_THROW(
-                      "Full page backlink_lsn mismatch: {}, expected: {}", page, prev_full_lsn);
-                }
-
-                if (page.flags & WT_PAGE_LOG_DISCARDED) {
-                    LOG_AND_THROW("Full page cannot be discarded: {}", page);
-                }
-
-                if (discarded.lsn != 0) {
-                    LOG_AND_THROW(
-                      "Discarded page cannot be followed by another page: {}, {}", discarded, page);
-                }
-
-                full = page;
-            };
-
-            auto verify_delta = [&](const PageInfo &page) {
-                assert(prev.lsn != 0); /* Cannot be the first page in the chain */
-
-                if (full.lsn == 0) {
-                    LOG_AND_THROW("Delta page without full page: {}", page);
-                }
-
-                if (full.lsn != page.base_lsn) {
-                    LOG_AND_THROW("Delta page base_lsn mismatch: {}, full page: {}", page, full);
-                }
-
-                /* Discarded pages can backlink to any page that we've seen in the chain. */
-                if (!(page.flags & WT_PAGE_LOG_DISCARDED) && page.backlink_lsn != prev.lsn) {
-                    LOG_AND_THROW(
-                      "Delta chain backlink_lsn mismatch: {}, previous page: {}", page, prev);
-                }
-
-                if (page.flags & WT_PAGE_LOG_DISCARDED) {
-                    if (discarded.lsn != 0) {
-                        LOG_AND_THROW("Multiple discarded pages in chain: {}, {}", discarded, page);
-                    }
-                    discarded = page;
-                } else if (discarded.lsn != 0) {
-                    LOG_AND_THROW(
-                      "Discarded page cannot be followed by another page: {}, {}", discarded, page);
-                }
-            };
-
-            auto verify_page = [&](const PageInfo &page) {
-                if (page.flags & WT_PAGE_LOG_DELTA)
-                    verify_delta(page);
-                else
-                    verify_full(page);
-                prev = page;
-            };
-
-            /* Iterate in reverse order to validate the chain from full page. */
-            std::for_each(pages.rbegin(), pages.rend(), verify_page);
-
-            /* Verify discarded page separately because it can backlink to any page in the chain. */
-            if (discarded.lsn != 0) {
-                auto found_it = std::ranges::find_if(pages,
-                  [&discarded](const PageInfo &p) { return p.lsn == discarded.backlink_lsn; });
-                if (found_it == pages.end()) {
-                    LOG_AND_THROW("Discarded page backlink_lsn not found in chain: {}", discarded);
-                }
-            }
-        }
-
         /*
-         * Verify the entire page chain for consistency.
-         *
-         * The pages are expected to be ordered by lsn DESC (newest first).
-         * The chain may include a single discarded page as the first page,
-         * zero or more deltas, and one terminating full page.
-         * Discarded pages can backlink to any page in the chain.
-         *
-         * Example of a valid chain:
-         *     Discarded (lsn=10, backlink_lsn=8, base_lsn=7, flags=DISCARDED|DELTA)
-         *     Delta     (lsn=9,  backlink_lsn=8, base_lsn=7, flags=DELTA)
-         *     Delta     (lsn=8,  backlink_lsn=7, base_lsn=7, flags=DELTA)
-         *     Full      (lsn=7,  backlink_lsn=0, base_lsn=0, flags=0)
-         *
-         * Throws on error.
+         * Note: Results are ordered by lsn DESC, so the first row is the most recent.
+         * In case of a delta chain, deltas (D) appear first, followed by the full page (B):
+         *     D2, D1, B
+         * We will reverse the order before returning to the caller:
+         *     B, D1, D2
          */
-        void
-        verify_chain(Connection &conn, uint64_t table_id, uint64_t page_id, uint64_t lsn)
-        {
-            std::vector<PageInfo> pages;
-            get_infos(conn, table_id, page_id, lsn, pages);
-            if (pages.size() == 0) {
+        uint32_t count = 0;
+        int ret = 0;
+        std::vector<PageInfo> pages;
+
+        while ((ret = SQ_CHECK(sqlite3_step, stmt.get())) == SQLITE_ROW && count < *results_count) {
+            pages.push_back(make_page_info(table_id, page_id, stmt.get()));
+            PageInfo &page = pages.back();
+
+            if (page.flags & WT_PAGE_LOG_DISCARDED) {
+                LOG_AND_THROW("Got discarded page: {}", page);
+            }
+
+            const void *blob = sqlite3_column_blob(stmt.get(), 5);
+            int size = sqlite3_column_bytes(stmt.get(), 5);
+            fill_item(&results_array[count], blob, static_cast<size_t>(size));
+
+            /* Continue to next row */
+            count++;
+
+            if (!(page.flags & WT_PAGE_LOG_DELTA)) {
+                /* Stop if this is a full page */
+                ret = SQLITE_DONE;
+                break;
+            }
+        }
+        /* By now ret is either SQLITE_DONE or SQLITE_ROW. */
+
+        /* SQLITE_ROW means there are more rows available than space in results_array. */
+        if (ret == SQLITE_ROW) {
+            LOG_AND_THROW("Insufficient space in results_array: {}", *results_count);
+        }
+
+        /* Verify full page, if configured */
+        const uint64_t prev_full_lsn =
+          config.verify ? get_prev_full_page_lsn(acc.conn, table_id, page_id, args->lsn) : 0;
+        /* Always verify the delta chain when retrieving pages, even if config.verify=false. */
+        verify_chain(pages, prev_full_lsn);
+
+        /* Fill args from the first found page. (It will be the last in returned array.) */
+        uint64_t save_lsn = args->lsn;
+        memset(args, 0, sizeof(*args));
+        args->lsn = save_lsn; /* Preserve the requested LSN */
+        if (!pages.empty()) {
+            const PageInfo &page = pages.front();
+            args->backlink_lsn = page.backlink_lsn;
+            args->base_lsn = page.base_lsn;
+            args->encryption = page.encryption;
+            assert(flags != nullptr);
+            *flags = page.flags;
+        }
+
+        /* Reverse the results array to have the full page first, followed by deltas. */
+        std::reverse(results_array, results_array + count);
+        *results_count = count;
+
+        return 0;
+    }
+
+    int
+    get_ids(uint64_t checkpoint_lsn, uint64_t table_id, WT_ITEM *page_ids, size_t *page_count)
+    {
+        auto acc = request(AccessMode::READ);
+        Connection &conn = acc.conn;
+
+        Connection::StatementPtr stmt = conn.db_statement(Statement::GET_PAGE_IDS);
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(checkpoint_lsn));
+
+        std::vector<uint64_t> ids;
+        while (SQ_CHECK(sqlite3_step, stmt.get()) == SQLITE_ROW) {
+            ids.push_back(sqlite3_column_int64(stmt.get(), 0));
+        }
+        LOG_DEBUG("Found {} page IDs for table_id={} at checkpoint_lsn={}", ids.size(), table_id,
+          checkpoint_lsn);
+        LOG_DIAG("Page IDs: {}", join(ids, ", "));
+
+        *page_count = ids.size();
+        if (ids.size() > 0) {
+            fill_item(page_ids, ids.data(), ids.size() * sizeof(uint64_t));
+        }
+
+        return 0;
+    }
+
+    void
+    discard(uint64_t table_id, uint64_t page_id, uint64_t lsn, WT_PAGE_LOG_DISCARD_ARGS *args)
+    {
+        if (args->flags != 0)
+            LOG_AND_THROW("Non-zero flags: {:#x}", args->flags);
+
+        WT_PAGE_LOG_PUT_ARGS put_args{};
+        put_args.backlink_lsn = args->backlink_lsn;
+        put_args.base_lsn = args->base_lsn;
+        /* Discarded pages are deltas */
+        put_args.flags = WT_PAGE_LOG_DELTA | WT_PAGE_LOG_DISCARDED;
+
+        WT_ITEM dummy_page{};
+        put(table_id, page_id, lsn, &put_args, &dummy_page);
+        args->lsn = put_args.lsn;
+
+        LOG_DEBUG("Discarded page_id={} at lsn={}, backlink_lsn={}, base_lsn={}; discarded_lsn={}",
+          page_id, lsn, args->backlink_lsn, args->base_lsn, args->lsn);
+    }
+
+    void
+    delete_many(uint64_t lsn, AccessMode mode = AccessMode::WRITE)
+    {
+        auto acc = request(mode);
+        Connection &conn = acc.conn;
+
+        LOG_DEBUG("Deleting pages with lsn > {}", lsn);
+        Connection::StatementPtr stmt = conn.db_statement(Statement::DELETE_PAGES);
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(lsn));
+        SQ_CHECK(sqlite3_step, stmt.get());
+    }
+
+private:
+    uint64_t
+    get_prev_full_page_lsn(Connection &conn, uint64_t table_id, uint64_t page_id, uint64_t lsn)
+    {
+        Connection::StatementPtr stmt = conn.db_statement(Statement::GET_FULL_PAGE_LSN);
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(lsn));
+
+        int ret = SQ_CHECK(sqlite3_step, stmt.get());
+        if (ret == SQLITE_DONE) {
+            return 0; /* No previous full page found */
+        }
+
+        return static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 0));
+    }
+
+    /* Invalid LSN means "no check required". */
+    void
+    verify_chain(const std::vector<PageInfo> &pages, uint64_t prev_full_lsn = INVALID_LSN)
+    {
+        PageInfo prev{};
+        PageInfo full{};
+        PageInfo discarded{};
+
+        auto verify_full = [&](const PageInfo &page) {
+            if (full.lsn != 0) {
+                LOG_AND_THROW("Multiple full pages in chain: {}, {}", full, page);
+            }
+
+            if (page.base_lsn != 0) {
+                LOG_AND_THROW("Full page base_lsn must be 0: {}", page);
+            }
+
+            if (prev_full_lsn != INVALID_LSN && page.backlink_lsn != prev_full_lsn) {
                 LOG_AND_THROW(
-                  "No pages found for table_id={}, page_id={} at lsn<={}", table_id, page_id, lsn);
+                  "Full page backlink_lsn mismatch: {}, expected: {}", page, prev_full_lsn);
             }
 
-            const uint64_t prev_full_lsn = get_prev_full_page_lsn(conn, table_id, page_id, lsn);
-
-            verify_chain(pages, prev_full_lsn);
-        }
-
-        int
-        get_ids(Connection &conn, uint64_t checkpoint_lsn, uint64_t table_id, WT_ITEM *page_ids,
-          size_t *page_count)
-        {
-            Connection::StatementPtr stmt = conn.db_statement(Statement::GET_PAGE_IDS);
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(checkpoint_lsn));
-
-            std::vector<uint64_t> ids;
-            while (SQ_CHECK(sqlite3_step, stmt.get()) == SQLITE_ROW) {
-                ids.push_back(sqlite3_column_int64(stmt.get(), 0));
-            }
-            LOG_DEBUG("Found {} page IDs for table_id={} at checkpoint_lsn={}", ids.size(),
-              table_id, checkpoint_lsn);
-            LOG_DIAG("Page IDs: {}", join(ids, ", "));
-
-            *page_count = ids.size();
-            if (ids.size() > 0) {
-                fill_item(page_ids, ids.data(), ids.size() * sizeof(uint64_t));
+            if (page.flags & WT_PAGE_LOG_DISCARDED) {
+                LOG_AND_THROW("Full page cannot be discarded: {}", page);
             }
 
-            return 0;
-        }
-
-        uint64_t
-        get_prev_full_page_lsn(Connection &conn, uint64_t table_id, uint64_t page_id, uint64_t lsn)
-        {
-            Connection::StatementPtr stmt = conn.db_statement(Statement::GET_FULL_PAGE_LSN);
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(lsn));
-
-            int ret = SQ_CHECK(sqlite3_step, stmt.get());
-            if (ret == SQLITE_DONE) {
-                return 0; /* No previous full page found */
+            if (discarded.lsn != 0) {
+                LOG_AND_THROW(
+                  "Discarded page cannot be followed by another page: {}, {}", discarded, page);
             }
 
-            return static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 0));
+            full = page;
+        };
+
+        auto verify_delta = [&](const PageInfo &page) {
+            assert(prev.lsn != 0); /* Cannot be the first page in the chain */
+
+            if (full.lsn == 0) {
+                LOG_AND_THROW("Delta page without full page: {}", page);
+            }
+
+            if (full.lsn != page.base_lsn) {
+                LOG_AND_THROW("Delta page base_lsn mismatch: {}, full page: {}", page, full);
+            }
+
+            /* Discarded pages can backlink to any page that we've seen in the chain. */
+            if (!(page.flags & WT_PAGE_LOG_DISCARDED) && page.backlink_lsn != prev.lsn) {
+                LOG_AND_THROW(
+                  "Delta chain backlink_lsn mismatch: {}, previous page: {}", page, prev);
+            }
+
+            if (page.flags & WT_PAGE_LOG_DISCARDED) {
+                if (discarded.lsn != 0) {
+                    LOG_AND_THROW("Multiple discarded pages in chain: {}, {}", discarded, page);
+                }
+                discarded = page;
+            } else if (discarded.lsn != 0) {
+                LOG_AND_THROW(
+                  "Discarded page cannot be followed by another page: {}, {}", discarded, page);
+            }
+        };
+
+        auto verify_page = [&](const PageInfo &page) {
+            if (page.flags & WT_PAGE_LOG_DELTA)
+                verify_delta(page);
+            else
+                verify_full(page);
+            prev = page;
+        };
+
+        /* Iterate in reverse order to validate the chain from full page. */
+        std::for_each(pages.rbegin(), pages.rend(), verify_page);
+
+        /* Verify discarded page separately because it can backlink to any page in the chain. */
+        if (discarded.lsn != 0) {
+            auto found_it = std::ranges::find_if(
+              pages, [&discarded](const PageInfo &p) { return p.lsn == discarded.backlink_lsn; });
+            if (found_it == pages.end()) {
+                LOG_AND_THROW("Discarded page backlink_lsn not found in chain: {}", discarded);
+            }
+        }
+    }
+
+    int
+    get_infos(Connection &conn, uint64_t table_id, uint64_t page_id, uint64_t lsn,
+      std::vector<PageInfo> &pages)
+    {
+        Connection::StatementPtr stmt = conn.db_statement(Statement::GET_PAGE_INFOS);
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(lsn));
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 4, static_cast<sqlite3_int64>(now_us()));
+
+        pages.clear();
+        while (SQ_CHECK(sqlite3_step, stmt.get()) == SQLITE_ROW) {
+            pages.emplace_back(
+              PageInfo{.table_id = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 0)),
+                .page_id = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 1)),
+                .lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 2)),
+                .backlink_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 3)),
+                .base_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 4)),
+                .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt.get(), 5)),
+                .encryption = WT_PAGE_LOG_ENCRYPTION{}});
         }
 
-        void
-        discard(Connection &conn, uint64_t table_id, uint64_t page_id, uint64_t lsn,
-          WT_PAGE_LOG_DISCARD_ARGS *args)
-        {
-            if (args->flags != 0)
-                LOG_AND_THROW("Non-zero flags: {:#x}", args->flags);
+        return 0;
+    }
 
-            WT_PAGE_LOG_PUT_ARGS put_args{};
-            put_args.backlink_lsn = args->backlink_lsn;
-            put_args.base_lsn = args->base_lsn;
-            /* Discarded pages are deltas */
-            put_args.flags = WT_PAGE_LOG_DELTA | WT_PAGE_LOG_DISCARDED;
-
-            WT_ITEM dummy_page{};
-            put(conn, table_id, page_id, lsn, &put_args, &dummy_page);
-            args->lsn = put_args.lsn;
-
-            LOG_DEBUG(
-              "Discarded page_id={} at lsn={}, backlink_lsn={}, base_lsn={}; discarded_lsn={}",
-              page_id, lsn, args->backlink_lsn, args->base_lsn, args->lsn);
+    /*
+     * Verify the entire page chain for consistency.
+     *
+     * The pages are expected to be ordered by lsn DESC (newest first).
+     * The chain may include a single discarded page as the first page,
+     * zero or more deltas, and one terminating full page.
+     * Discarded pages can backlink to any page in the chain.
+     *
+     * Example of a valid chain:
+     *     Discarded (lsn=10, backlink_lsn=8, base_lsn=7, flags=DISCARDED|DELTA)
+     *     Delta     (lsn=9,  backlink_lsn=8, base_lsn=7, flags=DELTA)
+     *     Delta     (lsn=8,  backlink_lsn=7, base_lsn=7, flags=DELTA)
+     *     Full      (lsn=7,  backlink_lsn=0, base_lsn=0, flags=0)
+     *
+     * Throws on error.
+     */
+    void
+    verify_chain(Connection &conn, uint64_t table_id, uint64_t page_id, uint64_t lsn)
+    {
+        std::vector<PageInfo> pages;
+        get_infos(conn, table_id, page_id, lsn, pages);
+        if (pages.size() == 0) {
+            LOG_AND_THROW(
+              "No pages found for table_id={}, page_id={} at lsn<={}", table_id, page_id, lsn);
         }
 
-        void
-        delete_many(Connection &conn, uint64_t lsn)
-        {
-            LOG_DEBUG("Deleting pages with lsn > {}", lsn);
-            Connection::StatementPtr stmt = conn.db_statement(Statement::DELETE_PAGES);
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(lsn));
-            SQ_CHECK(sqlite3_step, stmt.get());
-        }
-    };
+        const uint64_t prev_full_lsn = get_prev_full_page_lsn(conn, table_id, page_id, lsn);
+
+        verify_chain(pages, prev_full_lsn);
+    }
+};
+
+class Storage {
+    Config &config;
+    const std::filesystem::path db_home;
 
     Globals globals;
     Checkpoints checkpoints;
@@ -1733,7 +1879,8 @@ class Storage {
 public:
     ~Storage() = default;
     Storage(Config &cfg, const std::filesystem::path &dbp)
-        : config(cfg), db_home(dbp), globals(cfg, db_home), checkpoints(cfg, db_home)
+        : config(cfg), db_home(dbp), globals(cfg, store_access, db_home),
+          checkpoints(cfg, store_access, db_home)
     {
     }
 
@@ -1741,73 +1888,25 @@ public:
     Storage &operator=(const Storage &) = delete;
 
 private:
-    enum AccessMode { READ, WRITE };
-
-    template <typename TableType, AccessMode Mode> class Access {
-        Config &config;
-        std::shared_lock<std::shared_mutex> store_lock;
-        std::conditional_t<Mode == AccessMode::READ, std::shared_lock<std::shared_mutex>,
-          std::unique_lock<std::shared_mutex>>
-          table_lock;
-
-    public:
-        TableType &table;
-        Connection &conn;
-
-        ~Access() = default;
-
-        Access(Config &c, std::shared_mutex &store_access, TableType &tbl)
-            : config(c), store_lock(store_access), table_lock(tbl.access), table(tbl),
-              conn(table.conn())
-        {
-        }
-
-        Access(const Access &) = delete;
-        Access &operator=(const Access &) = delete;
-
-        void
-        release()
-        {
-            table_lock.unlock();
-            store_lock.unlock();
-        }
-    };
-
     Pages &
-    fetch_pages_table(uint64_t table_id)
+    get_or_open_table(uint64_t table_id)
     {
         std::unique_lock write_lock(pages_access);
-        auto [it, inserted] =
-          pages.try_emplace(table_id, std::make_unique<Pages>(config, db_home, table_id));
+        auto [it, inserted] = pages.try_emplace(
+          table_id, std::make_unique<Pages>(config, store_access, db_home, table_id));
         return *(it->second);
     }
 
-    template <typename TableType>
-    TableType &
-    get_table(uint64_t id = 0)
+    Pages &
+    get_table(uint64_t table_id)
     {
-        if constexpr (std::is_same_v<TableType, Globals>) {
-            return globals;
-        } else if constexpr (std::is_same_v<TableType, Checkpoints>) {
-            return checkpoints;
-        } else if constexpr (std::is_same_v<TableType, Pages>) {
-            std::shared_lock read_lock(pages_access);
-            auto it = pages.find(id);
-            if (it == pages.end()) {
-                LOG_AND_THROW("Pages table not found for table ID {}", id);
-            }
-            return *(it->second);
-        } else {
-            static_assert(std::false_type::value, "Unknown category type in get_table");
+        std::shared_lock read_lock(pages_access);
+        auto it = pages.find(table_id);
+        if (it == pages.end()) {
+            LOG_AND_THROW("Pages table not found for table ID {}", table_id);
         }
-    }
 
-    template <typename TableType, AccessMode Mode>
-    Access<TableType, Mode>
-    request(uint64_t id = 0)
-    {
-        TableType &table = get_table<TableType>(id);
-        return Access<TableType, Mode>{config, store_access, table};
+        return *(it->second);
     }
 
 public:
@@ -1849,71 +1948,52 @@ public:
     uint64_t
     make_next_lsn()
     {
-        auto acc = request<Globals, AccessMode::WRITE>();
-        const uint64_t lsn = acc.table.make_next_lsn(acc.conn);
-
-        return lsn;
+        return globals.make_next_lsn();
     }
 
     uint64_t
     get_last_lsn()
     {
-        auto acc = request<Globals, AccessMode::READ>();
-        const uint64_t lsn = acc.table.get_last_lsn(acc.conn);
-
-        return lsn;
+        return globals.get_last_lsn();
     }
 
     void
     add_table_id(uint64_t table_id)
     {
         /* Ensure Pages table exists for this table ID */
-        fetch_pages_table(table_id);
+        get_or_open_table(table_id);
 
         /*
          * Add table ID to global table. Adding more than once is OK. The table index will ensure
          * uniqueness.
          */
-        auto acc = request<Globals, AccessMode::WRITE>();
-        acc.table.add_table_id(acc.conn, table_id);
+        globals.add_table_id(table_id);
     }
 
     std::vector<uint64_t>
     get_table_ids()
     {
-        auto acc = request<Globals, AccessMode::READ>();
-
-        return acc.table.get_table_ids(acc.conn);
+        return globals.get_table_ids();
     }
 
     void
     put_checkpoint(uint64_t lsn, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata)
     {
-        auto acc = request<Checkpoints, AccessMode::WRITE>();
-        acc.table.put(acc.conn, lsn, checkpoint_timestamp, checkpoint_metadata);
+        checkpoints.put(lsn, checkpoint_timestamp, checkpoint_metadata);
     }
 
     int
     get_checkpoint(uint64_t &lsn, uint64_t *timestamp, WT_ITEM *checkpoint_metadata)
     {
-        auto acc = request<Checkpoints, AccessMode::READ>();
-
-        return acc.table.get(acc.conn, lsn, timestamp, checkpoint_metadata);
-    }
-
-    void
-    delete_checkpoints(uint64_t lsn)
-    {
-        auto acc = request<Checkpoints, AccessMode::WRITE>();
-        acc.table.delete_many(acc.conn, lsn);
+        return checkpoints.get(lsn, timestamp, checkpoint_metadata);
     }
 
     void
     put_page(uint64_t table_id, uint64_t page_id, uint64_t lsn, WT_PAGE_LOG_PUT_ARGS *args,
       const WT_ITEM *buf)
     {
-        auto acc = request<Pages, AccessMode::WRITE>(table_id);
-        acc.table.put(acc.conn, table_id, page_id, lsn, args, buf);
+        Pages &table = get_table(table_id);
+        table.put(table_id, page_id, lsn, args, buf);
         object_puts++;
     }
 
@@ -1921,10 +2001,8 @@ public:
     get_pages(uint64_t table_id, uint64_t page_id, WT_PAGE_LOG_GET_ARGS *args, uint32_t *flags,
       WT_ITEM *results_array, uint32_t *results_count)
     {
-        auto acc = request<Pages, AccessMode::READ>(table_id);
-        const int ret =
-          acc.table.get(acc.conn, table_id, page_id, args, flags, results_array, results_count);
-        acc.release();
+        Pages &table = get_table(table_id);
+        const int ret = table.get(table_id, page_id, args, flags, results_array, results_count);
 
         assert(results_count != nullptr);
         object_gets += *results_count;
@@ -1935,29 +2013,27 @@ public:
     void
     get_page_ids(uint64_t checkpoint_lsn, uint64_t table_id, WT_ITEM *page_ids, size_t *page_count)
     {
-        auto acc = request<Pages, AccessMode::READ>(table_id);
-        acc.table.get_ids(acc.conn, checkpoint_lsn, table_id, page_ids, page_count);
+        Pages &table = get_table(table_id);
+        table.get_ids(checkpoint_lsn, table_id, page_ids, page_count);
     }
 
     void
     discard_page(uint64_t table_id, uint64_t page_id, uint64_t lsn, WT_PAGE_LOG_DISCARD_ARGS *args)
     {
-        auto acc = request<Pages, AccessMode::WRITE>(table_id);
-        acc.table.discard(acc.conn, table_id, page_id, lsn, args);
+        Pages &table = get_table(table_id);
+        table.discard(table_id, page_id, lsn, args);
     }
 
     void
     abandon_checkpoint(uint64_t checkpoint_lsn)
     {
-        /* Ensure exclusive access to storage during since we update multiple tables. */
+        /* Ensure exclusive access to storage since we update multiple tables. */
         std::unique_lock write_lock(store_access);
 
-        /* Using regular Access would block, so we update tables directly here. */
-
-        Connection &chkp_conn = checkpoints.conn();
         int ret = 0;
         if (checkpoint_lsn == WT_PAGE_LOG_LSN_MAX) {
-            ret = checkpoints.get(chkp_conn, checkpoint_lsn, nullptr, nullptr);
+            ret =
+              checkpoints.get(checkpoint_lsn, nullptr, nullptr, Checkpoints::AccessMode::BYPASS);
         }
 
         if (ret == WT_NOTFOUND) {
@@ -1967,12 +2043,16 @@ public:
 
         /* Note: global LSN counter is not decremented */
 
-        checkpoints.delete_many(chkp_conn, checkpoint_lsn);
+        checkpoints.delete_many(checkpoint_lsn, Checkpoints::AccessMode::BYPASS);
 
-        Connection &glob_conn = globals.conn();
-        for (auto table_id : globals.get_table_ids(glob_conn)) {
-            auto &pages_tbl = fetch_pages_table(table_id);
-            pages_tbl.delete_many(pages_tbl.conn(), checkpoint_lsn);
+        for (auto table_id : globals.get_table_ids(Globals::AccessMode::BYPASS)) {
+            /*
+             * Table ID's may be recorded in the 'globals' table, however connection to their
+             * 'pages' table may have never been opened. For example, on restart. Therefore, we use
+             * get_or_open_table().
+             */
+            auto &pages_tbl = get_or_open_table(table_id);
+            pages_tbl.delete_many(checkpoint_lsn, Pages::AccessMode::BYPASS);
         }
     }
 };
