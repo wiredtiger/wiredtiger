@@ -467,8 +467,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      * dhandles that are already opened.
      */
     WT_WITHOUT_DHANDLE(session,
-      WT_WITH_HANDLE_LIST_READ_LOCK(
-        session, (ret = __wt_conn_dhandle_find(session, uri, NULL))));
+      WT_WITH_HANDLE_LIST_READ_LOCK(session, (ret = __wt_conn_dhandle_find(session, uri, NULL))));
     if (ret == WT_NOTFOUND)
         return (false);
 
