@@ -144,24 +144,18 @@ __wt_rec_pack_internal_pair_data_only(WT_SESSION_IMPL *session, WT_ITEM *new_ima
         const WT_CELL_UNPACK_DELTA_INT *delta = val_entry;
         val_kv.buf.data = delta->value.data;
         val_kv.buf.size = delta->value.size;
+        printf ("Delta Packing delta->value.type - %d, delta->value.size - %d\n", delta->value.type, (int)delta->value.size);
         val_kv.cell_len = (uint16_t)__wt_cell_pack_addr(
-          session, &val_kv.cell, delta->value.type, WT_RECNO_OOB, NULL, &local_ta, 0);
+          session, &val_kv.cell, delta->value.type, WT_RECNO_OOB, NULL, &local_ta, val_kv.buf.size);
     } else {
         const WT_CELL_UNPACK_ADDR *base_val = val_entry;
         val_kv.buf.data = base_val->data;
         val_kv.buf.size = base_val->size;
+        printf ("Base Packing cell type - %d, base_val->size - %d\n", base_val->type, (int)base_val->size);
         val_kv.cell_len = (uint16_t)__wt_cell_pack_addr(
-          session, &val_kv.cell, base_val->type, WT_RECNO_OOB, NULL, &local_ta, 0);
+          session, &val_kv.cell, base_val->type, WT_RECNO_OOB, NULL, &local_ta, val_kv.buf.size);
     }
     val_kv.len = val_kv.cell_len + val_kv.buf.size;
-
-    /*
-     * The value portion (val_kv) here represents a packed on-disk address cell. No heap allocation
-     * or external buffer is needed.
-     */
-    val_kv.buf.data = NULL;
-    val_kv.buf.size = 0;
-    val_kv.len = val_kv.cell_len;
 
     /*
      * Ensure enough space, then recompute write pointer from new_image (not the caller's saved

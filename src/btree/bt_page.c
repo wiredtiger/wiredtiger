@@ -193,6 +193,56 @@ err:
 }
 
 /*
+ * __page_unpack_deltas_internal_new --
+ *     Internal helper: allocate and unpack all delta images into arrays.
+ */
+static int
+__page_unpack_deltas_internal_new(WT_SESSION_IMPL *session, WT_ITEM *deltas,
+  size_t delta_size, WT_CELL_UNPACK_DELTA_INT ***unpacked_deltasp, size_t **delta_size_eachp, const void *base_image_addr)
+{
+    WT_CELL_UNPACK_DELTA_INT **unpacked_deltas;
+    WT_DECL_RET;
+    size_t *delta_size_each;
+    size_t idx;
+    uint32_t d;
+
+    unpacked_deltas = NULL;
+    delta_size_each = NULL;
+
+    /* Allocate space to track delta sizes and unpacked deltas. */
+    WT_RET(__wt_calloc_def(session, delta_size, &delta_size_each));
+    WT_ERR(__wt_calloc_def(session, delta_size, &unpacked_deltas));
+
+    /* Unpack all delta images (do not merge them yet). */
+    for (d = 0; d < (uint32_t)delta_size; ++d) {
+        WT_PAGE_HEADER *header = (WT_PAGE_HEADER *)deltas[d].data;
+        size_t entries = header->u.entries / 2; /* key/value pairs */
+        delta_size_each[d] = entries;
+        WT_ERR(__wt_calloc_def(session, entries, &unpacked_deltas[d]));
+
+        idx = 0;
+        WT_CELL_FOREACH_DELTA_INT(session, base_image_addr, header, unpacked_deltas[d][idx])
+        {
+            idx++;
+        }
+        WT_CELL_FOREACH_END;
+    }
+
+    *unpacked_deltasp = unpacked_deltas;
+    *delta_size_eachp = delta_size_each;
+    return (0);
+
+err:
+    if (unpacked_deltas != NULL) {
+        for (d = 0; d < (uint32_t)delta_size; ++d)
+            __wt_free(session, unpacked_deltas[d]);
+        __wt_free(session, unpacked_deltas);
+    }
+    __wt_free(session, delta_size_each);
+    return (ret);
+}
+
+/*
  * __page_unpack_deltas_internal --
  *     Internal helper: allocate and unpack all delta images into arrays.
  */
@@ -243,6 +293,32 @@ err:
 }
 
 /*
+ * __page_unpack_deltas_new --
+ *     Unpack all delta images into individual arrays (generic wrapper for reuse).
+ */
+static int
+__page_unpack_deltas_new(WT_SESSION_IMPL *session, WT_ITEM *deltas,
+  size_t delta_size, WT_CELL_UNPACK_DELTA_INT ***unpacked_deltasp, size_t **delta_size_eachp, const void *base_image_addr)
+{
+    WT_RET(__page_unpack_deltas_internal_new(
+          session, deltas, delta_size, unpacked_deltasp, delta_size_eachp, base_image_addr));
+    // switch (page->type) {
+    // case WT_PAGE_ROW_LEAF:
+    //     /* Implement unpacking for row leaf pages. */
+    //     break;
+    // case WT_PAGE_ROW_INT:
+    //     /* Implement unpacking for row internal pages. */
+    //     WT_RET(__page_unpack_deltas_internal_new(
+    //       session, deltas, delta_size, unpacked_deltasp, delta_size_eachp, base_image_addr));
+    //     break;
+    // default:
+    //     return (__wt_illegal_value(session, page->type));
+    // }
+
+    return (0);
+}
+
+/*
  * __page_unpack_deltas_common --
  *     Unpack all delta images into individual arrays (generic wrapper for reuse).
  */
@@ -275,7 +351,7 @@ static int
 __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *base,
   size_t base_entries, WT_CELL_UNPACK_DELTA_INT **unpacked_deltas, size_t *delta_size_each,
   size_t *delta_idx, size_t delta_size, WT_REF *ref, WT_REF ***refsp, size_t *ref_entriesp,
-  size_t *incr, WT_ITEM *new_image, bool build_disk)
+  size_t *incr, WT_ITEM *new_image, bool build_disk, uint64_t latest_write_gen)
 {
     WT_CELL_UNPACK_ADDR *base_key, *base_val;
     WT_CELL_UNPACK_DELTA_INT *min_delta;
@@ -284,7 +360,6 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
     size_t i = 0, final_entries = 0; /* final_entries = number of WT_REFs emitted */
     uint32_t min_d;
     int cmp;
-    WT_PAGE *page;
     WT_PAGE_HEADER *hdr;
     uint8_t *p;
     size_t entry_count = 0; /* entry_count = number of page cells (cells = keys + values) */
@@ -292,11 +367,6 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
     WT_ASSERT(session, base != NULL);
     WT_ASSERT(session, base_entries != 0);
     WT_ASSERT(session, refsp != NULL);
-
-    if (build_disk)
-        page = ref->home;
-    else
-        page = ref->page;
 
     refs = *refsp;
     min_d = 0;
@@ -310,32 +380,23 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
     if (build_disk) {
         WT_ASSERT(session, new_image != NULL);
 
+        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+            internal_page = true;
+        else if (F_ISSET(ref, WT_REF_FLAG_LEAF))
+            row_leaf_page = true;
+        else
+         return (__wt_illegal_value(session, 99));
+
         /* Initialize new page header once */
         hdr = (WT_PAGE_HEADER *)new_image->data;
         memset(hdr, 0, sizeof(WT_PAGE_HEADER));
-        hdr->type = page->type;
-        hdr->u.entries = 0;
-        new_image->size = sizeof(WT_PAGE_HEADER);
 
-        if (page->type == WT_PAGE_ROW_INT)
+        if (internal_page)
             F_SET(hdr, WT_PAGE_FT_UPDATE);
-
-        hdr->unused = 0;
-        hdr->version = WT_PAGE_VERSION_TS;
 
         p = (uint8_t *)hdr + sizeof(WT_PAGE_HEADER);
         entry_count = 0;
 
-        switch (page->type) {
-        case WT_PAGE_ROW_LEAF:
-            row_leaf_page = true;
-            break;
-        case WT_PAGE_ROW_INT:
-            internal_page = true;
-            break;
-        default:
-            return (__wt_illegal_value(session, page->type));
-        }
     } else {
         /*
          * Encode the first key always from the base image. The btrees using customized collator
@@ -446,6 +507,7 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
                 if (row_leaf_page) {
                     /* Pack row-leaf base key/value. */
                 } else if (internal_page) {
+                    printf ("Pack Base key and value\n");
                     /* Pack internal base key/value. */
                     WT_RET(__wt_rec_pack_internal_pair_data_only(
                       session, new_image, &base[i], &base[i + 1], false, &p));
@@ -457,6 +519,7 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
                 if (row_leaf_page) {
                     /* Pack row-leaf delta entry. */
                 } else if (internal_page && !__wt_delta_cell_type_visible_all(min_delta)) {
+                    printf ("Pack Delta key and value\n");
                     /* Pack internal delta entry. */
                     WT_RET(__wt_rec_pack_internal_pair_data_only(
                       session, new_image, min_delta, min_delta, true, &p));
@@ -476,6 +539,10 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
         /* Finalize header once after all appends */
         hdr->u.entries = entry_count;
         hdr->mem_size = (uint32_t)new_image->size;
+        hdr->write_gen = latest_write_gen;
+        hdr->type = WT_PAGE_ROW_INT;
+        hdr->unused = 0;
+        hdr->version = WT_PAGE_VERSION_TS;
     }
 
     *ref_entriesp = final_entries;
@@ -520,7 +587,7 @@ __page_merge_deltas_with_base_image_old(WT_SESSION_IMPL *session, WT_REF *ref, W
 
     /* Common merge logic */
     WT_ERR(__page_merge_deltas_common_merge_loop(session, base, base_entries, unpacked_deltas,
-      delta_size_each, delta_idx, delta_size, ref, &refs, ref_entriesp, incr, NULL, false));
+      delta_size_each, delta_idx, delta_size, ref, &refs, ref_entriesp, incr, NULL, false, 0));
 
     *refsp = refs;
 
@@ -541,24 +608,29 @@ err:
  */
 static int
 __page_merge_deltas_with_base_image_new(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas,
-  size_t delta_size, WT_REF ***refsp, size_t *ref_entriesp, size_t *incr, WT_ITEM *new_image)
+  size_t delta_size, WT_REF ***refsp, size_t *ref_entriesp, size_t *incr, WT_ITEM *new_image, const void *base_image_addr)
 {
     WT_CELL_UNPACK_ADDR *base = NULL;
     WT_CELL_UNPACK_DELTA_INT **unpacked_deltas = NULL;
     WT_DECL_RET;
-    WT_PAGE *page = ref->home;
     WT_REF **refs = NULL;
     size_t *delta_size_each = NULL, *delta_idx = NULL;
     size_t base_entries, estimated_entries, k;
     uint32_t d;
+    WT_PAGE_HEADER *base_image_header = (WT_PAGE_HEADER *)base_image_addr;
+    WT_PAGE_HEADER *tmp_header;
+    uint64_t latest_write_gen;
 
-    WT_RET(__page_unpack_deltas_common(
-      session, page, deltas, delta_size, &unpacked_deltas, &delta_size_each));
+    WT_RET(__page_unpack_deltas_new(
+      session, deltas, delta_size, &unpacked_deltas, &delta_size_each, base_image_addr));
+
+    tmp_header = (WT_PAGE_HEADER*)deltas[delta_size-1].data;
+    latest_write_gen = tmp_header->write_gen;
 
     k = 0;
-    base_entries = page->dsk->u.entries;
+    base_entries = base_image_header->u.entries;
     WT_ERR(__wt_calloc_def(session, base_entries, &base));
-    WT_CELL_FOREACH_ADDR (session, page->dsk, base[k]) {
+    WT_CELL_FOREACH_ADDR (session, base_image_header, base[k]) {
         k++;
     }
     WT_CELL_FOREACH_END;
@@ -571,7 +643,7 @@ __page_merge_deltas_with_base_image_new(WT_SESSION_IMPL *session, WT_REF *ref, W
 
     /* Common merge logic (disk mode) */
     WT_ERR(__page_merge_deltas_common_merge_loop(session, base, base_entries, unpacked_deltas,
-      delta_size_each, delta_idx, delta_size, ref, &refs, ref_entriesp, incr, new_image, true));
+      delta_size_each, delta_idx, delta_size, ref, &refs, ref_entriesp, incr, new_image, true, latest_write_gen));
 
     *refsp = refs;
     return (0);
@@ -791,7 +863,7 @@ err:
  */
 int
 __wti_build_full_disk_image_on_read(
-  WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas, size_t delta_size, WT_ITEM *new_image)
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas, size_t delta_size, WT_ITEM *new_image, const void *base_image_addr)
 {
     WT_REF **refs;
     size_t refs_entries, incr;
@@ -802,7 +874,7 @@ __wti_build_full_disk_image_on_read(
 
     /* Merge deltas directly with the base image to build refs in a single pass. */
     WT_RET(__page_merge_deltas_with_base_image_new(
-      session, ref, deltas, delta_size, &refs, &refs_entries, &incr, new_image));
+      session, ref, deltas, delta_size, &refs, &refs_entries, &incr, new_image, base_image_addr));
 
     return (0);
 }
