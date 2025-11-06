@@ -1941,8 +1941,11 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
      */
     if (multi->disk_image != NULL && !closing) {
         WT_RET(__split_multi_inmem(session, page, multi, ref));
+        if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
+            __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
         WT_REF_SET_STATE(ref, WT_REF_MEM);
-    }
+    } else
+        WT_ASSERT(session, closing || !WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)));
     __wt_free(session, multi->disk_image);
 
     return (0);
