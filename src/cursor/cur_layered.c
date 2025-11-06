@@ -2033,12 +2033,12 @@ err:
  *     Apply a modify on a leader node. Effectively calls modify for the stable constituent.
  */
 static int
-__clayered_modify_leader(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *entries, int nentries)
+__clayered_modify_leader(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
     WT_CURSOR *c = clayered->stable_cursor;
 
-    c->set_key(c, key);
+    c->set_key(c, &cursor->key);
     WT_RET(c->search(c));
     WT_RET(c->modify(c, entries, nentries));
 
@@ -2094,11 +2094,12 @@ __clayered_modify_follower_insert(
  *     Apply a modify on a follower node.
  */
 static int
-__clayered_modify_follower(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *entries, int nentries)
+__clayered_modify_follower(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
     WT_DECL_RET;
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
     WT_CURSOR *ingest = clayered->ingest_cursor;
+    WT_ITEM *key = &cursor->key;
 
     /* Do we have a base value in the ingest table? */
     ingest->set_key(ingest, key);
@@ -2134,12 +2135,12 @@ __clayered_modify_follower(WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *ent
  */
 static int
 __clayered_modify_int(
-  WT_SESSION_IMPL *session, WT_CURSOR *cursor, const WT_ITEM *key, WT_MODIFY *entries, int nentries)
+  WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
     if (S2C(session)->layered_table_manager.leader)
-        WT_RET(__clayered_modify_leader(cursor, key, entries, nentries));
+        WT_RET(__clayered_modify_leader(cursor, entries, nentries));
     else
-        WT_RET(__clayered_modify_follower(cursor, key, entries, nentries));
+        WT_RET(__clayered_modify_follower(cursor, entries, nentries));
 
     return (0);
 }
@@ -2171,7 +2172,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     if (nentries <= 0)
         WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
 
-    WT_ERR(__clayered_modify_int(session, cursor, &cursor->key, entries, nentries));
+    WT_ERR(__clayered_modify_int(session, cursor, entries, nentries));
 
     /*
      * Set the cursor to reference the internal key/value of the positioned cursor.
