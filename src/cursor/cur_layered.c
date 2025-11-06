@@ -2134,8 +2134,7 @@ __clayered_modify_follower(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
  *     Direct a modify into the right tree.
  */
 static int
-__clayered_modify_int(
-  WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
+__clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
     if (S2C(session)->layered_table_manager.leader)
         WT_RET(__clayered_modify_leader(cursor, entries, nentries));
