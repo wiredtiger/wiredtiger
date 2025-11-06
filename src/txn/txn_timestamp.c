@@ -1314,5 +1314,5 @@ __wti_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
         WT_RELEASE_BARRIER();
         F_CLR(txn, WT_TXN_SHARED_TS_READ);
     }
-    __wt_atomic_store_uint64_relaxed(&txn_shared->read_timestamp, WT_TS_NONE);
+    __wt_tsan_suppress_store_uint64(&txn_shared->read_timestamp, WT_TS_NONE);
 }
