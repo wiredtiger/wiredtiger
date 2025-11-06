@@ -2705,7 +2705,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
          * We need to write the disk image for btrees with delta enabled as a later reconciliation
          * may build a delta that is based on a page image that was never written to disk.
          */
-        if (WT_DELTA_ENABLED_FOR_PAGE(session, r->page->type)) {
+        if (r->page->disagg_info != NULL) {
             if (chunk->entries == 0)
                 goto copy_image;
         } else if (multi->supd_restore)
