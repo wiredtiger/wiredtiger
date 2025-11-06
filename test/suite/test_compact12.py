@@ -87,12 +87,12 @@ class test_compact12(wttest.WiredTigerTestCase):
 
     def wait_for_cc_to_run(self):
         c = self.session.open_cursor( 'statistics:')
-        cc_success = prev_cc_success = c[stat.conn.checkpoint_cleanup_success][2]
+        cc_success = prev_cc_success = c[stat.conn.cc_success][2]
         c.close()
         while cc_success - prev_cc_success == 0:
             time.sleep(0.1)
             c = self.session.open_cursor( 'statistics:')
-            cc_success = c[stat.conn.checkpoint_cleanup_success][2]
+            cc_success = c[stat.conn.cc_success][2]
             c.close()
 
     def test_compact12_truncate(self):
