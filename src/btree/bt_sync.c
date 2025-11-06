@@ -188,6 +188,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
             LF_SET(WT_READ_VISIBLE_ALL);
 
+        __wt_errx(session, "---- Sync process 2");
         for (;;) {
             WT_ERR(__wt_tree_walk(session, &walk, flags));
             if (walk == NULL)
@@ -208,6 +209,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 WT_ERR(__wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT));
             }
         }
+
+        __wt_errx(session, "---- Sync process end 2");
         break;
     case WT_SYNC_CHECKPOINT:
         /*
@@ -270,7 +273,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         if (!F_ISSET(txn, WT_READ_VISIBLE_ALL))
             LF_SET(WT_READ_VISIBLE_ALL);
-
+        
+        __wt_errx(session, "---- Sync page process start");
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
             WT_ERR(__wt_tree_walk_custom_skip(session, &walk, NULL, NULL, flags));
@@ -379,6 +383,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                   session, __wt_atomic_load_size_relaxed(&page->memory_footprint));
         }
 
+        __wt_errx(session, "---- Sync page process end");
         /*
          * During normal checkpoints, mark the tree dirty if the btree has modifications that are
          * not visible to the checkpoint. There is a drawback in this approach as we compare the
