@@ -59,24 +59,38 @@ __rec_key_state_update(WTI_RECONCILE *r, bool ovfl_key)
  *     buffer is set.
  */
 static int
-__rec_cell_build_int_key_common(WT_SESSION_IMPL *session,
-  WTI_RECONCILE *r, /* Optional reconcile structure (may be NULL). */
-  WTI_REC_KV *key,  /* Key/value structure to fill (used if r == NULL). */
+__rec_cell_build_int_key_new(WT_SESSION_IMPL *session,
+  WTI_REC_KV *key, /* Key/value structure to fill (used if r == NULL). */
   const void *data, size_t size)
 {
-    WTI_REC_KV *k;
 
-    /* Choose key buffer source: from reconcile or direct argument. */
-    k = (r != NULL) ? &r->k : key;
-
-    /* Copy the key bytes. */
-    if (r != NULL)
-        WT_RET(__wt_buf_set(session, r->cur, data, size));
-    WT_RET(__wt_buf_set(session, &k->buf, data, size));
+    WT_RET(__wt_buf_set(session, &key->buf, data, size));
 
     /* Build the cell header and compute lengths. */
-    k->cell_len = __wt_cell_pack_int_key(&k->cell, k->buf.size);
-    k->len = k->cell_len + k->buf.size;
+    key->cell_len = __wt_cell_pack_int_key(&key->cell, key->buf.size);
+    key->len = key->cell_len + key->buf.size;
+
+    return (0);
+}
+
+/*
+ * __rec_cell_build_int_key --
+ *     Process a key and return a WT_CELL structure and byte string to be stored on a row-store
+ *     internal page.
+ */
+static int
+__rec_cell_build_int_key(WT_SESSION_IMPL *session, WTI_RECONCILE *r, const void *data, size_t size)
+{
+    WTI_REC_KV *key;
+
+    key = &r->k;
+
+    /* Copy the bytes into the "current" and key buffers. */
+    WT_RET(__wt_buf_set(session, r->cur, data, size));
+    WT_RET(__wt_buf_set(session, &key->buf, data, size));
+
+    key->cell_len = __wt_cell_pack_int_key(&key->cell, key->buf.size);
+    key->len = key->cell_len + key->buf.size;
 
     return (0);
 }
@@ -116,7 +130,7 @@ __wt_rec_pack_internal_pair_data_only(WT_SESSION_IMPL *session, WT_ITEM *new_ima
     }
 
     /* Build packed internal key */
-    WT_RET(__rec_cell_build_int_key_common(session, NULL, &key_kv, key_data, key_size));
+    WT_RET(__rec_cell_build_int_key_new(session, &key_kv, key_data, key_size));
 
     /*
      * Initialize an empty instance of WT_TIME_AGGREGATE to avoid writing a page deleted structure
@@ -128,13 +142,18 @@ __wt_rec_pack_internal_pair_data_only(WT_SESSION_IMPL *session, WT_ITEM *new_ima
     /* Build value (address or delta-value) */
     if (is_delta) {
         const WT_CELL_UNPACK_DELTA_INT *delta = val_entry;
+        val_kv.buf.data = delta->value.data;
+        val_kv.buf.size = delta->value.size;
         val_kv.cell_len = (uint16_t)__wt_cell_pack_addr(
           session, &val_kv.cell, delta->value.type, WT_RECNO_OOB, NULL, &local_ta, 0);
     } else {
         const WT_CELL_UNPACK_ADDR *base_val = val_entry;
+        val_kv.buf.data = base_val->data;
+        val_kv.buf.size = base_val->size;
         val_kv.cell_len = (uint16_t)__wt_cell_pack_addr(
           session, &val_kv.cell, base_val->type, WT_RECNO_OOB, NULL, &local_ta, 0);
     }
+    val_kv.len = val_kv.cell_len + val_kv.buf.size;
 
     /*
      * The value portion (val_kv) here represents a packed on-disk address cell. No heap allocation
@@ -574,14 +593,14 @@ __rec_row_merge(
         if (i == 0) {
             if (*build_deltap) {
                 __wt_ref_key(ref->home, ref, &old_key, &old_key_size);
-                WT_RET(__rec_cell_build_int_key_common(
-                  session, r, NULL, old_key, r->cell_zero ? 1 : old_key_size));
+                WT_RET(
+                  __rec_cell_build_int_key(session, r, old_key, r->cell_zero ? 1 : old_key_size));
             } else
-                WT_RET(__rec_cell_build_int_key_common(session, r, NULL,
-                  WT_IKEY_DATA(multi->key.ikey), r->cell_zero ? 1 : multi->key.ikey->size));
+                WT_RET(__rec_cell_build_int_key(session, r, WT_IKEY_DATA(multi->key.ikey),
+                  r->cell_zero ? 1 : multi->key.ikey->size));
         } else
-            WT_RET(__rec_cell_build_int_key_common(
-              session, r, NULL, WT_IKEY_DATA(multi->key.ikey), multi->key.ikey->size));
+            WT_RET(__rec_cell_build_int_key(
+              session, r, WT_IKEY_DATA(multi->key.ikey), multi->key.ikey->size));
         r->cell_zero = false;
 
         addr = &multi->addr;
@@ -737,7 +756,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         case WTI_CHILD_IGNORE:
             if (build_delta && prev_dirty) {
                 __wt_ref_key(page, ref, &p, &size);
-                WT_ERR(__rec_cell_build_int_key_common(session, r, NULL, p, size));
+                WT_ERR(__rec_cell_build_int_key(session, r, p, size));
                 WT_ERR(__rec_pack_delta_row_int(session, r, key, NULL));
             }
 
@@ -763,7 +782,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             case WT_PM_REC_EMPTY:
                 if (build_delta && prev_dirty) {
                     __wt_ref_key(page, ref, &p, &size);
-                    WT_ERR(__rec_cell_build_int_key_common(session, r, NULL, p, size));
+                    WT_ERR(__rec_cell_build_int_key(session, r, p, size));
                     WT_ERR(__rec_pack_delta_row_int(session, r, key, NULL));
                 }
 
@@ -879,7 +898,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         __wt_ref_key(page, ref, &p, &size);
         if (r->cell_zero)
             size = 1;
-        WT_ERR(__rec_cell_build_int_key_common(session, r, NULL, p, size));
+        WT_ERR(__rec_cell_build_int_key(session, r, p, size));
 
         /* Boundary: split or write the page. */
         if (__wti_rec_need_split(r, key->len + val->len))

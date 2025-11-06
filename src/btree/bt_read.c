@@ -249,7 +249,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         deltas = NULL;
 
     /* Build a full disk image of the page after reading from disk. */
-    //if (/* DISABLES CODE */ (0) && count > 1) {
+    // if (/* DISABLES CODE */ (0) && count > 1) {
     // if ( ref->page != NULL && F_ISSET(ref, WT_REF_FLAG_INTERNAL) && count > 1) {
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && count > 1) {
         size_t new_image_buf_size;
@@ -285,8 +285,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
     if (LF_ISSET(WT_READ_PREFETCH))
         FLD_SET(page_flags, WT_PAGE_PREFETCH);
-    if (deltas != NULL)
-        FLD_SET(page_flags, WT_PAGE_WITH_DELTAS);
     if (full_disk_image_build_from_deltas)
         WT_ERR(
           __wti_page_inmem(session, ref, new_image->data, page_flags, &page, &instantiate_upd));
