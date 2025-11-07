@@ -95,16 +95,51 @@ __rec_cell_build_int_key(WT_SESSION_IMPL *session, WTI_RECONCILE *r, const void 
     return (0);
 }
 
+static void
+__wt_cell_pack_addr_custom(WT_SESSION_IMPL *session, WTI_REC_KV *val_kv, uint8_t cell_type,
+  uint64_t recno, WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, size_t val_size)
+{
+
+    /*
+     * If passed fast-delete information, override the cell type. We should never see fast-truncate
+     * cell types without fast-truncate information.
+     */
+    WT_ASSERT(session, page_del != NULL || cell_type != WT_CELL_ADDR_DEL);
+    if (page_del != NULL) {
+        /*
+         * We only fast-truncate leaf pages without overflow items, however, we can write a proxy
+         * cell for a page, evict and then read the internal page, and then checkpoint is writing it
+         * again.
+         */
+        WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL || cell_type == WT_CELL_ADDR_LEAF_NO);
+        cell_type = WT_CELL_ADDR_DEL;
+
+        /* We should never be in an in-progress prepared state. */
+        WT_ASSERT(session,
+          page_del->prepare_state == WT_PREPARE_INIT ||
+            page_del->prepare_state == WT_PREPARE_RESOLVED);
+    }
+
+    printf("Value (delta): type=%d size=%d\n", cell_type, (int)val_size);
+    printf(
+      "Delta Packing delta->value.type - %d, delta->value.size - %d\n", cell_type, (int)val_size);
+
+    val_kv->cell_len = (uint16_t)__wt_cell_pack_addr(
+      session, &val_kv->cell, cell_type, recno, page_del, ta, val_size);
+    val_kv->len = val_kv->cell_len + val_kv->buf.size;
+}
 /*
  * __wt_rec_pack_internal_pair_data_only --
  *     Pack a key/value pair (internal page address or delta) directly into new_image without
  *     modifying the page header. Caller is responsible for initializing and updating the header.
  */
 int
-__wt_rec_pack_internal_pair_data_only(WT_SESSION_IMPL *session, WT_ITEM *new_image,
-  const void *key_entry, const void *val_entry, bool is_delta, uint8_t **pp)
+__wt_rec_pack_internal_pair_data_only(WT_SESSION_IMPL *session, WT_ITEM *new_image, void *key_entry,
+  void *val_entry, bool is_delta, uint8_t **pp)
 {
     WTI_REC_KV key_kv, val_kv;
+    WT_CELL_UNPACK_DELTA_INT *delta;
+    WT_CELL_UNPACK_ADDR *base_key;
     size_t packed_size;
 
     WT_CLEAR(key_kv);
@@ -119,14 +154,18 @@ __wt_rec_pack_internal_pair_data_only(WT_SESSION_IMPL *session, WT_ITEM *new_ima
     const void *key_data;
     size_t key_size;
 
+    printf("\n=== PACKING INTERNAL PAIR (%s) ===\n", is_delta ? "DELTA" : "BASE");
+
     if (is_delta) {
-        const WT_CELL_UNPACK_DELTA_INT *delta = key_entry;
+        delta = key_entry;
         key_data = delta->key.data;
         key_size = delta->key.size;
+        printf("Key (delta): size=%d\n", (int)key_size);
     } else {
-        const WT_CELL_UNPACK_ADDR *base_key = key_entry;
+        base_key = key_entry;
         key_data = base_key->data;
         key_size = base_key->size;
+        printf("Key (base): type=%d size=%d\n", base_key->type, (int)key_size);
     }
 
     /* Build packed internal key */
@@ -136,27 +175,32 @@ __wt_rec_pack_internal_pair_data_only(WT_SESSION_IMPL *session, WT_ITEM *new_ima
      * Initialize an empty instance of WT_TIME_AGGREGATE to avoid writing a page deleted structure
      * to disk.
      */
-    static WT_TIME_AGGREGATE local_ta;
-    WT_TIME_AGGREGATE_INIT(&local_ta);
-
     /* Build value (address or delta-value) */
     if (is_delta) {
-        const WT_CELL_UNPACK_DELTA_INT *delta = val_entry;
-        val_kv.buf.data = delta->value.data;
-        val_kv.buf.size = delta->value.size;
-        printf ("Delta Packing delta->value.type - %d, delta->value.size - %d\n", delta->value.type, (int)delta->value.size);
-        val_kv.cell_len = (uint16_t)__wt_cell_pack_addr(
-          session, &val_kv.cell, delta->value.type, WT_RECNO_OOB, NULL, &local_ta, val_kv.buf.size);
+        WT_CELL_UNPACK_DELTA_INT *delta_t = NULL;
+        delta_t = key_entry;
+        val_kv.buf.data = delta_t->value.data;
+        val_kv.buf.size = delta_t->value.size;
+
+        WT_PAGE_DELETED *page_del;
+        page_del = delta_t->value.type == WT_CELL_ADDR_DEL ? &delta_t->value.page_del : NULL;
+
+        __wt_cell_pack_addr_custom(session, &val_kv, delta_t->value.type, WT_RECNO_OOB, page_del,
+          &delta_t->value.ta, val_kv.buf.size);
     } else {
-        const WT_CELL_UNPACK_ADDR *base_val = val_entry;
+        WT_CELL_UNPACK_ADDR *base_val = NULL;
+        base_val = val_entry;
         val_kv.buf.data = base_val->data;
         val_kv.buf.size = base_val->size;
-        printf ("Base Packing cell type - %d, base_val->size - %d\n", base_val->type, (int)base_val->size);
-        val_kv.cell_len = (uint16_t)__wt_cell_pack_addr(
-          session, &val_kv.cell, base_val->type, WT_RECNO_OOB, NULL, &local_ta, val_kv.buf.size);
-    }
-    val_kv.len = val_kv.cell_len + val_kv.buf.size;
 
+        WT_PAGE_DELETED *page_del;
+        page_del = base_val->type == WT_CELL_ADDR_DEL ? &base_val->page_del : NULL;
+
+        __wt_cell_pack_addr_custom(
+          session, &val_kv, base_val->type, WT_RECNO_OOB, page_del, &base_val->ta, val_kv.buf.size);
+    }
+
+    printf("Value cell len=%d total len=%d\n", (int)val_kv.cell_len, (int)val_kv.len);
     /*
      * Ensure enough space, then recompute write pointer from new_image (not the caller's saved
      * pointer)
@@ -165,10 +209,9 @@ __wt_rec_pack_internal_pair_data_only(WT_SESSION_IMPL *session, WT_ITEM *new_ima
     if (new_image->size + packed_size > new_image->memsize)
         WT_RET(__wt_buf_grow(session, new_image, new_image->size + packed_size));
 
-    /*
-     * Recompute p: caller supplied *pp may be stale after grow and Write key and value sequentially
-     */
-    uint8_t *p = (uint8_t *)new_image->data + new_image->size;
+    /* Recompute write pointer after possible realloc */
+    WT_ASSERT(session, new_image->mem != NULL);
+    uint8_t *p = (uint8_t *)new_image->mem + new_image->size;
     __wti_rec_kv_copy(session, p, &key_kv);
     p += key_kv.len;
     __wti_rec_kv_copy(session, p, &val_kv);
@@ -179,7 +222,8 @@ __wt_rec_pack_internal_pair_data_only(WT_SESSION_IMPL *session, WT_ITEM *new_ima
 
     __wt_buf_free(session, &key_kv.buf);
     __wt_buf_free(session, &val_kv.buf);
-
+    printf("Packed sizes: key=%zuB val=%zuB total=%zuB\n", key_kv.len, val_kv.len, packed_size);
+    printf("=== END PACKING (%s) ===\n", is_delta ? "DELTA" : "BASE");
     return (0);
 }
 

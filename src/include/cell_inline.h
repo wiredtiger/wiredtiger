@@ -1162,6 +1162,8 @@ done:
      * copying the cell from the page and we need the right length).
      */
     WT_CELL_LEN_CHK(cell, unpack->__len, dsk, end);
+    printf("__wt_cell_unpack_safe unpack.type=%u, unpack->size=%u, unpack->__len=%u\n",
+      unpack->type, unpack->size, unpack->__len);
     return (0);
 }
 
@@ -1567,13 +1569,15 @@ __wt_page_cell_data_ref_kv(
             __wt_cell_unpack_delta_leaf_value(session, dsk, (WT_CELL *)__cell, unpack);         \
             __cell += (unpack)->delta_value.__len;
 
-#define WT_CELL_FOREACH_ADDR(session, dsk, unpack)                                              \
-    do {                                                                                        \
-        uint32_t __i;                                                                           \
-        uint8_t *__cell;                                                                        \
-        for (__cell = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
-             --__i) {                                                                           \
-            __wt_cell_unpack_addr(session, dsk, (WT_CELL *)__cell, &(unpack));                  \
+#define WT_CELL_FOREACH_ADDR(session, dsk, unpack)                                               \
+    do {                                                                                         \
+        uint32_t __i;                                                                            \
+        uint8_t *__cell;                                                                         \
+        for (__cell = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0;  \
+             --__i) {                                                                            \
+            printf("WT_CELL_FOREACH_ADDR: (dsk)->u.entries=%d, i = %d\n", (int)(dsk)->u.entries, \
+              (int)__i);                                                                         \
+            __wt_cell_unpack_addr(session, dsk, (WT_CELL *)__cell, &(unpack));                   \
             __cell += (unpack).__len;
 
 #define WT_CELL_FOREACH_KV(session, dsk, unpack)                                                \

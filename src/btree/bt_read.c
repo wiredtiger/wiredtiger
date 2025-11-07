@@ -264,12 +264,13 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         WT_ERR(__wt_scr_alloc(session, 0, &new_image));
         WT_ERR(__wt_buf_init(session, new_image, new_image_buf_size));
 
-        ret = __wti_build_full_disk_image_on_read(session, ref, deltas, count - 1, new_image, tmp[0].data);
+        ret = __wti_build_full_disk_image_on_read(
+          session, ref, deltas, count - 1, new_image, tmp[0].data);
         full_disk_image_build_from_deltas = true;
         WT_PAGE_HEADER *tmp_header = (WT_PAGE_HEADER *)new_image->data;
-        printf ("Full disk image built from deltas for page type %u with %zu deltas, new size %zu\n",
-          tmp_header->type, count - 1, new_image->size);
-        printf ("Full disk image built from deltas : tmp_header->u.entries - %d\n",
+        printf("Full disk image built from deltas for page type %u with %d deltas, new size %d\n",
+          tmp_header->type, (int)count - 1, (int)new_image->size);
+        printf("Full disk image built from deltas : tmp_header->u.entries - %d\n",
           (int)tmp_header->u.entries);
         for (i = 0; i < count - 1; ++i)
             __wt_buf_free(session, &deltas[i]);
