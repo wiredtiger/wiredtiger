@@ -467,15 +467,15 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
     /* When in checkpoint, no need to save update if no onpage value is selected. */
     if (F_ISSET(r, WT_REC_CHECKPOINT) && upd_select->upd == NULL)
         return (false);
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+        if (WT_TIME_WINDOW_HAS_STOP(&upd_select->tw))
+            visible_all = __wt_txn_tw_stop_visible_all(session, &upd_select->tw);
+        else
+            visible_all = __wt_txn_tw_start_visible_all(session, &upd_select->tw);
 
-    if (WT_TIME_WINDOW_HAS_STOP(&upd_select->tw))
-        visible_all = __wt_txn_tw_stop_visible_all(session, &upd_select->tw);
-    else
-        visible_all = __wt_txn_tw_start_visible_all(session, &upd_select->tw);
-
-    if (visible_all)
-        return (false);
-
+        if (visible_all)
+            return (false);
+    }
     /*
      * Update chains are only need to be saved when there are:
      * 1. Newer uncommitted updates or database is configured for in-memory storage.
@@ -1309,10 +1309,6 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
         if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
             return (0);
     }
-    // if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
-    //   WT_RET(__rec_upd_select_inmem(session, r, vpack, first_upd, upd_select, &first_txn_upd,
-    //     &has_newer_updates, &write_prepare, &upd_memsize));
-    // else
     WT_RET(__rec_upd_select(session, r, vpack, first_upd, upd_select, &first_txn_upd,
       &has_newer_updates, &write_prepare, &upd_memsize));
 
