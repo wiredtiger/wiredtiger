@@ -2084,6 +2084,11 @@ __clayered_modify_follower_insert(
      * value to be in the btree.
      */
     WT_RET(__wt_modify_apply_api(ingest, entries, nentries));
+
+    /*
+     * Constituent cursors are opened with the overwrite flag, so it'll insert. Ergo, we may as well
+     * use update (rather than insert) since it leaves the cursor positioned.
+     */
     WT_RET(ingest->update(ingest));
 
     return (0);
@@ -2114,16 +2119,14 @@ __clayered_modify_follower(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
         WT_RET(WT_NOTFOUND);
 
     /*
-     * If we have a base value, just delegate the work to the ingest cursor. Otherwise, we need
-     * to get a base value somehow -- pull it out of the stable table.
+     * If we have a base value, just delegate the work to the ingest cursor. Otherwise, we need to
+     * get a base value somehow -- pull it out of the stable table.
      */
     if (ret == WT_NOTFOUND)
         /*  We found nothing (not even a tombstone) in the ingest table. */
         WT_RET(__clayered_modify_follower_insert(clayered, key, entries, nentries));
-    else {
-        WT_RET(__cursor_localvalue(ingest));
+    else
         WT_RET(ingest->modify(ingest, entries, nentries));
-    }
 
     clayered->current_cursor = ingest;
     return (0);
@@ -2179,8 +2182,10 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     WT_ERR(__cursor_needkey(clayered->current_cursor));
     WT_ERR(__cursor_needvalue(clayered->current_cursor));
-    WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
-    WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
+    WT_ERR(__wt_buf_set(session, &cursor->key, clayered->current_cursor->key.data,
+      clayered->current_cursor->key.size));
+    WT_ERR(__wt_buf_set(session, &cursor->value, clayered->current_cursor->value.data,
+      clayered->current_cursor->value.size));
 
     /*
      * Modify maintains a position, key and value. Unlike update, it's not always an internal value.
@@ -2188,7 +2193,9 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_KEY_SET) != 0);
     WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET) != 0);
 
-    F_SET(cursor, WT_CURSTD_KEY_INT | F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET));
+    F_SET(cursor,
+      F_MASK(clayered->current_cursor, WT_CURSTD_KEY_SET) |
+        F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET));
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_update);
 
