@@ -433,6 +433,7 @@ safe_call(WT_SESSION *sess, S *api, MemberFunc func, Args &&...args)
     }
 
     session(sess);
+    /* std::unique_ptr is used as a simple scope guard to reset the session upon function exit */
     std::unique_ptr<WT_SESSION, std::function<decltype(session)>> reset_session{nullptr, &session};
 
     T *obj = static_cast<T *>(api);
@@ -651,7 +652,6 @@ class Connection {
     sqlite3 *db = nullptr;
     std::vector<sqlite3_stmt *> statements;
 
-public:
     /* Common configuration parameters for connections */
     constexpr static std::string_view config_statements[] = {
       /*
@@ -672,6 +672,7 @@ public:
       /* Set busy timeout to 10 seconds. */
       "PRAGMA busy_timeout = 10000;"};
 
+public:
     using StatementPtr = std::unique_ptr<sqlite3_stmt, std::function<decltype(sqlite3_reset)>>;
 
     ~Connection() = default;
@@ -834,17 +835,6 @@ protected:
 
         Access(const Access &) = delete;
         Access &operator=(const Access &) = delete;
-
-        void
-        release()
-        {
-            if (table_read_lock.owns_lock())
-                table_read_lock.unlock();
-            if (table_write_lock.owns_lock())
-                table_write_lock.unlock();
-            if (store_lock.owns_lock())
-                store_lock.unlock();
-        }
     };
 
     Access
@@ -1527,23 +1517,25 @@ struct Pages : public Table<Pages> {
     put(uint64_t table_id, uint64_t page_id, uint64_t lsn, WT_PAGE_LOG_PUT_ARGS *args,
       const WT_ITEM *buf)
     {
-        auto acc_w = request(AccessMode::WRITE);
-        Connection &conn = acc_w.conn;
+        {
+            auto acc_w = request(AccessMode::WRITE);
+            Connection &conn = acc_w.conn;
 
-        Connection::StatementPtr stmt = conn.db_statement(Statement::PUT_PAGE);
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(lsn));
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 4, static_cast<sqlite3_int64>(args->backlink_lsn));
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 5, static_cast<sqlite3_int64>(args->base_lsn));
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 6, static_cast<sqlite3_int64>(args->flags));
-        SQ_CHECK(sqlite3_bind_text, stmt.get(), 7, args->encryption.dek,
-          strlen(args->encryption.dek), SQLITE_STATIC);
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 8,
-          static_cast<sqlite3_int64>(now_us() + (config.materialization_delay_ms * 1ms / 1us)));
-        SQ_CHECK(sqlite3_bind_blob, stmt.get(), 9, buf->data, buf->size, SQLITE_STATIC);
-        SQ_CHECK(sqlite3_step, stmt.get());
-        acc_w.release();
+            Connection::StatementPtr stmt = conn.db_statement(Statement::PUT_PAGE);
+            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
+            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 2, static_cast<sqlite3_int64>(page_id));
+            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 3, static_cast<sqlite3_int64>(lsn));
+            SQ_CHECK(
+              sqlite3_bind_int64, stmt.get(), 4, static_cast<sqlite3_int64>(args->backlink_lsn));
+            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 5, static_cast<sqlite3_int64>(args->base_lsn));
+            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 6, static_cast<sqlite3_int64>(args->flags));
+            SQ_CHECK(sqlite3_bind_text, stmt.get(), 7, args->encryption.dek,
+              strlen(args->encryption.dek), SQLITE_STATIC);
+            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 8,
+              static_cast<sqlite3_int64>(now_us() + (config.materialization_delay_ms * 1ms / 1us)));
+            SQ_CHECK(sqlite3_bind_blob, stmt.get(), 9, buf->data, buf->size, SQLITE_STATIC);
+            SQ_CHECK(sqlite3_step, stmt.get());
+        }
 
         if (config.verify) {
             auto acc_r = request(AccessMode::READ);
