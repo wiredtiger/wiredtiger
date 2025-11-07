@@ -33,7 +33,6 @@ from modify_utils import create_mods
 from wtscenario import make_scenarios
 
 # Test that a modify can't be applied without a base value.
-# @disagg_test_class
 class test_modify02(wttest.WiredTigerTestCase):
     uri = 'table:test_modify02'
 
