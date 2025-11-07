@@ -775,7 +775,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      * If there is a low number of dirty _leaf_ pages in the cache we need to increase the dirty
      * cache size prior to finding out if our current thread was the thread that successfully
      * dirtied the page for the first time. Essentially we have two operations that we cannot
-     * erform atomically:
+     * perform atomically:
      *  1: Setting the page modify state to be dirty.
      *  2: Increasing the dirty bytes in the cache.
      *
@@ -797,8 +797,9 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     bool increase_dirty_size_first = false;
     size_t page_memory_footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
-    if (!WT_PAGE_IS_INTERNAL(page) && page_state == WT_PAGE_CLEAN &&
-      __wt_atomic_load_uint64_relaxed(&S2C(session)->cache->pages_dirty_leaf) < 10 &&
+    uint64_t dirty_leaf_pages_total =
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->cache->pages_dirty_leaf);
+    if (!WT_PAGE_IS_INTERNAL(page) && page_state == WT_PAGE_CLEAN && dirty_leaf_pages_total < 10 &&
       (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
         WT_IS_HS(session->dhandle))) {
         increase_dirty_size_first = true;
