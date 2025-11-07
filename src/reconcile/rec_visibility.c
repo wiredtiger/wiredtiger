@@ -760,6 +760,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
     uint8_t prepare_state;
     bool is_hs_page;
     bool is_inmem_btree;
+    bool oldest_upd_write_prepare;
+    oldest_upd_write_prepare = false;
     WT_UPDATE *oldest_visible_upd = NULL;
 
     conn = S2C(session);
@@ -1023,8 +1025,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                 prepare_rollback_tombstone = NULL;
             }
         }
-        if (is_inmem_btree)
+        if (is_inmem_btree) {
             oldest_visible_upd = upd;
+            oldest_upd_write_prepare = *write_prepare;
+        }
 
         /* Track the selected update transaction id and timestamp. */
         if (max_txn < txnid)
@@ -1057,8 +1061,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
     /* The prepare rollback is stable. Delete the key by selecting the rollback tombstone. */
     if (upd_select->upd == NULL && prepare_rollback_tombstone != NULL)
         upd_select->upd = prepare_rollback_tombstone;
-    if (is_inmem_btree && oldest_visible_upd != NULL)
+    if (is_inmem_btree && oldest_visible_upd != NULL) {
         upd_select->upd = oldest_visible_upd;
+        *write_prepare = oldest_upd_write_prepare;
+    }
     /*
      * Track the most recent transaction in the page. We store this in the tree at the end of
      * reconciliation in the service of checkpoints, it is used to avoid discarding trees from
