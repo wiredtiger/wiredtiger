@@ -2177,7 +2177,9 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_ERR(__clayered_modify_int(session, cursor, entries, nentries));
 
     /*
-     * Set the cursor to reference the internal key/value of the positioned cursor.
+     * Set the cursor to reference the internal key/value of the positioned cursor. We could
+     * probably move the key and value out of the constituent cursor rather than copying, but that
+     * doesn't seem worth it for now.
      */
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     WT_ERR(__cursor_needkey(clayered->current_cursor));
