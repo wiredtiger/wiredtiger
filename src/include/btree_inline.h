@@ -766,7 +766,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      * further. Firstly, the atomic increment on page state to mark the page as dirty is effectively
      * a release operation. All modifications to the page must be visible prior to the page state
      * being updated and/or marking the tree dirty. Otherwise checkpoints and/or page reconciliation
-     * may be looking at a clean page/tree..
+     * may be looking at a clean page/tree.
      *
      * Whenever we transition a page from clean to dirty we update the cache and transactional
      * information. However we cannot do this in a locked way as too many threads could be
