@@ -94,6 +94,80 @@ __page_find_min_delta(WT_SESSION_IMPL *session, WT_CELL_UNPACK_DELTA_INT **unpac
     return (0);
 }
 
+static int
+__page_find_min_delta_leaf(WT_SESSION_IMPL *session, WT_ITEM *deltas, uint8_t *cells[],
+  uint32_t entries[], WT_ITEM *lastkeys[], WT_CELL_UNPACK_DELTA_LEAF_KV unpacks[], bool unpacked[],
+  uint32_t *min_unpack_idxp, size_t delta_size)
+{
+    WT_DECL_RET;
+    WT_ITEM key, value;
+    uint8_t key_prefix;
+    uint32_t min_unpack_idx = -1;
+    int cmp;
+
+    /*
+     * Iterate backward from the latest delta stream (highest index) to the earliest (lowest index).
+     * This ensures that when we encounter a duplicate key, the one we already have is the LATEST.
+     */
+    for (int8_t i = (int8_t)delta_size - 1; i >= 0; --i) {
+        if (entries[i] == 0)
+            continue;
+        /*
+         * Unpack first if it is not unpacked yet, otherwise the entry is unpacked and the key has
+         * been prefix decompressed and stored in last keys.
+         */
+        if (!unpacked[i]) {
+            WT_CELL_DELTA_LEAF_UNPACK(
+              session, (WT_PAGE_HEADER *)deltas[i].data, &unpacks[i], cells[i]);
+            entries[i] -= 2;
+
+            key.data = unpacks[i].delta_key.data;
+            key.size = unpacks[i].delta_key.size;
+            key_prefix = unpacks[i].delta_key.prefix;
+            /*
+             * If the key has no prefix count, no prefix compression work is needed; else check for
+             * a previously built key big enough cover this key's prefix count.
+             */
+            if (key_prefix == 0) {
+                WT_RET(__wt_buf_set(session, lastkeys[i], key.data, key.size));
+            } else {
+                WT_ASSERT(session, lastkeys[i]->size >= key_prefix);
+                /*
+                 * Grow the buffer as necessary as well as ensure data has been copied into local
+                 * buffer space, then append the suffix to the prefix already in the buffer. Don't
+                 * grow the buffer unnecessarily or copy data we don't need, truncate the item's
+                 * CURRENT data length to the prefix bytes before growing the buffer.
+                 */
+                lastkeys[i]->size = key_prefix;
+                WT_ERR(__wt_buf_grow(session, lastkeys[i], key_prefix + key.size));
+                memcpy((uint8_t *)lastkeys[i]->mem + key_prefix, key.data, key.size);
+                lastkeys[i]->size = key_prefix + key.size;
+            }
+            unpacked[i] = true;
+        }
+
+        if (min_unpack_idx == -1)
+            min_unpack_idx = i;
+        else {
+            /* Compare the current key against the current minimum. */
+            WT_RET(__wt_compare(
+              session, S2BT(session)->collator, lastkeys[i], lastkeys[min_unpack_idx], &cmp));
+            if (cmp < 0) {
+                min_unpack_idx = i;
+            } else if (cmp == 0) {
+                /*
+                 * Keys are equal. Because we iterate from latest --> earliest, the current minimum
+                 * (from a higher-indexed delta) is the latest. Skip this older duplicate.
+                 */
+                unpacked[i] = false;
+            }
+        }
+    }
+    *min_unpack_idxp = min_unpack_idx;
+err:
+    return (0);
+}
+
 /*
  * __page_build_ref --
  *     Create a ref from a base image or a delta.
@@ -521,6 +595,188 @@ err:
 }
 
 /*
+ * __page_unpack_leaf_kv --
+ *     Unpack a key-value pair at given cell offset for a disk image.
+ */
+static int
+__page_unpack_leaf_kv(WT_SESSION_IMPL *session, uint32_t *ip, uint8_t *jp, uint8_t **cellp,
+  WT_ITEM *lastkey, WT_CELL_UNPACK_KV unpack_kv[], bool *key_unpackedp, uint32_t entries,
+  WT_PAGE_HEADER *dsk)
+{
+    WT_DECL_RET;
+    WT_ITEM key;
+    uint8_t key_prefix;
+    uint32_t i = *ip;
+    uint8_t j = *jp;
+    bool key_unpacked = *key_unpackedp;
+    uint8_t *cell = *cellp;
+
+    /*
+     * The unpack_kv[] is a circular array with two entries storing unpacked key-value pairs, where
+     * j points to the unpacked key and 1 - j points to the unpacked value. Since an entry may have
+     * empty value, we can detect this when expecting a value but encountering a key instead. In
+     * that case, we set key_unpacked to indicate an extra key is unpacked so we can reuse it for
+     * the next run.
+     */
+    /* Unpack the key if we have entries left and the key is not unpacked in the previous run. */
+    if (i < entries && !key_unpacked) {
+        __wt_cell_unpack_kv(session, dsk, (WT_CELL *)cell, &unpack_kv[j]);
+        cell += unpack_kv[j].__len;
+        i++;
+    }
+
+    /* Decompress prefix compressed key and store it in last key. */
+    key.data = unpack_kv[j].data;
+    key.size = unpack_kv[j].size;
+    key_prefix = unpack_kv[j].prefix;
+    if (key_prefix == 0) {
+        WT_RET(__wt_buf_set(session, lastkey, key.data, key.size));
+    } else {
+        WT_ASSERT(session, lastkey->size >= key_prefix);
+        lastkey->size = key_prefix;
+        WT_RET(__wt_buf_grow(session, lastkey, key_prefix + key.size));
+        memcpy((uint8_t *)lastkey->mem + key_prefix, key.data, key.size);
+        lastkey->size = key_prefix + key.size;
+    }
+
+    /*
+     * Unpack the value if we have entries left, we may see a key unpacked if the entry has empty
+     * value, in such case we set key_unpacked so it can be reused in the next run.
+     */
+    if (i < entries) {
+        __wt_cell_unpack_kv(session, dsk, (WT_CELL *)cell, &unpack_kv[1 - j]);
+        cell += unpack_kv[j].__len;
+        i++;
+        key_unpacked =
+          unpack_kv[1 - j].type == WT_CELL_KEY_OVFL || unpack_kv[1 - j].type == WT_CELL_KEY;
+    }
+
+    *ip = i;
+    *jp = j;
+    *key_unpackedp = key_unpacked;
+    *cellp = cell;
+    return (0);
+}
+
+/*
+ * __page_merge_deltas_with_base_image_leaf --
+ *     Merge leaf deltas with base image into disk image in a single pass.
+ */
+static int
+__page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *deltas,
+  size_t delta_size, WT_ITEM *new_image, WT_PAGE_HEADER *base_dsk)
+{
+    WT_UNUSED(new_image);
+
+    WT_DECL_RET;
+    WT_DECL_ITEM(base_lastkey);
+    int cmp;
+    bool base_found = false, base_key_unpacked = false, internal_page = false,
+         row_leaf_page = false;
+    uint32_t base_entries = base_dsk->u.entries, i = 0, min_unpack_idx = -1;
+    WT_CELL_UNPACK_KV base_unpack_kv[2];
+    uint8_t base_key_prefix, j = 0;
+    uint8_t *base_cell = WT_PAGE_HEADER_BYTE(S2BT(session), base_dsk);
+    uint8_t *delta_cells[delta_size];
+    uint32_t delta_entries[delta_size];
+    WT_ITEM *delta_lastkeys[delta_size];
+    WT_CELL_UNPACK_DELTA_LEAF_KV delta_unpacks[delta_size];
+    bool delta_unpacked[delta_size];
+
+    WT_ERR(__wt_scr_alloc(session, 0, &base_lastkey));
+    for (uint8_t d = 0; d < delta_size; d++) {
+        WT_PAGE_HEADER *dsk = (WT_PAGE_HEADER *)deltas[d].data;
+        delta_cells[d] = WT_PAGE_HEADER_BYTE(S2BT(session), dsk);
+        delta_entries[d] = dsk->u.entries;
+        delta_unpacked[d] = false;
+        WT_ERR(__wt_scr_alloc(session, 0, &delta_lastkeys[d]));
+    }
+
+    for (;;) {
+        /* Only find next delta when needed. */
+        if (min_unpack_idx == -1)
+            WT_ERR(__page_find_min_delta_leaf(session, deltas, delta_cells, delta_entries,
+              delta_lastkeys, delta_unpacks, delta_unpacked, &min_unpack_idx, delta_size));
+
+        /* Only find next base when needed. */
+        if (!base_found) {
+            base_found = i < base_entries || base_key_unpacked;
+            if (i < base_entries)
+                WT_ERR(__page_unpack_leaf_kv(session, &i, &j, &base_cell, base_lastkey,
+                  base_unpack_kv, &base_key_unpacked, base_entries, base_dsk));
+        }
+
+        /* Check if both base and all deltas are exhausted. */
+        if (!base_found && min_unpack_idx == -1)
+            break;
+
+        if (min_unpack_idx == -1)
+            cmp = -1;
+        else if (!base_found)
+            cmp = 1;
+        else {
+            WT_ERR(__wt_compare(session, S2BT(session)->collator, base_lastkey,
+              delta_lastkeys[min_unpack_idx], &cmp));
+        }
+
+        /* Build disk image */
+        if (cmp < 0) {
+            /*
+             * !!! NOTE: The following commented code is a placeholder for the actual
+             * implementation of base_key = &base[i++]; base_val = &base[i++];
+             */
+            /* Pack row-leaf base key/value. */
+
+            /*
+             * !!! NOTE: The following commented code is a placeholder for the actual
+             * implementation of
+             * __wti_rec_kv_copy(session, p, base_key);
+             * p += base_key->len;
+             * __wti_rec_kv_copy(session, p, base_val);
+             * p += base_val->len;
+             */
+            /*
+             * We've packed the base entry to disk image in this run, clear base_found so we can
+             * find a new base entry in the next run.
+             */
+            base_found = false;
+            /*
+             * If we decide to pack base entry where it has an empty value, then we've already
+             * unpacked the next key, change j to point to the unpacked key for next run.
+             */
+            if (base_key_unpacked)
+                j = 1 - j;
+        } else {
+            /* Pack row-leaf delta entry. */
+            /*
+             * !!! NOTE: The following commented code is a placeholder for the actual
+             * implementation of
+             * __wti_rec_kv_copy(session, p, min_delta->key);
+             * p += min_delta->key.len;
+             * __wti_rec_kv_copy(session, p, min_delta->value);
+             * p += min_delta->value.len;
+             */
+
+            /*
+             * Otherwise we've packed a delta entry, reset the unpack status and clear the
+             * min_unpack_idx. If cmp is 0 then the base entry has a duplicate key as the delta
+             * entry, skip the entry by clearing base_found.
+             */
+            delta_unpacked[min_unpack_idx] = false;
+            min_unpack_idx = -1;
+            if (cmp == 0)
+                base_found = false;
+        }
+    }
+
+err:
+    __wt_scr_free(session, &base_lastkey);
+    for (uint8_t d = 0; d < delta_size; d++)
+        __wt_scr_free(session, &delta_lastkeys[d]);
+    return (ret);
+}
+
+/*
  * __page_merge_deltas_with_base_image_new --
  *     Merge deltas with base image into disk image in a single pass.
  */
@@ -788,8 +1044,8 @@ err:
  *     Build a full disk image of the page after reading from disk.
  */
 int
-__wti_build_full_disk_image_on_read(
-  WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas, size_t delta_size, WT_ITEM *new_image)
+__wti_build_full_disk_image_on_read(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_HEADER *base_dsk,
+  WT_ITEM *deltas, size_t delta_size, WT_ITEM *new_image)
 {
     WT_REF **refs;
     size_t refs_entries, incr;
@@ -799,8 +1055,12 @@ __wti_build_full_disk_image_on_read(
     incr = 0;
 
     /* Merge deltas directly with the base image to build refs in a single pass. */
-    WT_RET(__page_merge_deltas_with_base_image_new(
-      session, ref, deltas, delta_size, &refs, &refs_entries, &incr, new_image));
+    if (base_dsk->type == WT_PAGE_ROW_LEAF)
+        WT_RET(__page_merge_deltas_with_base_image_leaf(
+          session, deltas, delta_size, new_image, base_dsk));
+    else
+        WT_RET(__page_merge_deltas_with_base_image_new(
+          session, ref, deltas, delta_size, &refs, &refs_entries, &incr, new_image));
 
     return (0);
 }
