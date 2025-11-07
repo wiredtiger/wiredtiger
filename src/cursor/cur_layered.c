@@ -2114,11 +2114,11 @@ __clayered_modify_follower(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
         WT_RET(WT_NOTFOUND);
 
     /*
-     * If we have a base value, just delegate the work to the constituent cursor. Otherwise, we need
+     * If we have a base value, just delegate the work to the ingest cursor. Otherwise, we need
      * to get a base value somehow -- pull it out of the stable table.
      */
     if (ret == WT_NOTFOUND)
-        /*  We found nothing (not even a tombstone) in the stable table. */
+        /*  We found nothing (not even a tombstone) in the ingest table. */
         WT_RET(__clayered_modify_follower_insert(clayered, key, entries, nentries));
     else {
         WT_RET(__cursor_localvalue(ingest));
