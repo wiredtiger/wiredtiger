@@ -607,7 +607,6 @@ __wt_cache_dirty_incr_size(WT_SESSION_IMPL *session, size_t size, bool is_intern
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
-    size_t size;
 
     btree = S2BT(session);
     cache = S2C(session)->cache;
