@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -28,24 +28,14 @@
 
 import random, string
 import wiredtiger, wttest
+
 from modify_utils import create_mods
 from wtscenario import make_scenarios
 
-# test_calc_modify.py
-#   Test the wiredtiger_calc_modify API
-#
-# Try many combinations of:
-# - data size
-# - data randomness ('a' * N, repeated patterns, uniform random)
-# - number and type of modifications (add, remove, replace)
-# - space between the modifications
-#
-# Check that wiredtiger_calc_modify finds a set of modifies when the edit
-# difference is under the specified limits, and that applying those
-# modifications produces the expected result.  If the edit difference is
-# larger than the limits, it okay for the call to fail.
-class test_calc_modify(wttest.WiredTigerTestCase):
-    uri = 'table:test_calc_modify'
+# Test that a modify can't be applied without a base value.
+# @disagg_test_class
+class test_modify02(wttest.WiredTigerTestCase):
+    uri = 'table:test_modify02'
 
     valuefmt = [
         ('item', dict(valuefmt='u')),
@@ -53,8 +43,8 @@ class test_calc_modify(wttest.WiredTigerTestCase):
     ]
     scenarios = make_scenarios(valuefmt)
 
-    def test_calc_modify(self):
-        r = random.Random(42) # Make things repeatable
+    def test_modify02(self):
+        r = random.Random(43) # Make things repeatable
 
         self.session.create(self.uri, 'key_format=i,value_format=' + self.valuefmt)
         c = self.session.open_cursor(self.uri)
@@ -65,14 +55,16 @@ class test_calc_modify(wttest.WiredTigerTestCase):
             nmods = r.randint(1, 10)
             maxdiff = r.randint(64, size // 10)
 
-            self.pr("size %s, repeats %s, nmods %s, maxdiff %s" % (size, repeats, nmods, maxdiff))
             (oldv, mods, newv) = create_mods(r, size, repeats, nmods, maxdiff, self.valuefmt)
-
             self.assertIsNotNone(mods)
 
-            c[k] = oldv
+            # Note: not setting c[k] to old value.
             self.session.begin_transaction()
             c.set_key(k)
-            c.modify(mods)
+
+            # We don't have a base value -- don't allow a modify.
+            ret = c.modify(mods)
+            self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+
+            # Could also roll back, doesn't matter.
             self.session.commit_transaction()
-            self.assertEqual(c[k], newv)

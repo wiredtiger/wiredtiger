@@ -26,60 +26,56 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import random, string, sys
+import random, string
 import wiredtiger, wttest
 
-from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
-from modify_utils import create_mods, create_value
+from modify_utils import create_mods
 from wtscenario import make_scenarios
 
-# Test that a modify remains valid across a checkpoint update.
-@disagg_test_class
-class test_layered_modify03(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    conn_base_config = 'disaggregated=(page_log=palm),'
-    disagg_storages = gen_disagg_storages('test_layered_modify03', disagg_only=True)
-    uri = 'layered:test_layered_modify03'
+# Test the wiredtiger_calc_modify API.
+#
+# Try many combinations of:
+# - data size
+# - data randomness ('a' * N, repeated patterns, uniform random)
+# - number and type of modifications (add, remove, replace)
+# - space between the modifications
+#
+# Check that wiredtiger_calc_modify finds a set of modifies when the edit
+# difference is under the specified limits, and that applying those
+# modifications produces the expected result.  If the edit difference is
+# larger than the limits, it okay for the call to fail.
+class test_modify01(wttest.WiredTigerTestCase):
+    uri = 'table:test_modify01'
 
     valuefmt = [
         ('item', dict(valuefmt='u')),
         ('string', dict(valuefmt='S')),
     ]
-    scenarios = make_scenarios(disagg_storages, valuefmt)
 
-    def conn_config(self):
-        return self.conn_base_config + f'disaggregated=(role="leader"),'
+    scenarios = make_scenarios(valuefmt)
 
-    def test_layered_modify03(self):
+    def test_modify01(self):
         r = random.Random(42) # Make things repeatable
 
         self.session.create(self.uri, 'key_format=i,value_format=' + self.valuefmt)
-        c = self.session.open_cursor(self.uri)
 
-        old_vals = []
+        c = self.session.open_cursor(self.uri)
         for k in range(1000):
             size = r.randint(1000, 10000)
             repeats = r.randint(1, size)
             nmods = r.randint(1, 10)
             maxdiff = r.randint(64, size // 10)
-            oldv = create_value(r, size, repeats, self.valuefmt)
 
-            c[k] = oldv
-            old_vals.append(oldv)
+            self.pr("size %s, repeats %s, nmods %s, maxdiff %s" % (size, repeats, nmods, maxdiff))
+            (oldv, mods, newv) = create_mods(r, size, repeats, nmods, maxdiff, self.valuefmt)
 
-        self.session.checkpoint()
-
-        # We don't need a second WT to test what we want -- reopen the existing
-        # one and tell it to grab the latest checkpoint.
-        self.reopen_conn(config=self.conn_base_config + f'disaggregated=(role="follower",checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")')
-        c = self.session.open_cursor(self.uri)
-
-        for k in range(1000):
-            (oldv, mods, newv) = create_mods(r, size, repeats, nmods, maxdiff, self.valuefmt, old_vals[k])
             self.assertIsNotNone(mods)
 
+            c[k] = oldv
             self.session.begin_transaction()
             c.set_key(k)
-            ret = c.modify(mods)
-            self.assertEqual(ret, 0)
+            c.modify(mods)
+
+            # Use a timestamp for compatibility with the disagg hook.
             self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(k+1))
             self.assertEqual(c[k], newv)
