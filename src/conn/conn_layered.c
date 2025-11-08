@@ -283,6 +283,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg;
     uint64_t lsn;
+    uint32_t checksum;
     char *checkpoint_root_copy, ts_string[WT_TS_INT_STRING_SIZE];
 
     buf = NULL;
@@ -308,22 +309,28 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
       "timestamp=%" PRIx64,
       checkpoint_root_copy, checkpoint_timestamp));
 
+    /* Compute the checksum for the metadata page. */
+    checksum = __wt_checksum(buf->data, buf->size);
+
     /*
      * Write the metadata to disaggregated storage. This should be the last statement in this
      * function that is allowed to fail.
      */
     WT_ERR(__disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, buf, &lsn));
 
-    /* Do the bookkeeping. */
+    /*
+     * Do the bookkeeping. We cannot fail this function past this point, so that our bookkeeping is
+     * correct and self-consistent.
+     */
     __wt_atomic_store_uint64_release(&disagg->last_checkpoint_meta_lsn, lsn);
     __wt_atomic_store_uint64_release(&disagg->last_checkpoint_timestamp, checkpoint_timestamp);
+    disagg->last_checkpoint_meta_checksum = checksum; /* Protected by the checkpoint lock. */
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Wrote disaggregated checkpoint metadata: lsn=%" PRIu64 ", timestamp=%" PRIu64
-      " %s"
-      ", root=\"%s\"",
+      " %s, checksum=%" PRIx32 ", root=\"%s\"",
       lsn, checkpoint_timestamp, __wt_timestamp_to_string(checkpoint_timestamp, ts_string),
-      checkpoint_root_copy);
+      checksum, checkpoint_root_copy);
 
     __wt_free(session, disagg->last_checkpoint_root);
     disagg->last_checkpoint_root = checkpoint_root_copy;
@@ -340,7 +347,8 @@ err:
  *     Pick up a new checkpoint.
  */
 static int
-__disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
+__disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, bool has_metadata_checksum,
+  uint32_t metadata_checksum)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -350,6 +358,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
     WT_SESSION_IMPL *internal_session, *shared_metadata_session;
     size_t len, metadata_value_cfg_len;
     uint64_t checkpoint_timestamp, current_meta_lsn;
+    uint32_t checksum;
     char *buf, *cfg_ret, *checkpoint_config, *root, *metadata_value_cfg, *layered_ingest_uri;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
@@ -402,6 +411,16 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn)
     WT_ERR_MSG_CHK(session,
       __disagg_get_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, meta_lsn, &item),
       "Disagg metadata fetching failed, with lsn: %" PRIu64, meta_lsn);
+
+    /* Validate the checksum. */
+    if (has_metadata_checksum) {
+        checksum = __wt_checksum(item.data, item.size);
+        if (checksum != metadata_checksum) {
+            WT_ERR_MSG(session, EIO,
+              "Checkpoint metadata checksum mismatch: expected %" PRIx32 ", got %" PRIx32,
+              metadata_checksum, checksum);
+        }
+    }
 
     /* Add the terminating zero byte to the end of the buffer. */
     len = item.size + 1;
@@ -596,7 +615,8 @@ err:
     else {
         WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_failed);
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_ERROR,
-          "Disagg pick up checkpoint for meta_lsn =%" PRIu64 ", failed with: %d", meta_lsn, ret);
+          "Failed to pick up disaggregated storage checkpoint for metadata_lsn=%" PRIu64 ": ret=%d",
+          meta_lsn, ret);
     }
 
     /* Free memory allocated by the page log interface */
@@ -621,24 +641,6 @@ err:
 }
 
 /*
- * __disagg_pick_up_checkpoint_meta --
- *     Pick up a new checkpoint from metadata config.
- */
-static int
-__disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *meta_item)
-{
-    WT_CONFIG_ITEM cval;
-    uint64_t metadata_lsn;
-
-    /* Extract the arguments. */
-    WT_RET(__wt_config_subgets(session, meta_item, "metadata_lsn", &cval));
-    metadata_lsn = (uint64_t)cval.val;
-
-    /* Now actually pick up the checkpoint. */
-    return (__disagg_pick_up_checkpoint(session, metadata_lsn));
-}
-
-/*
  * __disagg_pick_up_checkpoint_meta_item --
  *     Pick up a new checkpoint from metadata config, expressed as an item.
  */
@@ -647,24 +649,58 @@ __disagg_pick_up_checkpoint_meta_item(WT_SESSION_IMPL *session, WT_ITEM *meta_it
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
-    uint64_t metadata_lsn;
+    uint64_t metadata_checksum, metadata_lsn;
     char *meta_str;
+    bool has_metadata_checksum;
 
     meta_str = NULL;
+
+    has_metadata_checksum = false;
+    metadata_checksum = 0;
 
     /* Extract the item into a string. */
     WT_ERR(__wt_strndup(session, meta_item->data, meta_item->size, &meta_str));
 
-    /* Extract the arguments. */
+    /* Extract the LSN of the metadata page. */
     WT_ERR(__wt_config_getones(session, meta_str, "metadata_lsn", &cval));
     metadata_lsn = (uint64_t)cval.val;
 
+    /*
+     * Extract the checksum of the metadata page, if it exists. We added the checksum later, so
+     * treat it as optional, in order to support clusters with an earlier data format.
+     */
+    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "metadata_checksum", &cval), true);
+    if (WT_CHECK_AND_RESET(ret, 0) && cval.len != 0) {
+        WT_ERR(__wt_conf_parse_hex(session, "metadata_checksum", &metadata_checksum, &cval));
+        if (metadata_checksum > UINT32_MAX)
+            WT_ERR_MSG(
+              session, EINVAL, "Invalid metadata checksum value: %" PRIx64, metadata_checksum);
+        has_metadata_checksum = true;
+    }
+
     /* Now actually pick up the checkpoint. */
-    WT_ERR(__disagg_pick_up_checkpoint(session, metadata_lsn));
+    WT_ERR(__disagg_pick_up_checkpoint(
+      session, metadata_lsn, has_metadata_checksum, (uint32_t)metadata_checksum));
 
 err:
     __wt_free(session, meta_str);
     return (ret);
+}
+
+/*
+ * __disagg_pick_up_checkpoint_meta --
+ *     Pick up a new checkpoint from metadata config.
+ */
+static int
+__disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *meta_item)
+{
+    WT_ITEM buf;
+
+    WT_CLEAR(buf);
+    WT_RET(__wt_buf_set(session, &buf, meta_item->str, meta_item->len));
+    WT_RET(__disagg_pick_up_checkpoint_meta_item(session, &buf));
+
+    return (0);
 }
 
 /*
@@ -1600,6 +1636,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
     WT_DISAGGREGATED_STORAGE *disagg;
     wt_timestamp_t checkpoint_timestamp;
     uint64_t meta_lsn;
+    uint32_t meta_checksum;
     char ts_string[WT_TS_INT_STRING_SIZE];
 
     conn = S2C(session);
@@ -1612,6 +1649,11 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
         return (0);
 
     WT_RET(__wt_scr_alloc(session, 0, &meta));
+
+    /* Get the checksum of the metadata page. This access is protected by the checkpoint lock. */
+    meta_checksum = conn->disaggregated_storage.last_checkpoint_meta_checksum;
+
+    /* The following accesses are read from atomic variables. */
     meta_lsn =
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
     checkpoint_timestamp =
@@ -1623,7 +1665,8 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
          * Important: To keep testing simple, keep the metadata to be a valid configuration string
          * without quotation marks or escape characters.
          */
-        WT_ERR(__wt_buf_fmt(session, meta, "metadata_lsn=%" PRIu64, meta_lsn));
+        WT_ERR(__wt_buf_fmt(session, meta, "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32,
+          meta_lsn, meta_checksum));
         WT_ERR(disagg->npage_log->page_log->pl_complete_checkpoint_ext(disagg->npage_log->page_log,
           &session->iface, 0, (uint64_t)checkpoint_timestamp, meta, NULL));
         __wt_atomic_store_uint64_release(
