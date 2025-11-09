@@ -53,6 +53,9 @@
  * that read operations can occur concurrently while write operations are
  * serialized.
  *
+ * In addition, there is a storage-wide lock that is used for operations that
+ * require exclusive access to the entire storage. E.g., abandoning a checkpoint.
+ *
  * -= Known Limitations =-
  *
  * PALite does not currently support multiple processes accessing the same
@@ -71,9 +74,9 @@
  *
  * PageLog
  *   |
- *   +- [PageHandle] - list: an instance per WT table
+ *   + <- PageHandle - an instance per WT table (created, but not owned by PageLog)
  *   +- Config - shared by all components
- *   +- Storage - shared by all page handles
+ *   +- Storage - shared by PageLog and PageHandles
  *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  *
@@ -88,27 +91,34 @@
  *                                                                                     |
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       |
  *                                                                                     |
- *                                                                | bypasses per-table access; |
- *                                                                | uses storage-wide lock     |
+ *                                                                | bypasses per-table access;   |
+ *                                                                | uses storage-wide write lock |
  *                                                                                     |
- *       < - - - - - - - - - - - - - - - - - - - - - - - - - - - - - >   <-------------+
- *       <   next_lsn         |   get/put          |   get/put       >
- *       <   last_lsn         |   delete           |   discard       > - specific for each class
- *       <   ...              |                    |   ...           >
- *       < - - - - - - - - - - - - - - - - - - - - - - - - - - - - - >
- *   +---< Readers-Writer Lock (every method above has to aquire it) >
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       |
+ *    Storage-level Readers-Writer Lock (every method above has to aquire it)   >------+
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -       |
+ *                                                                                     |
+ *       < - - - - - - - - - - - - - - - - - - - - - - - - - - - - - >                 |
+ * Table <   create DB tables / connection config / sql queries      > - common for all classes
+ *   |   < - - - - - - - - - - - - - - - - - - - - - - - - - - - - - >                 |
+ *   |   <   Globals          |   Checkpoints      |   Pages         > - classes for tables
+ *   |   <   - - - - -        |   - - - - - -      |   - - - -       >                 |
+ *   |   <   next_lsn         |   get/put          |   get/put       > - specific for each class
+ *   |   <   last_lsn         |   delete           |   discard       >                 |
+ *   |   <   ...              |   ...              |   ...           > <---------------+
  *   |   < - - - - - - - - - - - - - - - - - - - - - - - - - - - - - >
- *   |   <   create DB tables / connection config / sql queries      > - common for all classes
- *   |   < - - - - - - - - - - - - - - - - - - - - - - - - - - - - - >
- * Table <   Globals         |   Checkpoints      |     Pages        > - classes for tables
+ *   |
+ * - | - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ *   +- Table-level Readers-Writer Lock (every method above has to aquire it)
+ * - | - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  *   |
  *   +- {thread : Connection<sqlite3*>} - map: DB connections (per thread)
  *                  |
- *                  +- [sqlite3_stmt*] - list: precompiled statetments
+ *                  +- [sqlite3_stmt*] - list: precompiled SQL statements
  *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  *
- *   SQLite3 helpers (used by connections) :
+ *   SQLite3 helpers (used by connections):
  *    - calls and call tracing
  *    - error handling
  *    - useful macros, etc
