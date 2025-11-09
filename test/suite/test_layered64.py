@@ -57,7 +57,7 @@ class test_layered64(wttest.WiredTigerTestCase):
     def test_uncommit_eviction(self):
         self.session.create(self.uri, self.session_create_config())
 
-        with WiredTigerStat(self.session, 'statistics:'+self.uri) as stat_cursor:
+        with WiredTigerStat(self.session, 'statistics:' + self.uri) as stat_cursor:
             cache_put_before = stat_cursor[stat.dsrc.cache_write][2]
         self.session.begin_transaction()
 
@@ -67,7 +67,7 @@ class test_layered64(wttest.WiredTigerTestCase):
             cursor[i] = "value1"
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(50))
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
-        
+
         self.session.begin_transaction()
         cursor[1] = "value2"
 
