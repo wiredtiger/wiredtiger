@@ -94,22 +94,25 @@ __page_find_min_delta(WT_SESSION_IMPL *session, WT_CELL_UNPACK_DELTA_INT **unpac
     return (0);
 }
 
+/*
+ * __page_find_min_delta_leaf --
+ *     Find the next min key leaf delta.
+ */
 static int
 __page_find_min_delta_leaf(WT_SESSION_IMPL *session, WT_ITEM *deltas, uint8_t *cells[],
   uint32_t entries[], WT_ITEM *lastkeys[], WT_CELL_UNPACK_DELTA_LEAF_KV unpacks[], bool unpacked[],
-  uint32_t *min_unpack_idxp, size_t delta_size)
+  int16_t *min_unpack_idxp, size_t delta_size)
 {
-    WT_DECL_RET;
-    WT_ITEM key, value;
+    WT_ITEM key;
     uint8_t key_prefix;
-    uint32_t min_unpack_idx = -1;
+    int16_t min_unpack_idx = -1;
     int cmp;
 
     /*
      * Iterate backward from the latest delta stream (highest index) to the earliest (lowest index).
      * This ensures that when we encounter a duplicate key, the one we already have is the LATEST.
      */
-    for (int8_t i = (int8_t)delta_size - 1; i >= 0; --i) {
+    for (int16_t i = (int16_t)delta_size - 1; i >= 0; --i) {
         if (entries[i] == 0)
             continue;
         /*
@@ -139,7 +142,7 @@ __page_find_min_delta_leaf(WT_SESSION_IMPL *session, WT_ITEM *deltas, uint8_t *c
                  * CURRENT data length to the prefix bytes before growing the buffer.
                  */
                 lastkeys[i]->size = key_prefix;
-                WT_ERR(__wt_buf_grow(session, lastkeys[i], key_prefix + key.size));
+                WT_RET(__wt_buf_grow(session, lastkeys[i], key_prefix + key.size));
                 memcpy((uint8_t *)lastkeys[i]->mem + key_prefix, key.data, key.size);
                 lastkeys[i]->size = key_prefix + key.size;
             }
@@ -164,7 +167,6 @@ __page_find_min_delta_leaf(WT_SESSION_IMPL *session, WT_ITEM *deltas, uint8_t *c
         }
     }
     *min_unpack_idxp = min_unpack_idx;
-err:
     return (0);
 }
 
@@ -603,7 +605,6 @@ __page_unpack_leaf_kv(WT_SESSION_IMPL *session, uint32_t *ip, uint8_t *jp, uint8
   WT_ITEM *lastkey, WT_CELL_UNPACK_KV unpack_kv[], bool *key_unpackedp, uint32_t entries,
   WT_PAGE_HEADER *dsk)
 {
-    WT_DECL_RET;
     WT_ITEM key;
     uint8_t key_prefix;
     uint32_t i = *ip;
@@ -671,11 +672,11 @@ __page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *delt
     WT_DECL_RET;
     WT_DECL_ITEM(base_lastkey);
     int cmp;
-    bool base_found = false, base_key_unpacked = false, internal_page = false,
-         row_leaf_page = false;
-    uint32_t base_entries = base_dsk->u.entries, i = 0, min_unpack_idx = -1;
+    bool base_found = false, base_key_unpacked = false;
+    uint32_t base_entries = base_dsk->u.entries, i = 0;
+    int16_t min_unpack_idx = -1;
     WT_CELL_UNPACK_KV base_unpack_kv[2];
-    uint8_t base_key_prefix, j = 0;
+    uint8_t j = 0;
     uint8_t *base_cell = WT_PAGE_HEADER_BYTE(S2BT(session), base_dsk);
     uint8_t *delta_cells[delta_size];
     uint32_t delta_entries[delta_size];
