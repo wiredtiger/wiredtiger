@@ -35,88 +35,50 @@ import time
 
 
 # test_layered64.py
-# Test that we write internal page deltas.
+# Test that we write the page for update restore even when deltas are disabled.
 
 @disagg_test_class
 class test_layered64(wttest.WiredTigerTestCase):
-
-    delta = [
-        ('write_none', dict(delta_config='page_delta=(internal_page_delta=false,leaf_page_delta=false)', delta_type='none')),
-    ]
-
-    conn_base_config = 'cache_size=5G,transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'page_delta=(delta_pct=100),'
+    conn_base_config = 'statistics=(all),'
     disagg_storages = gen_disagg_storages('test_layered64', disagg_only = True)
 
-    nrows = 1000
+    nrows = 10
     uri='file:test_layered64'
 
-    # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(disagg_storages, delta)
+    scenarios = make_scenarios(disagg_storages)
 
     def session_create_config(self):
-        # The delta percentage of 100 is an arbitrary large value, intended to produce
-        # deltas a lot of the time.
-        cfg = 'key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512,block_manager=disagg'
+        cfg = 'key_format=i,value_format=S,block_manager=disagg'
         return cfg
 
     def conn_config(self):
-        return self.conn_base_config + f'disaggregated=(role="leader"),{self.delta_config},'
-
-    def insert(self, kv, ts):
-        cursor = self.session.open_cursor(self.uri, None, None)
-        for k, v in kv.items():
-            self.session.begin_transaction()
-            cursor[k] = v
-            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(ts))
-        cursor.close()
+        return self.conn_base_config + 'disaggregated=(role="leader"),page_delta=(internal_page_delta=false,leaf_page_delta=false)'
 
     def test_uncommit_eviction(self):
-        """
-        Scenario:
-            Evict pages with uncommitted updates.
-        """
         self.session.create(self.uri, self.session_create_config())
-        
-        cursor = self.session.open_cursor(self.uri, None, None)
+
         with WiredTigerStat(self.session, 'statistics:'+self.uri) as stat_cursor:
             cache_put_before = stat_cursor[stat.dsrc.cache_write][2]
         self.session.begin_transaction()
 
         # Populate the table with nrows.
-        inital_value = "xyz" * 10
-        kv = {str(i): inital_value for i in range(1, self.nrows + 1)}
-        cursor = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
-        idx = 0
-        for k, v in kv.items():
-            if idx % 1000 == 0:
-                print(f"Inserting record {idx}/{self.nrows}")
-            idx += 1
-            cursor[k] = v
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(1, self.nrows + 1):
+            cursor[i] = "value1"
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(50))
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
         
-        # Populate the table with nrows.
-        inital_value = "abc" * 10
-        kv = {str(i): inital_value for i in range(1, self.nrows + 1)}
-        cursor = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
-        idx = 0
-        for k, v in kv.items():
-            if idx % 1000 == 0:
-                print(f"Inserting record {idx}/{self.nrows}")
-            idx += 1
-            cursor[k] = v
-        print("Inserted initial data")
+        self.session.begin_transaction()
+        cursor[1] = "value2"
+
         # Evict the data.
         session = self.conn.open_session("debug=(release_evict_page)")
         evict_cursor = session.open_cursor(self.uri, None, None)
-        evict_cursor.set_key('a')
-        print("Evict set call")
+        evict_cursor.set_key(1)
         evict_cursor.search()
-        print("Evict search call")
         evict_cursor.close()
-        print("Evict cursor closed")
+
         # Monitor under un-committed status.
         with WiredTigerStat(self.session, 'statistics:'+self.uri) as stat_cursor:
             cache_put_after = stat_cursor[stat.dsrc.cache_write][2]
-        print(f"Cache write before: {cache_put_before}, after: {cache_put_after}")
+        self.assertGreater(cache_put_after, cache_put_before)
