@@ -599,15 +599,14 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 }
 
 /*
- * __wt_cache_dirty_incr --
- *     Page switch from clean to dirty: increment the cache dirty page/byte counts.
+ * __wt_cache_dirty_incr_size --
+ *     Increase the dirty cache for the size.
  */
 static WT_INLINE void
-__wt_cache_dirty_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wt_cache_dirty_incr_size(WT_SESSION_IMPL *session, size_t size, bool is_internal)
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
-    size_t size;
 
     btree = S2BT(session);
     cache = S2C(session)->cache;
@@ -618,19 +617,50 @@ __wt_cache_dirty_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
      *
      * Take care to read the memory_footprint once in case we are racing with updates.
      */
-    size = __wt_atomic_load_size_relaxed(&page->memory_footprint);
-    if (WT_PAGE_IS_INTERNAL(page)) {
+    if (is_internal) {
         (void)__wt_atomic_add_uint64(&cache->pages_dirty_intl, 1);
         (void)__wt_atomic_add_uint64(&cache->bytes_dirty_intl, size);
         (void)__wt_atomic_add_uint64(&btree->bytes_dirty_intl, size);
     } else {
+        (void)__wt_atomic_add_uint64(&cache->pages_dirty_leaf, 1);
         (void)__wt_atomic_add_uint64(&cache->bytes_dirty_leaf, size);
         (void)__wt_atomic_add_uint64(&btree->bytes_dirty_leaf, size);
-        (void)__wt_atomic_add_uint64(&cache->pages_dirty_leaf, 1);
     }
-    (void)__wt_atomic_add_uint64(&cache->bytes_dirty_total, size);
-    (void)__wt_atomic_add_uint64(&btree->bytes_dirty_total, size);
-    (void)__wt_atomic_add_uint64(&page->modify->bytes_dirty, size);
+}
+
+/*
+ * __wt_cache_dirty_decr_size --
+ *     Decrease the dirty cache for the size.
+ */
+static WT_INLINE void
+__wt_cache_dirty_decr_size(WT_SESSION_IMPL *session, size_t size, bool is_internal)
+{
+    WT_BTREE *btree;
+    WT_CACHE *cache;
+
+    btree = S2BT(session);
+    cache = S2C(session)->cache;
+
+    /*
+     * Always increase the size in sequence of cache, btree, and page as we may race with other
+     * threads that are trying to decrease the sizes concurrently.
+     *
+     * Take care to read the memory_footprint once in case we are racing with updates.
+     */
+    if (is_internal) {
+        __wt_cache_decr_check_uint64(
+          session, &cache->pages_dirty_intl, 1, "dirty internal page count");
+        __wt_cache_decr_check_uint64(
+          session, &btree->bytes_dirty_intl, size, "WT_BTREE.bytes_dirty_intl");
+        __wt_cache_decr_check_uint64(
+          session, &cache->bytes_dirty_intl, size, "WT_CACHE.bytes_dirty_intl");
+    } else {
+        __wt_cache_decr_check_uint64(session, &cache->pages_dirty_leaf, 1, "dirty leaf page count");
+        __wt_cache_decr_check_uint64(
+          session, &btree->bytes_dirty_leaf, size, "WT_BTREE.bytes_dirty_leaf");
+        __wt_cache_decr_check_uint64(
+          session, &cache->bytes_dirty_leaf, size, "WT_CACHE.bytes_dirty_leaf");
+    }
 }
 
 /*
@@ -723,8 +753,6 @@ __wt_page_modify_init(WT_SESSION_IMPL *session, WT_PAGE *page)
 static WT_INLINE void
 __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-    uint64_t last_running;
-
     WT_ASSERT(session, !F_ISSET(session->dhandle, WT_DHANDLE_DEAD));
 
     WT_ASSERT_ALWAYS(session, !F_ISSET(page->modify, WT_PAGE_MODIFY_EXCLUSIVE),
@@ -732,24 +760,72 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     if (F_ISSET(S2BT(session), WT_BTREE_READONLY))
         return;
-
-    last_running = 0;
-    if (__wt_atomic_load_uint32_relaxed(&page->modify->page_state) == WT_PAGE_CLEAN)
-        last_running = __wt_atomic_load_uint64_v_relaxed(&S2C(session)->txn_global.last_running);
+    /*
+     * This is a relatively complex dance of operations so pay attention prior to modifying the code
+     * further. Firstly, the atomic increment on page state to mark the page as dirty is effectively
+     * a release operation. All modifications to the page must be visible prior to the page state
+     * being updated and/or marking the tree dirty. Otherwise checkpoints and/or page reconciliation
+     * may be looking at a clean page/tree.
+     *
+     * Whenever we transition a page from clean to dirty we update the cache and transactional
+     * information. However we cannot do this in a locked way as too many threads could be
+     * concurrently trying to read, or update the page state.
+     *
+     * If there is a low number of dirty _leaf_ pages in the cache we need to increase the dirty
+     * cache size prior to finding out if our current thread was the thread that successfully
+     * dirtied the page for the first time. Essentially we have two operations that we cannot
+     * perform atomically:
+     *  1: Setting the page modify state to be dirty.
+     *  2: Increasing the dirty bytes in the cache.
+     *
+     * In theory if checkpoint or reconciliation happened on the page between us dirtying it and the
+     * bytes in cache being incremented we could unintentionally end up negative bytes in the cache.
+     * Importantly this behavior can only happen with the pages belonging to the metadata file or
+     * the history store as they operate at lower isolation levels to committed.
+     */
 
     /*
-     * We depend on the atomic operation being a release barrier, that is, a barrier to ensure all
-     * changes to the page are written before updating the page state and/or marking the tree dirty,
-     * otherwise checkpoints and/or page reconciliation might be looking at a clean page/tree.
-     *
-     * Every time the page transitions from clean to dirty, update the cache and transactional
-     * information.
-     *
-     * The page state can only ever be incremented above dirty by the number of concurrently running
-     * threads, so the counter will never approach the point where it would wrap.
+     * Firstly do an acquire load on page->state, when we do a write to page->state we expect that
+     * to be release operation ordering the write of the page content prior to the write of state.
+     * Hence we pair that with an acquire load.
+     */
+    uint32_t page_state = __wt_atomic_load_uint32_acquire(&page->modify->page_state);
+    uint64_t last_running = WT_TXN_NONE;
+    if (page_state == WT_PAGE_CLEAN)
+        last_running = __wt_atomic_load_uint64_v_relaxed(&S2C(session)->txn_global.last_running);
+
+    bool increase_dirty_size_first = false;
+    size_t page_memory_footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
+    uint64_t dirty_leaf_pages_total =
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->cache->pages_dirty_leaf);
+    if (!WT_PAGE_IS_INTERNAL(page) && page_state == WT_PAGE_CLEAN && dirty_leaf_pages_total < 10 &&
+      (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
+        WT_IS_HS(session->dhandle))) {
+        increase_dirty_size_first = true;
+        __wt_cache_dirty_incr_size(session, page_memory_footprint, false);
+    }
+    /*
+     * This is the atomic operation referenced in the comment above. We use it as a weak compare and
+     * swap. The atomic operation returns the value post addition, thus if we are the first to
+     * increment it we will enter the if statement, no other thread can. If the other thread also
+     * increased the dirty size first, it will need to undo its work.
      */
     if (__wt_atomic_add_uint32(&page->modify->page_state, 1) == WT_PAGE_DIRTY_FIRST) {
-        __wt_cache_dirty_incr(session, page);
+        if (!increase_dirty_size_first)
+            __wt_cache_dirty_incr_size(session, page_memory_footprint, WT_PAGE_IS_INTERNAL(page));
+        /*
+         * These statistics are never decreased, so there is no need to increment them before
+         * performing the compare-and-swap operation.
+         */
+        (void)__wt_atomic_add_uint64(
+          &S2C(session)->cache->bytes_dirty_total, page_memory_footprint);
+        (void)__wt_atomic_add_uint64(&S2BT(session)->bytes_dirty_total, page_memory_footprint);
+        /*
+         * The bytes dirty count for a page is decreased later when the page is marked clean, so
+         * there's no need to decrease it within this function. As a result, it also doesn't need to
+         * be incremented before the compare-and-swap operation.
+         */
+        (void)__wt_atomic_add_uint64(&page->modify->bytes_dirty, page_memory_footprint);
 
         __wt_evict_page_first_dirty(session, page);
 
@@ -758,16 +834,21 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
          * meantime, and the last_running field been updated past it. That is all very unlikely, but
          * not impossible, so we take care to read the global state before the atomic increment.
          *
-         * If the page was dirty on entry, then last_running == 0. The page could have become clean
-         * since then, if reconciliation completed. In that case, we leave the previous value for
-         * first_dirty_txn rather than potentially racing to update it, at worst, we'll
+         * If the page was dirty on entry, then last_running == WT_TXN_NONE. The page could have
+         * become clean since then, if reconciliation completed. In that case, we leave the previous
+         * value for first_dirty_txn rather than potentially racing to update it, at worst, we'll
          * unnecessarily write a page in a checkpoint.
          */
-        if (last_running != 0)
+        if (last_running != WT_TXN_NONE)
             page->modify->first_dirty_txn = last_running;
-    }
+    } else if (increase_dirty_size_first)
+        __wt_cache_dirty_decr_size(session, page_memory_footprint, false);
 
-    /* Check if this is the largest transaction ID to update the page. */
+    /*
+     * Check if this is the largest transaction ID to update the page. The update_txn is used as a
+     * heuristic and therefore can be a little fuzzy, otherwise this would need to be a compare and
+     * swap.
+     */
     if (__wt_atomic_load_uint64_relaxed(&page->modify->update_txn) < session->txn->id)
         __wt_atomic_store_uint64_relaxed(&page->modify->update_txn, session->txn->id);
 }
