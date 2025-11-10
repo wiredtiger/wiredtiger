@@ -32,9 +32,9 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 
 # test_layered65.py
-#    Test garbage collection will not remove prepared updates and rollbacked
-#    prepared updates if the rollback timestamps are not behind the stable
-#    table's checkpoint timestamp.
+#    Test garbage collection ensures that prepared updates and aborted
+#    prepared updates are not removed if the rollback timestamps are newer than
+#    the checkpoint timestamp of the stable table.
 @disagg_test_class
 class test_layered65(wttest.WiredTigerTestCase):
     base_config = 'statistics=(all),precise_checkpoint=true,preserve_prepared=true,'
