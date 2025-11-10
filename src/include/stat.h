@@ -946,6 +946,8 @@ struct __wt_connection_stats {
     int64_t dh_session_handles;
     int64_t dh_session_sweeps;
     int64_t disagg_role_leader;
+    int64_t disagg_step_down_time;
+    int64_t disagg_step_up_time;
     int64_t layered_curs_insert;
     int64_t layered_curs_next;
     int64_t layered_curs_next_ingest;
