@@ -395,10 +395,8 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
      * Only updates with globally visible, self-contained data can terminate update chains.
      */
     for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++) {
-        if (__wt_atomic_load_uint64_acquire(&upd->txnid) == WT_TXN_ABORTED) {
-            if (F_ISSET())
+        if (upd->txnid == WT_TXN_ABORTED)
             continue;
-        }
 
         /*
          * Prepare transaction rollback adds a globally visible tombstone to the update chain to
