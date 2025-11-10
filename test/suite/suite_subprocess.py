@@ -236,6 +236,13 @@ class suite_subprocess:
         if 'timestamp' in self.hook_names and args[0] == 'load':
             self.skipTest("the load utility cannot be run when timestamps are already set")
 
+        # If disagg, changee table and file URIs to layered
+        if 'disagg' in self.hook_names:
+            args = [
+                re.sub(r'^(?:table|file):(.*?)(?:\.wt)?$', r'layered:\1', a)
+                for a in args
+            ]
+
         # Close the connection to guarantee everything is flushed, and that
         # we can open it from another process.
         if closeconn:
