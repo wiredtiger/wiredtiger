@@ -26,12 +26,11 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import random, wttest
+import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from helper import WiredTigerStat
 from wiredtiger import stat
-import time
 
 
 # test_layered64.py
@@ -56,10 +55,8 @@ class test_layered64(wttest.WiredTigerTestCase):
 
     def test_uncommit_eviction(self):
         self.session.create(self.uri, self.session_create_config())
-
-        stat_cursor = self.session.open_cursor('statistics:' + self.uri)
-        cache_put_before = stat_cursor[stat.dsrc.cache_write][2]
-        stat_cursor.close()
+        with WiredTigerStat(self.session, self.uri) as stat_cursor:
+            cache_put_before = stat_cursor[stat.dsrc.cache_write][2]
         self.session.begin_transaction()
 
         # Populate the table with nrows.
@@ -80,6 +77,6 @@ class test_layered64(wttest.WiredTigerTestCase):
         evict_cursor.close()
 
         # Monitor the status after eviction.
-        stat_cursor = self.session.open_cursor('statistics:' + self.uri)
-        cache_put_after = stat_cursor[stat.dsrc.cache_write][2]
+        with WiredTigerStat(self.session, self.uri) as stat_cursor:
+            cache_put_after = stat_cursor[stat.dsrc.cache_write][2]
         self.assertGreater(cache_put_after, cache_put_before)
