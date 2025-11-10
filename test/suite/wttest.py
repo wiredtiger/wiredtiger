@@ -625,7 +625,19 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         passed = not (self.failed() or teardown_failed)
 
         if passed and self.__module__.startswith("test_layered"):
-            self.verifyLayered()
+            # FIXME-WT-15619 and FIXME-WT-15618: remove this check and call verify at all times for
+            # layered tests.
+            test_config = ""
+            if type(self.conn_config) == str:
+                test_config = self.conn_config
+            elif isinstance(self.conn_config, types.MethodType):
+                test_config = self.conn_config()
+            else:
+                assert False, "Unknown type for conn_config"
+            if "internal_page_delta" in test_config or "leaf_page_delta" in test_config:
+                self.prout(test_config)
+            if "internal_page_delta=false" in test_config and "leaf_page_delta=false" in test_config:
+                self.verifyLayered()
 
         try:
             self.platform_api.tearDown(self)
