@@ -871,10 +871,12 @@ static int
 __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ROW *rip)
 {
     WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_UPDATE *first_upd, *tombstone, *upd, **upd_entry;
 
+    conn = S2C(session);
     btree = S2BT(session);
     page = r->page;
     mod = page->modify;
@@ -885,13 +887,34 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONC
     if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
         return (0);
 
-    for (upd = first_upd; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
-        ;
+    for (upd = first_upd; upd != NULL; upd = upd->next) {
+        /*
+         * We must be in eviction and we have exclusive access. Thus memory ordering is not a
+         * concern.
+         */
+        if (upd->txnid != WT_TXN_ABORTED)
+            break;
+
+        if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
+            continue;
+
+        /*
+         * Don't prune the update chain if the rollback timestamp hasn't been reconciled in the
+         * stable table.
+         */
+        if (upd->prepare_state == WT_PREPARE_INPROGRESS &&
+          upd->upd_rollback_ts > r->rec_prune_timestamp)
+            return (0);
+    }
 
     if (upd == NULL)
         return (0);
 
     if (upd->type == WT_UPDATE_TOMBSTONE)
+        return (0);
+
+    /* Prune prepared update is a future thing. */
+    if (upd->prepare_state == WT_PREPARE_INPROGRESS)
         return (0);
 
     if (upd->txnid < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
@@ -917,8 +940,10 @@ __rec_row_garbage_collect_fixup_insert_list(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins)
 {
     WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
     WT_UPDATE *first_upd, *tombstone, *upd;
 
+    conn = S2C(session);
     btree = S2BT(session);
 
     if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || !F_ISSET(r, WT_REC_EVICT))
@@ -928,13 +953,34 @@ __rec_row_garbage_collect_fixup_insert_list(
     if ((first_upd = ins->upd) == NULL)
         return (0);
 
-    for (upd = first_upd; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
-        ;
+    for (upd = first_upd; upd != NULL; upd = upd->next) {
+        /*
+         * We must be in eviction and we have exclusive access. Thus memory ordering is not a
+         * concern.
+         */
+        if (upd->txnid != WT_TXN_ABORTED)
+            break;
+
+        if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
+            continue;
+
+        /*
+         * Don't prune the update chain if the rollback timestamp hasn't been reconciled in the
+         * stable table.
+         */
+        if (upd->prepare_state == WT_PREPARE_INPROGRESS &&
+          upd->upd_rollback_ts > r->rec_prune_timestamp)
+            return (0);
+    }
 
     if (upd == NULL)
         return (0);
 
     if (upd->type == WT_UPDATE_TOMBSTONE)
+        return (0);
+
+    /* Prune prepared update is a future thing. */
+    if (upd->prepare_state == WT_PREPARE_INPROGRESS)
         return (0);
 
     if (upd->txnid < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
@@ -1236,7 +1282,8 @@ __wti_rec_row_leaf(
              * onpage prepared update. Otherwise, we leak the prepared update.
              */
             WT_ASSERT_ALWAYS(session,
-              !F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || !WT_TIME_WINDOW_HAS_PREPARE(twp),
+              !F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || F_ISSET(conn, WT_CONN_IN_MEMORY) ||
+                F_ISSET(btree, WT_BTREE_IN_MEMORY) || !WT_TIME_WINDOW_HAS_PREPARE(twp),
               "leaked prepared update.");
         } else
             twp = &upd_select.tw;
