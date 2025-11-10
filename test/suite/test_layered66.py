@@ -59,6 +59,7 @@ class test_layered66(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         self.session.checkpoint()
 
+        # Update the last materialized LSN to the checkpoint LSN.
         (ret, checkpoint_last_lsn) = page_log.pl_get_last_lsn(self.session)
         self.assertEqual(ret, 0)
 
