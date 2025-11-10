@@ -859,10 +859,10 @@ functions:
 
         if [ -n "$ignore" ]; then
             sed -e 's/ *#.*//' -e '/^$/d' < "$ignore" > $no_run
+            (cd ./test/suite; ls test_*.py) | fgrep -vf $no_run > $do_run
         else
-            echo > $no_run
+            (cd ./test/suite; ls test_*.py) > $do_run
         fi
-        (cd ./test/suite; ls test_*.py) | fgrep -vf $no_run > $do_run
 
         cd cmake_build
         threads_command=""
@@ -893,12 +893,13 @@ functions:
         do_run=$(mktemp)
         if [ -n "$unit_test_parallel_ignore" ]; then
             sed -e 's/ *#.*//' -e '/^$/d' < "$unit_test_parallel_ignore" > $no_run
+            (cd ./test/suite; ls test_*.py) | fgrep -vf $no_run > $do_run
         else
-            echo > $no_run
+            (cd ./test/suite; ls test_*.py) > $do_run
         fi
-        (cd ./test/suite; ls test_*.py) | fgrep -vf $no_run > $do_run
+
         cd cmake_build
-        threads_command="-j ${nproc}"
+        threads_command="-j $(nproc)"
         if [[ -n "${num_jobs}" ]]; then
           threads_command="-j ${num_jobs}"
         fi
