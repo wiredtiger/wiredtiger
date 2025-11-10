@@ -913,6 +913,9 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONC
     if (upd->type == WT_UPDATE_TOMBSTONE)
         return (0);
 
+    /* Prepare update cannot be locked in eviction. */
+    WT_ASSERT(session, upd->prepare_state != WT_PREPARE_LOCKED);
+
     /* Prune prepared update is a future thing. */
     if (upd->prepare_state == WT_PREPARE_INPROGRESS)
         return (0);
@@ -975,6 +978,9 @@ __rec_row_garbage_collect_fixup_insert_list(
 
     if (upd == NULL)
         return (0);
+
+    /* Prepare update cannot be locked in eviction. */
+    WT_ASSERT(session, upd->prepare_state != WT_PREPARE_LOCKED);
 
     if (upd->type == WT_UPDATE_TOMBSTONE)
         return (0);
