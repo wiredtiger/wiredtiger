@@ -64,7 +64,7 @@ class test_layered66(wttest.WiredTigerTestCase):
         self.assertEqual(ret, 0)
 
         page_log.pl_set_last_materialized_lsn(self.session, checkpoint_last_lsn)
-        self.conn.reconfigure(f'disaggregated=(last_materialized_lsn={checkpoint_last_lsn})')
+        self.conn.set_context_uint(wiredtiger.WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN, checkpoint_last_lsn)
 
         # Insert another key.
         self.session.begin_transaction()
