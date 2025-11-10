@@ -1966,8 +1966,10 @@ __evict_push_candidate(
     orig_flags = new_flags = ref->page->flags_atomic;
     FLD_SET(new_flags, WT_PAGE_EVICT_LRU);
     if (orig_flags == new_flags ||
-      !__wt_atomic_cas_uint16(&ref->page->flags_atomic, orig_flags, new_flags))
+      !__wt_atomic_cas_uint16(&ref->page->flags_atomic, orig_flags, new_flags)) {
+        WT_STAT_CONN_INCR(session, eviction_server_push_pages_failed_when_flaging);
         return (false);
+    }
 
     /* Keep track of the maximum slot we are using. */
     slot = (u_int)(evict_entry - queue->evict_queue);
@@ -2545,8 +2547,10 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
             return;
         }
         if (__wt_atomic_load_uint32_relaxed(&btree->evict_walk_period) == 0 &&
-          !__wt_evict_aggressive(session))
+          !__wt_evict_aggressive(session)) {
+            WT_STAT_CONN_INCR(session, eviction_server_skip_intl_page_non_aggressive);
             return;
+        }
     }
 
     /* Evaluate dirty page candidacy, when eviction is not aggressive. */
@@ -2587,6 +2591,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
     uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
     uint64_t min_pages, pages_already_queued, pages_queued, pages_seen, refs_walked;
     uint64_t pages_seen_clean, pages_seen_dirty, pages_seen_updates;
+    uint64_t roof_pages_skipped;
     uint32_t evict_walk_period, target_pages, walk_flags;
     int restarts;
     bool give_up, queued, urgent_queued;
@@ -2644,6 +2649,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
      */
     internal_pages_already_queued = internal_pages_queued = internal_pages_seen = 0;
     pages_seen_clean = pages_seen_dirty = pages_seen_updates = 0;
+    roof_pages_skipped = 0;
     for (evict_entry = start, pages_already_queued = pages_queued = pages_seen = refs_walked = 0;
          evict_entry < end && (ret == 0 || ret == WT_NOTFOUND);
          last_parent = ref == NULL ? NULL : ref->home,
@@ -2667,8 +2673,10 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         ++pages_seen;
 
         /* Ignore root pages entirely. */
-        if (__wt_ref_is_root(ref))
+        if (__wt_ref_is_root(ref)) {
+            ++roof_pages_skipped;
             continue;
+        }
 
         page = ref->page;
 
@@ -2789,6 +2797,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
       session, eviction_internal_pages_already_queued, internal_pages_already_queued);
     WT_STAT_CONN_INCRV(session, eviction_internal_pages_queued, internal_pages_queued);
     WT_STAT_CONN_DSRC_INCR(session, eviction_walk_passes);
+    WT_STAT_CONN_INCRV(session, eviction_roof_pages_skipped, roof_pages_skipped);
     WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_clean, pages_seen_clean);
     WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_dirty, pages_seen_dirty);
     WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_updates, pages_seen_updates);
@@ -3235,8 +3244,10 @@ __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session, !__wt_ref_is_root(ref));
 
     page = ref->page;
-    if (S2BT(session)->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU_URGENT))
+    if (S2BT(session)->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU_URGENT)) {
+        WT_STAT_CONN_INCR(session, eviction_server_skip_pages_already_in_urgent_queue);
         return (false);
+    }
 
     evict = S2C(session)->evict;
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU) && F_ISSET(evict, WT_EVICT_CACHE_ALL))
