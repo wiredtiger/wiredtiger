@@ -15,7 +15,6 @@ dist/clang-format
 /docs/
 test-compatibility-run/
 TCMALLOC_LIB/
-test/suite/WT_TEST/
 
 # Python artifacts
 **/*.pyc
