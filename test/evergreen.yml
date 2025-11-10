@@ -892,7 +892,7 @@ functions:
         no_run=$(mktemp)
         do_run=$(mktemp)
         if [ -n "$unit_test_parallel_ignore" ]; then
-            sed -e 's/ *#.*//' -e '/^$/d' ${unit_test_parallel_ignore} > $no_run
+            sed -e 's/ *#.*//' -e '/^$/d' < "$unit_test_parallel_ignore" > $no_run
         else
             echo > $no_run
         fi
