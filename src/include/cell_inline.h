@@ -1162,8 +1162,6 @@ done:
      * copying the cell from the page and we need the right length).
      */
     WT_CELL_LEN_CHK(cell, unpack->__len, dsk, end);
-    printf("__wt_cell_unpack_safe unpack.type=%u, unpack->size=%u, unpack->__len=%u\n",
-      unpack->type, unpack->size, unpack->__len);
     return (0);
 }
 

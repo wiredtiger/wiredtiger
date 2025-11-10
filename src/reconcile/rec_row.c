@@ -120,10 +120,6 @@ __wt_cell_pack_addr_custom(WT_SESSION_IMPL *session, WTI_REC_KV *val_kv, uint8_t
             page_del->prepare_state == WT_PREPARE_RESOLVED);
     }
 
-    printf("Value (delta): type=%d size=%d\n", cell_type, (int)val_size);
-    printf(
-      "Delta Packing delta->value.type - %d, delta->value.size - %d\n", cell_type, (int)val_size);
-
     val_kv->cell_len = (uint16_t)__wt_cell_pack_addr(
       session, &val_kv->cell, cell_type, recno, page_del, ta, val_size);
     val_kv->len = val_kv->cell_len + val_kv->buf.size;
@@ -154,18 +150,14 @@ __wt_rec_pack_internal_pair_data_only(WT_SESSION_IMPL *session, WT_ITEM *new_ima
     const void *key_data;
     size_t key_size;
 
-    printf("\n=== PACKING INTERNAL PAIR (%s) ===\n", is_delta ? "DELTA" : "BASE");
-
     if (is_delta) {
         delta = key_entry;
         key_data = delta->key.data;
         key_size = delta->key.size;
-        printf("Key (delta): size=%d\n", (int)key_size);
     } else {
         base_key = key_entry;
         key_data = base_key->data;
         key_size = base_key->size;
-        printf("Key (base): type=%d size=%d\n", base_key->type, (int)key_size);
     }
 
     /* Build packed internal key */
@@ -200,7 +192,6 @@ __wt_rec_pack_internal_pair_data_only(WT_SESSION_IMPL *session, WT_ITEM *new_ima
           session, &val_kv, base_val->type, WT_RECNO_OOB, page_del, &base_val->ta, val_kv.buf.size);
     }
 
-    printf("Value cell len=%d total len=%d\n", (int)val_kv.cell_len, (int)val_kv.len);
     /*
      * Ensure enough space, then recompute write pointer from new_image (not the caller's saved
      * pointer)
@@ -211,6 +202,7 @@ __wt_rec_pack_internal_pair_data_only(WT_SESSION_IMPL *session, WT_ITEM *new_ima
 
     /* Recompute write pointer after possible realloc */
     WT_ASSERT(session, new_image->mem != NULL);
+
     uint8_t *p = (uint8_t *)new_image->mem + new_image->size;
     __wti_rec_kv_copy(session, p, &key_kv);
     p += key_kv.len;
@@ -222,8 +214,6 @@ __wt_rec_pack_internal_pair_data_only(WT_SESSION_IMPL *session, WT_ITEM *new_ima
 
     __wt_buf_free(session, &key_kv.buf);
     __wt_buf_free(session, &val_kv.buf);
-    printf("Packed sizes: key=%zuB val=%zuB total=%zuB\n", key_kv.len, val_kv.len, packed_size);
-    printf("=== END PACKING (%s) ===\n", is_delta ? "DELTA" : "BASE");
     return (0);
 }
 

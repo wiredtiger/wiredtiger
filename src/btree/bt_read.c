@@ -148,7 +148,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_ADDR_COPY addr;
     WT_DECL_RET;
     WT_ITEM *deltas;
-    WT_ITEM *new_image;
+    WT_ITEM new_image;
     WT_ITEM *tmp;
     WT_PAGE *page;
     WT_PAGE_BLOCK_META block_meta;
@@ -162,7 +162,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     count = 0;
     disk_image_freed = page_change = full_disk_image_build_from_deltas = false;
     page = NULL;
-    new_image = NULL;
+    WT_CLEAR(new_image);
 
     /* Lock the WT_REF. */
     switch (previous_state = WT_REF_GET_STATE(ref)) {
@@ -261,20 +261,20 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         /* Allocate enough size for the new image, similar to __rec_split_chunk_init. */
         split_size = __wt_split_page_size(btree->split_pct, btree->maxleafpage, btree->allocsize);
         new_image_buf_size = 2 * WT_ALIGN(WT_MAX(btree->maxleafpage, split_size), btree->allocsize);
-        WT_ERR(__wt_scr_alloc(session, 0, &new_image));
-        WT_ERR(__wt_buf_init(session, new_image, new_image_buf_size));
+
+        WT_ERR(__wt_buf_init(session, &new_image, new_image_buf_size));
 
         ret = __wti_build_full_disk_image_on_read(
-          session, ref, deltas, count - 1, new_image, tmp[0].data);
+          session, ref, deltas, count - 1, &new_image, tmp[0].data);
         full_disk_image_build_from_deltas = true;
-        WT_PAGE_HEADER *tmp_header = (WT_PAGE_HEADER *)new_image->data;
+        WT_PAGE_HEADER *tmp_header = (WT_PAGE_HEADER *)new_image.data;
         printf("Full disk image built from deltas for page type %u with %d deltas, new size %d\n",
-          tmp_header->type, (int)count - 1, (int)new_image->size);
+          tmp_header->type, (int)count - 1, (int)new_image.size);
         printf("Full disk image built from deltas : tmp_header->u.entries - %d\n",
           (int)tmp_header->u.entries);
         for (i = 0; i < count - 1; ++i)
             __wt_buf_free(session, &deltas[i]);
-        //__wt_buf_free(session, new_image);
+
         WT_ERR(ret);
     }
     /*
@@ -292,8 +292,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     if (LF_ISSET(WT_READ_PREFETCH))
         FLD_SET(page_flags, WT_PAGE_PREFETCH);
     if (full_disk_image_build_from_deltas)
-        WT_ERR(
-          __wti_page_inmem(session, ref, new_image->data, page_flags, &page, &instantiate_upd));
+        WT_ERR(__wti_page_inmem(session, ref, new_image.data, page_flags, &page, &instantiate_upd));
     else
         WT_ERR(__wti_page_inmem(session, ref, tmp[0].data, page_flags, &page, &instantiate_upd));
     WT_ASSERT(session, ref->page == page);
@@ -377,6 +376,7 @@ err:
         __wt_free(session, tmp);
     }
 
+    __wt_buf_free(session, &new_image);
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, previous_state);
 
