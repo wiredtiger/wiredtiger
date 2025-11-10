@@ -553,7 +553,7 @@ struct __wt_connection_stats {
     int64_t eviction_server_skip_intl_page_non_aggressive;
     int64_t eviction_server_skip_pages_already_in_urgent_queue;
     int64_t cache_eviction_blocked_prefetched;
-    int64_t eviction_roof_pages_skipped;
+    int64_t eviction_root_pages_skipped;
     int64_t eviction_server_skip_dirty_pages_during_checkpoint;
     int64_t eviction_server_skip_ingest_trees;
     int64_t eviction_server_skip_intl_page_with_active_child;

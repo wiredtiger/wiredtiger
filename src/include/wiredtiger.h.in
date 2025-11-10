@@ -6396,14 +6396,17 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * setting flag
  */
 #define	WT_STAT_CONN_EVICTION_SERVER_PUSH_PAGES_FAILED_WHEN_FLAGING	1132
-/*! cache: eviction server skipped the internal pages if non-aggressive */
+/*!
+ * cache: eviction server skipped the internal pages if eviction is not
+ * in aggressive mode.
+ */
 #define	WT_STAT_CONN_EVICTION_SERVER_SKIP_INTL_PAGE_NON_AGGRESSIVE	1133
 /*! cache: eviction server skipped the pages already in the urgent queue */
 #define	WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_ALREADY_IN_URGENT_QUEUE	1134
 /*! cache: eviction server skipped the pages when prefetching */
 #define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_PREFETCHED	1135
-/*! cache: eviction server skipped the roof pages */
-#define	WT_STAT_CONN_EVICTION_ROOF_PAGES_SKIPPED	1136
+/*! cache: eviction server skipped the root pages */
+#define	WT_STAT_CONN_EVICTION_ROOT_PAGES_SKIPPED	1136
 /*! cache: eviction server skips dirty pages during a running checkpoint */
 #define	WT_STAT_CONN_EVICTION_SERVER_SKIP_DIRTY_PAGES_DURING_CHECKPOINT	1137
 /*! cache: eviction server skips ingest btrees in disagg */

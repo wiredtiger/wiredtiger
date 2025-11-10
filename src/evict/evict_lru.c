@@ -2591,7 +2591,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
     uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
     uint64_t min_pages, pages_already_queued, pages_queued, pages_seen, refs_walked;
     uint64_t pages_seen_clean, pages_seen_dirty, pages_seen_updates;
-    uint64_t roof_pages_skipped;
+    uint64_t root_pages_skipped;
     uint32_t evict_walk_period, target_pages, walk_flags;
     int restarts;
     bool give_up, queued, urgent_queued;
@@ -2649,7 +2649,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
      */
     internal_pages_already_queued = internal_pages_queued = internal_pages_seen = 0;
     pages_seen_clean = pages_seen_dirty = pages_seen_updates = 0;
-    roof_pages_skipped = 0;
+    root_pages_skipped = 0;
     for (evict_entry = start, pages_already_queued = pages_queued = pages_seen = refs_walked = 0;
          evict_entry < end && (ret == 0 || ret == WT_NOTFOUND);
          last_parent = ref == NULL ? NULL : ref->home,
@@ -2674,7 +2674,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
 
         /* Ignore root pages entirely. */
         if (__wt_ref_is_root(ref)) {
-            ++roof_pages_skipped;
+            ++root_pages_skipped;
             continue;
         }
 
@@ -2797,7 +2797,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
       session, eviction_internal_pages_already_queued, internal_pages_already_queued);
     WT_STAT_CONN_INCRV(session, eviction_internal_pages_queued, internal_pages_queued);
     WT_STAT_CONN_DSRC_INCR(session, eviction_walk_passes);
-    WT_STAT_CONN_INCRV(session, eviction_roof_pages_skipped, roof_pages_skipped);
+    WT_STAT_CONN_INCRV(session, eviction_root_pages_skipped, root_pages_skipped);
     WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_clean, pages_seen_clean);
     WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_dirty, pages_seen_dirty);
     WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_updates, pages_seen_updates);

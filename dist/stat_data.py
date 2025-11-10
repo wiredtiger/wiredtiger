@@ -376,7 +376,7 @@ conn_stats = [
     EvictStat('eviction_reentry_hs_eviction_milliseconds', 'total milliseconds spent inside reentrant history store evictions in a reconciliation', 'no_clear,no_scale,size'),
     EvictStat('eviction_restored_pos', 'eviction walk restored position'),
     EvictStat('eviction_restored_pos_differ', 'eviction walk restored position differs from the saved one'),
-    EvictStat('eviction_roof_pages_skipped', 'eviction server skipped the roof pages'),
+    EvictStat('eviction_root_pages_skipped', 'eviction server skipped the root pages'),
     EvictStat('eviction_server_evict_attempt', 'evict page attempts by eviction server'),
     EvictStat('eviction_server_evict_fail', 'evict page failures by eviction server'),
     # Note eviction_server_evict_attempt - eviction_server_evict_fail = evict page successes by eviction server.
@@ -384,7 +384,7 @@ conn_stats = [
     EvictStat('eviction_server_skip_checkpointing_trees', 'eviction server skips trees that are being checkpointed'),
     EvictStat('eviction_server_skip_dirty_pages_during_checkpoint', 'eviction server skips dirty pages during a running checkpoint'),
     EvictStat('eviction_server_skip_ingest_trees', 'eviction server skips ingest btrees in disagg'),
-    EvictStat('eviction_server_skip_intl_page_non_aggressive', 'eviction server skipped the internal pages if non-aggressive'),
+    EvictStat('eviction_server_skip_intl_page_non_aggressive', 'eviction server skipped the internal pages if eviction is not in aggressive mode.'),
     EvictStat('eviction_server_skip_intl_page_with_active_child', 'eviction server skips internal pages as it has an active child.'),
     EvictStat('eviction_server_skip_metatdata_with_history', 'eviction server skips metadata pages with history'),
     EvictStat('eviction_server_skip_pages_already_in_urgent_queue', 'eviction server skipped the pages already in the urgent queue'),
