@@ -897,8 +897,23 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
 
             /* The proxy cells of fast truncate pages must be handled in the above flows. */
-            WT_ASSERT_ALWAYS(session, vpack->type != WT_CELL_ADDR_DEL,
-              "Proxy cell is selected with original child image");
+            if (ref->page_del == NULL)
+                WT_ASSERT_ALWAYS(session, vpack->type != WT_CELL_ADDR_DEL,
+                  "Proxy cell is selected with original child image, vpack->type=%u, "
+                  "ref->page_del=NULL",
+                  vpack->type);
+            else {
+                char ts_string[2][WT_TS_INT_STRING_SIZE];
+                WT_ASSERT_ALWAYS(session, vpack->type != WT_CELL_ADDR_DEL,
+                  "Proxy cell is selected with original child image, vpack->type=%u, "
+                  "ref->page_del->txnid=%" PRIu64
+                  ", pg_del_durable_ts=%s, pg_del_start_ts=%s, committed=%s, selected_for_write=%s",
+                  vpack->type, ref->page_del->txnid,
+                  __wt_timestamp_to_string(ref->page_del->pg_del_durable_ts, ts_string[0]),
+                  __wt_timestamp_to_string(ref->page_del->pg_del_start_ts, ts_string[1]),
+                  ref->page_del->committed ? "true" : "false",
+                  ref->page_del->selected_for_write ? "true" : "false");
+            }
 
             if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
                 __wti_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
@@ -989,12 +1004,61 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 }
 
 /*
+ * __rec_row_garbage_collect_eligible --
+ *     Check if the update chain is eligible for garbage collection.
+ */
+static WT_INLINE bool
+__rec_row_garbage_collect_eligible(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_upd)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_UPDATE *upd;
+
+    conn = S2C(session);
+
+    for (upd = first_upd; upd != NULL; upd = upd->next) {
+        /*
+         * We must be in eviction and we have exclusive access. Thus memory ordering is not a
+         * concern.
+         */
+        if (upd->txnid != WT_TXN_ABORTED)
+            break;
+
+        if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
+            continue;
+
+        /*
+         * Don't prune the update chain if the rollback timestamp hasn't been reconciled in the
+         * stable table.
+         */
+        if (upd->prepare_state == WT_PREPARE_INPROGRESS &&
+          upd->upd_rollback_ts > r->rec_prune_timestamp)
+            return (false);
+    }
+
+    if (upd == NULL)
+        return (false);
+
+    if (upd->type == WT_UPDATE_TOMBSTONE)
+        return (false);
+
+    /* Prepare update cannot be locked in eviction. */
+    WT_ASSERT(session, upd->prepare_state != WT_PREPARE_LOCKED);
+
+    /* Prune prepared update is a future thing. */
+    if (upd->prepare_state == WT_PREPARE_INPROGRESS)
+        return (false);
+
+    if (upd->txnid < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
+      upd->upd_durable_ts <= r->rec_prune_timestamp)
+        return (true);
+
+    return (false);
+}
+
+/*
  * __rec_row_garbage_collect_fixup_update_list --
  *     Insert a tombstone at the start of an update list if all entries are eligible for garbage
- *     collection. There is duplication between the update list and insert list versions of these
- *     functions but my head explodes trying to keep the data structures involved mapped in my head,
- *     so the duplication feels warranted. Don't bother tracking the additional memory associated
- *     with these tombstones - it is about to be freed anyway.
+ *     collection.
  */
 static int
 __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ROW *rip)
@@ -1002,7 +1066,7 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONC
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
-    WT_UPDATE *first_upd, *tombstone, *upd, **upd_entry;
+    WT_UPDATE *first_upd, *tombstone, **upd_entry;
 
     btree = S2BT(session);
     page = r->page;
@@ -1014,17 +1078,7 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONC
     if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
         return (0);
 
-    for (upd = first_upd; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
-        ;
-
-    if (upd == NULL)
-        return (0);
-
-    if (upd->type == WT_UPDATE_TOMBSTONE)
-        return (0);
-
-    if (upd->txnid < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
-      upd->upd_durable_ts <= r->rec_prune_timestamp) {
+    if (__rec_row_garbage_collect_eligible(session, r, first_upd)) {
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         tombstone->next = first_upd;
         upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
@@ -1046,7 +1100,7 @@ __rec_row_garbage_collect_fixup_insert_list(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins)
 {
     WT_BTREE *btree;
-    WT_UPDATE *first_upd, *tombstone, *upd;
+    WT_UPDATE *first_upd, *tombstone;
 
     btree = S2BT(session);
 
@@ -1057,17 +1111,7 @@ __rec_row_garbage_collect_fixup_insert_list(
     if ((first_upd = ins->upd) == NULL)
         return (0);
 
-    for (upd = first_upd; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
-        ;
-
-    if (upd == NULL)
-        return (0);
-
-    if (upd->type == WT_UPDATE_TOMBSTONE)
-        return (0);
-
-    if (upd->txnid < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
-      upd->upd_durable_ts <= r->rec_prune_timestamp) {
+    if (__rec_row_garbage_collect_eligible(session, r, first_upd)) {
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         tombstone->next = first_upd;
         ins->upd = tombstone;
@@ -1365,7 +1409,8 @@ __wti_rec_row_leaf(
              * onpage prepared update. Otherwise, we leak the prepared update.
              */
             WT_ASSERT_ALWAYS(session,
-              !F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || !WT_TIME_WINDOW_HAS_PREPARE(twp),
+              !F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || F_ISSET(conn, WT_CONN_IN_MEMORY) ||
+                F_ISSET(btree, WT_BTREE_IN_MEMORY) || !WT_TIME_WINDOW_HAS_PREPARE(twp),
               "leaked prepared update.");
         } else
             twp = &upd_select.tw;

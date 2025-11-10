@@ -25,7 +25,7 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import argparse, os, subprocess
+import argparse, os, sys, subprocess
 import re
 # The script will look through all tsan logs from the current directory
 # and collect all the warnings the found under tsan logs.
@@ -76,22 +76,24 @@ def get_tsan_warnings():
                     for line in file:
                         if ("WARNING:" in line.strip()):
                             start_record = True
+                        if not start_record:
                             continue
-                        if start_record:
-                            warning_lines.append(line.strip())
-                            if (line.startswith("SUMMARY:")):
-                                # Strip away the path
-                                pattern_to_remove = r"/.*/wiredtiger/"
-                                cleaned_text = re.sub(pattern_to_remove, "", line).strip()
 
-                                # Strip away the column line information.
-                                pattern_to_remove = r':(\d+):\d+'
-                                cleaned_text = re.sub(pattern_to_remove, r':\1', cleaned_text).strip()
-                                tsan_warnings_dict[cleaned_text] = (file_name, warning_lines.copy())
+                        warning_lines.append(line.strip())
 
-                                # Restart the warning recording.
-                                warning_lines = []
-                                start_record = False
+                        if (line.startswith("SUMMARY:")):
+                            # Strip away the path
+                            pattern_to_remove = r"/.*/wiredtiger/"
+                            cleaned_text = re.sub(pattern_to_remove, "", line).strip()
+
+                            # Strip away the column line information.
+                            pattern_to_remove = r':(\d+):\d+'
+                            cleaned_text = re.sub(pattern_to_remove, r':\1', cleaned_text).strip()
+                            tsan_warnings_dict[cleaned_text] = (file_name, warning_lines.copy())
+
+                            # Restart the warning recording.
+                            warning_lines = []
+                            start_record = False
     return tsan_warnings_dict
 
 
@@ -132,6 +134,7 @@ def main():
             print("\n".join(warning_lines))
             print("=" * 150)
         print(f"Overall TSAN Warnings: {len(tsan_warnings_dict)}")
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()

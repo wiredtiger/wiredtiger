@@ -787,26 +787,22 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     }
 
     /*
-     * If application threads are blocked by the total volume of data in cache, try dirty pages as
-     * well.
+     * If application threads are blocked by the total volume of data in cache or we cannot find
+     * enough pages to evict, try dirty pages as well.
      */
-    if (__wt_evict_aggressive(session) && LF_ISSET(WT_EVICT_CACHE_CLEAN_HARD))
+    if (LF_ISSET(WT_EVICT_CACHE_CLEAN_HARD) &&
+      (__wt_evict_aggressive(session) || evict->evict_empty_score > WT_EVICT_SCORE_CUTOFF))
         LF_SET(WT_EVICT_CACHE_DIRTY);
 
     /*
      * Configure scrub - which reinstates clean equivalents of reconciled dirty pages. This is
      * useful because an evicted dirty page isn't necessarily a good proxy for knowing if the page
-     * will be accessed again soon. Be more aggressive about scrubbing in disaggregated storage
-     * because the cost of retrieving a recently reconciled page is higher in that configuration. In
-     * the local storage case scrub dirty pages and keep them in cache if we are less than half way
-     * to the clean, dirty and updates triggers.
+     * will be accessed again soon.
      *
      * There's an experimental flag WT_CACHE_PREFER_SCRUB_EVICTION that can be turned on to enable
      * scrub eviction as long as cache usage overall is under half way to the trigger limit.
      */
-    if (__wt_conn_is_disagg(session) && bytes_inuse < (uint64_t)(trigger * bytes_max) / 100)
-        LF_SET(WT_EVICT_CACHE_SCRUB);
-    else if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200) {
+    if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200) {
         if (F_ISSET_ATOMIC_32(
               &(conn->cache->cache_eviction_controls), WT_CACHE_PREFER_SCRUB_EVICTION)) {
             LF_SET(WT_EVICT_CACHE_SCRUB);
@@ -1331,8 +1327,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
      */
     if (eviction_progress_rate > evict->evict_tune_progress_rate_max) {
         evict->evict_tune_progress_rate_max = eviction_progress_rate;
-        evict->evict_tune_workers_best =
-          __wt_atomic_load_uint32_relaxed(&conn->evict_threads.current_threads);
+        current_threads = __wt_atomic_load_uint32_relaxed(&conn->evict_threads.current_threads);
+        __wt_atomic_store_uint32_relaxed(&evict->evict_tune_workers_best, current_threads);
     }
 
     /*
@@ -1767,8 +1763,20 @@ retry:
     loop_count = 0;
     while (slot < max_entries && loop_count++ < conn->dhandle_count) {
         /* We're done if shutting down or reconfiguring. */
-        if (F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING | WT_CONN_RECONFIGURING))
+        if (F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING))
             break;
+
+        /*
+         * A temporary fix has been implemented to allow the eviction server to run during the
+         * reconfigure API call in a disaggregated setup. This is necessary because operations such
+         * as picking up checkpoints, step-up, and step-down require eviction to function in order
+         * to perform metadata read and write processes.
+         */
+        if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING)) {
+            if (!__wt_conn_is_disagg(session))
+                break;
+            WT_STAT_CONN_INCR(session, eviction_server_race_reconfigure_disagg);
+        }
 
         /*
          * If another thread is waiting on the eviction server to clear the walk point in a tree,

@@ -22,6 +22,16 @@
  */
 
 /*
+ * __wt_tsan_suppress_store_uint8_v --
+ *     TSAN warnings suppression for volatile uint8 store.
+ */
+static WT_INLINE void
+__wt_tsan_suppress_store_uint8_v(volatile uint8_t *vp, uint8_t v)
+{
+    __wt_atomic_store_uint8_v_relaxed(vp, v);
+}
+
+/*
  * __wt_tsan_suppress_store_uint8 --
  *     TSAN warnings suppression for uint8 store.
  */
@@ -122,6 +132,16 @@ __wt_tsan_suppress_add_uint64_v(volatile uint64_t *var, uint64_t value)
 }
 
 /*
+ * __wt_tsan_suppress_load_size --
+ *     TSAN warnings suppression for size_t load.
+ */
+static WT_INLINE size_t
+__wt_tsan_suppress_load_size(size_t *vp)
+{
+    return (__wt_atomic_load_size_relaxed(vp));
+}
+
+/*
  * __wt_tsan_suppress_store_int64 --
  *     TSAN warnings suppression for int64 store.
  */
@@ -213,12 +233,22 @@ __wt_tsan_suppress_store_pointer(void **vp, void *v)
 
 /*
  * __wt_tsan_suppress_memcpy --
- *     TSAN warnings suppression for memory copy.
+ *     TSAN warnings suppression for memcpy.
  */
 static WT_INLINE void *
 __wt_tsan_suppress_memcpy(void *dest, void *src, size_t count)
 {
     return (memcpy(dest, src, count));
+}
+
+/*
+ * __wt_tsan_suppress_memset --
+ *     TSAN warnings suppression for memset.
+ */
+static WT_INLINE void *
+__wt_tsan_suppress_memset(void *ptr, int val, size_t size)
+{
+    return (memset(ptr, val, size));
 }
 
 /*
