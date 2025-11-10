@@ -859,13 +859,10 @@ functions:
 
         if [ -n "$ignore" ]; then
             sed -e 's/ *#.*//' -e '/^$/d' < "$ignore" > $no_run
-            (cd ./test/suite; ls test_*.py) | fgrep -vf $no_run > $do_run
         else
-            # Some hooks prune out specific tests if we don't give them a list, e.g. hook_tiered.
-            # But if there's anything in the list, they'll run that directly instead of pruning, so
-            # generate an empty list.
-            echo > $do_run
+            echo > $no_run
         fi
+        (cd ./test/suite; ls test_*.py) | fgrep -vf $no_run > $do_run
 
         cd cmake_build
         threads_command=""
@@ -894,7 +891,11 @@ functions:
         # do_run will contain a list of files we want to run.
         no_run=$(mktemp)
         do_run=$(mktemp)
-        sed -e 's/ *#.*//' -e '/^$/d' ${unit_test_parallel_ignore} > $no_run
+        if [ -n "$unit_test_parallel_ignore" ]; then
+            sed -e 's/ *#.*//' -e '/^$/d' ${unit_test_parallel_ignore} > $no_run
+        else
+            echo > $no_run
+        fi
         (cd ./test/suite; ls test_*.py) | fgrep -vf $no_run > $do_run
         cd cmake_build
         threads_command="-j ${nproc}"
@@ -2443,7 +2444,6 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test tsan parallel"
         vars:
-          unit_test_parallel_ignore: test/suite/tsan.fail
           unit_test_parallel_args: -v 2
 
   - name: unit-test-tsan-all-measure-time-hook-disagg-leader
@@ -2454,7 +2454,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test tsan parallel"
         vars:
-          unit_test_parallel_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          unit_test_parallel_ignore: test/suite/hook_disagg.fail
           unit_test_parallel_args: -v 2 --hook "disagg=(role=leader)"
 
   - name: unit-test-disagg-follower-tsan
