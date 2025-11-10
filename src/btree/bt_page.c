@@ -363,10 +363,9 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
     WT_ITEM base_key_buf, delta_key_buf;
     WT_REF **refs;
     size_t i = 0, final_entries = 0; /* final_entries = number of WT_REFs emitted */
-    uint32_t min_d;
+    uint32_t min_d, entry_count; /* entry_count = number of page cells (cells = keys + values) */
     int cmp;
     WT_PAGE_HEADER *hdr;
-    size_t entry_count = 0; /* entry_count = number of page cells (cells = keys + values) */
     uint8_t *p_ptr;
 
     WT_ASSERT(session, base != NULL);
@@ -374,9 +373,11 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
     WT_ASSERT(session, refsp != NULL);
 
     refs = *refsp;
+    entry_count = 0;
     min_d = 0;
     min_delta = NULL;
     hdr = NULL;
+    p_ptr = NULL;
 
     WT_UNUSED(new_image);
 
