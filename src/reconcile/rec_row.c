@@ -860,32 +860,16 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 }
 
 /*
- * __rec_row_garbage_collect_fixup_update_list --
- *     Insert a tombstone at the start of an update list if all entries are eligible for garbage
- *     collection. There is duplication between the update list and insert list versions of these
- *     functions but my head explodes trying to keep the data structures involved mapped in my head,
- *     so the duplication feels warranted. Don't bother tracking the additional memory associated
- *     with these tombstones - it is about to be freed anyway.
+ * __rec_row_garbage_collect_eligible --
+ *     Check if the update chain is eligible for garbage collection.
  */
-static int
-__rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ROW *rip)
+static WT_INLINE bool
+__rec_row_garbage_collect_eligible(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_upd)
 {
-    WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
-    WT_PAGE *page;
-    WT_PAGE_MODIFY *mod;
-    WT_UPDATE *first_upd, *tombstone, *upd, **upd_entry;
+    WT_UPDATE *upd;
 
     conn = S2C(session);
-    btree = S2BT(session);
-    page = r->page;
-    mod = page->modify;
-
-    if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || !F_ISSET(r, WT_REC_EVICT))
-        return (0);
-
-    if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
-        return (0);
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
         /*
@@ -904,24 +888,53 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONC
          */
         if (upd->prepare_state == WT_PREPARE_INPROGRESS &&
           upd->upd_rollback_ts > r->rec_prune_timestamp)
-            return (0);
+            return (false);
     }
 
     if (upd == NULL)
-        return (0);
+        return (false);
 
     if (upd->type == WT_UPDATE_TOMBSTONE)
-        return (0);
+        return (false);
 
     /* Prepare update cannot be locked in eviction. */
     WT_ASSERT(session, upd->prepare_state != WT_PREPARE_LOCKED);
 
     /* Prune prepared update is a future thing. */
     if (upd->prepare_state == WT_PREPARE_INPROGRESS)
-        return (0);
+        return (false);
 
     if (upd->txnid < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
-      upd->upd_durable_ts <= r->rec_prune_timestamp) {
+      upd->upd_durable_ts <= r->rec_prune_timestamp)
+        return (true);
+
+    return (false);
+}
+
+/*
+ * __rec_row_garbage_collect_fixup_update_list --
+ *     Insert a tombstone at the start of an update list if all entries are eligible for garbage
+ *     collection.
+ */
+static int
+__rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ROW *rip)
+{
+    WT_BTREE *btree;
+    WT_PAGE *page;
+    WT_PAGE_MODIFY *mod;
+    WT_UPDATE *first_upd, *tombstone, **upd_entry;
+
+    btree = S2BT(session);
+    page = r->page;
+    mod = page->modify;
+
+    if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || !F_ISSET(r, WT_REC_EVICT))
+        return (0);
+
+    if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
+        return (0);
+
+    if (__rec_row_garbage_collect_eligible(session, r, first_upd)) {
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         tombstone->next = first_upd;
         upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
@@ -943,10 +956,8 @@ __rec_row_garbage_collect_fixup_insert_list(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins)
 {
     WT_BTREE *btree;
-    WT_CONNECTION_IMPL *conn;
-    WT_UPDATE *first_upd, *tombstone, *upd;
+    WT_UPDATE *first_upd, *tombstone;
 
-    conn = S2C(session);
     btree = S2BT(session);
 
     if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || !F_ISSET(r, WT_REC_EVICT))
@@ -956,41 +967,7 @@ __rec_row_garbage_collect_fixup_insert_list(
     if ((first_upd = ins->upd) == NULL)
         return (0);
 
-    for (upd = first_upd; upd != NULL; upd = upd->next) {
-        /*
-         * We must be in eviction and we have exclusive access. Thus memory ordering is not a
-         * concern.
-         */
-        if (upd->txnid != WT_TXN_ABORTED)
-            break;
-
-        if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
-            continue;
-
-        /*
-         * Don't prune the update chain if the rollback timestamp hasn't been reconciled in the
-         * stable table.
-         */
-        if (upd->prepare_state == WT_PREPARE_INPROGRESS &&
-          upd->upd_rollback_ts > r->rec_prune_timestamp)
-            return (0);
-    }
-
-    if (upd == NULL)
-        return (0);
-
-    /* Prepare update cannot be locked in eviction. */
-    WT_ASSERT(session, upd->prepare_state != WT_PREPARE_LOCKED);
-
-    if (upd->type == WT_UPDATE_TOMBSTONE)
-        return (0);
-
-    /* Prune prepared update is a future thing. */
-    if (upd->prepare_state == WT_PREPARE_INPROGRESS)
-        return (0);
-
-    if (upd->txnid < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
-      upd->upd_durable_ts <= r->rec_prune_timestamp) {
+    if (__rec_row_garbage_collect_eligible(session, r, first_upd)) {
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         tombstone->next = first_upd;
         ins->upd = tombstone;
