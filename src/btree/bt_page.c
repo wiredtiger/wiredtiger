@@ -678,13 +678,18 @@ __page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *delt
     WT_CELL_UNPACK_KV base_unpack_kv[2];
     uint8_t j = 0;
     uint8_t *base_cell = WT_PAGE_HEADER_BYTE(S2BT(session), base_dsk);
-    uint8_t *delta_cells[delta_size];
-    uint32_t delta_entries[delta_size];
-    WT_ITEM *delta_lastkeys[delta_size];
-    WT_CELL_UNPACK_DELTA_LEAF_KV delta_unpacks[delta_size];
-    bool delta_unpacked[delta_size];
+    uint8_t **delta_cells;
+    uint32_t *delta_entries;
+    WT_ITEM **delta_lastkeys;
+    WT_CELL_UNPACK_DELTA_LEAF_KV *delta_unpacks;
+    bool *delta_unpacked;
 
     WT_ERR(__wt_scr_alloc(session, 0, &base_lastkey));
+    WT_ERR(__wt_malloc(session, delta_size * sizeof(uint8_t *), &delta_cells));
+    WT_ERR(__wt_malloc(session, delta_size * sizeof(uint32_t), &delta_entries));
+    WT_ERR(__wt_malloc(session, delta_size * sizeof(WT_ITEM *), &delta_lastkeys));
+    WT_ERR(__wt_malloc(session, delta_size * sizeof(WT_CELL_UNPACK_DELTA_LEAF_KV), &delta_unpacks));
+    WT_ERR(__wt_malloc(session, delta_size * sizeof(bool), &delta_unpacked));
     for (uint8_t d = 0; d < delta_size; d++) {
         WT_PAGE_HEADER *dsk = (WT_PAGE_HEADER *)deltas[d].data;
         delta_cells[d] = WT_PAGE_HEADER_BYTE(S2BT(session), dsk);
@@ -774,6 +779,11 @@ err:
     __wt_scr_free(session, &base_lastkey);
     for (uint8_t d = 0; d < delta_size; d++)
         __wt_scr_free(session, &delta_lastkeys[d]);
+    __wt_free(session, delta_cells);
+    __wt_free(session, delta_entries);
+    __wt_free(session, delta_lastkeys);
+    __wt_free(session, delta_unpacks);
+    __wt_free(session, delta_unpacked);
     return (ret);
 }
 
