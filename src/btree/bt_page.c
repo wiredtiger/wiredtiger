@@ -678,11 +678,11 @@ __page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *delt
     WT_CELL_UNPACK_KV base_unpack_kv[2];
     uint8_t j = 0;
     uint8_t *base_cell = WT_PAGE_HEADER_BYTE(S2BT(session), base_dsk);
-    uint8_t **delta_cells;
-    uint32_t *delta_entries;
-    WT_ITEM **delta_lastkeys;
-    WT_CELL_UNPACK_DELTA_LEAF_KV *delta_unpacks;
-    bool *delta_unpacked;
+    uint8_t **delta_cells = NULL;
+    uint32_t *delta_entries = NULL;
+    WT_ITEM **delta_lastkeys = NULL;
+    WT_CELL_UNPACK_DELTA_LEAF_KV *delta_unpacks = NULL;
+    bool *delta_unpacked = NULL;
 
     WT_ERR(__wt_scr_alloc(session, 0, &base_lastkey));
     WT_ERR(__wt_malloc(session, delta_size * sizeof(uint8_t *), &delta_cells));
