@@ -79,3 +79,13 @@ class test_layered66(wttest.WiredTigerTestCase):
 
         self.assertRaises(wiredtiger.WiredTigerError, lambda:
             self.session.verify(self.uri))
+
+        # Update the last materialized LSN to the checkpoint LSN.
+        (ret, checkpoint_last_lsn) = page_log.pl_get_last_lsn(self.session)
+        self.assertEqual(ret, 0)
+
+        page_log.pl_set_last_materialized_lsn(self.session, checkpoint_last_lsn)
+        self.conn.set_context_uint(wiredtiger.WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN, checkpoint_last_lsn)
+
+        # Verify should now succeed.
+        self.session.verify(self.uri)
