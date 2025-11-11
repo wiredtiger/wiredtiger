@@ -146,23 +146,26 @@ static int
 __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_ADDR_COPY addr;
+    WT_BTREE *btree;
     WT_DECL_RET;
     WT_ITEM *deltas;
-    WT_ITEM new_image;
+    WT_ITEM new_image, new_image_copy;
     WT_ITEM *tmp;
     WT_PAGE *page;
     WT_PAGE_BLOCK_META block_meta;
     WT_REF_STATE previous_state;
     size_t count, i;
     uint32_t page_flags;
-    bool instantiate_upd, disk_image_freed, page_change, full_disk_image_build_from_deltas;
+    bool instantiate_upd, disk_image_freed, page_change, build_full_disk_image_from_deltas;
 
+    btree = S2BT(session);
     WT_CLEAR(block_meta);
     tmp = NULL;
     count = 0;
-    disk_image_freed = page_change = full_disk_image_build_from_deltas = false;
+    disk_image_freed = page_change = build_full_disk_image_from_deltas = false;
     page = NULL;
     WT_CLEAR(new_image);
+    WT_CLEAR(new_image_copy);
 
     /* Lock the WT_REF. */
     switch (previous_state = WT_REF_GET_STATE(ref)) {
@@ -216,8 +219,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * Skip this optimization in cases that need the obsolete values. To minimize the number of
      * special cases, use the same test as for skipping instantiation below.
      */
-    if (previous_state == WT_REF_DELETED &&
-      !F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
+    if (previous_state == WT_REF_DELETED && !F_ISSET(btree, WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
         /*
          * If the deletion has not yet been found to be globally visible (page_del isn't NULL),
          * check if it is now, in case we can in fact avoid reading the page. Hide prepared deletes
@@ -248,15 +250,13 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     else
         deltas = NULL;
 
-    /* Build a full disk image of the page after reading from disk. */
-    // if (/* DISABLES CODE */ (0) && count > 1) {
-    // if ( ref->page != NULL && F_ISSET(ref, WT_REF_FLAG_INTERNAL) && count > 1) {
+    /*
+     * After reading the page from disk, construct a full disk image. This is currently performed
+     * only for internal pages that have more than one delta.
+     */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && count > 1) {
         size_t new_image_buf_size;
         uint32_t split_size;
-        WT_BTREE *btree;
-
-        btree = S2BT(session);
 
         /* Allocate enough size for the new image, similar to __rec_split_chunk_init. */
         split_size = __wt_split_page_size(btree->split_pct, btree->maxleafpage, btree->allocsize);
@@ -266,12 +266,22 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
         ret = __wti_build_full_disk_image_on_read(
           session, ref, deltas, count - 1, &new_image, tmp[0].data);
-        full_disk_image_build_from_deltas = true;
+
+        build_full_disk_image_from_deltas = true;
         WT_PAGE_HEADER *tmp_header = (WT_PAGE_HEADER *)new_image.data;
-        printf("Full disk image built from deltas for page type %u with %d deltas, new size %d\n",
+        __wt_verbose_debug2(session, WT_VERB_PAGE_DELTA,
+          "Full disk image built from deltas for page type %u with %d deltas, new size %d",
           tmp_header->type, (int)count - 1, (int)new_image.size);
-        printf("Full disk image built from deltas : tmp_header->u.entries - %d\n",
-          (int)tmp_header->u.entries);
+
+        /*
+         * We initially allocated the maximum possible buffer for new_image, but only part of it is
+         * used. Copy the used portion into a right-sized buffer and free the original oversized
+         * buffer.
+         */
+        WT_ERR(__wt_buf_initsize(session, &new_image_copy, new_image.size));
+        memcpy(new_image_copy.mem, new_image.data, new_image.size);
+
+        __wt_buf_free(session, &new_image);
         for (i = 0; i < count - 1; ++i)
             __wt_buf_free(session, &deltas[i]);
 
@@ -291,8 +301,10 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
     if (LF_ISSET(WT_READ_PREFETCH))
         FLD_SET(page_flags, WT_PAGE_PREFETCH);
-    if (full_disk_image_build_from_deltas)
-        WT_ERR(__wti_page_inmem(session, ref, new_image.data, page_flags, &page, &instantiate_upd));
+    if (build_full_disk_image_from_deltas)
+        /* Pass the newly built full disk image data to build in-memory page information. */
+        WT_ERR(
+          __wti_page_inmem(session, ref, new_image_copy.data, page_flags, &page, &instantiate_upd));
     else
         WT_ERR(__wti_page_inmem(session, ref, tmp[0].data, page_flags, &page, &instantiate_upd));
     WT_ASSERT(session, ref->page == page);
@@ -304,7 +316,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     /* Reconstruct deltas*/
-    if (count > 1 && !full_disk_image_build_from_deltas) {
+    if (count > 1 && !build_full_disk_image_from_deltas) {
         ret = __wti_page_reconstruct_deltas(session, ref, deltas, count - 1);
         for (i = 0; i < count - 1; ++i)
             __wt_buf_free(session, &deltas[i]);
@@ -339,7 +351,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
       session, previous_state != WT_REF_DISK || (ref->page_del == NULL && addr.del_set == false));
 
     if (previous_state == WT_REF_DELETED) {
-        if (F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
+        if (F_ISSET(btree, WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
             WT_ERR(__wt_page_modify_init(session, page));
             ref->page->modify->instantiated = true;
         } else
@@ -350,7 +362,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_ERR(__wt_conn_page_history_track_read(session, page));
 
     /* Read only page must be clean. */
-    WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_READONLY) || !__wt_page_is_modified(page));
+    WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_READONLY) || !__wt_page_is_modified(page));
 
 skip_read:
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
@@ -376,7 +388,7 @@ err:
         __wt_free(session, tmp);
     }
 
-    __wt_buf_free(session, &new_image);
+    __wt_buf_free(session, &new_image_copy);
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, previous_state);
 

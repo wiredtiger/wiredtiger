@@ -327,6 +327,39 @@ __wti_rec_auximage_copy(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint32_t cou
 }
 
 /*
+ * __wti_cell_build_addr_custom --
+ *     Pack an address cell.
+ */
+static WT_INLINE void
+__wti_cell_build_addr_custom(WT_SESSION_IMPL *session, WTI_REC_KV *val_kv, uint8_t cell_type,
+  uint64_t recno, WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, size_t val_size)
+{
+    /*
+     * If passed fast-delete information, override the cell type. We should never see fast-truncate
+     * cell types without fast-truncate information.
+     */
+    WT_ASSERT(session, page_del != NULL || cell_type != WT_CELL_ADDR_DEL);
+    if (page_del != NULL) {
+        /*
+         * We only fast-truncate leaf pages without overflow items, however, we can write a proxy
+         * cell for a page, evict and then read the internal page, and then checkpoint is writing it
+         * again.
+         */
+        WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL || cell_type == WT_CELL_ADDR_LEAF_NO);
+        cell_type = WT_CELL_ADDR_DEL;
+
+        /* We should never be in an in-progress prepared state. */
+        WT_ASSERT(session,
+          page_del->prepare_state == WT_PREPARE_INIT ||
+            page_del->prepare_state == WT_PREPARE_RESOLVED);
+    }
+
+    val_kv->cell_len = (uint16_t)__wt_cell_pack_addr(
+      session, &val_kv->cell, cell_type, recno, page_del, ta, val_size);
+    val_kv->len = val_kv->cell_len + val_kv->buf.size;
+}
+
+/*
  * __wti_rec_cell_build_addr --
  *     Process an address or unpack reference and return a cell structure to be stored on the page.
  */
