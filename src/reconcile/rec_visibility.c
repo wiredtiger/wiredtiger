@@ -476,6 +476,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
 
     if (visible_all)
         return (false);
+        
     /*
      * Update chains are only need to be saved when there are:
      * 1. Newer uncommitted updates or database is configured for in-memory storage.
