@@ -864,12 +864,14 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
  *     Check if the update chain is eligible for garbage collection.
  */
 static WT_INLINE bool
-__rec_row_garbage_collect_eligible(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_upd)
+__rec_row_garbage_collect_eligible(
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_upd, bool *all_abortedp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_UPDATE *upd;
 
     conn = S2C(session);
+    *all_abortedp = false;
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
         /*
@@ -891,8 +893,10 @@ __rec_row_garbage_collect_eligible(WT_SESSION_IMPL *session, WTI_RECONCILE *r, W
             return (false);
     }
 
-    if (upd == NULL)
+    if (upd == NULL) {
+        *all_abortedp = true;
         return (false);
+    }
 
     if (upd->type == WT_UPDATE_TOMBSTONE)
         return (false);
@@ -912,17 +916,39 @@ __rec_row_garbage_collect_eligible(WT_SESSION_IMPL *session, WTI_RECONCILE *r, W
 }
 
 /*
+ * __rec_row_garbage_collect_tw_eligible --
+ *     Check if the time window is eligible for garbage collection.
+ */
+static WT_INLINE bool
+__rec_row_garbage_collect_tw_elegible(WTI_RECONCILE *r, WT_TIME_WINDOW *twp)
+{
+    if (WT_TIME_WINDOW_HAS_STOP(twp)) {
+        if (twp->stop_txn < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
+          twp->durable_stop_ts <= r->rec_prune_timestamp)
+            return (true);
+    } else {
+        if (twp->start_txn < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
+          twp->durable_start_ts <= r->rec_prune_timestamp)
+            return (true);
+    }
+
+    return (false);
+}
+
+/*
  * __rec_row_garbage_collect_fixup_update_list --
  *     Insert a tombstone at the start of an update list if all entries are eligible for garbage
  *     collection.
  */
 static int
-__rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ROW *rip)
+__rec_row_garbage_collect_fixup_update_list(
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ROW *rip, WT_CELL_UNPACK_KV *vpack)
 {
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_UPDATE *first_upd, *tombstone, **upd_entry;
+    bool all_aborted;
 
     btree = S2BT(session);
     page = r->page;
@@ -934,7 +960,8 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONC
     if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
         return (0);
 
-    if (__rec_row_garbage_collect_eligible(session, r, first_upd)) {
+    if (__rec_row_garbage_collect_eligible(session, r, first_upd, &all_aborted) ||
+      (all_aborted && __rec_row_garbage_collect_tw_elegible(r, &vpack->tw))) {
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         tombstone->next = first_upd;
         upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
@@ -957,6 +984,7 @@ __rec_row_garbage_collect_fixup_insert_list(
 {
     WT_BTREE *btree;
     WT_UPDATE *first_upd, *tombstone;
+    bool all_aborted;
 
     btree = S2BT(session);
 
@@ -967,7 +995,7 @@ __rec_row_garbage_collect_fixup_insert_list(
     if ((first_upd = ins->upd) == NULL)
         return (0);
 
-    if (__rec_row_garbage_collect_eligible(session, r, first_upd)) {
+    if (__rec_row_garbage_collect_eligible(session, r, first_upd, &all_aborted)) {
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         tombstone->next = first_upd;
         ins->upd = tombstone;
@@ -1251,7 +1279,7 @@ __wti_rec_row_leaf(
         __wt_row_leaf_value_cell(session, page, rip, vpack);
 
         /* Give garbage collected tables a change to mark obsolete content for cleanup */
-        WT_ERR(__rec_row_garbage_collect_fixup_update_list(session, r, rip));
+        WT_ERR(__rec_row_garbage_collect_fixup_update_list(session, r, rip, vpack));
 
         /* Look for an update. */
         WT_ERR(__wti_rec_upd_select(session, r, NULL, rip, vpack, &upd_select));
@@ -1280,24 +1308,11 @@ __wti_rec_row_leaf(
             if (__wt_txn_tw_stop_visible_all(session, twp)) {
                 upd = &upd_tombstone;
                 r->key_removed_from_disk_image = true;
-            } else if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
-                if (WT_TIME_WINDOW_HAS_STOP(twp)) {
-                    if (twp->stop_txn < r->rec_start_oldest_id &&
-                      r->rec_prune_timestamp != WT_TS_NONE &&
-                      twp->durable_stop_ts <= r->rec_prune_timestamp) {
-                        upd = &upd_tombstone;
-                        r->key_removed_from_disk_image = true;
-                        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
-                    }
-                } else {
-                    if (twp->start_txn < r->rec_start_oldest_id &&
-                      r->rec_prune_timestamp != WT_TS_NONE &&
-                      twp->durable_start_ts <= r->rec_prune_timestamp) {
-                        upd = &upd_tombstone;
-                        r->key_removed_from_disk_image = true;
-                        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
-                    }
-                }
+            } else if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
+              __rec_row_garbage_collect_tw_elegible(r, twp)) {
+                upd = &upd_tombstone;
+                r->key_removed_from_disk_image = true;
+                WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
             }
         }
 
