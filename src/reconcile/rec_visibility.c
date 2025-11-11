@@ -467,15 +467,13 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
     /* When in checkpoint, no need to save update if no onpage value is selected. */
     if (F_ISSET(r, WT_REC_CHECKPOINT) && upd_select->upd == NULL)
         return (false);
-    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
-        if (WT_TIME_WINDOW_HAS_STOP(&upd_select->tw))
-            visible_all = __wt_txn_tw_stop_visible_all(session, &upd_select->tw);
-        else
-            visible_all = __wt_txn_tw_start_visible_all(session, &upd_select->tw);
+    if (WT_TIME_WINDOW_HAS_STOP(&upd_select->tw))
+        visible_all = __wt_txn_tw_stop_visible_all(session, &upd_select->tw);
+    else
+        visible_all = __wt_txn_tw_start_visible_all(session, &upd_select->tw);
 
-        if (visible_all)
-            return (false);
-    }
+    if (visible_all)
+        return (false);
     /*
      * Update chains are only need to be saved when there are:
      * 1. Newer uncommitted updates or database is configured for in-memory storage.
@@ -759,18 +757,12 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
     uint64_t max_txn, session_txnid, txnid;
     uint8_t prepare_state;
     bool is_hs_page;
-    bool is_inmem_btree;
-    bool oldest_upd_write_prepare;
-    oldest_upd_write_prepare = false;
-    WT_UPDATE *oldest_visible_upd = NULL;
 
     conn = S2C(session);
     prepare_rollback_tombstone = NULL;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
     is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
-    is_inmem_btree =
-      F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY);
     session_txnid = __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->id);
     *write_prepare = false;
 
@@ -1025,10 +1017,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                 prepare_rollback_tombstone = NULL;
             }
         }
-        if (is_inmem_btree) {
-            oldest_visible_upd = upd;
-            oldest_upd_write_prepare = *write_prepare;
-        }
 
         /* Track the selected update transaction id and timestamp. */
         if (max_txn < txnid)
@@ -1054,17 +1042,13 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
          * with read uncommitted isolation and we may see a committed update followed by uncommitted
          * updates
          */
-        if (!is_inmem_btree && (!F_ISSET(r, WT_REC_EVICT) || !WT_IS_METADATA(session->dhandle)))
+        if ((!F_ISSET(r, WT_REC_EVICT) || !WT_IS_METADATA(session->dhandle)))
             break;
     }
 
     /* The prepare rollback is stable. Delete the key by selecting the rollback tombstone. */
     if (upd_select->upd == NULL && prepare_rollback_tombstone != NULL)
         upd_select->upd = prepare_rollback_tombstone;
-    if (is_inmem_btree && oldest_visible_upd != NULL) {
-        upd_select->upd = oldest_visible_upd;
-        *write_prepare = oldest_upd_write_prepare;
-    }
     /*
      * Track the most recent transaction in the page. We store this in the tree at the end of
      * reconciliation in the service of checkpoints, it is used to avoid discarding trees from
@@ -1077,6 +1061,122 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
     if (max_ts > r->max_ts)
         r->max_ts = max_ts;
 
+    return (0);
+}
+
+static int
+__rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *vpack,
+  WT_UPDATE *first_upd, WTI_UPDATE_SELECT *upd_select, WT_UPDATE **first_txn_updp,
+  bool *has_newer_updatesp, size_t *upd_memsizep)
+{
+    WT_UPDATE *upd;
+    wt_timestamp_t max_ts;
+    uint64_t max_txn, session_txnid, txnid;
+    uint8_t prepare_state;
+    bool found_globally_visible_upd;
+    bool is_hs_page;
+
+    max_ts = WT_TS_NONE;
+    max_txn = WT_TXN_NONE;
+    is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
+    session_txnid = __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->id);
+    found_globally_visible_upd = false;
+    for (upd = first_upd; upd != NULL; upd = upd->next) {
+        /*
+         * Reset write_prepare for each update in the chain. The decision to write an update as
+         * prepared depends on the specific state and timestamps of each individual update, so we
+         * need to reset the state for each update.
+         */
+        txnid = __wt_atomic_load_uint64_v_acquire(&upd->txnid);
+        if (txnid == WT_TXN_ABORTED) {
+            continue;
+        }
+
+        /*
+         * Give up if the update is from this transaction and on the metadata file or disaggregated
+         * shared metadata file.
+         */
+        if ((WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) &&
+          session_txnid != WT_TXN_NONE && txnid == session_txnid)
+            return (__wt_set_return(session, EBUSY));
+
+        /*
+         * Track the first update in the chain that is not aborted or its rollback timestamp is not
+         * stable.
+         */
+        if (*first_txn_updp == NULL)
+            *first_txn_updp = upd;
+
+        /*
+         * Special handling for application threads evicting their own updates.
+         */
+        if (!is_hs_page && F_ISSET(r, WT_REC_APP_EVICTION_SNAPSHOT) &&
+          session_txnid != WT_TXN_NONE && txnid == session_txnid) {
+            *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+            *has_newer_updatesp = true;
+            continue;
+        }
+        /*
+         * Check whether the update was committed before reconciliation started. The global commit
+         * point can move forward during reconciliation so we use a cached copy to avoid races when
+         * a concurrent transaction commits or rolls back while we are examining its updates. This
+         * check is not required for history store updates as they are implicitly committed. As
+         * prepared transaction IDs are globally visible, need to check the update state as well.
+         *
+         * There are several cases we should select the update irrespective of visibility. See the
+         * detailed scenarios in the definition of WT_UPDATE_SELECT_FOR_DS.
+         *
+         * These scenarios can happen if the current reconciliation has a limited visibility of
+         * updates compared to one of the previous reconciliations. This is important as it is never
+         * ok to undo the work of the previous reconciliations.
+         */
+        if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) && !is_hs_page &&
+          (F_ISSET(r, WT_REC_VISIBLE_NO_SNAPSHOT) ? r->rec_start_pinned_id <= txnid :
+                                                    !__txn_visible_id(session, txnid))) {
+            /*
+             * Rare case: metadata writes at read uncommitted isolation level, eviction may see a
+             * committed update followed by uncommitted updates. Give up in that case because we
+             * can't discard the uncommitted updates.
+             */
+            if (upd_select->upd != NULL) {
+                WT_ASSERT_ALWAYS(session, WT_IS_METADATA(session->dhandle),
+                  "Uncommitted update followed by committed update in a non-metadata file");
+                return (__wt_set_return(session, EBUSY));
+            }
+
+            *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+            *has_newer_updatesp = true;
+            continue;
+        }
+        /*
+         * Only checkpoint should ever encounter resolving prepared transactions. If it does, then
+         * it needs to wait to see whether they should be included or not.
+         */
+        prepare_state = __wt_atomic_load_uint8_v_acquire(&upd->prepare_state);
+
+        if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
+            *has_newer_updatesp = true;
+            continue;
+        }
+        upd_select->upd = upd;
+        if (max_txn < txnid)
+            max_txn = txnid;
+        if (upd->upd_start_ts > max_ts)
+            max_ts = upd->upd_start_ts;
+        if (__wt_txn_upd_visible_all(session, upd)) {
+            found_globally_visible_upd = true;
+            break;
+        }
+    }
+    /*
+     * If there's an on-page value, we only want to write upd_select if the oldest update is
+     * globally visible, otherwise we will lose the on-page update. Check if there's an on-page
+     * update and reset upd_select if the update is not visible.
+     */
+    if (vpack != NULL && vpack->type != WT_CELL_DEL && !found_globally_visible_upd) {
+        *has_newer_updatesp = (upd_select->upd != NULL);
+        upd_select->upd = NULL;
+    }
     return (0);
 }
 
@@ -1305,7 +1405,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
     /*
      * If called with a WT_INSERT item, use its WT_UPDATE list (which must exist), otherwise check
      * for an on-page row-store WT_UPDATE list (which may not exist). Return immediately if the item
-     * has no updates.22
+     * has no updates.
      */
     if (ins != NULL)
         first_upd = ins->upd;
@@ -1315,8 +1415,12 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
         if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
             return (0);
     }
-    WT_RET(__rec_upd_select(session, r, vpack, first_upd, upd_select, &first_txn_upd,
-      &has_newer_updates, &write_prepare, &upd_memsize));
+    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
+        WT_RET(__rec_upd_select(session, r, vpack, first_upd, upd_select, &first_txn_upd,
+          &has_newer_updates, &write_prepare, &upd_memsize));
+    else
+        WT_RET(__rec_upd_select_inmem(session, r, vpack, first_upd, upd_select, &first_txn_upd,
+          &has_newer_updates, &upd_memsize));
 
     /* Keep track of the selected update. */
     upd = upd_select->upd;
