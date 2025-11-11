@@ -126,7 +126,6 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
         # eventually reach the minimum file size of 12KB.
         checkpoints = 0
         max_checkpoints = 10
-        # self.wait_for_cc_to_run() # Wait for checkpoint cleanup to clean up all the deleted pages.
         while True:
             self.wait_for_cc_to_run() # Wait for checkpoint cleanup to clean up all the deleted pages.
             self.session.checkpoint()
