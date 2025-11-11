@@ -17,6 +17,20 @@ static int __layered_iterate_ingest_tables_for_gc_pruning(
 static int __layered_last_checkpoint_order(
   WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order);
 
+struct __wt_disagg_checkpoint_meta;
+typedef struct __wt_disagg_checkpoint_meta WT_DISAGG_CHECKPOINT_META;
+
+/*
+ * WT_DISAGG_CHECKPOINT_META --
+ *     Checkpoint metadata structure for disaggregated storage.
+ */
+struct __wt_disagg_checkpoint_meta {
+    uint64_t metadata_lsn; /* The LSN of the metadata page. */
+
+    bool has_metadata_checksum; /* Whether the metadata page checksum is present. */
+    uint32_t metadata_checksum; /* The checksum of the metadata page. */
+};
+
 /*
  * __layered_get_disagg_checkpoint --
  *     Get existing checkpoint information from disaggregated storage.
@@ -347,8 +361,7 @@ err:
  *     Pick up a new checkpoint.
  */
 static int
-__disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, bool has_metadata_checksum,
-  uint32_t metadata_checksum)
+__disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -383,19 +396,18 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, bool ha
     /* We should not pick up a checkpoint with an earlier LSN. */
     current_meta_lsn =
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
-    if (meta_lsn < current_meta_lsn)
+    if (ckpt_meta->metadata_lsn < current_meta_lsn)
         WT_RET_MSG(session, EINVAL,
           "Attempting to pick up an older checkpoint: current metadata LSN = %" PRIu64
           ", new metadata LSN = %" PRIu64,
-          current_meta_lsn, meta_lsn);
-
+          current_meta_lsn, ckpt_meta->metadata_lsn);
     /*
      * Warn if we are picking up the same checkpoint again. There's nothing else to do here, goto
      * err for cleanup.
      */
-    if (meta_lsn == current_meta_lsn) {
+    if (ckpt_meta->metadata_lsn == current_meta_lsn) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_WARNING,
-          "Picking up the same checkpoint again: metadata LSN = %" PRIu64, meta_lsn);
+          "Picking up the same checkpoint again: metadata LSN = %" PRIu64, ckpt_meta->metadata_lsn);
         /* Keep previous ret value to avoid overlapping error message */
         goto err;
     }
@@ -405,20 +417,21 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, bool ha
      */
 
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64, meta_lsn);
+      "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
+      ckpt_meta->metadata_lsn);
 
     /* Read the checkpoint metadata of the shared metadata table from the special metadata page. */
     WT_ERR_MSG_CHK(session,
-      __disagg_get_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, meta_lsn, &item),
-      "Disagg metadata fetching failed, with lsn: %" PRIu64, meta_lsn);
+      __disagg_get_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, ckpt_meta->metadata_lsn, &item),
+      "Disagg metadata fetching failed, with lsn: %" PRIu64, ckpt_meta->metadata_lsn);
 
     /* Validate the checksum. */
-    if (has_metadata_checksum) {
+    if (ckpt_meta->has_metadata_checksum) {
         checksum = __wt_checksum(item.data, item.size);
-        if (checksum != metadata_checksum) {
+        if (checksum != ckpt_meta->metadata_checksum) {
             WT_ERR_MSG(session, EIO,
               "Checkpoint metadata checksum mismatch: expected %" PRIx32 ", got %" PRIx32,
-              metadata_checksum, checksum);
+              ckpt_meta->metadata_checksum, checksum);
         }
     }
 
@@ -450,8 +463,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, bool ha
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64 ", timestamp=%" PRIu64
       " %s"
       ", root=\"%s\"",
-      meta_lsn, checkpoint_timestamp, __wt_timestamp_to_string(checkpoint_timestamp, ts_string),
-      root);
+      ckpt_meta->metadata_lsn, checkpoint_timestamp,
+      __wt_timestamp_to_string(checkpoint_timestamp, ts_string), root);
 
     /* We need an internal session when modifying metadata. */
     WT_ERR(__wt_open_internal_session(conn, "checkpoint-pick-up", false, 0, 0, &internal_session));
@@ -590,7 +603,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, bool ha
      * updates are protected by the checkpoint lock.
      */
     __wt_atomic_store_uint64_release(
-      &conn->disaggregated_storage.last_checkpoint_meta_lsn, meta_lsn);
+      &conn->disaggregated_storage.last_checkpoint_meta_lsn, ckpt_meta->metadata_lsn);
 
     /* Update the checkpoint timestamp. */
     __wt_atomic_store_uint64_release(
@@ -607,7 +620,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, bool ha
 
     /* Log the completion of the checkpoint pick-up. */
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Finished picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64, meta_lsn);
+      "Finished picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
+      ckpt_meta->metadata_lsn);
 
 err:
     if (ret == 0)
@@ -616,7 +630,7 @@ err:
         WT_STAT_CONN_INCR(session, layered_table_manager_checkpoints_disagg_pick_up_failed);
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_ERROR,
           "Failed to pick up disaggregated storage checkpoint for metadata_lsn=%" PRIu64 ": ret=%d",
-          meta_lsn, ret);
+          ckpt_meta->metadata_lsn, ret);
     }
 
     /* Free memory allocated by the page log interface */
@@ -649,21 +663,19 @@ __disagg_pick_up_checkpoint_meta_item(WT_SESSION_IMPL *session, WT_ITEM *meta_it
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
-    uint64_t metadata_checksum, metadata_lsn;
+    WT_DISAGG_CHECKPOINT_META ckpt_meta;
+    uint64_t metadata_checksum;
     char *meta_str;
-    bool has_metadata_checksum;
 
+    WT_CLEAR(ckpt_meta);
     meta_str = NULL;
-
-    has_metadata_checksum = false;
-    metadata_checksum = 0;
 
     /* Extract the item into a string. */
     WT_ERR(__wt_strndup(session, meta_item->data, meta_item->size, &meta_str));
 
     /* Extract the LSN of the metadata page. */
     WT_ERR(__wt_config_getones(session, meta_str, "metadata_lsn", &cval));
-    metadata_lsn = (uint64_t)cval.val;
+    ckpt_meta.metadata_lsn = (uint64_t)cval.val;
 
     /*
      * Extract the checksum of the metadata page, if it exists. We added the checksum later, so
@@ -675,12 +687,12 @@ __disagg_pick_up_checkpoint_meta_item(WT_SESSION_IMPL *session, WT_ITEM *meta_it
         if (metadata_checksum > UINT32_MAX)
             WT_ERR_MSG(
               session, EINVAL, "Invalid metadata checksum value: %" PRIx64, metadata_checksum);
-        has_metadata_checksum = true;
+        ckpt_meta.has_metadata_checksum = true;
+        ckpt_meta.metadata_checksum = (uint32_t)metadata_checksum;
     }
 
     /* Now actually pick up the checkpoint. */
-    WT_ERR(__disagg_pick_up_checkpoint(
-      session, metadata_lsn, has_metadata_checksum, (uint32_t)metadata_checksum));
+    WT_ERR(__disagg_pick_up_checkpoint(session, &ckpt_meta));
 
 err:
     __wt_free(session, meta_str);

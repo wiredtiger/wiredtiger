@@ -90,6 +90,7 @@ class test_layered64(wttest.WiredTigerTestCase):
 
         # Get the checkpoint metadata string and ensure that it contains a checksum.
         checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        self.pr(f'Checkpoint metadata: {checkpoint_meta}')
         self.assertTrue('metadata_checksum=' in checkpoint_meta)
 
         # Extract the checksum from the checkpoint metadata.
@@ -103,6 +104,7 @@ class test_layered64(wttest.WiredTigerTestCase):
 
         # Ensure that we can pick up the checkpoint without a checksum.
         checkpoint_meta_no_checksum = re.sub(r',metadata_checksum=[0-9a-fA-F]+', '', checkpoint_meta)
+        self.pr(f'Checkpoint metadata without a checksum: {checkpoint_meta_no_checksum}')
         self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta_no_checksum}")')
 
         # Check that all the data is present.
@@ -120,6 +122,7 @@ class test_layered64(wttest.WiredTigerTestCase):
         corrupted_checksum_hex = format(corrupted_checksum_int, 'x')
         corrupted_checkpoint_meta = checkpoint_meta.replace(f'metadata_checksum={checksum_hex}',
                                                   f'metadata_checksum={corrupted_checksum_hex}')
+        self.pr(f'Corrupted checkpoint metadata: {corrupted_checkpoint_meta}')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.conn.reconfigure(
                 f'disaggregated=(checkpoint_meta="{corrupted_checkpoint_meta}")'),
