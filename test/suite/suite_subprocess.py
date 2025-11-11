@@ -243,7 +243,7 @@ class suite_subprocess:
                        ^                # Line beginning
                        (?:table|file):  # "table:" or "file:" prefix, non-capturing
                        (.*?)            # Non-greedy capture of the name
-                       (?:\.wt)?        # Optional ".wt" suffix, non-capturing
+                       (?:\.wt)?        # Optional ".wt" suffix, non-capturing. Must be stripped out when using layered URI
                        $                # Line end
                        ''', r'layered:\1', a, flags=re.X)
                 for a in args
