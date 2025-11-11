@@ -236,8 +236,8 @@ class suite_subprocess:
         if 'timestamp' in self.hook_names and args[0] == 'load':
             self.skipTest("the load utility cannot be run when timestamps are already set")
 
-        # If disagg, changee table and file URIs to layered
-        if 'disagg' in self.hook_names:
+        # If disagg and verify, change table and file URIs to layered
+        if 'disagg' in self.hook_names and 'verify' in args:
             args = [
                 re.sub(r'''             # Raw string with extended regex
                        ^                # Line beginning
