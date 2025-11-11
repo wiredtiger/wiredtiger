@@ -17,19 +17,16 @@ static int __layered_iterate_ingest_tables_for_gc_pruning(
 static int __layered_last_checkpoint_order(
   WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order);
 
-struct __wt_disagg_checkpoint_meta;
-typedef struct __wt_disagg_checkpoint_meta WT_DISAGG_CHECKPOINT_META;
-
 /*
  * WT_DISAGG_CHECKPOINT_META --
  *     Checkpoint metadata structure for disaggregated storage.
  */
-struct __wt_disagg_checkpoint_meta {
+typedef struct __wt_disagg_checkpoint_meta {
     uint64_t metadata_lsn; /* The LSN of the metadata page. */
 
     bool has_metadata_checksum; /* Whether the metadata page checksum is present. */
     uint32_t metadata_checksum; /* The checksum of the metadata page. */
-};
+} WT_DISAGG_CHECKPOINT_META;
 
 /*
  * __layered_get_disagg_checkpoint --
