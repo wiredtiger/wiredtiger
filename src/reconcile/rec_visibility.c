@@ -1100,12 +1100,14 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
   WT_UPDATE *first_upd, WTI_UPDATE_SELECT *upd_select, WT_UPDATE **first_txn_updp,
   bool *has_newer_updatesp, size_t *upd_memsizep)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_UPDATE *upd;
     wt_timestamp_t max_ts;
     uint64_t max_txn, session_txnid;
     bool found_globally_visible_upd;
     bool is_hs_page;
 
+    conn = S2C(session);
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
     is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
@@ -1114,8 +1116,18 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     /* Assert that we can only call reconciliation for in memory btree in eviction */
     WT_ASSERT(session, WT_REC_EVICT | WT_REC_HS);
     for (upd = first_upd; upd != NULL; upd = upd->next) {
-        if (upd->txnid == WT_TXN_ABORTED)
+        if (upd->txnid == WT_TXN_ABORTED) {
+            if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
+                continue;
+
+            if (upd->prepare_state != WT_PREPARE_INPROGRESS)
+                continue;
+
+            if (upd->upd_rollback_ts > r->rec_prune_timestamp)
+                *has_newer_updatesp = true;
+
             continue;
+        }
 
         /*
          * Give up if the update is from this transaction and on the metadata file or disaggregated
@@ -1194,7 +1206,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
         }
     }
     if (*first_txn_updp != NULL && *first_txn_updp != upd_select->upd)
-      *has_newer_updatesp = true;
+        *has_newer_updatesp = true;
     /*
      * If there's an on-page value, we only want to write upd_select if the oldest update is
      * globally visible, otherwise we will lose the on-page update. Check if there's an on-page
@@ -1619,8 +1631,8 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      * it is already on the update chain. If it is a prepared tombstone, the onpage value is already
      * appended to the update chain when the page is read into memory.
      */
-    if (F_ISSET(r, WT_REC_HS) && upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
-      !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)) &&
+    if (F_ISSET(r, WT_REC_HS) && upd_select->upd != NULL && vpack != NULL &&
+      vpack->type != WT_CELL_DEL && !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)) &&
       (upd_select->upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
         WT_RET(__rec_append_orig_value(
           session, page, upd_select->upd, vpack, WT_TIME_WINDOW_HAS_PREPARE(&upd_select->tw)));
