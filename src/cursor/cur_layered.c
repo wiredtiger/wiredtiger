@@ -2175,6 +2175,8 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
         WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
 
     WT_ERR(__clayered_modify_int(session, cursor, entries, nentries));
+    WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_KEY_SET) != 0);
+    WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET) != 0);
 
     /*
      * Set the cursor to reference the internal key/value of the positioned cursor. We could
@@ -2186,9 +2188,6 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
       clayered->current_cursor->key.size));
     WT_ERR(__wt_buf_set(session, &cursor->value, clayered->current_cursor->value.data,
       clayered->current_cursor->value.size));
-
-    WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_KEY_SET) != 0);
-    WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET) != 0);
 
     /*
      * Modify maintains a position, key and value. Unlike update, it's not required to be an
