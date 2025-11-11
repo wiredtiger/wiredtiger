@@ -179,19 +179,17 @@ TEST_CASE("rec_upd_select: Basic visible update selection", "[reconcile][rec_upd
         return;
     page->type = WT_PAGE_ROW_LEAF;
 
-    // Setup reconciliation context with pinned transaction ID 100
+    // Setup reconciliation context with pinned transaction ID 120
     WTI_RECONCILE r;
     setup_reconcile_context(&r, session, page, 120, 50);
 
-    SECTION("Select newest visible update from chain")
+    SECTION("Select oldest visible update for in memory")
     {
-        // Create update chain: [newest] -> [older] -> [oldest]
-        // Transaction IDs: 50 (visible), 80 (visible), 120 (not visible)
         std::vector<
           std::tuple<const char *, uint8_t, uint64_t, wt_timestamp_t, wt_timestamp_t, uint8_t>>
           updates = {
             std::make_tuple("value3", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)120,
-              (wt_timestamp_t)30, (wt_timestamp_t)30, (uint8_t)0), // Not visible (txn > pinned)
+              (wt_timestamp_t)30, (wt_timestamp_t)30, (uint8_t)0),
             std::make_tuple("value2", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)80, (wt_timestamp_t)20,
               (wt_timestamp_t)20, (uint8_t)0), // Visible
             std::make_tuple("value1", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)50, (wt_timestamp_t)10,
@@ -219,9 +217,8 @@ TEST_CASE("rec_upd_select: Basic visible update selection", "[reconcile][rec_upd
         REQUIRE(ret == 0);
         REQUIRE(upd_select.upd != NULL);
 
-        // Should select the newest visible update (transaction ID 80)
-        REQUIRE(upd_select.upd->txnid == 120);
-        REQUIRE(strcmp((char *)upd_select.upd->data, "value3") == 0);
+        REQUIRE(upd_select.upd->txnid == 50);
+        REQUIRE(strcmp((char *)upd_select.upd->data, "value1") == 0);
 
         // Should track the newest transaction in max_txn
         REQUIRE(r.max_txn == 120);
