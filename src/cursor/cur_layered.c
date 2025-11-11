@@ -2182,22 +2182,19 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
      * doesn't seem worth it for now.
      */
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-    WT_ERR(__cursor_needkey(clayered->current_cursor));
-    WT_ERR(__cursor_needvalue(clayered->current_cursor));
     WT_ERR(__wt_buf_set(session, &cursor->key, clayered->current_cursor->key.data,
       clayered->current_cursor->key.size));
     WT_ERR(__wt_buf_set(session, &cursor->value, clayered->current_cursor->value.data,
       clayered->current_cursor->value.size));
 
-    /*
-     * Modify maintains a position, key and value. Unlike update, it's not always an internal value.
-     */
     WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_KEY_SET) != 0);
     WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET) != 0);
 
-    F_SET(cursor,
-      F_MASK(clayered->current_cursor, WT_CURSTD_KEY_SET) |
-        F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET));
+    /*
+     * Modify maintains a position, key and value. Unlike update, it's not required to be an
+     * internal value. The buf set resulted in an external key/value.
+     */
+    F_SET(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_update);
 
