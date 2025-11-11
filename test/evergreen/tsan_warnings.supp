@@ -6,11 +6,6 @@
 # Stats are allowed to be fuzzy. Ignore races in TSan
 race:src/include/stat.h
 race:src/support/stat.c
-race:__wt_block_stat
-race:__wt_cache_stats_update
-race:__wt_checkpoint_timer_stats
-race:__wt_conn_stat_init
-race:__wt_evict_stats_update
 
 # These functions were created for fine-grained suppressions. Please search for appropriate FIXME tickets
 # around usages of these functions.
@@ -74,6 +69,7 @@ race:__wt_page_alloc
 race:__wt_page_modify_alloc
 race:__wt_upd_alloc
 race:__sweep_discard_trees
+race:__wt_conn_dhandle_alloc
 
 # FIXME-WT-15770 Fix python testing non-disagg TSAN warnings
 race:__wt_row_modify

@@ -9,48 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __txn_parse_hex_raw --
- *     Decodes and sets a hex value. Don't do any checking.
- */
-WT_INLINE static int
-__txn_parse_hex_raw(
-  WT_SESSION_IMPL *session, const char *name, uint64_t *valuep, WT_CONFIG_ITEM *cval)
-{
-    static const int8_t hextable[] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-      -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-      -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1, -1, -1, -1, -1, -1,
-      -1, 10, 11, 12, 13, 14, 15, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-      -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 10, 11, 12, 13, 14, 15, -1};
-    uint64_t value;
-    size_t len;
-    int hex_val;
-    const char *hex_itr;
-
-    *valuep = 0;
-
-    if (cval->len == 0)
-        return (0);
-
-    /* Protect against unexpectedly long hex strings. */
-    if (cval->len > 2 * sizeof(uint64_t))
-        WT_RET_MSG(session, EINVAL, "%s too long '%.*s'", name, (int)cval->len, cval->str);
-
-    for (value = 0, hex_itr = cval->str, len = cval->len; len > 0; --len) {
-        if ((size_t)*hex_itr < WT_ELEMENTS(hextable))
-            hex_val = hextable[(size_t)*hex_itr++];
-        else
-            hex_val = -1;
-        if (hex_val < 0)
-            WT_RET_MSG(
-              session, EINVAL, "Failed to parse %s '%.*s'", name, (int)cval->len, cval->str);
-        value = (value << 4) | (uint64_t)hex_val;
-    }
-    *valuep = value;
-
-    return (0);
-}
-
-/*
  * __wt_txn_parse_timestamp_raw --
  *     Decodes and sets a timestamp. Don't do any checking.
  */
@@ -58,7 +16,7 @@ int
 __wt_txn_parse_timestamp_raw(
   WT_SESSION_IMPL *session, const char *name, wt_timestamp_t *timestamp, WT_CONFIG_ITEM *cval)
 {
-    return (__txn_parse_hex_raw(session, name, timestamp, cval));
+    return (__wt_conf_parse_hex(session, name, timestamp, cval));
 }
 
 /*
@@ -84,7 +42,7 @@ __wt_txn_parse_timestamp(
 int
 __wt_txn_parse_prepared_id(WT_SESSION_IMPL *session, uint64_t *prepared_id, WT_CONFIG_ITEM *cval)
 {
-    WT_RET(__txn_parse_hex_raw(session, "prepare id", prepared_id, cval));
+    WT_RET(__wt_conf_parse_hex(session, "prepare id", prepared_id, cval));
     if (cval->len != 0 && *prepared_id == WT_PREPARED_ID_NONE)
         WT_RET_MSG(session, EINVAL, "illegal prepared id '%.*s': zero not permitted",
           (int)cval->len, cval->str);
@@ -460,7 +418,7 @@ set:
      * largest durable_timestamp so it moves forward whenever transactions are assigned timestamps).
      */
     if (has_durable) {
-        txn_global->durable_timestamp = durable_ts;
+        __wt_tsan_suppress_store_uint64(&txn_global->durable_timestamp, durable_ts);
         txn_global->has_durable_timestamp = true;
         WT_STAT_CONN_INCR(session, txn_set_ts_durable_upd);
         __wt_verbose_timestamp(session, durable_ts, "Updated global durable timestamp");
@@ -469,7 +427,7 @@ set:
     if (has_oldest &&
       (!__wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp) || force ||
         oldest_ts > txn_global->oldest_timestamp)) {
-        txn_global->oldest_timestamp = oldest_ts;
+        __wt_atomic_store_uint64_relaxed(&txn_global->oldest_timestamp, oldest_ts);
         WT_STAT_CONN_INCR(session, txn_set_ts_oldest_upd);
         __wt_atomic_store_bool_relaxed(&txn_global->has_oldest_timestamp, true);
         txn_global->oldest_is_pinned = false;
@@ -966,7 +924,7 @@ __wti_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
             return (EINVAL);
         }
     } else
-        txn_shared->read_timestamp = read_ts;
+        __wt_tsan_suppress_store_uint64(&txn_shared->read_timestamp, read_ts);
 
     F_SET(txn, WT_TXN_SHARED_TS_READ);
     __wt_readunlock(session, &txn_global->rwlock);

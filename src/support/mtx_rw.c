@@ -127,10 +127,10 @@ __wt_try_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
     WT_RWLOCK new, old;
     int64_t **stats;
 
-    WT_STAT_CONN_INCR(session, rwlock_read);
+    WT_STAT_CONN_INCR_ATOMIC(session, rwlock_read);
     if (l->stat_read_count_off != -1 && WT_STAT_ENABLED(session)) {
         stats = (int64_t **)S2C(session)->stats;
-        stats[session->stat_conn_bucket][l->stat_read_count_off]++;
+        __wt_atomic_add_int64_relaxed(&stats[session->stat_conn_bucket][l->stat_read_count_off], 1);
     }
 
     old.u.v = __wt_atomic_load_uint64_v_relaxed(&l->u.v);
@@ -183,7 +183,7 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
     uint8_t ticket;
     int pause_cnt;
 
-    WT_STAT_CONN_INCR(session, rwlock_read);
+    WT_STAT_CONN_INCR_ATOMIC(session, rwlock_read);
 
     WT_DIAGNOSTIC_YIELD;
 
@@ -255,12 +255,14 @@ stall:
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
 
         stats = (int64_t **)S2C(session)->stats;
-        stats[session->stat_conn_bucket][l->stat_read_count_off]++;
+        __wt_atomic_add_int64_relaxed(&stats[session->stat_conn_bucket][l->stat_read_count_off], 1);
         session_stats = (int64_t *)&(session->stats);
         if (F_ISSET(session, WT_SESSION_INTERNAL))
-            stats[session->stat_conn_bucket][l->stat_int_usecs_off] += (int64_t)time_diff;
+            __wt_atomic_add_int64_relaxed(
+              &stats[session->stat_conn_bucket][l->stat_int_usecs_off], (int64_t)time_diff);
         else {
-            stats[session->stat_conn_bucket][l->stat_app_usecs_off] += (int64_t)time_diff;
+            __wt_atomic_add_int64_relaxed(
+              &stats[session->stat_conn_bucket][l->stat_app_usecs_off], (int64_t)time_diff);
         }
 
         /*
@@ -268,7 +270,8 @@ stall:
          * initialized to determine whether they are enabled.
          */
         if (l->stat_session_usecs_off != -1)
-            session_stats[l->stat_session_usecs_off] += (int64_t)time_diff;
+            __wt_atomic_add_int64_relaxed(
+              &session_stats[l->stat_session_usecs_off], (int64_t)time_diff);
     }
 
     /*
@@ -329,10 +332,11 @@ __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
     WT_RWLOCK new, old;
     int64_t **stats;
 
-    WT_STAT_CONN_INCR(session, rwlock_write);
+    WT_STAT_CONN_INCR_ATOMIC(session, rwlock_write);
     if (l->stat_write_count_off != -1 && WT_STAT_ENABLED(session)) {
         stats = (int64_t **)S2C(session)->stats;
-        stats[session->stat_conn_bucket][l->stat_write_count_off]++;
+        __wt_atomic_add_int64_relaxed(
+          &stats[session->stat_conn_bucket][l->stat_write_count_off], 1);
     }
 
     /*
@@ -442,19 +446,23 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
 
         stats = (int64_t **)S2C(session)->stats;
-        stats[session->stat_conn_bucket][l->stat_write_count_off]++;
+        __wt_atomic_add_int64_relaxed(
+          &stats[session->stat_conn_bucket][l->stat_write_count_off], 1);
         session_stats = (int64_t *)&(session->stats);
         if (F_ISSET(session, WT_SESSION_INTERNAL))
-            stats[session->stat_conn_bucket][l->stat_int_usecs_off] += (int64_t)time_diff;
+            __wt_atomic_add_int64_relaxed(
+              &stats[session->stat_conn_bucket][l->stat_int_usecs_off], (int64_t)time_diff);
         else
-            stats[session->stat_conn_bucket][l->stat_app_usecs_off] += (int64_t)time_diff;
+            __wt_atomic_add_int64_relaxed(
+              &stats[session->stat_conn_bucket][l->stat_app_usecs_off], (int64_t)time_diff);
 
         /*
          * Not all read-write locks increment session statistics. Check whether the offset is
          * initialized to determine whether they are enabled.
          */
         if (l->stat_session_usecs_off != -1)
-            session_stats[l->stat_session_usecs_off] += (int64_t)time_diff;
+            __wt_atomic_add_int64_relaxed(
+              &session_stats[l->stat_session_usecs_off], (int64_t)time_diff);
     }
 
     /*
