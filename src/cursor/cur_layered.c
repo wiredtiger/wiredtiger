@@ -2055,8 +2055,8 @@ __clayered_modify_leader(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
  *     does the read/insert part of that work.
  */
 static int
-__clayered_modify_follower_insert(
-  WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, WT_MODIFY *entries, int nentries)
+__clayered_modify_follower_insert(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered,
+  const WT_ITEM *key, WT_MODIFY *entries, int nentries)
 {
     WT_CURSOR *ingest = clayered->ingest_cursor;
     WT_CURSOR *stable = clayered->stable_cursor;
@@ -2071,12 +2071,11 @@ __clayered_modify_follower_insert(
     /* Pull the base value out of the stable table. */
     stable->set_key(stable, key);
     WT_RET(stable->search(stable));
-    WT_RET(__cursor_needkey(stable));
-    WT_RET(__cursor_needvalue(stable));
 
     /* Insert that base value in the ingest table, then apply our modifications. */
-    ingest->set_key(ingest, &stable->key);
-    ingest->set_value(ingest, &stable->value);
+    WT_RET(__wt_buf_set(session, &ingest->key, stable->key.data, stable->key.size));
+    WT_RET(__wt_buf_set(session, &ingest->value, stable->value.data, stable->value.size));
+    F_SET(ingest, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
 
     /*
      * We use this instead of calling cursor->modify, since we just want to operate directly on the
@@ -2099,7 +2098,8 @@ __clayered_modify_follower_insert(
  *     Apply a modify on a follower node.
  */
 static int
-__clayered_modify_follower(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
+__clayered_modify_follower(
+  WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
     WT_DECL_RET;
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
@@ -2124,7 +2124,7 @@ __clayered_modify_follower(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
      */
     if (ret == WT_NOTFOUND)
         /*  We found nothing (not even a tombstone) in the ingest table. */
-        WT_RET(__clayered_modify_follower_insert(clayered, key, entries, nentries));
+        WT_RET(__clayered_modify_follower_insert(session, clayered, key, entries, nentries));
     else
         WT_RET(ingest->modify(ingest, entries, nentries));
 
@@ -2142,7 +2142,7 @@ __clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *en
     if (S2C(session)->layered_table_manager.leader)
         WT_RET(__clayered_modify_leader(cursor, entries, nentries));
     else
-        WT_RET(__clayered_modify_follower(cursor, entries, nentries));
+        WT_RET(__clayered_modify_follower(session, cursor, entries, nentries));
 
     return (0);
 }
