@@ -376,6 +376,6 @@ TEST_CASE("Cursor: bulk, non-bulk, checkpoint and drop combinations", "[cursor]"
 
     // multiple_drop_test("", 0, EINVAL, false, diagnostics);
     // multiple_drop_test("", 0, EINVAL, true, diagnostics);
-    // multiple_drop_test("bulk", EINVAL, 0, false, diagnostics);
+    multiple_drop_test("bulk", EINVAL, 0, false, diagnostics);
     multiple_drop_test("bulk", EINVAL, 0, true, diagnostics);
 }
