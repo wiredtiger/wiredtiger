@@ -38,7 +38,7 @@ target_include_directories(
 
 target_compile_options(
     wiredtiger_model
-    PUBLIC -std=c++17
+    PUBLIC -std=c++17 -Wnon-virtual-dtor
     PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 
