@@ -968,7 +968,7 @@ connection_runtime_config = [
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'conn_close_stress_log_printf', 'evict_reposition',
         'failpoint_eviction_split', 'failpoint_history_store_delete_key_from_ts',
-        'failpoint_rec_before_wrapup', 'failpoint_rec_split_write', 
+        'failpoint_rec_before_wrapup', 'failpoint_rec_split_write',
         'history_store_checkpoint_delay', 'history_store_search',
         'history_store_sweep_race', 'live_restore_clean_up', 'open_index_slow', 'prefetch_1',
         'prefetch_2', 'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay',
@@ -1717,6 +1717,10 @@ methods = {
                     type='boolean', undoc=True),
                 Config('raw_key_value', 'false', r'''
                     Return the key, value as raw data.
+                    ''',
+                    type='boolean', undoc=True),
+                Config('cross_key', 'false', r'''
+                    Allow version cursos to walk across keys while calling next().
                     ''',
                     type='boolean', undoc=True),
         ]),
