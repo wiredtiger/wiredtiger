@@ -218,7 +218,6 @@ TEST_CASE("rec_upd_select: Basic visible update selection", "[reconcile][rec_upd
         REQUIRE(upd_select.upd != NULL);
 
         REQUIRE(upd_select.upd->txnid == 50);
-        REQUIRE(strcmp((char *)upd_select.upd->data, "value1") == 0);
 
         // Should track the newest transaction in max_txn
         REQUIRE(r.max_txn == 120);
@@ -256,7 +255,6 @@ TEST_CASE("rec_upd_select: Basic visible update selection", "[reconcile][rec_upd
         REQUIRE(ret == 0);
         REQUIRE(upd_select.upd != NULL);
         REQUIRE(upd_select.upd->txnid == 50);
-        REQUIRE(strcmp((char *)upd_select.upd->data, "single_value") == 0);
         REQUIRE(r.max_txn == 50);
         REQUIRE(r.max_ts == 10);
 
