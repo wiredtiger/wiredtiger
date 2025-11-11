@@ -887,7 +887,7 @@ __rec_row_garbage_collect_eligible(WT_SESSION_IMPL *session, WTI_RECONCILE *r, W
          * stable table.
          */
         if (upd->prepare_state == WT_PREPARE_INPROGRESS &&
-          upd->upd_rollback_ts > r->rec_prune_timestamp)
+          (r->rec_prune_timestamp == WT_TS_NONE || upd->upd_rollback_ts > r->rec_prune_timestamp))
             return (false);
     }
 
