@@ -1096,11 +1096,6 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     session_txnid = __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->id);
     found_globally_visible_upd = false;
     for (upd = first_upd; upd != NULL; upd = upd->next) {
-        /*
-         * Reset write_prepare for each update in the chain. The decision to write an update as
-         * prepared depends on the specific state and timestamps of each individual update, so we
-         * need to reset the state for each update.
-         */
         txnid = __wt_atomic_load_uint64_v_acquire(&upd->txnid);
         if (txnid == WT_TXN_ABORTED) {
             continue;
@@ -1427,13 +1422,13 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
         if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
             return (0);
     }
-    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
-        WT_RET(__rec_upd_select(session, r, vpack, first_upd, upd_select, &first_txn_upd,
-          &has_newer_updates, &write_prepare, &upd_memsize));
-    else
+    is_inmem = F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY);
+    if (is_inmem)
         WT_RET(__rec_upd_select_inmem(session, r, vpack, first_upd, upd_select, &first_txn_upd,
           &has_newer_updates, &upd_memsize));
-
+    else
+        WT_RET(__rec_upd_select(session, r, vpack, first_upd, upd_select, &first_txn_upd,
+          &has_newer_updates, &write_prepare, &upd_memsize));
     /* Keep track of the selected update. */
     upd = upd_select->upd;
 
@@ -1590,7 +1585,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      * it is already on the update chain. If it is a prepared tombstone, the onpage value is already
      * appended to the update chain when the page is read into memory.
      */
-    if (upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
+    if ( !is_inmem && upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
       !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)) &&
       (upd_select->upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
         WT_RET(__rec_append_orig_value(
