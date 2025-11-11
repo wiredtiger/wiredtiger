@@ -185,7 +185,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
         WT_ERR_SUB(session, WT_ROLLBACK, WT_NONE,
           "rolling back version_cursor->next due to no initial position");
 
-    /* It's unsafe to access the page before checking the cursor's position */
+    /* It's unsafe to access the page before checking the cursor's position. */
     page = cbt->ref->page;
 
     if (!F_ISSET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED)) {

@@ -434,7 +434,6 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        # version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true))")
         version_cursor = self.open_version_cursor()
 
         version_cursor.set_key(1)
