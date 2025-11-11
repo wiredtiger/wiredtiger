@@ -1192,6 +1192,8 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
             break;
         }
     }
+    if (*first_txn_updp != NULL && *first_txn_updp != upd_select->upd)
+      *has_newer_updatesp = true;
     /*
      * If there's an on-page value, we only want to write upd_select if the oldest update is
      * globally visible, otherwise we will lose the on-page update. Check if there's an on-page
