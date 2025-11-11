@@ -477,7 +477,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
 
     if (visible_all)
         return (false);
-        
+
     /*
      * Update chains are only need to be saved when there are:
      * 1. Newer uncommitted updates or database is configured for in-memory storage.
@@ -1200,7 +1200,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
      * update and reset upd_select if the update is not visible.
      */
     if (vpack != NULL && vpack->type != WT_CELL_DEL && !found_globally_visible_upd) {
-        *has_newer_updatesp = (upd_select->upd != NULL);
+        *has_newer_updatesp |= (upd_select->upd != NULL);
         upd_select->upd = NULL;
     }
     /*
