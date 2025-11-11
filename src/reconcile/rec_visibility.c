@@ -469,6 +469,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
     /* When in checkpoint, no need to save update if no onpage value is selected. */
     if (F_ISSET(r, WT_REC_CHECKPOINT) && upd_select->upd == NULL)
         return (false);
+
     if (WT_TIME_WINDOW_HAS_STOP(&upd_select->tw))
         visible_all = __wt_txn_tw_stop_visible_all(session, &upd_select->tw);
     else
