@@ -1619,7 +1619,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      * it is already on the update chain. If it is a prepared tombstone, the onpage value is already
      * appended to the update chain when the page is read into memory.
      */
-    if (!is_inmem && upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
+    if (F_ISSET(r, WT_REC_HS) && upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
       !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)) &&
       (upd_select->upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
         WT_RET(__rec_append_orig_value(
