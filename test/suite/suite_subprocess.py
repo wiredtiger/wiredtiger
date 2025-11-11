@@ -239,7 +239,7 @@ class suite_subprocess:
         # If disagg, changee table and file URIs to layered
         if 'disagg' in self.hook_names:
             args = [
-                re.sub(r'''             # raw string with extended regex
+                re.sub(r'''             # Raw string with extended regex
                        ^                # Line beginning
                        (?:table|file):  # "table:" or "file:" prefix, non-capturing
                        (.*?)            # Non-greedy capture of the name
