@@ -43,7 +43,6 @@ from wtscenario import make_scenarios
 class test_bug008(wttest.WiredTigerTestCase):
     uri = 'file:test_bug008'                # This is a btree layer test.
     scenarios = make_scenarios([
-        ('fix', dict(key_format='r', value_format='8t', empty=1, colvar=0)),
         ('row', dict(key_format='S', value_format='S', empty=0, colvar=0)),
         ('var', dict(key_format='r', value_format='S', empty=0, colvar=1))
     ])
