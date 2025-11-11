@@ -412,6 +412,8 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
         return (true);
 
+    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
+        return (false);
     /*
      * We need to save the update chain to build the delta. Don't save the update chain if the
      * selected update is already durable.
@@ -740,11 +742,20 @@ __rec_calc_upd_memsize(WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, size_t upd_m
     return (upd_memsize);
 }
 
-/*
+/*!
  * __rec_upd_select --
- *     Select the update to write to disk image. @param write_prepare True if we should write the
- *     update as a prepared update (prepare timestamp is stable but durable timestamp is not), false
- *     to write as committed.
+ *     Select the update to write to disk image.
+ * @param session The session handle
+ * @param r Reconciliation state structure
+ * @param vpack Unpacked cell structure for on-page value (may be NULL if no on-page value)
+ * @param first_upd First update in the update chain to examine
+ * @param upd_select Output structure containing selected update and time window information
+ * @param first_txn_updp Output pointer to the first non-aborted transaction update found
+ * @param has_newer_updatesp Output flag indicating if newer updates exist that couldn't be selected
+ * @param write_prepare Output flag indicating if the selected update should be written as prepared
+ * in precise checkpoint. True if prepare timestamp is stable but durable timestamp is not, false to
+ * write as committed/rolled back.
+ * @param upd_memsizep Output accumulator for memory size of updates that aren't selected
  */
 static int
 __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *vpack,
@@ -1042,13 +1053,14 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
          * with read uncommitted isolation and we may see a committed update followed by uncommitted
          * updates
          */
-        if ((!F_ISSET(r, WT_REC_EVICT) || !WT_IS_METADATA(session->dhandle)))
+        if (!F_ISSET(r, WT_REC_EVICT) || !WT_IS_METADATA(session->dhandle))
             break;
     }
 
     /* The prepare rollback is stable. Delete the key by selecting the rollback tombstone. */
     if (upd_select->upd == NULL && prepare_rollback_tombstone != NULL)
         upd_select->upd = prepare_rollback_tombstone;
+
     /*
      * Track the most recent transaction in the page. We store this in the tree at the end of
      * reconciliation in the service of checkpoints, it is used to avoid discarding trees from
@@ -1064,19 +1076,21 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
     return (0);
 }
 
-/*
+/*!
  * __rec_upd_select_inmem --
  *     Select the update to write to disk image for in-memory btree. For in-memory btree, we select
  *     the first globally visible update in the update chain that is not a tombstone. If there is no
- *     stable update found, write the oldest committed update.
+ *     globally visible update found, write the oldest committed update.
  *
- * @param session The session handle. @param r Reconciliation state structure. @param vpack Unpacked
- *     cell structure for on-page value (may be NULL if no on-page value). @param first_upd First
- *     update in the update chain. @param upd_select Output structure containing selected update and
- *     time window information. @param first_txn_updp Output pointer to the first non-aborted
- *     transaction update found. @param has_newer_updatesp Output flag indicating if newer updates
- *     exist that couldn't be selected. @param upd_memsizep Output accumulator for memory size of
- *     updates that aren't selected.
+ * @param session The session handle
+ * @param r Reconciliation state structure
+ * @param vpack Unpacked cell structure for on-page value (may be NULL if no on-page value)
+ * @param first_upd First update in the update chain
+ * @param upd_select Output structure containing selected update and time window information
+ * @param first_txn_updp Output pointer to the first non-aborted transaction update found
+ * @param has_newer_updatesp Output flag indicating if newer updates exist that couldn't be
+ * selected
+ * @param upd_memsizep Output accumulator for memory size of updates that aren't selected
  */
 static int
 __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *vpack,
@@ -1085,8 +1099,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
 {
     WT_UPDATE *upd;
     wt_timestamp_t max_ts;
-    uint64_t max_txn, session_txnid, txnid;
-    uint8_t prepare_state;
+    uint64_t max_txn, session_txnid;
     bool found_globally_visible_upd;
     bool is_hs_page;
 
@@ -1095,18 +1108,18 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
     session_txnid = __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->id);
     found_globally_visible_upd = false;
+    /* Assert that we can only call reconciliation for in memory btree in eviction */
+    WT_ASSERT(session, WT_REC_EVICT | WT_REC_HS);
     for (upd = first_upd; upd != NULL; upd = upd->next) {
-        txnid = __wt_atomic_load_uint64_v_acquire(&upd->txnid);
-        if (txnid == WT_TXN_ABORTED) {
+        if (upd->txnid == WT_TXN_ABORTED)
             continue;
-        }
 
         /*
          * Give up if the update is from this transaction and on the metadata file or disaggregated
          * shared metadata file.
          */
         if ((WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) &&
-          session_txnid != WT_TXN_NONE && txnid == session_txnid)
+          session_txnid != WT_TXN_NONE && upd->txnid == session_txnid)
             return (__wt_set_return(session, EBUSY));
 
         /*
@@ -1120,7 +1133,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
          * Special handling for application threads evicting their own updates.
          */
         if (!is_hs_page && F_ISSET(r, WT_REC_APP_EVICTION_SNAPSHOT) &&
-          session_txnid != WT_TXN_NONE && txnid == session_txnid) {
+          session_txnid != WT_TXN_NONE && upd->txnid == session_txnid) {
             *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
             *has_newer_updatesp = true;
             continue;
@@ -1140,8 +1153,8 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
          * ok to undo the work of the previous reconciliations.
          */
         if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) && !is_hs_page &&
-          (F_ISSET(r, WT_REC_VISIBLE_NO_SNAPSHOT) ? r->rec_start_pinned_id <= txnid :
-                                                    !__txn_visible_id(session, txnid))) {
+          (F_ISSET(r, WT_REC_VISIBLE_NO_SNAPSHOT) ? r->rec_start_pinned_id <= upd->txnid :
+                                                    !__txn_visible_id(session, upd->txnid))) {
             /*
              * Rare case: metadata writes at read uncommitted isolation level, eviction may see a
              * committed update followed by uncommitted updates. Give up in that case because we
@@ -1157,17 +1170,19 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
             *has_newer_updatesp = true;
             continue;
         }
-        /* Always skip prepared updates */
-        prepare_state = __wt_atomic_load_uint8_v_acquire(&upd->prepare_state);
-
-        if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
+        /*
+         * Always skip prepared updates. Since we can only reach here in eviction, prepare state
+         * cannot be WT_PREPARE_LOCKED
+         */
+        WT_ASSERT(session, upd->prepare_state != WT_PREPARE_LOCKED);
+        if (upd->prepare_state == WT_PREPARE_INPROGRESS) {
             *has_newer_updatesp = true;
             continue;
         }
         upd_select->upd = upd;
 
-        if (max_txn < txnid)
-            max_txn = txnid;
+        if (max_txn < upd->txnid)
+            max_txn = upd->txnid;
         if (upd->upd_start_ts > max_ts)
             max_ts = upd->upd_start_ts;
         if (__wt_txn_upd_visible_all(session, upd)) {
@@ -1184,6 +1199,17 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
         *has_newer_updatesp = (upd_select->upd != NULL);
         upd_select->upd = NULL;
     }
+    /*
+     * Track the most recent transaction in the page. We store this in the tree at the end of
+     * reconciliation in the service of checkpoints, it is used to avoid discarding trees from
+     * memory when they have changes required to satisfy a snapshot read.
+     */
+    if (r->max_txn < max_txn)
+        r->max_txn = max_txn;
+
+    /* Update the maximum timestamp. */
+    if (max_ts > r->max_ts)
+        r->max_ts = max_ts;
     return (0);
 }
 
@@ -1396,7 +1422,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
     WT_PAGE *page;
     WT_UPDATE *first_txn_upd, *first_upd, *onpage_upd, *upd;
     size_t upd_memsize;
-    bool has_newer_updates, supd_restore, write_prepare;
+    bool has_newer_updates, supd_restore, write_prepare, is_inmem;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -1422,7 +1448,8 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
         if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
             return (0);
     }
-    is_inmem = F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY);
+    is_inmem =
+      F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY);
     if (is_inmem)
         WT_RET(__rec_upd_select_inmem(session, r, vpack, first_upd, upd_select, &first_txn_upd,
           &has_newer_updates, &upd_memsize));
@@ -1585,7 +1612,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      * it is already on the update chain. If it is a prepared tombstone, the onpage value is already
      * appended to the update chain when the page is read into memory.
      */
-    if ( !is_inmem && upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
+    if (!is_inmem && upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
       !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)) &&
       (upd_select->upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
         WT_RET(__rec_append_orig_value(
