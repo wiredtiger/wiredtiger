@@ -273,8 +273,8 @@
 #define SESSION_API_CALL_PREPARE_ALLOWED_NOCONF(s, func_name) \
     API_CALL_NOCONF(s, WT_SESSION, func_name, NULL, false)
 
-#define SESSION_API_CALL_PREPARE_NOT_ALLOWED(s, ret, func_name, config, cfg) \
-    API_CALL(s, WT_SESSION, func_name, NULL, config, cfg, false);            \
+#define SESSION_API_CALL_PREPARE_NOT_ALLOWED(s, ret, func_name, config, cfg, set_err) \
+    API_CALL(s, WT_SESSION, func_name, NULL, config, cfg, set_err);             \
     SESSION_API_PREPARE_CHECK(s, ret, WT_SESSION, func_name)
 
 #define SESSION_API_CALL_PREPARE_NOT_ALLOWED_NOCONF(s, ret, func_name) \
@@ -296,8 +296,8 @@
         }                                                                                        \
     } while (0)
 
-#define SESSION_API_CALL(s, ret, func_name, config, cfg)          \
-    API_CALL(s, WT_SESSION, func_name, NULL, config, cfg, false); \
+#define SESSION_API_CALL(s, ret, func_name, config, cfg, set_err) \
+    API_CALL(s, WT_SESSION, func_name, NULL, config, cfg, set_err); \
     SESSION_API_PREPARE_CHECK(s, ret, WT_SESSION, func_name)
 
 #define SESSION_API_CALL_NOCONF(s, func_name) API_CALL_NOCONF(s, WT_SESSION, func_name, NULL, false)

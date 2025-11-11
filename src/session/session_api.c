@@ -854,7 +854,7 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     hash_value = 0;
     dup_backup = false;
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, ret, open_cursor, config, cfg);
+    SESSION_API_CALL(session, ret, open_cursor, config, cfg, false);
 
 #ifdef HAVE_DIAGNOSTIC
     if (session->cursor_open_timer_running == false) {
@@ -1024,7 +1024,7 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, ret, alter, config, cfg);
+    SESSION_API_CALL(session, ret, alter, config, cfg, true);
     /*
      * We replace the default configuration listing with the current configuration. Otherwise the
      * defaults for values that can be altered would override settings used by the user in create.
@@ -1122,7 +1122,7 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
     session = (WT_SESSION_IMPL *)wt_session;
     is_import = session->import_list != NULL ||
       (__wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0);
-    SESSION_API_CALL(session, ret, create, config, cfg);
+    SESSION_API_CALL(session, ret, create, config, cfg, false);
     WT_UNUSED(cfg);
 
     /* Disallow objects in the WiredTiger name space. */
@@ -1197,7 +1197,7 @@ __session_log_flush(WT_SESSION *wt_session, const char *config)
     uint32_t flags;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, ret, log_flush, config, cfg);
+    SESSION_API_CALL(session, ret, log_flush, config, cfg, false);
     WT_STAT_CONN_INCR(session, log_flush);
 
     conn = S2C(session);
@@ -1349,7 +1349,7 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
     bool checkpoint_wait, lock_wait;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, ret, drop, config, cfg);
+    SESSION_API_CALL(session, ret, drop, config, cfg, true);
 
     /* Disallow objects in the WiredTiger name space. */
     WT_ERR(__wt_str_name_check(session, uri));
@@ -1445,7 +1445,7 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
 
-    SESSION_API_CALL(session, ret, salvage, config, cfg);
+    SESSION_API_CALL(session, ret, salvage, config, cfg, false);
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
@@ -1810,7 +1810,7 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, ret, verify, config, cfg);
+    SESSION_API_CALL(session, ret, verify, config, cfg, false);
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
     /* Block out checkpoints to avoid spurious EBUSY errors. */
@@ -1978,7 +1978,7 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, ret, prepare_transaction, config, cfg);
+    SESSION_API_CALL(session, ret, prepare_transaction, config, cfg, true);
     WT_STAT_CONN_INCR(session, txn_prepare);
     WT_STAT_CONN_INCR(session, txn_prepare_active);
 
@@ -2420,7 +2420,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
     WT_STAT_CONN_INCR(session, checkpoints_api);
-    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, ret, checkpoint, config, cfg);
+    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, ret, checkpoint, config, cfg, true);
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
