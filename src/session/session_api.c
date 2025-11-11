@@ -316,7 +316,7 @@ __session_close(WT_SESSION *wt_session, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
 
-    SESSION_API_CALL_PREPARE_ALLOWED(session, close, config, cfg);
+    SESSION_API_CALL_PREPARE_ALLOWED(session, close, config, cfg, false);
     WT_UNUSED(cfg);
 
     WT_TRET(__wt_session_close_internal(session));
@@ -1908,7 +1908,7 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
     txn = session->txn;
-    SESSION_API_CALL_PREPARE_ALLOWED(session, commit_transaction, config, cfg);
+    SESSION_API_CALL_PREPARE_ALLOWED(session, commit_transaction, config, cfg, false);
     WT_STAT_CONN_INCR(session, txn_commit);
 
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
@@ -2027,7 +2027,7 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
     WT_TXN *txn;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_PREPARE_ALLOWED(session, rollback_transaction, config, cfg);
+    SESSION_API_CALL_PREPARE_ALLOWED(session, rollback_transaction, config, cfg, false);
     WT_STAT_CONN_INCR(session, txn_rollback);
 
     txn = session->txn;
@@ -2094,9 +2094,9 @@ __session_timestamp_transaction(WT_SESSION *wt_session, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
 #ifdef HAVE_DIAGNOSTIC
-    SESSION_API_CALL_PREPARE_ALLOWED(session, timestamp_transaction, config, cfg);
+    SESSION_API_CALL_PREPARE_ALLOWED(session, timestamp_transaction, config, cfg, true);
 #else
-    SESSION_API_CALL_PREPARE_ALLOWED(session, timestamp_transaction, NULL, cfg);
+    SESSION_API_CALL_PREPARE_ALLOWED(session, timestamp_transaction, NULL, cfg, true);
     cfg[1] = config;
 #endif
 
@@ -2182,9 +2182,9 @@ __session_prepared_id_transaction(WT_SESSION *wt_session, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
 #ifdef HAVE_DIAGNOSTIC
-    SESSION_API_CALL_PREPARE_ALLOWED(session, prepared_id_transaction, config, cfg);
+    SESSION_API_CALL_PREPARE_ALLOWED(session, prepared_id_transaction, config, cfg, true);
 #else
-    SESSION_API_CALL_PREPARE_ALLOWED(session, prepared_id_transaction, NULL, cfg);
+    SESSION_API_CALL_PREPARE_ALLOWED(session, prepared_id_transaction, NULL, cfg, true);
     cfg[1] = config;
 #endif
 
@@ -2266,7 +2266,7 @@ __session_query_timestamp(WT_SESSION *wt_session, char *hex_timestamp, const cha
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_PREPARE_ALLOWED(session, query_timestamp, config, cfg);
+    SESSION_API_CALL_PREPARE_ALLOWED(session, query_timestamp, config, cfg, false);
 
     ret = __wt_txn_query_timestamp(session, hex_timestamp, cfg, false);
 err:

@@ -267,8 +267,8 @@
     s = (conn)->default_session;                                  \
     API_CALL_NOCONF_NOERRCLEAR(s, WT_CONNECTION, func_name, NULL, false)
 
-#define SESSION_API_CALL_PREPARE_ALLOWED(s, func_name, config, cfg) \
-    API_CALL(s, WT_SESSION, func_name, NULL, config, cfg, false)
+#define SESSION_API_CALL_PREPARE_ALLOWED(s, func_name, config, cfg, set_err) \
+    API_CALL(s, WT_SESSION, func_name, NULL, config, cfg, set_err)
 
 #define SESSION_API_CALL_PREPARE_ALLOWED_NOCONF(s, func_name) \
     API_CALL_NOCONF(s, WT_SESSION, func_name, NULL, false)
