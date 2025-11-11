@@ -788,7 +788,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                      * If we have seen a tombstone that rolled back the prepared update, delete the
                      * key from the disk.
                      */
-                    if (prepare_rollback_tombstone != NULL) // do we need to break here
+                    if (prepare_rollback_tombstone != NULL)
                         break;
                     continue;
                 }
@@ -1064,6 +1064,20 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
     return (0);
 }
 
+/*
+ * __rec_upd_select_inmem --
+ *     Select the update to write to disk image for in-memory btree. For in-memory btree, we select
+ *     the first globally visible update in the update chain that is not a tombstone. If there is no
+ *     stable update found, write the oldest committed update.
+ *
+ * @param session The session handle. @param r Reconciliation state structure. @param vpack Unpacked
+ *     cell structure for on-page value (may be NULL if no on-page value). @param first_upd First
+ *     update in the update chain. @param upd_select Output structure containing selected update and
+ *     time window information. @param first_txn_updp Output pointer to the first non-aborted
+ *     transaction update found. @param has_newer_updatesp Output flag indicating if newer updates
+ *     exist that couldn't be selected. @param upd_memsizep Output accumulator for memory size of
+ *     updates that aren't selected.
+ */
 static int
 __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *vpack,
   WT_UPDATE *first_upd, WTI_UPDATE_SELECT *upd_select, WT_UPDATE **first_txn_updp,
@@ -1148,10 +1162,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
             *has_newer_updatesp = true;
             continue;
         }
-        /*
-         * Only checkpoint should ever encounter resolving prepared transactions. If it does, then
-         * it needs to wait to see whether they should be included or not.
-         */
+        /* Always skip prepared updates */
         prepare_state = __wt_atomic_load_uint8_v_acquire(&upd->prepare_state);
 
         if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
@@ -1159,6 +1170,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
             continue;
         }
         upd_select->upd = upd;
+
         if (max_txn < txnid)
             max_txn = txnid;
         if (upd->upd_start_ts > max_ts)
