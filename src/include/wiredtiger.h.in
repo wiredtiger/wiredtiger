@@ -6392,8 +6392,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: eviction server candidate queue not empty when topping up */
 #define	WT_STAT_CONN_EVICTION_QUEUE_NOT_EMPTY		1131
 /*!
- * cache: eviction server push pages to queue failed because racing with
- * setting flag
+ * cache: eviction server push pages to queue failed because of racing
+ * with setting flag
  */
 #define	WT_STAT_CONN_EVICTION_SERVER_PUSH_PAGES_FAILED_WHEN_FLAGING	1132
 /*! cache: eviction server races with the reconfigure API call in disagg */
