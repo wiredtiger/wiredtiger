@@ -631,10 +631,11 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             if hasattr(config, '__call__'):
                 config = self.conn_config()
 
-            if 'internal_page_delta=true' in config or 'leaf_page_delta=true' in config:
-                self.pr('skipping verify due to delta pages being enabled')
-            else:
+            # Deltas are enabled by default so we must ensure they're explicitly disabled.
+            if 'internal_page_delta=false' in config and 'leaf_page_delta=false' in config:
                 self.verifyLayered()
+            else:
+                self.pr('skipping verify due to delta pages being enabled')
 
         try:
             self.platform_api.tearDown(self)
