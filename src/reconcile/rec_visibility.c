@@ -10,6 +10,8 @@
 #include "reconcile_private.h"
 #include "reconcile_inline.h"
 
+#define WT_REC_HAS_ON_DISK(vpack) (vpack != NULL && vpack->type)
+
 /*
  * __rec_update_save --
  *     Save a WT_UPDATE list for later restoration.
@@ -456,8 +458,8 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
 
     if (visible_all)
         return (false);
-    
-    if (vpack != NULL && vpack->type != WT_CELL_DEL)
+
+    if (WT_REC_HAS_ON_DISK(vpack))
         return (true);
 
     if (upd_select->upd != NULL) {
@@ -891,8 +893,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                     WT_ASSERT_ALWAYS(session,
                       !F_ISSET(r, WT_REC_EVICT) || prepare_rollback_tombstone != NULL ||
                         upd->next != NULL ||
-                        (vpack != NULL && vpack->type != WT_CELL_DEL &&
-                          !WT_TIME_WINDOW_HAS_PREPARE(&vpack->tw)),
+                        (WT_REC_HAS_ON_DISK(vpack) && !WT_TIME_WINDOW_HAS_PREPARE(&vpack->tw)),
                       "leaked prepared update.");
                 } else
                     WT_ASSERT(session, !*has_newer_updatesp);
@@ -1171,7 +1172,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
      * globally visible, otherwise we will lose the on-page update. Check if there's an on-page
      * update and reset upd_select if the update is not visible.
      */
-    if (vpack != NULL && vpack->type != WT_CELL_DEL && !found_last_upd_to_keep) {
+    if (WT_REC_HAS_ON_DISK(vpack) && !found_last_upd_to_keep) {
         *has_newer_updatesp |= (upd_select->upd != NULL);
         upd_select->upd = NULL;
     }
@@ -1318,8 +1319,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
             return (0);
         }
 
-        WT_ASSERT_ALWAYS(
-          session, vpack != NULL && vpack->type != WT_CELL_DEL, "No on-disk value is found");
+        WT_ASSERT_ALWAYS(session, WT_REC_HAS_ON_DISK(vpack), "No on-disk value is found");
 
         /* Move the pointer to the last update on the update chain. */
         for (last_upd = tombstone; last_upd->next != NULL; last_upd = last_upd->next)
