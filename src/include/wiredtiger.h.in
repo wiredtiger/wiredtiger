@@ -1086,7 +1086,9 @@ struct __wt_session {
      * Alter a table.
      *
      * This will allow modification of some table settings after
-     * creation. Although the alter operation is non-transactional, if it fails, it will force the current transaction to roll back to avoid potential disruption to the data written by the transaction.
+     * creation. Although the alter operation is non-transactional, if it fails, it will force the
+     * current transaction to roll back to avoid potential disruption to the data written by the
+     * transaction.
      *
      * @exclusive
      *
@@ -1414,7 +1416,9 @@ struct __wt_session {
     /*!
      * Drop (delete) a table.
      *
-     * Although the drop operation is non-transactional, if it fails, it will force the current transaction to roll back to avoid potential disruption to the data written by the transaction.
+     * Although the drop operation is non-transactional, if it fails, it will force the current
+     * transaction to roll back to avoid potential disruption to the data written by the
+     * transaction.
      *
      * @exclusive
      *
