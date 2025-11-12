@@ -1068,11 +1068,8 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
             if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
                 continue;
 
-            if (upd->prepare_state != WT_PREPARE_INPROGRESS)
-                continue;
-
-            if (r->rec_prune_timestamp == WT_TS_NONE ||
-              upd->upd_rollback_ts > r->rec_prune_timestamp)
+            if (upd->prepare_state == WT_PREPARE_INPROGRESS &&
+              !WT_REC_CAN_PRUNE_UPD(upd->txnid, upd->upd_rollback_ts, r))
                 *has_newer_updatesp = true;
 
             continue;

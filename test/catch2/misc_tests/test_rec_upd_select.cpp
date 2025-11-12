@@ -156,9 +156,16 @@ struct RecUpdSelectFixture {
         WT_TXN_SHARED *txn_shared_list;
         REQUIRE(__wt_calloc(session, 1, sizeof(WT_TXN_SHARED), &txn_shared_list) == 0);
         S2C(session)->txn_global.txn_shared_list = txn_shared_list;
-        // Allocate and set up transaction structure
+        /* Allocate and set up transaction structure */
         REQUIRE(__wt_calloc(session, 1, sizeof(WT_TXN), &session->txn) == 0);
         REQUIRE(__wt_calloc(session, 1, sizeof(WT_PAGE), &page) == 0);
+    }
+
+    ~RecUpdSelectFixture()
+    {
+        __wt_free(session, page);
+        __wt_free(session, session->txn);
+        __wt_free(session, S2C(session)->txn_global.txn_shared_list);
     }
 
     std::shared_ptr<mock_session> mock;
@@ -177,10 +184,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Basic visible update sele
 
     F_SET(S2C(session), WT_CONN_IN_MEMORY);
     F_CLR(session->dhandle, WT_DHANDLE_HS);
-    // Create a simple page for the reconciliation context
-    WT_PAGE *page;
-    if (__wt_calloc(session, 1, sizeof(WT_PAGE), &page) != 0)
-        return;
+
     page->type = WT_PAGE_ROW_LEAF;
 
     // Setup reconciliation context with pinned transaction ID 120
@@ -265,11 +269,6 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Basic visible update sele
         // Cleanup
         cleanup_test_data(session, ins);
     }
-
-    // Cleanup page, transaction, and transaction shared list
-    __wt_free(session, page);
-    __wt_free(session, session->txn);
-    __wt_free(session, S2C(session)->txn_global.txn_shared_list);
 }
 
 TEST_CASE("rec_upd_select: Precise timestamp", "[reconcile][rec_upd_select]") {}
