@@ -391,4 +391,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Skip writing aborted and 
         REQUIRE(r.max_ts == 40);
     }
     cleanup_test_data(session, ins);
+    /*  clean up saved update */
+    if (r.supd)
+        __wt_free(session, r.supd);
 }
