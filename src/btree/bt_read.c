@@ -252,7 +252,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
     /*
      * After reading the page from disk, construct a full disk image. This is currently performed
-     * only for internal pages that have more than one delta.
+     * only for internal pages that has delta.
      */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && count > 1) {
         size_t new_image_buf_size;
@@ -264,8 +264,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
         WT_ERR(__wt_buf_init(session, &new_image, new_image_buf_size));
 
-        ret = __wti_build_full_disk_image_on_read(
-          session, ref, deltas, count - 1, &new_image, tmp[0].data);
+        WT_ERR(__wti_build_full_disk_image_on_read(
+          session, ref, deltas, count - 1, &new_image, tmp[0].data));
 
         build_full_disk_image_from_deltas = true;
         WT_PAGE_HEADER *tmp_header = (WT_PAGE_HEADER *)new_image.data;
@@ -388,6 +388,7 @@ err:
         __wt_free(session, tmp);
     }
 
+    __wt_buf_free(session, &new_image);
     __wt_buf_free(session, &new_image_copy);
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, previous_state);

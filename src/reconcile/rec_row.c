@@ -84,68 +84,49 @@ __rec_cell_build_int_key(WT_SESSION_IMPL *session,
 
 /*
  * __wt_rec_pack_internal_key_addr --
- *     Pack a key/value pair (internal page address or delta) directly into new_image without
- *     modifying the page header. Caller is responsible for initializing and updating the header.
+ *     Pack a key/value pair (internal page address or delta) directly into new_image.
  */
 int
-__wt_rec_pack_internal_key_addr(WT_SESSION_IMPL *session, WT_ITEM *new_image, void *key_entry,
-  void *val_entry, bool is_delta, uint8_t **pp)
+__wt_rec_pack_internal_key_addr(WT_SESSION_IMPL *session, WT_ITEM *new_image,
+  WT_CELL_UNPACK_ADDR *base_key, WT_CELL_UNPACK_ADDR *base_val, WT_CELL_UNPACK_DELTA_INT *delta,
+  bool is_delta, uint8_t **pp)
 {
     WTI_REC_KV key_kv, val_kv;
-    WT_CELL_UNPACK_DELTA_INT *delta;
-    WT_CELL_UNPACK_ADDR *base_key;
+    WT_PAGE_DELETED *page_del = NULL;
     size_t packed_size;
 
     WT_CLEAR(key_kv);
     WT_CLEAR(val_kv);
 
     /*
-     * Handle key.
-     * For both base and delta, the key data and size fields are available:
-     *   - WT_CELL_UNPACK_ADDR:    .data, .size
-     *   - WT_CELL_UNPACK_DELTA_INT: .key.data, .key.size
+     * Build packed key.
      */
-    const void *key_data;
-    size_t key_size;
-
     if (is_delta) {
-        delta = key_entry;
-        key_data = delta->key.data;
-        key_size = delta->key.size;
+        WT_ASSERT(session, delta != NULL);
+        WT_RET(__rec_cell_build_int_key(session, NULL, &key_kv, delta->key.data, delta->key.size));
     } else {
-        base_key = key_entry;
-        key_data = base_key->data;
-        key_size = base_key->size;
+        WT_ASSERT(session, base_key != NULL);
+        WT_RET(__rec_cell_build_int_key(session, NULL, &key_kv, base_key->data, base_key->size));
     }
-
-    /* Build packed internal key */
-    WT_RET(__rec_cell_build_int_key(session, NULL, &key_kv, key_data, key_size));
 
     /* Build value (address or delta-value) */
     if (is_delta) {
-        WT_CELL_UNPACK_DELTA_INT *delta_t = NULL;
-        delta_t = key_entry;
-        val_kv.buf.data = delta_t->value.data;
-        val_kv.buf.size = delta_t->value.size;
-
+        WT_ASSERT(session, delta != NULL);
+        val_kv.buf.data = delta->value.data;
+        val_kv.buf.size = delta->value.size;
         /*
          * Retrieve the page deleted information from the unpacked cell if the cell type is
          * WT_CELL_ADDR_DEL.
          */
-        WT_PAGE_DELETED *page_del;
-        page_del = delta_t->value.type == WT_CELL_ADDR_DEL ? &delta_t->value.page_del : NULL;
-
-        __wti_cell_build_addr_custom(session, &val_kv, delta_t->value.type, WT_RECNO_OOB, page_del,
-          &delta_t->value.ta, val_kv.buf.size);
+        page_del = (delta->value.type == WT_CELL_ADDR_DEL) ? &delta->value.page_del : NULL;
+        __wti_cell_build_addr_custom(session, &val_kv, delta->value.type, WT_RECNO_OOB, page_del,
+          &delta->value.ta, val_kv.buf.size);
     } else {
-        WT_CELL_UNPACK_ADDR *base_val = NULL;
-        base_val = val_entry;
+        WT_ASSERT(session, base_val != NULL);
         val_kv.buf.data = base_val->data;
         val_kv.buf.size = base_val->size;
 
-        WT_PAGE_DELETED *page_del;
-        page_del = base_val->type == WT_CELL_ADDR_DEL ? &base_val->page_del : NULL;
-
+        page_del = (base_val->type == WT_CELL_ADDR_DEL) ? &base_val->page_del : NULL;
         __wti_cell_build_addr_custom(
           session, &val_kv, base_val->type, WT_RECNO_OOB, page_del, &base_val->ta, val_kv.buf.size);
     }

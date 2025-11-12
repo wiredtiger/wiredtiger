@@ -488,9 +488,14 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
                 if (row_leaf_page) {
                     /* Pack row-leaf base key/value. */
                 } else if (row_internal_page) {
-                    /* Pack internal base key/value. */
+                    /*
+                     * Pack internal base key/value.
+                     * For a base entry, we pass:
+                     *   key_entry = &base[i]
+                     *   val_entry = &base[i + 1]
+                     */
                     WT_RET(__wt_rec_pack_internal_key_addr(
-                      session, new_image, &base[i], &base[i + 1], false, &p_ptr));
+                      session, new_image, &base[i], &base[i + 1], NULL, false, &p_ptr));
 
                     entry_count += 2;   /* key + value cells */
                     final_entries += 1; /* one ref (child) emitted */
@@ -500,9 +505,15 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
                 if (row_leaf_page) {
                     /* Pack row-leaf delta entry. */
                 } else if (row_internal_page && !__wt_delta_cell_type_visible_all(min_delta)) {
-                    /* Pack internal delta entry. */
+                    /*
+                     * Pack internal delta entry.
+                     * For a delta entry, both key and value are within the same structure.
+                     * So we pass:
+                     *   key_entry = min_delta
+                     *   val_entry = min_delta
+                     */
                     WT_RET(__wt_rec_pack_internal_key_addr(
-                      session, new_image, min_delta, min_delta, true, &p_ptr));
+                      session, new_image, NULL, NULL, min_delta, true, &p_ptr));
                     entry_count += 2;   /* key + value */
                     final_entries += 1; /* one ref (child) emitted */
                 }
@@ -516,8 +527,7 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
     }
 
     if (build_disk) {
-        /* Finalize header once after all appends -- recompute hdr from
-         * the (potentially moved) new_image->data and initialize it now. */
+        /* Finalize header once after all appends. */
         hdr = (WT_PAGE_HEADER *)new_image->data;
         memset(hdr, 0, sizeof(WT_PAGE_HEADER));
         hdr->u.entries = entry_count;
