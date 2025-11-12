@@ -382,7 +382,7 @@ __rec_save_delete_hs_upd_and_free_obs_updates(WT_SESSION_IMPL *session, WTI_RECO
  */
 static WT_INLINE bool
 __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELECT *upd_select,
-  WT_CELL_UNPACK_KV *vpack, bool has_newer_updates, bool supd_restore)
+  WT_CELL_UNPACK_KV *vpack, bool supd_restore)
 {
     WT_UPDATE *upd;
     bool visible_all;
@@ -1582,7 +1582,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      *
      * Additionally history store reconciliation is not set skip saving an update.
      */
-    if (__rec_need_save_upd(session, r, upd_select, vpack, has_newer_updates, supd_restore)) {
+    if (__rec_need_save_upd(session, r, upd_select, vpack, supd_restore)) {
         upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
         WT_RET(__rec_update_save(session, r, ins, rip, onpage_upd, upd_select->tombstone,
           &upd_select->tw, supd_restore, upd_memsize));
