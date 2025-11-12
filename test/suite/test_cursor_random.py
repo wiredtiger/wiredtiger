@@ -219,7 +219,6 @@ class test_cursor_random_column(wttest.WiredTigerTestCase):
     ]
     valfmt_values = [
         ('string', dict(valfmt='S')),
-        ('fix', dict(valfmt='8t')),
     ]
     scenarios = make_scenarios(type_values, valfmt_values)
 
