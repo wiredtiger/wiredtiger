@@ -1178,7 +1178,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
         if (r->rec_prune_timestamp != WT_TS_NONE && upd->txnid < r->rec_start_oldest_id &&
           upd->upd_durable_ts <= r->rec_prune_timestamp) {
             first_pruned_update = upd;
-            found_last_upd_to_keep = upd_select != NULL;
+            found_last_upd_to_keep = upd_select->upd != NULL;
             /* Mark we are making progress. */
             r->update_used = true;
             break;
