@@ -101,8 +101,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
     conn = S2C(session);
 
     WT_ASSERT_ALWAYS(session,
-      upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL &&
-        !WT_TIME_WINDOW_HAS_PREPARE(&(unpack->tw)),
+      upd != NULL && WT_REC_HAS_ON_DISK(unpack) && !WT_TIME_WINDOW_HAS_PREPARE(&(unpack->tw)),
       "__rec_append_orig_value requires an onpage, non-prepared update");
 
     append = tombstone = NULL;
