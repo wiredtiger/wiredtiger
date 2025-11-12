@@ -369,7 +369,6 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Skip writing aborted and 
         /* Should skip all prepared and aborted update, select the standard update */
         check_update(upd_select.upd, &updates[2]);
 
-        // Should track the newest transaction in max_txn
         REQUIRE(r.max_txn == 120);
         REQUIRE(r.max_ts == 40);
     }

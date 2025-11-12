@@ -1155,6 +1155,17 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     }
 
     if (*first_txn_updp != NULL) {
+        /*
+         * If the first non-aborted update exists:
+         * 1. If there's an update selected to write to disk:
+         *  - has_newer_updates would be true if the selected update is not the first non-aborted
+         * update we see
+         * 2. If there's no update selected to write to disk:
+         * - If first_pruned_update is not NULL - has_newer_update would be true if first_txn_upd is
+         * not pruned
+         * - If first_pruned_update is NULL - has_newer_update must be true because first_txn_upd is
+         * not saved to disk nor pruned
+         */
         if (upd_select->upd != NULL) {
             if (*first_txn_updp != upd_select->upd)
                 *has_newer_updatesp = true;
