@@ -442,6 +442,10 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
     if (upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE)
         return (false);
 
+    /* Don't save updates for any reconciliation that doesn't involve history store. */
+    if (!F_ISSET(r, WT_REC_HS))
+        return (false);
+
     /* When in checkpoint, no need to save update if no onpage value is selected. */
     if (F_ISSET(r, WT_REC_CHECKPOINT) && upd_select->upd == NULL)
         return (false);
