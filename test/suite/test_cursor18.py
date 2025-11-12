@@ -588,22 +588,14 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(1))
 
         version_cursor = self.open_version_cursor()
-        try:
-            err_code = version_cursor.next()
-        except wiredtiger.WiredTigerError as e:
-            if wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK) in str(e):
-                err_code = wiredtiger.WT_ROLLBACK
-            else:
-                raise e
 
         if not self.cross_key_config:
-            self.assertEqual(err_code, wiredtiger.WT_ROLLBACK)
-            return
-
-        # Cross-key version cursors are allowed to iterate from the unpositioned state.
-        self.assertEqual(err_code, 0)
-        self.assertEqual(version_cursor.get_key(), 1)
-        self.verify_value(version_cursor, 1, 1, WT_TS_MAX, 0, 3, 0, 0, 0, 0)
+            self.assertRaises(wiredtiger.WiredTigerError, lambda: version_cursor.next())
+        else:
+            # Cross-key version cursors are allowed to iterate from the unpositioned state.
+            self.assertEqual(version_cursor.next(), 0)
+            self.assertEqual(version_cursor.get_key(), 1)
+            self.verify_value(version_cursor, 1, 1, WT_TS_MAX, 0, 3, 0, 0, 0, 0)
 
     def test_multiple_keys(self):
         self.create()
