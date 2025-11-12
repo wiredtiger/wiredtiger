@@ -1099,10 +1099,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
 
             continue;
         }
-        /*
-         * Give up if the update is from this transaction and on the metadata file or disaggregated
-         * shared metadata file.
-         */
+        /* Give up if the update is from this transaction and on the metadata file. */
         if (WT_IS_METADATA(session->dhandle) && session_txnid != WT_TXN_NONE &&
           upd->txnid == session_txnid)
             return (__wt_set_return(session, EBUSY));

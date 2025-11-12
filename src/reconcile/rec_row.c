@@ -860,11 +860,11 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 }
 
 /*
- * __rec_row_garbage_collect_tw_elegible --
+ * __rec_row_garbage_collect_tw_eligible --
  *     Check if the time window is eligible for garbage collection.
  */
 static WT_INLINE bool
-__rec_row_garbage_collect_tw_elegible(WTI_RECONCILE *r, WT_TIME_WINDOW *twp)
+__rec_row_garbage_collect_tw_eligible(WTI_RECONCILE *r, WT_TIME_WINDOW *twp)
 {
     if (WT_TIME_WINDOW_HAS_STOP(twp)) {
         if (r->rec_prune_timestamp != WT_TS_NONE && twp->stop_txn < r->rec_start_oldest_id &&
@@ -1178,7 +1178,7 @@ __wti_rec_row_leaf(
                 upd = &upd_tombstone;
                 r->key_removed_from_disk_image = true;
             } else if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
-              __rec_row_garbage_collect_tw_elegible(r, twp)) {
+              __rec_row_garbage_collect_tw_eligible(r, twp)) {
                 upd = &upd_tombstone;
                 r->key_removed_from_disk_image = true;
                 WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);
