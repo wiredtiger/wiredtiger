@@ -393,7 +393,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
     if (WT_TIME_WINDOW_HAS_PREPARE(&(upd_select->tw)))
         return (true);
 
-    if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
+    if (supd_restore)
         return (true);
 
     if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
@@ -442,14 +442,6 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
     if (upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE)
         return (false);
 
-    /*
-     * Don't save updates for any reconciliation that doesn't involve history store (in-memory
-     * database, metadata, and history store reconciliation itself), except when the selected stop
-     * time point or the selected start time point is not globally visible for in memory database.
-     */
-    if (!F_ISSET(r, WT_REC_HS) && !F_ISSET(r, WT_REC_IN_MEMORY))
-        return (false);
-
     /* When in checkpoint, no need to save update if no onpage value is selected. */
     if (F_ISSET(r, WT_REC_CHECKPOINT) && upd_select->upd == NULL)
         return (false);
@@ -462,7 +454,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
     if (visible_all)
         return (false);
 
-    if (!supd_restore && vpack == NULL && upd_select->upd != NULL) {
+    if (vpack == NULL && upd_select->upd != NULL) {
         upd = upd_select->upd;
         while (upd->next != NULL) {
             upd = upd->next;
@@ -1441,7 +1433,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
     WT_PAGE *page;
     WT_UPDATE *first_txn_upd, *first_upd, *onpage_upd, *upd;
     size_t upd_memsize;
-    bool has_newer_updates, supd_restore, write_prepare, is_inmem;
+    bool has_newer_updates, write_prepare, is_inmem;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -1452,7 +1444,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
     page = r->page;
     first_txn_upd = onpage_upd = upd = NULL;
     upd_memsize = 0;
-    has_newer_updates = supd_restore = false;
+    has_newer_updates = false;
 
     /*
      * If called with a WT_INSERT item, use its WT_UPDATE list (which must exist), otherwise check
@@ -1577,7 +1569,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      * We should restore the update chains to the new disk image if there are newer updates in
      * eviction.
      */
-    supd_restore = F_ISSET(r, WT_REC_EVICT) && has_newer_updates;
+    bool supd_restore = F_ISSET(r, WT_REC_EVICT) && has_newer_updates;
 
     /*
      * The update doesn't have any further updates that need to be written to the history store,
