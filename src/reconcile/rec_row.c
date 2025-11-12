@@ -867,11 +867,11 @@ static WT_INLINE bool
 __rec_row_garbage_collect_tw_elegible(WTI_RECONCILE *r, WT_TIME_WINDOW *twp)
 {
     if (WT_TIME_WINDOW_HAS_STOP(twp)) {
-        if (twp->stop_txn < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
+        if (r->rec_prune_timestamp != WT_TS_NONE && twp->stop_txn < r->rec_start_oldest_id &&
           twp->durable_stop_ts <= r->rec_prune_timestamp)
             return (true);
     } else {
-        if (twp->start_txn < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
+        if (r->rec_prune_timestamp != WT_TS_NONE && twp->start_txn < r->rec_start_oldest_id &&
           twp->durable_start_ts <= r->rec_prune_timestamp)
             return (true);
     }
@@ -1244,8 +1244,7 @@ __wti_rec_row_leaf(
             WT_ASSERT(session,
               F_ISSET(upd, WT_UPDATE_DS) || !F_ISSET(r, WT_REC_HS) ||
                 __wt_txn_tw_start_visible_all(session, twp) ||
-                (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
-                  twp->start_txn < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
+                (r->rec_prune_timestamp != WT_TS_NONE && twp->start_txn < r->rec_start_oldest_id &&
                   twp->durable_start_ts <= r->rec_prune_timestamp));
 
             /* The first time we find an overflow record, discard the underlying blocks. */

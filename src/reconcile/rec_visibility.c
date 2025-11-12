@@ -362,7 +362,7 @@ __rec_save_delete_hs_upd_and_free_obs_updates(WT_SESSION_IMPL *session, WTI_RECO
         if (F_ISSET(r, WT_REC_CHECKPOINT) && visible_all_upd == NULL && delete_upd->next != NULL &&
           WT_UPDATE_DATA_VALUE(delete_upd) &&
           (__wt_txn_upd_visible_all(session, delete_upd) ||
-            (delete_upd->txnid < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
+            (r->rec_prune_timestamp != WT_TS_NONE && delete_upd->txnid < r->rec_start_oldest_id &&
               delete_upd->upd_durable_ts <= r->rec_prune_timestamp)))
             visible_all_upd = delete_upd;
     }
@@ -1175,7 +1175,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
         if (upd->upd_start_ts > max_ts)
             max_ts = upd->upd_start_ts;
 
-        if (upd->txnid < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
+        if (r->rec_prune_timestamp != WT_TS_NONE && upd->txnid < r->rec_start_oldest_id &&
           upd->upd_durable_ts <= r->rec_prune_timestamp) {
             first_pruned_update = upd;
             found_last_upd_to_keep = upd_select != NULL;
@@ -1225,7 +1225,8 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     if (max_ts > r->max_ts)
         r->max_ts = max_ts;
 
-    if (!*has_newer_updatesp && upd_select->upd == NULL)
+    if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT) && !*has_newer_updatesp &&
+      upd_select->upd == NULL)
         WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_update_chain);
 
     return (0);
