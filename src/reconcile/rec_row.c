@@ -867,14 +867,10 @@ static WT_INLINE bool
 __rec_row_garbage_collect_tw_eligible(WTI_RECONCILE *r, WT_TIME_WINDOW *twp)
 {
     if (WT_TIME_WINDOW_HAS_STOP(twp)) {
-        if (r->rec_prune_timestamp != WT_TS_NONE && twp->stop_txn < r->rec_start_oldest_id &&
-          twp->durable_stop_ts <= r->rec_prune_timestamp)
+        if (WT_REC_CAN_PRUNE_UPD(twp->stop_txn, twp->durable_stop_ts, r))
             return (true);
-    } else {
-        if (r->rec_prune_timestamp != WT_TS_NONE && twp->start_txn < r->rec_start_oldest_id &&
-          twp->durable_start_ts <= r->rec_prune_timestamp)
-            return (true);
-    }
+    } else if (WT_REC_CAN_PRUNE_UPD(twp->start_txn, twp->durable_start_ts, r))
+        return (true);
 
     return (false);
 }
@@ -1244,8 +1240,7 @@ __wti_rec_row_leaf(
             WT_ASSERT(session,
               F_ISSET(upd, WT_UPDATE_DS) || !F_ISSET(r, WT_REC_HS) ||
                 __wt_txn_tw_start_visible_all(session, twp) ||
-                (r->rec_prune_timestamp != WT_TS_NONE && twp->start_txn < r->rec_start_oldest_id &&
-                  twp->durable_start_ts <= r->rec_prune_timestamp));
+                WT_REC_CAN_PRUNE_UPD(twp->start_txn, twp->durable_start_ts, r));
 
             /* The first time we find an overflow record, discard the underlying blocks. */
             if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)

@@ -362,8 +362,7 @@ __rec_save_delete_hs_upd_and_free_obs_updates(WT_SESSION_IMPL *session, WTI_RECO
         if (F_ISSET(r, WT_REC_CHECKPOINT) && visible_all_upd == NULL && delete_upd->next != NULL &&
           WT_UPDATE_DATA_VALUE(delete_upd) &&
           (__wt_txn_upd_visible_all(session, delete_upd) ||
-            (r->rec_prune_timestamp != WT_TS_NONE && delete_upd->txnid < r->rec_start_oldest_id &&
-              delete_upd->upd_durable_ts <= r->rec_prune_timestamp)))
+            WT_REC_CAN_PRUNE_UPD(delete_upd->txnid, delete_upd->upd_durable_ts, r)))
             visible_all_upd = delete_upd;
     }
 
@@ -714,20 +713,9 @@ __rec_calc_upd_memsize(WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, size_t upd_m
     return (upd_memsize);
 }
 
-/*!
+/*
  * __rec_upd_select --
  *     Select the update to write to disk image.
- * @param session The session handle
- * @param r Reconciliation state structure
- * @param vpack Unpacked cell structure for on-page value (may be NULL if no on-page value)
- * @param first_upd First update in the update chain to examine
- * @param upd_select Output structure containing selected update and time window information
- * @param first_txn_updp Output pointer to the first non-aborted transaction update found
- * @param has_newer_updatesp Output flag indicating if newer updates exist that couldn't be selected
- * @param write_prepare Output flag indicating if the selected update should be written as prepared
- * in precise checkpoint. True if prepare timestamp is stable but durable timestamp is not, false to
- * write as committed/rolled back.
- * @param upd_memsizep Output accumulator for memory size of updates that aren't selected
  */
 static int
 __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *vpack,
@@ -1048,21 +1036,11 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
     return (0);
 }
 
-/*!
+/*
  * __rec_upd_select_inmem --
  *     Select the update to write to disk image for in-memory btree. For in-memory btree, we select
  *     the first globally visible update in the update chain that is not a tombstone. If there is no
  *     globally visible update found, write the oldest committed update.
- *
- * @param session The session handle
- * @param r Reconciliation state structure
- * @param vpack Unpacked cell structure for on-page value (may be NULL if no on-page value)
- * @param first_upd First update in the update chain
- * @param upd_select Output structure containing selected update and time window information
- * @param first_txn_updp Output pointer to the first non-aborted transaction update found
- * @param has_newer_updatesp Output flag indicating if newer updates exist that couldn't be
- * selected
- * @param upd_memsizep Output accumulator for memory size of updates that aren't selected
  */
 static int
 __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *vpack,
@@ -1117,9 +1095,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
         /*
          * Check whether the update was committed before reconciliation started. The global commit
          * point can move forward during reconciliation so we use a cached copy to avoid races when
-         * a concurrent transaction commits or rolls back while we are examining its updates. This
-         * check is not required for history store updates as they are implicitly committed. As
-         * prepared transaction IDs are globally visible, need to check the update state as well.
+         * a concurrent transaction commits or rolls back while we are examining its updates.
          *
          * There are several cases we should select the update irrespective of visibility. See the
          * detailed scenarios in the definition of WT_UPDATE_SELECT_FOR_DS.
@@ -1161,17 +1137,15 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
         if (upd->upd_start_ts > max_ts)
             max_ts = upd->upd_start_ts;
 
-        if (r->rec_prune_timestamp != WT_TS_NONE && upd->txnid < r->rec_start_oldest_id &&
-          upd->upd_durable_ts <= r->rec_prune_timestamp) {
+        if (WT_REC_CAN_PRUNE_UPD(upd->txnid, upd->upd_durable_ts, r)) {
             first_pruned_update = upd;
             found_last_upd_to_keep = upd_select->upd != NULL;
-            /* Mark we are making progress. */
+            /* Mark we are making progress for eviction so eviction doesn't stall. */
             r->update_used = true;
             break;
         }
 
         upd_select->upd = upd;
-
         if (__wt_txn_upd_visible_all(session, upd)) {
             found_last_upd_to_keep = true;
             break;

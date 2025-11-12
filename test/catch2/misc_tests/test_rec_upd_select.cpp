@@ -171,7 +171,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Basic visible update sele
 {
     // Set up transaction with snapshot for visibility checks
     F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
-    session->txn->snapshot_data.snap_max = 200; // Set max snapshot transaction ID > our test txns
+    session->txn->snapshot_data.snap_max = 200; // Set max snapshot transaction ID > our test txn
     session->txn->id = 120;
     session->txn->isolation = WT_ISO_SNAPSHOT; // Use snapshot isolation
 

@@ -481,7 +481,12 @@ struct __wti_update_select {
       (r)->multi_next == 0 &&                                                             \
       !F_ISSET_ATOMIC_16(r->ref->page, WT_PAGE_REC_FAIL | WT_PAGE_INTL_PINDEX_UPDATE) &&  \
       WT_REC_RESULT_SINGLE_PAGE((session), (r))
-
+/*
+ * Macro to check if an update's transaction ID and timestamp is obsolete and can be pruned.
+ */
+#define WT_REC_CAN_PRUNE_UPD(txnid, timestamp, r)                                    \
+    ((r)->rec_prune_timestamp != WT_TS_NONE && (txnid) < (r)->rec_start_oldest_id && \
+      (timestamp) <= r->rec_prune_timestamp)
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern int __wti_ovfl_reuse_add(WT_SESSION_IMPL *session, WT_PAGE *page, const uint8_t *addr,
