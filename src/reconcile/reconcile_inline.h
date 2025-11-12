@@ -397,7 +397,7 @@ __wti_rec_cell_build_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ADDR *a
 {
     WTI_REC_KV *val = &r->v;
     WT_TIME_AGGREGATE *ta;
-    u_int cell_type;
+    uint8_t cell_type;
     const void *data;
     size_t data_size;
 

@@ -377,6 +377,10 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
         WT_ASSERT(session, new_image != NULL);
         p_ptr = WT_PAGE_HEADER_BYTE(S2BT(session), new_image->data);
         entry_count = 0;
+        /*
+         * Initialize new_image->size here since __wt_rec_pack_internal_key_addr uses it to
+         * calculate where to begin writing the first packed key and value data.
+         */
         new_image->size = WT_PTRDIFF(p_ptr, new_image->data);
     } else {
         /*
