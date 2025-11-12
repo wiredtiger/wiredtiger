@@ -78,11 +78,11 @@ create_update_chain(WT_SESSION_IMPL *session,
         if (upd == NULL)
             return NULL;
 
-        if (head == NULL) {
+        if (head == NULL)
             head = upd;
-        } else {
+        else
             prev->next = upd;
-        }
+
         prev = upd;
     }
 
@@ -110,7 +110,6 @@ check_update(WT_UPDATE *upd,
     if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
         REQUIRE(upd->upd_start_ts == start_ts);
         REQUIRE(upd->upd_durable_ts == 0);
-
     } else if (txnid == WT_TXN_ABORTED)
         /* TODO: save saved_id for aborted update but it's not needed for the current test cases */
         REQUIRE(upd->upd_rollback_ts == start_ts);
@@ -146,12 +145,12 @@ cleanup_test_data(WT_SESSION_IMPL *session, WT_INSERT *ins)
     WT_UPDATE *upd, *next;
 
     if (ins != NULL) {
-        // Free update chain
+        /* Free update chain */
         for (upd = ins->upd; upd != NULL; upd = next) {
             next = upd->next;
             __wt_free(session, upd);
         }
-        // Free insert
+        /* Free insert */
         __wt_free(session, ins);
     }
 }
@@ -165,7 +164,8 @@ create_test_insert(WT_SESSION_IMPL *session, WT_UPDATE *upd_chain)
     WT_INSERT *ins;
     const char *key_data = "key1";
     size_t key_size = 4;
-    u_int skipdepth = 1; // Simple skiplist depth
+    /* Simple skiplist depth */
+    u_int skipdepth = 1;
     size_t ins_size;
 
     /*
@@ -237,14 +237,11 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Basic visible update sele
           (wt_timestamp_t)10, (uint8_t)0)};
 
     WT_UPDATE *update_chain = create_update_chain(session, updates);
-    if (update_chain == NULL)
-        return;
+    REQUIRE(update_chain != NULL);
 
     WT_INSERT *ins = create_test_insert(session, update_chain);
-    if (ins == NULL) {
-        __wt_free(session, update_chain);
-        return;
-    }
+    REQUIRE(ins != NULL);
+
     SECTION("In memory, should write oldest update in the list")
     {
         F_SET(S2C(session), WT_CONN_IN_MEMORY);
@@ -305,8 +302,7 @@ TEST_CASE_METHOD(
           (wt_timestamp_t)10, (uint8_t)0)};
 
     WT_UPDATE *update_chain = create_update_chain(session, updates);
-    if (update_chain == NULL)
-        return;
+    REQUIRE(update_chain != NULL);
 
     WT_INSERT *ins = create_test_insert(session, update_chain);
     REQUIRE(ins != NULL);
@@ -356,8 +352,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Skip writing aborted and 
           (wt_timestamp_t)20, (uint8_t)0)};
 
     WT_UPDATE *update_chain = create_update_chain(session, updates);
-    if (update_chain == NULL)
-        return;
+    REQUIRE(update_chain != NULL);
 
     WT_INSERT *ins = create_test_insert(session, update_chain);
     REQUIRE(ins != NULL);
@@ -371,7 +366,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Skip writing aborted and 
         int ret = __wti_rec_upd_select(session, &r, ins, NULL, NULL, &upd_select);
 
         REQUIRE(ret == 0);
-        /* Should skip all prepared and aborted update, select the standard update*/
+        /* Should skip all prepared and aborted update, select the standard update */
         check_update(upd_select.upd, &updates[2]);
 
         // Should track the newest transaction in max_txn
@@ -388,12 +383,11 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Skip writing aborted and 
 
         int ret = __wti_rec_upd_select(session, &r, ins, NULL, NULL, &upd_select);
 
-        // Verify results
         REQUIRE(ret == 0);
         /* Should write the prepared update */
         check_update(upd_select.upd, &updates[0]);
 
-        // Should track the newest transaction in max_txn
+        /* Should track the newest transaction in max_txn */
         REQUIRE(r.max_txn == 120);
         REQUIRE(r.max_ts == 40);
     }

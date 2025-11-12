@@ -1131,7 +1131,6 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
         /* Keep track of max transaction ID and max timestamp */
         if (max_txn < upd->txnid)
             max_txn = upd->txnid;
-
         if (upd->upd_start_ts > max_ts)
             max_ts = upd->upd_start_ts;
 
