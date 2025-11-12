@@ -147,24 +147,28 @@ create_test_insert(WT_SESSION_IMPL *session, WT_UPDATE *upd_chain)
     return ins;
 }
 
-TEST_CASE("rec_upd_select: Basic visible update selection", "[reconcile][rec_upd_select]")
+struct RecUpdSelectFixture {
+    RecUpdSelectFixture() : mock(mock_session::build_test_mock_session())
+    {
+        mock->setup_block_manager_file_operations();
+        session = mock->get_wt_session_impl();
+        session->id = 0;
+        WT_TXN_SHARED *txn_shared_list;
+        REQUIRE(__wt_calloc(session, 1, sizeof(WT_TXN_SHARED), &txn_shared_list) == 0);
+        S2C(session)->txn_global.txn_shared_list = txn_shared_list;
+        // Allocate and set up transaction structure
+        REQUIRE(__wt_calloc(session, 1, sizeof(WT_TXN), &session->txn) == 0);
+        REQUIRE(__wt_calloc(session, 1, sizeof(WT_PAGE), &page) == 0);
+    }
+
+    std::shared_ptr<mock_session> mock;
+    WT_SESSION_IMPL *session;
+    WT_PAGE *page;
+};
+
+TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Basic visible update selection",
+  "[reconcile][rec_upd_select]")
 {
-    // Create mock session
-    std::shared_ptr<mock_session> mock = mock_session::build_test_mock_session();
-    mock->setup_block_manager_file_operations();
-    WT_SESSION_IMPL *session = mock->get_wt_session_impl();
-
-    // Set up session ID and minimal transaction shared list to avoid null pointer
-    session->id = 0;
-    WT_TXN_SHARED *txn_shared_list;
-    if (__wt_calloc(session, 1, sizeof(WT_TXN_SHARED), &txn_shared_list) != 0)
-        return;
-    S2C(session)->txn_global.txn_shared_list = txn_shared_list;
-
-    // Allocate and set up transaction structure
-    if (__wt_calloc(session, 1, sizeof(WT_TXN), &session->txn) != 0)
-        return;
-
     // Set up transaction with snapshot for visibility checks
     F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
     session->txn->snapshot_data.snap_max = 200; // Set max snapshot transaction ID > our test txns

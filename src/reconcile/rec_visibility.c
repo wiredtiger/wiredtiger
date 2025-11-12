@@ -1074,17 +1074,17 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     wt_timestamp_t max_ts;
     uint64_t max_txn, session_txnid;
     bool found_last_upd_to_keep;
-    bool is_hs_page;
 
     conn = S2C(session);
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
-    is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
+    /* Assert that we can only call reconciliation for in memory btree in eviction */
+    WT_ASSERT(session, WT_REC_EVICT);
+
     session_txnid = __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->id);
     first_pruned_update = NULL;
     found_last_upd_to_keep = false;
-    /* Assert that we can only call reconciliation for in memory btree in eviction */
-    WT_ASSERT(session, WT_REC_EVICT | WT_REC_HS);
+
     for (upd = first_upd; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED) {
             if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
@@ -1099,27 +1099,20 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
 
             continue;
         }
-
         /*
          * Give up if the update is from this transaction and on the metadata file or disaggregated
          * shared metadata file.
          */
-        if ((WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) &&
-          session_txnid != WT_TXN_NONE && upd->txnid == session_txnid)
+        if (WT_IS_METADATA(session->dhandle) && session_txnid != WT_TXN_NONE &&
+          upd->txnid == session_txnid)
             return (__wt_set_return(session, EBUSY));
-
-        /*
-         * Track the first update in the chain that is not aborted or its rollback timestamp is not
-         * stable.
-         */
+        /* Track the first update in the chain that is not aborted */
         if (*first_txn_updp == NULL)
             *first_txn_updp = upd;
 
-        /*
-         * Special handling for application threads evicting their own updates.
-         */
-        if (!is_hs_page && F_ISSET(r, WT_REC_APP_EVICTION_SNAPSHOT) &&
-          session_txnid != WT_TXN_NONE && upd->txnid == session_txnid) {
+        /* Special handling for application threads evicting their own updates. */
+        if (F_ISSET(r, WT_REC_APP_EVICTION_SNAPSHOT) && session_txnid != WT_TXN_NONE &&
+          upd->txnid == session_txnid) {
             *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
             *has_newer_updatesp = true;
             continue;
@@ -1138,7 +1131,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
          * updates compared to one of the previous reconciliations. This is important as it is never
          * ok to undo the work of the previous reconciliations.
          */
-        if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) && !is_hs_page &&
+        if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) &&
           (F_ISSET(r, WT_REC_VISIBLE_NO_SNAPSHOT) ? r->rec_start_pinned_id <= upd->txnid :
                                                     !__txn_visible_id(session, upd->txnid))) {
             /*
