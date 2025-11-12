@@ -669,8 +669,6 @@ extern int __wt_fopen(WT_SESSION_IMPL *session, const char *name, uint32_t open_
   uint32_t flags, WT_FSTREAM **fstrp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_fsync_background(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_get_verbose_categories(const WT_NAME_FLAG **catp, size_t *countp)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_getopt(const char *progname, int nargc, char *const *nargv, const char *ostr)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1722,6 +1720,7 @@ extern void __wt_free_obsolete_updates(
 extern void __wt_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE **updp);
 extern void __wt_gen_init(WT_SESSION_IMPL *session);
 extern void __wt_gen_next_drain(WT_SESSION_IMPL *session, int which);
+extern void __wt_get_verbose_categories(const WT_NAME_FLAG **catp, size_t *countp);
 extern void __wt_hash_map_destroy(WT_SESSION_IMPL *session, WT_HASH_MAP **hash_mapp);
 extern void __wt_hash_map_unlock(
   WT_SESSION_IMPL *session, WT_HASH_MAP *hash_map, const void *key, size_t key_size);

@@ -452,7 +452,7 @@ from packing import pack, unpack
 }
 
 %rename(wiredtiger_get_verbose_categories) __wt_get_verbose_categories;
-int
+void
 __wt_get_verbose_categories(const WT_NAME_FLAG **catp, size_t *countp);
 
 /* Internal _set_key, _set_value methods take a 'bytes' object as parameter. */
