@@ -66,8 +66,7 @@ class test_cursor04(wttest.WiredTigerTestCase):
             keyformat = 'key_format=S'
         else:
             keyformat = 'key_format=r'  # record format
-        valformat = 'value_format=S'
-        create_args = keyformat + ',' + valformat + self.config_string()
+        create_args = keyformat + ',value_format=S' + self.config_string()
         self.pr('creating session: ' + create_args)
         self.session_create(tablearg, create_args)
         self.pr('creating cursor')

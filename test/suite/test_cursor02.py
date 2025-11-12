@@ -50,8 +50,7 @@ class test_cursor02(TestCursorTracker):
             keyformat = 'key_format=S'
         else:
             keyformat = 'key_format=r'  # record format
-        valformat = 'value_format=S'
-        create_args = keyformat + ',' + valformat + self.config_string()
+        create_args = keyformat + ',value_format=S' + self.config_string()
         self.session_create(tablearg, create_args)
         self.pr('creating cursor')
         self.cur_initial_conditions(self.table_name1, ninitialentries, self.tablekind, None, None, self.uri)
