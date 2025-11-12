@@ -749,7 +749,7 @@ __curversion_next(WT_CURSOR *cursor)
     /* Early return if the cursor is not configured to walk across keys. */
     if (!F_ISSET(version_cursor, WT_CURVERSION_CROSS_KEY)) {
         WT_ERR(__curversion_next_single_key(cursor));
-        goto err;
+        goto done;
     }
 
     /* Place the cursor on the first key if it is not positioned. */
@@ -778,6 +778,7 @@ __curversion_next(WT_CURSOR *cursor)
 err:
     if (ret != 0)
         WT_TRET(cursor->reset(cursor));
+done:
     API_END_RET(session, ret);
 }
 
