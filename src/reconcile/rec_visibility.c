@@ -1128,15 +1128,17 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
          * cannot be WT_PREPARE_LOCKED
          */
         WT_ASSERT(session, upd->prepare_state != WT_PREPARE_LOCKED);
+        /* Keep track of max transaction ID and max timestamp */
+        if (max_txn < upd->txnid)
+            max_txn = upd->txnid;
+
+        if (upd->upd_start_ts > max_ts)
+            max_ts = upd->upd_start_ts;
+
         if (upd->prepare_state == WT_PREPARE_INPROGRESS) {
             *has_newer_updatesp = true;
             continue;
         }
-
-        if (max_txn < upd->txnid)
-            max_txn = upd->txnid;
-        if (upd->upd_start_ts > max_ts)
-            max_ts = upd->upd_start_ts;
 
         if (WT_REC_CAN_PRUNE_UPD(upd->txnid, upd->upd_durable_ts, r)) {
             first_pruned_update = upd;

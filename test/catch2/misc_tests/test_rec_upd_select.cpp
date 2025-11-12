@@ -34,16 +34,24 @@ create_test_update(WT_SESSION_IMPL *session, const char *data, uint8_t type, uin
         value.size = 0;
     }
 
-    // Allocate update structure
+    /* Allocate update structure */
     if (__wt_upd_alloc(session, &value, type, &upd, &size) != 0)
         return NULL;
 
-    // Set transaction ID and timestamps
+    /* Set transaction ID and timestamps */
     upd->txnid = txnid;
-    upd->upd_start_ts = start_ts;
-    upd->upd_durable_ts = durable_ts;
     upd->prepare_state = prepare_state;
 
+    if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
+        upd->upd_start_ts = start_ts;
+        upd->prepare_ts = start_ts;
+    } else if (txnid == WT_TXN_ABORTED)
+        /* TODO: save saved_id for aborted update but it's not needed for the current test cases */
+        upd->upd_rollback_ts = start_ts;
+    else {
+        upd->upd_start_ts = start_ts;
+        upd->upd_durable_ts = durable_ts;
+    }
     return upd;
 }
 
@@ -79,6 +87,37 @@ create_update_chain(WT_SESSION_IMPL *session,
     }
 
     return head;
+}
+
+static void
+check_update(WT_UPDATE *upd,
+  std::tuple<const char *, uint8_t, uint64_t, wt_timestamp_t, wt_timestamp_t, uint8_t>
+    *expected_upd)
+{
+    if (!expected_upd) {
+        REQUIRE(upd == NULL);
+        return;
+    }
+    REQUIRE(upd != NULL);
+
+    uint8_t type = std::get<1>(*expected_upd);
+    uint64_t txnid = std::get<2>(*expected_upd);
+    wt_timestamp_t start_ts = std::get<3>(*expected_upd);
+    wt_timestamp_t durable_ts = std::get<4>(*expected_upd);
+    uint8_t prepare_state = std::get<5>(*expected_upd);
+    REQUIRE(upd->type == type);
+    REQUIRE(upd->txnid == txnid);
+    if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
+        REQUIRE(upd->upd_start_ts == start_ts);
+        REQUIRE(upd->upd_durable_ts == 0);
+
+    } else if (txnid == WT_TXN_ABORTED)
+        /* TODO: save saved_id for aborted update but it's not needed for the current test cases */
+        REQUIRE(upd->upd_rollback_ts == start_ts);
+    else {
+        REQUIRE(upd->upd_start_ts == start_ts);
+        REQUIRE(upd->upd_durable_ts == durable_ts);
+    }
 }
 
 /*
@@ -141,7 +180,7 @@ create_test_insert(WT_SESSION_IMPL *session, WT_UPDATE *upd_chain)
     ins->u.key.offset = WT_STORE_SIZE(ins_size - key_size);
     ins->u.key.size = WT_STORE_SIZE(key_size);
 
-    // Copy the key into place
+    /* Copy the key into place */
     memcpy(WT_INSERT_KEY(ins), key_data, key_size);
 
     return ins;
@@ -159,6 +198,7 @@ struct RecUpdSelectFixture {
         /* Allocate and set up transaction structure */
         REQUIRE(__wt_calloc(session, 1, sizeof(WT_TXN), &session->txn) == 0);
         REQUIRE(__wt_calloc(session, 1, sizeof(WT_PAGE), &page) == 0);
+        page->type = WT_PAGE_ROW_LEAF;
     }
 
     ~RecUpdSelectFixture()
@@ -176,101 +216,186 @@ struct RecUpdSelectFixture {
 TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Basic visible update selection",
   "[reconcile][rec_upd_select]")
 {
-    // Set up transaction with snapshot for visibility checks
+    /* Set up transaction with snapshot for visibility checks */
     F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
-    session->txn->snapshot_data.snap_max = 200; // Set max snapshot transaction ID > our test txn
+    session->txn->snapshot_data.snap_max = 200;
     session->txn->id = 120;
-    session->txn->isolation = WT_ISO_SNAPSHOT; // Use snapshot isolation
-
-    F_SET(S2C(session), WT_CONN_IN_MEMORY);
+    session->txn->isolation = WT_ISO_SNAPSHOT;
     F_CLR(session->dhandle, WT_DHANDLE_HS);
 
-    page->type = WT_PAGE_ROW_LEAF;
-
-    // Setup reconciliation context with pinned transaction ID 120
+    /* Setup reconciliation context with pinned transaction ID 120 */
     WTI_RECONCILE r;
     setup_reconcile_context(&r, session, page, 120, 50);
+    std::vector<
+      /* data, update type, txn id, timestamp, durable ts, prepare_ts */
+      std::tuple<const char *, uint8_t, uint64_t, wt_timestamp_t, wt_timestamp_t, uint8_t>>
+      updates = {std::make_tuple("value3", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)120,
+                   (wt_timestamp_t)30, (wt_timestamp_t)30, (uint8_t)0),
+        std::make_tuple("value2", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)80, (wt_timestamp_t)20,
+          (wt_timestamp_t)20, (uint8_t)0),
+        std::make_tuple("value1", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)50, (wt_timestamp_t)10,
+          (wt_timestamp_t)10, (uint8_t)0)};
 
-    SECTION("Select oldest visible update for in memory")
+    WT_UPDATE *update_chain = create_update_chain(session, updates);
+    if (update_chain == NULL)
+        return;
+
+    WT_INSERT *ins = create_test_insert(session, update_chain);
+    if (ins == NULL) {
+        __wt_free(session, update_chain);
+        return;
+    }
+    SECTION("In memory, should write oldest update in the list")
     {
-        std::vector<
-          std::tuple<const char *, uint8_t, uint64_t, wt_timestamp_t, wt_timestamp_t, uint8_t>>
-          updates = {
-            std::make_tuple("value3", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)120,
-              (wt_timestamp_t)30, (wt_timestamp_t)30, (uint8_t)0),
-            std::make_tuple("value2", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)80, (wt_timestamp_t)20,
-              (wt_timestamp_t)20, (uint8_t)0), // Visible
-            std::make_tuple("value1", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)50, (wt_timestamp_t)10,
-              (wt_timestamp_t)10, (uint8_t)0) // Visible
-          };
-
-        WT_UPDATE *update_chain = create_update_chain(session, updates);
-        if (update_chain == NULL)
-            return;
-
-        WT_INSERT *ins = create_test_insert(session, update_chain);
-        if (ins == NULL) {
-            __wt_free(session, update_chain);
-            return;
-        }
-
-        // Initialize selection structure
+        F_SET(S2C(session), WT_CONN_IN_MEMORY);
         WTI_UPDATE_SELECT upd_select;
         WTI_UPDATE_SELECT_INIT(&upd_select);
 
-        // Call the function under test
         int ret = __wti_rec_upd_select(session, &r, ins, NULL, NULL, &upd_select);
 
-        // Verify results
         REQUIRE(ret == 0);
-        REQUIRE(upd_select.upd != NULL);
-
-        REQUIRE(upd_select.upd->txnid == 50);
+        check_update(upd_select.upd, &updates[2]);
 
         // Should track the newest transaction in max_txn
         REQUIRE(r.max_txn == 120);
         REQUIRE(r.max_ts == 30);
-
-        // Cleanup
-        cleanup_test_data(session, ins);
     }
-
-    SECTION("Select single visible update")
+    SECTION("Not in-memory, should write newest update in the list")
     {
-        // Create single visible update
-        std::vector<
-          std::tuple<const char *, uint8_t, uint64_t, wt_timestamp_t, wt_timestamp_t, uint8_t>>
-          updates = {std::make_tuple("single_value", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)50,
-            (wt_timestamp_t)10, (wt_timestamp_t)10, (uint8_t)0)};
-
-        WT_UPDATE *update_chain = create_update_chain(session, updates);
-        if (update_chain == NULL)
-            return;
-
-        WT_INSERT *ins = create_test_insert(session, update_chain);
-        if (ins == NULL) {
-            __wt_free(session, update_chain);
-            return;
-        }
-
-        // Initialize selection structure
+        F_CLR(S2C(session), WT_CONN_IN_MEMORY);
         WTI_UPDATE_SELECT upd_select;
+        WTI_UPDATE_SELECT_INIT(&upd_select);
 
-        // Call the function under test
+        /* Call the function under test */
         int ret = __wti_rec_upd_select(session, &r, ins, NULL, NULL, &upd_select);
 
         // Verify results
         REQUIRE(ret == 0);
-        REQUIRE(upd_select.upd != NULL);
-        REQUIRE(upd_select.upd->txnid == 50);
-        REQUIRE(r.max_txn == 50);
-        REQUIRE(r.max_ts == 10);
+        check_update(upd_select.upd, &updates[0]);
 
-        // Cleanup
-        cleanup_test_data(session, ins);
+        /* Should track the newest transaction in max_txn */
+        REQUIRE(r.max_txn == 120);
+        REQUIRE(r.max_ts == 30);
     }
+    cleanup_test_data(session, ins);
 }
 
-TEST_CASE("rec_upd_select: Precise timestamp", "[reconcile][rec_upd_select]") {}
+TEST_CASE_METHOD(
+  RecUpdSelectFixture, "rec_upd_select: select non-pruned update", "[reconcile][rec_upd_select]")
+{
+    /* Set up transaction with snapshot for visibility checks */
+    F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
+    session->txn->snapshot_data.snap_max = 200;
+    session->txn->id = 120;
+    session->txn->isolation = WT_ISO_SNAPSHOT;
 
-TEST_CASE("rec_upd_select: In-memory tree", "[reconcile][rec_upd_select]") {}
+    WTI_RECONCILE r;
+    setup_reconcile_context(&r, session, page, 120, 50);
+    r.rec_prune_timestamp = 10;
+    std::vector<
+      /* data, update type, txn id, start timestamp, durable ts, prepare_state */
+      std::tuple<const char *, uint8_t, uint64_t, wt_timestamp_t, wt_timestamp_t, uint8_t>>
+      updates = {std::make_tuple("value3", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)120,
+                   (wt_timestamp_t)30, (wt_timestamp_t)30, (uint8_t)0),
+        /* update with durable timestamp > pruned timestamp */
+        std::make_tuple("value2", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)80, (wt_timestamp_t)20,
+          (wt_timestamp_t)20, (uint8_t)0),
+        /* update with durable timestamp == pruned timestamp, should not be selected */
+        std::make_tuple("value1", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)50, (wt_timestamp_t)10,
+          (wt_timestamp_t)10, (uint8_t)0)};
+
+    WT_UPDATE *update_chain = create_update_chain(session, updates);
+    if (update_chain == NULL)
+        return;
+
+    WT_INSERT *ins = create_test_insert(session, update_chain);
+    REQUIRE(ins != NULL);
+
+    SECTION("In-memory, should write oldest update with timestamp > prune timestamp in the list")
+    {
+        F_SET(S2C(session), WT_CONN_IN_MEMORY);
+        WTI_UPDATE_SELECT upd_select;
+        WTI_UPDATE_SELECT_INIT(&upd_select);
+
+        int ret = __wti_rec_upd_select(session, &r, ins, NULL, NULL, &upd_select);
+
+        REQUIRE(ret == 0);
+        /* Should select updates[1] because updates[2] is pruned */
+        check_update(upd_select.upd, &updates[1]);
+
+        /* Should track the newest transaction in max_txn */
+        REQUIRE(r.max_txn == 120);
+        REQUIRE(r.max_ts == 30);
+    }
+    cleanup_test_data(session, ins);
+}
+
+TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Skip writing aborted and prepared updates",
+  "[reconcile][rec_upd_select]")
+{
+    /* Set up transaction with snapshot for visibility checks */
+    F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
+    session->txn->snapshot_data.snap_max = 200;
+    session->txn->id = 120;
+    session->txn->isolation = WT_ISO_SNAPSHOT;
+
+    WTI_RECONCILE r;
+    setup_reconcile_context(&r, session, page, 120, 50);
+    r.rec_prune_timestamp = 10;
+    std::vector<
+      /* data, update type, txn id, start timestamp, durable ts, prepare_state */
+      std::tuple<const char *, uint8_t, uint64_t, wt_timestamp_t, wt_timestamp_t, uint8_t>>
+      updates = {/* prepared update */
+        std::make_tuple("value4", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)120, (wt_timestamp_t)40,
+          (wt_timestamp_t)30, (uint8_t)WT_PREPARE_INPROGRESS),
+        /* aborted update */
+        std::make_tuple("value3", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)WT_TXN_ABORTED,
+          (wt_timestamp_t)20, (wt_timestamp_t)30, (uint8_t)0),
+        /* standard update */
+        std::make_tuple("value2", (uint8_t)WT_UPDATE_STANDARD, (uint64_t)50, (wt_timestamp_t)10,
+          (wt_timestamp_t)20, (uint8_t)0)};
+
+    WT_UPDATE *update_chain = create_update_chain(session, updates);
+    if (update_chain == NULL)
+        return;
+
+    WT_INSERT *ins = create_test_insert(session, update_chain);
+    REQUIRE(ins != NULL);
+
+    SECTION("In-memory, should write oldest update with timestamp > prune timestamp in the list")
+    {
+        F_SET(S2C(session), WT_CONN_IN_MEMORY);
+        WTI_UPDATE_SELECT upd_select;
+        WTI_UPDATE_SELECT_INIT(&upd_select);
+
+        int ret = __wti_rec_upd_select(session, &r, ins, NULL, NULL, &upd_select);
+
+        REQUIRE(ret == 0);
+        /* Should skip all prepared and aborted update, select the standard update*/
+        check_update(upd_select.upd, &updates[2]);
+
+        // Should track the newest transaction in max_txn
+        REQUIRE(r.max_txn == 120);
+        REQUIRE(r.max_ts == 40);
+    }
+
+    SECTION("Not In-memory, should write newest update")
+    {
+        F_CLR(S2C(session), WT_CONN_IN_MEMORY);
+        F_SET(&r, WT_REC_EVICT);
+        WTI_UPDATE_SELECT upd_select;
+        WTI_UPDATE_SELECT_INIT(&upd_select);
+
+        int ret = __wti_rec_upd_select(session, &r, ins, NULL, NULL, &upd_select);
+
+        // Verify results
+        REQUIRE(ret == 0);
+        /* Should write the prepared update */
+        check_update(upd_select.upd, &updates[0]);
+
+        // Should track the newest transaction in max_txn
+        REQUIRE(r.max_txn == 120);
+        REQUIRE(r.max_ts == 40);
+    }
+    cleanup_test_data(session, ins);
+}
