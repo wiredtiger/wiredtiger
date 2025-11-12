@@ -10,8 +10,6 @@
 #include "reconcile_private.h"
 #include "reconcile_inline.h"
 
-#define WT_REC_HAS_ON_DISK(vpack) (vpack != NULL && vpack->type)
-
 /*
  * __rec_update_save --
  *     Save a WT_UPDATE list for later restoration.

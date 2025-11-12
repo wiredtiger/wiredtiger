@@ -487,6 +487,8 @@ struct __wti_update_select {
 #define WT_REC_CAN_PRUNE_UPD(txnid, timestamp, r)                                    \
     ((r)->rec_prune_timestamp != WT_TS_NONE && (txnid) < (r)->rec_start_oldest_id && \
       (timestamp) <= r->rec_prune_timestamp)
+
+#define WT_REC_HAS_ON_DISK(vpack) (vpack != NULL && vpack->type)
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern int __wti_ovfl_reuse_add(WT_SESSION_IMPL *session, WT_PAGE *page, const uint8_t *addr,
