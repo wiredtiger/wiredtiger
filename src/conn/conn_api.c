@@ -2345,7 +2345,7 @@ __wti_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
  * __wt_get_verbose_categories --
  *     Get predefined verbose categories and their names.
  */
-int
+void
 __wt_get_verbose_categories(const WT_NAME_FLAG **catp, size_t *countp)
 {
     static const WT_NAME_FLAG verbtypes[] = {{"all", WT_VERB_ALL}, {"api", WT_VERB_API},
@@ -2376,8 +2376,6 @@ __wt_get_verbose_categories(const WT_NAME_FLAG **catp, size_t *countp)
 
     if (countp != NULL)
         *countp = (sizeof(verbtypes) / sizeof(verbtypes[0])) - 1;
-
-    return (0);
 }
 
 /*
@@ -2405,7 +2403,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_RET(ret);
 
     WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
-    WT_RET(__wt_get_verbose_categories(&verbtypes, NULL));
+    __wt_get_verbose_categories(&verbtypes, NULL);
 
     /*
      * Special handling for "all". This determines the verbosity for any categories not explicitly
