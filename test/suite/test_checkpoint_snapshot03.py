@@ -55,30 +55,15 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(format_values)
 
     def conn_config(self):
-        config = 'cache_size=250MB,eviction_updates_trigger=40,eviction_dirty_trigger=80,eviction_dirty_target=10,eviction=(threads_min=8,threads_max=8),statistics=(all),statistics_log=(json,on_close,wait=1)'
+        config = 'cache_size=250MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
         return config
 
     def large_updates(self, uri, value, ds, nrows):
+        # Update a large number of records.
         session = self.session
         cursor = session.open_cursor(uri)
-        batch_size = 5000
-
-        for i in range(0, nrows, batch_size):
-            end = min(i + batch_size, nrows)
-            session.begin_transaction()
-            for j in range(i + 1, end + 1):
-                cursor[ds.key(j)] = value
-            # Commit with timestamp
-            ts = i + batch_size
-            session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
-
-            # Update stable timestamp periodically
-            if (i + batch_size) % 20000 == 0 or end == nrows:
-                self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts))
-                # Sleep briefly to allow eviction threads to process
-                import time
-                time.sleep(0.1)
-
+        for i in range(1, nrows + 1):
+            cursor[ds.key(i)] = value
         cursor.close()
 
     def check(self, check_value, uri, nrows):
@@ -103,8 +88,6 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
         self.assertEqual(count, nrows + 1 if flcs_tolerance else nrows)
 
     def test_checkpoint_snapshot(self):
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
-
         ds = SimpleDataSet(self, self.uri, 0, \
                 key_format=self.key_format, value_format=self.value_format, \
                 config='leaf_page_max=4k')
@@ -118,10 +101,6 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
             valuea = "aaaaa" * 100
             valueb = "bbbbb" * 100
             valuec = "ccccc" * 100
-
-        # Set up timestamps
-        self.conn.set_timestamp('oldest_timestamp=1')
-        self.conn.set_timestamp('stable_timestamp=1')
 
         session1 = self.conn.open_session()
         session1.begin_transaction()
@@ -156,7 +135,7 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
             cursor.set_key(ds.key(i))
             cursor.set_value(valuec)
             self.assertEqual(cursor.update(), 0)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(500001))
+        self.session.commit_transaction()
 
         self.session.checkpoint()
         session1.rollback_transaction()
