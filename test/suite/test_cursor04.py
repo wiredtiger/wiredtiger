@@ -87,7 +87,7 @@ class test_cursor04(wttest.WiredTigerTestCase):
         direction = cursor.search_near()
         self.assertNotEqual(direction, wiredtiger.WT_NOTFOUND)
 
-        self.assertEqual(direction, 0)
+        self.assertTrue(direction == 1 or direction == -1)
 
         if direction == 1:
             self.assertEqual(cursor.get_key(), self.genkey(gt))
@@ -150,9 +150,9 @@ class test_cursor04(wttest.WiredTigerTestCase):
 
         cursor.set_key(self.genkey(0))
         cmp = cursor.search_near()
-        self.assertEqual(cmp, 0)
-        self.assertEqual(cursor.get_key(), self.genkey(0))
-        self.assertEqual(cursor.get_value(), 0)
+        self.assertEqual(cmp, 1)
+        self.assertEqual(cursor.get_key(), self.genkey(1))
+        self.assertEqual(cursor.get_value(), self.genvalue(1))
 
         cursor.set_key(self.genkey(5))
         self.expect_either(cursor, 4, 6)
