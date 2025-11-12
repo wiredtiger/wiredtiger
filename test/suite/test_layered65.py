@@ -174,6 +174,7 @@ class test_layered65(wttest.WiredTigerTestCase):
         cursor_follow = self.session_follow.open_cursor(self.uri)
         cursor_follow[3] = "value1"
         self.session_follow.commit_transaction(f"commit_timestamp={self.timestamp_str(40)}")
+        cursor_follow.close()
 
         # Make the rollback stable.
         self.conn.set_timestamp(f"stable_timestamp={self.timestamp_str(30)}")
@@ -193,8 +194,8 @@ class test_layered65(wttest.WiredTigerTestCase):
 
         stat_cursor = self.session_follow.open_cursor('statistics:' + self.uri)
         garbage_collected = stat_cursor[stat.dsrc.rec_ingest_garbage_collection_keys_update_chain][2]
-        # The aborted prepared update is dropped silently.
-        self.assertEqual(garbage_collected, 1)
+        # The aborted prepared update is garbage collected.
+        self.assertEqual(garbage_collected, 2)
         stat_cursor.close()
 
     def test_prepared_update(self):
@@ -369,6 +370,7 @@ class test_layered65(wttest.WiredTigerTestCase):
         cursor_follow = self.session_follow.open_cursor(self.uri)
         cursor_follow[3] = "value1"
         self.session_follow.commit_transaction(f"commit_timestamp={self.timestamp_str(40)}")
+        cursor_follow.close()
 
         # Make the rollback stable.
         self.conn.set_timestamp(f"stable_timestamp={self.timestamp_str(30)}")
@@ -389,8 +391,7 @@ class test_layered65(wttest.WiredTigerTestCase):
         stat_cursor = self.session_follow.open_cursor('statistics:' + self.uri)
         garbage_collected_update_chain = stat_cursor[stat.dsrc.rec_ingest_garbage_collection_keys_update_chain][2]
         # The aborted prepared update is garbage collected.
-        self.assertEqual(garbage_collected_update_chain, 0)
-        # The aborted prepared update is dropped silently.
+        self.assertEqual(garbage_collected_update_chain, 1)
         garbage_collected_disk_image = stat_cursor[stat.dsrc.rec_ingest_garbage_collection_keys_disk_image][2]
         self.assertEqual(garbage_collected_disk_image, 2)
         stat_cursor.close()

@@ -362,8 +362,7 @@ __rec_save_delete_hs_upd_and_free_obs_updates(WT_SESSION_IMPL *session, WTI_RECO
         if (F_ISSET(r, WT_REC_CHECKPOINT) && visible_all_upd == NULL && delete_upd->next != NULL &&
           WT_UPDATE_DATA_VALUE(delete_upd) &&
           (__wt_txn_upd_visible_all(session, delete_upd) ||
-            (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT) &&
-              delete_upd->txnid < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
+            (delete_upd->txnid < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
               delete_upd->upd_durable_ts <= r->rec_prune_timestamp)))
             visible_all_upd = delete_upd;
     }
@@ -1075,7 +1074,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
   bool *has_newer_updatesp, size_t *upd_memsizep)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_UPDATE *upd;
+    WT_UPDATE *upd, *first_pruned_update;
     wt_timestamp_t max_ts;
     uint64_t max_txn, session_txnid;
     bool found_last_upd_to_keep;
@@ -1086,6 +1085,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     max_txn = WT_TXN_NONE;
     is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
     session_txnid = __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->id);
+    first_pruned_update = NULL;
     found_last_upd_to_keep = false;
     /* Assert that we can only call reconciliation for in memory btree in eviction */
     WT_ASSERT(session, WT_REC_EVICT | WT_REC_HS);
@@ -1169,21 +1169,40 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
             *has_newer_updatesp = true;
             continue;
         }
-        upd_select->upd = upd;
 
         if (max_txn < upd->txnid)
             max_txn = upd->txnid;
         if (upd->upd_start_ts > max_ts)
             max_ts = upd->upd_start_ts;
-        if (__wt_txn_upd_visible_all(session, upd) ||
-          (upd->txnid < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
-            upd->upd_durable_ts <= r->rec_prune_timestamp)) {
+
+        if (upd->txnid < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
+          upd->upd_durable_ts <= r->rec_prune_timestamp) {
+            first_pruned_update = upd;
+            found_last_upd_to_keep = upd_select != NULL;
+            /* Mark we are making progress. */
+            r->update_used = true;
+            break;
+        }
+
+        upd_select->upd = upd;
+
+        if (__wt_txn_upd_visible_all(session, upd)) {
             found_last_upd_to_keep = true;
             break;
         }
     }
-    if (*first_txn_updp != NULL && *first_txn_updp != upd_select->upd)
-        *has_newer_updatesp = true;
+
+    if (*first_txn_updp != NULL) {
+        if (upd_select->upd != NULL) {
+            if (*first_txn_updp != upd_select->upd)
+                *has_newer_updatesp = true;
+        } else if (first_pruned_update != NULL) {
+            if (*first_txn_updp != first_pruned_update)
+                *has_newer_updatesp = true;
+        } else
+            *has_newer_updatesp = true;
+    }
+
     /*
      * If there's an on-page value, we only want to write upd_select if the oldest update is
      * globally visible, otherwise we will lose the on-page update. Check if there's an on-page
@@ -1193,6 +1212,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
         *has_newer_updatesp |= (upd_select->upd != NULL);
         upd_select->upd = NULL;
     }
+
     /*
      * Track the most recent transaction in the page. We store this in the tree at the end of
      * reconciliation in the service of checkpoints, it is used to avoid discarding trees from
@@ -1204,6 +1224,10 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
     /* Update the maximum timestamp. */
     if (max_ts > r->max_ts)
         r->max_ts = max_ts;
+
+    if (!*has_newer_updatesp && upd_select->upd == NULL)
+        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_update_chain);
+
     return (0);
 }
 
@@ -1473,7 +1497,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
       "Metadata updates written from a checkpoint in a concurrent session");
 
     /* If all of the updates were aborted, quit. */
-    if (first_txn_upd == NULL) {
+    if (first_txn_upd == NULL && !has_newer_updates) {
         WT_ASSERT_ALWAYS(session, upd == NULL,
           "__wt_rec_upd_select has selected an update when none are present on the update chain");
         if (first_upd != NULL)
