@@ -1781,7 +1781,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
         buf2[0] = '\0';
     WT_ERR(__wt_snprintf(buf, sizeof(buf),
       "debug=(dump_version=(enabled=true,raw_key_value=true,visible_only=true,timestamp_order=true,"
-      "%s))",
+      "cross_key=true,%s))",
       buf2));
     cfg[1] = buf;
     WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &version_cursor));
