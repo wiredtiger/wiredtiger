@@ -637,7 +637,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
      * the update chain but checkpoint won't replace the page image as such it will be the previous
      * reconciliations ondisk value that we will be comparing against.
      */
-    if (vpack != NULL && !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw))) {
+    if (WT_REC_HAS_ON_DISK(vpack) && !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw))) {
         char ts_string[4][WT_TS_INT_STRING_SIZE];
         prepare_state = __wt_atomic_load_uint8_v_acquire(&prev_upd->prepare_state);
         if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw)) {
@@ -1514,7 +1514,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
       !WT_TIME_WINDOW_HAS_STOP_PREPARE(&upd_select->tw)) {
         if ((upd_select->tombstone != upd_select->upd &&
               upd_select->tw.start_ts > upd_select->tw.stop_ts) ||
-          (vpack != NULL && vpack->tw.start_ts > upd_select->tw.stop_ts &&
+          (WT_REC_HAS_ON_DISK(vpack) && vpack->tw.start_ts > upd_select->tw.stop_ts &&
             upd_select->tw.stop_ts == WT_TS_NONE)) {
             WT_ASSERT(session, upd_select->tw.stop_ts == WT_TS_NONE);
             upd_select->no_ts_tombstone = true;
@@ -1594,8 +1594,8 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      * it is already on the update chain. If it is a prepared tombstone, the onpage value is already
      * appended to the update chain when the page is read into memory.
      */
-    if (F_ISSET(r, WT_REC_HS) && upd_select->upd != NULL && vpack != NULL &&
-      vpack->type != WT_CELL_DEL && !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)) &&
+    if (F_ISSET(r, WT_REC_HS) && upd_select->upd != NULL && WT_REC_HAS_ON_DISK(vpack) &&
+      !WT_TIME_WINDOW_HAS_PREPARE(&(vpack->tw)) &&
       (upd_select->upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
         WT_RET(__rec_append_orig_value(
           session, page, upd_select->upd, vpack, WT_TIME_WINDOW_HAS_PREPARE(&upd_select->tw)));
