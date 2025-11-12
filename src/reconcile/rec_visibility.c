@@ -456,8 +456,11 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
 
     if (visible_all)
         return (false);
+    
+    if (vpack != NULL && vpack->type != WT_CELL_DEL)
+        return (true);
 
-    if (vpack == NULL && upd_select->upd != NULL) {
+    if (upd_select->upd != NULL) {
         upd = upd_select->upd;
         while (upd->next != NULL) {
             upd = upd->next;
