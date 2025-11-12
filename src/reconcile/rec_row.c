@@ -864,14 +864,12 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
  *     Check if the update chain is eligible for garbage collection.
  */
 static WT_INLINE bool
-__rec_row_garbage_collect_eligible(
-  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_upd, bool *all_abortedp)
+__rec_row_garbage_collect_eligible(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_upd)
 {
     WT_CONNECTION_IMPL *conn;
     WT_UPDATE *upd;
 
     conn = S2C(session);
-    *all_abortedp = false;
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
         /*
@@ -893,10 +891,8 @@ __rec_row_garbage_collect_eligible(
             return (false);
     }
 
-    if (upd == NULL) {
-        *all_abortedp = true;
+    if (upd == NULL)
         return (false);
-    }
 
     if (upd->type == WT_UPDATE_TOMBSTONE)
         return (false);
@@ -916,7 +912,7 @@ __rec_row_garbage_collect_eligible(
 }
 
 /*
- * __rec_row_garbage_collect_tw_eligible --
+ * __rec_row_garbage_collect_tw_elegible --
  *     Check if the time window is eligible for garbage collection.
  */
 static WT_INLINE bool
@@ -941,14 +937,12 @@ __rec_row_garbage_collect_tw_elegible(WTI_RECONCILE *r, WT_TIME_WINDOW *twp)
  *     collection.
  */
 static int
-__rec_row_garbage_collect_fixup_update_list(
-  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ROW *rip, WT_CELL_UNPACK_KV *vpack)
+__rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ROW *rip)
 {
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_UPDATE *first_upd, *tombstone, **upd_entry;
-    bool all_aborted;
 
     btree = S2BT(session);
     page = r->page;
@@ -960,14 +954,13 @@ __rec_row_garbage_collect_fixup_update_list(
     if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
         return (0);
 
-    if (__rec_row_garbage_collect_eligible(session, r, first_upd, &all_aborted) ||
-      (all_aborted && __rec_row_garbage_collect_tw_elegible(r, &vpack->tw))) {
+    if (__rec_row_garbage_collect_eligible(session, r, first_upd)) {
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         tombstone->next = first_upd;
         upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
         *upd_entry = tombstone;
 
-        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
+        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_update_chain);
     }
 
     return (0);
@@ -984,7 +977,6 @@ __rec_row_garbage_collect_fixup_insert_list(
 {
     WT_BTREE *btree;
     WT_UPDATE *first_upd, *tombstone;
-    bool all_aborted;
 
     btree = S2BT(session);
 
@@ -995,12 +987,12 @@ __rec_row_garbage_collect_fixup_insert_list(
     if ((first_upd = ins->upd) == NULL)
         return (0);
 
-    if (__rec_row_garbage_collect_eligible(session, r, first_upd, &all_aborted)) {
+    if (__rec_row_garbage_collect_eligible(session, r, first_upd)) {
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         tombstone->next = first_upd;
         ins->upd = tombstone;
 
-        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
+        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_update_chain);
     }
 
     return (0);
@@ -1279,7 +1271,7 @@ __wti_rec_row_leaf(
         __wt_row_leaf_value_cell(session, page, rip, vpack);
 
         /* Give garbage collected tables a change to mark obsolete content for cleanup */
-        WT_ERR(__rec_row_garbage_collect_fixup_update_list(session, r, rip, vpack));
+        WT_ERR(__rec_row_garbage_collect_fixup_update_list(session, r, rip));
 
         /* Look for an update. */
         WT_ERR(__wti_rec_upd_select(session, r, NULL, rip, vpack, &upd_select));
@@ -1312,7 +1304,7 @@ __wti_rec_row_leaf(
               __rec_row_garbage_collect_tw_elegible(r, twp)) {
                 upd = &upd_tombstone;
                 r->key_removed_from_disk_image = true;
-                WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
+                WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);
             }
         }
 
