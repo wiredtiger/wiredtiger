@@ -15,6 +15,7 @@ else()
         misc_tests/test_mock_session.cpp
         misc_tests/test_pow.cpp
         misc_tests/test_prepare_mod_sort.cpp
+        misc_tests/test_rec_upd_select.cpp
         misc_tests/test_reconciliation_tracking.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
