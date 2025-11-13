@@ -487,7 +487,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
             if (F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
                 /* Rest the cursor key to point to the new stable cursor. */
                 WT_RET(new_stable->get_key(new_stable, &cursor->key));
-                /* Clear the value as the new stable table may point to a different one. */
+                /* Clear the value as the new stable cursor may point to a different one. */
                 F_CLR(cursor, WT_CURSTD_VALUE_INT);
             }
             clayered->current_cursor = new_stable;
