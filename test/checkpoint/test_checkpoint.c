@@ -116,7 +116,7 @@ main(int argc, char *argv[])
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, &g.opts);
 
     while ((ch = __wt_getopt(progname, argc, argv,
-              "C:c:d:Dk:l:mn:pPr:Rs:S:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
+              "C:c:d:Dk:l:mn:per:Rs:S:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
         case 'c':
             g.checkpoint_name = __wt_optarg;
@@ -149,7 +149,7 @@ main(int argc, char *argv[])
         case 'p': /* prepare */
             g.prepare = true;
             break;
-        case 'P': /* precise checkpoint */
+        case 'e': /* precise checkpoint */
             g.precise_checkpoint = true;
             break;
         case 'r': /* runs */
@@ -244,7 +244,7 @@ main(int argc, char *argv[])
         return (EXIT_FAILURE);
     }
     if (g.precise_checkpoint && !g.use_timestamps) {
-        fprintf(stderr, "precise checkpoint (-P) is only valid if specified along with -x.\n");
+        fprintf(stderr, "precise checkpoint (-e) is only valid if specified along with -x.\n");
         return (EXIT_FAILURE);
     }
 
@@ -774,7 +774,7 @@ usage(void)
 {
     fprintf(stderr,
       "usage: %s\n"
-      "    [-DmpPRvXx] [-C wiredtiger-config] [-c checkpoint] [-d disagg-mode] [-h home] [-k keys] "
+      "    [-DmpeRkvXx] [-C wiredtiger-config] [-c checkpoint] [-d disagg-mode] [-h home] [-k keys] "
       "[-l log]\n"
       "    [-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t f|r|v]\n"
       "    [-W workers]\n",
@@ -790,7 +790,7 @@ usage(void)
       "\t-m perform delete operations without timestamps\n"
       "\t-n set number of operations each thread does\n"
       "\t-p use prepare\n"
-      "\t-P use precise checkpoint\n"
+      "\t-e use precise checkpoint\n"
       "\t-r set number of runs (0 for continuous)\n"
       "\t-R configure predictable replay\n"
       "\t-s specify which timing stress configuration to use ( 1 | 2 | 3 | 4 | 5 )\n"
