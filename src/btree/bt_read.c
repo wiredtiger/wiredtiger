@@ -387,13 +387,21 @@ err:
     }
 
     if (tmp != NULL) {
-        for (i = disk_image_freed ? 1 : 0; i < count; ++i)
+        size_t start = disk_image_freed ? 1 : 0;
+
+        for (i = start; i < count; ++i)
             __wt_buf_free(session, &tmp[i]);
+
+        /* Fix: free tmp[0] when the loop skipped it */
+        if (disk_image_freed)
+            __wt_buf_free(session, &tmp[0]);
+
         __wt_free(session, tmp);
     }
 
     __wt_buf_free(session, &new_image);
-    __wt_buf_free(session, &new_image_copy);
+    if (!disk_image_freed)
+        __wt_buf_free(session, &new_image_copy);
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, previous_state);
 

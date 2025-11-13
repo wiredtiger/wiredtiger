@@ -53,13 +53,11 @@ __rec_key_state_update(WTI_RECONCILE *r, bool ovfl_key)
 
 /*
  * __rec_cell_build_int_key_from_kv --
- *     Build an internal key cell and populate a WTI_REC_KV structure (used when reconcile context
- *     is not available).
+ *     Build an internal key cell and populate a WTI_REC_KV structure.
  */
 static int
-__rec_cell_build_int_key_from_kv(WT_SESSION_IMPL *session,
-  WTI_REC_KV *key, /* Key/value structure (used when r == NULL) */
-  const void *data, size_t size)
+__rec_cell_build_int_key_from_kv(
+  WT_SESSION_IMPL *session, WTI_REC_KV *key, const void *data, size_t size)
 {
     WT_RET(__wt_buf_set(session, &key->buf, data, size));
 
