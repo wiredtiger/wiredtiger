@@ -268,10 +268,10 @@ class test_config04(wttest.WiredTigerTestCase):
 
     def test_valid_config_with_quotes(self):
         valid_configs = [
-            # '"create"',
-            # '"",create',
-            # 'create,"",',
-            # 'create,log="(enabled)"',
+            '"create"',
+            '"",create',
+            'create,"",',
+            'create,log="(enabled)"',
             'log="(enabled)",create']
 
         home_dir = os.path.join('.', 'WT_HOME')
