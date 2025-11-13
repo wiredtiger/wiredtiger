@@ -2263,15 +2263,22 @@ __rec_build_delta(
     *build_deltap = false;
     if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
         if (WT_BUILD_DELTA_LEAF(session, r)) {
+            WT_STAT_CONN_INCR(session, rec_debug_build_delta__leaf);
+
             WT_RET(__rec_build_delta_leaf(session, full_image, r));
             *build_deltap = true;
+        } else {
+            WT_STAT_CONN_INCR(session, rec_debug_nobuild_delta__leaf);
         }
     } else if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
         /* The internal page delta would have already been built at this point if one exists. */
         if (r->delta.size > 0) {
+            WT_STAT_CONN_INCR(session, rec_debug_build_delta__internal);
             *build_deltap = true;
             header = (WT_PAGE_HEADER *)r->delta.data;
             header->write_gen = full_image->write_gen;
+        } else {
+            WT_STAT_CONN_INCR(session, rec_debug_nobuild_delta__internal);
         }
     }
 
@@ -3081,6 +3088,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         if (__wt_ref_is_root(ref))
             break;
 
+        WT_STAT_CONN_INCR(session, rec_debug_split_nodiscard);
+        if (F_ISSET(ref, WT_REF_FLAG_LEAF))
+            WT_STAT_CONN_INCR(session, rec_debug_split_nodiscard__leaf);
+        else
+            WT_STAT_CONN_INCR(session, rec_debug_split_nodiscard__internal);
         /*
          * We need to retain the block address if we skipped writing an empty delta or we are
          * rewriting a delta to a full page.
@@ -3100,6 +3112,29 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                                /*
                                 * Discard the multiple replacement blocks.
                                 */
+        {
+            bool is_leaf = F_ISSET(ref, WT_REF_FLAG_LEAF);
+            WT_STAT_CONN_INCR(session, rec_debug_split_discard);
+            WT_STAT_CONN_INCRV(session, rec_debug_split_discard_n, mod->mod_multi_entries);
+            if (is_leaf) {
+                WT_STAT_CONN_INCR(session, rec_debug_split_discard__leaf);
+                WT_STAT_CONN_INCRV(session, rec_debug_split_discard_n__leaf, mod->mod_multi_entries);
+            } else {
+                WT_STAT_CONN_INCR(session, rec_debug_split_discard__internal);
+                WT_STAT_CONN_INCRV(session, rec_debug_split_discard_n__internal, mod->mod_multi_entries);
+            }
+            uint32_t ii;
+            for (multi = mod->mod_multi, ii = 0; ii < mod->mod_multi_entries; ++multi, ++ii) {
+                const WT_PAGE_HEADER *dsk = (const WT_PAGE_HEADER *)multi->disk_image;
+                if (dsk != NULL) {
+                    WT_STAT_CONN_INCRV(session, rec_debug_split_discard_sz, dsk->mem_size);
+                    if (is_leaf)
+                        WT_STAT_CONN_INCRV(session, rec_debug_split_discard_sz__leaf, dsk->mem_size);
+                    else
+                        WT_STAT_CONN_INCRV(session, rec_debug_split_discard_sz__internal, dsk->mem_size);
+                }
+            }
+        }
         WT_RET(__rec_split_discard(session, r, page));
         break;
     case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
@@ -3109,6 +3144,26 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                              * The exception is root pages are never tracked or free'd, they are
                              * checkpoints, and must be explicitly dropped.
                              */
+        {
+            bool is_leaf = F_ISSET(ref, WT_REF_FLAG_LEAF);
+            WT_STAT_CONN_INCR(session, rec_debug_split_discard);
+            WT_STAT_CONN_INCRV(session, rec_debug_split_discard_n, 1);
+            if (is_leaf) {
+                WT_STAT_CONN_INCR(session, rec_debug_split_discard__leaf);
+                WT_STAT_CONN_INCRV(session, rec_debug_split_discard_n__leaf, 1);
+            } else {
+                WT_STAT_CONN_INCR(session, rec_debug_split_discard__internal);
+                WT_STAT_CONN_INCRV(session, rec_debug_split_discard_n__internal, 1);
+            }
+            const WT_PAGE_HEADER *dsk = (const WT_PAGE_HEADER *)mod->mod_disk_image;
+            if (dsk != NULL) {
+                WT_STAT_CONN_INCRV(session, rec_debug_split_discard_sz, dsk->mem_size);
+                if (is_leaf)
+                    WT_STAT_CONN_INCRV(session, rec_debug_split_discard_sz__leaf, dsk->mem_size);
+                else
+                    WT_STAT_CONN_INCRV(session, rec_debug_split_discard_sz__internal, dsk->mem_size);
+            }
+        }
         if (!__wt_ref_is_root(ref)) {
             /*
              * We have skipped writing a delta in the first reconciliation after the page is read

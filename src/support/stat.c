@@ -2607,6 +2607,57 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: pages written including at least one stop transaction ID",
   "reconciliation: pages written with at least one internal page delta",
   "reconciliation: pages written with at least one leaf page delta",
+  "reconciliation: rec_debug_build_delta__internal - number of times deltas were built during "
+  "reconciliation (internal pages)",
+  "reconciliation: rec_debug_build_delta__leaf - number of times deltas were built during "
+  "reconciliation (leaf pages)",
+  "reconciliation: rec_debug_build_delta_abort1__internal - number of times delta build was "
+  "aborted because the page has been split (internal pages)",
+  "reconciliation: rec_debug_build_delta_abort2__internal - number of times delta build was "
+  "aborted because there are concurrent changes to the first child (WTI_CHILD_IGNORE) (internal "
+  "pages)",
+  "reconciliation: rec_debug_build_delta_abort3__internal - number of times delta build was "
+  "aborted because there are concurrent changes to the first child (WT_PM_REC_EMPTY) (internal "
+  "pages)",
+  "reconciliation: rec_debug_build_delta_abort4__internal - number of times delta build was "
+  "aborted because there are concurrent changes to the first child (WT_PM_REC_MULTIBLOCK) "
+  "(internal pages)",
+  "reconciliation: rec_debug_build_delta_abort5__internal - number of times delta build was "
+  "aborted because there are concurrent changes to the first child (last) (internal pages)",
+  "reconciliation: rec_debug_build_delta_abort__internal - number of times delta build was aborted "
+  "(internal pages)",
+  "reconciliation: rec_debug_build_delta_attempt__internal - number of times deltas were attempted "
+  "to build during reconciliation (internal pages)",
+  "reconciliation: rec_debug_build_delta_attempt_no__internal - number of times deltas were NOT "
+  "attempted to build during reconciliation (internal pages)",
+  "reconciliation: rec_debug_nobuild_delta__internal - number of times deltas were NOT built "
+  "during reconciliation (internal pages)",
+  "reconciliation: rec_debug_nobuild_delta__leaf - number of times deltas were NOT built during "
+  "reconciliation (leaf pages)",
+  "reconciliation: rec_debug_split_discard - number of times split pages were discarded during "
+  "reconciliation",
+  "reconciliation: rec_debug_split_discard__internal - number of times split pages were discarded "
+  "during reconciliation (internal pages)",
+  "reconciliation: rec_debug_split_discard__leaf - number of times split pages were discarded "
+  "during reconciliation (leaf pages)",
+  "reconciliation: rec_debug_split_discard_n - number of split pages were discarded during "
+  "reconciliation",
+  "reconciliation: rec_debug_split_discard_n__internal - number of split pages were discarded "
+  "during reconciliation (internal pages)",
+  "reconciliation: rec_debug_split_discard_n__leaf - number of split pages were discarded during "
+  "reconciliation (leaf pages)",
+  "reconciliation: rec_debug_split_discard_sz - number of bytes in split pages that were discarded "
+  "during reconciliation",
+  "reconciliation: rec_debug_split_discard_sz__internal - number of bytes in split pages that were "
+  "discarded during reconciliation (internal pages)",
+  "reconciliation: rec_debug_split_discard_sz__leaf - number of bytes in split pages that were "
+  "discarded during reconciliation (leaf pages)",
+  "reconciliation: rec_debug_split_nodiscard - number of times split pages were NOT discarded "
+  "during reconciliation",
+  "reconciliation: rec_debug_split_nodiscard__internal - number of times split pages were NOT "
+  "discarded during reconciliation (internal pages)",
+  "reconciliation: rec_debug_split_nodiscard__leaf - number of times split pages were NOT "
+  "discarded during reconciliation (leaf pages)",
   "reconciliation: records written including a prepare state",
   "reconciliation: records written including a start durable timestamp",
   "reconciliation: records written including a start timestamp",
@@ -3589,6 +3640,30 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_time_window_pages_stop_txn = 0;
     stats->rec_pages_with_internal_deltas = 0;
     stats->rec_pages_with_leaf_deltas = 0;
+    stats->rec_debug_build_delta__internal = 0;
+    stats->rec_debug_build_delta__leaf = 0;
+    stats->rec_debug_build_delta_abort1__internal = 0;
+    stats->rec_debug_build_delta_abort2__internal = 0;
+    stats->rec_debug_build_delta_abort3__internal = 0;
+    stats->rec_debug_build_delta_abort4__internal = 0;
+    stats->rec_debug_build_delta_abort5__internal = 0;
+    stats->rec_debug_build_delta_abort__internal = 0;
+    stats->rec_debug_build_delta_attempt__internal = 0;
+    stats->rec_debug_build_delta_attempt_no__internal = 0;
+    stats->rec_debug_nobuild_delta__internal = 0;
+    stats->rec_debug_nobuild_delta__leaf = 0;
+    stats->rec_debug_split_discard = 0;
+    stats->rec_debug_split_discard__internal = 0;
+    stats->rec_debug_split_discard__leaf = 0;
+    stats->rec_debug_split_discard_n = 0;
+    stats->rec_debug_split_discard_n__internal = 0;
+    stats->rec_debug_split_discard_n__leaf = 0;
+    stats->rec_debug_split_discard_sz = 0;
+    stats->rec_debug_split_discard_sz__internal = 0;
+    stats->rec_debug_split_discard_sz__leaf = 0;
+    stats->rec_debug_split_nodiscard = 0;
+    stats->rec_debug_split_nodiscard__internal = 0;
+    stats->rec_debug_split_nodiscard__leaf = 0;
     stats->rec_time_window_prepared = 0;
     stats->rec_time_window_durable_start_ts = 0;
     stats->rec_time_window_start_ts = 0;
@@ -4757,6 +4832,44 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_time_window_pages_stop_txn += WT_STAT_CONN_READ(from, rec_time_window_pages_stop_txn);
     to->rec_pages_with_internal_deltas += WT_STAT_CONN_READ(from, rec_pages_with_internal_deltas);
     to->rec_pages_with_leaf_deltas += WT_STAT_CONN_READ(from, rec_pages_with_leaf_deltas);
+    to->rec_debug_build_delta__internal += WT_STAT_CONN_READ(from, rec_debug_build_delta__internal);
+    to->rec_debug_build_delta__leaf += WT_STAT_CONN_READ(from, rec_debug_build_delta__leaf);
+    to->rec_debug_build_delta_abort1__internal +=
+      WT_STAT_CONN_READ(from, rec_debug_build_delta_abort1__internal);
+    to->rec_debug_build_delta_abort2__internal +=
+      WT_STAT_CONN_READ(from, rec_debug_build_delta_abort2__internal);
+    to->rec_debug_build_delta_abort3__internal +=
+      WT_STAT_CONN_READ(from, rec_debug_build_delta_abort3__internal);
+    to->rec_debug_build_delta_abort4__internal +=
+      WT_STAT_CONN_READ(from, rec_debug_build_delta_abort4__internal);
+    to->rec_debug_build_delta_abort5__internal +=
+      WT_STAT_CONN_READ(from, rec_debug_build_delta_abort5__internal);
+    to->rec_debug_build_delta_abort__internal +=
+      WT_STAT_CONN_READ(from, rec_debug_build_delta_abort__internal);
+    to->rec_debug_build_delta_attempt__internal +=
+      WT_STAT_CONN_READ(from, rec_debug_build_delta_attempt__internal);
+    to->rec_debug_build_delta_attempt_no__internal +=
+      WT_STAT_CONN_READ(from, rec_debug_build_delta_attempt_no__internal);
+    to->rec_debug_nobuild_delta__internal +=
+      WT_STAT_CONN_READ(from, rec_debug_nobuild_delta__internal);
+    to->rec_debug_nobuild_delta__leaf += WT_STAT_CONN_READ(from, rec_debug_nobuild_delta__leaf);
+    to->rec_debug_split_discard += WT_STAT_CONN_READ(from, rec_debug_split_discard);
+    to->rec_debug_split_discard__internal +=
+      WT_STAT_CONN_READ(from, rec_debug_split_discard__internal);
+    to->rec_debug_split_discard__leaf += WT_STAT_CONN_READ(from, rec_debug_split_discard__leaf);
+    to->rec_debug_split_discard_n += WT_STAT_CONN_READ(from, rec_debug_split_discard_n);
+    to->rec_debug_split_discard_n__internal +=
+      WT_STAT_CONN_READ(from, rec_debug_split_discard_n__internal);
+    to->rec_debug_split_discard_n__leaf += WT_STAT_CONN_READ(from, rec_debug_split_discard_n__leaf);
+    to->rec_debug_split_discard_sz += WT_STAT_CONN_READ(from, rec_debug_split_discard_sz);
+    to->rec_debug_split_discard_sz__internal +=
+      WT_STAT_CONN_READ(from, rec_debug_split_discard_sz__internal);
+    to->rec_debug_split_discard_sz__leaf +=
+      WT_STAT_CONN_READ(from, rec_debug_split_discard_sz__leaf);
+    to->rec_debug_split_nodiscard += WT_STAT_CONN_READ(from, rec_debug_split_nodiscard);
+    to->rec_debug_split_nodiscard__internal +=
+      WT_STAT_CONN_READ(from, rec_debug_split_nodiscard__internal);
+    to->rec_debug_split_nodiscard__leaf += WT_STAT_CONN_READ(from, rec_debug_split_nodiscard__leaf);
     to->rec_time_window_prepared += WT_STAT_CONN_READ(from, rec_time_window_prepared);
     to->rec_time_window_durable_start_ts +=
       WT_STAT_CONN_READ(from, rec_time_window_durable_start_ts);

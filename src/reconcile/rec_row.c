@@ -569,6 +569,11 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     cell = NULL;
     build_delta = WT_BUILD_DELTA_INT(session, r);
 
+    if (build_delta)
+        WT_STAT_CONN_INCR(session, rec_debug_build_delta_attempt__internal);
+    else
+        WT_STAT_CONN_INCR(session, rec_debug_build_delta_attempt_no__internal);
+
     WT_RET(__wti_rec_split_init(session, r, page, 0, btree->maxintlpage_precomp, 0));
     WT_RET(__rec_build_delta_int(session, r, build_delta));
 
@@ -604,8 +609,11 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          */
         if (build_delta &&
           (r->multi_next > 0 || F_ISSET(ref, WT_REF_FLAG_REC_MULTIPLE) ||
-            (r->cell_zero && prev_dirty)))
+            (r->cell_zero && prev_dirty))) {
+            WT_STAT_CONN_INCR(session, rec_debug_build_delta_abort__internal);
+            WT_STAT_CONN_INCR(session, rec_debug_build_delta_abort1__internal);
             __rec_stop_build_delta_int(r, &build_delta);
+        }
 
         retain_onpage = false;
 
@@ -651,8 +659,11 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             if (WT_DELTA_INT_ENABLED(btree, S2C(session))) {
                 /* If there are concurrent changes to the first child, abort delta creation. */
                 if (__wt_atomic_load_uint8_v_acquire(&ref->rec_state) == WT_REF_REC_DIRTY &&
-                  build_delta && r->cell_zero)
+                  build_delta && r->cell_zero) {
+                    WT_STAT_CONN_INCR(session, rec_debug_build_delta_abort__internal);
+                    WT_STAT_CONN_INCR(session, rec_debug_build_delta_abort2__internal);
                     __rec_stop_build_delta_int(r, &build_delta);
+                }
             }
 
             F_CLR(ref, WT_REF_FLAG_REC_MULTIPLE);
@@ -677,8 +688,11 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                 if (WT_DELTA_INT_ENABLED(btree, S2C(session))) {
                     /* If there are concurrent changes to the first child, abort delta creation. */
                     if (__wt_atomic_load_uint8_v_acquire(&ref->rec_state) == WT_REF_REC_DIRTY &&
-                      build_delta && r->cell_zero)
+                      build_delta && r->cell_zero) {
+                        WT_STAT_CONN_INCR(session, rec_debug_build_delta_abort__internal);
+                        WT_STAT_CONN_INCR(session, rec_debug_build_delta_abort3__internal);
                         __rec_stop_build_delta_int(r, &build_delta);
+                    }
                 }
 
                 F_CLR(ref, WT_REF_FLAG_REC_MULTIPLE);
@@ -695,8 +709,11 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                 if (WT_DELTA_INT_ENABLED(btree, S2C(session))) {
                     /* If there are concurrent changes to the first child, abort delta creation. */
                     if (__wt_atomic_load_uint8_v_acquire(&ref->rec_state) == WT_REF_REC_DIRTY &&
-                      build_delta && cell_zero_tmp)
+                      build_delta && cell_zero_tmp) {
+                        WT_STAT_CONN_INCR(session, rec_debug_build_delta_abort__internal);
+                        WT_STAT_CONN_INCR(session, rec_debug_build_delta_abort4__internal);
                         __rec_stop_build_delta_int(r, &build_delta);
+                    }
                 }
 
                 WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
@@ -823,8 +840,11 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         if (WT_DELTA_INT_ENABLED(btree, S2C(session))) {
             /* If there are concurrent changes to the first child, abort delta creation. */
             if (__wt_atomic_load_uint8_v_acquire(&ref->rec_state) == WT_REF_REC_DIRTY &&
-              build_delta && r->cell_zero)
+              build_delta && r->cell_zero) {
+                WT_STAT_CONN_INCR(session, rec_debug_build_delta_abort__internal);
+                WT_STAT_CONN_INCR(session, rec_debug_build_delta_abort5__internal);
                 __rec_stop_build_delta_int(r, &build_delta);
+            }
         }
 
         r->cell_zero = false;

@@ -820,6 +820,32 @@ conn_stats = [
     RecStat('rec_split_stashed_bytes', 'split bytes currently awaiting free', 'no_clear,no_scale,size'),
     RecStat('rec_split_stashed_objects', 'split objects currently awaiting free', 'no_clear,no_scale'),
 
+    RecStat('rec_debug_split_discard', 'rec_debug_split_discard - number of times split pages were discarded during reconciliation'),
+    RecStat('rec_debug_split_discard_n', 'rec_debug_split_discard_n - number of split pages were discarded during reconciliation'),
+    RecStat('rec_debug_split_discard_sz', 'rec_debug_split_discard_sz - number of bytes in split pages that were discarded during reconciliation'),
+    RecStat('rec_debug_split_discard__leaf', 'rec_debug_split_discard__leaf - number of times split pages were discarded during reconciliation (leaf pages)'),
+    RecStat('rec_debug_split_discard_n__leaf', 'rec_debug_split_discard_n__leaf - number of split pages were discarded during reconciliation (leaf pages)'),
+    RecStat('rec_debug_split_discard_sz__leaf', 'rec_debug_split_discard_sz__leaf - number of bytes in split pages that were discarded during reconciliation (leaf pages)'),
+    RecStat('rec_debug_split_discard__internal', 'rec_debug_split_discard__internal - number of times split pages were discarded during reconciliation (internal pages)'),
+    RecStat('rec_debug_split_discard_n__internal', 'rec_debug_split_discard_n__internal - number of split pages were discarded during reconciliation (internal pages)'),
+    RecStat('rec_debug_split_discard_sz__internal', 'rec_debug_split_discard_sz__internal - number of bytes in split pages that were discarded during reconciliation (internal pages)'),
+    RecStat('rec_debug_split_nodiscard', 'rec_debug_split_nodiscard - number of times split pages were NOT discarded during reconciliation'),
+    RecStat('rec_debug_split_nodiscard__leaf', 'rec_debug_split_nodiscard__leaf - number of times split pages were NOT discarded during reconciliation (leaf pages)'),
+    RecStat('rec_debug_split_nodiscard__internal', 'rec_debug_split_nodiscard__internal - number of times split pages were NOT discarded during reconciliation (internal pages)'),
+    RecStat('rec_debug_build_delta__leaf', 'rec_debug_build_delta__leaf - number of times deltas were built during reconciliation (leaf pages)'),
+    RecStat('rec_debug_build_delta__internal', 'rec_debug_build_delta__internal - number of times deltas were built during reconciliation (internal pages)'),
+    RecStat('rec_debug_nobuild_delta__leaf', 'rec_debug_nobuild_delta__leaf - number of times deltas were NOT built during reconciliation (leaf pages)'),
+    RecStat('rec_debug_nobuild_delta__internal', 'rec_debug_nobuild_delta__internal - number of times deltas were NOT built during reconciliation (internal pages)'),
+
+    RecStat('rec_debug_build_delta_attempt__internal', 'rec_debug_build_delta_attempt__internal - number of times deltas were attempted to build during reconciliation (internal pages)'),
+    RecStat('rec_debug_build_delta_attempt_no__internal', 'rec_debug_build_delta_attempt_no__internal - number of times deltas were NOT attempted to build during reconciliation (internal pages)'),
+    RecStat('rec_debug_build_delta_abort__internal', 'rec_debug_build_delta_abort__internal - number of times delta build was aborted (internal pages)'),
+    RecStat('rec_debug_build_delta_abort1__internal', 'rec_debug_build_delta_abort1__internal - number of times delta build was aborted because the page has been split (internal pages)'),
+    RecStat('rec_debug_build_delta_abort2__internal', 'rec_debug_build_delta_abort2__internal - number of times delta build was aborted because there are concurrent changes to the first child (WTI_CHILD_IGNORE) (internal pages)'),
+    RecStat('rec_debug_build_delta_abort3__internal', 'rec_debug_build_delta_abort3__internal - number of times delta build was aborted because there are concurrent changes to the first child (WT_PM_REC_EMPTY) (internal pages)'),
+    RecStat('rec_debug_build_delta_abort4__internal', 'rec_debug_build_delta_abort4__internal - number of times delta build was aborted because there are concurrent changes to the first child (WT_PM_REC_MULTIBLOCK) (internal pages)'),
+    RecStat('rec_debug_build_delta_abort5__internal', 'rec_debug_build_delta_abort5__internal - number of times delta build was aborted because there are concurrent changes to the first child (last) (internal pages)'),
+
     ##########################################
     # Session operations
     ##########################################
