@@ -123,8 +123,8 @@ check_update(WT_UPDATE *upd,
  * Helper function to setup minimal reconciliation context
  */
 static void
-setup_reconcile_context(WTI_RECONCILE *r, WT_SESSION_IMPL *session, WT_PAGE *page,
-  uint64_t pinned_id, wt_timestamp_t pinned_ts)
+setup_reconcile_context(
+  WTI_RECONCILE *r, WT_PAGE *page, uint64_t pinned_id, wt_timestamp_t pinned_ts)
 {
     memset(r, 0, sizeof(WTI_RECONCILE));
     r->page = page;
@@ -225,7 +225,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Basic visible update sele
 
     /* Setup reconciliation context with pinned transaction ID 120 */
     WTI_RECONCILE r;
-    setup_reconcile_context(&r, session, page, 120, 50);
+    setup_reconcile_context(&r, page, 120, 50);
     std::vector<
       /* data, update type, txn id, timestamp, durable ts, prepare_ts */
       std::tuple<const char *, uint8_t, uint64_t, wt_timestamp_t, wt_timestamp_t, uint8_t>>
@@ -287,7 +287,7 @@ TEST_CASE_METHOD(
     session->txn->isolation = WT_ISO_SNAPSHOT;
 
     WTI_RECONCILE r;
-    setup_reconcile_context(&r, session, page, 120, 50);
+    setup_reconcile_context(&r, page, 120, 50);
     r.rec_prune_timestamp = 10;
     std::vector<
       /* data, update type, txn id, start timestamp, durable ts, prepare_state */
@@ -336,7 +336,7 @@ TEST_CASE_METHOD(RecUpdSelectFixture, "rec_upd_select: Skip writing aborted and 
     session->txn->isolation = WT_ISO_SNAPSHOT;
 
     WTI_RECONCILE r;
-    setup_reconcile_context(&r, session, page, 120, 50);
+    setup_reconcile_context(&r, page, 120, 50);
     r.rec_prune_timestamp = 10;
     std::vector<
       /* data, update type, txn id, start timestamp, durable ts, prepare_state */
