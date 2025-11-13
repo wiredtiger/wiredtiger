@@ -774,7 +774,8 @@ usage(void)
 {
     fprintf(stderr,
       "usage: %s\n"
-      "    [-DmpeRkvXx] [-C wiredtiger-config] [-c checkpoint] [-d disagg-mode] [-h home] [-k keys] "
+      "    [-DmpeRkvXx] [-C wiredtiger-config] [-c checkpoint] [-d disagg-mode] [-h home] [-k "
+      "keys] "
       "[-l log]\n"
       "    [-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t f|r|v]\n"
       "    [-W workers]\n",
