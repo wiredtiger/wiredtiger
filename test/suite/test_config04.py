@@ -249,17 +249,17 @@ class test_config04(wttest.WiredTigerTestCase):
         # The tiered/disagg hook modifies the wiredtiger_open configuration string.
         # This may influence what particular error message occurs in certain cases.
         classic = not (self.runningHook('tiered') or self.runningHook('disagg'))
-        dot_pat = '/./'
+        match_any = '/./'
 
         unbalanced_brackets = (['}', '{', '{}}', '(]}', '(create=]}', '(create='],
-                               '/Unbalanced brackets/' if classic else dot_pat)
+                               '/Unbalanced brackets/' if classic else match_any)
 
         unbalanced_quotes = (['"', '"""', '",', '"create=', 'create=,"', 'error_prefix="a'],
-                             '/Unbalanced quotes/' if classic else dot_pat)
+                             '/Unbalanced quotes/' if classic else match_any)
 
         unexpected_escape = ([f'error_prefix="{esc}"'
                               for esc in ['\a', '\b', '\f', '\n', '\r', '\t', '\v']],
-                             '/Unexpected escaped character/' if classic else dot_pat)
+                             '/Unexpected escaped character/' if classic else match_any)
 
         for bad_configs, msg in (unbalanced_brackets, unbalanced_quotes, unexpected_escape):
             for config in bad_configs:
