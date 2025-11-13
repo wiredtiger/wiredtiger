@@ -94,6 +94,7 @@ typedef struct {
     bool checkpoint_slow_timing_stress;  /* Checkpoint slow timing stress */
     bool evict_reposition_timing_stress; /* Reposition the cursor for read operations */
     bool hs_checkpoint_timing_stress;    /* History store checkpoint timing stress */
+    bool precise_checkpoint;             /* Use precise checkpoint */
     bool sweep_stress;                   /* Sweep stress test */
 
     uint64_t ts_oldest;                   /* Current oldest timestamp */
