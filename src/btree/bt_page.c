@@ -206,7 +206,7 @@ __page_unpack_deltas_internal_new(WT_SESSION_IMPL *session, WT_ITEM *deltas, siz
     WT_PAGE_HEADER *base_image_page_header;
     size_t *delta_size_each;
     size_t idx;
-    uint32_t d;
+    uint32_t i;
 
     base_image_page_header = (WT_PAGE_HEADER *)base_image_addr;
 
@@ -218,14 +218,14 @@ __page_unpack_deltas_internal_new(WT_SESSION_IMPL *session, WT_ITEM *deltas, siz
     WT_ERR(__wt_calloc_def(session, delta_size, &unpacked_deltas));
 
     /* Unpack all delta images (do not merge them yet). */
-    for (d = 0; d < (uint32_t)delta_size; ++d) {
-        WT_PAGE_HEADER *header = (WT_PAGE_HEADER *)deltas[d].data;
+    for (i = 0; i < (uint32_t)delta_size; ++i) {
+        WT_PAGE_HEADER *header = (WT_PAGE_HEADER *)deltas[i].data;
         size_t entries = header->u.entries / 2; /* key/value pairs */
-        delta_size_each[d] = entries;
-        WT_ERR(__wt_calloc_def(session, entries, &unpacked_deltas[d]));
+        delta_size_each[i] = entries;
+        WT_ERR(__wt_calloc_def(session, entries, &unpacked_deltas[i]));
 
         idx = 0;
-        WT_CELL_FOREACH_DELTA_INT(session, base_image_page_header, header, unpacked_deltas[d][idx])
+        WT_CELL_FOREACH_DELTA_INT(session, base_image_page_header, header, unpacked_deltas[i][idx])
         {
             idx++;
         }
@@ -238,8 +238,8 @@ __page_unpack_deltas_internal_new(WT_SESSION_IMPL *session, WT_ITEM *deltas, siz
 
 err:
     if (unpacked_deltas != NULL) {
-        for (d = 0; d < (uint32_t)delta_size; ++d)
-            __wt_free(session, unpacked_deltas[d]);
+        for (i = 0; i < (uint32_t)delta_size; ++i)
+            __wt_free(session, unpacked_deltas[i]);
         __wt_free(session, unpacked_deltas);
     }
     __wt_free(session, delta_size_each);
@@ -258,7 +258,7 @@ __page_unpack_deltas_internal(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ITEM *
     WT_DECL_RET;
     size_t *delta_size_each;
     size_t idx;
-    uint32_t d;
+    uint32_t i;
 
     unpacked_deltas = NULL;
     delta_size_each = NULL;
@@ -268,14 +268,14 @@ __page_unpack_deltas_internal(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ITEM *
     WT_ERR(__wt_calloc_def(session, delta_size, &unpacked_deltas));
 
     /* Unpack all delta images (do not merge them yet). */
-    for (d = 0; d < (uint32_t)delta_size; ++d) {
-        WT_PAGE_HEADER *header = (WT_PAGE_HEADER *)deltas[d].data;
+    for (i = 0; i < (uint32_t)delta_size; ++i) {
+        WT_PAGE_HEADER *header = (WT_PAGE_HEADER *)deltas[i].data;
         size_t entries = header->u.entries / 2; /* key/value pairs */
-        delta_size_each[d] = entries;
-        WT_ERR(__wt_calloc_def(session, entries, &unpacked_deltas[d]));
+        delta_size_each[i] = entries;
+        WT_ERR(__wt_calloc_def(session, entries, &unpacked_deltas[i]));
 
         idx = 0;
-        WT_CELL_FOREACH_DELTA_INT(session, page->dsk, header, unpacked_deltas[d][idx])
+        WT_CELL_FOREACH_DELTA_INT(session, page->dsk, header, unpacked_deltas[i][idx])
         {
             idx++;
         }
@@ -288,8 +288,8 @@ __page_unpack_deltas_internal(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ITEM *
 
 err:
     if (unpacked_deltas != NULL) {
-        for (d = 0; d < (uint32_t)delta_size; ++d)
-            __wt_free(session, unpacked_deltas[d]);
+        for (i = 0; i < (uint32_t)delta_size; ++i)
+            __wt_free(session, unpacked_deltas[i]);
         __wt_free(session, unpacked_deltas);
     }
     __wt_free(session, delta_size_each);
@@ -1082,29 +1082,27 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
-        if (!LF_ISSET(WT_PAGE_WITH_DELTAS)) {
-            WT_ASSERT(session, alloc_entries != 0);
-            /*
-             * Internal pages have an array of references to objects so they can split. Allocate the
-             * array of references and optionally, the objects to which they point.
-             */
-            WT_ERR(__wt_calloc(
-              session, 1, sizeof(WT_PAGE_INDEX) + alloc_entries * sizeof(WT_REF *), &p));
-            size += sizeof(WT_PAGE_INDEX) + alloc_entries * sizeof(WT_REF *);
-            pindex = p;
-            pindex->index = (WT_REF **)((WT_PAGE_INDEX *)p + 1);
-            pindex->entries = alloc_entries;
-            WT_INTL_INDEX_SET(page, pindex);
-            if (alloc_refs)
-                for (i = 0; i < pindex->entries; ++i) {
-                    WT_ERR(__wt_calloc_one(session, &pindex->index[i]));
-                    size += sizeof(WT_REF);
-                }
-            if (0) {
-err:
-                __wt_page_out(session, &page);
-                return (ret);
+        WT_ASSERT(session, alloc_entries != 0);
+        /*
+         * Internal pages have an array of references to objects so they can split. Allocate the
+         * array of references and optionally, the objects to which they point.
+         */
+        WT_ERR(
+          __wt_calloc(session, 1, sizeof(WT_PAGE_INDEX) + alloc_entries * sizeof(WT_REF *), &p));
+        size += sizeof(WT_PAGE_INDEX) + alloc_entries * sizeof(WT_REF *);
+        pindex = p;
+        pindex->index = (WT_REF **)((WT_PAGE_INDEX *)p + 1);
+        pindex->entries = alloc_entries;
+        WT_INTL_INDEX_SET(page, pindex);
+        if (alloc_refs)
+            for (i = 0; i < pindex->entries; ++i) {
+                WT_ERR(__wt_calloc_one(session, &pindex->index[i]));
+                size += sizeof(WT_REF);
             }
+        if (0) {
+err:
+            __wt_page_out(session, &page);
+            return (ret);
         }
         break;
     case WT_PAGE_COL_VAR:
@@ -1465,8 +1463,7 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
          * Row-store internal page entries map one-to-two to the number of physical entries on the
          * page (each entry is a key and location cookie pair).
          */
-        if (!LF_ISSET(WT_PAGE_WITH_DELTAS))
-            alloc_entries = dsk->u.entries / 2;
+        alloc_entries = dsk->u.entries / 2;
         break;
     case WT_PAGE_ROW_LEAF:
         /*
@@ -1513,8 +1510,7 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
         WT_ERR(__inmem_col_var(session, page, dsk->recno, instantiate_updp, &size));
         break;
     case WT_PAGE_ROW_INT:
-        if (!LF_ISSET(WT_PAGE_WITH_DELTAS))
-            WT_ERR(__inmem_row_int(session, page, &size));
+        WT_ERR(__inmem_row_int(session, page, &size));
         break;
     case WT_PAGE_ROW_LEAF:
         WT_ERR(__inmem_row_leaf(session, page, instantiate_updp));

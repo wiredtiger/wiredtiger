@@ -251,6 +251,18 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         deltas = NULL;
 
     /*
+     * If a page is read with eviction disabled, we don't count evicting it as progress. Since
+     * disabling eviction allows pages to be read even when the cache is full, we want to avoid
+     * workloads repeatedly reading a page with eviction disabled (e.g., a metadata page), then
+     * evicting that page and deciding that is a sign that eviction is unstuck.
+     */
+    page_flags = WT_DATA_IN_ITEM(&tmp[0]) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
+    if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
+        FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
+    if (LF_ISSET(WT_READ_PREFETCH))
+        FLD_SET(page_flags, WT_PAGE_PREFETCH);
+
+    /*
      * After reading the page from disk, construct a full disk image. This is currently performed
      * only for internal pages that has delta.
      */
@@ -284,31 +296,23 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         __wt_buf_free(session, &new_image);
         for (i = 0; i < count - 1; ++i)
             __wt_buf_free(session, &deltas[i]);
+        __wt_buf_free(session, &tmp[0]);
 
         WT_ERR(ret);
     }
     /*
      * Build the in-memory version of the page. Clear our local reference to the allocated copy of
      * the disk image on return, the in-memory object steals it.
-     *
-     * If a page is read with eviction disabled, we don't count evicting it as progress. Since
-     * disabling eviction allows pages to be read even when the cache is full, we want to avoid
-     * workloads repeatedly reading a page with eviction disabled (e.g., a metadata page), then
-     * evicting that page and deciding that is a sign that eviction is unstuck.
      */
-    page_flags = WT_DATA_IN_ITEM(&tmp[0]) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
-    if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
-        FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
-    if (LF_ISSET(WT_READ_PREFETCH))
-        FLD_SET(page_flags, WT_PAGE_PREFETCH);
     if (build_full_disk_image_from_deltas)
         /* Pass the newly built full disk image data to build in-memory page information. */
         WT_ERR(
           __wti_page_inmem(session, ref, new_image_copy.data, page_flags, &page, &instantiate_upd));
-    else
+    else {
         WT_ERR(__wti_page_inmem(session, ref, tmp[0].data, page_flags, &page, &instantiate_upd));
-    WT_ASSERT(session, ref->page == page);
-    tmp[0].mem = NULL;
+        WT_ASSERT(session, ref->page == page);
+        tmp[0].mem = NULL;
+    }
     if (page->disagg_info != NULL) {
         page->disagg_info->block_meta = block_meta;
         page->disagg_info->old_rec_lsn_max = block_meta.disagg_lsn;

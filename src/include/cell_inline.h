@@ -269,6 +269,40 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
 }
 
 /*
+ * __wt_cell_build_addr_core --
+ *     Core function to pack an address cell. This version does not depend on reconcile-private
+ *     structures.
+ */
+static WT_INLINE uint16_t
+__wt_cell_build_addr_core(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t cell_type,
+  uint64_t recno, WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, size_t data_size)
+{
+    /*
+     * If passed fast-delete information, override the cell type. We should never see fast-truncate
+     * cell types without fast-truncate information.
+     */
+    WT_ASSERT(session, page_del != NULL || cell_type != WT_CELL_ADDR_DEL);
+
+    if (page_del != NULL) {
+        /*
+         * We only support fast-truncate leaf pages without overflow items, however, we can write a
+         * proxy cell for a page, evict and then read the internal page, and then checkpoint is
+         * writing it again.
+         */
+        WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL || cell_type == WT_CELL_ADDR_LEAF_NO);
+        cell_type = WT_CELL_ADDR_DEL;
+
+        /* We should never be in an in-progress prepared state. */
+        WT_ASSERT(session,
+          page_del->prepare_state == WT_PREPARE_INIT ||
+            page_del->prepare_state == WT_PREPARE_RESOLVED);
+    }
+
+    /* Just pack and return the cell size. */
+    return (uint16_t)__wt_cell_pack_addr(session, cell, cell_type, recno, page_del, ta, data_size);
+}
+
+/*
  * __wt_cell_pack_addr --
  *     Pack an address cell.
  */

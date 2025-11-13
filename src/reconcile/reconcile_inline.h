@@ -327,64 +327,22 @@ __wti_rec_auximage_copy(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint32_t cou
 }
 
 /*
- * __rec_cell_build_addr_core --
- *     Shared implementation for building address cells.
- *
- * This function consolidates the duplicated logic between __wti_cell_build_addr_custom() and
- *     __wti_rec_cell_build_addr().
+ * __wti_rec_cell_build_addr_wrapper --
+ *     Helper to build an address cell for a given unpacked address structure (delta or base).
  */
 static WT_INLINE void
-__rec_cell_build_addr_core(WT_SESSION_IMPL *session, WTI_REC_KV *val_kv, uint8_t cell_type,
-  uint64_t recno, WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, const void *data,
-  size_t data_size)
+__wti_rec_cell_build_addr_wrapper(WT_SESSION_IMPL *session, WTI_REC_KV *val_kv, uint8_t cell_type,
+  WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, const void *data, size_t data_size)
 {
-    /*
-     * If passed fast-delete information, override the cell type. We should never see fast-truncate
-     * cell types without fast-truncate information.
-     */
-    WT_ASSERT(session, page_del != NULL || cell_type != WT_CELL_ADDR_DEL);
-    if (page_del != NULL) {
-        /*
-         * We only support fast-truncate leaf pages without overflow items, however, we can write a
-         * proxy cell for a page, evict and then read the internal page, and then checkpoint is
-         * writing it again.
-         */
-        WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL || cell_type == WT_CELL_ADDR_LEAF_NO);
-        cell_type = WT_CELL_ADDR_DEL;
+    WT_ASSERT(session, val_kv != NULL);
 
-        /* We should never be in an in-progress prepared state. */
-        WT_ASSERT(session,
-          page_del->prepare_state == WT_PREPARE_INIT ||
-            page_del->prepare_state == WT_PREPARE_RESOLVED);
-    }
-
-    /*
-     * We don't copy the data into the buffer, it's not necessary; just re-point the buffer's
-     * data/length fields.
-     */
     val_kv->buf.data = data;
     val_kv->buf.size = data_size;
 
-    val_kv->cell_len = (uint16_t)__wt_cell_pack_addr(
-      session, &val_kv->cell, cell_type, recno, page_del, ta, data_size);
+    val_kv->cell_len = (uint16_t)__wt_cell_build_addr_core(
+      session, &val_kv->cell, cell_type, WT_RECNO_OOB, page_del, ta, data_size);
 
     val_kv->len = val_kv->cell_len + data_size;
-}
-
-/*
- * __wti_cell_build_addr_custom --
- *     Pack an address cell.
- */
-static WT_INLINE void
-__wti_cell_build_addr_custom(WT_SESSION_IMPL *session, WTI_REC_KV *val_kv, uint8_t cell_type,
-  uint64_t recno, WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, size_t val_size)
-{
-    /*
-     * No special logic here just forward parameters to the shared implementation. The buffer's data
-     * is already stored in val_kv->buf.
-     */
-    __rec_cell_build_addr_core(
-      session, val_kv, cell_type, recno, page_del, ta, val_kv->buf.data, val_size);
 }
 
 /*
@@ -436,10 +394,14 @@ __wti_rec_cell_build_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ADDR *a
     __rec_cell_addr_stats(r, ta);
 
     /*
-     * Use the standard builder to finalize the cell header and assign buffer fields. This logic was
-     * previously duplicated here and in __wti_cell_build_addr_custom.
+     * Use the shared cell builder from the cell module. We assign both the packed cell length and
+     * total length, and re-point the buffer to the caller-provided data.
      */
-    __rec_cell_build_addr_core(session, val, cell_type, recno, page_del, ta, data, data_size);
+    val->buf.data = data;
+    val->buf.size = data_size;
+    val->cell_len = (uint16_t)__wt_cell_build_addr_core(
+      session, &val->cell, cell_type, recno, page_del, ta, data_size);
+    val->len = val->cell_len + data_size;
 }
 
 /*
