@@ -50,7 +50,6 @@ class kv_database;
  */
 enum class kv_table_type {
     column,
-    column_fix,
     row,
 };
 
@@ -368,17 +367,8 @@ protected:
     item(const data_value &key)
     {
         std::lock_guard lock_guard(_lock);
-        /* For FLCS, add missing keys to ensure that key rages are contiguous. */
-        if (_config.type == kv_table_type::column_fix)
-            fill_missing_column_fix_recnos_nolock(key);
         return _data[key]; /* this automatically instantiates the item if it does not exist */
     }
-
-    /*
-     * kv_table::fill_missing_column_fix_recnos_nolock --
-     *     Fill in missing recnos for FLCS to ensure that key rages are contiguous.
-     */
-    void fill_missing_column_fix_recnos_nolock(const data_value &key);
 
     /*
      * kv_table::item_if_exists --
@@ -430,18 +420,6 @@ protected:
         if (!timestamped() && update)
             update->set_timestamps(k_timestamp_none, k_timestamp_none);
         return update;
-    }
-
-    /*
-     * kv_table::fix_get --
-     *     Update the return value of "get" if necessary, e.g., for FLCS.
-     */
-    inline data_value
-    fix_get(const data_value &v) const noexcept
-    {
-        if (_config.type == kv_table_type::column_fix && v == NONE)
-            return ZERO;
-        return std::move(v);
     }
 
     /*
