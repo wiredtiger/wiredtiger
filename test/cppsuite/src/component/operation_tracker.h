@@ -58,6 +58,8 @@ enum class tracking_operation { CREATE_COLLECTION, CUSTOM, DELETE_COLLECTION, DE
 class operation_tracker : public component {
 public:
     operation_tracker(configuration *_config, const bool use_compression, timestamp_manager &tsm);
+    operation_tracker(timestamp_manager &tsm);
+
     virtual ~operation_tracker() = default;
 
     const std::string &get_schema_table_name() const;

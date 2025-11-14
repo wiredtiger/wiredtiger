@@ -45,6 +45,12 @@ timestamp_manager::decimal_to_hex(uint64_t value)
     return (res);
 }
 
+timestamp_manager::timestamp_manager(uint64_t oldest_lag_seconds, uint64_t stable_lag_seconds)
+    : component("timestamp_manager", true), _oldest_lag(oldest_lag_seconds),
+      _stable_lag(stable_lag_seconds)
+{
+}
+
 timestamp_manager::timestamp_manager(configuration *config) : component("timestamp_manager", config)
 {
 }

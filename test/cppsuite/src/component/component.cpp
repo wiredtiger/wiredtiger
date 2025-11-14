@@ -41,6 +41,8 @@ component::component(const std::string &name, configuration *config) : _config(c
     _sleep_time_ms = std::chrono::milliseconds(_config->get_throttle_ms());
 }
 
+component::component(const std::string &name, bool enabled) : _enabled(enabled), _name(name) {}
+
 component::~component()
 {
     delete _config;

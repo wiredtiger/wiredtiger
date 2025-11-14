@@ -42,7 +42,8 @@ namespace test_harness {
 class transaction {
 public:
     transaction(configuration *config, timestamp_manager *timestamp_manager, WT_SESSION *session);
-
+    transaction(timestamp_manager *timestamp_manager, WT_SESSION *session, int64_t min_op_count,
+      int64_t max_op_count);
     bool active() const;
     void add_op();
     void begin(const std::string &config = "");

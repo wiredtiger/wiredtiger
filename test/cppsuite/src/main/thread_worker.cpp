@@ -67,6 +67,17 @@ thread_worker::thread_worker(uint64_t id, thread_type type, configuration *confi
 {
 }
 
+thread_worker::thread_worker(uint64_t id, thread_type type, scoped_session &&created_session,
+  timestamp_manager *timestamp_manager, operation_tracker *op_tracker, database &dbase,
+  int64_t collection_count, int64_t key_count, int64_t key_size, int64_t value_size,
+  int64_t thread_count, int64_t txn_op_min, int64_t txn_op_max)
+    : id(id), type(type), db(dbase), session(std::move(created_session)), tsm(timestamp_manager),
+      op_tracker(op_tracker), collection_count(collection_count), key_count(key_count),
+      key_size(key_size), value_size(value_size), thread_count(thread_count),
+      txn(transaction(timestamp_manager, session.get(), txn_op_min, txn_op_max))
+{
+}
+
 thread_worker::thread_worker(uint64_t id, thread_type type, configuration *config,
   scoped_session &&created_session, timestamp_manager *timestamp_manager,
   operation_tracker *op_tracker, database &dbase, std::shared_ptr<barrier> barrier_ptr)

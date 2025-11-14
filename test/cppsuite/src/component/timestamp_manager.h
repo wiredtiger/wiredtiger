@@ -50,6 +50,7 @@ public:
 
 public:
     explicit timestamp_manager(configuration *config);
+    explicit timestamp_manager(uint64_t oldest_lag_seconds, uint64_t stable_lag_seconds);
     virtual ~timestamp_manager() = default;
 
     void load() override final;

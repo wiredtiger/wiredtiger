@@ -73,6 +73,61 @@ populate_worker(thread_worker *tc)
 }
 
 void
+database_operation::populate(database &database, timestamp_manager *tsm,
+  operation_tracker *op_tracker, int64_t collection_count, int64_t key_count, int64_t key_size,
+  int64_t value_size, int64_t thread_count, configuration *config = nullptr)
+{
+    std::vector<thread_worker *> workers;
+    std::string collection_name;
+    thread_manager tm;
+    /* Keys must be unique. */
+    testutil_assert(key_count <= pow(10, key_size));
+
+    logger::log_msg(
+      LOG_INFO, "Populate: creating " + std::to_string(collection_count) + " collections.");
+
+    /* Create n collections as per the configuration. */
+    scoped_session session = connection_manager::instance().create_session();
+    for (int64_t i = 0; i < collection_count; ++i)
+        /*
+         * The database model will call into the API and create the collection, with its own
+         * session.
+         */
+        database.add_collection(session, key_count);
+
+    logger::log_msg(
+      LOG_INFO, "Populate: " + std::to_string(collection_count) + " collections created.");
+
+    /*
+     * Spawn thread_count threads to populate the database, theoretically we should be IO bound
+     * here.
+     */
+    for (int64_t i = 0; i < thread_count; ++i) {
+        thread_worker *tc = nullptr;
+        if (config == nullptr)
+            tc = new thread_worker(i, thread_type::INSERT,
+              connection_manager::instance().create_session(), tsm, op_tracker, database,
+              collection_count, key_count, key_size, value_size, thread_count, 20, 20);
+        else
+            tc = new thread_worker(i, thread_type::INSERT, config,
+              connection_manager::instance().create_session(), tsm, op_tracker, database);
+        workers.push_back(tc);
+        tm.add_thread(populate_worker, tc);
+    }
+
+    /* Wait for our populate threads to finish and then join them. */
+    logger::log_msg(LOG_INFO, "Populate: waiting for threads to complete.");
+    tm.join();
+
+    /* Cleanup our workers. */
+    for (auto &it : workers) {
+        delete it;
+        it = nullptr;
+    }
+    logger::log_msg(LOG_INFO, "Populate: finished.");
+}
+
+void
 database_operation::populate(
   database &database, timestamp_manager *tsm, configuration *config, operation_tracker *op_tracker)
 {
@@ -89,44 +144,8 @@ database_operation::populate(
     testutil_assert(value_size > 0);
     key_size = config->get_int(KEY_SIZE);
     testutil_assert(key_size > 0);
-    /* Keys must be unique. */
-    testutil_assert(key_count <= pow(10, key_size));
-
-    logger::log_msg(
-      LOG_INFO, "Populate: creating " + std::to_string(collection_count) + " collections.");
-
-    /* Create n collections as per the configuration. */
-    for (int64_t i = 0; i < collection_count; ++i)
-        /*
-         * The database model will call into the API and create the collection, with its own
-         * session.
-         */
-        database.add_collection(key_count);
-
-    logger::log_msg(
-      LOG_INFO, "Populate: " + std::to_string(collection_count) + " collections created.");
-
-    /*
-     * Spawn thread_count threads to populate the database, theoretically we should be IO bound
-     * here.
-     */
-    for (int64_t i = 0; i < thread_count; ++i) {
-        thread_worker *tc = new thread_worker(i, thread_type::INSERT, config,
-          connection_manager::instance().create_session(), tsm, op_tracker, database);
-        workers.push_back(tc);
-        tm.add_thread(populate_worker, tc);
-    }
-
-    /* Wait for our populate threads to finish and then join them. */
-    logger::log_msg(LOG_INFO, "Populate: waiting for threads to complete.");
-    tm.join();
-
-    /* Cleanup our workers. */
-    for (auto &it : workers) {
-        delete it;
-        it = nullptr;
-    }
-    logger::log_msg(LOG_INFO, "Populate: finished.");
+    populate(database, tsm, op_tracker, collection_count, key_count, key_size, value_size,
+      thread_count, config);
 }
 
 void

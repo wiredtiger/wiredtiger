@@ -34,6 +34,13 @@
 
 namespace test_harness {
 
+transaction::transaction(timestamp_manager *timestamp_manager, WT_SESSION *session,
+  int64_t min_op_count, int64_t max_op_count)
+    : _timestamp_manager(timestamp_manager), _session(session), _min_op_count(min_op_count),
+      _max_op_count(max_op_count)
+{
+}
+
 transaction::transaction(
   configuration *config, timestamp_manager *timestamp_manager, WT_SESSION *session)
     : _timestamp_manager(timestamp_manager), _session(session)

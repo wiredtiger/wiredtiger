@@ -56,7 +56,10 @@ public:
     thread_worker(uint64_t id, thread_type type, configuration *config,
       scoped_session &&created_session, timestamp_manager *timestamp_manager,
       operation_tracker *op_tracker, database &dbase, std::shared_ptr<barrier> barrier_ptr);
-
+    thread_worker(uint64_t id, thread_type type, scoped_session &&created_session,
+      timestamp_manager *timestamp_manager, operation_tracker *op_tracker, database &dbase,
+      int64_t collection_count, int64_t key_count, int64_t key_size, int64_t value_size,
+      int64_t thread_count, int64_t txn_op_min, int64_t txn_op_max);
     virtual ~thread_worker() = default;
 
     void finish();
@@ -110,7 +113,7 @@ public:
 
 public:
     const int64_t collection_count;
-    const int64_t free_space_target_mb;
+    const int64_t free_space_target_mb = 0;
     const int64_t key_count;
     const int64_t key_size;
     const int64_t value_size;

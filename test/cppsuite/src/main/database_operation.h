@@ -46,6 +46,9 @@ public:
     virtual void populate(database &database, timestamp_manager *tsm, configuration *config,
       operation_tracker *op_tracker);
 
+    static void populate(database &database, timestamp_manager *tsm, operation_tracker *op_tracker,
+      int64_t collection_count, int64_t key_count, int64_t key_size, int64_t value_size,
+      int64_t thread_count, configuration *config);
     /* Enabled the background compaction server. */
     virtual void background_compact_operation(thread_worker *tc);
 

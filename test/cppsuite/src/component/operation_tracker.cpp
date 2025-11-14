@@ -43,6 +43,11 @@ operation_tracker::operation_tracker(
       ",value_format=" + _config->get_string(TRACKING_VALUE_FORMAT) + ",log=(enabled=true)";
 }
 
+operation_tracker::operation_tracker(timestamp_manager &tsm)
+    : component(OPERATION_TRACKER, false), _use_compression(false), _tsm(tsm)
+{
+}
+
 const std::string &
 operation_tracker::get_schema_table_name() const
 {
