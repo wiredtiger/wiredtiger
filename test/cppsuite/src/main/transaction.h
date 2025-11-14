@@ -32,6 +32,7 @@
 
 #include "src/main/configuration.h"
 #include "src/component/timestamp_manager.h"
+#include "src/storage/scoped_session.h"
 
 extern "C" {
 #include "wiredtiger.h"
@@ -41,24 +42,23 @@ namespace test_harness {
 
 class transaction {
 public:
-    transaction(configuration *config, timestamp_manager *timestamp_manager, WT_SESSION *session);
-    transaction(timestamp_manager *timestamp_manager, WT_SESSION *session, int64_t min_op_count,
-      int64_t max_op_count);
+    transaction(configuration *config);
+    transaction(int64_t min_op_count, int64_t max_op_count);
     bool active() const;
     void add_op();
-    void begin(const std::string &config = "");
+    void begin(scoped_session &session, const std::string &config = "");
     /* Begin a transaction if we are not currently in one. */
-    void try_begin(const std::string &config = "");
+    void try_begin(scoped_session &session, const std::string &config = "");
     /*
      * Commit a transaction and return true if the commit was successful.
      */
-    bool commit(const std::string &config = "");
+    bool commit(scoped_session &session, const std::string &config = "");
     /* Rollback a transaction, failure will abort the test. */
-    void rollback(const std::string &config = "");
+    void rollback(scoped_session &session, const std::string &config = "");
     /* Attempt to rollback the transaction given the requirements are met. */
-    void try_rollback(const std::string &config = "");
+    void try_rollback(scoped_session &session, const std::string &config = "");
     /* Set a commit timestamp. */
-    int set_commit_timestamp(wt_timestamp_t ts);
+    int set_commit_timestamp(scoped_session &session, wt_timestamp_t ts);
     /* Set that the transaction needs to be rolled back. */
     void set_needs_rollback(bool rollback);
     /*
@@ -88,9 +88,6 @@ private:
      */
     int64_t _op_count = 0;
     int64_t _target_op_count = 0;
-
-    timestamp_manager *_timestamp_manager = nullptr;
-    WT_SESSION *_session = nullptr;
 };
 
 } // namespace test_harness

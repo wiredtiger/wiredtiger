@@ -138,7 +138,7 @@ public:
             const uint64_t MAX_RETRIES = 100;
             while (tw->running() && keys_truncated < n_keys_to_truncate && retries < MAX_RETRIES) {
                 /* Start a transaction if possible. */
-                tw->txn.try_begin();
+                tw->txn.try_begin(tw->session);
 
                 /* Choose a random key to delete. */
                 int ret = rnd_cursor->next(rnd_cursor.get());
@@ -150,9 +150,9 @@ public:
                      * starting a new one.
                      */
                     if (ret == WT_NOTFOUND)
-                        testutil_ignore_ret_bool(tw->txn.commit());
+                        testutil_ignore_ret_bool(tw->txn.commit(tw->session));
                     else if (ret == WT_ROLLBACK)
-                        tw->txn.rollback();
+                        tw->txn.rollback(tw->session);
                     else
                         testutil_die(ret, "Unexpected error returned from cursor->next()");
 
@@ -173,7 +173,7 @@ public:
                  * If we generate an invalid range or our truncate fails rollback the transaction.
                  */
                 if (end_key == first_key || !tw->truncate(coll.id, first_key, end_key, "")) {
-                    tw->txn.rollback();
+                    tw->txn.rollback(tw->session);
                     if (end_key == first_key)
                         logger::log_msg(
                           LOG_TRACE, log_prefix + "truncate failed because of an invalid range");
@@ -183,7 +183,7 @@ public:
                     continue;
                 }
 
-                if (tw->txn.commit()) {
+                if (tw->txn.commit(tw->session)) {
                     logger::log_msg(LOG_TRACE,
                       log_prefix + " committed truncation of " + std::to_string(truncate_range) +
                         " records.");
@@ -211,7 +211,7 @@ public:
         }
 
         /* Make sure the last operation is rolled back now the work is finished. */
-        tw->txn.try_rollback();
+        tw->txn.try_rollback(tw->session);
     }
 
     void
@@ -257,7 +257,7 @@ public:
 
             uint64_t start_key = ccv[counter].coll.get_key_count();
             uint64_t added_count = 0;
-            tw->txn.begin();
+            tw->txn.begin(tw->session);
 
             /* Collection cursor. */
             auto &cc = ccv[counter];
@@ -268,11 +268,11 @@ public:
                   random_generator::instance().generate_pseudo_random_string(tw->value_size);
                 if (!tw->insert(cc.cursor, cc.coll.id, key, value)) {
                     added_count = 0;
-                    tw->txn.rollback();
+                    tw->txn.rollback(tw->session);
                 } else {
                     added_count++;
                     if (tw->txn.can_commit()) {
-                        if (tw->txn.commit())
+                        if (tw->txn.commit(tw->session))
                             /*
                              * We need to inform the database model that we've added these keys as
                              * some other thread may rely on the key_count data. Only do so if we
@@ -295,7 +295,7 @@ public:
             testutil_assert(counter < tw_collection_count);
         }
         /* Make sure the last transaction is rolled back now the work is finished. */
-        tw->txn.try_rollback();
+        tw->txn.try_rollback(tw->session);
     }
 
     void

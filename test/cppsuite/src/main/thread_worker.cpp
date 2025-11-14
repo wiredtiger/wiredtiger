@@ -74,7 +74,7 @@ thread_worker::thread_worker(uint64_t id, thread_type type, scoped_session &&cre
     : id(id), type(type), db(dbase), session(std::move(created_session)), tsm(timestamp_manager),
       op_tracker(op_tracker), collection_count(collection_count), key_count(key_count),
       key_size(key_size), value_size(value_size), thread_count(thread_count),
-      txn(transaction(timestamp_manager, session.get(), txn_op_min, txn_op_max))
+      txn(transaction(txn_op_min, txn_op_max))
 {
 }
 
@@ -89,7 +89,7 @@ thread_worker::thread_worker(uint64_t id, thread_type type, configuration *confi
       value_size(config->get_optional_int(VALUE_SIZE, 1)),
       thread_count(config->get_int(THREAD_COUNT)), type(type), id(id), db(dbase),
       session(std::move(created_session)), tsm(timestamp_manager),
-      txn(transaction(config, timestamp_manager, session.get())), op_tracker(op_tracker),
+      txn(transaction(config)), op_tracker(op_tracker),
       _sleep_time_ms(std::chrono::milliseconds(config->get_throttle_ms())), _barrier(barrier_ptr)
 {
     if (op_tracker->enabled())
@@ -122,7 +122,8 @@ thread_worker::update(
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
-    ret = txn.set_commit_timestamp(ts);
+    if (tsm->enabled())
+        ret = txn.set_commit_timestamp(session, ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
         txn.set_needs_rollback(true);
@@ -163,7 +164,9 @@ thread_worker::insert(
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
-    ret = txn.set_commit_timestamp(ts);
+    // logger::log_msg(LOG_INFO, "Setting commit timestamp of " + timestamp_manager::decimal_to_hex(ts));
+    if (tsm->enabled())
+        ret = txn.set_commit_timestamp(session, ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
         txn.set_needs_rollback(true);
@@ -202,7 +205,8 @@ thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
-    ret = txn.set_commit_timestamp(ts);
+    if (tsm->enabled())
+        ret = txn.set_commit_timestamp(session, ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
         txn.set_needs_rollback(true);
@@ -244,7 +248,8 @@ thread_worker::truncate(uint64_t collection_id, std::optional<std::string> start
     int ret = 0;
 
     wt_timestamp_t ts = tsm->get_next_ts();
-    ret = txn.set_commit_timestamp(ts);
+    if (tsm->enabled())
+        ret = txn.set_commit_timestamp(session, ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
         txn.set_needs_rollback(true);

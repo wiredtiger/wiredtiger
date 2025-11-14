@@ -108,7 +108,7 @@ public:
         while (tc->running()) {
 
             auto &cc = ccv[counter];
-            tc->txn.begin();
+            tc->txn.begin(tc->session);
 
             while (tc->txn.active() && tc->running()) {
 
@@ -121,13 +121,13 @@ public:
                 if (tc->insert(cc.cursor, cc.coll.id, key, value)) {
                     if (tc->txn.can_commit()) {
                         /* We are not checking the result of commit as it is not necessary. */
-                        if (tc->txn.commit())
+                        if (tc->txn.commit(tc->session))
                             rollback_retries = 0;
                         else
                             ++rollback_retries;
                     }
                 } else {
-                    tc->txn.rollback();
+                    tc->txn.rollback(tc->session);
                     ++rollback_retries;
                 }
                 testutil_assert(rollback_retries < MAX_ROLLBACKS);
@@ -137,7 +137,7 @@ public:
             }
 
             /* Rollback any transaction that could not commit before the end of the test. */
-            tc->txn.try_rollback();
+            tc->txn.try_rollback(tc->session);
 
             /* Reset our cursor to avoid pinning content. */
             testutil_check(cc.cursor->reset(cc.cursor.get()));
@@ -179,7 +179,7 @@ public:
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.
              */
-            tc->txn.begin(
+            tc->txn.begin(tc->session, 
               "roundup_timestamps=(read=true),read_timestamp=" + tc->tsm->decimal_to_hex(ts));
 
             while (tc->txn.active() && tc->running()) {
@@ -214,13 +214,13 @@ public:
 
                 tc->txn.add_op();
                 if (tc->txn.get_op_count() >= tc->txn.get_target_op_count())
-                    tc->txn.rollback();
+                    tc->txn.rollback(tc->session);
                 tc->sleep();
             }
             testutil_check(cursor_prefix->reset(cursor_prefix.get()));
         }
         /* Roll back the last transaction if still active now the work is finished. */
-        tc->txn.try_rollback();
+        tc->txn.try_rollback(tc->session);
     }
 
 private:

@@ -34,16 +34,13 @@
 
 namespace test_harness {
 
-transaction::transaction(timestamp_manager *timestamp_manager, WT_SESSION *session,
-  int64_t min_op_count, int64_t max_op_count)
-    : _timestamp_manager(timestamp_manager), _session(session), _min_op_count(min_op_count),
+transaction::transaction(int64_t min_op_count, int64_t max_op_count)
+    : _min_op_count(min_op_count),
       _max_op_count(max_op_count)
 {
 }
 
-transaction::transaction(
-  configuration *config, timestamp_manager *timestamp_manager, WT_SESSION *session)
-    : _timestamp_manager(timestamp_manager), _session(session)
+transaction::transaction(configuration *config)
 {
     /* Use optional here as our populate threads don't define this configuration. */
     configuration *transaction_config = config->get_optional_subconfig(OPS_PER_TRANSACTION);
@@ -67,11 +64,11 @@ transaction::add_op()
 }
 
 void
-transaction::begin(const std::string &config)
+transaction::begin(scoped_session &session, const std::string &config)
 {
     testutil_assert(!_in_txn);
     testutil_check(
-      _session->begin_transaction(_session, config.empty() ? nullptr : config.c_str()));
+      session->begin_transaction(session.get(), config.empty() ? nullptr : config.c_str()));
     /* This randomizes the number of operations to be executed in one transaction. */
     _target_op_count =
       random_generator::instance().generate_integer<int64_t>(_min_op_count, _max_op_count);
@@ -81,10 +78,10 @@ transaction::begin(const std::string &config)
 }
 
 void
-transaction::try_begin(const std::string &config)
+transaction::try_begin(scoped_session &session, const std::string &config)
 {
     if (!_in_txn)
-        begin(config);
+        begin(session, config);
 }
 
 /*
@@ -92,12 +89,12 @@ transaction::try_begin(const std::string &config)
  * transaction internally.
  */
 bool
-transaction::commit(const std::string &config)
+transaction::commit(scoped_session &session, const std::string &config)
 {
     int ret = 0;
     testutil_assert(_in_txn && !_needs_rollback);
 
-    ret = _session->commit_transaction(_session, config.empty() ? nullptr : config.c_str());
+    ret = session->commit_transaction(session.get(), config.empty() ? nullptr : config.c_str());
     /*
      * FIXME-WT-9198 Now we are accepting the error code EINVAL because of possible invalid
      * timestamps as we know it can happen due to the nature of the framework. The framework may set
@@ -116,21 +113,21 @@ transaction::commit(const std::string &config)
 }
 
 void
-transaction::rollback(const std::string &config)
+transaction::rollback(scoped_session &session, const std::string &config)
 {
     testutil_assert(_in_txn);
     testutil_check(
-      _session->rollback_transaction(_session, config.empty() ? nullptr : config.c_str()));
+      session->rollback_transaction(session.get(), config.empty() ? nullptr : config.c_str()));
     _needs_rollback = false;
     _op_count = 0;
     _in_txn = false;
 }
 
 void
-transaction::try_rollback(const std::string &config)
+transaction::try_rollback(scoped_session &session, const std::string &config)
 {
     if (_in_txn)
-        rollback(config);
+        rollback(session, config);
 }
 
 int64_t
@@ -151,13 +148,10 @@ transaction::get_target_op_count() const
  * timestamp being earlier than the stable timestamp.
  */
 int
-transaction::set_commit_timestamp(wt_timestamp_t ts)
+transaction::set_commit_timestamp(scoped_session &session, wt_timestamp_t ts)
 {
-    /* We don't want to set zero timestamps on transactions if we're not using timestamps. */
-    if (!_timestamp_manager->enabled())
-        return 0;
     const std::string config = COMMIT_TS + "=" + timestamp_manager::decimal_to_hex(ts);
-    return _session->timestamp_transaction(_session, config.c_str());
+    return session->timestamp_transaction(session.get(), config.c_str());
 }
 
 void
