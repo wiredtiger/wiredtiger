@@ -169,7 +169,7 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
 
     # Test deltas with some newly inserted keys.
     def test_delta_inserted_keys(self):
-        base_ids = {i for i in range(1, 11)} - {4, 7, 8}
+        base_ids = {i for i in range(3, 13)} - {4, 7, 8}
         delta1_ids = {1, 4, 6}
         delta2_ids = {2, 7, 6}
         delta3_ids = {6, 8, 10, 15}
