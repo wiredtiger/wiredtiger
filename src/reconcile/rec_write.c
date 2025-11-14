@@ -3366,7 +3366,8 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      * during the next reconciliation for the replaced page. In other cases, the old page ID will be
      * released upon successful reconciliation.
      */
-    if (page->disagg_info != NULL && r->multi_next == 1)
+    if (page->disagg_info != NULL && r->multi_next == 1 &&
+      r->multi->block_meta->page_id == page->disagg_info->block_meta.page_id)
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
     WT_TRET(__wti_ovfl_track_wrapup_err(session, page));
