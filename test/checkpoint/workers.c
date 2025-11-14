@@ -477,6 +477,8 @@ real_worker(THREAD_DATA *td)
                             testutil_snprintf(buf, sizeof(buf),
                               "prepare_timestamp=%" PRIx64 ",prepared_id=%" PRIx64, base_ts,
                               prepared_id);
+                            if (base_ts > g.latest_prepared_ts)
+                                g.latest_prepared_ts = base_ts;
                             if ((ret = session->prepare_transaction(session, buf)) != 0) {
                                 if (!g.predictable_replay)
                                     __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);

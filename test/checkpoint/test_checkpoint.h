@@ -97,9 +97,10 @@ typedef struct {
     bool precise_checkpoint;             /* Use precise checkpoint */
     bool sweep_stress;                   /* Sweep stress test */
 
-    uint64_t ts_oldest;                   /* Current oldest timestamp */
-    uint64_t ts_stable;                   /* Current stable timestamp */
-    uint64_t prepared_id;                 /* Current prepared id */
+    uint64_t ts_oldest;   /* Current oldest timestamp */
+    uint64_t ts_stable;   /* Current stable timestamp */
+    uint64_t prepared_id; /* Current prepared id */
+    uint64_t latest_prepared_ts;
     bool failpoint_eviction_split;        /* Fail point for eviction split. */
     bool failpoint_hs_delete_key_from_ts; /* Failpoint for hs key deletion. */
     bool failpoint_rec_before_wrapup;     /* Failpoint for reconciliation before wrapup */
