@@ -3088,7 +3088,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             break;
         }
 
-        WT_RET(__wt_ref_block_free(session, ref, r->multi_next == 1));
+        WT_RET(__wt_ref_block_free(session, ref,
+          page->disagg_info != NULL &&
+            page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
+            r->multi_next != 1));
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -3118,14 +3121,18 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                  */
                 if (ref->addr != NULL) {
                     if (!F_ISSET(r, WT_REC_EMPTY_DELTA))
-                        WT_RET(__wt_ref_block_free(session, ref, r->multi_next == 1));
+                        WT_RET(__wt_ref_block_free(session, ref,
+                          page->disagg_info != NULL &&
+                            page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
+                            r->multi_next != 1));
                 }
             } else {
                 if (page->disagg_info == NULL)
                     WT_RET(__wt_btree_block_free(
                       session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                 /* Free disagg block only if it is not a block replacement. */
-                else if (r->multi_next != 1) {
+                else if (page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
+                  r->multi_next != 1) {
                     WT_RET(__wt_btree_block_free(
                       session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                     page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
@@ -3336,11 +3343,6 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         if (multi->addr.block_cookie != NULL) {
-            /*
-             * Don't free the block if it is a replacement page in disaggregated storage. Root page
-             * is never a replacement page so its failed block will be freed here if we fail to
-             * reconcile a root page.
-             */
             int ret_tmp = __wt_btree_block_free(
               session, multi->addr.block_cookie, multi->addr.block_cookie_size);
             if (ret_tmp != 0) {
