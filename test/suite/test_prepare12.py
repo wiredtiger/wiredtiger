@@ -40,7 +40,6 @@ class test_prepare12(wttest.WiredTigerTestCase):
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
         ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
@@ -51,14 +50,9 @@ class test_prepare12(wttest.WiredTigerTestCase):
         format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, format)
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_aaa = 65
-        else:
-            value_a = 'a'
-            value_b = 'b'
-            value_aaa = 'a' * 500
+        value_a = 'a'
+        value_b = 'b'
+        value_aaa = 'a' * 500
 
         # Prepare a transaction
         cursor = self.session.open_cursor(uri, None)

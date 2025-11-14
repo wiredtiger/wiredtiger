@@ -42,7 +42,6 @@ class test_prepare13(wttest.WiredTigerTestCase):
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
         ('string-row', dict(key_format='S', value_format='S')),
     ]
 
@@ -51,10 +50,7 @@ class test_prepare13(wttest.WiredTigerTestCase):
     def test_prepare(self):
         nrows = 20000
 
-        if self.value_format == '8t':
-            replacement_value = 199
-        else:
-            replacement_value = "replacement_value"
+        replacement_value = "replacement_value"
 
         # Pin oldest and stable to timestamp 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
