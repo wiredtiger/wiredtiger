@@ -346,18 +346,6 @@ public:
      */
     kv_table_verify_cursor verify_cursor();
 
-    /*
-     * kv_table::highest_recno --
-     *     Get the highest recno in the table. Return 0 if the table is empty.
-     */
-    uint64_t highest_recno() const;
-
-    /*
-     * kv_table::truncate_recnos_after --
-     *     Truncate all recnos higher than the given recno on a fixed-length column store table.
-     */
-    void truncate_recnos_after(uint64_t recno);
-
 protected:
     /*
      * kv_table::item --

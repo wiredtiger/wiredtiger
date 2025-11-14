@@ -394,24 +394,6 @@ kv_table::verify_cursor()
 }
 
 /*
- * kv_table::highest_recno --
- *     Get the highest recno in the table. Return 0 if the table is empty.
- */
-uint64_t
-kv_table::highest_recno() const
-{
-    std::lock_guard lock_guard(_lock);
-    if (_config.type != kv_table_type::column)
-        throw model_exception("Not a column store table");
-    if (_data.empty())
-        return 0;
-    const data_value &last = _data.rbegin()->first;
-    if (!std::holds_alternative<uint64_t>(last))
-        throw model_exception("The last key in the table is not a valid recno");
-    return std::get<uint64_t>(last);
-}
-
-/*
  * kv_table::with_transaction --
  *     Run the following function within a transaction and clean up afterwards, committing the
  *     transaction if possible, and rolling it back if not.
