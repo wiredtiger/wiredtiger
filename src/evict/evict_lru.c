@@ -2063,9 +2063,9 @@ rand_next:
          * statistic here during the walk and not at __evict_page because the evict_pass_gen is
          * reset here.
          */
-        gen_gap = __wt_atomic_load64(&cache->evict_pass_gen) - page->evict_pass_gen;
-        if (gen_gap > __wt_atomic_load64(&cache->evict_max_gen_gap))
-            __wt_atomic_store64(&cache->evict_max_gen_gap, gen_gap);
+        gen_gap = cache->evict_pass_gen - page->evict_pass_gen;
+        if (gen_gap > cache->evict_max_gen_gap)
+            cache->evict_max_gen_gap = gen_gap;
 
         modified = __wt_page_is_modified(page);
         page->evict_pass_gen = cache->evict_pass_gen;
