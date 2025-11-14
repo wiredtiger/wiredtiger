@@ -54,18 +54,11 @@ class test_hs14(wttest.WiredTigerTestCase):
 
         nrows = 10000
 
-        if self.value_format == '8t':
-            value1 = 97
-            value2 = 98
-            value3 = 99
-            value4 = 100
-            value5 = 101
-        else:
-            value1 = 'a' * 500
-            value2 = 'b' * 500
-            value3 = 'c' * 500
-            value4 = 'd' * 500
-            value5 = 'e' * 500
+        value1 = 'a' * 500
+        value2 = 'b' * 500
+        value3 = 'c' * 500
+        value4 = 'd' * 500
+        value5 = 'e' * 500
 
         for i in range(1, nrows):
             with self.transaction(commit_timestamp = 2):
@@ -103,11 +96,7 @@ class test_hs14(wttest.WiredTigerTestCase):
         with self.transaction(read_timestamp = 9, rollback = True):
             for i in range(1, nrows):
                 cursor.set_key(self.create_key(i))
-                if self.value_format == '8t':
-                    self.assertEqual(cursor.search(), 0)
-                    self.assertEqual(cursor.get_value(), 0)
-                else:
-                    self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+                self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
         end = time.time()
 
         # The time spent when all history store keys are invisible to us.

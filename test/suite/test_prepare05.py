@@ -40,7 +40,6 @@ class test_prepare05(wttest.WiredTigerTestCase, suite_subprocess):
 
     format_values = [
         ('column', dict(key_format='r', value_format='i')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
         ('row_integer', dict(key_format='i', value_format='i')),
     ]
 

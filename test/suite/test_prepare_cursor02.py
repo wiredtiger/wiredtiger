@@ -37,7 +37,6 @@ class test_prepare_cursor02(wttest.WiredTigerTestCase):
     keyfmt = [
         ('row-store', dict(keyfmt='i', valfmt='S')),
         ('column-store', dict(keyfmt='r', valfmt='S')),
-        ('fixed-length-column-store', dict(keyfmt='r', valfmt='8t')),
     ]
     types = [
         ('table-simple', dict(uri='table', ds=SimpleDataSet)),

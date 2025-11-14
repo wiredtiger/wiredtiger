@@ -37,7 +37,6 @@ class test_log04(wttest.WiredTigerTestCase):
 
     types = [
         ('col', dict(key_format='r',value_format='S')),
-        ('fix', dict(key_format='r',value_format='8t')),
         ('row', dict(key_format='S',value_format='S')),
     ]
     ckpt = [

@@ -44,7 +44,6 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
 
     format_values = [
         ('col_var', dict(key_format='r', value_format='i')),
-        ('col_fix', dict(key_format='r', value_format='8t')),
         ('row_int', dict(key_format='i', value_format='i')),
     ]
 
@@ -111,10 +110,7 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
         c1 = s.open_cursor(self.uri)
         s.begin_transaction()
         for i in range(1, self.nrows):
-            if self.value_format == '8t':
-                c1[i] = 100
-            else:
-                c1[i] = i
+            c1[i] = i
         c1.close()
         s.commit_transaction()
         s.checkpoint()
