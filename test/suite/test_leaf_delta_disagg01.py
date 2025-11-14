@@ -85,11 +85,11 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
             cursor.search()
             self.assertEqual(cursor.get_value(), "" if i % empty_score == 0 else value)
         cursor.close()
-    
+
     # xx_empty_score is a factor to determine whether a value should be set to empty. For a given
-    # index i, if i % xx_empty_score == 0, that entry is set to empty. If xx_empty_score is 1 then 
+    # index i, if i % xx_empty_score == 0, that entry is set to empty. If xx_empty_score is 1 then
     # all entries will have empty values.
-    def verify_leaf_delta(self, base_empty_score, delta_empty_score, base_ids, delta1_ids = None, 
+    def verify_leaf_delta(self, base_empty_score, delta_empty_score, base_ids, delta1_ids = None,
                           delta2_ids = None, delta3_ids = None):
         if delta1_ids is None:
             delta1_ids = {}
@@ -98,7 +98,7 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
         if delta3_ids is None:
             delta3_ids = {}
         self.session.create(self.uri, self.session_create_config() + self.prefix_config)
-        
+
         delta_cnt = 0
         # Populate the table.
         base_value = "base"
@@ -125,7 +125,7 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
         self.insert_or_update(delta_empty_score, delta2_ids, delta2_value, ts)
         self.session.checkpoint()
         delta_cnt += self.get_stat(stat.dsrc.rec_page_delta_leaf, self.uri)
-        
+
         self.reopen_disagg_conn(self.conn_config())
         ts += 1
         delta3_value = "delta3"
@@ -139,7 +139,7 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
             self.assertGreater(self.get_stat(stat.dsrc.rec_prefix_compression_delta, self.uri), 0)
         else:
             self.assertEqual(self.get_stat(stat.dsrc.rec_prefix_compression_delta, self.uri), 0)
-        
+
         # Since deltas are generated in time order, the keys in delta3_ids are the latest update so
         # they have value 'delta3', and keys included in delta2_ids but excluded from delta3_ids are
         # having value 'delta2', and so on.

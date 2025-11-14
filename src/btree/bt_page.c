@@ -636,8 +636,8 @@ __page_unpack_leaf_kv(WT_SESSION_IMPL *session, uint32_t *ip, uint8_t unpack_key
 
     /*
      * Unpack the value if we have entries left, we may see a key unpacked if the entry has empty
-     * value, in such case we set set key_unpacked, if the current key is used later then we can
-     * flip unpack_key_idx so it points to unpacked key which will be reused in the next run.
+     * value, in such case we set key_unpacked, if the current key is used later then we can flip
+     * unpack_key_idx so it points to unpacked key which will be reused in the next run.
      */
     if (i < entries) {
         __wt_cell_unpack_kv(session, dsk, (WT_CELL *)cell, &unpack_kv[unpack_value_idx]);
