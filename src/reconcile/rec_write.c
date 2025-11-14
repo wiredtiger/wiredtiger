@@ -3361,8 +3361,10 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     }
 
     /*
-     * If this is a replacement page, the page ID has already been freed. Ensure that a new page ID
-     * is assigned during the next reconciliation.
+     * If reconciliation fails, we free all the pages written in the previous loop, even if the page
+     * is a replacement page in disaggregated storage. This ensures that a new page ID is assigned
+     * during the next reconciliation for the replaced page. In other cases, the old page ID will be
+     * released upon successful reconciliation.
      */
     if (page->disagg_info != NULL && r->multi_next == 1)
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
