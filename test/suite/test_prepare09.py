@@ -121,4 +121,5 @@ class test_prepare09(wttest.WiredTigerTestCase):
         self.assertEqual(self.session.rollback_transaction(), 0)
 
         # Search for key one, we should get not found.
+        cursor.set_key(1)
         self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
