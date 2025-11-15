@@ -33,7 +33,6 @@
 #include "src/common/constants.h"
 #include "src/common/logger.h"
 #include "src/common/random_generator.h"
-#include "transaction.h"
 
 namespace test_harness {
 
@@ -126,21 +125,12 @@ thread_worker::update(
         ret = txn.set_commit_timestamp(session, ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
-        txn.set_needs_rollback(true);
+        txn.set_needs_rollback();
         return (false);
     }
 
-    cursor->set_key(cursor.get(), key.c_str());
-    cursor->set_value(cursor.get(), value.c_str());
-    ret = cursor->update(cursor.get());
-
-    if (ret != 0) {
-        if (ret == WT_ROLLBACK) {
-            txn.set_needs_rollback(true);
-            return (false);
-        } else
-            testutil_die(ret, "unhandled error while trying to update a key");
-    }
+    if (crud::update(cursor, txn, key, value) == false)
+        return (false);
 
     ret = op_tracker->save_operation(
       session.get(), tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
@@ -148,7 +138,7 @@ thread_worker::update(
     if (ret == 0)
         txn.add_op();
     else if (ret == WT_ROLLBACK)
-        txn.set_needs_rollback(true);
+        txn.set_needs_rollback();
     else
         testutil_die(ret, "unhandled error while trying to save an update to the tracking table");
     return (ret == 0);
@@ -169,21 +159,12 @@ thread_worker::insert(
         ret = txn.set_commit_timestamp(session, ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
-        txn.set_needs_rollback(true);
+        txn.set_needs_rollback();
         return (false);
     }
 
-    cursor->set_key(cursor.get(), key.c_str());
-    cursor->set_value(cursor.get(), value.c_str());
-    ret = cursor->insert(cursor.get());
-
-    if (ret != 0) {
-        if (ret == WT_ROLLBACK) {
-            txn.set_needs_rollback(true);
-            return (false);
-        } else
-            testutil_die(ret, "unhandled error while trying to insert a key");
-    }
+    if (crud::insert(cursor, txn, key, value) == false)
+        return (false);
 
     ret = op_tracker->save_operation(
       session.get(), tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
@@ -191,7 +172,7 @@ thread_worker::insert(
     if (ret == 0)
         txn.add_op();
     else if (ret == WT_ROLLBACK)
-        txn.set_needs_rollback(true);
+        txn.set_needs_rollback();
     else
         testutil_die(ret, "unhandled error while trying to save an insert to the tracking table");
     return (ret == 0);
@@ -209,19 +190,12 @@ thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::
         ret = txn.set_commit_timestamp(session, ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
-        txn.set_needs_rollback(true);
+        txn.set_needs_rollback();
         return (false);
     }
 
-    cursor->set_key(cursor.get(), key.c_str());
-    ret = cursor->remove(cursor.get());
-    if (ret != 0) {
-        if (ret == WT_ROLLBACK) {
-            txn.set_needs_rollback(true);
-            return (false);
-        } else
-            testutil_die(ret, "unhandled error while trying to remove a key");
-    }
+    if (crud::remove(cursor, txn, key) == false)
+        return (false);
 
     ret = op_tracker->save_operation(
       session.get(), tracking_operation::DELETE_KEY, collection_id, key, "", ts, op_track_cursor);
@@ -229,7 +203,7 @@ thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::
     if (ret == 0)
         txn.add_op();
     else if (ret == WT_ROLLBACK)
-        txn.set_needs_rollback(true);
+        txn.set_needs_rollback();
     else
         testutil_die(ret, "unhandled error while trying to save a remove to the tracking table");
     return (ret == 0);
@@ -252,7 +226,7 @@ thread_worker::truncate(uint64_t collection_id, std::optional<std::string> start
         ret = txn.set_commit_timestamp(session, ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
-        txn.set_needs_rollback(true);
+        txn.set_needs_rollback();
         return (false);
     }
 
@@ -272,7 +246,7 @@ thread_worker::truncate(uint64_t collection_id, std::optional<std::string> start
 
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            txn.set_needs_rollback(true);
+            txn.set_needs_rollback();
             return (false);
         } else
             testutil_die(ret, "unhandled error while trying to truncate a key range");

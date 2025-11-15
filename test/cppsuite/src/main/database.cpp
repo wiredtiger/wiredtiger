@@ -53,8 +53,9 @@ database::add_collection(scoped_session &session, uint64_t key_count)
       std::forward_as_tuple(next_id, key_count, collection_name));
     testutil_check(
       session->create(session.get(), collection_name.c_str(), _collection_create_config.c_str()));
-    _operation_tracker->save_schema_operation(
-      tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
+    if (_operation_tracker != nullptr)
+        _operation_tracker->save_schema_operation(
+        tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
 }
 
 collection &
@@ -123,10 +124,11 @@ database::set_operation_tracker(operation_tracker *op_tracker)
 }
 
 void
-database::set_create_config(bool use_compression, bool use_reverse_collator)
+database::set_create_config(bool use_compression, bool use_reverse_collator, bool disagg)
 {
     _collection_create_config = DEFAULT_FRAMEWORK_SCHEMA;
     _collection_create_config += use_compression ? std::string(SNAPPY_BLK) + "," : "";
     _collection_create_config += use_reverse_collator ? std::string(REVERSE_COL_CFG) + "," : "";
+    _collection_create_config += disagg ? "type=layered," : "";
 }
 } // namespace test_harness

@@ -30,7 +30,6 @@
  * [test_disagg_failover_perf]: Measure how long diagg failover takes on a running system.
  */
 
-
 #include "src/common/constants.h"
 #include "src/common/logger.h"
 #include "src/common/random_generator.h"
@@ -39,11 +38,14 @@
 #include "src/storage/scoped_session.h"
 #include "src/main/database.h"
 #include "src/main/database_operation.h"
+#include "src/main/crud.h"
 
 extern "C" {
 #include "wiredtiger.h"
 #include "test_util.h"
 }
+
+#include <sstream>
 
 using namespace test_harness;
 /* Declarations to avoid the error raised by -Werror=missing-prototypes. */
@@ -53,69 +55,136 @@ void read_op(WT_CURSOR *cursor, int key_size);
 bool do_inserts = false;
 bool do_reads = false;
 static int nkeys = 50000;
-static int ncolllections = 10;
+static int ncollections = 10;
+// static int nkeys = 2000;
+// static int ncolllections = 2;
 static int key_len = 10;
 static int val_len = 1000;
-static int oldest_lag = 5;
-static int stable_lag = 5;
 static double crud_ratio[] = {0.1, 0.5, 0.3, 0.1};
+wt_timestamp_t ts = 100;
 test_harness::database *database_model;
-test_harness::timestamp_manager *tsm;
-test_harness::operation_tracker *op_tracker;
-
-void
-insert_op(WT_CURSOR *cursor, int key_size, int value_size)
-{
-    logger::log_msg(LOG_INFO, "called insert_op");
-
-    /* Insert random data. */
-    std::string key, value;
-    while (do_inserts) {
-        key = random_generator::instance().generate_random_string(key_size);
-        value = random_generator::instance().generate_random_string(value_size);
-        cursor->set_key(cursor, key.c_str());
-        cursor->set_value(cursor, value.c_str());
-        testutil_check(cursor->insert(cursor));
-    }
-}
-
-void
-read_op(WT_CURSOR *cursor, int key_size)
-{
-    logger::log_msg(LOG_INFO, "called read_op");
-
-    /* Read random data. */
-    std::string key;
-    while (do_reads) {
-        key = random_generator::instance().generate_random_string(key_size);
-        cursor->set_key(cursor, key.c_str());
-        WT_IGNORE_RET(cursor->search(cursor));
-    }
-}
 
 /*
- * Because we can't use the cppsuite, as we start and stop WiredTiger we setup the necessary 
+ * Because we can't use the cppsuite, as we start and stop WiredTiger we setup the necessary
  * functionality here.
  */
 static void
 initialize() {
     database_model = new database();
-    tsm = new timestamp_manager(oldest_lag, stable_lag);
-    op_tracker = new operation_tracker(*tsm);
-    database_model->set_timestamp_manager(tsm);
-    database_model->set_create_config(false, false);
-    database_model->set_operation_tracker(op_tracker);
+    database_model->set_create_config(false, false, true);
+}
+
+static std::string
+generate_key()
+{
+    return random_generator::instance().generate_random_string(key_len);
+}
+
+static std::string
+generate_value()
+{
+    return random_generator::instance().generate_pseudo_random_string(val_len);
 }
 
 static void
-tear_down() {
-    delete op_tracker;
-    delete tsm;
-    delete database_model;
-    
-    op_tracker = nullptr;
-    tsm = nullptr;
-    database_model = nullptr;
+update_global_timestamps(){
+    std::string config;
+    config += STABLE_TS + "=" + timestamp_manager::decimal_to_hex(++ts) + ",";
+    config += OLDEST_TS + "=" + timestamp_manager::decimal_to_hex(ts - 20);
+    connection_manager::instance().set_timestamp(config);
+
+}
+
+static void
+populate()
+{
+    logger::log_msg(
+      LOG_INFO, "Populate: creating " + std::to_string(ncollections) + " collections.");
+
+    /* Create n collections as per the configuration. */
+    scoped_session session = connection_manager::instance().create_session();
+    for (int64_t i = 0; i < ncollections; ++i) {
+        /*
+         * The database model will call into the API and create the collection, with its own
+         * session.
+         */
+        database_model->add_collection(session, nkeys);
+        collection &coll = database_model->get_collection(i);
+        scoped_cursor cursor = session.open_scoped_cursor(coll.name);
+        transaction txn(20, 20);
+        for (int64_t j = 0; j < nkeys; j ++) {
+            txn.begin(session);
+            wt_timestamp_t commit_ts = ++ts;
+            testutil_check(txn.set_commit_timestamp(session, commit_ts));
+            testutil_assert(crud::insert(cursor, txn, generate_key(), generate_value()));
+            testutil_assert(txn.commit(session));
+            if (j % 1000 == 0) {
+                /* Advance the stable and oldest timestamps. */
+                update_global_timestamps();
+                session->checkpoint(session.get(), nullptr);
+                logger::log_msg(
+                LOG_INFO, "Populate: loaded " + std::to_string(j) + " keys");
+            }
+        }
+        logger::log_msg(
+            LOG_INFO, "Populate: loaded collection: " + std::to_string(i) + "");
+
+    }
+    logger::log_msg(
+      LOG_INFO, "Populate: " + std::to_string(ncollections) + " collections created and loaded with " + std::to_string(nkeys) + " .");
+}
+
+// static void
+// cache_warming(){
+
+// }
+
+// static void
+// crud_operations() {
+
+// }
+
+// static void
+// tear_down() {
+//     delete op_tracker;
+//     delete tsm;
+//     delete database_model;
+
+//     op_tracker = nullptr;
+//     tsm = nullptr;
+//     database_model = nullptr;
+// }
+
+/*
+ * wt_disagg_pick_up_latest_checkpoint --
+ *     Pick up the latest WiredTiger checkpoint.
+ */
+static uint64_t
+wt_disagg_pick_up_latest_checkpoint()
+{
+    WT_CONNECTION *conn = connection_manager::instance().get_connection();
+    scoped_session session = connection_manager::instance().create_session();
+    WT_PAGE_LOG *page_log;
+    testutil_check(conn->get_page_log(conn, "palite", &page_log));
+
+    WT_ITEM metadata{};
+    uint64_t timestamp;
+    testutil_check(page_log->pl_get_complete_checkpoint_ext(
+      page_log, session.get(), nullptr, nullptr, &timestamp, &metadata));
+
+    page_log->terminate(page_log, NULL); /* dereference */
+    page_log = NULL;
+
+    char *checkpoint_meta = strndup((const char *)metadata.data, metadata.size);
+    free(metadata.mem);
+
+    std::ostringstream config;
+    config << "disaggregated=(checkpoint_meta=\"" << checkpoint_meta << "\")";
+    free(checkpoint_meta);
+
+    std::string config_str = config.str();
+    testutil_check(conn->reconfigure(conn, config_str.c_str()));
+    return timestamp;
 }
 
 int
@@ -130,9 +199,9 @@ main(int argc, char *argv[])
     /* Printing some messages. */
     logger::log_msg(LOG_INFO, "Starting " + progname);
 
-    /* 
+    /*
      * Create a connection, and specify the home directory. We intentionally don't set the cache
-     * size here as WiredTiger's 1/2 of system memory default is sufficient. 
+     * size here as WiredTiger's 1/2 of system memory default is sufficient.
      */
     const std::string home_dir = std::string(DEFAULT_DIR) + '_' + progname;
 
@@ -140,47 +209,41 @@ main(int argc, char *argv[])
     testutil_remove(home_dir.c_str());
 
     /* Create connection. */
-    connection_manager::instance().create(CONNECTION_CREATE + ",disaggregated=(role=\"leader\"),verbose=(disaggregated_storage:2)", home_dir);
+    //connection_manager::instance().create(CONNECTION_CREATE + ",extensions=[../../ext/page_log/palite/libwiredtiger_palite.so=(config=\"(verbose=1)\")],precise_checkpoint=true,disaggregated=(role=\"leader\",page_log=palite),verbose=(disaggregated_storage:2)", home_dir);
+    connection_manager::instance().create(CONNECTION_CREATE + ",extensions=[../../ext/page_log/palite/libwiredtiger_palite.so],precise_checkpoint=true,disaggregated=(role=\"leader\",page_log=palite),verbose=(disaggregated_storage:2)", home_dir);
 
     /* Initialize. */
     (void)crud_ratio;
     initialize();
 
     /* Populate the database. */
-    database_operation::populate(*database_model, tsm, op_tracker, ncolllections, nkeys, key_len, val_len, 1, nullptr);
-
+    populate();
     /* Restart WiredTiger in follower mode. */
-    logger::log_msg(LOG_INFO, "Restarting WiredTiger.");
+    logger::log_msg(LOG_INFO, "############################################################################################################");
+    logger::log_msg(LOG_INFO, "######################################## Restarting WiredTiger. ############################################");
+    logger::log_msg(LOG_INFO, "############################################################################################################");
+
     connection_manager::instance().close();
-    connection_manager::instance().reopen(CONNECTION_CREATE + ",disaggregated=(role=\"follower\"),verbose=(disaggregated_storage:2)", home_dir);
+    logger::log_msg(LOG_INFO, "######################################################################################################################");
+    logger::log_msg(LOG_INFO, "######################################## Starting WiredTiger as follower. ############################################");
+    logger::log_msg(LOG_INFO, "######################################################################################################################");
+    connection_manager::instance().reopen(CONNECTION_CREATE + ",extensions=[../../ext/page_log/palite/libwiredtiger_palite.so=(config=\"(verbose=2)\")],precise_checkpoint=true,disaggregated=(role=\"follower\",page_log=palite),verbose=(disaggregated_storage:2)", home_dir);
 
-    /* Manually delete things before the connection gets destructed to avoid seg fauls on scope_cursor close. */
-    tear_down();
-    /* Create a thread manager and spawn some threads that will work. */
-    // thread_manager t;
-    // int key_size = 1, value_size = 2;
+    // /* TODO: Optionally scan created tables to warm the WT cache. */
+    // cache_warming();
 
-    // do_inserts = true;
-    // t.add_thread(insert_op, insert_cursor, key_size, value_size);
+    // /* TODO: Perform crud operations. */
+    // crud_operations();
 
-    // do_reads = true;
-    // t.add_thread(read_op, read_cursor, key_size);
-
-    // /* Sleep for the test duration. */
-    // std::chrono::seconds test_duration_s(5);
-    // std::this_thread::sleep_for(test_duration_s);
-
-    // /* Stop the threads. */
-    // do_reads = false;
-    // do_inserts = false;
-    // t.join();
-
-    // /* Close cursors. */
-    // for (auto c : cursors)
-    //     testutil_check(c->close(c));
-
-    // /* Another message. */
-    // logger::log_msg(LOG_INFO, "End of test.");
-
+    // /* TODO: Measure time of step up. */
+    wt_timestamp_t timestamp = wt_disagg_pick_up_latest_checkpoint();
+    WT_CONNECTION *conn = connection_manager::instance().get_connection();
+    conn->reconfigure(conn, "disaggregated=(role=\"leader\")");
+    std::string stable_config = "stable_timestamp=" + timestamp_manager::decimal_to_hex(timestamp);
+    conn->set_timestamp(conn, stable_config.c_str());
+    /* TODO: Should we measure post step up checkpoint duration here? cc: Keith Smith. */
+    /* Peter thinks we should do this. */
+    // /* Manually delete things before the connection gets destructed to avoid seg fauls on scope_cursor close. */
+    // // tear_down();
     return (0);
 }

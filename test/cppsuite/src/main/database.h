@@ -68,7 +68,7 @@ public:
     std::vector<uint64_t> get_collection_ids();
     void set_timestamp_manager(timestamp_manager *tsm);
     void set_operation_tracker(operation_tracker *op_tracker);
-    void set_create_config(bool use_compression, bool use_reverse_collator);
+    void set_create_config(bool use_compression, bool use_reverse_collator, bool disagg);
 
 private:
     std::string _collection_create_config = "";

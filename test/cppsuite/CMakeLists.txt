@@ -17,6 +17,7 @@ add_library(cppsuite_test_harness STATIC
     src/component/workload_manager.cpp
     src/main/collection.cpp
     src/main/configuration.cpp
+    src/main/crud.cpp
     src/main/database.cpp
     src/main/database_operation.cpp
     src/main/operation_configuration.cpp

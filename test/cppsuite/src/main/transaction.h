@@ -60,7 +60,7 @@ public:
     /* Set a commit timestamp. */
     int set_commit_timestamp(scoped_session &session, wt_timestamp_t ts);
     /* Set that the transaction needs to be rolled back. */
-    void set_needs_rollback(bool rollback);
+    void set_needs_rollback();
     /*
      * Returns true if a transaction can be committed as determined by the op count and the state of
      * the transaction.

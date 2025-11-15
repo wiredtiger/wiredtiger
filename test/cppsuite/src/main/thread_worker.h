@@ -40,6 +40,7 @@
 #include "src/storage/scoped_session.h"
 #include "transaction.h"
 #include "src/util/barrier.h"
+#include "crud.h"
 
 namespace test_harness {
 enum class thread_type { BACKGROUND_COMPACT, CHECKPOINT, CUSTOM, INSERT, READ, REMOVE, UPDATE };

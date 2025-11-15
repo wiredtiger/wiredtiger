@@ -155,9 +155,9 @@ transaction::set_commit_timestamp(scoped_session &session, wt_timestamp_t ts)
 }
 
 void
-transaction::set_needs_rollback(bool rollback)
+transaction::set_needs_rollback()
 {
-    _needs_rollback = rollback;
+    _needs_rollback = true;
 }
 
 bool
