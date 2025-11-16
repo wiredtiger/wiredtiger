@@ -2008,6 +2008,12 @@ err:
                   _session->commit_transaction(_session, op->transaction->_commit_config.c_str());
             }
         }
+        if (ret != 0) {
+            // We may fail to commit because of timestamp checks. Just rollback the transaction
+            // instead of return a failure.
+            ret = 0;
+            WT_TRET(_session->rollback_transaction(_session, nullptr));
+        }
         _in_transaction = false;
     }
 
