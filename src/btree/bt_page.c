@@ -616,6 +616,7 @@ __page_unpack_leaf_kv(WT_SESSION_IMPL *session, uint32_t *ip, uint8_t **cellp, W
         __wt_cell_unpack_kv(session, dsk, (WT_CELL *)cell, unpack_key);
         cell += unpack_key->__len;
         i++;
+        WT_ASSERT(session, unpack_value->type != WT_CELL_KEY_OVFL);
     }
 
     /* Decompress prefix compressed key and store it in last key. */
@@ -643,7 +644,8 @@ __page_unpack_leaf_kv(WT_SESSION_IMPL *session, uint32_t *ip, uint8_t **cellp, W
         __wt_cell_unpack_kv(session, dsk, (WT_CELL *)cell, unpack_value);
         cell += unpack_value->__len;
         i++;
-        WT_ASSERT(session, unpack_value->type != WT_CELL_KEY_OVFL);
+        WT_ASSERT(session,
+          unpack_value->type != WT_CELL_KEY_OVFL && unpack_value->type != WT_CELL_VALUE_OVFL);
         key_unpacked = unpack_value->type == WT_CELL_KEY;
     }
 
@@ -679,8 +681,8 @@ __page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *delt
     bool *delta_unpacked = NULL;
 
     WT_ERR(__wt_scr_alloc(session, 0, &base_lastkey));
-    WT_ERR(__wt_malloc(session, sizeof(WT_CELL_UNPACK_KV), &base_unpack_key));
-    WT_ERR(__wt_malloc(session, sizeof(WT_CELL_UNPACK_KV), &base_unpack_value));
+    WT_ERR(__wt_calloc_one(session, &base_unpack_key));
+    WT_ERR(__wt_calloc_one(session, &base_unpack_value));
     WT_ERR(__wt_malloc(session, delta_size * sizeof(uint8_t *), &delta_cells));
     WT_ERR(__wt_malloc(session, delta_size * sizeof(uint32_t), &delta_entries));
     WT_ERR(__wt_malloc(session, delta_size * sizeof(WT_ITEM *), &delta_lastkeys));
