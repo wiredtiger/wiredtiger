@@ -671,8 +671,7 @@ __page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *delt
     bool base_found = false, base_key_unpacked = false;
     uint32_t base_entries = base_dsk->u.entries, i = 0;
     int32_t min_unpack_idx = -1;
-    WT_CELL_UNPACK_KV *base_unpack_key;
-    WT_CELL_UNPACK_KV *base_unpack_value;
+    WT_CELL_UNPACK_KV *base_unpack_key = NULL, *base_unpack_value = NULL;
     uint8_t *base_cell = WT_PAGE_HEADER_BYTE(S2BT(session), base_dsk);
     uint8_t **delta_cells = NULL;
     uint32_t *delta_entries = NULL;
