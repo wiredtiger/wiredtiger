@@ -2009,8 +2009,8 @@ err:
             }
         }
         if (ret != 0) {
-            // We may fail to commit because of timestamp checks. Just rollback the transaction
-            // instead of return a failure.
+            // Commit may fail due to timestamp checks. In such cases, rollback the transaction
+            // instead of returning an error.
             ret = 0;
             WT_TRET(_session->rollback_transaction(_session, nullptr));
         }
