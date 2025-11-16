@@ -377,11 +377,15 @@ done:
     return (0);
 }
 
+/*
+ * prepare_discover --
+ *     Claim pending prepared transactions, do a checkpoint then verify the consistency of the data
+ *     post claiming.
+ */
 static void
 prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
 {
     WT_UNUSED(td);
-    printf("%s\n", "prepared discover is CALLED");
     /*
      * Since RTS is not ran with precise checkpoint, we need to use prepare discover cursor to claim
      * all pending prepared transactions. When precise checkpoint is not configure, there's no need
@@ -398,10 +402,7 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
     char buf[128];
     char timestamp_buf[64];
     bool should_commit;
-    /*
-     * Individual object verification. Do a full checkpoint to reduce the possibility of returning
-     * EBUSY from the following verify calls.
-     */
+
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     /* Open the prepare discover cursor */
     ret = session->open_cursor(session, "prepared_discover:", NULL, NULL, &cursor);
@@ -423,6 +424,8 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
         set_stable(stable_ts);
     }
     while ((ret = cursor->next(cursor)) == 0) {
+        uint64_t commit_ts, durable_ts, rollback_ts;
+
         discover_count++;
         testutil_check(cursor->get_key(cursor, &prepared_id));
 
@@ -436,21 +439,39 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
 
         if (should_commit) {
             printf("committing txn with prepared_id=%" PRIu64, prepared_id);
-            /* Commit with a timestamp greater than the prepare timestamp. */
+            /* Get current stable timestamp and use it for new timestamps */
+            testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable_timestamp"));
+            uint64_t current_stable = testutil_timestamp_parse(timestamp_buf);
+
+            /* Use timestamps greater than current stable */
+            commit_ts = current_stable + 1;
+            durable_ts = commit_ts + 2;
+
             testutil_snprintf(buf, sizeof(buf),
-              "durable_timestamp=%" PRIx64 ",commit_timestamp=%" PRIx64, g.ts_stable + 2,
-              g.ts_stable + 1);
-            g.ts_stable += 2;
+              "durable_timestamp=%" PRIx64 ",commit_timestamp=%" PRIx64, durable_ts, commit_ts);
             testutil_check(session->commit_transaction(session, buf));
+
+            printf(
+              " committed at commit_ts=%" PRIu64 ", durable_ts=%" PRIu64, commit_ts, durable_ts);
         } else {
             printf("aborting txn with prepared_id=%" PRIu64, prepared_id);
-            testutil_snprintf(buf, sizeof(buf), "rollback_timestamp=%" PRIx64, g.ts_stable + 2);
-            /* Roll back the transaction */
-            testutil_check(session->rollback_transaction(session, NULL));
-            g.ts_stable += 2;
+            testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable_timestamp"));
+            uint64_t current_stable = testutil_timestamp_parse(timestamp_buf);
+
+            rollback_ts = current_stable + 2;
+            testutil_snprintf(buf, sizeof(buf), "rollback_timestamp=%" PRIx64, rollback_ts);
+            testutil_check(session->rollback_transaction(session, buf));
         }
-        printf("setting stable to %" PRIu64, g.ts_stable + 1);
-        set_stable(++g.ts_stable);
+        /*
+         * Don't directly modify g.ts_stable in predictable replay mode. In predictable replay mode,
+         * let the clock thread handle stable timestamp advancement.
+         */
+        if (!g.predictable_replay) {
+            if (should_commit) {
+                g.ts_stable = durable_ts + 1;
+                set_stable(g.ts_stable);
+            }
+        }
     }
     /* WT_NOTFOUND is expected when we reach the end of the cursor */
     testutil_assert(ret == WT_NOTFOUND);
@@ -460,9 +481,13 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
       "Prepare discover: found and claimed %" PRIu32 " prepared transactions\n", discover_count);
     testutil_check(cursor->close(cursor));
     if (discover_count > 0) {
-        g.ts_stable++;
-        printf("Final: setting stable to %" PRIu64, stable_ts);
-        set_stable(g.ts_stable);
+        /* Only modify stable timestamp if not in predictable replay mode */
+        if (!g.predictable_replay) {
+            g.ts_stable++;
+            printf("Final: setting stable to %" PRIu64, g.ts_stable);
+            set_stable(g.ts_stable);
+        }
+        /* In both modes, do a checkpoint after processing prepared transactions */
         session->checkpoint(session, NULL);
         if ((ret = verify_consistency(session, WT_TS_NONE, true)) != 0)
             log_print_err("verify_consistency (post prepare-discover)", ret, 1);
