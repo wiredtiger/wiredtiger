@@ -41,10 +41,11 @@ class test_hs09(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=20MB'
     uri = "table:test_hs09"
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('integer-row', dict(key_format='i', value_format='S')),
-        ('string-row', dict(key_format='S', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('string-row', dict(key_format='S')),
     ]
+    value_format='S'
     scenarios = make_scenarios(format_values)
     nrows = 1000
 

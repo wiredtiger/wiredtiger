@@ -35,10 +35,11 @@ from wiredtiger import stat
 class test_hs11(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(all)'
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('integer-row', dict(key_format='i', value_format='S')),
-        ('string-row', dict(key_format='S', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('string-row', dict(key_format='S')),
     ]
+    value_format='S'
     update_type_values = [
         ('deletion', dict(update_type='deletion')),
         ('update', dict(update_type='update'))

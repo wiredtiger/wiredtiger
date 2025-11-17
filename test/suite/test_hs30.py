@@ -64,9 +64,10 @@ class test_hs30(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('integer_row', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('integer_row', dict(key_format='i')),
     ]
+    value_format='S'
     logging_values = [
         ('nolog', dict(logging=False, conn_config='statistics=(all)')),
         ('log', dict(logging=True, conn_config='statistics=(all),log=(enabled)')),

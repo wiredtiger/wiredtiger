@@ -36,9 +36,11 @@ class test_hs25(wttest.WiredTigerTestCase):
     uri = 'table:test_hs25'
 
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('row_integer', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('row_integer', dict(key_format='i')),
     ]
+
+    value_format='S'
 
     scenarios = make_scenarios(format_values)
 

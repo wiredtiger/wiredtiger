@@ -36,10 +36,11 @@ from wtscenario import filter_scenarios, make_scenarios
 class test_overwrite(wttest.WiredTigerTestCase):
     name = 'overwrite'
     keyfmt = [
-        ('row', dict(keyfmt='S',valuefmt='S')),
-        ('row-int', dict(keyfmt='i',valuefmt='S')),
-        ('var', dict(keyfmt='r',valuefmt='S')),
+        ('row', dict(keyfmt='S')),
+        ('row-int', dict(keyfmt='i')),
+        ('var', dict(keyfmt='r')),
     ]
+    valuefmt = 'S'
     types = [
         ('file', dict(uri='file:', ds=SimpleDataSet)),
         ('table-complex', dict(uri='table:', ds=ComplexDataSet)),

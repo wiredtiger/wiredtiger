@@ -48,9 +48,11 @@ class test_hs21(wttest.WiredTigerTestCase):
     nrows = 1000
 
     format_values = [
-        ('column', dict(key_format='r', key1=1, key2=2, value_format='S')),
-        ('string-row', dict(key_format='S', key1=str(0), key2=str(1), value_format='S')),
+        ('column', dict(key_format='r', key1=1, key2=2)),
+        ('string-row', dict(key_format='S', key1=str(0), key2=str(1))),
     ]
+
+    value_format='S'
 
     scenarios = make_scenarios(format_values)
 

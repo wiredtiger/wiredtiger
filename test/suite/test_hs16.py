@@ -34,9 +34,10 @@ from wtscenario import make_scenarios
 class test_hs16(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=5MB'
     format_values = (
-        ('column', dict(key_format='r', value_format='S')),
-        ('string-row', dict(key_format='S', value_format='S'))
+        ('column', dict(key_format='r')),
+        ('string-row', dict(key_format='S'))
     )
+    value_format='S'
     scenarios = make_scenarios(format_values)
 
     def create_key(self,i):

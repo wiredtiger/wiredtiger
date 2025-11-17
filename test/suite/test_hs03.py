@@ -37,10 +37,11 @@ class test_hs03(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,statistics=(fast)'
     format_values = [
-        ('column', dict(key_format='r', value_format='u')),
-        ('integer-row', dict(key_format='i', value_format='u')),
-        ('string-row', dict(key_format='S', value_format='u'))
+        ('column', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('string-row', dict(key_format='S'))
     ]
+    value_format='u'
     scenarios = make_scenarios(format_values)
 
     def get_stat(self, stat):

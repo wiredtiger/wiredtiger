@@ -37,9 +37,10 @@ class test_hs02(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
 
     format_values = [
-        ('string-row', dict(key_format='S', value_format='S')),
-        ('column', dict(key_format='r', value_format='S')),
+        ('string-row', dict(key_format='S')),
+        ('column', dict(key_format='r')),
     ]
+    value_format='S'
     scenarios = make_scenarios(format_values)
 
     def large_updates(self, uri, value, ds, nrows, commit_ts):

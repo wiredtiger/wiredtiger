@@ -37,9 +37,11 @@ from wtscenario import make_scenarios
 # inconsistent checkpoint.
 class test_hs24(wttest.WiredTigerTestCase):
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('row_integer', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('row_integer', dict(key_format='i')),
     ]
+
+    value_format='S'
 
     checkpoint_stress_scenarios = [
         ('checkpoint_slow_stress', dict(checkpoint_stress='checkpoint_slow')),

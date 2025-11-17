@@ -43,10 +43,11 @@ class test_hs06(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,statistics=(fast)'
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('integer-row', dict(key_format='i', value_format='S')),
-        ('string-row', dict(key_format='S', value_format='S'))
+        ('column', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('string-row', dict(key_format='S'))
     ]
+    value_format='S'
     scenarios = make_scenarios(format_values)
     nrows = 2000
 

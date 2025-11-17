@@ -40,9 +40,11 @@ class test_inmem01(wttest.WiredTigerTestCase):
     table_config = ',memory_page_max=32k,leaf_page_max=4k'
 
     scenarios = make_scenarios([
-        ('col', dict(keyfmt='r', valuefmt='S')),
-        ('row', dict(keyfmt='S', valuefmt='S')),
+        ('col', dict(keyfmt='r')),
+        ('row', dict(keyfmt='S')),
     ])
+
+    valuefmt = 'S'
 
     # Smoke-test in-memory configurations, add a small amount of data and
     # ensure it's visible.
