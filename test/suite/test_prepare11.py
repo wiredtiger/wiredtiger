@@ -35,9 +35,11 @@ class test_prepare11(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=2MB'
 
     format_values = [
-        ('column', dict(key_format='r', key1=17, value_format='S')),
-        ('string-row', dict(key_format='S', key1='key1', value_format='S')),
+        ('column', dict(key_format='r', key1=17)),
+        ('string-row', dict(key_format='S', key1='key1')),
     ]
+
+    value_format = 'S'
 
     commit_values = [
         ('commit', dict(commit=True)),

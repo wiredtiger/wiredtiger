@@ -39,9 +39,10 @@ class test_prepare20(wttest.WiredTigerTestCase):
     conn_config = 'log=(enabled),transaction_sync=(enabled=true,method=none)'
 
     format_values = [
-        ('integer-row', dict(key_format='i', usestrings=True, value_format='S')),
-        ('column', dict(key_format='r', usestrings=False, value_format='S')),
+        ('integer-row', dict(key_format='i', usestrings=True)),
+        ('column', dict(key_format='r', usestrings=False)),
     ]
+    value_format='S'
     ckpt_values = [
         ('none', dict(first_ckpt=None, second_ckpt=None)),
         ('1-21', dict(first_ckpt=21, second_ckpt=None)),

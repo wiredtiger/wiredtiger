@@ -38,10 +38,11 @@ from wtscenario import make_scenarios
 class test_reserve(wttest.WiredTigerTestCase):
 
     format_values = [
-        ('integer', dict(keyfmt='i', valfmt='S')),
-        ('recno', dict(keyfmt='r', valfmt='S')),
-        ('string', dict(keyfmt='S', valfmt='S')),
+        ('integer', dict(keyfmt='i')),
+        ('recno', dict(keyfmt='r')),
+        ('string', dict(keyfmt='S')),
     ]
+    valfmt = 'S'
     types = [
         ('file', dict(uri='file', ds=SimpleDataSet)),
         ('table-complex', dict(uri='table', ds=ComplexDataSet)),

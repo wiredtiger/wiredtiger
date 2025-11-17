@@ -38,9 +38,11 @@ class test_prepare10(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=10MB,eviction_dirty_trigger=80,eviction_updates_trigger=80'
 
     format_values = [
-        ('column', dict(key_format='r', value_format='u')),
-        ('string-row', dict(key_format='S', value_format='u')),
+        ('column', dict(key_format='r')),
+        ('string-row', dict(key_format='S')),
     ]
+
+    value_format = 'u'
 
     scenarios = make_scenarios(format_values)
 

@@ -47,9 +47,12 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
     # and this workload (with every entry on the page modified repeatedly) isn't much like
     # anything that happens in production.
     format_values = [
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('row_integer', dict(key_format='i', value_format='S', extraconfig='')),
+        ('column', dict(key_format='r')),
+        ('row_integer', dict(key_format='i')),
     ]
+
+    value_format='S'
+    extraconfig=''
 
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),

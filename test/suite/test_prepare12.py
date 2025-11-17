@@ -39,9 +39,11 @@ class test_prepare12(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=2MB'
 
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('row_integer', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('row_integer', dict(key_format='i')),
     ]
+
+    value_format='S'
 
     scenarios = make_scenarios(format_values)
 

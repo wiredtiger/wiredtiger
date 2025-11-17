@@ -33,9 +33,11 @@ from wtscenario import make_scenarios
 # Test prepare rollback and then delete the key.
 class test_prepare26(wttest.WiredTigerTestCase):
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('row_integer', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('row_integer', dict(key_format='i')),
     ]
+
+    value_format='S'
 
     scenarios = make_scenarios(format_values)
 

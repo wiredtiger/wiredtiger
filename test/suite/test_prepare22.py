@@ -34,9 +34,11 @@ from wtscenario import make_scenarios
 class test_prepare22(wttest.WiredTigerTestCase):
 
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('row_integer', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('row_integer', dict(key_format='i')),
     ]
+
+    value_format='S'
 
     delete = [
         ('delete', dict(delete=True)),

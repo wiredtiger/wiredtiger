@@ -35,9 +35,11 @@ class test_prepare24(wttest.WiredTigerTestCase):
     conn_config = 'timing_stress_for_test=[failpoint_eviction_split]'
 
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('row_integer', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('row_integer', dict(key_format='i')),
     ]
+
+    value_format='S'
 
     delete = [
         ('delete', dict(delete=True)),

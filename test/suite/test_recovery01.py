@@ -37,9 +37,11 @@ from wtscenario import make_scenarios
 class test_recovery01(wttest.WiredTigerTestCase):
 
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('row_integer', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('row_integer', dict(key_format='i')),
     ]
+
+    value_format='S'
 
     restart_values = [
         ('crash', dict(crash=True)),

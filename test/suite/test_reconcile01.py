@@ -37,9 +37,11 @@ from wtdataset import SimpleDataSet
 # when they are globally visible or not and expecting them to read back as 0.
 class test_reconcile01(wttest.WiredTigerTestCase):
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('integer-row', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
     ]
+
+    value_format='S'
 
     long_running_txn_values = [
        ('long-running', dict(long_run_txn=True)),

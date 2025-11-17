@@ -40,9 +40,11 @@ class test_prepare16(wttest.WiredTigerTestCase):
     ]
 
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('row_string', dict(key_format='S', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('row_string', dict(key_format='S')),
     ]
+
+    value_format='S'
 
     txn_end_values = [
         ('commit', dict(commit=True)),
