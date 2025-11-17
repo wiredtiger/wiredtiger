@@ -411,18 +411,11 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
     /* Iterate through all prepared transactions and claim pending prepared transactions. */
     discover_count = 0;
     testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable_timestamp"));
-    uint64_t stable_ts = testutil_timestamp_parse(timestamp_buf);
-    printf(
-      "stable_ts=%" PRIu64 ", latest_prepared_ts=%" PRIu64 "\n", stable_ts, g.latest_prepared_ts);
-    if (g.latest_prepared_ts >= stable_ts) {
-        stable_ts = g.latest_prepared_ts + 1;
-        g.ts_stable = stable_ts;
-        set_stable(stable_ts);
-    }
+    uint64_t current_stable = testutil_timestamp_parse(timestamp_buf);
     while ((ret = cursor->next(cursor)) == 0) {
         uint64_t commit_ts, durable_ts, rollback_ts;
 
-        discover_count++;
+        ++discover_count;
         testutil_check(cursor->get_key(cursor, &prepared_id));
 
         /* Claim the prepared transaction */
@@ -434,37 +427,19 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
         should_commit = rnd % 2 == 0;
 
         if (should_commit) {
-            printf("committing txn with prepared_id=%" PRIu64, prepared_id);
-            /* Get current stable timestamp and use it for new timestamps */
-            testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable_timestamp"));
-            uint64_t current_stable = testutil_timestamp_parse(timestamp_buf);
-
             /* Use timestamps greater than current stable */
             commit_ts = current_stable + 1;
-            durable_ts = commit_ts + 2;
+            durable_ts = commit_ts + 1;
 
             testutil_snprintf(buf, sizeof(buf),
               "durable_timestamp=%" PRIx64 ",commit_timestamp=%" PRIx64, durable_ts, commit_ts);
             testutil_check(session->commit_transaction(session, buf));
 
-            printf(
-              " committed at commit_ts=%" PRIu64 ", durable_ts=%" PRIu64, commit_ts, durable_ts);
-            if (!g.predictable_replay) {
-                g.ts_stable = durable_ts + 1;
-                set_stable(g.ts_stable);
-            }
         } else {
-            printf("aborting txn with prepared_id=%" PRIu64, prepared_id);
-            testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable_timestamp"));
-            uint64_t current_stable = testutil_timestamp_parse(timestamp_buf);
 
             rollback_ts = current_stable + 2;
             testutil_snprintf(buf, sizeof(buf), "rollback_timestamp=%" PRIx64, rollback_ts);
             testutil_check(session->rollback_transaction(session, buf));
-            if (!g.predictable_replay) {
-                g.ts_stable = rollback_ts + 1;
-                set_stable(g.ts_stable);
-            }
         }
     }
     /* WT_NOTFOUND is expected when we reach the end of the cursor */
@@ -477,7 +452,7 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
     if (discover_count > 0) {
         /* Only modify stable timestamp if not in predictable replay mode */
         if (!g.predictable_replay) {
-            g.ts_stable++;
+            g.ts_stable = current_stable + 3;
             printf("Final: setting stable to %" PRIu64, g.ts_stable);
             set_stable(g.ts_stable);
         }
