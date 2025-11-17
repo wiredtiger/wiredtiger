@@ -1728,7 +1728,7 @@ __wt_get_page_modify_ta(WT_SESSION_IMPL *session, WT_PAGE *page, WT_TIME_AGGREGA
  *     Free the on-disk block for a reference and clear the address.
  */
 static WT_INLINE int
-__wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool page_replacement)
+__wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool disagg_free_block)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
@@ -1739,7 +1739,7 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool page_replacement
 
     if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
         WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
-    else if (!page_replacement) {
+    else if (disagg_free_block) {
         WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
         if (ref->page != NULL)
             ref->page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
@@ -2062,8 +2062,10 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * We cannot evict the page in the prefetch queue. Eviction may split the page and free the ref.
      * The prefetch thread would crash if it sees a freed ref.
      */
-    if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH))
+    if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH)) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_prefetched);
         return (false);
+    }
 
     if (F_ISSET(btree, WT_BTREE_READONLY))
         return (true);

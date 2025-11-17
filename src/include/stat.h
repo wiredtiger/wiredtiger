@@ -554,7 +554,12 @@ struct __wt_connection_stats {
     int64_t eviction_walk_passes;
     int64_t eviction_queue_empty;
     int64_t eviction_queue_not_empty;
+    int64_t eviction_server_push_pages_failed_when_flaging;
     int64_t eviction_server_race_reconfigure_disagg;
+    int64_t eviction_server_skip_intl_page_non_aggressive;
+    int64_t eviction_server_skip_pages_already_in_urgent_queue;
+    int64_t cache_eviction_blocked_prefetched;
+    int64_t eviction_root_pages_skipped;
     int64_t eviction_server_skip_dirty_pages_during_checkpoint;
     int64_t eviction_server_skip_ingest_trees;
     int64_t eviction_server_skip_intl_page_with_active_child;
@@ -1193,7 +1198,8 @@ struct __wt_connection_stats {
     int64_t rec_maximum_milliseconds;
     int64_t rec_maximum_image_build_milliseconds;
     int64_t rec_maximum_hs_wrapup_milliseconds;
-    int64_t rec_ingest_garbage_collection_keys;
+    int64_t rec_ingest_garbage_collection_keys_disk_image;
+    int64_t rec_ingest_garbage_collection_keys_update_chain;
     int64_t rec_overflow_value;
     int64_t rec_pages;
     int64_t rec_pages_eviction;
@@ -1427,6 +1433,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_4;
     int64_t cache_eviction_blocked_remove_hs_race_with_checkpoint;
     int64_t cache_eviction_blocked_no_progress;
+    int64_t cache_eviction_blocked_prefetched;
     int64_t cache_eviction_pages_queued_updates;
     int64_t cache_eviction_pages_queued_clean;
     int64_t cache_eviction_pages_queued_dirty;
@@ -1690,7 +1697,8 @@ struct __wt_dsrc_stats {
     int64_t rec_max_internal_page_deltas;
     int64_t rec_max_leaf_page_deltas;
     int64_t rec_multiblock_max;
-    int64_t rec_ingest_garbage_collection_keys;
+    int64_t rec_ingest_garbage_collection_keys_disk_image;
+    int64_t rec_ingest_garbage_collection_keys_update_chain;
     int64_t rec_overflow_value;
     int64_t rec_pages;
     int64_t rec_pages_eviction;
