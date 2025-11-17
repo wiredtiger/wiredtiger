@@ -536,8 +536,8 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
     } else
         tlen = strlen(tablename);
 
-    if ((ret = __wt_schema_get_table(
-           session, tablename, tlen, true, WT_DHANDLE_EXCLUSIVE, &table)) != 0)
+    if ((ret = __wt_schema_get_table(session, tablename, tlen, true,
+           WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_SKIP_COLGROUP_CHECK, &table)) != 0)
         WT_RET_MSG(session, (ret == WT_NOTFOUND) ? ENOENT : ret,
           "Can't create '%s' for non-existent table '%.*s'", name, (int)tlen, tablename);
 
@@ -618,6 +618,13 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
 
         WT_ERR(__wt_config_merge(session, sourcecfg, NULL, &sourceconf));
         WT_ERR(__wt_schema_create(session, source, sourceconf));
+
+        if (S2C(session)->debug_flags & WT_CONN_DEBUG_CRASH_POINT_COLGROUP) {
+            /* Without sleep(3) test_schema01.wt exists, but the metadata don't have entry for the
+             * file */
+            sleep(3);
+            __wt_abort(session);
+        }
 
         WT_ERR(__wt_config_collapse(session, cfg, &cgconf));
 
@@ -872,6 +879,69 @@ err:
 
     WT_TRET(__wt_schema_release_table(session, &table));
     return (ret);
+}
+
+// TODO: Add comment
+static int
+__create_table_incomplete_cleanup(WT_SESSION_IMPL *session, const char *uri)
+{
+    const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "force=true", NULL};
+    WT_DECL_RET;
+    WT_DECL_ITEM(uri_buf);
+    const char *tablename;
+    WT_TABLE *table;
+    bool skip_cleanup;
+
+    skip_cleanup = false;
+
+    if (!WT_PREFIX_MATCH(uri, "table:")) {
+        return (0);
+    }
+
+    tablename = uri;
+    WT_PREFIX_SKIP_REQUIRED(session, tablename, "table:");
+
+    /*
+     * Check if the `table:` prefixed entry already exists. If it returns WT_NOTFOUND (the entry
+     * doesn't exist) then there is no need in cleanup and we can simply create the table from
+     * scratch).
+     */
+    ret = __wt_schema_get_table_uri(
+      session, uri, true, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_SKIP_COLGROUP_CHECK, &table);
+    if (ret == WT_NOTFOUND || ret == ENOENT)
+        return (0);
+    WT_RET(ret);
+
+    /*
+     * No clean-up is needed if:
+     * - Column group creation was completed; in this case, we can be sure that the table was
+     * created successfully.
+     * - ncolgroups is not 0; this means that custom column groups were specified during table
+     * creation, so creating column groups was not part of the table-creation process. In this case,
+     * the table creation involves only the `table:` metadata entry, so the metadata cannot end up
+     * in an incomplete state.
+     */
+    skip_cleanup = table->cg_complete || table->ncolgroups != 0;
+    WT_RET(__wt_schema_release_table(session, &table));
+    if (skip_cleanup)
+        return (0);
+
+    // TODO: Do we need to clean up the colgroup explicitly?
+
+    WT_RET(__wt_metadata_remove(session, uri));
+
+    /* Check the `file:` prefixed entry existence. */
+    // TODO: Should I also check for .wt_ingest/stable?
+    // TODO: Add more test cases (for disagg? a crash before the file: creation? a crash after colgroup was created?)
+    WT_RET(__wt_scr_alloc(session, 0, &uri_buf));
+    WT_ERR(__wt_buf_fmt(session, uri_buf, "file:%s.wt", tablename));
+    WT_ERR(__wt_schema_drop(session, uri_buf->data, drop_cfg, false));
+
+    // print log (info level ??)
+err:
+    __wt_scr_free(session, &uri_buf);
+
+    return (0);
 }
 
 /*
@@ -1497,6 +1567,11 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
       (__wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0);
 
     WT_RET(__schema_create_config_check(session, uri, config, import));
+
+    /* Should run this function before we start tracking the meta operations to force all the
+     * cleanup operations including files deletion to take place before the actual table
+     * re-creation. */
+    WT_RET_NOTFOUND_OK(__create_table_incomplete_cleanup(session, uri));
 
     /*
      * We track create operations: if we fail in the middle of creating a complex object, we want to

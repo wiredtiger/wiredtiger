@@ -637,6 +637,7 @@ connection_runtime_config = [
                if true, background compact aggressively removes compact statistics for a file and
                decreases the max amount of time a file can be skipped for.''',
                type='boolean'),
+        Config('crash_point_colgroup', 'false', r'''sleep before colgroup creation.''', type='boolean'),
         Config('corruption_abort', 'true', r'''
             if true and built in diagnostic mode, dump core in the case of data corruption''',
             type='boolean'),

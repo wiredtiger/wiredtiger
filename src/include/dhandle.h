@@ -143,18 +143,19 @@ struct __wt_data_handle {
  * changed when a dhandle is locked exclusively.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_DHANDLE_DEAD 0x001u         /* Dead, awaiting discard */
-#define WT_DHANDLE_DISAGG_META 0x002u  /* Disaggregated storage metadata */
-#define WT_DHANDLE_DISCARD 0x004u      /* Close on release */
-#define WT_DHANDLE_DISCARD_KILL 0x008u /* Mark dead on release */
-#define WT_DHANDLE_DROPPED 0x010u      /* Handle is dropped */
-#define WT_DHANDLE_EXCLUSIVE 0x020u    /* Exclusive access */
-#define WT_DHANDLE_HS 0x040u           /* History store table */
-#define WT_DHANDLE_IS_METADATA 0x080u  /* Metadata handle */
-#define WT_DHANDLE_LOCK_ONLY 0x100u    /* Handle only used as a lock */
-#define WT_DHANDLE_OPEN 0x200u         /* Handle is open */
-#define WT_DHANDLE_OUTDATED 0x400u     /* Handle is outdated */
-                                       /* AUTOMATIC FLAG VALUE GENERATION STOP 12 */
+#define WT_DHANDLE_DEAD 0x001u                /* Dead, awaiting discard */
+#define WT_DHANDLE_DISAGG_META 0x002u         /* Disaggregated storage metadata */
+#define WT_DHANDLE_DISCARD 0x004u             /* Close on release */
+#define WT_DHANDLE_DISCARD_KILL 0x008u        /* Mark dead on release */
+#define WT_DHANDLE_DROPPED 0x010u             /* Handle is dropped */
+#define WT_DHANDLE_EXCLUSIVE 0x020u           /* Exclusive access */
+#define WT_DHANDLE_HS 0x040u                  /* History store table */
+#define WT_DHANDLE_IS_METADATA 0x080u         /* Metadata handle */
+#define WT_DHANDLE_LOCK_ONLY 0x100u           /* Handle only used as a lock */
+#define WT_DHANDLE_OPEN 0x200u                /* Handle is open */
+#define WT_DHANDLE_OUTDATED 0x400u            /* Handle is outdated */
+#define WT_DHANDLE_SKIP_COLGROUP_CHECK 0x800u /* Extra-check for table creation completion */
+                                              /* AUTOMATIC FLAG VALUE GENERATION STOP 12 */
     uint16_t flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */

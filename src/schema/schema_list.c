@@ -78,12 +78,24 @@ __wt_schema_get_table_uri(
 
     WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, flags));
     table = (WT_TABLE *)session->dhandle;
-    if (!ok_incomplete && !table->cg_complete) {
+
+    if (table->cg_complete) {
+        /* Colgroups creation was completed, return success */
+    } else if (table->ncolgroups == 0 && !(flags & WT_DHANDLE_SKIP_COLGROUP_CHECK)) {
+        /* FIXME-WT-3965: TBD */ // TODO: Add a comment
+
+        /* Implicit colgroup creation has failed during the table creation, that means that the
+           table creation hasn't been completed properly, user should call session.create() to
+           re-create the table. */
+        WT_ERR(__wt_session_release_dhandle(session));
+        WT_ERR(WT_NOTFOUND);
+    } else if (!ok_incomplete) {
         WT_ERR(__wt_session_release_dhandle(session));
         ret = __wt_set_return(session, EINVAL);
         WT_ERR_MSG(session, ret, "'%s' cannot be used until all column groups are created",
           table->iface.name);
     }
+
     *tablep = table;
 
 err:
