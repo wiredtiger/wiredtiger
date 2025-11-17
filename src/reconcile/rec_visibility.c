@@ -1251,7 +1251,8 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
          * tombstones if the key is deleted with a globally visible tombstone.
          */
         tombstone_globally_visible = __wt_txn_upd_visible_all(session, upd);
-        if (!WT_IS_HS(session->dhandle) || !tombstone_globally_visible) {
+        if (write_prepare || (!WT_IS_HS(session->dhandle) && upd->upd_start_ts == WT_TS_NONE) ||
+          !tombstone_globally_visible) {
             uint64_t next_txnid = WT_TXN_NONE;
             for (; upd->next != NULL; upd = upd->next) {
                 next_txnid = __wt_atomic_load_uint64_v_acquire(&upd->next->txnid);
@@ -1313,6 +1314,8 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
             if (tombstone_globally_visible) {
                 if (upd->next != NULL)
                     upd = upd->next;
+                else
+                    upd = tombstone;
             } else {
                 upd_select->upd = upd = upd->next;
                 /* We should not see multiple consecutive tombstones. */
@@ -1322,10 +1325,11 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
         }
     }
 
-    if (upd != NULL)
+    if (upd != NULL) {
         /* The beginning of the validity window is the selected update's time point. */
-        WT_TIME_WINDOW_SET_START(select_tw, upd, write_start_prepare);
-    else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
+        if (upd->type != WT_UPDATE_TOMBSTONE)
+            WT_TIME_WINDOW_SET_START(select_tw, upd, write_start_prepare);
+    } else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
         WT_ASSERT_ALWAYS(
           session, tombstone != NULL, "The only contents of the update list is a single tombstone");
 
