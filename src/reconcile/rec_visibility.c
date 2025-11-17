@@ -1246,12 +1246,20 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
         if (tombstone_txnid == WT_TXN_ABORTED)
             tombstone_txnid = tombstone->upd_saved_txnid;
         /*
-         * Identify the update associated with this tombstone, unless a globally visible tombstone
-         * is encountered in the history store. The history store may contain two consecutive
-         * tombstones if the key is deleted with a globally visible tombstone.
+         * Find the update this tombstone applies to.
+         *
+         * To handle scenarios where a prepared tombstone is rolled back, we need to retrieve the
+         * full update associated with it. We resolve prepared updates recursively, processing them
+         * from the oldest to the newest. If a prepared tombstone is written, there's a possibility
+         * that a prepared update from the same transaction was rolled back. In such cases, ensure
+         * that the rolled-back update is also written to disk to maintain data consistency.
+         *
+         * Additionally, if a tombstone with a zero timestamp is selected, it is critical to
+         * identify the update it deletes. Failure to do so may result in missed deletions of
+         * corresponding updates in the history store, leading to potential inconsistencies.
          */
         tombstone_globally_visible = __wt_txn_upd_visible_all(session, upd);
-        if (write_prepare || (!WT_IS_HS(session->dhandle) && upd->upd_start_ts == WT_TS_NONE) ||
+        if (write_prepare || (F_ISSET(r, WT_REC_HS) && upd->upd_start_ts == WT_TS_NONE) ||
           !tombstone_globally_visible) {
             uint64_t next_txnid = WT_TXN_NONE;
             for (; upd->next != NULL; upd = upd->next) {
