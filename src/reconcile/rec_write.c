@@ -39,8 +39,8 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     btree = S2BT(session);
     page = ref->page;
 
-    if(page->disagg_info != NULL)
-        __wt_errx(session, "Reconcile call : %" PRIu64 , page->disagg_info->block_meta.page_id);
+    // if(page->disagg_info != NULL)
+    //     __wt_errx(session, "Reconcile call : %" PRIu64 , page->disagg_info->block_meta.page_id);
 
     __wt_verbose_debug1(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
@@ -272,6 +272,10 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     btree = S2BT(session);
     conn = S2C(session);
     page = ref->page;
+    uint64_t before_id = 0;
+
+    if(page->disagg_info != NULL)
+        before_id = page->disagg_info->block_meta.page_id;
 
     rec_start = __wt_clock(session);
     WT_ASSERT(session, rec_start != 0);
@@ -395,7 +399,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     __rec_write_page_status(session, r);
     WT_ERR(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
     if(page->disagg_info != NULL)
-    __wt_errx(session, "After rec wrapup call : %" PRIu64 , page->disagg_info->block_meta.page_id);
+        if(before_id != 0 || page->disagg_info->block_meta.page_id != 0)
+            __wt_errx(session, "After rec wrapup call : %" PRIu64 " -> %" PRIu64 , before_id, page->disagg_info->block_meta.page_id);
     /*
      * Root pages are special, splits have to be done, we can't put it off as the parent's problem
      * any more.
@@ -2688,7 +2693,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
             *multi->block_meta = page->disagg_info->block_meta;
         goto copy_image;
     }
-    __wt_errx(session, "chunk entries : %" PRIu32, chunk->entries);
+    // __wt_errx(session, "chunk entries : %" PRIu32, chunk->entries);
     /* Check the eviction flag as checkpoint also saves updates. */
     if (F_ISSET(r, WT_REC_EVICT) && multi->supd != NULL) {
         /*
@@ -3043,8 +3048,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     mod = page->modify;
     WT_TIME_AGGREGATE_INIT(&ta);
     previous_ref_state = 0;
-    if (page->disagg_info != NULL)
-        __wt_errx(session, "block free call : %" PRIu64 , page->disagg_info->block_meta.page_id);
+    // if (page->disagg_info != NULL)
+    //     __wt_errx(session, "block free call : %" PRIu64 , page->disagg_info->block_meta.page_id);
     /*
      * If using the history store table eviction path and we found updates that weren't globally
      * visible when reconciling this page, copy them into the database's history store. This can
@@ -3070,8 +3075,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * replaced. Make sure it's discarded at some point, and clear the underlying modification
      * information, we're creating a new reality.
      */
-    if (page->disagg_info != NULL)
-        __wt_errx(session, "block free call - Res: %" PRIu8 ", P1 : %" PRIu64 ,mod->rec_result, page->disagg_info->block_meta.page_id);
+    // if (page->disagg_info != NULL)
+    //     __wt_errx(session, "block free call - Res: %" PRIu8 ", P1 : %" PRIu64 ,mod->rec_result, page->disagg_info->block_meta.page_id);
         
     switch (mod->rec_result) {
     case 0: /*
@@ -3086,8 +3091,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             
         if (__wt_ref_is_root(ref)){
             
-            if (page->disagg_info != NULL)
-                __wt_errx(session, "block free call - Quit for root, P2 : %" PRIu64 ,page->disagg_info->block_meta.page_id);
+            // if (page->disagg_info != NULL)
+            //     __wt_errx(session, "block free call - Quit for root, P2 : %" PRIu64 ,page->disagg_info->block_meta.page_id);
                 
             break;
         }
@@ -3100,12 +3105,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             WT_ASSERT(session,
               WT_DELTA_ENABLED_FOR_PAGE(session, page->type) &&
                 r->multi->addr.block_cookie == NULL);
-            if (page->disagg_info != NULL)
-                __wt_errx(session, "block free call - Quit for P3 : %" PRIu64 ,page->disagg_info->block_meta.page_id);
+            // if (page->disagg_info != NULL)
+            //     __wt_errx(session, "block free call - Quit for P3 : %" PRIu64 ,page->disagg_info->block_meta.page_id);
             break;
         }
-            if (page->disagg_info != NULL)
-                __wt_errx(session, "block free call - Free P4 : %" PRIu64 ,page->disagg_info->block_meta.page_id);
+            // if (page->disagg_info != NULL)
+            //     __wt_errx(session, "block free call - Free P4 : %" PRIu64 ,page->disagg_info->block_meta.page_id);
 
         WT_RET(__wt_ref_block_free(session, ref,
           page->disagg_info != NULL &&
@@ -3179,8 +3184,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     __rec_page_modify_ta_safe_free(session, &mod->stop_ta);
     WT_TIME_AGGREGATE_INIT_MERGE(&stop_ta);
 
-    __wt_errx(session, "%p reconciled into %" PRIu32 " pages",
-      (void *)ref, r->multi_next);
+    // __wt_errx(session, "%p reconciled into %" PRIu32 " pages",
+    //   (void *)ref, r->multi_next);
 
     switch (r->multi_next) {
     case 0: /* Page delete */

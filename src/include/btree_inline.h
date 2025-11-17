@@ -1735,19 +1735,19 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool disagg_free_bloc
 
     WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
     if (!__wt_ref_addr_copy(session, ref, &addr)){
-        __wt_errx(session, "unable to get block address to free");
+        // __wt_errx(session, "unable to get block address to free");
         goto err;
     }
 
     if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)){
-        __wt_errx(session, "Call free in P1");
+        // __wt_errx(session, "Call free in P1");
         WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
-    else if (disagg_free_block) {
+    } else if (disagg_free_block) {
         WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
         if (ref->page != NULL)
             ref->page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
     } else{
-        __wt_errx(session, "Call free in P3");
+        // __wt_errx(session, "Call free in P3");
     }
 
     /* Clear the address (so we don't free it twice). */
