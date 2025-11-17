@@ -58,6 +58,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
     next_ref = NULL;
     WT_ERR(__wt_tree_walk(session, &next_ref, walk_flags));
+    __wt_errx(session, "---- Evict file start");
     while ((ref = next_ref) != NULL) {
         page = ref->page;
 
@@ -126,6 +127,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         }
     }
 
+    __wt_errx(session, "---- Evict file end");
     if (0) {
 err:
         /* On error, clear any left-over tree walk. */

@@ -39,6 +39,9 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     btree = S2BT(session);
     page = ref->page;
 
+    if(page->disagg_info != NULL)
+        __wt_errx(session, "Reconcile call : %" PRIu64 , page->disagg_info->block_meta.page_id);
+
     __wt_verbose_debug1(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
       LF_ISSET(WT_REC_HS) ? ", history store" : "");
@@ -388,9 +391,11 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
     /* Wrap up the page reconciliation. Panic on failure. */
     WT_ERR(__rec_write_wrapup(session, r));
+    
     __rec_write_page_status(session, r);
     WT_ERR(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
-
+    if(page->disagg_info != NULL)
+    __wt_errx(session, "After rec wrapup call : %" PRIu64 , page->disagg_info->block_meta.page_id);
     /*
      * Root pages are special, splits have to be done, we can't put it off as the parent's problem
      * any more.
@@ -2683,7 +2688,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
             *multi->block_meta = page->disagg_info->block_meta;
         goto copy_image;
     }
-
+    __wt_errx(session, "chunk entries : %" PRIu32, chunk->entries);
     /* Check the eviction flag as checkpoint also saves updates. */
     if (F_ISSET(r, WT_REC_EVICT) && multi->supd != NULL) {
         /*
@@ -3038,7 +3043,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     mod = page->modify;
     WT_TIME_AGGREGATE_INIT(&ta);
     previous_ref_state = 0;
-
+    if (page->disagg_info != NULL)
+        __wt_errx(session, "block free call : %" PRIu64 , page->disagg_info->block_meta.page_id);
     /*
      * If using the history store table eviction path and we found updates that weren't globally
      * visible when reconciling this page, copy them into the database's history store. This can
@@ -3064,6 +3070,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * replaced. Make sure it's discarded at some point, and clear the underlying modification
      * information, we're creating a new reality.
      */
+    if (page->disagg_info != NULL)
+        __wt_errx(session, "block free call - Res: %" PRIu8 ", P1 : %" PRIu64 ,mod->rec_result, page->disagg_info->block_meta.page_id);
+        
     switch (mod->rec_result) {
     case 0: /*
              * The page has never been reconciled before, free the original
@@ -3074,8 +3083,14 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
              * The exception is root pages are never tracked or free'd, they
              * are checkpoints, and must be explicitly dropped.
              */
-        if (__wt_ref_is_root(ref))
+            
+        if (__wt_ref_is_root(ref)){
+            
+            if (page->disagg_info != NULL)
+                __wt_errx(session, "block free call - Quit for root, P2 : %" PRIu64 ,page->disagg_info->block_meta.page_id);
+                
             break;
+        }
 
         /*
          * We need to retain the block address if we skipped writing an empty delta or we are
@@ -3085,8 +3100,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             WT_ASSERT(session,
               WT_DELTA_ENABLED_FOR_PAGE(session, page->type) &&
                 r->multi->addr.block_cookie == NULL);
+            if (page->disagg_info != NULL)
+                __wt_errx(session, "block free call - Quit for P3 : %" PRIu64 ,page->disagg_info->block_meta.page_id);
             break;
         }
+            if (page->disagg_info != NULL)
+                __wt_errx(session, "block free call - Free P4 : %" PRIu64 ,page->disagg_info->block_meta.page_id);
 
         WT_RET(__wt_ref_block_free(session, ref,
           page->disagg_info != NULL &&
@@ -3160,7 +3179,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     __rec_page_modify_ta_safe_free(session, &mod->stop_ta);
     WT_TIME_AGGREGATE_INIT_MERGE(&stop_ta);
 
-    __wt_verbose_debug1(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages",
+    __wt_errx(session, "%p reconciled into %" PRIu32 " pages",
       (void *)ref, r->multi_next);
 
     switch (r->multi_next) {
@@ -3207,8 +3226,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          */
         if (F_ISSET(r, WT_REC_IN_MEMORY) || r->multi->supd_restore) {
             WT_ASSERT(session, !F_ISSET(r, WT_REC_REWRITE_DELTA));
-            if (page->disagg_info != NULL)
+            if (page->disagg_info != NULL){
                 page->disagg_info->block_meta = *r->multi->block_meta;
+                __wt_errx(session, "block free call - Root Replace, P6 : %" PRIu64 ,r->multi->block_meta->page_id);
+            }
             WT_ASSERT_ALWAYS(session,
               F_ISSET(r, WT_REC_IN_MEMORY) ||
                 (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0),
@@ -3221,14 +3242,16 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          * leaving that work to us.)
          */
         if (r->wrapup_checkpoint == NULL) {
+            if (page->disagg_info != NULL){
+                page->disagg_info->block_meta = *r->multi->block_meta;
+                __wt_errx(session, "block free call - Root Replace, P5 : %" PRIu64 ,r->multi->block_meta->page_id);
+            }
             if (r->multi->addr.block_cookie != NULL || F_ISSET(r, WT_REC_REWRITE_DELTA)) {
                 __rec_set_updates_durable(session, r->multi);
                 mod->mod_replace = r->multi->addr;
                 r->multi->addr.block_cookie = NULL;
                 mod->mod_disk_image = r->multi->disk_image;
                 r->multi->disk_image = NULL;
-                if (page->disagg_info != NULL)
-                    page->disagg_info->block_meta = *r->multi->block_meta;
                 WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
             } else
                 WT_ASSERT(

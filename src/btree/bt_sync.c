@@ -188,6 +188,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
             LF_SET(WT_READ_VISIBLE_ALL);
 
+        __wt_errx(session, "---- Sync process 2");
         for (;;) {
             WT_ERR(__wt_tree_walk(session, &walk, flags));
             if (walk == NULL)
@@ -208,6 +209,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 WT_ERR(__wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT));
             }
         }
+
+        __wt_errx(session, "---- Sync process end 2");
         break;
     case WT_SYNC_CHECKPOINT:
         /*
@@ -270,7 +273,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         if (!F_ISSET(txn, WT_READ_VISIBLE_ALL))
             LF_SET(WT_READ_VISIBLE_ALL);
-
+        
+        __wt_errx(session, "---- Sync page process start");
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
             WT_ERR(__wt_tree_walk_custom_skip(session, &walk, NULL, NULL, flags));
@@ -280,6 +284,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
             is_internal = F_ISSET(walk, WT_REF_FLAG_INTERNAL);
             page = walk->page;
+
+            if(page->disagg_info != NULL)
+                __wt_errx(session, "Sync page : %" PRIu64 , page->disagg_info->block_meta.page_id);
 
             if (is_internal)
                 WT_STAT_CONN_INCR(session, checkpoint_pages_visited_internal);
@@ -302,6 +309,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
                     btree->rec_max_timestamp = mod->rec_max_timestamp;
 
+                if(page->disagg_info != NULL)
+                    __wt_errx(session, "Sync page skip for not dirty: %" PRIu64 , page->disagg_info->block_meta.page_id);
                 continue;
             }
 
@@ -312,6 +321,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              */
             if (__sync_checkpoint_can_skip(session, walk)) {
                 __wt_tree_modify_set(session);
+                if(page->disagg_info != NULL)
+                    __wt_errx(session, "Sync page for modify: %" PRIu64 , page->disagg_info->block_meta.page_id);
                 continue;
             }
 
@@ -351,6 +362,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 walk = prev;
                 prev = NULL;
                 tried_eviction = true;
+                if(page->disagg_info != NULL)
+                    __wt_errx(session, "Sync skip for non-internal : %" PRIu64 , page->disagg_info->block_meta.page_id);
                 continue;
             }
             tried_eviction = false;
@@ -370,6 +383,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                   session, __wt_atomic_load_size_relaxed(&page->memory_footprint));
         }
 
+        __wt_errx(session, "---- Sync page process end");
         /*
          * During normal checkpoints, mark the tree dirty if the btree has modifications that are
          * not visible to the checkpoint. There is a drawback in this approach as we compare the
