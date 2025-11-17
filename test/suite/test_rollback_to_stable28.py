@@ -58,8 +58,6 @@ class test_rollback_to_stable28(test_rollback_to_stable_base):
     # so disabling these scenarios seems like the best strategy.
     format_values = [
         #('column', dict(key_format='r', value_format='S', extraconfig='')),
-        #('column_fix', dict(key_format='r', value_format='8t',
-        #    extraconfig=',allocation_size=512,leaf_page_max=512')),
         ('row_integer', dict(key_format='i', value_format='S', extraconfig='')),
     ]
 
@@ -98,17 +96,10 @@ class test_rollback_to_stable28(test_rollback_to_stable_base):
             config=self.extraconfig)
         ds.populate()
 
-        if self.value_format == '8t':
-            nrows *= 2
-            value_a = 97
-            value_b = 98
-            value_c = 99
-            value_d = 100
-        else:
-            value_a = 'a' * 500
-            value_b = 'b' * 500
-            value_c = 'c' * 500
-            value_d = 'd' * 500
+        value_a = 'a' * 500
+        value_b = 'b' * 500
+        value_c = 'c' * 500
+        value_d = 'd' * 500
 
         # Perform several updates.
         self.large_updates(uri, value_a, ds, nrows, False, 20)

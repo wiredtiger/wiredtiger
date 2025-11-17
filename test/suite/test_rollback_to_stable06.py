@@ -38,9 +38,10 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
         ('row_integer', dict(key_format='i', value_format='S')),
     ]
+
+    value_format='S'
 
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
@@ -80,16 +81,10 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
             key_format=self.key_format, value_format=self.value_format, config=ds_config)
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_c = 99
-            value_d = 100
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
-            value_d = "ddddd" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
+        value_d = "ddddd" * 100
 
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
@@ -113,8 +108,6 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         self.conn.rollback_to_stable('threads=' + str(self.threads))
 
         # Check that all keys are removed.
-        # (For FLCS, at least for now, they will read back as 0, meaning deleted, rather
-        # than disappear.)
         self.check(value_a, uri, 0, nrows, 20)
         self.check(value_b, uri, 0, nrows, 30)
         self.check(value_c, uri, 0, nrows, 40)
