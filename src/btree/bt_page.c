@@ -498,7 +498,7 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
                      *   key_entry = &base[i]
                      *   val_entry = &base[i + 1]
                      */
-                    WT_RET(__wt_rec_pack_internal_key_addr(
+                    WT_RET(__wt_cell_pack_internal_key_addr(
                       session, new_image, &base[i], &base[i + 1], NULL, false, &p_ptr));
 
                     entry_count += 2;   /* key + value cells */
@@ -516,7 +516,7 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
                      *   key_entry = min_delta
                      *   val_entry = min_delta
                      */
-                    WT_RET(__wt_rec_pack_internal_key_addr(
+                    WT_RET(__wt_cell_pack_internal_key_addr(
                       session, new_image, NULL, NULL, min_delta, true, &p_ptr));
                     entry_count += 2;   /* key + value */
                     final_entries += 1; /* one ref (child) emitted */
@@ -610,11 +610,11 @@ err:
 }
 
 /*
- * __page_merge_deltas_with_base_image_new --
+ * __wt_page_merge_deltas_with_base_image_new --
  *     Merge deltas with base image into disk image in a single pass.
  */
-static int
-__page_merge_deltas_with_base_image_new(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas,
+int
+__wt_page_merge_deltas_with_base_image_new(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas,
   size_t delta_size, WT_REF ***refsp, size_t *ref_entriesp, size_t *incr, WT_ITEM *new_image,
   const void *base_image_addr)
 {
@@ -871,28 +871,6 @@ err:
     __wt_scr_free(session, &lastkey);
     WT_TRET(__wt_btcur_close(&cbt, true));
     return (ret);
-}
-
-/*
- * __wti_build_full_disk_image_on_read --
- *     Build a full disk image of the page after reading from disk.
- */
-int
-__wti_build_full_disk_image_on_read(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas,
-  size_t delta_size, WT_ITEM *new_image, const void *base_image_addr)
-{
-    WT_REF **refs;
-    size_t refs_entries, incr;
-
-    refs = NULL;
-    refs_entries = 0;
-    incr = 0;
-
-    /* Merge deltas directly with the base image to build refs in a single pass. */
-    WT_RET(__page_merge_deltas_with_base_image_new(
-      session, ref, deltas, delta_size, &refs, &refs_entries, &incr, new_image, base_image_addr));
-
-    return (0);
 }
 
 /*

@@ -327,25 +327,6 @@ __wti_rec_auximage_copy(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint32_t cou
 }
 
 /*
- * __wti_rec_cell_build_addr_wrapper --
- *     Helper to build an address cell for a given unpacked address structure (delta or base).
- */
-static WT_INLINE void
-__wti_rec_cell_build_addr_wrapper(WT_SESSION_IMPL *session, WTI_REC_KV *val_kv, uint8_t cell_type,
-  WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, const void *data, size_t data_size)
-{
-    WT_ASSERT(session, val_kv != NULL);
-
-    val_kv->buf.data = data;
-    val_kv->buf.size = data_size;
-
-    val_kv->cell_len = (uint16_t)__wt_cell_build_addr_core(
-      session, &val_kv->cell, cell_type, WT_RECNO_OOB, page_del, ta, data_size);
-
-    val_kv->len = val_kv->cell_len + data_size;
-}
-
-/*
  * __wti_rec_cell_build_addr --
  *     Process an address or unpack reference and return a cell structure to be stored on the page.
  */

@@ -139,6 +139,28 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 }
 
 /*
+ * __page_read_build_full_disk_image --
+ *     Build a full disk image of the page after reading from disk.
+ */
+static int
+__page_read_build_full_disk_image(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas,
+  size_t delta_size, WT_ITEM *new_image, const void *base_image_addr)
+{
+    WT_REF **refs;
+    size_t refs_entries, incr;
+
+    refs = NULL;
+    refs_entries = 0;
+    incr = 0;
+
+    /* Merge deltas directly with the base image to build refs in a single pass. */
+    WT_RET(__wt_page_merge_deltas_with_base_image_new(
+      session, ref, deltas, delta_size, &refs, &refs_entries, &incr, new_image, base_image_addr));
+
+    return (0);
+}
+
+/*
  * __page_read --
  *     Read a page from the file.
  */
@@ -276,7 +298,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
         WT_ERR(__wt_buf_init(session, &new_image, new_image_buf_size));
 
-        WT_ERR(__wti_build_full_disk_image_on_read(
+        WT_ERR(__page_read_build_full_disk_image(
           session, ref, deltas, count - 1, &new_image, tmp[0].data));
 
         build_full_disk_image_from_deltas = true;
