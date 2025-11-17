@@ -45,7 +45,7 @@ class test_hs11(wttest.WiredTigerTestCase):
         ('update', dict(update_type='update'))
     ]
     long_running_txn_values = [
-       ('long-running', dict(long_run_txn=True)),
+        ('long-running', dict(long_run_txn=True)),
         ('no-long-running', dict(long_run_txn=False))
     ]
     last_update_type_values = [

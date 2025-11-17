@@ -1218,6 +1218,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
     WT_UPDATE *last_upd, *tombstone, *upd;
     uint64_t tombstone_txnid;
     uint8_t prepare_state;
+    bool tombstone_globally_visible;
 
     upd = upd_select->upd;
     last_upd = tombstone = NULL;
@@ -1245,14 +1246,12 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
         if (tombstone_txnid == WT_TXN_ABORTED)
             tombstone_txnid = tombstone->upd_saved_txnid;
         /*
-         * Find the update this tombstone applies to.
-         *
-         * We need to find the full update if the prepared tombstone is rolled back. We resolve
-         * prepare updates recursively from the oldest to the newest. If we write a prepared
-         * tombstone, we may see a prepared update that is rolled back from the same transaction.
-         * Ensure we also write it to the disk in this case.
+         * Identify the update associated with this tombstone, unless a globally visible tombstone
+         * is encountered in the history store. The history store may contain two consecutive
+         * tombstones if the key is deleted with a globally visible tombstone.
          */
-        if (write_prepare || !__wt_txn_upd_visible_all(session, upd)) {
+        tombstone_globally_visible = __wt_txn_upd_visible_all(session, upd);
+        if (!WT_IS_HS(session->dhandle) || !tombstone_globally_visible) {
             uint64_t next_txnid = WT_TXN_NONE;
             for (; upd->next != NULL; upd = upd->next) {
                 next_txnid = __wt_atomic_load_uint64_v_acquire(&upd->next->txnid);
@@ -1305,10 +1304,21 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
                   upd->next == NULL || next_txnid != WT_TXN_ABORTED ||
                     (write_start_prepare &&
                       upd->next->upd_saved_txnid == tombstone->upd_saved_txnid));
-            upd_select->upd = upd = upd->next;
-            /* We should not see multiple consecutive tombstones. */
-            WT_ASSERT_ALWAYS(session, upd == NULL || upd->type != WT_UPDATE_TOMBSTONE,
-              "Consecutive tombstones found on the update chain");
+
+            /*
+             * Do not write the key to the disk image if the tombstone is globally visible. However,
+             * the timestamps of the update it deletes are still required to determine whether the
+             * key's values need to be removed from the history store.
+             */
+            if (tombstone_globally_visible) {
+                if (upd->next != NULL)
+                    upd = upd->next;
+            } else {
+                upd_select->upd = upd = upd->next;
+                /* We should not see multiple consecutive tombstones. */
+                WT_ASSERT_ALWAYS(session, upd == NULL || upd->type != WT_UPDATE_TOMBSTONE,
+                  "Consecutive tombstones found on the update chain");
+            }
         }
     }
 
@@ -1519,10 +1529,10 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      * functions perform the history store truncation for this key.
      */
     if (!WT_IS_HS(session->dhandle) && upd_select->tombstone != NULL &&
-      !F_ISSET(upd_select->tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS) &&
+      !F_ISSET(upd_select->tombstone,
+        WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_RESTORED_FROM_DELTA) &&
       !WT_TIME_WINDOW_HAS_STOP_PREPARE(&upd_select->tw)) {
-        if ((upd_select->tombstone != upd_select->upd &&
-              upd_select->tw.start_ts > upd_select->tw.stop_ts) ||
+        if (upd_select->tw.start_ts > upd_select->tw.stop_ts ||
           (WT_REC_HAS_ON_DISK(vpack) && vpack->tw.start_ts > upd_select->tw.stop_ts &&
             upd_select->tw.stop_ts == WT_TS_NONE)) {
             WT_ASSERT(session, upd_select->tw.stop_ts == WT_TS_NONE);
