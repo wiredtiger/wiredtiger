@@ -413,7 +413,7 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
     testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable_timestamp"));
     uint64_t stable_ts = testutil_timestamp_parse(timestamp_buf);
     printf(
-      "stable_ts=%" PRIu64 ", prepare latest ts=%" PRIu64 "\n", stable_ts, g.latest_prepared_ts);
+      "stable_ts=%" PRIu64 ", latest_prepared_ts=%" PRIu64 "\n", stable_ts, g.latest_prepared_ts);
     if (g.latest_prepared_ts >= stable_ts) {
         stable_ts = g.latest_prepared_ts + 1;
         g.ts_stable = stable_ts;
