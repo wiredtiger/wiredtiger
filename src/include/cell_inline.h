@@ -281,7 +281,7 @@ __wt_cell_build_addr_kv(WT_SESSION_IMPL *session, WT_CELL_KV *val_kv, uint8_t ce
     val_kv->buf.data = data;
     val_kv->buf.size = data_size;
 
-    val_kv->cell_len = (uint16_t)__wt_cell_build_addr_core(
+    val_kv->cell_len = (uint16_t)__wt_cell_build_addr(
       session, &val_kv->cell, cell_type, WT_RECNO_OOB, page_del, ta, data_size);
 
     val_kv->len = val_kv->cell_len + data_size;
@@ -393,13 +393,12 @@ __wt_cell_pack_internal_key_addr(WT_SESSION_IMPL *session, WT_ITEM *new_image,
 }
 
 /*
- * __wt_cell_build_addr_core --
- *     Core function to pack an address cell. This version does not depend on reconcile-private
- *     structures.
+ * __wt_cell_build_addr --
+ *     Function to build and pack an address cell.
  */
 static WT_INLINE uint16_t
-__wt_cell_build_addr_core(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t cell_type,
-  uint64_t recno, WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, size_t data_size)
+__wt_cell_build_addr(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t cell_type, uint64_t recno,
+  WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, size_t data_size)
 {
     /*
      * If passed fast-delete information, override the cell type. We should never see fast-truncate

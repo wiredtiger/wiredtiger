@@ -205,8 +205,7 @@ __page_unpack_deltas_internal_new(WT_SESSION_IMPL *session, WT_ITEM *deltas, siz
     WT_DECL_RET;
     WT_PAGE_HEADER *base_image_page_header;
     size_t *delta_size_each;
-    size_t idx;
-    uint32_t i;
+    size_t idx, i;
 
     base_image_page_header = (WT_PAGE_HEADER *)base_image_addr;
 
@@ -218,7 +217,7 @@ __page_unpack_deltas_internal_new(WT_SESSION_IMPL *session, WT_ITEM *deltas, siz
     WT_ERR(__wt_calloc_def(session, delta_size, &unpacked_deltas));
 
     /* Unpack all delta images (do not merge them yet). */
-    for (i = 0; i < (uint32_t)delta_size; ++i) {
+    for (i = 0; i < delta_size; ++i) {
         WT_PAGE_HEADER *header = (WT_PAGE_HEADER *)deltas[i].data;
         size_t entries = header->u.entries / 2; /* key/value pairs */
         delta_size_each[i] = entries;
@@ -238,7 +237,7 @@ __page_unpack_deltas_internal_new(WT_SESSION_IMPL *session, WT_ITEM *deltas, siz
 
 err:
     if (unpacked_deltas != NULL) {
-        for (i = 0; i < (uint32_t)delta_size; ++i)
+        for (i = 0; i < delta_size; ++i)
             __wt_free(session, unpacked_deltas[i]);
         __wt_free(session, unpacked_deltas);
     }
@@ -257,8 +256,7 @@ __page_unpack_deltas_internal(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ITEM *
     WT_CELL_UNPACK_DELTA_INT **unpacked_deltas;
     WT_DECL_RET;
     size_t *delta_size_each;
-    size_t idx;
-    uint32_t i;
+    size_t idx, i;
 
     unpacked_deltas = NULL;
     delta_size_each = NULL;
@@ -268,7 +266,7 @@ __page_unpack_deltas_internal(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ITEM *
     WT_ERR(__wt_calloc_def(session, delta_size, &unpacked_deltas));
 
     /* Unpack all delta images (do not merge them yet). */
-    for (i = 0; i < (uint32_t)delta_size; ++i) {
+    for (i = 0; i < delta_size; ++i) {
         WT_PAGE_HEADER *header = (WT_PAGE_HEADER *)deltas[i].data;
         size_t entries = header->u.entries / 2; /* key/value pairs */
         delta_size_each[i] = entries;
@@ -288,7 +286,7 @@ __page_unpack_deltas_internal(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ITEM *
 
 err:
     if (unpacked_deltas != NULL) {
-        for (i = 0; i < (uint32_t)delta_size; ++i)
+        for (i = 0; i < delta_size; ++i)
             __wt_free(session, unpacked_deltas[i]);
         __wt_free(session, unpacked_deltas);
     }

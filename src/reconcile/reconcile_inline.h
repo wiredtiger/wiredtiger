@@ -380,7 +380,7 @@ __wti_rec_cell_build_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ADDR *a
      */
     val->buf.data = data;
     val->buf.size = data_size;
-    val->cell_len = (uint16_t)__wt_cell_build_addr_core(
+    val->cell_len = (uint16_t)__wt_cell_build_addr(
       session, &val->cell, cell_type, recno, page_del, ta, data_size);
     val->len = val->cell_len + data_size;
 }

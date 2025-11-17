@@ -414,8 +414,8 @@ err:
         for (i = start; i < count; ++i)
             __wt_buf_free(session, &tmp[i]);
 
-        /* Fix: free tmp[0] when the loop skipped it */
-        if (disk_image_freed)
+        /* Free the base image memory when a full disk image is constructed from deltas. */
+        if (build_full_disk_image_from_deltas)
             __wt_buf_free(session, &tmp[0]);
 
         __wt_free(session, tmp);
