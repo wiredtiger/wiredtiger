@@ -4346,7 +4346,7 @@ tasks:
       - func: "checkpoint stress test"
         vars:
           timestamp_config: -e -x
-          wt_config: cache_size=1000M,precise_checkpoint=true
+          wt_config: cache_size=1000M
           no_of_procs: 5  # Number of processes to run in the background
           tiered: 1       # Enable tiered storage
           times: 1        # Number of times to run the loop
