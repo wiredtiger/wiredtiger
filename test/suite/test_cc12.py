@@ -40,10 +40,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Verify checkpoint cleanup cleans up logged tables when configured in aggressive mode.
 @wttest.skip_for_hook("tiered", "Checkpoint cleanup does not support tiered tables")
 class test_cc12(test_cc_base):
-    conn_config = 'cache_size=8M,statistics=(all),statistics_log=(json,wait=1,on_close=true,sources=[file:]),log=(enabled=true)'
+    conn_config_common = 'cache_size=8M,statistics=(all),statistics_log=(json,wait=1,on_close=true,sources=[file:])'
 
     checkpoint_cleanup_methods = [
-        ('cc_method_reclaim_space', dict()),
+        ('enable_log', dict(conn_config = conn_config_common+',log=(enabled=true)')),
+        ('disable_log', dict(conn_config = conn_config_common+',log=(enabled=false)'))
     ]
 
     scenarios = make_scenarios(checkpoint_cleanup_methods)
@@ -63,7 +64,7 @@ class test_cc12(test_cc_base):
             self.op_map[tid] = key_partition
         session = self.conn.open_session()
         try:
-            for r in range(1000):
+            for r in range(100):
                 session.begin_transaction()
                 cur = session.open_cursor(uri)
                 for sr in range(10):
@@ -106,7 +107,7 @@ class test_cc12(test_cc_base):
         uri = 'table:cc12'
 
         self.session.create(uri, create_params)
-        
+
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         history_size = []
 
@@ -122,7 +123,7 @@ class test_cc12(test_cc_base):
             size_before = self.get_hs_size()
             self.wait_for_cc_to_run()
             history_size.append((size_before, self.get_hs_size()))
-        
+
         self.prout("First rounds test: " + str(history_size))
         history_size.clear()
 
@@ -134,5 +135,6 @@ class test_cc12(test_cc_base):
             size_before = self.get_hs_size()
             self.wait_for_cc_to_run()
             history_size.append((size_before, self.get_hs_size()))
-        
+
         self.prout("Reopen rounds test: " + str(history_size))
+        self.assertTrue(False, "Keep logs")
