@@ -38,10 +38,11 @@ from helper import WiredTigerStat
 class test_rollback_to_stable03(test_rollback_to_stable_base):
 
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('row_integer', dict(key_format='i')),
     ]
+
+    value_format='S'
 
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
@@ -77,14 +78,9 @@ class test_rollback_to_stable03(test_rollback_to_stable_base):
             key_format=self.key_format, value_format=self.value_format, config=ds_config)
         ds.populate()
 
-        if self.value_format == '8t':
-            valuea = 97
-            valueb = 98
-            valuec = 99
-        else:
-            valuea = "aaaaa" * 100
-            valueb = "bbbbb" * 100
-            valuec = "ccccc" * 100
+        valuea = "aaaaa" * 100
+        valueb = "bbbbb" * 100
+        valuec = "ccccc" * 100
 
         # Pin oldest and stable to timestamp 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +

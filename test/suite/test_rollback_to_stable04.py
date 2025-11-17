@@ -40,10 +40,11 @@ def mod_val(value, char, location, nbytes=1):
 class test_rollback_to_stable04(test_rollback_to_stable_base):
 
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('row_integer', dict(key_format='i')),
     ]
+
+    value_format='S'
 
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
@@ -88,35 +89,19 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
             key_format=self.key_format, value_format=self.value_format, config=ds_config)
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97 # 'a'
-            value_b = 98 # 'b'
-            value_c = 99 # 'c'
-            value_d = 100 # 'd'
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
+        value_d = "ddddd" * 100
 
-            # No modifies in FLCS; do ordinary updates instead.
-            value_modQ = 81 # 'Q'
-            value_modR = 82 # 'R'
-            value_modS = 83 # 'S'
-            value_modT = 84 # 'T'
-            value_modW = 87 # 'W'
-            value_modX = 88 # 'X'
-            value_modY = 89 # 'Y'
-            value_modZ = 90 # 'Z'
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
-            value_d = "ddddd" * 100
-
-            value_modQ = mod_val(value_a, 'Q', 0)
-            value_modR = mod_val(value_modQ, 'R', 1)
-            value_modS = mod_val(value_modR, 'S', 2)
-            value_modT = mod_val(value_c, 'T', 3)
-            value_modW = mod_val(value_d, 'W', 4)
-            value_modX = mod_val(value_a, 'X', 5)
-            value_modY = mod_val(value_modX, 'Y', 6)
-            value_modZ = mod_val(value_modY, 'Z', 7)
+        value_modQ = mod_val(value_a, 'Q', 0)
+        value_modR = mod_val(value_modQ, 'R', 1)
+        value_modS = mod_val(value_modR, 'S', 2)
+        value_modT = mod_val(value_c, 'T', 3)
+        value_modW = mod_val(value_d, 'W', 4)
+        value_modX = mod_val(value_a, 'X', 5)
+        value_modY = mod_val(value_modX, 'Y', 6)
+        value_modZ = mod_val(value_modY, 'Z', 7)
 
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +

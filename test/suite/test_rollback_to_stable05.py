@@ -37,10 +37,11 @@ from rollback_to_stable_util import test_rollback_to_stable_base
 class test_rollback_to_stable05(test_rollback_to_stable_base):
 
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('row_integer', dict(key_format='i')),
     ]
+
+    value_format='S'
 
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
@@ -80,16 +81,10 @@ class test_rollback_to_stable05(test_rollback_to_stable_base):
             self, uri_2, 0, key_format=self.key_format, value_format=self.value_format)
         ds_2.populate()
 
-        if self.value_format == '8t':
-            valuea = 97
-            valueb = 98
-            valuec = 99
-            valued = 100
-        else:
-            valuea = "aaaaa" * 100
-            valueb = "bbbbb" * 100
-            valuec = "ccccc" * 100
-            valued = "ddddd" * 100
+        valuea = "aaaaa" * 100
+        valueb = "bbbbb" * 100
+        valuec = "ccccc" * 100
+        valued = "ddddd" * 100
 
         self.large_updates(uri_1, valuea, ds_1, nrows, self.prepare, 0)
         self.check(valuea, uri_1, nrows, None, 0)

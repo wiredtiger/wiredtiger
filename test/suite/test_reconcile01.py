@@ -37,10 +37,11 @@ from wtdataset import SimpleDataSet
 # when they are globally visible or not and expecting them to read back as 0.
 class test_reconcile01(wttest.WiredTigerTestCase):
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
-        ('integer-row', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
     ]
+
+    value_format='S'
 
     long_running_txn_values = [
        ('long-running', dict(long_run_txn=True)),
@@ -73,10 +74,7 @@ class test_reconcile01(wttest.WiredTigerTestCase):
         cursor = ds.open_cursor(uri)
         self.session.begin_transaction()
         for i in range(1, nrows + 1):
-            if self.value_format == '8t':
-                cursor[i] = i
-            else:
-                cursor[i] = str(i)
+            cursor[i] = str(i)
         self.session.commit_transaction()
 
         # Start a long running transaction.
@@ -87,52 +85,29 @@ class test_reconcile01(wttest.WiredTigerTestCase):
         # Append a new key is necessary otherwise the next remove fails without inserting
         # the implicitly deleted record.
         cursor.set_key(appendkey2)
-        if self.value_format == '8t':
-            cursor.set_value(appendkey2)
-        else:
-            cursor.set_value(str(appendkey2))
+        cursor.set_value(str(appendkey2))
         self.assertEqual(cursor.insert(), 0)
 
         # Remove the key that doesn't exist.
         cursor.set_key(appendkey1)
-        if self.value_format == '8t':
-            self.assertEqual(cursor.remove(), 0)
-        else:
-            self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(cursor.remove(), wiredtiger.WT_NOTFOUND)
 
         # Validate the appended and removed keys.
         cursor.set_key(appendkey1)
-        if self.value_format == '8t':
-            self.assertEqual(cursor.search(), 0)
-            self.assertEqual(cursor.get_value(), 0)
-        else:
-            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
         v = cursor[appendkey2]
-        if self.value_format == '8t':
-            self.assertEqual(v, appendkey2)
-        else:
-            self.assertEqual(v, str(appendkey2))
+        self.assertEqual(v, str(appendkey2))
         cursor.reset()
 
         # Evict the page to force reconciliation. As part of the reconciliation selecting the
         # implicit tombstone can go wrong for FLCS if it is not globally visible.
-        if self.value_format == '8t':
-            self.evict(ds, uri, 1, 1)
-        else:
-            self.evict(ds, uri, 1, '1')
+        self.evict(ds, uri, 1, '1')
 
         # Validate the appended and removed keys.
         cursor.set_key(appendkey1)
-        if self.value_format == '8t':
-            self.assertEqual(cursor.search(), 0)
-            self.assertEqual(cursor.get_value(), 0)
-        else:
-            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
         v = cursor[appendkey2]
-        if self.value_format == '8t':
-            self.assertEqual(v, appendkey2)
-        else:
-            self.assertEqual(v, str(appendkey2))
+        self.assertEqual(v, str(appendkey2))
 

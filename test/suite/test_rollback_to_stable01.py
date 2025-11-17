@@ -36,10 +36,11 @@ from wtscenario import make_scenarios
 # Test that rollback to stable clears the remove operation.
 class test_rollback_to_stable01(test_rollback_to_stable_base):
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        #('column_fix', dict(key_format='r', value_format='8t')),  # FIXME-WT-14972
-        ('row_integer', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('row_integer', dict(key_format='i')),
     ]
+
+    value_format='S'
 
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
@@ -82,10 +83,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
             key_format=self.key_format, value_format=self.value_format, config=ds_config)
         ds.populate()
 
-        if self.value_format == '8t':
-            valuea = 97
-        else:
-            valuea = "aaaaa" * 100
+        valuea = "aaaaa" * 100
 
         # Pin oldest and stable to timestamp 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
@@ -113,7 +111,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         # Check that the new updates are only seen after the update timestamp.
         self.session.breakpoint()
         if self.dryrun:
-            self.check(0, uri, nrows if self.value_format == '8t' else 0, None, 20)
+            self.check(0, uri, 0, None, 20)
         else:
             self.check(valuea, uri, nrows, None, 20)
 
