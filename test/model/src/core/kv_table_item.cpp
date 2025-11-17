@@ -185,8 +185,7 @@ kv_table_item::contains_any(const data_value &value, kv_transaction_snapshot_ptr
     }
 
     /*
-     * Now check all updates with the same commit timestamp. If the most recent update is not
-     * implicit, then check only explicit updates.
+     * Now check all updates with the same commit timestamp.
      */
     timestamp_t t = (*i)->commit_timestamp();
     while ((*i)->commit_timestamp() == t) {
