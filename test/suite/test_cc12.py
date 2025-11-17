@@ -33,6 +33,7 @@ from helper import WiredTigerStat
 from wtscenario import make_scenarios
 import random
 import threading
+import time
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -137,4 +138,6 @@ class test_cc12(test_cc_base):
             history_size.append((size_before, self.get_hs_size()))
 
         self.prout("Reopen rounds test: " + str(history_size))
+        # Sleep to wait the stat refresh
+        time.sleep(2)
         self.assertTrue(False, "Keep logs")
