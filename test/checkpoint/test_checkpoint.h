@@ -133,3 +133,4 @@ void start_threads(void);
 int start_workers(void);
 const char *type_to_string(table_type);
 int verify_consistency(WT_SESSION *, wt_timestamp_t, bool);
+void prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td);

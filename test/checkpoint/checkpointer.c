@@ -33,7 +33,7 @@ static WT_THREAD_RET clock_thread(void *);
 static int compare_cursors(WT_CURSOR *, table_type, WT_CURSOR *, table_type);
 static int diagnose_key_error(WT_CURSOR *, table_type, int, WT_CURSOR *, table_type, int);
 static int real_checkpointer(THREAD_DATA *);
-static void prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td);
+
 /*
  * set_stable --
  *     Set the given timestamp as the stable timestamp.
@@ -348,10 +348,6 @@ real_checkpointer(THREAD_DATA *td)
             testutil_check(g.conn->set_timestamp(g.conn, timestamp_buf));
         }
 
-        if (g.precise_checkpoint && g.prepare) {
-            prepare_discover(g.conn, td);
-        }
-
         if (g.sweep_stress)
             /*
              * Random value between 4 and 8 seconds. Use the extra random generator as the tier
@@ -382,7 +378,7 @@ done:
  *     Claim pending prepared transactions, do a checkpoint then verify the consistency of the data
  *     post claiming.
  */
-static void
+void
 prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
 {
     WT_UNUSED(td);
@@ -391,7 +387,7 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
      * all pending prepared transactions. When precise checkpoint is not configure, there's no need
      * to run prepare discover.
      */
-    if (!g.precise_checkpoint || !g.prepare)
+    if (!g.precise_checkpoint)
         return;
 
     WT_CURSOR *cursor;

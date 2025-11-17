@@ -346,6 +346,7 @@ main(int argc, char *argv[])
                 (void)log_print_err("conn.open_session", ret, 1);
                 break;
             }
+            prepare_discover(g.conn, NULL);
 
             verify_consistency(session, WT_TS_NONE, false);
             goto run_complete;
