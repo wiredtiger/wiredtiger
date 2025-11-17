@@ -39,11 +39,12 @@ from wtthread import checkpoint_thread
 class test_rollback_to_stable10(test_rollback_to_stable_base):
 
     format_values = [
-        ('column', dict(key_format='r', value_format='S', prepare_extraconfig='')),
-        ('column_fix', dict(key_format='r', value_format='8t',
-            prepare_extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('row_integer', dict(key_format='i', value_format='S', prepare_extraconfig='')),
+        ('column', dict(key_format='r')),
+        ('row_integer', dict(key_format='i')),
     ]
+
+    value_format='S'
+    prepare_extraconfig=''
 
     prepare_values = [
         ('no_prepare', dict(prepare=False)),
@@ -97,20 +98,12 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
             self, uri_2, 0, key_format=self.key_format, value_format=self.value_format)
         ds_2.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_c = 99
-            value_d = 100
-            value_e = 101
-            value_f = 102
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
-            value_d = "ddddd" * 100
-            value_e = "eeeee" * 100
-            value_f = "fffff" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
+        value_d = "ddddd" * 100
+        value_e = "eeeee" * 100
+        value_f = "fffff" * 100
 
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
@@ -212,19 +205,11 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
             config=self.prepare_extraconfig)
         ds_2.populate()
 
-        if self.value_format == '8t':
-            nrows *= 2
-            value_a = 97
-            value_b = 98
-            value_c = 99
-            value_d = 100
-            value_e = 101
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
-            value_d = "ddddd" * 100
-            value_e = "eeeee" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
+        value_d = "ddddd" * 100
+        value_e = "eeeee" * 100
 
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
@@ -262,7 +247,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         # Do an explicit checkpoint first, before starting the background checkpointer.
         # Otherwise (depending on timing and load) because there's a lot to write for the
         # first checkpoint there's a tendency for the background checkpointer to only
-        # manage to do the one checkpoint; and sometimes (especially on FLCS) it ends up
+        # manage to do the one checkpoint; and sometimes it ends up
         # not containing any of the concurrent updates, and then the test fails because
         # RTS correctly notices it has no work to do and doesn't visit any of the pages
         # or update anything in the history store.

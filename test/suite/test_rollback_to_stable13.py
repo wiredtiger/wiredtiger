@@ -38,10 +38,11 @@ from wtscenario import make_scenarios
 class test_rollback_to_stable13(test_rollback_to_stable_base):
 
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r')),
+        ('row_integer', dict(key_format='i')),
     ]
+
+    value_format='S'
 
     prepare_values = [
         ('no_prepare', dict(prepare=False)),
@@ -75,12 +76,8 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
             config='split_pct=50')
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
 
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
@@ -96,7 +93,6 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
         self.large_updates(uri, value_b, ds, nrows, self.prepare, 60)
 
         # Verify data is visible and correct.
-        # (In FLCS, the removed rows should read back as zero.)
         self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
         self.check(None, uri, 0, nrows, 31 if self.prepare else 30)
         self.check(value_b, uri, nrows, None, 61 if self.prepare else 60)
@@ -131,16 +127,10 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
             config='split_pct=50')
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_c = 99
-            value_d = 100
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
-            value_d = "ddddd" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
+        value_d = "ddddd" * 100
 
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
@@ -172,7 +162,6 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
         self.large_updates(uri, value_d, ds, nrows, self.prepare, 60)
 
         # Verify data is visible and correct.
-        # (In FLCS, the removed rows should read back as zero.)
         self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
         self.check(None, uri, 0, nrows, 31 if self.prepare else 30)
         self.check(value_d, uri, nrows, None, 61 if self.prepare else 60)
@@ -207,14 +196,9 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
             config='split_pct=50')
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_c = 99
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
 
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
@@ -249,7 +233,6 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
         self.session.checkpoint()
 
         # Verify data is visible and correct.
-        # (In FLCS, the removed rows should read back as zero.)
         self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
         self.check(None, uri, 0, nrows, 41 if self.prepare else 40)
         self.check(value_c, uri, nrows, None, 61 if self.prepare else 60)
@@ -276,14 +259,9 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
             config='split_pct=50')
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_c = 99
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
 
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
@@ -305,7 +283,6 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
         self.session.checkpoint()
 
         # Verify data is visible and correct.
-        # (In FLCS, the removed rows should read back as zero.)
         self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
         self.check(None, uri, 0, nrows, 41 if self.prepare else 40)
         self.check(value_c, uri, nrows, None, 61 if self.prepare else 60)
