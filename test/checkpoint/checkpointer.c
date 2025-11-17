@@ -449,6 +449,10 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
 
             printf(
               " committed at commit_ts=%" PRIu64 ", durable_ts=%" PRIu64, commit_ts, durable_ts);
+            if (!g.predictable_replay) {
+                g.ts_stable = durable_ts + 1;
+                set_stable(g.ts_stable);
+            }
         } else {
             printf("aborting txn with prepared_id=%" PRIu64, prepared_id);
             testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable_timestamp"));
@@ -457,14 +461,8 @@ prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td)
             rollback_ts = current_stable + 2;
             testutil_snprintf(buf, sizeof(buf), "rollback_timestamp=%" PRIx64, rollback_ts);
             testutil_check(session->rollback_transaction(session, buf));
-        }
-        /*
-         * Don't directly modify g.ts_stable in predictable replay mode. In predictable replay mode,
-         * let the clock thread handle stable timestamp advancement.
-         */
-        if (!g.predictable_replay) {
-            if (should_commit) {
-                g.ts_stable = durable_ts + 1;
+            if (!g.predictable_replay) {
+                g.ts_stable = rollback_ts + 1;
                 set_stable(g.ts_stable);
             }
         }
