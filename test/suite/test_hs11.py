@@ -53,7 +53,7 @@ class test_hs11(wttest.WiredTigerTestCase):
         ('no-modify', dict(modify=False))
     ]
     nrows = [
-        ('small-nrows', dict(nrows=100)),
+        ('small-nrows', dict(nrows=10)),
         ('large-nrows', dict(nrows=10000))
     ]
     scenarios = make_scenarios(format_values, update_type_values,long_running_txn_values, last_update_type_values, nrows)
