@@ -49,12 +49,12 @@ class test_rollback_to_stable28(test_rollback_to_stable_base):
     conn_recon = ',eviction_updates_trigger=10,eviction_dirty_trigger=5,eviction_dirty_target=1,' \
             'cache_size=1MB,debug_mode=(update_restore_evict=true)'
 
-    # In principle this test should be run on VLCS and FLCS; but it doesn't run reliably, in that
+    # In principle this test should be run on VLCS; but it doesn't run reliably, in that
     # while it always works in the sense of producing the right values, it doesn't always trigger
-    # update restore eviction, and then the assertions about that fail. For FLCS, using small
+    # update restore eviction, and then the assertions about that fail. Using small
     # pages and twice as many rows makes it work most of the time, but not always (especially on
-    # the test machines...) and it also apparently fails some of the time on VLCS. For the moment
-    # we've concluded that the marginal benefit of running on VLCS and particularly FLCS is small
+    # the test machines...) for VLCS. For the moment
+    # we've concluded that the marginal benefit of running on VLCS is small
     # so disabling these scenarios seems like the best strategy.
     format_values = [
         #('column', dict(key_format='r', value_format='S', extraconfig='')),

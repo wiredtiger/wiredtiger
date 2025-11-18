@@ -36,16 +36,6 @@ from rollback_to_stable_util import test_rollback_to_stable_base
 # Test that rollback to stable brings back the history value to replace on-disk value.
 class test_rollback_to_stable02(test_rollback_to_stable_base):
 
-    # For FLCS, set the page size down. Otherwise for the in-memory scenarios we get enough
-    # updates on the page that the in-memory page footprint exceeds the default maximum
-    # in-memory size, and that in turn leads to pathological behavior where the page gets
-    # force-evicted over and over again trying to resolve/condense the updates. But they
-    # don't (for in-memory, they can't be moved to the history store) so this leads to a
-    # semi-livelock state that makes the test some 20x slower than it needs to be.
-    #
-    # FUTURE: it would be better if the system adjusted on its own, but it's not critical
-    # and this workload (with every entry on the page modified repeatedly) isn't much like
-    # anything that happens in production.
     format_values = [
         ('column', dict(key_format='r')),
         ('row_integer', dict(key_format='i')),

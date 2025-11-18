@@ -129,7 +129,6 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         self.do_truncate(ds, nrows // 4 + 1, nrows // 4 + nrows // 2)
 
         # Check stats to make sure we fast-deleted at least one page.
-        # (Except for FLCS, where it's not supported and we should fast-delete zero pages.)
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
         self.assertGreater(fastdelete_pages, 0)

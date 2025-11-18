@@ -42,8 +42,7 @@ def append_val(value, char):
 
 # test_rollback_to_stable14.py
 # Test the rollback to stable operation uses proper base update while restoring modifies from
-# history store. Since FLCS inherently doesn't support modify, there's no need to run this on
-# FLCS. (Note that self.value_format needs to exist anyway for the base class to use.)
+# history store.
 class test_rollback_to_stable14(test_rollback_to_stable_base):
 
     key_format_values = [

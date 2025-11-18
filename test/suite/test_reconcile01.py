@@ -100,8 +100,7 @@ class test_reconcile01(wttest.WiredTigerTestCase):
         self.assertEqual(v, str(appendkey2))
         cursor.reset()
 
-        # Evict the page to force reconciliation. As part of the reconciliation selecting the
-        # implicit tombstone can go wrong for FLCS if it is not globally visible.
+        # Evict the page to force reconciliation.
         self.evict(ds, uri, 1, '1')
 
         # Validate the appended and removed keys.
