@@ -55,7 +55,21 @@ database::add_collection(scoped_session &session, uint64_t key_count)
       session->create(session.get(), collection_name.c_str(), _collection_create_config.c_str()));
     if (_operation_tracker != nullptr)
         _operation_tracker->save_schema_operation(
-        tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
+          tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
+}
+
+void
+database::add_existing_collections(int count, int key_count)
+{
+    std::lock_guard<std::mutex> lg(_mtx);
+    testutil_assert(_next_collection_id == 0);
+    for (int i = 0; i < count; i++) {
+        uint64_t next_id = _next_collection_id++;
+        std::string collection_name = build_collection_name(next_id);
+        _collections.emplace(std::piecewise_construct, std::forward_as_tuple(next_id),
+          std::forward_as_tuple(next_id, key_count, collection_name));
+    }
+    // TODO: Enable op_tracking.
 }
 
 collection &

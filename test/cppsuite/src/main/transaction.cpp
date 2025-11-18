@@ -35,8 +35,7 @@
 namespace test_harness {
 
 transaction::transaction(int64_t min_op_count, int64_t max_op_count)
-    : _min_op_count(min_op_count),
-      _max_op_count(max_op_count)
+    : _min_op_count(min_op_count), _max_op_count(max_op_count)
 {
 }
 

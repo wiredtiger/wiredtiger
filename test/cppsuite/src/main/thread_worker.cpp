@@ -87,9 +87,9 @@ thread_worker::thread_worker(uint64_t id, thread_type type, configuration *confi
       key_size(config->get_optional_int(KEY_SIZE, 1)),
       value_size(config->get_optional_int(VALUE_SIZE, 1)),
       thread_count(config->get_int(THREAD_COUNT)), type(type), id(id), db(dbase),
-      session(std::move(created_session)), tsm(timestamp_manager),
-      txn(transaction(config)), op_tracker(op_tracker),
-      _sleep_time_ms(std::chrono::milliseconds(config->get_throttle_ms())), _barrier(barrier_ptr)
+      session(std::move(created_session)), tsm(timestamp_manager), txn(transaction(config)),
+      op_tracker(op_tracker), _sleep_time_ms(std::chrono::milliseconds(config->get_throttle_ms())),
+      _barrier(barrier_ptr)
 {
     if (op_tracker->enabled())
         op_track_cursor = session.open_scoped_cursor(op_tracker->get_operation_table_name());
@@ -154,7 +154,8 @@ thread_worker::insert(
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
-    // logger::log_msg(LOG_INFO, "Setting commit timestamp of " + timestamp_manager::decimal_to_hex(ts));
+    // logger::log_msg(LOG_INFO, "Setting commit timestamp of " +
+    // timestamp_manager::decimal_to_hex(ts));
     if (tsm->enabled())
         ret = txn.set_commit_timestamp(session, ts);
     testutil_assert(ret == 0 || ret == EINVAL);

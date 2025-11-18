@@ -179,7 +179,7 @@ public:
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
              * To tackle this issue, we round the timestamp to the oldest timestamp value.
              */
-            tc->txn.begin(tc->session, 
+            tc->txn.begin(tc->session,
               "roundup_timestamps=(read=true),read_timestamp=" + tc->tsm->decimal_to_hex(ts));
 
             while (tc->txn.active() && tc->running()) {

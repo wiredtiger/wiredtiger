@@ -790,6 +790,7 @@ extern
 extlist
 fadvise
 fahrenheit
+failover
 failpoint
 fallocate
 fallthrough

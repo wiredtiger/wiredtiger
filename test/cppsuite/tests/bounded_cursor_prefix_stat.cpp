@@ -92,8 +92,8 @@ class bounded_cursor_prefix_stat : public test {
                                 --count;
                         } else {
                             /* Commit txn at commit timestamp 100. */
-                            testutil_assert(
-                              tc->txn.commit(tc->session, "commit_timestamp=" + tc->tsm->decimal_to_hex(100)));
+                            testutil_assert(tc->txn.commit(
+                              tc->session, "commit_timestamp=" + tc->tsm->decimal_to_hex(100)));
                             rollback_retries = 0;
                         }
                     }

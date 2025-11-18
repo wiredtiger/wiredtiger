@@ -36,9 +36,11 @@ extern "C" {
 }
 
 namespace test_harness {
-    namespace crud {
-        bool insert(scoped_cursor &cursor, transaction &txn, const std::string &key, const std::string &value);
-        bool update(scoped_cursor &cursor, transaction &txn, const std::string &key, const std::string &value);
-        bool remove(scoped_cursor &cursor, transaction &txn, const std::string &key);
-    };
-}
+namespace crud {
+bool insert(
+  scoped_cursor &cursor, transaction &txn, const std::string &key, const std::string &value);
+bool update(
+  scoped_cursor &cursor, transaction &txn, const std::string &key, const std::string &value);
+bool remove(scoped_cursor &cursor, transaction &txn, const std::string &key);
+}; // namespace crud
+} // namespace test_harness

@@ -50,6 +50,9 @@ public:
      */
     void add_collection(scoped_session &session, uint64_t key_count = 0ULL);
 
+    /* Add existing collections, should only happen once on startup. */
+    void add_existing_collections(int count, int key_count);
+
     /* Get a collection using the id of the collection. */
     collection &get_collection(uint64_t id);
 
