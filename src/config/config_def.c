@@ -466,8 +466,8 @@ static const uint8_t
     0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_page_delta_subconfigs[] = {
-  {"delta_pct", "int", NULL, "min=1,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 278, 1,
-    100, NULL},
+  {"delta_pct", "int", NULL, "min=1,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 278, 1,
+    1000, NULL},
   {"flatten_leaf_page_delta", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
     279, INT64_MIN, INT64_MAX, NULL},
   {"internal_page_delta", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
@@ -2803,8 +2803,8 @@ static const uint8_t confchk_wiredtiger_open_log_subconfigs_jump[WT_CONFIG_JUMP_
   2, 3, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 9, 9, 11, 11, 11, 11, 11, 11, 11, 11, 12, 12, 12, 12, 12};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_page_delta_subconfigs[] = {
-  {"delta_pct", "int", NULL, "min=1,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 278, 1,
-    100, NULL},
+  {"delta_pct", "int", NULL, "min=1,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 278, 1,
+    1000, NULL},
   {"flatten_leaf_page_delta", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
     279, INT64_MIN, INT64_MAX, NULL},
   {"internal_page_delta", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
