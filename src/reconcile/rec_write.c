@@ -3341,22 +3341,25 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      * On error, discard blocks we've written, they're unreferenced by the tree. This is not a
      * question of correctness, we're avoiding block leaks.
      */
-    for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
-        if (multi->addr.block_cookie != NULL) {
-            WT_ASSERT(session, !F_ISSET(r, WT_REC_EMPTY_DELTA));
-            int ret_tmp = __wt_btree_block_free(
-              session, multi->addr.block_cookie, multi->addr.block_cookie_size);
-            if (ret_tmp != 0) {
-                if (multi->block_meta != NULL)
-                    __wt_verbose_error(session, WT_VERB_RECONCILE,
-                      "failed to free the block in reconciliation failure: page id %" PRIu64
-                      " base lsn %" PRIu64 " backlink lsn %" PRIu64 "",
-                      multi->block_meta->page_id, multi->block_meta->base_lsn,
-                      multi->block_meta->backlink_lsn);
-                else
-                    __wt_verbose_error(session, WT_VERB_RECONCILE, "%s",
-                      "failed to free the block in reconciliation failure");
-                WT_TRET(ret_tmp);
+    if (F_ISSET(r, WT_REC_EMPTY_DELTA))
+        WT_ASSERT(session, r->multi_next == 1);
+    else {
+        for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
+            if (multi->addr.block_cookie != NULL) {
+                int ret_tmp = __wt_btree_block_free(
+                  session, multi->addr.block_cookie, multi->addr.block_cookie_size);
+                if (ret_tmp != 0) {
+                    if (multi->block_meta != NULL)
+                        __wt_verbose_error(session, WT_VERB_RECONCILE,
+                          "failed to free the block in reconciliation failure: page id %" PRIu64
+                          " base lsn %" PRIu64 " backlink lsn %" PRIu64 "",
+                          multi->block_meta->page_id, multi->block_meta->base_lsn,
+                          multi->block_meta->backlink_lsn);
+                    else
+                        __wt_verbose_error(session, WT_VERB_RECONCILE, "%s",
+                          "failed to free the block in reconciliation failure");
+                    WT_TRET(ret_tmp);
+                }
             }
         }
     }
