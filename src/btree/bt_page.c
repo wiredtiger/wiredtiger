@@ -669,7 +669,7 @@ __page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *delt
     WT_DECL_ITEM(base_lastkey);
     int cmp;
     bool base_found = false, base_key_unpacked = false;
-    uint32_t base_entries = base_dsk->u.entries, i = 0;
+    uint32_t base_entries = base_dsk->u.entries, base_i = 0;
     int32_t min_unpack_idx = -1;
     WT_CELL_UNPACK_KV *base_unpack_key = NULL, *base_unpack_value = NULL;
     uint8_t *base_cell = WT_PAGE_HEADER_BYTE(S2BT(session), base_dsk);
@@ -687,12 +687,12 @@ __page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *delt
     WT_ERR(__wt_malloc(session, delta_size * sizeof(WT_ITEM *), &delta_lastkeys));
     WT_ERR(__wt_malloc(session, delta_size * sizeof(WT_CELL_UNPACK_DELTA_LEAF_KV), &delta_unpacks));
     WT_ERR(__wt_malloc(session, delta_size * sizeof(bool), &delta_unpacked));
-    for (uint8_t d = 0; d < delta_size; d++) {
-        WT_PAGE_HEADER *dsk = (WT_PAGE_HEADER *)deltas[d].data;
-        delta_cells[d] = WT_PAGE_HEADER_BYTE(S2BT(session), dsk);
-        delta_entries[d] = dsk->u.entries;
-        delta_unpacked[d] = false;
-        WT_ERR(__wt_scr_alloc(session, 0, &delta_lastkeys[d]));
+    for (uint8_t i = 0; i < delta_size; i++) {
+        WT_PAGE_HEADER *dsk = (WT_PAGE_HEADER *)deltas[i].data;
+        delta_cells[i] = WT_PAGE_HEADER_BYTE(S2BT(session), dsk);
+        delta_entries[i] = dsk->u.entries;
+        delta_unpacked[i] = false;
+        WT_ERR(__wt_scr_alloc(session, 0, &delta_lastkeys[i]));
     }
 
     for (;;) {
@@ -703,9 +703,9 @@ __page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *delt
 
         /* Only find next base when needed. */
         if (!base_found) {
-            base_found = i < base_entries || base_key_unpacked;
-            WT_ERR(__page_unpack_leaf_kv(session, &i, &base_cell, base_lastkey, base_unpack_key,
-              base_unpack_value, &base_key_unpacked, base_entries, base_dsk));
+            base_found = base_i < base_entries || base_key_unpacked;
+            WT_ERR(__page_unpack_leaf_kv(session, &base_i, &base_cell, base_lastkey,
+              base_unpack_key, base_unpack_value, &base_key_unpacked, base_entries, base_dsk));
         }
 
         /* Check if both base and all deltas are exhausted. */
@@ -785,8 +785,8 @@ err:
     __wt_free(session, base_unpack_key);
     __wt_free(session, base_unpack_value);
     __wt_scr_free(session, &base_lastkey);
-    for (uint8_t d = 0; d < delta_size; d++)
-        __wt_scr_free(session, &delta_lastkeys[d]);
+    for (uint8_t i = 0; i < delta_size; i++)
+        __wt_scr_free(session, &delta_lastkeys[i]);
     __wt_free(session, delta_cells);
     __wt_free(session, delta_entries);
     __wt_free(session, delta_lastkeys);

@@ -116,7 +116,7 @@ connection_page_delta_config_common = [
         can emit a delta for the page (if various other preconditions are met).
         Conversely, if the delta came to 21 bytes, reconciliation would not emit a
         delta. Deltas larger than full pages are permitted for measurement and testing
-        reasons, and may be disallowed in future.''', min='1', max='1000', type='int', undoc=True),
+        reasons, and may be disallowed in future.''', min='1', max='100', type='int', undoc=True),
     Config('flatten_leaf_page_delta', 'false', r'''
         When enabled, page read rewrites the leaf pages with deltas to a new
         disk image if successful''',
