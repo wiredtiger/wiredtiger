@@ -660,16 +660,31 @@ __wt_page_merge_deltas_with_base_image_new(WT_SESSION_IMPL *session, WT_REF *ref
       latest_write_gen, row_leaf_page, row_internal_page));
 
     *refsp = refs;
-    return (0);
+    /*
+     * Ownership of 'refs' and its elements is transferred to the caller. Null the local pointer so
+     * the local cleanup does not free it.
+     */
+    refs = NULL;
 
 err:
-    for (d = 0; d < delta_size; ++d)
-        __wt_free(session, unpacked_deltas[d]);
-    __wt_free(session, unpacked_deltas);
+    if (unpacked_deltas != NULL) {
+        for (d = 0; d < delta_size; ++d)
+            __wt_free(session, unpacked_deltas[d]);
+        __wt_free(session, unpacked_deltas);
+    }
     __wt_free(session, delta_size_each);
     __wt_free(session, delta_idx);
     __wt_free(session, base);
-    __wt_free(session, refs);
+    /*
+     * If an error happened before we transferred refs ownership, free them. If we successfully
+     * transferred ownership we set refs = NULL above so this is a no-op on success.
+     */
+    if (refs != NULL) {
+        size_t i;
+        for (i = 0; i < *ref_entriesp; ++i)
+            __wt_free(session, refs[i]);
+        __wt_free(session, refs);
+    }
     return (ret);
 }
 
