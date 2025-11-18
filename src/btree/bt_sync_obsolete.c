@@ -455,7 +455,8 @@ __checkpoint_cleanup_page_skip(
      */
     if (addr.type == WT_ADDR_LEAF_NO)
         *skipp = true;
-    else if (addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
+    else if (addr.ta.newest_stop_durable_ts == WT_TS_NONE &&
+        addr.ta.newest_stop_txn == WT_TXN_MAX && !WT_IS_HS(session->dhandle)) {
         /* Only process logged tables when checkpoint cleanup is configured to be aggressive. */
         *skipp = !F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) ||
           !F_ISSET(S2BT(session), WT_BTREE_LOGGED);

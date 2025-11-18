@@ -1740,14 +1740,15 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool disagg_free_bloc
     }
 
     if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)){
-        // __wt_errx(session, "Call free in P1");
+        __wt_errx(session, "Call free in P1");
         WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
     } else if (disagg_free_block) {
+        __wt_errx(session, "Call free in P2");
         WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
         if (ref->page != NULL)
             ref->page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
     } else{
-        // __wt_errx(session, "Call free in P3");
+        __wt_errx(session, "Call free in P3");
     }
 
     /* Clear the address (so we don't free it twice). */

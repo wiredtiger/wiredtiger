@@ -379,6 +379,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * inserting updates to the history store and then failing can leave us in a bad state.
      */
     if (ret != 0) {
+        __wt_errx(session, "rec write failed for: %" PRIu64 " -> %" PRIu64 , before_id, page->disagg_info->block_meta.page_id);
         WT_ASSERT_ALWAYS(session, addr == NULL || ref->addr != NULL,
           "Reconciliation trying to free the page that has been written to disk");
         WT_IGNORE_RET(__rec_write_err(session, r, page));
@@ -2488,8 +2489,13 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                 multi->block_meta->backlink_lsn = multi->block_meta->disagg_lsn;
             multi->block_meta->delta_count = 0;
             multi->block_meta->base_lsn = WT_DISAGG_LSN_NONE;
-        } else
+        } else {
             __wt_page_block_meta_assign(session, multi->block_meta);
+            __wt_errx(session, "Assign %" PRIu64 " in rec write image from %" PRIu64, multi->block_meta->page_id, page->disagg_info->block_meta.page_id);
+            if(__wt_ref_is_root(r->ref)){
+                __wt_errx(session, "Assign %" PRIu64 " in rec write image as root", multi->block_meta->page_id);
+            }
+        }
 
         multi->block_meta->image_size = chunk->image.size;
     }
@@ -2675,8 +2681,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
          * We need to assign a new page id for the root every time. We don't support delta for root
          * page yet.
          */
-        if (page->disagg_info != NULL)
+        if (page->disagg_info != NULL){
             __wt_page_block_meta_assign(session, &r->wrapup_checkpoint_block_meta);
+            __wt_errx(session, "Assign %" PRIu64 " in rec split image", r->wrapup_checkpoint_block_meta.page_id);
+        }
 
         return (0);
     }
@@ -2925,14 +2933,18 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          * confirm backing blocks we care about, and free any disk image/saved updates.
          */
         if (multi->addr.block_cookie != NULL) {
-            if (multi->block_meta == NULL)
+            if (multi->block_meta == NULL){
+                __wt_errx(session, "%s", "Block free SD P1");
                 WT_RET(__wt_btree_block_free(
                   session, multi->addr.block_cookie, multi->addr.block_cookie_size));
             /* Free disagg block only if it is not a block replacement or it is the root page. */
-            else if (r->multi_next != 1 || __wt_ref_is_root(r->ref)) {
+            } else if (r->multi_next != 1 || __wt_ref_is_root(r->ref)) {
+                __wt_errx(session, "%s", "Block free SD P2");
                 WT_RET(__wt_btree_block_free(
                   session, multi->addr.block_cookie, multi->addr.block_cookie_size));
                 multi->block_meta->page_id = WT_BLOCK_INVALID_PAGE_ID;
+            } else {
+
             }
             __wt_free(session, multi->addr.block_cookie);
         }
@@ -3151,12 +3163,14 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                             r->multi_next != 1));
                 }
             } else {
-                if (page->disagg_info == NULL)
+                if (page->disagg_info == NULL){
+                    __wt_errx(session, "%s", "Block free WW P1");
                     WT_RET(__wt_btree_block_free(
                       session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                 /* Free disagg block only if it is not a block replacement. */
-                else if (page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
+                }else if (page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
                   r->multi_next != 1) {
+                    __wt_errx(session, "%s", "Block free WW P2");
                     WT_RET(__wt_btree_block_free(
                       session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                     page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
@@ -3201,8 +3215,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         if (__wt_ref_is_root(ref)) {
             __wt_checkpoint_tree_reconcile_update(session, &ta);
             if (page->disagg_info != NULL &&
-              r->wrapup_checkpoint_block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID)
+              r->wrapup_checkpoint_block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID){
                 __wt_page_block_meta_assign(session, &r->wrapup_checkpoint_block_meta);
+                __wt_errx(session, "Assign %" PRIu64 " in rec write wrapup", r->wrapup_checkpoint_block_meta.page_id);
+
+              }
 
             WT_RET(bm->checkpoint(
               bm, session, NULL, &r->wrapup_checkpoint_block_meta, btree->ckpt, false));
@@ -3371,6 +3388,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         if (multi->addr.block_cookie != NULL) {
+            __wt_errx(session, "%s", "Block free write error");
             int ret_tmp = __wt_btree_block_free(
               session, multi->addr.block_cookie, multi->addr.block_cookie_size);
             if (ret_tmp != 0) {
@@ -3395,8 +3413,10 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      * released upon successful reconciliation.
      */
     if (page->disagg_info != NULL && r->multi_next == 1 &&
-      r->multi->block_meta->page_id == page->disagg_info->block_meta.page_id)
+      r->multi->block_meta->page_id == page->disagg_info->block_meta.page_id){
+        __wt_errx(session, "Reset page id of %" PRIu64, page->disagg_info->block_meta.page_id);
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+      }
 
     WT_TRET(__wti_ovfl_track_wrapup_err(session, page));
 
