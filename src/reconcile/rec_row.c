@@ -904,7 +904,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
 
     /* Temporary buffer in which to instantiate any uninstantiated keys or value items we need. */
     WT_RET(__wt_scr_alloc(session, 0, &tmpkey));
-
     for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
         WT_ERR(__wti_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
         if ((upd = upd_select.upd) == NULL) {
@@ -1417,7 +1416,7 @@ leaf_insert:
 
     /* Write the remnant page. */
     ret = __wti_rec_split_finish(session, r);
-
+    
 err:
     __wt_scr_free(session, &lastkey);
     __wt_scr_free(session, &tmpkey);

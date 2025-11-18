@@ -2471,6 +2471,7 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     page = r->page;
     multi = &r->multi[r->multi_next - 1];
+    bool assigned = false;
 
     /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
     if (page->disagg_info != NULL) {
@@ -2491,17 +2492,27 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
             multi->block_meta->base_lsn = WT_DISAGG_LSN_NONE;
         } else {
             __wt_page_block_meta_assign(session, multi->block_meta);
-            __wt_errx(session, "Assign %" PRIu64 " in rec write image from %" PRIu64, multi->block_meta->page_id, page->disagg_info->block_meta.page_id);
-            if(__wt_ref_is_root(r->ref)){
-                __wt_errx(session, "Assign %" PRIu64 " in rec write image as root", multi->block_meta->page_id);
+            static uint64_t last_fid = 0, last_cid = 0;
+            assigned = true;
+            __wt_errx(session, "Assign %" PRIu64 " in rec write image from %" PRIu64, 
+                multi->block_meta->page_id, page->disagg_info->block_meta.page_id);
+            if(page->disagg_info->block_meta.page_id == 0){
+                if(last_fid == 0 && multi->block_meta->page_id == last_cid + 1)
+                    if(__wt_ref_is_root(r->ref)){
+                        __wt_errx(session, "Assign %" PRIu64 " in rec write image as root", multi->block_meta->page_id);
+                    }
             }
+            last_fid = page->disagg_info->block_meta.page_id;
+            last_cid = multi->block_meta->page_id;
         }
 
         multi->block_meta->image_size = chunk->image.size;
     }
     WT_RET(__rec_write(session, &chunk->image, multi->block_meta, addr, addr_sizep,
       compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
-
+    if(assigned){
+        __wt_errx(session, "LSN sync from %" PRIu64 " to %" PRIu64, page->disagg_info->block_meta.disagg_lsn, multi->block_meta->disagg_lsn);
+    }
     if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL))
         WT_STAT_CONN_INCR(session, rec_page_full_image_internal);
     else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF))

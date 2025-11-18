@@ -1427,12 +1427,26 @@ static int
 __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
 {
     WT_REF *ref = NULL;
+    // WT_CONNECTION_IMPL *conn;
     uint64_t num_pages_found_in_btree = 0;
     size_t capacity_in_bytes = 0;
     uint64_t *page_ids = NULL;
+    // uint64_t complete_checkpoint_lsn, complete_checkpoint_timestamp;
+    // WT_PAGE_LOG *page_log = NULL;
+    // char *page_log_name = NULL;
     int ret = 0;
     __shit_count ++;
+    WT_DECL_ITEM(item);
+    // WT_DECL_ITEM(complete_checkpoint_metadata);
 
+    // conn = S2C(session);
+
+    uint64_t checkpoint_lsn;
+    checkpoint_lsn =
+      S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn == WT_DISAGG_LSN_NONE ?
+      INT_MAX :
+      S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn;
+    __wt_errx(session, "Verify under lsn %" PRIu64, checkpoint_lsn);
     /*
      * Walk the btree to retrieve the page IDs for all pages in the btree at the loaded checkpoint
      * time.
@@ -1450,6 +1464,10 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
             WT_RET(__wt_realloc_def(session, &capacity_in_bytes, new_capacity_count, &page_ids));
         }
 
+        if (page->disagg_info->block_meta.disagg_lsn > checkpoint_lsn){
+            __wt_errx(session, "Larger disagg lsn than checkpoint %" PRIu64 " > %" PRIu64, page->disagg_info->block_meta.disagg_lsn, checkpoint_lsn);
+        }
+
         if (page != NULL) {
             WT_ASSERT(session, page->disagg_info != NULL);
             page_ids[num_pages_found_in_btree++] = page->disagg_info->block_meta.page_id;
@@ -1464,20 +1482,31 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
      * smaller than that allocation.
      */
     size_t num_pages_found_in_palm = 0;
-    uint64_t checkpoint_lsn;
-    checkpoint_lsn =
-      S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn == WT_DISAGG_LSN_NONE ?
-      INT_MAX :
-      S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn;
+    
+    // WT_ERR(conn->iface.get_page_log(&conn->iface, page_log_name, &page_log));
+    
+    /*
+     * Getting the last opened checkpoint and the complete checkpoint from disaggregated storage are
+     * only supported in test implementations of the page log interface. This function will never be
+     * called in production.
+     */
+    // if (page_log->pl_get_complete_checkpoint_ext == NULL)
+    //     WT_ERR(ENOTSUP);
 
-    WT_DECL_ITEM(item);
+    // ret = page_log->pl_get_complete_checkpoint_ext(page_log, &session->iface,
+    //   &complete_checkpoint_lsn, NULL, &complete_checkpoint_timestamp, complete_checkpoint_metadata);
+    // WT_ERR_NOTFOUND_OK(ret, true);
+
     WT_RET(__wt_scr_alloc(session, num_pages_found_in_palm, &item));
 
     WT_ASSERT(session, bm->get_page_ids != NULL);
     /* Get page IDs from PALM. */
     WT_ERR(bm->get_page_ids(bm, session, item, &num_pages_found_in_palm, checkpoint_lsn));
 
-    __wt_errx(session, "Shit count: %d -- PALM: %" PRIu64 " , Btree: %" PRIu64, __shit_count, num_pages_found_in_palm, num_pages_found_in_btree);
+    __wt_errx(session, "Check count: %d -- PALM: %" PRIu64 " , Btree: %" PRIu64, __shit_count, num_pages_found_in_palm, num_pages_found_in_btree);
+    // if (complete_checkpoint_lsn != checkpoint_lsn){
+    //     __wt_errx(session, "Miss matched lsns, complete lsn: %" PRIu64 " , ckpt lsn: %" PRIu64, complete_checkpoint_lsn, checkpoint_lsn);
+    // }
     if ((uint64_t)num_pages_found_in_palm != num_pages_found_in_btree) {
         ret = EINVAL;
         __wt_errx(session,
@@ -1529,8 +1558,11 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
     }
 
 err:
-
+    // if (page_log != NULL)
+    //     WT_TRET(page_log->terminate(page_log, &session->iface));
+    // __wt_free(session, complete_checkpoint_metadata);
     __wt_free(session, page_ids);
+    // __wt_free(session, page_log_name);
     __wt_scr_free(session, &item);
 
     return (ret);
