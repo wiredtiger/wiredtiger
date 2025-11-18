@@ -434,6 +434,7 @@ typedef struct {
 #define WTI_COL_FIX_ENTRIES_TO_BYTES(btree, entries) \
     ((uint32_t)WT_ALIGN((entries) * (btree)->bitcnt, 8))
 
+#define WT_REC_HAS_ON_DISK(vpack) (vpack != NULL && vpack->type != WT_CELL_DEL)
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern int __wti_ovfl_reuse_add(WT_SESSION_IMPL *session, WT_PAGE *page, const uint8_t *addr,
