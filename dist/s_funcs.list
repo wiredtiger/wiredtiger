@@ -48,7 +48,6 @@ __wt_nlpo2
 __wt_nlpo2_round
 __wt_page_from_npos
 __wt_page_from_npos_for_read
-__wt_page_merge_deltas_with_base_image_new
 __wt_session_breakpoint
 __wt_strcat
 __wt_stream_set_no_buffer

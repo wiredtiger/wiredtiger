@@ -149,14 +149,21 @@ __page_read_build_full_disk_image(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM
     WT_DECL_RET;
     WT_REF **refs;
     size_t refs_entries, incr, i;
+    WT_PAGE_HEADER *base_dsk = (WT_PAGE_HEADER *)base_image_addr;
 
     refs = NULL;
     refs_entries = 0;
     incr = 0;
 
+    /* Merge deltas directly with the base image to build refs in a single pass. */
+    if (base_dsk->type == WT_PAGE_ROW_LEAF)
+        WT_ERR(__wti_page_merge_deltas_with_base_image_leaf(
+          session, deltas, delta_size, new_image, base_dsk));
+    else
+        WT_ERR(__wti_page_merge_deltas_with_base_image_int(session, ref, deltas, delta_size, &refs,
+          &refs_entries, &incr, new_image, base_image_addr));
+
     /* Merge deltas directly with the base image in a single pass. */
-    WT_ERR(__wt_page_merge_deltas_with_base_image_new(
-      session, ref, deltas, delta_size, &refs, &refs_entries, &incr, new_image, base_image_addr));
 
 err:
     /* COMMON CLEANUP PATH (both success and error). */

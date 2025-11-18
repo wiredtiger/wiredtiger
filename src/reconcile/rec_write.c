@@ -3343,6 +3343,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         if (multi->addr.block_cookie != NULL) {
+            WT_ASSERT(session, !F_ISSET(r, WT_REC_EMPTY_DELTA));
             int ret_tmp = __wt_btree_block_free(
               session, multi->addr.block_cookie, multi->addr.block_cookie_size);
             if (ret_tmp != 0) {
@@ -3366,7 +3367,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      * during the next reconciliation for the replaced page. In other cases, the old page ID will be
      * released upon successful reconciliation.
      */
-    if (page->disagg_info != NULL && r->multi_next == 1 &&
+    if (page->disagg_info != NULL && r->multi_next == 1 && !F_ISSET(r, WT_REC_EMPTY_DELTA) &&
       r->multi->block_meta->page_id == page->disagg_info->block_meta.page_id)
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
@@ -3561,8 +3562,7 @@ __wti_rec_hs_clear_on_tombstone(
       __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS, 1))
         return (EBUSY);
 
-    WT_STAT_CONN_INCR(session, cache_hs_key_truncate_onpage_removal);
-    WT_STAT_DSRC_INCR(session, cache_hs_key_truncate_onpage_removal);
+    WT_STAT_CONN_DSRC_INCR(session, cache_hs_key_truncate_onpage_removal);
 
     return (0);
 }
