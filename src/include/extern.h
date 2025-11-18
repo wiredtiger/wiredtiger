@@ -89,6 +89,8 @@ extern const char *__wt_session_strerror(WT_SESSION *wt_session, int error)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_strerror(WT_SESSION_IMPL *session, int error, char *errbuf, size_t errlen)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern const char *__wt_verbose_category_string(WT_VERBOSE_CATEGORY category)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_wiredtiger_error(int error)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wti_cell_type_string(uint8_t type)
@@ -1718,6 +1720,7 @@ extern void __wt_free_obsolete_updates(
 extern void __wt_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE **updp);
 extern void __wt_gen_init(WT_SESSION_IMPL *session);
 extern void __wt_gen_next_drain(WT_SESSION_IMPL *session, int which);
+extern void __wt_get_verbose_categories(const WT_NAME_FLAG **catp, size_t *countp);
 extern void __wt_hash_map_destroy(WT_SESSION_IMPL *session, WT_HASH_MAP **hash_mapp);
 extern void __wt_hash_map_unlock(
   WT_SESSION_IMPL *session, WT_HASH_MAP *hash_map, const void *key, size_t key_size);
@@ -2131,7 +2134,7 @@ static WT_INLINE int __wt_pending_prepared_next_op(
 static WT_INLINE int __wt_read(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t len,
   void *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref,
-  bool page_replacement) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  bool disagg_free_block) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_row_leaf_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip,
   WT_ITEM *key, bool instantiate) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_row_leaf_key_instantiate(WT_SESSION_IMPL *session, WT_PAGE *page)
