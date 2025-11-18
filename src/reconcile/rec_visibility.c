@@ -1254,9 +1254,10 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
          * that a prepared update from the same transaction was rolled back. In such cases, ensure
          * that the rolled-back update is also written to disk to maintain data consistency.
          *
-         * Additionally, if a tombstone with a zero timestamp is selected, it is critical to
-         * identify the update it deletes. Failure to do so may result in missed deletions of
-         * corresponding updates in the history store, leading to potential inconsistencies.
+         * Additionally, if a tombstone with a zero timestamp is selected and there is a need to
+         * move the updates from this btree to the history store, it is essential to identify the
+         * update that the tombstone deletes. Failing to do so could lead to missed deletions of
+         * related updates in the history store, potentially causing data inconsistencies.
          */
         tombstone_globally_visible = __wt_txn_upd_visible_all(session, upd);
         if (write_prepare || (F_ISSET(r, WT_REC_HS) && upd->upd_start_ts == WT_TS_NONE) ||
