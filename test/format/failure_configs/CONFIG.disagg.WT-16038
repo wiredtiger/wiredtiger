@@ -184,7 +184,7 @@ table2.ops.pct.insert=14
 table2.ops.pct.read=3
 table2.ops.pct.write=80
 table2.runs.mirror=0
-###################################P0+r4B31\#########
+############################################
 #  TABLE PARAMETERS: table 3
 ############################################
 table3.btree.compression=none
