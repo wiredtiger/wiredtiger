@@ -37,9 +37,7 @@ def mod_val(value, char, location, nbytes=1):
 
 # test_rollback_to_stable23.py
 # Test to verify that search operation uses proper base update while returning modifies from
-# the history store after the on-disk update is removed by the rollback to stable. Since FLCS
-# inherently doesn't support modify, there's no need to run this on FLCS. (Note that
-# self.value_format needs to exist anyway for the base class to use.)
+# the history store after the on-disk update is removed by the rollback to stable.
 class test_rollback_to_stable23(test_rollback_to_stable_base):
 
     key_format_values = [

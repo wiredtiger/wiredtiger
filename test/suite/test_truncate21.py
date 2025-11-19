@@ -90,7 +90,7 @@ class test_truncate21(wttest.WiredTigerTestCase):
         # In the other session, truncate the same range again.
         self.trunc_range()
         # Commit the insert.
-        # With overlapping transactions, insert into the key range for FLCS and row.
+        # With overlapping transactions, insert into the key range for row.
         crow = session2.open_cursor(self.uri_row)
         crow[self.insert_key] = 'newval'
 
