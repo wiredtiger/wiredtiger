@@ -2896,6 +2896,9 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     btree = S2BT(session);
     mod = page->modify;
 
+    /* Free disagg block only if it is not a block replacement or it is the root page. */
+    bool free_blocks = multi->block_meta == NULL || mod->mod_multi_entries != 1 ||
+      r->multi_next != 1 || __wt_ref_is_root(r->ref);
     /*
      * A page that split is being reconciled for the second, or subsequent time; discard underlying
      * block space used in the last reconciliation that is not being reused for this reconciliation.
@@ -2908,18 +2911,14 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         __wt_free(session, multi->supd);
 
         /*
-         * If the page was re-written free the backing disk blocks used in the previous write. The
+         * If the page was re-written, free the backing disk blocks used in the previous write. The
          * page may instead have been a disk image with associated saved updates: ownership of the
          * disk image is transferred when rewriting the page in-memory and there may not have been
          * saved updates. We've gotten this wrong a few times, so use the existence of an address to
          * confirm backing blocks we care about, and free any disk image/saved updates.
          */
         if (multi->addr.block_cookie != NULL) {
-            if (multi->block_meta == NULL)
-                WT_RET(__wt_btree_block_free(
-                  session, multi->addr.block_cookie, multi->addr.block_cookie_size));
-            /* Free disagg block only if it is not a block replacement or it is the root page. */
-            else if (mod->mod_multi_entries != 1 || r->multi_next != 1 || __wt_ref_is_root(r->ref))
+            if (free_blocks)
                 WT_RET(__wt_btree_block_free(
                   session, multi->addr.block_cookie, multi->addr.block_cookie_size));
             __wt_free(session, multi->addr.block_cookie);
