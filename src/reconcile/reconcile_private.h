@@ -367,6 +367,12 @@ struct __wti_reconcile {
      */
     bool cell_zero; /* Row-store internal page 0th key */
 
+    /*
+     * We calculate checksums to find previously written identical blocks, but once a match fails
+     * during an eviction, there's no point trying again.
+     */
+    bool evict_matching_checksum_failed;
+
     WTI_REC_DICTIONARY **dictionary;         /* Dictionary */
     u_int dictionary_next, dictionary_slots; /* Next, max entries */
                                              /* Skiplist head. */

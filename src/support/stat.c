@@ -354,6 +354,7 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: number of keys that are garbage collected in the ingest table for disaggregated "
   "storage",
   "reconciliation: overflow values written",
+  "reconciliation: page checksum matches",
   "reconciliation: page reconciliation calls",
   "reconciliation: page reconciliation calls for eviction",
   "reconciliation: page reconciliation calls for pages between 1 and 10MB",
@@ -785,6 +786,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_multiblock_max = 0;
     stats->rec_ingest_garbage_collection_keys = 0;
     stats->rec_overflow_value = 0;
+    stats->rec_page_match = 0;
     stats->rec_pages = 0;
     stats->rec_pages_eviction = 0;
     stats->rec_pages_size_1MB_to_10MB = 0;
@@ -1221,6 +1223,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
         to->rec_multiblock_max = from->rec_multiblock_max;
     to->rec_ingest_garbage_collection_keys += from->rec_ingest_garbage_collection_keys;
     to->rec_overflow_value += from->rec_overflow_value;
+    to->rec_page_match += from->rec_page_match;
     to->rec_pages += from->rec_pages;
     to->rec_pages_eviction += from->rec_pages_eviction;
     to->rec_pages_size_1MB_to_10MB += from->rec_pages_size_1MB_to_10MB;
@@ -1696,6 +1699,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_ingest_garbage_collection_keys +=
       WT_STAT_DSRC_READ(from, rec_ingest_garbage_collection_keys);
     to->rec_overflow_value += WT_STAT_DSRC_READ(from, rec_overflow_value);
+    to->rec_page_match += WT_STAT_DSRC_READ(from, rec_page_match);
     to->rec_pages += WT_STAT_DSRC_READ(from, rec_pages);
     to->rec_pages_eviction += WT_STAT_DSRC_READ(from, rec_pages_eviction);
     to->rec_pages_size_1MB_to_10MB += WT_STAT_DSRC_READ(from, rec_pages_size_1MB_to_10MB);
@@ -2580,6 +2584,7 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: number of keys that are garbage collected in the ingest table for disaggregated "
   "storage",
   "reconciliation: overflow values written",
+  "reconciliation: page checksum matches",
   "reconciliation: page reconciliation calls",
   "reconciliation: page reconciliation calls for eviction",
   "reconciliation: page reconciliation calls for pages between 1 and 10MB",
@@ -3614,6 +3619,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing rec_maximum_hs_wrapup_milliseconds */
     stats->rec_ingest_garbage_collection_keys = 0;
     stats->rec_overflow_value = 0;
+    stats->rec_page_match = 0;
     stats->rec_pages = 0;
     stats->rec_pages_eviction = 0;
     stats->rec_pages_size_1MB_to_10MB = 0;
@@ -4802,6 +4808,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_ingest_garbage_collection_keys +=
       WT_STAT_CONN_READ(from, rec_ingest_garbage_collection_keys);
     to->rec_overflow_value += WT_STAT_CONN_READ(from, rec_overflow_value);
+    to->rec_page_match += WT_STAT_CONN_READ(from, rec_page_match);
     to->rec_pages += WT_STAT_CONN_READ(from, rec_pages);
     to->rec_pages_eviction += WT_STAT_CONN_READ(from, rec_pages_eviction);
     to->rec_pages_size_1MB_to_10MB += WT_STAT_CONN_READ(from, rec_pages_size_1MB_to_10MB);

@@ -1200,6 +1200,7 @@ struct __wt_connection_stats {
     int64_t rec_maximum_hs_wrapup_milliseconds;
     int64_t rec_ingest_garbage_collection_keys;
     int64_t rec_overflow_value;
+    int64_t rec_page_match;
     int64_t rec_pages;
     int64_t rec_pages_eviction;
     int64_t rec_pages_size_1MB_to_10MB;
@@ -1722,6 +1723,7 @@ struct __wt_dsrc_stats {
     int64_t rec_multiblock_max;
     int64_t rec_ingest_garbage_collection_keys;
     int64_t rec_overflow_value;
+    int64_t rec_page_match;
     int64_t rec_pages;
     int64_t rec_pages_eviction;
     int64_t rec_pages_size_1MB_to_10MB;

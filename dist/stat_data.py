@@ -1363,6 +1363,7 @@ conn_dsrc_stats = [
     RecStat('rec_multiblock_leaf', 'leaf page multi-block writes'),
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
     RecStat('rec_overflow_value', 'overflow values written'),
+    RecStat('rec_page_match', 'page checksum matches'),
     RecStat('rec_page_delete', 'pages deleted'),
     RecStat('rec_page_delete_fast', 'fast-path pages deleted'),
     RecStat('rec_page_delta_internal', 'internal page deltas written'),
