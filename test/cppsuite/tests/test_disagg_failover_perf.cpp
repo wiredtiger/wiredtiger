@@ -477,7 +477,8 @@ main(int argc, char *argv[])
 
     /* TODO: */
     /* TODO: Optionally scan created tables to warm the WT cache. */
-    cache_warming(opt.collection_count * opt.key_count);
+    if (opt.warm_cache)
+        cache_warming(opt.collection_count * opt.key_count);
 
     /* TODO: Perform crud operations. */
     // crud_operations();
