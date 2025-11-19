@@ -35,6 +35,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
     dhandle = session->dhandle;
     btree = dhandle->handle;
+    WT_CSTACK_IN(session, "evict_%d ", (int)syncop);
 
     /*
      * We need exclusive access to the file, we're about to discard the root page. Assert eviction
@@ -45,8 +46,10 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     /*
      * We do discard objects without pages in memory. If that's the case, we're done.
      */
-    if (btree->root.page == NULL)
+    if (btree->root.page == NULL){
+        WT_CSTACK_EXIT(session);
         return (0);
+    }
 
     /* Make sure the oldest transaction ID is up-to-date. */
     WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
@@ -134,6 +137,7 @@ err:
         if (next_ref != NULL)
             WT_TRET(__wt_page_release(session, next_ref, walk_flags));
     }
+    WT_CSTACK_EXIT(session);
 #ifdef HAVE_DIAGNOSTIC
     WT_CONN_CLOSE_ABORT(session, ret);
 #endif

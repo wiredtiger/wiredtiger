@@ -428,8 +428,8 @@ struct __wt_session_impl {
 };
 
 #define WT_CSTACK_IN(s, fmt, ...) char _cstack_in[WT_MAX_STACK_LENGTH] = "";\
-    WT_RET(__wt_snprintf(_cstack_in, WT_MAX_STACK_LENGTH, "%s", (s)->current_call_stack));\
-    WT_RET(__wt_snprintf(s->current_call_stack, WT_MAX_STACK_LENGTH, "%s:" fmt, (s)->current_call_stack, __VA_ARGS__));
+    WT_IGNORE_RET(__wt_snprintf(_cstack_in, WT_MAX_STACK_LENGTH, "%s", (s)->current_call_stack));\
+    WT_IGNORE_RET(__wt_snprintf(s->current_call_stack, WT_MAX_STACK_LENGTH, "%s:" fmt, _cstack_in, __VA_ARGS__));
 
 #define WT_CSTACK_EXIT(s) WT_RET(__wt_snprintf((s)->current_call_stack, 256, "%s", _cstack_in));
 

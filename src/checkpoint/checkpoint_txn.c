@@ -1769,7 +1769,6 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     WT_DECL_RET;
     uint32_t orig_flags;
     bool checkpoint_cleanup, flush, flush_sync;
-    WT_CSTACK_IN(session, "%s", "checkpoint");
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_ACTIVE);
     /*
      * Reset open cursors. Do this explicitly, even though it will happen implicitly in the call to
@@ -1840,7 +1839,6 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     if (flush && flush_sync)
         WT_ERR(__checkpoint_flush_tier_wait(session, cfg));
 err:
-    WT_CSTACK_EXIT(session);
     F_CLR(session, WTI_CHECKPOINT_SESSION_FLAGS);
     F_SET(session, orig_flags);
 
@@ -2507,6 +2505,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     dhandle = session->dhandle;
     fake_ckpt = resolve_bm = false;
     WT_TIME_AGGREGATE_INIT(&ta);
+    WT_CSTACK_IN(session, "Ckpt from %" PRIu64, conn->disaggregated_storage.last_checkpoint_meta_lsn);
 
     /*
      * Set the checkpoint LSN to the maximum LSN so that if logging is disabled, recovery will never
@@ -2596,8 +2595,9 @@ fake:
      * that case, we need to sync the file here or we could roll forward the metadata in recovery
      * and open a checkpoint that isn't yet durable.
      */
-    if (WT_IS_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING))
+    if (WT_IS_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING)){
         WT_ERR(__wt_checkpoint_sync(session, NULL));
+    }
 
     WT_ERR(__wt_lsn_string(&ckptlsn, sizeof(ckptlsn_str), ckptlsn_str));
     WT_ERR(__wt_meta_ckptlist_set(session, dhandle, btree->ckpt, (const char *)ckptlsn_str));
@@ -2672,7 +2672,7 @@ err:
         if (ret != 0)
             __wt_ckptlist_saved_free(session);
     }
-
+    WT_CSTACK_EXIT(session);
     return (ret);
 }
 

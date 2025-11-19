@@ -146,6 +146,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint32_t flags, rec_flags;
     bool dirty, is_hs, is_internal, tried_eviction;
 
+    WT_CSTACK_IN(session, "sync-%d ", (int)syncop);
+
     conn = S2C(session);
     btree = S2BT(session);
     prev = walk = NULL;
@@ -417,6 +419,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     }
 
 err:
+    WT_CSTACK_EXIT(session);
     /* On error, clear any left-over tree walk. */
     WT_TRET(__wt_page_release(session, walk, flags));
     WT_TRET(__wt_page_release(session, prev, flags));
