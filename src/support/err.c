@@ -534,6 +534,9 @@ __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, WT_VERBOSE_
 {
     va_list ap;
 
+    char new_fmt[1024];
+    WT_IGNORE_RET(__wt_snprintf(new_fmt, 1024, "%s:%s", session->current_call_stack, fmt));
+
     /*
      * Ignore error returns from underlying event handlers, we already have an error value to
      * return.
@@ -541,7 +544,7 @@ __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, WT_VERBOSE_
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session,
       session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0,
-      WT_DEFAULT_LOG_ID, func, line, category, WT_VERBOSE_ERROR, fmt, ap));
+      WT_DEFAULT_LOG_ID, func, line, category, WT_VERBOSE_ERROR, new_fmt, ap));
     va_end(ap);
 }
 

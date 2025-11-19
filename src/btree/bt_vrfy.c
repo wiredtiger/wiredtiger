@@ -1447,6 +1447,8 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
       INT_MAX :
       S2C(session)->disaggregated_storage.last_checkpoint_meta_lsn;
     __wt_errx(session, "Verify under lsn %" PRIu64, checkpoint_lsn);
+    uint64_t root_page_id = S2BT(session)->root.page->disagg_info->block_meta.page_id;
+    WT_UNUSED(root_page_id);
     /*
      * Walk the btree to retrieve the page IDs for all pages in the btree at the loaded checkpoint
      * time.

@@ -1769,7 +1769,7 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     WT_DECL_RET;
     uint32_t orig_flags;
     bool checkpoint_cleanup, flush, flush_sync;
-
+    WT_CSTACK_IN(session, "%s", "checkpoint");
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_ACTIVE);
     /*
      * Reset open cursors. Do this explicitly, even though it will happen implicitly in the call to
@@ -1840,6 +1840,7 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     if (flush && flush_sync)
         WT_ERR(__checkpoint_flush_tier_wait(session, cfg));
 err:
+    WT_CSTACK_EXIT(session);
     F_CLR(session, WTI_CHECKPOINT_SESSION_FLAGS);
     F_SET(session, orig_flags);
 

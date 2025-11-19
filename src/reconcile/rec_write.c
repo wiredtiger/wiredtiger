@@ -2494,7 +2494,7 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
             __wt_page_block_meta_assign(session, multi->block_meta);
             static uint64_t last_fid = 0, last_cid = 0;
             assigned = true;
-            __wt_errx(session, "Assign %" PRIu64 " in rec write image from %" PRIu64, 
+            __wt_errx(session, "Assign %" PRIu64 " in rec write image from %" PRIu64,
                 multi->block_meta->page_id, page->disagg_info->block_meta.page_id);
             if(page->disagg_info->block_meta.page_id == 0){
                 if(last_fid == 0 && multi->block_meta->page_id == last_cid + 1)

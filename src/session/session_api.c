@@ -2687,6 +2687,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      */
     WT_RELEASE_WRITE_WITH_BARRIER(session_ret->active, 1);
 
+    session_ret->current_call_stack[0] = 0;
     *sessionp = session_ret;
 
     WT_STAT_CONN_INCR(session, session_open);
