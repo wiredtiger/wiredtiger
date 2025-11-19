@@ -2147,7 +2147,7 @@ __rec_split_write_reuse(
         return (false);
 
     multi_match = &mod->mod_multi[r->multi_next - 1];
-    if (multi_match->size != multi->size || multi_match->checksum != multi->checksum) {
+    if (multi_match->size != multi->size || multi_match->checksum != multi->checksum || memcmp(multi_match->disk_image, image->data, image->size) != 0) {
         r->evict_matching_checksum_failed = true;
         return (false);
     }
@@ -2822,8 +2822,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     }
 
     /*
-     * If we wrote this block before, re-use it. Prefer a checksum of the compressed image. It's an
-     * identical test and should be faster.
+     * If we wrote this block before, re-use it.
      */
     if (__rec_split_write_reuse(session, r, multi,
           &chunk->image, last_block))
