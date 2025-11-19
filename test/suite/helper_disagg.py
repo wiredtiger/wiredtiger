@@ -271,7 +271,7 @@ class DisaggConfigMixin:
         for f in os.listdir():
             if os.path.isdir(f):
                 continue
-            if f.startswith('WiredTiger') or f.startswith('test_'):
+            if f.startswith('WiredTiger') or f.endswith('.wt') or f.endswith('.wt_ingest'):
                 os.rename(f, os.path.join(dir, f))
 
         # Also save the PALI database (to aid debugging)
