@@ -873,8 +873,8 @@ functions:
         # bare -n with no arguments (which returns true, for some reason).
         ignore="${unit_test_ignore}"
 
-        if [ -n "$ignore" ]; then
-            sed -e 's/ *#.*//' -e '/^$/d' < "$ignore" > $no_run
+        if [ -n "${unit_test_ignore}" ]; then
+            sed -e 's/ *#.*//' -e '/^$/d' ${unit_test_ignore} > $no_run
             (cd ./test/suite; ls test_*.py) | fgrep -vf $no_run > $do_run
         else
             # Some hooks prune out specific tests if we don't give them a list, e.g. hook_tiered.
@@ -894,30 +894,6 @@ functions:
         else
             ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command $(cat $do_run) 2>&1
         fi
-
-  "unit test tsan parallel":
-    command: shell.exec
-    params:
-      working_dir: "wiredtiger"
-      shell: bash
-      script: |
-        set -o errexit
-        set -o verbose
-        ${PREPARE_TEST_ENV}
-        # no_run will contain a list of files we don't want to run,
-        # do_run will contain a list of files we want to run.
-        no_run=$(mktemp)
-        do_run=$(mktemp)
-        sed -e 's/ *#.*//' -e '/^$/d' ${unit_test_parallel_ignore} > $no_run
-        (cd ./test/suite; ls test_*.py) | fgrep -vf $no_run > $do_run
-        cd cmake_build
-        threads_command="-j ${nproc}"
-        if [[ -n "${num_jobs}" ]]; then
-          threads_command="-j ${num_jobs}"
-        fi
-        py=${python_binary|python3}
-        echo "Using $threads_command for 'unit test tsan parallel'"
-        ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1 || echo "Ignoring failed test as we are checking for tsan warnings"
 
   "tsan warning metric":
     command: shell.exec
@@ -2429,11 +2405,10 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "unit test tsan parallel"
+      - func: "unit test"
         vars:
-          # Run the set of tests that are not in the fail list.
-          unit_test_parallel_ignore: test/suite/tsan.fail
-          unit_test_parallel_args: -v 2 --timeout 300
+          unit_test_ignore: test/suite/tsan.fail
+          unit_test_args:  -v 2 --timeout 300
       - func: "upload artifact"
         vars:
           upload_source_dir: "wiredtiger"
@@ -2445,13 +2420,12 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "unit test tsan parallel"
+      - func: "unit test"
         vars:
-          # Run the set of tests that are not in the fail list.
-          unit_test_parallel_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
-          unit_test_parallel_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)"
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)"
       - func: "upload artifact"
         vars:
           upload_source_dir: "wiredtiger"
