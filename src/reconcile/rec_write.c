@@ -2897,7 +2897,7 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     mod = page->modify;
 
     /* Free disagg block only if it is not a block replacement or it is the root page. */
-    bool free_blocks = multi->block_meta == NULL || mod->mod_multi_entries != 1 ||
+    bool free_blocks = page->disagg_info == NULL || mod->mod_multi_entries != 1 ||
       r->multi_next != 1 || __wt_ref_is_root(r->ref);
     /*
      * A page that split is being reconciled for the second, or subsequent time; discard underlying
