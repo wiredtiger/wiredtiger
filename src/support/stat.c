@@ -69,6 +69,12 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: eviction gave up due to needing to remove a record from the history store but checkpoint "
   "is running",
   "cache: eviction gave up due to no progress being made",
+  "cache: eviction walk pages queued that had updates",
+  "cache: eviction walk pages queued that were clean",
+  "cache: eviction walk pages queued that were dirty",
+  "cache: eviction walk pages seen that had updates",
+  "cache: eviction walk pages seen that were clean",
+  "cache: eviction walk pages seen that were dirty",
   "cache: eviction walk passes of a file",
   "cache: eviction walk target pages histogram - 0-9",
   "cache: eviction walk target pages histogram - 10-31",
@@ -417,6 +423,12 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_blocked_no_ts_checkpoint_race_4 = 0;
     stats->cache_eviction_blocked_remove_hs_race_with_checkpoint = 0;
     stats->cache_eviction_blocked_no_progress = 0;
+    stats->cache_eviction_pages_queued_updates = 0;
+    stats->cache_eviction_pages_queued_clean = 0;
+    stats->cache_eviction_pages_queued_dirty = 0;
+    stats->cache_eviction_pages_seen_updates = 0;
+    stats->cache_eviction_pages_seen_clean = 0;
+    stats->cache_eviction_pages_seen_dirty = 0;
     stats->cache_eviction_walk_passes = 0;
     stats->cache_eviction_target_page_lt10 = 0;
     stats->cache_eviction_target_page_lt32 = 0;
@@ -740,6 +752,12 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_blocked_remove_hs_race_with_checkpoint +=
       from->cache_eviction_blocked_remove_hs_race_with_checkpoint;
     to->cache_eviction_blocked_no_progress += from->cache_eviction_blocked_no_progress;
+    to->cache_eviction_pages_queued_updates += from->cache_eviction_pages_queued_updates;
+    to->cache_eviction_pages_queued_clean += from->cache_eviction_pages_queued_clean;
+    to->cache_eviction_pages_queued_dirty += from->cache_eviction_pages_queued_dirty;
+    to->cache_eviction_pages_seen_updates += from->cache_eviction_pages_seen_updates;
+    to->cache_eviction_pages_seen_clean += from->cache_eviction_pages_seen_clean;
+    to->cache_eviction_pages_seen_dirty += from->cache_eviction_pages_seen_dirty;
     to->cache_eviction_walk_passes += from->cache_eviction_walk_passes;
     to->cache_eviction_target_page_lt10 += from->cache_eviction_target_page_lt10;
     to->cache_eviction_target_page_lt32 += from->cache_eviction_target_page_lt32;
@@ -1065,6 +1083,13 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_READ(from, cache_eviction_blocked_remove_hs_race_with_checkpoint);
     to->cache_eviction_blocked_no_progress +=
       WT_STAT_READ(from, cache_eviction_blocked_no_progress);
+    to->cache_eviction_pages_queued_updates +=
+      WT_STAT_READ(from, cache_eviction_pages_queued_updates);
+    to->cache_eviction_pages_queued_clean += WT_STAT_READ(from, cache_eviction_pages_queued_clean);
+    to->cache_eviction_pages_queued_dirty += WT_STAT_READ(from, cache_eviction_pages_queued_dirty);
+    to->cache_eviction_pages_seen_updates += WT_STAT_READ(from, cache_eviction_pages_seen_updates);
+    to->cache_eviction_pages_seen_clean += WT_STAT_READ(from, cache_eviction_pages_seen_clean);
+    to->cache_eviction_pages_seen_dirty += WT_STAT_READ(from, cache_eviction_pages_seen_dirty);
     to->cache_eviction_walk_passes += WT_STAT_READ(from, cache_eviction_walk_passes);
     to->cache_eviction_target_page_lt10 += WT_STAT_READ(from, cache_eviction_target_page_lt10);
     to->cache_eviction_target_page_lt32 += WT_STAT_READ(from, cache_eviction_target_page_lt32);
@@ -1427,6 +1452,12 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server waiting for a leaf page",
   "cache: eviction state",
   "cache: eviction walk most recent sleeps for checkpoint handle gathering",
+  "cache: eviction walk pages queued that had updates",
+  "cache: eviction walk pages queued that were clean",
+  "cache: eviction walk pages queued that were dirty",
+  "cache: eviction walk pages seen that had updates",
+  "cache: eviction walk pages seen that were clean",
+  "cache: eviction walk pages seen that were dirty",
   "cache: eviction walk target pages histogram - 0-9",
   "cache: eviction walk target pages histogram - 10-31",
   "cache: eviction walk target pages histogram - 128 and higher",
@@ -1510,6 +1541,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: leaf pages split during eviction",
   "cache: locate a random in-mem ref by examining all entries on the root page",
   "cache: maximum bytes configured",
+  "cache: maximum gap between page and connection evict pass generation seen at eviction",
   "cache: maximum milliseconds spent at a single eviction",
   "cache: maximum page size seen at eviction",
   "cache: modified pages evicted",
@@ -2102,6 +2134,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_walk_leaf_notfound = 0;
     /* not clearing cache_eviction_state */
     stats->cache_eviction_walk_sleeps = 0;
+    stats->cache_eviction_pages_queued_updates = 0;
+    stats->cache_eviction_pages_queued_clean = 0;
+    stats->cache_eviction_pages_queued_dirty = 0;
+    stats->cache_eviction_pages_seen_updates = 0;
+    stats->cache_eviction_pages_seen_clean = 0;
+    stats->cache_eviction_pages_seen_dirty = 0;
     stats->cache_eviction_target_page_lt10 = 0;
     stats->cache_eviction_target_page_lt32 = 0;
     stats->cache_eviction_target_page_ge128 = 0;
@@ -2175,6 +2213,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_split_leaf = 0;
     stats->cache_eviction_random_sample_inmem_root = 0;
     /* not clearing cache_bytes_max */
+    /* not clearing cache_eviction_maximum_gen_gap */
     /* not clearing cache_eviction_maximum_milliseconds */
     /* not clearing cache_eviction_maximum_page_size */
     stats->cache_eviction_dirty = 0;
@@ -2750,6 +2789,13 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_walk_leaf_notfound += WT_STAT_READ(from, cache_eviction_walk_leaf_notfound);
     to->cache_eviction_state += WT_STAT_READ(from, cache_eviction_state);
     to->cache_eviction_walk_sleeps += WT_STAT_READ(from, cache_eviction_walk_sleeps);
+    to->cache_eviction_pages_queued_updates +=
+      WT_STAT_READ(from, cache_eviction_pages_queued_updates);
+    to->cache_eviction_pages_queued_clean += WT_STAT_READ(from, cache_eviction_pages_queued_clean);
+    to->cache_eviction_pages_queued_dirty += WT_STAT_READ(from, cache_eviction_pages_queued_dirty);
+    to->cache_eviction_pages_seen_updates += WT_STAT_READ(from, cache_eviction_pages_seen_updates);
+    to->cache_eviction_pages_seen_clean += WT_STAT_READ(from, cache_eviction_pages_seen_clean);
+    to->cache_eviction_pages_seen_dirty += WT_STAT_READ(from, cache_eviction_pages_seen_dirty);
     to->cache_eviction_target_page_lt10 += WT_STAT_READ(from, cache_eviction_target_page_lt10);
     to->cache_eviction_target_page_lt32 += WT_STAT_READ(from, cache_eviction_target_page_lt32);
     to->cache_eviction_target_page_ge128 += WT_STAT_READ(from, cache_eviction_target_page_ge128);
@@ -2842,6 +2888,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_random_sample_inmem_root +=
       WT_STAT_READ(from, cache_eviction_random_sample_inmem_root);
     to->cache_bytes_max += WT_STAT_READ(from, cache_bytes_max);
+    to->cache_eviction_maximum_gen_gap += WT_STAT_READ(from, cache_eviction_maximum_gen_gap);
     to->cache_eviction_maximum_milliseconds +=
       WT_STAT_READ(from, cache_eviction_maximum_milliseconds);
     to->cache_eviction_maximum_page_size += WT_STAT_READ(from, cache_eviction_maximum_page_size);
