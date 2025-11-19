@@ -2896,7 +2896,12 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     btree = S2BT(session);
     mod = page->modify;
 
-    /* Free disagg block only if it is not a block replacement or it is the root page. */
+    /*
+     * Free the disaggregated block only if it is not a block replacement or if it is the root page.
+     * If the page has undergone a split in the past but has not been split during the current
+     * reconciliation, ensure that the previous blocks are freed, as this situation does not qualify
+     * as a block replacement.
+     */
     bool free_blocks = page->disagg_info == NULL || mod->mod_multi_entries != 1 ||
       r->multi_next != 1 || __wt_ref_is_root(r->ref);
     /*
