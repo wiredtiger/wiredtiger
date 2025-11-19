@@ -2949,7 +2949,7 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                 WT_RET(__wt_btree_block_free(
                   session, multi->addr.block_cookie, multi->addr.block_cookie_size));
             /* Free disagg block only if it is not a block replacement or it is the root page. */
-            } else if (r->multi_next != 1 || __wt_ref_is_root(r->ref)) {
+            } else if (mod->mod_multi_entries != 1 || r->multi_next != 1 || __wt_ref_is_root(r->ref)) {
                 __wt_errx(session, "%s", "Block free SD P2");
                 WT_RET(__wt_btree_block_free(
                   session, multi->addr.block_cookie, multi->addr.block_cookie_size));
