@@ -186,7 +186,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
             self.assertEqual(v, check_value)
             count += 1
         session.commit_transaction()
-        self.assertEqual(count, nrows + nrows)
+        self.assertEqual(count, nrows)
         cursor.close()
 
     def evict_cursor(self, uri, nrows, check_value):
