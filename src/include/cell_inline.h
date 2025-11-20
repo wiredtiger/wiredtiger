@@ -269,6 +269,107 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
 }
 
 /*
+ * __wt_cell_pack_delta_leaf_key_value --
+ *     Pack a leaf page key/value pair directly into new_image.
+ */
+static WT_INLINE int
+__wt_cell_pack_delta_leaf_key_value(WT_SESSION_IMPL *session, bool key_pfx_compress,
+  uint8_t *key_pfx_lastp, WT_ITEM *currentkey, WT_CELL_UNPACK_KV *unpack_val, WT_ITEM *lastkey,
+  WT_ITEM *new_image, uint8_t **pp, uint32_t *entry_countp, bool *all_empty_valuep,
+  bool *any_empty_valuep)
+{
+    WT_DECL_RET;
+    WT_BTREE *btree = S2BT(session);
+    WT_CELL_KV key, val;
+    size_t packed_size, pfx_max;
+    uint8_t pfx = 0, key_pfx_last = *key_pfx_lastp;
+    const uint8_t *a, *b;
+    uint8_t *p = NULL;
+    uint32_t entry_count = *entry_countp;
+    const void *key_data = currentkey->data;
+    size_t key_size = currentkey->size;
+    bool is_empty_value = unpack_val->size == 0 && WT_TIME_WINDOW_IS_EMPTY(&unpack_val->tw);
+    bool all_empty_value, any_empty_value;
+
+    WT_CLEAR(key);
+    WT_CLEAR(val);
+
+    /* Build key cell. */
+    /*
+     * Do prefix compression on the key. We know by definition the previous key sorts before the
+     * current key, which means the keys must differ and we just need to compare up to the shorter
+     * of the two keys.
+     */
+    if (key_pfx_compress) {
+        /*
+         * We can't compress out more than 256 bytes, limit the comparison to that.
+         */
+        pfx_max = UINT8_MAX;
+        if (key_size < pfx_max)
+            pfx_max = key_size;
+        if (lastkey->size < pfx_max)
+            pfx_max = lastkey->size;
+        for (a = (const uint8_t *)key_data, b = (const uint8_t *)lastkey->data; pfx < pfx_max;
+             ++pfx)
+            if (*a++ != *b++)
+                break;
+
+        if (pfx < btree->prefix_compression_min)
+            pfx = 0;
+        else if (key_pfx_last != 0 && pfx > key_pfx_last &&
+          pfx < key_pfx_last + WT_CELL_KEY_PREFIX_PREVIOUS_MINIMUM)
+            pfx = key_pfx_last;
+    }
+    /* Copy the non-prefix bytes into the key buffer. */
+    WT_ERR(__wt_buf_set(session, &key.buf, (uint8_t *)key_data + pfx, key_size - pfx));
+    key_pfx_last = pfx;
+    key.cell_len = __wt_cell_pack_leaf_key(&key.cell, pfx, key.buf.size);
+    key.len = key.cell_len + key.buf.size;
+
+    /* Build value cell. */
+    /* We don't copy the data into the buffer, just re-pointing the buffer's data/length fields. */
+    if (!is_empty_value) {
+        val.buf.data = unpack_val->data;
+        val.buf.size = unpack_val->size;
+        val.cell_len = __wt_cell_pack_value(session, &val.cell, &unpack_val->tw, 0, val.buf.size);
+        val.len = val.cell_len + val.buf.size;
+        all_empty_value = false;
+    } else
+        any_empty_value = true;
+
+    /*
+     * Ensure enough space, then recompute write pointer from new_image (not the caller's saved
+     * pointer).
+     */
+    packed_size = key.len + val.len;
+    if (new_image->size + packed_size > new_image->memsize)
+        WT_ERR(__wt_buf_grow(session, new_image, new_image->size + packed_size));
+    p = (uint8_t *)new_image->mem + new_image->size;
+
+    /* Recompute write pointer after possible realloc */
+    WT_ASSERT(session, new_image->mem != NULL);
+    __wt_cell_kv_copy(session, p, &key);
+    p += key.len;
+    entry_count++;
+    if (!is_empty_value) {
+        __wt_cell_kv_copy(session, p, &val);
+        p += val.len;
+        entry_count++;
+    }
+    new_image->size += packed_size;
+
+    *pp = p;
+    *key_pfx_lastp = key_pfx_last;
+    *entry_countp = entry_count;
+    *all_empty_valuep = all_empty_value;
+    *any_empty_valuep = any_empty_value;
+
+err:
+    __wt_buf_free(session, &key.buf);
+    return (ret);
+}
+
+/*
  * __wt_cell_build_addr_kv --
  *     Helper to build an address cell for a given unpacked address structure (delta or base).
  */

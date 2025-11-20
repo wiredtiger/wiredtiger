@@ -2021,6 +2021,10 @@ static WT_INLINE int __wt_buf_set_and_grow(WT_SESSION_IMPL *session, WT_ITEM *bu
   size_t size, size_t buf_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_buf_setstr(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *s)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE int __wt_cell_pack_delta_leaf_key_value(WT_SESSION_IMPL *session,
+  bool key_pfx_compress, uint8_t *key_pfx_lastp, WT_ITEM *currentkey, WT_CELL_UNPACK_KV *unpack_val,
+  WT_ITEM *lastkey, WT_ITEM *new_image, uint8_t **pp, uint32_t *entry_countp,
+  bool *all_empty_valuep, bool *any_empty_valuep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_cell_pack_internal_key_addr(WT_SESSION_IMPL *session, WT_ITEM *new_image,
   WT_CELL_UNPACK_ADDR *base_key, WT_CELL_UNPACK_ADDR *base_val, WT_CELL_UNPACK_DELTA_INT *delta,
   bool is_delta, uint8_t **pp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
