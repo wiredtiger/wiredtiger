@@ -3055,12 +3055,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         WT_RET(ret);
     }
 
-    if (page->disagg_info != NULL) {
-        if (page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID) {
+    if (page->disagg_info != NULL)
+        if (page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID)
             /* As an initial condition, the page must have a valid page_id. */
             disagg_block_free_required = true;
-        }
-    }
 
     /*
      * Wrap up overflow tracking. If we are about to create a checkpoint, the system must be
