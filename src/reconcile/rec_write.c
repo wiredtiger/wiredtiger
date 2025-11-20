@@ -3032,6 +3032,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     WT_REF_STATE previous_ref_state;
     WT_TIME_AGGREGATE stop_ta, *stop_tap, ta;
     uint32_t i;
+    bool disagg_block_free_required;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -3040,6 +3041,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     mod = page->modify;
     WT_TIME_AGGREGATE_INIT(&ta);
     previous_ref_state = 0;
+    disagg_block_free_required = false;
 
     /*
      * If using the history store table eviction path and we found updates that weren't globally
@@ -3051,6 +3053,13 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         ret = __rec_hs_wrapup(session, r);
         session->reconcile_timeline.hs_wrapup_finish = __wt_clock(session);
         WT_RET(ret);
+    }
+
+    /* Free disagg block if it reconciles to 0 or more than 1 pages, or an empty page. */
+    if (page->disagg_info != NULL) {
+        disagg_block_free_required =
+          page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
+          (r->multi_next != 1 || r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID);
     }
 
     /*
@@ -3090,10 +3099,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             break;
         }
 
-        WT_RET(__wt_ref_block_free(session, ref,
-          page->disagg_info != NULL &&
-            page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
-            (r->multi_next != 1 || r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID)));
+        WT_RET(__wt_ref_block_free(session, ref, disagg_block_free_required));
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -3135,11 +3141,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                 if (page->disagg_info == NULL)
                     WT_RET(__wt_btree_block_free(
                       session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
-                /* Free disagg block if it is not a block replacement or the page is reconciled to
-                 * an empty page. */
-                else if (page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
-                  (r->multi_next != 1 ||
-                    r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID)) {
+                /* Free disagg block if it is required to be freed */
+                else if (disagg_block_free_required) {
                     WT_RET(__wt_btree_block_free(
                       session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                     page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
