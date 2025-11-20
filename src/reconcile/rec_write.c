@@ -273,6 +273,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
     if(page->disagg_info != NULL)
         before_id = page->disagg_info->block_meta.page_id;
+    WT_CSTACK_IN(session, "Recon: %"PRIu64 , before_id);
 
     rec_start = __wt_clock(session);
     WT_ASSERT(session, rec_start != 0);
@@ -385,6 +386,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
          * This return statement covers non-panic error scenarios; any failure beyond this point is
          * a panic. Conversely, no return prior to this point should use the "err" label.
          */
+        WT_CSTACK_EXIT(session);
         return (ret);
     }
 
@@ -407,6 +409,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_WITH_PAGE_INDEX(session, ret = __rec_root_write(session, page, flags));
         if (ret != 0)
             goto err;
+        // should we goto clear before return?
+        WT_CSTACK_EXIT(session);
         return (0);
     }
 
@@ -449,6 +453,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
           session->reconcile_timeline.total_reentry_hs_eviction_time;
 
 err:
+    WT_CSTACK_EXIT(session);
     if (ret != 0)
         WT_RET_PANIC(session, ret, "reconciliation failed after building the disk image");
     return (ret);
@@ -3226,6 +3231,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             WT_ASSERT(session, !F_ISSET(r, WT_REC_REWRITE_DELTA));
             if (page->disagg_info != NULL){
                 page->disagg_info->block_meta = *r->multi->block_meta;
+                if(r->multi->block_meta->page_id == 0){
+                    __wt_errx(session, "%s", "Something bad happened");
+                }
                 __wt_errx(session, "block free call - Root Replace, P6 : %" PRIu64 ,r->multi->block_meta->page_id);
             }
             WT_ASSERT_ALWAYS(session,
