@@ -378,6 +378,16 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: pages written including at least one stop transaction ID",
   "reconciliation: pages written with at least one internal page delta",
   "reconciliation: pages written with at least one leaf page delta",
+  "reconciliation: rec_page_mismatch01: page checksum mismatch - WT_REC_EVICT WT_PM_REC_MULTIBLOCK",
+  "reconciliation: rec_page_mismatch02: page checksum mismatch - WT_REC_EVICT mod_multi_entries < "
+  "multi_next",
+  "reconciliation: rec_page_mismatch03: page checksum mismatch - WT_REC_EVICT "
+  "evict_matching_checksum_failed",
+  "reconciliation: rec_page_mismatch04: page checksum mismatch - WT_PM_REC_MULTIBLOCK",
+  "reconciliation: rec_page_mismatch05: page checksum mismatch - mod_multi_entries < multi_next",
+  "reconciliation: rec_page_mismatch06: page checksum mismatch - (1) size",
+  "reconciliation: rec_page_mismatch07: page checksum mismatch - (2) checksum",
+  "reconciliation: rec_page_mismatch08: page checksum mismatch - (3) memcmp",
   "reconciliation: records written including a prepare state",
   "reconciliation: records written including a start durable timestamp",
   "reconciliation: records written including a start timestamp",
@@ -810,6 +820,14 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_time_window_pages_stop_txn = 0;
     stats->rec_pages_with_internal_deltas = 0;
     stats->rec_pages_with_leaf_deltas = 0;
+    stats->rec_page_mismatch01 = 0;
+    stats->rec_page_mismatch02 = 0;
+    stats->rec_page_mismatch03 = 0;
+    stats->rec_page_mismatch04 = 0;
+    stats->rec_page_mismatch05 = 0;
+    stats->rec_page_mismatch06 = 0;
+    stats->rec_page_mismatch07 = 0;
+    stats->rec_page_mismatch08 = 0;
     stats->rec_time_window_prepared = 0;
     stats->rec_time_window_durable_start_ts = 0;
     stats->rec_time_window_start_ts = 0;
@@ -1247,6 +1265,14 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_time_window_pages_stop_txn += from->rec_time_window_pages_stop_txn;
     to->rec_pages_with_internal_deltas += from->rec_pages_with_internal_deltas;
     to->rec_pages_with_leaf_deltas += from->rec_pages_with_leaf_deltas;
+    to->rec_page_mismatch01 += from->rec_page_mismatch01;
+    to->rec_page_mismatch02 += from->rec_page_mismatch02;
+    to->rec_page_mismatch03 += from->rec_page_mismatch03;
+    to->rec_page_mismatch04 += from->rec_page_mismatch04;
+    to->rec_page_mismatch05 += from->rec_page_mismatch05;
+    to->rec_page_mismatch06 += from->rec_page_mismatch06;
+    to->rec_page_mismatch07 += from->rec_page_mismatch07;
+    to->rec_page_mismatch08 += from->rec_page_mismatch08;
     to->rec_time_window_prepared += from->rec_time_window_prepared;
     to->rec_time_window_durable_start_ts += from->rec_time_window_durable_start_ts;
     to->rec_time_window_start_ts += from->rec_time_window_start_ts;
@@ -1727,6 +1753,14 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_time_window_pages_stop_txn += WT_STAT_DSRC_READ(from, rec_time_window_pages_stop_txn);
     to->rec_pages_with_internal_deltas += WT_STAT_DSRC_READ(from, rec_pages_with_internal_deltas);
     to->rec_pages_with_leaf_deltas += WT_STAT_DSRC_READ(from, rec_pages_with_leaf_deltas);
+    to->rec_page_mismatch01 += WT_STAT_DSRC_READ(from, rec_page_mismatch01);
+    to->rec_page_mismatch02 += WT_STAT_DSRC_READ(from, rec_page_mismatch02);
+    to->rec_page_mismatch03 += WT_STAT_DSRC_READ(from, rec_page_mismatch03);
+    to->rec_page_mismatch04 += WT_STAT_DSRC_READ(from, rec_page_mismatch04);
+    to->rec_page_mismatch05 += WT_STAT_DSRC_READ(from, rec_page_mismatch05);
+    to->rec_page_mismatch06 += WT_STAT_DSRC_READ(from, rec_page_mismatch06);
+    to->rec_page_mismatch07 += WT_STAT_DSRC_READ(from, rec_page_mismatch07);
+    to->rec_page_mismatch08 += WT_STAT_DSRC_READ(from, rec_page_mismatch08);
     to->rec_time_window_prepared += WT_STAT_DSRC_READ(from, rec_time_window_prepared);
     to->rec_time_window_durable_start_ts +=
       WT_STAT_DSRC_READ(from, rec_time_window_durable_start_ts);
@@ -2663,6 +2697,16 @@ static const char *const __stats_connection_desc[] = {
   "discarded during reconciliation (internal pages)",
   "reconciliation: rec_debug_split_nodiscard__leaf - number of times split pages were NOT "
   "discarded during reconciliation (leaf pages)",
+  "reconciliation: rec_page_mismatch01: page checksum mismatch - WT_REC_EVICT WT_PM_REC_MULTIBLOCK",
+  "reconciliation: rec_page_mismatch02: page checksum mismatch - WT_REC_EVICT mod_multi_entries < "
+  "multi_next",
+  "reconciliation: rec_page_mismatch03: page checksum mismatch - WT_REC_EVICT "
+  "evict_matching_checksum_failed",
+  "reconciliation: rec_page_mismatch04: page checksum mismatch - WT_PM_REC_MULTIBLOCK",
+  "reconciliation: rec_page_mismatch05: page checksum mismatch - mod_multi_entries < multi_next",
+  "reconciliation: rec_page_mismatch06: page checksum mismatch - (1) size",
+  "reconciliation: rec_page_mismatch07: page checksum mismatch - (2) checksum",
+  "reconciliation: rec_page_mismatch08: page checksum mismatch - (3) memcmp",
   "reconciliation: records written including a prepare state",
   "reconciliation: records written including a start durable timestamp",
   "reconciliation: records written including a start timestamp",
@@ -3670,6 +3714,14 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_debug_split_nodiscard = 0;
     stats->rec_debug_split_nodiscard__internal = 0;
     stats->rec_debug_split_nodiscard__leaf = 0;
+    stats->rec_page_mismatch01 = 0;
+    stats->rec_page_mismatch02 = 0;
+    stats->rec_page_mismatch03 = 0;
+    stats->rec_page_mismatch04 = 0;
+    stats->rec_page_mismatch05 = 0;
+    stats->rec_page_mismatch06 = 0;
+    stats->rec_page_mismatch07 = 0;
+    stats->rec_page_mismatch08 = 0;
     stats->rec_time_window_prepared = 0;
     stats->rec_time_window_durable_start_ts = 0;
     stats->rec_time_window_start_ts = 0;
@@ -4877,6 +4929,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_debug_split_nodiscard__internal +=
       WT_STAT_CONN_READ(from, rec_debug_split_nodiscard__internal);
     to->rec_debug_split_nodiscard__leaf += WT_STAT_CONN_READ(from, rec_debug_split_nodiscard__leaf);
+    to->rec_page_mismatch01 += WT_STAT_CONN_READ(from, rec_page_mismatch01);
+    to->rec_page_mismatch02 += WT_STAT_CONN_READ(from, rec_page_mismatch02);
+    to->rec_page_mismatch03 += WT_STAT_CONN_READ(from, rec_page_mismatch03);
+    to->rec_page_mismatch04 += WT_STAT_CONN_READ(from, rec_page_mismatch04);
+    to->rec_page_mismatch05 += WT_STAT_CONN_READ(from, rec_page_mismatch05);
+    to->rec_page_mismatch06 += WT_STAT_CONN_READ(from, rec_page_mismatch06);
+    to->rec_page_mismatch07 += WT_STAT_CONN_READ(from, rec_page_mismatch07);
+    to->rec_page_mismatch08 += WT_STAT_CONN_READ(from, rec_page_mismatch08);
     to->rec_time_window_prepared += WT_STAT_CONN_READ(from, rec_time_window_prepared);
     to->rec_time_window_durable_start_ts +=
       WT_STAT_CONN_READ(from, rec_time_window_durable_start_ts);

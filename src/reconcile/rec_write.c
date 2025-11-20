@@ -2123,10 +2123,18 @@ __rec_split_write_reuse(
      * Quit if evicting and a previous check failed, once there's a miss no future block will match.
      */
     if (F_ISSET(r, WT_REC_EVICT)) {
-        if (mod->rec_result != WT_PM_REC_MULTIBLOCK || mod->mod_multi_entries < r->multi_next)
+        if (mod->rec_result != WT_PM_REC_MULTIBLOCK) {
+            WT_STAT_CONN_DSRC_INCR(session, rec_page_mismatch01);
             return (false);
-        if (r->evict_matching_checksum_failed)
+        }
+        if (mod->mod_multi_entries < r->multi_next) {
+            WT_STAT_CONN_DSRC_INCR(session, rec_page_mismatch02);
             return (false);
+        }
+        if (r->evict_matching_checksum_failed) {
+            WT_STAT_CONN_DSRC_INCR(session, rec_page_mismatch03);
+            return (false);
+        }
     }
 
     /* Calculate the checksum for this block. */
@@ -2143,11 +2151,28 @@ __rec_split_write_reuse(
     /*
      * Pages are written in the same block order every time, only check the appropriate slot.
      */
-    if (mod->rec_result != WT_PM_REC_MULTIBLOCK || mod->mod_multi_entries < r->multi_next)
+    if (mod->rec_result != WT_PM_REC_MULTIBLOCK) {
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mismatch04);
         return (false);
+    }
+    if (mod->mod_multi_entries < r->multi_next) {
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mismatch05);
+        return (false);
+    }
 
     multi_match = &mod->mod_multi[r->multi_next - 1];
-    if (multi_match->size != multi->size || multi_match->checksum != multi->checksum || memcmp(multi_match->disk_image, image->data, image->size) != 0) {
+    if (multi_match->size != multi->size) {
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mismatch06);
+        r->evict_matching_checksum_failed = true;
+        return (false);
+    }
+    if (multi_match->checksum != multi->checksum) {
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mismatch07);
+        r->evict_matching_checksum_failed = true;
+        return (false);
+    }
+    if (memcmp(multi_match->disk_image, image->data, image->size) != 0) {
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mismatch08);
         r->evict_matching_checksum_failed = true;
         return (false);
     }
