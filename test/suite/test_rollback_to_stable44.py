@@ -87,6 +87,6 @@ class test_rollback_to_stable44(test_rollback_to_stable_base):
         simulate_crash_restart(self, '.', 'RESTART')
 
         # Check that the prepare operation did not have any effect.
-        self.check(0, uri, 0, nrows, 5)
-        self.check(value_a, uri, nrows, 0, 15)
-        self.check(value_a, uri, nrows, 0, 25)
+        self.check(0, uri, 0, 5)
+        self.check(value_a, uri, nrows, 15)
+        self.check(value_a, uri, nrows, 25)

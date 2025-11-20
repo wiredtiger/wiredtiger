@@ -97,19 +97,19 @@ class test_rollback_to_stable31(test_rollback_to_stable_base):
         if self.crash:
             if self.checkpoint:
                 # Recovery-time RTS does nothing when no stable timestamp is set.
-                self.check(0, uri, 0, nrows, 5)
-                self.check(value_a, uri, nrows, 0, 15)
-                self.check(value_b, uri, nrows, 0, 25)
-                self.check(value_c, uri, nrows, 0, 35)
+                self.check(0, uri, 0, 5)
+                self.check(value_a, uri, nrows, 15)
+                self.check(value_b, uri, nrows, 25)
+                self.check(value_c, uri, nrows, 35)
             else:
                 # If we crashed without a checkpoint, everything should disappear entirely.
-                self.check(0, uri, 0, 0, 5)
-                self.check(value_a, uri, 0, 0, 15)
-                self.check(value_b, uri, 0, 0, 25)
-                self.check(value_c, uri, 0, 0, 35)
+                self.check(0, uri, 0, 5)
+                self.check(value_a, uri, 0, 15)
+                self.check(value_b, uri, 0, 25)
+                self.check(value_c, uri, 0, 35)
         else:
             # With an explicit runtime RTS, the RTS does not do anything.
-            self.check(0, uri, 0, nrows, 5)
-            self.check(value_a, uri, nrows, 0, 15)
-            self.check(value_b, uri, nrows, 0, 25)
-            self.check(value_c, uri, nrows, 0, 35)
+            self.check(0, uri, 0, 5)
+            self.check(value_a, uri, nrows, 15)
+            self.check(value_b, uri, nrows, 25)
+            self.check(value_c, uri, nrows, 35)

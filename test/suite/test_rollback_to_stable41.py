@@ -64,16 +64,16 @@ class test_rollback_to_stable41(test_rollback_to_stable_base):
 
         # Insert some data either side of the stable timestamp we set below.
         self.large_updates(uri, value_a, ds, nrows, False, 10)
-        self.check(value_a, uri, nrows, None, 10)
+        self.check(value_a, uri, nrows, 10)
         self.large_updates(uri, value_b, ds, nrows, False, 30)
-        self.check(value_b, uri, nrows, None, 30)
+        self.check(value_b, uri, nrows, 30)
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
 
         # Fake RTS, newer data should still exist.
         self.conn.rollback_to_stable('dryrun=true' + ', threads=' + str(self.threads))
-        self.check(value_b, uri, nrows, None, 30)
+        self.check(value_b, uri, nrows, 30)
 
         # Real RTS, newer data should vanish.
         self.conn.rollback_to_stable('threads=' + str(self.threads))
-        self.check(value_a, uri, nrows, None, 30)
+        self.check(value_a, uri, nrows, 30)
