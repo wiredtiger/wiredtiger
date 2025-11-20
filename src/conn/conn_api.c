@@ -2581,8 +2581,13 @@ __wti_disagg_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         WT_RET_MSG(session, EINVAL, "Invalid value for debug.disagg_address_cookie_upgrade: '%.*s'",
           (int)cval.len, cval.str);
-
     conn->debug_disagg_address_cookie_upgrade = address_cookie_upgrade;
+
+    /* Check whether we are pretending to have an optional field. */
+    WT_RET(
+      __wt_config_gets(session, cfg, "debug_mode.disagg_address_cookie_optional_field", &cval));
+    conn->debug_disagg_address_cookie_optional_field = cval.val != 0;
+
     return (0);
 }
 

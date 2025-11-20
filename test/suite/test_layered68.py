@@ -42,17 +42,22 @@ class test_layered68(wttest.WiredTigerTestCase):
 
     create_session_config = 'key_format=S,value_format=S,type=layered'
 
-    num_items = 1000
-    num_modify = 200
+    num_items = 2000
+    num_modify = 100
     uri = "table:test_layered68"
 
     address_cookie_upgrade = [
+        ('none', dict(address_cookie_upgrade='none', compatible=True)),
         ('compatible', dict(address_cookie_upgrade='compatible', compatible=True)),
         ('incompatible', dict(address_cookie_upgrade='incompatible', compatible=False)),
     ]
+    optional_field = [
+        ('none', dict(optional_field='false')),
+        ('optional_field', dict(optional_field='true')),
+    ]
 
     disagg_storages = gen_disagg_storages('test_layered68', disagg_only = True)
-    scenarios = make_scenarios(disagg_storages, address_cookie_upgrade)
+    scenarios = make_scenarios(disagg_storages, address_cookie_upgrade, optional_field)
 
     # Test stepping up concurrently with a checkpoint.
     def test_layered68(self):
@@ -74,8 +79,9 @@ class test_layered68(wttest.WiredTigerTestCase):
         #
         # Part 1: Start a node with the newer version of address cookies.
         #
-        self.restart_without_local_files(config=self.conn_config +
-            f',debug_mode=(disagg_address_cookie_upgrade={self.address_cookie_upgrade})')
+        debug_mode = f'disagg_address_cookie_optional_field={self.optional_field},' \
+                     f'disagg_address_cookie_upgrade={self.address_cookie_upgrade}'
+        self.restart_without_local_files(config=self.conn_config + f',debug_mode=({debug_mode})')
 
         # Check that all the data is present.
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -149,8 +155,7 @@ class test_layered68(wttest.WiredTigerTestCase):
         #
         # Part 3: Restart a node with the newer version of address cookies.
         #
-        self.restart_without_local_files(config=self.conn_config +
-            f',debug_mode=(disagg_address_cookie_upgrade={self.address_cookie_upgrade})')
+        self.restart_without_local_files(config=self.conn_config + f',debug_mode=({debug_mode})')
 
         # Check that all the data is present.
         cursor = self.session.open_cursor(self.uri, None, None)

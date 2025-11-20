@@ -920,6 +920,7 @@ struct __wt_connection_impl {
 
     /* The debug mode for upgrade/downgrade of the disaggregated storage address cookies. */
     WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE debug_disagg_address_cookie_upgrade;
+    bool debug_disagg_address_cookie_optional_field;
 
     /* Verbose settings for our various categories. */
     WT_VERBOSE_LEVEL verbose[WT_VERB_NUM_CATEGORIES];
