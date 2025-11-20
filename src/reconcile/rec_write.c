@@ -3135,7 +3135,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                 if (page->disagg_info == NULL)
                     WT_RET(__wt_btree_block_free(
                       session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
-                /* Free disagg block only if it is not a block replacement. */
+                /* Free disagg block if it is not a block replacement or the page is reconciled to
+                 * an empty page. */
                 else if (page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
                   (r->multi_next != 1 ||
                     r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID)) {
