@@ -2897,6 +2897,14 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     mod = page->modify;
 
     /*
+     * Free the disaggregated block only if it is not a block replacement or if it is the root page.
+     * If the page has undergone a split in the past but has not been split during the current
+     * reconciliation, ensure that the previous blocks are freed, as this situation does not qualify
+     * as a block replacement.
+     */
+    bool free_blocks = page->disagg_info == NULL || mod->mod_multi_entries != 1 ||
+      r->multi_next != 1 || __wt_ref_is_root(r->ref);
+    /*
      * A page that split is being reconciled for the second, or subsequent time; discard underlying
      * block space used in the last reconciliation that is not being reused for this reconciliation.
      */
@@ -2908,22 +2916,16 @@ __rec_split_discard(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         __wt_free(session, multi->supd);
 
         /*
-         * If the page was re-written free the backing disk blocks used in the previous write. The
+         * If the page was re-written, free the backing disk blocks used in the previous write. The
          * page may instead have been a disk image with associated saved updates: ownership of the
          * disk image is transferred when rewriting the page in-memory and there may not have been
          * saved updates. We've gotten this wrong a few times, so use the existence of an address to
          * confirm backing blocks we care about, and free any disk image/saved updates.
          */
         if (multi->addr.block_cookie != NULL) {
-            if (multi->block_meta == NULL)
+            if (free_blocks)
                 WT_RET(__wt_btree_block_free(
                   session, multi->addr.block_cookie, multi->addr.block_cookie_size));
-            /* Free disagg block only if it is not a block replacement or it is the root page. */
-            else if (r->multi_next != 1 || __wt_ref_is_root(r->ref)) {
-                WT_RET(__wt_btree_block_free(
-                  session, multi->addr.block_cookie, multi->addr.block_cookie_size));
-                multi->block_meta->page_id = WT_BLOCK_INVALID_PAGE_ID;
-            }
             __wt_free(session, multi->addr.block_cookie);
         }
         __wt_free(session, multi->block_meta);
@@ -3341,21 +3343,25 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      * On error, discard blocks we've written, they're unreferenced by the tree. This is not a
      * question of correctness, we're avoiding block leaks.
      */
-    for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
-        if (multi->addr.block_cookie != NULL) {
-            int ret_tmp = __wt_btree_block_free(
-              session, multi->addr.block_cookie, multi->addr.block_cookie_size);
-            if (ret_tmp != 0) {
-                if (multi->block_meta != NULL)
-                    __wt_verbose_error(session, WT_VERB_RECONCILE,
-                      "failed to free the block in reconciliation failure: page id %" PRIu64
-                      " base lsn %" PRIu64 " backlink lsn %" PRIu64 "",
-                      multi->block_meta->page_id, multi->block_meta->base_lsn,
-                      multi->block_meta->backlink_lsn);
-                else
-                    __wt_verbose_error(session, WT_VERB_RECONCILE, "%s",
-                      "failed to free the block in reconciliation failure");
-                WT_TRET(ret_tmp);
+    if (F_ISSET(r, WT_REC_EMPTY_DELTA))
+        WT_ASSERT(session, r->multi_next == 1);
+    else {
+        for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
+            if (multi->addr.block_cookie != NULL) {
+                int ret_tmp = __wt_btree_block_free(
+                  session, multi->addr.block_cookie, multi->addr.block_cookie_size);
+                if (ret_tmp != 0) {
+                    if (multi->block_meta != NULL)
+                        __wt_verbose_error(session, WT_VERB_RECONCILE,
+                          "failed to free the block in reconciliation failure: page id %" PRIu64
+                          " base lsn %" PRIu64 " backlink lsn %" PRIu64 "",
+                          multi->block_meta->page_id, multi->block_meta->base_lsn,
+                          multi->block_meta->backlink_lsn);
+                    else
+                        __wt_verbose_error(session, WT_VERB_RECONCILE, "%s",
+                          "failed to free the block in reconciliation failure");
+                    WT_TRET(ret_tmp);
+                }
             }
         }
     }
@@ -3366,7 +3372,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      * during the next reconciliation for the replaced page. In other cases, the old page ID will be
      * released upon successful reconciliation.
      */
-    if (page->disagg_info != NULL && r->multi_next == 1 &&
+    if (page->disagg_info != NULL && r->multi_next == 1 && !F_ISSET(r, WT_REC_EMPTY_DELTA) &&
       r->multi->block_meta->page_id == page->disagg_info->block_meta.page_id)
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
