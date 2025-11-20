@@ -106,9 +106,9 @@ class test_rollback_to_stable28(test_rollback_to_stable_base):
         self.large_updates(uri, value_b, ds, nrows, False, 30)
         self.large_updates(uri, value_c, ds, nrows, False, 40)
         # Verify data is visible and correct.
-        self.check(value_a, uri, nrows, None, 20)
-        self.check(value_b, uri, nrows, None, 30)
-        self.check(value_c, uri, nrows, None, 40)
+        self.check(value_a, uri, nrows, 20)
+        self.check(value_b, uri, nrows, 30)
+        self.check(value_c, uri, nrows, 40)
 
         # Pin the stable timestamp to 40. We will be validating the state of the data post-stable timestamp
         # after we perform a recovery.
@@ -120,9 +120,9 @@ class test_rollback_to_stable28(test_rollback_to_stable_base):
         self.large_updates(uri, value_b, ds, nrows, False, 70)
 
         # Verify additional updated data is visible and correct.
-        self.check(value_d, uri, nrows, None, 50)
-        self.check(value_a, uri, nrows, None, 60)
-        self.check(value_b, uri, nrows, None, 70)
+        self.check(value_d, uri, nrows, 50)
+        self.check(value_a, uri, nrows, 60)
+        self.check(value_b, uri, nrows, 70)
 
         # Checkpoint to ensure the data is flushed to disk.
         self.session.checkpoint()
@@ -156,11 +156,11 @@ class test_rollback_to_stable28(test_rollback_to_stable_base):
         self.assertGreater(pages_update_restored, 0)
 
         # Check that after recovery, we see the correct data with respect to our previous stable timestamp (40).
-        self.check(value_c, uri, nrows, None, 40)
-        self.check(value_c, uri, nrows, None, 50)
-        self.check(value_c, uri, nrows, None, 60)
-        self.check(value_c, uri, nrows, None, 70)
-        self.check(value_b, uri, nrows, None, 30)
-        self.check(value_a, uri, nrows, None, 20)
+        self.check(value_c, uri, nrows, 40)
+        self.check(value_c, uri, nrows, 50)
+        self.check(value_c, uri, nrows, 60)
+        self.check(value_c, uri, nrows, 70)
+        self.check(value_b, uri, nrows, 30)
+        self.check(value_a, uri, nrows, 20)
         # Passing 0 results in opening a transaction with no read timestamp.
-        self.check(value_c, uri, nrows, None, 0)
+        self.check(value_c, uri, nrows, 0)

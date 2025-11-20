@@ -90,9 +90,9 @@ class test_rollback_to_stable32(test_rollback_to_stable_base):
         self.session.checkpoint()
 
         # Verify data is visible and correct.
-        self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
-        self.check(None, uri, 0, nrows, 41 if self.prepare else 40)
-        self.check(value_c, uri, nrows, None, 61 if self.prepare else 60)
+        self.check(value_a, uri, nrows, 21 if self.prepare else 20)
+        self.check(None, uri, 0, 41 if self.prepare else 40)
+        self.check(value_c, uri, nrows, 61 if self.prepare else 60)
         self.evict_cursor(uri, nrows, value_c)
 
         self.conn.rollback_to_stable('threads=' + str(self.threads))
@@ -110,5 +110,5 @@ class test_rollback_to_stable32(test_rollback_to_stable_base):
         # Perform several updates and checkpoint.
         self.large_updates(uri, value_c, ds, nrows, self.prepare, 60)
         self.evict_cursor(uri, nrows, value_c)
-        self.check(value_b, uri, nrows, None, 31 if self.prepare else 30)
+        self.check(value_b, uri, nrows, 31 if self.prepare else 30)
         self.conn.close()

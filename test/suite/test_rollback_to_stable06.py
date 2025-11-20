@@ -97,10 +97,10 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         self.large_updates(uri, value_d, ds, nrows, self.prepare, 50)
 
         # Verify data is visible and correct.
-        self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
-        self.check(value_b, uri, nrows, None, 31 if self.prepare else 30)
-        self.check(value_c, uri, nrows, None, 41 if self.prepare else 40)
-        self.check(value_d, uri, nrows, None, 51 if self.prepare else 50)
+        self.check(value_a, uri, nrows, 21 if self.prepare else 20)
+        self.check(value_b, uri, nrows, 31 if self.prepare else 30)
+        self.check(value_c, uri, nrows, 41 if self.prepare else 40)
+        self.check(value_d, uri, nrows, 51 if self.prepare else 50)
 
         # Checkpoint to ensure the data is flushed, then rollback to the stable timestamp.
         if not self.in_memory:
@@ -108,10 +108,10 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         self.conn.rollback_to_stable('threads=' + str(self.threads))
 
         # Check that all keys are removed.
-        self.check(value_a, uri, 0, nrows, 20)
-        self.check(value_b, uri, 0, nrows, 30)
-        self.check(value_c, uri, 0, nrows, 40)
-        self.check(value_d, uri, 0, nrows, 50)
+        self.check(value_a, uri, 0, 20)
+        self.check(value_b, uri, 0, 30)
+        self.check(value_c, uri, 0, 40)
+        self.check(value_d, uri, 0, 50)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]

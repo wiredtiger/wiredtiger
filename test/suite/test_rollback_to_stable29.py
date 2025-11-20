@@ -76,29 +76,29 @@ class test_rollback_to_stable29(test_rollback_to_stable_base):
 
         self.large_removes(uri, ds, nrows, False, 30)
         self.large_updates(uri, value_b, ds, nrows, False, 40)
-        self.check(value_b, uri, nrows, None, 40)
+        self.check(value_b, uri, nrows, 40)
 
         self.session.checkpoint()
         self.evict_cursor(uri, nrows, value_b)
 
         self.large_updates(uri, value_c, ds, nrows, False, 50)
-        self.check(value_c, uri, nrows, None, 50)
+        self.check(value_c, uri, nrows, 50)
         self.evict_cursor(uri, nrows, value_c)
 
         # Insert update without a timestamp.
         self.large_updates(uri, value_d, ds, nrows, False, 0)
 
-        self.check(value_d, uri, nrows, None, 10)
-        self.check(value_d, uri, nrows, None, 40)
-        self.check(value_d, uri, nrows, None, 50)
-        self.check(value_d, uri, nrows, None, 20)
+        self.check(value_d, uri, nrows, 10)
+        self.check(value_d, uri, nrows, 40)
+        self.check(value_d, uri, nrows, 50)
+        self.check(value_d, uri, nrows, 20)
 
         self.session.checkpoint()
 
         # Simulate a crash by copying to a new directory(RESTART).
         simulate_crash_restart(self, ".", "RESTART")
 
-        self.check(value_d, uri, nrows, None, 10)
+        self.check(value_d, uri, nrows, 10)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
