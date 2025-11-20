@@ -632,7 +632,7 @@ usage(void)
       "usage: %s\n"
       "    [-DmpRvXx] [-C wiredtiger-config] [-c checkpoint] [-d disagg-mode] [-h home] [-k keys] "
       "[-l log]\n"
-      "    [-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t f|r|v]\n"
+      "    [-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t r|v]\n"
       "    [-W workers]\n",
       progname);
     fprintf(stderr, "%s",

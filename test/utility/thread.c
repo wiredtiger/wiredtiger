@@ -30,9 +30,9 @@
 
 /*
  * thread_append --
- *     A thread dedicated to appending records into a table. Works with fixed length column stores
- *     and variable length column stores. One thread (the first thread created by an application)
- *     checks for a terminating condition after each insert.
+ *     A thread dedicated to appending records into a table. Works with variable length column
+ *     stores. One thread (the first thread created by an application) checks for a terminating
+ *     condition after each insert.
  */
 WT_THREAD_RET
 thread_append(void *arg)

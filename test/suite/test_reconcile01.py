@@ -33,8 +33,8 @@ from wtdataset import SimpleDataSet
 # test_reconcile01.py
 #
 # Test scenarios of removing a non existing key/recno leading to implicit deleted
-# records only to the fixed length column store. Performing eviction on the page
-# when they are globally visible or not and expecting them to read back as 0.
+# records. Performing eviction on the page when they are globally visible
+# or not and expecting them to read back as 0.
 class test_reconcile01(wttest.WiredTigerTestCase):
     format_values = [
         ('column', dict(key_format='r')),
