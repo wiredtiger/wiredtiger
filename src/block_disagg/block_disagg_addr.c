@@ -136,7 +136,6 @@ __wti_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, si
     uint32_t checksum;
     uint8_t current_version, version, version_min;
     const uint8_t *begin;
-    bool debug_optional_field;
 
     begin = *buf;
 
@@ -144,7 +143,6 @@ __wti_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, si
     base_lsn_delta = debug_field = flags = lsn = page_id = size = 0;
     checksum = 0;
     version = version_min = 0;
-    debug_optional_field = false;
 
     /*
      * Get the current version. Apply debug upgrade/downgrade settings (for testing version
@@ -186,9 +184,8 @@ __wti_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, si
           " does not match expected value %" PRIx64,
           debug_field, page_id ^ size);
     }
-    debug_optional_field = S2C(session)->debug_disagg_address_cookie_optional_field &&
-      FLD_ISSET(flags, WT_BLOCK_DISAGG_ADDR_ALL_FLAGS + 1);
-    if (debug_optional_field) {
+    if (S2C(session)->debug_disagg_address_cookie_optional_field &&
+      FLD_ISSET(flags, WT_BLOCK_DISAGG_ADDR_ALL_FLAGS + 1)) {
         WT_RET(__wt_vunpack_uint(buf, 0, &debug_field));
         WT_ASSERT_ALWAYS(session, debug_field == (page_id ^ lsn),
           "Disaggregated address cookie optional debug field %" PRIx64

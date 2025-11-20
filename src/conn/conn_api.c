@@ -2568,8 +2568,6 @@ __wti_disagg_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
 
-    address_cookie_upgrade = WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_NONE;
-
     /* Parse the address cookie upgrade mode, which is an enumeration. */
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.disagg_address_cookie_upgrade", &cval));
     if (cval.len == 0 || WT_CONFIG_LIT_MATCH("none", cval))
