@@ -3133,9 +3133,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                     else if (r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID)
                         WT_RET(__wt_ref_block_free(session, ref, true));
                     else if (!F_ISSET(r, WT_REC_EMPTY_DELTA))
-                        WT_RET(__wt_ref_block_free(session, ref,
-                          page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
-                            r->multi_next != 1));
+                        WT_RET(__wt_ref_block_free(session, ref, disagg_block_free_required));
                 }
             } else {
                 if (page->disagg_info == NULL)
