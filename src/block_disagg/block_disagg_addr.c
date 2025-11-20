@@ -20,14 +20,43 @@
 #define WT_BLOCK_DISAGG_ADDR_VERSION_MIN 0 /* The oldest version that can read this format. */
 
 /*
+ * __block_disagg_addr_debug_upgrade --
+ *     Check if we are in the debug mode for testing disaggregated address cookie upgrade/downgrade.
+ */
+static WT_INLINE bool
+__block_disagg_addr_debug_upgrade(WT_SESSION_IMPL *session)
+{
+    return (S2C(session)->debug_disagg_address_cookie_upgrade !=
+      WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_NONE);
+}
+
+/*
  * __block_disagg_addr_pack_version --
  *     Pack the address cookie version into the buffer.
  */
-static inline int
-__block_disagg_addr_pack_version(uint8_t **pp, size_t maxlen)
+static WT_INLINE int
+__block_disagg_addr_pack_version(WT_SESSION_IMPL *session, uint8_t **pp, size_t maxlen)
 {
-    return (__wt_4b_pack_posint2(pp, maxlen ? *pp + maxlen : NULL, WT_BLOCK_DISAGG_ADDR_VERSION,
-      WT_BLOCK_DISAGG_ADDR_VERSION_MIN));
+    uint64_t version = WT_BLOCK_DISAGG_ADDR_VERSION;
+    uint64_t version_min = WT_BLOCK_DISAGG_ADDR_VERSION_MIN;
+
+    /* Apply debug upgrade/downgrade settings (for testing version compatibility handling). */
+    switch (S2C(session)->debug_disagg_address_cookie_upgrade) {
+    case WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_NONE:
+        /* No change to version numbers. */
+        break;
+    case WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_COMPATIBLE:
+        /* Increase the version number only. */
+        version += 1;
+        break;
+    case WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_INCOMPATIBLE:
+        /* Increase both the version and minimum version. */
+        version += 1;
+        version_min = version;
+        break;
+    }
+
+    return (__wt_4b_pack_posint2(pp, maxlen ? *pp + maxlen : NULL, version, version_min));
 }
 
 /*
@@ -66,7 +95,7 @@ __wti_block_disagg_addr_pack(
     base_lsn_delta = cookie->lsn - cookie->base_lsn;
 
     /* Write the address version. */
-    WT_RET(__block_disagg_addr_pack_version(pp, 0));
+    WT_RET(__block_disagg_addr_pack_version(session, pp, 0));
 
     /* Pack the address cookie. */
     WT_RET(__wt_vpack_uint(pp, 0, cookie->page_id));
@@ -77,6 +106,10 @@ __wti_block_disagg_addr_pack(
 
     /* Pack the checksum as a fixed-length 32-bit integer. */
     WT_RET(__wt_pack_fixed_uint32(pp, 0, cookie->checksum));
+
+    /* If testing upgrade/downgrade, pack an extra field. */
+    if (__block_disagg_addr_debug_upgrade(session))
+        WT_RET(__wt_vpack_uint(pp, 0, cookie->page_id ^ cookie->size));
 
     return (0);
 }
@@ -90,21 +123,36 @@ int
 __wti_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, size_t buf_size,
   WT_BLOCK_DISAGG_ADDRESS_COOKIE *cookie)
 {
-    uint64_t base_lsn, base_lsn_delta, flags, lsn, page_id, size, unsupported_flags;
+    uint64_t base_lsn, base_lsn_delta, debug_field, flags, lsn, page_id, size, unsupported_flags;
     uint32_t checksum;
-    uint8_t version = 0,
-            version_min = 0; /* Just to suppress gcc "may be used uninitialized in this function" */
+    uint8_t current_version, version, version_min;
     const uint8_t *begin;
 
     begin = *buf;
 
     /* Avoid compiler warnings. */
-    base_lsn_delta = flags = lsn = page_id = size = 0;
+    base_lsn_delta = debug_field = flags = lsn = page_id = size = 0;
     checksum = 0;
+    version = version_min = 0;
+
+    /*
+     * Get the current version. Apply debug upgrade/downgrade settings (for testing version
+     * compatibility handling).
+     */
+    current_version = WT_BLOCK_DISAGG_ADDR_VERSION;
+    switch (S2C(session)->debug_disagg_address_cookie_upgrade) {
+    case WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_NONE:
+        /* No change to version numbers. */
+        break;
+    case WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_COMPATIBLE:
+    case WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_INCOMPATIBLE:
+        current_version += 1;
+        break;
+    }
 
     /* Unpack the address version. */
     WT_RET(__block_disagg_addr_unpack_version(buf, 0, &version, &version_min));
-    if (version_min > WT_BLOCK_DISAGG_ADDR_VERSION)
+    if (version_min > current_version)
         WT_RET_MSG(session, ENOTSUP,
           "Unsupported disaggregated address cookie version %" PRIu8 ", min %" PRIu8, version,
           version_min);
@@ -118,6 +166,15 @@ __wti_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, si
 
     /* Unpack the checksum as a fixed-length 32-bit integer. */
     WT_RET(__wt_unpack_fixed_uint32(buf, 0, &checksum));
+
+    /* If testing upgrade/downgrade, unpack and check the extra field. */
+    if (__block_disagg_addr_debug_upgrade(session) && version == current_version) {
+        WT_RET(__wt_vunpack_uint(buf, 0, &debug_field));
+        WT_ASSERT_ALWAYS(session, debug_field == (page_id ^ size),
+          "Disaggregated address cookie debug field %" PRIx64
+          " does not match expected value %" PRIx64,
+          debug_field, page_id ^ size);
+    }
 
     /* Get the base LSN from the delta. */
     if (lsn < base_lsn_delta)
@@ -149,8 +206,7 @@ __wti_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, si
      */
     unsupported_flags = flags;
     FLD_CLR(unsupported_flags, WT_BLOCK_DISAGG_ADDR_ALL_FLAGS);
-    if (version <= WT_BLOCK_DISAGG_ADDR_VERSION && unsupported_flags == 0 &&
-      (size_t)(*buf - begin) != buf_size)
+    if (version <= current_version && unsupported_flags == 0 && (size_t)(*buf - begin) != buf_size)
         WT_RET_MSG(session, EINVAL,
           "Disaggregated address cookie size mismatch: expected %" PRIuMAX ", got %" PRIuMAX,
           (uintmax_t)buf_size, (uintmax_t)(*buf - begin));
