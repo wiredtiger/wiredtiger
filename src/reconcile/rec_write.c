@@ -3144,22 +3144,22 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                 if (ref->addr != NULL) {
                     if (page->disagg_info == NULL)
                         WT_RET(__wt_ref_block_free(session, ref, false));
-                    else if (r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID)
+                    else if (r->multi != NULL &&
+                      r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID)
                         WT_RET(__wt_ref_block_free(session, ref, true));
                     else if (!F_ISSET(r, WT_REC_EMPTY_DELTA))
                         /* Only free a disagg page if it's not empty delta. */
                         WT_RET(__wt_ref_block_free(session, ref, disagg_page_free_required));
                 }
             } else {
-                /* Free the disaggregated block if reconciliation results in zero pages, multiple
-                 * pages, or a single empty page. */
+                /*
+                 * Free the disaggregated block if reconciliation results in zero pages, multiple
+                 * pages, or a single empty page.
+                 */
                 if (page->disagg_info == NULL)
                     WT_RET(__wt_btree_block_free(
                       session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                 else if (disagg_page_free_required) {
-                    WT_ASSERT(session,
-                      r->multi == NULL ||
-                        r->multi->block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID);
                     WT_RET(__wt_btree_block_free(
                       session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                     page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
