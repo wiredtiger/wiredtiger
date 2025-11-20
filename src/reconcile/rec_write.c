@@ -3093,7 +3093,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         WT_RET(__wt_ref_block_free(session, ref,
           page->disagg_info != NULL &&
             page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
-            r->multi_next != 1));
+            (r->multi_next != 1 || r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID)));
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -3122,10 +3122,13 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                  * Free the block address otherwise if it is available.
                  */
                 if (ref->addr != NULL) {
-                    if (!F_ISSET(r, WT_REC_EMPTY_DELTA))
+                    if (page->disagg_info == NULL)
+                        WT_RET(__wt_ref_block_free(session, ref, false));
+                    else if (r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID)
+                        WT_RET(__wt_ref_block_free(session, ref, true));
+                    else if (!F_ISSET(r, WT_REC_EMPTY_DELTA))
                         WT_RET(__wt_ref_block_free(session, ref,
-                          page->disagg_info != NULL &&
-                            page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
+                          page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
                             r->multi_next != 1));
                 }
             } else {
@@ -3134,7 +3137,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                       session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                 /* Free disagg block only if it is not a block replacement. */
                 else if (page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID &&
-                  r->multi_next != 1) {
+                  (r->multi_next != 1 ||
+                    r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID)) {
                     WT_RET(__wt_btree_block_free(
                       session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                     page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
