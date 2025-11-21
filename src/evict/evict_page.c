@@ -1028,10 +1028,6 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
             /*
              * If precise checkpoint is configured, only evict the updates that visible to the
              * ongoing checkpoint for trees haven't been visited by the checkpoint.
-             *
-             * If eviction and a checkpoint operation are executed in parallel, the checkpoint might
-             * already have updated its generation. However, this is not an issue because eviction
-             * and checkpoint operations cannot run concurrently on the same btree.
              */
             btree_ckpt_gen = __wt_atomic_load_uint64_acquire(&btree->checkpoint_gen);
             ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);

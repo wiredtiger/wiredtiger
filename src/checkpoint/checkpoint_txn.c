@@ -253,13 +253,13 @@ err:
 }
 
 /*
- * __checkpoint_update_generation --
+ * __wt_checkpoint_update_generation --
  *     Update the checkpoint generation of the current tree. This indicates that the tree will not
  *     be visited again by the current checkpoint. It also prevents the eviction of pages that
  *     should be part of the next checkpoint in disaggregated storage.
  */
-static WT_INLINE void
-__checkpoint_update_generation(WT_SESSION_IMPL *session, WT_BTREE *btree)
+void
+__wt_checkpoint_update_generation(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     __wt_atomic_store_uint64_release(&btree->checkpoint_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
     WT_STAT_DSRC_SET(session, btree_checkpoint_generation, btree->checkpoint_gen);
@@ -457,7 +457,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     S2C(session)->ckpt.handle_stats.lock_time += time_diff;
     WT_RET(ret);
     if (F_ISSET(btree, WT_BTREE_SKIP_CKPT)) {
-        __checkpoint_update_generation(session, btree);
+        __wt_checkpoint_update_generation(session, btree);
         return (0);
     }
 
@@ -2496,13 +2496,6 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     WT_MAX_LSN(&ckptlsn);
 
     /*
-     * Ensure the checkpoint generation is updated before checkpointing the btree. Otherwise, pages
-     * risk being evicted after the btree is checkpointed but before the checkpoint generation is
-     * updated.
-     */
-    __checkpoint_update_generation(session, btree);
-
-    /*
      * If an object has never been used (in other words, if it could become a bulk-loaded file),
      * then we must fake the checkpoint. This is good because we don't write physical checkpoint
      * blocks for just-created files, but it's not just a good idea. The reason is because deleting
@@ -2517,6 +2510,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
         __wt_checkpoint_tree_reconcile_update(session, &ta);
 
         fake_ckpt = true;
+        __wt_checkpoint_update_generation(session, btree);
         goto fake;
     }
 
