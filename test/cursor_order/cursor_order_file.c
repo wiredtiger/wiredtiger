@@ -48,9 +48,8 @@ file_create(SHARED_CONFIG *cfg, const char *name)
       "key_format=%s,"
       "internal_page_max=%d,"
       "split_deepen_min_child=200,"
-      "leaf_page_max=%d,"
-      "%s",
-      cfg->ftype == ROW ? "S" : "r", 16 * 1024, 128 * 1024, "");
+      "leaf_page_max=%d",
+      cfg->ftype == ROW ? "S" : "r", 16 * 1024, 128 * 1024);
 
     if ((ret = session->create(session, name, config)) != 0)
         if (ret != EEXIST)
