@@ -3057,10 +3057,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         WT_RET(ret);
     }
 
-    if (page->disagg_info != NULL)
-        if (page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID)
-            /* As an initial condition, the page must have a valid page_id. */
-            disagg_page_is_valid = true;
+    /* As an initial condition, the page must have a valid page_id. */
+    disagg_page_is_valid = page->disagg_info != NULL &&
+      page->disagg_info->block_meta.page_id != WT_BLOCK_INVALID_PAGE_ID;
 
     /*
      * Wrap up overflow tracking. If we are about to create a checkpoint, the system must be
@@ -3154,7 +3153,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                         WT_RET(__wt_ref_block_free(session, ref, true));
                     /*
                      * r->multi may be NULL; check it before use. WT_PM_REC_REPLACE only indicates
-                     * previous reconciliation generates one page.
+                     * previous reconciliation generated one page.
                      */
                     else if (r->multi != NULL &&
                       r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID)
@@ -3164,7 +3163,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                          */
                         WT_RET(__wt_ref_block_free(session, ref, true));
                     else if (!F_ISSET(r, WT_REC_EMPTY_DELTA))
-                        /* Only free a disagg page if it's not empty delta. */
+                        /* Only free a disagg page if it's not an empty delta. */
                         WT_RET(__wt_ref_block_free(session, ref, disagg_page_free_required));
                 }
             } else {
