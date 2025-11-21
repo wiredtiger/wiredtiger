@@ -91,8 +91,8 @@ class test_prepare21(test_rollback_to_stable_base):
         prepare_session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(50))
 
         # Verify data is visible and correct.
-        self.check(value_a, uri, nrows, None, 20)
-        self.check(value_b, uri, nrows, None, 30)
+        self.check(value_a, uri, nrows, 20)
+        self.check(value_b, uri, nrows, 30)
 
         self.evict_cursor(uri, nrows)
 
@@ -121,6 +121,6 @@ class test_prepare21(test_rollback_to_stable_base):
             ckpt.join()
 
         # Verify data is visible and correct.
-        self.check(value_a, uri, nrows, None, 20)
-        self.check(value_b, uri, nrows, None, 30)
-        self.check(value_d, uri, nrows, None, 60)
+        self.check(value_a, uri, nrows, 20)
+        self.check(value_b, uri, nrows, 30)
+        self.check(value_d, uri, nrows, 60)

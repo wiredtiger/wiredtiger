@@ -81,10 +81,10 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
         self.large_updates(uri, value_a, ds, nrows, self.prepare, 50)
 
         # Verify data is visible and correct.
-        self.check(value_d, uri, nrows, None, 21 if self.prepare else 20)
-        self.check(value_c, uri, nrows, None, 31 if self.prepare else 30)
-        self.check(value_b, uri, nrows, None, 41 if self.prepare else 40)
-        self.check(value_a, uri, nrows, None, 51 if self.prepare else 50)
+        self.check(value_d, uri, nrows, 21 if self.prepare else 20)
+        self.check(value_c, uri, nrows, 31 if self.prepare else 30)
+        self.check(value_b, uri, nrows, 41 if self.prepare else 40)
+        self.check(value_a, uri, nrows, 51 if self.prepare else 50)
 
         # Pin stable to timestamp 50 if prepare otherwise 40.
         if self.prepare:
@@ -101,18 +101,18 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
         self.session.checkpoint()
 
         # Verify additional update data is visible and correct.
-        self.check(value_b, uri, nrows, None, 61 if self.prepare else 60)
-        self.check(value_c, uri, nrows, None, 71 if self.prepare else 70)
-        self.check(value_d, uri, nrows, None, 81 if self.prepare else 80)
+        self.check(value_b, uri, nrows, 61 if self.prepare else 60)
+        self.check(value_c, uri, nrows, 71 if self.prepare else 70)
+        self.check(value_d, uri, nrows, 81 if self.prepare else 80)
 
         # Simulate a server crash and restart.
         simulate_crash_restart(self, ".", "RESTART")
 
         # Check that the correct data is seen at and after the stable timestamp.
-        self.check(value_b, uri, nrows, None, 40)
-        self.check(value_b, uri, nrows, None, 80)
-        self.check(value_c, uri, nrows, None, 30)
-        self.check(value_d, uri, nrows, None, 20)
+        self.check(value_b, uri, nrows, 40)
+        self.check(value_b, uri, nrows, 80)
+        self.check(value_c, uri, nrows, 30)
+        self.check(value_d, uri, nrows, 20)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
@@ -134,10 +134,10 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
         simulate_crash_restart(self, "RESTART", "RESTART2")
 
         # Check that the correct data is seen at and after the stable timestamp.
-        self.check(value_b, uri, nrows, None, 40)
-        self.check(value_b, uri, nrows, None, 80)
-        self.check(value_c, uri, nrows, None, 30)
-        self.check(value_d, uri, nrows, None, 20)
+        self.check(value_b, uri, nrows, 40)
+        self.check(value_b, uri, nrows, 80)
+        self.check(value_c, uri, nrows, 30)
+        self.check(value_d, uri, nrows, 20)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]

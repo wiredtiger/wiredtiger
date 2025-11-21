@@ -124,8 +124,8 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
             s.rollback_transaction()
 
         # Verify data is not visible.
-        self.check(valuea, uri, 0, nrows, 20)
-        self.check(valuea, uri, 0, nrows, 30)
+        self.check(valuea, uri, 0, 20)
+        self.check(valuea, uri, 0, 30)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
@@ -212,9 +212,9 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
             s.rollback_transaction()
 
         # Verify data.
-        self.check(valuea, uri, nrows, None, 20)
-        self.check(valuea, uri, 0, nrows, 30)
-        self.check(valuea, uri, 0, nrows, 40)
+        self.check(valuea, uri, nrows, 20)
+        self.check(valuea, uri, 0, 30)
+        self.check(valuea, uri, 0, 40)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]

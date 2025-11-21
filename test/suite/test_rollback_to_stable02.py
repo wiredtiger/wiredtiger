@@ -95,19 +95,19 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
 
         self.large_updates(uri, valuea, ds, nrows, self.prepare, 10)
         # Check that all updates are seen.
-        self.check(valuea, uri, nrows, None, 11 if self.prepare else 10)
+        self.check(valuea, uri, nrows, 11 if self.prepare else 10)
 
         self.large_updates(uri, valueb, ds, nrows, self.prepare, 20)
         # Check that the new updates are only seen after the update timestamp.
-        self.check(valueb, uri, nrows, None, 21 if self.prepare else 20)
+        self.check(valueb, uri, nrows, 21 if self.prepare else 20)
 
         self.large_updates(uri, valuec, ds, nrows, self.prepare, 30)
         # Check that the new updates are only seen after the update timestamp.
-        self.check(valuec, uri, nrows, None, 31 if self.prepare else 30)
+        self.check(valuec, uri, nrows, 31 if self.prepare else 30)
 
         self.large_updates(uri, valued, ds, nrows, self.prepare, 40)
         # Check that the new updates are only seen after the update timestamp.
-        self.check(valued, uri, nrows, None, 41 if self.prepare else 40)
+        self.check(valued, uri, nrows, 41 if self.prepare else 40)
 
         # Pin stable to timestamp 30 if prepare otherwise 20.
         if self.prepare:
@@ -124,12 +124,12 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         self.session.breakpoint()
 
         if self.dryrun:
-            self.check(valued, uri, nrows, None, 40)
+            self.check(valued, uri, nrows, 40)
         else:
-            self.check(valueb, uri, nrows, None, 40)
+            self.check(valueb, uri, nrows, 40)
 
-        self.check(valueb, uri, nrows, None, 20)
-        self.check(valuea, uri, nrows, None, 10)
+        self.check(valueb, uri, nrows, 20)
+        self.check(valuea, uri, nrows, 10)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
