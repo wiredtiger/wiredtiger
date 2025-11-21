@@ -3104,6 +3104,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          * a single empty page.
          */
         if (disagg_page_is_valid)
+            /*
+             * r->multi == NULL implies r->multi_next == 0; thus it is safe to access block_meta
+             * directly.
+             */
             disagg_page_free_required =
               (r->multi_next != 1 || r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID);
         WT_RET(__wt_ref_block_free(session, ref, disagg_page_free_required));
@@ -3133,6 +3137,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
              * or a single empty page.
              */
             if (disagg_page_is_valid)
+                /*
+                 * r->multi == NULL implies r->multi_next == 0; thus it is safe to access block_meta
+                 * directly.
+                 */
                 disagg_page_free_required =
                   (r->multi_next != 1 || r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID);
             if (mod->mod_replace.block_cookie == NULL) {
@@ -3143,7 +3151,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                  */
                 if (ref->addr != NULL) {
                     if (page->disagg_info == NULL)
-                        WT_RET(__wt_ref_block_free(session, ref, false));
+                        WT_RET(__wt_ref_block_free(session, ref, true));
+                    /*
+                     * r->multi may be NULL; check it before use. WT_PM_REC_REPLACE only indicates
+                     * previous reconciliation generates one page.
+                     */
                     else if (r->multi != NULL &&
                       r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID)
                         WT_RET(__wt_ref_block_free(session, ref, true));
