@@ -408,8 +408,8 @@ __wt_atomic_store_double_relaxed(double *vp, double v)
 #define __wt_atomic_store_enum_release(vp, v) __atomic_store_n(vp, v, __ATOMIC_RELEASE)
 
 #define __wt_atomic_load_ptr_relaxed(vp) __atomic_load_n(vp, __ATOMIC_RELAXED)
-#define __wt_atomic_store_ptr_relaxed(vp, v) __atomic_store_n(vp, v, __ATOMIC_RELAXED)
 #define __wt_atomic_load_ptr_acquire(vp) __atomic_load_n(vp, __ATOMIC_ACQUIRE)
+#define __wt_atomic_store_ptr_relaxed(vp, v) __atomic_store_n(vp, v, __ATOMIC_RELAXED)
 #define __wt_atomic_store_ptr_release(vp, v) __atomic_store_n(vp, v, __ATOMIC_RELEASE)
 
 /*
