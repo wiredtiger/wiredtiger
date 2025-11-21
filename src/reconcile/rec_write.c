@@ -3153,10 +3153,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                     if (page->disagg_info == NULL)
                         WT_RET(__wt_ref_block_free(session, ref, true));
                     /*
-                     * r->multi may be NULL; check it before use. WT_PM_REC_REPLACE only indicates
-                     * previous reconciliation generated one page.
+                     * r->multi_next may be 0; check it to avoid block_meta is NULL.
+                     * WT_PM_REC_REPLACE only indicates previous reconciliation generated one page.
                      */
-                    else if (r->multi != NULL &&
+                    else if (r->multi_next >= 1 &&
                       r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID)
                         /*
                          * If we write an empty page for update restore eviction, we need to free
