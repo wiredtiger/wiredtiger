@@ -534,12 +534,13 @@ build(int ikey, int ivalue, int cnt)
             key.data = kbuf;
             key.size = 20;
             cursor->set_key(cursor, &key);
-            /* Build the value. */
-            testutil_snprintf(vbuf, sizeof(vbuf), "%010d VALUE----", value_unique ? ivalue : 37);
-            value.data = vbuf;
-            value.size = 20;
-            cursor->set_value(cursor, &value);
         }
+
+        /* Build the value. */
+        testutil_snprintf(vbuf, sizeof(vbuf), "%010d VALUE----", value_unique ? ivalue : 37);
+        value.data = vbuf;
+        value.size = 20;
+        cursor->set_value(cursor, &value);
         testutil_check(cursor->insert(cursor));
     }
 
@@ -716,8 +717,8 @@ print_res(int key, int value, int cnt)
     for (; cnt > 0; ++key, ++value, --cnt) {
 
         if (page_type == WT_PAGE_ROW_LEAF) {
-            fprintf(res_fp, "%010d KEY------\n", key);                       /* Print key */
-            fprintf(res_fp, "%010d VALUE----\n", value_unique ? value : 37); /* Print value */
+            fprintf(res_fp, "%010d KEY------\n", key); /* Print key */
         }
+        fprintf(res_fp, "%010d VALUE----\n", value_unique ? value : 37); /* Print value */
     }
 }
