@@ -857,7 +857,8 @@ __metadata_check(WT_RECOVERY *r, const char *uri, const char *config)
     WT_CURSOR *metac;
     WT_DECL_RET;
     size_t len;
-    const char *cgname, *filename, *format_name;
+    const char *format_name;
+    char *cgname, *filename;
     bool has_colgroup, has_file;
 
     has_file = has_colgroup = true;
