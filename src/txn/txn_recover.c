@@ -856,12 +856,15 @@ __metadata_check(WT_RECOVERY *r, const char *uri, const char *config)
     WT_CONFIG_ITEM ckey, cval, config_item;
     WT_CURSOR *metac;
     WT_DECL_RET;
-    size_t len;
     bool has_colgroup, has_file;
+    const char *format_name;
+    size_t len;
+    
+     has_file = has_colgroup = true;
+    format_name = uri;
+    WT_PREFIX_SKIP_REQUIRED(r->session, format_name, "table:");
 
     WT_ERR(__wt_metadata_cursor_open(r->session, NULL, &metac));
-    has_file = has_colgroup = true;
-
     /*
      * FIXME-WT-XXXX: Add capability for cleaning complex tables. For now, only simple tables are
      * considered.
@@ -871,9 +874,6 @@ __metadata_check(WT_RECOVERY *r, const char *uri, const char *config)
     if ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
         goto done;
     WT_ERR_NOTFOUND_OK(ret, false);
-
-    const char *format_name = uri;
-    WT_PREFIX_SKIP_REQUIRED(r->session, format_name, "table:");
 
     /* Check colgroup metadata entry exists for uri. */
     char *cgname;
