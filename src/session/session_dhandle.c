@@ -8,6 +8,10 @@
 
 #include "wt_internal.h"
 
+/*
+ * __wt_dhandle_clear_add --
+ *     Add an entry to the session's log of dhandle clear operations.
+ */
 void
 __wt_dhandle_clear_add(WT_DHANDLE_CLEAR_LOG *log, const char *file, const char *func, int line)
 {
