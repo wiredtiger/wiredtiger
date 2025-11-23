@@ -946,7 +946,7 @@ palm_handle_verify_page(
                   matched_pages[i].flags);
             goto err;
 
-ok:
+ok:;
         }
     }
     PALM_KV_ERR(palm, session, matches.error);
