@@ -42,14 +42,19 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
 
 
     uri = 'layered:test_layered_cursor01'
-    ninserts = 10
-    nupdates = 0
-    nitems = 0
-    posoplog = 0
     session_follow = None
     conn_follow = None
     oplog = None
     table_oplog_id = None
+
+    # Configurable values
+    ninserts = 100
+    nupdates = 0
+    nremoves = 0
+    remove_offset = 0
+    update_offset = 0
+    nitems = 0
+    posoplog = 0
 
     def position_search(self, session, key):
         cursor = session.open_cursor(self.uri)
@@ -106,15 +111,18 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
         # Create some oplog traffic, a mix of inserts and updates
         self.oplog.insert(self.table_oplog_id, self.ninserts)
         if (self.nupdates > 0):
-            self.oplog.update(self.table_oplog_id, self.nupdates)
+            self.oplog.update(self.table_oplog_id, self.nupdates, self.nitems + self.update_offset)
+        if (self.nremoves > 0):
+            self.oplog.remove(self.table_oplog_id, self.nremoves, self.nitems + self.remove_offset)
 
         # Apply on both leader and follower
-        self.oplog.apply(self, self.session, self.posoplog, self.ninserts + self.nupdates)
-        self.oplog.apply(self, self.session_follow, self.posoplog, self.ninserts + self.nupdates)
+        nops = self.ninserts + self.nupdates + self.nremoves
+        self.oplog.apply(self, self.session, self.posoplog, nops)
+        self.oplog.apply(self, self.session_follow, self.posoplog, nops)
 
         # Update the expected number of items in the table
         self.nitems += self.ninserts
-        self.posoplog += self.ninserts + self.nupdates
+        self.posoplog += nops
 
     def check_key_value(self, cursor, exp_enty):
         # print(f"check_key_value exp_enty={exp_enty}")
@@ -168,6 +176,7 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
             positions_to_check.append(len(table) - 1)
 
         for session in [self.session, self.session_follow]:
+            # print("--- test new session")
             # TODO: START: Add case for scanning + checking unexisting elements
             next_cursor = session.open_cursor(self.uri)
             for entry in table:
@@ -242,4 +251,52 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
         self.pr('checkpoint the second batch')
         self.checkpoint_and_advance()
 
+    # Tests with updates
+    def test_populated_tables_with_updates_20_percent(self):
+        self.nupdates = (self.ninserts * 20) // 100
+        self.test_populated_tables()
 
+    def test_populated_tables_with_updates_50_percent(self):
+        self.nupdates = (self.ninserts * 50) // 100
+        self.test_populated_tables()
+
+    def test_populated_tables_with_updates_70_percent(self):
+        self.nupdates = (self.ninserts * 70) // 100
+        self.test_populated_tables()
+
+    # Tests with removes
+    def test_populated_tables_with_removes_20_percent(self):
+        self.nremoves = (self.ninserts * 20) // 100
+        self.test_populated_tables()
+
+    def test_populated_tables_with_removes_50_percent(self):
+        self.nremoves = (self.ninserts * 50) // 100
+        self.test_populated_tables()
+
+    def test_populated_tables_with_removes_70_percent(self):
+        self.nremoves = (self.ninserts * 70) // 100
+        self.test_populated_tables()
+
+    # Tests with both updates and removes
+    def test_populated_tables_with_removes_20_updates_50_percent(self):
+        self.nupdates = (self.ninserts * 50) // 100
+        self.nremoves = (self.ninserts * 20) // 100
+        self.test_populated_tables()
+
+    # Tests with offsets
+    def test_populated_tables_with_updates_20_percent(self):
+        self.nupdates = (self.ninserts * 20) // 100
+        self.updates_offset = (self.ninserts * 20) // 100
+        self.test_populated_tables()
+
+    def test_populated_tables_with_removes_20_percent_offset(self):
+        self.nremoves = (self.ninserts * 20) // 100
+        self.remove_offset = (self.ninserts * 20) // 100
+        self.test_populated_tables()
+
+    def test_populated_tables_with_removes_20_updates_20_percent_offset(self):
+        self.nupdates = (self.ninserts * 20) // 100
+        self.updates_offset = (self.ninserts * 20) // 100
+        self.nremoves = (self.ninserts * 20) // 100
+        self.remove_offset = (self.ninserts * 20) // 100
+        self.test_populated_tables()

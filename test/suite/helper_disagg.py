@@ -406,7 +406,7 @@ class Oplog(object):
         return first_pos
 
     # Update some entries in the oplog for the table
-    def update(self, table, count):
+    def update(self, table, count, start_value = 0):
         first_pos = len(self._entries)
         entlist = self._get_entlist(table)
 
@@ -414,7 +414,7 @@ class Oplog(object):
             # If oplog has no entries for this table,
             # silently succeed
             return
-        for i in range(0, count):
+        for i in range(start_value, start_value + count):
             # entindex is the entry we'll update
             entindex = entlist[i]
             (gottable,k,v) = self._entries[entindex]
@@ -425,14 +425,14 @@ class Oplog(object):
         return first_pos
 
     # Remove some entries in the oplog for the table
-    def remove(self, table, count):
+    def remove(self, table, count, start_value = 0):
         first_pos = len(self._entries)
         entlist = self._get_entlist(table)
 
         if len(entlist) == 0:
             # If oplog has no entries for this table, silently succeed
             return
-        for i in range(0, count):
+        for i in range(start_value, start_value + count):
             # entindex is the entry we'll update
             entindex = entlist[i]
             (gottable,k,_) = self._entries[entindex]
@@ -476,7 +476,10 @@ class Oplog(object):
 
         for entindex in entlist:
             (_,k,v) = self._entries[entindex]
-            result[self.gen_key(k)] = self.gen_value(v)
+            if v == self._tombstone_value:
+                result.pop(self.gen_key(k), None)  # Remove if exists
+            else:
+                result[self.gen_key(k)] = self.gen_value(v)
 
         # Sort by keys as strings (lexicographic order: "1", "10", "11", "2", "21", ...)
         return sorted(result.items(), key=lambda x: x[0])
