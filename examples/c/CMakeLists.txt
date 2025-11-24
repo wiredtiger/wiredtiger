@@ -90,6 +90,13 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET ex_key_management
+    SOURCES ex_key_management.c
+    DIR_NAME ex_key_management
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:ex_key_management>/WT_HOME>
+)
+
+define_c_test(
     TARGET ex_get_last_error
     SOURCES ex_get_last_error.c
     DIR_NAME ex_get_last_error
@@ -172,4 +179,5 @@ if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
     # On GCC and Clang built targets we want to pass the '-rdynamic' linker option.
     target_link_libraries(ex_encrypt "-rdynamic")
     target_link_libraries(ex_file_system "-rdynamic")
+    target_link_libraries(ex_key_management "-rdynamic")
 endif()

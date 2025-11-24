@@ -86,6 +86,11 @@ typedef struct __wt_page_log_discard_args WT_PAGE_LOG_DISCARD_ARGS;
 struct __wt_page_log_encryption; typedef struct __wt_page_log_encryption WT_PAGE_LOG_ENCRYPTION;
 struct __wt_page_log_get_args; typedef struct __wt_page_log_get_args WT_PAGE_LOG_GET_ARGS;
 struct __wt_page_log_put_args; typedef struct __wt_page_log_put_args WT_PAGE_LOG_PUT_ARGS;
+struct __wt_key_management;    typedef struct __wt_key_management WT_KEY_MANAGEMENT;
+struct __wt_key_management_get_args;
+typedef struct __wt_key_management_get_args WT_KEY_MANAGEMENT_GET_ARGS;
+struct __wt_key_management_load_args;
+typedef struct __wt_key_management_load_args WT_KEY_MANAGEMENT_LOAD_ARGS;
 struct __wt_page_log_handle; typedef struct __wt_page_log_handle WT_PAGE_LOG_HANDLE;
 #endif
 struct __wt_session;        typedef struct __wt_session WT_SESSION;
@@ -2960,6 +2965,23 @@ struct __wt_connection {
      * @errors
      */
     int __F(dump_error_log)(WT_CONNECTION *connection);
+
+    /*!
+     * Configure a key management system.
+     *
+     * This method can only be called from an early loaded extension
+     * module. The application must first implement the WT_KEY_MANAGEMENT
+     * interface and then register the implementation with WiredTiger:
+     *
+     * @snippet ex_key_management.c WT_KEY_MANAGEMENT register
+     *
+     * @param connection the connection handle
+     * @param km the populated key management structure
+     * @configempty{WT_CONNECTION.set_key_management, see dist/api_data.py}
+     * @errors
+     */
+    int __F(set_key_management)(
+        WT_CONNECTION *connection, WT_KEY_MANAGEMENT *km, const char *config);
 #endif
 
     /*!
@@ -5710,6 +5732,46 @@ struct __wt_page_log {
      * the handle will not be subsequently accessed by WiredTiger.
      */
     int (*terminate)(WT_PAGE_LOG *page_log, WT_SESSION *session);
+};
+
+/*!
+ * The interface implemented by applications to provide a key management service
+ * implementation.
+ *
+ * Applications register implementations with WiredTiger by calling
+ * WT_CONNECTION::set_key_management.
+ *
+ * @snippet ex_key_management.c WT_KEY_MANAGEMENT register
+ */
+struct __wt_key_management {
+    /*!
+     * Fetch the current persisted key blob.
+     *
+     * @param km the WT_KEY_MANAGEMENT
+     * @param blob_data the current WiredTiger session
+     * @param blob_size the current WiredTiger session
+     */
+    void (*get_key_blob)(WT_KEY_MANAGEMENT *km,
+                       void *blob_data, size_t blob_size);
+
+    /*!
+     * Set a key blob and indicate if it has been changed.
+     *
+     * @param km the WT_KEY_MANAGEMENT
+     * @param blob_data the current WiredTiger session
+     * @param blob_size the current WiredTiger session
+     * @param has_changed the current WiredTiger session
+     */
+    void (*set_key_blob)(WT_KEY_MANAGEMENT *km,
+                       void *blob_data, size_t blob_size, bool has_changed);
+
+    /*!
+     * Callback function indicating that setting the key blob has completed.
+     *
+     * @param km the WT_KEY_MANAGEMENT
+     * @param callback Provides any additional callback information needed.
+     */
+    void (*set_key_complete)(WT_KEY_MANAGEMENT *km, void* callback);
 };
 
 /*!
