@@ -30,8 +30,6 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages, Oplog
 from wtscenario import make_scenarios
 
-
-
 # test_layered_cursor01.py
 # Test different variations of cursor operations
 @disagg_test_class
@@ -39,7 +37,6 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
-
 
     uri = 'layered:test_layered_cursor01'
     session_follow = None
@@ -58,21 +55,18 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
 
     def position_search(self, session, key):
         cursor = session.open_cursor(self.uri)
-        # print(f"position_search key={self.oplog.gen_key(key)}")
         cursor.set_key(self.oplog.gen_key(key))
         cursor.search()
         return cursor
 
     def position_search_near(self, session, key):
         cursor = session.open_cursor(self.uri)
-        # print(f"position_search_near key={self.oplog.gen_key(key)}")
         cursor.set_key(self.oplog.gen_key(key))
         cursor.search_near()
         return cursor
 
     def position_next(self, session, key):
         cursor = session.open_cursor(self.uri)
-        # print(f"position_next key={self.oplog.gen_key(key)}")
         while True:
             self.assertNotEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
             if cursor.get_key() == self.oplog.gen_key(key):
@@ -81,7 +75,6 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
 
     def position_prev(self, session, key):
         cursor = session.open_cursor(self.uri)
-        # print(f"position_prev key={self.oplog.gen_key(key)}")
         while True:
             self.assertNotEqual(cursor.prev(), wiredtiger.WT_NOTFOUND)
             if cursor.get_key() == self.oplog.gen_key(key):
@@ -125,7 +118,6 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
         self.posoplog += nops
 
     def check_key_value(self, cursor, exp_enty):
-        # print(f"check_key_value exp_enty={exp_enty}")
         expected_key = self.oplog.gen_key(exp_enty[0])
         expected_value = self.oplog.gen_value(exp_enty[1])
 
@@ -133,7 +125,6 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
         self.assertEqual(expected_value, cursor.get_value())
 
     def check_position(self, session, table, start_pos):
-        # print(f"CHECK POSITION start_pos={start_pos}")
         pos_key = table[start_pos][0]
 
         # Check forward direction
@@ -142,7 +133,6 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
 
         # Iterate from the positioned entry to the end of the table
         for next_idx in range(start_pos + 1, len(table)):
-            # print(f"check_position next next_idx = {next_idx} entry = {table[next_idx]}")
             next_cursor.next()
             self.check_key_value(next_cursor, table[next_idx])
 
@@ -155,7 +145,6 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
 
         # Iterate from the positioned entry to the beginning of the table
         for prev_idx in range(start_pos - 1, -1, -1):
-            # print(f"check_position prev prev_idx = {prev_idx} entry = {table[prev_idx]}")
             prev_cursor.prev()
             self.check_key_value(prev_cursor, table[prev_idx])
 
@@ -163,12 +152,24 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
         self.assertEqual(prev_cursor.prev(), wiredtiger.WT_NOTFOUND)
         prev_cursor.close()
 
+    def scan_table(self, session, table):
+        next_cursor = session.open_cursor(self.uri)
+        for entry in table:
+            next_cursor.next()
+            self.check_key_value(next_cursor, entry)
+        self.assertEqual(next_cursor.next(), wiredtiger.WT_NOTFOUND)
+        next_cursor.close()
+
+        prev_cursor = session.open_cursor(self.uri)
+        for entry in reversed(table):
+            prev_cursor.prev()
+            self.check_key_value(prev_cursor, entry)
+        self.assertEqual(prev_cursor.prev(), wiredtiger.WT_NOTFOUND)
+        prev_cursor.close()
+
     def check_cursor_ops(self):
         # Get the table expected content and turn it to an array of (key, value) tuples
         table = self.oplog.get_table_snapshot(self.table_oplog_id)
-        # print(f"table={table}")
-        # print(f"dict={self.oplog.get_table_snapshot(self.table_oplog_id)}")
-        # print("check_cursor_ops")
 
         # Check on the beginning, 25%, 50%, 75%, 100%.
         positions_to_check = [0, len(table) // 4, len(table) // 2, (3 * len(table)) // 4]
@@ -176,24 +177,7 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
             positions_to_check.append(len(table) - 1)
 
         for session in [self.session, self.session_follow]:
-            # print("--- test new session")
-            # TODO: START: Add case for scanning + checking unexisting elements
-            next_cursor = session.open_cursor(self.uri)
-            for entry in table:
-                # print(f"check next entry={entry}")
-                next_cursor.next()
-                self.check_key_value(next_cursor, entry)
-            self.assertEqual(next_cursor.next(), wiredtiger.WT_NOTFOUND)
-            next_cursor.close()
-
-            prev_cursor = session.open_cursor(self.uri)
-            for entry in reversed(table):
-                # print(f"check prev entry={entry}")
-                prev_cursor.prev()
-                self.check_key_value(prev_cursor, entry)
-            self.assertEqual(prev_cursor.prev(), wiredtiger.WT_NOTFOUND)
-            prev_cursor.close()
-            # TODO: END: Add case for scanning + checking unexisting elements
+            self.scan_table(session, table)
 
             if len(table) == 0:
                 continue
@@ -201,17 +185,14 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
             for start_pos in positions_to_check:
                 self.check_position(session, table, start_pos)
 
-
     def checkpoint_and_advance(self, ts = None):
         if not ts:
             ts = self.oplog.last_timestamp()
 
-        # print("CHECKPOINT")
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts)}')
         self.session.checkpoint()
         self.check_cursor_ops()
 
-        # print("CHECKPOINT PICK-UP")
         self.disagg_advance_checkpoint(self.conn_follow)
         self.check_cursor_ops()
 
@@ -238,12 +219,10 @@ class test_layered_cursor01(wttest.WiredTigerTestCase):
         self.oplog_apply_traffic()
         self.check_cursor_ops()
 
-        # print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
         self.pr('checkpoint the first batch changes')
         self.checkpoint_and_advance()
         self.check_cursor_ops()
 
-        # print("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB")
         self.pr('apply the second entries batch')
         self.oplog_apply_traffic()
         self.check_cursor_ops()
