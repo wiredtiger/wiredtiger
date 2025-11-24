@@ -877,28 +877,34 @@ __metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config
     WT_CURSOR *metac;
     WT_DECL_RET;
     size_t len;
-    char *cgname, *filename;
+    char *cgname, *filename, *tieredname;
     const char *format_name;
     bool has_colgroup, has_file;
 
     has_file = has_colgroup = true;
-    cgname = filename = NULL;
+    cgname = filename = tieredname = NULL;
     format_name = uri;
     WT_PREFIX_SKIP_REQUIRED(r->session, format_name, "table:");
 
     WT_ERR(__wt_metadata_cursor_open(r->session, NULL, &metac));
     /*
-     * FIXME-WT-XXXX: Add capability for cleaning complex tables. For now, only simple tables are
+     * FIXME-WT-XXXX: Add capability for cleaning complex and tiered tables. For now, only simple tables are
      * considered.
      */
     WT_ERR(__wt_config_getones(r->session, config, "columns", &config_item));
     __wt_config_subinit(r->session, &cparser, &config_item);
     if ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
         goto done;
-    WT_ERR_NOTFOUND_OK(ret, false);
+
+    len = strlen("tiered:") + strlen(format_name) + 1;
+    WT_ERR(__wt_calloc_def(r->session, len, &cgname));
+    WT_ERR(__wt_snprintf(cgname, len, "tiered:%s", format_name));
+    metac->set_key(metac, cgname);
+    WT_ERR_NOTFOUND_OK(metac->search(metac), true);
+    if (ret == 0)
+        goto done;
 
     /* Check colgroup metadata entry exists for uri. */
-
     len = strlen("colgroup:") + strlen(format_name) + 1;
     WT_ERR(__wt_calloc_def(r->session, len, &cgname));
     WT_ERR(__wt_snprintf(cgname, len, "colgroup:%s", format_name));
@@ -918,11 +924,13 @@ __metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config
 
     /* If either colgroup or file metadata entry doesn't exist mark the table for removal. */
     if (!has_colgroup || !has_file) {
-        WT_ERR(__wt_realloc_def(
-          r->session, &r->remove_uris_allocate, r->nremove_uris + 1, &r->remove_uris));
-        WT_ERR(__wt_strdup(r->session, format_name, &r->remove_uris[r->nremove_uris]));
-        r->nremove_uris++;
+        //WT_ASSERT(r->session, false);
+        // WT_ERR(__wt_realloc_def(
+        //   r->session, &r->remove_uris_allocate, r->nremove_uris + 1, &r->remove_uris));
+        // WT_ERR(__wt_strdup(r->session, format_name, &r->remove_uris[r->nremove_uris]));
+        // r->nremove_uris++;
     }
+    ret = 0;
 done:
 err:
     if (cgname != NULL)

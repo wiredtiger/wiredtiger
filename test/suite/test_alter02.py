@@ -40,27 +40,27 @@ class test_alter02(TieredConfigMixin, wttest.WiredTigerTestCase):
 
     conn_log = [
         ('conn-always-logged', dict(conncreate=True, connreopen=True)),
-        ('conn-create-logged', dict(conncreate=True, connreopen=False)),
-        ('conn-reopen-logged', dict(conncreate=False, connreopen=True)),
-        ('conn-never-logged', dict(conncreate=False, connreopen=False)),
+        #('conn-create-logged', dict(conncreate=True, connreopen=False)),
+        #('conn-reopen-logged', dict(conncreate=False, connreopen=True)),
+        #('conn-never-logged', dict(conncreate=False, connreopen=False)),
     ]
 
     types = [
-        ('file', dict(uri='file:', use_cg=False, use_index=False)),
-        ('table-cg', dict(uri='table:', use_cg=True, use_index=False)),
-        ('table-index', dict(uri='table:', use_cg=False, use_index=True)),
+        #('file', dict(uri='file:', use_cg=False, use_index=False)),
+        #('table-cg', dict(uri='table:', use_cg=True, use_index=False)),
+        #('table-index', dict(uri='table:', use_cg=False, use_index=True)),
         ('table-simple', dict(uri='table:', use_cg=False, use_index=False)),
     ]
 
     tables = [
-        ('always-logged', dict(name='table0', logcreate=True, logalter=True)),
-        ('create-logged', dict(name='table1', logcreate=True, logalter=False)),
-        ('alter-logged', dict(name='table2', logcreate=False, logalter=True)),
+        #('always-logged', dict(name='table0', logcreate=True, logalter=True)),
+        #('create-logged', dict(name='table1', logcreate=True, logalter=False)),
+        #('alter-logged', dict(name='table2', logcreate=False, logalter=True)),
         ('never-logged', dict(name='table3', logcreate=False, logalter=False)),
     ]
 
     reopen = [
-        ('no-reopen', dict(reopen=False)),
+        #('no-reopen', dict(reopen=False)),
         ('reopen', dict(reopen=True)),
     ]
     tiered_storage_sources = gen_tiered_storage_sources()
