@@ -897,9 +897,9 @@ __metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config
         goto done;
 
     len = strlen("tiered:") + strlen(format_name) + 1;
-    WT_ERR(__wt_calloc_def(r->session, len, &cgname));
-    WT_ERR(__wt_snprintf(cgname, len, "tiered:%s", format_name));
-    metac->set_key(metac, cgname);
+    WT_ERR(__wt_calloc_def(r->session, len, &tieredname));
+    WT_ERR(__wt_snprintf(tieredname, len, "tiered:%s", format_name));
+    metac->set_key(metac, tieredname);
     WT_ERR_NOTFOUND_OK(metac->search(metac), true);
     if (ret == 0)
         goto done;
@@ -924,15 +924,17 @@ __metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config
 
     /* If either colgroup or file metadata entry doesn't exist mark the table for removal. */
     if (!has_colgroup || !has_file) {
-        //WT_ASSERT(r->session, false);
-        // WT_ERR(__wt_realloc_def(
-        //   r->session, &r->remove_uris_allocate, r->nremove_uris + 1, &r->remove_uris));
-        // WT_ERR(__wt_strdup(r->session, format_name, &r->remove_uris[r->nremove_uris]));
-        // r->nremove_uris++;
+        WT_ASSERT(r->session, false);
+        WT_ERR(__wt_realloc_def(
+          r->session, &r->remove_uris_allocate, r->nremove_uris + 1, &r->remove_uris));
+        WT_ERR(__wt_strdup(r->session, format_name, &r->remove_uris[r->nremove_uris]));
+        r->nremove_uris++;
     }
     ret = 0;
 done:
 err:
+    if (tieredname != NULL)
+        __wt_free(r->session, tieredname);
     if (cgname != NULL)
         __wt_free(r->session, cgname);
     if (filename != NULL)
