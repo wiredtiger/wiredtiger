@@ -2702,6 +2702,39 @@ err:
 }
 
 /*
+ * __conn_set_key_management --
+ *     Configure a custom key management implementation on database open.
+ */
+static int
+__conn_set_key_management(
+  WT_CONNECTION *wt_conn, WT_KEY_MANAGEMENT *key_management, const char *config)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    CONNECTION_API_CALL(conn, session, set_key_management, config, cfg);
+    WT_UNUSED(cfg);
+
+    /*
+     * You can only configure a file system once, and attempting to do it again probably means the
+     * extension argument didn't have early-load set and we've already configured the default file
+     * system.
+     */
+    if (conn->file_system != NULL)
+        WT_ERR_MSG(session, EPERM,
+          "key management system already configured; custom key management systems should enable "
+          "\"early_load\" "
+          "configuration");
+
+    conn->key_management = key_management;
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
  * __conn_set_file_system --
  *     Configure a custom file system implementation on database open.
  */
@@ -3007,7 +3040,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
       __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
       __conn_add_encryptor, __conn_set_file_system, __conn_add_page_log, __conn_add_storage_source,
       __conn_get_page_log, __conn_get_storage_source, __conn_set_context_uint,
-      __conn_dump_error_log, __conn_get_extension_api};
+      __conn_dump_error_log, __conn_set_key_management, __conn_get_extension_api};
     static const WT_NAME_FLAG file_types[] = {
       {"data", WT_FILE_TYPE_DATA}, {"log", WT_FILE_TYPE_LOG}, {NULL, 0}};
 
