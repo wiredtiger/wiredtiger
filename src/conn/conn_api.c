@@ -2721,8 +2721,7 @@ __conn_set_key_management(
      * You can only configure the key management system with early-load set.
      */
     if (conn->file_system != NULL)
-        WT_ERR_MSG(session, EPERM,
-          "key management system must be configured with early_load set");
+        WT_ERR_MSG(session, EPERM, "key management system must be configured with early_load set");
 
     conn->key_management = key_management;
 
