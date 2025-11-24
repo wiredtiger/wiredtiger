@@ -2718,15 +2718,11 @@ __conn_set_key_management(
     WT_UNUSED(cfg);
 
     /*
-     * You can only configure a file system once, and attempting to do it again probably means the
-     * extension argument didn't have early-load set and we've already configured the default file
-     * system.
+     * You can only configure the key management system with early-load set.
      */
     if (conn->file_system != NULL)
         WT_ERR_MSG(session, EPERM,
-          "key management system already configured; custom key management systems should enable "
-          "\"early_load\" "
-          "configuration");
+          "key management system must be configured with early_load set");
 
     conn->key_management = key_management;
 

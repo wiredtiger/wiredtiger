@@ -5751,8 +5751,8 @@ struct __wt_key_management {
      * @param blob_data the current WiredTiger session
      * @param blob_size the current WiredTiger session
      */
-    void (*get_key_blob)(WT_KEY_MANAGEMENT *km,
-                       void *blob_data, size_t blob_size);
+    int (*get_key_blob)(WT_KEY_MANAGEMENT *km,
+                       void **blob_data, size_t *blob_size);
 
     /*!
      * Set a key blob and indicate if it has been changed.
