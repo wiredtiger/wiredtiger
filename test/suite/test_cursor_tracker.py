@@ -127,16 +127,12 @@ class TestCursorTracker(wttest.WiredTigerTestCase):
             self.decode_key = self.decode_key_row
             self.encode_value = self.encode_value_row_or_col
             self.decode_value = self.decode_value_row_or_col
-        elif self.tablekind == 'col':
-            self.encode_key = self.encode_key_col_or_fix
-            self.decode_key = self.decode_key_col_or_fix
+        else:
+            self.encode_key = self.encode_key_col
+            self.decode_key = self.decode_key_col
             self.encode_value = self.encode_value_row_or_col
             self.decode_value = self.decode_value_row_or_col
-        else:
-            self.encode_key = self.encode_key_col_or_fix
-            self.decode_key = self.decode_key_col_or_fix
-            self.encode_value = self.encode_value_fix
-            self.decode_value = self.decode_value_fix
+
 
     def cur_initial_conditions(self, tablename, npairs, tablekind, keysizes, valuesizes, uri="table"):
         if npairs >= 0xffffffff:
@@ -202,7 +198,7 @@ class TestCursorTracker(wttest.WiredTigerTestCase):
             self.assertEqual(s, stretched)
 
     # There are variants of {encode,decode}_{key,value} to be
-    # used with each table kind: 'row', 'col', 'fix'
+    # used with each table kind: 'row', 'col'
 
     def encode_key_row(self, bits):
         # Prepend 0's to make the string exactly len 20
@@ -234,26 +230,16 @@ class TestCursorTracker(wttest.WiredTigerTestCase):
         self.check_content(s, self.valuesizes)
         return int(s[0:20])
 
-    def encode_key_col_or_fix(self, bits):
+    def encode_key_col(self, bits):
         # 64 bit key
         maj = ((bits >> 32) & 0xffffffff) + 1
         min = (bits >> 16) & 0xffff
         return self.recno((maj << 16) | min)
 
-    def decode_key_col_or_fix(self, bits):
+    def decode_key_col(self, bits):
         maj = ((bits << 16) & 0xffffffff) - 1
         min = bits & 0xffff
         return ((maj << 32) | (min << 16))
-
-    def encode_value_fix(self, bits):
-        [maj, min, ver] = self.bits_to_triple(bits)
-        if ver == self.DELETED_VERSION:
-            return 0
-        # can only encode only 8 bits
-        return (maj ^ min) % 256
-
-    def decode_value_fix(self, s):
-        return int(s)
 
     def setpos(self, newpos, isforward):
         length = len(self.bitlist)
