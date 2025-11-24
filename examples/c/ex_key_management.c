@@ -52,6 +52,10 @@ typedef struct {
     MY_KEY_BLOB key_blob;
 } MY_KEY_MANAGEMENT;
 
+/*
+ * my_get_key_blob --
+ *     A placeholder example of get_key_blob() call.
+ */
 static int
 my_get_key_blob(WT_KEY_MANAGEMENT *km, void **blob_data, size_t *blob_size)
 {
@@ -64,6 +68,10 @@ my_get_key_blob(WT_KEY_MANAGEMENT *km, void **blob_data, size_t *blob_size)
     return (0);
 }
 
+/*
+ * my_set_key_blob --
+ *     A placeholder example of set_key_blob() call.
+ */
 static void
 my_set_key_blob(WT_KEY_MANAGEMENT *km, void *blob_data, size_t blob_size, bool has_changed)
 {
@@ -76,13 +84,16 @@ my_set_key_blob(WT_KEY_MANAGEMENT *km, void *blob_data, size_t blob_size, bool h
     WT_UNUSED(has_changed);
 }
 
+/*
+ * my_set_key_blob_completed --
+ *     A placeholder example of set_key_complete() call.
+ */
 static void
 my_set_key_blob_completed(WT_KEY_MANAGEMENT *km, void *callback)
 {
     MY_KEY_MANAGEMENT *my_km = (MY_KEY_MANAGEMENT *)km;
 
     WT_UNUSED(my_km);
-
     WT_UNUSED(callback);
 }
 
@@ -142,11 +153,9 @@ main(int argc, char *argv[])
 
     /*! [WT_KEY_MANAGEMENT register] */
     /*
-     * Setup a configuration string that will load our custom file system. Use the special local
+     * Setup a configuration string that will load our key management system. Use the special local
      * extension to indicate that the entry point is in the same executable. Also enable early load
-     * for this extension, since WiredTiger needs to be able to find it before doing any file
-     * operations. Finally, pass in two pieces of configuration information to our initialization
-     * function as the "config" value.
+     * for this extension, since WiredTiger needs to be able to find it before doing any operations. 
      */
     open_config =
       "create,log=(enabled=true),extensions=(local={entry=set_my_key_management,early_load=true})";
