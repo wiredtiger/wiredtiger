@@ -258,7 +258,7 @@ class TestCursorTracker(wttest.WiredTigerTestCase):
     def setpos(self, newpos, isforward):
         length = len(self.bitlist)
         while newpos >= 0 and newpos < length:
-            if not self.isrow and not self.isfix and self.bitlist[newpos] == self.DELETED:
+            if not self.isrow and self.bitlist[newpos] == self.DELETED:
                 if isforward:
                     newpos = newpos + 1
                 else:
@@ -324,9 +324,6 @@ class TestCursorTracker(wttest.WiredTigerTestCase):
                 self.bitlist.pop(self.curpos)
                 self.setpos(self.curpos - 1, True)
                 self.nopos = True
-            elif self.isfix:
-                [major, minor, version] = self.bits_to_triple(self.bitlist[self.curpos])
-                self.bitlist[self.curpos] = self.triple_to_bits(major, minor, self.DELETED_VERSION)
             else:
                 self.bitlist[self.curpos] = self.DELETED
             self.curremoved = True

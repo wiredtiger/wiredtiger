@@ -717,7 +717,7 @@ print_res(int key, int value, int cnt)
     for (; cnt > 0; ++key, ++value, --cnt) {
 
         if (page_type == WT_PAGE_ROW_LEAF)
-            fprintf(res_fp, "%010d KEY------\n", key); /* Print key */
+            fprintf(res_fp, "%010d KEY------\n", key);                   /* Print key */
         fprintf(res_fp, "%010d VALUE----\n", value_unique ? value : 37); /* Print value */
     }
 }
