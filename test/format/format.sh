@@ -67,7 +67,7 @@ usage() {
 smoke_base_1="runs.source=table rows=100000 threads=6 timer=4"
 smoke_base_2="$smoke_base_1 leaf_page_max=9 internal_page_max=9"
 smoke_list=(
-	# Three access methods.
+	# Two access methods.
 	"$smoke_base_1 file_type=row"
 	"$smoke_base_1 file_type=var"
 

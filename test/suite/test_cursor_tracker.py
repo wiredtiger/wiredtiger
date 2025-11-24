@@ -143,7 +143,6 @@ class TestCursorTracker(wttest.WiredTigerTestCase):
             raise Exception('cur_initial_conditions: npairs too big')
         self.tablekind = tablekind
         self.isrow = (tablekind == 'row')
-        self.isfix = (tablekind == 'fix')
         self.setup_encoders_decoders()
         self.bitlist = [(x << 32) for x in range(npairs)]
         self.vers = dict((x << 32, 0) for x in range(npairs))
