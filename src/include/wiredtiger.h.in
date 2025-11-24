@@ -5748,8 +5748,8 @@ struct __wt_key_management {
      * Fetch the current persisted key blob.
      *
      * @param km the WT_KEY_MANAGEMENT
-     * @param blob_data the current WiredTiger session
-     * @param blob_size the current WiredTiger session
+     * @param blob_data the blob data returned
+     * @param blob_size the size of the blob data returned
      */
     int (*get_key_blob)(WT_KEY_MANAGEMENT *km,
                        void **blob_data, size_t *blob_size);
@@ -5758,9 +5758,9 @@ struct __wt_key_management {
      * Set a key blob and indicate if it has been changed.
      *
      * @param km the WT_KEY_MANAGEMENT
-     * @param blob_data the current WiredTiger session
-     * @param blob_size the current WiredTiger session
-     * @param has_changed the current WiredTiger session
+     * @param blob_data the blob data
+     * @param blob_size the size of the blob data
+     * @param has_changed indicates if the blob has changed
      */
     void (*set_key_blob)(WT_KEY_MANAGEMENT *km,
                        void *blob_data, size_t blob_size, bool has_changed);
@@ -5769,7 +5769,7 @@ struct __wt_key_management {
      * Callback function indicating that setting the key blob has completed.
      *
      * @param km the WT_KEY_MANAGEMENT
-     * @param callback Provides any additional callback information needed.
+     * @param callback provides any callback information needed.
      */
     void (*set_key_complete)(WT_KEY_MANAGEMENT *km, void* callback);
 };
