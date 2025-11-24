@@ -857,8 +857,8 @@ __metadata_check(WT_RECOVERY *r, const char *uri, const char *config)
     WT_CURSOR *metac;
     WT_DECL_RET;
     size_t len;
-    const char *format_name;
     char *cgname, *filename;
+    const char *format_name;
     bool has_colgroup, has_file;
 
     has_file = has_colgroup = true;
@@ -880,8 +880,8 @@ __metadata_check(WT_RECOVERY *r, const char *uri, const char *config)
 
     len = strlen("colgroup:") + strlen(format_name) + 1;
     WT_ERR(__wt_calloc_def(r->session, len, &cgname));
-    WT_ERR(__wt_snprintf(cgname, len, "file:%s.wt", format_name));
-    metac->set_key(metac, format_name);
+    WT_ERR(__wt_snprintf(cgname, len, "colgroup:%s", format_name));
+    metac->set_key(metac, cgname);
     WT_ERR_NOTFOUND_OK(metac->search(metac), true);
     if (ret == WT_NOTFOUND)
         has_colgroup = false;
@@ -890,7 +890,7 @@ __metadata_check(WT_RECOVERY *r, const char *uri, const char *config)
     len = strlen("file:") + strlen(format_name) + strlen(".wt") + 1;
     WT_ERR(__wt_calloc_def(r->session, len, &filename));
     WT_ERR(__wt_snprintf(filename, len, "file:%s.wt", format_name));
-    metac->set_key(metac, format_name);
+    metac->set_key(metac, filename);
     WT_ERR_NOTFOUND_OK(metac->search(metac), true);
     if (ret == WT_NOTFOUND)
         has_file = false;
@@ -918,7 +918,7 @@ static int
 __remove_files_from_metadata(WT_RECOVERY *r)
 {
     WT_DECL_RET;
-    char *tablename, *table_name, *filename;
+    char *cgname, *tablename, *filename;
 
     tablename = NULL;
 
@@ -927,16 +927,16 @@ __remove_files_from_metadata(WT_RECOVERY *r)
           "removing incomplete table", r->remove_uris[i]);
 
         size_t len = strlen("colgroup:") + strlen(r->remove_uris[i]) + 1;
-        WT_ERR(__wt_calloc_def(r->session, len, &tablename));
+        WT_ERR(__wt_calloc_def(r->session, len, &cgname));
         /* Remove associated colgroup metadata. */
-        WT_ERR(__wt_snprintf(tablename, len, "colgroup:%s", r->remove_uris[i]));
-        WT_ERR_NOTFOUND_OK(__wt_metadata_remove(r->session, tablename), false);
+        WT_ERR(__wt_snprintf(cgname, len, "colgroup:%s", r->remove_uris[i]));
+        WT_ERR_NOTFOUND_OK(__wt_metadata_remove(r->session, cgname), false);
 
         /* Remove associated table metadata. */
         len = strlen("table:") + strlen(r->remove_uris[i]) + 1;
-        WT_ERR(__wt_calloc_def(r->session, len, &table_name));
+        WT_ERR(__wt_calloc_def(r->session, len, &tablename));
         WT_ERR(__wt_snprintf(tablename, len, "table:%s", r->remove_uris[i]));
-        WT_ERR_NOTFOUND_OK(__wt_metadata_remove(r->session, table_name), false);
+        WT_ERR_NOTFOUND_OK(__wt_metadata_remove(r->session, tablename), false);
 
         /* Remove associated file metadata. */
         len = strlen("file:") + strlen(r->remove_uris[i]) + strlen(".wt") + 1;
