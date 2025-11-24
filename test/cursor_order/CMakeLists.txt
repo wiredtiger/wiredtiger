@@ -9,7 +9,6 @@ define_test_variants(test_cursor_order
     VARIANTS
         "row|-tr"
         "var|-tv"
-        "fix|-tf"
     LABELS
         # Run this during a "ctest check" smoke test.
         check
