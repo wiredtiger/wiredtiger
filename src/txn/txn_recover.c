@@ -845,12 +845,12 @@ __recovery_file_scan_prefix(WT_RECOVERY *r, const char *prefix, const char *igno
 }
 
 /*
- * __metadata_check --
+ * __metadata_check_consistency --
  *     For each table metadata entry, check that the associated colgroup and file metadata entries
  *     exist. If they do not exist, mark them for removal.
  */
 static int
-__metadata_check(WT_RECOVERY *r, const char *uri, const char *config)
+__metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config)
 {
     WT_CONFIG cparser;
     WT_CONFIG_ITEM ckey, cval, config_item;
@@ -862,6 +862,7 @@ __metadata_check(WT_RECOVERY *r, const char *uri, const char *config)
     bool has_colgroup, has_file;
 
     has_file = has_colgroup = true;
+    cgname = filename = NULL;
     format_name = uri;
     WT_PREFIX_SKIP_REQUIRED(r->session, format_name, "table:");
 
@@ -904,8 +905,10 @@ __metadata_check(WT_RECOVERY *r, const char *uri, const char *config)
     }
 done:
 err:
-    __wt_free(r->session, cgname);
-    __wt_free(r->session, filename);
+    if (cgname != NULL)
+        __wt_free(r->session, cgname);
+    if (filename != NULL)
+        __wt_free(r->session, filename);
     WT_TRET(metac->close(metac));
     return (ret);
 }
@@ -920,7 +923,7 @@ __remove_files_from_metadata(WT_RECOVERY *r)
     WT_DECL_RET;
     char *cgname, *tablename, *filename;
 
-    tablename = NULL;
+    cgname = filename = tablename = NULL;
 
     for (u_int i = 0; i < r->nremove_uris; i++) {
         __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s %s",
@@ -945,9 +948,16 @@ __remove_files_from_metadata(WT_RECOVERY *r)
         WT_ERR_NOTFOUND_OK(__wt_metadata_remove(r->session, filename), false);
 
         __wt_free(r->session, tablename);
+        __wt_free(r->session, cgname);
+        __wt_free(r->session, filename);
     }
 err:
-    __wt_free(r->session, tablename);
+    if (tablename != NULL)
+        __wt_free(r->session, tablename);
+    if (cgname != NULL)
+        __wt_free(r->session, cgname);
+    if (filename != NULL)
+        __wt_free(r->session, filename);
     return (ret);
 }
 
@@ -961,7 +971,7 @@ __metadata_post_recovery(WT_RECOVERY *r)
     __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
       "scanning metadata to remove all incomplete tables");
 
-    WT_RET(__recovery_metadata_iterate_func(r, "table:", NULL, __metadata_check));
+    WT_RET(__recovery_metadata_iterate_func(r, "table:", NULL, __metadata_check_consistency));
     WT_RET(__remove_files_from_metadata(r));
     return (0);
 }
