@@ -25,6 +25,7 @@ if(WT_POSIX)
     if(ENABLE_PALITE)
         add_subdirectory(page_log/palite)
     endif()
+    add_subdirectory(mockfs)
 
     # Build the storage_sources extensions.
     add_subdirectory(storage_sources/dir_store)

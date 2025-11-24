@@ -2182,6 +2182,11 @@ __checkpoint_lock_dirty_tree(
             is_drop = true;
     }
 
+    if(strcmp(session->name, "close_ckpt") == 0)
+        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0){
+            btree->clean_ckpt_timer = 0;
+            F_CLR(btree, WT_BTREE_SKIP_CKPT);
+        }
     /*
      * This is a complicated test to determine if we can avoid the expensive call of getting the
      * list of checkpoints for this file. We want to avoid that for clean files. But on clean files
@@ -2281,7 +2286,10 @@ __checkpoint_lock_dirty_tree(
     WT_WITH_HOTBACKUP_READ_LOCK_UNCOND(session,
       ret = __checkpoint_lock_dirty_tree_int(session, is_checkpoint, force, btree, ckpt, ckptbase));
     WT_ERR(ret);
-
+    if(strcmp(session->name, "close_ckpt") == 0)
+        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0){
+            F_CLR(btree, WT_BTREE_SKIP_CKPT);
+        }
     /*
      * If we decided to skip checkpointing, we need to remove the new checkpoint entry we might have
      * appended to the list.
@@ -2514,6 +2522,9 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
      */
     WT_MAX_LSN(&ckptlsn);
 
+    if(strcmp(session->name, "close_ckpt") == 0)
+        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+            __wt_errx(session, "HS clean up P7");
     /*
      * If an object has never been used (in other words, if it could become a bulk-loaded file),
      * then we must fake the checkpoint. This is good because we don't write physical checkpoint
@@ -2769,6 +2780,9 @@ __wt_checkpoint_file(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DECL_RET;
     bool force, standalone;
 
+    if(strcmp(session->name, "close_ckpt") == 0)
+        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+            __wt_errx(session, "HS clean up P8");
     /* Should not be called with a checkpoint handle. */
     WT_ASSERT(session, !WT_READING_CHECKPOINT(session));
 

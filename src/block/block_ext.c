@@ -28,6 +28,17 @@ static int __block_ext_overlap(
 static int __block_extlist_dump_buckets(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, const char *);
 static int __block_merge(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, wt_off_t);
 
+
+void ext_set(WT_SESSION_IMPL* session, WT_EXT* ext, wt_off_t off){
+    WT_UNUSED(session);
+    /*
+    if(ext->off > 10*off)
+        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+            __wt_errx(session, "ext shrink %"PRIi64 " -> %"PRIi64, ext->off, off );
+    */
+    ext->off = off;
+}
+
 /*
  * __block_off_srch_last --
  *     Return the last element in the list, along with a stack for appending.
@@ -244,7 +255,7 @@ __block_off_insert(WT_SESSION_IMPL *session, WT_EXTLIST *el, wt_off_t off, wt_of
     WT_EXT *ext;
 
     WT_RET(__wti_block_ext_alloc(session, &ext));
-    ext->off = off;
+    ext_set(session, ext, off);
     ext->size = size;
 
     return (__block_ext_insert(session, el, ext));
@@ -480,7 +491,7 @@ __wti_block_off_remove_overlap(
      * (we know there's no need to merge).
      */
     if (a_size > 0) {
-        ext->off = a_off;
+        ext_set(session, ext, a_off);
         ext->size = a_size;
         WT_RET(__block_ext_insert(session, el, ext));
         ext = NULL;
@@ -489,7 +500,7 @@ __wti_block_off_remove_overlap(
         if (ext == NULL)
             WT_RET(__block_off_insert(session, el, b_off, b_size));
         else {
-            ext->off = b_off;
+            ext_set(session, ext, b_off);
             ext->size = b_size;
             WT_RET(__block_ext_insert(session, el, ext));
             ext = NULL;
@@ -1120,8 +1131,7 @@ __block_merge(
           "%s: range grows from %" PRIdMAX "-%" PRIdMAX ", to %" PRIdMAX "-%" PRIdMAX, el->name,
           (intmax_t)ext->off, (intmax_t)(ext->off + ext->size), (intmax_t)off,
           (intmax_t)(off + ext->size + size));
-
-        ext->off = off;
+        ext_set(session, ext, off);
         ext->size += size;
     } else {
         if (after != NULL) {
@@ -1378,8 +1388,11 @@ __wti_block_extlist_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLI
     if ((ext = __block_off_srch_last(el->off, astack)) == NULL)
         return (0);
     WT_ASSERT(session, ext->off + ext->size <= block->size);
-    if (ext->off + ext->size < block->size)
+    if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+        __wt_errx(session, "ext attempt to %"PRIi64 " : %" PRIi64 " from %" PRIi64 "\n", ext->off, ext->size, block->size);
+    if (ext->off + ext->size < block->size){
         return (0);
+    }
 
     /*
      * Remove the extent list entry. (Save the value, we need it to reset the cached file size, and

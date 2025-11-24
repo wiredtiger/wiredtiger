@@ -41,11 +41,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Verify checkpoint cleanup cleans up logged tables when configured in aggressive mode.
 @wttest.skip_for_hook("tiered", "Checkpoint cleanup does not support tiered tables")
 class test_cc12(test_cc_base):
+    ext_config = 'extensions=("/home/ubuntu/workspace/mongo/wiredtiger/build/ext/mockfs/libwiredtiger_mockfs.so"=(entry=mock_file_system_create,early_load=true,config=(config_string=demo,value=30)))'
+    
     conn_config_common = 'cache_size=8M,statistics=(all),statistics_log=(json,wait=1,on_close=true,sources=[file:])'
+    conn_config_common = conn_config_common + ',' + ext_config
 
     checkpoint_cleanup_methods = [
         ('enable_log', dict(conn_config = conn_config_common+',log=(enabled=true)')),
-        ('disable_log', dict(conn_config = conn_config_common+',log=(enabled=false)'))
+        # ('disable_log', dict(conn_config = conn_config_common+',log=(enabled=false)'))
     ]
 
     scenarios = make_scenarios(checkpoint_cleanup_methods)

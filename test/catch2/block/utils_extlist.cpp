@@ -87,7 +87,7 @@ alloc_new_ext(WT_SESSION_IMPL *session, wt_off_t off, wt_off_t size)
 {
     WT_EXT *ext;
     REQUIRE(__wti_block_ext_alloc(session, &ext) == 0);
-    ext->off = off;
+    ext_set(session, ext, off);
     ext->size = size;
 
     INFO("Allocated WT_EXT " << ext << " {off " << ext->off << ", size " << ext->size << ", end "

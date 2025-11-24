@@ -270,6 +270,9 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     conn = S2C(session);
     page = ref->page;
 
+    if(strcmp(session->name, "close_ckpt") == 0)
+        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+            __wt_errx(session, "HS clean up P4");
     rec_start = __wt_clock(session);
     WT_ASSERT(session, rec_start != 0);
 
@@ -3041,6 +3044,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     WT_TIME_AGGREGATE_INIT(&ta);
     previous_ref_state = 0;
 
+    if(strcmp(session->name, "close_ckpt") == 0)
+        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+            __wt_errx(session, "HS clean up P3");
     /*
      * If using the history store table eviction path and we found updates that weren't globally
      * visible when reconciling this page, copy them into the database's history store. This can
@@ -3165,6 +3171,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     __wt_verbose_debug1(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages",
       (void *)ref, r->multi_next);
 
+    if(strcmp(session->name, "close_ckpt") == 0)
+        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+            __wt_errx(session, "HS clean up P3");
     switch (r->multi_next) {
     case 0: /* Page delete */
         WT_STAT_CONN_DSRC_INCR(session, rec_page_delete);

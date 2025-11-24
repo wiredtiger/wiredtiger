@@ -85,6 +85,8 @@ struct __wt_ext {
     WT_EXT *next[0]; /* Offset, size skiplists */
 };
 
+void ext_set(WT_SESSION_IMPL*, struct __wt_ext*, wt_off_t);
+
 /*
  * WT_SIZE --
  *	Encapsulation of a block size skiplist entry.

@@ -589,6 +589,9 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
     ci = &block->live;
     fatal = false;
 
+    if(strcmp(session->name, "close_ckpt") == 0)
+        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+            __wt_errx(session, "Close clear HS P1");
     if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE))
         WT_RET(__ckpt_verify(session, ckptbase));
 
@@ -830,6 +833,9 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
             WT_ERR(__ckpt_update(session, block, ckptbase, ckpt, ckpt->bpriv));
 
 live_update:
+    if(strcmp(session->name, "close_ckpt") == 0)
+        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+            WT_ERR(__wti_block_extlist_dump(session, &ci->avail));
     /* Truncate the file if that's possible. */
     WT_ERR(__wti_block_extlist_truncate(session, block, &ci->avail));
 
