@@ -258,8 +258,7 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     __wt_atomic_store8(&cache->cache_eviction_controls.cache_tolerance_for_app_eviction,
       (((uint8_t)cval.val / 10) * 10));
 
-    WT_RET(
-      __wt_config_gets(session, cfg, "cache_eviction_controls.skip_update_obsolete_check", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "eviction.skip_update_obsolete_check", &cval));
     if (cval.val != 0)
         F_SET_ATOMIC_16(&(cache->cache_eviction_controls), WT_CACHE_SKIP_UPDATE_OBSOLETE_CHECK);
 
