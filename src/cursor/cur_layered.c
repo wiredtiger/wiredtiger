@@ -15,6 +15,41 @@ static int __clayered_reset_cursors(WT_CURSOR_LAYERED *, bool);
 static int __clayered_search_near(WT_CURSOR *, int *);
 static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool, bool *);
 
+static void print_trace(WT_CURSOR_LAYERED *clayered, const char *func) {
+    return;
+
+    if (clayered == NULL) {
+        printf("-- %s cursor=%p\n", func, (void *)clayered);
+        return;
+    }
+
+    WT_SESSION_IMPL *session = CUR2S(clayered);
+    if (session == NULL) {
+        printf("-- %s cursor=%p session=%p\n", func, (void *)clayered, (void *)session);
+        return;
+    }
+
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    if (conn == NULL) {
+        printf("-- %s cursor=%p session=%p conn=%p\n", func, (void *)clayered, (void *)session, (void *)conn);
+        return;
+    }
+
+    printf("-- %s cursor=%p session=%p conn=%p leader=%d tid=%" PRIu32 "\n",
+      func, (void *)clayered, (void *)session, (void *)conn, conn->layered_table_manager.leader, session->id);
+}
+
+static void dump_item(const WT_ITEM *item, WT_CURSOR_LAYERED *clayered, const char * prefix) {
+    return;
+
+    if (item == NULL || item->data == NULL || item->size == 0) {
+        printf("%s cursor=%p []\n", prefix, clayered);
+        return;
+    }
+
+    printf("-- %s cursor=%p %s\n",  prefix, clayered, (const char *)item->data);
+}
+
 /*
  * __clayered_deleted --
  *     Check whether the current value is a tombstone in the layered cursor.
@@ -690,6 +725,7 @@ __clayered_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     clayered = (WT_CURSOR_LAYERED *)a;
     CURSOR_API_CALL(a, session, ret, compare, clayered->dhandle);
 
+    print_trace(clayered, __func__);
     /*
      * Confirm both cursors refer to the same source and have keys, then compare the keys.
      */
@@ -710,7 +746,7 @@ err:
  *     Position a constituent cursor.
  */
 static int
-__clayered_position_constituent(WT_CURSOR_LAYERED *clayered, WT_CURSOR *c, bool forward, int *cmpp)
+__clayered_position_constituent(WT_CURSOR_LAYERED *clayered, WT_CURSOR *c, bool forward, int *cmpp)  // ? Can we remove cmp
 {
     WT_CURSOR *cursor;
     WT_SESSION_IMPL *session;
@@ -747,47 +783,118 @@ __clayered_position_constituent(WT_CURSOR_LAYERED *clayered, WT_CURSOR *c, bool 
  *     Move a constituent cursor of a layered tree and setup the general positioning necessary to
  *     reflect that.
  */
+// static int
+// __clayered_iterate_constituent(WT_CURSOR_LAYERED *clayered, WT_CURSOR *constituent, bool forward)
+// {
+//     WT_DECL_RET;
+//     int cmp;
+
+//     /* We may not have this table yet, e.g. for a stable cursor on a secondary. */
+//     if (constituent == NULL)
+//         return (0);
+
+//     /* To iterate a layered cursor, which has two constituent cursors, we are in one of a few
+//      * states:
+//      * * Neither constituent is positioned - in which case both cursors need to be moved to the
+//      * start (or end) of the tree.
+//      * * Both cursors are positioned, one of which is the "current" cursor, which means it was used
+//      * to return the position on the prior iteration. That current cursor needs to be moved forward
+//      * one spot.
+//      * * Both cursors are positioned, the constituent cursor being checked wasn't the current, so it
+//      * has been moved to a position that hasn't yet been returned to the application. It does not
+//      * need to be moved forward.
+//      */
+
+//     /* Constituent is not positioned, set to first/last element */
+//     if (!F_ISSET(constituent, WT_CURSTD_KEY_SET)) {
+//         WT_RET(constituent->reset(constituent));
+//         WT_RET_NOTFOUND_OK(
+//           forward ? constituent->next(constituent) : constituent->prev(constituent));
+//         return (ret);
+//     }
+
+//     /* This constituent is already positioned */
+//     if (constituent == clayered->current_cursor)
+//         return (0);
+
+//     ret = __clayered_position_constituent(clayered, constituent, true, &cmp);
+//     WT_RET_NOTFOUND_OK(ret);
+
+//     /* The key was found and current cursor is not set - update the current cursor. */
+//     if (ret == 0 && cmp == 0 && clayered->current_cursor == NULL)
+//         clayered->current_cursor = constituent;
+
+//     return (0);
+// }
+
 static int
-__clayered_iterate_constituent(WT_CURSOR_LAYERED *clayered, WT_CURSOR *constituent, bool forward)
+__clayered_constituent_iter(WT_CURSOR *constituent, bool forward) {
+    return (forward ? constituent->next(constituent) : constituent->prev(constituent));
+}
+
+static int
+__clayered_iterate(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag)
 {
-    WT_DECL_RET;
+    // ? Introduce separate variables for ingest, stable, current, alternate?
+    WT_CURSOR *alternate_cursor;
     int cmp;
 
-    /* We may not have this table yet, e.g. for a stable cursor on a secondary. */
-    if (constituent == NULL)
-        return (0);
+    WT_SESSION_IMPL *session = CUR2S(clayered);
+    bool forward = (iter_flag == WT_CLAYERED_ITERATE_NEXT);
 
-    /* To iterate a layered cursor, which has two constituent cursors, we are in one of a few
-     * states:
-     * * Neither constituent is positioned - in which case both cursors need to be moved to the
-     * start (or end) of the tree.
-     * * Both cursors are positioned, one of which is the "current" cursor, which means it was used
-     * to return the position on the prior iteration. That current cursor needs to be moved forward
-     * one spot.
-     * * Both cursors are positioned, the constituent cursor being checked wasn't the current, so it
-     * has been moved to a position that hasn't yet been returned to the application. It does not
-     * need to be moved forward.
-     */
-
-    /* Constituent is not positioned, set to first/last element */
-    if (!F_ISSET(constituent, WT_CURSTD_KEY_SET)) {
-        WT_RET(constituent->reset(constituent));
-        WT_RET_NOTFOUND_OK(
-          forward ? constituent->next(constituent) : constituent->prev(constituent));
-        return (ret);
+    /* At least one cursors is expected to be initialised. */
+    WT_ASSERT(session, clayered->stable_cursor != NULL || clayered->ingest_cursor != NULL);
+    if (clayered->ingest_cursor == NULL || clayered->stable_cursor == NULL) {
+        clayered->current_cursor = clayered->ingest_cursor == NULL ? clayered->stable_cursor : clayered->ingest_cursor;
+        WT_RET_NOTFOUND_OK(__clayered_constituent_iter(clayered->current_cursor, forward));
+        goto done;
     }
 
-    /* This constituent is already positioned */
-    if (constituent == clayered->current_cursor)
-        return (0);
+    WT_ASSERT(session, clayered->stable_cursor != NULL && clayered->ingest_cursor != NULL);
+    /* The layered cursor is unpositioned, reset constituents to cleanup possible artifacts and call next for both ingest and stable.*/
+    // if (clayered->current_cursor == NULL) {
 
-    ret = __clayered_position_constituent(clayered, constituent, true, &cmp);
-    WT_RET_NOTFOUND_OK(ret);
+    /* WT_CURSTD_KEY_INT set to the user visible cursor is the main indication that cursor is positioned. */
+    if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT)) {
+        WT_RET_NOTFOUND_OK(__clayered_constituent_iter(clayered->stable_cursor, forward));
+        WT_RET_NOTFOUND_OK(__clayered_constituent_iter(clayered->ingest_cursor, forward));
+        goto done;
+    }
 
-    /* The key was found and current cursor is not set - update the current cursor. */
-    if (ret == 0 && cmp == 0 && clayered->current_cursor == NULL)
-        clayered->current_cursor = constituent;
+    /* If WT_CURSTD_KEY_INT is set , the current cursor is expected to be positioned. */
+    WT_ASSERT(session, clayered->current_cursor == clayered->stable_cursor ||
+                       clayered->current_cursor == clayered->ingest_cursor);
+    WT_ASSERT(session, F_ISSET(clayered->current_cursor, WT_CURSTD_KEY_SET));
 
+    /* Identify alternate cursor. */
+    if (clayered->current_cursor == clayered->stable_cursor)
+        alternate_cursor = clayered->ingest_cursor;
+    else
+        alternate_cursor = clayered->stable_cursor;
+    WT_ASSERT(session, alternate_cursor != clayered->current_cursor);
+
+    /*
+     * The cusror is positioned, but `iter_flag` is not set so we cannot rely on alternate cursor position and need to position it.
+     */
+    if (!F_ISSET(clayered, iter_flag)) {
+        __clayered_position_constituent(clayered, alternate_cursor, forward, &cmp); // ? Should we position alternate to current->key instead of iface->key?
+    }
+
+    /* If alternate cursor's key is equal to the current one, we should move it as well. */
+    if (F_ISSET(alternate_cursor, WT_CURSTD_KEY_INT)) {
+        WT_RET(__clayered_cursor_compare(clayered, alternate_cursor, clayered->current_cursor, &cmp));
+        if (cmp == 0)
+            WT_RET_NOTFOUND_OK(__clayered_constituent_iter(alternate_cursor, forward));
+    }
+
+    /* Move the current cursor. */
+    WT_RET_NOTFOUND_OK(__clayered_constituent_iter(clayered->current_cursor, forward));
+
+done:
+    if (!F_ISSET(clayered, iter_flag)) {
+        F_CLR(clayered, WT_CLAYERED_ITERATE_PREV | WT_CLAYERED_ITERATE_NEXT);
+        F_SET(clayered, iter_flag);
+    }
     return (0);
 }
 
@@ -798,54 +905,25 @@ __clayered_iterate_constituent(WT_CURSOR_LAYERED *clayered, WT_CURSOR *constitue
 static int
 __clayered_next(WT_CURSOR *cursor)
 {
-    WT_CURSOR *alternate_cursor, *c;
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    int cmp;
     bool deleted;
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
+
+    print_trace(clayered, __func__); // TODO : DELETE
 
     CURSOR_API_CALL(cursor, session, ret, next, clayered->dhandle);
     __cursor_novalue(cursor);
     WT_ERR(__clayered_enter(clayered, false, false, true));
 
-    /* If we aren't positioned for a forward scan, get started. */
-    if (clayered->current_cursor == NULL || !F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT)) {
-        /* The order matters: check the ingest table before the stable one. */
-        WT_ERR(__clayered_iterate_constituent(clayered, clayered->ingest_cursor, true));
-        WT_ERR(__clayered_iterate_constituent(clayered, clayered->stable_cursor, true));
-        F_SET(clayered, WT_CLAYERED_ITERATE_NEXT);
-        F_CLR(clayered, WT_CLAYERED_ITERATE_PREV);
-
-        /* We just positioned *at* the key, now move. */
-        if (clayered->current_cursor != NULL)
-            goto retry;
-    } else {
-retry:
-        /* If there are multiple cursors on that key, move them forward. */
-        if (clayered->current_cursor == clayered->stable_cursor)
-            alternate_cursor = clayered->ingest_cursor;
-        else
-            alternate_cursor = clayered->stable_cursor;
-
-        if (alternate_cursor != NULL && F_ISSET(alternate_cursor, WT_CURSTD_KEY_INT)) {
-            WT_ASSERT(session, alternate_cursor != clayered->current_cursor);
-            WT_ERR(__clayered_cursor_compare(
-              clayered, alternate_cursor, clayered->current_cursor, &cmp));
-            if (cmp == 0)
-                WT_ERR_NOTFOUND_OK(alternate_cursor->next(alternate_cursor), false);
-        }
-
-        /* Move the smallest cursor forward. */
-        c = clayered->current_cursor;
-        WT_ERR_NOTFOUND_OK(c->next(c), false);
-    }
-
-    /* Find the cursor(s) with the smallest key. */
-    if ((ret = __clayered_get_current(session, clayered, true, &deleted)) == 0 && deleted)
-        goto retry;
+    do {
+        WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_NEXT));
+        /* Find the cursor(s) with the smallest key. */
+        ret = __clayered_get_current(session, clayered, true, &deleted);
+    } while (ret == 0 && deleted); // ? Check whether we would perform some extra actions in case of second loop
+    WT_ERR_NOTFOUND_OK(ret, true);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_next);
     /* FIXME-WT-15545: Handle the case of current_cursor being NULL */
@@ -855,6 +933,8 @@ retry:
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_next_stable);
 
 err:
+    if (ret == 0)
+        dump_item(&clayered->iface.key, clayered, "-- entry __clayered_next iface->key");
     __clayered_leave(clayered);
     if (ret == 0)
         __clayered_deleted_decode(&cursor->value);
@@ -868,52 +948,23 @@ err:
 static int
 __layered_prev_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
-    WT_CURSOR *alternate_cursor, *c;
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
-    int cmp;
     bool deleted;
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
+    print_trace(clayered, __func__);
+
     __cursor_novalue(cursor);
     WT_ERR(__clayered_enter(clayered, false, false, true));
 
-    /* If we aren't positioned for a reverse scan, get started. */
-    if (clayered->current_cursor == NULL || !F_ISSET(clayered, WT_CLAYERED_ITERATE_PREV)) {
-        /* The order matters: check the ingest table before the stable one. */
-        WT_ERR(__clayered_iterate_constituent(clayered, clayered->ingest_cursor, false));
-        WT_ERR(__clayered_iterate_constituent(clayered, clayered->stable_cursor, false));
-        F_SET(clayered, WT_CLAYERED_ITERATE_PREV);
-        F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT);
-
-        /* We just positioned *at* the key, now move. */
-        if (clayered->current_cursor != NULL)
-            goto retry;
-    } else {
-retry:
-        /* If there are multiple cursors on that key, move them backwards. */
-        if (clayered->current_cursor == clayered->stable_cursor)
-            alternate_cursor = clayered->ingest_cursor;
-        else
-            alternate_cursor = clayered->stable_cursor;
-
-        if (alternate_cursor != NULL && F_ISSET(alternate_cursor, WT_CURSTD_KEY_INT)) {
-            WT_ASSERT(session, alternate_cursor != clayered->current_cursor);
-            WT_ERR(__clayered_cursor_compare(
-              clayered, alternate_cursor, clayered->current_cursor, &cmp));
-            if (cmp == 0)
-                WT_ERR_NOTFOUND_OK(alternate_cursor->prev(alternate_cursor), false);
-        }
-
-        /* Move the smallest cursor forward. */
-        c = clayered->current_cursor;
-        WT_ERR_NOTFOUND_OK(c->prev(c), false);
-    }
-
-    /* Find the cursor(s) with the largest key. */
-    if ((ret = __clayered_get_current(session, clayered, false, &deleted)) == 0 && deleted)
-        goto retry;
+    do {
+        WT_ERR(__clayered_iterate(clayered, WT_CLAYERED_ITERATE_PREV));
+        /* Find the cursor(s) with the smallest key. */
+        ret = __clayered_get_current(session, clayered, false, &deleted);
+    } while (ret == 0 && deleted); // ? Check whether we would perform some extra actions in case of second loop
+    WT_ERR_NOTFOUND_OK(ret, true);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev);
     /* FIXME-WT-15545: Handle the case of current_cursor being NULL */
@@ -923,6 +974,8 @@ retry:
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_prev_stable);
 
 err:
+    if (ret == 0)
+        dump_item(&clayered->iface.key, clayered, "-- entry __clayered_prev iface->key");
     __clayered_leave(clayered);
     if (ret == 0)
         __clayered_deleted_decode(&cursor->value);
@@ -993,6 +1046,8 @@ __clayered_reset(WT_CURSOR *cursor)
      */
     clayered = (WT_CURSOR_LAYERED *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, clayered->dhandle);
+
+    print_trace(clayered, __func__);
 
     /* Reset any bounds on the top level cursor, and propagate that to constituents */
     __wt_cursor_bound_reset(cursor);
@@ -1150,6 +1205,7 @@ __clayered_reopen_int(WT_CURSOR *cursor)
     session = CUR2S(cursor);
     dhandle = session->dhandle;
 
+    print_trace((WT_CURSOR_LAYERED*)cursor, __func__);
     /*
      * Lock the handle: we're only interested in open handles, any other state disqualifies the
      * cache.
@@ -1263,6 +1319,8 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
     cursor = &clayered->iface;
     found = false;
 
+    print_trace(clayered, __func__);
+
     if (!conn->layered_table_manager.leader) {
         c = clayered->ingest_cursor;
         WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(c, clayered, value), true);
@@ -1319,6 +1377,8 @@ __clayered_search(WT_CURSOR *cursor)
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
+    print_trace(clayered, __func__);
+
     CURSOR_API_CALL(cursor, session, ret, search, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
@@ -1335,6 +1395,10 @@ __clayered_search(WT_CURSOR *cursor)
         WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_stable);
 
 err:
+
+    if (ret == 0)
+        dump_item(&clayered->iface.key, clayered, "-- entry __clayered_search iface->key");
+
     __clayered_leave(clayered);
     if (ret == 0)
         __clayered_deleted_decode(&cursor->value);
@@ -1359,6 +1423,8 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     clayered = (WT_CURSOR_LAYERED *)cursor;
     ingest_cmp = stable_cmp = 0;
     stable_found = false;
+
+    print_trace(clayered, __func__);
 
     CURSOR_API_CALL(cursor, session, ret, search_near, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
@@ -1503,6 +1569,8 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
     WT_CURSOR *c;
     int (*func)(WT_CURSOR *);
 
+    print_trace(clayered, __func__);
+
     /*
      * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
      * anyway.
@@ -1526,6 +1594,8 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
     if (position)
         clayered->current_cursor = c;
 
+    dump_item(&c->key, clayered, "-- entry __clayered_put c->key");
+    dump_item(&c->value, clayered, "-- entry __clayered_put c->value");
     return (0);
 }
 
@@ -1647,6 +1717,8 @@ __clayered_insert(WT_CURSOR *cursor)
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
+    print_trace(clayered, __func__);
+
     CURSOR_UPDATE_API_CALL(cursor, session, ret, insert, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
@@ -1699,6 +1771,8 @@ __clayered_update(WT_CURSOR *cursor)
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
+    print_trace(clayered, __func__);
+
     CURSOR_UPDATE_API_CALL(cursor, session, ret, update, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__cursor_needvalue(cursor));
@@ -1749,6 +1823,8 @@ __clayered_remove(WT_CURSOR *cursor)
     bool positioned;
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
+
+    print_trace(clayered, __func__);
 
     /* Remember if the cursor is currently positioned. */
     positioned = F_ISSET(cursor, WT_CURSTD_KEY_INT);
@@ -1810,6 +1886,8 @@ __clayered_reserve(WT_CURSOR *cursor)
     clayered = (WT_CURSOR_LAYERED *)cursor;
     overwrite = F_ISSET(cursor, WT_CURSTD_OVERWRITE);
 
+    print_trace(clayered, __func__);
+
     CURSOR_UPDATE_API_CALL(cursor, session, ret, reserve, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
@@ -1860,6 +1938,8 @@ __clayered_largest_key(WT_CURSOR *cursor)
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
     ingest_found = stable_found = false;
+
+    print_trace(clayered, __func__);
 
     CURSOR_API_CALL(cursor, session, ret, largest_key, clayered->dhandle);
     __cursor_novalue(cursor);
@@ -1978,6 +2058,8 @@ __clayered_close(WT_CURSOR *cursor)
      */
     clayered = (WT_CURSOR_LAYERED *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, clayered->dhandle);
+
+    print_trace(clayered, __func__);
 err:
     if (ret == 0) {
         /*
@@ -2031,6 +2113,8 @@ __clayered_next_random(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, ret, next, clayered->dhandle);
     __cursor_novalue(cursor);
     WT_ERR(__clayered_enter(clayered, false, false, true));
+
+    print_trace(clayered, __func__);
 
     for (;;) {
         /* FIXME-WT-14736: consider the size of ingest table in the future. */
@@ -2220,6 +2304,8 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
 
     /* Layered cursor is not compatible with cursor_copy config. */
     F_CLR(cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE);
+
+    print_trace(clayered, __func__);
 
     if (0) {
 err:
