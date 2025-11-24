@@ -770,6 +770,26 @@ err:
 }
 
 /*
+ * __recovery_free_remove_uris --
+ *     Free any remove uris added to the recovery array.
+ */
+static int
+__recovery_free_remove_uris(WT_RECOVERY *r)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    u_int i;
+
+    session = r->session;
+    for (i = 0; i < r->nremove_uris; i++)
+        __wt_free(session, r->remove_uris[i]);
+
+    r->nremove_uris = 0;
+    __wt_free(session, r->remove_uris);
+    return (ret);
+}
+
+/*
  * __recovery_close_cursors --
  *     Close the logging recovery cursors.
  */
@@ -1441,6 +1461,7 @@ done:
 
 err:
     WT_TRET(__recovery_close_cursors(&r));
+    WT_TRET(__recovery_free_remove_uris(&r));
     __wt_free(session, config);
     F_CLR(&conn->log_mgr, WT_LOG_RECOVER_DIRTY);
 
