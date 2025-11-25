@@ -2489,11 +2489,6 @@ __wt_btcur_skip_page(
     walk_skip_stats = (WT_PAGE_WALK_SKIP_STATS *)context;
     ta = NULL;
     clean_page = false;
-
-    /* Don't skip pages in FLCS trees; deleted records need to read back as 0. */
-    if (btree->type == BTREE_COL_FIX)
-        return (0);
-
     /*
      * Determine if all records on the page have been deleted and all the tombstones are visible to
      * our transaction. If so, we can avoid reading the records on the page and move to the next

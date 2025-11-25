@@ -956,9 +956,6 @@ __curfile_bound(WT_CURSOR *cursor, const char *config)
     WT_ERR(__wt_conf_compile_api_call(session, WT_CONFIG_REF(session, WT_CURSOR_bound),
       WT_CONFIG_ENTRY_WT_CURSOR_bound, config, &_conf, sizeof(_conf), &conf));
 
-    if (CUR2BT(cursor)->type == BTREE_COL_FIX)
-        WT_ERR_MSG(session, EINVAL, "setting bounds is not compatible with fixed column store");
-
     /* It is illegal to set a bound on a positioned cursor (it's fine to clear one) */
     WT_ERR(__wt_conf_gets(session, conf, action, &cval));
     if (WT_CONF_STRING_MATCH(set, cval) && WT_CURSOR_IS_POSITIONED(cbt))
