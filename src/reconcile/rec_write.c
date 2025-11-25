@@ -1477,10 +1477,7 @@ __rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
     r->entries = 0;
     r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
 
-    /*
-     * Set the space available to another split-size and minimum split-size chunk. For FLCS,
-     * min_space_avail and min_split_size are both left as zero.
-     */
+    /* Set the space available to another split-size and minimum split-size chunk. */
     r->space_avail = r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
     r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 

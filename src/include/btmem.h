@@ -1825,26 +1825,6 @@ struct __wt_insert_head {
         (page)->modify->mod_col_append[0])
 
 /*
- * FLCS pages with time information have a small additional header after the main page data that
- * holds a version number and cell count, plus the byte offset to the start of the cell data. The
- * latter values are limited by the page size, so need only be 32 bits. One hopes we'll never need
- * 2^32 versions.
- *
- * This struct is the in-memory representation. The number of entries is the number of time windows
- * (there are twice as many cells) and the offsets is from the beginning of the page. The space
- * between the empty offset and the data offset is not used and is expected to be zeroed.
- *
- * This structure is only used when handling on-disk pages; once the page is read in, one should
- * instead use the time window index in the page structure, which is a different type found above.
- */
-struct __wt_col_fix_auxiliary_header {
-    uint32_t version;
-    uint32_t entries;
-    uint32_t emptyoffset;
-    uint32_t dataoffset;
-};
-
-/*
  * Manage split generation numbers. Splits walk the list of sessions to check when it is safe to
  * free structures that have been replaced. We also check that list periodically (e.g., when
  * wrapping up a transaction) to free any memory we can.

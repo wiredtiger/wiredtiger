@@ -238,8 +238,7 @@ struct __wti_reconcile {
      * Reconciliation gets tricky if we have to split a page, which happens when the disk image we
      * create exceeds the page type's maximum disk image size.
      *
-     * First, the target size of the page we're building. In FLCS, this is the size of both the
-     * primary and auxiliary portions.
+     * First, the target size of the page we're building.
      */
     uint32_t page_size; /* Page size */
 
