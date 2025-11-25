@@ -923,7 +923,6 @@ __metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config
 
     /* If either colgroup or file metadata entry doesn't exist mark the table for removal. */
     if (!has_colgroup || !has_file) {
-        WT_ASSERT(r->session, false);
         WT_ERR(__wt_realloc_def(
           r->session, &r->remove_uris_allocate, r->nremove_uris + 1, &r->remove_uris));
         WT_ERR(__wt_strdup(r->session, format_name, &r->remove_uris[r->nremove_uris]));
