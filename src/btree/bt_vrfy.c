@@ -602,12 +602,6 @@ __verify_tree(
 
     /* Make sure the page we got belongs in this kind of tree. */
     switch (btree->type) {
-    case BTREE_COL_FIX:
-        if (page->type != WT_PAGE_COL_INT && page->type != WT_PAGE_COL_FIX)
-            WT_RET_MSG(session, WT_ERROR,
-              "page at %s is a %s, which does not belong in a fixed-length column-store tree",
-              __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type));
-        break;
     case BTREE_COL_VAR:
         if (page->type != WT_PAGE_COL_INT && page->type != WT_PAGE_COL_VAR)
             WT_RET_MSG(session, WT_ERROR,
@@ -627,17 +621,7 @@ __verify_tree(
     case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_INT:
     case WT_PAGE_COL_VAR:
-        /*
-         * FLCS trees can have WT_PAGE_COL_INT or WT_PAGE_COL_FIX pages, and gaps in the namespace
-         * are not allowed; VLCS trees can have WT_PAGE_COL_INT or WT_PAGE_COL_VAR pages, and gaps
-         * in the namespace *are* allowed. Use the tree type to pick the check logic.
-         */
-        if (btree->type == BTREE_COL_FIX && ref->ref_recno != vs->records_so_far + 1)
-            WT_RET_MSG(session, WT_ERROR,
-              "page at %s has a starting record of %" PRIu64
-              " when the expected starting record is %" PRIu64,
-              __verify_addr_string(session, ref, vs->tmp1), ref->ref_recno, vs->records_so_far + 1);
-        else if (btree->type == BTREE_COL_VAR && ref->ref_recno < vs->records_so_far + 1)
+        if (ref->ref_recno < vs->records_so_far + 1)
             WT_RET_MSG(session, WT_ERROR,
               "page at %s has a starting record of %" PRIu64
               " when the expected starting record is at least %" PRIu64,
@@ -759,19 +743,9 @@ celltype_err:
 
             /*
              * It's a depth-first traversal: this entry's starting record number should be 1 more
-             * than the total records reviewed to this point. However, for VLCS fast-truncate can
-             * introduce gaps; allow a gap but not overlapping ranges. For FLCS, gaps are not
-             * permitted.
+             * than the total records reviewed to this point.
              */
-            if (btree->type == BTREE_COL_FIX && child_ref->ref_recno != vs->records_so_far + 1) {
-                WT_RET_MSG(session, WT_ERROR,
-                  "the starting record number in entry %" PRIu32
-                  " of the column internal page at %s is %" PRIu64
-                  " and the expected starting record number is %" PRIu64,
-                  entry, __verify_addr_string(session, child_ref, vs->tmp1), child_ref->ref_recno,
-                  vs->records_so_far + 1);
-            } else if (btree->type == BTREE_COL_VAR &&
-              child_ref->ref_recno < vs->records_so_far + 1) {
+            if (child_ref->ref_recno < vs->records_so_far + 1) {
                 WT_RET_MSG(session, WT_ERROR,
                   "the starting record number in entry %" PRIu32
                   " of the column internal page at %s is %" PRIu64

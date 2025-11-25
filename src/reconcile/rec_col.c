@@ -80,44 +80,6 @@ __wt_bulk_insert_fix(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
 }
 
 /*
- * __wt_bulk_insert_fix_bitmap --
- *     Fixed-length column-store bulk insert.
- */
-int
-__wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
-{
-    WT_BTREE *btree;
-    WT_CURSOR *cursor;
-    WTI_RECONCILE *r;
-    WT_TIME_WINDOW tw;
-    uint32_t entries, offset, page_entries, page_size;
-    const uint8_t *data;
-
-    r = cbulk->reconcile;
-    btree = S2BT(session);
-    cursor = &cbulk->cbt.iface;
-
-    if (((r->recno - 1) * btree->bitcnt) & 0x7)
-        WT_RET_MSG(session, EINVAL, "Bulk bitmap load not aligned on a byte boundary");
-    for (data = cursor->value.data, entries = (uint32_t)cursor->value.size; entries > 0;
-         entries -= page_entries, data += page_size) {
-        WT_RET(__rec_col_fix_bulk_insert_split_check(cbulk));
-
-        page_entries = WT_MIN(entries, cbulk->nrecs - cbulk->entry);
-        page_size = __bitstr_size(page_entries * btree->bitcnt);
-        offset = __bitstr_size(cbulk->entry * btree->bitcnt);
-        memcpy(r->first_free + offset, data, page_size);
-        cbulk->entry += page_entries;
-        r->recno += page_entries;
-    }
-
-    /* Initialize the time aggregate that's going into the parent page. See note above. */
-    WT_TIME_WINDOW_INIT(&tw);
-    WTI_REC_CHUNK_TA_UPDATE(session, r->cur_ptr, &tw);
-    return (0);
-}
-
-/*
  * __wt_bulk_insert_var --
  *     Variable-length column-store bulk insert.
  */
