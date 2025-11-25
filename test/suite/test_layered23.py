@@ -65,81 +65,81 @@ class test_layered23(wttest.WiredTigerTestCase):
         session_follow.create(self.uri, "key_format=S,value_format=S")
 
         # Create some oplog traffic, a mix of inserts and updates
-        oplog.insert(t, 90)
-        oplog.update(t, 10)
-        # oplog.insert(t, 90)
-        # oplog.update(t, 10)
+        oplog.insert(t, 900)
+        oplog.update(t, 100)
+        oplog.insert(t, 900)
+        oplog.update(t, 100)
 
         # Apply them to leader WT and checkpoint.
-        oplog.apply(self, self.session, 0, 100)
-        oplog.check(self, self.session, 0, 100)
+        oplog.apply(self, self.session, 0, 2000)
+        oplog.check(self, self.session, 0, 2000)
 
-        # self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
 
-        # self.session.checkpoint()     # checkpoint 1
-        # checkpoint_count = 1
-        # self.check_checkpoint(checkpoint_count)
+        self.session.checkpoint()     # checkpoint 1
+        checkpoint_count = 1
+        self.check_checkpoint(checkpoint_count)
 
-        # # Add some more traffic
-        # oplog.insert(t, 900)
-        # oplog.update(t, 100)
-        # oplog.apply(self, self.session, 2000, 1000)
-        # oplog.check(self, self.session, 0, 3000)
+        # Add some more traffic
+        oplog.insert(t, 900)
+        oplog.update(t, 100)
+        oplog.apply(self, self.session, 2000, 1000)
+        oplog.check(self, self.session, 0, 3000)
 
-        # # On the follower -
-        # # Apply some entries, a bit more than checkpoint 1
-        # oplog.apply(self, session_follow, 0, 2100)
+        # On the follower -
+        # Apply some entries, a bit more than checkpoint 1
+        oplog.apply(self, session_follow, 0, 2100)
 
-        # self.pr(f'OPLOG: {oplog}')
-        # oplog.check(self, session_follow, 0, 2100)
+        self.pr(f'OPLOG: {oplog}')
+        oplog.check(self, session_follow, 0, 2100)
 
-        # # Then advance the checkpoint and make sure everything is still good
-        # self.pr('advance checkpoint')
-        # self.disagg_advance_checkpoint(conn_follow)
-        # oplog.check(self, session_follow, 0, 2100)
+        # Then advance the checkpoint and make sure everything is still good
+        self.pr('advance checkpoint')
+        self.disagg_advance_checkpoint(conn_follow)
+        oplog.check(self, session_follow, 0, 2100)
 
-        # # Now go back to leader, checkpoint and insert more.
-        # # On follower apply some, advance.
-        # # Rinse and repeat.
-        # leader_pos = 3000
-        # follower_pos = 2100
+        # Now go back to leader, checkpoint and insert more.
+        # On follower apply some, advance.
+        # Rinse and repeat.
+        leader_pos = 3000
+        follower_pos = 2100
 
-        # for i in range(1, 10):
-        #     self.pr(f'iteration {i}')
-        #     self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
+        for i in range(1, 10):
+            self.pr(f'iteration {i}')
+            self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
 
-        #     self.session.checkpoint()
-        #     checkpoint_pos = leader_pos
-        #     checkpoint_count += 1
-        #     self.check_checkpoint(checkpoint_count)
+            self.session.checkpoint()
+            checkpoint_pos = leader_pos
+            checkpoint_count += 1
+            self.check_checkpoint(checkpoint_count)
 
-        #     # Every few times have no data between checkpoints.
-        #     if i % 3 != 0:
-        #         # More traffic on leader, stay ahead because follower will advance past checkpoint
-        #         # before picking up checkpoint.
-        #         oplog.insert(t, 900)
-        #         oplog.update(t, 100)
-        #         oplog.apply(self, self.session, leader_pos, 1000)
-        #         leader_pos += 1000
+            # Every few times have no data between checkpoints.
+            if i % 3 != 0:
+                # More traffic on leader, stay ahead because follower will advance past checkpoint
+                # before picking up checkpoint.
+                oplog.insert(t, 900)
+                oplog.update(t, 100)
+                oplog.apply(self, self.session, leader_pos, 1000)
+                leader_pos += 1000
 
-        #         # The check begins at 0, which means this test will have quadratic performance.
-        #         # We don't always have to start at 0.
-        #         oplog.check(self, self.session, 0, leader_pos)
+                # The check begins at 0, which means this test will have quadratic performance.
+                # We don't always have to start at 0.
+                oplog.check(self, self.session, 0, leader_pos)
 
-        #     # On follower, apply oplog. Stay a little behind the leader, but
-        #     # we always must be in front of the checkpoint.
-        #     follower_new_pos = max(min(follower_pos, leader_pos - 900), checkpoint_pos)
-        #     to_apply = follower_new_pos - follower_pos
-        #     oplog.apply(self, session_follow, follower_pos, to_apply)
-        #     follower_pos = follower_new_pos
+            # On follower, apply oplog. Stay a little behind the leader, but
+            # we always must be in front of the checkpoint.
+            follower_new_pos = max(min(follower_pos, leader_pos - 900), checkpoint_pos)
+            to_apply = follower_new_pos - follower_pos
+            oplog.apply(self, session_follow, follower_pos, to_apply)
+            follower_pos = follower_new_pos
 
-        #     self.pr(f'checking follower from pos 0 to {follower_pos} before checkpoint pick-up')
-        #     oplog.check(self, session_follow, 0, follower_pos)
+            self.pr(f'checking follower from pos 0 to {follower_pos} before checkpoint pick-up')
+            oplog.check(self, session_follow, 0, follower_pos)
 
-        #     # advance checkpoint
-        #     self.pr('advance checkpoint')
-        #     self.disagg_advance_checkpoint(conn_follow)
+            # advance checkpoint
+            self.pr('advance checkpoint')
+            self.disagg_advance_checkpoint(conn_follow)
 
-        #     # The check begins at 0, which means this test will have quadratic performance.
-        #     self.pr(f'checking follower from pos 0 to {follower_pos} after checkpoint pick-up')
-        #     oplog.check(self, session_follow, 0, follower_pos)
+            # The check begins at 0, which means this test will have quadratic performance.
+            self.pr(f'checking follower from pos 0 to {follower_pos} after checkpoint pick-up')
+            oplog.check(self, session_follow, 0, follower_pos)
