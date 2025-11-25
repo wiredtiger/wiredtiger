@@ -356,7 +356,6 @@ testutil_parse_single_opt(TEST_OPTS *opts, int ch)
         case 'c':
             opts->table_type = TABLE_COL;
             break;
-        case 'F':
         case 'R':
         case 'r':
             opts->table_type = TABLE_ROW;

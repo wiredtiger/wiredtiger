@@ -3851,12 +3851,6 @@ tasks:
       # extended test/thread runs
       - func: "thread test"
         vars:
-          thread_test_args: -t f
-      - func: "thread test"
-        vars:
-          thread_test_args: -S -F -n 100000 -t f
-      - func: "thread test"
-        vars:
           thread_test_args: -t r
       - func: "thread test"
         vars:
