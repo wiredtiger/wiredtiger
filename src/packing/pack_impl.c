@@ -13,7 +13,7 @@
  *     Check that the specified packing format is valid, and whether it fits into a fixed-sized
  *     bitfield.
  */
-int
+static int
 __struct_check(
   WT_SESSION_IMPL *session, const char *fmt, size_t len, bool *fixedp, uint32_t *fixed_lenp)
 {
