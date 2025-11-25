@@ -871,7 +871,7 @@ __btcur_search_near_row_pinned_page(WT_CURSOR_BTREE *cbt, bool *validp)
 
     /*
      * Set the "insert" flag for row-store search; we may intend to position the cursor at the end
-     * of the tree, rather than match an existing record. (LSM requires this semantic.)
+     * of the tree, rather than match an existing record.
      */
     WT_RET(__cursor_row_search(cbt, true, cbt->ref, &leaf_found));
 
