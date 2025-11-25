@@ -619,7 +619,6 @@ __verify_tree(
     /* Column-store key order checks: check the page's record number. */
     switch (page->type) {
     case WT_PAGE_COL_FIX:
-        WT_ASSERT(session, false);
     case WT_PAGE_COL_INT:
     case WT_PAGE_COL_VAR:
         if (ref->ref_recno < vs->records_so_far + 1)
