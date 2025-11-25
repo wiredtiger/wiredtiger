@@ -1246,6 +1246,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
 
     r.backup_only = false;
     WT_ERR(ret);
+
+    /* Scan the metadata to find the incomplete tables and clean them. */
     WT_ERR(__metadata_post_recovery(&r));
 
     /* Scan the metadata to find the live files and their IDs. */
