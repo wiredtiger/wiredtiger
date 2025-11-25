@@ -185,9 +185,6 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
         if (append) {
             WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_col_append, ins_headp, 1);
             ins_headp = &mod->mod_col_append[0];
-        } else if (page->type == WT_PAGE_COL_FIX) {
-            WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_col_update, ins_headp, 1);
-            ins_headp = &mod->mod_col_update[0];
         } else {
             WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_col_update, ins_headp, page->entries);
             ins_headp = &mod->mod_col_update[cbt->slot];

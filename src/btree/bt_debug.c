@@ -653,8 +653,6 @@ __debug_cell_kv(
 
     /* Dump per-disk page type information. */
     switch (page_type) {
-    case WT_PAGE_COL_FIX:
-        break;
     case WT_PAGE_COL_VAR:
         WT_RET(ds->f(ds, " | rle: %" PRIu64, __wt_cell_rle(unpack)));
         break;
@@ -735,54 +733,6 @@ __debug_dsk_kv(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
 }
 
 /*
- * __debug_dsk_col_fix --
- *     Dump a WT_PAGE_COL_FIX disk image.
- */
-static int
-__debug_dsk_col_fix(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
-{
-    WT_BTREE *btree;
-    WT_CELL_UNPACK_KV unpack;
-    WT_COL_FIX_AUXILIARY_HEADER auxhdr;
-    uint32_t i;
-    uint8_t v;
-
-    btree = S2BT(ds->session);
-
-    WT_RET(__wti_col_fix_read_auxheader(ds->session, dsk, &auxhdr));
-
-    WT_RET(ds->f(ds, "\t> "));
-    switch (auxhdr.version) {
-    case WT_COL_FIX_VERSION_NIL:
-        WT_RET(ds->f(ds, "page version 0, no auxiliary data\n"));
-        break;
-    case WT_COL_FIX_VERSION_TS:
-        WT_RET(ds->f(ds, "page version 1, %" PRIu32 " time windows\n", auxhdr.entries));
-        break;
-    default:
-        WT_RET(ds->f(ds, "unknown page version %" PRIu32 "\n", auxhdr.version));
-        break;
-    }
-
-    WT_COL_FIX_FOREACH_BITS (btree, dsk, v, i) {
-        WT_RET(ds->f(ds, "\t{"));
-        WT_RET(__debug_hex_byte(ds, v));
-        WT_RET(ds->f(ds, "}\n"));
-    }
-
-    if (auxhdr.dataoffset > dsk->mem_size)
-        /* Print something useful instead of crashing or failing. */
-        WT_RET(ds->f(ds, "page is corrupt: offset to time windows is past end of page"));
-    else if (auxhdr.version == WT_COL_FIX_VERSION_TS) {
-        WT_CELL_FOREACH_FIX_TIMESTAMPS (ds->session, dsk, &auxhdr, unpack)
-            WT_RET(__debug_cell_kv(ds, NULL, dsk->type, NULL, &unpack));
-        WT_CELL_FOREACH_END;
-    }
-
-    return (0);
-}
-
-/*
  * __wti_debug_disk --
  *     Dump a disk page in debugging mode.
  */
@@ -807,7 +757,6 @@ __wti_debug_disk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, const char
     switch (dsk->type) {
     case WT_PAGE_BLOCK_MANAGER:
         break;
-    case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_INT:
     case WT_PAGE_COL_VAR:
         WT_ERR(ds->f(ds, "recno: %" PRIu64 " | ", dsk->recno));
@@ -856,9 +805,6 @@ __wti_debug_disk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, const char
 
     switch (dsk->type) {
     case WT_PAGE_BLOCK_MANAGER:
-        break;
-    case WT_PAGE_COL_FIX:
-        WT_ERR(__debug_dsk_col_fix(ds, dsk));
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
@@ -1215,10 +1161,6 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
         WT_INTL_INDEX_GET(session, page, pindex);
         entries = pindex->entries;
         split_gen = page->pg_intl_split_gen;
-        break;
-    case WT_PAGE_COL_FIX:
-        WT_RET(ds->f(ds, "recno: %" PRIu64 " | ", ref->ref_recno));
-        entries = page->entries;
         break;
     case WT_PAGE_COL_VAR:
         WT_RET(ds->f(ds, "recno: %" PRIu64 " | ", ref->ref_recno));

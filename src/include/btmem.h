@@ -1824,17 +1824,6 @@ struct __wt_insert_head {
         NULL :                                                          \
         (page)->modify->mod_col_append[0])
 
-/* WT_COL_FIX_FOREACH_BITS walks fixed-length bit-fields on a disk page. */
-#define WT_COL_FIX_FOREACH_BITS(btree, dsk, v, i)                            \
-    for ((i) = 0,                                                            \
-        (v) = (i) < (dsk)->u.entries ?                                       \
-           __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), 0, (btree)->bitcnt) : \
-           0;                                                                \
-         (i) < (dsk)->u.entries; ++(i),                                      \
-        (v) = (i) < (dsk)->u.entries ?                                       \
-           __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), i, (btree)->bitcnt) : \
-           0)
-
 /*
  * FLCS pages with time information have a small additional header after the main page data that
  * holds a version number and cell count, plus the byte offset to the start of the cell data. The
@@ -1854,10 +1843,6 @@ struct __wt_col_fix_auxiliary_header {
     uint32_t emptyoffset;
     uint32_t dataoffset;
 };
-
-/* Values for ->version. Version 0 never appears in an on-disk header. */
-#define WT_COL_FIX_VERSION_NIL 0 /* Original page format with no timestamp data */
-#define WT_COL_FIX_VERSION_TS 1  /* Upgraded format with cells carrying timestamp info */
 
 /*
  * Manage split generation numbers. Splits walk the list of sessions to check when it is safe to

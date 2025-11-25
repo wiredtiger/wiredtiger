@@ -299,7 +299,7 @@ past_end:
 
         cbt->compare = -1;
     } else {
-        WT_ASSERT(session, page->type == WT_PAGE_COL_FIX || !F_ISSET(cbt, WT_CBT_VAR_ONPAGE_MATCH));
+        WT_ASSERT(session, !F_ISSET(cbt, WT_CBT_VAR_ONPAGE_MATCH));
 
         cbt->ins_head = ins_head;
         cbt->ins = ins;

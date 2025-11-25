@@ -216,7 +216,6 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
     }
 
     switch (page->type) {
-    case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_VAR:
         /* Free the append array. */
         if ((append = WT_COL_APPEND(page)) != NULL) {
@@ -227,8 +226,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 
         /* Free the insert/update array. */
         if (mod->mod_col_update != NULL)
-            __free_skip_array(session, mod->mod_col_update,
-              page->type == WT_PAGE_COL_FIX ? 1 : page->entries, update_ignore);
+            __free_skip_array(session, mod->mod_col_update, page->entries, update_ignore);
         break;
     case WT_PAGE_ROW_LEAF:
         /*
