@@ -135,7 +135,7 @@ int
 main(int argc, char *argv[])
 {
     WT_CONNECTION *conn;
-    char *open_config;
+    const char *open_config;
     int ret = 0;
 
     WT_UNUSED(argc);
