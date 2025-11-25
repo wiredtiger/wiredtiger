@@ -235,13 +235,7 @@ __wt_atomic_store_double_relaxed(double *vp, double v)
     } while (0)
 
 #define __wt_atomic_load_ptr_relaxed(vp) (*(vp))
-#define __wt_atomic_load_ptr_acquire(vp) (WT_ACQUIRE_BARRIER(), *(vp))
 #define __wt_atomic_store_ptr_relaxed(vp, v) (*(vp) = (v))
-#define __wt_atomic_store_ptr_release(vp, v) \
-    do {                                     \
-        WT_RELEASE_BARRIER();                \
-        *(vp) = (v);                         \
-    } while (0)
 
 /*
  * Pointer atomic operations with acquire/release semantics using MSVC barrier macros. Note: These
@@ -249,6 +243,12 @@ __wt_atomic_store_double_relaxed(double *vp, double v)
  * handle the load/store with appropriate barriers.
  */
 #define __wt_atomic_load_ptr_acquire(vp) (WT_ACQUIRE_BARRIER(), *(vp))
+
+#define __wt_atomic_store_ptr_release(vp, v) \
+    do {                                     \
+        WT_RELEASE_BARRIER();                \
+        *(vp) = (v);                         \
+    } while (0)
 
 /*
  * __wt_atomic_cas_ptr --
