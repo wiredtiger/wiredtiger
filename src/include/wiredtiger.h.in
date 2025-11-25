@@ -5762,7 +5762,7 @@ struct __wt_key_management {
      * @param blob_size the size of the blob data
      * @param has_changed indicates if the blob has changed
      */
-    void (*set_key_blob)(WT_KEY_MANAGEMENT *km,
+    int (*set_key_blob)(WT_KEY_MANAGEMENT *km,
                        void *blob_data, size_t blob_size, bool has_changed);
 
     /*!
@@ -5771,7 +5771,7 @@ struct __wt_key_management {
      * @param km the WT_KEY_MANAGEMENT
      * @param callback provides any callback information needed.
      */
-    void (*set_key_complete)(WT_KEY_MANAGEMENT *km, void* callback);
+    int (*set_key_complete)(WT_KEY_MANAGEMENT *km, void* callback);
 };
 
 /*!

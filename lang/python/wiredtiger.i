@@ -337,6 +337,10 @@ from packing import pack, unpack
 	$result = SWIG_NewPointerObj(SWIG_as_voidptr(*$1), SWIGTYPE_p___wt_storage_source, 0);
 }
 
+%typemap(argout) WT_KEY_MANAGEMENT ** {
+	$result = SWIG_NewPointerObj(SWIG_as_voidptr(*$1), SWIGTYPE_p___wt_key_management, 0);
+}
+
 %typemap(argout) bool * {
 	$result = PyBool_FromLong(*$1);
 }
@@ -666,6 +670,7 @@ SELFHELPER(struct __wt_file_system, file_system)
 SELFHELPER(struct __wt_page_log, page_log)
 SELFHELPER(struct __wt_page_log_handle, page_log_handle)
 SELFHELPER(struct __wt_storage_source, storage_source)
+SELFHELPER(struct __wt_key_management, key_management)
 
  /*
   * Create an error exception if it has not already
@@ -1240,6 +1245,18 @@ typedef int int_void;
 };
 %enddef
 
+SIDESTEP_METHOD(__wt_key_management, get_key_blob,
+	(WT_KEY_MANAGEMENT *km, void **blob_data, size_t *blob_size),
+	(self, blob_data, blob_size))
+
+SIDESTEP_METHOD(__wt_key_management, set_key_blob,
+	(WT_KEY_MANAGEMENT *km, void *blob_data, size_t blob_size, bool has_changed),
+	(self, blob_data, blob_size, has_changed))
+
+SIDESTEP_METHOD(__wt_key_management, set_key_complete,
+	(WT_KEY_MANAGEMENT *km, void* callback),
+	(self, callback))
+
 SIDESTEP_METHOD(__wt_page_log, pl_begin_checkpoint,
   (WT_SESSION *session, int checkpoint_id),
   (self, session, checkpoint_id))
@@ -1511,6 +1528,7 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 %rename(PageLogPutArgs) __wt_page_log_put_args;
 %rename(StorageSource) __wt_storage_source;
 %rename(FileSystem) __wt_file_system;
+%rename(KeyManagement) __wt_key_management;
 
 %include "wiredtiger.h"
 
