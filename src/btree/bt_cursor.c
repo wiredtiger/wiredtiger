@@ -394,14 +394,14 @@ __cursor_valid_col(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
     WT_ASSERT(session, cbt->slot == UINT32_MAX || cbt->slot < page->entries);
 
     /*
+     * !!!
      * Column-store updates are stored as "insert" objects. If search returned an insert object we
-     *     can't return, the returned on-page object must be checked for a match. The flag tells us
-     *     whether the insert was actually an append to allow skipping the on-disk check. Note that
-     *     appends can't have history store content. This is true both for "real" appends at the end
-     *     of the tree and also for appends that are filling in truncated gaps in the middle of the
-     *     tree --
-     *     the gap only appears after the truncation becomes globally visible and at that point by
-     *     definition nothing older can be accessible.
+     * can't return, the returned on-page object must be checked for a match. The flag tells us
+     * whether the insert was actually an append to allow skipping the on-disk check. Note that
+     * appends can't have history store content. This is true both for "real" appends at the end of
+     * the tree and also for appends that are filling in truncated gaps in the middle of the tree --
+     * the gap only appears after the truncation becomes globally visible and at that point by
+     * definition nothing older can be accessible.
      */
     if (cbt->ins != NULL && !F_ISSET(cbt, WT_CBT_VAR_ONPAGE_MATCH))
         return (0);
