@@ -399,9 +399,9 @@ int
 __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor;
+    WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
     const char *checkpoint_name, *stable_uri, *uri, *config;
-    WT_DECL_ITEM(stable_uri_buf);
     bool has_prepare;
     /*
      * TODO: how careful does this need to be about concurrent schema operations? If this step needs
@@ -425,7 +425,7 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
             continue;
         /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
         WT_ERR_NOTFOUND_OK(
-          __wt_meta_checkpoint_last_name(session, uri , &checkpoint_name, NULL, NULL), true);
+          __wt_meta_checkpoint_last_name(session, uri, &checkpoint_name, NULL, NULL), true);
         if (ret == 0) {
             WT_ASSERT(session, ret == 0);
             WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
@@ -433,8 +433,7 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
              * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from the
              * stable checkpoint, but without it being a traditional checkpoint cursor.
              */
-            WT_ERR(
-              __wt_buf_fmt(session, stable_uri_buf, "%s/%s", uri, checkpoint_name));
+            WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "%s/%s", uri, checkpoint_name));
             stable_uri = stable_uri_buf->data;
             WT_ERR(__prepared_discover_walk_one_tree(session, stable_uri));
         }

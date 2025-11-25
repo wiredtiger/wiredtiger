@@ -160,9 +160,9 @@ int
 __wti_prepared_discover_add_artifact_ondisk_row(
   WT_SESSION_IMPL *session, uint64_t prepared_id, WT_TIME_WINDOW *tw, WT_ITEM *key)
 {
+    WT_DECL_ITEM(upd_value);
     WT_DECL_RET;
     WT_UPDATE *upd;
-    WT_DECL_ITEM(upd_value);
 
     WT_ERR(__wt_scr_alloc(session, 0, &upd_value));
 
