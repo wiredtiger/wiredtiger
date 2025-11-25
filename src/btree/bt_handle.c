@@ -806,7 +806,6 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
      * we require a correct page setup at each point where we might fail.
      */
     switch (btree->type) {
-    case BTREE_COL_FIX:
     case BTREE_COL_VAR:
         WT_ERR(__wt_page_alloc(session, WT_PAGE_COL_INT, 1, true, &root, 0));
         root->pg_intl_parent_ref = &btree->root;
@@ -869,9 +868,6 @@ __wti_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
     btree = S2BT(session);
 
     switch (btree->type) {
-    case BTREE_COL_FIX:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_FIX, 0, false, &ref->page, 0));
-        break;
     case BTREE_COL_VAR:
         WT_RET(__wt_page_alloc(session, WT_PAGE_COL_VAR, 0, false, &ref->page, 0));
         break;
