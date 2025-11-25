@@ -292,9 +292,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
     /* Reconcile the page. */
     switch (page->type) {
-    case WT_PAGE_COL_FIX:
-        ret = __wti_rec_col_fix(session, r, ref, salvage);
-        break;
     case WT_PAGE_COL_INT:
         WT_WITH_PAGE_INDEX(session, ret = __wti_rec_col_int(session, r, ref));
         break;
@@ -1454,11 +1451,11 @@ err:
 }
 
 /*
- * __wti_rec_split_grow --
+ * __rec_split_grow --
  *     Grow the split buffer.
  */
-int
-__wti_rec_split_grow(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t add_len)
+static int
+__rec_split_grow(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t add_len)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -1551,12 +1548,12 @@ __rec_split_fix_shrink(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 #define WT_PAGE_INTL_MINIMUM_ENTRIES 20
 
 /*
- * __wti_rec_split --
+ * __rec_split --
  *     Handle the page reconciliation bookkeeping. (Did you know "bookkeeper" has 3 doubled letters
  *     in a row? Sweet-tooth does, too.)
  */
-int
-__wti_rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
+static int
+__rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
 {
     WT_BTREE *btree;
     WTI_REC_CHUNK *tmp;
@@ -1679,7 +1676,7 @@ done:
      * won't necessarily happen that way.
      */
     if (r->space_avail < next_len)
-        WT_RET(__wti_rec_split_grow(session, r, next_len));
+        WT_RET(__rec_split_grow(session, r, next_len));
 
     return (0);
 }
@@ -1725,7 +1722,7 @@ __wti_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t 
     }
 
     /* We are crossing a split boundary */
-    return (__wti_rec_split(session, r, next_len));
+    return (__rec_split(session, r, next_len));
 }
 
 /*
@@ -1794,7 +1791,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          */
         len_to_move = prev_ptr->image.size - prev_ptr->min_offset;
         if (r->space_avail < len_to_move)
-            WT_RET(__wti_rec_split_grow(session, r, len_to_move));
+            WT_RET(__rec_split_grow(session, r, len_to_move));
         cur_dsk_start = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
 
         /*
@@ -2646,10 +2643,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     /* Initialize the page header(s). */
     __rec_split_write_header(session, r, chunk, multi, chunk->image.mem);
-    if (r->page->type == WT_PAGE_COL_FIX)
-        __wti_rec_col_fix_write_auxheader(session, chunk->entries, chunk->aux_start_offset,
-          chunk->auxentries, chunk->image.mem, chunk->image.size);
-
     /*
      * If we are writing the whole page in our first/only attempt, it might be a checkpoint
      * (checkpoints are only a single page, by definition). Checkpoints aren't written here, the
