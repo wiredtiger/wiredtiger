@@ -250,12 +250,6 @@ __wt_atomic_store_double_relaxed(double *vp, double v)
  */
 #define __wt_atomic_load_ptr_acquire(vp) (WT_ACQUIRE_BARRIER(), *(vp))
 
-#define __wt_atomic_store_ptr_release(vp, v) \
-    do {                                     \
-        WT_RELEASE_BARRIER();                \
-        *(vp) = (v);                         \
-    } while (0)
-
 /*
  * __wt_atomic_cas_ptr --
  *     Pointer compare and swap.
