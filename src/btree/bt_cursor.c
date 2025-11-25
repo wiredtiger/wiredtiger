@@ -353,7 +353,6 @@ __cursor_valid_row(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
 static int
 __cursor_valid_col(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
 {
-    WT_BTREE *btree;
     WT_CELL *cell;
     WT_COL *cip;
     WT_PAGE *page;
@@ -363,7 +362,6 @@ __cursor_valid_col(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
 
     *valid = false;
     key_out_of_bounds = false;
-    btree = CUR2BT(cbt);
     session = CUR2S(cbt);
     page = cbt->ref->page;
     upd = NULL;
@@ -539,6 +537,7 @@ __cursor_search(WT_CURSOR_BTREE *cbt, WT_REF *leaf, bool *leaf_foundp, bool inse
  * __cursor_modify --
  *     Modify from a cursor.
  */
+static WT_INLINE int
 __cursor_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *value, u_int modify_type)
 {
     WT_BTREE *btree = CUR2BT(cbt);
@@ -761,14 +760,14 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     if (__cursor_page_pinned(cbt, true)) {
         __wt_txn_cursor_op(session);
 
-        WT_ERR(__cursor_search(cbt, cbt->ref, leaf_found, false));
+        WT_ERR(__cursor_search(cbt, cbt->ref, &leaf_found, false));
         if (leaf_found && cbt->compare == 0)
             WT_ERR(__wti_cursor_valid(cbt, &valid, false));
     }
     if (!valid) {
         WT_ERR(__wt_cursor_func_init(cbt, true));
 
-        WT_ERR(__cursor_seach(cbt, NULL, NULL, false));
+        WT_ERR(__cursor_search(cbt, NULL, NULL, false));
         if (cbt->compare == 0)
             WT_ERR(__wti_cursor_valid(cbt, &valid, false));
     }
@@ -1005,6 +1004,7 @@ err:
 int
 __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 {
+    WT_BTREE *btree;
     WT_CURFILE_STATE state;
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -1013,6 +1013,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     uint64_t sleep_usecs, yield_count;
     bool append_key, key_out_of_bounds, valid;
 
+    btree = CUR2BT(cbt);
     cursor = &cbt->iface;
     insert_bytes = cursor->key.size + cursor->value.size;
     session = CUR2S(cbt);
@@ -1059,9 +1060,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
          * Correct to an exact match so we can update whatever we're pointing at.
          */
         cbt->compare = 0;
-        ret = btree->type == BTREE_ROW ?
-          __cursor_row_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD) :
-          __cursor_col_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD);
+        ret = __cursor_modify(cbt, &cbt->iface.value, WT_UPDATE_STANDARD);
         if (ret == 0)
             goto done;
 
