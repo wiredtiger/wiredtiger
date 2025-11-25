@@ -447,22 +447,28 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
 
     WT_UNUSED(new_image);
 
+    /*
+     * Encode the first key always from the base image. The btrees using customized collator cannot
+     * handle the truncated first key.
+     */
+    base_key = &base[i++];
+    base_val = &base[i++];
+
     if (build_disk) {
         WT_ASSERT(session, new_image != NULL);
         p_ptr = WT_PAGE_HEADER_BYTE(S2BT(session), new_image->data);
-        entry_count = 0;
         /*
          * Initialize new_image->size here since __wt_rec_pack_internal_key_addr uses it to
          * calculate where to begin writing the first packed key and value data.
          */
         new_image->size = WT_PTRDIFF(p_ptr, new_image->data);
+
+        WT_RET(__wt_cell_pack_internal_key_addr(
+          session, new_image, base_key, base_val, NULL, false, &p_ptr));
+
+        entry_count += 2;   /* key + value cells */
+        final_entries += 1; /* one ref (child) emitted */
     } else {
-        /*
-         * Encode the first key always from the base image. The btrees using customized collator
-         * cannot handle the truncated first key.
-         */
-        base_key = &base[i++];
-        base_val = &base[i++];
         WT_RET(__page_build_ref(
           session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
     }
