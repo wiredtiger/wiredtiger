@@ -778,16 +778,16 @@ struct __wt_page {
 
 #define WT_PAGE_IS_INTERNAL(page) \
     ((page)->type == WT_PAGE_COL_INT || (page)->type == WT_PAGE_ROW_INT)
-#define WT_PAGE_INVALID 0       /* Invalid page */
-#define WT_PAGE_BLOCK_MANAGER 1 /* Block-manager page */
-#define WT_PAGE_COL_FIX 2       /* Col-store fixed-len leaf */
-#define WT_PAGE_COL_INT 3       /* Col-store internal page */
-#define WT_PAGE_COL_VAR 4       /* Col-store var-length leaf page */
-#define WT_PAGE_OVFL 5          /* Overflow page */
-#define WT_PAGE_ROW_INT 6       /* Row-store internal page */
-#define WT_PAGE_ROW_LEAF 7      /* Row-store leaf page */
-#define WT_PAGE_TYPE_COUNT 8    /* First value beyond valid for checks */
-    uint8_t type;               /* Page type */
+#define WT_PAGE_INVALID 0            /* Invalid page */
+#define WT_PAGE_BLOCK_MANAGER 1      /* Block-manager page */
+#define WT_PAGE_COL_FIX_DEPRECATED 2 /* Col-store fixed-len leaf */
+#define WT_PAGE_COL_INT 3            /* Col-store internal page */
+#define WT_PAGE_COL_VAR 4            /* Col-store var-length leaf page */
+#define WT_PAGE_OVFL 5               /* Overflow page */
+#define WT_PAGE_ROW_INT 6            /* Row-store internal page */
+#define WT_PAGE_ROW_LEAF 7           /* Row-store leaf page */
+#define WT_PAGE_TYPE_COUNT 8         /* First value beyond valid for checks */
+    uint8_t type;                    /* Page type */
 
     /* 1 byte hole expected. */
 
