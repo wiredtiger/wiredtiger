@@ -623,8 +623,7 @@ __wti_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
         /*
          * For column-store pages, calculate the largest record on the page.
          */
-        cbt->last_standard_recno = page->type == WT_PAGE_COL_VAR ? __col_var_last_recno(cbt->ref) :
-                                                                   __col_fix_last_recno(cbt->ref);
+        cbt->last_standard_recno = __col_var_last_recno(cbt->ref);
 
         /* If we're traversing the append list, set the reference. */
         if (cbt->ins_head != NULL && cbt->ins_head == WT_COL_APPEND(page))
