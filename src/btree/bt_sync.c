@@ -240,8 +240,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * wait for any problematic eviction or page splits to complete.
          */
         WT_ASSERT(session,
-          __wt_atomic_load_enum_acquire(&btree->syncing) == WT_BTREE_SYNC_OFF &&
-            __wt_atomic_load_ptr_acquire(&btree->sync_session) == NULL);
+          __wt_atomic_load_enum_relaxed(&btree->syncing) == WT_BTREE_SYNC_OFF &&
+            __wt_atomic_load_ptr_relaxed(&btree->sync_session) == NULL);
 
         __wt_atomic_store_ptr_release(&btree->sync_session, session);
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_WAIT);
