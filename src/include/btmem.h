@@ -734,20 +734,6 @@ struct __wt_page {
         WT_ROW *row; /* Key/value pairs */
 #undef pg_row
 #define pg_row u.row
-
-        /* Fixed-length column-store leaf page. */
-        struct {
-            uint8_t *fix_bitf;     /* Values */
-            WT_COL_FIX_TW *fix_tw; /* Time window index */
-#define WT_COL_FIX_TWS_SET(page) ((page)->u.col_fix.fix_tw != NULL)
-        } col_fix;
-#undef pg_fix_bitf
-#define pg_fix_bitf u.col_fix.fix_bitf
-#undef pg_fix_numtws
-#define pg_fix_numtws u.col_fix.fix_tw->numtws
-#undef pg_fix_tws
-#define pg_fix_tws u.col_fix.fix_tw->tws
-
         /* Variable-length column-store leaf page. */
         struct {
             WT_COL *col_var;            /* Values */

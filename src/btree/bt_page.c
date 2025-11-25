@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 
-static int __inmem_col_fix(WT_SESSION_IMPL *, WT_PAGE *, bool *, size_t *);
 static int __inmem_col_int(WT_SESSION_IMPL *, WT_PAGE *, uint64_t);
 static int __inmem_col_var(WT_SESSION_IMPL *, WT_PAGE *, uint64_t, bool *, size_t *);
 static int __inmem_row_int(WT_SESSION_IMPL *, WT_PAGE *, size_t *);
@@ -1552,8 +1551,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_UPDATE *first_upd, *upd;
     size_t size, total_size;
     uint64_t recno, rle;
-    uint32_t i, numtws, tw;
-    uint8_t v;
+    uint32_t i;
 
     btree = S2BT(session);
     page = ref->page;
@@ -1595,27 +1593,6 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
                 total_size += size;
                 upd = NULL;
             }
-        }
-    } else if (page->type == WT_PAGE_COL_FIX) {
-        WT_ASSERT(session, WT_COL_FIX_TWS_SET(page));
-        /* Search for prepare records. */
-        numtws = page->pg_fix_numtws;
-        for (tw = 0; tw < numtws; tw++) {
-            cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[tw]);
-            __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
-            if (!WT_TIME_WINDOW_HAS_PREPARE(&unpack.tw))
-                continue;
-            recno = ref->ref_recno + page->pg_fix_tws[tw].recno_offset;
-
-            /* Get the value. The update will copy it, so we don't need to allocate here. */
-            v = __bit_getv_recno(ref, recno, btree->bitcnt);
-            value->data = &v;
-            value->size = 1;
-
-            /* Create an update to resolve the prepare. */
-            WT_ERR(__page_inmem_update_col(session, ref, &cbt, recno, value, &unpack, &upd, &size));
-            total_size += size;
-            upd = NULL;
         }
     } else {
         WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF);
@@ -1766,9 +1743,6 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
     size = LF_ISSET(WT_PAGE_DISK_ALLOC) ? dsk->mem_size : 0;
 
     switch (page->type) {
-    case WT_PAGE_COL_FIX:
-        WT_ERR(__inmem_col_fix(session, page, instantiate_updp, &size));
-        break;
     case WT_PAGE_COL_INT:
         WT_ERR(__inmem_col_int(session, page, dsk->recno));
         break;
@@ -1868,104 +1842,6 @@ __wti_col_fix_read_auxheader(
     auxhdr->entries = (uint32_t)entries;
     auxhdr->emptyoffset = WT_PTRDIFF32(raw, (uint8_t *)dsk);
     auxhdr->dataoffset = auxheaderoffset + (uint32_t)dataoffset;
-
-    return (0);
-}
-
-/*
- * __inmem_col_fix --
- *     Build in-memory index for fixed-length column-store leaf pages.
- */
-static int
-__inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp, size_t *sizep)
-{
-    WT_BTREE *btree;
-    WT_CELL_UNPACK_KV unpack;
-    WT_COL_FIX_AUXILIARY_HEADER auxhdr;
-    const WT_PAGE_HEADER *dsk;
-    size_t size;
-    uint64_t tmp;
-    uint32_t entry_num, recno_offset, skipped;
-    const uint8_t *p8;
-    bool instantiate_upd;
-    void *pv;
-
-    btree = S2BT(session);
-    dsk = page->dsk;
-    tmp = 0;
-    instantiate_upd = false;
-
-    page->pg_fix_bitf = WT_PAGE_HEADER_BYTE(btree, dsk);
-
-    WT_RET(__wti_col_fix_read_auxheader(session, dsk, &auxhdr));
-    WT_ASSERT(session, auxhdr.dataoffset <= dsk->mem_size);
-
-    switch (auxhdr.version) {
-    case WT_COL_FIX_VERSION_NIL:
-        /* There is no time window data. */
-        page->u.col_fix.fix_tw = NULL;
-        break;
-    case WT_COL_FIX_VERSION_TS:
-        /* The page should be VERSION_NIL if there are no timestamp entries. */
-        WT_ASSERT(session, auxhdr.entries > 0);
-
-        recno_offset = 0;
-        skipped = 0;
-
-        /* Walk the entries to build the index. */
-        entry_num = 0;
-        WT_CELL_FOREACH_FIX_TIMESTAMPS (session, dsk, &auxhdr, unpack) {
-            if (unpack.type == WT_CELL_KEY) {
-                p8 = unpack.data;
-                /* The array is attached to the page, so we don't need to free it on error here. */
-                WT_RET(__wt_vunpack_uint(&p8, unpack.size, &tmp));
-                /* For now at least, check that the entries are in ascending order. */
-                WT_ASSERT(session, tmp < UINT32_MAX);
-                WT_ASSERT(session, (recno_offset == 0 && tmp == 0) || tmp > recno_offset);
-                recno_offset = (uint32_t)tmp;
-            } else if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw)) {
-                /* Only index entries that are not already obsolete. */
-
-                if (entry_num == 0) {
-                    size = sizeof(WT_COL_FIX_TW) +
-                      (auxhdr.entries - skipped) * sizeof(WT_COL_FIX_TW_ENTRY);
-                    WT_RET(__wt_calloc(session, 1, size, &pv));
-                    *sizep += size;
-                    page->u.col_fix.fix_tw = pv;
-                }
-                page->pg_fix_tws[entry_num].recno_offset = recno_offset;
-                page->pg_fix_tws[entry_num].cell_offset = WT_PAGE_DISK_OFFSET(page, unpack.cell);
-                if (!F_ISSET(btree, WT_BTREE_READONLY) && WT_TIME_WINDOW_HAS_PREPARE(&(unpack.tw)))
-                    instantiate_upd = true;
-                entry_num++;
-            } else
-                skipped++;
-        }
-        WT_CELL_FOREACH_END;
-
-        /*
-         * Set the number of time windows. If there weren't any, the variable doesn't exist. Also,
-         * while we could now reallocate the array to the exact count, assume it's not worthwhile.
-         */
-        if (entry_num > 0)
-            page->pg_fix_numtws = entry_num;
-
-        /*
-         * If we skipped "quite a few" entries (threshold is arbitrary), and the tree is already
-         * dirty and so will be written, mark the page dirty so it gets rewritten without them.
-         */
-        if (__wt_tsan_suppress_load_bool(&btree->modified) && skipped >= auxhdr.entries / 4 &&
-          skipped >= dsk->u.entries / 100 && skipped > 4) {
-            WT_RET(__wt_page_modify_init(session, page));
-            __wt_page_only_modify_set(session, page);
-        }
-
-        break;
-    }
-
-    /* Report back whether we found a prepared value. */
-    if (instantiate_updp != NULL && instantiate_upd)
-        *instantiate_updp = true;
 
     return (0);
 }

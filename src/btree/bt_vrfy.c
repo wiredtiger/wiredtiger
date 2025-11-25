@@ -44,8 +44,6 @@ typedef struct {
 
 static void __verify_checkpoint_reset(WT_VSTUFF *);
 static int __verify_compare_page_id(const void *, const void *);
-static int __verify_page_content_fix(
-  WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
 static int __verify_page_content_int(
   WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
 static int __verify_page_content_leaf(
@@ -658,9 +656,6 @@ __verify_tree(
               page->dsk->write_gen, ref->home->dsk->write_gen);
 
         switch (page->type) {
-        case WT_PAGE_COL_FIX:
-            WT_RET(__verify_page_content_fix(session, ref, addr_unpack, vs));
-            break;
         case WT_PAGE_COL_INT:
         case WT_PAGE_ROW_INT:
             WT_RET(__verify_page_content_int(session, ref, addr_unpack, vs));
@@ -1194,87 +1189,6 @@ __verify_page_content_int(
         }
     }
     WT_CELL_FOREACH_END;
-
-    return (0);
-}
-
-/*
- * __verify_page_content_fix --
- *     Verify the page's content. Like __verify_page_content_leaf but for FLCS pages.
- */
-static int
-__verify_page_content_fix(
-  WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *parent, WT_VSTUFF *vs)
-{
-    WT_CELL *cell;
-    WT_CELL_UNPACK_KV unpack;
-    WT_DECL_RET;
-    WT_PAGE *page;
-    uint64_t start_ts;
-    uint32_t cell_num, numtws, recno_offset, tw;
-    uint8_t *p;
-
-    page = ref->page;
-
-    /* Count the keys. */
-    vs->records_so_far += page->entries;
-
-    /* Examine each row; iterate the keys and time windows in parallel. */
-    /* Walk the time windows, if there are any. */
-    numtws = WT_COL_FIX_TWS_SET(page) ? page->pg_fix_numtws : 0;
-    for (recno_offset = 0, tw = 0; recno_offset < page->entries; recno_offset++) {
-        if (tw < numtws && page->pg_fix_tws[tw].recno_offset == recno_offset) {
-            /* This row has a time window. */
-
-            /* The printable cell number for the value is 2x the entry number (tw) plus 1. */
-            cell_num = tw * 2 + 1;
-
-            cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[tw]);
-            __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
-
-            /* We are supposed to see only values (not keys) and only plain values belong. */
-            if (unpack.type != WT_CELL_VALUE)
-                WT_RET_MSG(session, EINVAL,
-                  "cell %" PRIu32 " for key %" PRIu64 " on page at %s has wrong type %s", cell_num,
-                  ref->ref_recno + page->pg_fix_tws[tw].recno_offset,
-                  __verify_addr_string(session, ref, vs->tmp1),
-                  __wti_cell_type_string(unpack.type));
-
-            /* The value cell should contain only a time window. */
-            if (unpack.size != 0)
-                WT_RET_MSG(session, EINVAL,
-                  "cell %" PRIu32 " for key %" PRIu64 " on page at %s has nonempty value", cell_num,
-                  ref->ref_recno + page->pg_fix_tws[tw].recno_offset,
-                  __verify_addr_string(session, ref, vs->tmp1));
-
-            if ((ret = __wt_time_value_validate(session, &unpack.tw, &parent->ta, false)) != 0)
-                WT_RET_MSG(session, ret,
-                  "cell %" PRIu32 " for key %" PRIu64 " on page at %s failed timestamp validation",
-                  cell_num, ref->ref_recno + page->pg_fix_tws[tw].recno_offset,
-                  __verify_addr_string(session, ref, vs->tmp1));
-
-            if (vs->stable_timestamp != WT_TS_NONE)
-                WT_RET(__verify_ts_stable_cmp(
-                  session, NULL, ref, cell_num, unpack.tw.start_ts, unpack.tw.stop_ts, vs));
-
-            start_ts = unpack.tw.start_ts;
-            tw++;
-        } else
-            start_ts = WT_TS_NONE;
-
-        /*
-         * Verify key-associated history-store entries. Note that while a WT_COL_FIX_VERSION_NIL
-         * page written by a build that does not support FLCS timestamps and history will have no
-         * history store entries, such pages can also be written by newer builds; so we should
-         * always validate the history entries.
-         */
-        p = vs->tmp1->mem;
-        WT_RET(__wt_vpack_uint(&p, 0, ref->ref_recno + recno_offset));
-        vs->tmp1->size = WT_PTRDIFF(p, vs->tmp1->mem);
-        WT_RET(__verify_key_hs(session, vs->tmp1, start_ts, vs));
-    }
-
-    /* The caller checks that the address cell pointing to us is no-overflow, so we needn't. */
 
     return (0);
 }
