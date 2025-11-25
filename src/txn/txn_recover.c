@@ -29,9 +29,9 @@ typedef struct {
     u_int max_fileid;  /* Maximum file ID seen. */
     u_int nfiles;      /* Number of files in the metadata. */
 
-    char **remove_uris;
-    size_t remove_uris_allocate; /* Allocated size of files array. */
-    u_int nremove_uris;          /* Number of files in the metadata. */
+    char **remove_uris;          /* Array of tables that should be removed from the metadata. */
+    size_t remove_uris_allocate; /* Allocated size of remove tables array. */
+    u_int nremove_uris;          /* Number of tables marked for removal in the metadata. */
 
     WT_LSN ckpt_lsn;     /* Start LSN for main recovery loop. */
     WT_LSN max_ckpt_lsn; /* Maximum checkpoint LSN seen. */
@@ -776,7 +776,6 @@ err:
 static int
 __recovery_free_remove_uris(WT_RECOVERY *r)
 {
-    WT_DECL_RET;
     WT_SESSION_IMPL *session;
     u_int i;
 
@@ -786,7 +785,7 @@ __recovery_free_remove_uris(WT_RECOVERY *r)
 
     r->nremove_uris = 0;
     __wt_free(session, r->remove_uris);
-    return (ret);
+    return (0);
 }
 
 /*
@@ -888,8 +887,8 @@ __metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config
 
     WT_ERR(__wt_metadata_cursor_open(r->session, NULL, &metac));
     /*
-     * FIXME-WT-XXXX: Add capability for cleaning complex and tiered tables. For now, only simple tables are
-     * considered.
+     * FIXME-WT-XXXX: Add capability for cleaning complex and tiered tables. For now, only simple
+     * tables are considered.
      */
     WT_ERR(__wt_config_getones(r->session, config, "columns", &config_item));
     __wt_config_subinit(r->session, &cparser, &config_item);
@@ -959,9 +958,9 @@ __remove_files_from_metadata(WT_RECOVERY *r)
         __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s %s",
           "removing incomplete table", r->remove_uris[i]);
 
+        /* Remove associated colgroup metadata. */
         size_t len = strlen("colgroup:") + strlen(r->remove_uris[i]) + 1;
         WT_ERR(__wt_calloc_def(r->session, len, &cgname));
-        /* Remove associated colgroup metadata. */
         WT_ERR(__wt_snprintf(cgname, len, "colgroup:%s", r->remove_uris[i]));
         WT_ERR_NOTFOUND_OK(__wt_metadata_remove(r->session, cgname), false);
 
