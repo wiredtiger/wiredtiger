@@ -1084,6 +1084,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 
 retry:
     WT_ERR(__wt_cursor_func_init(cbt, true));
+    /* append_key can only be true for column-store. */
     if (append_key) {
         /*
          * Optionally insert a new record (ignoring the application's record number). The real
