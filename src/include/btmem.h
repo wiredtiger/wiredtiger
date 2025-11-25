@@ -603,9 +603,6 @@ struct __wt_col_fix_tw {
     WT_COL_FIX_TW_ENTRY tws[0]; /* lookup array */
 };
 
-/* WT_COL_FIX_TW_CELL gets the cell pointer from a WT_COL_FIX_TW_ENTRY. */
-#define WT_COL_FIX_TW_CELL(page, entry) ((WT_CELL *)((uint8_t *)(page)->dsk + (entry)->cell_offset))
-
 #ifdef HAVE_DIAGNOSTIC
 /*
  * WT_SPLIT_HIST --
@@ -1819,12 +1816,6 @@ struct __wt_insert_head {
 #define WT_COL_UPDATE(page, ip) WT_COL_UPDATE_SLOT(page, WT_COL_SLOT(page, ip))
 
 /*
- * WT_COL_UPDATE_SINGLE is a single WT_INSERT list, used for any fixed-length column-store updates
- * for a page.
- */
-#define WT_COL_UPDATE_SINGLE(page) WT_COL_UPDATE_SLOT(page, 0)
-
-/*
  * WT_COL_APPEND is an WT_INSERT list, used for fixed- and variable-length appends.
  */
 #define WT_COL_APPEND(page)                                             \
@@ -1883,7 +1874,6 @@ struct __wt_col_fix_auxiliary_header {
  */
 
 #define WT_COL_FIX_AUXHEADER_RESERVATION 7
-#define WT_COL_FIX_AUXHEADER_SIZE_MAX 11
 
 /* Values for ->version. Version 0 never appears in an on-disk header. */
 #define WT_COL_FIX_VERSION_NIL 0 /* Original page format with no timestamp data */

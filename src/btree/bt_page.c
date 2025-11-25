@@ -1558,6 +1558,11 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
     upd = NULL;
     total_size = 0;
 
+    /*
+     * This variable is only used in assertions so in non-diagnostic builds it throws an unused
+     * error.
+     */
+    WT_UNUSED(btree);
     WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_READONLY));
 
     /* We don't handle in-memory prepare resolution here. */
