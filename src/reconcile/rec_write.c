@@ -1454,7 +1454,7 @@ err:
  * __rec_split_grow --
  *     Grow the split buffer.
  */
-int
+static int
 __rec_split_grow(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t add_len)
 {
     WT_BM *bm;
@@ -1552,7 +1552,7 @@ __rec_split_fix_shrink(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
  *     Handle the page reconciliation bookkeeping. (Did you know "bookkeeper" has 3 doubled letters
  *     in a row? Sweet-tooth does, too.)
  */
-int
+static int
 __rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
 {
     WT_BTREE *btree;
