@@ -123,7 +123,7 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
     vpack = &_vpack;
 
     WT_RET(
-      __wti_rec_split_init(session, r, page, pageref->ref_recno, btree->maxintlpage_precomp, 0));
+      __wti_rec_split_init(session, r, pageref->ref_recno, btree->maxintlpage_precomp));
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
@@ -363,7 +363,7 @@ __wti_rec_col_var(
     last.dictionary = false;
 
     WT_RET(
-      __wti_rec_split_init(session, r, page, pageref->ref_recno, btree->maxleafpage_precomp, 0));
+      __wti_rec_split_init(session, r, pageref->ref_recno, btree->maxleafpage_precomp));
 
     WT_RET(__wt_scr_alloc(session, 0, &orig));
 

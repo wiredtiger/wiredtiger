@@ -527,9 +527,8 @@ extern int __wti_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WTI_RECONCILE 
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_split_finish(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_rec_split_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page,
-  uint64_t recno, uint64_t primary_size, uint32_t auxiliary_size)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_rec_split_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint64_t recno,
+  uint64_t primary_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
   WT_ROW *rip, WT_CELL_UNPACK_KV *vpack, WTI_UPDATE_SELECT *upd_select)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

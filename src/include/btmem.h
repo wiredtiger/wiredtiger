@@ -1855,27 +1855,6 @@ struct __wt_col_fix_auxiliary_header {
     uint32_t dataoffset;
 };
 
-/*
- * The on-disk auxiliary header uses a 1-byte version (the header must always begin with a nonzero
- * byte) and packed integers for the entry count and offset. To make the size of the offset entry
- * predictable (rather than dependent on the total page size) and also as small as possible, we
- * store the distance from the auxiliary data. To avoid complications computing the offset, we
- * include the offset's own storage space in the offset, and to make things simpler all around, we
- * include the whole auxiliary header in the offset; that is, the position of the auxiliary data is
- * computed as the position of the start of the auxiliary header plus the decoded stored offset.
- *
- * Both the entry count and the offset are limited to 32 bits because pages may not exceed 4G, so
- * their maximum encoded lengths are 5 each, so the maximum size of the on-disk header is 11 bytes.
- * It can be as small as 3 bytes, though.
- *
- * We reserve 7 bytes for the header on a full page (not 11) because on a full page the encoded
- * offset is the reservation size, and 7 encodes in one byte. This is enough for all smaller pages:
- * obviously if there's at least 4 extra bytes in the bitmap space any header will fit (4 + 7 = 11)
- * and if there's less the encoded offset is less than 11, which still encodes to one byte.
- */
-
-#define WT_COL_FIX_AUXHEADER_RESERVATION 7
-
 /* Values for ->version. Version 0 never appears in an on-disk header. */
 #define WT_COL_FIX_VERSION_NIL 0 /* Original page format with no timestamp data */
 #define WT_COL_FIX_VERSION_TS 1  /* Upgraded format with cells carrying timestamp info */
