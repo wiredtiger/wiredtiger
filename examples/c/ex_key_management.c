@@ -72,7 +72,7 @@ my_get_key_blob(WT_KEY_MANAGEMENT *km, void **blob_data, size_t *blob_size)
  * my_set_key_blob --
  *     A placeholder example of set_key_blob() call.
  */
-static void
+static int
 my_set_key_blob(WT_KEY_MANAGEMENT *km, void *blob_data, size_t blob_size, bool has_changed)
 {
     MY_KEY_MANAGEMENT *my_km = (MY_KEY_MANAGEMENT *)km;
@@ -82,19 +82,23 @@ my_set_key_blob(WT_KEY_MANAGEMENT *km, void *blob_data, size_t blob_size, bool h
     WT_UNUSED(my_km);
 
     WT_UNUSED(has_changed);
+
+    return (0);
 }
 
 /*
  * my_set_key_blob_completed --
  *     A placeholder example of set_key_complete() call.
  */
-static void
+static int
 my_set_key_blob_completed(WT_KEY_MANAGEMENT *km, void *callback)
 {
     MY_KEY_MANAGEMENT *my_km = (MY_KEY_MANAGEMENT *)km;
 
     WT_UNUSED(my_km);
     WT_UNUSED(callback);
+
+    return (0);
 }
 
 /*
@@ -155,7 +159,7 @@ main(int argc, char *argv[])
     /*
      * Setup a configuration string that will load our key management system. Use the special local
      * extension to indicate that the entry point is in the same executable. Also enable early load
-     * for this extension, since WiredTiger needs to be able to find it before doing any operations. 
+     * for this extension, since WiredTiger needs to be able to find it before doing any operations.
      */
     open_config =
       "create,log=(enabled=true),extensions=(local={entry=set_my_key_management,early_load=true})";

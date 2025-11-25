@@ -1157,6 +1157,8 @@ pfx
 pid
 pindexp
 plh
+plhandle
+pluggable
 pmem
 poptable
 popthreads
