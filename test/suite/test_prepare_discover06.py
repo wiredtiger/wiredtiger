@@ -82,8 +82,7 @@ class test_prepare_discover06(wttest.WiredTigerTestCase):
         self.assertEqual(cursor[3], "committed_value_3")
         self.session.rollback_transaction()
 
-        # Phase 2: Prepare transaction and create checkpoint
-        self.pr("=== Phase 2: Prepare transaction and checkpoint ===")
+        # Step 2: Prepare transaction and create checkpoint
 
         # Insert more data and prepare the transaction at timestamp 100
         self.session.begin_transaction()
@@ -103,8 +102,7 @@ class test_prepare_discover06(wttest.WiredTigerTestCase):
         checkpoint_session.checkpoint()
         checkpoint_session.close()
 
-        # Phase 3: Reopen as follower and pickup checkpoint
-        self.pr("=== Phase 3: Reopen as follower and pickup checkpoint ===")
+        # Step 3: Reopen as follower and pickup checkpoint
 
         # Get the checkpoint metadata before closing
         checkpoint_meta = self.disagg_get_complete_checkpoint_meta()

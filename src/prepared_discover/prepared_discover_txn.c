@@ -162,12 +162,15 @@ __wti_prepared_discover_add_artifact_ondisk_row(
 {
     WT_DECL_RET;
     WT_UPDATE *upd;
+    WT_DECL_ITEM(upd_value);
+
+    WT_ERR(__wt_scr_alloc(session, 0, &upd_value));
 
     /*
      * Create an update structure with the time information and state populated - that allows this
      * code to reuse existing machinery for installing transaction operations.
      */
-    WT_RET(__wt_upd_alloc(session, NULL, WT_UPDATE_STANDARD, &upd, NULL));
+    WT_ERR(__wt_upd_alloc(session, upd_value, WT_UPDATE_STANDARD, &upd, NULL));
     upd->txnid = session->txn->id;
     upd->upd_durable_ts = tw->durable_start_ts;
     upd->prepare_state = WT_PREPARE_INPROGRESS;
@@ -180,5 +183,6 @@ err:
      * this is for a prepared transaction.
      */
     __wt_free_update_list(session, &upd);
+    __wt_scr_free(session, &upd_value);
     return (ret);
 }
