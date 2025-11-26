@@ -4634,7 +4634,7 @@ tasks:
     tags: ["stress-test-disagg-fail"]
 
   - name: format-stress-disagg-leader-pull-request-test
-    # FIXME-WT-XXXX - Enable disagg tests once they are stable.
+    # FIXME-WT-16114-Enable disagg tests once they are stable.
     # tags: ["pull_request"]
     depends_on:
       - name: compile
@@ -4646,7 +4646,7 @@ tasks:
           times: 15
 
   - name: format-stress-disagg-follower-pull-request-test
-    # FIXME-WT-XXXX - Enable disagg tests once they are stable.
+    # FIXME-WT-16114-Enable disagg tests once they are stable.
     # tags: ["pull_request"]
     depends_on:
       - name: compile
@@ -6593,7 +6593,7 @@ buildvariants:
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
     - name: format-msan-test
-    # FIXME-WT-XXXX - Enable disagg tests once they are stable.
+    # FIXME-WT-16114-Enable disagg tests once they are stable.
     # - name: format-stress-disagg-leader-msan-test-palm
     # - name: format-stress-disagg-follower-msan-test-palm
     - name: make-check-test
@@ -7398,7 +7398,7 @@ buildvariants:
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
     - name: format-msan-test
-    # FIXME-WT-XXXX - Enable disagg tests once they are stable.
+    # FIXME-WT-16114-Enable disagg tests once they are stable.
     # - name: format-stress-disagg-leader-msan-test-palm
     # - name: format-stress-disagg-follower-msan-test-palm
     - name: make-check-test
