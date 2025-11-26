@@ -98,12 +98,13 @@ __prepared_discover_find_or_create_item(WT_SESSION_IMPL *session, uint64_t prepa
  * __restore_upd_to_ingest_table --
  *     In disaggregated storage, in follower mode, stable table cannot be modified, therefore a
  *     prepared update needs to be restored onto ingest table so that the follower node can then
- *     commit the prepard transaction. This function open the ingest table and insert the update
+ *     commit the prepared transaction. This function open the ingest table and insert the update
  *     restored from disk onto the ingest table. It also sets the session's dhandle to the ingest
  *     table to track the correct btree when committing/rolling back.
  */
 static int
-__restore_upd_to_ingest_table(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_ITEM *key)
+__restore_upd_to_ingest_table(
+  WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_ITEM *key, const char *uri)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
@@ -122,10 +123,12 @@ __restore_upd_to_ingest_table(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_ITEM 
     /* Find the first available layered table entry */
     table_count = manager->open_layered_table_count;
     for (i = 0; i < table_count; i++) {
-        /* Find the first non-empty entry */
+        /* Find the first non-empty entry that matches the currently opened dhandle */
         if (manager->entries[i] != NULL) {
-            entry = manager->entries[i];
-            break;
+            if (WT_PREFIX_MATCH(uri, manager->entries[i]->stable_uri)) {
+                entry = manager->entries[i];
+                break;
+            }
         }
     }
     if (entry == NULL) {
@@ -209,8 +212,8 @@ __wti_prepared_discover_add_artifact_upd(
  *     Add an artifact to a pending prepared transaction.
  */
 int
-__wti_prepared_discover_add_artifact_ondisk_row(
-  WT_SESSION_IMPL *session, uint64_t prepared_id, WT_TIME_WINDOW *tw, WT_ITEM *key, WT_ITEM *value)
+__wti_prepared_discover_add_artifact_ondisk_row(WT_SESSION_IMPL *session, uint64_t prepared_id,
+  WT_TIME_WINDOW *tw, WT_ITEM *key, WT_ITEM *value, const char *uri)
 {
     WT_DECL_RET;
     WT_UPDATE *upd;
@@ -226,7 +229,7 @@ __wti_prepared_discover_add_artifact_ondisk_row(
     upd->prepared_id = prepared_id;
     upd->upd_start_ts = upd->prepare_ts = tw->start_prepare_ts;
     if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader)
-        WT_ERR(__restore_upd_to_ingest_table(session, upd, key));
+        WT_ERR(__restore_upd_to_ingest_table(session, upd, key, uri));
 
     WT_ERR(__wti_prepared_discover_add_artifact_upd(session, prepared_id, key, upd));
 err:

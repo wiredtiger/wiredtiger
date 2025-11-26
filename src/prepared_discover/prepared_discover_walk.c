@@ -41,7 +41,7 @@ __prepared_discover_btree_has_prepare(WT_SESSION_IMPL *session, const char *conf
  */
 static int
 __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
-  uint64_t recno, WT_ITEM *row_key, WT_CELL_UNPACK_KV *vpack)
+  uint64_t recno, WT_ITEM *row_key, WT_CELL_UNPACK_KV *vpack, const char *uri)
 {
     WT_DECL_ITEM(value);
     WT_DECL_RET;
@@ -74,7 +74,7 @@ __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_
     /* Add an entry for this key to the transaction structure */
     if (rip != NULL)
         WT_ERR(__wti_prepared_discover_add_artifact_ondisk_row(
-          session, tw->start_prepared_id, tw, key, value));
+          session, tw->start_prepared_id, tw, key, value, uri));
     else
         WT_ASSERT_ALWAYS(
           session, false, "Column store prepared transaction discovery not supported");
@@ -92,7 +92,7 @@ err:
  */
 static int
 __prepared_discover_check_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
-  uint64_t recno, WT_ITEM *row_key, WT_CELL_UNPACK_KV *vpack)
+  uint64_t recno, WT_ITEM *row_key, WT_CELL_UNPACK_KV *vpack, const char *uri)
 {
     WT_TIME_WINDOW *tw;
 
@@ -110,7 +110,7 @@ __prepared_discover_check_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_RO
     if (!WT_TIME_WINDOW_HAS_PREPARE(tw))
         return (0);
 
-    WT_RET(__prepared_discover_process_ondisk_kv(session, ref, rip, recno, row_key, vpack));
+    WT_RET(__prepared_discover_process_ondisk_kv(session, ref, rip, recno, row_key, vpack, uri));
 
     return (0);
 }
@@ -204,7 +204,8 @@ err:
  *     or have been modified. So handle the full possible page structure, not just a clean image.
  */
 static int
-__prepared_discover_process_row_store_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
+__prepared_discover_process_row_store_leaf_page(
+  WT_SESSION_IMPL *session, WT_REF *ref, const char *uri)
 {
     WT_CELL_UNPACK_KV *vpack, _vpack;
     WT_DECL_ITEM(key);
@@ -240,7 +241,7 @@ __prepared_discover_process_row_store_leaf_page(WT_SESSION_IMPL *session, WT_REF
             vpack = &_vpack;
             __wt_row_leaf_value_cell(session, page, rip, vpack);
 
-            WT_ERR(__prepared_discover_check_ondisk_kv(session, ref, rip, 0, NULL, vpack));
+            WT_ERR(__prepared_discover_check_ondisk_kv(session, ref, rip, 0, NULL, vpack, uri));
         }
 
         /* Walk through any intermediate insert list. */
@@ -259,7 +260,7 @@ err:
  *     Review the content of a leaf page discovering and processing prepared updates.
  */
 static int
-__prepared_discover_process_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
+__prepared_discover_process_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref, const char *uri)
 {
     WT_PAGE *page;
 
@@ -267,7 +268,7 @@ __prepared_discover_process_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
 
     switch (page->type) {
     case WT_PAGE_ROW_LEAF:
-        WT_RET(__prepared_discover_process_row_store_leaf_page(session, ref));
+        WT_RET(__prepared_discover_process_row_store_leaf_page(session, ref, uri));
         break;
     case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_VAR:
@@ -385,7 +386,7 @@ __prepared_discover_walk_one_tree(WT_SESSION_IMPL *session, const char *uri)
           ref != NULL) {
 
             if (F_ISSET(ref, WT_REF_FLAG_LEAF))
-                WT_ERR(__prepared_discover_process_leaf_page(session, ref));
+                WT_ERR(__prepared_discover_process_leaf_page(session, ref, uri));
         }
     }
 err:
