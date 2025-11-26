@@ -95,6 +95,59 @@ __prepared_discover_find_or_create_item(WT_SESSION_IMPL *session, uint64_t prepa
 }
 
 /*
+ * __restore_upd_to_ingest_table --
+ *     In disaggregated storage, in follower mode, stable table cannot be modified, therefore a
+ *     prepared update needs to be restored onto ingest table so that the follower node can then
+ *     commit the prepard transaction. This function open the ingest table and insert the update
+ *     restored from disk onto the ingest table. It also sets the session's dhandle to the ingest
+ *     table to track the correct btree when committing/rolling back.
+ */
+static int
+__restore_upd_to_ingest_table(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_ITEM *key)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+    WT_LAYERED_TABLE_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    uint32_t i, table_count;
+
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
+
+    entry = NULL;
+    conn = S2C(session);
+
+    manager = &conn->layered_table_manager;
+    /* Find the first available layered table entry */
+    table_count = manager->open_layered_table_count;
+    for (i = 0; i < table_count; i++) {
+        /* Find the first non-empty entry */
+        if (manager->entries[i] != NULL) {
+            entry = manager->entries[i];
+            break;
+        }
+    }
+    if (entry == NULL) {
+        ret = WT_NOTFOUND;
+        goto err;
+    }
+    /* Open cursor on the ingest table */
+    WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &cursor));
+
+    /* Cast to WT_CURSOR_BTREE */
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
+    WT_ERR(ret);
+    WT_ERR(__wt_row_modify(cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
+    ret = __wt_session_get_dhandle(session, entry->ingest_uri, NULL, NULL, 0);
+err:
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
+    return (ret);
+}
+
+/*
  * __wt_prepared_discover_remove_item --
  *     Find and remove a pending prepared item by its ID in the pending prepared items hash map.
  */
@@ -160,22 +213,9 @@ int
 __wti_prepared_discover_add_artifact_ondisk_row(
   WT_SESSION_IMPL *session, uint64_t prepared_id, WT_TIME_WINDOW *tw, WT_ITEM *key, WT_ITEM *value)
 {
-    WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *cursor;
-    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
-    WT_LAYERED_TABLE_MANAGER *manager;
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     WT_UPDATE *upd;
-    uint32_t i, table_count;
-    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
-
-    conn = S2C(session);
-    manager = &conn->layered_table_manager;
-    cursor = NULL;
     upd = NULL;
-    entry = NULL;
-
     /*
      * Create an update structure with the time information and state populated - that allows this
      * code to reuse existing machinery for installing transaction operations.
@@ -186,34 +226,10 @@ __wti_prepared_discover_add_artifact_ondisk_row(
     upd->prepare_state = WT_PREPARE_INPROGRESS;
     upd->prepared_id = prepared_id;
     upd->upd_start_ts = upd->prepare_ts = tw->start_prepare_ts;
-
-    /* Find the first available layered table entry */
-    table_count = manager->open_layered_table_count;
-    for (i = 0; i < table_count; i++) {
-        /* Find the first non-empty entry */
-        if (manager->entries[i] != NULL) {
-            entry = manager->entries[i];
-            break;
-        }
-    }
-    if (entry == NULL) {
-        ret = WT_NOTFOUND;
-        goto err;
-    }
-    /* Open cursor on the ingest table */
-    WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &cursor));
-
-    /* Cast to WT_CURSOR_BTREE */
-    cbt = (WT_CURSOR_BTREE *)cursor;
-    WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
-    WT_ERR(ret);
-    WT_ERR(__wt_row_modify(cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
-    ret = __wt_session_get_dhandle(session, entry->ingest_uri, NULL, NULL, 0);
+    if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader)
+        WT_ERR(__restore_upd_to_ingest_table(session, upd, key));
 
     WT_ERR(__wti_prepared_discover_add_artifact_upd(session, prepared_id, key, upd));
 err:
-
-    if (cursor != NULL)
-        WT_TRET(cursor->close(cursor));
     return (ret);
 }

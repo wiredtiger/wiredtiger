@@ -404,7 +404,7 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
     WT_CURSOR *cursor;
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
-    const char *checkpoint_name, *stable_uri, *uri, *config;
+    const char *checkpoint_name, *uri, *config;
     bool has_prepare;
     /*
      * TODO: how careful does this need to be about concurrent schema operations? If this step needs
@@ -418,7 +418,6 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
         /* Only interested in btree handles that aren't the metadata */
         if (!WT_BTREE_PREFIX(uri) || strcmp(uri, WT_METAFILE_URI) == 0)
             continue;
-
         WT_ERR_NOTFOUND_OK(cursor->get_value(cursor, &config), true);
         if (ret == WT_NOTFOUND)
             config = NULL;
@@ -426,10 +425,10 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
         WT_ERR(__prepared_discover_btree_has_prepare(session, config, &has_prepare));
         if (!has_prepare)
             continue;
-        /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
-        WT_ERR_NOTFOUND_OK(
-          __wt_meta_checkpoint_last_name(session, uri, &checkpoint_name, NULL, NULL), true);
-        if (ret == 0) {
+        /* If this is a follower node, open the stable table and search for prepared update there */
+        if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader) {
+            /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
+            WT_ERR(__wt_meta_checkpoint_last_name(session, uri, &checkpoint_name, NULL, NULL));
             WT_ASSERT(session, ret == 0);
             WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
             /*
@@ -437,9 +436,9 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
              * stable checkpoint, but without it being a traditional checkpoint cursor.
              */
             WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "%s/%s", uri, checkpoint_name));
-            stable_uri = stable_uri_buf->data;
-            WT_ERR(__prepared_discover_walk_one_tree(session, stable_uri));
+            uri = stable_uri_buf->data;
         }
+        WT_ERR(__prepared_discover_walk_one_tree(session, uri));
     }
     if (ret == WT_NOTFOUND)
         ret = 0;
