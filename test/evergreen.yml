@@ -7510,7 +7510,8 @@ buildvariants:
     disagg_run: true
   tasks:
     - name: compile
-    - name: ".stress-test-disagg-san-fail"
+    - name: format-stress-disagg-leader-msan-test-palm
+    - name: format-stress-disagg-follower-msan-test-palm
 
 - name: amazon2023-disagg-ubsan-stress
   display_name: "[Failure Expected] (ARMV9) Amazon 2023 UBSAN Disagg Stress tests"
