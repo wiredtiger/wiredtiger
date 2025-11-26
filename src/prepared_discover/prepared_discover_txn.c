@@ -158,31 +158,62 @@ __wti_prepared_discover_add_artifact_upd(
  */
 int
 __wti_prepared_discover_add_artifact_ondisk_row(
-  WT_SESSION_IMPL *session, uint64_t prepared_id, WT_TIME_WINDOW *tw, WT_ITEM *key)
+  WT_SESSION_IMPL *session, uint64_t prepared_id, WT_TIME_WINDOW *tw, WT_ITEM *key, WT_ITEM *value)
 {
-    WT_DECL_ITEM(upd_value);
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *cursor;
+    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
+    WT_LAYERED_TABLE_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     WT_UPDATE *upd;
+    uint32_t i, table_count;
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
 
-    WT_ERR(__wt_scr_alloc(session, 0, &upd_value));
+    conn = S2C(session);
+    manager = &conn->layered_table_manager;
+    cursor = NULL;
+    upd = NULL;
+    entry = NULL;
 
     /*
      * Create an update structure with the time information and state populated - that allows this
      * code to reuse existing machinery for installing transaction operations.
      */
-    WT_ERR(__wt_upd_alloc(session, upd_value, WT_UPDATE_STANDARD, &upd, NULL));
+    WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
     upd->txnid = session->txn->id;
     upd->upd_durable_ts = tw->durable_start_ts;
     upd->prepare_state = WT_PREPARE_INPROGRESS;
     upd->prepared_id = prepared_id;
     upd->upd_start_ts = upd->prepare_ts = tw->start_prepare_ts;
+
+    /* Find the first available layered table entry */
+    table_count = manager->open_layered_table_count;
+    for (i = 0; i < table_count; i++) {
+        /* Find the first non-empty entry */
+        if (manager->entries[i] != NULL) {
+            entry = manager->entries[i];
+            break;
+        }
+    }
+    if (entry == NULL) {
+        ret = WT_NOTFOUND;
+        goto err;
+    }
+    /* Open cursor on the ingest table */
+    WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &cursor));
+
+    /* Cast to WT_CURSOR_BTREE */
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
+    WT_ERR(ret);
+    WT_ERR(__wt_row_modify(cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
+    ret = __wt_session_get_dhandle(session, entry->ingest_uri, NULL, NULL, 0);
+
     WT_ERR(__wti_prepared_discover_add_artifact_upd(session, prepared_id, key, upd));
 err:
-    /*
-     * It's OK to free the update now, the transaction structure will lookup using the key since
-     * this is for a prepared transaction.
-     */
-    __wt_free_update_list(session, &upd);
-    __wt_scr_free(session, &upd_value);
+
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
     return (ret);
 }

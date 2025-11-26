@@ -111,7 +111,7 @@ class test_prepare_discover06(wttest.WiredTigerTestCase):
         follower_config = self.conn_base_config + \
                          'disaggregated=(role="follower",' + \
                          f'checkpoint_meta="{checkpoint_meta}")'
-
+        self.session.breakpoint()
         # Reopen connection as follower
         self.reopen_conn(config=follower_config)
 
@@ -156,6 +156,7 @@ class test_prepare_discover06(wttest.WiredTigerTestCase):
         self.assertEqual(count, 1)  # Should find exactly one prepared transaction
         self.assertEqual(found_prepared_id, 123)
         prepared_discover_cursor.close()
+        self.session.breakpoint()
 
         # Commit the claimed prepared transaction at timestamp 200
         discover_session.commit_transaction("commit_timestamp=" + self.timestamp_str(200) +
@@ -185,9 +186,11 @@ class test_prepare_discover06(wttest.WiredTigerTestCase):
         self.assertEqual(read_cursor[1], "committed_value_1")
         self.assertEqual(read_cursor[2], "committed_value_2")
         self.assertEqual(read_cursor[3], "committed_value_3")
-        self.assertEqual(read_cursor[4], "prepared_value_4")
-        self.assertEqual(read_cursor[5], "prepared_value_5")
-        self.assertEqual(read_cursor[6], "prepared_value_6")
+        self.session.breakpoint()
+        for i in range(4, 7):
+            read_cursor.set_key(i)
+            self.assertEqual(0, read_cursor.search())
+            self.assertEqual(f'prepared_value_{i}', read_cursor.get_value())
         read_session.rollback_transaction()
 
         read_cursor.close()
