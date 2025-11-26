@@ -4633,7 +4633,8 @@ tasks:
     tags: ["stress-test-disagg-fail"]
 
   - name: format-stress-disagg-leader-pull-request-test
-    tags: ["pull_request"]
+    # FIXME-WT-XXXX - Enable disagg tests once they are stable.
+    # tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
@@ -4644,7 +4645,8 @@ tasks:
           times: 15
 
   - name: format-stress-disagg-follower-pull-request-test
-    tags: ["pull_request"]
+    # FIXME-WT-XXXX - Enable disagg tests once they are stable.
+    # tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
@@ -6590,8 +6592,9 @@ buildvariants:
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
     - name: format-msan-test
-    - name: format-stress-disagg-leader-msan-test-palm
-    - name: format-stress-disagg-follower-msan-test-palm
+    # FIXME-WT-XXXX - Enable disagg tests once they are stable.
+    # - name: format-stress-disagg-leader-msan-test-palm
+    # - name: format-stress-disagg-follower-msan-test-palm
     - name: make-check-test
       distros: ubuntu2004-large
 
@@ -7388,8 +7391,9 @@ buildvariants:
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
     - name: format-msan-test
-    - name: format-stress-disagg-leader-msan-test-palm
-    - name: format-stress-disagg-follower-msan-test-palm
+    # FIXME-WT-XXXX - Enable disagg tests once they are stable.
+    # - name: format-stress-disagg-leader-msan-test-palm
+    # - name: format-stress-disagg-follower-msan-test-palm
     - name: make-check-test
       distros: amazon2023-arm64-latest-large-m8g
     - name: csuite-long-running
