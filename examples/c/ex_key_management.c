@@ -56,47 +56,49 @@ typedef struct {
 } MY_KEY_MANAGEMENT;
 
 /*
- * my_get_key_blob --
- *     A placeholder example of get_key_blob() call.
+ * my_set_key_blob --
+ *     A placeholder example of set_key_blob() call.
  */
 static int
-my_get_key_blob(WT_KEY_MANAGEMENT *km, void *blob_data, size_t blob_size)
+my_set_key_blob(WT_KEY_MANAGEMENT *km, WT_KEY_MANAGEMENT_SET_KEY_ARGS *args)
 {
     MY_KEY_MANAGEMENT *my_km = (MY_KEY_MANAGEMENT *)km;
+    WT_KEY_MANAGEMENT_SET_KEY_ARGS *set_args = (WT_KEY_MANAGEMENT_SET_KEY_ARGS *)args;
 
-    memcpy((void *)&my_km->key_blob, blob_data, blob_size);
+    memcpy((void *)&my_km->key_blob, set_args->blob_data, set_args->blob_size);
     return (0);
 }
 
 /*
- * my_set_key_blob --
- *     An simple example of set_key_blob() call.
+ * my_get_key_blob --
+ *     An simple example of get_key_blob() call.
  */
 static int
-my_set_key_blob(WT_KEY_MANAGEMENT *km, void **blob_data, size_t *blob_size, bool has_changed)
+my_get_key_blob(WT_KEY_MANAGEMENT *km, WT_KEY_MANAGEMENT_GET_KEY_ARGS *args)
 {
     MY_KEY_MANAGEMENT *my_km = (MY_KEY_MANAGEMENT *)km;
+    WT_KEY_MANAGEMENT_GET_KEY_ARGS *get_args = (WT_KEY_MANAGEMENT_GET_KEY_ARGS *)args;
 
-    if ((*blob_data = calloc(1, sizeof(MY_KEY_BLOB))) == NULL)
+    if ((get_args->blob_data = calloc(1, sizeof(MY_KEY_BLOB))) == NULL)
         return (errno);
 
-    memcpy(*blob_data, (void *)&my_km->key_blob, sizeof(MY_KEY_BLOB));
-    *blob_size = sizeof(MY_KEY_BLOB);
-    has_changed = false;
+    memcpy(get_args->blob_data, (void *)&my_km->key_blob, sizeof(MY_KEY_BLOB));
+    get_args->blob_size = sizeof(MY_KEY_BLOB);
+    get_args->has_changed = false;
     return (0);
 }
 
 /*
- * my_set_key_blob_complete --
- *     A simple example of set_key_complete call.
+ * my_get_key_blob_complete --
+ *     A simple example of get_key_complete call.
  */
 static int
-my_set_key_blob_complete(WT_KEY_MANAGEMENT *km, void *callback)
+my_get_key_blob_complete(WT_KEY_MANAGEMENT *km, WT_KEY_MANAGEMENT_GET_KEY_ARGS *args)
 {
     MY_KEY_MANAGEMENT *my_km = (MY_KEY_MANAGEMENT *)km;
-    WT_KEY_MANAGEMENT_CALLBACK_ARGS *args = (WT_KEY_MANAGEMENT_CALLBACK_ARGS *)callback;
+    WT_KEY_MANAGEMENT_GET_KEY_ARGS *get_args = (WT_KEY_MANAGEMENT_GET_KEY_ARGS *)args;
 
-    my_km->returned_lsn = args->returned_lsn;
+    my_km->returned_lsn = get_args->returned_lsn;
     return (0);
 }
 
@@ -122,9 +124,9 @@ set_my_key_management(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
         return (errno);
     }
     wt = (WT_KEY_MANAGEMENT *)&kms->km;
-    wt->get_key_blob = my_get_key_blob;
     wt->set_key_blob = my_set_key_blob;
-    wt->set_key_complete = my_set_key_blob_complete;
+    wt->get_key_blob = my_get_key_blob;
+    wt->get_key_complete = my_get_key_blob_complete;
 
     kms->key_blob.id = 1;
     kms->key_blob.data = 1234;
