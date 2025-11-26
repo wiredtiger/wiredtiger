@@ -1475,7 +1475,7 @@ int standalone_build();
 %ignore __wt_item;
 %ignore __wt_lsn;
 %ignore __wt_key_management_get_key_args;
-%ignore __wt_key_management_set_key_args;
+%ignore __wt_key_management_load_key_args;
 %ignore __wt_key_management;
 
 %ignore __wt_connection::add_collator;
