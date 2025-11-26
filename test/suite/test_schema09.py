@@ -1,0 +1,85 @@
+#!/usr/bin/env python
+#
+# Public Domain 2014-present MongoDB, Inc.
+# Public Domain 2008-2014 WiredTiger, Inc.
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+
+import wttest, threading, time, wiredtiger
+from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
+from wtscenario import make_scenarios
+from helper import copy_wiredtiger_home
+
+# test_schema09.py
+#    Test that tables are reconciled correctly when they are empty.
+class test_schema09(wttest.WiredTigerTestCase):
+    conn_config = 'timing_stress_for_test=(create_slow),log=(enabled=true)'
+
+    basename = 'test_schema09_fail'
+    tablename = 'table:' + basename
+
+    def create_table(self, fail=False):
+        self.pr('create table')
+        self.session.create(self.tablename, 'key_format=5s,value_format=HQ,exclusive=true')
+
+    def check_metadata_entry(self, uri):
+        meta_cursor = self.session.open_cursor('metadata:')
+        meta_cursor.set_key("file:" + self.basename + ".wt")
+        self.assertEqual(meta_cursor.search(), wiredtiger.WT_NOTFOUND)
+        meta_cursor.set_key("table:" + self.basename)
+        self.assertEqual(meta_cursor.search(), wiredtiger.WT_NOTFOUND)
+        meta_cursor.set_key("colgroup:" + self.basename)
+        self.assertEqual(meta_cursor.search(), wiredtiger.WT_NOTFOUND)
+        meta_cursor.close()
+
+    def test_schema(self):
+        working_table = "table:test_schema09_working"
+        self.session.create(working_table, 'key_format=5s,value_format=HQ,exclusive=true')
+        create_thread = threading.Thread(target=self.create_table)
+        create_thread.start()
+
+        # Wait until the create thread is in the middle of creating the table
+        time.sleep(2)
+        copy_wiredtiger_home(self, ".", "RESTART")
+        create_thread.join()
+
+        self.conn_config = "log=(enabled=true)"
+        self.conn = self.setUpConnectionOpen("RESTART")
+        self.session = self.setUpSessionOpen(self.conn)
+
+        self.check_metadata_entry(self.tablename)
+
+        # Test that we can open a cursor on the table.
+        self.assertRaises(
+            wiredtiger.WiredTigerError, lambda: self.session.open_cursor(self.tablename, None))
+
+        # Test that we can drop the table.
+        self.assertRaises(
+            wiredtiger.WiredTigerError, lambda: self.session.drop(self.tablename, None))
+
+        # Test that we can create the table.
+        self.session.create(self.tablename, "key_format=5s,value_format=HQ,exclusive=true")
+
+        self.ignoreStderrPatternIfExists('File exists')
+        self.ignoreStdoutPatternIfExists('unexpected file')
