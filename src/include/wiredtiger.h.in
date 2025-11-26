@@ -87,8 +87,10 @@ struct __wt_page_log_encryption; typedef struct __wt_page_log_encryption WT_PAGE
 struct __wt_page_log_get_args; typedef struct __wt_page_log_get_args WT_PAGE_LOG_GET_ARGS;
 struct __wt_page_log_put_args; typedef struct __wt_page_log_put_args WT_PAGE_LOG_PUT_ARGS;
 struct __wt_key_management;    typedef struct __wt_key_management WT_KEY_MANAGEMENT;
-struct __wt_key_management_callback_args;
-typedef struct __wt_key_management_callback_args WT_KEY_MANAGEMENT_CALLBACK_ARGS;
+struct __wt_key_management_get_key_args;
+typedef struct __wt_key_management_get_key_args WT_KEY_MANAGEMENT_GET_KEY_ARGS;
+struct __wt_key_management_set_key_args;
+typedef struct __wt_key_management_set_key_args WT_KEY_MANAGEMENT_SET_KEY_ARGS;
 struct __wt_page_log_handle; typedef struct __wt_page_log_handle WT_PAGE_LOG_HANDLE;
 #endif
 struct __wt_session;        typedef struct __wt_session WT_SESSION;
@@ -5733,13 +5735,40 @@ struct __wt_page_log {
 };
 
 /*
- * These are arguments to the set_key_blob and set_key_complete
- * methods, which are called when WiredTiger is writing a
- * checkpoint.
+ * These are arguments to the load_key_blob method, called
+ * when a checkpoint is loaded, either at startup or when
+ * a new checkpoint is picked up on a follower.
+ *
+ * Fields in this structure are set by WiredTiger and should
+ * not be changed by the key management extension.
  */
-struct __wt_key_management_callback_args {
+
+struct __wt_key_management_set_key_args {
     void *blob_data;
     size_t blob_size;
+    bool has_changed; /* Set by WiredTiger for get_key_blob */
+    uint64_t returned_lsn; /* Set by WiredTiger for get_key_complete */
+};
+
+/*
+ * These are arguments to the get_key_blob and get_key_complete
+ * methods, which are called when WiredTiger is writing a
+ * checkpoint.
+ *
+ * Fields in this structure, except for returned_lsn,
+ * are set by the key management extension, and are
+ * not changed by WiredTiger. If has_changed is true,
+ * blob_data and blob_size must be set by the extension,
+ * and define the data that is written by WiredTiger. In
+ * that case, when the blob write has completed,
+ * get_complete_key is called. If has_changed is false,
+ * no write is done by WiredTiger, and get_key_complete
+ * is not called as a result.
+ */
+struct __wt_key_management_get_key_args {
+    void *blob_data;
+    size_t blob_size;
+    bool has_changed; /* Set by WiredTiger for get_key_blob */
     uint64_t returned_lsn; /* Set by WiredTiger for get_key_complete */
 };
 
@@ -5760,8 +5789,8 @@ struct __wt_key_management {
      * @param blob_data the blob data returned
      * @param blob_size the size of the blob data returned
      */
-    int (*get_key_blob)(WT_KEY_MANAGEMENT *km,
-                       void *blob_data, size_t blob_size);
+    int (*set_key_blob)(WT_KEY_MANAGEMENT *km,
+                       WT_KEY_MANAGEMENT_SET_KEY_ARGS *args);
 
     /*!
      * Set a key blob and indicate if it has been changed.
@@ -5771,8 +5800,8 @@ struct __wt_key_management {
      * @param blob_size the size of the blob data
      * @param has_changed indicates if the blob has changed
      */
-    int (*set_key_blob)(WT_KEY_MANAGEMENT *km,
-                       void **blob_data, size_t *blob_size, bool has_changed);
+    int (*get_key_blob)(WT_KEY_MANAGEMENT *km,
+                       WT_KEY_MANAGEMENT_GET_KEY_ARGS* args);
 
     /*!
      * Callback function indicating that setting the key blob has completed.
@@ -5780,7 +5809,7 @@ struct __wt_key_management {
      * @param km the WT_KEY_MANAGEMENT
      * @param callback provides any callback information needed.
      */
-    int (*set_key_complete)(WT_KEY_MANAGEMENT *km, void* callback);
+    int (*get_key_complete)(WT_KEY_MANAGEMENT *km, WT_KEY_MANAGEMENT_GET_KEY_ARGS* args);
 };
 
 /*!
