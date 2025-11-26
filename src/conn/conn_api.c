@@ -2714,7 +2714,7 @@ __conn_set_key_management(
     WT_SESSION_IMPL *session;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL(conn, session, set_key_management, config, cfg);
+    CONNECTION_API_CALL_NOCONF(conn, session, set_key_management);
 
     /* The configuration string has no use but may be useful at a later time. */
     if (config != NULL)
