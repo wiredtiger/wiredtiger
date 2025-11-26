@@ -1617,6 +1617,7 @@ variables:
           format_args: disagg.mode=leader runs.timer=5:10
           times: 15
 
+  # FIXME-WT-16113: Consolidate this logic in test/format itself.
   - &format-stress-data-validation-test-disagg-leader
     depends_on:
       - name: compile
