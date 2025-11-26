@@ -778,16 +778,16 @@ struct __wt_page {
 
 #define WT_PAGE_IS_INTERNAL(page) \
     ((page)->type == WT_PAGE_COL_INT || (page)->type == WT_PAGE_ROW_INT)
-#define WT_PAGE_INVALID 0       /* Invalid page */
-#define WT_PAGE_BLOCK_MANAGER 1 /* Block-manager page */
-#define WT_PAGE_COL_FIX 2       /* Col-store fixed-len leaf */
-#define WT_PAGE_COL_INT 3       /* Col-store internal page */
-#define WT_PAGE_COL_VAR 4       /* Col-store var-length leaf page */
-#define WT_PAGE_OVFL 5          /* Overflow page */
-#define WT_PAGE_ROW_INT 6       /* Row-store internal page */
-#define WT_PAGE_ROW_LEAF 7      /* Row-store leaf page */
-#define WT_PAGE_TYPE_COUNT 8    /* First value beyond valid for checks */
-    uint8_t type;               /* Page type */
+#define WT_PAGE_INVALID 0            /* Invalid page */
+#define WT_PAGE_BLOCK_MANAGER 1      /* Block-manager page */
+#define WT_PAGE_COL_FIX_DEPRECATED 2 /* Col-store fixed-len leaf */
+#define WT_PAGE_COL_INT 3            /* Col-store internal page */
+#define WT_PAGE_COL_VAR 4            /* Col-store var-length leaf page */
+#define WT_PAGE_OVFL 5               /* Overflow page */
+#define WT_PAGE_ROW_INT 6            /* Row-store internal page */
+#define WT_PAGE_ROW_LEAF 7           /* Row-store leaf page */
+#define WT_PAGE_TYPE_COUNT 8         /* First value beyond valid for checks */
+    uint8_t type;                    /* Page type */
 
     /* 1 byte hole expected. */
 
@@ -1823,62 +1823,6 @@ struct __wt_insert_head {
     ((page)->modify == NULL || (page)->modify->mod_col_append == NULL ? \
         NULL :                                                          \
         (page)->modify->mod_col_append[0])
-
-/* WT_COL_FIX_FOREACH_BITS walks fixed-length bit-fields on a disk page. */
-#define WT_COL_FIX_FOREACH_BITS(btree, dsk, v, i)                            \
-    for ((i) = 0,                                                            \
-        (v) = (i) < (dsk)->u.entries ?                                       \
-           __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), 0, (btree)->bitcnt) : \
-           0;                                                                \
-         (i) < (dsk)->u.entries; ++(i),                                      \
-        (v) = (i) < (dsk)->u.entries ?                                       \
-           __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), i, (btree)->bitcnt) : \
-           0)
-
-/*
- * FLCS pages with time information have a small additional header after the main page data that
- * holds a version number and cell count, plus the byte offset to the start of the cell data. The
- * latter values are limited by the page size, so need only be 32 bits. One hopes we'll never need
- * 2^32 versions.
- *
- * This struct is the in-memory representation. The number of entries is the number of time windows
- * (there are twice as many cells) and the offsets is from the beginning of the page. The space
- * between the empty offset and the data offset is not used and is expected to be zeroed.
- *
- * This structure is only used when handling on-disk pages; once the page is read in, one should
- * instead use the time window index in the page structure, which is a different type found above.
- */
-struct __wt_col_fix_auxiliary_header {
-    uint32_t version;
-    uint32_t entries;
-    uint32_t emptyoffset;
-    uint32_t dataoffset;
-};
-
-/*
- * The on-disk auxiliary header uses a 1-byte version (the header must always begin with a nonzero
- * byte) and packed integers for the entry count and offset. To make the size of the offset entry
- * predictable (rather than dependent on the total page size) and also as small as possible, we
- * store the distance from the auxiliary data. To avoid complications computing the offset, we
- * include the offset's own storage space in the offset, and to make things simpler all around, we
- * include the whole auxiliary header in the offset; that is, the position of the auxiliary data is
- * computed as the position of the start of the auxiliary header plus the decoded stored offset.
- *
- * Both the entry count and the offset are limited to 32 bits because pages may not exceed 4G, so
- * their maximum encoded lengths are 5 each, so the maximum size of the on-disk header is 11 bytes.
- * It can be as small as 3 bytes, though.
- *
- * We reserve 7 bytes for the header on a full page (not 11) because on a full page the encoded
- * offset is the reservation size, and 7 encodes in one byte. This is enough for all smaller pages:
- * obviously if there's at least 4 extra bytes in the bitmap space any header will fit (4 + 7 = 11)
- * and if there's less the encoded offset is less than 11, which still encodes to one byte.
- */
-
-#define WT_COL_FIX_AUXHEADER_RESERVATION 7
-
-/* Values for ->version. Version 0 never appears in an on-disk header. */
-#define WT_COL_FIX_VERSION_NIL 0 /* Original page format with no timestamp data */
-#define WT_COL_FIX_VERSION_TS 1  /* Upgraded format with cells carrying timestamp info */
 
 /*
  * Manage split generation numbers. Splits walk the list of sessions to check when it is safe to

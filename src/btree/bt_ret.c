@@ -54,9 +54,9 @@ __key_return(WT_CURSOR_BTREE *cbt)
     }
 
     /*
-     * WT_PAGE_COL_FIX, WT_PAGE_COL_VAR: The interface cursor's record has usually been set, but
-     * that isn't universally true, specifically, cursor.search_near may call here without first
-     * setting the interface cursor.
+     * WT_PAGE_COL_VAR: The interface cursor's record has usually been set, but that isn't
+     * universally true, specifically, cursor.search_near may call here without first setting the
+     * interface cursor.
      */
     cursor->recno = cbt->recno;
     return (0);

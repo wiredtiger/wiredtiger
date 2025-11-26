@@ -536,7 +536,6 @@ __wt_cursor_key_order_init(WT_CURSOR_BTREE *cbt)
      * checking.
      */
     switch (cbt->ref->page->type) {
-    case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_VAR:
         cbt->lastrecno = cbt->recno;
         return (0);

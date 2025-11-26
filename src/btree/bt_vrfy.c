@@ -454,7 +454,6 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *unp
 static const char *__page_types[] = {
   "WT_PAGE_INVALID",
   "WT_PAGE_BLOCK_MANAGER",
-  "WT_PAGE_COL_FIX",
   "WT_PAGE_COL_INT",
   "WT_PAGE_COL_VAR",
   "WT_PAGE_OVFL",
@@ -616,7 +615,6 @@ __verify_tree(
 
     /* Column-store key order checks: check the page's record number. */
     switch (page->type) {
-    case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_INT:
     case WT_PAGE_COL_VAR:
         if (ref->ref_recno < vs->records_so_far + 1)
@@ -672,7 +670,6 @@ __verify_tree(
                                                             "UNKNOWN");
             /* see __wti_page_inmem */
             switch (page->dsk->type) {
-            case WT_PAGE_COL_FIX:
             case WT_PAGE_COL_VAR:
             case WT_PAGE_COL_INT:
                 printf("  entries: %" PRIu32, page->dsk->u.entries);
@@ -701,10 +698,6 @@ __verify_tree(
 
     /* Compare the address type against the page type. */
     switch (page->type) {
-    case WT_PAGE_COL_FIX:
-        if (addr_unpack->raw != WT_CELL_ADDR_LEAF_NO)
-            goto celltype_err;
-        break;
     case WT_PAGE_COL_VAR:
     case WT_PAGE_ROW_LEAF:
         if (addr_unpack->raw != WT_CELL_ADDR_DEL && addr_unpack->raw != WT_CELL_ADDR_LEAF &&

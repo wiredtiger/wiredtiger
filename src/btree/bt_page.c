@@ -1231,7 +1231,6 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
 
     size = sizeof(WT_PAGE);
     switch (type) {
-    case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
         break;
@@ -1266,9 +1265,6 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
     __wt_evict_page_init(page);
 
     switch (type) {
-    case WT_PAGE_COL_FIX:
-        page->entries = alloc_entries;
-        break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
         if (!LF_ISSET(WT_PAGE_WITH_DELTAS)) {
@@ -1607,7 +1603,6 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
      * the page.
      */
     switch (dsk->type) {
-    case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_VAR:
         /*
          * Column-store leaf page entries map one-to-one to the number of physical entries on the
@@ -1715,68 +1710,6 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
 err:
     __wt_page_out(session, &page);
     return (ret);
-}
-
-/*
- * __wti_col_fix_read_auxheader --
- *     Read the auxiliary header following the bitmap data, if any. This code is used by verify and
- *     needs to be accordingly careful. It is also used by mainline reads so it must also not crash
- *     or print on behalf of verify, and it should not waste time on checks that inmem doesn't need.
- *     Currently this means it does do bounds checks on the header itself (they are embedded in the
- *     integer unpacking) but not on the returned offset, and we don't check the version number.
- *     Careful callers (verify, perhaps debug) should check this. Fast callers (inmem) probably
- *     needn't bother. Salvage is protected by verify and doesn't need to check any of it.
- */
-int
-__wti_col_fix_read_auxheader(
-  WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_COL_FIX_AUXILIARY_HEADER *auxhdr)
-{
-    WT_BTREE *btree;
-    uint64_t dataoffset, entries;
-    uint32_t auxheaderoffset, bitmapsize;
-    const uint8_t *end, *raw;
-
-    btree = S2BT(session);
-
-    /*
-     * Figure where the auxiliary header is. It is always immediately after the bitmap data,
-     * regardless of whether the page is full.
-     */
-    bitmapsize = __bitstr_size(dsk->u.entries * btree->bitcnt);
-    auxheaderoffset = WT_PAGE_HEADER_BYTE_SIZE(btree) + bitmapsize;
-
-    /*
-     * If the auxiliary header is past the in-memory page size, there's no auxiliary data. If
-     * there's at least one byte past the bitmap data, check whether it's zero. If that's zero,
-     * there's no auxiliary data. (We are guaranteed that any allocation slop that we might be
-     * looking at is all zeros.) Set everything to zero and return.
-     */
-    if (auxheaderoffset >= dsk->mem_size || *(raw = (uint8_t *)dsk + auxheaderoffset) == 0) {
-        auxhdr->version = WT_COL_FIX_VERSION_NIL;
-        auxhdr->entries = 0;
-        auxhdr->emptyoffset = 0;
-        auxhdr->dataoffset = 0;
-        return (0);
-    }
-
-    /* Remember the end of the page for easy computation of maximum lengths. */
-    end = (uint8_t *)dsk + dsk->mem_size;
-
-    /*
-     * The on-disk header is a 1-byte version, a packed integer with the number of entries, and a
-     * second packed integer that gives the offset from the header start to the data.
-     */
-
-    auxhdr->version = *(raw++);
-    WT_RET(__wt_vunpack_uint(&raw, WT_PTRDIFF32(end, raw), &entries));
-    WT_RET(__wt_vunpack_uint(&raw, WT_PTRDIFF32(end, raw), &dataoffset));
-
-    /* The returned offsets are from the start of the page. */
-    auxhdr->entries = (uint32_t)entries;
-    auxhdr->emptyoffset = WT_PTRDIFF32(raw, (uint8_t *)dsk);
-    auxhdr->dataoffset = auxheaderoffset + (uint32_t)dataoffset;
-
-    return (0);
 }
 
 /*

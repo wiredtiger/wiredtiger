@@ -285,9 +285,7 @@ kv_table::truncate(kv_transaction_ptr txn, const data_value &start, const data_v
          * FIXME-WT-13232 Disable this check.
          *
          * WiredTiger's implementation of truncate returns a prepare conflict if the key following
-         * (or, in some cases, preceding) the truncate range belongs to a prepared transaction. In
-         * the case of FLCS, skip all implicitly created items before and after the truncation
-         * range.
+         * (or, in some cases, preceding) the truncate range belongs to a prepared transaction.
          */
         for (auto i = stop_iter; i != _data.end(); i++) {
             if (i->second.has_prepared())
