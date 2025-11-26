@@ -45,7 +45,7 @@ class test_prepare_discover06(wttest.WiredTigerTestCase):
 
     resolve_scenarios = [
         ('commit', dict(commit=True)),
-        ('rollback', dict(commit='False')),
+        ('rollback', dict(commit=False)),
     ]
     # Use disaggregated storage scenarios
     disagg_storages = gen_disagg_storages('test_prepare_discover06', disagg_only=True)
