@@ -468,10 +468,9 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
 
         entry_count += 2;   /* key + value cells */
         final_entries += 1; /* one ref (child) emitted */
-    } else {
+    } else
         WT_RET(__page_build_ref(
           session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
-    }
 
     /*
      * !!!
