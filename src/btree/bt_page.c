@@ -751,11 +751,10 @@ int
 __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *deltas,
   size_t delta_size, WT_ITEM *new_image, WT_PAGE_HEADER *base_dsk)
 {
-    WT_DECL_RET;
     WT_DECL_ITEM(base_lastkey);
     WT_DECL_ITEM(lastkey);
+    WT_DECL_RET;
     int cmp;
-    bool base_found = false, base_key_unpacked = false;
     uint32_t base_entries = base_dsk->u.entries, base_i = 0, entry_count = 0;
     int32_t min_unpack_idx = -1;
     WT_CELL_UNPACK_KV *base_unpack_key = NULL, *base_unpack_value = NULL;
@@ -766,12 +765,13 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     WT_ITEM **delta_lastkeys = NULL;
     WT_CELL_UNPACK_DELTA_LEAF_KV *delta_unpacks = NULL;
     bool *delta_unpacked = NULL;
-    bool key_pfx_compress = S2BT(session)->prefix_compression, all_empty_value = true,
-         any_empty_value = false;
+    bool base_found = false, base_key_unpacked = false,
+         key_pfx_compress = S2BT(session)->prefix_compression, has_empty_value = false,
+         has_non_empty_value = false, is_key_pfx_compress = false;
+    bool is_empty_value;
     uint8_t key_pfx_last = 0;
     WT_PAGE_HEADER *dsk = NULL;
     WT_BTREE *btree = S2BT(session);
-    WT_CELL_UNPACK_KV tmp_unpack;
 
     WT_ASSERT(session, new_image != NULL);
     new_image->size = WT_PTRDIFF(p_ptr, new_image->mem);
@@ -821,53 +821,41 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
         /* Build disk image */
         if (cmp < 0) {
             /* Pack row-leaf base key/value. */
-            WT_ERR(__wt_cell_pack_delta_leaf_key_value(session, i != 0 && key_pfx_compress,
-              &key_pfx_last, base_lastkey, base_unpack_value, lastkey, new_image, &p_ptr,
-              &entry_count, &all_empty_value, &any_empty_value));
-            /*
-             * We've packed the base entry to disk image in this run, clear base_found so we can
-             * find a new base entry in the next run.
-             */
+            WT_ERR(__wt_cell_pack_delta_leaf_key_value(session, is_key_pfx_compress, &key_pfx_last,
+              base_lastkey, base_unpack_value, NULL, lastkey, new_image, &p_ptr, &entry_count,
+              &is_empty_value));
+        } else {
+            /* Pack row-leaf delta entry. */
+            if (!F_ISSET(&delta_unpacks[min_unpack_idx], WT_DELTA_LEAF_IS_DELETE))
+                WT_ERR(
+                  __wt_cell_pack_delta_leaf_key_value(session, is_key_pfx_compress, &key_pfx_last,
+                    delta_lastkeys[min_unpack_idx], NULL, &delta_unpacks[min_unpack_idx], lastkey,
+                    new_image, &p_ptr, &entry_count, &is_empty_value));
+
+            /* We've packed a delta entry, reset the unpack status and clear the min_unpack_idx. */
+            delta_unpacked[min_unpack_idx] = false;
+            delta_entries[min_unpack_idx] -= 2;
+            min_unpack_idx = -1;
+        }
+        /*
+         * If cmp < 0 then we've packed the base entry to disk image in this run, if cmp is 0 then
+         * the base entry has a duplicate key as the delta entry, in either case we need to discard
+         * the current base entry by clearing base_found, so in the next run we know that we should
+         * find a new base entry. If we decide to find a new base entry in the next run, but we've
+         * unpacked the next key that is pointed by base_unpack_value, swap base_unpack_key and
+         * base_unpack_value.
+         */
+        if (cmp <= 0) {
             base_found = false;
-            /*
-             * If we decide to pack base entry where it has an empty value, then we've already
-             * unpacked the next key and it's pointed by base_unpack_value, swap base_unpack_key and
-             * base_unpack_value.
-             */
             if (base_key_unpacked) {
                 WT_CELL_UNPACK_KV *tmp = base_unpack_key;
                 base_unpack_key = base_unpack_value;
                 base_unpack_value = tmp;
             }
-        } else {
-            /* Pack row-leaf delta entry. */
-            if (!F_ISSET(&delta_unpacks[min_unpack_idx], WT_DELTA_LEAF_IS_DELETE)) {
-                tmp_unpack.data = delta_unpacks[min_unpack_idx].delta_value_data.data;
-                tmp_unpack.size = delta_unpacks[min_unpack_idx].delta_value_data.size;
-                tmp_unpack.tw = delta_unpacks[min_unpack_idx].delta_value.tw;
-                WT_ERR(__wt_cell_pack_delta_leaf_key_value(session, i != 0 && key_pfx_compress,
-                  &key_pfx_last, delta_lastkeys[min_unpack_idx], &tmp_unpack, lastkey, new_image,
-                  &p_ptr, &entry_count, &all_empty_value, &any_empty_value));
-            }
-
-            /*
-             * Otherwise we've packed a delta entry, reset the unpack status and clear the
-             * min_unpack_idx. If cmp is 0 then the base entry has a duplicate key as the delta
-             * entry, skip the entry by clearing base_found, and swap base_unpack_key and
-             * base_unpack_value so base_unpack_key can point to the right next key.
-             */
-            delta_unpacked[min_unpack_idx] = false;
-            delta_entries[min_unpack_idx] -= 2;
-            min_unpack_idx = -1;
-            if (cmp == 0) {
-                base_found = false;
-                if (base_key_unpacked) {
-                    WT_CELL_UNPACK_KV *tmp = base_unpack_key;
-                    base_unpack_key = base_unpack_value;
-                    base_unpack_value = tmp;
-                }
-            }
         }
+        has_empty_value |= is_empty_value;
+        has_non_empty_value |= !is_empty_value;
+        is_key_pfx_compress = key_pfx_compress;
     }
 
     /* Finalize header once after all appends. */
@@ -877,9 +865,9 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     dsk->type = WT_PAGE_ROW_LEAF;
     dsk->flags = 0;
 
-    if (all_empty_value)
+    if (!has_non_empty_value)
         F_SET(dsk, WT_PAGE_EMPTY_V_ALL);
-    if (!any_empty_value)
+    if (!has_empty_value)
         F_SET(dsk, WT_PAGE_EMPTY_V_NONE);
     WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf_delta);
 
