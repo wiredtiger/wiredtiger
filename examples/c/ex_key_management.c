@@ -56,14 +56,14 @@ typedef struct {
 } MY_KEY_MANAGEMENT;
 
 /*
- * my_set_key_blob --
+ * my_load_key_blob --
  *     A placeholder example of set_key_blob() call.
  */
 static int
-my_set_key_blob(WT_KEY_MANAGEMENT *km, WT_KEY_MANAGEMENT_SET_KEY_ARGS *args)
+my_load_key_blob(WT_KEY_MANAGEMENT *km, WT_KEY_MANAGEMENT_LOAD_KEY_ARGS *args)
 {
     MY_KEY_MANAGEMENT *my_km = (MY_KEY_MANAGEMENT *)km;
-    WT_KEY_MANAGEMENT_SET_KEY_ARGS *set_args = (WT_KEY_MANAGEMENT_SET_KEY_ARGS *)args;
+    WT_KEY_MANAGEMENT_LOAD_KEY_ARGS *set_args = (WT_KEY_MANAGEMENT_LOAD_KEY_ARGS *)args;
 
     memcpy((void *)&my_km->key_blob, set_args->blob_data, set_args->blob_size);
     return (0);
@@ -124,7 +124,7 @@ set_my_key_management(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
         return (errno);
     }
     wt = (WT_KEY_MANAGEMENT *)&kms->km;
-    wt->set_key_blob = my_set_key_blob;
+    wt->load_key_blob = my_load_key_blob;
     wt->get_key_blob = my_get_key_blob;
     wt->get_key_complete = my_get_key_blob_complete;
 

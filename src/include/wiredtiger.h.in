@@ -89,8 +89,8 @@ struct __wt_page_log_put_args; typedef struct __wt_page_log_put_args WT_PAGE_LOG
 struct __wt_key_management;    typedef struct __wt_key_management WT_KEY_MANAGEMENT;
 struct __wt_key_management_get_key_args;
 typedef struct __wt_key_management_get_key_args WT_KEY_MANAGEMENT_GET_KEY_ARGS;
-struct __wt_key_management_set_key_args;
-typedef struct __wt_key_management_set_key_args WT_KEY_MANAGEMENT_SET_KEY_ARGS;
+struct __wt_key_management_load_key_args;
+typedef struct __wt_key_management_load_key_args WT_KEY_MANAGEMENT_LOAD_KEY_ARGS;
 struct __wt_page_log_handle; typedef struct __wt_page_log_handle WT_PAGE_LOG_HANDLE;
 #endif
 struct __wt_session;        typedef struct __wt_session WT_SESSION;
@@ -5735,7 +5735,7 @@ struct __wt_page_log {
 };
 
 /*
- * These are arguments to the load_key_blob method, called
+ * These are arguments to the set_key_blob method, called
  * when a checkpoint is loaded, either at startup or when
  * a new checkpoint is picked up on a follower.
  *
@@ -5743,11 +5743,9 @@ struct __wt_page_log {
  * not be changed by the key management extension.
  */
 
-struct __wt_key_management_set_key_args {
+struct __wt_key_management_load_key_args {
     void *blob_data;
     size_t blob_size;
-    bool has_changed; /* Set by WiredTiger for get_key_blob */
-    uint64_t returned_lsn; /* Set by WiredTiger for get_key_complete */
 };
 
 /*
@@ -5783,17 +5781,17 @@ struct __wt_key_management_get_key_args {
  */
 struct __wt_key_management {
     /*!
-     * Fetch the current persisted key blob.
+     * Load the current persisted key blob.
      *
      * @param km the WT_KEY_MANAGEMENT
      * @param blob_data the blob data returned
      * @param blob_size the size of the blob data returned
      */
-    int (*set_key_blob)(WT_KEY_MANAGEMENT *km,
-                       WT_KEY_MANAGEMENT_SET_KEY_ARGS *args);
+    int (*load_key_blob)(WT_KEY_MANAGEMENT *km,
+                       WT_KEY_MANAGEMENT_LOAD_KEY_ARGS *args);
 
     /*!
-     * Set a key blob and indicate if it has been changed.
+     * Get the current key blob and indicate if it has been changed.
      *
      * @param km the WT_KEY_MANAGEMENT
      * @param blob_data the blob data
@@ -5804,7 +5802,7 @@ struct __wt_key_management {
                        WT_KEY_MANAGEMENT_GET_KEY_ARGS* args);
 
     /*!
-     * Callback function indicating that setting the key blob has completed.
+     * Callback function indicating that new key blob has been persisted.
      *
      * @param km the WT_KEY_MANAGEMENT
      * @param callback provides any callback information needed.
