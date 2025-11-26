@@ -135,7 +135,6 @@ __restore_upd_to_ingest_table(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_ITEM 
     /* Open cursor on the ingest table */
     WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &cursor));
 
-    /* Cast to WT_CURSOR_BTREE */
     cbt = (WT_CURSOR_BTREE *)cursor;
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
