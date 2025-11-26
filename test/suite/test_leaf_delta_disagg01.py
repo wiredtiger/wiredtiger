@@ -91,11 +91,11 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
     def verify_leaf_delta(self, base_empty_score, delta_empty_score, base_ids, delta1_ids = None,
                           delta2_ids = None, delta3_ids = None):
         if delta1_ids is None:
-            delta1_ids = {}
+            delta1_ids = set()
         if delta2_ids is None:
-            delta2_ids = {}
+            delta2_ids = set()
         if delta3_ids is None:
-            delta3_ids = {}
+            delta3_ids = set()
         self.session.create(self.uri, self.session_create_config() + self.prefix_config)
 
         delta_cnt = 0
@@ -111,6 +111,7 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
         self.assertEqual(self.get_stat(stat.dsrc.rec_page_delta_leaf, self.uri), 0)
 
         # Perform updates to generate 3 deltas with overlapping keys.
+        self.prout("1st checkpoint")
         self.reopen_disagg_conn(self.conn_config())
         ts += 1
         delta1_value = "delta1"
@@ -118,6 +119,7 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         delta_cnt += self.get_stat(stat.dsrc.rec_page_delta_leaf, self.uri)
 
+        self.prout("2nd checkpoint")
         self.reopen_disagg_conn(self.conn_config())
         ts += 1
         delta2_value = "delta2"
@@ -142,6 +144,7 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
         # Since deltas are generated in time order, the keys in delta3_ids are the latest update so
         # they have value 'delta3', and keys included in delta2_ids but excluded from delta3_ids are
         # having value 'delta2', and so on.
+        self.prout("start verify")
         self.reopen_disagg_conn(self.conn_config())
         self.verify(delta_empty_score, delta3_ids, delta3_value)
         self.verify(delta_empty_score, delta2_ids - delta3_ids, delta2_value)

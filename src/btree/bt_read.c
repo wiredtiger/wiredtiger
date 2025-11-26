@@ -195,6 +195,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     size_t count, i;
     uint32_t page_flags;
     bool instantiate_upd, disk_image_freed, page_change, build_full_disk_image_from_deltas;
+    // const char *tree_name;
 
     btree = S2BT(session);
     WT_CLEAR(block_meta);
@@ -304,7 +305,11 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * After reading the page from disk, construct a full disk image. This is currently performed
      * only for internal pages that has delta.
      */
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && count > 1) {
+    // tree_name = S2BT(session)->dhandle->name;
+    // if (strcmp(tree_name, "file:WiredTigerShared.wt_stable") == 0) {
+    //     return (0); // Early return - skips processing shared metadata!
+    // } && strcmp(tree_name, "file:test_leaf_delta_disagg01.wt_stable") == 0
+    if (count > 1) {
         size_t new_image_buf_size;
         uint32_t split_size;
 
@@ -331,6 +336,14 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         WT_ERR(__wt_buf_initsize(session, &new_image_copy, new_image.size));
         memcpy(new_image_copy.mem, new_image.data, new_image.size);
 
+        // const unsigned char *bytes = (const unsigned char *)new_image.mem;
+        // for (int x = 0; x < (int)new_image.size; x++) {
+        //     printf("%u", bytes[x]); // print ASCII value as number
+        //     if (x != (int)new_image.size - 1) {
+        //         printf(","); // add comma except after last value
+        //     }
+        // }
+        // printf("\n");
         __wt_buf_free(session, &new_image);
         for (i = 0; i < count - 1; ++i)
             __wt_buf_free(session, &deltas[i]);
@@ -359,6 +372,9 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
     /* Reconstruct deltas*/
     if (count > 1 && !build_full_disk_image_from_deltas) {
+        // if (strcmp(tree_name, "file:test_leaf_delta_disagg01.wt_stable") == 0) {
+        //     printf("hello world\n");
+        // }
         ret = __wti_page_reconstruct_deltas(session, ref, deltas, count - 1);
         for (i = 0; i < count - 1; ++i)
             __wt_buf_free(session, &deltas[i]);

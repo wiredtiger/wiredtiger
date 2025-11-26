@@ -122,7 +122,6 @@ __page_find_min_delta_leaf(WT_SESSION_IMPL *session, WT_ITEM *deltas, uint8_t *c
         if (!unpacked[i]) {
             WT_CELL_DELTA_LEAF_UNPACK(
               session, (WT_PAGE_HEADER *)deltas[i].data, &unpacks[i], cells[i]);
-            entries[i] -= 2;
 
             key.data = unpacks[i].delta_key.data;
             key.size = unpacks[i].delta_key.size;
@@ -158,12 +157,14 @@ __page_find_min_delta_leaf(WT_SESSION_IMPL *session, WT_ITEM *deltas, uint8_t *c
               session, S2BT(session)->collator, lastkeys[i], lastkeys[min_unpack_idx], &cmp));
             if (cmp < 0)
                 min_unpack_idx = i;
-            else if (cmp == 0)
+            else if (cmp == 0) {
                 /*
                  * Keys are equal. Because we iterate from latest --> earliest, the current minimum
                  * (from a higher-indexed delta) is the latest. Skip this older duplicate.
                  */
                 unpacked[i] = false;
+                entries[i] -= 2;
+            }
         }
     }
     *min_unpack_idxp = min_unpack_idx;
@@ -759,7 +760,7 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     int32_t min_unpack_idx = -1;
     WT_CELL_UNPACK_KV *base_unpack_key = NULL, *base_unpack_value = NULL;
     uint8_t *base_cell = WT_PAGE_HEADER_BYTE(S2BT(session), base_dsk),
-            *p_ptr = WT_PAGE_HEADER_BYTE(S2BT(session), new_image->data);
+            *p_ptr = WT_PAGE_HEADER_BYTE(S2BT(session), new_image->mem);
     uint8_t **delta_cells = NULL;
     uint32_t *delta_entries = NULL;
     WT_ITEM **delta_lastkeys = NULL;
@@ -768,10 +769,12 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     bool key_pfx_compress = S2BT(session)->prefix_compression, all_empty_value = true,
          any_empty_value = false;
     uint8_t key_pfx_last = 0;
-    WT_PAGE_HEADER *hdr = NULL;
+    WT_PAGE_HEADER *dsk = NULL;
+    WT_BTREE *btree = S2BT(session);
+    WT_CELL_UNPACK_KV tmp_unpack;
 
     WT_ASSERT(session, new_image != NULL);
-    new_image->size = WT_PTRDIFF(p_ptr, new_image->data);
+    new_image->size = WT_PTRDIFF(p_ptr, new_image->mem);
 
     WT_ERR(__wt_scr_alloc(session, 0, &base_lastkey));
     WT_ERR(__wt_scr_alloc(session, 0, &lastkey));
@@ -783,9 +786,9 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     WT_ERR(__wt_malloc(session, delta_size * sizeof(WT_CELL_UNPACK_DELTA_LEAF_KV), &delta_unpacks));
     WT_ERR(__wt_malloc(session, delta_size * sizeof(bool), &delta_unpacked));
     for (uint8_t i = 0; i < delta_size; i++) {
-        WT_PAGE_HEADER *dsk = (WT_PAGE_HEADER *)deltas[i].data;
-        delta_cells[i] = WT_PAGE_HEADER_BYTE(S2BT(session), dsk);
-        delta_entries[i] = dsk->u.entries;
+        WT_PAGE_HEADER *tmp = (WT_PAGE_HEADER *)deltas[i].data;
+        delta_cells[i] = WT_PAGE_HEADER_BYTE(btree, tmp);
+        delta_entries[i] = tmp->u.entries;
         delta_unpacked[i] = false;
         WT_ERR(__wt_scr_alloc(session, 0, &delta_lastkeys[i]));
     }
@@ -812,8 +815,8 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
         else if (!base_found)
             cmp = 1;
         else
-            WT_ERR(__wt_compare(session, S2BT(session)->collator, base_lastkey,
-              delta_lastkeys[min_unpack_idx], &cmp));
+            WT_ERR(__wt_compare(
+              session, btree->collator, base_lastkey, delta_lastkeys[min_unpack_idx], &cmp));
 
         /* Build disk image */
         if (cmp < 0) {
@@ -838,11 +841,14 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
             }
         } else {
             /* Pack row-leaf delta entry. */
-            if (!F_ISSET(&delta_unpacks[min_unpack_idx], WT_DELTA_LEAF_IS_DELETE))
+            if (!F_ISSET(&delta_unpacks[min_unpack_idx], WT_DELTA_LEAF_IS_DELETE)) {
+                tmp_unpack.data = delta_unpacks[min_unpack_idx].delta_value_data.data;
+                tmp_unpack.size = delta_unpacks[min_unpack_idx].delta_value_data.size;
+                tmp_unpack.tw = delta_unpacks[min_unpack_idx].delta_value.tw;
                 WT_ERR(__wt_cell_pack_delta_leaf_key_value(session, i != 0 && key_pfx_compress,
-                  &key_pfx_last, delta_lastkeys[min_unpack_idx],
-                  &delta_unpacks[min_unpack_idx].delta_value, lastkey, new_image, &p_ptr,
-                  &entry_count, &all_empty_value, &any_empty_value));
+                  &key_pfx_last, delta_lastkeys[min_unpack_idx], &tmp_unpack, lastkey, new_image,
+                  &p_ptr, &entry_count, &all_empty_value, &any_empty_value));
+            }
 
             /*
              * Otherwise we've packed a delta entry, reset the unpack status and clear the
@@ -851,6 +857,7 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
              * base_unpack_value so base_unpack_key can point to the right next key.
              */
             delta_unpacked[min_unpack_idx] = false;
+            delta_entries[min_unpack_idx] -= 2;
             min_unpack_idx = -1;
             if (cmp == 0) {
                 base_found = false;
@@ -864,25 +871,29 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     }
 
     /* Finalize header once after all appends. */
-    hdr = (WT_PAGE_HEADER *)new_image->data;
-    memset(hdr, 0, sizeof(WT_PAGE_HEADER));
-    hdr->u.entries = entry_count;
+    dsk = (WT_PAGE_HEADER *)new_image->mem;
+    memset(dsk, 0, sizeof(WT_PAGE_HEADER));
+    dsk->u.entries = entry_count;
+    dsk->type = WT_PAGE_ROW_LEAF;
+    dsk->flags = 0;
 
     if (all_empty_value)
-        F_SET(hdr, WT_PAGE_EMPTY_V_ALL);
+        F_SET(dsk, WT_PAGE_EMPTY_V_ALL);
     if (!any_empty_value)
-        F_SET(hdr, WT_PAGE_EMPTY_V_NONE);
+        F_SET(dsk, WT_PAGE_EMPTY_V_NONE);
     WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf_delta);
 
     /* Compute final on-disk image size using pointer difference. */
     new_image->size = WT_PTRDIFF(p_ptr, new_image->mem);
     WT_ASSERT(session, new_image->size <= new_image->memsize);
-    hdr->mem_size = (uint32_t)new_image->size;
+    dsk->mem_size = WT_STORE_SIZE(new_image->size);
 
-    hdr->write_gen = ((WT_PAGE_HEADER *)deltas[delta_size - 1].data)->write_gen;
-    hdr->type = WT_PAGE_ROW_LEAF;
-    hdr->unused = 0;
-    hdr->version = WT_PAGE_VERSION_TS;
+    dsk->write_gen = ((WT_PAGE_HEADER *)deltas[delta_size - 1].data)->write_gen;
+    dsk->unused = 0;
+    dsk->version = WT_PAGE_VERSION_TS;
+
+    /* Clear the memory owned by the block manager. */
+    memset(WT_BLOCK_HEADER_REF(dsk), 0, btree->block_header);
 
 err:
     __wt_free(session, base_unpack_key);

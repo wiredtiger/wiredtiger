@@ -289,7 +289,7 @@ __wt_cell_pack_delta_leaf_key_value(WT_SESSION_IMPL *session, bool key_pfx_compr
     const void *key_data = currentkey->data;
     size_t key_size = currentkey->size;
     bool is_empty_value = unpack_val->size == 0 && WT_TIME_WINDOW_IS_EMPTY(&unpack_val->tw);
-    bool all_empty_value, any_empty_value;
+    bool all_empty_value = true, any_empty_value = false;
 
     WT_CLEAR(key);
     WT_CLEAR(val);
@@ -344,10 +344,11 @@ __wt_cell_pack_delta_leaf_key_value(WT_SESSION_IMPL *session, bool key_pfx_compr
     packed_size = key.len + val.len;
     if (new_image->size + packed_size > new_image->memsize)
         WT_ERR(__wt_buf_grow(session, new_image, new_image->size + packed_size));
-    p = (uint8_t *)new_image->mem + new_image->size;
 
     /* Recompute write pointer after possible realloc */
     WT_ASSERT(session, new_image->mem != NULL);
+
+    p = (uint8_t *)new_image->mem + new_image->size;
     __wt_cell_kv_copy(session, p, &key);
     p += key.len;
     entry_count++;
