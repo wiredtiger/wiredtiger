@@ -43,9 +43,13 @@ class test_prepare_discover06(wttest.WiredTigerTestCase):
     tablename = 'test_prepare_discover06'
     uri = 'layered:' + tablename
 
+    resolve_scenarios = [
+        ('commit', dict(commit=True)),
+        ('rollback', dict(commit='False')),
+    ]
     # Use disaggregated storage scenarios
     disagg_storages = gen_disagg_storages('test_prepare_discover06', disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    scenarios = make_scenarios(disagg_storages, resolve_scenarios)
 
     # Base configuration for leader connection
     conn_base_config = 'cache_size=10MB,statistics=(all),precise_checkpoint=true,preserve_prepared=true,'
@@ -157,16 +161,18 @@ class test_prepare_discover06(wttest.WiredTigerTestCase):
         self.assertEqual(found_prepared_id, 123)
         prepared_discover_cursor.close()
         self.session.breakpoint()
-
-        # Commit the claimed prepared transaction at timestamp 200
-        discover_session.commit_transaction("commit_timestamp=" + self.timestamp_str(200) +
-                                           ",durable_timestamp=" + self.timestamp_str(210))
+        if self.commit:
+            # Commit the claimed prepared transaction at timestamp 200
+            discover_session.commit_transaction("commit_timestamp=" + self.timestamp_str(200) +
+                                            ",durable_timestamp=" + self.timestamp_str(210))
+        else:
+            discover_session.rollback_transaction("rollback_timestamp=" + self.timestamp_str(210))
         discover_session.close()
 
         # Update stable timestamp to include the committed transaction
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(220))
 
-        # Verify all data is now visible
+        # Verify all data
         read_session = self.conn.open_session()
         read_cursor = read_session.open_cursor(self.uri)
 
@@ -175,10 +181,9 @@ class test_prepare_discover06(wttest.WiredTigerTestCase):
         self.assertEqual(read_cursor[1], "committed_value_1")
         self.assertEqual(read_cursor[2], "committed_value_2")
         self.assertEqual(read_cursor[3], "committed_value_3")
-
-        # Previously prepared data should not be visible at timestamp 60
-        read_cursor.set_key(4)
-        self.assertEqual(read_cursor.search(), wiredtiger.WT_NOTFOUND)
+        for i in range(4, 7):
+            read_cursor.set_key(i)
+            self.assertEqual(wiredtiger.WT_NOTFOUND, read_cursor.search())
         read_session.rollback_transaction()
 
         # Check all data is visible at timestamp 200
@@ -189,8 +194,11 @@ class test_prepare_discover06(wttest.WiredTigerTestCase):
         self.session.breakpoint()
         for i in range(4, 7):
             read_cursor.set_key(i)
-            self.assertEqual(0, read_cursor.search())
-            self.assertEqual(f'prepared_value_{i}', read_cursor.get_value())
+            if self.commit:
+                self.assertEqual(0, read_cursor.search())
+                self.assertEqual(f'prepared_value_{i}', read_cursor.get_value())
+            else:
+                self.assertEqual(wiredtiger.WT_NOTFOUND, read_cursor.search())
         read_session.rollback_transaction()
 
         read_cursor.close()
