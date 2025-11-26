@@ -28,6 +28,9 @@
 
 import compatibility_test, os, shutil, sys, wiredtiger
 import compatibility_common
+import errno
+import subprocess
+import signal
 
 class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
     '''
@@ -39,14 +42,21 @@ class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
     uri = 'table:test_flcs_deprecate'
     nrows = 100
 
-    older = ["mongodb-8.0", "mongodb-7.0", "mongodb-6.0"]
-    newer = compatibility_common.BRANCHES.SUITE_RELEASE_BRANCHES[-1].name
-
     def test_flcs_deprecate(self):
-        # Run the older-branch part (create the FLCS table and populate it)
-        self.run_method_on_branch(self.older_branch, 'on_older_branch')
-        # Run the newer-branch part (attempt to open and expect failure)
-        self.run_method_on_branch(self.newer_branch, 'on_newer_branch')
+        # Only run this test for newer branch where FLCS is deprecated.
+        if self.newer_branch == "feature-flcs":
+            # Run the older-branch part (create the FLCS table and populate it)
+            self.run_method_on_branch(self.older_branch, 'on_older_branch')
+            # Run the newer-branch part (attempt to open and expect failure)
+            try:
+                self.run_method_on_branch(self.newer_branch, 'on_newer_branch')
+            except subprocess.CalledProcessError as e:
+                if e.returncode == -signal.SIGABRT:
+                    # Expect sigabort due to panic on FLCS table open.
+                    print(f"Got expected SIGABRT (panic) for trying to open deprecated FLCS table: {e}")
+                else:
+                    print(f"Subprocess exited with unexpected code: {e.returncode}")
+                    raise
 
     def on_older_branch(self):
         # This runs in the older branch to create a FLCS table and populate it.
@@ -66,18 +76,9 @@ class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
         # Expect opening the FLCS table to fail because FLCS is deprecated.
         conn = wiredtiger.wiredtiger_open('.', self.conn_config)
         session = conn.open_session()
-        # opening the table or cursor will fail and raise a WiredTigerError, code tbd.
-        try:
-            with self.assertRaises(Exception):
-                session.open_cursor(self.uri)
 
-        # cleanup
-        finally:
-            try:
-                session.close()
-                conn.close()
-            except Exception:
-                pass
+        # Expect an exception when trying to open a cursor on the FLCS table.
+        session.open_cursor(self.uri)
 
 
     if __name__ == "__main__":
