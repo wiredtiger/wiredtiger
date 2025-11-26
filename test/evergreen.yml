@@ -4632,6 +4632,28 @@ tasks:
     name: format-stress-test-disagg-switch-3
     tags: ["stress-test-disagg-fail"]
 
+  - name: format-stress-disagg-leader-pull-request-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.mode=leader runs.rows=10000 runs.ops=50000
+          times: 30
+
+  - name: format-stress-disagg-follower-pull-request-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.mode=follower runs.rows=10000 runs.ops=50000
+          times: 30
+
   - name: format-stress-test-no-barrier
     tags: ["stress-test-no-barrier"]
     exec_timeout_secs: 25200
@@ -6570,6 +6592,8 @@ buildvariants:
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
     - name: format-stress-pull-request-test
+    - name: format-stress-disagg-leader-pull-request-test
+    - name: format-stress-disagg-follower-pull-request-test
     - name: make-check-test
       distros: ubuntu2004-large
     - name: cppsuite-default-all
@@ -6802,6 +6826,8 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: format-smoke-test
     - name: format-stress-pull-request-test
+    - name: format-stress-disagg-leader-pull-request-test
+    - name: format-stress-disagg-follower-pull-request-test
     - name: long-test
       distros: ubuntu2004-arm64-large
     - name: make-check-test
@@ -6854,6 +6880,8 @@ buildvariants:
       distros: amazon2-arm64-large
     - name: format-smoke-test
     - name: format-stress-pull-request-test
+    - name: format-stress-disagg-leader-pull-request-test
+    - name: format-stress-disagg-follower-pull-request-test
     - name: long-test
       distros: amazon2-arm64-large
     - name: make-check-test
@@ -7198,6 +7226,8 @@ buildvariants:
       distros: amazon2023-arm64-latest-large-m8g
     - name: format-smoke-test
     - name: format-stress-pull-request-test
+    - name: format-stress-disagg-leader-pull-request-test
+    - name: format-stress-disagg-follower-pull-request-test
     - name: long-test
       distros: amazon2023-arm64-latest-large-m8g
     - name: make-check-test
@@ -7361,6 +7391,8 @@ buildvariants:
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
     - name: format-stress-pull-request-test
+    - name: format-stress-disagg-leader-pull-request-test
+    - name: format-stress-disagg-follower-pull-request-test
     - name: make-check-test
       distros: amazon2023-arm64-latest-large-m8g
     - name: cppsuite-default-all
