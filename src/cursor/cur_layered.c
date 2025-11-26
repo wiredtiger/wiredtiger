@@ -726,13 +726,41 @@ __clayered_position_constituent(WT_CURSOR_LAYERED *clayered, WT_CURSOR *constitu
     return (0);
 }
 
-// TODO: Add comment
+/*
+ * __clayered_constituent_iter --
+ *     Moves the cursors forward or backward depen
+ */
 static int
 __clayered_constituent_iter(WT_CURSOR *constituent, bool forward) {
     return (forward ? constituent->next(constituent) : constituent->prev(constituent));
 }
 
-// TODO: Add comment
+/*
+ * __clayered_iterate_constituents --
+ *     Moves the constituents to to the next (or prev) position. If the cursor is unpositioned,
+ *     position the constituents.
+ *
+ *     If only one constituent is available, this logic can be simplified to calling "next" on that constituent.
+ *
+ *     If the cursor is unpositioned, both constituents are positioned on the first (or last) element.
+ *
+ *     A layered cursor is considered positioned when the customer-visible `iface` cursor has the
+ *     WT_CURSTD_KEY_INT flag set. In that case, `current_cursor` is expected to be set to the
+ *     constituent used to produce the key/value pair for `iface`, and WT_CURSTD_KEY_INT should be
+ *     set for it as well. In this case the `iface` key could be used to position the other
+ *     (alternate) constituent correctly.
+ *
+ *     For the `alternate_cursor`, the correct position is either the same key as `current_cursor`
+ *     or the next available key if the same key does not exist.
+ *
+ *     Subsequent calls to __clayered_prev() or __clayered_next() may skip the positioning step entirely, since
+ *     they guarantee that both constituents are properly positioned on exit. To detect these cases,
+ *     WT_CLAYERED_ITERATE_PREV/NEXT are used.
+ *
+ *     If both `current_cursor` and `alternate_cursor` are positioned on the same key, both should be
+ *     advanced to the next position. Otherwise, only `current_cursor` should be advanced.
+ *     `__clayered_get_current` will determine which one to select.
+ */
 static int
 __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag, bool deleted)
 {
