@@ -508,7 +508,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
 
         /* A page log service and a storage source cannot both be enabled. */
         WT_ASSERT(session, btree->page_log == NULL || btree->bstorage == NULL);
-    }
+    } else if (strstr(btree->dhandle->name, ".wt_ingest") != NULL)
+        /* Flag the ingest btree as participating in automatic garbage collection */
+        F_SET(btree, WT_BTREE_GARBAGE_COLLECT);
 
     /* Page sizes */
     WT_RET(__btree_page_sizes(session));
