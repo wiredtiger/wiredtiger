@@ -2715,13 +2715,16 @@ __conn_set_key_management(
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
     CONNECTION_API_CALL(conn, session, set_key_management, config, cfg);
-    WT_UNUSED(cfg);
+
+    /* The configuration string has no use but may be useful at a later time. */
+    if (config != NULL)
+        WT_ERR_MSG(session, EINVAL, "key management configuration currently not supported.");
 
     /*
      * You can only configure the key management system with early-load set.
      */
     if (conn->file_system != NULL)
-        WT_ERR_MSG(session, EPERM, "key management system must be configured with early_load set");
+        WT_ERR_MSG(session, EINVAL, "key management system must be configured with early_load set");
 
     conn->key_management = key_management;
 

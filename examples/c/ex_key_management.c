@@ -49,7 +49,10 @@ typedef struct {
 /*! [key management struct implementation] */
 typedef struct {
     WT_KEY_MANAGEMENT km; /* Must come first */
+
+    /* This example stores a fixed size blob in the key management struct. It is not required. */
     MY_KEY_BLOB key_blob;
+    uint64_t returned_lsn;
 } MY_KEY_MANAGEMENT;
 
 /*
@@ -57,47 +60,43 @@ typedef struct {
  *     A placeholder example of get_key_blob() call.
  */
 static int
-my_get_key_blob(WT_KEY_MANAGEMENT *km, void **blob_data, size_t *blob_size)
+my_get_key_blob(WT_KEY_MANAGEMENT *km, void *blob_data, size_t blob_size)
 {
     MY_KEY_MANAGEMENT *my_km = (MY_KEY_MANAGEMENT *)km;
 
-    WT_UNUSED(blob_size);
-    WT_UNUSED(blob_data);
-    WT_UNUSED(my_km);
-
+    memcpy((void *)&my_km->key_blob, blob_data, blob_size);
     return (0);
 }
 
 /*
  * my_set_key_blob --
- *     A placeholder example of set_key_blob() call.
+ *     An simple example of set_key_blob() call.
  */
 static int
-my_set_key_blob(WT_KEY_MANAGEMENT *km, void *blob_data, size_t blob_size, bool has_changed)
+my_set_key_blob(WT_KEY_MANAGEMENT *km, void **blob_data, size_t *blob_size, bool has_changed)
 {
     MY_KEY_MANAGEMENT *my_km = (MY_KEY_MANAGEMENT *)km;
 
-    WT_UNUSED(blob_data);
-    WT_UNUSED(blob_size);
-    WT_UNUSED(my_km);
+    if ((*blob_data = calloc(1, sizeof(MY_KEY_BLOB))) == NULL)
+        return (errno);
 
-    WT_UNUSED(has_changed);
-
+    memcpy(*blob_data, (void *)&my_km->key_blob, sizeof(MY_KEY_BLOB));
+    *blob_size = sizeof(MY_KEY_BLOB);
+    has_changed = false;
     return (0);
 }
 
 /*
- * my_set_key_blob_completed --
- *     A placeholder example of set_key_complete() call.
+ * my_set_key_blob_complete --
+ *     A simple example of set_key_complete call.
  */
 static int
-my_set_key_blob_completed(WT_KEY_MANAGEMENT *km, void *callback)
+my_set_key_blob_complete(WT_KEY_MANAGEMENT *km, void *callback)
 {
     MY_KEY_MANAGEMENT *my_km = (MY_KEY_MANAGEMENT *)km;
+    WT_KEY_MANAGEMENT_CALLBACK_ARGS *args = (WT_KEY_MANAGEMENT_CALLBACK_ARGS *)callback;
 
-    WT_UNUSED(my_km);
-    WT_UNUSED(callback);
-
+    my_km->returned_lsn = args->returned_lsn;
     return (0);
 }
 
@@ -125,7 +124,7 @@ set_my_key_management(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
     wt = (WT_KEY_MANAGEMENT *)&kms->km;
     wt->get_key_blob = my_get_key_blob;
     wt->set_key_blob = my_set_key_blob;
-    wt->set_key_complete = my_set_key_blob_completed;
+    wt->set_key_complete = my_set_key_blob_complete;
 
     kms->key_blob.id = 1;
     kms->key_blob.data = 1234;
