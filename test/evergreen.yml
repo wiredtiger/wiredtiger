@@ -4654,7 +4654,7 @@ tasks:
           format_args: disagg.mode=follower runs.rows=10000 runs.ops=50000
           times: 15
 
-  - name: format-stress-disagg-leader-msan-test
+  - name: format-stress-disagg-leader-msan-test-palm
     depends_on:
       - name: compile
     commands:
@@ -4662,10 +4662,9 @@ tasks:
       - func: "format test disagg"
         vars:
           # MemorySanitizer requires that all program code is instrumented, otherwise it may generate false reports.
-          format_args: disagg.mode=leader runs.rows=10000 runs.ops=50000 disk.encryption=none
-          times: 15
-
-  - name: format-stress-disagg-follower-msan-test
+          format_args: disagg.page_log=palm disagg.mode=leader runs.rows=10000 runs.ops=50000 disk.encryption=none
+          times: 5
+  - name: format-stress-disagg-follower-msan-test-palm
     depends_on:
       - name: compile
     commands:
@@ -4673,8 +4672,8 @@ tasks:
       - func: "format test disagg"
         vars:
           # MemorySanitizer requires that all program code is instrumented, otherwise it may generate false reports.
-          format_args: disagg.mode=follower runs.rows=10000 runs.ops=50000 disk.encryption=none
-          times: 15
+          format_args: disagg.page_log=palm disagg.mode=follower runs.rows=10000 runs.ops=50000 disk.encryption=none
+          times: 5
 
   - name: format-stress-test-no-barrier
     tags: ["stress-test-no-barrier"]
@@ -6591,8 +6590,8 @@ buildvariants:
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
     - name: format-msan-test
-    - name: format-stress-disagg-leader-msan-test
-    - name: format-stress-disagg-follower-msan-test
+    - name: format-stress-disagg-leader-msan-test-palm
+    - name: format-stress-disagg-follower-msan-test-palm
     - name: make-check-test
       distros: ubuntu2004-large
 
@@ -7389,8 +7388,8 @@ buildvariants:
     - name: examples-c-production-disable-shared-test
     - name: examples-c-production-disable-static-test
     - name: format-msan-test
-    - name: format-stress-disagg-leader-msan-test
-    - name: format-stress-disagg-follower-msan-test
+    - name: format-stress-disagg-leader-msan-test-palm
+    - name: format-stress-disagg-follower-msan-test-palm
     - name: make-check-test
       distros: amazon2023-arm64-latest-large-m8g
     - name: csuite-long-running
