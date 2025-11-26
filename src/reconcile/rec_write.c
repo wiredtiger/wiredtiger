@@ -1376,20 +1376,19 @@ __rec_split_grow(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t add_len)
 {
     WT_BM *bm;
     WT_BTREE *btree;
-    size_t corrected_page_size, first_free, inuse;
+    size_t corrected_page_size, first_free;
 
     btree = S2BT(session);
     bm = btree->bm;
 
     /* The free space is tracked with a pointer; convert to an integer. */
     first_free = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
-    inuse = first_free;
-    corrected_page_size = inuse + add_len;
+    corrected_page_size = first_free + add_len;
 
     WT_RET(bm->write_size(bm, session, &corrected_page_size));
     WT_RET(__wt_buf_grow(session, &r->cur_ptr->image, corrected_page_size));
 
-    WT_ASSERT(session, corrected_page_size >= inuse);
+    WT_ASSERT(session, corrected_page_size >= first_free);
 
     /* Convert the free space back to pointers. */
     r->first_free = (uint8_t *)r->cur_ptr->image.mem + first_free;
