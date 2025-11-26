@@ -332,14 +332,6 @@ struct __wt_cursor_bulk {
     uint64_t recno; /* Record number */
     uint64_t rle;   /* Variable-length RLE counter */
 
-    /*
-     * Additional fixed-length column store bitmap bulk load support: current entry in memory chunk
-     * count, and the maximum number of records per chunk.
-     */
-    bool bitmap;    /* Bitmap bulk load */
-    uint32_t entry; /* Entry count */
-    uint32_t nrecs; /* Max records per chunk */
-
     void *reconcile; /* Reconciliation support */
     WT_REF *ref;     /* The leaf page */
     WT_PAGE *leaf;
