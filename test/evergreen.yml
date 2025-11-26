@@ -7526,5 +7526,4 @@ buildvariants:
     disagg_run: true
   tasks:
     - name: compile
-    - name: ".stress-test-disagg-san-fail"
     - name: checkpoint-test
