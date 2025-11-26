@@ -609,12 +609,10 @@ err:
  *     Find the smallest / largest of the cursors and copy its key/value.
  */
 static int
-__clayered_get_current(
-  WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bool smallest)
+__clayered_get_current(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bool smallest)
 {
     WT_COLLATOR *collator;
     WT_CURSOR *current;
-    WT_DECL_RET;
     int cmp;
     bool ingest_positioned, stable_positioned;
 
@@ -656,7 +654,7 @@ __clayered_get_current(
       session, current != NULL, "Both constituents are positioned, but we cannot choose current");
     clayered->current_cursor = current;
 
-    return (ret);
+    return (0);
 }
 
 /*
@@ -728,36 +726,38 @@ __clayered_position_constituent(WT_CURSOR_LAYERED *clayered, WT_CURSOR *constitu
 
 /*
  * __clayered_constituent_iter --
- *     Moves the cursors forward or backward depen
+ *     Move the cursor forward or backward.
  */
 static int
-__clayered_constituent_iter(WT_CURSOR *constituent, bool forward) {
+__clayered_constituent_iter(WT_CURSOR *constituent, bool forward)
+{
     return (forward ? constituent->next(constituent) : constituent->prev(constituent));
 }
 
 /*
  * __clayered_iterate_constituents --
- *     Moves the constituents to to the next (or prev) position. If the cursor is unpositioned,
- *     position the constituents.
+ *     Move the constituents to the next (or prev) position. If the cursor is unpositioned, position
+ *     the constituents.
  *
- *     If only one constituent is available, this logic can be simplified to calling "next" on that constituent.
+ * If only one constituent is available, this logic can be simplified to calling "next" on that
+ *     constituent.
  *
- *     If the cursor is unpositioned, both constituents are positioned on the first (or last) element.
+ * If the cursor is unpositioned, both constituents are positioned on the first (or last) element.
  *
- *     A layered cursor is considered positioned when the customer-visible `iface` cursor has the
+ * A layered cursor is considered positioned when the customer-visible `iface` cursor has the
  *     WT_CURSTD_KEY_INT flag set. In that case, `current_cursor` is expected to be set to the
  *     constituent used to produce the key/value pair for `iface`, and WT_CURSTD_KEY_INT should be
  *     set for it as well. In this case the `iface` key could be used to position the other
  *     (alternate) constituent correctly.
  *
- *     For the `alternate_cursor`, the correct position is either the same key as `current_cursor`
- *     or the next available key if the same key does not exist.
+ * For the `alternate_cursor`, the correct position is either the same key as `current_cursor` or
+ *     the next available key if the same key does not exist.
  *
- *     Subsequent calls to __clayered_prev() or __clayered_next() may skip the positioning step entirely, since
- *     they guarantee that both constituents are properly positioned on exit. To detect these cases,
- *     WT_CLAYERED_ITERATE_PREV/NEXT are used.
+ * Subsequent calls to __clayered_prev() or __clayered_next() may skip the positioning step
+ *     entirely, since they guarantee that both constituents are properly positioned on exit. To
+ *     detect these cases, WT_CLAYERED_ITERATE_PREV/NEXT are used.
  *
- *     If both `current_cursor` and `alternate_cursor` are positioned on the same key, both should be
+ * If both `current_cursor` and `alternate_cursor` are positioned on the same key, both should be
  *     advanced to the next position. Otherwise, only `current_cursor` should be advanced.
  *     `__clayered_get_current` will determine which one to select.
  */
@@ -772,7 +772,7 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
     WT_CURSOR *c_ingest = clayered->ingest_cursor;
     WT_CURSOR *c_stable = clayered->stable_cursor;
 
-    /* At least one cursors is expected to be initialised. */
+    /* At least one cursor is expected to be initialized. */
     WT_ASSERT(session, c_stable != NULL || c_ingest != NULL);
     if (c_ingest == NULL || c_stable == NULL) {
         c_current = (c_ingest == NULL) ? c_stable : c_ingest;
@@ -782,7 +782,10 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
 
     WT_ASSERT(session, c_stable != NULL && c_ingest != NULL);
 
-    /* WT_CURSTD_KEY_INT being set to the user visible cursor is the main indication that cursor is positioned. */
+    /*
+     * WT_CURSTD_KEY_INT being set on the user-visible cursor is the main indication that the cursor
+     * is positioned.
+     */
     if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) && !deleted) {
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_stable, forward));
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_ingest, forward));
@@ -799,13 +802,14 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
     WT_ASSERT(session, c_alternate != c_current);
 
     /*
-     * The cusror is positioned, but `iter_flag` is not set so we cannot rely on alternate cursor and need to position it.
+     * The cursor is positioned, but `iter_flag` is not set so we cannot rely on alternate cursor
+     * and need to position it.
      */
     if (!F_ISSET(clayered, iter_flag)) {
         __clayered_position_constituent(clayered, c_alternate, forward);
     }
 
-    /* If alternate cursor's key is equal to the current one, we should move it as well. */
+    /* If the alternate cursor's key is equal to the current one, we should move it as well. */
     if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT)) {
         WT_RET(__clayered_cursor_compare(clayered, c_alternate, c_current, &cmp));
         if (cmp == 0)
@@ -825,7 +829,7 @@ done:
 
 /*
  * __clayered_iterate --
- *    Common function for moving a layered cursor to the next or previous position.
+ *     Common function for moving a layered cursor to the next or previous position.
  */
 static int
 __clayered_iterate(WT_CURSOR_LAYERED *clayered, bool forward, uint32_t iter_flag)
@@ -923,8 +927,8 @@ err:
 
 /*
  * __clayered_reset_cursors --
- *     Reset any positioned constituent cursors. If the skip parameter is non-NULL, that cursor is
- *     about to be used, so there is no need to reset it.
+ *     Reset any positioned constituent cursors. If skip_ingest is true, the ingest cursor is about
+ *     to be used, so there is no need to reset it.
  */
 static int
 __clayered_reset_cursors(WT_CURSOR_LAYERED *clayered, bool skip_ingest)
