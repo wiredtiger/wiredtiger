@@ -278,23 +278,30 @@ __wt_cell_pack_delta_leaf_key_value(WT_SESSION_IMPL *session, bool key_pfx_compr
   WT_CELL_UNPACK_DELTA_LEAF_KV *delta_unpack_val, WT_ITEM *lastkey, WT_ITEM *new_image,
   uint8_t **pp, uint32_t *entry_countp, bool *all_empty_valuep, bool *any_empty_valuep)
 {
-    WT_DECL_RET;
-    WT_BTREE *btree = S2BT(session);
+    WT_BTREE *btree;
     WT_CELL_KV key, val;
+    WT_DECL_RET;
+    WT_TIME_WINDOW *val_tw;
+    size_t key_size;
     size_t packed_size, pfx_max;
-    uint8_t pfx = 0, key_pfx_last = *key_pfx_lastp;
+    uint32_t entry_count;
+    uint32_t val_size;
+    uint8_t *p;
+    uint8_t pfx, key_pfx_last;
     const uint8_t *a, *b;
-    uint8_t *p = NULL;
-    uint32_t entry_count = *entry_countp;
-    const void *key_data = currentkey->data;
-    size_t key_size = currentkey->size;
     bool is_empty_value;
+    const void *key_data;
+    const void *val_data;
+
+    btree = S2BT(session);
+    pfx = 0;
+    key_pfx_last = *key_pfx_lastp;
+    p = NULL;
+    entry_count = *entry_countp;
+    key_data = currentkey->data;
+    key_size = currentkey->size;
     WT_CLEAR(key);
     WT_CLEAR(val);
-
-    const void *val_data;
-    uint32_t val_size;
-    WT_TIME_WINDOW *val_tw;
     if (base_unpack_val == NULL) {
         WT_ASSERT(session, delta_unpack_val != NULL);
         val_data = delta_unpack_val->delta_value_data.data;
@@ -375,6 +382,9 @@ __wt_cell_pack_delta_leaf_key_value(WT_SESSION_IMPL *session, bool key_pfx_compr
         entry_count++;
     }
     new_image->size += packed_size;
+
+    /* Update last key for next prefix compression comparison */
+    WT_ERR(__wt_buf_set(session, lastkey, key_data, key_size));
 
     *pp = p;
     *key_pfx_lastp = key_pfx_last;

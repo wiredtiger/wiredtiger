@@ -756,26 +756,47 @@ int
 __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *deltas,
   size_t delta_size, WT_ITEM *new_image, WT_PAGE_HEADER *base_dsk)
 {
+    WT_CELL_UNPACK_DELTA_LEAF_KV *delta_unpacks;
+    WT_CELL_UNPACK_KV *base_unpack_key, *base_unpack_value;
     WT_DECL_ITEM(base_lastkey);
     WT_DECL_ITEM(lastkey);
     WT_DECL_RET;
+    WT_ITEM **delta_lastkeys;
+    uint32_t base_entries, base_i, entry_count;
+    uint32_t *delta_entries;
+    int32_t min_unpack_idx;
+    uint8_t *base_cell, *p_ptr;
+    uint8_t **delta_cells;
     int cmp;
-    uint32_t base_entries = base_dsk->u.entries, base_i = 0, entry_count = 0;
-    int32_t min_unpack_idx = -1;
-    WT_CELL_UNPACK_KV *base_unpack_key = NULL, *base_unpack_value = NULL;
-    uint8_t *base_cell = WT_PAGE_HEADER_BYTE(S2BT(session), base_dsk),
-            *p_ptr = WT_PAGE_HEADER_BYTE(S2BT(session), new_image->mem);
-    uint8_t **delta_cells = NULL;
-    uint32_t *delta_entries = NULL;
-    WT_ITEM **delta_lastkeys = NULL;
-    WT_CELL_UNPACK_DELTA_LEAF_KV *delta_unpacks = NULL;
-    bool *delta_unpacked = NULL;
-    bool all_empty_value = true, any_empty_value = false, base_found = false,
-         base_key_unpacked = false, key_pfx_compress = S2BT(session)->prefix_compression,
-         is_key_pfx_compress = false;
-    uint8_t key_pfx_last = 0;
-    WT_PAGE_HEADER *dsk = NULL;
-    WT_BTREE *btree = S2BT(session);
+    bool *delta_unpacked;
+    bool all_empty_value, any_empty_value, base_found, base_key_unpacked, key_pfx_compress,
+      is_key_pfx_compress;
+    uint8_t key_pfx_last;
+    WT_PAGE_HEADER *dsk;
+    WT_BTREE *btree;
+
+    base_entries = base_dsk->u.entries;
+    base_i = 0;
+    entry_count = 0;
+    min_unpack_idx = -1;
+    base_unpack_key = NULL;
+    base_unpack_value = NULL;
+    base_cell = WT_PAGE_HEADER_BYTE(S2BT(session), base_dsk);
+    p_ptr = WT_PAGE_HEADER_BYTE(S2BT(session), new_image->mem);
+    delta_cells = NULL;
+    delta_entries = NULL;
+    delta_lastkeys = NULL;
+    delta_unpacks = NULL;
+    delta_unpacked = NULL;
+    all_empty_value = true;
+    any_empty_value = false;
+    base_found = false;
+    base_key_unpacked = false;
+    key_pfx_compress = S2BT(session)->prefix_compression;
+    is_key_pfx_compress = false;
+    key_pfx_last = 0;
+    dsk = NULL;
+    btree = S2BT(session);
 
     WT_ASSERT(session, new_image != NULL);
     new_image->size = WT_PTRDIFF(p_ptr, new_image->mem);
@@ -789,7 +810,7 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     WT_ERR(__wt_malloc(session, delta_size * sizeof(uint32_t), &delta_entries));
     WT_ERR(__wt_malloc(session, delta_size * sizeof(WT_CELL_UNPACK_DELTA_LEAF_KV), &delta_unpacks));
     WT_ERR(__wt_malloc(session, delta_size * sizeof(bool), &delta_unpacked));
-    for (uint8_t i = 0; i < delta_size; i++) {
+    for (uint32_t i = 0; i < (uint32_t)delta_size; i++) {
         WT_PAGE_HEADER *tmp = (WT_PAGE_HEADER *)deltas[i].data;
         delta_cells[i] = WT_PAGE_HEADER_BYTE(btree, tmp);
         delta_entries[i] = tmp->u.entries;
@@ -823,12 +844,12 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
               session, btree->collator, base_lastkey, delta_lastkeys[min_unpack_idx], &cmp));
 
         /* Build disk image */
-        if (cmp < 0) {
+        if (cmp < 0)
             /* Pack row-leaf base key/value. */
             WT_ERR(__wt_cell_pack_delta_leaf_key_value(session, is_key_pfx_compress, &key_pfx_last,
               base_lastkey, base_unpack_value, NULL, lastkey, new_image, &p_ptr, &entry_count,
               &all_empty_value, &any_empty_value));
-        } else {
+        else {
             /* Pack row-leaf delta entry. */
             if (!F_ISSET(&delta_unpacks[min_unpack_idx], WT_DELTA_LEAF_IS_DELETE))
                 WT_ERR(
@@ -890,7 +911,7 @@ err:
     __wt_free(session, base_unpack_value);
     __wt_scr_free(session, &base_lastkey);
     __wt_scr_free(session, &lastkey);
-    for (uint8_t i = 0; i < delta_size; i++)
+    for (uint32_t i = 0; i < (uint32_t)delta_size; i++)
         __wt_scr_free(session, &delta_lastkeys[i]);
     __wt_free(session, delta_lastkeys);
     __wt_free(session, delta_cells);
