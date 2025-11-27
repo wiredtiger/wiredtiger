@@ -288,7 +288,7 @@ __wt_cell_pack_delta_leaf_key_value(WT_SESSION_IMPL *session, bool key_pfx_compr
     uint32_t entry_count = *entry_countp;
     const void *key_data = currentkey->data;
     size_t key_size = currentkey->size;
-    bool all_empty_value, any_empty_value, is_empty_value;
+    bool is_empty_value;
     WT_CLEAR(key);
     WT_CLEAR(val);
 
@@ -307,11 +307,15 @@ __wt_cell_pack_delta_leaf_key_value(WT_SESSION_IMPL *session, bool key_pfx_compr
         val_tw = &base_unpack_val->tw;
     }
     is_empty_value = val_size == 0 && WT_TIME_WINDOW_IS_EMPTY(val_tw);
+    if (!is_empty_value)
+        *all_empty_valuep = false;
+    else
+        *any_empty_valuep = true;
 
     /*
      * Build key cell. Do prefix compression on the key. We know by definition the previous key
-     * sorts before the current key, which means the keys must differ and we just need to compare
-     * up to the shorter of the two keys.
+     * sorts before the current key, which means the keys must differ and we just need to
+     * compare up to the shorter of the two keys.
      */
     if (key_pfx_compress) {
         /*
@@ -348,9 +352,7 @@ __wt_cell_pack_delta_leaf_key_value(WT_SESSION_IMPL *session, bool key_pfx_compr
         val.buf.size = val_size;
         val.cell_len = __wt_cell_pack_value(session, &val.cell, val_tw, 0, val.buf.size);
         val.len = val.cell_len + val.buf.size;
-        all_empty_value = false;
-    } else
-        any_empty_value = true;
+    }
 
     /*
      * Ensure enough space, then recompute write pointer from new_image (not the caller's saved
@@ -377,8 +379,6 @@ __wt_cell_pack_delta_leaf_key_value(WT_SESSION_IMPL *session, bool key_pfx_compr
     *pp = p;
     *key_pfx_lastp = key_pfx_last;
     *entry_countp = entry_count;
-    *all_empty_valuep = all_empty_value;
-    *any_empty_valuep = any_empty_value;
 
 err:
     __wt_buf_free(session, &key.buf);
