@@ -105,7 +105,7 @@ class test_hs34(wttest.WiredTigerTestCase, suite_subprocess):
         # Run wt tool verify command, and this will report:
         # The key a in the history store but not in the data store.
         self.runWt(['-r', '-m', 'verify'],
-            outfilename='verify.out', errfilename="verify.err", failure=True)
+            outfilename='verify.out', errfilename="verify.err", failure=True, reopensession=False)
         self.check_empty_file('verify.out')
         self.check_file_contains('verify.err',
             'the associated history store key a was not found in the data store file:tablehs34.wt')
