@@ -448,25 +448,30 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
 
     WT_UNUSED(new_image);
 
+    /*
+     * Encode the first key always from the base image. The btrees using customized collator cannot
+     * handle the truncated first key.
+     */
+    base_key = &base[i++];
+    base_val = &base[i++];
+
     if (build_disk) {
         WT_ASSERT(session, new_image != NULL);
         p_ptr = WT_PAGE_HEADER_BYTE(S2BT(session), new_image->data);
-        entry_count = 0;
         /*
          * Initialize new_image->size here since __wt_rec_pack_internal_key_addr uses it to
          * calculate where to begin writing the first packed key and value data.
          */
         new_image->size = WT_PTRDIFF(p_ptr, new_image->data);
-    } else {
-        /*
-         * Encode the first key always from the base image. The btrees using customized collator
-         * cannot handle the truncated first key.
-         */
-        base_key = &base[i++];
-        base_val = &base[i++];
+
+        WT_RET(__wt_cell_pack_internal_key_addr(
+          session, new_image, base_key, base_val, NULL, false, &p_ptr));
+
+        entry_count += 2;   /* key + value cells */
+        final_entries += 1; /* one ref (child) emitted */
+    } else
         WT_RET(__page_build_ref(
           session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
-    }
 
     /*
      * !!!
@@ -1307,6 +1312,9 @@ int
 __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, bool alloc_refs,
   WT_PAGE **pagep, uint32_t flags)
 {
+    WT_BTREE *btree;
+    WT_CACHE *cache;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_PAGE_INDEX *pindex;
@@ -1316,6 +1324,9 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
 
     WT_UNUSED(flags);
 
+    btree = S2BT(session);
+    conn = S2C(session);
+    cache = conn->cache;
     *pagep = NULL;
     page = NULL;
 
@@ -1344,7 +1355,7 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
     }
 
     /* Allocate the structure that holds the disaggregated information for the page. */
-    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
         size += sizeof(WT_PAGE_DISAGG_INFO);
         WT_RET(__wt_calloc(session, 1, size, &page));
         page->disagg_info =
@@ -1398,8 +1409,14 @@ err:
 
     /* Increment the cache statistics. */
     __wt_cache_page_inmem_incr(session, page, size, false);
-    (void)__wt_atomic_add_uint64(&S2C(session)->cache->pages_inmem, 1);
-    page->cache_create_gen = __wt_atomic_load_uint64_relaxed(&S2C(session)->evict->evict_pass_gen);
+    (void)__wt_atomic_add_uint64(&cache->pages_inmem, 1);
+    if (__wt_conn_is_disagg(session)) {
+        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+            (void)__wt_atomic_add_uint64(&cache->pages_inmem_ingest, 1);
+        else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            (void)__wt_atomic_add_uint64(&cache->pages_inmem_stable, 1);
+    }
+    page->cache_create_gen = __wt_atomic_load_uint64_relaxed(&conn->evict->evict_pass_gen);
 
     *pagep = page;
     return (0);
