@@ -451,27 +451,14 @@ struct __wt_page_modify {
 
             /*
              * Updated items in column-stores: variable-length RLE entries can expand to multiple
-             * entries which requires some kind of list we can expand on demand. Updated items in
-             * fixed-length files could be done based on an WT_UPDATE array as in row-stores, but
-             * there can be a very large number of bits on a single page, and the cost of the
-             * WT_UPDATE array would be huge.
+             * entries which requires some kind of list we can expand on demand.
              */
             wt_shared WT_INSERT_HEAD **update;
-
-            /*
-             * Split-saved last column-store page record. If a fixed-length column-store page is
-             * split, we save the first record number moved so that during reconciliation we know
-             * the page's last record and can write any implicitly created deleted records for the
-             * page. No longer used by VLCS.
-             */
-            uint64_t split_recno;
         } column_leaf;
 #undef mod_col_append
 #define mod_col_append u2.column_leaf.append
 #undef mod_col_update
 #define mod_col_update u2.column_leaf.update
-#undef mod_col_split_recno
-#define mod_col_split_recno u2.column_leaf.split_recno
         struct {
             /* Inserted items for row-store. */
             wt_shared WT_INSERT_HEAD **insert;
@@ -580,27 +567,6 @@ struct __wt_page_index {
 struct __wt_col_var_repeat {
     uint32_t nrepeats;     /* repeat slots */
     WT_COL_RLE repeats[0]; /* lookup RLE array */
-};
-
-/*
- * WT_COL_FIX_TW_ENTRY --
- *     This is a single entry in the WT_COL_FIX_TW array. It stores the offset from the page's
- * starting recno and the offset into the page to find the value cell containing the time window.
- */
-struct __wt_col_fix_tw_entry {
-    uint32_t recno_offset;
-    uint32_t cell_offset;
-};
-
-/*
- * WT_COL_FIX_TW --
- *     Fixed-length column-store pages carry an array of page entries that have time windows. This
- * is built when reading the page to avoid the need to walk the page to find a specific entry. We
- * can do a binary search in this array instead.
- */
-struct __wt_col_fix_tw {
-    uint32_t numtws;            /* number of time window slots */
-    WT_COL_FIX_TW_ENTRY tws[0]; /* lookup array */
 };
 
 #ifdef HAVE_DIAGNOSTIC
@@ -1817,7 +1783,7 @@ struct __wt_insert_head {
 #define WT_COL_UPDATE(page, ip) WT_COL_UPDATE_SLOT(page, WT_COL_SLOT(page, ip))
 
 /*
- * WT_COL_APPEND is an WT_INSERT list, used for fixed- and variable-length appends.
+ * WT_COL_APPEND is an WT_INSERT list, used for variable-length appends.
  */
 #define WT_COL_APPEND(page)                                             \
     ((page)->modify == NULL || (page)->modify->mod_col_append == NULL ? \

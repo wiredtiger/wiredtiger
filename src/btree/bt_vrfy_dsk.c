@@ -927,8 +927,8 @@ __verify_dsk_chunk(WT_VERIFY_INFO *vi)
     datalen = vi->dsk->u.datalen;
 
     /*
-     * Fixed-length column-store and overflow pages are simple chunks of data-> Verify the data
-     * doesn't overflow the end of the page.
+     * Overflow pages are simple chunks of data-> Verify the data doesn't overflow the end of the
+     * page.
      */
     p = WT_PAGE_HEADER_BYTE(btree, vi->dsk);
     if (p + datalen > end)

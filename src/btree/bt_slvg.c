@@ -311,15 +311,6 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
      * modification.
      *
      * This requires sorting the page list by key, and secondarily by LSN.
-     *
-     * !!!
-     * It's vanishingly unlikely and probably impossible for fixed-length column-store files
-     * to have overlapping key ranges.  It's possible for an entire key range to go missing (if
-     * a page is corrupted and lost), but because pages can't split, it shouldn't be possible to
-     * find pages where the key ranges overlap.  That said, we check for it and clean up after
-     * it in reconciliation because it doesn't cost much and future column-store formats or
-     * operations might allow for fixed-length format ranges to overlap during salvage, and I
-     * don't want to have to retrofit the code later.
      */
     __wt_qsort(ss->pages, (size_t)ss->pages_next, sizeof(WT_TRACK *), __slvg_trk_compare_key);
     if (ss->page_type == WT_PAGE_ROW_LEAF)
