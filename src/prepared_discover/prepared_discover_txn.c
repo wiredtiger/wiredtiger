@@ -95,16 +95,16 @@ __prepared_discover_find_or_create_item(WT_SESSION_IMPL *session, uint64_t prepa
 }
 
 /*
- * __restore_upd_to_ingest_table --
+ * __wti_prepared_discover_restore_upd --
  *     In disaggregated storage, in follower mode, stable table cannot be modified, therefore a
  *     prepared update needs to be restored onto ingest table so that the follower node can then
  *     commit the prepared transaction. This function open the ingest table and insert the update
  *     restored from disk onto the ingest table. It also sets the session's dhandle to the ingest
  *     table to track the correct btree when committing/rolling back.
  */
-static int
-__restore_upd_to_ingest_table(
-  WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_ITEM *key, const char *uri)
+int
+__wti_prepared_discover_restore_upd(WT_SESSION_IMPL *session, const char *stable_uri, WT_ITEM *key,
+  WT_ITEM *value, WT_TIME_WINDOW *tw)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
@@ -112,6 +112,7 @@ __restore_upd_to_ingest_table(
     WT_DECL_RET;
     WT_LAYERED_TABLE_MANAGER *manager;
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    WT_UPDATE *upd;
     uint32_t i, table_count;
 
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
@@ -125,7 +126,7 @@ __restore_upd_to_ingest_table(
     for (i = 0; i < table_count; i++) {
         /* Find the first non-empty entry that matches the currently opened dhandle */
         if (manager->entries[i] != NULL) {
-            if (WT_PREFIX_MATCH(uri, manager->entries[i]->stable_uri)) {
+            if (WT_PREFIX_MATCH(stable_uri, manager->entries[i]->stable_uri)) {
                 entry = manager->entries[i];
                 break;
             }
@@ -141,8 +142,22 @@ __restore_upd_to_ingest_table(
     cbt = (WT_CURSOR_BTREE *)cursor;
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
+
+    upd = NULL;
+    /*
+     * Create an update structure with the time information and state populated - that allows this
+     * code to reuse existing machinery for installing transaction operations.
+     */
+    WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
+    upd->txnid = session->txn->id;
+    upd->upd_durable_ts = tw->durable_start_ts;
+    upd->prepare_state = WT_PREPARE_INPROGRESS;
+    upd->prepared_id = tw->start_prepared_id;
+    upd->upd_start_ts = upd->prepare_ts = tw->start_prepare_ts;
+
     WT_ERR(__wt_row_modify(cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
-    ret = __wt_session_get_dhandle(session, entry->ingest_uri, NULL, NULL, 0);
+    WT_ERR(
+      __wti_prepared_discover_add_artifact_upd(session, upd->prepared_id, upd->prepare_ts, key));
 err:
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
@@ -188,16 +203,16 @@ __wt_prepared_discover_remove_item(WT_SESSION_IMPL *session, uint64_t prepared_i
  */
 int
 __wti_prepared_discover_add_artifact_upd(
-  WT_SESSION_IMPL *session, uint64_t prepared_id, WT_ITEM *key, WT_UPDATE *upd)
+  WT_SESSION_IMPL *session, uint64_t prepared_id, wt_timestamp_t prepare_ts, WT_ITEM *key)
 {
     WT_PENDING_PREPARED_ITEM *prepared_item;
     WT_TXN_OP *op;
 
-    WT_RET(__prepared_discover_find_or_create_item(
-      session, prepared_id, upd->prepare_ts, &prepared_item));
+    WT_RET(
+      __prepared_discover_find_or_create_item(session, prepared_id, prepare_ts, &prepared_item));
 
     WT_RET(__wt_pending_prepared_next_op(session, &op, prepared_item, key));
-    WT_RET(__wt_op_modify(session, upd, op));
+    WT_RET(__wt_op_modify(session, NULL, op));
 
     WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW);
 
@@ -205,33 +220,4 @@ __wti_prepared_discover_add_artifact_upd(
     ++prepared_item->prepare_count;
 #endif
     return (0);
-}
-
-/*
- * __wti_prepared_discover_add_artifact_ondisk_row --
- *     Add an artifact to a pending prepared transaction.
- */
-int
-__wti_prepared_discover_add_artifact_ondisk_row(WT_SESSION_IMPL *session, uint64_t prepared_id,
-  WT_TIME_WINDOW *tw, WT_ITEM *key, WT_ITEM *value, const char *uri)
-{
-    WT_DECL_RET;
-    WT_UPDATE *upd;
-    upd = NULL;
-    /*
-     * Create an update structure with the time information and state populated - that allows this
-     * code to reuse existing machinery for installing transaction operations.
-     */
-    WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
-    upd->txnid = session->txn->id;
-    upd->upd_durable_ts = tw->durable_start_ts;
-    upd->prepare_state = WT_PREPARE_INPROGRESS;
-    upd->prepared_id = prepared_id;
-    upd->upd_start_ts = upd->prepare_ts = tw->start_prepare_ts;
-    if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader)
-        WT_ERR(__restore_upd_to_ingest_table(session, upd, key, uri));
-
-    WT_ERR(__wti_prepared_discover_add_artifact_upd(session, prepared_id, key, upd));
-err:
-    return (ret);
 }
