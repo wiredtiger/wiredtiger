@@ -37,10 +37,47 @@ extern "C" {
 
 namespace test_harness {
 namespace crud {
-bool insert(
-  scoped_cursor &cursor, transaction &txn, const std::string &key, const std::string &value);
-bool update(
-  scoped_cursor &cursor, transaction &txn, const std::string &key, const std::string &value);
-bool remove(scoped_cursor &cursor, transaction &txn, const std::string &key);
+inline bool insert(scoped_cursor &cursor, transaction &txn, const std::string &key, const std::string &value)
+{
+    cursor->set_key(cursor.get(), key.c_str());
+    cursor->set_value(cursor.get(), value.c_str());
+    int ret = cursor->insert(cursor.get());
+
+    if (ret != 0) {
+        if (ret == WT_ROLLBACK) {
+            txn.set_needs_rollback();
+            return (false);
+        } else
+            testutil_die(ret, "unhandled error while trying to insert a key");
+    }
+    return (true);
+}
+inline bool update(scoped_cursor &cursor, transaction &txn, const std::string &key, const std::string &value)
+{
+    cursor->set_key(cursor.get(), key.c_str());
+    cursor->set_value(cursor.get(), value.c_str());
+    int ret = cursor->update(cursor.get());
+
+    if (ret != 0) {
+        if (ret == WT_ROLLBACK) {
+            txn.set_needs_rollback();
+            return (false);
+        } else
+            testutil_die(ret, "unhandled error while trying to update a key");
+    }
+    return (true);
+}
+inline bool remove(scoped_cursor &cursor, transaction &txn, const std::string &key) {
+    cursor->set_key(cursor.get(), key.c_str());
+    int ret = cursor->remove(cursor.get());
+    if (ret != 0) {
+        if (ret == WT_ROLLBACK) {
+            txn.set_needs_rollback();
+            return (false);
+        } else
+            testutil_die(ret, "unhandled error while trying to remove a key");
+    }
+    return (true);
+}
 }; // namespace crud
 } // namespace test_harness

@@ -58,11 +58,14 @@ struct options {
     int key_count = 5000;
     int key_size = 10;
     int value_size = 1000;
+    int ingest_size_mb = 1;
+    int verbose_level = 0;
     std::string workload_shape = "mixed";
     std::string home_path = DEFAULT_DIR;
     bool warm_cache = false;
     bool load_skip = false;
     bool load_copy = false;
+    bool append = true;
 };
 
 options opt;
@@ -198,6 +201,32 @@ parse_options(const std::vector<std::string_view> &args, options &out, std::stri
                 ++i;
                 continue;
             }
+            if (match_opt(arg, "-ingest_size_mb", val, has_inline_val)) {
+                std::string_view v;
+                if (!require_value("-ingest_size_mb", val, has_inline_val, v))
+                    return false;
+                int n = 0;
+                if (!parse_int(v, n) || n <= 0) {
+                    error = "invalid ingest_size_mb: " + std::string(v);
+                    return false;
+                }
+                out.ingest_size_mb = n;
+                ++i;
+                continue;
+            }
+            if (match_opt(arg, "-ve", val, has_inline_val)) {
+                std::string_view v;
+                if (!require_value("-ve", val, has_inline_val, v))
+                    return false;
+                int n = 0;
+                if (!parse_int(v, n) || n <= 0) {
+                    error = "invalid verbose level: " + std::string(v);
+                    return false;
+                }
+                out.verbose_level = n;
+                ++i;
+                continue;
+            }
             if (match_opt(arg, "-vs", val, has_inline_val)) {
                 std::string_view v;
                 if (!require_value("-vs", val, has_inline_val, v))
@@ -264,6 +293,7 @@ update_global_timestamps()
     std::string config;
     config += STABLE_TS + "=" + timestamp_manager::decimal_to_hex(++ts) + ",";
     config += OLDEST_TS + "=" + timestamp_manager::decimal_to_hex(ts - 20);
+    logger::log_msg(LOG_INFO, "Updating global timestamps " + config);
     connection_manager::instance().set_timestamp(config);
 }
 
@@ -313,6 +343,7 @@ populate()
 static void
 cache_warming(int64_t records)
 {
+    logger::log_msg(LOG_INFO, "Warming cache by loading in " + std::to_string(records) + " records.");
     scoped_session session = connection_manager::instance().create_session();
     int64_t record_count = 0;
     for (int64_t i = 0; i < opt.collection_count; ++i) {
@@ -327,21 +358,61 @@ cache_warming(int64_t records)
     }
 }
 
-// static void
-// crud_operations() {
+static void
+appends() {
+    scoped_session session = connection_manager::instance().create_session();
+    struct collection_cursor {
+                collection_cursor(
+            collection &coll, scoped_cursor &&cursor)
+            : coll(coll), cursor(std::move(cursor))
+        {
+        }
+        scoped_cursor cursor;
+        collection &coll;
+    };
+    std::map<int, collection_cursor> cursor_map;
+    transaction txn(20, 20);
+    uint64_t ingested_data = 0;
+    while (ingested_data < opt.ingest_size_mb * 1000 * 1000) {
+        /* Generater a random int between 0 and collection count. */
+        int collection_num = random_generator::instance().generate_integer(0, opt.collection_count - 1);
+        if (cursor_map.find(collection_num) == cursor_map.end()) {
+            collection &coll = database_model->get_collection(collection_num);
+            /*
+             * Construct the mapped value in-place. Using operator[] and then assigning
+             * requires the mapped_type to be assignable which is not true here because
+             * `collection_cursor` holds a reference member (and a move-only cursor). That
+             * deletes the implicit assignment operator. Emplace avoids assignment by
+             * constructing the value directly in the map.
+             */
+            cursor_map.emplace(collection_num,
+              collection_cursor(coll, session.open_scoped_cursor(coll.name)));
+        }
+        /*
+         * Access the stored scoped_cursor member from the mapped value. Use `at` to
+         * avoid accidental default-construction if the key were missing.
+         */
+        collection_cursor &cc = cursor_map.at(collection_num);
+        // logger::log_msg(LOG_INFO, "Inserting 10 records into " + cc.coll.name);
+        scoped_cursor &cursor = cc.cursor;
+        uint64_t start_key_count = cc.coll.get_key_count();
+        for (int j = 0; j < 10; j++) {
+            txn.begin(session);
+            testutil_check(txn.set_commit_timestamp(session, ++ts));
+            testutil_assert(crud::insert(cursor, txn, generate_key(j + start_key_count), generate_value()));
+            testutil_assert(txn.commit(session));
+            ingested_data += opt.key_size + opt.value_size;
+        }
+        cc.coll.increase_key_count(10);
+    }
+}
 
-// }
-
-// static void
-// tear_down() {
-//     delete op_tracker;
-//     delete tsm;
-//     delete database_model;
-
-//     op_tracker = nullptr;
-//     tsm = nullptr;
-//     database_model = nullptr;
-// }
+static void
+crud_operations() {
+    if (opt.append) {
+        appends();
+    }
+}
 
 /*
  * wt_disagg_pick_up_latest_checkpoint --
@@ -391,27 +462,35 @@ main(int argc, char *argv[])
     if (!parse_options(args, opt, err)) {
         std::cerr << "error: " << err << "\n";
         std::cerr << "usage: " << args[0] << " [options]\n"
-                  << "  -cc N        collection_count (int > 0)\n"
-                  << "  -kc N        key_count (int > 0)\n"
-                  << "  -ks N        key_size (int > 0)\n"
-                  << "  -vs N        value_size (int > 0)\n"
-                  << "  -shape S     workload_shape ('append' or 'mixed')\n"
-                  << "  -h PATH      home_path\n"
-                  << "  --           end of options\n";
+                  << "  -cc N                   collection_count (int > 0)\n"
+                  << "  -kc N                   key_count (int > 0)\n"
+                  << "  -ks N                   key_size (int > 0)\n"
+                  << "  -vs N                   value_size (int > 0)\n"
+                  << "  -ve N                   verbosity level; 1 turns on WT_VERB_DISAGG:1, 2 "
+                  << " will enable the palite module to begin logging with verbosity level 1, 3 "
+                  << " will increase the verbosity level of WT_VERB_DISAGG and so on.\n"
+                  << "  -wc                     warm the cache\n"
+                  << "  -lc                     create a copy of the loaded data\n"
+                  << "  -ls                     use data in WT_TEST.back instead of loading\n"
+                  << "  -ingest_size_mb N       amount of data to insert into ingest tables."
+                  << " note: this will only make sense with workload shape append.\n"
+                  << "  -shape S                workload_shape ('append' or 'mixed')\n"
+                  << "  -h PATH                 home_path\n"
+                  << "  --                      end of options\n";
         return 1;
     }
 
     logger::log_msg(LOG_INFO,
       "Running with configuration: collection_count=" + std::to_string(opt.collection_count) +
         ", key_count=" + std::to_string(opt.key_count) + ", key_size=" +
-        std::to_string(opt.key_size) + ", value_size=" + std::to_string(opt.value_size) +
+        std::to_string(opt.key_size) + ", value_size    =" + std::to_string(opt.value_size) +
         ", workload_shape=" + opt.workload_shape + ", home_path=" + opt.home_path +
         ", warm_cache=" + (opt.warm_cache ? "true" : "false") + ", load_copy=" +
         (opt.load_copy ? "true" : "false") + ", load_skip=" + (opt.load_skip ? "true" : "false"));
 
     logger::log_msg(LOG_INFO,
       "Data size is: " +
-        std::to_string(((opt.collection_count * opt.key_count) * (opt.key_size + opt.value_size)) /
+        std::to_string(((1ULL * opt.collection_count * opt.key_count) * (opt.key_size + opt.value_size)) /
           1000 / 1000) +
         "MB");
     /*
@@ -430,6 +509,10 @@ main(int argc, char *argv[])
     (void)crud_ratio;
     initialize();
 
+    std::string shared_open_config = CONNECTION_CREATE + ",cache_size=16GB,precise_checkpoint=true";
+    std::string extension_config = ",extensions=[../../ext/page_log/palite/libwiredtiger_palite.so";
+    std::string shared_disagg_config = ",disaggregated=(page_log=palite";
+
     /* Populate the database. */
     if (opt.load_skip) {
         logger::log_msg(LOG_INFO, "Using existing database.");
@@ -438,12 +521,10 @@ main(int argc, char *argv[])
         testutil_copy(std::string(opt.home_path + ".back").c_str(), opt.home_path.c_str());
         database_model->add_existing_collections(opt.collection_count, opt.key_count);
     } else {
-        connection_manager::instance().create(CONNECTION_CREATE +
-            ",extensions=[../../ext/page_log/palite/"
-            "libwiredtiger_palite.so],precise_checkpoint=true,disaggregated=(role=\"leader\",page_"
-            "log="
-            "palite)",
-          opt.home_path);
+        connection_manager::instance().create(shared_open_config + extension_config + "]" +
+            shared_disagg_config + ",role=\"leader\",)", opt.home_path);
+        /* We take a checkpoint as the very last stop of populate, this means we don't need to abandon any work.
+         * Abandoning a checkpoint is very slow and makes the perf tests results relatively meaningless.*/
         populate();
     }
     /* Restart WiredTiger in follower mode. */
@@ -466,11 +547,21 @@ main(int argc, char *argv[])
     // connection_manager::instance().reopen(CONNECTION_CREATE +
     // ",extensions=[../../ext/page_log/palite/libwiredtiger_palite.so=(config=\"(verbose=1)\")],precise_checkpoint=true,disaggregated=(role=\"follower\",page_log=palite),verbose=(disaggregated_storage:1)",
     // home_dir);
-    connection_manager::instance().reopen(CONNECTION_CREATE +
-        ",extensions=[../../ext/page_log/palite/"
-        "libwiredtiger_palite.so],precise_checkpoint=true,disaggregated=(role=\"follower\",page_"
-        "log=palite),verbose=(disaggregated_storage:1)",
+
+    std::string other_config = ",statistics_log=(json,wait=1,on_close),statistics=(all),file_manager=(close_idle_time=600,close_handle_minimum=2000)";
+    connection_manager::instance().reopen(shared_open_config + shared_disagg_config + ",role=\"follower\",)" + other_config +
+        extension_config + (opt.verbose_level > 1 ? "=(config=\"(verbose=" + std::to_string(opt.verbose_level - 1) + ")\")" : "") + "],"
+        + (opt.verbose_level >= 1 ? "verbose=(disaggregated_storage:" + std::to_string(opt.verbose_level) + ")" : ""),
       opt.home_path);
+    WT_CONNECTION *conn = connection_manager::instance().get_connection();
+
+    if (opt.load_skip) {
+        char timestamp[256];
+        conn->query_timestamp(conn, timestamp, "get=stable");
+        uint64_t stable_timestamp = timestamp_manager::hex_to_decimal(timestamp);
+        logger::log_msg(LOG_INFO, "Quiried stable timestamp from WiredTiger: " + std::to_string(stable_timestamp));
+        ts = stable_timestamp + 1;
+    }
 
     // TODO: Do we need to pickup the checkpoint as soon as we start in follower mode?
     wt_timestamp_t timestamp = wt_disagg_pick_up_latest_checkpoint();
@@ -478,20 +569,16 @@ main(int argc, char *argv[])
     /* TODO: */
     /* TODO: Optionally scan created tables to warm the WT cache. */
     if (opt.warm_cache)
-        cache_warming(opt.collection_count * opt.key_count);
+        cache_warming(opt.collection_count * opt.key_count / 2);
 
     /* TODO: Perform crud operations. */
-    // crud_operations();
+    crud_operations();
 
     /* TODO: Measure time of step up. */
-    WT_CONNECTION *conn = connection_manager::instance().get_connection();
     conn->reconfigure(conn, "disaggregated=(role=\"leader\")");
     std::string stable_config = "stable_timestamp=" + timestamp_manager::decimal_to_hex(timestamp);
     conn->set_timestamp(conn, stable_config.c_str());
-    /* TODO: Should we measure post step up checkpoint duration here? cc: Keith Smith. */
-    /* Peter thinks we should do this. */
-    // /* Manually delete things before the connection gets destructed to avoid segfaults on
-    // scope_cursor close. */
-    // // tear_down();
+    /* Sleep for 10 seconds, hopefully this will help with FTDC files. */
+    std::this_thread::sleep_for(std::chrono::seconds(10));
     return (0);
 }
