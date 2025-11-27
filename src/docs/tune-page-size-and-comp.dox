@@ -372,9 +372,9 @@ different compression options.
 <table>
 @hrow{Compression Type, Supported by row-store, Supported by variable col-store, Default config,
       Reduces in-mem size, Reduces on-disk size, CPU and Memory cost}
-@row{Key-prefix, yes, no, no, disabled, yes, yes, minor}
-@row{Dictionary, yes, yes, no, disabled, yes, yes, minor}
-@row{Block, yes, yes, yes, disabled, no, yes, can be high}
+@row{Key-prefix, yes, no, disabled, yes, yes, minor}
+@row{Dictionary, yes, yes, disabled, yes, yes, minor}
+@row{Block, yes, yes, disabled, no, yes, can be high}
 </table>
 
 */
