@@ -26,11 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import compatibility_test, os, shutil, sys, wiredtiger
-import compatibility_common
-import errno
-import subprocess
-import signal
+import compatibility_test, errno, wiredtiger
+
 
 class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
     '''
@@ -48,15 +45,7 @@ class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
             # Run the older-branch part (create the FLCS table and populate it)
             self.run_method_on_branch(self.older_branch, 'on_older_branch')
             # Run the newer-branch part (attempt to open and expect failure)
-            try:
-                self.run_method_on_branch(self.newer_branch, 'on_newer_branch')
-            except subprocess.CalledProcessError as e:
-                if e.returncode == -signal.SIGABRT:
-                    # Expect sigabort due to panic on FLCS table open.
-                    print(f"Got expected SIGABRT (panic) for trying to open deprecated FLCS table: {e}")
-                else:
-                    print(f"Subprocess exited with unexpected code: {e.returncode}")
-                    raise
+            self.run_method_on_branch(self.newer_branch, 'on_newer_branch')
 
     def on_older_branch(self):
         # This runs in the older branch to create a FLCS table and populate it.
@@ -77,9 +66,14 @@ class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
         conn = wiredtiger.wiredtiger_open('.', self.conn_config)
         session = conn.open_session()
 
-        # Expect an exception when trying to open a cursor on the FLCS table.
-        session.open_cursor(self.uri)
+        print("Attempting to open cursor on FLCS table, expecting failure...")
 
+        # Expect an exception when trying to open a cursor on the FLCS table.
+        try:
+            session.open_cursor(self.uri)
+        except wiredtiger.WiredTigerError as e:
+            assert str(e) in wiredtiger.wiredtiger_strerror(errno.EINVAL)
+            assert str(e) == "Invalid argument"
 
     if __name__ == "__main__":
         compatibility_test.run()
