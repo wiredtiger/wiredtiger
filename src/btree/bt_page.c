@@ -1211,7 +1211,7 @@ __wti_page_reconstruct_deltas(
          * We may be in a reconciliation already. Don't rewrite in this case as reconciliation is
          * not reentrant.
          *
-         * FIXME- WT-15619: this should go away when we use an algorithm to directly rewrite delta.
+         * FIXME- WT-15592: this should go away when we use an algorithm to directly rewrite delta.
          */
         if (F_ISSET(&S2C(session)->page_delta, WT_FLATTEN_LEAF_PAGE_DELTA) &&
           !__wt_rec_in_progress(session)) {
@@ -1668,7 +1668,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
               "Should never read an overflow removed value for a prepared update");
             first_upd = WT_ROW_UPDATE(page, rip);
             /*
-             * FIXME- WT-15619: This key must have been overwritten by a delta. Don't instantiate
+             * FIXME- WT-15592: This key must have been overwritten by a delta. Don't instantiate
              * it.
              */
             if (first_upd == NULL) {

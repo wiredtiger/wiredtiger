@@ -314,8 +314,8 @@ __wt_cell_pack_delta_leaf_key_value(WT_SESSION_IMPL *session, bool key_pfx_compr
 
     /*
      * Build key cell. Do prefix compression on the key. We know by definition the previous key
-     * sorts before the current key, which means the keys must differ and we just need to
-     * compare up to the shorter of the two keys.
+     * sorts before the current key, which means the keys must differ and we just need to compare up
+     * to the shorter of the two keys.
      */
     if (key_pfx_compress) {
         /*
