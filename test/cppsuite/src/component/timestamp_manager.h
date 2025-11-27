@@ -52,7 +52,7 @@ public:
     static const std::string decimal_to_hex(uint64_t value);
     static uint64_t hex_to_decimal(const char *s);
 
-    public:
+public:
     explicit timestamp_manager(configuration *config);
     explicit timestamp_manager(uint64_t oldest_lag_seconds, uint64_t stable_lag_seconds);
     virtual ~timestamp_manager() = default;

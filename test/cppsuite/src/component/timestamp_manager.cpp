@@ -45,7 +45,9 @@ timestamp_manager::decimal_to_hex(uint64_t value)
     return (res);
 }
 
-uint64_t timestamp_manager::hex_to_decimal(const char *s) {
+uint64_t
+timestamp_manager::hex_to_decimal(const char *s)
+{
     assert(s != nullptr && "input must not be null");
 
     std::string_view sv(s);
@@ -62,7 +64,8 @@ uint64_t timestamp_manager::hex_to_decimal(const char *s) {
 
     // Ensure the parse succeeded and consumed the entire string
     testutil_assert(res.ec == std::errc() && "hex parse failed or out of range");
-    testutil_assert(res.ptr == sv.data() + sv.size() && "unexpected trailing characters in hex string");
+    testutil_assert(
+      res.ptr == sv.data() + sv.size() && "unexpected trailing characters in hex string");
 
     return value;
 }

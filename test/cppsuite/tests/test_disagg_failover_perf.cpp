@@ -343,7 +343,8 @@ populate()
 static void
 cache_warming(int64_t records)
 {
-    logger::log_msg(LOG_INFO, "Warming cache by loading in " + std::to_string(records) + " records.");
+    logger::log_msg(
+      LOG_INFO, "Warming cache by loading in " + std::to_string(records) + " records.");
     scoped_session session = connection_manager::instance().create_session();
     int64_t record_count = 0;
     for (int64_t i = 0; i < opt.collection_count; ++i) {
@@ -359,11 +360,11 @@ cache_warming(int64_t records)
 }
 
 static void
-appends() {
+appends()
+{
     scoped_session session = connection_manager::instance().create_session();
     struct collection_cursor {
-                collection_cursor(
-            collection &coll, scoped_cursor &&cursor)
+        collection_cursor(collection &coll, scoped_cursor &&cursor)
             : coll(coll), cursor(std::move(cursor))
         {
         }
@@ -375,7 +376,8 @@ appends() {
     uint64_t ingested_data = 0;
     while (ingested_data < opt.ingest_size_mb * 1000 * 1000) {
         /* Generater a random int between 0 and collection count. */
-        int collection_num = random_generator::instance().generate_integer(0, opt.collection_count - 1);
+        int collection_num =
+          random_generator::instance().generate_integer(0, opt.collection_count - 1);
         if (cursor_map.find(collection_num) == cursor_map.end()) {
             collection &coll = database_model->get_collection(collection_num);
             /*
@@ -385,12 +387,12 @@ appends() {
              * deletes the implicit assignment operator. Emplace avoids assignment by
              * constructing the value directly in the map.
              */
-            cursor_map.emplace(collection_num,
-              collection_cursor(coll, session.open_scoped_cursor(coll.name)));
+            cursor_map.emplace(
+              collection_num, collection_cursor(coll, session.open_scoped_cursor(coll.name)));
         }
         /*
-         * Access the stored scoped_cursor member from the mapped value. Use `at` to
-         * avoid accidental default-construction if the key were missing.
+         * Access the stored scoped_cursor member from the mapped value. Use `at` to avoid
+         * accidental default-construction if the key were missing.
          */
         collection_cursor &cc = cursor_map.at(collection_num);
         // logger::log_msg(LOG_INFO, "Inserting 10 records into " + cc.coll.name);
@@ -399,7 +401,8 @@ appends() {
         for (int j = 0; j < 10; j++) {
             txn.begin(session);
             testutil_check(txn.set_commit_timestamp(session, ++ts));
-            testutil_assert(crud::insert(cursor, txn, generate_key(j + start_key_count), generate_value()));
+            testutil_assert(
+              crud::insert(cursor, txn, generate_key(j + start_key_count), generate_value()));
             testutil_assert(txn.commit(session));
             ingested_data += opt.key_size + opt.value_size;
         }
@@ -408,7 +411,8 @@ appends() {
 }
 
 static void
-crud_operations() {
+crud_operations()
+{
     if (opt.append) {
         appends();
     }
@@ -490,8 +494,9 @@ main(int argc, char *argv[])
 
     logger::log_msg(LOG_INFO,
       "Data size is: " +
-        std::to_string(((1ULL * opt.collection_count * opt.key_count) * (opt.key_size + opt.value_size)) /
-          1000 / 1000) +
+        std::to_string(
+          ((1ULL * opt.collection_count * opt.key_count) * (opt.key_size + opt.value_size)) / 1000 /
+          1000) +
         "MB");
     /*
      * Create a connection, and specify the home directory. We intentionally don't set the cache
@@ -521,10 +526,12 @@ main(int argc, char *argv[])
         testutil_copy(std::string(opt.home_path + ".back").c_str(), opt.home_path.c_str());
         database_model->add_existing_collections(opt.collection_count, opt.key_count);
     } else {
-        connection_manager::instance().create(shared_open_config + extension_config + "]" +
-            shared_disagg_config + ",role=\"leader\",)", opt.home_path);
-        /* We take a checkpoint as the very last stop of populate, this means we don't need to abandon any work.
-         * Abandoning a checkpoint is very slow and makes the perf tests results relatively meaningless.*/
+        connection_manager::instance().create(
+          shared_open_config + extension_config + "]" + shared_disagg_config + ",role=\"leader\",)",
+          opt.home_path);
+        /* We take a checkpoint as the very last stop of populate, this means we don't need to
+         * abandon any work. Abandoning a checkpoint is very slow and makes the perf tests results
+         * relatively meaningless.*/
         populate();
     }
     /* Restart WiredTiger in follower mode. */
@@ -548,10 +555,18 @@ main(int argc, char *argv[])
     // ",extensions=[../../ext/page_log/palite/libwiredtiger_palite.so=(config=\"(verbose=1)\")],precise_checkpoint=true,disaggregated=(role=\"follower\",page_log=palite),verbose=(disaggregated_storage:1)",
     // home_dir);
 
-    std::string other_config = ",statistics_log=(json,wait=1,on_close),statistics=(all),file_manager=(close_idle_time=600,close_handle_minimum=2000)";
-    connection_manager::instance().reopen(shared_open_config + shared_disagg_config + ",role=\"follower\",)" + other_config +
-        extension_config + (opt.verbose_level > 1 ? "=(config=\"(verbose=" + std::to_string(opt.verbose_level - 1) + ")\")" : "") + "],"
-        + (opt.verbose_level >= 1 ? "verbose=(disaggregated_storage:" + std::to_string(opt.verbose_level) + ")" : ""),
+    std::string other_config =
+      ",statistics_log=(json,wait=1,on_close),statistics=(all),file_manager=(close_idle_time=600,"
+      "close_handle_minimum=2000)";
+    connection_manager::instance().reopen(shared_open_config + shared_disagg_config +
+        ",role=\"follower\",)" + other_config + extension_config +
+        (opt.verbose_level > 1 ?
+            "=(config=\"(verbose=" + std::to_string(opt.verbose_level - 1) + ")\")" :
+            "") +
+        "]," +
+        (opt.verbose_level >= 1 ?
+            "verbose=(disaggregated_storage:" + std::to_string(opt.verbose_level) + ")" :
+            ""),
       opt.home_path);
     WT_CONNECTION *conn = connection_manager::instance().get_connection();
 
@@ -559,7 +574,8 @@ main(int argc, char *argv[])
         char timestamp[256];
         conn->query_timestamp(conn, timestamp, "get=stable");
         uint64_t stable_timestamp = timestamp_manager::hex_to_decimal(timestamp);
-        logger::log_msg(LOG_INFO, "Quiried stable timestamp from WiredTiger: " + std::to_string(stable_timestamp));
+        logger::log_msg(LOG_INFO,
+          "Quiried stable timestamp from WiredTiger: " + std::to_string(stable_timestamp));
         ts = stable_timestamp + 1;
     }
 

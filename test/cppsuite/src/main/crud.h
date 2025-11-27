@@ -37,7 +37,8 @@ extern "C" {
 
 namespace test_harness {
 namespace crud {
-inline bool insert(scoped_cursor &cursor, transaction &txn, const std::string &key, const std::string &value)
+inline bool
+insert(scoped_cursor &cursor, transaction &txn, const std::string &key, const std::string &value)
 {
     cursor->set_key(cursor.get(), key.c_str());
     cursor->set_value(cursor.get(), value.c_str());
@@ -52,7 +53,8 @@ inline bool insert(scoped_cursor &cursor, transaction &txn, const std::string &k
     }
     return (true);
 }
-inline bool update(scoped_cursor &cursor, transaction &txn, const std::string &key, const std::string &value)
+inline bool
+update(scoped_cursor &cursor, transaction &txn, const std::string &key, const std::string &value)
 {
     cursor->set_key(cursor.get(), key.c_str());
     cursor->set_value(cursor.get(), value.c_str());
@@ -67,7 +69,9 @@ inline bool update(scoped_cursor &cursor, transaction &txn, const std::string &k
     }
     return (true);
 }
-inline bool remove(scoped_cursor &cursor, transaction &txn, const std::string &key) {
+inline bool
+remove(scoped_cursor &cursor, transaction &txn, const std::string &key)
+{
     cursor->set_key(cursor.get(), key.c_str());
     int ret = cursor->remove(cursor.get());
     if (ret != 0) {
