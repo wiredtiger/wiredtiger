@@ -1079,7 +1079,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
         if (cursor->uri_hash == hash_value && strcmp(cursor->uri, uri) == 0) {
             if ((ret = cursor->reopen(cursor, false)) != 0) {
                 F_CLR(cursor, WT_CURSTD_CACHEABLE);
-                session->dhandle = NULL;
+                WT_DHANDLE_CLEAR(session);
                 (void)cursor->close(cursor);
                 return (ret);
             }
@@ -1463,7 +1463,6 @@ __wt_cursor_dup_position(WT_CURSOR *to_dup, WT_CURSOR *cursor)
      */
     WT_RET(__wt_cursor_get_raw_key(to_dup, &key));
     __wt_cursor_set_raw_key(cursor, &key);
-    WT_RET(__wt_cursor_localkey(cursor));
 
     /*
      * We now have a reference to the raw key, but we don't know anything about the memory in which

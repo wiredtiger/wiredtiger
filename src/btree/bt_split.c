@@ -594,7 +594,7 @@ err:
  */
 static int
 __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *parent, size_t *decrp,
-  uint64_t split_gen, bool exclusive, bool page_replacement)
+  uint64_t split_gen, bool exclusive)
 {
     WT_DECL_RET;
     WT_IKEY *ikey;
@@ -622,7 +622,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     __wt_free(session, ref->page_del);
 
     /* Free the backing block and address. */
-    WT_TRET(__wt_ref_block_free(session, ref, page_replacement));
+    WT_TRET(__wt_ref_block_free(session, ref, true));
 
     /*
      * We cannot discard any ref in the prefetch queue, otherwise, the prefetch thread would read
@@ -841,14 +841,14 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
      */
     if (discard) {
         WT_ASSERT(session, exclusive || WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
-        WT_TRET(__split_parent_discard_ref(
-          session, ref, parent, &parent_decr, split_gen, exclusive, new_entries == 1));
+        WT_TRET(
+          __split_parent_discard_ref(session, ref, parent, &parent_decr, split_gen, exclusive));
     }
     for (i = 0; i < deleted_entries; ++i) {
         next_ref = pindex->index[deleted_refs[i]];
         WT_ASSERT(session, WT_REF_GET_STATE(next_ref) == WT_REF_LOCKED);
         WT_TRET(__split_parent_discard_ref(
-          session, next_ref, parent, &parent_decr, split_gen, exclusive, false));
+          session, next_ref, parent, &parent_decr, split_gen, exclusive));
     }
 
     /*
@@ -1445,7 +1445,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     size_t free_size;
     uint64_t recno, txnid;
     uint32_t i, slot;
-    bool free_updates, instantiate_upd;
+    bool instantiate_upd;
 
     /*
      * This code re-creates an in-memory page from a disk image, and adds references to any
@@ -1501,12 +1501,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
         return (0);
 
     free_size = 0;
-    /*
-     * We can't truncate the updates for an in-memory database or an in-memory btree as we cannot
-     * insert the older updates to the history store.
-     */
-    free_updates =
-      !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY);
 
     if (orig->type == WT_PAGE_ROW_LEAF)
         WT_RET(__wt_scr_alloc(session, 0, &key));
@@ -1535,7 +1529,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
          * we may still fail. If we fail, we will append them back to their original update chains.
          * Truncate before we restore them to ensure the size of the page is correct.
          */
-        if (free_updates && supd->onpage_upd != NULL) {
+        if (supd->onpage_upd != NULL) {
             /*
              * If we have written a prepared update, we need to retain the next update that is not a
              * tombstone. Otherwise, we don't have anything to write in the next reconciliation if
@@ -2501,7 +2495,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool 
 
     /* If there's an address, copy it. */
     if (multi->addr.block_cookie != NULL) {
-        WT_ASSERT(session, WT_DELTA_LEAF_ENABLED(session));
+        WT_ASSERT(session, page->disagg_info != NULL);
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &multi->addr.ta);
         WT_ERR(__wt_memdup(

@@ -1287,20 +1287,6 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         }
         break;
     case RESOLVE_IN_MEMORY:
-        /*
-         * For in-memory configurations of WiredTiger if a prepared update is reconciled and then
-         * rolled back, the on-page value will not be marked as aborted until the next eviction. In
-         * the special case where this rollback operation results in the update chain being entirely
-         * comprised of aborted updates, other transactions attempting to write to the same key will
-         * look at the on-page value, think the prepared transaction is still active, and falsely
-         * report a write conflict. To prevent this scenario, prepend a tombstone to the update
-         * chain.
-         */
-        if (!commit && first_committed_upd == NULL) {
-            tw_found = __wt_read_cell_time_window(cbt, &tw);
-            if (tw_found && WT_TIME_WINDOW_HAS_PREPARE(&tw))
-                WT_ERR(__txn_prepare_rollback_delete_key(session, op, cbt));
-        }
         break;
     default:
         WT_ERR_PANIC(
@@ -2672,6 +2658,9 @@ __wt_verbose_dump_txn_one(
     txn_shared = WT_SESSION_TXN_SHARED(txn_session);
     WT_ERROR_INFO *txn_err_info = &(txn_session->err_info);
 
+    if (txn == NULL || txn_shared == NULL || txn_err_info == NULL)
+        return (0);
+
     /*
      * Unless an error occurs, there's no need to print transactions without a snapshot, as they are
      * typically harmless to the database.
@@ -2755,7 +2744,7 @@ __wt_verbose_dump_txn_one(
         __wt_timestamp_to_string(txn_shared->pinned_durable_timestamp, ts_string[4]),
         __wt_timestamp_to_string(txn_shared->read_timestamp, ts_string[5]), ckpt_lsn_str,
         txn->full_ckpt ? "true" : "false", txn->flags, iso_tag, txn_err_info->err,
-        txn_err_info->sub_level_err, txn_err_info->err_msg));
+        txn_err_info->sub_level_err, txn_err_info->err_msg == NULL ? "" : txn_err_info->err_msg));
 
     /*
      * Log a message and return an error if error code and an optional error string has been passed.
