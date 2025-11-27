@@ -75,8 +75,8 @@ __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_
          * In disagg, follower node needs to restore prepared updates from stable checkpoint onto
          * the ingest table for resolving txn since it can only edit the ingest table. Therefore it
          * needs to do a full restoration of the update and move it to the ingest table. For leader
-         * mode and non-disagg btree, it should already restored the prepared update to its btree,
-         * so we can just add the prepared ts and prepared id to the cursor.
+         * mode and non-disagg btree, it should already have restored the prepared update to its
+         * btree, so we can just add the prepared ts and prepared id to the hash map.
          */
         if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader) {
             WT_ERR(__wt_scr_alloc(session, 0, &value));

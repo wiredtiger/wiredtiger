@@ -98,7 +98,7 @@ __prepared_discover_find_or_create_item(WT_SESSION_IMPL *session, uint64_t prepa
  * __wti_prepared_discover_restore_and_add_artifact_upd --
  *     In disaggregated storage, in follower mode, stable table cannot be modified, therefore a
  *     prepared update needs to be restored onto ingest table so that the follower node can then
- *     commit the prepared transaction. This function open the ingest table and insert the update
+ *     commit the prepared transaction. This function opens the ingest table and inserts the update
  *     restored from disk onto the ingest table.
  */
 int
@@ -122,7 +122,7 @@ __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
     manager = &conn->layered_table_manager;
     table_count = manager->open_layered_table_count;
     for (i = 0; i < table_count; i++) {
-        /* Find the entry with stable uri that matches the currently opened dhandle */
+        /* Find the entry with stable uri that matches the currently opened dhandle. */
         if (manager->entries[i] != NULL) {
             if (WT_PREFIX_MATCH(stable_uri, manager->entries[i]->stable_uri)) {
                 entry = manager->entries[i];
