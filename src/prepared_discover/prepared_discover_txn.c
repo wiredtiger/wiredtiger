@@ -95,16 +95,15 @@ __prepared_discover_find_or_create_item(WT_SESSION_IMPL *session, uint64_t prepa
 }
 
 /*
- * __wti_prepared_discover_restore_upd --
+ * __wti_prepared_discover_restore_and_add_artifact_upd --
  *     In disaggregated storage, in follower mode, stable table cannot be modified, therefore a
  *     prepared update needs to be restored onto ingest table so that the follower node can then
  *     commit the prepared transaction. This function open the ingest table and insert the update
- *     restored from disk onto the ingest table. It also sets the session's dhandle to the ingest
- *     table to track the correct btree when committing/rolling back.
+ *     restored from disk onto the ingest table.
  */
 int
-__wti_prepared_discover_restore_upd(WT_SESSION_IMPL *session, const char *stable_uri, WT_ITEM *key,
-  WT_ITEM *value, WT_TIME_WINDOW *tw)
+__wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
+  const char *stable_uri, WT_ITEM *key, WT_ITEM *value, WT_TIME_WINDOW *tw)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
@@ -117,14 +116,13 @@ __wti_prepared_discover_restore_upd(WT_SESSION_IMPL *session, const char *stable
 
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
 
+    cursor = NULL;
     entry = NULL;
     conn = S2C(session);
-
     manager = &conn->layered_table_manager;
-    /* Find the first available layered table entry */
     table_count = manager->open_layered_table_count;
     for (i = 0; i < table_count; i++) {
-        /* Find the first non-empty entry that matches the currently opened dhandle */
+        /* Find the entry with stable uri that matches the currently opened dhandle */
         if (manager->entries[i] != NULL) {
             if (WT_PREFIX_MATCH(stable_uri, manager->entries[i]->stable_uri)) {
                 entry = manager->entries[i];
@@ -145,8 +143,9 @@ __wti_prepared_discover_restore_upd(WT_SESSION_IMPL *session, const char *stable
 
     upd = NULL;
     /*
-     * Create an update structure with the time information and state populated - that allows this
-     * code to reuse existing machinery for installing transaction operations.
+     * Create an update structure with the time information and state populated and add it to the
+     * ingest table's update chain. FIXME-WT-16116 Handle restoration of prepared tombstone to
+     * ingest table.
      */
     WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
     upd->txnid = session->txn->id;
@@ -210,7 +209,11 @@ __wti_prepared_discover_add_artifact_upd(
 
     WT_RET(
       __prepared_discover_find_or_create_item(session, prepared_id, prepare_ts, &prepared_item));
-
+    /*
+     * When committing/aborting a prepared update, we always do a search for the prepared update in
+     * the update chain, so no point passing the actual update to __wt_op_modify. We only need the
+     * key and btree information to help with the search of the update when resolving txn.
+     */
     WT_RET(__wt_pending_prepared_next_op(session, &op, prepared_item, key));
     WT_RET(__wt_op_modify(session, NULL, op));
 

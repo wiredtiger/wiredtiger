@@ -71,12 +71,20 @@ __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_
     __wt_cell_get_tw(vpack, &tw);
     /* Add an entry for this key to the transaction structure */
     if (rip != NULL) {
+        /*
+         * In disagg, follower node needs to restore prepared updates from stable checkpoint onto
+         * the ingest table for resolving txn since it can only edit the ingest table. Therefore it
+         * needs to do a full restoration of the update and move it to the ingest table. For leader
+         * mode and non-disagg btree, it should already restored the prepared update to its btree,
+         * so we can just add the prepared ts and prepared id to the cursor.
+         */
         if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader) {
             WT_ERR(__wt_scr_alloc(session, 0, &value));
             WT_ERR(__wt_page_cell_data_ref_kv(session, page, vpack, value));
             const char *stable_uri = session->dhandle->name;
             WT_SAVE_DHANDLE(session,
-              ret = __wti_prepared_discover_restore_upd(session, stable_uri, key, value, tw));
+              ret = __wti_prepared_discover_restore_and_add_artifact_upd(
+                session, stable_uri, key, value, tw));
         } else
             WT_ERR(__wti_prepared_discover_add_artifact_upd(
               session, tw->start_prepared_id, tw->start_prepare_ts, key));
