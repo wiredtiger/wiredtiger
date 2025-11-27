@@ -276,7 +276,7 @@ static WT_INLINE int
 __wt_cell_pack_delta_leaf_key_value(WT_SESSION_IMPL *session, bool key_pfx_compress,
   uint8_t *key_pfx_lastp, WT_ITEM *currentkey, WT_CELL_UNPACK_KV *base_unpack_val,
   WT_CELL_UNPACK_DELTA_LEAF_KV *delta_unpack_val, WT_ITEM *lastkey, WT_ITEM *new_image,
-  uint8_t **pp, uint32_t *entry_countp, bool *is_empty_valuep)
+  uint8_t **pp, uint32_t *entry_countp, bool *all_empty_valuep, bool *any_empty_valuep)
 {
     WT_DECL_RET;
     WT_BTREE *btree = S2BT(session);
@@ -288,6 +288,7 @@ __wt_cell_pack_delta_leaf_key_value(WT_SESSION_IMPL *session, bool key_pfx_compr
     uint32_t entry_count = *entry_countp;
     const void *key_data = currentkey->data;
     size_t key_size = currentkey->size;
+    bool all_empty_value, any_empty_value, is_empty_value;
     WT_CLEAR(key);
     WT_CLEAR(val);
 
@@ -305,12 +306,12 @@ __wt_cell_pack_delta_leaf_key_value(WT_SESSION_IMPL *session, bool key_pfx_compr
         val_size = base_unpack_val->size;
         val_tw = &base_unpack_val->tw;
     }
-    bool is_empty_value = val_size == 0 && WT_TIME_WINDOW_IS_EMPTY(val_tw);
+    is_empty_value = val_size == 0 && WT_TIME_WINDOW_IS_EMPTY(val_tw);
 
     /*
      * Build key cell. Do prefix compression on the key. We know by definition the previous key
-     * sorts before the current key, which means the keys must differ and we just need to compare up
-     * to the shorter of the two keys.
+     * sorts before the current key, which means the keys must differ and we just need to compare
+     * up to the shorter of the two keys.
      */
     if (key_pfx_compress) {
         /*
@@ -347,7 +348,9 @@ __wt_cell_pack_delta_leaf_key_value(WT_SESSION_IMPL *session, bool key_pfx_compr
         val.buf.size = val_size;
         val.cell_len = __wt_cell_pack_value(session, &val.cell, val_tw, 0, val.buf.size);
         val.len = val.cell_len + val.buf.size;
-    }
+        all_empty_value = false;
+    } else
+        any_empty_value = true;
 
     /*
      * Ensure enough space, then recompute write pointer from new_image (not the caller's saved
@@ -374,7 +377,8 @@ __wt_cell_pack_delta_leaf_key_value(WT_SESSION_IMPL *session, bool key_pfx_compr
     *pp = p;
     *key_pfx_lastp = key_pfx_last;
     *entry_countp = entry_count;
-    *is_empty_valuep = is_empty_value;
+    *all_empty_valuep = all_empty_value;
+    *any_empty_valuep = any_empty_value;
 
 err:
     __wt_buf_free(session, &key.buf);

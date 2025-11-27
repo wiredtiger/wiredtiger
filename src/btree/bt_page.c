@@ -765,10 +765,9 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     WT_ITEM **delta_lastkeys = NULL;
     WT_CELL_UNPACK_DELTA_LEAF_KV *delta_unpacks = NULL;
     bool *delta_unpacked = NULL;
-    bool base_found = false, base_key_unpacked = false,
-         key_pfx_compress = S2BT(session)->prefix_compression, has_empty_value = false,
-         has_non_empty_value = false, is_key_pfx_compress = false;
-    bool is_empty_value;
+    bool all_empty_value = true, any_empty_value = false, base_found = false,
+         base_key_unpacked = false, key_pfx_compress = S2BT(session)->prefix_compression,
+         is_key_pfx_compress = false;
     uint8_t key_pfx_last = 0;
     WT_PAGE_HEADER *dsk = NULL;
     WT_BTREE *btree = S2BT(session);
@@ -793,7 +792,7 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
         WT_ERR(__wt_scr_alloc(session, 0, &delta_lastkeys[i]));
     }
 
-    for (uint32_t i = 0;; i++) {
+    for (;;) {
         /* Only find next delta when needed. */
         if (min_unpack_idx == -1)
             WT_ERR(__page_find_min_delta_leaf(session, deltas, delta_cells, delta_entries,
@@ -823,14 +822,14 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
             /* Pack row-leaf base key/value. */
             WT_ERR(__wt_cell_pack_delta_leaf_key_value(session, is_key_pfx_compress, &key_pfx_last,
               base_lastkey, base_unpack_value, NULL, lastkey, new_image, &p_ptr, &entry_count,
-              &is_empty_value));
+              &all_empty_value, &any_empty_value));
         } else {
             /* Pack row-leaf delta entry. */
             if (!F_ISSET(&delta_unpacks[min_unpack_idx], WT_DELTA_LEAF_IS_DELETE))
                 WT_ERR(
                   __wt_cell_pack_delta_leaf_key_value(session, is_key_pfx_compress, &key_pfx_last,
                     delta_lastkeys[min_unpack_idx], NULL, &delta_unpacks[min_unpack_idx], lastkey,
-                    new_image, &p_ptr, &entry_count, &is_empty_value));
+                    new_image, &p_ptr, &entry_count, &all_empty_value, &any_empty_value));
 
             /* We've packed a delta entry, reset the unpack status and clear the min_unpack_idx. */
             delta_unpacked[min_unpack_idx] = false;
@@ -853,8 +852,6 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
                 base_unpack_value = tmp;
             }
         }
-        has_empty_value |= is_empty_value;
-        has_non_empty_value |= !is_empty_value;
         is_key_pfx_compress = key_pfx_compress;
     }
 
@@ -865,9 +862,9 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     dsk->type = WT_PAGE_ROW_LEAF;
     dsk->flags = 0;
 
-    if (!has_non_empty_value)
+    if (all_empty_value)
         F_SET(dsk, WT_PAGE_EMPTY_V_ALL);
-    if (!has_empty_value)
+    if (!any_empty_value)
         F_SET(dsk, WT_PAGE_EMPTY_V_NONE);
     WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf_delta);
 
