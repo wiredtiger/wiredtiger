@@ -405,7 +405,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     /* Column-store: check for fixed-length column-store data. */
     if (btree->type == BTREE_COL_VAR) {
         bool fixed = false;
-        WT_RET(__wt_struct_check(session, cval.str, cval.len, &fixed, NULL));
+        uint32_t fixed_len = 0;
+        WT_RET(__wt_struct_check(session, cval.str, cval.len, &fixed, &fixed_len));
         if (fixed)
             WT_RET_MSG(session, EINVAL,
               "fixed-length column-store is deprecated, if you are upgrading from an older version "
