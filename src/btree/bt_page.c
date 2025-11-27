@@ -810,7 +810,7 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     WT_ERR(__wt_malloc(session, delta_size * sizeof(uint32_t), &delta_entries));
     WT_ERR(__wt_malloc(session, delta_size * sizeof(WT_CELL_UNPACK_DELTA_LEAF_KV), &delta_unpacks));
     WT_ERR(__wt_malloc(session, delta_size * sizeof(bool), &delta_unpacked));
-    for (uint32_t i = 0; i < (uint32_t)delta_size; i++) {
+    for (size_t i = 0; i < delta_size; i++) {
         WT_PAGE_HEADER *tmp = (WT_PAGE_HEADER *)deltas[i].data;
         delta_cells[i] = WT_PAGE_HEADER_BYTE(btree, tmp);
         delta_entries[i] = tmp->u.entries;
@@ -911,7 +911,7 @@ err:
     __wt_free(session, base_unpack_value);
     __wt_scr_free(session, &base_lastkey);
     __wt_scr_free(session, &lastkey);
-    for (uint32_t i = 0; i < (uint32_t)delta_size; i++)
+    for (size_t i = 0; i < delta_size; i++)
         __wt_scr_free(session, &delta_lastkeys[i]);
     __wt_free(session, delta_lastkeys);
     __wt_free(session, delta_cells);
@@ -1232,7 +1232,7 @@ __wti_page_reconstruct_deltas(
          * We may be in a reconciliation already. Don't rewrite in this case as reconciliation is
          * not reentrant.
          *
-         * FIXME- WT-15592: this should go away when we use an algorithm to directly rewrite delta.
+         * FIXME-WT-15592: this should go away when we use an algorithm to directly rewrite delta.
          */
         if (F_ISSET(&S2C(session)->page_delta, WT_FLATTEN_LEAF_PAGE_DELTA) &&
           !__wt_rec_in_progress(session)) {
@@ -1689,7 +1689,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
               "Should never read an overflow removed value for a prepared update");
             first_upd = WT_ROW_UPDATE(page, rip);
             /*
-             * FIXME- WT-15592: This key must have been overwritten by a delta. Don't instantiate
+             * FIXME-WT-15592: This key must have been overwritten by a delta. Don't instantiate
              * it.
              */
             if (first_upd == NULL) {
