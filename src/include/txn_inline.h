@@ -695,7 +695,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
             __wt_txn_op_delete_apply_prepare_state(session, op, true);
         else {
             upd = op->u.op_upd;
-
+            WT_ASSERT(session, upd != NULL);
             /* Resolve prepared update to be committed update. */
             __txn_apply_prepare_state_update(session, upd, true);
         }

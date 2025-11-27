@@ -95,75 +95,6 @@ __prepared_discover_find_or_create_item(WT_SESSION_IMPL *session, uint64_t prepa
 }
 
 /*
- * __wti_prepared_discover_restore_and_add_artifact_upd --
- *     In disaggregated storage, in follower mode, stable table cannot be modified, therefore a
- *     prepared update needs to be restored onto ingest table so that the follower node can then
- *     commit the prepared transaction. This function opens the ingest table and inserts the update
- *     restored from disk onto the ingest table.
- */
-int
-__wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
-  const char *stable_uri, WT_ITEM *key, WT_ITEM *value, WT_TIME_WINDOW *tw)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *cursor;
-    WT_CURSOR_BTREE *cbt;
-    WT_DECL_RET;
-    WT_LAYERED_TABLE_MANAGER *manager;
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
-    WT_UPDATE *upd;
-    uint32_t i, table_count;
-
-    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
-
-    cursor = NULL;
-    entry = NULL;
-    conn = S2C(session);
-    manager = &conn->layered_table_manager;
-    table_count = manager->open_layered_table_count;
-    for (i = 0; i < table_count; i++) {
-        /* Find the entry with stable uri that matches the currently opened dhandle. */
-        if (manager->entries[i] != NULL) {
-            if (WT_PREFIX_MATCH(stable_uri, manager->entries[i]->stable_uri)) {
-                entry = manager->entries[i];
-                break;
-            }
-        }
-    }
-    if (entry == NULL) {
-        ret = WT_NOTFOUND;
-        goto err;
-    }
-    /* Open cursor on the ingest table */
-    WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &cursor));
-
-    cbt = (WT_CURSOR_BTREE *)cursor;
-    WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
-    WT_ERR(ret);
-
-    upd = NULL;
-    /*
-     * Create an update structure with the time information and state populated and add it to the
-     * ingest table's update chain. FIXME-WT-16116 Handle restoration of prepared tombstone to
-     * ingest table.
-     */
-    WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
-    upd->txnid = session->txn->id;
-    upd->upd_durable_ts = tw->durable_start_ts;
-    upd->prepare_state = WT_PREPARE_INPROGRESS;
-    upd->prepared_id = tw->start_prepared_id;
-    upd->upd_start_ts = upd->prepare_ts = tw->start_prepare_ts;
-
-    WT_ERR(__wt_row_modify(cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
-    WT_ERR(
-      __wti_prepared_discover_add_artifact_upd(session, upd->prepared_id, upd->prepare_ts, key));
-err:
-    if (cursor != NULL)
-        WT_TRET(cursor->close(cursor));
-    return (ret);
-}
-
-/*
  * __wt_prepared_discover_remove_item --
  *     Find and remove a pending prepared item by its ID in the pending prepared items hash map.
  */
@@ -223,4 +154,71 @@ __wti_prepared_discover_add_artifact_upd(
     ++prepared_item->prepare_count;
 #endif
     return (0);
+}
+
+/*
+ * __wti_prepared_discover_restore_and_add_artifact_upd --
+ *     In disaggregated storage, in follower mode, stable table cannot be modified, therefore a
+ *     prepared update needs to be restored onto ingest table so that the follower node can then
+ *     commit the prepared transaction. This function opens the ingest table and inserts the update
+ *     restored from disk onto the ingest table.
+ */
+int
+__wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
+  const char *stable_uri, WT_ITEM *key, WT_ITEM *value, WT_TIME_WINDOW *tw)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+    WT_LAYERED_TABLE_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    WT_UPDATE *upd;
+    uint32_t i, table_count;
+
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
+
+    cursor = NULL;
+    entry = NULL;
+    conn = S2C(session);
+    manager = &conn->layered_table_manager;
+    table_count = manager->open_layered_table_count;
+    for (i = 0; i < table_count; i++) {
+        /* Find the entry with stable uri that matches the currently opened dhandle. */
+        if (manager->entries[i] != NULL) {
+            if (WT_PREFIX_MATCH(stable_uri, manager->entries[i]->stable_uri)) {
+                entry = manager->entries[i];
+                break;
+            }
+        }
+    }
+    WT_ASSERT_ALWAYS(
+      session, entry != NULL, "Unable to find matching ingest table to restore prepared update");
+    /* Open cursor on the ingest table */
+    WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &cursor));
+
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
+    WT_ERR(ret);
+
+    upd = NULL;
+    /*
+     * Create an update structure with the time information and state populated and add it to the
+     * ingest table's update chain. FIXME-WT-16116 Handle restoration of prepared tombstone to
+     * ingest table.
+     */
+    WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
+    upd->txnid = session->txn->id;
+    upd->upd_durable_ts = tw->durable_start_ts;
+    upd->prepare_state = WT_PREPARE_INPROGRESS;
+    upd->prepared_id = tw->start_prepared_id;
+    upd->upd_start_ts = upd->prepare_ts = tw->start_prepare_ts;
+
+    WT_ERR(__wt_row_modify(cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
+    WT_ERR(
+      __wti_prepared_discover_add_artifact_upd(session, upd->prepared_id, upd->prepare_ts, key));
+err:
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
+    return (ret);
 }
