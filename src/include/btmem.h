@@ -1783,7 +1783,7 @@ struct __wt_insert_head {
 #define WT_COL_UPDATE(page, ip) WT_COL_UPDATE_SLOT(page, WT_COL_SLOT(page, ip))
 
 /*
- * WT_COL_APPEND is an WT_INSERT list, used for fixed- and variable-length appends.
+ * WT_COL_APPEND is an WT_INSERT list, used for and variable-length appends.
  */
 #define WT_COL_APPEND(page)                                             \
     ((page)->modify == NULL || (page)->modify->mod_col_append == NULL ? \

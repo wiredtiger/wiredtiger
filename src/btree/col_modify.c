@@ -69,8 +69,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
          */
         WT_ASSERT(session, recno != WT_RECNO_OOB || cbt->compare != 0);
         if (cbt->compare != 0 &&
-          (recno == WT_RECNO_OOB ||
-            recno > __col_var_last_recno(cbt->ref))) {
+          (recno == WT_RECNO_OOB || recno > __col_var_last_recno(cbt->ref))) {
             append = true;
             cbt->ins = NULL;
             cbt->ins_head = NULL;
@@ -80,8 +79,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
         WT_ASSERT_ALWAYS(
           session, recno != WT_RECNO_OOB, "Out-of-bound recno provided for a non-append operation");
         WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_KEY_OUT_OF_ORDER,
-          cbt->compare == 0 ||
-            recno <= __col_var_last_recno(cbt->ref),
+          cbt->compare == 0 || recno <= __col_var_last_recno(cbt->ref),
           "Out-of-bound recno provided for a non-append operation");
     }
 
