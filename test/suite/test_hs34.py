@@ -32,10 +32,12 @@ import wttest
 # test_hs33.py
 # Test that we can reproduce the key exist in historical only, and lead to a verify failed.
 # Timeline Chart (A:1 -> A value at timestamp 1) :
-# |     |   t1  |  t10   |  t20  |   t28     |  t30  |
-# | Act | Ins A |  Upd A |       |  Del A    |       |
-# | DS  |  A:1  |  A:10  |  A:10 | A:28(Tomb)|   -   |
-# | HS  |   -   |   A:1  |   A:1 |   A:10    |  A:10 |
+# |        |   t1  |  t10   |  t20  |   t28     |  t30  |
+# | OP     | Ins A |  Upd A |       |  Del A    |       |
+# | DS     |  A:1  |  A:10  |  A:10 | A:10(Tomb)|   -   |
+# | HS     |   -   |   A:1  |   A:1 |   A:1     |  A:1  |
+# | Stable |   1   |   1    |   20  |    20     |  30   |
+# | Oldest |   1   |   1    |   1   |    1      |  30   |
 class test_hs34(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_hs_recovery(self):
