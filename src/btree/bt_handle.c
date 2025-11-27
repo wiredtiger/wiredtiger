@@ -945,7 +945,6 @@ static int
 __btree_get_last_recno(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
-    WT_PAGE *page;
     WT_REF *next_walk;
     uint64_t last_recno;
     uint32_t flags;
@@ -974,9 +973,7 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
     if (next_walk == NULL)
         return (WT_NOTFOUND);
 
-    page = next_walk->page;
-    last_recno = page->type == WT_PAGE_COL_VAR ? __col_var_last_recno(next_walk) :
-                                                 __col_fix_last_recno(next_walk);
+    last_recno = __col_var_last_recno(next_walk);
 
     /*
      * If the right-most page is deleted and globally visible, we skip reading the page from disk

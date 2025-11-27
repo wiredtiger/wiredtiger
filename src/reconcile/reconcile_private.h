@@ -137,10 +137,6 @@ struct __wti_rec_chunk {
     size_t min_offset; /* byte offset */
 
     WT_ITEM image; /* disk-image */
-
-    /* For fixed-length column store, track where the time windows start and how many we have. */
-    uint32_t aux_start_offset;
-    uint32_t auxentries;
 };
 
 /*
@@ -280,15 +276,6 @@ struct __wti_reconcile {
     uint8_t *first_free;    /* Current first free byte */
     size_t space_avail;     /* Remaining space in this chunk */
     size_t min_space_avail; /* Remaining space in this chunk to put a minimum size boundary */
-
-    /*
-     * Fixed-length column store divides the disk image into two sections, primary and auxiliary,
-     * and we need to track both of them.
-     */
-    uint32_t aux_start_offset; /* First auxiliary byte */
-    uint32_t aux_entries;      /* Current number of auxiliary entries */
-    uint8_t *aux_first_free;   /* Current first free auxiliary byte */
-    size_t aux_space_avail;    /* Current remaining auxiliary space */
 
     /*
      * Counters tracking how much time information is included in reconciliation for each page that

@@ -240,12 +240,6 @@ struct __wt_cursor_btree {
     uint64_t checkpoint_write_gen;
     uint64_t checkpoint_id;
 
-    /*
-     * Fixed-length column-store items are a single byte, and it's simpler and cheaper to allocate
-     * the space for it now than keep checking to see if we need to grow the buffer.
-     */
-    uint8_t v; /* Fixed-length return value */
-
     uint8_t append_tree; /* Cursor appended to the tree */
 
     /*
