@@ -67,8 +67,6 @@ __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_
         key->size = WT_PTRDIFF(memp, key->data);
     }
 
-    /* Retrieve the time window from the unpacked value cell. */
-    __wt_cell_get_tw(vpack, &tw);
     /* Add an entry for this key to the transaction structure */
     if (rip != NULL) {
         /*
@@ -84,10 +82,19 @@ __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_
             const char *stable_uri = session->dhandle->name;
             WT_SAVE_DHANDLE(session,
               ret = __wti_prepared_discover_restore_and_add_artifact_upd(
-                session, stable_uri, key, value, tw));
-        } else
-            WT_ERR(__wti_prepared_discover_add_artifact_upd(
-              session, tw->start_prepared_id, tw->start_prepare_ts, key));
+                session, stable_uri, key, value, vpack));
+        } else {
+            /* Retrieve the time window from the unpacked value cell. */
+            __wt_cell_get_tw(vpack, &tw);
+            if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw))
+                WT_ERR(__wti_prepared_discover_add_artifact_upd(
+                  session, tw->stop_prepared_id, tw->stop_prepare_ts, key));
+            else {
+                WT_ASSERT(session, WT_TIME_WINDOW_HAS_START_PREPARE(tw));
+                WT_ERR(__wti_prepared_discover_add_artifact_upd(
+                  session, tw->start_prepared_id, tw->start_prepare_ts, key));
+            }
+        }
     } else
         WT_ASSERT_ALWAYS(
           session, false, "Column store prepared transaction discovery not supported");

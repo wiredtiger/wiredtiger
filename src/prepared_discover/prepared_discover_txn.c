@@ -165,7 +165,7 @@ __wti_prepared_discover_add_artifact_upd(
  */
 int
 __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
-  const char *stable_uri, WT_ITEM *key, WT_ITEM *value, WT_TIME_WINDOW *tw)
+  const char *stable_uri, WT_ITEM *key, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
@@ -198,22 +198,12 @@ __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
     WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &cursor));
 
     cbt = (WT_CURSOR_BTREE *)cursor;
+    size_t size;
+    WT_ERR(__wti_page_inmem_update(session, value, unpack, &upd, &size));
+
+    /* Search the page and apply the modification. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
-
-    upd = NULL;
-    /*
-     * Create an update structure with the time information and state populated and add it to the
-     * ingest table's update chain. FIXME-WT-16116 Handle restoration of prepared tombstone to
-     * ingest table.
-     */
-    WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
-    upd->txnid = session->txn->id;
-    upd->upd_durable_ts = tw->durable_start_ts;
-    upd->prepare_state = WT_PREPARE_INPROGRESS;
-    upd->prepared_id = tw->start_prepared_id;
-    upd->upd_start_ts = upd->prepare_ts = tw->start_prepare_ts;
-
     WT_ERR(__wt_row_modify(cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
     WT_ERR(
       __wti_prepared_discover_add_artifact_upd(session, upd->prepared_id, upd->prepare_ts, key));
