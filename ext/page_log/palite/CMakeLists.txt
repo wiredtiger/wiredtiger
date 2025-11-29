@@ -43,6 +43,13 @@ target_compile_options(
     PRIVATE
         ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
+if(NOT MSVC)
+    target_link_options(wiredtiger_palite PRIVATE
+        # Pin library in memory (Avoids GCC Bug 65434 https://gcc.gnu.org/bugzilla/show_bug.cgi?id=65434 / Cleanup Leak)
+        "-Wl,-z,nodelete"
+        "-Wl,--exclude-libs,ALL" # Hide symbols to prevent crashes
+    )
+endif()
 
 # For MacOS builds we need to generate a dSYM bundle that contains the debug
 # symbols for each executable. The name of the binary will either be the name
