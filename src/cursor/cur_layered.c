@@ -689,23 +689,23 @@ err:
 }
 
 /*
- * __clayered_position_constituent --
- *     Position a constituent cursor.
+ * __clayered_position_alternate --
+ *     Position an alternate cursor to the right position according to the current one.
  */
 static int
-__clayered_position_constituent(WT_CURSOR_LAYERED *clayered, WT_CURSOR *constituent, bool forward)
+__clayered_position_alternate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *alternate, bool forward)
 {
     int cmp;
 
-    WT_CURSOR *cursor = &clayered->iface;
-    WT_SESSION_IMPL *session = CUR2S(cursor);
+    WT_CURSOR *current = clayered->current_cursor;
+    WT_SESSION_IMPL *session = CUR2S(clayered);
 
-    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_SET));
-    constituent->set_key(constituent, &cursor->key);
-    WT_RET(constituent->search_near(constituent, &cmp));
+    WT_ASSERT(session, F_ISSET(current, WT_CURSTD_KEY_SET));
+    alternate->set_key(alternate, &current->key);
+    WT_RET(alternate->search_near(alternate, &cmp));
 
     while (forward ? cmp < 0 : cmp > 0) {
-        WT_RET(forward ? constituent->next(constituent) : constituent->prev(constituent));
+        WT_RET(forward ? alternate->next(alternate) : alternate->prev(alternate));
 
         /*
          * With higher isolation levels, where we have stable reads, we're done: the cursor is now
@@ -718,7 +718,7 @@ __clayered_position_constituent(WT_CURSOR_LAYERED *clayered, WT_CURSOR *constitu
         if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED)
             return (0);
 
-        WT_RET(__clayered_cursor_compare(clayered, constituent, cursor, &cmp));
+        WT_RET(__clayered_cursor_compare(clayered, alternate, current, &cmp));
     }
 
     return (0);
@@ -776,8 +776,8 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
     WT_ASSERT(session, c_stable != NULL || c_ingest != NULL);
     if (c_ingest == NULL || c_stable == NULL) {
         c_current = (c_ingest == NULL) ? c_stable : c_ingest;
-        WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_current, forward));
-        goto done;
+        /* Return without setting iter_flag because the alternate cursor does not exist. */
+        return (__clayered_constituent_iter(c_current, forward));
     }
 
     WT_ASSERT(session, c_stable != NULL && c_ingest != NULL);
@@ -806,7 +806,7 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
      * and need to position it.
      */
     if (!F_ISSET(clayered, iter_flag)) {
-        __clayered_position_constituent(clayered, c_alternate, forward);
+        __clayered_position_alternate(clayered, c_alternate, forward);
     }
 
     /* If the alternate cursor's key is equal to the current one, we should move it as well. */
