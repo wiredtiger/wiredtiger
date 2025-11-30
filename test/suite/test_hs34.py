@@ -29,7 +29,7 @@
 from suite_subprocess import suite_subprocess
 import wttest
 
-# test_hs33.py
+# test_hs34.py
 # Test that we can reproduce the key exist in historical only, and lead to a verify failed.
 # Timeline Chart (A:1 -> A value at timestamp 1) :
 # |        |   t1  |  t10   |  t20  |   t28     |  t30      |
