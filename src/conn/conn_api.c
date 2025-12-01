@@ -2706,7 +2706,7 @@ err:
  *     Configure a custom key management implementation on database open.
  */
 static int
-__conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_management, const char *config)
+__conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_provider, const char *config)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -2725,7 +2725,7 @@ __conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_management,
     if (conn->file_system != NULL)
         WT_ERR_MSG(session, EINVAL, "key management system must be configured with early_load set");
 
-    conn->key_management = key_management;
+    conn->key_provider = key_provider;
 
 err:
     API_END_RET(session, ret);

@@ -2971,7 +2971,7 @@ struct __wt_connection {
      * module. The application must first implement the WT_KEY_PROVIDER
      * interface and then register the implementation with WiredTiger:
      *
-     * @snippet ex_key_management.c WT_KEY_PROVIDER register
+     * @snippet ex_key_provider.c WT_KEY_PROVIDER register
      *
      * @param connection the connection handle
      * @param km the populated key management structure
