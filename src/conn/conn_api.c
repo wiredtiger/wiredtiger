@@ -2703,7 +2703,7 @@ err:
 
 /*
  * __conn_set_key_provider --
- *     Configure a custom key management implementation on database open.
+ *     Configure a custom key provider implementation on database open.
  */
 static int
 __conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_provider, const char *config)
@@ -2717,13 +2717,13 @@ __conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_provider, c
 
     /* The configuration string has no use but may be useful at a later time. */
     if (config != NULL)
-        WT_ERR_MSG(session, EINVAL, "key management configuration currently not supported.");
+        WT_ERR_MSG(session, EINVAL, "key provider configuration currently not supported.");
 
     /*
-     * You can only configure the key management system with early-load set.
+     * You can only configure the key provider system with early-load set.
      */
     if (conn->file_system != NULL)
-        WT_ERR_MSG(session, EINVAL, "key management system must be configured with early_load set");
+        WT_ERR_MSG(session, EINVAL, "key provider system must be configured with early_load set");
 
     conn->key_provider = key_provider;
 
