@@ -25,7 +25,7 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  *
- * ex_key_management.c
+ * ex_key_provider.c
  * 	demonstrates how to use the key management API.
  */
 #include <test_util.h>
