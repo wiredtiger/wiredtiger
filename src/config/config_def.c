@@ -4072,7 +4072,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     confchk_WT_CONNECTION_rollback_to_stable, 2, confchk_WT_CONNECTION_rollback_to_stable_jump, 12,
     WT_CONF_SIZING_NONE, false},
   {"WT_CONNECTION.set_file_system", "", NULL, 0, NULL, 13, WT_CONF_SIZING_NONE, false},
-  {"WT_CONNECTION.set_key_management", "", NULL, 0, NULL, 14, WT_CONF_SIZING_NONE, false},
+  {"WT_CONNECTION.set_key_provider", "", NULL, 0, NULL, 14, WT_CONF_SIZING_NONE, false},
   {"WT_CONNECTION.set_timestamp",
     "durable_timestamp=,force=false,oldest_timestamp=,"
     "stable_timestamp=",

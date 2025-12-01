@@ -2177,7 +2177,7 @@ methods = {
 ),
 'WT_CONNECTION.set_file_system' : Method([]),
 
-'WT_CONNECTION.set_key_management' : Method([]),
+'WT_CONNECTION.set_key_provider' : Method([]),
 
 'WT_CONNECTION.load_extension' : Method([
     Config('config', '', r'''

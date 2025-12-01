@@ -86,11 +86,9 @@ typedef struct __wt_page_log_discard_args WT_PAGE_LOG_DISCARD_ARGS;
 struct __wt_page_log_encryption; typedef struct __wt_page_log_encryption WT_PAGE_LOG_ENCRYPTION;
 struct __wt_page_log_get_args; typedef struct __wt_page_log_get_args WT_PAGE_LOG_GET_ARGS;
 struct __wt_page_log_put_args; typedef struct __wt_page_log_put_args WT_PAGE_LOG_PUT_ARGS;
-struct __wt_key_management;    typedef struct __wt_key_management WT_KEY_MANAGEMENT;
-struct __wt_key_management_get_key_args;
-typedef struct __wt_key_management_get_key_args WT_KEY_MANAGEMENT_GET_KEY_ARGS;
-struct __wt_key_management_load_key_args;
-typedef struct __wt_key_management_load_key_args WT_KEY_MANAGEMENT_LOAD_KEY_ARGS;
+struct __wt_key_provider;    typedef struct __wt_key_provider WT_KEY_PROVIDER;
+struct __wt_crypt_key;
+typedef struct __wt_crypt_key WT_CRYPT_KEY;
 struct __wt_page_log_handle; typedef struct __wt_page_log_handle WT_PAGE_LOG_HANDLE;
 #endif
 struct __wt_session;        typedef struct __wt_session WT_SESSION;
@@ -2970,18 +2968,18 @@ struct __wt_connection {
      * Configure a key management system.
      *
      * This method can only be called from an early loaded extension
-     * module. The application must first implement the WT_KEY_MANAGEMENT
+     * module. The application must first implement the WT_KEY_PROVIDER
      * interface and then register the implementation with WiredTiger:
      *
-     * @snippet ex_key_management.c WT_KEY_MANAGEMENT register
+     * @snippet ex_key_management.c WT_KEY_PROVIDER register
      *
      * @param connection the connection handle
      * @param km the populated key management structure
-     * @configempty{WT_CONNECTION.set_key_management, see dist/api_data.py}
+     * @configempty{WT_CONNECTION.set_key_provider, see dist/api_data.py}
      * @errors
      */
-    int __F(set_key_management)(
-        WT_CONNECTION *connection, WT_KEY_MANAGEMENT *km, const char *config);
+    int __F(set_key_provider)(
+        WT_CONNECTION *connection, WT_KEY_PROVIDER *km, const char *config);
 #endif
 
     /*!
@@ -5734,80 +5732,69 @@ struct __wt_page_log {
     int (*terminate)(WT_PAGE_LOG *page_log, WT_SESSION *session);
 };
 
-/*
- * These are arguments to the set_key_blob method, called
- * when a checkpoint is loaded, either at startup or when
- * a new checkpoint is picked up on a follower.
+/*!
+ * The struct to represent key encryption blobs stored by WiredTiger.
+ * Key data is a flexible array member at the end of the struct. The entire
+ * struct with the following blob should be in a contiguous memory block.
  *
- * Fields in this structure are set by WiredTiger and should
- * not be changed by the key management extension.
+ * - result
+ *   On load and successful commit, WiredTiger stores the LSN of
+ *   the checkpoint the key belongs to.
+ *
+ *   On get, the field is ignored.
+ *   Internally, on write, WiredTiger puts a magic number
+ *   in this field to identify the blob on disk as a WT key.
+ *   This is to enable data salvage.
+ *
+ *  - size:
+ *   On get, if the size is zero, WiredTiger assumes
+ *   there is no key blob to write (i.e., no changes since the last checkpoint).
+ *
+ *   On commit, in case of errors, the size is set to 0
+ *   and the result field is set to the error code.
  */
 
-struct __wt_key_management_load_key_args {
-    void *blob_data;
-    size_t blob_size;
-};
-
-/*
- * These are arguments to the get_key_blob and get_key_complete
- * methods, which are called when WiredTiger is writing a
- * checkpoint.
- *
- * Fields in this structure, except for returned_lsn,
- * are set by the key management extension, and are
- * not changed by WiredTiger. If has_changed is true,
- * blob_data and blob_size must be set by the extension,
- * and define the data that is written by WiredTiger. In
- * that case, when the blob write has completed,
- * get_complete_key is called. If has_changed is false,
- * no write is done by WiredTiger, and get_key_complete
- * is not called as a result.
- */
-struct __wt_key_management_get_key_args {
-    void *blob_data;
-    size_t blob_size;
-    bool has_changed; /* Set by WiredTiger for get_key_blob */
-    uint64_t returned_lsn; /* Set by WiredTiger for get_key_complete */
+struct __wt_crypt_key {
+    uint64_t result;
+    size_t size;
+    void *data;
 };
 
 /*!
- * The interface implemented by applications to provide a key management service
+ * The interface implemented by applications to provide a key provider service
  * implementation.
  *
  * Applications register implementations with WiredTiger by calling
- * WT_CONNECTION::set_key_management.
+ * WT_CONNECTION::set_key_provider.
  *
- * @snippet ex_key_management.c WT_KEY_MANAGEMENT register
+ * @snippet ex_key_provider.c WT_KEY_PROVIDER register
  */
-struct __wt_key_management {
+struct __wt_key_provider {
     /*!
-     * Load the current persisted key blob.
+     * Load the current persist key blob. Called by WiredTiger when a checkpoint is loaded.
      *
-     * @param km the WT_KEY_MANAGEMENT
-     * @param blob_data the blob data returned
-     * @param blob_size the size of the blob data returned
+     * @param kp the WT_KEY_PROVIDER
+     * @param keys the WT_CRYPT_KEY to load the blob into.
      */
-    int (*load_key_blob)(WT_KEY_MANAGEMENT *km,
-                       WT_KEY_MANAGEMENT_LOAD_KEY_ARGS *args);
+    int (*load_key_blob)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *keys);
 
     /*!
-     * Get the current key blob and indicate if it has been changed.
+     * Get the new key blob. The WT_CRYPT_KEY will be NULL if the key has not changed.
+     * Called by WiredTiger when storing a checkpoint.
      *
-     * @param km the WT_KEY_MANAGEMENT
-     * @param blob_data the blob data
-     * @param blob_size the size of the blob data
-     * @param has_changed indicates if the blob has changed
+     * @param kp the WT_KEY_PROVIDER
+     * @param keys the WT_CRYPT_KEY to fetch the blob into.
      */
-    int (*get_key_blob)(WT_KEY_MANAGEMENT *km,
-                       WT_KEY_MANAGEMENT_GET_KEY_ARGS* args);
+    int (*get_key_blob)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY* keys);
 
     /*!
      * Callback function indicating that new key blob has been persisted.
      *
-     * @param km the WT_KEY_MANAGEMENT
-     * @param callback provides any callback information needed.
+     * @param kp the WT_KEY_PROVIDER
+     * @param keys the WT_CRYPT_KEY callback information determining that the key
+     * has been persisted.
      */
-    int (*get_key_complete)(WT_KEY_MANAGEMENT *km, WT_KEY_MANAGEMENT_GET_KEY_ARGS* args);
+    int (*on_key_commit)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY* keys);
 };
 
 /*!

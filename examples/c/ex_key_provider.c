@@ -39,7 +39,7 @@
  */
 __declspec(dllexport)
 #endif
-  int set_my_key_management(WT_CONNECTION *, WT_CONFIG_ARG *);
+  int set_my_key_provider(WT_CONNECTION *, WT_CONFIG_ARG *);
 
 typedef struct {
     int id;
@@ -48,89 +48,86 @@ typedef struct {
 
 /*! [key management struct implementation] */
 typedef struct {
-    WT_KEY_MANAGEMENT km; /* Must come first */
+    WT_KEY_PROVIDER kp; /* Must come first */
 
     /* This example stores a fixed size blob in the key management struct. It is not required. */
     MY_KEY_BLOB key_blob;
     uint64_t returned_lsn;
-} MY_KEY_MANAGEMENT;
+} MY_KEY_PROVIDER;
 
 /*
  * my_load_key_blob --
- *     A placeholder example of set_key_blob() call.
+ *     A placeholder example of set_key_blob call.
  */
 static int
-my_load_key_blob(WT_KEY_MANAGEMENT *km, WT_KEY_MANAGEMENT_LOAD_KEY_ARGS *args)
+my_load_key_blob(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *key)
 {
-    MY_KEY_MANAGEMENT *my_km = (MY_KEY_MANAGEMENT *)km;
-    WT_KEY_MANAGEMENT_LOAD_KEY_ARGS *set_args = (WT_KEY_MANAGEMENT_LOAD_KEY_ARGS *)args;
+    MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
+    WT_CRYPT_KEY *my_key = (WT_CRYPT_KEY *)key;
 
-    memcpy((void *)&my_km->key_blob, set_args->blob_data, set_args->blob_size);
+    memcpy((void *)&my_kp->key_blob, my_key->data, my_key->size);
     return (0);
 }
 
 /*
  * my_get_key_blob --
- *     An simple example of get_key_blob() call.
+ *     An simple example of key rotation done on get_key_blob call.
  */
 static int
-my_get_key_blob(WT_KEY_MANAGEMENT *km, WT_KEY_MANAGEMENT_GET_KEY_ARGS *args)
+my_get_key_blob(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *key)
 {
-    MY_KEY_MANAGEMENT *my_km = (MY_KEY_MANAGEMENT *)km;
-    WT_KEY_MANAGEMENT_GET_KEY_ARGS *get_args = (WT_KEY_MANAGEMENT_GET_KEY_ARGS *)args;
+    MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
+    WT_CRYPT_KEY *my_key = (WT_CRYPT_KEY *)key;
 
-    if ((get_args->blob_data = calloc(1, sizeof(MY_KEY_BLOB))) == NULL)
+    if ((my_key->data = calloc(1, sizeof(MY_KEY_BLOB))) == NULL)
         return (errno);
 
-    memcpy(get_args->blob_data, (void *)&my_km->key_blob, sizeof(MY_KEY_BLOB));
-    get_args->blob_size = sizeof(MY_KEY_BLOB);
-    get_args->has_changed = false;
+    /* Provide a new key to perform key rotation. */
+    memcpy(my_key->data, (void *)&my_kp->key_blob, sizeof(MY_KEY_BLOB));
+    my_key->size = sizeof(MY_KEY_BLOB);
     return (0);
 }
 
 /*
- * my_get_key_blob_complete --
- *     A simple example of get_key_complete call.
+ * my_on_key_commit --
+ *     A simple example of on_key_commit call.
  */
 static int
-my_get_key_blob_complete(WT_KEY_MANAGEMENT *km, WT_KEY_MANAGEMENT_GET_KEY_ARGS *args)
+my_on_key_commit(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *key)
 {
-    MY_KEY_MANAGEMENT *my_km = (MY_KEY_MANAGEMENT *)km;
-    WT_KEY_MANAGEMENT_GET_KEY_ARGS *get_args = (WT_KEY_MANAGEMENT_GET_KEY_ARGS *)args;
+    MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
 
-    my_km->returned_lsn = get_args->returned_lsn;
+    my_kp->returned_lsn = key->result;
     return (0);
 }
 
 /*
- * set_my_key_management --
+ * set_my_key_provider --
  *     A simple example of setting the key management system.
  */
 int
-set_my_key_management(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
+set_my_key_provider(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 {
-    MY_KEY_MANAGEMENT *kms;
-    WT_KEY_MANAGEMENT *wt;
+    MY_KEY_PROVIDER *kps;
+    WT_KEY_PROVIDER *wt;
     WT_EXTENSION_API *wtext;
 
     WT_UNUSED(config);
     wtext = conn->get_extension_api(conn);
-    /*
-     * Initialize our key management system.
-     */
-    if ((kms = calloc(1, sizeof(MY_KEY_MANAGEMENT))) == NULL) {
+    /* Initialize our key management system. */
+    if ((kps = calloc(1, sizeof(MY_KEY_PROVIDER))) == NULL) {
         (void)wtext->err_printf(
-          wtext, NULL, "set_my_key_management: %s", wtext->strerror(wtext, NULL, ENOMEM));
+          wtext, NULL, "set_my_key_provider: %s", wtext->strerror(wtext, NULL, ENOMEM));
         return (errno);
     }
-    wt = (WT_KEY_MANAGEMENT *)&kms->km;
+    wt = (WT_KEY_PROVIDER *)&kps->kp;
     wt->load_key_blob = my_load_key_blob;
     wt->get_key_blob = my_get_key_blob;
-    wt->get_key_complete = my_get_key_blob_complete;
+    wt->on_key_commit = my_on_key_commit;
 
-    kms->key_blob.id = 1;
-    kms->key_blob.data = 1234;
-    error_check(conn->set_key_management(conn, (WT_KEY_MANAGEMENT *)kms, NULL));
+    kps->key_blob.id = 1;
+    kps->key_blob.data = 1234;
+    error_check(conn->set_key_provider(conn, (WT_KEY_PROVIDER *)kps, NULL));
     return (0);
 }
 
@@ -156,21 +153,21 @@ main(int argc, char *argv[])
     } else
         home = NULL;
 
-    /*! [WT_KEY_MANAGEMENT register] */
+    /*! [WT_KEY_PROVIDER register] */
     /*
      * Setup a configuration string that will load our key management system. Use the special local
      * extension to indicate that the entry point is in the same executable. Also enable early load
      * for this extension, since WiredTiger needs to be able to find it before doing any operations.
      */
     open_config =
-      "create,log=(enabled=true),extensions=(local={entry=set_my_key_management,early_load=true})";
+      "create,log=(enabled=true),extensions=(local={entry=set_my_key_provider,early_load=true})";
     /* Open a connection to the database, creating it if necessary. */
     if ((ret = wiredtiger_open(home, NULL, open_config, &conn)) != 0) {
         fprintf(stderr, "Error connecting to %s: %s\n", home == NULL ? "." : home,
           wiredtiger_strerror(ret));
         return (EXIT_FAILURE);
     }
-    /*! [WT_KEY_MANAGEMENT register] */
+    /*! [WT_KEY_PROVIDER register] */
 
     return (EXIT_SUCCESS);
 }

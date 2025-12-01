@@ -119,7 +119,7 @@ struct __wt_config_parser_impl {
 #define WT_CONFIG_ENTRY_WT_CONNECTION_reconfigure 11
 #define WT_CONFIG_ENTRY_WT_CONNECTION_rollback_to_stable 12
 #define WT_CONFIG_ENTRY_WT_CONNECTION_set_file_system 13
-#define WT_CONFIG_ENTRY_WT_CONNECTION_set_key_management 14
+#define WT_CONFIG_ENTRY_WT_CONNECTION_set_key_provider 14
 #define WT_CONFIG_ENTRY_WT_CONNECTION_set_timestamp 15
 #define WT_CONFIG_ENTRY_WT_CURSOR_bound 16
 #define WT_CONFIG_ENTRY_WT_CURSOR_close 17
