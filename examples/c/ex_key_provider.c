@@ -51,21 +51,30 @@ typedef struct {
     WT_KEY_PROVIDER kp; /* Must come first */
 
     /* This example stores a fixed size blob in the key provider struct. It is not required. */
-    MY_CRYPT_DATA key;
+    MY_CRYPT_DATA *encryption_data;
     uint64_t returned_lsn;
 } MY_KEY_PROVIDER;
 
 /*
  * my_load_key --
- *     A placeholder example of set_key call.
+ *     A simple example of set_key call.
  */
 static int
-my_load_key(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *key)
+my_load_key(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS *key)
 {
     MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
-    WT_CRYPT_KEY *my_key = (WT_CRYPT_KEY *)key;
 
-    memcpy((uint8_t *)&my_kp->key, my_key->data, my_key->size);
+    /* Check that the key was successfully loaded. */
+    if (key->size == 0)
+        return ((int) key->result);
+
+    /* Update the returned LSN and copy the encryption key data. */
+    MY_CRYPT_DATA *encryption_data;
+    if ((encryption_data = calloc(1, sizeof(MY_CRYPT_DATA))) == NULL)
+        return (ENOMEM);
+
+    my_kp->returned_lsn = key->result;
+    memcpy((uint8_t *)encryption_data, key->data, key->size);
     return (0);
 }
 
@@ -74,34 +83,39 @@ my_load_key(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *key)
  *     An simple example of key rotation done on get_key call.
  */
 static int
-my_get_key(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *key)
+my_get_key(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS *key)
 {
     MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
 
-    if ((key = calloc(1, sizeof(MY_CRYPT_DATA) + sizeof(MY_CRYPT_DATA))) == NULL)
+    if ((key = calloc(1, sizeof(WT_CRYPT_KEYS) + sizeof(MY_CRYPT_DATA))) == NULL)
         return (ENOMEM);
 
+    /* Populate the data field in the WT_CRYPT_KEYS structure. */
     MY_CRYPT_DATA *crypt_data = (MY_CRYPT_DATA *)key->data;
 
     /* Set fields in the MY_CRYPT_DATA structure. */
-    crypt_data->data = my_kp->key.data;
-    crypt_data->id = my_kp->key.id;
+    crypt_data->data = my_kp->encryption_data->data;
+    crypt_data->id = my_kp->encryption_data->id;
 
-    /* Set the WT_CRYPT_KEY size field to match the allocation. */
+    /* Set the WT_CRYPT_KEYS size field to match the allocation. */
     key->size = sizeof(MY_CRYPT_DATA);
     return (0);
 }
 
 /*
- * my_on_key_commit --
- *     A simple example of on_key_commit call.
+ * my_on_key_update --
+ *     A simple example of on_key_update call.
  */
 static int
-my_on_key_commit(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *key)
+my_on_key_update(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS *key)
 {
     MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
 
-    my_kp->returned_lsn = key->result;
+    /* Check size field to determine that the key was successfully persisted. */
+    if (key->size != 0)
+        my_kp->returned_lsn = key->result;
+    else
+        return ((int) key->result);
     return (0);
 }
 
@@ -127,10 +141,8 @@ set_my_key_provider(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
     wt = (WT_KEY_PROVIDER *)&kps->kp;
     wt->load_key = my_load_key;
     wt->get_key = my_get_key;
-    wt->on_key_commit = my_on_key_commit;
+    wt->on_key_update = my_on_key_update;
 
-    kps->key.id = 1;
-    kps->key.data = 1234;
     error_check(conn->set_key_provider(conn, (WT_KEY_PROVIDER *)kps, NULL));
     return (0);
 }

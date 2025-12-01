@@ -1474,7 +1474,7 @@ int standalone_build();
 %ignore __wt_event_handler;
 %ignore __wt_item;
 %ignore __wt_lsn;
-%ignore __wt_crypt_key;
+%ignore __WT_CRYPT_KEYS;
 %ignore __wt_key_provider;
 
 %ignore __wt_connection::add_collator;

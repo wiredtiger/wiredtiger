@@ -87,8 +87,8 @@ struct __wt_page_log_encryption; typedef struct __wt_page_log_encryption WT_PAGE
 struct __wt_page_log_get_args; typedef struct __wt_page_log_get_args WT_PAGE_LOG_GET_ARGS;
 struct __wt_page_log_put_args; typedef struct __wt_page_log_put_args WT_PAGE_LOG_PUT_ARGS;
 struct __wt_key_provider;    typedef struct __wt_key_provider WT_KEY_PROVIDER;
-struct __wt_crypt_key;
-typedef struct __wt_crypt_key WT_CRYPT_KEY;
+struct __WT_CRYPT_KEYSs;
+typedef struct __WT_CRYPT_KEYSs WT_CRYPT_KEYS;
 struct __wt_page_log_handle; typedef struct __wt_page_log_handle WT_PAGE_LOG_HANDLE;
 #endif
 struct __wt_session;        typedef struct __wt_session WT_SESSION;
@@ -5738,10 +5738,10 @@ struct __wt_page_log {
  * The data field is a flexible array member for storing variable-length
  * data in a contiguous memory block.
  */
-struct __wt_crypt_key {
-    uint64_t result;
-    size_t size;
-    uint8_t data[];
+struct __WT_CRYPT_KEYSs {
+    uint64_t result; /*  Returns checkpoint LSN upon success, returns error code on failure. */
+    size_t size; /* Size of encrypted key data field. */
+    uint8_t data[]; /* Encrypted keys. */
 };
 
 /*!
@@ -5758,30 +5758,30 @@ struct __wt_key_provider {
      * WiredTiger stores the LSN of the checkpoint that key was persisted to.
      *
      * @param kp the WT_KEY_PROVIDER instance.
-     * @param keys the WT_CRYPT_KEY to hold persisted key information.
+     * @param keys the WT_CRYPT_KEYS to hold persisted key information.
      */
-    int (*load_key)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *keys);
+    int (*load_key)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS *keys);
 
     /*!
      * Fetch the latest key for checkpoint writes.
      *
-     * The WT_CRYPT_KEY size should be zero if the key has not changed.
+     * The WT_CRYPT_KEYS size should be zero if the key has not changed.
      *
      * @param kp the WT_KEY_PROVIDER instance.
-     * @param keys the WT_CRYPT_KEY to hold the new key (if changed).
+     * @param keys the WT_CRYPT_KEYS to hold the new key (if changed).
      */
-    int (*get_key)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY* keys);
+    int (*get_key)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS* keys);
 
     /*!
      * Callback function indicating that whether the key has been persisted.
      *
      * On success, the result field contains LSN of the checkpoint the key belongs to.
-     * On failure, he result field is set to the error code and the size is set to 0.
+     * On failure, the result field is set to the error code and the size is set to 0.
      *
      * @param kp the WT_KEY_PROVIDER
-     * @param keys the WT_CRYPT_KEY information to confirm key persistence.
+     * @param keys the WT_CRYPT_KEYS information to confirm key persistence.
      */
-    int (*on_key_commit)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY* keys);
+    int (*on_key_update)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS* keys);
 };
 
 /*!
