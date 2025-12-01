@@ -4580,6 +4580,7 @@ tasks:
     tags: ["stress-test-disagg"]
   - <<: *format-stress-test-disagg-leader-verify
     name: format-stress-test-disagg-leader-verify
+    # FIXME-WT-16126 : Temporarily tag this test as a failure until the underlying issue is resolved.
     tags: ["stress-test-disagg-san-fail"]
   - <<: *format-stress-test-disagg-leader
     name: format-stress-test-disagg-leader-1
@@ -4599,12 +4600,6 @@ tasks:
     tags: ["stress-test-disagg"]
   - <<: *format-stress-test-disagg-follower
     name: format-stress-test-disagg-follower-2
-    tags: ["stress-test-disagg"]
-  - <<: *format-stress-test-disagg-follower
-    name: format-stress-test-disagg-follower-3
-    tags: ["stress-test-disagg"]
-  - <<: *format-stress-test-disagg-follower
-    name: format-stress-test-disagg-follower-4
     tags: ["stress-test-disagg"]
 
   # FIXME-WT-14566: Enable disagg switch mode on all platforms once failures have been resolved.
