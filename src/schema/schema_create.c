@@ -147,6 +147,9 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
     filename = uri;
     WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
 
+    /* Check for unsupported storage formats. */
+    WT_ERR(__wt_schema_unsupported_format(session, config, true));
+
     WT_ERR(__wt_btree_shared(session, uri, filecfg, &is_shared));
 
     /* Check if the file already exists. */
@@ -1437,9 +1440,6 @@ __schema_create_config_check(
       !WT_PREFIX_MATCH(uri, "table:"))
         WT_RET_MSG(session, ENOTSUP,
           "%s: import is only supported for 'file' and 'table' data sources", uri);
-
-    /* Check for unsupported storage formats. */
-    WT_RET(__wt_schema_unsupported_format(session, config, true));
 
     /*
      * If tiered storage is configured at the connection level and the user has not configured
