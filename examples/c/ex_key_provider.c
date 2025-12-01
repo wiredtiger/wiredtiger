@@ -44,47 +44,47 @@ __declspec(dllexport)
 typedef struct {
     int id;
     int data;
-} MY_KEY_BLOB;
+} MY_CRYPT_KEY;
 
 /*! [key management struct implementation] */
 typedef struct {
     WT_KEY_PROVIDER kp; /* Must come first */
 
     /* This example stores a fixed size blob in the key management struct. It is not required. */
-    MY_KEY_BLOB key_blob;
+    MY_CRYPT_KEY key;
     uint64_t returned_lsn;
 } MY_KEY_PROVIDER;
 
 /*
- * my_load_key_blob --
- *     A placeholder example of set_key_blob call.
+ * my_load_key --
+ *     A placeholder example of set_key call.
  */
 static int
-my_load_key_blob(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *key)
+my_load_key(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *key)
 {
     MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
     WT_CRYPT_KEY *my_key = (WT_CRYPT_KEY *)key;
 
-    memcpy((void *)&my_kp->key_blob, my_key->data, my_key->size);
+    memcpy((void *)&my_kp->key, my_key->data, my_key->size);
     return (0);
 }
 
 /*
- * my_get_key_blob --
- *     An simple example of key rotation done on get_key_blob call.
+ * my_get_key --
+ *     An simple example of key rotation done on get_key call.
  */
 static int
-my_get_key_blob(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *key)
+my_get_key(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *key)
 {
     MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
     WT_CRYPT_KEY *my_key = (WT_CRYPT_KEY *)key;
 
-    if ((my_key->data = calloc(1, sizeof(MY_KEY_BLOB))) == NULL)
+    if ((my_key->data = calloc(1, sizeof(MY_CRYPT_KEY))) == NULL)
         return (errno);
 
     /* Provide a new key to perform key rotation. */
-    memcpy(my_key->data, (void *)&my_kp->key_blob, sizeof(MY_KEY_BLOB));
-    my_key->size = sizeof(MY_KEY_BLOB);
+    memcpy(my_key->data, (void *)&my_kp->key, sizeof(MY_CRYPT_KEY));
+    my_key->size = sizeof(MY_CRYPT_KEY);
     return (0);
 }
 
@@ -121,12 +121,12 @@ set_my_key_provider(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
         return (errno);
     }
     wt = (WT_KEY_PROVIDER *)&kps->kp;
-    wt->load_key_blob = my_load_key_blob;
-    wt->get_key_blob = my_get_key_blob;
+    wt->load_key = my_load_key;
+    wt->get_key = my_get_key;
     wt->on_key_commit = my_on_key_commit;
 
-    kps->key_blob.id = 1;
-    kps->key_blob.data = 1234;
+    kps->key.id = 1;
+    kps->key.data = 1234;
     error_check(conn->set_key_provider(conn, (WT_KEY_PROVIDER *)kps, NULL));
     return (0);
 }
