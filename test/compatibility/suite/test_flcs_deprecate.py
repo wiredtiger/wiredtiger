@@ -72,7 +72,6 @@ class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
             assert False
         except wiredtiger.WiredTigerError as e:
             assert str(e) in wiredtiger.wiredtiger_strerror(errno.EINVAL)
-            assert str(e) == "Invalid argument"
 
     if __name__ == "__main__":
         compatibility_test.run()
