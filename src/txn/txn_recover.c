@@ -717,6 +717,9 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
     uint32_t fileid, lsnfile, lsnoffset;
     char lsn_str[WT_MAX_LSN_STRING];
 
+    /* First check that we aren't opening a database with a table with an unsupported format. */
+    WT_RET(__wt_schema_unsupported_format(r->session, config, false));
+
     WT_RET(__wt_config_getones(r->session, config, "id", &cval));
     fileid = (uint32_t)cval.val;
 

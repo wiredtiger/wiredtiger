@@ -1438,6 +1438,9 @@ __schema_create_config_check(
         WT_RET_MSG(session, ENOTSUP,
           "%s: import is only supported for 'file' and 'table' data sources", uri);
 
+    /* Check for unsupported storage formats. */
+    WT_RET(__wt_schema_unsupported_format(session, config, true));
+
     /*
      * If tiered storage is configured at the connection level and the user has not configured
      * tiered_storage.name to be none, then the object being created is a tiered object.
