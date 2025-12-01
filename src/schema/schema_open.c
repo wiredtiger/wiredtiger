@@ -723,11 +723,11 @@ __wt_schema_unsupported_format(WT_SESSION_IMPL *session, const char *config, boo
         return (0);
 
     WT_CONFIG_ITEM cval;
-    WT_RET(__wt_config_getones(session, config, "key_format", &cval));
+    WT_RET_NOTFOUND_OK(__wt_config_getones(session, config, "key_format", &cval));
     /* Check for column-store. */
     if (cval.len == 1 && cval.str[0] == 'r') {
         /* Check for FLCS format. Anything between 1t and 8t is acceptable. */
-        WT_RET(__wt_config_getones(session, config, "value_format", &cval));
+        WT_RET_NOTFOUND_OK(__wt_config_getones(session, config, "value_format", &cval));
         if (cval.len == 2 && cval.str[1] == 't' && cval.str[0] <= '8' && cval.str[0] >= '1')
             WT_RET_MSG(session, ENOTSUP,
               "Fixed-length column-stores are no longer supported in WiredTiger%s",
