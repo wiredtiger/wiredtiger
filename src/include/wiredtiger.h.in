@@ -5733,7 +5733,7 @@ struct __wt_page_log {
 };
 
 /*
- * A structure that represents encrypted key blobs stored by WiredTiger.
+ * A structure that represents encrypted keys stored by WiredTiger.
  *
  * Flexible array members are supported for the data field, which holds
  * the actual encryption key data.
