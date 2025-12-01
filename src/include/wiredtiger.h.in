@@ -5768,7 +5768,7 @@ struct __wt_key_provider {
      * The WT_CRYPT_KEY size should be zero if the key has not changed.
      *
      * @param kp the WT_KEY_PROVIDER instance.
-     * @param keys the WT_CRYPT_KEY to hold the potential new key.
+     * @param keys the WT_CRYPT_KEY to hold the new key (if changed).
      */
     int (*get_key)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY* keys);
 
@@ -5779,8 +5779,7 @@ struct __wt_key_provider {
      * On failure, he result field is set to the error code and the size is set to 0.
      *
      * @param kp the WT_KEY_PROVIDER
-     * @param keys the WT_CRYPT_KEY callback information determining that the key
-     * has been persisted.
+     * @param keys the WT_CRYPT_KEY information to confirm key persistence.
      */
     int (*on_key_commit)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY* keys);
 };
