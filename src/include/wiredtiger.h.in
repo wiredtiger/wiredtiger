@@ -5735,8 +5735,8 @@ struct __wt_page_log {
 /*
  * A structure that represents encrypted keys stored by WiredTiger.
  *
- * Flexible array members are supported for the data field, which holds
- * the actual encryption key data.
+ * The data field is a flexible array member for storing variable-length 
+ * data in a contiguous memory block.
  */
 struct __wt_crypt_key {
     uint64_t result;
