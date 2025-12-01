@@ -199,7 +199,7 @@ __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     size_t size;
-    WT_ERR(__wti_page_inmem_update(session, value, unpack, &upd, &size));
+    WT_ERR(__wt_page_inmem_update(session, value, unpack, &upd, &size));
 
     /* Search the page and apply the modification. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
