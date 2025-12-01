@@ -5732,25 +5732,25 @@ struct __wt_page_log {
     int (*terminate)(WT_PAGE_LOG *page_log, WT_SESSION *session);
 };
 
-/*!
+/*
  * The struct to represent key encryption blobs stored by WiredTiger.
  * Key data is a flexible array member at the end of the struct. The entire
  * struct with the following blob should be in a contiguous memory block.
  *
  * - result
- *   On load and successful commit, WiredTiger stores the LSN of
+ *   On load_key_blob and successful on_key_commit, WiredTiger stores the LSN of
  *   the checkpoint the key belongs to.
  *
- *   On get, the field is ignored.
+ *   On get_key_blob, the field is ignored.
  *   Internally, on write, WiredTiger puts a magic number
  *   in this field to identify the blob on disk as a WT key.
  *   This is to enable data salvage.
  *
  *  - size:
- *   On get, if the size is zero, WiredTiger assumes
+ *   On get_key_blob, if the size is zero, WiredTiger assumes
  *   there is no key blob to write (i.e., no changes since the last checkpoint).
  *
- *   On commit, in case of errors, the size is set to 0
+ *   On on_key_commit, in case of errors, the size is set to 0
  *   and the result field is set to the error code.
  */
 
@@ -5791,7 +5791,7 @@ struct __wt_key_provider {
      * Callback function indicating that new key blob has been persisted.
      *
      * @param kp the WT_KEY_PROVIDER
-     * @param keys the WT_CRYPT_KEY additional callback information determining that the key
+     * @param keys the WT_CRYPT_KEY callback information determining that the key
      * has been persisted.
      */
     int (*on_key_commit)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY* keys);
