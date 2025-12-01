@@ -176,6 +176,7 @@ __drop_table(
   WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
 {
     WT_COLGROUP *colgroup;
+    WT_DECL_ITEM(file_uri_buf);
     WT_DECL_RET;
     WT_INDEX *idx;
     WT_TABLE *table;
@@ -186,10 +187,11 @@ __drop_table(
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE));
 
     name = uri;
-    WT_PREFIX_SKIP_REQUIRED(session, name, "table:");
-
     table = NULL;
     tracked = false;
+    WT_ERR(__wt_scr_alloc(session, 0, &file_uri_buf));
+
+    WT_PREFIX_SKIP_REQUIRED(session, name, "table:");
 
     /*
      * Open the table so we can drop its column groups and indexes.
@@ -213,6 +215,15 @@ __drop_table(
           "ENOTSUP: drop table with force=true is not supported for complex tables. uri=%s", uri);
         WT_ERR(ENOTSUP);
     }
+
+    WT_ERR(__wt_buf_fmt(session, file_uri_buf, "file:%s.wt", name));
+
+    /*
+     * In a crash, it is possible for the file metadata entry to exist even though the colgroup was
+     * not created completely. In such a scenario, drop the file to keep the metadata consistent.
+     */
+    if (!table->cg_complete)
+        WT_ERR(__wt_schema_drop(session, file_uri_buf->data, cfg, check_visibility));
 
     /* Drop the column groups. */
     for (i = 0; i < WT_COLGROUPS(table); i++) {
@@ -253,6 +264,7 @@ __drop_table(
     WT_ERR(__wt_metadata_remove(session, uri));
 
 err:
+    __wt_scr_free(session, &file_uri_buf);
     if (!tracked)
         WT_TRET(__wt_schema_release_table(session, &table));
     return (ret);

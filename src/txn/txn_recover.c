@@ -773,7 +773,7 @@ err:
  * __recovery_free_remove_uris --
  *     Free any remove uris added to the recovery array.
  */
-static int
+static void
 __recovery_free_remove_uris(WT_RECOVERY *r)
 {
     WT_SESSION_IMPL *session;
@@ -785,7 +785,6 @@ __recovery_free_remove_uris(WT_RECOVERY *r)
 
     r->nremove_uris = 0;
     __wt_free(session, r->remove_uris);
-    return (0);
 }
 
 /*
@@ -865,127 +864,51 @@ __recovery_file_scan_prefix(WT_RECOVERY *r, const char *prefix, const char *igno
 
 /*
  * __metadata_check_consistency --
- *     For each table metadata entry, check that the associated colgroup and file metadata entries
- *     exist. If they do not exist, mark them for removal.
+ *     For each table metadata entry, check that the table was fully created. If not, mark them for
+ *     removal.
  */
 static int
 __metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config)
 {
-    WT_CONFIG cparser;
-    WT_CONFIG_ITEM ckey, cval, config_item;
-    WT_CURSOR *metac;
+    WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    size_t len;
-    char *cgname, *filename, *tieredname;
+    WT_TABLE fake_table_handle;
+    const char *cfg[] = {config, NULL};
     const char *format_name;
-    bool has_colgroup, has_file;
+    const char *saved_str;
 
-    has_file = has_colgroup = true;
-    cgname = filename = tieredname = NULL;
     format_name = uri;
+    WT_ERR(__wt_scr_alloc(r->session, 0, &buf));
     WT_PREFIX_SKIP_REQUIRED(r->session, format_name, "table:");
 
-    WT_ERR(__wt_metadata_cursor_open(r->session, NULL, &metac));
+    /* If either colgroup or file metadata entry doesn't exist mark the table for removal. */
+    WT_ERR(__wt_buf_fmt(r->session, buf, "colgroup:%s", format_name));
+
+    saved_str = fake_table_handle.iface.name;
+    fake_table_handle.iface.name = uri;
+    WT_WITH_TABLE_WRITE_LOCK(
+      r->session, ret = __wt_schema_construct_table_config(r->session, cfg, &fake_table_handle));
+    WT_ERR(ret);
+    fake_table_handle.iface.name = saved_str;
+
     /*
      * FIXME-WT-XXXX: Add capability for cleaning complex and tiered tables. For now, only simple
      * tables are considered.
      */
-    WT_ERR(__wt_config_getones(r->session, config, "columns", &config_item));
-    __wt_config_subinit(r->session, &cparser, &config_item);
-    if ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
+    if (!fake_table_handle.is_simple || fake_table_handle.is_tiered_shared)
         goto done;
 
-    len = strlen("tiered:") + strlen(format_name) + 1;
-    WT_ERR(__wt_calloc_def(r->session, len, &tieredname));
-    WT_ERR(__wt_snprintf(tieredname, len, "tiered:%s", format_name));
-    metac->set_key(metac, tieredname);
-    WT_ERR_NOTFOUND_OK(metac->search(metac), true);
-    if (ret == 0)
-        goto done;
-
-    /* Check colgroup metadata entry exists for uri. */
-    len = strlen("colgroup:") + strlen(format_name) + 1;
-    WT_ERR(__wt_calloc_def(r->session, len, &cgname));
-    WT_ERR(__wt_snprintf(cgname, len, "colgroup:%s", format_name));
-    metac->set_key(metac, cgname);
-    WT_ERR_NOTFOUND_OK(metac->search(metac), true);
-    if (ret == WT_NOTFOUND)
-        has_colgroup = false;
-
-    /* Check file metadata entry exists for uri. */
-    len = strlen("file:") + strlen(format_name) + strlen(".wt") + 1;
-    WT_ERR(__wt_calloc_def(r->session, len, &filename));
-    WT_ERR(__wt_snprintf(filename, len, "file:%s.wt", format_name));
-    metac->set_key(metac, filename);
-    WT_ERR_NOTFOUND_OK(metac->search(metac), true);
-    if (ret == WT_NOTFOUND)
-        has_file = false;
-
-    /* If either colgroup or file metadata entry doesn't exist mark the table for removal. */
-    if (!has_colgroup || !has_file) {
+    if (!fake_table_handle.cg_complete) {
         WT_ERR(__wt_realloc_def(
           r->session, &r->remove_uris_allocate, r->nremove_uris + 1, &r->remove_uris));
-        WT_ERR(__wt_strdup(r->session, format_name, &r->remove_uris[r->nremove_uris]));
+        WT_ERR(__wt_strdup(r->session, uri, &r->remove_uris[r->nremove_uris]));
         r->nremove_uris++;
     }
-    ret = 0;
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+err:
 done:
-err:
-    if (tieredname != NULL)
-        __wt_free(r->session, tieredname);
-    if (cgname != NULL)
-        __wt_free(r->session, cgname);
-    if (filename != NULL)
-        __wt_free(r->session, filename);
-    WT_TRET(metac->close(metac));
-    return (ret);
-}
-
-/*
- * __remove_files_from_metadata --
- *     Remove all references from metadata for tables that are marked for removal.
- */
-static int
-__remove_files_from_metadata(WT_RECOVERY *r)
-{
-    WT_DECL_RET;
-    char *cgname, *tablename, *filename;
-
-    cgname = filename = tablename = NULL;
-
-    for (u_int i = 0; i < r->nremove_uris; i++) {
-        __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s %s",
-          "removing incomplete table", r->remove_uris[i]);
-
-        /* Remove associated colgroup metadata. */
-        size_t len = strlen("colgroup:") + strlen(r->remove_uris[i]) + 1;
-        WT_ERR(__wt_calloc_def(r->session, len, &cgname));
-        WT_ERR(__wt_snprintf(cgname, len, "colgroup:%s", r->remove_uris[i]));
-        WT_ERR_NOTFOUND_OK(__wt_metadata_remove(r->session, cgname), false);
-
-        /* Remove associated table metadata. */
-        len = strlen("table:") + strlen(r->remove_uris[i]) + 1;
-        WT_ERR(__wt_calloc_def(r->session, len, &tablename));
-        WT_ERR(__wt_snprintf(tablename, len, "table:%s", r->remove_uris[i]));
-        WT_ERR_NOTFOUND_OK(__wt_metadata_remove(r->session, tablename), false);
-
-        /* Remove associated file metadata. */
-        len = strlen("file:") + strlen(r->remove_uris[i]) + strlen(".wt") + 1;
-        WT_ERR(__wt_calloc_def(r->session, len, &filename));
-        WT_ERR(__wt_snprintf(filename, len, "file:%s.wt", r->remove_uris[i]));
-        WT_ERR_NOTFOUND_OK(__wt_metadata_remove(r->session, filename), false);
-
-        __wt_free(r->session, tablename);
-        __wt_free(r->session, cgname);
-        __wt_free(r->session, filename);
-    }
-err:
-    if (tablename != NULL)
-        __wt_free(r->session, tablename);
-    if (cgname != NULL)
-        __wt_free(r->session, cgname);
-    if (filename != NULL)
-        __wt_free(r->session, filename);
+    __wt_scr_free(r->session, &buf);
     return (ret);
 }
 
@@ -996,11 +919,22 @@ err:
 static int
 __metadata_post_recovery(WT_RECOVERY *r)
 {
+    WT_DECL_RET;
+    const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
+
     __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
       "scanning metadata to remove all incomplete tables");
 
     WT_RET(__recovery_metadata_iterate_func(r, "table:", NULL, __metadata_check_consistency));
-    WT_RET(__remove_files_from_metadata(r));
+    for (u_int i = 0; i < r->nremove_uris; i++) {
+        __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s %s",
+          "removing incomplete table", r->remove_uris[i]);
+
+        WT_WITH_SCHEMA_LOCK(r->session,
+          WT_WITH_TABLE_WRITE_LOCK(
+            r->session, ret = __wt_schema_drop(r->session, r->remove_uris[i], drop_cfg, false)));
+        WT_RET(ret);
+    }
     return (0);
 }
 
