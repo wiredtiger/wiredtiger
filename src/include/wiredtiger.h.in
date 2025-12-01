@@ -5733,27 +5733,11 @@ struct __wt_page_log {
 };
 
 /*
- * The struct to represent key encryption blobs stored by WiredTiger.
- * Key data is a flexible array member at the end of the struct. The entire
- * struct with the following blob should be in a contiguous memory block.
+ * A structure that represents encrypted key blobs stored by WiredTiger.
  *
- * - result
- *   On load_key_blob and successful on_key_commit, WiredTiger stores the LSN of
- *   the checkpoint the key belongs to.
- *
- *   On get_key_blob, the field is ignored.
- *   Internally, on write, WiredTiger puts a magic number
- *   in this field to identify the blob on disk as a WT key.
- *   This is to enable data salvage.
- *
- *  - size:
- *   On get_key_blob, if the size is zero, WiredTiger assumes
- *   there is no key blob to write (i.e., no changes since the last checkpoint).
- *
- *   On on_key_commit, in case of errors, the size is set to 0
- *   and the result field is set to the error code.
+ * Flexible array members are supported for the data field, which holds
+ * the actual encryption key data.
  */
-
 struct __wt_crypt_key {
     uint64_t result;
     size_t size;
@@ -5761,34 +5745,38 @@ struct __wt_crypt_key {
 };
 
 /*!
- * The interface implemented by applications to provide a key provider service
- * implementation.
+ * Interface for custom key provider services used by applications.
  *
- * Applications register implementations with WiredTiger by calling
- * WT_CONNECTION::set_key_provider.
+ * Applications register implementations using WT_CONNECTION::set_key_provider.
  *
  * @snippet ex_key_provider.c WT_KEY_PROVIDER register
  */
 struct __wt_key_provider {
     /*!
-     * Load the current persist key blob. Called by WiredTiger when a checkpoint is loaded.
+     * Loads the current persisted key during checkpoint load.
      *
-     * @param kp the WT_KEY_PROVIDER
-     * @param keys the WT_CRYPT_KEY to load the blob into.
+     * WiredTiger stores the LSN of the checkpoint that key was persisted to.
+     *
+     * @param kp the WT_KEY_PROVIDER instance.
+     * @param keys the WT_CRYPT_KEY to hold persisted key information.
      */
-    int (*load_key_blob)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *keys);
+    int (*load_key)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *keys);
 
     /*!
-     * Get the new key blob. The WT_CRYPT_KEY will be NULL if the key has not changed.
-     * Called by WiredTiger when storing a checkpoint.
+     * Fetch the latest key for checkpoint writes.
      *
-     * @param kp the WT_KEY_PROVIDER
-     * @param keys the WT_CRYPT_KEY to fetch the blob into.
+     * The WT_CRYPT_KEY size should be zero if the key has not changed.
+     *
+     * @param kp the WT_KEY_PROVIDER instance.
+     * @param keys the WT_CRYPT_KEY to hold the potential new key.
      */
-    int (*get_key_blob)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY* keys);
+    int (*get_key)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY* keys);
 
     /*!
-     * Callback function indicating that new key blob has been persisted.
+     * Callback function indicating that whether the key has been persisted.
+     *
+     * On success, the result field contains LSN of the checkpoint the key belongs to.
+     * On failure, he result field is set to the error code and the size is set to 0.
      *
      * @param kp the WT_KEY_PROVIDER
      * @param keys the WT_CRYPT_KEY callback information determining that the key
