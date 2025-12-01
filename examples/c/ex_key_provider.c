@@ -66,7 +66,7 @@ my_load_key(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS *key)
 
     /* Check that the key was successfully loaded. */
     if (key->size == 0)
-        return ((int) key->result);
+        return ((int)key->result);
 
     /* Update the returned LSN and copy the encryption key data. */
     MY_CRYPT_DATA *encryption_data;
@@ -115,7 +115,7 @@ my_on_key_update(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS *key)
     if (key->size != 0)
         my_kp->returned_lsn = key->result;
     else
-        return ((int) key->result);
+        return ((int)key->result);
     return (0);
 }
 
