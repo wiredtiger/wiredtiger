@@ -87,8 +87,8 @@ struct __wt_page_log_encryption; typedef struct __wt_page_log_encryption WT_PAGE
 struct __wt_page_log_get_args; typedef struct __wt_page_log_get_args WT_PAGE_LOG_GET_ARGS;
 struct __wt_page_log_put_args; typedef struct __wt_page_log_put_args WT_PAGE_LOG_PUT_ARGS;
 struct __wt_key_provider;    typedef struct __wt_key_provider WT_KEY_PROVIDER;
-struct __WT_CRYPT_KEYSs;
-typedef struct __WT_CRYPT_KEYSs WT_CRYPT_KEYS;
+struct __wt_crypt_keys;
+typedef struct __wt_crypt_keys WT_CRYPT_KEYS;
 struct __wt_page_log_handle; typedef struct __wt_page_log_handle WT_PAGE_LOG_HANDLE;
 #endif
 struct __wt_session;        typedef struct __wt_session WT_SESSION;
@@ -5738,7 +5738,7 @@ struct __wt_page_log {
  * The data field is a flexible array member for storing variable-length
  * data in a contiguous memory block.
  */
-struct __WT_CRYPT_KEYSs {
+struct __wt_crypt_keys {
     uint64_t result; /*  Returns checkpoint LSN upon success, returns error code on failure. */
     size_t size; /* Size of encrypted key data field. */
     uint8_t data[]; /* Encrypted keys. */
