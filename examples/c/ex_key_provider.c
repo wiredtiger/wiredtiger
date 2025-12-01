@@ -81,14 +81,14 @@ my_get_key(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *key)
     if ((key = calloc(1, sizeof(MY_CRYPT_DATA) + sizeof(MY_CRYPT_DATA))) == NULL)
         return (ENOMEM);
 
-    MY_CRYPT_DATA *crypt_data = (MY_CRYPT_DATA *)key->data;  
-  
+    MY_CRYPT_DATA *crypt_data = (MY_CRYPT_DATA *)key->data;
+
     /* Set fields in the MY_CRYPT_DATA structure. */
     crypt_data->data = my_kp->key.data;
-    crypt_data->id = my_kp->key.id;        
-  
+    crypt_data->id = my_kp->key.id;
+
     /* Set the WT_CRYPT_KEY size field to match the allocation. */
-    key->size = sizeof(MY_CRYPT_DATA);  
+    key->size = sizeof(MY_CRYPT_DATA);
     return (0);
 }
 
