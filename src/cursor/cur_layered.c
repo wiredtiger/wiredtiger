@@ -806,7 +806,7 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
      * and need to position it.
      */
     if (!F_ISSET(clayered, iter_flag)) {
-        __clayered_position_alternate(clayered, c_alternate, forward);
+        WT_RET(__clayered_position_alternate(clayered, c_alternate, forward));
     }
 
     /* If the alternate cursor's key is equal to the current one, we should move it as well. */
