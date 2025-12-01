@@ -988,7 +988,7 @@ struct __wt_connection_impl {
     /*
      * Key management interface abstracted to support pluggable key management implementations.
      */
-    WT_KEY_MANAGEMENT *key_management;
+    WT_KEY_PROVIDER *key_management;
 
 /*
  * Server subsystem flags.
