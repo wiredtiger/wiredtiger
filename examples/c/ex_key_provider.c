@@ -44,14 +44,14 @@ __declspec(dllexport)
 typedef struct {
     int id;
     int data;
-} MY_CRYPT_KEY;
+} MY_CRYPT_DATA;
 
 /*! [key management struct implementation] */
 typedef struct {
     WT_KEY_PROVIDER kp; /* Must come first */
 
     /* This example stores a fixed size blob in the key management struct. It is not required. */
-    MY_CRYPT_KEY key;
+    MY_CRYPT_DATA key;
     uint64_t returned_lsn;
 } MY_KEY_PROVIDER;
 
@@ -65,7 +65,7 @@ my_load_key(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *key)
     MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
     WT_CRYPT_KEY *my_key = (WT_CRYPT_KEY *)key;
 
-    memcpy((void *)&my_kp->key, my_key->data, my_key->size);
+    memcpy((uint8_t *)&my_kp->key, my_key->data, my_key->size);
     return (0);
 }
 
@@ -77,14 +77,18 @@ static int
 my_get_key(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *key)
 {
     MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
-    WT_CRYPT_KEY *my_key = (WT_CRYPT_KEY *)key;
 
-    if ((my_key->data = calloc(1, sizeof(MY_CRYPT_KEY))) == NULL)
-        return (errno);
+    if ((key = calloc(1, sizeof(MY_CRYPT_DATA) + sizeof(MY_CRYPT_DATA))) == NULL)
+        return (ENOMEM);
 
-    /* Provide a new key to perform key rotation. */
-    memcpy(my_key->data, (void *)&my_kp->key, sizeof(MY_CRYPT_KEY));
-    my_key->size = sizeof(MY_CRYPT_KEY);
+    MY_CRYPT_DATA *crypt_data = (MY_CRYPT_DATA *)key->data;  
+  
+    /* Set fields in the MY_CRYPT_DATA structure. */
+    crypt_data->data = my_kp->key.data;
+    crypt_data->id = my_kp->key.id;        
+  
+    /* Set the WT_CRYPT_KEY size field to match the allocation. */
+    key->size = sizeof(MY_CRYPT_DATA);  
     return (0);
 }
 
@@ -118,7 +122,7 @@ set_my_key_provider(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
     if ((kps = calloc(1, sizeof(MY_KEY_PROVIDER))) == NULL) {
         (void)wtext->err_printf(
           wtext, NULL, "set_my_key_provider: %s", wtext->strerror(wtext, NULL, ENOMEM));
-        return (errno);
+        return (ENOMEM);
     }
     wt = (WT_KEY_PROVIDER *)&kps->kp;
     wt->load_key = my_load_key;
