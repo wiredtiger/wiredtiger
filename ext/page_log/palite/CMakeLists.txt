@@ -50,7 +50,7 @@ if (WT_LINUX)
     target_link_options(wiredtiger_palite PRIVATE
         # Pin library in memory (Avoids GCC Bug 65434
         # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=65434 / Cleanup Leak)
-        "$<$<BOOL:${GNU_CXX_COMPILER}>>:LINKER:-z,nodelete>"
+        "$<$<CXX_COMPILER_ID:GNU>:LINKER:-z,nodelete>"
         # Hide symbols to prevent crashes
         "LINKER:--exclude-libs,ALL")
 endif()
