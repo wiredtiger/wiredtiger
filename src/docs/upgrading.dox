@@ -4,10 +4,10 @@
 <dl>
 <dt>Fixed-length column-store is removed</dt>
 <dd>
-The storge format fixed-lengh column-store is no longer supported. This means that if you have a
+The storage format fixed-length column-store is no longer supported. This means that if you have a
 fixed-length column-store table it will not be readable as of 12.0.0, opening the database will
 return an error. In order to upgrade to this release you must re-write the table as either
-variable-length colum-store, or row-store. However we will also be removing support for
+variable-length column-store, or row-store. However we will also be removing support for
 variable-length column-store so it is recommended to re-write the table as row-store.
 
 The steps are as follows:
