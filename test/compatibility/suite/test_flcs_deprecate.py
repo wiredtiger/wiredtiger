@@ -41,7 +41,7 @@ class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
 
     def test_flcs_deprecate(self):
         # Only run this test for newer branch where FLCS is deprecated.
-        if self.newer_branch == "feature-flcs":
+        if self.newer_branch == "develop":
             # Run the older-branch part (create the FLCS table and populate it)
             self.run_method_on_branch(self.older_branch, 'on_older_branch')
             # Run the newer-branch part (attempt to open and expect failure)
@@ -66,11 +66,10 @@ class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
         conn = wiredtiger.wiredtiger_open('.', self.conn_config)
         session = conn.open_session()
 
-        print("Attempting to open cursor on FLCS table, expecting failure...")
-
         # Expect an exception when trying to open a cursor on the FLCS table.
         try:
             session.open_cursor(self.uri)
+            assert False
         except wiredtiger.WiredTigerError as e:
             assert str(e) in wiredtiger.wiredtiger_strerror(errno.EINVAL)
             assert str(e) == "Invalid argument"
