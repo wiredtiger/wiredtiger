@@ -189,6 +189,10 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
         btree->evict_disabled_open = true;
     }
 
+    /* A btree cannot be both an ingest btree and a stable btree. */
+    WT_ASSERT(session,
+      !F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || !F_ISSET(btree, WT_BTREE_DISAGGREGATED));
+
     if (0) {
 err:
         WT_TRET(__wt_btree_close(session));
