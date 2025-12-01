@@ -11,7 +11,7 @@ else()
 endif()
 
 if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS CXX_COMPILER_MIN_VERSION)
-    message(WARNING "Skipping PALite build: C++ compiler does not support C++20."
+    message(WARNING "Skipping PALite build: C++ compiler does not support C++20. "
         "Required version: ${CXX_COMPILER_MIN_VERSION}; found: ${CMAKE_CXX_COMPILER_VERSION}")
     return()
 endif()
@@ -44,11 +44,16 @@ target_compile_options(
         ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 
-target_link_options(wiredtiger_palite PRIVATE
-    # Pin library in memory (Avoids GCC Bug 65434 https://gcc.gnu.org/bugzilla/show_bug.cgi?id=65434 / Cleanup Leak)
-    "$<$<OR:$<BOOL:${GNU_C_COMPILER}>,$<BOOL:${CLANG_C_COMPILER}>>:LINKER:-z,nodelete>"
-    # Hide symbols to prevent crashes
-    "$<$<OR:$<BOOL:${GNU_C_COMPILER}>,$<BOOL:${CLANG_C_COMPILER}>>:LINKER:--exclude-libs,ALL>")
+# The following linker options are needed for Linux builds with sanitizers.
+# Having these options doesn't hurt regular builds, so they are always enabled.
+if (WT_LINUX)
+    target_link_options(wiredtiger_palite PRIVATE
+        # Pin library in memory (Avoids GCC Bug 65434
+        # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=65434 / Cleanup Leak)
+        "$<$<BOOL:${GNU_CXX_COMPILER}>>:LINKER:-z,nodelete>"
+        # Hide symbols to prevent crashes
+        "LINKER:--exclude-libs,ALL")
+endif()
 
 # For MacOS builds we need to generate a dSYM bundle that contains the debug
 # symbols for each executable. The name of the binary will either be the name
