@@ -5741,7 +5741,7 @@ struct __wt_page_log {
 struct __wt_crypt_key {
     uint64_t result;
     size_t size;
-    void *data;
+    uint8_t data[];
 };
 
 /*!
