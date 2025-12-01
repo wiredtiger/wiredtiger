@@ -1622,7 +1622,7 @@ variables:
           times: 5
 
   # FIXME-WT-16113: Consolidate this logic in test/format itself.
-  - &format-stress-data-validation-test-disagg-leader
+  - &format-stress-test-disagg-leader-data-validation
     depends_on:
       - name: compile
     commands:
@@ -4590,11 +4590,11 @@ tasks:
   - <<: *format-stress-test-disagg-leader
     name: format-stress-test-disagg-leader-2
     tags: ["stress-test-disagg"]
-  - <<: *format-stress-data-validation-test-disagg-leader
-    name: format-stress-data-validation-test-disagg-leader-1
+  - <<: *format-stress-test-disagg-leader-data-validation
+    name: format-stress-test-disagg-leader-data-validation-1
     tags: ["stress-test-disagg"]
-  - <<: *format-stress-data-validation-test-disagg-leader
-    name: format-stress-data-validation-test-disagg-leader-2
+  - <<: *format-stress-test-disagg-leader-data-validation
+    name: format-stress-test-disagg-leader-data-validation-2
     tags: ["stress-test-disagg"]
 
   - <<: *format-stress-test-disagg-follower
