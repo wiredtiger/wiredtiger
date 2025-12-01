@@ -343,3 +343,45 @@ struct __wt_salvage_cookie {
 #define WT_DELTA_ENABLED_FOR_PAGE(session, type)                   \
     ((type) == WT_PAGE_ROW_LEAF ? WT_DELTA_LEAF_ENABLED(session) : \
                                   WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
+
+/*
+ * WTI_DELTA_LEAF_UNPACK_STATE --
+ *	The deltas' unpack state for merging deltas with base image leaf.
+ */
+struct __wti_delta_leaf_unpack_state {
+    WT_CELL_UNPACK_DELTA_LEAF_KV *unpacks;
+    WT_ITEM **current_keys;
+    uint8_t **cells;
+    bool *unpacked;
+    uint32_t *entries;
+    int32_t min_unpack_idx;
+};
+
+/*
+ * WTI_BASE_LEAF_UNPACK_STATE --
+ *	The base image's unpack state for merging deltas with base image leaf.
+ */
+struct __wti_base_leaf_unpack_state {
+    WT_CELL_UNPACK_KV *unpack_key;
+    WT_CELL_UNPACK_KV *unpack_value;
+    WT_ITEM *current_key;
+    uint32_t entries;
+    uint32_t idx;
+    uint8_t *cell;
+    bool key_unpacked;
+    bool found_next;
+};
+
+/*
+ * WTI_DISK_LEAF_PACK_STATE --
+ *	The new disk image's pack state for merging deltas with base image leaf.
+ */
+struct __wti_disk_leaf_pack_state {
+    WT_ITEM *last_key;
+    uint8_t key_pfx_last;
+    bool key_pfx_compress;
+    bool all_empty_value;
+    bool any_empty_value;
+    uint8_t *p_ptr;
+    uint32_t entry_count;
+};
