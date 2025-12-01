@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  *
  * ex_key_provider.c
- * 	demonstrates how to use the key management API.
+ * 	demonstrates how to use the key provider API.
  */
 #include <test_util.h>
 
@@ -46,11 +46,11 @@ typedef struct {
     int data;
 } MY_CRYPT_DATA;
 
-/*! [key management struct implementation] */
+/*! [key provider struct implementation] */
 typedef struct {
     WT_KEY_PROVIDER kp; /* Must come first */
 
-    /* This example stores a fixed size blob in the key management struct. It is not required. */
+    /* This example stores a fixed size blob in the key provider struct. It is not required. */
     MY_CRYPT_DATA key;
     uint64_t returned_lsn;
 } MY_KEY_PROVIDER;
@@ -107,7 +107,7 @@ my_on_key_commit(WT_KEY_PROVIDER *kp, WT_CRYPT_KEY *key)
 
 /*
  * set_my_key_provider --
- *     A simple example of setting the key management system.
+ *     A simple example of setting the key provider system.
  */
 int
 set_my_key_provider(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
@@ -118,7 +118,7 @@ set_my_key_provider(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 
     WT_UNUSED(config);
     wtext = conn->get_extension_api(conn);
-    /* Initialize our key management system. */
+    /* Initialize our key provider system. */
     if ((kps = calloc(1, sizeof(MY_KEY_PROVIDER))) == NULL) {
         (void)wtext->err_printf(
           wtext, NULL, "set_my_key_provider: %s", wtext->strerror(wtext, NULL, ENOMEM));
@@ -159,7 +159,7 @@ main(int argc, char *argv[])
 
     /*! [WT_KEY_PROVIDER register] */
     /*
-     * Setup a configuration string that will load our key management system. Use the special local
+     * Setup a configuration string that will load our key provider system. Use the special local
      * extension to indicate that the entry point is in the same executable. Also enable early load
      * for this extension, since WiredTiger needs to be able to find it before doing any operations.
      */
