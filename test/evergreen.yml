@@ -4580,10 +4580,6 @@ tasks:
   - <<: *format-stress-test-disagg-leader-palm
     name: format-stress-test-disagg-leader-palm
     tags: ["stress-test-disagg"]
-  - <<: *format-stress-test-disagg-leader-verify
-    name: format-stress-test-disagg-leader-verify
-    # FIXME-WT-16126 : Temporarily tag this test as a failure until the underlying issue is resolved.
-    tags: ["stress-test-disagg-san-fail"]
   - <<: *format-stress-test-disagg-leader
     name: format-stress-test-disagg-leader-1
     tags: ["stress-test-disagg"]
