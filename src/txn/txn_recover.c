@@ -841,12 +841,12 @@ __recovery_file_scan_prefix(WT_RECOVERY *r, const char *prefix, const char *igno
 }
 
 /*
- * __metadata_check_consistency --
- *     For each table metadata entry, check that the table was fully created. If not, mark them for
- *     removal.
+ * __metadata_check_table_complete --
+ *     For each table metadata entry, check that the table was fully created. If not, clean up
+ *     incomplete table.
  */
 static int
-__metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config)
+__metadata_check_table_complete(WT_RECOVERY *r, const char *uri, const char *config)
 {
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
@@ -882,7 +882,6 @@ __metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config
     if (!fake_table_handle->cg_complete) {
         __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s %s",
           "removing incomplete table", uri);
-
         WT_WITH_SCHEMA_LOCK(r->session,
           WT_WITH_TABLE_WRITE_LOCK(
             r->session, ret = __wt_schema_drop(r->session, uri, drop_cfg, false)));
@@ -912,7 +911,7 @@ __metadata_post_recovery(WT_RECOVERY *r)
       "scanning metadata to remove all incomplete tables");
 
     /* Scan through all table entries in the metadata. */
-    WT_RET(__recovery_metadata_iterate_func(r, "table:", NULL, __metadata_check_consistency));
+    WT_RET(__recovery_metadata_iterate_func(r, "table:", NULL, __metadata_check_table_complete));
     return (0);
 }
 
