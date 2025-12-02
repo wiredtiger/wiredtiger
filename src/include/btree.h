@@ -345,10 +345,10 @@ struct __wt_salvage_cookie {
                                   WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
 
 /*
- * WTI_DELTA_LEAF_UNPACK_STATE --
- *	The deltas' unpack state for merging deltas with base image leaf.
+ * WTI_DELTA_LEAF_MERGE_STATE --
+ *	The delta's merge state for merging deltas with base image leaf.
  */
-struct __wti_delta_leaf_unpack_state {
+struct __wti_delta_leaf_merge_state {
     WT_CELL_UNPACK_DELTA_LEAF_KV *unpacks;
     WT_ITEM **current_keys;
     uint8_t **cells;
@@ -358,10 +358,10 @@ struct __wti_delta_leaf_unpack_state {
 };
 
 /*
- * WTI_BASE_LEAF_UNPACK_STATE --
- *	The base image's unpack state for merging deltas with base image leaf.
+ * WTI_BASE_LEAF_MERGE_STATE --
+ *	The base image's merge state for merging deltas with base image leaf.
  */
-struct __wti_base_leaf_unpack_state {
+struct __wti_base_leaf_merge_state {
     WT_CELL_UNPACK_KV *unpack_key;
     WT_CELL_UNPACK_KV *unpack_value;
     WT_ITEM *current_key;
@@ -373,10 +373,10 @@ struct __wti_base_leaf_unpack_state {
 };
 
 /*
- * WTI_DISK_LEAF_PACK_STATE --
- *	The new disk image's pack state for merging deltas with base image leaf.
+ * WTI_DISK_LEAF_MERGE_STATE --
+ *	The new disk image's merge state for merging deltas with base image leaf.
  */
-struct __wti_disk_leaf_pack_state {
+struct __wti_disk_leaf_merge_state {
     WT_ITEM *last_key;
     uint8_t key_pfx_last;
     bool key_pfx_compress;

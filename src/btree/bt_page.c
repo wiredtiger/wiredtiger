@@ -100,7 +100,7 @@ __page_find_min_delta(WT_SESSION_IMPL *session, WT_CELL_UNPACK_DELTA_INT **unpac
  */
 static int
 __page_find_min_delta_leaf(
-  WT_SESSION_IMPL *session, WT_ITEM *deltas, WTI_DELTA_LEAF_UNPACK_STATE *s, size_t delta_size)
+  WT_SESSION_IMPL *session, WT_ITEM *deltas, WTI_DELTA_LEAF_MERGE_STATE *s, size_t delta_size)
 {
     int cmp;
     uint8_t **cells = s->cells;
@@ -673,7 +673,7 @@ err:
  *     Unpack a key-value pair at given cell offset for a disk image.
  */
 static int
-__page_unpack_leaf_kv(WT_SESSION_IMPL *session, WTI_BASE_LEAF_UNPACK_STATE *s, WT_PAGE_HEADER *dsk)
+__page_unpack_leaf_kv(WT_SESSION_IMPL *session, WTI_BASE_LEAF_MERGE_STATE *s, WT_PAGE_HEADER *dsk)
 {
     /* Unpack the key if we have entries left and the key is not unpacked in the previous run. */
     if (s->idx < s->entries && !s->key_unpacked) {
@@ -706,12 +706,12 @@ __page_unpack_leaf_kv(WT_SESSION_IMPL *session, WTI_BASE_LEAF_UNPACK_STATE *s, W
 }
 
 /*
- * __page_init_base_leaf_unpack_state --
- *     Initialize base leaf unpack state.
+ * __page_init_base_leaf_merge_state --
+ *     Initialize base leaf merge state.
  */
 static int
-__page_init_base_leaf_unpack_state(WT_SESSION_IMPL *session, WT_BTREE *btree,
-  WT_PAGE_HEADER *base_dsk, WTI_BASE_LEAF_UNPACK_STATE *s)
+__page_init_base_leaf_merge_state(
+  WT_SESSION_IMPL *session, WT_BTREE *btree, WT_PAGE_HEADER *base_dsk, WTI_BASE_LEAF_MERGE_STATE *s)
 {
     s->entries = base_dsk->u.entries;
     s->idx = 0;
@@ -730,11 +730,11 @@ __page_init_base_leaf_unpack_state(WT_SESSION_IMPL *session, WT_BTREE *btree,
 }
 
 /*
- * __page_free_base_leaf_unpack_state --
- *     Free base leaf unpack state.
+ * __page_free_base_leaf_merge_state --
+ *     Free base leaf merge state.
  */
 static void
-__page_free_base_leaf_unpack_state(WT_SESSION_IMPL *session, WTI_BASE_LEAF_UNPACK_STATE *s)
+__page_free_base_leaf_merge_state(WT_SESSION_IMPL *session, WTI_BASE_LEAF_MERGE_STATE *s)
 {
     __wt_free(session, s->unpack_key);
     __wt_free(session, s->unpack_value);
@@ -742,12 +742,12 @@ __page_free_base_leaf_unpack_state(WT_SESSION_IMPL *session, WTI_BASE_LEAF_UNPAC
 }
 
 /*
- * __page_init_delta_leaf_unpack_state --
- *     Initialize delta leaf unpack state.
+ * __page_init_delta_leaf_merge_state --
+ *     Initialize delta leaf merge state.
  */
 static int
-__page_init_delta_leaf_unpack_state(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_ITEM *deltas,
-  size_t delta_size, WTI_DELTA_LEAF_UNPACK_STATE *s)
+__page_init_delta_leaf_merge_state(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_ITEM *deltas,
+  size_t delta_size, WTI_DELTA_LEAF_MERGE_STATE *s)
 {
     s->min_unpack_idx = -1;
     s->cells = NULL;
@@ -767,6 +767,7 @@ __page_init_delta_leaf_unpack_state(WT_SESSION_IMPL *session, WT_BTREE *btree, W
         s->cells[i] = WT_PAGE_HEADER_BYTE(btree, tmp);
         s->entries[i] = tmp->u.entries;
         s->unpacked[i] = false;
+        s->current_keys[i] = NULL;
         WT_RET(__wt_scr_alloc(session, 0, &s->current_keys[i]));
     }
 
@@ -774,12 +775,12 @@ __page_init_delta_leaf_unpack_state(WT_SESSION_IMPL *session, WT_BTREE *btree, W
 }
 
 /*
- * __page_free_delta_leaf_unpack_state --
- *     Free delta leaf unpack state.
+ * __page_free_delta_leaf_merge_state --
+ *     Free delta leaf merge state.
  */
 static void
-__page_free_delta_leaf_unpack_state(
-  WT_SESSION_IMPL *session, size_t delta_size, WTI_DELTA_LEAF_UNPACK_STATE *s)
+__page_free_delta_leaf_merge_state(
+  WT_SESSION_IMPL *session, size_t delta_size, WTI_DELTA_LEAF_MERGE_STATE *s)
 {
     for (size_t i = 0; i < delta_size; i++)
         __wt_scr_free(session, &s->current_keys[i]);
@@ -791,12 +792,12 @@ __page_free_delta_leaf_unpack_state(
 }
 
 /*
- * __page_init_dsk_leaf_pack_state --
- *     Initialize new disk leaf pack state.
+ * __page_init_dsk_leaf_merge_state --
+ *     Initialize new disk leaf merge state.
  */
 static int
-__page_init_dsk_leaf_pack_state(
-  WT_SESSION_IMPL *session, WT_BTREE *btree, WT_ITEM *new_image, WTI_DISK_LEAF_PACK_STATE *s)
+__page_init_dsk_leaf_merge_state(
+  WT_SESSION_IMPL *session, WT_BTREE *btree, WT_ITEM *new_image, WTI_DISK_LEAF_MERGE_STATE *s)
 {
     s->p_ptr = WT_PAGE_HEADER_BYTE(btree, new_image->mem);
     s->key_pfx_compress = false;
@@ -821,16 +822,16 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     WT_DECL_RET;
     WT_PAGE_HEADER *dsk;
     int cmp;
-    WTI_DELTA_LEAF_UNPACK_STATE ds;
-    WTI_BASE_LEAF_UNPACK_STATE bs;
-    WTI_DISK_LEAF_PACK_STATE ps;
+    WTI_DELTA_LEAF_MERGE_STATE ds;
+    WTI_BASE_LEAF_MERGE_STATE bs;
+    WTI_DISK_LEAF_MERGE_STATE ps;
 
     btree = S2BT(session);
     dsk = NULL;
     WT_ASSERT(session, new_image != NULL);
-    WT_ERR(__page_init_delta_leaf_unpack_state(session, btree, deltas, delta_size, &ds));
-    WT_ERR(__page_init_base_leaf_unpack_state(session, btree, base_dsk, &bs));
-    WT_ERR(__page_init_dsk_leaf_pack_state(session, btree, new_image, &ps));
+    WT_ERR(__page_init_delta_leaf_merge_state(session, btree, deltas, delta_size, &ds));
+    WT_ERR(__page_init_base_leaf_merge_state(session, btree, base_dsk, &bs));
+    WT_ERR(__page_init_dsk_leaf_merge_state(session, btree, new_image, &ps));
     new_image->size = WT_PTRDIFF(ps.p_ptr, new_image->mem);
 
     for (;;) {
@@ -921,8 +922,8 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
 
 err:
     __wt_scr_free(session, &ps.last_key);
-    __page_free_delta_leaf_unpack_state(session, delta_size, &ds);
-    __page_free_base_leaf_unpack_state(session, &bs);
+    __page_free_delta_leaf_merge_state(session, delta_size, &ds);
+    __page_free_base_leaf_merge_state(session, &bs);
     return (ret);
 }
 

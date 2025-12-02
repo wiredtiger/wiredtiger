@@ -339,7 +339,7 @@ __wt_cell_decompress_prefix_key(
 static WT_INLINE int
 __wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, const void *key_data, size_t key_size,
   const void *val_data, size_t val_size, WT_TIME_WINDOW *val_tw, WT_ITEM *new_image,
-  WTI_DISK_LEAF_PACK_STATE *ps)
+  WTI_DISK_LEAF_MERGE_STATE *ps)
 {
     WT_BTREE *btree;
     WT_CELL_KV key, val;
