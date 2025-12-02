@@ -5740,9 +5740,9 @@ struct __wt_page_log {
  * data in a contiguous memory block.
  *
  * The struct represents an on-disk format for encrypted keys.
- * Fields must not be added or modified arbitrarily to preserve   
- * compatibility. The 64-bit int space will be re-used to store   
- * metadata information to ensure integrity. 
+ * Fields must not be added or modified arbitrarily to preserve
+ * compatibility. The 64-bit int space will be re-used to store
+ * metadata information to ensure integrity.
  */
 struct __wt_crypt_keys {
     /*  Returns checkpoint LSN upon success, returns error code on failure. */
