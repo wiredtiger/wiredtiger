@@ -221,8 +221,10 @@ __drop_table(
     /*
      * In a crash, it is possible for the file metadata entry to exist even though the colgroup was
      * not created completely. In such a scenario, drop the file to keep the metadata consistent.
+     *
+     * FIXME-WT-16146: Add capability for cleaning up incomplete complex and tiered tables.
      */
-    if (!table->cg_complete)
+    if (!table->cg_complete && table->is_simple)
         WT_ERR(__wt_schema_drop(session, file_uri_buf->data, cfg, check_visibility));
 
     /* Drop the column groups. */

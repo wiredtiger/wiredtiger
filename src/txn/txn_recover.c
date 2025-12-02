@@ -29,10 +29,6 @@ typedef struct {
     u_int max_fileid;  /* Maximum file ID seen. */
     u_int nfiles;      /* Number of files in the metadata. */
 
-    char **remove_uris;          /* Array of tables that should be removed from the metadata. */
-    size_t remove_uris_allocate; /* Allocated size of remove tables array. */
-    u_int nremove_uris;          /* Number of tables marked for removal in the metadata. */
-
     WT_LSN ckpt_lsn;     /* Start LSN for main recovery loop. */
     WT_LSN max_ckpt_lsn; /* Maximum checkpoint LSN seen. */
     WT_LSN max_rec_lsn;  /* Maximum recovery LSN seen. */
@@ -770,24 +766,6 @@ err:
 }
 
 /*
- * __recovery_free_remove_uris --
- *     Free any remove uris added to the recovery array.
- */
-static void
-__recovery_free_remove_uris(WT_RECOVERY *r)
-{
-    WT_SESSION_IMPL *session;
-    u_int i;
-
-    session = r->session;
-    for (i = 0; i < r->nremove_uris; i++)
-        __wt_free(session, r->remove_uris[i]);
-
-    r->nremove_uris = 0;
-    __wt_free(session, r->remove_uris);
-}
-
-/*
  * __recovery_close_cursors --
  *     Close the logging recovery cursors.
  */
@@ -874,6 +852,7 @@ __metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config
     WT_DECL_RET;
     WT_TABLE *fake_table_handle;
     const char *cfg[] = {config, NULL};
+    const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
     const char *format_name;
 
     /*
@@ -901,15 +880,18 @@ __metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config
         goto done;
 
     if (!fake_table_handle->cg_complete) {
-        WT_ERR(__wt_realloc_def(
-          r->session, &r->remove_uris_allocate, r->nremove_uris + 1, &r->remove_uris));
-        WT_ERR(__wt_strdup(r->session, uri, &r->remove_uris[r->nremove_uris]));
-        r->nremove_uris++;
+        __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s %s",
+          "removing incomplete table", uri);
+
+        WT_WITH_SCHEMA_LOCK(r->session,
+          WT_WITH_TABLE_WRITE_LOCK(
+            r->session, ret = __wt_schema_drop(r->session, uri, drop_cfg, false)));
+        WT_ERR(ret);
     }
-    WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
 done:
+    /* Free allocated structure in table handle. */
     if (fake_table_handle != NULL) {
         WT_WITH_TABLE_WRITE_LOCK(
           r->session, WT_TRET(__wt_schema_close_table(r->session, fake_table_handle)));
@@ -926,25 +908,11 @@ done:
 static int
 __metadata_post_recovery(WT_RECOVERY *r)
 {
-    WT_DECL_RET;
-    const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
-
     __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
       "scanning metadata to remove all incomplete tables");
 
     /* Scan through all table entries in the metadata. */
     WT_RET(__recovery_metadata_iterate_func(r, "table:", NULL, __metadata_check_consistency));
-
-    /* Remove all found incomplete tables. */
-    for (u_int i = 0; i < r->nremove_uris; i++) {
-        __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s %s",
-          "removing incomplete table", r->remove_uris[i]);
-
-        WT_WITH_SCHEMA_LOCK(r->session,
-          WT_WITH_TABLE_WRITE_LOCK(
-            r->session, ret = __wt_schema_drop(r->session, r->remove_uris[i], drop_cfg, false)));
-        WT_RET(ret);
-    }
     return (0);
 }
 
@@ -1415,7 +1383,6 @@ done:
 
 err:
     WT_TRET(__recovery_close_cursors(&r));
-    __recovery_free_remove_uris(&r);
     __wt_free(session, config);
     F_CLR(&conn->log_mgr, WT_LOG_RECOVER_DIRTY);
 
