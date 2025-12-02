@@ -5760,7 +5760,7 @@ struct __wt_key_provider {
      * @param kp the WT_KEY_PROVIDER instance.
      * @param keys the WT_CRYPT_KEYS to hold persisted key information.
      */
-    int (*load_key)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS *keys);
+    int (*load_key)(WT_KEY_PROVIDER *kp, const WT_CRYPT_KEYS *keys);
 
     /*!
      * Fetch the latest key for checkpoint writes.
@@ -5770,7 +5770,7 @@ struct __wt_key_provider {
      * @param kp the WT_KEY_PROVIDER instance.
      * @param keys the WT_CRYPT_KEYS to hold the new key (if changed).
      */
-    int (*get_key)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS* keys);
+    int (*get_key)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS *keys);
 
     /*!
      * Callback function indicating that whether the key has been persisted.
@@ -5781,7 +5781,7 @@ struct __wt_key_provider {
      * @param kp the WT_KEY_PROVIDER
      * @param keys the WT_CRYPT_KEYS information to confirm key persistence.
      */
-    int (*on_key_update)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS* keys);
+    int (*on_key_update)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS *keys);
 };
 
 /*!

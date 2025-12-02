@@ -60,21 +60,17 @@ typedef struct {
  *     A simple example of set_key call.
  */
 static int
-my_load_key(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS *key)
+my_load_key(WT_KEY_PROVIDER *kp, const WT_CRYPT_KEYS *key)
 {
     MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
-
-    /* Check that the key was successfully loaded. */
-    if (key->size == 0)
-        return ((int)key->result);
 
     /* Update the returned LSN and copy the encryption key data. */
     MY_CRYPT_DATA *encryption_data;
     if ((encryption_data = calloc(1, sizeof(MY_CRYPT_DATA))) == NULL)
         return (ENOMEM);
 
-    my_kp->returned_lsn = key->result;
     memcpy((uint8_t *)encryption_data, key->data, key->size);
+    my_kp->encryption_data = encryption_data;
     return (0);
 }
 
@@ -112,9 +108,13 @@ my_on_key_update(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS *key)
     MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
 
     /* Check size field to determine that the key was successfully persisted. */
-    if (key->size != 0)
+    if (key->size != 0) {
         my_kp->returned_lsn = key->result;
-    else
+
+        /* On success, free the allocated key. */
+        key->size = 0;
+        free(key->data);
+    } else
         return ((int)key->result);
     return (0);
 }
