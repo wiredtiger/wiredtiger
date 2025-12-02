@@ -5732,6 +5732,7 @@ struct __wt_page_log {
     int (*terminate)(WT_PAGE_LOG *page_log, WT_SESSION *session);
 };
 
+#ifndef SWIG
 /*
  * A structure that represents encrypted keys stored by WiredTiger.
  *
@@ -5739,7 +5740,11 @@ struct __wt_page_log {
  * data in a contiguous memory block.
  */
 struct __wt_crypt_keys {
-    uint64_t result; /*  Returns checkpoint LSN upon success, returns error code on failure. */
+    /*  Returns checkpoint LSN upon success, returns error code on failure. */
+    union {
+        uint64_t checkpoint_lsn;
+        uint64_t error;
+    } r;
     size_t size; /* Size of encrypted key data field. */
     uint8_t data[]; /* Encrypted keys. */
 };
@@ -5783,6 +5788,7 @@ struct __wt_key_provider {
      */
     int (*on_key_update)(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS *keys);
 };
+#endif
 
 /*!
  * Encryption data used by the WT_PAGE_LOG_HANDLE interfaces.
