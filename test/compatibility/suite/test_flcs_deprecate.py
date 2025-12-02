@@ -71,7 +71,7 @@ class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
             session.open_cursor(self.uri)
             assert False
         except wiredtiger.WiredTigerError as e:
-            assert str(e) in wiredtiger.wiredtiger_strerror(errno.EINVAL)
+            assert str(e) in wiredtiger.wiredtiger_strerror(wiredtiger.WT_PANIC)
 
     if __name__ == "__main__":
         compatibility_test.run()
