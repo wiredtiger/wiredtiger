@@ -616,7 +616,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
                 WT_ERR(__wt_struct_reformat(session, table, cval.str, cval.len, NULL, true, &fmt));
             }
 
-            sourcecfg[1] = fmt.data;
+            sourcecfg[config == NULL ? 0 : 1] = fmt.data;
         }
 
         WT_ERR(__wt_config_merge(session, sourcecfg, NULL, &sourceconf));
