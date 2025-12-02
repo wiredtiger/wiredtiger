@@ -50,9 +50,10 @@ if (WT_LINUX)
     target_link_options(wiredtiger_palite PRIVATE
         # Pin library in memory (Avoids GCC Bug 65434
         # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=65434 / Cleanup Leak)
-        "$<$<CXX_COMPILER_ID:GNU>:LINKER:-z,nodelete>"
+        "LINKER:-z,nodelete"
         # Hide symbols to prevent crashes
-        "LINKER:--exclude-libs,ALL")
+        "LINKER:--exclude-libs,ALL"
+    )
 endif()
 
 # For MacOS builds we need to generate a dSYM bundle that contains the debug
