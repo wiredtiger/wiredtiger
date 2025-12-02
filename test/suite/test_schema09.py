@@ -54,8 +54,6 @@ class test_schema09(wttest.WiredTigerTestCase):
         meta_cursor.close()
 
     def test_schema(self):
-        working_table = "table:test_schema09_working"
-        self.session.create(working_table, 'key_format=5s,value_format=HQ,exclusive=true')
         create_thread = threading.Thread(target=self.create_table)
         create_thread.start()
 
@@ -70,16 +68,13 @@ class test_schema09(wttest.WiredTigerTestCase):
 
         self.check_metadata_entry(self.tablename)
 
-        # Test that we can open a cursor on the table.
+        # Test that we can't open a cursor on the table.
         self.assertRaises(
             wiredtiger.WiredTigerError, lambda: self.session.open_cursor(self.tablename, None))
 
-        # Test that we can drop the table.
+        # Test that we can't drop the table.
         self.assertRaises(
             wiredtiger.WiredTigerError, lambda: self.session.drop(self.tablename, None))
 
         # Test that we can create the table.
         self.session.create(self.tablename, "key_format=5s,value_format=HQ,exclusive=true")
-
-        self.ignoreStderrPatternIfExists('File exists')
-        self.ignoreStdoutPatternIfExists('unexpected file')

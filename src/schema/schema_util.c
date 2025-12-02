@@ -196,6 +196,8 @@ __wt_schema_construct_table_config(WT_SESSION_IMPL *session, const char **config
     WT_CONFIG_ITEM ckey, cval;
     WT_DECL_RET;
 
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE));
+
     WT_RET(__wt_config_gets(session, config, "columns", &cval));
     WT_RET(__wt_config_gets(session, config, "key_format", &cval));
     WT_RET(__wt_strndup(session, cval.str, cval.len, &table->key_format));

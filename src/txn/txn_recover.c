@@ -872,33 +872,37 @@ __metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config
 {
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    WT_TABLE fake_table_handle;
+    WT_TABLE *fake_table_handle;
     const char *cfg[] = {config, NULL};
     const char *format_name;
-    const char *saved_str;
 
+    /* 
+     * Generate a fake table dhandle that doesn't fetch the handle from the file system.
+     * We are only interested in the meta information of the table handle.
+     */
     format_name = uri;
+    WT_ERR(__wt_calloc(r->session, 1, sizeof(WT_TABLE), &fake_table_handle));
+    fake_table_handle->iface.name = uri;
     WT_ERR(__wt_scr_alloc(r->session, 0, &buf));
     WT_PREFIX_SKIP_REQUIRED(r->session, format_name, "table:");
 
+
+    
     /* If either colgroup or file metadata entry doesn't exist mark the table for removal. */
     WT_ERR(__wt_buf_fmt(r->session, buf, "colgroup:%s", format_name));
 
-    saved_str = fake_table_handle.iface.name;
-    fake_table_handle.iface.name = uri;
     WT_WITH_TABLE_WRITE_LOCK(
-      r->session, ret = __wt_schema_construct_table_config(r->session, cfg, &fake_table_handle));
+      r->session, ret = __wt_schema_construct_table_config(r->session, cfg, fake_table_handle));
     WT_ERR(ret);
-    fake_table_handle.iface.name = saved_str;
 
     /*
-     * FIXME-WT-XXXX: Add capability for cleaning complex and tiered tables. For now, only simple
-     * tables are considered.
+     * FIXME-WT-16146: Add capability for cleaning up incomplete complex and tiered tables. For now, only 
+     * focus on simple tables.
      */
-    if (!fake_table_handle.is_simple || fake_table_handle.is_tiered_shared)
+    if (!fake_table_handle->is_simple || fake_table_handle->is_tiered_shared)
         goto done;
 
-    if (!fake_table_handle.cg_complete) {
+    if (!fake_table_handle->cg_complete) {
         WT_ERR(__wt_realloc_def(
           r->session, &r->remove_uris_allocate, r->nremove_uris + 1, &r->remove_uris));
         WT_ERR(__wt_strdup(r->session, uri, &r->remove_uris[r->nremove_uris]));
@@ -908,6 +912,10 @@ __metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config
 
 err:
 done:
+    if (fake_table_handle != NULL) {
+        WT_WITH_TABLE_WRITE_LOCK(r->session, WT_TRET(__wt_schema_close_table(r->session, fake_table_handle)));
+        __wt_free(r->session, fake_table_handle);
+    }
     __wt_scr_free(r->session, &buf);
     return (ret);
 }
@@ -925,7 +933,10 @@ __metadata_post_recovery(WT_RECOVERY *r)
     __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
       "scanning metadata to remove all incomplete tables");
 
+    /* Scan through all table entries in the metadata. */
     WT_RET(__recovery_metadata_iterate_func(r, "table:", NULL, __metadata_check_consistency));
+
+    /* Remove all found incomplete tables. */
     for (u_int i = 0; i < r->nremove_uris; i++) {
         __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s %s",
           "removing incomplete table", r->remove_uris[i]);
@@ -1405,7 +1416,7 @@ done:
 
 err:
     WT_TRET(__recovery_close_cursors(&r));
-    WT_TRET(__recovery_free_remove_uris(&r));
+    __recovery_free_remove_uris(&r);
     __wt_free(session, config);
     F_CLR(&conn->log_mgr, WT_LOG_RECOVER_DIRTY);
 
