@@ -69,6 +69,10 @@ my_load_key(WT_KEY_PROVIDER *kp, const WT_CRYPT_KEYS *key)
     if ((encryption_data = calloc(1, sizeof(MY_CRYPT_DATA))) == NULL)
         return (ENOMEM);
 
+    /* Free old encryption data. */
+    free(my_kp->encryption_data);
+
+    /* Assign new encryption data. */
     memcpy((uint8_t *)encryption_data, key->data, key->size);
     my_kp->encryption_data = encryption_data;
     return (0);
