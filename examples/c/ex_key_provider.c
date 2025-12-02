@@ -112,8 +112,7 @@ my_on_key_update(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS *key)
         my_kp->returned_lsn = key->result;
 
         /* On success, free the allocated key. */
-        key->size = 0;
-        free(key->data);
+        free(key);
     } else
         return ((int)key->result);
     return (0);
