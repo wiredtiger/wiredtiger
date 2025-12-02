@@ -2748,7 +2748,11 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
             /* Count internal pages queued. */
             if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
                 internal_pages_queued++;
+        } else {
+            ++page->evict_queue_attempts;
         }
+        __wt_atomic_stats_max(
+          &evict->evict_max_eviction_queue_attempts, page->evict_queue_attempts);
     }
     if (F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         __wt_txn_release_snapshot(session);
