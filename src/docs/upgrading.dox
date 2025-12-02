@@ -11,7 +11,7 @@ variable-length column-store, or row-store. However we will also be removing sup
 variable-length column-store so it is recommended to re-write the table as row-store.
 
 The steps are as follows:
--# Create a row store table with integer keys, and fixed-length bit values.
+-# Create a row store table with integer keys (key_format=i), and fixed-length bit values.
 -# Open a cursor on your FLCS table.
 -# For every key in the FLCS table read it in, and write it back to the row store table.
 -# Finally drop the FLCS table.
