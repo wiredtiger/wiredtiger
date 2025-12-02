@@ -32,7 +32,7 @@ from wtscenario import make_scenarios
 from helper import copy_wiredtiger_home
 
 # test_schema09.py
-#    Test that tables are reconciled correctly when they are empty.
+#    Test that tables that incompletely created are properly cleaned during recovery.
 class test_schema09(wttest.WiredTigerTestCase):
     conn_config = 'timing_stress_for_test=(create_slow),log=(enabled=true)'
 

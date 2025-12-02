@@ -876,9 +876,9 @@ __metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config
     const char *cfg[] = {config, NULL};
     const char *format_name;
 
-    /* 
-     * Generate a fake table dhandle that doesn't fetch the handle from the file system.
-     * We are only interested in the meta information of the table handle.
+    /*
+     * Generate a fake table dhandle that doesn't fetch the handle from the file system. We are only
+     * interested in the meta information of the table handle.
      */
     format_name = uri;
     WT_ERR(__wt_calloc(r->session, 1, sizeof(WT_TABLE), &fake_table_handle));
@@ -886,8 +886,6 @@ __metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config
     WT_ERR(__wt_scr_alloc(r->session, 0, &buf));
     WT_PREFIX_SKIP_REQUIRED(r->session, format_name, "table:");
 
-
-    
     /* If either colgroup or file metadata entry doesn't exist mark the table for removal. */
     WT_ERR(__wt_buf_fmt(r->session, buf, "colgroup:%s", format_name));
 
@@ -896,8 +894,8 @@ __metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config
     WT_ERR(ret);
 
     /*
-     * FIXME-WT-16146: Add capability for cleaning up incomplete complex and tiered tables. For now, only 
-     * focus on simple tables.
+     * FIXME-WT-16146: Add capability for cleaning up incomplete complex and tiered tables. For now,
+     * only focus on simple tables.
      */
     if (!fake_table_handle->is_simple || fake_table_handle->is_tiered_shared)
         goto done;
@@ -913,7 +911,8 @@ __metadata_check_consistency(WT_RECOVERY *r, const char *uri, const char *config
 err:
 done:
     if (fake_table_handle != NULL) {
-        WT_WITH_TABLE_WRITE_LOCK(r->session, WT_TRET(__wt_schema_close_table(r->session, fake_table_handle)));
+        WT_WITH_TABLE_WRITE_LOCK(
+          r->session, WT_TRET(__wt_schema_close_table(r->session, fake_table_handle)));
         __wt_free(r->session, fake_table_handle);
     }
     __wt_scr_free(r->session, &buf);
