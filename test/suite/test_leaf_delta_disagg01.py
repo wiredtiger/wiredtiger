@@ -85,7 +85,7 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
             cursor.search()
             self.assertEqual(cursor.get_value(), "" if i % empty_score == 0 else value)
         cursor.close()
-    
+
     def delete(self, ids):
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in ids:
@@ -215,7 +215,7 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
         delta2_ids = {3, 4, 9}
         delta3_ids = {6, 8, 10, 12, 17}
         self.verify_leaf_delta(2, 2, base_ids, delta1_ids, delta2_ids, delta3_ids)
-    
+
     # Test delete of keys.
     def test_delete(self):
         base_ids = {i for i in range(1, 11)}

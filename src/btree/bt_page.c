@@ -757,6 +757,8 @@ __page_init_delta_leaf_merge_state(WT_SESSION_IMPL *session, WT_BTREE *btree, WT
         s[i]->cell = WT_PAGE_HEADER_BYTE(btree, tmp);
         s[i]->entry = tmp->u.entries;
         s[i]->unpacked = false;
+        s[i]->current_key = NULL;
+        s[i]->unpack = NULL;
         WT_RET(__wt_scr_alloc(session, 0, &s[i]->current_key));
         WT_RET(__wt_calloc_one(session, &s[i]->unpack));
     }
