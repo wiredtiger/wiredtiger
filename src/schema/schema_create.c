@@ -623,7 +623,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
 
         if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CRASH_POINT_COLGROUP)) {
             /* Wait for the file metadata entry to be persisted. */
-            sleep(2);
+            __wt_sleep(2, 0);
             __wt_abort(session);
         }
 
