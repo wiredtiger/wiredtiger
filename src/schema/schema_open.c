@@ -723,6 +723,7 @@ __wt_schema_unsupported_format(WT_SESSION_IMPL *session, const char *config, boo
         return (0);
 
     WT_CONFIG_ITEM cval;
+    WT_CLEAR(cval);
     WT_RET_NOTFOUND_OK(__wt_config_getones(session, config, "key_format", &cval));
     /* Check for column-store. */
     if (cval.len == 1 && cval.str[0] == 'r') {
