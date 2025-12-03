@@ -349,12 +349,11 @@ struct __wt_salvage_cookie {
  *	The delta's merge state for merging deltas with base image leaf.
  */
 struct __wti_delta_leaf_merge_state {
-    WT_CELL_UNPACK_DELTA_LEAF_KV *unpacks;
-    WT_ITEM **current_keys;
-    uint8_t **cells;
-    bool *unpacked;
-    uint32_t *entries;
-    int32_t min_unpack_idx;
+    WT_CELL_UNPACK_DELTA_LEAF_KV *unpack;
+    WT_ITEM *current_key;
+    uint8_t *cell;
+    bool unpacked;
+    uint32_t entry;
 };
 
 /*
