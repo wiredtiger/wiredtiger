@@ -148,16 +148,21 @@ disagg_switch_roles(void)
 {
     char disagg_cfg[64];
 
-    g.disagg_leader = !g.disagg_leader;
     /*
      * FIXME-WT-15763: WT does not yet support graceful step-downs. Simply reconfiguring WT to step
      * down may cause issues, so we reopen the connection when switching to follower mode.
      */
-    if (!g.disagg_leader)
+    if (g.disagg_leader)
         wts_reopen();
 
+    /* Perform step-up or step-down. */
+    g.disagg_leader = !g.disagg_leader;
     testutil_snprintf(disagg_cfg, sizeof(disagg_cfg), "disaggregated=(role=\"%s\")",
       g.disagg_leader ? "leader" : "follower");
+    testutil_check(g.wts_conn->reconfigure(g.wts_conn, disagg_cfg));
 
-    return (g.wts_conn->reconfigure(g.wts_conn, disagg_cfg));
+    if (!g.disagg_leader)
+        follower_read_latest_checkpoint();
+
+    return (0);
 }

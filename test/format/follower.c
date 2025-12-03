@@ -28,6 +28,34 @@
 
 #include "format.h"
 
+void
+follower_read_latest_checkpoint(void)
+{
+    SAP sap;
+    WT_CONNECTION *conn;
+    WT_PAGE_LOG *page_log;
+    WT_SESSION *session;
+    const char *disagg_page_log;
+    WT_ITEM checkpoint_metadata;
+    uint64_t checkpoint_ts;
+    char config[128];
+
+    conn = g.wts_conn;
+    disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
+    memset(&checkpoint_metadata, 0, sizeof(checkpoint_metadata));
+
+    wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
+    testutil_check(conn->get_page_log(conn, disagg_page_log, &page_log));
+    testutil_check(page_log->pl_get_complete_checkpoint_ext(
+      page_log, session, NULL, NULL, &checkpoint_ts, &checkpoint_metadata));
+    testutil_snprintf(config, sizeof(config), "disaggregated=(checkpoint_meta=\"%.*s\")",
+      (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data);
+    testutil_check(conn->reconfigure(conn, config));
+    printf("--- [Follower] Picked up checkpoint (LSN=%.*s,timestamp=%" PRIu64 ") ---\n",
+      (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data, checkpoint_ts);
+    wt_wrap_close_session(session);
+}
+
 /*
  * follower --
  *     Periodically check for a new checkpoint from the leader, and reconfigure to use it.
