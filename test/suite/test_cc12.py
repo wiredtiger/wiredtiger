@@ -42,13 +42,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 @wttest.skip_for_hook("tiered", "Checkpoint cleanup does not support tiered tables")
 class test_cc12(test_cc_base):
     ext_config = 'extensions=("/home/ubuntu/workspace/mongo/wiredtiger/build/ext/mockfs/libwiredtiger_mockfs.so"=(entry=mock_file_system_create,early_load=true,config=(config_string=demo,value=30)))'
-    
-    conn_config_common = 'cache_size=8M,statistics=(all),statistics_log=(json,wait=1,on_close=true,sources=[file:]),verbose=[block:4]'
+
+    conn_config_common = 'cache_size=8M,statistics=(all),statistics_log=(json,wait=1,on_close=true,sources=[file:])'# ,verbose=[block:4]'
     conn_config_common = conn_config_common # + ',' + ext_config
 
     checkpoint_cleanup_methods = [
-        # ('enable_log', dict(conn_config = conn_config_common+',log=(enabled=true)')),
-        ('disable_log', dict(conn_config = conn_config_common+',log=(enabled=false)'))
+        ('enable_log', dict(conn_config = conn_config_common+',log=(enabled=true)')),
+        # ('disable_log', dict(conn_config = conn_config_common+',log=(enabled=false)'))
     ]
 
     scenarios = make_scenarios(checkpoint_cleanup_methods)
@@ -101,6 +101,7 @@ class test_cc12(test_cc_base):
         self.session.commit_transaction()
         self.session.checkpoint('debug=(checkpoint_cleanup=true)')
         # time.sleep(1)
+
         with ThreadPoolExecutor(max_workers=self.partitions) as executor:
             for seed in range(100):
                 # self.random_populate(uri, seed, ts)
@@ -115,7 +116,7 @@ class test_cc12(test_cc_base):
     def test_cc12(self):
         # Increase the likelihood of having internal pages since they are targeted by checkpoint
         # cleanup.
-        create_params = 'key_format=i,value_format=S,allocation_size=512,internal_page_max=512,leaf_page_max=512'
+        create_params = 'key_format=i,value_format=S,allocation_size=512,internal_page_max=512,leaf_page_max=512'# ,log=(enabled=false)'
         uri = 'table:cc12'
 
         self.session.create(uri, create_params)
@@ -134,8 +135,9 @@ class test_cc12(test_cc_base):
             size_before = self.get_hs_size()
             self.wait_for_cc_to_run()
             history_size.append((size_before, self.get_hs_size()))
-            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.g_ts))# + ',stable_timestamp=' + self.timestamp_str(self.g_ts))
-            self.reopen_conn()
+            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.g_ts) + ',stable_timestamp=' + self.timestamp_str(self.g_ts))
+            self.g_ts += 1
+            # self.reopen_conn()
 
         self.prout("First rounds test: " + str(history_size))
         history_size.clear()

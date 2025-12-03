@@ -455,6 +455,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         Reopen the connection.
         """
         self.close_conn()
+        
         self.open_conn(directory, config)
 
     @contextmanager

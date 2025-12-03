@@ -638,6 +638,8 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                 WT_ERR(__wt_ovfl_discard_add(session, page, kpack->cell));
         }
 
+        // if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+        //     __wt_errx(session, "mark HS D: P9-1");
         WT_ERR(__wti_rec_child_modify(session, r, ref, &cms, &build_delta));
         addr = ref->addr;
         child = ref->page;

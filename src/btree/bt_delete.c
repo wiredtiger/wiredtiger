@@ -222,6 +222,8 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
 
     /* Set the page to its new state. */
+    if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+        __wt_errx(session, "mark HS D: P1");
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
     return (0);
 
@@ -437,6 +439,8 @@ __wti_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
     if (!WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED))
         return (false);
 
+    if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+        __wt_errx(session, "mark HS D: P2-1");
     /*
      * Check visibility.
      *
@@ -460,6 +464,8 @@ __wti_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
     if (discard && ref->page_del != NULL)
         __wt_overwrite_and_free(session, ref->page_del);
 
+    if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+        __wt_errx(session, "mark HS D: P2");
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
     return (skip);
 }
@@ -692,6 +698,9 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     page_del = ref->page_del;
     update_list = NULL;
 
+    if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+        __wt_errx(session,
+          "__wti_delete_page_instantiate: fast-truncate not supported for FLCS objects");
     /* Fast-truncate only happens to leaf pages, and FLCS isn't supported. */
     WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF || page->type == WT_PAGE_COL_VAR);
 

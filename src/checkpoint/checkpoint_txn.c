@@ -1392,6 +1392,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * we could get a dhandle that is not opened.
      */
     if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
+        WT_BLOCK *block;
+        wt_off_t fsize;
         time_start_hs = __wt_clock(session);
         __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, true);
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS);
@@ -1399,7 +1401,12 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_file(session, cfg));
         if (hs_dhandle_shared != NULL)
             WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint_file(session, cfg));
-
+        
+        block = S2BT(session)->bm->block;
+        WT_IGNORE_RET(__wt_fs_size(session, "WiredTigerHS.wt", &fsize));
+        fprintf(stdout, "Before ckpt %" PRIi64 "\n", fsize);
+        __wti_block_extlist_dump_all(session,  block);
+    
         __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
         WT_ERR(ret);
 
@@ -2522,9 +2529,9 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
      */
     WT_MAX_LSN(&ckptlsn);
 
-    if(strcmp(session->name, "close_ckpt") == 0)
-        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
-            __wt_errx(session, "HS clean up P7");
+    // if(strcmp(session->name, "close_ckpt") == 0)
+    //     if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+    //         __wt_errx(session, "HS clean up P7");
     /*
      * If an object has never been used (in other words, if it could become a bulk-loaded file),
      * then we must fake the checkpoint. This is good because we don't write physical checkpoint
@@ -2742,7 +2749,15 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
         F_CLR(txn, WT_TXN_SHARED_TS_READ);
 
     ret = __checkpoint_tree(session, true, cfg);
-
+    
+    if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0){
+        WT_BLOCK *block;
+        wt_off_t fsize;
+        block = S2BT(session)->bm->block;
+        WT_IGNORE_RET(__wt_fs_size(session, "WiredTigerHS.wt", &fsize));
+        fprintf(stdout, "Before ckpt %" PRIi64 "\n", fsize);
+        __wti_block_extlist_dump_all(session,  block);
+    }
     /* Restore the use of the timestamp for other tables. */
     if (with_timestamp)
         F_SET(txn, WT_TXN_SHARED_TS_READ);
@@ -2780,9 +2795,9 @@ __wt_checkpoint_file(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DECL_RET;
     bool force, standalone;
 
-    if(strcmp(session->name, "close_ckpt") == 0)
-        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
-            __wt_errx(session, "HS clean up P8");
+    // if(strcmp(session->name, "close_ckpt") == 0)
+    //     if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+    //         __wt_errx(session, "HS clean up P8");
     /* Should not be called with a checkpoint handle. */
     WT_ASSERT(session, !WT_READING_CHECKPOINT(session));
 

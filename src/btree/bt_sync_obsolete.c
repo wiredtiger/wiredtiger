@@ -205,6 +205,8 @@ __sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE_DELETED *page_del;
 
     page_del = ref->page_del;
+    if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+        __wt_errx(session, "debug: deleted page in HS file: %p", (void *)ref);
     if (page_del == NULL ||
       __wt_txn_visible_all(session, page_del->txnid, page_del->pg_del_durable_ts)) {
         WT_RET(__wt_page_parent_modify_set(session, ref, false));
@@ -303,6 +305,8 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
           "%p: skipping internal page with parent: %p", (void *)ref, (void *)ref->home);
         return (0);
     }
+    // if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+    //     __wt_errx(session, "debug: checkpoint cleanup visiting page in HS file: %p", (void *)ref);
 
     /*
      * Check in memory, deleted and on-disk pages for obsolescence. An initial state check is done
@@ -504,6 +508,10 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
           ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");
         return (ret);
     }
+
+    if(session->dhandle)
+        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+            __wt_errx(session, "debug: checkpoint cleanup starting on HS file: %s", (char *)uri->data);
 
     btree = S2BT(session);
 

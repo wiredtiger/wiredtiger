@@ -1388,8 +1388,8 @@ __wti_block_extlist_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLI
     if ((ext = __block_off_srch_last(el->off, astack)) == NULL)
         return (0);
     WT_ASSERT(session, ext->off + ext->size <= block->size);
-    if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
-        __wt_errx(session, "ext attempt to %"PRIi64 " : %" PRIi64 " from %" PRIi64 "\n", ext->off, ext->size, block->size);
+    // if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+    //     __wt_errx(session, "ext attempt to %"PRIi64 " : %" PRIi64 " from %" PRIi64 "\n", ext->off, ext->size, block->size);
     if (ext->off + ext->size < block->size){
         return (0);
     }

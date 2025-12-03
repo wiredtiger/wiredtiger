@@ -264,15 +264,16 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_PAGE *page;
     WTI_RECONCILE *r;
     uint64_t rec, rec_finish, rec_hs_wrapup, rec_img_build, rec_start;
+    // uint32_t last_next = 0;
     void *addr;
 
     btree = S2BT(session);
     conn = S2C(session);
     page = ref->page;
 
-    if(strcmp(session->name, "close_ckpt") == 0)
-        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
-            __wt_errx(session, "HS clean up P4");
+    // if(strcmp(session->name, "close_ckpt") == 0)
+    //     if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+    //         __wt_errx(session, "HS clean up P4");
     rec_start = __wt_clock(session);
     WT_ASSERT(session, rec_start != 0);
 
@@ -288,6 +289,10 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     session->reconcile_timeline.reconcile_start = rec_start;
 
     r = session->reconcile;
+    // if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0){
+    //     last_next = r->multi_next;
+    //     __wt_errx(session, "HS clean up P7-0.1");
+    // }
 
     /* Only update if we are in the first entry into eviction. */
     if (!session->evict_timeline.reentry_hs_eviction)
@@ -320,6 +325,9 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         break;
     }
 
+    if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0 ){
+        // __wt_errx(session, "HS clean up P7-0.2 from %" PRIu32 " to %" PRIu32 " of %" PRIu8, last_next, r->multi_next, page->type);
+    }
     if (!session->evict_timeline.reentry_hs_eviction)
         session->reconcile_timeline.image_build_finish = __wt_clock(session);
 
@@ -3044,9 +3052,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     WT_TIME_AGGREGATE_INIT(&ta);
     previous_ref_state = 0;
 
-    if(strcmp(session->name, "close_ckpt") == 0)
-        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
-            __wt_errx(session, "HS clean up P3");
+    // if(strcmp(session->name, "close_ckpt") == 0)
+    //     if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+    //         __wt_errx(session, "HS clean up P3");
     /*
      * If using the history store table eviction path and we found updates that weren't globally
      * visible when reconciling this page, copy them into the database's history store. This can
@@ -3171,9 +3179,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     __wt_verbose_debug1(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages",
       (void *)ref, r->multi_next);
 
-    if(strcmp(session->name, "close_ckpt") == 0)
-        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
-            __wt_errx(session, "HS clean up P3");
+    // if(strcmp(session->name, "close_ckpt") == 0)
+    //     if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+    //         __wt_errx(session, "HS clean up P3");
     switch (r->multi_next) {
     case 0: /* Page delete */
         WT_STAT_CONN_DSRC_INCR(session, rec_page_delete);
@@ -3203,6 +3211,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          * in memory. If the page is subsequently modified, that is OK, we'll just reconcile it
          * again.
          */
+        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+            __wt_errx(session, "HS clean up P7-0");
         mod->rec_result = WT_PM_REC_EMPTY;
         break;
     case 1: /* 1-for-1 page swap */

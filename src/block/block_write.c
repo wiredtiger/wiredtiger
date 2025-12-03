@@ -20,7 +20,7 @@ __wti_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t len)
 
     conn = S2C(session);
 
-    __wt_errx(session, "truncate file %s to %" PRIuMAX, block->name, (uintmax_t)len);
+    // __wt_errx(session, "truncate file %s to %" PRIuMAX, block->name, (uintmax_t)len);
 
     /*
      * Truncate requires serialization, we depend on our caller for that.

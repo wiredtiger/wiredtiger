@@ -379,6 +379,8 @@ __evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         }
     }
 
+    if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+        __wt_errx(session, "mark HS D: P7");
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
     return (0);
 }
@@ -444,6 +446,8 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
 
     WT_ASSERT(session, ref->addr == NULL || WT_DELTA_ENABLED_FOR_PAGE(session, ref->page->type));
 
+    //if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+        //__wt_errx(session, "mark HS D: P7-1");
     switch (mod->rec_result) {
     case WT_PM_REC_EMPTY:
         /*
@@ -453,7 +457,10 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          * that namespace, we instantiate a new page instead of trying to read from the backing
          * store.
          */
+
         __wt_ref_out(session, ref);
+        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+            __wt_errx(session, "mark HS D: P7-2");
         WT_WITH_PAGE_INDEX(session, ret = __evict_delete_ref(session, ref, evict_flags));
         WT_RET_BUSY_OK(ret);
         break;

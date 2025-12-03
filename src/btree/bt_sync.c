@@ -160,9 +160,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     saved_pinned_id = __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->pinned_id);
     time_start = WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT) ? __wt_clock(session) : 0;
 
-    if(strcmp(session->name, "close_ckpt") == 0)
-        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
-            __wt_errx(session, "HS clean up P6");
+    // if(strcmp(session->name, "close_ckpt") == 0)
+    //     if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+    //         __wt_errx(session, "HS clean up P6");
     switch (syncop) {
     case WT_SYNC_WRITE_LEAVES:
         /*
@@ -365,9 +365,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (WT_IS_HS(btree->dhandle))
                 WT_STAT_CONN_INCR(session, checkpoint_hs_pages_reconciled);
 
-            if(strcmp(session->name, "close_ckpt") == 0)
-                if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
-                    __wt_errx(session, "HS clean up P5");
+            // if(strcmp(session->name, "close_ckpt") == 0)
+            //     if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+            //         __wt_errx(session, "HS clean up P5");
             WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
 
             /* Update checkpoint IO tracking data. */

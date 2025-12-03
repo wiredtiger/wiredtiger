@@ -588,7 +588,16 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
 
     ci = &block->live;
     fatal = false;
-
+    if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0){
+        wt_off_t fsize;
+        WT_ERR(__wt_fs_size(session, "WiredTigerHS.wt", &fsize));
+        fprintf(stdout, "Before ckpt %" PRIi64 "\n", fsize);
+    /*
+        WT_ERR(__wti_block_extlist_dump(session, &ci->avail));
+        WT_ERR(__wti_block_extlist_dump(session, &ci->alloc));
+        WT_ERR(__wti_block_extlist_dump(session, &ci->discard));
+        */
+    }
     if(strcmp(session->name, "close_ckpt") == 0)
         if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
             __wt_errx(session, "Close clear HS P1");
@@ -833,9 +842,10 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
             WT_ERR(__ckpt_update(session, block, ckptbase, ckpt, ckpt->bpriv));
 
 live_update:
-    if(strcmp(session->name, "close_ckpt") == 0)
-        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
-            WT_ERR(__wti_block_extlist_dump(session, &ci->avail));
+    if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0){
+        fprintf(stdout, "After ckpt\n");
+        // WT_ERR(__wti_block_extlist_dump(session, &ci->avail));
+    }
     /* Truncate the file if that's possible. */
     WT_ERR(__wti_block_extlist_truncate(session, block, &ci->avail));
 

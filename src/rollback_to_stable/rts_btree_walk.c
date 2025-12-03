@@ -85,6 +85,8 @@ __rts_btree_walk_page_skip(
               __wt_timestamp_to_string(page_del->pg_del_durable_ts, time_string[1]),
               __wt_timestamp_to_string(rollback_timestamp, time_string[2]), page_del->txnid);
 
+        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+            __wt_errx(session, "mark HS D: P10");
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
         return (0);
     }

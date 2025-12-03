@@ -242,6 +242,9 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
                 r->delta.size = 0;
             }
             ret = __rec_child_deleted(session, r, ref, cmsp);
+
+            if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+                __wt_errx(session, "mark HS D: P9");
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
             WT_RET(ret);
             goto done;

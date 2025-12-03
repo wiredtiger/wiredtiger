@@ -839,6 +839,9 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
         ref->page = NULL;
         ref->addr = NULL;
         F_SET(ref, WT_REF_FLAG_LEAF);
+
+        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+            __wt_errx(session, "mark HS D: P3");
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
         ref->ref_recno = 1;
         break;
@@ -852,6 +855,9 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
         ref->page = NULL;
         ref->addr = NULL;
         F_SET(ref, WT_REF_FLAG_LEAF);
+
+        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+            __wt_errx(session, "mark HS D: P4");
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
         WT_ERR(__wti_row_ikey_incr(session, root, 0, "", 1, ref));
         break;

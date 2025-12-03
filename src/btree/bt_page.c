@@ -2000,6 +2000,9 @@ __inmem_col_int_init_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *home, u
             WT_RET(__wt_calloc_one(session, &ref->page_del));
             *ref->page_del = *page_del;
         }
+
+        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+            __wt_errx(session, "mark HS D: P5");
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
 
         /*
@@ -2234,6 +2237,9 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
                 WT_ERR(__wt_calloc_one(session, &ref->page_del));
                 *ref->page_del = unpack.page_del;
             }
+
+            if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+                __wt_errx(session, "mark HS D: P6");
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
 
             /*

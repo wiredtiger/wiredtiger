@@ -44,11 +44,17 @@ __hs_verify_id(
      * cursor there or deciding they're done.
      */
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
+        wt_timestamp_t durable_timestamp_tmp, hs_stop_durable_ts_tmp;
+        uint64_t upd_type_full;
+        WT_DECL_ITEM(hs_value);
+        WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
         /*
          * If the btree id does not match the previous one, we're done. It is up to the caller to
          * set up for the next tree and call us, if they choose.
          */
         WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, &key, &hs_start_ts, &hs_counter));
+        WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_durable_ts_tmp, &durable_timestamp_tmp,
+            &upd_type_full, hs_value));
         if (btree_id != this_btree_id)
             break;
 

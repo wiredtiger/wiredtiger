@@ -166,9 +166,9 @@ __bm_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK
 
     block = bm->block;
 
-    if(strcmp(session->name, "close_ckpt") == 0)
-        if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
-            __wt_errx(session, "HS clean up P2");
+    // if(strcmp(session->name, "close_ckpt") == 0)
+    //     if(strcmp(session->dhandle->name, "file:WiredTigerHS.wt") == 0)
+    //         __wt_errx(session, "HS clean up P2");
     WT_RET(__wt_block_checkpoint(session, block, buf, ckptbase, data_checksum));
 
     if (!bm->is_multi_handle)
