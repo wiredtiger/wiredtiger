@@ -2997,7 +2997,9 @@ static int
 __evict_page(WT_SESSION_IMPL *session, bool is_server)
 {
     WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    WT_EVICT *evict;
     WT_REF *ref;
     WT_REF_STATE previous_state;
     WT_TRACK_OP_DECL;
@@ -3006,6 +3008,9 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
     bool page_is_modified;
 
     WT_TRACK_OP_INIT(session);
+
+    conn = S2C(session);
+    evict = conn->evict;
 
     WT_RET_TRACK(__evict_get_ref(session, is_server, &btree, &ref, &previous_state));
     WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
@@ -3028,7 +3033,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
             WT_STAT_CONN_INCR(session, eviction_app_dirty_attempt);
         }
         WT_STAT_CONN_INCR(session, eviction_app_attempt);
-        S2C(session)->evict->app_evicts++;
+        evict->app_evicts++;
         time_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
     }
 
@@ -3051,6 +3056,10 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
     }
 
     if (WT_UNLIKELY(ret != 0)) {
+        ++ref->page->evict_page_attempts;
+        __wt_atomic_stats_max(
+          &evict->evict_max_eviction_queue_attempts, ref->page->evict_page_attempts);
+
         if (is_server)
             WT_STAT_CONN_INCR(session, eviction_server_evict_fail);
         else if (F_ISSET(session, WT_SESSION_INTERNAL))
