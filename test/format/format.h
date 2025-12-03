@@ -463,7 +463,7 @@ void cursor_dump_page(WT_CURSOR *, const char *);
 bool disagg_is_mode_switch(void);
 bool disagg_is_multi_node(void);
 void disagg_setup_multi_node(void);
-int disagg_switch_roles(void);
+void disagg_switch_roles(void);
 void disagg_teardown_multi_node(void);
 bool enable_session_prefetch(void);
 void fclose_and_clear(FILE **);

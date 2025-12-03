@@ -143,7 +143,7 @@ disagg_is_mode_switch(void)
  * disagg_switch_roles --
  *     Toggle the current disagg role between "leader" and "follower",
  */
-int
+void
 disagg_switch_roles(void)
 {
     char disagg_cfg[64];
@@ -163,6 +163,4 @@ disagg_switch_roles(void)
 
     if (!g.disagg_leader)
         follower_read_latest_checkpoint();
-
-    return (0);
 }
