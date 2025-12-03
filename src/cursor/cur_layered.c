@@ -772,7 +772,11 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
     WT_CURSOR *c_ingest = clayered->ingest_cursor;
     WT_CURSOR *c_stable = clayered->stable_cursor;
 
-    /* At least one cursor is expected to be initialized. */
+    /*
+     * FIXME-WT-15058: Both cursors are expected to be initialized, but we currently have an issue
+     * where a cursor open operation can return WT_NOTFOUND for the stable table. Until this is
+     * resolved, it is simpler to handle all the different cases here.
+     */
     WT_ASSERT(session, c_stable != NULL || c_ingest != NULL);
     if (c_ingest == NULL || c_stable == NULL) {
         c_current = (c_ingest == NULL) ? c_stable : c_ingest;
@@ -805,9 +809,8 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
      * The cursor is positioned, but `iter_flag` is not set so we cannot rely on alternate cursor
      * and need to position it.
      */
-    if (!F_ISSET(clayered, iter_flag)) {
+    if (!F_ISSET(clayered, iter_flag))
         WT_RET_NOTFOUND_OK(__clayered_position_alternate(clayered, c_alternate, forward));
-    }
 
     /* If the alternate cursor's key is equal to the current one, we should move it as well. */
     if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT)) {
@@ -843,6 +846,13 @@ __clayered_iterate(WT_CURSOR_LAYERED *clayered, bool forward, uint32_t iter_flag
     __cursor_novalue(cursor);
     WT_ERR(__clayered_enter(clayered, false, false, true));
 
+    /*
+     * FIXME-WT-16158: We currently check whether the entry has been deleted on the current cursor,
+     * which may be positioned on either the ingest or the stable table. However, only the ingest
+     * cursor can return tombstoned entries. This logic can be reworked to perform the deletion
+     * check only on the ingest cursor and to call get_current() only after the next non-deleted
+     * entry has been found.
+     */
     do {
         WT_ERR(__clayered_iterate_constituents(clayered, iter_flag, deleted));
         ret = __clayered_get_current(session, clayered, forward);
