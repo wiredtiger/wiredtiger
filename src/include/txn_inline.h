@@ -695,13 +695,8 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
             __wt_txn_op_delete_apply_prepare_state(session, op, true);
         else {
             upd = op->u.op_upd;
-            /*
-             * upd can be NULL when called from prepared discover module to initialize a new op, in
-             * which case we won't need to resolve the prepare state here.
-             */
-            if (upd != NULL)
-                /* Resolve prepared update to be committed update. */
-                __txn_apply_prepare_state_update(session, upd, true);
+            /* Resolve prepared update to be committed update. */
+            __txn_apply_prepare_state_update(session, upd, true);
         }
     } else {
         if (op->type == WT_TXN_OP_REF_DELETE)

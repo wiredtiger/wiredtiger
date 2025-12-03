@@ -132,21 +132,18 @@ __wt_prepared_discover_remove_item(WT_SESSION_IMPL *session, uint64_t prepared_i
  *     Add an artifact to a pending prepared transaction.
  */
 int
-__wti_prepared_discover_add_artifact_upd(
-  WT_SESSION_IMPL *session, uint64_t prepared_id, wt_timestamp_t prepare_ts, WT_ITEM *key)
+__wti_prepared_discover_add_artifact_upd(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_ITEM *key)
 {
     WT_PENDING_PREPARED_ITEM *prepared_item;
     WT_TXN_OP *op;
-
-    WT_RET(
-      __prepared_discover_find_or_create_item(session, prepared_id, prepare_ts, &prepared_item));
+    WT_RET(__prepared_discover_find_or_create_item(
+      session, upd->prepared_id, upd->prepare_ts, &prepared_item));
     /*
-     * When committing/aborting a prepared update, we always do a search for the prepared update in
-     * the update chain, so no point passing the actual update to __wt_op_modify. We only need the
-     * key and btree information to help with the search of the update when resolving txn.
+     * We need the key and btree information to help with the search of the update when resolving
+     * txn.
      */
     WT_RET(__wt_pending_prepared_next_op(session, &op, prepared_item, key));
-    WT_RET(__wt_op_modify(session, NULL, op));
+    WT_RET(__wt_op_modify(session, upd, op));
 
     WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW);
 
@@ -205,8 +202,7 @@ __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
     WT_ERR(__wt_row_modify(cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
-    WT_ERR(
-      __wti_prepared_discover_add_artifact_upd(session, upd->prepared_id, upd->prepare_ts, key));
+    WT_ERR(__wti_prepared_discover_add_artifact_upd(session, upd, key));
 err:
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));

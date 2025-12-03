@@ -1533,8 +1533,8 @@ extern int __wti_prefetch_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_prefetch_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_prepared_discover_add_artifact_upd(WT_SESSION_IMPL *session, uint64_t prepared_id,
-  wt_timestamp_t prepare_ts, WT_ITEM *key) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_prepared_discover_add_artifact_upd(WT_SESSION_IMPL *session, WT_UPDATE *upd,
+  WT_ITEM *key) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
   const char *stable_uri, WT_ITEM *key, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

@@ -47,7 +47,6 @@ __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_
     WT_DECL_RET;
     WT_ITEM *key;
     WT_PAGE *page;
-    WT_TIME_WINDOW *tw;
     uint8_t *memp;
 
     page = ref->page;
@@ -74,31 +73,21 @@ __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_
          * the ingest table for resolving txn since it can only edit the ingest table. Therefore it
          * needs to do a full restoration of the update and move it to the ingest table. For leader
          * mode and non-disagg btree, it should already have restored the prepared update to its
-         * btree, so we can just add the prepared ts and prepared id to the hash map.
+         * btree, so we would never hit this block.
          */
-        if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader) {
-            WT_ERR(__wt_scr_alloc(session, 0, &value));
-            WT_ERR(__wt_page_cell_data_ref_kv(session, page, vpack, value));
-            const char *stable_uri = session->dhandle->name;
-            WT_SAVE_DHANDLE(session,
-              ret = __wti_prepared_discover_restore_and_add_artifact_upd(
-                session, stable_uri, key, value, vpack));
-        } else {
-            /* Retrieve the time window from the unpacked value cell. */
-            __wt_cell_get_tw(vpack, &tw);
-            if (WT_TIME_WINDOW_HAS_STOP_PREPARE(tw))
-                WT_ERR(__wti_prepared_discover_add_artifact_upd(
-                  session, tw->stop_prepared_id, tw->stop_prepare_ts, key));
-            else {
-                WT_ASSERT(session, WT_TIME_WINDOW_HAS_START_PREPARE(tw));
-                WT_ERR(__wti_prepared_discover_add_artifact_upd(
-                  session, tw->start_prepared_id, tw->start_prepare_ts, key));
-            }
-        }
+        WT_ASSERT_ALWAYS(session,
+          __wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader,
+          "prepared update restoration should only happen on disaggregated follower nodes");
+
+        WT_ERR(__wt_scr_alloc(session, 0, &value));
+        WT_ERR(__wt_page_cell_data_ref_kv(session, page, vpack, value));
+        const char *stable_uri = session->dhandle->name;
+        WT_SAVE_DHANDLE(session,
+          ret = __wti_prepared_discover_restore_and_add_artifact_upd(
+            session, stable_uri, key, value, vpack));
     } else
         WT_ASSERT_ALWAYS(
           session, false, "Column store prepared transaction discovery not supported");
-
 err:
     if (rip == NULL || row_key == NULL)
         __wt_scr_free(session, &key);
@@ -145,8 +134,7 @@ __prepared_discover_process_prepared_update(WT_SESSION_IMPL *session, WT_ITEM *k
     WT_ASSERT(
       session, upd->prepare_state != WT_PREPARE_INIT && upd->prepare_state != WT_PREPARE_RESOLVED);
 
-    WT_RET(
-      __wti_prepared_discover_add_artifact_upd(session, upd->prepared_id, upd->prepare_ts, key));
+    WT_RET(__wti_prepared_discover_add_artifact_upd(session, upd, key));
     return (0);
 }
 
