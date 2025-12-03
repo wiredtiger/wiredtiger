@@ -37,6 +37,7 @@ follower_read_latest_checkpoint(void)
 {
     SAP sap;
     WT_CONNECTION *conn;
+    WT_DECL_RET;
     WT_PAGE_LOG *page_log;
     WT_SESSION *session;
     const char *disagg_page_log;
@@ -50,17 +51,23 @@ follower_read_latest_checkpoint(void)
 
     /* Only follower can pickup checkpoints. */
     testutil_assert(!g.disagg_leader);
+    testutil_check(conn->get_page_log(conn, disagg_page_log, &page_log));
 
     wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
-    testutil_check(conn->get_page_log(conn, disagg_page_log, &page_log));
-    testutil_check(page_log->pl_get_complete_checkpoint_ext(
-      page_log, session, NULL, NULL, &checkpoint_ts, &checkpoint_metadata));
-    testutil_snprintf(config, sizeof(config), "disaggregated=(checkpoint_meta=\"%.*s\")",
-      (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data);
-    testutil_check(conn->reconfigure(conn, config));
-    printf("--- [Follower] Picked up checkpoint (LSN=%.*s,timestamp=%" PRIu64 ") ---\n",
-      (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data, checkpoint_ts);
+    ret = page_log->pl_get_complete_checkpoint_ext(
+      page_log, session, NULL, NULL, &checkpoint_ts, &checkpoint_metadata);
+    testutil_check_error_ok(ret, WT_NOTFOUND);
+    if (ret != WT_NOTFOUND) {
+        testutil_snprintf(config, sizeof(config), "disaggregated=(checkpoint_meta=\"%.*s\")",
+          (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data);
+        testutil_check(conn->reconfigure(conn, config));
+        printf("--- [Follower] Picked up checkpoint (metadata=[%.*s],timestamp(hex)=%" PRIu64
+               ") ---\n",
+          (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data, checkpoint_ts);
+    }
+
     wt_wrap_close_session(session);
+    testutil_check(page_log->terminate(page_log, NULL));
 }
 
 /*
@@ -72,6 +79,7 @@ follower(void *arg)
 {
     SAP sap;
     WT_CONNECTION *conn;
+    WT_DECL_RET;
     WT_ITEM checkpoint_metadata;
     WT_PAGE_LOG *page_log;
     WT_SESSION *session;
@@ -95,14 +103,16 @@ follower(void *arg)
          * shared memory or pipe) so it can be picked up. Required once we start running against the
          * library version of PALI, which doesn't implement pl_get_complete_checkpoint_ext().
          */
-        testutil_check(page_log->pl_get_complete_checkpoint_ext(
-          page_log, session, NULL, NULL, &checkpoint_ts, &checkpoint_metadata));
+        ret = page_log->pl_get_complete_checkpoint_ext(
+          page_log, session, NULL, NULL, &checkpoint_ts, &checkpoint_metadata);
+        testutil_check_error_ok(ret, WT_NOTFOUND);
         /* Only reconfigure if there's a new checkpoint. */
-        if (g.last_checkpoint_ts != checkpoint_ts) {
+        if (ret != WT_NOTFOUND && g.last_checkpoint_ts != checkpoint_ts) {
             testutil_snprintf(config, sizeof(config), "disaggregated=(checkpoint_meta=\"%.*s\")",
               (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data);
             testutil_check(conn->reconfigure(conn, config));
-            printf("--- [Follower] Picked up checkpoint (LSN=%.*s,timestamp=%" PRIu64 ") ---\n",
+            printf("--- [Follower] Picked up checkpoint (metadata=[%.*s],timestamp(hex)=%" PRIu64
+                   ") ---\n",
               (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data, checkpoint_ts);
             g.last_checkpoint_ts = checkpoint_ts;
         }
@@ -114,6 +124,7 @@ follower(void *arg)
     }
 
     wt_wrap_close_session(session);
+    testutil_check(page_log->terminate(page_log, NULL));
 
     return (WT_THREAD_RET_VALUE);
 }
