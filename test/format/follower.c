@@ -61,7 +61,7 @@ follower_read_latest_checkpoint(void)
         testutil_snprintf(config, sizeof(config), "disaggregated=(checkpoint_meta=\"%.*s\")",
           (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data);
         testutil_check(conn->reconfigure(conn, config));
-        printf("--- [Follower] Picked up checkpoint (metadata=[%.*s],timestamp(hex)=%" PRIu64
+        printf("--- [Follower] Picked up checkpoint (metadata=[%.*s],timestamp(hex)=%" PRIx64
                ") ---\n",
           (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data, checkpoint_ts);
     }
@@ -111,7 +111,7 @@ follower(void *arg)
             testutil_snprintf(config, sizeof(config), "disaggregated=(checkpoint_meta=\"%.*s\")",
               (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data);
             testutil_check(conn->reconfigure(conn, config));
-            printf("--- [Follower] Picked up checkpoint (metadata=[%.*s],timestamp(hex)=%" PRIu64
+            printf("--- [Follower] Picked up checkpoint (metadata=[%.*s],timestamp(hex)=%" PRIx64
                    ") ---\n",
               (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data, checkpoint_ts);
             g.last_checkpoint_ts = checkpoint_ts;
