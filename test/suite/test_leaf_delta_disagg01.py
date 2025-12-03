@@ -30,6 +30,7 @@ import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
+import wiredtiger
 
 # test_leaf_delta_disagg01.py
 # Test we can build leaf delta disk image from base image and deltas correctly, the test covers
@@ -83,6 +84,23 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
             cursor.set_key(self.init_key * i)
             cursor.search()
             self.assertEqual(cursor.get_value(), "" if i % empty_score == 0 else value)
+        cursor.close()
+    
+    def delete(self, ids):
+        cursor = self.session.open_cursor(self.uri, None, None)
+        for i in ids:
+            self.session.begin_transaction()
+            cursor.set_key(self.init_key * i)
+            cursor.remove()
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(999))
+        cursor.close()
+        self.session.checkpoint()
+
+    def verify_delete(self, ids):
+        cursor = self.session.open_cursor(self.uri, None, None)
+        for i in ids:
+            cursor.set_key(self.init_key * i)
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
         cursor.close()
 
     # xx_empty_score is a factor to determine whether a value should be set to empty. For a given
@@ -191,9 +209,26 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
         self.verify_leaf_delta(2, 1e9, base_ids, delta1_ids, delta2_ids, delta3_ids)
 
     # Test mixed of empty/non-empty values, inserted keys, duplicate keys among base image and deltas.
-    def test_base_empty_values_mixed(self):
+    def test_comprehensive(self):
         base_ids = {i for i in range(1, 11)} - {4, 5, 6}
         delta1_ids = {1, 2, 3, 4, 8}
         delta2_ids = {3, 4, 9}
         delta3_ids = {6, 8, 10, 12, 17}
         self.verify_leaf_delta(2, 2, base_ids, delta1_ids, delta2_ids, delta3_ids)
+    
+    # Test delete of keys.
+    def test_delete(self):
+        base_ids = {i for i in range(1, 11)}
+        delta1_ids = {1, 2, 3, 4, 8}
+        delta2_ids = {3, 4, 9}
+        delta3_ids = {6, 8, 10}
+        self.verify_leaf_delta(2, 1e9, base_ids, delta1_ids, delta2_ids, delta3_ids)
+
+        delete_ids = {1, 3, 10}
+        self.reopen_disagg_conn(self.conn_config())
+        self.delete(delete_ids)
+        # There should be 1 delta with deleted keys generated for the page.
+        self.assertEqual(self.get_stat(stat.dsrc.rec_page_delta_leaf, self.uri), 1)
+
+        self.reopen_disagg_conn(self.conn_config())
+        self.verify_delete(delete_ids)
