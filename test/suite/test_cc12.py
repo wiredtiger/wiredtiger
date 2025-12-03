@@ -43,12 +43,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 class test_cc12(test_cc_base):
     ext_config = 'extensions=("/home/ubuntu/workspace/mongo/wiredtiger/build/ext/mockfs/libwiredtiger_mockfs.so"=(entry=mock_file_system_create,early_load=true,config=(config_string=demo,value=30)))'
     
-    conn_config_common = 'cache_size=8M,statistics=(all),statistics_log=(json,wait=1,on_close=true,sources=[file:])'
-    conn_config_common = conn_config_common + ',' + ext_config
+    conn_config_common = 'cache_size=8M,statistics=(all),statistics_log=(json,wait=1,on_close=true,sources=[file:]),verbose=[block:4]'
+    conn_config_common = conn_config_common # + ',' + ext_config
 
     checkpoint_cleanup_methods = [
-        ('enable_log', dict(conn_config = conn_config_common+',log=(enabled=true)')),
-        # ('disable_log', dict(conn_config = conn_config_common+',log=(enabled=false)'))
+        # ('enable_log', dict(conn_config = conn_config_common+',log=(enabled=true)')),
+        ('disable_log', dict(conn_config = conn_config_common+',log=(enabled=false)'))
     ]
 
     scenarios = make_scenarios(checkpoint_cleanup_methods)
@@ -71,8 +71,8 @@ class test_cc12(test_cc_base):
             for r in range(100):
                 session.begin_transaction()
                 cur = session.open_cursor(uri)
-                for sr in range(10):
-                    key = random.randint(0, 1000/self.partitions) * self.partitions + key_partition
+                for sr in range(5):
+                    key = random.randint(0, 100000/self.partitions) * self.partitions + key_partition
                     cur[key] = f"upd_{r}_{sr}_{seed}"
                 cur.close()
                 with self.lock:
@@ -89,7 +89,8 @@ class test_cc12(test_cc_base):
             del self.op_map[tid]
 
     def long_transaction_round(self, uri, ts):
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(2))
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(self.g_ts))
+        self.g_ts += 1
         long_cur = self.session.open_cursor(uri)
         long_cur[-1] = "halted"
         long_cur.close()
@@ -99,6 +100,13 @@ class test_cc12(test_cc_base):
                 executor.submit(self.random_populate, uri, seed, ts)
         self.session.commit_transaction()
         self.session.checkpoint('debug=(checkpoint_cleanup=true)')
+        # time.sleep(1)
+        with ThreadPoolExecutor(max_workers=self.partitions) as executor:
+            for seed in range(100):
+                # self.random_populate(uri, seed, ts)
+                executor.submit(self.random_populate, uri, seed, ts)
+        self.session.checkpoint('debug=(checkpoint_cleanup=true)')
+        # time.sleep(1)
 
     def get_hs_size(self):
         with WiredTigerStat(self.session) as stat_cursor:
@@ -112,7 +120,6 @@ class test_cc12(test_cc_base):
 
         self.session.create(uri, create_params)
 
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         history_size = []
 
         populate_cur = self.session.open_cursor(uri)
@@ -120,13 +127,15 @@ class test_cc12(test_cc_base):
             populate_cur[key] = "init"
         populate_cur.close()
 
-        for ts in range(4):
+        for ts in range(21):
             # with WiredTigerStat(self.session, 'history-store') as stat_cursor:
             #     history_size.append(stat_cursor[stat.dsrc.block_size][2])
             self.long_transaction_round(uri, ts)
             size_before = self.get_hs_size()
             self.wait_for_cc_to_run()
             history_size.append((size_before, self.get_hs_size()))
+            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.g_ts))# + ',stable_timestamp=' + self.timestamp_str(self.g_ts))
+            self.reopen_conn()
 
         self.prout("First rounds test: " + str(history_size))
         history_size.clear()
