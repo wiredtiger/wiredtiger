@@ -65,7 +65,7 @@ follower_read_latest_checkpoint(void)
                ") ---\n",
           (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data, checkpoint_ts);
     }
-
+    free(checkpoint_metadata.mem);
     wt_wrap_close_session(session);
     testutil_check(page_log->terminate(page_log, NULL));
 }
@@ -122,7 +122,7 @@ follower(void *arg)
             __wt_sleep(1, 0);
         }
     }
-
+    free(checkpoint_metadata.mem);
     wt_wrap_close_session(session);
     testutil_check(page_log->terminate(page_log, NULL));
 
