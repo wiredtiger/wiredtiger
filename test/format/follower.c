@@ -107,14 +107,22 @@ follower(void *arg)
           page_log, session, NULL, NULL, &checkpoint_ts, &checkpoint_metadata);
         testutil_check_error_ok(ret, WT_NOTFOUND);
         /* Only reconfigure if there's a new checkpoint. */
-        if (ret != WT_NOTFOUND && g.last_checkpoint_ts != checkpoint_ts) {
-            testutil_snprintf(config, sizeof(config), "disaggregated=(checkpoint_meta=\"%.*s\")",
-              (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data);
-            testutil_check(conn->reconfigure(conn, config));
-            printf("--- [Follower] Picked up checkpoint (metadata=[%.*s],timestamp(hex)=%" PRIx64
-                   ") ---\n",
-              (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data, checkpoint_ts);
-            g.last_checkpoint_ts = checkpoint_ts;
+        if (ret != WT_NOTFOUND) {
+            if (g.checkpoint_metadata[0] == '\0' ||
+              memcmp(g.checkpoint_metadata, (const char *)checkpoint_metadata.data,
+                checkpoint_metadata.size) != 0) {
+                testutil_snprintf(config, sizeof(config),
+                  "disaggregated=(checkpoint_meta=\"%.*s\")", (int)checkpoint_metadata.size,
+                  (const char *)checkpoint_metadata.data);
+                testutil_check(conn->reconfigure(conn, config));
+                printf(
+                  "--- [Follower] Picked up checkpoint (metadata=[%.*s],timestamp(hex)=%" PRIx64
+                  ") ---\n",
+                  (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data,
+                  checkpoint_ts);
+                testutil_snprintf(g.checkpoint_metadata, sizeof(g.checkpoint_metadata), "%.*s",
+                  (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data);
+            }
         }
         period = mmrand(&g.extra_rnd, 1, 3);
         while (period > 0 && !g.workers_finished) {
