@@ -60,7 +60,7 @@ class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
 
         subdir = 'SUBPROCESS'
         [ignore_result, new_home_dir] = self.run_subprocess_function(subdir,
-            'test_recovery02.test_recovery02.subprocess_func', silent=True)
+            'test_schema09.test_schema09.subprocess_func', silent=True)
 
         self.conn = self.setUpConnectionOpen(new_home_dir)
         self.session = self.setUpSessionOpen(self.conn)

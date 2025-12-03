@@ -621,9 +621,9 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
 
         WT_ERR(__wt_config_collapse(session, cfg, &cgconf));
 
-        if (S2C(session)->debug_flags & WT_CONN_DEBUG_CRASH_POINT_COLGROUP) {
-            /* Sleep for 3 seconds. */
-            sleep(3);
+        if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CRASH_POINT_COLGROUP)) {
+            /* Wait for the file metadata entry to be persisted. */
+            sleep(2);
             __wt_abort(session);
         }
 
