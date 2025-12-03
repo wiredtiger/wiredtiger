@@ -339,7 +339,7 @@ __wt_cell_decompress_prefix_key(
 static WT_INLINE int
 __wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, const void *key_data, size_t key_size,
   const void *val_data, size_t val_size, WT_TIME_WINDOW *val_tw, WT_ITEM *new_image,
-  WTI_DISK_LEAF_MERGE_STATE *ps)
+  WTI_DISK_LEAF_MERGE_STATE *s)
 {
     WT_BTREE *btree;
     WT_CELL_KV key, val;
@@ -355,22 +355,22 @@ __wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, const void *key_data, size_t ke
 
     is_empty_value = val_size == 0 && WT_TIME_WINDOW_IS_EMPTY(val_tw);
     if (!is_empty_value)
-        ps->all_empty_value = false;
+        s->all_empty_value = false;
     else
-        ps->any_empty_value = true;
+        s->any_empty_value = true;
 
     /*
      * Build key cell. Do prefix compression on the key. We know by definition the previous key
      * sorts before the current key, which means the keys must differ and we just need to compare up
      * to the shorter of the two keys.
      */
-    if (ps->key_pfx_compress)
+    if (s->key_pfx_compress)
         __wt_cell_compress_prefix_key(
-          ps->last_key, key_data, key_size, ps->key_pfx_last, btree->prefix_compression_min, &pfx);
+          s->last_key, key_data, key_size, s->key_pfx_last, btree->prefix_compression_min, &pfx);
 
     /* Copy the non-prefix bytes into the key buffer. */
     WT_ERR(__wt_buf_set(session, &key.buf, (uint8_t *)key_data + pfx, key_size - pfx));
-    ps->key_pfx_last = pfx;
+    s->key_pfx_last = pfx;
     key.cell_len = __wt_cell_pack_leaf_key(&key.cell, pfx, key.buf.size);
     key.len = key.cell_len + key.buf.size;
 
@@ -396,19 +396,19 @@ __wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, const void *key_data, size_t ke
     /* Recompute write pointer after possible realloc */
     WT_ASSERT(session, new_image->mem != NULL);
 
-    ps->p_ptr = (uint8_t *)new_image->mem + new_image->size;
-    __wt_cell_kv_copy(session, ps->p_ptr, &key);
-    ps->p_ptr += key.len;
-    ps->entry_count++;
+    s->p_ptr = (uint8_t *)new_image->mem + new_image->size;
+    __wt_cell_kv_copy(session, s->p_ptr, &key);
+    s->p_ptr += key.len;
+    s->entry_count++;
     if (!is_empty_value) {
-        __wt_cell_kv_copy(session, ps->p_ptr, &val);
-        ps->p_ptr += val.len;
-        ps->entry_count++;
+        __wt_cell_kv_copy(session, s->p_ptr, &val);
+        s->p_ptr += val.len;
+        s->entry_count++;
     }
     new_image->size += packed_size;
 
     /* Update last key for next prefix compression comparison */
-    WT_ERR(__wt_buf_set(session, ps->last_key, key_data, key_size));
+    WT_ERR(__wt_buf_set(session, s->last_key, key_data, key_size));
 
 err:
     __wt_buf_free(session, &key.buf);
