@@ -26,15 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest, threading, time, wiredtiger
-from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources
-from wtscenario import make_scenarios
-from helper import copy_wiredtiger_home
+import wttest, wiredtiger
+from suite_subprocess import suite_subprocess
 
 # test_schema09.py
-#    Test that tables that incompletely created are properly cleaned during recovery.
-class test_schema09(wttest.WiredTigerTestCase):
-    conn_config = 'timing_stress_for_test=(create_slow),log=(enabled=true)'
+#    Test that incomplete tables are properly cleaned up during recovery.
+class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
+    conn_config = 'log=(enabled=true)'
 
     basename = 'test_schema09_fail'
     tablename = 'table:' + basename
@@ -42,6 +40,10 @@ class test_schema09(wttest.WiredTigerTestCase):
     def create_table(self, fail=False):
         self.pr('create table')
         self.session.create(self.tablename, 'key_format=5s,value_format=HQ,exclusive=true')
+
+    def subprocess_func(self):
+        self.conn.reconfigure("debug_mode=(crash_point_colgroup=true)")
+        self.create_table() # Expected to fail
 
     def check_metadata_entry(self, uri):
         meta_cursor = self.session.open_cursor('metadata:')
@@ -54,17 +56,16 @@ class test_schema09(wttest.WiredTigerTestCase):
         meta_cursor.close()
 
     def test_schema(self):
-        create_thread = threading.Thread(target=self.create_table)
-        create_thread.start()
+        self.close_conn()
 
-        # Wait until the create thread is in the middle of creating the table
-        time.sleep(2)
-        copy_wiredtiger_home(self, ".", "RESTART")
-        create_thread.join()
+        subdir = 'SUBPROCESS'
+        [ignore_result, new_home_dir] = self.run_subprocess_function(subdir,
+            'test_recovery02.test_recovery02.subprocess_func', silent=True)
 
-        self.conn_config = "log=(enabled=true)"
-        self.conn = self.setUpConnectionOpen("RESTART")
+        self.conn = self.setUpConnectionOpen(new_home_dir)
         self.session = self.setUpSessionOpen(self.conn)
+
+        self.conn.reconfigure("debug_mode=(crash_point_colgroup=false)")
 
         self.check_metadata_entry(self.tablename)
 

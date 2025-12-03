@@ -621,11 +621,11 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
 
         WT_ERR(__wt_config_collapse(session, cfg, &cgconf));
 
-        /* Add a 5 second wait to simulate schema create slowness. */
-        struct timespec tsp;
-        tsp.tv_sec = 5;
-        tsp.tv_nsec = 0;
-        __wt_timing_stress(session, WT_TIMING_STRESS_CREATE_SLOW, &tsp);
+        if (S2C(session)->debug_flags & WT_CONN_DEBUG_CRASH_POINT_COLGROUP) {
+            /* Sleep for 3 seconds. */
+            sleep(3);
+            __wt_abort(session);
+        }
 
         if (!exists) {
             WT_ERR(__wt_metadata_insert(session, name, cgconf));
