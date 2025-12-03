@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+
 /*
  * __schema_backup_check_int --
  *     Helper for __wt_schema_backup_check. Intended to be called while holding the hot backup read

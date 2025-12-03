@@ -451,7 +451,7 @@ __schema_open_table(WT_SESSION_IMPL *session)
 
     table = (WT_TABLE *)session->dhandle;
 
-    WT_RET(__wt_schema_construct_table_config(session, table->iface.cfg, (WT_TABLE *)table));
+    WT_RET(__wt_schema_construct_table_config(session, table->iface.cfg, table));
     return (0);
 }
 

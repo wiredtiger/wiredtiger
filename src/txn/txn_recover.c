@@ -830,23 +830,12 @@ __recovery_metadata_iterate_func(WT_RECOVERY *r, const char *prefix, const char 
 }
 
 /*
- * __recovery_file_scan_prefix --
- *     Scan the files matching the prefix referenced from the metadata and gather information about
- *     them for recovery.
- */
-static int
-__recovery_file_scan_prefix(WT_RECOVERY *r, const char *prefix, const char *ignore_suffix)
-{
-    return (__recovery_metadata_iterate_func(r, prefix, ignore_suffix, __recovery_setup_file));
-}
-
-/*
- * __metadata_check_table_complete --
- *     For each table metadata entry, check that the table was fully created. If not, clean up
+ * __metadata_clean_incomplete_table --
+ *     For each table metadata entry, check that the table was fully created. If not, clean up the
  *     incomplete table.
  */
 static int
-__metadata_check_table_complete(WT_RECOVERY *r, const char *uri, const char *config)
+__metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *config)
 {
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
@@ -856,8 +845,9 @@ __metadata_check_table_complete(WT_RECOVERY *r, const char *uri, const char *con
     const char *format_name;
 
     /*
-     * Generate a fake table dhandle that doesn't fetch the handle from the file system. We are only
-     * interested in the meta information of the table handle.
+     * We are only interested in the meta information of the table handle. Therefore generate a fake
+     * table dhandle as a performance optimization, removing the need to the open the file handle on
+     * the file system.
      */
     format_name = uri;
     WT_ERR(__wt_calloc(r->session, 1, sizeof(WT_TABLE), &fake_table_handle));
@@ -901,21 +891,6 @@ done:
 }
 
 /*
- * __metadata_post_recovery --
- *     Scan the tables referenced from the metadata and remove all incomplete tables.
- */
-static int
-__metadata_post_recovery(WT_RECOVERY *r)
-{
-    __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
-      "scanning metadata to remove all incomplete tables");
-
-    /* Scan through all table entries in the metadata. */
-    WT_RET(__recovery_metadata_iterate_func(r, "table:", NULL, __metadata_check_table_complete));
-    return (0);
-}
-
-/*
  * __recovery_file_scan --
  *     Scan the files referenced from the metadata and gather information about them for recovery.
  */
@@ -923,11 +898,20 @@ static int
 __recovery_file_scan(WT_RECOVERY *r)
 {
     __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
+      "scanning metadata to remove all incomplete tables");
+
+    /* Scan through all table entries in the metadata and clean up incomplete tables. */
+    __recovery_metadata_iterate_func(r, "table:", NULL, __metadata_clean_incomplete_table);
+
+    __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
       "scanning metadata to find the largest file ID");
 
-    /* Scan through all files and tiered entries in the metadata. */
-    WT_RET(__recovery_file_scan_prefix(r, "file:", ".wtobj"));
-    WT_RET(__recovery_file_scan_prefix(r, "tiered:", NULL));
+    /*
+     * Scan through all files and tiered entries in the metadata and gather information about each
+     * entry for recovery.
+     */
+    WT_RET(__recovery_metadata_iterate_func(r, "file:", ".wtobj", __recovery_setup_file));
+    WT_RET(__recovery_metadata_iterate_func(r, "tiered:", NULL, __recovery_setup_file));
 
     /*
      * Set the connection level file id tracker, as such upon creation of a new file we'll begin
@@ -1157,10 +1141,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
     r.backup_only = false;
     WT_ERR(ret);
 
-    /* Scan the metadata to find the incomplete tables and clean them. */
-    WT_ERR(__metadata_post_recovery(&r));
-
-    /* Scan the metadata to find the live files and their IDs. */
+    /* Scan the metadata clean incomplete tables, find the live files and their IDs. */
     WT_ERR(__recovery_file_scan(&r));
 
     /*
