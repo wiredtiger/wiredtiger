@@ -5746,8 +5746,8 @@ struct __wt_page_log {
  */
 struct __wt_crypt_keys {
     union {
-        uint64_t checkpoint_lsn; /* Returns checkpoint LSN upon success. */
-        uint64_t error;          /* Returns error code on failure. */
+        uint64_t lsn; /* Returns checkpoint LSN upon success. */
+        int error;    /* Returns error code on failure. */
     } r;
     size_t size;    /* Size of encrypted key data field. */
     uint8_t data[]; /* Encrypted keys. */

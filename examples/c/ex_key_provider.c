@@ -113,12 +113,12 @@ my_on_key_update(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS *key)
 
     /* Check size field to determine that the key was successfully persisted. */
     if (key->size != 0) {
-        my_kp->returned_lsn = key->r.checkpoint_lsn;
+        my_kp->returned_lsn = key->r.lsn;
 
         /* On success, free the allocated key. */
         free(key);
     } else
-        return ((int)key->r.error);
+        return (key->r.error);
     return (0);
 }
 
