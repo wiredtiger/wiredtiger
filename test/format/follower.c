@@ -28,6 +28,10 @@
 
 #include "format.h"
 
+/*
+ * follower_read_latest_checkpoint --
+ *     Read the latest checkpoint. Only followers should be able to do so.
+ */
 void
 follower_read_latest_checkpoint(void)
 {
@@ -43,6 +47,9 @@ follower_read_latest_checkpoint(void)
     conn = g.wts_conn;
     disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
     memset(&checkpoint_metadata, 0, sizeof(checkpoint_metadata));
+
+    /* Only follower can pickup checkpoints. */
+    testutil_assert(!g.disagg_leader);
 
     wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
     testutil_check(conn->get_page_log(conn, disagg_page_log, &page_log));
