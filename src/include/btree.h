@@ -353,7 +353,7 @@ struct __wti_delta_leaf_merge_state {
     WT_ITEM *current_key;
     uint8_t *cell;
     bool unpacked;
-    uint32_t entry;
+    uint32_t entries;
 };
 
 /*
@@ -382,5 +382,5 @@ struct __wti_disk_leaf_merge_state {
     bool all_empty_value;
     bool any_empty_value;
     uint8_t *p_ptr;
-    uint32_t entry_count;
+    uint32_t entries;
 };

@@ -399,11 +399,11 @@ __wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, const void *key_data, size_t ke
     s->p_ptr = (uint8_t *)new_image->mem + new_image->size;
     __wt_cell_kv_copy(session, s->p_ptr, &key);
     s->p_ptr += key.len;
-    s->entry_count++;
+    s->entries++;
     if (!is_empty_value) {
         __wt_cell_kv_copy(session, s->p_ptr, &val);
         s->p_ptr += val.len;
-        s->entry_count++;
+        s->entries++;
     }
     new_image->size += packed_size;
 

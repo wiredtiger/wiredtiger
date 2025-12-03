@@ -110,7 +110,7 @@ __page_find_min_delta_leaf(WT_SESSION_IMPL *session, WT_ITEM *deltas,
      * This ensures that when we encounter a duplicate key, the one we already have is the LATEST.
      */
     for (int32_t i = (int32_t)delta_size - 1; i >= 0; --i) {
-        if (s[i]->entry == 0)
+        if (s[i]->entries == 0)
             continue;
         /*
          * Unpack first if it is not unpacked yet, otherwise the entry is unpacked and the key has
@@ -140,7 +140,7 @@ __page_find_min_delta_leaf(WT_SESSION_IMPL *session, WT_ITEM *deltas,
                  * (from a higher-indexed delta) is the latest. Skip this older duplicate.
                  */
                 s[i]->unpacked = false;
-                s[i]->entry -= 2;
+                s[i]->entries -= 2;
             }
         }
     }
@@ -714,9 +714,6 @@ __page_init_base_leaf_merge_state(
 {
     s->entries = base_dsk->u.entries;
     s->idx = 0;
-    s->unpack_key = NULL;
-    s->unpack_value = NULL;
-    s->current_key = NULL;
     s->cell = WT_PAGE_HEADER_BYTE(btree, base_dsk);
     s->found_next = false;
     s->key_unpacked = false;
@@ -755,10 +752,8 @@ __page_init_delta_leaf_merge_state(WT_SESSION_IMPL *session, WT_BTREE *btree, WT
         WT_RET(__wt_calloc_one(session, &s[i]));
         WT_PAGE_HEADER *tmp = (WT_PAGE_HEADER *)deltas[i].data;
         s[i]->cell = WT_PAGE_HEADER_BYTE(btree, tmp);
-        s[i]->entry = tmp->u.entries;
+        s[i]->entries = tmp->u.entries;
         s[i]->unpacked = false;
-        s[i]->current_key = NULL;
-        s[i]->unpack = NULL;
         WT_RET(__wt_scr_alloc(session, 0, &s[i]->current_key));
         WT_RET(__wt_calloc_one(session, &s[i]->unpack));
     }
@@ -796,9 +791,8 @@ __page_init_dsk_leaf_merge_state(
     s->key_pfx_compress = false;
     s->all_empty_value = true;
     s->any_empty_value = false;
-    s->entry_count = 0;
+    s->entries = 0;
     s->key_pfx_last = 0;
-    s->last_key = NULL;
 
     WT_RET(__wt_scr_alloc(session, 0, &s->last_key));
     return (0);
@@ -822,6 +816,8 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     /* Min delta index. */
     int32_t j = -1;
 
+    WT_CLEAR(base_s);
+    WT_CLEAR(disk_s);
     btree = S2BT(session);
     dsk = NULL;
     WT_ASSERT(session, new_image != NULL);
@@ -869,7 +865,7 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
 
             /* We've packed a delta entry, reset the unpack status and clear the min_unpack_idx. */
             delta_s[j]->unpacked = false;
-            delta_s[j]->entry -= 2;
+            delta_s[j]->entries -= 2;
             j = -1;
         }
         /*
@@ -894,7 +890,7 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     /* Finalize header once after all appends. */
     dsk = (WT_PAGE_HEADER *)new_image->mem;
     memset(dsk, 0, sizeof(WT_PAGE_HEADER));
-    dsk->u.entries = disk_s.entry_count;
+    dsk->u.entries = disk_s.entries;
     dsk->type = WT_PAGE_ROW_LEAF;
     dsk->flags = 0;
 
