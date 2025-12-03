@@ -115,7 +115,6 @@ EEXIST
 EFAULT
 EINTR
 EINVAL
-EMail
 ENCRYPTOR
 ENDIAN
 ENOENT
@@ -139,11 +138,9 @@ FALLTHROUGH
 FH
 FILEOPS
 FIXME
-FLCS
 FLD
 FLSv
 FLv
-FNV
 FOREACH
 FS
 FULLFSYNC
@@ -181,7 +178,6 @@ HFS
 HOTBACKUP
 Hendrik
 IAA
-IC
 IEC
 IKEY
 IMPL
@@ -255,7 +251,6 @@ MacOS
 MapViewOfFile
 Marsaglia's
 Mellor
-Mitzenmacher
 MongoDB
 MoveFileExW
 MultiByteToWideChar
@@ -266,7 +261,6 @@ MySecret
 NNN
 NOLINT
 NOLINTNEXTLINE
-NOLL
 NONINFRINGEMENT
 NOOP
 NOP
@@ -279,7 +273,6 @@ NVRAM
 NZD
 NetBSD
 NoAddr
-Noll
 Nul
 OBJECTID
 ONDISK
@@ -306,7 +299,6 @@ PSD
 PSE
 PTR
 Pe
-Phong
 PlatformSDK
 Podir
 Posix
@@ -325,7 +317,6 @@ QQQS
 QSQ
 Qsort
 RCPC
-RCS
 RCpc
 RDNOLOCK
 READGEN
@@ -392,7 +383,6 @@ TESTUTIL
 TID
 TMP
 TODO
-TORTIOUS
 TRET
 TRYLOCK
 TSAN
@@ -442,8 +432,6 @@ VX
 Vc
 Vigenere
 Vixie
-VloaY
-Vo
 VxWorks
 WCHAR
 WILLNEED
@@ -496,7 +484,6 @@ ackSstu
 acqrel
 addr
 addrs
-addtw
 agc
 ajn
 alloc
@@ -511,7 +498,6 @@ arg
 argc
 args
 argv
-asdf
 assertfmt
 atomicity
 atomics
@@ -519,9 +505,6 @@ atou
 auth
 autocommit
 autoconf
-auxheader
-auximage
-auxincr
 aws
 bInheritHandle
 backlink
@@ -594,7 +577,6 @@ celsius
 centric
 cerr
 cfg
-cfko
 chacha
 charset
 chdir
@@ -607,7 +589,6 @@ checksums
 checkvalue
 chk
 chmod
-chongo
 chunkcache
 cip
 ciphertext
@@ -618,7 +599,6 @@ cksum
 clayered
 cloexec
 closedir
-cmd
 cmp
 cntvct
 colcheck
@@ -671,7 +651,6 @@ curlog
 curmetadata
 cursoring
 cursorp
-curstartrecno
 curstat
 curtable
 curversion
@@ -809,11 +788,9 @@ filesystem
 filesystems
 firstfit
 fixup
-flcs
 floatnum
 fmt
 fmterr
-fnv
 foc
 fopen
 formatmessage
@@ -852,7 +829,6 @@ getter
 getters
 gettime
 gettimeofday
-getv
 ggg
 gid
 github
@@ -872,7 +848,6 @@ hardcoded
 hashmap
 hashsize
 hashtable
-hashval
 havesize
 hdr
 hijinx
@@ -880,7 +855,6 @@ hpp
 hs
 html
 huffman
-hval
 hw
 iS
 iSh
@@ -944,7 +918,6 @@ js
 json
 kB
 kbits
-kepQFQ
 key'd
 keycmp
 keyedness
@@ -1034,7 +1007,6 @@ memkind
 memmove
 memset
 memsize
-mergeable
 metaconf
 metadata's
 metafile
@@ -1094,18 +1066,15 @@ nolock
 nonces
 nonliteral
 nonoverlapping
-nontransactionally
 noop
 nop
 noraw
 noreturn
-notfound
 notsup
 novalue
 nowait
 np
 npos
-nrecs
 nsec
 nsecs
 nset
@@ -1123,7 +1092,6 @@ ondisk
 onint
 onpage
 onsig
-oo
 openat
 opendir
 openfile
@@ -1133,7 +1101,6 @@ optrack
 optwt
 optype
 ori
-origstartrecno
 os
 ostream
 overcount
@@ -1143,7 +1110,6 @@ ownp
 pR
 pT
 packv
-pageref
 pagesize
 palite
 param
@@ -1278,7 +1244,6 @@ sessionp
 setkv
 setname
 setstr
-setv
 setvbuf
 sfast
 shareability
@@ -1402,7 +1367,6 @@ tryrdlock
 trywrlock
 tsan
 tsc
-tupdate
 tw
 txn
 txnid
@@ -1468,7 +1432,6 @@ va
 validator
 valuep
 valuev
-vanishingly
 variadic
 vd
 vdata
