@@ -44,9 +44,7 @@ class test_prepare_discover06(wttest.WiredTigerTestCase):
     uri = 'layered:' + tablename
 
     resolve_scenarios = [
-        ('commit', dict(commit=True)),
-        # FIXME-WT-15465 Fix throwing a prepare conflict when encountering prepared update on stable table
-        # ('rollback', dict(commit=False)),
+        ('rollback', dict(commit=False)),
     ]
     # Use disaggregated storage scenarios
     disagg_storages = gen_disagg_storages('test_prepare_discover06', disagg_only=True)
