@@ -26,8 +26,7 @@ struct __wt_evict {
                                                                       eviction per checkpoint */
     wt_shared uint64_t evict_max_ms; /* Longest milliseconds spent at a single eviction */
     wt_shared uint64_t
-      evict_max_ms_per_checkpoint; /* Longest milliseconds spent at a single eviction */
-
+      evict_max_ms_per_checkpoint;   /* Longest milliseconds spent at a single eviction */
     uint64_t reentry_hs_eviction_ms; /* Total milliseconds spent inside a nested eviction */
     struct timespec stuck_time;      /* Stuck time */
 
