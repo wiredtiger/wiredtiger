@@ -1310,8 +1310,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
           "Step up completed in %" PRIu64 " milliseconds", WT_CLOCKDIFF_MS(time_stop, time_start));
     } else if (was_leader && !leader) {
-        time_start = __wt_clock(session);
         /* Leader step-down. */
+        time_start = __wt_clock(session);
         WT_WITH_CHECKPOINT_LOCK(session, __disagg_step_down(session));
         time_stop = __wt_clock(session);
         WT_STAT_CONN_SET(session, disagg_step_down_time, WT_CLOCKDIFF_MS(time_stop, time_start));
