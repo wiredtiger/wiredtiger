@@ -362,7 +362,7 @@ __wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, const void *key_data, size_t ke
     /*
      * Build key cell. Do prefix compression on the key. We know by definition the previous key
      * sorts before the current key, which means the keys must differ and we just need to compare up
-     * to the shorter of the two keys.
+     * to the shorter one of the two keys.
      */
     if (s->key_pfx_compress)
         __wt_cell_compress_prefix_key(

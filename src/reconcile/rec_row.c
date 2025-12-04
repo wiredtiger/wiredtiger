@@ -109,7 +109,7 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session, WTI_RECONCILE *r, const void
         /*
          * Do prefix compression on the key. We know by definition the previous key sorts before the
          * current key, which means the keys must differ and we just need to compare up to the
-         * shorter of the two keys.
+         * shorter one of the two keys.
          */
         if (r->key_pfx_compress) {
             __wt_cell_compress_prefix_key(

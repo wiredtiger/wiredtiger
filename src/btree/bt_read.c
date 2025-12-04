@@ -300,10 +300,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     if (LF_ISSET(WT_READ_PREFETCH))
         FLD_SET(page_flags, WT_PAGE_PREFETCH);
 
-    /*
-     * After reading the page from disk, construct a full disk image. This is currently performed
-     * only for internal pages that has delta.
-     */
+    /* After reading the page from disk, construct a full disk image. */
     if (count > 1) {
         size_t new_image_buf_size;
         uint32_t split_size;
