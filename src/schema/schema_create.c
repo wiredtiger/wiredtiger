@@ -617,9 +617,10 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
             }
 
             /*
-             * FIXME-WT-16164: __wt_config_merge expects that the first element of the config array
-             * passed to it to be non-null, otherwise the array is assumed to be empty. This code
-             * achieves that semantic. However there is likely a better, holistic fix here.
+             * FIXME-WT-16164: __wt_config_merge expects that the config array passed to it is not
+             * sparsely populate. If the first element is NULL the config merge will not return
+             * anything useful. This ternary achieves that semantic. However there is likely a
+             * better, holistic fix here.
              */
             sourcecfg[config == NULL ? 0 : 1] = fmt.data;
         }
