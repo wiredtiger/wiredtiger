@@ -1031,6 +1031,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
     WT_BTREE *btree;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    double dirty_trigger;
     uint64_t cache_size;
     uint32_t leaf_split_size, max;
     const char **cfg;
@@ -1104,12 +1105,11 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
     WT_RET(__wt_config_gets(session, cfg, "memory_page_max", &cval));
     btree->maxmempage = (uint64_t)cval.val;
 
+    dirty_trigger = __wt_atomic_load_double_relaxed(&conn->evict->eviction_dirty_trigger);
 #define WT_MIN_PAGES 10
     if (!F_ISSET_ATOMIC_32(conn, WT_CONN_CACHE_POOL) && (cache_size = conn->cache_size) > 0)
-        btree->maxmempage = (uint64_t)WT_MIN(btree->maxmempage,
-          ((__wt_atomic_load_double_relaxed(&conn->evict->eviction_dirty_trigger) * cache_size) /
-            100) /
-            WT_MIN_PAGES);
+        btree->maxmempage =
+          (uint64_t)WT_MIN(btree->maxmempage, ((dirty_trigger * cache_size) / 100) / WT_MIN_PAGES);
 
     /* Enforce a lower bound of a single disk leaf page */
     btree->maxmempage = WT_MAX(btree->maxmempage, btree->maxleafpage);
