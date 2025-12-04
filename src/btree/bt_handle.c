@@ -406,17 +406,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         }
     }
 
-    /* Column-store: check for fixed-length column-store data. */
-    if (btree->type == BTREE_COL_VAR) {
-        bool fixed = false;
-        uint32_t fixed_len = 0;
-        WT_RET(__wt_struct_check(session, cval.str, cval.len, &fixed, &fixed_len));
-        if (fixed)
-            WT_RET_MSG(session, EINVAL,
-              "fixed-length column-store is deprecated, if you are upgrading from an older version "
-              "please re-write the table as a different storage format prior to upgrading.");
-    }
-
     /*
      * This option turns off eviction for a tree. Therefore, its memory footprint can only grow. But
      * checkpoint will still visit it to persist the data.

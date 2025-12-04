@@ -37,4 +37,4 @@ class test_config13(wttest.WiredTigerTestCase):
         key_format_values = "value_format=8t,key_format=r"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.create(uri, key_format_values),
-            '/fixed-length column-store is deprecated,/')
+            '/Fixed-length column-stores are no longer supported in WiredTiger/')
