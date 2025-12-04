@@ -1198,8 +1198,7 @@ __wti_page_reconstruct_deltas(
          * We may be in a reconciliation already. Don't rewrite in this case as reconciliation is
          * not reentrant.
          *
-         * FIXME-WT-15619: this should go away when we use an algorithm to directly
-         * rewrite delta.
+         * FIXME-WT-15619: this should go away when we use an algorithm to directly rewrite delta.
          */
         if (F_ISSET(&S2C(session)->page_delta, WT_FLATTEN_LEAF_PAGE_DELTA) &&
           !__wt_rec_in_progress(session)) {
