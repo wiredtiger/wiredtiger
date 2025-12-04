@@ -49,6 +49,7 @@ they are used in other settings.
 <tr><td>extension<td>general<td>a module that uses the WiredTiger extension interface, allowing it to be added in an encapsulated way, without altering the core of the WiredTiger library.  Extensions are typically compiled into shared libraries.
 <tr><td>extent list<td>block manager<td>a list of contiguous sets of blocks in a file.  Extent lists are used to track available blocks and/or used blocks.
 <tr><td>fast truncate<td>btree<td>a truncate that spans a key range over more than one leaf page may be performed quickly by deleting entire data pages at a time.
+<tr><td>FLCS<td>general<td>fixed-length column store.
 <tr><td>follower<td>disaggregated storage<td>a node in the disaggregated storage cluster that is responsible for backing up the leader.
 <tr><td>frag<td>verify<td>in verify, a part of a file that is the minimum allocation size and aligned the same.  The smallest blocks may be the same as a frag, other blocks may be composed of multiple contiguous frags.
 <tr><td>hazard pointer<td>general<td>a data structure that assists in lock free algorithms, used by WiredTiger Btrees
