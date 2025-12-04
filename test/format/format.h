@@ -310,9 +310,9 @@ typedef struct {
 #define PREFIX_LEN_CONFIG_MAX 80
     uint32_t prefix_len_max;
 
-    bool disagg_leader;          /* If disaggregated storage role is configured as a leader. */
-    pid_t follower_pid;          /* For multi-node disagg follower process */
-    uint64_t last_checkpoint_ts; /* Last checkpoint timestamp picked up by follower. */
+    bool disagg_leader; /* If disaggregated storage role is configured as a leader. */
+    pid_t follower_pid; /* For multi-node disagg follower process */
+    char checkpoint_metadata[FILENAME_MAX]; /* Last checkpoint metadata picked up by follower. */
 
     bool column_store_config;           /* At least one column-store table configured */
     bool disagg_storage_config;         /* If disaggregated storage is configured */

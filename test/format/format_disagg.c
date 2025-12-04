@@ -83,6 +83,7 @@ disagg_setup_multi_node(void)
         return;
 
     testutil_snprintf(follower_home, sizeof(follower_home), "%s/follower", g.home);
+    memset(&g.checkpoint_metadata, 0, sizeof(g.checkpoint_metadata));
 
     /*
      * Create required dir before forking to avoid parent/child races. Skip on reopen, since the run
