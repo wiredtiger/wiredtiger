@@ -256,7 +256,6 @@
     "./wt -?",
     "test/csuite/wt4117_checksum/test_wt4117_checksum",
     "python3 ../test/suite/run.py test_live_restore01",
-    "python3 ../test/suite/run.py --hook 'disagg=(role=leader)' --skip-tests-in-file ../test/suite/hook_disagg.fail" ,
-    "python3 ../test/suite/run.py --hook 'disagg=(role=follower)' base01"
+    "python3 ../test/suite/run.py --hook disagg --skip-tests-in-file ../test/suite/hook_disagg.fail base"
   ]
 }
