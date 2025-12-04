@@ -77,8 +77,7 @@ thread_worker::thread_worker(uint64_t id, thread_type type, configuration *confi
       key_size(config->get_optional_int(KEY_SIZE, 1)),
       value_size(config->get_optional_int(VALUE_SIZE, 1)),
       thread_count(config->get_int(THREAD_COUNT)), type(type), id(id), db(dbase),
-      session(std::move(created_session)), tsm(timestamp_manager),
-      txn(transaction(config, timestamp_manager, session.get())), op_tracker(op_tracker),
+      session(std::move(created_session)), tsm(timestamp_manager), op_tracker(op_tracker),
       _sleep_time_ms(std::chrono::milliseconds(config->get_throttle_ms())), _barrier(barrier_ptr)
 {
     if (op_tracker->enabled())
@@ -111,10 +110,10 @@ thread_worker::update(
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
-    ret = txn.set_commit_timestamp(ts);
+    ret = set_commit_timestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
-        txn.set_needs_rollback(true);
+        _txn.set_needs_rollback();
         return (false);
     }
 
@@ -124,7 +123,7 @@ thread_worker::update(
 
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            txn.set_needs_rollback(true);
+            _txn.set_needs_rollback();
             return (false);
         } else
             testutil_die(ret, "unhandled error while trying to update a key");
@@ -134,9 +133,9 @@ thread_worker::update(
       session.get(), tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
 
     if (ret == 0)
-        txn.add_op();
+        add_op();
     else if (ret == WT_ROLLBACK)
-        txn.set_needs_rollback(true);
+        _txn.set_needs_rollback();
     else
         testutil_die(ret, "unhandled error while trying to save an update to the tracking table");
     return (ret == 0);
@@ -152,10 +151,10 @@ thread_worker::insert(
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
-    ret = txn.set_commit_timestamp(ts);
+    ret = set_commit_timestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
-        txn.set_needs_rollback(true);
+        _txn.set_needs_rollback();
         return (false);
     }
 
@@ -165,7 +164,7 @@ thread_worker::insert(
 
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            txn.set_needs_rollback(true);
+            _txn.set_needs_rollback();
             return (false);
         } else
             testutil_die(ret, "unhandled error while trying to insert a key");
@@ -175,9 +174,9 @@ thread_worker::insert(
       session.get(), tracking_operation::INSERT, collection_id, key, value, ts, op_track_cursor);
 
     if (ret == 0)
-        txn.add_op();
+        add_op();
     else if (ret == WT_ROLLBACK)
-        txn.set_needs_rollback(true);
+        _txn.set_needs_rollback();
     else
         testutil_die(ret, "unhandled error while trying to save an insert to the tracking table");
     return (ret == 0);
@@ -191,10 +190,10 @@ thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::
     testutil_assert(cursor.get() != nullptr);
 
     wt_timestamp_t ts = tsm->get_next_ts();
-    ret = txn.set_commit_timestamp(ts);
+    ret = set_commit_timestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
-        txn.set_needs_rollback(true);
+        _txn.set_needs_rollback();
         return (false);
     }
 
@@ -202,7 +201,7 @@ thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::
     ret = cursor->remove(cursor.get());
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            txn.set_needs_rollback(true);
+            _txn.set_needs_rollback();
             return (false);
         } else
             testutil_die(ret, "unhandled error while trying to remove a key");
@@ -212,9 +211,9 @@ thread_worker::remove(scoped_cursor &cursor, uint64_t collection_id, const std::
       session.get(), tracking_operation::DELETE_KEY, collection_id, key, "", ts, op_track_cursor);
 
     if (ret == 0)
-        txn.add_op();
+        add_op();
     else if (ret == WT_ROLLBACK)
-        txn.set_needs_rollback(true);
+        _txn.set_needs_rollback();
     else
         testutil_die(ret, "unhandled error while trying to save a remove to the tracking table");
     return (ret == 0);
@@ -233,10 +232,10 @@ thread_worker::truncate(uint64_t collection_id, std::optional<std::string> start
     int ret = 0;
 
     wt_timestamp_t ts = tsm->get_next_ts();
-    ret = txn.set_commit_timestamp(ts);
+    ret = set_commit_timestamp(ts);
     testutil_assert(ret == 0 || ret == EINVAL);
     if (ret != 0) {
-        txn.set_needs_rollback(true);
+        _txn.set_needs_rollback();
         return (false);
     }
 
@@ -256,7 +255,7 @@ thread_worker::truncate(uint64_t collection_id, std::optional<std::string> start
 
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            txn.set_needs_rollback(true);
+            _txn.set_needs_rollback();
             return (false);
         } else
             testutil_die(ret, "unhandled error while trying to truncate a key range");
@@ -316,4 +315,96 @@ thread_worker::get_assigned_collection_count() const
     uint64_t collection_count = db.get_collection_count();
     return collection_count / thread_count + (collection_count % thread_count > id);
 }
+
+/*
+ * Returns true if a transaction can be committed as determined by the op count and the state of the
+ * transaction.
+ */
+bool
+thread_worker::can_commit()
+{
+    return (!_txn.needs_rollback() && _txn.active() && get_op_count() >= get_target_op_count());
+};
+
+/* Get the current number of operations executed. */
+int64_t
+thread_worker::get_op_count() const
+{
+    return _op_count;
+}
+
+/* Get the number of operations this transaction needs before it can commit */
+int64_t
+thread_worker::get_target_op_count() const
+{
+    return _target_op_count;
+}
+
+bool
+thread_worker::active() const
+{
+    return _txn.active();
+}
+void
+thread_worker::add_op()
+{
+    _op_count++;
+}
+
+void
+thread_worker::begin(const std::string &config = "")
+{
+    /* This randomizes the number of operations to be executed in one transaction. */
+    _target_op_count =
+      random_generator::instance().generate_integer<int64_t>(_min_op_count, _max_op_count);
+    _op_count = 0;
+    _txn.begin(session, config);
+}
+
+/* Begin a transaction if we are not currently in one. */
+void
+thread_worker::try_begin(const std::string &config = "")
+{
+    _txn.try_begin(session, config);
+}
+
+/*
+ * Commit a transaction and return true if the commit was successful.
+ */
+bool
+thread_worker::commit(const std::string &config = "")
+{
+    _op_count = 0;
+    return _txn.commit(session, config);
+}
+
+/* Rollback a transaction, failure will abort the test. */
+void
+thread_worker::rollback(const std::string &config = "")
+{
+    _op_count = 0;
+    _txn.rollback(session, config);
+}
+
+/* Attempt to rollback the transaction given the requirements are met. */
+void
+thread_worker::try_rollback(const std::string &config = "")
+{
+    _txn.try_rollback(session, config);
+}
+
+/*
+ * FIXME: WT-9198 We're concurrently doing a transaction that contains a bunch of operations while
+ * moving the stable timestamp. Eat the occasional EINVAL from the transaction's first commit
+ * timestamp being earlier than the stable timestamp.
+ */
+int
+thread_worker::set_commit_timestamp(wt_timestamp_t ts)
+{
+    if (!tsm->enabled())
+        return (0);
+    const std::string config = COMMIT_TS + "=" + timestamp_manager::decimal_to_hex(ts);
+    return session->timestamp_transaction(session.get(), config.c_str());
+}
+
 } // namespace test_harness
