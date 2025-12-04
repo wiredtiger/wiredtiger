@@ -107,24 +107,26 @@ public:
 
     /* Get the number of collections assigned to the thread worker */
     uint64_t get_assigned_collection_count() const;
-    /*
-     * Returns true if a transaction can be committed as determined by the op count and the state of
-     * the transaction.
-     */
-    bool can_commit();
+
+    /* Add an operation to the current work item. */
+    void add_op();
     /* Get the current number of operations executed. */
     int64_t get_op_count() const;
-    /* Get the number of operations this transaction needs before it can commit */
+    /* Get the number of operations this work item needs before it can commit */
     int64_t get_target_op_count() const;
 
+    /*
+     * Returns true if our transaction can be committed as determined by the op count and the state
+     * of the transaction.
+     */
+    bool can_commit();
+    /* Returns whether there is an active transaction. */
     bool active() const;
-    void add_op();
+    /* Begins a transaction. */
     void begin(const std::string &config = "");
     /* Begin a transaction if we are not currently in one. */
     void try_begin(const std::string &config = "");
-    /*
-     * Commit a transaction and return true if the commit was successful.
-     */
+    /* Commit a transaction and return true if the commit was successful. */
     bool commit(const std::string &config = "");
     /* Rollback a transaction, failure will abort the test. */
     void rollback(const std::string &config = "");
