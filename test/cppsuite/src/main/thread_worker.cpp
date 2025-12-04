@@ -352,7 +352,7 @@ thread_worker::add_op()
 }
 
 void
-thread_worker::begin(const std::string &config = "")
+thread_worker::begin(const std::string &config)
 {
     /* This randomizes the number of operations to be executed in one transaction. */
     _target_op_count =
@@ -363,7 +363,7 @@ thread_worker::begin(const std::string &config = "")
 
 /* Begin a transaction if we are not currently in one. */
 void
-thread_worker::try_begin(const std::string &config = "")
+thread_worker::try_begin(const std::string &config)
 {
     _txn.try_begin(session, config);
 }
@@ -372,7 +372,7 @@ thread_worker::try_begin(const std::string &config = "")
  * Commit a transaction and return true if the commit was successful.
  */
 bool
-thread_worker::commit(const std::string &config = "")
+thread_worker::commit(const std::string &config)
 {
     _op_count = 0;
     return _txn.commit(session, config);
@@ -380,7 +380,7 @@ thread_worker::commit(const std::string &config = "")
 
 /* Rollback a transaction, failure will abort the test. */
 void
-thread_worker::rollback(const std::string &config = "")
+thread_worker::rollback(const std::string &config)
 {
     _op_count = 0;
     _txn.rollback(session, config);
@@ -388,7 +388,7 @@ thread_worker::rollback(const std::string &config = "")
 
 /* Attempt to rollback the transaction given the requirements are met. */
 void
-thread_worker::try_rollback(const std::string &config = "")
+thread_worker::try_rollback(const std::string &config)
 {
     _txn.try_rollback(session, config);
 }

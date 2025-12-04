@@ -120,7 +120,7 @@ public:
         collection &coll = tc->db.get_collection(tc->id);
         scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
         for (uint64_t count = 0; count < tc->key_count; ++count) {
-            tc->txn.begin();
+            tc->begin();
             /*
              * Generate the prefix key, and append a random generated key string based on the key
              * size configuration.
@@ -128,9 +128,9 @@ public:
             prefix_key = random_generator::instance().generate_random_string(tc->key_size);
             testutil_assert(cursor.get() != nullptr);
             if (perform_unique_index_insertions(tc, cursor, coll, prefix_key)) {
-                tc->txn.commit();
+                tc->commit();
             } else {
-                tc->txn.rollback();
+                tc->rollback();
                 ++rollback_retries;
                 if (count > 0)
                     --count;
@@ -243,7 +243,7 @@ public:
 
             /* Do a second lookup now that we know it exists. */
             auto &cursor = cursors[coll.id];
-            tc->txn.begin();
+            tc->begin();
             /*
              * Grab a random existing prefix and perform unique index insertion. We expect it to
              * fail to insert, because it should already exist.
@@ -258,7 +258,7 @@ public:
                 ".");
             testutil_assert(!perform_unique_index_insertions(tc, cursor, coll, prefix_key));
             testutil_check(cursor->reset(cursor.get()));
-            tc->txn.rollback();
+            tc->rollback();
         }
     }
 
@@ -273,7 +273,7 @@ public:
          * Each read thread will count the number of keys in each collection, and will double check
          * if the size of the table hasn't changed.
          */
-        tc->txn.begin();
+        tc->begin();
         while (tc->running()) {
             for (int i = 0; i < tc->db.get_collection_count(); i++) {
                 collection &coll = tc->db.get_collection(i);
@@ -298,6 +298,6 @@ public:
             }
             key_count = 0;
         }
-        tc->txn.rollback();
+        tc->rollback();
     }
 };
