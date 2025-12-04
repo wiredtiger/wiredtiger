@@ -84,6 +84,13 @@ thread_worker::thread_worker(uint64_t id, thread_type type, configuration *confi
     if (op_tracker->enabled())
         op_track_cursor = session.open_scoped_cursor(op_tracker->get_operation_table_name());
 
+    /* Use optional here as our populate threads don't define this configuration. */
+    configuration *ops_config = config->get_optional_subconfig(OPS_PER_TRANSACTION);
+    if (ops_config != nullptr) {
+        _min_op_count = ops_config->get_optional_int(MIN, 1);
+        _max_op_count = ops_config->get_optional_int(MAX, 1);
+        delete ops_config;
+    }
     testutil_assert(key_size > 0 && value_size > 0);
 }
 
