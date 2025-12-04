@@ -150,7 +150,7 @@ thread_worker::insert(
         return (false);
     }
 
-   if (crud::insert(cursor, _txn, key, value) == false)
+    if (crud::insert(cursor, _txn, key, value) == false)
         return (false);
 
     ret = op_tracker->save_operation(

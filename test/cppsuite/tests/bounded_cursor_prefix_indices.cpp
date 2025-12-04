@@ -169,12 +169,13 @@ public:
             ", key size: " + std::to_string(key_size));
 
         /* Create n collections as per the configuration. */
+        scoped_session session = connection_manager::instance().create_session();
         for (uint64_t i = 0; i < collection_count; ++i)
             /*
              * The database model will call into the API and create the collection, with its own
              * session.
              */
-            database.add_collection();
+            database.add_collection(session);
 
         /* Spawn a populate thread for each collection in the database. */
         for (uint64_t i = 0; i < collection_count; ++i) {
@@ -199,7 +200,6 @@ public:
          * traverse through each collection using a cursor to collect the prefix and push it into a
          * 2D vector.
          */
-        scoped_session session = connection_manager::instance().create_session();
         const char *key_tmp;
         int ret = 0;
         for (uint64_t i = 0; i < database.get_collection_count(); i++) {

@@ -96,12 +96,13 @@ database_operation::populate(
       LOG_INFO, "Populate: creating " + std::to_string(collection_count) + " collections.");
 
     /* Create n collections as per the configuration. */
+    scoped_session session = connection_manager::instance().create_session();
     for (int64_t i = 0; i < collection_count; ++i)
         /*
          * The database model will call into the API and create the collection, with its own
          * session.
          */
-        database.add_collection(key_count);
+        database.add_collection(session, key_count);
 
     logger::log_msg(
       LOG_INFO, "Populate: " + std::to_string(collection_count) + " collections created.");

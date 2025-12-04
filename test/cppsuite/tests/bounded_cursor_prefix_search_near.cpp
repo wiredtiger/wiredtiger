@@ -61,8 +61,9 @@ public:
         logger::log_msg(
           LOG_INFO, "Populate: " + std::to_string(collection_count) + " creating collections.");
 
+        scoped_session session = connection_manager::instance().create_session();
         for (uint64_t i = 0; i < collection_count; ++i)
-            database.add_collection();
+            database.add_collection(session);
 
         logger::log_msg(LOG_INFO, "Populate: finished.");
     }

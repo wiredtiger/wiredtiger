@@ -131,12 +131,13 @@ public:
             " number of collections: " + std::to_string(collection_count));
 
         /* Create n collections as per the configuration. */
+        scoped_session session = connection_manager::instance().create_session();
         for (uint64_t i = 0; i < collection_count; ++i)
             /*
              * The database model will call into the API and create the collection, with its own
              * session.
              */
-            database.add_collection();
+            database.add_collection(session);
 
         /* Spawn 26 threads to populate the database. */
         for (uint64_t i = 0; i < ALPHABET.size(); ++i) {
@@ -158,7 +159,6 @@ public:
 
         /* Force evict all the populated keys in all of the collections. */
         int cmpp;
-        scoped_session session = connection_manager::instance().create_session();
         for (uint64_t count = 0; count < collection_count; ++count) {
             collection &coll = database.get_collection(count);
             scoped_cursor evict_cursor =
