@@ -868,8 +868,9 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
             j = -1;
         }
         /*
-         * If cmp < 0, we have packed the base entry to the disk image in this run.
-         * If cmp == 0, the base entry has a duplicate key as the delta entry.
+         * There are two possible scenarios:
+         * - If cmp < 0, we have packed the base entry to the disk image in this run.
+         * - If cmp == 0, the base entry has a duplicate key as the delta entry.
          * In either case, we need to discard the current base entry by clearing found_next. This
          * ensures that in the next run, we know we should find a new base entry.
          */
