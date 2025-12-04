@@ -81,11 +81,11 @@ struct __wt_evict {
 
     struct timespec evict_tune_last_action_time; /* Time of last action */
     struct timespec evict_tune_last_time;        /* Time of last check */
-
-    uint64_t evict_tune_progress_last;     /* Progress counter */
-    uint64_t evict_tune_progress_rate_max; /* Max progress rate */
-    bool evict_tune_stable;                /* Are we stable? */
-    uint32_t evict_tune_workers_best;      /* Best performing value */
+    uint64_t evict_tune_progress_last;           /* Progress counter */
+    uint64_t evict_tune_progress_rate_max;       /* Max progress rate */
+    bool evict_tune_stable;                      /* Are we stable? */
+    uint32_t evict_tune_workers_best;            /* Best performing value */
+    uint32_t evict_tune_num_points;              /* Number of values tried */
 
     /*
      * Pass interrupt counter.
