@@ -611,7 +611,7 @@ if __name__ == '__main__':
     if skipFileForTests:
         with open(skipFileForTests, 'r') as f:
             # Read the skip file and process it to get a list of tests to skip.
-            skipTests = f.read().splitlines() 
+            skipTests = f.read().splitlines()
             # Remove comment lines starting with '#'.
             skipTests = [test for test in skipTests if not test.lstrip().startswith('#')]
             # Remove trailing comments and file extensions for each line.
