@@ -27,7 +27,7 @@ struct __wt_evict {
     wt_shared uint64_t evict_max_ms; /* Longest milliseconds spent at a single eviction */
     wt_shared uint64_t
       evict_max_ms_per_checkpoint; /* Longest milliseconds spent at a single eviction */
-    wt_shared uint64_t evict_max_eviction_queue_attempts; /* Maximum number of attempts to add a
+    wt_shared uint16_t evict_max_eviction_queue_attempts; /* Maximum number of attempts to add a
                                                              page to eviction queue */
     wt_shared uint16_t evict_max_evict_page_attempts;     /* Maximum number of attempts
                                                              to evict a page */

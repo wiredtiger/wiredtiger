@@ -849,7 +849,7 @@ struct __wt_page {
 
     uint64_t cache_create_gen;     /* Page create timestamp */
     uint64_t evict_pass_gen;       /* Eviction pass generation */
-    uint64_t evict_queue_attempts; /* Number of times eviction tries to queue a page for eviction
+    uint16_t evict_queue_attempts; /* Number of times eviction tries to queue a page for eviction
                                       but fails */
     uint16_t evict_page_attempts;  /* Number of times eviction tries to evict a page */
     WT_PAGE_DISAGG_INFO *disagg_info;
