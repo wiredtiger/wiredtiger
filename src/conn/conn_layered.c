@@ -1253,7 +1253,6 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     leader = was_leader = conn->layered_table_manager.leader;
     npage_log = NULL;
     picked_up = false;
-    time_start = time_stop = 0;
 
     WT_CLEAR(complete_checkpoint_meta);
 
