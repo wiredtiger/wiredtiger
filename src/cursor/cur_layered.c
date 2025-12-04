@@ -1288,7 +1288,7 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
          * conflict issue. Therefore for layered cursor operations, we need to ignore these prepared
          * updates to allow reading through to committed data.
          */
-        if (!was_ignoring_prepared)
+        if (!ignore_prepared)
             F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
         WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(c, clayered, value), true);
         if (ret == 0)
@@ -1299,7 +1299,7 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
         F_CLR(c, WT_CURSTD_KEY_SET);
 
 err:
-    if (!was_ignoring_prepared)
+    if (!ignore_prepared)
         F_CLR(session->txn, WT_TXN_IGNORE_PREPARE);
     if (ret == 0) {
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
