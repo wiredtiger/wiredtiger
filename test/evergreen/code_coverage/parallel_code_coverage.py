@@ -54,7 +54,7 @@ def run_task(index, task):
     start_time = datetime.now()
     try:
         split_command = task.split()
-        subprocess.run(split_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
+        subprocess.run(split_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env, shell=True)
     except subprocess.CalledProcessError as exception:
         logging.error(f'Command {exception.cmd} failed with error {exception.returncode}')
         sys.exit(f'Exiting because command {exception.cmd} failed with error {exception.returncode}')
