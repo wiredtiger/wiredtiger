@@ -53,6 +53,17 @@ typedef int64_t wt_off_t;
 #define WT_ATTRIBUTE_LIBRARY_VISIBLE    __attribute__((visibility("default")))
 #endif
 
+#if defined(_MSC_VER)
+#define WT_DIAGNOSTIC_PUSH      __pragma(warning(push))
+#define WT_DIAGNOSTIC_POP       __pragma(warning(pop))
+/* Disable MSVC warning C4200: nonstandard extension used: zero-sized array in struct/union */
+#define WT_DIAGNOSTIC_DISABLE_ZERO_SIZED_ARRAY  __pragma(warning(disable : 4200))
+#else
+#define WT_DIAGNOSTIC_PUSH
+#define WT_DIAGNOSTIC_POP
+#define WT_DIAGNOSTIC_DISABLE_ZERO_SIZED_ARRAY
+#endif
+
 /*!
  * @defgroup wt WiredTiger API
  * The functions, handles and methods applications use to access and manage
@@ -5733,6 +5744,8 @@ struct __wt_page_log {
 };
 
 #ifndef SWIG
+WT_DIAGNOSTIC_PUSH
+WT_DIAGNOSTIC_DISABLE_ZERO_SIZED_ARRAY
 /*
  * A structure that represents encrypted keys stored by WiredTiger.
  *
@@ -5752,6 +5765,7 @@ struct __wt_crypt_keys {
     size_t size;    /* Size of encrypted key data field. */
     uint8_t data[]; /* Encrypted keys. */
 };
+WT_DIAGNOSTIC_POP
 
 /*!
  * Interface for custom key provider services used by applications.
