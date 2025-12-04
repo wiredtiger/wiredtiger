@@ -1246,12 +1246,14 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_DECL_RET;
     WT_ITEM complete_checkpoint_meta;
     WT_NAMED_PAGE_LOG *npage_log;
+    uint64_t time_start, time_stop;
     bool leader, picked_up, was_leader;
 
     conn = S2C(session);
     leader = was_leader = conn->layered_table_manager.leader;
     npage_log = NULL;
     picked_up = false;
+    time_start = time_stop = 0;
 
     WT_CLEAR(complete_checkpoint_meta);
 
@@ -1301,12 +1303,23 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_STAT_CONN_SET(session, disagg_role_leader, leader ? 1 : 0);
     } else if (!was_leader && leader) {
         /* Follower step-up. */
+        time_start = __wt_clock(session);
         WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_step_up(session));
+        time_stop = __wt_clock(session);
         WT_ERR_MSG_CHK(session, ret, "Failed to step up to the leader role");
-    } else if (was_leader && !leader)
+        WT_STAT_CONN_SET(session, disagg_step_up_time, WT_CLOCKDIFF_MS(time_stop, time_start));
+        __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Step up completed in %" PRIu64 " milliseconds", WT_CLOCKDIFF_MS(time_stop, time_start));
+    } else if (was_leader && !leader) {
+        time_start = __wt_clock(session);
         /* Leader step-down. */
         WT_WITH_CHECKPOINT_LOCK(session, __disagg_step_down(session));
-
+        time_stop = __wt_clock(session);
+        WT_STAT_CONN_SET(session, disagg_step_down_time, WT_CLOCKDIFF_MS(time_stop, time_start));
+        __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Step down completed in %" PRIu64 " milliseconds",
+          WT_CLOCKDIFF_MS(time_stop, time_start));
+    }
     /* Connection init settings only. */
 
     if (reconfig)
