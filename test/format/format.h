@@ -243,11 +243,12 @@ typedef struct {
 
     int trace_retain;
 
-    char *home;        /* Home directory */
-    char *home_backup; /* Backup file name */
-    char *home_config; /* Run CONFIG file path */
-    char *home_key;    /* Key file filename */
-    char *home_stats;  /* Statistics file path */
+    char home[FILENAME_MAX];          /* Home directory */
+    char home_backup[FILENAME_MAX];   /* Backup file name */
+    char home_config[FILENAME_MAX];   /* Run CONFIG file path */
+    char home_key[FILENAME_MAX];      /* Key file filename */
+    char home_page_log[FILENAME_MAX]; /* Page and log service home dir (disagg) */
+    char home_stats[FILENAME_MAX];    /* Statistics file path */
 
     char *config_open; /* Command-line configuration */
 
@@ -310,6 +311,8 @@ typedef struct {
     uint32_t prefix_len_max;
 
     bool disagg_leader; /* If disaggregated storage role is configured as a leader. */
+    pid_t follower_pid; /* For multi-node disagg follower process */
+    char checkpoint_metadata[FILENAME_MAX]; /* Last checkpoint metadata picked up by follower. */
 
     bool column_store_config;           /* At least one column-store table configured */
     bool disagg_storage_config;         /* If disaggregated storage is configured */
@@ -440,6 +443,7 @@ WT_THREAD_RET background_compact(void *);
 WT_THREAD_RET backup(void *);
 WT_THREAD_RET checkpoint(void *);
 WT_THREAD_RET compact(void *);
+WT_THREAD_RET follower(void *);
 WT_THREAD_RET hs_cursor(void *);
 WT_THREAD_RET import(void *);
 WT_THREAD_RET random_kv(void *);
@@ -451,14 +455,19 @@ void config_compat(const char **);
 void config_error(void);
 void config_file(const char *);
 void config_print(bool);
+void config_random_generators(void);
 void config_run(void);
 void config_single(TABLE *, const char *, bool);
 void create_database(const char *home, WT_CONNECTION **connp);
 void cursor_dump_page(WT_CURSOR *, const char *);
 bool disagg_is_mode_switch(void);
-int disagg_switch_roles(void);
+bool disagg_is_multi_node(void);
+void disagg_setup_multi_node(void);
+void disagg_switch_roles(void);
+void disagg_teardown_multi_node(void);
 bool enable_session_prefetch(void);
 void fclose_and_clear(FILE **);
+void follower_read_latest_checkpoint(void);
 void key_gen_common(TABLE *, WT_ITEM *, uint64_t, const char *);
 void key_gen_init(WT_ITEM *);
 void key_gen_teardown(WT_ITEM *);

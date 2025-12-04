@@ -38,7 +38,7 @@ from __future__ import print_function
 import unittest
 
 from contextlib import contextmanager
-import errno, glob, os, re, shutil, sys, threading, time, traceback, types
+import errno, glob, os, re, shutil, sys, threading, time, traceback, types, shutil
 import abstract_test_case, test_result, wiredtiger, wthooks, wtscenario
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -88,8 +88,13 @@ class TestSuiteConnection(object):
         self._connlist = connlist
 
     def close(self, config=''):
+        conn = self._conn
         self._connlist.remove(self._conn)
-        return self._conn.close(config)
+        self._conn = None
+        return conn.close(config)
+
+    def is_open(self):
+        return self._conn is not None
 
     # Proxy everything except what we explicitly define to the
     # wrapped connection
@@ -97,6 +102,8 @@ class TestSuiteConnection(object):
         if attr in self.__dict__:
             return getattr(self, attr)
         else:
+            if self._conn is None:
+                raise Exception('The connection is closed')
             return getattr(self._conn, attr)
 
 # Just like a list of strings, but with a convenience function
@@ -297,7 +304,13 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     rollbacksAllowed -= 1
             except wiredtiger.WiredTigerError as err:
                 self.prexception(sys.exc_info())
-                self.conn.dump_error_log()
+                if self.conn is not None and self.conn.is_open():
+                    self.conn.dump_error_log()
+                else:
+                    sys.stderr.write('Error log after WiredTigerError exception, connection is closed:\n')
+                    wiredtiger.wiredtiger_dump_error_log(lambda e: sys.stderr.write(e))
+                # Prevent an unnecessary "unexpected output" error.
+                self.ignoreTearDownLogs = True
                 raise
 
     # Construct the expected filename for an extension library and return
@@ -562,12 +575,35 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             for f in files:
                 os.chmod(os.path.join(root, f), 0o666)
 
-    # Return value of each action should be a tuple with the first value an integer (non-zero to indicate
-    # failure), and the second value a string suitable for printing when the test fails.
+    # Return value of each action should be a tuple with the first value an integer (non-zero to
+    # indicate failure), and the second value a string suitable for printing when the test fails.
     def addTearDownAction(self, action):
         self.teardown_actions.append(action)
 
+    def verifyLayered(self):
+        if self.conn is None or not self.conn.is_open():
+            # If the connection is closed, reopen it.
+            self.conn = self.setUpConnectionOpen(".")
+        elif self.session is not None or self.session.this is not None:
+            # Need to check ".this" because SWIG proxies don't evaluate to None even after being
+            # freed. Ensure all cursors are closed by closing the session.
+            self.session.close()
+
+        sess = self.conn.open_session()
+
+        cur = sess.open_cursor('metadata:', None, None)
+        while cur.next() == 0:
+            uri = cur.get_key()
+            if uri.startswith('layered:'):
+                try:
+                    self.verifyUntilSuccess(sess, uri)
+                except wiredtiger.WiredTigerError as e:
+                    raise Exception(f'Layered verification failed for {uri}: {str(e)}')
+
+        sess.close()
+
     def tearDown(self, dueToRetry=False):
+        dumped_error_log = False
         teardown_failed = False
         teardown_msg = None
         if not dueToRetry:
@@ -587,6 +623,19 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                         teardown_msg += "; " + str(tmp[1])
 
         passed = not (self.failed() or teardown_failed)
+
+        if passed and self.__module__.startswith("test_layered"):
+            # FIXME-WT-15619 and FIXME-WT-15618: We can run verify on layered tables when deltas are
+            # written as a full image. Once resolved we can immediately run verify on all layered tests.
+            config = self.conn_config
+            if hasattr(config, '__call__'):
+                config = self.conn_config()
+
+            # Deltas are enabled by default so we must ensure they're explicitly disabled.
+            if 'internal_page_delta=false' in config and 'leaf_page_delta=false' in config:
+                self.verifyLayered()
+            else:
+                self.pr('skipping verify due to delta pages being enabled')
 
         try:
             self.platform_api.tearDown(self)
@@ -613,15 +662,26 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         # self.conn is on the list of active connections.
         if not self.conn in self._connections:
             self._connections.append(self.conn)
+        close_failed = False
         for conn in self._connections:
             try:
                 conn.close()
+            except wiredtiger.WiredTigerError as err:
+                # If the test already failed, we let the connection close fail silently to avoid
+                # unnecessary noise.
+                if passed:
+                    self.prexception(sys.exc_info())
+                    sys.stderr.write('Error log from closing a connection:\n')
+                    wiredtiger.wiredtiger_dump_error_log(lambda e: sys.stderr.write(e))
+                    close_failed = True
+                    dumped_error_log = True
+                    passed = False
             except:
                 pass
         self._connections = []
         try:
             self.fdTearDown()
-            if not (dueToRetry or self.ignoreTearDownLogs):
+            if not (dueToRetry or self.ignoreTearDownLogs or dumped_error_log):
                 self.captureout.check(self)
                 self.captureerr.check(self)
         finally:
@@ -650,6 +710,8 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             print("[pid:{}]: {}: {:.2f} seconds".format(os.getpid(), str(self), elapsed))
         if teardown_failed:
             self.fail(f'Teardown of {self} failed with message: {teardown_msg}')
+        if close_failed:
+            self.fail(f'Closing the connection failed')
         if (not passed or teardown_failed) and (not self.skipped):
             print("[pid:{}]: ERROR in {}".format(os.getpid(), str(self)))
             self.pr('FAIL')
@@ -920,6 +982,14 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         return a recno key
         """
         return i
+
+    @contextmanager
+    def temporaryDirectory(self, path, exist_ok=False):
+        os.makedirs(path, exist_ok=exist_ok)
+        try:
+            yield path
+        finally:
+            shutil.rmtree(path, ignore_errors=True)
 
 @contextmanager
 def open_cursor(session, uri: str, **kwargs):

@@ -9,6 +9,26 @@
 #include "wt_internal.h"
 
 /*
+ * __wt_dhandle_clear_add --
+ *     Add an entry to the session's log of dhandle clear operations.
+ */
+void
+__wt_dhandle_clear_add(WT_DHANDLE_CLEAR_LOG *log, const char *file, const char *func, int line)
+{
+    WT_DHANDLE_CLEAR_EVENT *entry;
+
+    entry = &log->log[log->tail];
+    entry->file = file;
+    entry->func = func;
+    entry->line = line;
+
+    log->count++;
+    log->tail = (log->tail + 1) % WT_CLEAR_EVENT_MAX;
+    if (log->head == log->tail)
+        log->head = (log->head + 1) % WT_CLEAR_EVENT_MAX;
+}
+
+/*
  * __session_dhandle_readlock --
  *     Acquire read lock for the session's current dhandle.
  */
@@ -264,8 +284,12 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
         /* Give other threads a chance to make progress. */
         WT_STAT_CONN_INCR(session, dhandle_lock_blocked);
 
+#ifdef _WIN32
         /* FIXME-WT-12037 Use a sleep to work around a Windows-specific scheduling issue. */
         __wt_sleep(0, 1);
+#else
+        __wt_yield();
+#endif
     }
 }
 
@@ -335,7 +359,7 @@ __wt_session_release_dhandle_v2(WT_SESSION_IMPL *session, bool check_visibility)
             WT_WITH_DHANDLE(session, dhandle, __session_dhandle_readunlock(session));
     }
 
-    session->dhandle = NULL;
+    WT_DHANDLE_CLEAR(session);
     return (ret);
 }
 
@@ -801,9 +825,9 @@ __wt_session_dhandle_sweep(WT_SESSION_IMPL *session)
      * Periodically sweep for dead handles; if we've swept recently, don't do it again.
      */
     __wt_seconds(session, &now);
-    if (now - __wt_atomic_load64(&session->last_sweep) < conn->sweep_interval)
+    if (now - __wt_atomic_load_uint64_relaxed(&session->last_sweep) < conn->sweep_interval)
         return;
-    __wt_atomic_store64(&session->last_sweep, now);
+    __wt_atomic_store_uint64_relaxed(&session->last_sweep, now);
 
     WT_STAT_CONN_INCR(session, dh_session_sweeps);
 
@@ -816,7 +840,8 @@ __wt_session_dhandle_sweep(WT_SESSION_IMPL *session)
          * evicted. These checks are not done with any locks in place, other than the data handle
          * reference, so we cannot peer past what is in the dhandle directly.
          */
-        if (dhandle != session->dhandle && __wt_atomic_loadi32(&dhandle->session_inuse) == 0 &&
+        if (dhandle != session->dhandle &&
+          __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) == 0 &&
           (WT_DHANDLE_INACTIVE(dhandle) || F_ISSET(dhandle, WT_DHANDLE_OUTDATED) ||
             (dhandle->timeofdeath != 0 && now - dhandle->timeofdeath > conn->sweep_idle_time)) &&
           (!WT_DHANDLE_BTREE(dhandle) ||
@@ -883,7 +908,7 @@ __session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *che
      */
     if ((ret = __session_add_dhandle(session)) != 0) {
         WT_DHANDLE_RELEASE(session->dhandle);
-        session->dhandle = NULL;
+        WT_DHANDLE_CLEAR(session);
     }
 
     return (ret);

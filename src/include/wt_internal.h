@@ -119,6 +119,8 @@ struct __wt_capacity;
 typedef struct __wt_capacity WT_CAPACITY;
 struct __wt_cell;
 typedef struct __wt_cell WT_CELL;
+struct __wt_cell_kv;
+typedef struct __wt_cell_kv WT_CELL_KV;
 struct __wt_cell_unpack_addr;
 typedef struct __wt_cell_unpack_addr WT_CELL_UNPACK_ADDR;
 struct __wt_cell_unpack_common;
@@ -227,6 +229,10 @@ struct __wt_data_handle;
 typedef struct __wt_data_handle WT_DATA_HANDLE;
 struct __wt_data_handle_cache;
 typedef struct __wt_data_handle_cache WT_DATA_HANDLE_CACHE;
+struct __wt_dhandle_clear_event;
+typedef struct __wt_dhandle_clear_event WT_DHANDLE_CLEAR_EVENT;
+struct __wt_dhandle_clear_log;
+typedef struct __wt_dhandle_clear_log WT_DHANDLE_CLEAR_LOG;
 struct __wt_disagg_copy_metadata;
 typedef struct __wt_disagg_copy_metadata WT_DISAGG_COPY_METADATA;
 struct __wt_disaggregated_checkpoint_track;
@@ -501,6 +507,8 @@ struct __wti_rec_kv;
 typedef struct __wti_rec_kv WTI_REC_KV;
 struct __wti_reconcile;
 typedef struct __wti_reconcile WTI_RECONCILE;
+struct __wti_update_select;
+typedef struct __wti_update_select WTI_UPDATE_SELECT;
 union __wt_lsn;
 typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
@@ -558,6 +566,7 @@ typedef uint64_t wt_timestamp_t;
 #endif
 
 #include "misc.h"
+#include "tsan_suppress.h"
 #include "mutex.h"
 
 #include "stat.h"         /* required by dhandle.h */

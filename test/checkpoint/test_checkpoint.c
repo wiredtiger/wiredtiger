@@ -108,14 +108,15 @@ main(int argc, char *argv[])
     g.hs_checkpoint_timing_stress = false;
     g.checkpoint_slow_timing_stress = false;
     g.no_ts_deletes = false;
+    g.precise_checkpoint = false;
     g.predictable_replay = false;
     runs = 1;
     verify_only = false;
 
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, &g.opts);
 
-    while ((ch = __wt_getopt(
-              progname, argc, argv, "C:c:d:Dk:l:mn:pr:Rs:S:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv,
+              "C:c:d:Dk:l:mn:per:Rs:S:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
         case 'c':
             g.checkpoint_name = __wt_optarg;
@@ -124,9 +125,8 @@ main(int argc, char *argv[])
             strncpy(config_open, __wt_optarg, sizeof(config_open) - 1);
             break;
         case 'd': /* disaggregated storage options */
-            if (enable_disagg(__wt_optarg) != 0) {
-                return (usage());
-            }
+            g.opts.disagg_storage = true;
+            g.opts.disagg_mode = __wt_optarg;
             break;
         case 'D':
             g.debug_mode = true;
@@ -148,6 +148,9 @@ main(int argc, char *argv[])
             break;
         case 'p': /* prepare */
             g.prepare = true;
+            break;
+        case 'e': /* precise checkpoint */
+            g.precise_checkpoint = true;
             break;
         case 'r': /* runs */
             runs = atoi(__wt_optarg);
@@ -240,8 +243,24 @@ main(int argc, char *argv[])
         fprintf(stderr, "-S is only valid if specified along with -X and -R.\n");
         return (EXIT_FAILURE);
     }
+    if (g.precise_checkpoint && !g.use_timestamps) {
+        fprintf(stderr, "precise checkpoint (-e) is only valid if specified along with -x.\n");
+        return (EXIT_FAILURE);
+    }
+
+    /*
+     * Among other things, this initializes the random number generators in the option structure.
+     */
+    testutil_parse_end_opt(&g.opts);
+    /* Clean up on signal. */
+    (void)signal(SIGINT, onint);
+
+    testutil_work_dir_from_path(g.home, 512, (&g.opts)->home);
 
     if (g.opts.disagg_storage) {
+        if (enable_disagg(g.opts.disagg_mode) != 0)
+            return (usage());
+
         if (!g.use_timestamps) {
             fprintf(stderr, "disaggregated storage feature requires usage of timestamps (-x/-X)");
             return (EXIT_FAILURE);
@@ -263,15 +282,6 @@ main(int argc, char *argv[])
             return (EXIT_FAILURE);
         }
     }
-
-    /*
-     * Among other things, this initializes the random number generators in the option structure.
-     */
-    testutil_parse_end_opt(&g.opts);
-    /* Clean up on signal. */
-    (void)signal(SIGINT, onint);
-
-    testutil_work_dir_from_path(g.home, 512, (&g.opts)->home);
 
     /*
      * Always preserve home directory. Some tests rely on the home directory being present to
@@ -336,6 +346,7 @@ main(int argc, char *argv[])
                 (void)log_print_err("conn.open_session", ret, 1);
                 break;
             }
+            prepare_discover(g.conn, NULL);
 
             verify_consistency(session, WT_TS_NONE, false);
             goto run_complete;
@@ -380,29 +391,27 @@ static int
 enable_disagg(const char *mode)
 {
     if (strcmp(mode, "leader") == 0) {
-        g.opts.disagg_storage = true;
         g.opts.disagg_switch_mode = false;
         g.opts.disagg_mode = "leader";
-        g.opts.disagg_page_log = "palm";
+        g.opts.disagg_page_log = "palite";
     } else if (strcmp(mode, "follower") == 0) {
-        g.opts.disagg_storage = true;
         g.opts.disagg_mode = "follower";
         g.opts.disagg_switch_mode = false;
-        g.opts.disagg_page_log = "palm";
+        g.opts.disagg_page_log = "palite";
     } else if (strcmp(mode, "switch") == 0) {
-        g.opts.disagg_storage = true;
         g.opts.disagg_switch_mode = true;
         /* For switch mode, randomly pick initial role */
         bool disagg_leader = (__wt_random(&g.opts.extra_rnd) % 2) == 0;
         g.opts.disagg_mode = disagg_leader ? "leader" : "follower";
-        g.opts.disagg_page_log = "palm";
+        g.opts.disagg_page_log = "palite";
         printf("Switch mode: starting as %s\n", g.opts.disagg_mode);
     } else {
         fprintf(stderr, "Invalid disaggregated mode: %s\n", mode);
         return EINVAL;
     }
 
-    g.opts.palm_map_size_mb = 2048; /* Set 2GB map size for palm by default. */
+    g.opts.palm_map_size_mb = 2048;               /* Set 2GB map size for palm by default. */
+    g.opts.disagg_page_log_home = (char *)g.home; /* Set home directory for page log. */
 
     return 0;
 }
@@ -424,9 +433,10 @@ wt_connect(const char *config_open)
     fast_eviction = false;
 
     /*
-     * Randomly decide on the eviction rate (fast or default).
+     * Randomly decide on the eviction rate (fast or default). For disagg, skip fast eviction, as it
+     * can cause cache-stuck scenarios.
      */
-    if ((__wt_random(&g.opts.extra_rnd) % 15) % 2 == 0)
+    if ((__wt_random(&g.opts.extra_rnd) % 15) % 2 == 0 && !g.opts.disagg_storage)
         fast_eviction = true;
 
     /* Set up the basic configuration string first. */
@@ -457,7 +467,12 @@ wt_connect(const char *config_open)
      */
     if (g.sweep_stress)
         strcat(config, SWEEP_CFG);
-
+    /* Add config for preserve prepared and precise config */
+    if (g.precise_checkpoint) {
+        strcat(config, ",precise_checkpoint=true");
+        if (g.prepare)
+            strcat(config, ",preserve_prepared=true");
+    }
     /*
      * If we are using tiered add in the extension and tiered storage configuration.
      */
@@ -763,7 +778,8 @@ usage(void)
 {
     fprintf(stderr,
       "usage: %s\n"
-      "    [-DmpRvXx] [-C wiredtiger-config] [-c checkpoint] [-d disagg-mode] [-h home] [-k keys] "
+      "    [-DmpeRkvXx] [-C wiredtiger-config] [-c checkpoint] [-d disagg-mode] [-h home] [-k "
+      "keys] "
       "[-l log]\n"
       "    [-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t f|r|v]\n"
       "    [-W workers]\n",
@@ -779,6 +795,7 @@ usage(void)
       "\t-m perform delete operations without timestamps\n"
       "\t-n set number of operations each thread does\n"
       "\t-p use prepare\n"
+      "\t-e use precise checkpoint\n"
       "\t-r set number of runs (0 for continuous)\n"
       "\t-R configure predictable replay\n"
       "\t-s specify which timing stress configuration to use ( 1 | 2 | 3 | 4 | 5 )\n"

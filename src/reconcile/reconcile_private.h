@@ -194,6 +194,12 @@ struct __wti_reconcile {
      */
     bool update_used;
 
+    /* Track if there is any update chain with its updates all aborted. */
+    bool has_upd_chain_all_aborted;
+
+    /* Track if any key is removed from the disk image due to its delete is globally visible. */
+    bool key_removed_from_disk_image;
+
     /*
      * When we can't mark the page clean after reconciliation (for example, checkpoint or eviction
      * found some uncommitted updates), there's a leave-dirty flag.
@@ -305,6 +311,10 @@ struct __wti_reconcile {
     uint32_t count_internal_page_delta_key_deleted;
     uint32_t count_internal_page_delta_key_updated;
 
+    /* Stats for key bytes discarded using prefix compression.*/
+    uint32_t bytes_prefix_compression_delta;
+    uint32_t bytes_prefix_compression_full;
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WTI_REC_TIME_NEWEST_START_DURABLE_TS 0x01u
 #define WTI_REC_TIME_NEWEST_STOP_DURABLE_TS 0x02u
@@ -382,7 +392,6 @@ struct __wti_reconcile {
 
     bool cache_write_hs;                /* Used the history store table */
     bool cache_write_restore_invisible; /* Used update/restoration because of invisible update */
-    bool cache_upd_chain_all_aborted;   /* All updates in the chain are aborted */
 
     WT_REF_STATE tested_ref_state; /* Debugging information */
 
@@ -426,7 +435,7 @@ struct __wti_reconcile {
         WT_TIME_AGGREGATE_MERGE((session), &(chunk)->ta_after_split_boundary, (ta_agg)); \
     } while (0)
 
-typedef struct {
+struct __wti_update_select {
     WT_UPDATE *upd;       /* Update to write (or NULL) */
     WT_UPDATE *tombstone; /* The tombstone to write (or NULL) */
 
@@ -434,7 +443,7 @@ typedef struct {
 
     bool upd_saved;       /* An element on the row's update chain was saved */
     bool no_ts_tombstone; /* Tombstone without a timestamp */
-} WTI_UPDATE_SELECT;
+};
 
 #define WTI_UPDATE_SELECT_INIT(upd_select)      \
     do {                                        \
@@ -459,9 +468,9 @@ typedef struct {
         (r)->ref->page->modify->mod_multi_entries == 1))
 
 /* Called after building the disk image. */
-#define WT_BUILD_DELTA_LEAF(session, r)                         \
-    WT_DELTA_LEAF_ENABLED((session)) && (r)->multi_next == 1 && \
-      WT_REC_RESULT_SINGLE_PAGE((session), (r))
+#define WT_BUILD_DELTA_LEAF(session, r)                                                      \
+    (WT_DELTA_LEAF_ENABLED((session)) && !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT) && \
+      (r)->multi_next == 1 && WT_REC_RESULT_SINGLE_PAGE((session), (r)))
 
 /*
  * Called when building the internal page image to indicate should we start to build a delta for the
@@ -472,7 +481,14 @@ typedef struct {
       (r)->multi_next == 0 &&                                                             \
       !F_ISSET_ATOMIC_16(r->ref->page, WT_PAGE_REC_FAIL | WT_PAGE_INTL_PINDEX_UPDATE) &&  \
       WT_REC_RESULT_SINGLE_PAGE((session), (r))
+/*
+ * Macro to check if an update's transaction ID and timestamp is obsolete and can be pruned.
+ */
+#define WT_REC_CAN_PRUNE_UPD(txnid, timestamp, r)                                    \
+    ((r)->rec_prune_timestamp != WT_TS_NONE && (txnid) < (r)->rec_start_oldest_id && \
+      (timestamp) <= r->rec_prune_timestamp)
 
+#define WT_REC_HAS_ON_DISK(vpack) (vpack != NULL && vpack->type != WT_CELL_DEL)
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern int __wti_ovfl_reuse_add(WT_SESSION_IMPL *session, WT_PAGE *page, const uint8_t *addr,
@@ -537,7 +553,7 @@ extern void __wti_rec_dictionary_reset(WTI_RECONCILE *r);
 static WT_INLINE bool __wti_rec_need_split(WTI_RECONCILE *r, size_t len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wti_rec_cell_build_val(WT_SESSION_IMPL *session, WTI_RECONCILE *r,
-  const void *data, size_t size, WT_TIME_WINDOW *tw, uint64_t rle)
+  const void *data, size_t size, WT_TIME_WINDOW *tw, uint64_t rle, bool *ovfl_val)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wti_rec_dict_replace(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_TIME_WINDOW *tw, uint64_t rle, WTI_REC_KV *val)

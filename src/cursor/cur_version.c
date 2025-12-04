@@ -8,7 +8,12 @@
 
 #include "wt_internal.h"
 
+/*
+ * Format: txn ID, start ts, start durable ts, stop txn ID, stop ts, stop durable ts, type, prepare,
+ * flags, location, value.
+ */
 #define WT_CURVERSION_METADATA_FORMAT WT_UNCHECKED_STRING(QQQQQQBBBB)
+
 /*
  * __curversion_set_key --
  *     WT_CURSOR->set_key implementation for version cursors.
@@ -172,7 +177,6 @@ __curversion_next_single_key(WT_CURSOR *cursor)
     file_cursor = version_cursor->file_cursor;
     hs_cursor = version_cursor->hs_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
-    page = cbt->ref->page;
     twp = NULL;
     upd_found = false;
     first_globally_visible = tombstone = upd = NULL;
@@ -185,6 +189,9 @@ __curversion_next_single_key(WT_CURSOR *cursor)
     if (!F_ISSET(file_cursor, WT_CURSTD_KEY_INT))
         WT_ERR_SUB(session, WT_ROLLBACK, WT_NONE,
           "rolling back version_cursor->next due to no initial position");
+
+    /* It's unsafe to access the page before checking the cursor's position. */
+    page = cbt->ref->page;
 
     if (!F_ISSET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED)) {
         upd = version_cursor->next_upd;
@@ -580,9 +587,9 @@ skip_on_page:
                 goto done;
 
             /*
-             * TODO: for history store, it is hard to determine if the stop durable timestamp is
-             * from a tombstone or the previous full value. Always return the value for now if its
-             * stop durable timestamp is larger than the end timestamp.
+             * FIXME-WT-16136: for history store, it is hard to determine if the stop durable
+             * timestamp is from a tombstone or the previous full value. Always return the value for
+             * now if its stop durable timestamp is larger than the end timestamp.
              */
             if (twp->stop_ts == WT_TS_MAX &&
               twp->durable_start_ts <= version_cursor->start_timestamp)
@@ -744,6 +751,12 @@ __curversion_next(WT_CURSOR *cursor)
     CURSOR_API_CALL(
       cursor, session, ret, next, ((WT_CURSOR_BTREE *)version_cursor->file_cursor)->dhandle);
 
+    /* Early return if the cursor is not configured to walk across keys. */
+    if (!F_ISSET(version_cursor, WT_CURVERSION_CROSS_KEY)) {
+        WT_ERR(__curversion_next_single_key(cursor));
+        goto done;
+    }
+
     /* Place the cursor on the first key if it is not positioned. */
     if (!F_ISSET(file_cursor, WT_CURSTD_KEY_INT)) {
         F_SET(file_cursor, WT_CURSTD_KEY_ONLY);
@@ -770,6 +783,7 @@ __curversion_next(WT_CURSOR *cursor)
 err:
     if (ret != 0)
         WT_TRET(cursor->reset(cursor));
+done:
     API_END_RET(session, ret);
 }
 
@@ -877,7 +891,7 @@ err:
     }
     __wt_free(session, cursor->value_format);
     __wt_cursor_close(cursor);
-    __wt_atomic_sub32(&S2C(session)->version_cursor_count, 1);
+    __wt_atomic_sub_uint32(&S2C(session)->version_cursor_count, 1);
 
     API_END_RET(session, ret);
 }
@@ -944,7 +958,7 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
         __wt_txn_pinned_timestamp(session, &pinned_ts);
         txn_global->version_cursor_pinned_timestamp = pinned_ts;
     }
-    (void)__wt_atomic_add32(&conn->version_cursor_count, 1);
+    (void)__wt_atomic_add_uint32(&conn->version_cursor_count, 1);
     __wt_writeunlock(session, &txn_global->rwlock);
 
     /* Open the file cursor to check the key and value format. */
@@ -996,6 +1010,13 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     if (ret == 0) {
         if (cval.val)
             F_SET(version_cursor, WT_CURVERSION_TIMESTAMP_ORDER);
+    }
+
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_gets_def(session, cfg, "debug.dump_version.cross_key", 0, &cval), true);
+    if (ret == 0) {
+        if (cval.val)
+            F_SET(version_cursor, WT_CURVERSION_CROSS_KEY);
     }
 
     WT_ERR_NOTFOUND_OK(

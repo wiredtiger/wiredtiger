@@ -189,6 +189,10 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
         btree->evict_disabled_open = true;
     }
 
+    /* A btree cannot be both an ingest btree and a stable btree. */
+    WT_ASSERT(session,
+      !F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || !F_ISSET(btree, WT_BTREE_DISAGGREGATED));
+
     if (0) {
 err:
         WT_TRET(__wt_btree_close(session));
@@ -500,14 +504,20 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * Detect if the btree is disaggregated. FIXME-WT-14721: the file extension check should be
      * replaced with something more robust.
      */
-    WT_RET(__wt_config_gets(session, cfg, "block_manager", &cval));
-    if (strstr(btree->dhandle->name, ".wt_stable") != NULL || WT_CONFIG_LIT_MATCH("disagg", cval)) {
-        F_SET(btree, WT_BTREE_DISAGGREGATED);
+    if (strstr(btree->dhandle->name, ".wt_ingest") != NULL)
+        /* Flag the ingest btree as participating in automatic garbage collection */
+        F_SET(btree, WT_BTREE_GARBAGE_COLLECT);
+    else {
+        WT_RET(__wt_config_gets(session, cfg, "block_manager", &cval));
+        if (strstr(btree->dhandle->name, ".wt_stable") != NULL ||
+          WT_CONFIG_LIT_MATCH("disagg", cval)) {
+            F_SET(btree, WT_BTREE_DISAGGREGATED);
 
-        WT_RET(__btree_setup_page_log(session, btree));
+            WT_RET(__btree_setup_page_log(session, btree));
 
-        /* A page log service and a storage source cannot both be enabled. */
-        WT_ASSERT(session, btree->page_log == NULL || btree->bstorage == NULL);
+            /* A page log service and a storage source cannot both be enabled. */
+            WT_ASSERT(session, btree->page_log == NULL || btree->bstorage == NULL);
+        }
     }
 
     /* Page sizes */
@@ -620,8 +630,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
 
     btree->modified = false; /* Clean */
 
-    __wt_atomic_store_enum(&btree->syncing, WT_BTREE_SYNC_OFF);   /* Not syncing */
-    btree->checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT); /* Checkpoint generation */
+    __wt_atomic_store_enum_relaxed(&btree->syncing, WT_BTREE_SYNC_OFF); /* Not syncing */
+    btree->checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);       /* Checkpoint generation */
 
     /*
      * The first time we open a btree, we'll be initializing the write gen to the connection-wide
@@ -686,8 +696,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     if (F_ISSET(session, WT_SESSION_IMPORT))
         btree->modified = true;
 
-    WT_ACQUIRE_READ(
-      btree->checkpoint_timestamp, conn->disaggregated_storage.last_checkpoint_timestamp);
+    btree->checkpoint_timestamp =
+      __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_timestamp);
     if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
         btree->prune_timestamp = btree->checkpoint_timestamp;
 

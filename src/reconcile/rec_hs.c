@@ -40,7 +40,7 @@ __rec_hs_verbose_cache_stats(WT_SESSION_IMPL *session, WT_BTREE *btree)
      */
     if (WT_VERBOSE_ISSET(session, WT_VERB_HS) ||
       (ckpt_gen_current > ckpt_gen_last &&
-        __wt_atomic_casv64(&cache->hs_verb_gen_write, ckpt_gen_last, ckpt_gen_current))) {
+        __wt_atomic_cas_uint64_v(&cache->hs_verb_gen_write, ckpt_gen_last, ckpt_gen_current))) {
         WT_IGNORE_RET(__wt_evict_clean_needed(session, &pct_full));
         WT_IGNORE_RET(__wt_evict_dirty_needed(session, &pct_dirty));
 
@@ -358,7 +358,7 @@ __rec_hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btr
  *     A helper function to insert the record into the history store including stop time point.
  */
 static int
-__rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
+__rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree, WT_REF *ref,
   const WT_ITEM *key, const uint8_t type, const WT_ITEM *hs_value, WT_TIME_WINDOW *tw,
   bool error_on_ts_ordering)
 {
@@ -390,6 +390,9 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
     WT_ASSERT(session,
       F_ISSET(session, WT_SESSION_INTERNAL) ||
         F_ISSET(cursor, WT_CURSTD_HS_READ_ALL | WT_CURSTD_HS_READ_COMMITTED));
+
+    __wt_verbose_debug1(session, WT_VERB_RECONCILE,
+      "start inserting an update to the history store for %p", (void *)ref);
 
     /*
      * Keep track if the caller had set WT_CURSTD_HS_READ_ALL flag on the history store cursor. We
@@ -543,6 +546,9 @@ __rec_hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *bt
       cursor, tw, tw->durable_stop_ts, tw->durable_start_ts, (uint64_t)type, hs_value);
     WT_ERR(cursor->insert(cursor));
 
+    __wt_verbose_debug1(session, WT_VERB_RECONCILE,
+      "finished inserting an update to the history store for %p", (void *)ref);
+
 err:
     if (!hs_read_all_flag)
         F_CLR(cursor, WT_CURSTD_HS_READ_ALL);
@@ -647,6 +653,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
 #define MAX_REVERSE_MODIFY_NUM 16
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_UPDATE_VECTOR updates;
+    WT_REF *ref;
     WT_SAVE_UPD *list;
     WT_UPDATE *newest_hs, *newest_hs_tombstone, *no_ts_upd, *oldest_upd, *prev_upd, *ref_upd,
       *tombstone, *upd;
@@ -654,6 +661,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size, modify_cnt, txnid, txnid_prepared;
     uint64_t cache_hs_insert_full_update, cache_hs_insert_reverse_modify, cache_hs_write_squash;
+    uint64_t cache_hs_key_processed, cache_hs_update_processed;
     uint32_t i;
     int nentries;
     bool check_prepared, enable_reverse_modify, error_on_ts_ordering, hs_inserted, squashed,
@@ -663,12 +671,14 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     hs_flag_set = false;
     r->cache_write_hs = false;
     btree = S2BT(session);
+    ref = r->ref;
     prev_upd = NULL;
     WT_TIME_WINDOW_INIT(&tw);
     insert_cnt = 0;
     error_on_ts_ordering = F_ISSET(r, WT_REC_CHECKPOINT_RUNNING) ||
       FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING);
     cache_hs_insert_full_update = cache_hs_insert_reverse_modify = cache_hs_write_squash = 0;
+    cache_hs_key_processed = cache_hs_update_processed = 0;
 
     WT_RET(__wt_curhs_open(session, btree->id, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
@@ -718,6 +728,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
         ref_upd = list->onpage_upd;
 
         __wt_update_vector_clear(&updates);
+
+        ++cache_hs_key_processed;
 
         /*
          * Reverse modifies are only supported on 'S' and 'u' value formats. Disable reverse
@@ -781,7 +793,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
         check_prepared =
           F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) && WT_TIME_WINDOW_HAS_START_PREPARE(&list->tw);
         if (check_prepared) {
-            WT_ACQUIRE_READ(txnid_prepared, list->onpage_upd->txnid);
+            txnid_prepared = __wt_atomic_load_uint64_v_acquire(&list->onpage_upd->txnid);
             /*
              * No need to check the following updates as prepared because they must have all been
              * rolled back.
@@ -916,7 +928,13 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             }
         }
 
+        __wt_verbose_debug1(session, WT_VERB_RECONCILE,
+          "moving %" WT_SIZET_FMT " updates to the history store in saved update list %u of ref %p",
+          updates.size, i, (void *)ref);
+
         if (updates.size > 0) {
+            cache_hs_update_processed += updates.size;
+
             __wt_update_vector_peek(&updates, &oldest_upd);
 
             WT_ASSERT(session,
@@ -1093,15 +1111,15 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {
                 WT_ERR(__wt_modify_pack(hs_cursor, entries, nentries, &modify_value));
-                WT_ERR(__rec_hs_insert_record(session, hs_cursor, btree, key, WT_UPDATE_MODIFY,
+                WT_ERR(__rec_hs_insert_record(session, hs_cursor, btree, ref, key, WT_UPDATE_MODIFY,
                   modify_value, &tw, error_on_ts_ordering));
                 ++cache_hs_insert_reverse_modify;
                 __wt_scr_free(session, &modify_value);
                 ++modify_cnt;
             } else {
                 modify_cnt = 0;
-                WT_ERR(__rec_hs_insert_record(session, hs_cursor, btree, key, WT_UPDATE_STANDARD,
-                  full_value, &tw, error_on_ts_ordering));
+                WT_ERR(__rec_hs_insert_record(session, hs_cursor, btree, ref, key,
+                  WT_UPDATE_STANDARD, full_value, &tw, error_on_ts_ordering));
                 ++cache_hs_insert_full_update;
             }
 
@@ -1161,6 +1179,8 @@ err:
     WT_STAT_CONN_DSRC_INCRV(
       session, cache_hs_insert_reverse_modify, cache_hs_insert_reverse_modify);
     WT_STAT_CONN_DSRC_INCRV(session, cache_hs_write_squash, cache_hs_write_squash);
+    WT_STAT_CONN_DSRC_INCRV(session, cache_hs_key_processed, cache_hs_key_processed);
+    WT_STAT_CONN_DSRC_INCRV(session, cache_hs_update_processed, cache_hs_update_processed);
 
     return (ret);
 }

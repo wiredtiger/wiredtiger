@@ -85,19 +85,29 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_CONNECTION_STATS **stats;
-    uint64_t avg_internal_chain, avg_leaf_chain, intl, inuse, leaf;
+    uint64_t avg_internal_chain, avg_leaf_chain, intl, intl_ingest, intl_stable, inuse,
+      inuse_ingest, inuse_stable, leaf, leaf_ingest, leaf_stable;
 
     conn = S2C(session);
     cache = conn->cache;
     stats = conn->stats;
 
     inuse = __wt_cache_bytes_inuse(cache);
-    intl = __wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&cache->bytes_internal));
+    inuse_ingest = __wt_cache_bytes_inuse_ingest(cache);
+    inuse_stable = __wt_cache_bytes_inuse_stable(cache);
+    intl = __wt_cache_bytes_plus_overhead(
+      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_internal));
+    intl_ingest = __wt_cache_bytes_plus_overhead(
+      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_internal_ingest));
+    intl_stable = __wt_cache_bytes_plus_overhead(
+      cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_internal_stable));
     /*
      * There are races updating the different cache tracking values so be paranoid calculating the
      * leaf byte usage.
      */
     leaf = inuse > intl ? inuse - intl : 0;
+    leaf_ingest = inuse_ingest > intl_ingest ? inuse_ingest - intl_ingest : 0;
+    leaf_stable = inuse_stable > intl_stable ? inuse_stable - intl_stable : 0;
 
     WT_STATP_CONN_SET(session, stats, cache_bytes_max, conn->cache_size);
     WT_STATP_CONN_SET(session, stats, cache_bytes_inuse, inuse);
@@ -106,32 +116,71 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
     WT_STATP_CONN_SET(
       session, stats, cache_bytes_delta_updates, __wt_cache_bytes_delta_updates(cache));
     WT_STATP_CONN_SET(session, stats, cache_bytes_dirty, __wt_cache_dirty_inuse(cache));
+    WT_STATP_CONN_SET(
+      session, stats, cache_bytes_dirty_ingest, __wt_cache_dirty_inuse_ingest(cache));
+    WT_STATP_CONN_SET(
+      session, stats, cache_bytes_dirty_stable, __wt_cache_dirty_inuse_stable(cache));
     WT_STATP_CONN_SET(session, stats, cache_bytes_dirty_leaf, __wt_cache_dirty_leaf_inuse(cache));
     WT_STATP_CONN_SET(
+      session, stats, cache_bytes_dirty_leaf_ingest, __wt_cache_dirty_leaf_inuse_ingest(cache));
+    WT_STATP_CONN_SET(
+      session, stats, cache_bytes_dirty_leaf_stable, __wt_cache_dirty_leaf_inuse_stable(cache));
+    WT_STATP_CONN_SET(
       session, stats, cache_bytes_dirty_internal, __wt_cache_dirty_intl_inuse(cache));
+    WT_STATP_CONN_SET(
+      session, stats, cache_bytes_dirty_internal_ingest, __wt_cache_dirty_intl_inuse_ingest(cache));
+    WT_STATP_CONN_SET(
+      session, stats, cache_bytes_dirty_internal_stable, __wt_cache_dirty_intl_inuse_stable(cache));
     WT_STATP_CONN_SET(session, stats, cache_bytes_dirty_total,
-      __wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&cache->bytes_dirty_total)));
+      __wt_cache_bytes_plus_overhead(
+        cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_total)));
     WT_STATP_CONN_SET(session, stats, cache_bytes_hs,
-      __wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&cache->bytes_hs)));
+      __wt_cache_bytes_plus_overhead(cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_hs)));
     WT_STATP_CONN_SET(session, stats, cache_bytes_hs_dirty,
-      __wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&cache->bytes_hs_dirty)));
+      __wt_cache_bytes_plus_overhead(
+        cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_hs_dirty)));
     WT_STATP_CONN_SET(session, stats, cache_bytes_hs_updates,
-      __wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&cache->bytes_hs_updates)));
+      __wt_cache_bytes_plus_overhead(
+        cache, __wt_atomic_load_uint64_relaxed(&cache->bytes_hs_updates)));
     WT_STATP_CONN_SET(session, stats, cache_bytes_image, __wt_cache_bytes_image(cache));
+    WT_STATP_CONN_SET(
+      session, stats, cache_bytes_image_ingest, __wt_cache_bytes_image_ingest(cache));
+    WT_STATP_CONN_SET(
+      session, stats, cache_bytes_image_stable, __wt_cache_bytes_image_stable(cache));
     WT_STATP_CONN_SET(session, stats, cache_pages_inuse, __wt_cache_pages_inuse(cache));
+    WT_STATP_CONN_SET(
+      session, stats, cache_pages_inuse_ingest, __wt_cache_pages_inuse_ingest(cache));
+    WT_STATP_CONN_SET(
+      session, stats, cache_pages_inuse_stable, __wt_cache_pages_inuse_stable(cache));
     WT_STATP_CONN_SET(session, stats, cache_bytes_internal, intl);
+    WT_STATP_CONN_SET(session, stats, cache_bytes_internal_ingest, intl_ingest);
+    WT_STATP_CONN_SET(session, stats, cache_bytes_internal_stable, intl_stable);
     WT_STATP_CONN_SET(session, stats, cache_bytes_leaf, leaf);
+    WT_STATP_CONN_SET(session, stats, cache_bytes_leaf_ingest, leaf_ingest);
+    WT_STATP_CONN_SET(session, stats, cache_bytes_leaf_stable, leaf_stable);
     WT_STATP_CONN_SET(session, stats, cache_bytes_other, __wt_cache_bytes_other(cache));
     WT_STATP_CONN_SET(session, stats, cache_bytes_updates, __wt_cache_bytes_updates(cache));
-
     WT_STATP_CONN_SET(
-      session, stats, cache_pages_dirty, cache->pages_dirty_intl + cache->pages_dirty_leaf);
-
+      session, stats, cache_bytes_updates_ingest, __wt_cache_bytes_updates_ingest(cache));
     WT_STATP_CONN_SET(
-      session, stats, rec_maximum_hs_wrapup_milliseconds, conn->rec_maximum_hs_wrapup_milliseconds);
+      session, stats, cache_bytes_updates_stable, __wt_cache_bytes_updates_stable(cache));
+
+    WT_STATP_CONN_SET(session, stats, cache_pages_dirty,
+      __wt_atomic_load_uint64_relaxed(&cache->pages_dirty_intl) +
+        __wt_atomic_load_uint64_relaxed(&cache->pages_dirty_leaf));
+    WT_STATP_CONN_SET(session, stats, cache_pages_dirty_ingest,
+      __wt_atomic_load_uint64_relaxed(&cache->pages_dirty_intl_ingest) +
+        __wt_atomic_load_uint64_relaxed(&cache->pages_dirty_leaf_ingest));
+    WT_STATP_CONN_SET(session, stats, cache_pages_dirty_stable,
+      __wt_atomic_load_uint64_relaxed(&cache->pages_dirty_intl_stable) +
+        __wt_atomic_load_uint64_relaxed(&cache->pages_dirty_leaf_stable));
+
+    WT_STATP_CONN_SET(session, stats, rec_maximum_hs_wrapup_milliseconds,
+      __wt_atomic_load_uint64_relaxed(&conn->rec_maximum_hs_wrapup_milliseconds));
     WT_STATP_CONN_SET(session, stats, rec_maximum_image_build_milliseconds,
-      conn->rec_maximum_image_build_milliseconds);
-    WT_STATP_CONN_SET(session, stats, rec_maximum_milliseconds, conn->rec_maximum_milliseconds);
+      __wt_atomic_load_uint64_relaxed(&conn->rec_maximum_image_build_milliseconds));
+    WT_STATP_CONN_SET(session, stats, rec_maximum_milliseconds,
+      __wt_atomic_load_uint64_relaxed(&conn->rec_maximum_milliseconds));
 
     avg_internal_chain = (uint64_t)WT_STAT_CONN_READ(stats, rec_pages_with_internal_deltas) == 0 ?
       0 :
@@ -145,10 +194,10 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
       session, stats, rec_average_internal_page_delta_chain_length, avg_internal_chain);
     WT_STATP_CONN_SET(session, stats, rec_average_leaf_page_delta_chain_length, avg_leaf_chain);
 
-    WT_STATP_CONN_SET(
-      session, stats, rec_max_internal_page_deltas, conn->page_delta.max_internal_delta_count);
-    WT_STATP_CONN_SET(
-      session, stats, rec_max_leaf_page_deltas, conn->page_delta.max_leaf_delta_count);
+    WT_STATP_CONN_SET(session, stats, rec_max_internal_page_deltas,
+      __wt_atomic_load_uint64_relaxed(&conn->page_delta.max_internal_delta_count));
+    WT_STATP_CONN_SET(session, stats, rec_max_leaf_page_deltas,
+      __wt_atomic_load_uint64_relaxed(&conn->page_delta.max_leaf_delta_count));
 }
 
 /*
@@ -172,21 +221,21 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
         __wt_errx(session,
           "cache server: exiting with %" PRIu64 " pages in memory and %" PRIu64 " pages evicted",
           cache->pages_inmem, cache->pages_evicted);
-    if ((__wt_atomic_load64(&cache->bytes_image_intl) +
-          __wt_atomic_load64(&cache->bytes_image_leaf)) != 0)
+    if ((__wt_atomic_load_uint64_relaxed(&cache->bytes_image_intl) +
+          __wt_atomic_load_uint64_relaxed(&cache->bytes_image_leaf)) != 0)
         __wt_errx(session, "cache server: exiting with %" PRIu64 " image bytes in memory",
-          __wt_atomic_load64(&cache->bytes_image_intl) +
-            __wt_atomic_load64(&cache->bytes_image_leaf));
-    if (__wt_atomic_load64(&cache->bytes_inmem) != 0)
+          __wt_atomic_load_uint64_relaxed(&cache->bytes_image_intl) +
+            __wt_atomic_load_uint64_relaxed(&cache->bytes_image_leaf));
+    if (__wt_atomic_load_uint64_relaxed(&cache->bytes_inmem) != 0)
         __wt_errx(session, "cache server: exiting with %" PRIu64 " bytes in memory",
-          __wt_atomic_load64(&cache->bytes_inmem));
-    if ((__wt_atomic_load64(&cache->bytes_dirty_intl) +
-          __wt_atomic_load64(&cache->bytes_dirty_leaf)) != 0 ||
+          __wt_atomic_load_uint64_relaxed(&cache->bytes_inmem));
+    if ((__wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_intl) +
+          __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_leaf)) != 0 ||
       cache->pages_dirty_intl + cache->pages_dirty_leaf != 0)
         __wt_errx(session,
           "cache server: exiting with %" PRIu64 " bytes dirty and %" PRIu64 " pages dirty",
-          __wt_atomic_load64(&cache->bytes_dirty_intl) +
-            __wt_atomic_load64(&cache->bytes_dirty_leaf),
+          __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_intl) +
+            __wt_atomic_load_uint64_relaxed(&cache->bytes_dirty_leaf),
           cache->pages_dirty_intl + cache->pages_dirty_leaf);
 
     __wt_free(session, conn->cache);

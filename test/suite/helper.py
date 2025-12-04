@@ -163,14 +163,29 @@ def simulate_crash_restart(testcase, olddir, newdir):
 
 class WiredTigerStat:
 
-    def __init__(self, session):
+    def __init__(self, session, uri = None):
         self.session = session
+        self.uri = "statistics:"
+        if uri:
+            self.uri += uri
 
-    def __enter__(self, uri = 'statistics:'):
+    def __enter__(self):
         # Get a statistics cursor
-        self.stat_cursor = self.session.open_cursor(uri, None, None)
+        self.stat_cursor = self.session.open_cursor(self.uri, None, None)
         return self.stat_cursor
 
     def __exit__(self, exception_type, exception_value, exception_traceback):
         # Close the statistics cursor
         self.stat_cursor.close()
+
+class WiredTigerCursor:
+    def __init__(self, session, uri = 'statistics:', *args, **kwargs):
+        self.cursor = session.open_cursor(uri, *args, **kwargs)
+
+    def __enter__(self):
+        # Get the opened cursor
+        return self.cursor
+
+    def __exit__(self, exception_type, exception_value, exception_traceback):
+        # Close the cursor
+        self.cursor.close()

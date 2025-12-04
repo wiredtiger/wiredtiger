@@ -27,6 +27,9 @@ recovery=$home.recovery
 # Extract the disagg config if any.
 disagg_config=$(echo $config | sed -n -r 's/.*(-d \w+).*/\1/p')
 
+# Extract the -e flag if present.
+precise_checkpoint=$(echo $config | grep -o '\-e')
+
 #./t -t r -W 3 -D -X -n 100000 -k 100000 -C cache_size=100MB -h $home > $home.out 2>&1 &
 ./${bin} ${config} -h ${home} > $home.out 2>&1 &
 pid=$!
@@ -45,7 +48,19 @@ while kill -STOP $pid ; do
 	cp $home/* $backup
 	kill -CONT $pid
 	cp $backup/* $recovery
-	./${bin} $disagg_config -t r -D -v -h $recovery || exit 1
+
+	# Timestamp must be set for disaggregate configuration.
+	recovery_flags=""
+	if [ -n "$disagg_config" ]; then
+		recovery_flags="$disagg_config -e -x"
+	fi
+
+	# Include -e and -x flags if -e is present in original config.
+	if [ -n "$precise_checkpoint" ]; then
+		recovery_flags+=" -e -x"
+	fi
+
+	./${bin} $recovery_flags -t r -D -v -h $recovery || exit 1
 done
 
 # Clean the home directory once the test is completed. Note that once we fail to send the signal to

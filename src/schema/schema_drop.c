@@ -301,7 +301,7 @@ __drop_tiered(
      * released and closed. We have to know if the table is busy or if the close is successful
      * before cleaning up the tiered information.
      */
-    tiered_tmp = *tiered;
+    __wt_tsan_suppress_memcpy(&tiered_tmp, tiered, sizeof(tiered_tmp));
 
     /*
      * We are about to close the dhandle. If that is successful we need to remove any tiered work
@@ -435,7 +435,7 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool
     WT_RET(__wt_meta_track_on(session));
 
     /* Paranoia: clear any handle from our caller. */
-    session->dhandle = NULL;
+    WT_DHANDLE_CLEAR(session);
 
     if (WT_PREFIX_MATCH(uri, "colgroup:"))
         ret = __drop_colgroup(session, uri, force, cfg, check_visibility);

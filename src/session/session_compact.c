@@ -229,7 +229,7 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
     if (session == conn->background_compact.session) {
         background_compaction = true;
         __wt_spin_lock(session, &conn->background_compact.lock);
-        if (!__wt_atomic_loadbool(&conn->background_compact.running))
+        if (!__wt_atomic_load_bool_relaxed(&conn->background_compact.running))
             ret = WT_ERROR;
         __wt_spin_unlock(session, &conn->background_compact.lock);
     } else if (session->event_handler->handle_general != NULL) {
@@ -403,7 +403,10 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
     u_int i;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, ret, compact, config, cfg);
+    SESSION_API_CALL(session, ret, compact, config, cfg, false);
+
+    if (__wt_conn_is_disagg(session))
+        WT_ERR_MSG(session, ENOTSUP, "Compaction does not work with disaggregated storage.");
 
     /* Trigger the background server. */
     if ((ret = __wt_config_getones(session, config, "background", &cval) == 0)) {

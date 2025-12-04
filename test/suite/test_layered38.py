@@ -33,7 +33,6 @@ from wtscenario import make_scenarios
 
 # test_layered38.py
 # Test garbage collecting redundant content in the ingest table
-@wttest.skip_for_hook("tiered", "FIXME-WT-14938: crashing with tiered hook.")
 @disagg_test_class
 class test_layered38(wttest.WiredTigerTestCase):
     conn_base_config = ',create,cache_size=10GB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
@@ -154,7 +153,7 @@ class test_layered38(wttest.WiredTigerTestCase):
         # Apply the insert to the leader WT.
         oplog.apply(self, self.session, 0, self.nitems)
 
-        # Apply the delete to the leader WT after checkpoint.
+        # Apply the delete to the leader WT.
         oplog.apply(self, self.session, self.nitems, self.nitems)
         oplog.check(self, self.session, 0, 2 * self.nitems)
 
@@ -182,6 +181,9 @@ class test_layered38(wttest.WiredTigerTestCase):
         # At this point, the inserts in the ingest table are redundant but the delets are not.
         self.evict_ingest(session_follow, ts)
         count = self.count_ingest(session_follow, ts)
+        self.assertEqual(count, 0)
+
+        count = self.count_ingest(session_follow)
         self.assertEqual(count, self.nitems)
 
         # Close the cursor held open.
@@ -191,6 +193,9 @@ class test_layered38(wttest.WiredTigerTestCase):
         # are not in the stable table.
         self.evict_ingest(session_follow, ts)
         count = self.count_ingest(session_follow, ts)
+        self.assertEqual(count, 0)
+
+        count = self.count_ingest(session_follow)
         self.assertEqual(count, self.nitems)
 
         # Hold a cursor open on the layered table, and on the ingest as well.
@@ -210,6 +215,9 @@ class test_layered38(wttest.WiredTigerTestCase):
         # as there is a cursor open.
         self.evict_ingest(session_follow, ts)
         count = self.count_ingest(session_follow, ts)
+        self.assertEqual(count, 0)
+
+        count = self.count_ingest(session_follow)
         self.assertEqual(count, self.nitems)
 
         # Close the cursor held open.

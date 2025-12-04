@@ -184,8 +184,9 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
              * If we restore an update chain in update restore eviction, there should be no update
              * or a restored tombstone on the existing update chain except for btrees with leaf
              * delta enabled or a prepared update if the preserve prepared config is enabled.
-             * FIXME-WT-15619 and FIXME-WT-15618: No need to consider the delta case if we have
-             * implemented delta consolidation.
+             *
+             * FIXME-WT-15619: No need to consider the delta case if we have implemented delta
+             * consolidation.
              */
             WT_ASSERT_ALWAYS(session,
               !restore ||
@@ -381,7 +382,7 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
     if (WT_PAGE_TRYLOCK(session, page) != 0)
         return;
 
-    WT_ACQUIRE_READ(prune_timestamp, CUR2BT(cbt)->prune_timestamp);
+    prune_timestamp = __wt_atomic_load_uint64_acquire(&CUR2BT(cbt)->prune_timestamp);
 
     oldest_id = __wt_txn_oldest_id(session);
 
@@ -444,7 +445,8 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
          * If the list is long, don't retry checks on this page until the transaction state has
          * moved forwards.
          */
-        page->modify->obsolete_check_txn = __wt_atomic_loadv64(&txn_global->last_running);
+        page->modify->obsolete_check_txn =
+          __wt_atomic_load_uint64_v_relaxed(&txn_global->last_running);
         if (txn_global->has_pinned_timestamp)
             page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
     }

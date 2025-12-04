@@ -175,7 +175,7 @@ __wt_session_copy_values(WT_SESSION_IMPL *session)
              */
             WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
             WT_ASSERT(session,
-              __wt_atomic_loadv64(&txn_shared->pinned_id) != WT_TXN_NONE ||
+              __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) != WT_TXN_NONE ||
                 (WT_BTREE_PREFIX(cursor->uri) &&
                   WT_DHANDLE_IS_CHECKPOINT(((WT_CURSOR_BTREE *)cursor)->dhandle)));
 #endif
@@ -245,7 +245,7 @@ __session_clear(WT_SESSION_IMPL *session)
      */
     memset(session, 0, WT_SESSION_CLEAR_SIZE);
 
-    __wt_atomic_store32(&session->hazards.inuse, 0);
+    __wt_atomic_store_uint32_relaxed(&session->hazards.inuse, 0);
     session->hazards.num_active = 0;
 }
 /*
@@ -316,7 +316,7 @@ __session_close(WT_SESSION *wt_session, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
 
-    SESSION_API_CALL_PREPARE_ALLOWED(session, close, config, cfg);
+    SESSION_API_CALL_PREPARE_ALLOWED(session, close, config, cfg, false);
     WT_UNUSED(cfg);
 
     WT_TRET(__wt_session_close_internal(session));
@@ -454,8 +454,9 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
      * not be at the end of the array, step toward the beginning of the array until we reach an
      * active session.
      */
-    while (WT_CONN_SESSIONS_GET(conn)[__wt_atomic_load32(&conn->session_array.cnt) - 1].active == 0)
-        if (__wt_atomic_sub32(&conn->session_array.cnt, 1) == 0)
+    while (WT_CONN_SESSIONS_GET(conn)[__wt_atomic_load_uint32_relaxed(&conn->session_array.cnt) - 1]
+             .active == 0)
+        if (__wt_atomic_sub_uint32(&conn->session_array.cnt, 1) == 0)
             break;
 
     __wt_spin_unlock(session, &conn->api_lock);
@@ -791,7 +792,8 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
      */
     WT_ASSERT(session,
       WT_IS_URI_HS(uri) ||
-        (WT_IS_URI_METADATA(uri) && __wt_atomic_loadvbool(&txn_global->checkpoint_running)) ||
+        (WT_IS_URI_METADATA(uri) &&
+          __wt_atomic_load_bool_v_relaxed(&txn_global->checkpoint_running)) ||
         session->hs_cursor_counter == 0 || F_ISSET(session, WT_SESSION_INTERNAL) ||
         (S2BT_SAFE(session) != NULL && F_ISSET(S2BT(session), WT_BTREE_VERIFY)));
 
@@ -852,7 +854,7 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     hash_value = 0;
     dup_backup = false;
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, ret, open_cursor, config, cfg);
+    SESSION_API_CALL(session, ret, open_cursor, config, cfg, false);
 
 #ifdef HAVE_DIAGNOSTIC
     if (session->cursor_open_timer_running == false) {
@@ -1003,7 +1005,7 @@ __session_blocking_checkpoint(WT_SESSION_IMPL *session)
          * This loop only checks objects that are declared volatile, therefore no barriers are
          * needed.
          */
-        if (!__wt_atomic_loadvbool(&txn_global->checkpoint_running) ||
+        if (!__wt_atomic_load_bool_v_relaxed(&txn_global->checkpoint_running) ||
           txn_gen != __wt_gen(session, WT_GEN_CHECKPOINT))
             break;
     }
@@ -1022,7 +1024,7 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, ret, alter, config, cfg);
+    SESSION_API_CALL(session, ret, alter, config, cfg, true);
     /*
      * We replace the default configuration listing with the current configuration. Otherwise the
      * defaults for values that can be altered would override settings used by the user in create.
@@ -1120,7 +1122,7 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
     session = (WT_SESSION_IMPL *)wt_session;
     is_import = session->import_list != NULL ||
       (__wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0);
-    SESSION_API_CALL(session, ret, create, config, cfg);
+    SESSION_API_CALL(session, ret, create, config, cfg, false);
     WT_UNUSED(cfg);
 
     /* Disallow objects in the WiredTiger name space. */
@@ -1195,7 +1197,7 @@ __session_log_flush(WT_SESSION *wt_session, const char *config)
     uint32_t flags;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, ret, log_flush, config, cfg);
+    SESSION_API_CALL(session, ret, log_flush, config, cfg, false);
     WT_STAT_CONN_INCR(session, log_flush);
 
     conn = S2C(session);
@@ -1347,7 +1349,7 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
     bool checkpoint_wait, lock_wait;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, ret, drop, config, cfg);
+    SESSION_API_CALL(session, ret, drop, config, cfg, true);
 
     /* Disallow objects in the WiredTiger name space. */
     WT_ERR(__wt_str_name_check(session, uri));
@@ -1443,7 +1445,7 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
 
-    SESSION_API_CALL(session, ret, salvage, config, cfg);
+    SESSION_API_CALL(session, ret, salvage, config, cfg, false);
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
@@ -1808,7 +1810,7 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, ret, verify, config, cfg);
+    SESSION_API_CALL(session, ret, verify, config, cfg, false);
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
     /* Block out checkpoints to avoid spurious EBUSY errors. */
@@ -1906,7 +1908,7 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
     txn = session->txn;
-    SESSION_API_CALL_PREPARE_ALLOWED(session, commit_transaction, config, cfg);
+    SESSION_API_CALL_PREPARE_ALLOWED(session, commit_transaction, config, cfg, false);
     WT_STAT_CONN_INCR(session, txn_commit);
 
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
@@ -1976,7 +1978,7 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL(session, ret, prepare_transaction, config, cfg);
+    SESSION_API_CALL(session, ret, prepare_transaction, config, cfg, true);
     WT_STAT_CONN_INCR(session, txn_prepare);
     WT_STAT_CONN_INCR(session, txn_prepare_active);
 
@@ -2025,7 +2027,7 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
     WT_TXN *txn;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_PREPARE_ALLOWED(session, rollback_transaction, config, cfg);
+    SESSION_API_CALL_PREPARE_ALLOWED(session, rollback_transaction, config, cfg, false);
     WT_STAT_CONN_INCR(session, txn_rollback);
 
     txn = session->txn;
@@ -2092,9 +2094,9 @@ __session_timestamp_transaction(WT_SESSION *wt_session, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
 #ifdef HAVE_DIAGNOSTIC
-    SESSION_API_CALL_PREPARE_ALLOWED(session, timestamp_transaction, config, cfg);
+    SESSION_API_CALL_PREPARE_ALLOWED(session, timestamp_transaction, config, cfg, true);
 #else
-    SESSION_API_CALL_PREPARE_ALLOWED(session, timestamp_transaction, NULL, cfg);
+    SESSION_API_CALL_PREPARE_ALLOWED(session, timestamp_transaction, NULL, cfg, true);
     cfg[1] = config;
 #endif
 
@@ -2180,9 +2182,9 @@ __session_prepared_id_transaction(WT_SESSION *wt_session, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
 #ifdef HAVE_DIAGNOSTIC
-    SESSION_API_CALL_PREPARE_ALLOWED(session, prepared_id_transaction, config, cfg);
+    SESSION_API_CALL_PREPARE_ALLOWED(session, prepared_id_transaction, config, cfg, true);
 #else
-    SESSION_API_CALL_PREPARE_ALLOWED(session, prepared_id_transaction, NULL, cfg);
+    SESSION_API_CALL_PREPARE_ALLOWED(session, prepared_id_transaction, NULL, cfg, true);
     cfg[1] = config;
 #endif
 
@@ -2264,7 +2266,7 @@ __session_query_timestamp(WT_SESSION *wt_session, char *hex_timestamp, const cha
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_PREPARE_ALLOWED(session, query_timestamp, config, cfg);
+    SESSION_API_CALL_PREPARE_ALLOWED(session, query_timestamp, config, cfg, false);
 
     ret = __wt_txn_query_timestamp(session, hex_timestamp, cfg, false);
 err:
@@ -2357,16 +2359,17 @@ __session_transaction_pinned_range(WT_SESSION *wt_session, uint64_t *prange)
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /* Assign pinned to the lesser of id or snap_min */
-    if (__wt_atomic_loadv64(&txn_shared->id) != WT_TXN_NONE &&
-      __wt_atomic_loadv64(&txn_shared->id) < __wt_atomic_loadv64(&txn_shared->pinned_id))
-        pinned = __wt_atomic_loadv64(&txn_shared->id);
+    if (__wt_atomic_load_uint64_v_relaxed(&txn_shared->id) != WT_TXN_NONE &&
+      __wt_atomic_load_uint64_v_relaxed(&txn_shared->id) <
+        __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id))
+        pinned = __wt_atomic_load_uint64_v_relaxed(&txn_shared->id);
     else
-        pinned = __wt_atomic_loadv64(&txn_shared->pinned_id);
+        pinned = __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id);
 
     if (pinned == WT_TXN_NONE)
         *prange = 0;
     else
-        *prange = __wt_atomic_loadv64(&S2C(session)->txn_global.current) - pinned;
+        *prange = __wt_atomic_load_uint64_v_relaxed(&S2C(session)->txn_global.current) - pinned;
 
 err:
     API_END_RET(session, ret);
@@ -2417,9 +2420,13 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
     WT_STAT_CONN_INCR(session, checkpoints_api);
-    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, ret, checkpoint, config, cfg);
+    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, ret, checkpoint, config, cfg, true);
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
+
+    /* Skip running checkpoint for standby. */
+    if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader)
+        goto done;
 
     /*
      * Checkpoints require a snapshot to write a transactionally consistent snapshot of the data.
@@ -2442,6 +2449,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
     WT_TRET(__wt_session_release_resources(session));
 
 err:
+done:
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -2567,8 +2575,9 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      * session count on error, as long as we don't mark this session as active, we'll clean it up on
      * close.
      */
-    if (i >= __wt_atomic_load32(&conn->session_array.cnt)) /* Defend against off-by-one errors. */
-        __wt_atomic_store32(&conn->session_array.cnt, i + 1);
+    if (i >= __wt_atomic_load_uint32_relaxed(
+               &conn->session_array.cnt)) /* Defend against off-by-one errors. */
+        __wt_atomic_store_uint32_relaxed(&conn->session_array.cnt, i + 1);
 
     /* Find the set of methods appropriate to this session. */
     if (F_ISSET_ATOMIC_32(conn, WT_CONN_MINIMAL) && !F_ISSET(session, WT_SESSION_INTERNAL))
@@ -2635,7 +2644,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         WT_ERR(
           __wt_calloc_def(session, WT_SESSION_INITIAL_HAZARD_SLOTS, &session_ret->hazards.arr));
         session_ret->hazards.size = WT_SESSION_INITIAL_HAZARD_SLOTS;
-        __wt_atomic_store32(&session_ret->hazards.inuse, 0);
+        __wt_atomic_store_uint32_relaxed(&session_ret->hazards.inuse, 0);
         session_ret->hazards.num_active = 0;
     }
 

@@ -33,7 +33,7 @@ __rec_child_deleted(
      * underlying disk blocks and don't write anything in the internal page.
      */
     if (page_del == NULL)
-        return (__wt_ref_block_free(session, ref, false));
+        return (__wt_ref_block_free(session, ref, true));
 
     /*
      * Check visibility. If the truncation is visible to us, we'll also want to know if it's visible
@@ -61,7 +61,7 @@ __rec_child_deleted(
             visible = page_del->txnid < r->rec_start_pinned_id;
 
             if (visible) {
-                WT_ACQUIRE_READ(prepare_state, page_del->prepare_state);
+                prepare_state = __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state);
                 if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
                     visible = false;
             }
@@ -145,7 +145,7 @@ __rec_child_deleted(
      * evict prepared truncates, the page apparently being clean might lead to truncations being
      * lost in hard-to-debug ways.
      */
-    WT_ACQUIRE_READ(prepare_state, page_del->prepare_state);
+    prepare_state = __wt_atomic_load_uint8_v_acquire(&page_del->prepare_state);
     if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
         WT_ASSERT_ALWAYS(session, !F_ISSET(r, WT_REC_EVICT),
           "In progress prepares should never be seen in eviction");
@@ -181,7 +181,7 @@ __rec_child_deleted(
      * is ever a read into this part of the name space again, the cache read function instantiates
      * an entirely new page.)
      */
-    WT_RET(__wt_ref_block_free(session, ref, false));
+    WT_RET(__wt_ref_block_free(session, ref, true));
 
     /* Globally visible fast-truncate information is never used again, a NULL value is identical. */
     __wt_overwrite_and_free(session, ref->page_del);

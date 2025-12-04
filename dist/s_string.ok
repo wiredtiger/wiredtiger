@@ -56,6 +56,7 @@ CCCCCCCCCCCCCCCCCC
 CELLs
 CHUNKCACHE
 CKPT
+CLAYERED
 CLOEXEC
 CMP
 CONF
@@ -104,7 +105,7 @@ Deterministically
 Disagg
 Disaggregated
 Dk
-DmpRvXx
+DmpeRkvXx
 Dxxx
 EACCES
 EB
@@ -146,7 +147,6 @@ FNV
 FOREACH
 FS
 FULLFSYNC
-FUNC
 FUNCSIG
 Failpoint
 FindClose
@@ -211,7 +211,6 @@ Keyedness
 Kounavis
 LANGID
 LF
-LLVM
 LLVMFuzzerTestOneInput
 LMDB
 LOGOP
@@ -254,7 +253,6 @@ MSan
 MUTEX
 MacOS
 MapViewOfFile
-Marsaglia
 Marsaglia's
 Mellor
 Mitzenmacher
@@ -296,7 +294,6 @@ PALI
 PDEATHSIG
 PFX
 PID
-PINDEX
 POS
 POSIX
 PPC
@@ -304,7 +301,6 @@ PREFETCH
 PREV
 PRId
 PRIu
-PRIx
 PRNG
 PSD
 PSE
@@ -343,7 +339,6 @@ RETRYABLE
 RHEL
 RLE
 RLEs
-RMW
 RNG
 RNGs
 RPC
@@ -411,6 +406,7 @@ ThreadListWrapper
 Timespec
 Tput
 TryCV
+Typedefs
 UBSAN
 UDF
 UID
@@ -480,7 +476,6 @@ WiredTigerShared
 WiredTigerSharedHS
 WiredTigerTmplog
 WithSeeds
-Wl
 Wmissing
 WriteFile
 Wundef
@@ -488,7 +483,6 @@ Wuninitialized
 Wunused
 XP
 XXXXXX
-Xorshift
 YCSB
 ZSTD
 Zlib
@@ -564,7 +558,6 @@ bool
 boolean
 booleans
 boption
-bpack
 br
 breakpoint
 bs
@@ -828,6 +821,7 @@ foward
 fprintf
 fread
 free'd
+freopen
 fs
 fscanf
 fseek
@@ -944,6 +938,7 @@ islocked
 ispo
 isprint
 isspace
+iter
 jjj
 js
 json
@@ -957,6 +952,7 @@ keyid
 keyids
 keylen
 keyv
+kp
 kv
 kvraw
 kvs
@@ -988,9 +984,7 @@ linux
 llll
 llu
 llvm
-loadbool
 loadtext
-loadvbool
 loc
 localTime
 localkey
@@ -1004,6 +998,7 @@ logpath
 logread
 logrec
 logsize
+logslot
 logtest
 lookaside
 lookups
@@ -1031,7 +1026,6 @@ maxv
 mb
 mbll
 mbss
-md
 mem
 membar
 memcmp
@@ -1039,6 +1033,7 @@ memcpy
 memdup
 memkind
 memmove
+memset
 memsize
 mergeable
 metaconf
@@ -1055,7 +1050,6 @@ mn
 mnt
 mongod
 mrs
-msan
 msecs
 msg
 msvc
@@ -1165,6 +1159,7 @@ pid
 pindexp
 plh
 plhandle
+pluggable
 pmem
 poptable
 popthreads
@@ -1326,8 +1321,6 @@ stepp
 stlr
 stlrb
 stlrh
-storebool
-storevbool
 str
 strace
 strcat
@@ -1410,6 +1403,7 @@ truncations
 trylock
 tryrdlock
 trywrlock
+tsan
 tsc
 tupdate
 tw
@@ -1475,7 +1469,6 @@ vPodir
 vW
 va
 validator
-vals
 valuep
 valuev
 vanishingly

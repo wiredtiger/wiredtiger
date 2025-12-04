@@ -586,8 +586,9 @@ __recovery_set_oldest_timestamp(WT_RECOVERY *r)
      * of the last checkpoint for later query. This gets saved in the connection.
      */
     WT_RET(__wt_meta_read_checkpoint_oldest(r->session, NULL, &oldest_timestamp, NULL));
-    conn->txn_global.oldest_timestamp = oldest_timestamp;
-    __wt_atomic_storebool(&conn->txn_global.has_oldest_timestamp, oldest_timestamp != WT_TS_NONE);
+    __wt_atomic_store_uint64_relaxed(&conn->txn_global.oldest_timestamp, oldest_timestamp);
+    __wt_atomic_store_bool_relaxed(
+      &conn->txn_global.has_oldest_timestamp, oldest_timestamp != WT_TS_NONE);
 
     __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "Set global oldest timestamp: %s",
       __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string));

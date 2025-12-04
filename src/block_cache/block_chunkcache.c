@@ -78,7 +78,7 @@ __set_bit_index(WT_SESSION_IMPL *session, size_t bit_index)
     WT_READ_ONCE(map_byte_expected, chunkcache->free_bitmap[bit_index / 8]);
     map_byte_mask = (uint8_t)(0x01 << (bit_index % 8));
     if (((map_byte_expected & map_byte_mask) != 0) ||
-      !__wt_atomic_cas8(&chunkcache->free_bitmap[bit_index / 8], map_byte_expected,
+      !__wt_atomic_cas_uint8(&chunkcache->free_bitmap[bit_index / 8], map_byte_expected,
         map_byte_expected | map_byte_mask))
         return (EAGAIN);
 
@@ -123,7 +123,7 @@ __chunkcache_bitmap_free(WT_SESSION_IMPL *session, size_t index)
     do {
         WT_READ_ONCE(map_byte_expected, chunkcache->free_bitmap[index / 8]);
     } while (((map_byte_expected & map_byte_mask) != 0) &&
-      !__wt_atomic_cas8(&chunkcache->free_bitmap[index / 8], map_byte_expected,
+      !__wt_atomic_cas_uint8(&chunkcache->free_bitmap[index / 8], map_byte_expected,
         map_byte_expected & (uint8_t) ~(map_byte_mask)));
 }
 
@@ -255,7 +255,7 @@ __insert_update_stats(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 
     chunkcache = &S2C(session)->chunkcache;
 
-    __wt_atomic_add64(&chunkcache->bytes_used, chunk->chunk_size);
+    __wt_atomic_add_uint64(&chunkcache->bytes_used, chunk->chunk_size);
     WT_STAT_CONN_INCR(session, chunkcache_chunks_inuse);
     WT_STAT_CONN_INCRV(session, chunkcache_bytes_inuse, chunk->chunk_size);
     if (__name_in_pinned_list(session, chunk->hash_id.objectname)) {
@@ -276,7 +276,7 @@ __delete_update_stats(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 
     chunkcache = &S2C(session)->chunkcache;
 
-    __wt_atomic_sub64(&chunkcache->bytes_used, chunk->chunk_size);
+    __wt_atomic_sub_uint64(&chunkcache->bytes_used, chunk->chunk_size);
     WT_STAT_CONN_DECR(session, chunkcache_chunks_inuse);
     WT_STAT_CONN_DECRV(session, chunkcache_bytes_inuse, chunk->chunk_size);
     if (F_ISSET(chunk, WT_CHUNK_PINNED)) {
@@ -579,8 +579,9 @@ __chunkcache_eviction_thread(void *arg)
     chunkcache = &S2C(session)->chunkcache;
 
     while (!F_ISSET(chunkcache, WT_CHUNK_CACHE_EXITING)) {
+        uint64_t bytes_used = __wt_tsan_suppress_load_uint64(&chunkcache->bytes_used);
         /* Do not evict if we are not close to exceeding capacity. */
-        if ((chunkcache->bytes_used + chunkcache->chunk_size) <
+        if ((bytes_used + chunkcache->chunk_size) <
           chunkcache->evict_trigger * chunkcache->capacity / 100) {
             __wt_sleep(1, 0);
             continue;

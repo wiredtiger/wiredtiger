@@ -145,7 +145,7 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
          * which means we want the previous value seen, not the current value.
          */
         WT_RET(__wti_rec_cell_build_val(
-          session, r, cbulk->last->data, cbulk->last->size, &tw, cbulk->rle));
+          session, r, cbulk->last->data, cbulk->last->size, &tw, cbulk->rle, NULL));
 
     /* Boundary: split or write the page. */
     if (WTI_CROSSING_SPLIT_BND(r, val->len))
@@ -219,7 +219,6 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
     WTI_REC_KV *val;
     WT_REF *ref;
     WT_TIME_AGGREGATE ft_ta, ta;
-    uint8_t prev_ref_changes;
 
     btree = S2BT(session);
     page = pageref->page;
@@ -235,7 +234,7 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
-        WT_ACQUIRE_READ(prev_ref_changes, ref->ref_changes);
+        __wt_atomic_cas_uint8_v(&ref->rec_state, WT_REF_REC_DIRTY, WT_REF_REC_CLEAN);
 
         /* Update the starting record number in case we split. */
         r->recno = ref->ref_recno;
@@ -327,13 +326,6 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref)
         if (page_del != NULL)
             WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ft_ta);
         WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ta);
-
-        /*
-         * Set the ref_changes state to zero if there were no concurrent changes while reconciling
-         * the internal page.
-         */
-        if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
-            __wt_atomic_casv8(&ref->ref_changes, prev_ref_changes, 0);
     }
     WT_INTL_FOREACH_END;
 
@@ -434,7 +426,7 @@ __rec_col_fix_addtw(
     key->len = key->cell_len + key->buf.size;
 
     /* Pack the value, which is empty, but with a time window. */
-    WT_RET(__wti_rec_cell_build_val(session, r, NULL, 0, tw, 0));
+    WT_RET(__wti_rec_cell_build_val(session, r, NULL, 0, tw, 0, NULL));
 
     /* Figure how much space we need, and reallocate the page if about to run out. */
     len = key->len + val->len;
@@ -1183,7 +1175,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SALVAGE_COOK
         val->len = val->cell_len + value->size;
         *ovfl_usedp = true;
     } else
-        WT_RET(__wti_rec_cell_build_val(session, r, value->data, value->size, tw, rle));
+        WT_RET(__wti_rec_cell_build_val(session, r, value->data, value->size, tw, rle, NULL));
 
     /* Boundary: split or write the page. */
     if (__wti_rec_need_split(r, val->len))
@@ -1355,6 +1347,7 @@ record_loop:
             if (upd == NULL && orig_stale) {
                 /* The on-disk value is stale and there was no update. Treat it as deleted. */
                 deleted = true;
+                r->key_removed_from_disk_image = true;
                 twp = &clear_tw;
             } else if (upd == NULL) {
                 update_no_copy = false; /* Maybe data copy */
@@ -1375,6 +1368,7 @@ record_loop:
                 deleted = orig_deleted;
                 if (deleted) {
                     twp = &clear_tw;
+                    r->key_removed_from_disk_image = true;
                     goto compare;
                 }
                 twp = &vpack->tw;
@@ -1477,6 +1471,7 @@ record_loop:
                 case WT_UPDATE_TOMBSTONE:
                     deleted = true;
                     twp = &clear_tw;
+                    r->key_removed_from_disk_image = true;
                     break;
                 default:
                     WT_ERR(__wt_illegal_value(session, upd->type));

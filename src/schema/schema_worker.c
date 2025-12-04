@@ -69,8 +69,6 @@ err:
 /*
  * __schema_layered_worker_verify --
  *     Run a schema worker operation (which is verification) on the layered table.
- *
- * FIXME-WT-15047: Implement ingest table verification on followers.
  */
 static int
 __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
@@ -95,23 +93,28 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     WT_ASSERT(session, file_func == __wt_verify);
 
     /*
-     * Verifying stable tables of layered tables uses the existing verify logic.
-     * Ingest tables, however, require special handling:
-     * - On leader: ingest must always be empty/no-op.
-     * - On followers: FIXME-WT-15047 ingest tables are not checkpointed.
+     * Verifying stable tables of layered tables uses the existing verify logic. The same applies to
+     * ingest tables of leaders. However, on followers ingest tables must be empty.
      */
 
     /* Verify the stable table of the layered table. */
     WT_WITHOUT_DHANDLE(session,
       stable_ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
 
+    /* On followers, it is possible not to have any stable table. This is a transient state. */
+    if (!conn->layered_table_manager.leader && stable_ret == ENOENT) {
+        __wt_verbose_level(session, WT_VERB_VERIFY, WT_VERBOSE_DEBUG_2,
+          "Verify (layered): %s stable table not found on follower, it can be a transient state.",
+          stable_uri);
+        stable_ret = 0;
+    }
+
     if (stable_ret != 0 && stable_ret != EBUSY)
         WT_ERR_MSG(session, stable_ret, "Verify (layered): %s stable table verification failed ",
           stable_uri);
 
     /*
-     * Verify the ingest table of the layered table. FIXME-WT-15047: Implement ingest table
-     * verification on followers.
+     * Verify the ingest table of the layered table on leader.
      */
     if (conn->layered_table_manager.leader) {
         /*

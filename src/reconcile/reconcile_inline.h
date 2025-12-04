@@ -84,6 +84,17 @@ __rec_page_delta_stats_clear(WTI_RECONCILE *r)
 }
 
 /*
+ * __rec_page_pfx_compression_stats_clear --
+ *     Clear page prefix compression statistics.
+ */
+static WT_INLINE void
+__rec_page_pfx_compression_stats_clear(WTI_RECONCILE *r)
+{
+    r->bytes_prefix_compression_delta = 0;
+    r->bytes_prefix_compression_full = 0;
+}
+
+/*
  * __rec_page_time_stats --
  *     Update statistics about this page.
  */
@@ -323,11 +334,11 @@ static WT_INLINE void
 __wti_rec_cell_build_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ADDR *addr,
   WT_CELL_UNPACK_ADDR *vpack, uint64_t recno, WT_PAGE_DELETED *page_del)
 {
-    WTI_REC_KV *val;
+    WTI_REC_KV *val = &r->v;
     WT_TIME_AGGREGATE *ta;
-    u_int cell_type;
-
-    val = &r->v;
+    uint8_t cell_type;
+    const void *data;
+    size_t data_size;
 
     /*
      * Caller includes fast-delete information in the case of fast-delete proxy cells, which both
@@ -335,6 +346,7 @@ __wti_rec_cell_build_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ADDR *a
      * address cell.
      */
     if (vpack == NULL) {
+        /* Determine the cell type from the WT_ADDR structure */
         switch (addr->type) {
         case WT_ADDR_INT:
             cell_type = WT_CELL_ADDR_INT;
@@ -347,51 +359,30 @@ __wti_rec_cell_build_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ADDR *a
             cell_type = WT_CELL_ADDR_LEAF_NO;
             break;
         }
+
         WT_ASSERT(session, addr->block_cookie_size != 0);
         ta = &addr->ta;
+        data = addr->block_cookie;
+        data_size = addr->block_cookie_size;
     } else {
+        /* Use the unpacked reference instead of WT_ADDR. */
         cell_type = vpack->type;
         ta = &vpack->ta;
+        data = vpack->data;
+        data_size = vpack->size;
     }
+
     __rec_cell_addr_stats(r, ta);
 
     /*
-     * If passed fast-delete information, override the cell type. We should never see fast-truncate
-     * cell types without fast-truncate information.
+     * Use the shared cell builder from the cell module. We assign both the packed cell length and
+     * total length, and re-point the buffer to the caller-provided data.
      */
-    WT_ASSERT(session, page_del != NULL || cell_type != WT_CELL_ADDR_DEL);
-    if (page_del != NULL) {
-        /*
-         * We only fast-truncate leaf pages without overflow items, however, we can write a proxy
-         * cell for a page, evict and then read the internal page, and then checkpoint is writing it
-         * again.
-         */
-        WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL || cell_type == WT_CELL_ADDR_LEAF_NO);
-        cell_type = WT_CELL_ADDR_DEL;
-
-        /* We should never be in an in-progress prepared state. */
-        WT_ASSERT(session,
-          page_del->prepare_state == WT_PREPARE_INIT ||
-            page_del->prepare_state == WT_PREPARE_RESOLVED);
-    }
-
-    /*
-     * We don't copy the data into the buffer, it's not necessary; just re-point the buffer's
-     * data/length fields.
-     */
-    if (vpack == NULL) {
-        WT_ASSERT(session, addr != NULL);
-        val->buf.data = addr->block_cookie;
-        val->buf.size = addr->block_cookie_size;
-    } else {
-        WT_ASSERT(session, addr == NULL);
-        val->buf.data = vpack->data;
-        val->buf.size = vpack->size;
-    }
-
-    val->cell_len =
-      __wt_cell_pack_addr(session, &val->cell, cell_type, recno, page_del, ta, val->buf.size);
-    val->len = val->cell_len + val->buf.size;
+    val->buf.data = data;
+    val->buf.size = data_size;
+    val->cell_len = (uint16_t)__wt_cell_build_addr(
+      session, &val->cell, cell_type, recno, page_del, ta, data_size);
+    val->len = val->cell_len + data_size;
 }
 
 /*
@@ -400,7 +391,7 @@ __wti_rec_cell_build_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ADDR *a
  */
 static WT_INLINE int
 __wti_rec_cell_build_val(WT_SESSION_IMPL *session, WTI_RECONCILE *r, const void *data, size_t size,
-  WT_TIME_WINDOW *tw, uint64_t rle)
+  WT_TIME_WINDOW *tw, uint64_t rle, bool *ovfl_val)
 {
     WT_BTREE *btree;
     WTI_REC_KV *val;
@@ -419,6 +410,9 @@ __wti_rec_cell_build_val(WT_SESSION_IMPL *session, WTI_RECONCILE *r, const void 
     WT_ASSERT(session, btree->maxleafvalue > 0);
     if (val->buf.size > btree->maxleafvalue) {
         WT_STAT_CONN_DSRC_INCR(session, rec_overflow_value);
+
+        if (ovfl_val != NULL)
+            *ovfl_val = true;
 
         return (__wti_rec_cell_build_ovfl(session, r, val, WT_CELL_VALUE_OVFL, tw, rle));
     }
@@ -487,11 +481,22 @@ static WT_INLINE void
 __wti_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WTI_UPDATE_SELECT *upd_select,
   WT_CELL_UNPACK_KV *vpack, WTI_RECONCILE *r)
 {
+    WT_BTREE *btree;
     WT_TIME_WINDOW *tw;
 
-    WT_ASSERT(
-      session, (upd_select != NULL && vpack == NULL) || (upd_select == NULL && vpack != NULL));
+    WT_ASSERT(session,
+      (upd_select != NULL && !WT_REC_HAS_ON_DISK(vpack)) ||
+        (upd_select == NULL && WT_REC_HAS_ON_DISK(vpack)));
     tw = upd_select != NULL ? &upd_select->tw : &vpack->tw;
+
+    btree = S2BT(session);
+
+    /*
+     * Never clear the timestamps on the ingest tables. They are needed for step-up even when they
+     * are globally visible.
+     */
+    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+        return;
 
     /* Return if the start time window is empty. */
     if (!WT_TIME_WINDOW_HAS_START(tw))
@@ -503,7 +508,7 @@ __wti_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WTI_UPDATE_SELECT
      * disk image value to the update chain.
      */
     if (!WT_TIME_WINDOW_HAS_PREPARE(tw) && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-      !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) {
+      !F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
         /*
          * Check if the start of the time window is globally visible, and if so remove unnecessary
          * values.

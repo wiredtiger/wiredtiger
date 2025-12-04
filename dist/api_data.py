@@ -659,6 +659,14 @@ connection_runtime_config = [
             A page release encourages eviction of hot or large pages, which is more likely to
             succeed without a cursor keeping the page pinned.''',
             type='boolean'),
+        Config('disagg_address_cookie_upgrade', 'none', r'''
+            modify the disaggregated block manager to pretend that it is a newer version to test
+            upgrade/downgrade of address cookies.''',
+            choices=['none', 'compatible', 'incompatible'], undoc=True),
+        Config('disagg_address_cookie_optional_field', 'false', r'''
+            if true, modify the disaggregated block manager to pretend that it has an optional
+            field protected by a new flag.''',
+            type='boolean', undoc=True),
         Config('eviction', 'false', r'''
             if true, modify internal algorithms to change skew to force history store eviction
             to happen more aggressively. This includes but is not limited to not skewing newest,
@@ -845,8 +853,9 @@ connection_runtime_config = [
             min=1, max=100000),
         ]),
     Config('generation_drain_timeout_ms', '240000', r'''
-        the number of milliseconds to wait for a resource to drain before timing out in diagnostic
-        mode. Default will wait for 4 minutes, 0 will wait forever''',
+        the number of milliseconds to wait for a resource to drain before timing out. In the
+        diagnostic mode, it will log an error and crash the system. In the production mode, it will
+        only log an error. Default will wait for 4 minutes, 0 will wait forever''',
         min=0),
     Config('heuristic_controls', '', r'''
         control the behavior of various optimizations. This is primarily used as a mechanism for
@@ -967,7 +976,8 @@ connection_runtime_config = [
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'conn_close_stress_log_printf', 'evict_reposition',
         'failpoint_eviction_split', 'failpoint_history_store_delete_key_from_ts',
-        'failpoint_rec_before_wrapup', 'history_store_checkpoint_delay', 'history_store_search',
+        'failpoint_rec_before_wrapup', 'failpoint_rec_split_write',
+        'history_store_checkpoint_delay', 'history_store_search',
         'history_store_sweep_race', 'live_restore_clean_up', 'open_index_slow', 'prefetch_1',
         'prefetch_2', 'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay',
         'prepare_resolution_1', 'prepare_resolution_2', 'session_alter_slow',
@@ -996,6 +1006,7 @@ connection_runtime_config = [
             'disaggregated_storage',
             'error_returns',
             'eviction',
+            'extension',
             'fileops',
             'generation',
             'handleops',
@@ -1717,6 +1728,10 @@ methods = {
                     Return the key, value as raw data.
                     ''',
                     type='boolean', undoc=True),
+                Config('cross_key', 'false', r'''
+                    Allow version cursos to walk across keys while calling next().
+                    ''',
+                    type='boolean', undoc=True),
         ]),
         Config('release_evict', 'false', r'''
             Configure the cursor to evict the page positioned on when the reset API call is used''',
@@ -2162,6 +2177,8 @@ methods = {
     connection_runtime_config
 ),
 'WT_CONNECTION.set_file_system' : Method([]),
+
+'WT_CONNECTION.set_key_provider' : Method([]),
 
 'WT_CONNECTION.load_extension' : Method([
     Config('config', '', r'''

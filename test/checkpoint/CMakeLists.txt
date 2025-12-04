@@ -7,6 +7,13 @@ create_test_executable(test_checkpoint
         ${CMAKE_CURRENT_SOURCE_DIR}/recovery-test.sh
 )
 
+# Use C++ linker for building this target.
+# When building sanitized builds (ASan, UBSan, etc) the C++ linker is required
+# to link against the C++ sanitizer runtimes.
+# Some extensions (PALite, tiered storage) require C++ runtime to be linked
+# for sanitizers to work correctly.
+set_target_properties(test_checkpoint PROPERTIES LINKER_LANGUAGE CXX)
+
 # Define test variants for the checkpoint test
 define_test_variants(test_checkpoint
     VARIANTS
@@ -77,7 +84,8 @@ define_test_variants(test_checkpoint
 # Define long running test variants for the disagg test
 define_test_variants(test_checkpoint
     VARIANTS
-        "disagg_leader_row_server_93028|-d leader -t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=250MB"
+        # FIXME-WT-15723: Re-evaluate whether setting large cache size is need after cache stuck issue is solved.
+        "disagg_leader_row_server_93028|-d leader -t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=1500MB"
     LABELS
         check
         disagg

@@ -29,6 +29,7 @@
 import os, re, struct
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
+from helper import WiredTigerCursor
 
 # test_verify.py
 #    Utilities: wt verify
@@ -121,20 +122,10 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         fp.seek(offset)
         return fp
 
-    # FIXME-WT-15062:
-    @wttest.skip_for_hook("disagg", "runWt cannot add needed extensions (yet)")
-    def skip_disagg_wt_verify_test(self):
-        """
-        No-op function to beautify `wt verify` tests suppression while it's not supported for DisAgg.
-        """
-        None
-
     def test_verify_process_empty(self):
         """
         Test verify in a 'wt' process, using an empty table
         """
-        self.skip_disagg_wt_verify_test()
-
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
         # Run verify with an empty table
@@ -144,8 +135,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         """
         Test verify in a 'wt' process, using a populated table.
         """
-        self.skip_disagg_wt_verify_test()
-
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
         self.populate(self.tablename)
@@ -175,7 +164,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         This is our only 'negative' test for verify using the API,
         it's uncertain that we can have reliable tests for this.
         """
-        self.skip_disagg_wt_verify_test()
 
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
@@ -204,7 +192,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         multiple places. A verify operation with read_corrupt on should
         result in multiple checksum errors being logged.
         """
-        self.skip_disagg_wt_verify_test()
 
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
@@ -228,8 +215,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         Test that verify works when the first child of an internal node is corrupted. A verify
         operation with read_corrupt on should result in a checksum errors being logged.
         """
-        self.skip_disagg_wt_verify_test()
-
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
         self.populate(self.tablename)
@@ -275,7 +260,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         Test verify in a 'wt' process on a table that is purposely damaged,
         with nulls at a position about 75% through.
         """
-        self.skip_disagg_wt_verify_test()
 
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
@@ -297,7 +281,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         Test verify in a 'wt' process on a table that is purposely damaged,
         with junk at a position about 25% through.
         """
-        self.skip_disagg_wt_verify_test()
 
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
@@ -320,7 +303,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         in multiple places. A verify operation with read_corrupt on should
         result in multiple checksum errors being logged.
         """
-        self.skip_disagg_wt_verify_test()
 
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
@@ -355,7 +337,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         Test verify in a 'wt' process on a table that is purposely damaged,
         truncated about 75% through.
         """
-        self.skip_disagg_wt_verify_test()
 
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
@@ -372,7 +353,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         """
         Test verify in a 'wt' process on a zero-length table.
         """
-        self.skip_disagg_wt_verify_test()
 
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
@@ -385,11 +365,45 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         # does not exist. Ignore that.
         self.ignoreStderrPatternIfExists('No such file or directory')
 
+    def test_verify_redacted(self):
+        """
+        Test verify in a 'wt' process on a table with redacted.
+        """
+        if not wiredtiger.diagnostic_build():
+            self.skipTest('requires a diagnostic build as the test uses verify -d dump_pages')
+
+        params = 'key_format=S,value_format=S'
+        self.session.create('table:' + self.tablename, params)
+        self.populate(self.tablename)
+        """
+        Insert some secret entries into the table
+        """
+        with WiredTigerCursor(self.session, 'table:' + self.tablename, None, None) as cursor:
+            cursor['secret_key'] = "#hidden#"
+
+        # stabilize the table with a checkpoint
+        self.session.checkpoint()
+
+        # Check the redacted output
+        self.runWt(["-p", "verify", '-d', 'dump_pages', f"file:{self.tablename}.wt"],
+            outfilename='verify_redacted.out', errfilename="verify_redacted.err", failure=False)
+
+        self.check_empty_file('verify_redacted.err')
+        self.check_file_not_contains('verify_redacted.out', 'secret_key')
+        self.check_file_not_contains('verify_redacted.out', '#hidden#')
+
+        # Check the unredacted output
+        self.runWt(["-p", "verify", '-d', 'dump_pages', '-u', f"file:{self.tablename}.wt"],
+            outfilename='verify_redacted.out', errfilename="verify_redacted.err", failure=False)
+
+        self.check_empty_file('verify_redacted.err')
+        self.check_file_contains('verify_redacted.out', 'secret_key')
+        self.check_file_contains('verify_redacted.out', '#hidden#')
+
     def test_verify_all(self):
         """
         Test verify in a 'wt' process without a specific table URI argument.
         """
-        self.skip_disagg_wt_verify_test()
 
         params = 'key_format=S,value_format=S'
         ntables = 3

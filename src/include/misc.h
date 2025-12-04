@@ -212,10 +212,11 @@
  * with a large performance cost. Define these atomics only for TSan builds as they aren't
  * performance critical and we'll investigate a long term solution separately.
  */
-#define FLD_CLR(field, mask) (void)__wt_atomic_and_generic(&field, (__typeof__(field))(~(mask)))
-#define FLD_MASK(field, mask) (__wt_atomic_load_generic(&field) & (mask))
+#define FLD_CLR(field, mask) \
+    (void)__wt_atomic_and_generic_relaxed(&field, (__typeof__(field))(~(mask)))
+#define FLD_MASK(field, mask) (__wt_atomic_load_generic_relaxed(&field) & (mask))
 #define FLD_ISSET(field, mask) (FLD_MASK(field, (mask)) != 0)
-#define FLD_SET(field, mask) ((void)__wt_atomic_or_generic(&field, (mask)))
+#define FLD_SET(field, mask) ((void)__wt_atomic_or_generic_relaxed(&field, (mask)))
 #else
 #define FLD_CLR(field, mask) ((void)((field) &= ~(mask)))
 #define FLD_MASK(field, mask) ((field) & (mask))
@@ -276,33 +277,6 @@ FLD_AREALLSET(uint64_t field, uint64_t mask)
 #define __wt_qsort(base, nmemb, size, compar) \
     if ((nmemb) != 0)                         \
     qsort(base, nmemb, size, compar)
-
-/*
- * Merge two sorted arrays into a single sorted array. With `prefer_latest` true, if duplicate keys
- * are found, the element from the later array (arr2) is preferred.
- */
-#define WT_MERGE_SORT(                                                                        \
-  session, arr1, arr1_size, arr2, arr2_size, cmp, prefer_latest, merged_arr, merged_arr_size) \
-    do {                                                                                      \
-        uint32_t __i, __j, __k;                                                               \
-        int __compar;                                                                         \
-        __i = __j = __k = 0;                                                                  \
-        while (__i < (arr1_size) && __j < (arr2_size)) {                                      \
-            __compar = (cmp)((session), (arr1)[__i], (arr2)[__j]);                            \
-            if (__compar < 0)                                                                 \
-                (merged_arr)[__k++] = (arr1)[__i++];                                          \
-            else {                                                                            \
-                (merged_arr)[__k++] = (arr2)[__j++];                                          \
-                if ((prefer_latest) && __compar == 0)                                         \
-                    __i++; /* Skip corresponding element from arr1 */                         \
-            }                                                                                 \
-        }                                                                                     \
-        while (__j < (arr2_size))                                                             \
-            (merged_arr)[__k++] = (arr2)[__j++];                                              \
-        while (__i < (arr1_size))                                                             \
-            (merged_arr)[__k++] = (arr1)[__i++];                                              \
-        (merged_arr_size) = __k;                                                              \
-    } while (0)
 
 /*
  * Binary search for an integer key.
@@ -529,8 +503,28 @@ __wt_atomic_decrement_if_positive(uint32_t *valuep)
 {
     uint32_t old_value;
     do {
-        old_value = __wt_atomic_load32(valuep);
+        old_value = __wt_atomic_load_uint32_relaxed(valuep);
         if (old_value == 0)
             break;
-    } while (!__wt_atomic_cas32(valuep, old_value, old_value - 1));
+    } while (!__wt_atomic_cas_uint32(valuep, old_value, old_value - 1));
 }
+
+/*
+ *    Calculate max/min statistic values. Currently we use load + store for that purpose since
+ *     statistic is allowed to be fuzzy. FIXME-WT-15755: Consider using relaxed CAS instead to
+ *     ensure it is lossless.
+ */
+#define WT_ATOMIC_STATS_MFUNC(suffix, _type)                                    \
+    static inline void __wt_atomic_stats_max_##suffix(_type *stat, _type value) \
+    {                                                                           \
+        if (value > __wt_atomic_load_##suffix##_relaxed(stat))                  \
+            __wt_atomic_store_##suffix##_relaxed(stat, value);                  \
+    }                                                                           \
+    static inline void __wt_atomic_stats_min_##suffix(_type *stat, _type value) \
+    {                                                                           \
+        if (value < __wt_atomic_load_##suffix##_relaxed(stat))                  \
+            __wt_atomic_store_##suffix##_relaxed(stat, value);                  \
+    }
+
+WT_ATOMIC_STATS_MFUNC(uint16, uint16_t)
+WT_ATOMIC_STATS_MFUNC(uint64, uint64_t)

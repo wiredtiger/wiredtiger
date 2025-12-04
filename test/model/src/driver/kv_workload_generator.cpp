@@ -83,17 +83,21 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     prepared_transaction_rollback_after_prepare = 0.1;
     prepared_transaction_rollback_before_prepare = 0.1;
 
-    timing_stress_ckpt_slow = 0.1;
-    timing_stress_ckpt_evict_page = 0.1;
-    timing_stress_ckpt_handle = 0.1;
-    timing_stress_ckpt_stop = 0.1;
-    timing_stress_compact_slow = 0.1;
-    timing_stress_hs_ckpt_delay = 0.1;
-    timing_stress_hs_search = 0.1;
-    timing_stress_hs_sweep_race = 0.1;
-    timing_stress_prepare_ckpt_delay = 0.1;
-    timing_stress_commit_txn_slow = 0.1;
-    timing_stress_rec_before_wrapup = 0.1;
+    /* Relative weights for the timing stress tests, which don't have to add up to 1.0. */
+    weight_init_block(timing_stress_total)
+    {
+        weight_init(timing_stress_ckpt_slow, 0.1f);
+        weight_init(timing_stress_ckpt_evict_page, 0.1f);
+        weight_init(timing_stress_ckpt_handle, 0.1f);
+        weight_init(timing_stress_ckpt_stop, 0.1f);
+        weight_init(timing_stress_compact_slow, 0.1f);
+        weight_init(timing_stress_hs_ckpt_delay, 0.1f);
+        weight_init(timing_stress_hs_search, 0.1f);
+        weight_init(timing_stress_hs_sweep_race, 0.1f);
+        weight_init(timing_stress_prepare_ckpt_delay, 0.1f);
+        weight_init(timing_stress_commit_txn_slow, 0.1f);
+        weight_init(timing_stress_rec_before_wrapup, 0.1f);
+    }
 }
 
 /*
@@ -339,7 +343,7 @@ std::string
 kv_workload_generator::generate_connection_stress_config()
 {
     std::string wt_env_config;
-    probability_switch(_random.next_float())
+    probability_switch(_random.next_float() * _spec.timing_stress_total())
     {
         probability_case(_spec.timing_stress_ckpt_slow) wt_env_config +=
           "timing_stress_for_test=[checkpoint_slow]";
@@ -611,7 +615,7 @@ kv_workload_generator::run()
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::checkpoint);
                 *p << operation::checkpoint();
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
 
                 has_checkpoint = true;
             }
@@ -624,7 +628,7 @@ kv_workload_generator::run()
                   _sequences.size(), kv_workload_sequence_type::checkpoint_crash);
                 uint64_t random_number = _random.next_uint64(1000);
                 *p << operation::checkpoint_crash(random_number);
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
 
                 if (!has_checkpoint)
                     has_stable_timestamp = false;
@@ -637,7 +641,7 @@ kv_workload_generator::run()
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::crash);
                 *p << operation::crash();
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
 
                 if (!has_checkpoint)
                     has_stable_timestamp = false;
@@ -649,7 +653,7 @@ kv_workload_generator::run()
                 table_context_ptr table = choose_table(std::move(kv_workload_sequence_ptr()));
                 data_value key = generate_key(table, op_category::evict);
                 *p << operation::evict(table->id(), key);
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
             }
             probability_case(_spec.restart)
             {
@@ -659,7 +663,7 @@ kv_workload_generator::run()
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::restart);
                 *p << operation::restart();
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
 
                 has_checkpoint = true; /* Shutdown takes a checkpoint. */
             }
@@ -668,21 +672,21 @@ kv_workload_generator::run()
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::rollback_to_stable);
                 *p << operation::rollback_to_stable();
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
             }
             probability_case(_spec.set_oldest_timestamp)
             {
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::set_oldest_timestamp);
                 *p << operation::set_oldest_timestamp(k_timestamp_none); /* Placeholder. */
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
             }
             probability_case(_spec.set_stable_timestamp)
             {
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::set_stable_timestamp);
                 *p << operation::set_stable_timestamp(k_timestamp_none); /* Placeholder. */
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
 
                 has_stable_timestamp = true;
             }
@@ -697,7 +701,7 @@ kv_workload_generator::run()
         kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
           _sequences.size(), kv_workload_sequence_type::set_stable_timestamp);
         *p << operation::set_stable_timestamp(k_timestamp_none); /* Placeholder. */
-        _sequences.push_back(p);
+        _sequences.push_back(std::move(p));
         has_stable_timestamp = true;
     }
 
