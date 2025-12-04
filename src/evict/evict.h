@@ -27,10 +27,7 @@ struct __wt_evict {
     wt_shared uint64_t evict_max_ms; /* Longest milliseconds spent at a single eviction */
     wt_shared uint64_t
       evict_max_ms_per_checkpoint; /* Longest milliseconds spent at a single eviction */
-    wt_shared uint16_t evict_max_eviction_queue_attempts; /* Maximum number of attempts to add a
-                                                             page to eviction queue */
-    wt_shared uint16_t evict_max_evict_page_attempts;     /* Maximum number of attempts
-                                                             to evict a page */
+
     uint64_t reentry_hs_eviction_ms; /* Total milliseconds spent inside a nested eviction */
     struct timespec stuck_time;      /* Stuck time */
 
@@ -76,14 +73,19 @@ struct __wt_evict {
     /*
      * Eviction thread tuning information.
      */
-    uint32_t evict_tune_datapts_needed;          /* Data needed to tune */
+    uint32_t evict_tune_datapts_needed;                   /* Data needed to tune */
+    wt_shared uint16_t evict_max_eviction_queue_attempts; /* Maximum number of attempts to add a
+                                                             page to eviction queue */
+    wt_shared uint16_t evict_max_evict_page_attempts;     /* Maximum number of attempts
+                                                             to evict a page */
+
     struct timespec evict_tune_last_action_time; /* Time of last action */
     struct timespec evict_tune_last_time;        /* Time of last check */
-    uint32_t evict_tune_num_points;              /* Number of values tried */
-    uint64_t evict_tune_progress_last;           /* Progress counter */
-    uint64_t evict_tune_progress_rate_max;       /* Max progress rate */
-    bool evict_tune_stable;                      /* Are we stable? */
-    uint32_t evict_tune_workers_best;            /* Best performing value */
+
+    uint64_t evict_tune_progress_last;     /* Progress counter */
+    uint64_t evict_tune_progress_rate_max; /* Max progress rate */
+    bool evict_tune_stable;                /* Are we stable? */
+    uint32_t evict_tune_workers_best;      /* Best performing value */
 
     /*
      * Pass interrupt counter.
