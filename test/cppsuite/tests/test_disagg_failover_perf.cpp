@@ -375,7 +375,8 @@ appends()
     std::map<int, collection_cursor> cursor_map;
     transaction txn;
     uint64_t ingested_data = 0;
-    while (ingested_data < opt.ingest_size_mb * 1000 * 1000) {
+    uint64_t last_logged_mb = 0;
+    while (ingested_data < opt.ingest_size_mb * 1000ULL * 1000ULL) {
         /* Generate a random int between 0 and collection count. */
         int collection_num =
           random_generator::instance().generate_integer(0, opt.collection_count - 1);
@@ -396,7 +397,6 @@ appends()
          * accidental default-construction if the key were missing.
          */
         collection_cursor &cc = cursor_map.at(collection_num);
-        // logger::log_msg(LOG_INFO, "Inserting 10 records into " + cc.coll.name);
         scoped_cursor &cursor = cc.cursor;
         uint64_t start_key_count = cc.coll.get_key_count();
         for (int j = 0; j < 10; j++) {
@@ -409,6 +409,12 @@ appends()
             ingested_data += opt.key_size + opt.value_size;
         }
         cc.coll.increase_key_count(10);
+        /* Log every 100MB ingested. */
+        uint64_t current_mb = ingested_data / 1000 / 1000;
+        if (current_mb >= last_logged_mb + 100) {
+            logger::log_msg(LOG_INFO, "Appended " + std::to_string(current_mb) + "MB");
+            last_logged_mb = current_mb;
+        }
     }
 }
 
@@ -418,6 +424,7 @@ crud_operations()
     if (opt.append) {
         appends();
     }
+    logger::log_msg(LOG_INFO, "Ingest phase complete.");
 }
 
 /*
