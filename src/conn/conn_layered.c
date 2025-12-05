@@ -1314,10 +1314,15 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_ERR(__wt_schema_open_page_log(session, &cval, &npage_log));
     conn->disaggregated_storage.npage_log = npage_log;
 
-    /* Set up a handle for accessing shared metadata. */
     if (npage_log != NULL) {
+        /* Set up a handle for accessing shared metadata. */
         WT_ERR(npage_log->page_log->pl_open_handle(npage_log->page_log, &session->iface,
           WT_DISAGG_METADATA_TABLE_ID, &conn->disaggregated_storage.page_log_meta));
+
+        /* Set up a handle for accessing the key provider table if configured. */
+        if (conn->key_provider != NULL)
+            WT_ERR(npage_log->page_log->pl_open_handle(npage_log->page_log, &session->iface,
+              WT_DISAGG_KEY_PROVIDER_TABLE_ID, &conn->disaggregated_storage.page_log_key_provider));
     }
 
     /* FIXME-WT-14965: Exit the function immediately if this check returns false. */
@@ -1611,6 +1616,13 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     if (disagg->page_log_meta != NULL) {
         WT_TRET(disagg->page_log_meta->plh_close(disagg->page_log_meta, &session->iface));
         disagg->page_log_meta = NULL;
+    }
+
+    /* Close the key provider handle. */
+    if (disagg->page_log_key_provider != NULL) {
+        WT_TRET(
+          disagg->page_log_key_provider->plh_close(disagg->page_log_key_provider, &session->iface));
+        disagg->page_log_key_provider = NULL;
     }
 
     __wt_free(session, disagg->last_checkpoint_root);
