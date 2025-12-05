@@ -53,8 +53,9 @@ database::add_collection(scoped_session &session, uint64_t key_count)
       std::forward_as_tuple(next_id, key_count, collection_name));
     testutil_check(
       session->create(session.get(), collection_name.c_str(), _collection_create_config.c_str()));
-    _operation_tracker->save_schema_operation(
-      tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
+    if (_operation_tracker != nullptr)
+        _operation_tracker->save_schema_operation(
+        tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
 }
 
 void
