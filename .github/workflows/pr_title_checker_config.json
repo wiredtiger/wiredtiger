@@ -5,7 +5,7 @@
   },
   "MESSAGES": {
     "success": "All OK",
-    "failure": "PR title does not match the regex: \"^(Revert \")?WT-[0-9]+ \" and contain only ASCII characters",
+    "failure": "PR title does not match the regex: \"^(Revert \")?WT-[0-9]+ \" or contains non-ASCII characters",
     "notice": ""
   }
 }
