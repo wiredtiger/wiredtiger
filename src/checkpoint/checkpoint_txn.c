@@ -1356,8 +1356,10 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * a protection against someone creating a layered table, dropping the table, and then
      * recreating a local table with the same name.
      */
-    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader)
-        WT_ERR(__wt_disagg_copy_metadata_process(session));
+    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
+        WT_WITH_SCHEMA_LOCK(session, ret = __wt_disagg_copy_metadata_process(session));
+        WT_ERR(ret);
+    }
 
     /* Wait prior to checkpointing the history store to simulate checkpoint slowness. */
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, &tsp);
