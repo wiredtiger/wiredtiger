@@ -57,6 +57,21 @@ database::add_collection(scoped_session &session, uint64_t key_count)
       tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
 }
 
+void
+database::add_existing_collections(int count, int key_count)
+{
+    std::lock_guard<std::mutex> lg(_mtx);
+    testutil_assert(_next_collection_id == 0);
+    /* We don't support operation tracking across database reopen. */
+    testutil_assert(_operation_tracker == NULL || _operation_tracker->enabled() == false);
+    for (int i = 0; i < count; i++) {
+        uint64_t next_id = _next_collection_id++;
+        std::string collection_name = build_collection_name(next_id);
+        _collections.emplace(std::piecewise_construct, std::forward_as_tuple(next_id),
+          std::forward_as_tuple(next_id, key_count, collection_name));
+    }
+}
+
 collection &
 database::get_collection(uint64_t id)
 {
@@ -123,10 +138,11 @@ database::set_operation_tracker(operation_tracker *op_tracker)
 }
 
 void
-database::set_create_config(bool use_compression, bool use_reverse_collator)
+database::set_create_config(bool use_compression, bool use_reverse_collator, bool disagg)
 {
     _collection_create_config = DEFAULT_FRAMEWORK_SCHEMA;
     _collection_create_config += use_compression ? std::string(SNAPPY_BLK) + "," : "";
     _collection_create_config += use_reverse_collator ? std::string(REVERSE_COL_CFG) + "," : "";
+    _collection_create_config += disagg ? "type=layered," : "";
 }
 } // namespace test_harness

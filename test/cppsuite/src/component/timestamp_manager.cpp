@@ -45,6 +45,31 @@ timestamp_manager::decimal_to_hex(uint64_t value)
     return (res);
 }
 
+uint64_t
+timestamp_manager::hex_to_decimal(const char *s)
+{
+    assert(s != nullptr && "input must not be null");
+
+    std::string_view sv(s);
+
+    // Accept optional 0x/0X prefix; remove it before validating
+    if (sv.size() >= 2 && sv[0] == '0' && (sv[1] == 'x' || sv[1] == 'X'))
+        sv.remove_prefix(2);
+
+    // After removing optional prefix, string must be non-empty
+    testutil_assert(!sv.empty() && "hex string is empty (after optional 0x removal)");
+
+    uint64_t value = 0;
+    auto res = std::from_chars(sv.data(), sv.data() + sv.size(), value, 16);
+
+    // Ensure the parse succeeded and consumed the entire string
+    testutil_assert(res.ec == std::errc() && "hex parse failed or out of range");
+    testutil_assert(
+      res.ptr == sv.data() + sv.size() && "unexpected trailing characters in hex string");
+
+    return value;
+}
+
 timestamp_manager::timestamp_manager(configuration *config) : component("timestamp_manager", config)
 {
 }

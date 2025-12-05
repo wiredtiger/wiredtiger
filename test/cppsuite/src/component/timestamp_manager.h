@@ -29,6 +29,9 @@
 #pragma once
 
 #include <atomic>
+#include <charconv>
+#include <cstdint>
+#include <string_view>
 
 #include "component.h"
 
@@ -47,6 +50,7 @@ namespace test_harness {
 class timestamp_manager : public component {
 public:
     static const std::string decimal_to_hex(uint64_t value);
+    static uint64_t hex_to_decimal(const char *s);
 
 public:
     explicit timestamp_manager(configuration *config);
