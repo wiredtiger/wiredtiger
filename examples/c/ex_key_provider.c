@@ -60,8 +60,9 @@ typedef struct {
  *     A simple example of set_key call.
  */
 static int
-my_load_key(WT_KEY_PROVIDER *kp, const WT_CRYPT_KEYS *key)
+my_load_key(WT_KEY_PROVIDER *kp, WT_SESSION *session, const WT_CRYPT_KEYS *key)
 {
+    WT_UNUSED(session);
     MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
 
     /* Update the returned LSN and copy the encryption key data. */
@@ -83,8 +84,9 @@ my_load_key(WT_KEY_PROVIDER *kp, const WT_CRYPT_KEYS *key)
  *     An simple example of key rotation done on get_key call.
  */
 static int
-my_get_key(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS *key)
+my_get_key(WT_KEY_PROVIDER *kp, WT_SESSION *session, WT_CRYPT_KEYS *key)
 {
+    WT_UNUSED(session);
     MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
 
     if ((key = calloc(1, sizeof(WT_CRYPT_KEYS) + sizeof(MY_CRYPT_DATA))) == NULL)
@@ -107,8 +109,9 @@ my_get_key(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS *key)
  *     A simple example of on_key_update call.
  */
 static int
-my_on_key_update(WT_KEY_PROVIDER *kp, WT_CRYPT_KEYS *key)
+my_on_key_update(WT_KEY_PROVIDER *kp, WT_SESSION *session, WT_CRYPT_KEYS *key)
 {
+    WT_UNUSED(session);
     MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
 
     /* Check size field to determine that the key was successfully persisted. */
