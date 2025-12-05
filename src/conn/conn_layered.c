@@ -363,6 +363,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor, *md_cursor;
+    WT_DECL_ITEM(uri_buf);
     WT_DECL_RET;
     WT_ITEM item;
     WT_SESSION_IMPL *internal_session, *shared_metadata_session;
@@ -371,7 +372,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     uint32_t checksum;
     char *buf, *cfg_ret, *checkpoint_config, *root, *metadata_value_cfg, *layered_ingest_uri;
     char ts_string[WT_TS_INT_STRING_SIZE];
-    const char *cfg[3], *current_value, *metadata_key, *metadata_value;
+    const char *cfg[3], *checkpoint_name, *current_value, *end, *metadata_key, *metadata_value;
 
     conn = S2C(session);
 
@@ -507,9 +508,23 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI),
       "Removing old references to disagg tables failed: \"%s\"", WT_DISAGG_METADATA_URI);
 
+    /*
+     * Read the shared metadata table at the checkpoint. The metadata config looks like
+     * "(WiredTigerCheckpoint.NNN=(...))", so extract the checkpoint name first.
+     */
+    checkpoint_name = metadata_value;
+    WT_PREFIX_SKIP_REQUIRED(session, checkpoint_name, "(");
+    end = strchr(checkpoint_name, '=');
+    WT_ASSERT(session, end != NULL);
+    len = (size_t)(end - checkpoint_name);
+
+    WT_ERR(__wt_scr_alloc(session, 0, &uri_buf));
+    WT_ERR(
+      __wt_buf_fmt(session, uri_buf, "%s/%.*s", WT_DISAGG_METADATA_URI, (int)len, checkpoint_name));
+
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
     cfg[1] = NULL;
-    WT_ERR(__wt_open_cursor(shared_metadata_session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
+    WT_ERR(__wt_open_cursor(shared_metadata_session, uri_buf->data, NULL, cfg, &cursor));
 
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &metadata_key));
@@ -647,6 +662,8 @@ err:
     __wt_free(session, metadata_value_cfg);
     __wt_free(session, layered_ingest_uri);
     __wt_free(session, cfg_ret);
+
+    __wt_scr_free(session, &uri_buf);
 
     return (ret);
 }
