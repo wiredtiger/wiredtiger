@@ -80,6 +80,10 @@ TEST_CASE("Test Disaggregate configuration logic", "[disagg_config]")
 
         /* The key provider log handle should not be constructed if no custom key provider is set. */
         REQUIRE(conn_impl->disaggregated_storage.page_log_key_provider == nullptr);
+
+        free(conn_impl->disaggregated_storage.page_log);
+        free(conn_impl->disaggregated_storage.page_log_meta);
+        free(conn_impl->disaggregated_storage.page_log_key_provider);
     }
 
     SECTION("Test key provider handle is constructed")
@@ -92,6 +96,10 @@ TEST_CASE("Test Disaggregate configuration logic", "[disagg_config]")
         REQUIRE(conn_impl->disaggregated_storage.npage_log != nullptr);
         REQUIRE(conn_impl->disaggregated_storage.page_log_meta != nullptr);
         REQUIRE(conn_impl->disaggregated_storage.page_log_key_provider != nullptr);
+
+        free(conn_impl->disaggregated_storage.page_log);
+        free(conn_impl->disaggregated_storage.page_log_meta);
+        free(conn_impl->disaggregated_storage.page_log_key_provider);
     }
 
     SECTION("Test key provider and page log handle is destroyed")
@@ -101,9 +109,10 @@ TEST_CASE("Test Disaggregate configuration logic", "[disagg_config]")
         conn_impl->disaggregated_storage.page_log_meta = &mock_page_log_handle;
         conn_impl->disaggregated_storage.page_log_key_provider = &mock_page_log_handle;
         REQUIRE(__wti_disagg_destroy(session) == 0);
-
+        
         REQUIRE(conn_impl->disaggregated_storage.page_log_meta == nullptr);
         REQUIRE(conn_impl->disaggregated_storage.page_log_key_provider == nullptr);
     }
     REQUIRE(__wti_conn_remove_page_log(session) == 0);
+    REQUIRE(__wti_layered_table_manager_destroy(session) == 0);
 }
