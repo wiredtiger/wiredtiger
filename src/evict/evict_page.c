@@ -306,6 +306,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
 
     if (0) {
 err:
+        WT_ASSERT_ALWAYS(
+          session, ref->page != NULL, "eviction of page failed, but page pointer is NULL");
+
         if (!closing)
             __evict_exclusive_clear(session, ref, previous_state);
 
