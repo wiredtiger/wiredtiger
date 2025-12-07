@@ -5775,7 +5775,7 @@ struct __wt_key_provider {
      *
      * @param kp the WT_KEY_PROVIDER instance.
      * @param session the current WiredTiger session.
-     * @param keysp the WT_CRYPT_KEYS to hold the new key (if changed).
+     * @param[out] keysp the WT_CRYPT_KEYS to hold the new key (if changed).
      */
     int (*get_key)(WT_KEY_PROVIDER *kp, WT_SESSION *session, WT_CRYPT_KEYS **keysp);
 
@@ -5790,6 +5790,21 @@ struct __wt_key_provider {
      * @param keys the WT_CRYPT_KEYS information to confirm key persistence.
      */
     int (*on_key_update)(WT_KEY_PROVIDER *kp, WT_SESSION *session, WT_CRYPT_KEYS *keys);
+
+    /*!
+     * A callback performed when the key provider is closed and will no
+     * longer be accessed by the WiredTiger database.
+     *
+     * This method is not required and should be set to NULL when not
+     * required by the key provider.
+     *
+     * The WT_KEY_PROVIDER::terminate callback is intended to allow cleanup;
+     * the handle will not be subsequently accessed by WiredTiger.
+     *
+     * @param kp the WT_KEY_PROVIDER instance.
+     * @param session the current WiredTiger session.
+     */
+    int (*terminate)(WT_KEY_PROVIDER *key_provider, WT_SESSION *session);
 };
 #endif
 
