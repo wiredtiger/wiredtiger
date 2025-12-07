@@ -678,7 +678,7 @@ __page_unpack_leaf_kv(WT_SESSION_IMPL *session, WTI_BASE_LEAF_MERGE_STATE *s, WT
     if (s->idx < s->entries && !s->key_unpacked) {
         __wt_cell_unpack_kv(session, dsk, (WT_CELL *)s->cell, s->unpack_key);
         s->cell += s->unpack_key->__len;
-        s->idx++;
+        ++s->idx;
         WT_ASSERT(session, s->unpack_value->type != WT_CELL_KEY_OVFL);
     }
 
@@ -695,7 +695,7 @@ __page_unpack_leaf_kv(WT_SESSION_IMPL *session, WTI_BASE_LEAF_MERGE_STATE *s, WT
     if (s->idx < s->entries) {
         __wt_cell_unpack_kv(session, dsk, (WT_CELL *)s->cell, s->unpack_value);
         s->cell += s->unpack_value->__len;
-        s->idx++;
+        ++s->idx;
         WT_ASSERT(session,
           s->unpack_value->type != WT_CELL_KEY_OVFL && s->unpack_value->type != WT_CELL_VALUE_OVFL);
         s->key_unpacked = s->unpack_value->type == WT_CELL_KEY;
