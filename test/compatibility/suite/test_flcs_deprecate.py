@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import compatibility_test, errno, wiredtiger
+import compatibility_test, wiredtiger
 
 
 class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
@@ -34,6 +34,7 @@ class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
     Test FLCS deprecation handling during database upgrade.
     '''
 
+    build_config = {'standalone': 'true'}
     conn_config = ''
     create_config = 'key_format=r,value_format=8t'
     uri = 'table:test_flcs_deprecate'
@@ -63,15 +64,12 @@ class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
 
     def on_newer_branch(self):
         # Expect opening the FLCS table to fail because FLCS is deprecated.
-        conn = wiredtiger.wiredtiger_open('.', self.conn_config)
-        session = conn.open_session()
-
-        # Expect an exception when trying to open a cursor on the FLCS table.
         try:
-            session.open_cursor(self.uri)
+            wiredtiger.wiredtiger_open('.', self.conn_config)
             assert False
         except wiredtiger.WiredTigerError as e:
             assert str(e) in wiredtiger.wiredtiger_strerror(wiredtiger.WT_PANIC)
+
 
     if __name__ == "__main__":
         compatibility_test.run()
