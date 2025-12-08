@@ -306,6 +306,10 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
 
     if (0) {
 err:
+        ++page->evict_page_attempts;
+        __wt_atomic_stats_max_uint16(
+          &conn->evict->evict_max_evict_page_attempts, page->evict_page_attempts);
+
         if (!closing)
             __evict_exclusive_clear(session, ref, previous_state);
 
