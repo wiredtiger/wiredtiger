@@ -971,6 +971,8 @@ struct __wt_connection_stats {
     int64_t dh_session_handles;
     int64_t dh_session_sweeps;
     int64_t disagg_role_leader;
+    int64_t disagg_step_down_time;
+    int64_t disagg_step_up_time;
     int64_t layered_curs_insert;
     int64_t layered_curs_next;
     int64_t layered_curs_next_ingest;
@@ -1417,8 +1419,6 @@ struct __wt_dsrc_stats {
     int64_t btree_compact_pages_rewritten_expected;
     int64_t btree_checkpoint_pages_reconciled;
     int64_t btree_compact_skipped;
-    int64_t btree_column_fix;
-    int64_t btree_column_tws;
     int64_t btree_column_internal;
     int64_t btree_column_rle;
     int64_t btree_column_deleted;

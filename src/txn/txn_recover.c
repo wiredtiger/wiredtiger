@@ -717,6 +717,15 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
     uint32_t fileid, lsnfile, lsnoffset;
     char lsn_str[WT_MAX_LSN_STRING];
 
+#ifdef WT_STANDALONE_BUILD
+    /*
+     * Check that we aren't opening a database with a table with an unsupported format. We only do
+     * this check for standalone as we can control whether MongoDB passes the correct format
+     * specifiers.
+     */
+    WT_RET(__wt_schema_unsupported_format(r->session, config, false));
+#endif
+
     WT_RET(__wt_config_getones(r->session, config, "id", &cval));
     fileid = (uint32_t)cval.val;
 
@@ -1232,7 +1241,8 @@ done:
         /* Although rollback to stable is not needed, we still need to set the durable timestamp. */
         WT_TXN_GLOBAL *txn_global = &conn->txn_global;
         txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
-        txn_global->durable_timestamp = txn_global->stable_timestamp;
+        __wt_atomic_store_uint64_relaxed(
+          &txn_global->durable_timestamp, txn_global->stable_timestamp);
 
         if (disagg)
             __wt_verbose_info(session, WT_VERB_RTS, "%s", "skipped recovery RTS due to disagg");
