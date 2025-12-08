@@ -1126,6 +1126,25 @@ functions:
         content_type: application/tar
         display_name: ${artifacts_name|Artifacts}
         remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
+  "upload wtperf test artifact":
+    - command: archive.targz_pack
+      type: setup
+      params:
+        target: ${upload_filename|wt_test.tgz}
+        source_dir: ${upload_source_dir|wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0/}
+        include:
+          - "./**"
+    - command: s3.put
+      type: setup
+      params:
+        aws_secret: ${aws_secret}
+        aws_key: ${aws_key}
+        local_file: ${upload_filename|wt_test.tgz}
+        bucket: build_external
+        permissions: public-read
+        content_type: application/tar
+        display_name: ${artifacts_name|WT_TEST}
+        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
   "upload endian format artifacts":
     - command: s3.put
       type: setup
@@ -5570,10 +5589,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_dirty_trigger_read-10_write-90.py
-      - func: "upload artifact"
-        vars:
-          upload_source_dir: wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0/
-          artifacts_name: WT_TEST.tgz
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_dirty_trigger_read-25_write-75
     tags: ["evict-perf"]
@@ -5595,10 +5611,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_dirty_trigger_read-25_write-75.py
-      - func: "upload artifact"
-        vars:
-          upload_source_dir: wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0/
-          artifacts_name: WT_TEST.tgz
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_dirty_trigger_read-50_write-50
     tags: ["evict-perf"]
@@ -5620,10 +5633,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_dirty_trigger_read-50_write-50.py
-      - func: "upload artifact"
-        vars:
-          upload_source_dir: wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0/
-          artifacts_name: WT_TEST.tgz
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_dirty_trigger_read-75_write-25
     tags: ["evict-perf"]
@@ -5645,10 +5655,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_dirty_trigger_read-75_write-25.py
-      - func: "upload artifact"
-        vars:
-          artifacts_name: WT_TEST.tgz
-          upload_source_dir: wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0/
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_dirty_trigger_read-90_write-10
     tags: ["evict-perf"]
@@ -5670,10 +5677,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_dirty_trigger_read-90_write-10.py
-      - func: "upload artifact"
-        vars:
-          artifacts_name: WT_TEST.tgz
-          upload_source_dir: wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0/
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_update_trigger_read-10_write-90
     tags: ["evict-perf"]
@@ -5695,10 +5699,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_update_trigger_read-10_write-90.py
-      - func: "upload artifact"
-        vars:
-          artifacts_name: WT_TEST.tgz
-          upload_source_dir: wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0/
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_update_trigger_read-25_write-75
     tags: ["evict-perf"]
@@ -5720,10 +5721,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_update_trigger_read-25_write-75.py
-      - func: "upload artifact"
-        vars:
-          artifacts_name: WT_TEST.tgz
-          upload_source_dir: wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0/
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_update_trigger_read-50_write-50
     tags: ["evict-perf"]
@@ -5745,10 +5743,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_update_trigger_read-50_write-50.py
-      - func: "upload artifact"
-        vars:
-          artifacts_name: WT_TEST.tgz
-          upload_source_dir: wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0/
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_update_trigger_read-75_write-25
     tags: ["evict-perf"]
@@ -5770,10 +5765,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_update_trigger_read-75_write-25.py
-      - func: "upload artifact"
-        vars:
-          artifacts_name: WT_TEST.tgz
-          upload_source_dir: wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0/
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_update_trigger_read-90_write-10
     tags: ["evict-perf"]
@@ -5795,10 +5787,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_update_trigger_read-90_write-10.py
-      - func: "upload artifact"
-        vars:
-          artifacts_name: WT_TEST.tgz
-          upload_source_dir: wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0/
+      - func: "upload wtperf test artifact"
 
     ###########################################
     # Performance Tests for log consolidation #
@@ -5977,10 +5966,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: 500m-btree-populate.wtperf
-      - func: "upload artifact"
-        vars:
-          upload_filename: WT_TEST.tgz
-          upload_source_dir: wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0/
+      - func: "upload wtperf test artifact"
       # Now take and upload a backup. We use this as the source in our live restore perf tests.
       - command: shell.exec
         params:
