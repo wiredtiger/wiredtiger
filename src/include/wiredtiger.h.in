@@ -5749,9 +5749,9 @@ struct __wt_key_provider {
      *
      * @param kp the WT_KEY_PROVIDER instance.
      * @param session the current WiredTiger session.
-     * @param keys the WT_CRYPT_KEYS to hold persisted key information.
+     * @param crypt the WT_CRYPT_KEYS to hold persisted key information.
      */
-    int (*load_key)(WT_KEY_PROVIDER *kp, WT_SESSION *session, const WT_CRYPT_KEYS *keys);
+    int (*load_key)(WT_KEY_PROVIDER *kp, WT_SESSION *session, const WT_CRYPT_KEYS *crypt);
 
     /*!
      * Fetch the latest key for checkpoint writes.
@@ -5767,9 +5767,9 @@ struct __wt_key_provider {
      *
      * @param kp the WT_KEY_PROVIDER instance.
      * @param session the current WiredTiger session.
-     * @param[out] keys the WT_CRYPT_KEYS to hold the new key (if changed).
+     * @param[out] crypt the WT_CRYPT_KEYS to hold the new key (if changed).
      */
-    int (*get_key)(WT_KEY_PROVIDER *kp, WT_SESSION *session, WT_CRYPT_KEYS *keys);
+    int (*get_key)(WT_KEY_PROVIDER *kp, WT_SESSION *session, WT_CRYPT_KEYS *crypt);
 
     /*!
      * Callback function indicating that whether the key has been persisted.
@@ -5779,9 +5779,9 @@ struct __wt_key_provider {
      *
      * @param kp the WT_KEY_PROVIDER instance.
      * @param session the current WiredTiger session.
-     * @param keys the WT_CRYPT_KEYS information to confirm key persistence.
+     * @param crypt the WT_CRYPT_KEYS information to confirm key persistence.
      */
-    int (*on_key_update)(WT_KEY_PROVIDER *kp, WT_SESSION *session, const WT_CRYPT_KEYS *keys);
+    int (*on_key_update)(WT_KEY_PROVIDER *kp, WT_SESSION *session, const WT_CRYPT_KEYS *crypt);
 
     /*!
      * A callback performed when the key provider is closed and will no

@@ -61,7 +61,7 @@ typedef struct {
  *     A simple example of set_key call.
  */
 static int
-my_load_key(WT_KEY_PROVIDER *kp, WT_SESSION *session, const WT_CRYPT_KEYS *keys)
+my_load_key(WT_KEY_PROVIDER *kp, WT_SESSION *session, const WT_CRYPT_KEYS *crypt)
 {
     WT_UNUSED(session);
     MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
@@ -75,9 +75,9 @@ my_load_key(WT_KEY_PROVIDER *kp, WT_SESSION *session, const WT_CRYPT_KEYS *keys)
     free(my_kp->encryption_data);
 
     /* Assign new encryption data. */
-    memcpy((uint8_t *)encryption_data, keys->keys.data, keys->keys.size);
+    memcpy((uint8_t *)encryption_data, crypt->keys.data, crypt->keys.size);
     my_kp->encryption_data = encryption_data;
-    my_kp->checkpoint_lsn = keys->r.lsn;
+    my_kp->checkpoint_lsn = crypt->r.lsn;
 
     return (0);
 }
@@ -87,20 +87,20 @@ my_load_key(WT_KEY_PROVIDER *kp, WT_SESSION *session, const WT_CRYPT_KEYS *keys)
  *     An simple example of key rotation done on get_key call.
  */
 static int
-my_get_key(WT_KEY_PROVIDER *kp, WT_SESSION *session, WT_CRYPT_KEYS *keys)
+my_get_key(WT_KEY_PROVIDER *kp, WT_SESSION *session, WT_CRYPT_KEYS *crypt)
 {
     WT_UNUSED(session);
     MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
 
-    if (keys->keys.data == NULL) {
+    if (crypt->keys.data == NULL) {
         /* First call to get_key: return required size. */
-        keys->keys.size = sizeof(MY_CRYPT_DATA);
+        crypt->keys.size = sizeof(MY_CRYPT_DATA);
 
         return (0);
     }
 
     /* Second call to get_key: return the new key. */
-    MY_CRYPT_DATA *crypt_data = (MY_CRYPT_DATA *)keys->keys.data;
+    MY_CRYPT_DATA *crypt_data = (MY_CRYPT_DATA *)crypt->keys.data;
 
     /* Set fields in the MY_CRYPT_DATA structure. */
     crypt_data->data = my_kp->encryption_data->data;
@@ -114,18 +114,18 @@ my_get_key(WT_KEY_PROVIDER *kp, WT_SESSION *session, WT_CRYPT_KEYS *keys)
  *     A simple example of on_key_update call.
  */
 static int
-my_on_key_update(WT_KEY_PROVIDER *kp, WT_SESSION *session, const WT_CRYPT_KEYS *keys)
+my_on_key_update(WT_KEY_PROVIDER *kp, WT_SESSION *session, const WT_CRYPT_KEYS *crypt)
 {
     MY_KEY_PROVIDER *my_kp = (MY_KEY_PROVIDER *)kp;
     WT_EXTENSION_API *wtext = my_kp->wtext;
 
     /* Check size field to determine that the key was successfully persisted. */
-    if (keys->keys.size != 0)
-        my_kp->checkpoint_lsn = keys->r.lsn;
+    if (crypt->keys.size != 0)
+        my_kp->checkpoint_lsn = crypt->r.lsn;
     else
         /* Handle error */
         (void)wtext->err_printf(
-          wtext, session, "on_key_update: %s", wtext->strerror(wtext, session, keys->r.error));
+          wtext, session, "on_key_update: %s", wtext->strerror(wtext, session, crypt->r.error));
 
     return (0);
 }
