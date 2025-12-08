@@ -3057,10 +3057,12 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
     }
 
     if (WT_UNLIKELY(ret != 0)) {
-        ++ref->page->evict_page_attempts;
+        if (ref->page != NULL) {
+            ++ref->page->evict_page_attempts;
 
-        __wt_atomic_stats_max_uint16(
-          &evict->evict_max_evict_page_attempts, ref->page->evict_page_attempts);
+            __wt_atomic_stats_max_uint16(
+              &evict->evict_max_evict_page_attempts, ref->page->evict_page_attempts);
+        }
 
         if (is_server)
             WT_STAT_CONN_INCR(session, eviction_server_evict_fail);
