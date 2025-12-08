@@ -502,20 +502,14 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       conn, "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
 
     /*
-     * Throw away any references to the old disaggregated metadata table. This ensures that we are
-     * on the most recent checkpoint from now on.
-     */
-    WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI),
-      "Removing old references to disagg tables failed: \"%s\"", WT_DISAGG_METADATA_URI);
-
-    /*
      * Read the shared metadata table at the checkpoint. The metadata config looks like
      * "(WiredTigerCheckpoint.NNN=(...))", so extract the checkpoint name first.
      */
     checkpoint_name = metadata_value;
-    WT_PREFIX_SKIP_REQUIRED(session, checkpoint_name, "(");
-    end = strchr(checkpoint_name, '=');
-    WT_ASSERT(session, end != NULL);
+    if (*checkpoint_name != '(' || (end = strchr(checkpoint_name, '=')) == NULL)
+        WT_ERR_MSG(session, EINVAL, "Disaggregated metadata has unexpected checkpoint syntax: %s",
+          checkpoint_name);
+    checkpoint_name++;          /* Skip opening parenthesis. */
     len = (size_t)(end - checkpoint_name);
 
     WT_ERR(__wt_scr_alloc(session, 0, &uri_buf));

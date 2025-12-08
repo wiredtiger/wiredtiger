@@ -489,7 +489,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     }
 
     /* The disaggregated storage metadata is never logged. */
-    if (strcmp(session->dhandle->name, WT_DISAGG_METADATA_URI) == 0) {
+    if (WT_IS_URI_METADATA(session->dhandle->name)) {
         F_SET(btree->dhandle, WT_DHANDLE_DISAGG_META);
         F_CLR(btree, WT_BTREE_LOGGED);
     }

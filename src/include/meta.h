@@ -98,7 +98,7 @@
     } while (0)
 
 #define WT_IS_URI_METADATA(uri) \
-    (strcmp(uri, WT_METAFILE_URI) == 0 || strcmp(uri, WT_DISAGG_METADATA_URI) == 0)
+    (strcmp(uri, WT_METAFILE_URI) == 0 || WT_PREFIX_MATCH(uri, WT_DISAGG_METADATA_URI))
 
 /*
  * As a result of a data format change WiredTiger is not able to start on versions below 3.2.0, as
