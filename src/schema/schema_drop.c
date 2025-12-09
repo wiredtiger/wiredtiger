@@ -476,6 +476,11 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool
     if (ret == WT_NOTFOUND || ret == ENOENT)
         ret = force ? 0 : ENOENT;
 
+    /*
+     * FIXME-WT-16215: The meta tracking has not be initialized and should not be used during
+     * recovery stage which includes partial backup restore. During recovery stage, we don't need to
+     * use meta tracking as we must end with a checkpoint which syncs all files.
+     */
     bool need_sync = !F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL_RESTORE | WT_CONN_RECOVERING);
     WT_TRET(__wt_meta_track_off(session, need_sync, ret != 0));
     return (ret);

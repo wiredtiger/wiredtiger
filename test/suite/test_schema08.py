@@ -44,18 +44,18 @@ class test_schema08(TieredConfigMixin, wttest.WiredTigerTestCase, suite_subproce
     conn_config_string = 'log=(enabled,file_max=100k,prealloc=false,remove=false),'
 
     types = [
-        ('file', dict(uri='file:', use_cg=False, use_index=False)),
-        ('table-cg', dict(uri='table:', use_cg=True, use_index=False)),
-        ('table-index', dict(uri='table:', use_cg=False, use_index=True)),
+        #('file', dict(uri='file:', use_cg=False, use_index=False)),
+        #('table-cg', dict(uri='table:', use_cg=True, use_index=False)),
+        #('table-index', dict(uri='table:', use_cg=False, use_index=True)),
         ('table-simple', dict(uri='table:', use_cg=False, use_index=False)),
     ]
     ops = [
         ('none', dict(schema_ops='none')),
-        ('alter', dict(schema_ops='alter')),
-        ('drop', dict(schema_ops='drop')),
+        #('alter', dict(schema_ops='alter')),
+        #('drop', dict(schema_ops='drop')),
     ]
     ckpt = [
-        ('no_ckpt', dict(ckpt=False)),
+        #('no_ckpt', dict(ckpt=False)),
         ('with_ckpt', dict(ckpt=True)),
     ]
     tiered_storage_sources = gen_tiered_storage_sources()

@@ -45,14 +45,15 @@ class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.reconfigure("debug_mode=(crash_point_colgroup=true)")
         self.create_table() # Expected to fail
 
-    def check_metadata_entry(self, uri):
+    def check_metadata_entry(self, exists):
+        expect_search = 0 if exists else wiredtiger.WT_NOTFOUND
         meta_cursor = self.session.open_cursor('metadata:')
         meta_cursor.set_key("file:" + self.basename + ".wt")
-        self.assertEqual(meta_cursor.search(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(meta_cursor.search(), expect_search)
         meta_cursor.set_key("table:" + self.basename)
-        self.assertEqual(meta_cursor.search(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(meta_cursor.search(), expect_search)
         meta_cursor.set_key("colgroup:" + self.basename)
-        self.assertEqual(meta_cursor.search(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(meta_cursor.search(), expect_search)
         meta_cursor.close()
 
     def test_schema(self):
@@ -66,8 +67,7 @@ class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
         self.session = self.setUpSessionOpen(self.conn)
 
         self.conn.reconfigure("debug_mode=(crash_point_colgroup=false)")
-
-        self.check_metadata_entry(self.tablename)
+        self.check_metadata_entry(False)
 
         # Test that we can't open a cursor on the table.
         self.assertRaises(
@@ -79,3 +79,4 @@ class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Test that we can create the table.
         self.create_table()
+        self.check_metadata_entry(True)

@@ -841,8 +841,7 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
     const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
     const char *metadata_cfg[] = {config, NULL};
     const char *name;
-    char *metadata;
-    WT_CONFIG_ITEM cval;
+    char *cg_meta_value;
     WT_ITEM *colgroup;
 
     WT_ERR(__wt_scr_alloc(r->session, 0, &colgroup));
@@ -852,7 +851,7 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
      */
     bool is_simple;
     WT_ERR(__wt_is_simple_table(r->session, metadata_cfg, &is_simple));
-    if (!is_simple || ((ret = __wt_config_gets(r->session, metadata_cfg, "shared", &cval)) == 0))
+    if (!is_simple)
         goto done;
     WT_ERR_NOTFOUND_OK(ret, false);
 
@@ -860,7 +859,7 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
     name = uri;
     WT_PREFIX_SKIP_REQUIRED(r->session, name, "table:");
     WT_ERR(__wt_buf_fmt(r->session, colgroup, "colgroup:%s", name));
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(r->session, colgroup->data, &metadata), true);
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(r->session, colgroup->data, &cg_meta_value), true);
     if (ret == 0)
         goto done;
 
@@ -874,6 +873,7 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
 
 err:
 done:
+    __wt_free(r->session, cg_meta_value);
     __wt_scr_free(r->session, &colgroup);
     return (ret);
 }
