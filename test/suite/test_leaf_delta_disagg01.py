@@ -151,8 +151,8 @@ class test_leaf_delta_disagg01(wttest.WiredTigerTestCase):
         dict3 = dict(zip(self.delta3_ids, self.delta3_vals))
 
         # Since deltas are generated in time order, the keys in delta3_ids are the latest update so
-        # they have value 'delta3', and keys included in delta2_ids but excluded from delta3_ids are
-        # having value 'delta2', and so on.
+        # values are from delta3, and keys included in delta2_ids but excluded from delta3_ids are
+        # having values from delta2, and so on.
         self.verify(dict3)
         diff = {k: v for k, v in dict2.items() if k not in dict3}
         self.verify(diff)
