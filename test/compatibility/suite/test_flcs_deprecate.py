@@ -50,7 +50,7 @@ class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
             return
 
         # Only run this test for older branch where FLCS is still available and newer branch where FLCS is deprecated.
-        if self.older_branch < flcs_deprecated_version and self.newer_branch > flcs_deprecated_version:
+        if self.older_branch < flcs_deprecated_version and self.newer_branch >= flcs_deprecated_version:
             # Run the older-branch part (create the FLCS table and populate it)
             self.run_method_on_branch(self.older_branch, 'on_older_branch')
             # Run the newer-branch part (attempt to open and expect failure)
