@@ -49,11 +49,11 @@ class test_checkpoint09(wttest.WiredTigerTestCase):
 
     def conn_config(self):
         config = 'cache_size=50MB,statistics=(all),' + self.ckpt_config
-        if not self.runningHook('disagg'):
-            return config
-        else:
+        if self.runningHook('disagg'):
             # Disable leaf page deltas for disaggregated testing as the test expects we write full pages.
             return config + ',page_delta=(leaf_page_delta=false)'
+        else:
+            return config
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
