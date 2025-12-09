@@ -842,6 +842,7 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
     const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
     const char *metadata_cfg[] = {config, NULL};
     const char *name;
+    WT_CONFIG_ITEM cval;
     WT_ITEM *colgroup;
 
     cg_meta_value = NULL;
@@ -852,7 +853,7 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
      */
     bool is_simple;
     WT_ERR(__wt_is_simple_table(r->session, metadata_cfg, &is_simple));
-    if (!is_simple)
+    if (!is_simple || ((ret = __wt_config_gets(r->session, metadata_cfg, "shared", &cval)) == 0))
         goto done;
     WT_ERR_NOTFOUND_OK(ret, false);
 
