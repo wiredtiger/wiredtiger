@@ -838,12 +838,13 @@ static int
 __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *config)
 {
     WT_DECL_RET;
+    char *cg_meta_value;
     const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
     const char *metadata_cfg[] = {config, NULL};
     const char *name;
-    char *cg_meta_value;
     WT_ITEM *colgroup;
 
+    cg_meta_value = NULL;
     WT_ERR(__wt_scr_alloc(r->session, 0, &colgroup));
     /*
      * FIXME-WT-16146: Add capability for cleaning up incomplete complex tables and skip checking
