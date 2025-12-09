@@ -302,7 +302,7 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
         }
     }
 
-    ret = __wt_open_cursor(session, stable_uri, &clayered->iface, cfg, &clayered->stable_cursor);
+    ret = __wt_open_cursor(session, stable_uri, c, cfg, &clayered->stable_cursor);
     /* Opening a cursor can return both of these, unfortunately. FIXME-WT-15816. */
     if ((ret == ENOENT || ret == WT_NOTFOUND) && !leader)
         /*
@@ -567,8 +567,8 @@ __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, b
         if (random_config->size > 0)
             ckpt_cfg[1] = random_config->data;
 
-        WT_ERR(__wt_open_cursor(
-          session, layered->ingest_uri, &clayered->iface, ckpt_cfg, &clayered->ingest_cursor));
+        WT_ERR(
+          __wt_open_cursor(session, layered->ingest_uri, c, ckpt_cfg, &clayered->ingest_cursor));
         F_SET(clayered->ingest_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
 
         /* Layered cursor is not compatible with cursor_copy config. */
