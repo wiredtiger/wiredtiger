@@ -763,7 +763,7 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 {
     WT_CONNECTION *conn;
     size_t max;
-    char config[1024], *p;
+    char config[1024], disagg_ext_cfg[1024], *p;
     const char *enc, *s;
 
     *connp = NULL;
@@ -788,6 +788,9 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 
     /* Optional debug mode. */
     configure_debug_mode(&p, max);
+
+    /* Optional disaggregated storage. */
+    configure_disagg_storage(home, &p, max, disagg_ext_cfg, sizeof(disagg_ext_cfg));
 
     /* Optional live restore. */
     configure_live_restore(&p, max);
@@ -819,6 +822,7 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
         if (GV(PRESERVE_PREPARED))
             CONFIG_APPEND(p, ",preserve_prepared=true");
 
+        WT_UNUSED(disagg_ext_cfg);
 #if WIREDTIGER_VERSION_MAJOR >= 10
         if (GV(OPS_VERIFY) && verify_metadata)
             CONFIG_APPEND(p, ",verify_metadata=true");
@@ -871,6 +875,12 @@ wts_reopen(void)
     if (GV(PRECISE_CHECKPOINT)) {
         memset(&sap, 0, sizeof(sap));
         wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
+        /*
+         * Update the oldest/stable timestamps. We may not advance them all the way to the last
+         * committed timestamp, and that's okay we might lose some data, but the goal is to ensure
+         * that when we read the data back and later perform verification and mirrored-table
+         * matching, we don't encounter table mismatches or verification issues.
+         */
         timestamp_once(session, false, false);
         wt_wrap_close_session(session);
     }
