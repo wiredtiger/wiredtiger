@@ -878,6 +878,8 @@ extern int __wt_prepared_discover_remove_item(WT_SESSION_IMPL *session, uint64_t
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_progress_backoff(WT_SESSION_IMPL *session, const char *s, uint64_t v)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags,
   WT_RAND_STATE *rnd) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_range_truncate(WT_CURSOR *start, WT_CURSOR *stop)
