@@ -838,49 +838,43 @@ static int
 __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *config)
 {
     WT_DECL_RET;
-    WT_TABLE *fake_table_handle;
-    const char *cfg[] = {config, NULL};
     const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
+    const char *metadata_cfg[] = {config, NULL};
     const char *name;
+    char *metadata;
+    WT_CONFIG_ITEM cval;
+    WT_ITEM *colgroup;
 
+    WT_ERR(__wt_scr_alloc(r->session, 0, &colgroup));
     /*
-     * We are only interested in the meta information of the table handle. Therefore generate a fake
-     * table dhandle as a performance optimization, removing the need to the open the file handle on
-     * the file system.
+     * FIXME-WT-16146: Add capability for cleaning up incomplete complex tables and skip checking
+     * tiered shared tables.
      */
+    bool is_simple;
+    WT_ERR(__wt_is_simple_table(r->session, metadata_cfg, &is_simple));
+    if (!is_simple || ((ret = __wt_config_gets(r->session, metadata_cfg, "shared", &cval)) == 0))
+        goto done;
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    /* Check whether the colgroup exists. */
     name = uri;
-    WT_ERR(__wt_calloc(r->session, 1, sizeof(WT_TABLE), &fake_table_handle));
-    fake_table_handle->iface.name = uri;
     WT_PREFIX_SKIP_REQUIRED(r->session, name, "table:");
-
-    WT_WITH_TABLE_WRITE_LOCK(
-      r->session, ret = __wt_schema_construct_table_config(r->session, cfg, fake_table_handle));
-    WT_ERR(ret);
-
-    /*
-     * FIXME-WT-16146: Add capability for cleaning up incomplete complex and tiered tables. For now,
-     * only focus on simple tables.
-     */
-    if (!fake_table_handle->is_simple || fake_table_handle->is_tiered_shared)
+    WT_ERR(__wt_buf_fmt(r->session, colgroup, "colgroup:%s", name));
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(r->session, colgroup->data, &metadata), true);
+    if (ret == 0)
         goto done;
 
-    if (!fake_table_handle->cg_complete) {
-        __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING, "%s %s",
-          "removing incomplete table", uri);
-        WT_WITH_SCHEMA_LOCK(r->session,
-          WT_WITH_TABLE_WRITE_LOCK(
-            r->session, ret = __wt_schema_drop(r->session, uri, drop_cfg, false)));
-        WT_ERR(ret);
-    }
+    __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING, "%s %s",
+      "removing incomplete table", uri);
+
+    WT_WITH_SCHEMA_LOCK(r->session,
+      WT_WITH_TABLE_WRITE_LOCK(
+        r->session, ret = __wt_schema_drop(r->session, uri, drop_cfg, false)));
+    WT_ERR(ret);
 
 err:
 done:
-    /* Free allocated structure in table handle. */
-    if (fake_table_handle != NULL) {
-        WT_WITH_TABLE_WRITE_LOCK(
-          r->session, WT_TRET(__wt_schema_close_table(r->session, fake_table_handle)));
-        __wt_free(r->session, fake_table_handle);
-    }
+    __wt_scr_free(r->session, &colgroup);
     return (ret);
 }
 

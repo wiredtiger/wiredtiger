@@ -187,55 +187,26 @@ err:
 }
 
 /*
- * __wt_schema_construct_table_config --
- *     Construct the in-memory representation of a table's configuration.
+ * __wt_is_simple_table --
+ *     Check whether the given table is simple.
  */
 int
-__wt_schema_construct_table_config(WT_SESSION_IMPL *session, const char **config, WT_TABLE *table)
+__wt_is_simple_table(WT_SESSION_IMPL *session, const char **table_cfg, bool *is_simplep)
 {
     WT_CONFIG cparser;
     WT_CONFIG_ITEM ckey, cval;
+    WT_CONFIG_ITEM colconf;
     WT_DECL_RET;
 
-    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE));
-
-    WT_RET(__wt_config_gets(session, config, "columns", &cval));
-    WT_RET(__wt_config_gets(session, config, "key_format", &cval));
-    WT_RET(__wt_strndup(session, cval.str, cval.len, &table->key_format));
-    WT_RET(__wt_config_gets(session, config, "value_format", &cval));
-    WT_RET(__wt_strndup(session, cval.str, cval.len, &table->value_format));
-
-    /* Point to some items in the copy to save re-parsing. */
-    WT_RET(__wt_config_gets(session, config, "columns", &table->colconf));
-
-    /*
-     * Count the number of columns: tables are "simple" if the columns are not named.
-     */
-    __wt_config_subinit(session, &cparser, &table->colconf);
-    table->is_simple = true;
-    while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
-        table->is_simple = false;
+    WT_RET(__wt_config_gets(session, table_cfg, "columns", &colconf));
+    __wt_config_subinit(session, &cparser, &colconf);
+    *is_simplep = true;
+    /* Count the number of columns: tables are "simple" if the columns are not named. */
+    while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0) {
+        *is_simplep = false;
+        break;
+    }
     WT_RET_NOTFOUND_OK(ret);
 
-    /* Check that the columns match the key and value formats. */
-    if (!table->is_simple)
-        WT_RET(__wti_schema_colcheck(session, table->key_format, table->value_format,
-          &table->colconf, &table->nkey_columns, NULL));
-
-    WT_RET(__wt_config_gets(session, config, "colgroups", &table->cgconf));
-
-    /* Count the number of column groups. */
-    __wt_config_subinit(session, &cparser, &table->cgconf);
-    table->ncolgroups = 0;
-    while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
-        ++table->ncolgroups;
-    WT_RET_NOTFOUND_OK(ret);
-
-    if ((ret = __wt_config_gets(session, config, "shared", &cval)) == 0)
-        table->is_tiered_shared = true;
-    WT_RET_NOTFOUND_OK(ret);
-
-    WT_RET(__wt_calloc_def(session, WT_COLGROUPS(table), &table->cgroups));
-    WT_RET(__wti_schema_open_colgroups(session, table));
     return (0);
 }
