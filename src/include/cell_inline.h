@@ -337,24 +337,22 @@ __wt_cell_decompress_prefix_key(
  *     them directly to the new disk image.
  */
 static WT_INLINE int
-__wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, const void *key_data, size_t key_size,
-  const void *val_data, size_t val_size, WT_TIME_WINDOW *val_tw, WT_ITEM *new_image,
-  WTI_DISK_LEAF_MERGE_STATE *s)
+__wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, bool empty_value, const void *key_data,
+  size_t key_size, const void *val_data, size_t val_size, WT_TIME_WINDOW *val_tw,
+  WT_ITEM *new_image, WTI_DISK_LEAF_MERGE_STATE *s)
 {
     WT_BTREE *btree;
     WT_CELL_KV key, val;
     WT_DECL_RET;
     size_t packed_size;
     uint8_t pfx;
-    bool is_empty_value;
 
     btree = S2BT(session);
     pfx = 0;
     WT_CLEAR(key);
     WT_CLEAR(val);
 
-    is_empty_value = val_size == 0 && WT_TIME_WINDOW_IS_EMPTY(val_tw);
-    if (!is_empty_value)
+    if (!empty_value)
         s->all_empty_value = false;
     else
         s->any_empty_value = true;
@@ -378,7 +376,7 @@ __wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, const void *key_data, size_t ke
      * Build value cell. We don't copy the data into the buffer, just re-pointing the buffer's
      * data/length fields.
      */
-    if (!is_empty_value) {
+    if (!empty_value) {
         val.buf.data = val_data;
         val.buf.size = val_size;
         val.cell_len = __wt_cell_pack_value(session, &val.cell, val_tw, 0, val.buf.size);
@@ -400,7 +398,7 @@ __wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, const void *key_data, size_t ke
     __wt_cell_kv_copy(session, s->p_ptr, &key);
     s->p_ptr += key.len;
     s->entries++;
-    if (!is_empty_value) {
+    if (!empty_value) {
         __wt_cell_kv_copy(session, s->p_ptr, &val);
         s->p_ptr += val.len;
         s->entries++;

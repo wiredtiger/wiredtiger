@@ -2034,9 +2034,9 @@ static WT_INLINE int __wt_cell_decompress_prefix_key(
 static WT_INLINE int __wt_cell_pack_internal_key_addr(WT_SESSION_IMPL *session, WT_ITEM *new_image,
   WT_CELL_UNPACK_ADDR *base_key, WT_CELL_UNPACK_ADDR *base_val, WT_CELL_UNPACK_DELTA_INT *delta,
   bool is_delta, uint8_t **pp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE int __wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, const void *key_data,
-  size_t key_size, const void *val_data, size_t val_size, WT_TIME_WINDOW *val_tw,
-  WT_ITEM *new_image, WTI_DISK_LEAF_MERGE_STATE *s)
+static WT_INLINE int __wt_cell_pack_leaf_kv(WT_SESSION_IMPL *session, bool empty_value,
+  const void *key_data, size_t key_size, const void *val_data, size_t val_size,
+  WT_TIME_WINDOW *val_tw, WT_ITEM *new_image, WTI_DISK_LEAF_MERGE_STATE *s)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_cell_pack_value_match(WT_CELL *page_cell, WT_CELL *val_cell,
   const uint8_t *val_data, bool *matchp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

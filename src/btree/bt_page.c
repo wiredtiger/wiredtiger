@@ -674,11 +674,10 @@ err:
 static int
 __page_unpack_leaf_kv(WT_SESSION_IMPL *session, WTI_BASE_LEAF_MERGE_STATE *s, WT_PAGE_HEADER *dsk)
 {
-    /* Unpack the key if we have entries left and the key is not unpacked in the previous run. */
-    if (s->idx < s->entries && !s->key_unpacked) {
+    /* Unpack the key if we did not find the key in the previous run. */
+    if (!s->empty_value_cell) {
         __wt_cell_unpack_kv(session, dsk, (WT_CELL *)s->cell, s->unpack_key);
         s->cell += s->unpack_key->__len;
-        ++s->idx;
         WT_ASSERT(session, s->unpack_value->type != WT_CELL_KEY_OVFL);
     }
 
@@ -687,20 +686,25 @@ __page_unpack_leaf_kv(WT_SESSION_IMPL *session, WTI_BASE_LEAF_MERGE_STATE *s, WT
       session, s->current_key, s->unpack_key->data, s->unpack_key->size, s->unpack_key->prefix));
 
     /*
-     * Unpack the value if we have entries left, we may see a key unpacked if the entry has empty
-     * value, in such case we set key_unpacked, and in the next run we can swap the pointers of
-     * base_unpack_key and base_unpack_value so base_unpack_key can point to the right memory
-     * location.
+     * Unpack the value if there are entries left. If the entry has an empty value cell, we have
+     * already unpacked the next key. In that case, we set empty_value_cell and we know unpack_value
+     * is actually pointing to the next key.
      */
-    if (s->idx < s->entries) {
+    if (s->entries > 1) {
         __wt_cell_unpack_kv(session, dsk, (WT_CELL *)s->cell, s->unpack_value);
         s->cell += s->unpack_value->__len;
-        ++s->idx;
         WT_ASSERT(session,
           s->unpack_value->type != WT_CELL_KEY_OVFL && s->unpack_value->type != WT_CELL_VALUE_OVFL);
-        s->key_unpacked = s->unpack_value->type == WT_CELL_KEY;
-    }
+        s->empty_value_cell = s->unpack_value->type == WT_CELL_KEY;
+    } else
+        /*
+         * If there's only one entry left then it must be the last entry with a key cell and an
+         * empty value cell.
+         */
+        s->empty_value_cell = true;
 
+    /* We've just unpacked a k/v pair. */
+    s->unpacked = true;
     return (0);
 }
 
@@ -713,10 +717,9 @@ __page_init_base_leaf_merge_state(
   WT_SESSION_IMPL *session, WT_BTREE *btree, WT_PAGE_HEADER *base_dsk, WTI_BASE_LEAF_MERGE_STATE *s)
 {
     s->entries = base_dsk->u.entries;
-    s->idx = 0;
     s->cell = WT_PAGE_HEADER_BYTE(btree, base_dsk);
-    s->found_next = false;
-    s->key_unpacked = false;
+    s->unpacked = false;
+    s->empty_value_cell = false;
 
     WT_RET(__wt_calloc_one(session, &s->unpack_key));
     WT_RET(__wt_calloc_one(session, &s->unpack_value));
@@ -830,19 +833,17 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
         if (j == -1)
             WT_ERR(__page_find_min_delta_leaf(session, deltas, delta_s, &j, delta_size));
 
-        /* Only find next base when needed. */
-        if (!base_s.found_next) {
-            base_s.found_next = base_s.idx < base_s.entries || base_s.key_unpacked;
+        /* Only find next base when we have entries left and not unpacked yet. */
+        if (base_s.entries > 0 && !base_s.unpacked)
             WT_ERR(__page_unpack_leaf_kv(session, &base_s, base_dsk));
-        }
 
         /* Check if both base and all deltas are exhausted. */
-        if (!base_s.found_next && j == -1)
+        if (base_s.entries == 0 && j == -1)
             break;
 
         if (j == -1)
             cmp = -1;
-        else if (!base_s.found_next)
+        else if (base_s.entries == 0)
             cmp = 1;
         else
             WT_ERR(__wt_compare(
@@ -851,14 +852,17 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
         /* Build disk image */
         if (cmp < 0)
             /* Pack row-leaf base key/value. */
-            WT_ERR(__wt_cell_pack_leaf_kv(session, base_s.current_key->data,
-              base_s.current_key->size, base_s.unpack_value->data, base_s.unpack_value->size,
-              &base_s.unpack_value->tw, new_image, &disk_s));
+            WT_ERR(__wt_cell_pack_leaf_kv(session, base_s.empty_value_cell,
+              base_s.current_key->data, base_s.current_key->size, base_s.unpack_value->data,
+              base_s.unpack_value->size, &base_s.unpack_value->tw, new_image, &disk_s));
         else {
             /* Pack row-leaf delta entry. */
             if (!F_ISSET(delta_s[j].unpack, WT_DELTA_LEAF_IS_DELETE))
-                WT_ERR(__wt_cell_pack_leaf_kv(session, delta_s[j].current_key->data,
-                  delta_s[j].current_key->size, delta_s[j].unpack->delta_value_data.data,
+                WT_ERR(__wt_cell_pack_leaf_kv(session,
+                  delta_s[j].unpack->delta_value_data.size == 0 &&
+                    WT_TIME_WINDOW_IS_EMPTY(&delta_s[j].unpack->delta_value.tw),
+                  delta_s[j].current_key->data, delta_s[j].current_key->size,
+                  delta_s[j].unpack->delta_value_data.data,
                   delta_s[j].unpack->delta_value_data.size, &delta_s[j].unpack->delta_value.tw,
                   new_image, &disk_s));
 
@@ -871,20 +875,23 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
          * There are two possible scenarios:
          * - If cmp < 0, we have packed the base entry to the disk image in this run.
          * - If cmp == 0, the base entry has a duplicate key as the delta entry.
-         * In either case, we need to discard the current base entry by clearing found_next. This
-         * ensures that in the next run, we know we should find a new base entry.
+         * In either case, we need to skip the entry by resetting the status.
          */
         if (cmp <= 0) {
-            base_s.found_next = false;
+            base_s.unpacked = false;
+            /* Skip the key cell. */
+            --base_s.entries;
             /*
-             * If we decide to find a new base entry in the next run, but the next key pointed to by
-             * the unpack_value has already been unpacked, swap unpack_key and unpack_value.
+             * If the current entry has an empty value cell, then we have unpacked the next key cell
+             * and it is pointed by the unpack_value, swap unpack_key and unpack_value.
              */
-            if (base_s.key_unpacked) {
+            if (base_s.empty_value_cell) {
                 WT_CELL_UNPACK_KV *tmp = base_s.unpack_key;
                 base_s.unpack_key = base_s.unpack_value;
                 base_s.unpack_value = tmp;
-            }
+            } else
+                /* Skip the value cell if the k/v has a non-empty value. */
+                --base_s.entries;
         }
         /* After the first iteration, we prefix compress keys if this is configured.*/
         disk_s.key_pfx_compress = btree->prefix_compression;
