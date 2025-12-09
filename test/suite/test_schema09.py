@@ -63,7 +63,9 @@ class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
         [ignore_result, new_home_dir] = self.run_subprocess_function(subdir,
             'test_schema09.test_schema09.subprocess_func', silent=True)
 
-        self.conn = self.setUpConnectionOpen(new_home_dir)
+
+        with self.expectedStdoutPattern('removing incomplete table'):
+            self.conn = self.setUpConnectionOpen(new_home_dir)
         self.session = self.setUpSessionOpen(self.conn)
 
         self.conn.reconfigure("debug_mode=(crash_point_colgroup=false)")
