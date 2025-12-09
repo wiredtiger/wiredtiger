@@ -167,4 +167,7 @@ disagg_switch_roles(void)
         track("[role change] follower  leader", 0ULL);
         testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=leader)"));
     }
+
+    /* After every switch, verify the contents of each table */
+    wts_verify_mirrors(g.wts_conn, NULL, NULL);
 }
