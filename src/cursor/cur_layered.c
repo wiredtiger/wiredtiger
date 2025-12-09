@@ -244,6 +244,7 @@ __clayered_configure_random(
 static int
 __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
 {
+    WT_CURSOR *c;
     WT_DECL_ITEM(random_config);
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
@@ -253,6 +254,7 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
     const char *checkpoint_name, *stable_uri;
 
     session = CUR2S(clayered);
+    c = &clayered->iface;
     layered = (WT_LAYERED_TABLE *)clayered->dhandle;
     stable_uri = layered->stable_uri;
     checkpoint_name = NULL;
@@ -315,6 +317,9 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
 
         /* Layered cursor is not compatible with cursor_copy config. */
         F_CLR(clayered->stable_cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE);
+
+        if (F_ISSET(c, WT_CURSTD_DEBUG_RESET_EVICT))
+            F_SET(clayered->stable_cursor, WT_CURSTD_DEBUG_RESET_EVICT);
     }
 
 err:
@@ -568,6 +573,9 @@ __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, b
 
         /* Layered cursor is not compatible with cursor_copy config. */
         F_CLR(clayered->ingest_cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE);
+
+        if (F_ISSET(c, WT_CURSTD_DEBUG_RESET_EVICT))
+            F_SET(clayered->ingest_cursor, WT_CURSTD_DEBUG_RESET_EVICT);
     }
 
     if (clayered->stable_cursor == NULL) {
