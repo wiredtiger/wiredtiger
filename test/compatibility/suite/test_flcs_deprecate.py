@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import compatibility_test, wiredtiger
+import compatibility_test, compatibility_version, wiredtiger
 
 
 class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
@@ -41,8 +41,11 @@ class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
     nrows = 100
 
     def test_flcs_deprecate(self):
-        # Only run this test for newer branch where FLCS is deprecated.
-        if self.newer_branch == "develop":
+
+        flcs_deprecated_version = compatibility_version.WTVersion(str("mongodb-8.3"))
+
+        # Only run this test for older branch where FLCS is still available and newer branch where FLCS is deprecated.
+        if flcs_deprecated_version.__gt__(self.older_branch) and flcs_deprecated_version.__lt__(self.newer_branch):
             # Run the older-branch part (create the FLCS table and populate it)
             self.run_method_on_branch(self.older_branch, 'on_older_branch')
             # Run the newer-branch part (attempt to open and expect failure)
@@ -70,6 +73,3 @@ class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
         except wiredtiger.WiredTigerError as e:
             assert str(e) in wiredtiger.wiredtiger_strerror(wiredtiger.WT_PANIC)
 
-
-    if __name__ == "__main__":
-        compatibility_test.run()
