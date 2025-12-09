@@ -1603,7 +1603,7 @@ variables:
       - func: "fetch artifacts"
       - func: "format test disagg"
         vars:
-          # FIXME-WT-15592 Remove this task when disagg verification is working reliably with deltas.
+          # FIXME-WT-16211 Remove this task when disagg verification is working reliably with deltas.
           format_args: disagg.mode=leader ops.verify=1 disagg.leaf_page_delta=0 disagg.internal_page_delta=0
           times: 5
 
