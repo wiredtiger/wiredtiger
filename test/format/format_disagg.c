@@ -159,12 +159,12 @@ disagg_switch_roles(void)
          * Stepping down: [leader -> follower]. As part of reopening WT, we will reconfigure the
          * database as a follower based on the value of g.disagg_leader.
          */
-        track("[role change] leader  follower", 0ULL);
+        track("[role change] leader -> follower", 0ULL);
         wts_reopen();
         follower_read_latest_checkpoint();
     } else {
         /* Stepping up: [follower -> leader] */
-        track("[role change] follower  leader", 0ULL);
+        track("[role change] follower -> leader", 0ULL);
         testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=leader)"));
     }
 
