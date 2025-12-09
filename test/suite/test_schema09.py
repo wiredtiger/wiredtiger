@@ -78,4 +78,4 @@ class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
             wiredtiger.WiredTigerError, lambda: self.session.drop(self.tablename, None))
 
         # Test that we can create the table.
-        self.session.create(self.tablename, "key_format=5s,value_format=HQ,exclusive=true")
+        self.create_table()

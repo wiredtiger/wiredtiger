@@ -476,11 +476,8 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool
     if (ret == WT_NOTFOUND || ret == ENOENT)
         ret = force ? 0 : ENOENT;
 
-    if (F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL_RESTORE | WT_CONN_RECOVERING))
-        WT_TRET(__wt_meta_track_off(session, false, ret != 0));
-    else
-        WT_TRET(__wt_meta_track_off(session, true, ret != 0));
-
+    bool need_sync = !F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL_RESTORE | WT_CONN_RECOVERING);
+    WT_TRET(__wt_meta_track_off(session, need_sync, ret != 0));
     return (ret);
 }
 

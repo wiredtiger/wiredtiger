@@ -790,13 +790,13 @@ __recovery_close_cursors(WT_RECOVERY *r)
 }
 
 /*
- * __recovery_metadata_iterate_func --
+ * __recovery_metadata_scan_prefix --
  *     Scan the files matching the prefix referenced from the metadata and call the worker function
  *     for each entry.
  */
 static int
-__recovery_metadata_iterate_func(WT_RECOVERY *r, const char *prefix, const char *ignore_suffix,
-  int (*__recovery_func)(WT_RECOVERY *, const char *, const char *))
+__recovery_metadata_scan_prefix(WT_RECOVERY *r, const char *prefix, const char *ignore_suffix,
+  int (*recovery_meta_worker_func)(WT_RECOVERY *, const char *, const char *))
 {
     WT_CURSOR *c;
     WT_DECL_RET;
@@ -823,7 +823,7 @@ __recovery_metadata_iterate_func(WT_RECOVERY *r, const char *prefix, const char 
         if (ignore_suffix != NULL && WT_SUFFIX_MATCH(uri, ignore_suffix))
             continue;
         WT_RET(c->get_value(c, &config));
-        WT_RET(__recovery_func(r, uri, config));
+        WT_RET(recovery_meta_worker_func(r, uri, config));
     }
     WT_RET_NOTFOUND_OK(ret);
     return (0);
@@ -837,40 +837,34 @@ __recovery_metadata_iterate_func(WT_RECOVERY *r, const char *prefix, const char 
 static int
 __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *config)
 {
-    WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    WT_TABLE *fake_table_handle;
+    WT_TABLE fake_table_handle;
     const char *cfg[] = {config, NULL};
     const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
-    const char *format_name;
+    const char *name;
 
     /*
      * We are only interested in the meta information of the table handle. Therefore generate a fake
      * table dhandle as a performance optimization, removing the need to the open the file handle on
      * the file system.
      */
-    format_name = uri;
-    WT_ERR(__wt_calloc(r->session, 1, sizeof(WT_TABLE), &fake_table_handle));
-    fake_table_handle->iface.name = uri;
-    WT_ERR(__wt_scr_alloc(r->session, 0, &buf));
-    WT_PREFIX_SKIP_REQUIRED(r->session, format_name, "table:");
-
-    /* If either colgroup or file metadata entry doesn't exist mark the table for removal. */
-    WT_ERR(__wt_buf_fmt(r->session, buf, "colgroup:%s", format_name));
+    name = uri;
+    fake_table_handle.iface.name = uri;
+    WT_PREFIX_SKIP_REQUIRED(r->session, name, "table:");
 
     WT_WITH_TABLE_WRITE_LOCK(
-      r->session, ret = __wt_schema_construct_table_config(r->session, cfg, fake_table_handle));
+      r->session, ret = __wt_schema_construct_table_config(r->session, cfg, &fake_table_handle));
     WT_ERR(ret);
 
     /*
      * FIXME-WT-16146: Add capability for cleaning up incomplete complex and tiered tables. For now,
      * only focus on simple tables.
      */
-    if (!fake_table_handle->is_simple || fake_table_handle->is_tiered_shared)
+    if (!fake_table_handle.is_simple || fake_table_handle.is_tiered_shared)
         goto done;
 
-    if (!fake_table_handle->cg_complete) {
-        __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s %s",
+    if (!fake_table_handle.cg_complete) {
+        __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING, "%s %s",
           "removing incomplete table", uri);
         WT_WITH_SCHEMA_LOCK(r->session,
           WT_WITH_TABLE_WRITE_LOCK(
@@ -880,19 +874,16 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
 
 err:
 done:
-    /* Free allocated structure in table handle. */
-    if (fake_table_handle != NULL) {
-        WT_WITH_TABLE_WRITE_LOCK(
-          r->session, WT_TRET(__wt_schema_close_table(r->session, fake_table_handle)));
-        __wt_free(r->session, fake_table_handle);
-    }
-    __wt_scr_free(r->session, &buf);
+    /* Free allocated structure within the table handle. */
+    WT_WITH_TABLE_WRITE_LOCK(
+      r->session, WT_TRET(__wt_schema_close_table(r->session, &fake_table_handle)));
     return (ret);
 }
 
 /*
  * __recovery_file_scan --
- *     Scan the files referenced from the metadata and gather information about them for recovery.
+ *     Scan the files referenced from the metadata to clean up incomplete tables and gather
+ *     information about them for recovery.
  */
 static int
 __recovery_file_scan(WT_RECOVERY *r)
@@ -901,7 +892,7 @@ __recovery_file_scan(WT_RECOVERY *r)
       "scanning metadata to remove all incomplete tables");
 
     /* Scan through all table entries in the metadata and clean up incomplete tables. */
-    __recovery_metadata_iterate_func(r, "table:", NULL, __metadata_clean_incomplete_table);
+    __recovery_metadata_scan_prefix(r, "table:", NULL, __metadata_clean_incomplete_table);
 
     __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
       "scanning metadata to find the largest file ID");
@@ -910,8 +901,8 @@ __recovery_file_scan(WT_RECOVERY *r)
      * Scan through all files and tiered entries in the metadata and gather information about each
      * entry for recovery.
      */
-    WT_RET(__recovery_metadata_iterate_func(r, "file:", ".wtobj", __recovery_setup_file));
-    WT_RET(__recovery_metadata_iterate_func(r, "tiered:", NULL, __recovery_setup_file));
+    WT_RET(__recovery_metadata_scan_prefix(r, "file:", ".wtobj", __recovery_setup_file));
+    WT_RET(__recovery_metadata_scan_prefix(r, "tiered:", NULL, __recovery_setup_file));
 
     /*
      * Set the connection level file id tracker, as such upon creation of a new file we'll begin
@@ -1141,7 +1132,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
     r.backup_only = false;
     WT_ERR(ret);
 
-    /* Scan the metadata clean incomplete tables, find the live files and their IDs. */
+    /* Scan the metadata to find the live files and their IDs, and clean up any incomplete tables.
+     */
     WT_ERR(__recovery_file_scan(&r));
 
     /*

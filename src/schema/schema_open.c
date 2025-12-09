@@ -447,12 +447,8 @@ __wt_schema_open_storage_source(
 static int
 __schema_open_table(WT_SESSION_IMPL *session)
 {
-    WT_TABLE *table;
-
-    table = (WT_TABLE *)session->dhandle;
-
-    WT_RET(__wt_schema_construct_table_config(session, table->iface.cfg, table));
-    return (0);
+    WT_TABLE *table = (WT_TABLE *)session->dhandle;
+    return (__wt_schema_construct_table_config(session, table->iface.cfg, table));
 }
 
 /*
