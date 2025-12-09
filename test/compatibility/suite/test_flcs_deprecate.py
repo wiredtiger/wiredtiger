@@ -42,10 +42,10 @@ class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
 
     def test_flcs_deprecate(self):
 
-        flcs_deprecated_version = compatibility_version.WTVersion(str("mongodb-8.3"))
+        flcs_deprecated_version = compatibility_version.WTVersion("mongodb-8.3")
 
         # Test FLCS table creation fails on FLCS deprecated version
-        if self.older_branch > flcs_deprecated_version:
+        if self.older_branch >= flcs_deprecated_version:
             self.run_method_on_branch(self.newer_branch, 'flcs_table_creation_unsupported')
             return
 
