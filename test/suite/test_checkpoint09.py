@@ -52,7 +52,7 @@ class test_checkpoint09(wttest.WiredTigerTestCase):
         if not self.runningHook('disagg'):
             return config
         else:
-            # Disable leaf page deltas for disaggregated testing as the test expects we write a full page
+            # Disable leaf page deltas for disaggregated testing as the test expects we write full pages.
             return config + ',page_delta=(leaf_page_delta=false)'
 
     def get_stat(self, stat):
