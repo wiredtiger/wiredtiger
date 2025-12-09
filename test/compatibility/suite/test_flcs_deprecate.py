@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import compatibility_test, compatibility_version, wiredtiger
+import compatibility_test, compatibility_version, wiredtiger, errno
 
 
 class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
@@ -44,12 +44,27 @@ class test_flcs_deprecate(compatibility_test.CompatibilityTestCase):
 
         flcs_deprecated_version = compatibility_version.WTVersion(str("mongodb-8.3"))
 
+        # Test FLCS table creation fails on FLCS deprecated version
+        if self.older_branch > flcs_deprecated_version:
+            self.run_method_on_branch(self.newer_branch, 'flcs_table_creation_unsupported')
+            return
+
         # Only run this test for older branch where FLCS is still available and newer branch where FLCS is deprecated.
-        if flcs_deprecated_version.__gt__(self.older_branch) and flcs_deprecated_version.__lt__(self.newer_branch):
+        if self.older_branch < flcs_deprecated_version and self.newer_branch > flcs_deprecated_version:
             # Run the older-branch part (create the FLCS table and populate it)
             self.run_method_on_branch(self.older_branch, 'on_older_branch')
             # Run the newer-branch part (attempt to open and expect failure)
             self.run_method_on_branch(self.newer_branch, 'on_newer_branch')
+
+    def flcs_table_creation_unsupported(self):
+        # Test that FLCS table creation is unsupported on branches later than the deprecation version.
+        try:
+            conn = wiredtiger.wiredtiger_open('.', 'create,' + self.conn_config)
+            session = conn.open_session()
+            session.create(self.uri, self.create_config)
+            assert False
+        except wiredtiger.WiredTigerError as e:
+            assert str(e) in wiredtiger.wiredtiger_strerror(errno.ENOTSUP)
 
     def on_older_branch(self):
         # This runs in the older branch to create a FLCS table and populate it.
