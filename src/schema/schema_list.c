@@ -143,11 +143,11 @@ __wt_schema_release_table(WT_SESSION_IMPL *session, WT_TABLE **tablep)
 }
 
 /*
- * __wti_schema_destroy_colgroup --
+ * __wt_schema_destroy_colgroup --
  *     Free a column group handle.
  */
 void
-__wti_schema_destroy_colgroup(WT_SESSION_IMPL *session, WT_COLGROUP **colgroupp)
+__wt_schema_destroy_colgroup(WT_SESSION_IMPL *session, WT_COLGROUP **colgroupp)
 {
     WT_COLGROUP *colgroup;
 
@@ -209,7 +209,7 @@ __wt_schema_close_table(WT_SESSION_IMPL *session, WT_TABLE *table)
     __wt_free(session, table->value_format);
     if (table->cgroups != NULL) {
         for (i = 0; i < WT_COLGROUPS(table); i++)
-            __wti_schema_destroy_colgroup(session, &table->cgroups[i]);
+            __wt_schema_destroy_colgroup(session, &table->cgroups[i]);
         __wt_free(session, table->cgroups);
     }
     if (table->indices != NULL) {

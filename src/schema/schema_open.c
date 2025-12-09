@@ -77,7 +77,7 @@ __wti_schema_open_colgroups(WT_SESSION_IMPL *session, WT_TABLE *table)
          * Always open from scratch: we may have failed part of the way through opening a table, or
          * column groups may have changed.
          */
-        __wti_schema_destroy_colgroup(session, &table->cgroups[i]);
+        __wt_schema_destroy_colgroup(session, &table->cgroups[i]);
 
         WT_ERR(__wt_buf_init(session, buf, 0));
         if (table->is_tiered_shared)
@@ -115,7 +115,7 @@ __wti_schema_open_colgroups(WT_SESSION_IMPL *session, WT_TABLE *table)
 
 err:
     __wt_scr_free(session, &buf);
-    __wti_schema_destroy_colgroup(session, &colgroup);
+    __wt_schema_destroy_colgroup(session, &colgroup);
     __wt_free(session, cgconfig);
     return (ret);
 }

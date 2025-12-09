@@ -842,7 +842,7 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
     const char *cfg[] = {config, NULL};
     const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
     const char *name;
-    u_int i; 
+    u_int i;
 
     /*
      * We are only interested in the meta information of the table handle. Therefore generate a fake
@@ -878,7 +878,7 @@ done:
     /* Free colgroup allocated structure within the table handle. */
     if (fake_table_handle.cgroups != NULL) {
         for (i = 0; i < WT_COLGROUPS(&fake_table_handle); i++)
-            __wti_schema_destroy_colgroup(r->session, &fake_table_handle.cgroups[i]);
+            __wt_schema_destroy_colgroup(r->session, &fake_table_handle.cgroups[i]);
         __wt_free(r->session, fake_table_handle.cgroups);
     }
     return (ret);
