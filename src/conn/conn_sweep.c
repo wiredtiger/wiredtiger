@@ -177,6 +177,8 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
+    uint64_t timeofdeath;
+    bool outdated;
 
     conn = S2C(session);
 
@@ -187,11 +189,21 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
         if (__wt_atomic_load_uint32_relaxed(&conn->open_btree_count) < conn->sweep_handles_min)
             break;
 
-        if (WT_IS_METADATA(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-          __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0 ||
-          __wt_tsan_suppress_load_uint64(&dhandle->timeofdeath) == 0 ||
-          now - dhandle->timeofdeath <= conn->sweep_idle_time)
+        /*
+         * Close outdated btrees immediately, even if they are metadata. For trees not marked with
+         * outdated, wait until the idle time has elapsed since time of death.
+         */
+        outdated = F_ISSET(dhandle, WT_DHANDLE_OUTDATED);
+
+        if ((!outdated && WT_IS_METADATA(dhandle)) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+          __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0)
             continue;
+
+        if (!outdated) {
+            timeofdeath = __wt_tsan_suppress_load_uint64(&dhandle->timeofdeath);
+            if (timeofdeath == 0 || now - timeofdeath <= conn->sweep_idle_time)
+                continue;
+        }
 
         /*
          * For tables, we need to hold the table lock to avoid racing with cursor opens.

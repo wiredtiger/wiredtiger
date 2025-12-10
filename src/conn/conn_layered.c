@@ -363,6 +363,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor, *md_cursor;
+    WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
     WT_ITEM item;
     WT_SESSION_IMPL *internal_session, *shared_metadata_session;
@@ -371,7 +372,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     uint32_t checksum;
     char *buf, *cfg_ret, *checkpoint_config, *root, *metadata_value_cfg, *layered_ingest_uri;
     char ts_string[WT_TS_INT_STRING_SIZE];
-    const char *cfg[3], *current_value, *metadata_key, *metadata_value;
+    const char *cfg[3], *checkpoint_name, *current_value, *metadata_key, *metadata_value;
 
     conn = S2C(session);
 
@@ -387,6 +388,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     shared_metadata_session = NULL;
     cfg_ret = NULL;
     WT_CLEAR(item);
+    WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -394,7 +396,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     current_meta_lsn =
       __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.last_checkpoint_meta_lsn);
     if (ckpt_meta->metadata_lsn < current_meta_lsn)
-        WT_RET_MSG(session, EINVAL,
+        WT_ERR_MSG(session, EINVAL,
           "Attempting to pick up an older checkpoint: current metadata LSN = %" PRIu64
           ", new metadata LSN = %" PRIu64,
           current_meta_lsn, ckpt_meta->metadata_lsn);
@@ -537,6 +539,13 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
             cfg[2] = NULL;
             WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
 
+            /* Before inserting the new value, get the name of the file at the previous checkpoint.
+             */
+            checkpoint_name = NULL;
+            WT_ERR_NOTFOUND_OK(
+              __wt_meta_checkpoint_last_name(session, metadata_key, &checkpoint_name, NULL, NULL),
+              false);
+
             /* FIXME-WT-14730: check that the other parts of the metadata are identical. */
 
             /* Put our new config in */
@@ -549,11 +558,14 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
               metadata_key, (int)cval.len, cval.str);
 
             /*
-             * Mark any matching data handles to be out of date. Any new opens will get the new
-             * metadata.
+             * Mark any matching data handles associated with the previous checkpoint to be out of
+             * date. Any new opens will get the new metadata.
              */
-            WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, metadata_key),
-              "Marking data handles outdated failed: \"%s\"", metadata_key);
+            if (checkpoint_name != NULL) {
+                WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", metadata_key, checkpoint_name));
+                WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, old_uri_buf->data),
+                  "Marking data handles outdated failed: \"%s\"", (const char *)old_uri_buf->data);
+            }
             __wt_free(session, cfg_ret);
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
@@ -643,6 +655,7 @@ err:
     if (shared_metadata_session != NULL)
         WT_TRET(__wt_session_close_internal(shared_metadata_session));
 
+    __wt_scr_free(session, &old_uri_buf);
     __wt_free(session, buf);
     __wt_free(session, metadata_value_cfg);
     __wt_free(session, layered_ingest_uri);
