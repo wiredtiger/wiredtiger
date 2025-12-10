@@ -64,6 +64,10 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
     conn = S2C(session);
 
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
+        /* Outdated dhandle is implicitly marked for sweep. */
+        if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED))
+            continue;
+
         if (WT_IS_METADATA(dhandle))
             continue;
 
@@ -177,22 +181,35 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
+    bool meet_target;
 
     conn = S2C(session);
+    meet_target = false;
 
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
         /*
-         * Ignore open files once the btree file count is below the minimum number of handles.
+         * Ignore open files once the btree file count is below the minimum number of handles except
+         * for outdated dhandles.
          */
-        if (__wt_atomic_load_uint32_relaxed(&conn->open_btree_count) < conn->sweep_handles_min)
-            break;
+        if (!meet_target &&
+          __wt_atomic_load_uint32_relaxed(&conn->open_btree_count) < conn->sweep_handles_min)
+            meet_target = true;
+
+        if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0)
+            continue;
+
+        if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED))
+            goto expire;
+
+        if (meet_target)
+            continue;
 
         if (WT_IS_METADATA(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-          __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0 ||
           __wt_tsan_suppress_load_uint64(&dhandle->timeofdeath) == 0 ||
           now - dhandle->timeofdeath <= conn->sweep_idle_time)
             continue;
 
+expire:
         /*
          * For tables, we need to hold the table lock to avoid racing with cursor opens.
          */
