@@ -41,16 +41,12 @@ class transaction {
 public:
     bool active() const;
     void begin(scoped_session &session, const std::string &config = "");
-    /* Begin a transaction if we are not currently in one. */
-    void try_begin(scoped_session &session, const std::string &config = "");
     /*
      * Commit a transaction and return true if the commit was successful.
      */
     bool commit(scoped_session &session, const std::string &config = "");
     /* Rollback a transaction, failure will abort the test. */
     void rollback(scoped_session &session, const std::string &config = "");
-    /* Attempt to rollback the transaction given the requirements are met. */
-    void try_rollback(scoped_session &session, const std::string &config = "");
     /* Set that the transaction needs to be rolled back. */
     void set_needs_rollback();
     /* Return whether the transaction needs to be rolled back.*/

@@ -52,13 +52,6 @@ transaction::begin(scoped_session &session, const std::string &config)
     _needs_rollback = false;
 }
 
-void
-transaction::try_begin(scoped_session &session, const std::string &config)
-{
-    if (!_in_txn)
-        begin(session, config);
-}
-
 /*
  * It's possible to receive rollback in commit, when this happens the API will rollback the
  * transaction internally.
@@ -94,13 +87,6 @@ transaction::rollback(scoped_session &session, const std::string &config)
       session->rollback_transaction(session.get(), config.empty() ? nullptr : config.c_str()));
     _needs_rollback = false;
     _in_txn = false;
-}
-
-void
-transaction::try_rollback(scoped_session &session, const std::string &config)
-{
-    if (_in_txn)
-        rollback(session, config);
 }
 
 void

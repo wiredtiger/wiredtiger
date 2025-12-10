@@ -338,8 +338,8 @@ void
 thread_worker::begin(const std::string &config)
 {
     /* This randomizes the number of operations to be executed in one transaction. */
-    _target_op_count =
-      random_generator::instance().generate_integer<int64_t>(_min_op_count, _max_op_count);
+    _target_op_count = WT_MAX(
+      1, random_generator::instance().generate_integer<int64_t>(_min_op_count, _max_op_count));
     _op_count = 0;
     _txn.begin(session, config);
 }
@@ -348,7 +348,8 @@ thread_worker::begin(const std::string &config)
 void
 thread_worker::try_begin(const std::string &config)
 {
-    _txn.try_begin(session, config);
+    if (!active())
+        begin(config);
 }
 
 /*
@@ -373,7 +374,8 @@ thread_worker::rollback(const std::string &config)
 void
 thread_worker::try_rollback(const std::string &config)
 {
-    _txn.try_rollback(session, config);
+    if (active())
+        rollback(config);
 }
 
 /*
