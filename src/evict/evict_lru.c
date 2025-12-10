@@ -2881,15 +2881,15 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
         __evict_queue_empty(evict->evict_fill_queue, false)))
         return (WT_NOTFOUND);
 
-    uint64_t lock_wait_start, lock_wait_time;
+    uint64_t lock_wait_start, lock_wait_end;
     /* Track time spent waiting for the evict queue lock */
     lock_wait_start = __wt_clock(session);
     __wt_spin_lock(session, &evict->evict_queue_lock);
-    lock_wait_time = __wt_clock(session) - lock_wait_start;
+    lock_wait_end = __wt_clock(session);
 
     /* Only track lock wait time for eviction server threads */
     if (is_server) {
-        __wt_atomic_add64(&evict->evict_lock_wait_time, WT_CLOCKTIME_NS_TO_US(lock_wait_time));
+        __wt_atomic_add_uint64_v(&evict->evict_lock_wait_time, WT_CLOCKDIFF_US(lock_wait_end, lock_wait_start));
     }
 
     /* Check the urgent queue first. */
@@ -2914,10 +2914,10 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
     /* Track time waiting for the lock when releasing it too */
     lock_wait_start = __wt_clock(session);
     __wt_spin_unlock(session, &evict->evict_queue_lock);
-    lock_wait_time = __wt_clock(session) - lock_wait_start;
+    lock_wait_end = __wt_clock(session);
 
     if (is_server) {
-        __wt_atomic_add64(&evict->evict_lock_wait_time, WT_CLOCKTIME_NS_TO_US(lock_wait_time));
+        __wt_atomic_add_uint64_v(&evict->evict_lock_wait_time, WT_CLOCKDIFF_US(lock_wait_end, lock_wait_start));
     }
 
     /*
