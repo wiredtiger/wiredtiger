@@ -2881,7 +2881,16 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
         __evict_queue_empty(evict->evict_fill_queue, false)))
         return (WT_NOTFOUND);
 
+    uint64_t lock_wait_start, lock_wait_time;
+    /* Track time spent waiting for the evict queue lock */
+    lock_wait_start = __wt_clock(session);
     __wt_spin_lock(session, &evict->evict_queue_lock);
+    lock_wait_time = __wt_clock(session) - lock_wait_start;
+
+    /* Only track lock wait time for eviction server threads */
+    if (is_server) {
+        __wt_atomic_add64(&evict->evict_lock_wait_time, WT_CLOCKTIME_NS_TO_US(lock_wait_time));
+    }
 
     /* Check the urgent queue first. */
     if (urgent_ok && !__evict_queue_empty(urgent_queue, false))
@@ -2902,7 +2911,14 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
         }
     }
 
+    /* Track time waiting for the lock when releasing it too */
+    lock_wait_start = __wt_clock(session);
     __wt_spin_unlock(session, &evict->evict_queue_lock);
+    lock_wait_time = __wt_clock(session) - lock_wait_start;
+
+    if (is_server) {
+        __wt_atomic_add64(&evict->evict_lock_wait_time, WT_CLOCKTIME_NS_TO_US(lock_wait_time));
+    }
 
     /*
      * We got the queue lock, which should be fast, and chose a queue. Now we want to get the lock
