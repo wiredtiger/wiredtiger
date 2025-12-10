@@ -2722,7 +2722,7 @@ __conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_provider, c
     /*
      * You can only configure the key provider system with early-load set.
      */
-    if (conn->file_system != NULL)
+    if (conn->key_provider != NULL)
         WT_ERR_MSG(session, EINVAL, "key provider system must be configured with early_load set");
 
     conn->key_provider = key_provider;
