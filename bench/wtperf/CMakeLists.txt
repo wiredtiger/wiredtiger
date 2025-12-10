@@ -25,11 +25,6 @@ create_test_executable(wtperf
         ${wt_perf_flags}
 )
 
-if(WT_POSIX)
-    # Need to link math on POSIX systems.
-    target_link_libraries(wtperf m)
-endif()
-
 # Smoke-test wtperf as part of running "ctest check".
 define_test_variants(wtperf
     VARIANTS
