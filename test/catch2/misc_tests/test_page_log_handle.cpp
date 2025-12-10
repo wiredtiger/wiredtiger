@@ -124,6 +124,6 @@ TEST_CASE("Test disaggregated configuration logic", "[disagg_config]")
     REQUIRE(__wti_conn_remove_page_log(session) == 0);
     REQUIRE(__wti_layered_table_manager_destroy(session) == 0);
 
-    REQUIRE(__wt_spin_destroy(session, &conn_impl->disaggregated_storage.copy_metadata_lock) == 0);
-    REQUIRE(__wt_spin_destroy(session, &conn_impl->api_lock) == 0);
+    __wt_spin_destroy(session, &conn_impl->disaggregated_storage.copy_metadata_lock);
+    __wt_spin_destroy(session, &conn_impl->api_lock);
 }
