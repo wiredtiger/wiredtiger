@@ -685,7 +685,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             case WT_PM_REC_REPLACE:
                 /*
                  * If the page is replaced, the page's modify structure has the page's address. If
-                 * we skipped writing an empty delta, we write the current address.
+                 * we skipped writing the page, we write the current address.
                  */
                 if (child->modify->mod_replace.block_cookie != NULL)
                     addr = &child->modify->mod_replace;
@@ -700,6 +700,11 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         case WTI_CHILD_PROXY:
             /* Fast-delete child where we write a proxy cell. */
             break;
+        }
+
+        if (addr == NULL) {
+            WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
+            continue;
         }
 
         /*
@@ -721,11 +726,11 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             retain_onpage = true;
 
             /*
-             * We may see a changed state here if the child reconciliation skipped writing an empty
-             * delta.
+             * We may see a changed state here if the child reconciliation skipped writing a child
+             * page.
              */
             WT_ASSERT_ALWAYS(session,
-              cms.state == WTI_CHILD_ORIGINAL || WT_DELTA_ENABLED_FOR_PAGE(session, child->type),
+              cms.state == WTI_CHILD_ORIGINAL || F_ISSET(btree, WT_BTREE_DISAGGREGATED),
               "Not propagating the original fast-truncate information");
             /*
              * The transaction ids are cleared after restart. Repack the cell with new validity
