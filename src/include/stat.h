@@ -673,6 +673,7 @@ struct __wt_connection_stats {
     int64_t eviction_maximum_milliseconds;
     int64_t eviction_maximum_milliseconds_per_checkpoint;
     int64_t eviction_maximum_attempts_to_queue_page;
+    int64_t eviction_maximum_attempts_to_evict_page;
     int64_t eviction_maximum_page_size;
     int64_t eviction_maximum_updates_page_size_per_checkpoint;
     int64_t eviction_app_dirty_attempt;
@@ -970,6 +971,8 @@ struct __wt_connection_stats {
     int64_t dh_session_handles;
     int64_t dh_session_sweeps;
     int64_t disagg_role_leader;
+    int64_t disagg_step_down_time;
+    int64_t disagg_step_up_time;
     int64_t layered_curs_insert;
     int64_t layered_curs_next;
     int64_t layered_curs_next_ingest;
@@ -1416,8 +1419,6 @@ struct __wt_dsrc_stats {
     int64_t btree_compact_pages_rewritten_expected;
     int64_t btree_checkpoint_pages_reconciled;
     int64_t btree_compact_skipped;
-    int64_t btree_column_fix;
-    int64_t btree_column_tws;
     int64_t btree_column_internal;
     int64_t btree_column_rle;
     int64_t btree_column_deleted;

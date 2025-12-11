@@ -469,14 +469,7 @@ __schema_open_table(WT_SESSION_IMPL *session)
     /* Point to some items in the copy to save re-parsing. */
     WT_RET(__wt_config_gets(session, table_cfg, "columns", &table->colconf));
 
-    /*
-     * Count the number of columns: tables are "simple" if the columns are not named.
-     */
-    __wt_config_subinit(session, &cparser, &table->colconf);
-    table->is_simple = true;
-    while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
-        table->is_simple = false;
-    WT_RET_NOTFOUND_OK(ret);
+    WT_RET(__wt_is_simple_table(session, &table->colconf, &table->is_simple));
 
     /* Check that the columns match the key and value formats. */
     if (!table->is_simple)
@@ -708,5 +701,33 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
 
     WT_RET(__wt_layered_table_manager_add_table(session, layered->ingest_btree_id));
 
+    return (0);
+}
+
+/*
+ * __wt_schema_unsupported_format --
+ *     Check for removed format specifiers in a format string and throw an error if detected.
+ */
+int
+__wt_schema_unsupported_format(WT_SESSION_IMPL *session, const char *config, bool create)
+{
+    /* The WiredTiger turtle file is created without a config string. */
+    if (config == NULL)
+        return (0);
+
+    WT_CONFIG_ITEM cval;
+    WT_CLEAR(cval);
+    WT_RET_NOTFOUND_OK(__wt_config_getones(session, config, "key_format", &cval));
+    /* Check for column-store. */
+    if (cval.len == 1 && cval.str[0] == 'r') {
+        /* Check for FLCS format. Anything between 1t and 8t is acceptable. */
+        WT_RET_NOTFOUND_OK(__wt_config_getones(session, config, "value_format", &cval));
+        if (cval.len == 2 && cval.str[1] == 't' && cval.str[0] <= '8' && cval.str[0] >= '1')
+            WT_RET_MSG(session, ENOTSUP,
+              "Fixed-length column-stores are no longer supported in WiredTiger%s",
+              create ? "" :
+                       ". Convert any fixed-length column-store tables to a different format type "
+                       "prior to upgrade");
+    }
     return (0);
 }

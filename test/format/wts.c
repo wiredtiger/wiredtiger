@@ -644,9 +644,6 @@ create_object(TABLE *table, void *arg)
         CONFIG_APPEND(p, ",leaf_value_max=%" PRIu32, maxleafvalue);
 
     switch (table->type) {
-    case FIX:
-        CONFIG_APPEND(p, ",value_format=%" PRIu32 "t", TV(BTREE_BITCNT));
-        break;
     case ROW:
         CONFIG_APPEND(p, ",prefix_compression=%s,prefix_compression_min=%" PRIu32,
           TV(BTREE_PREFIX_COMPRESSION) == 0 ? "false" : "true", TV(BTREE_PREFIX_COMPRESSION_MIN));
@@ -868,6 +865,16 @@ wts_close(WT_CONNECTION **connp)
 void
 wts_reopen(void)
 {
+    SAP sap;
+    WT_SESSION *session;
+
+    if (GV(PRECISE_CHECKPOINT)) {
+        memset(&sap, 0, sizeof(sap));
+        wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
+        timestamp_once(session, false, false);
+        wt_wrap_close_session(session);
+    }
+
     wts_close(&g.wts_conn);
     wts_open(g.home, &g.wts_conn, false);
 }
