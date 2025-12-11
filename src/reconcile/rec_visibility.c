@@ -1432,8 +1432,10 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
             break;
         }
 
-        /* Clear the durable flags to allow it being included in a future write in case the prepared
-         * update is rolled back. */
+        /*
+         * Clear the durable flags to allow it being included in a future write in case the prepared
+         * update is rolled back.
+         */
         if (first_committed_upd != NULL)
             F_CLR(first_committed_upd, WT_UPDATE_DURABLE | WT_UPDATE_DELETE_DURABLE);
     }
