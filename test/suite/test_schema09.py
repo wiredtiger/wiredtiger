@@ -31,6 +31,7 @@ from suite_subprocess import suite_subprocess
 
 # test_schema09.py
 #    Test that incomplete tables are properly cleaned up during recovery.
+@wttest.skip_for_hook("tiered", "test depends on metadata recovery")
 class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'log=(enabled=true)'
 
@@ -69,7 +70,7 @@ class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
         self.session = self.setUpSessionOpen(self.conn)
 
         self.conn.reconfigure("debug_mode=(crash_point_colgroup=false)")
-        self.check_metadata_entry(False)
+        self.check_metadata_entry(fail=False)
 
         # Test that we can't open a cursor on the table.
         self.assertRaises(
@@ -81,4 +82,4 @@ class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Test that we can create the table.
         self.create_table()
-        self.check_metadata_entry(True)
+        self.check_metadata_entry(fail=True)
