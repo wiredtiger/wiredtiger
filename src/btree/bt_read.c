@@ -572,6 +572,8 @@ read:
             WT_STAT_CONN_INCR(session, page_split_restart);
             return (WT_RESTART);
         case WT_REF_MEM:
+            WT_ASSERT(session, page != NULL);
+
             /*
              * The page is in memory.
              *
