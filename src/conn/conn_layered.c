@@ -1959,6 +1959,7 @@ err:
 static int
 __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 {
+    WT_DECL_RET;
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_UNUSED(ctx);
     __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
@@ -1973,12 +1974,18 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     TAILQ_REMOVE(&conn->layered_drain_data.work_queue, work_item, q);
     __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
     printf("Worker draining: %s\n", work_item->entry->ingest_uri);
-    WT_RET_MSG(session, __layered_copy_ingest_table(session, work_item->entry),
+    WT_ERR_MSG_CHK(session, __layered_copy_ingest_table(session, work_item->entry),
               "Failed to copy ingest table \"%s\" to stable table \"%s\"", work_item->entry->ingest_uri,
               work_item->entry->stable_uri);
-    WT_RET_MSG(session,
+    printf("Copied ingest table!\n");
+    WT_ERR_MSG_CHK(session,
               __layered_clear_ingest_table(session, work_item->entry->ingest_uri),
               "Failed to clear ingest table \"%s\"", work_item->entry->ingest_uri);
+    printf("Cleared ingest table\n");
+err:
+    if (ret != 0)
+        printf("Failed to drain %d\n", ret);
+    __wt_free(session, work_item);
     return (0);
 }
 
@@ -2073,6 +2080,9 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     }
 
 err:
+    /* Let any running threads finish up. */
+    __wt_cond_signal(session, conn->layered_drain_data.threads.wait_cond);
+    __wt_writelock(session, &conn->layered_drain_data.threads.lock);
     WT_TRET(__wt_thread_group_destroy(session, &conn->layered_drain_data.threads));
     /* Empty the queue if not empty and destory the lock. */
     __layered_drain_clear_work_queue(session);
