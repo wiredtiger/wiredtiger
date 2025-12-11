@@ -438,6 +438,7 @@ WT_THREAD_RET random_kv(void *);
 WT_THREAD_RET timestamp(void *);
 
 uint32_t atou32(const char *, const char *, int);
+int checksum_database(void);
 void config_clear(void);
 void config_compat(const char **);
 void config_error(void);

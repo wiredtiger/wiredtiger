@@ -189,6 +189,8 @@ CONFIG configuration_list[] = {
 
 {"disagg.multi", "configure multiple nodes (leader & followers) for disaggregated storage", C_IGNORE | C_BOOL , 0, 0, 0}
 
+{"disagg.multi_checksum", "have multiple nodes checksum and compare database content", C_IGNORE | C_BOOL , 0, 0, 0}
+
 {"disagg.enabled", "configure disaggregated storage", C_IGNORE | C_BOOL | C_TABLE | C_TYPE_ROW, 0, 0, 0}
 
 {"disagg.layered", "use layered URI for any disaggregated tables", C_BOOL, 100, 1, 0}
