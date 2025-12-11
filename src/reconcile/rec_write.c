@@ -2084,8 +2084,8 @@ __rec_set_updates_durable(WT_SESSION_IMPL *session, WT_MULTI *multi)
                         F_SET(supd->onpage_upd, WT_UPDATE_PREPARE_DURABLE);
 
                     /*
-                     * Never set the on-page value as durable to allow it being included in a future
-                     * write in case the prepared tombstone is rolled back.
+                     * Never mark the on-page value as durable to ensure it can be included in a
+                     * future write if the prepared tombstone is rolled back.
                      */
                 } else {
                     F_SET(supd->onpage_tombstone, WT_UPDATE_DURABLE);
