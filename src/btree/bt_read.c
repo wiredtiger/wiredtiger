@@ -661,6 +661,8 @@ read:
 
 skip_evict:
             page = ref->page;
+            WT_ASSERT(session, page != NULL);
+
             /*
              * Keep track of whether a session is reading leaf pages into the cache. This allows for
              * the session to decide whether pre-fetch would be helpful. It might not work if a
