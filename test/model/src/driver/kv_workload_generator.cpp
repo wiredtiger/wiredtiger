@@ -51,7 +51,6 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     max_recno = 100'000;
     max_value_uint64 = 1'000'000;
 
-    column_fix = 0.1;
     column_var = 0.1;
 
     finish_transaction = 0.08;
@@ -401,12 +400,6 @@ kv_workload_generator::create_table()
 
     probability_switch(_random.next_float())
     {
-        probability_case(_spec.column_fix)
-        {
-            key_format = "r";
-            value_format = "8t";
-            type = kv_table_type::column_fix;
-        }
         probability_case(_spec.column_var)
         {
             key_format = "r";
@@ -480,13 +473,6 @@ kv_workload_generator::generate_transaction(size_t seq_no)
             probability_case(_spec.get)
             {
                 table_context_ptr table = choose_table(txn_ptr);
-                /*
-                 * FIXME-WT-14903 Under FLCS, get operations expose some relatively complex effects.
-                 * For instance, eviction changes implicit records to explicit. To re-enable this,
-                 * check that all FLCS interactions are accounted for.
-                 */
-                if (table->type() == kv_table_type::column_fix)
-                    break;
 
                 data_value key = generate_key(table, op_category::get);
                 /* A get operation shouldn't affect context. */
@@ -516,23 +502,6 @@ kv_workload_generator::generate_transaction(size_t seq_no)
             {
                 table_context_ptr table = choose_table(txn_ptr);
 
-                /*
-                 * FIXME-WT-13232 Don't use truncate on FLCS tables, because a truncate on an FLCS
-                 * table can conflict with operations adjacent to the truncation range's key range.
-                 * For example, if a user wants to truncate range 10-12 on a table with keys [10,
-                 * 11, 12, 13, 14], a concurrent update to key 13 would result in a conflict (while
-                 * an update to 14 would be able proceed).
-                 *
-                 * FIXME-WT-13350 Similarly, truncating an implicitly created range of keys in an
-                 * FLCS table conflicts with a concurrent insert operation that caused this range of
-                 * keys to be created.
-                 *
-                 * The workload generator cannot currently account for this, so don't use truncate
-                 * with FLCS tables for now.
-                 */
-                if (table->type() == kv_table_type::column_fix)
-                    break;
-
                 data_value start = generate_key(table);
                 data_value stop = generate_key(table);
                 if (start > stop)
@@ -559,7 +528,6 @@ kv_workload_generator::run()
         _workload << operation::config("database", "disaggregated=true");
 
         /* Adjust the specs based on what's not supported. */
-        _spec.column_fix = 0;
         _spec.column_var = 0;
         _spec.rollback_to_stable = 0;
 
@@ -615,7 +583,7 @@ kv_workload_generator::run()
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::checkpoint);
                 *p << operation::checkpoint();
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
 
                 has_checkpoint = true;
             }
@@ -628,7 +596,7 @@ kv_workload_generator::run()
                   _sequences.size(), kv_workload_sequence_type::checkpoint_crash);
                 uint64_t random_number = _random.next_uint64(1000);
                 *p << operation::checkpoint_crash(random_number);
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
 
                 if (!has_checkpoint)
                     has_stable_timestamp = false;
@@ -641,7 +609,7 @@ kv_workload_generator::run()
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::crash);
                 *p << operation::crash();
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
 
                 if (!has_checkpoint)
                     has_stable_timestamp = false;
@@ -653,7 +621,7 @@ kv_workload_generator::run()
                 table_context_ptr table = choose_table(std::move(kv_workload_sequence_ptr()));
                 data_value key = generate_key(table, op_category::evict);
                 *p << operation::evict(table->id(), key);
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
             }
             probability_case(_spec.restart)
             {
@@ -663,7 +631,7 @@ kv_workload_generator::run()
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::restart);
                 *p << operation::restart();
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
 
                 has_checkpoint = true; /* Shutdown takes a checkpoint. */
             }
@@ -672,21 +640,21 @@ kv_workload_generator::run()
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::rollback_to_stable);
                 *p << operation::rollback_to_stable();
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
             }
             probability_case(_spec.set_oldest_timestamp)
             {
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::set_oldest_timestamp);
                 *p << operation::set_oldest_timestamp(k_timestamp_none); /* Placeholder. */
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
             }
             probability_case(_spec.set_stable_timestamp)
             {
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::set_stable_timestamp);
                 *p << operation::set_stable_timestamp(k_timestamp_none); /* Placeholder. */
-                _sequences.push_back(p);
+                _sequences.push_back(std::move(p));
 
                 has_stable_timestamp = true;
             }
@@ -701,7 +669,7 @@ kv_workload_generator::run()
         kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
           _sequences.size(), kv_workload_sequence_type::set_stable_timestamp);
         *p << operation::set_stable_timestamp(k_timestamp_none); /* Placeholder. */
-        _sequences.push_back(p);
+        _sequences.push_back(std::move(p));
         has_stable_timestamp = true;
     }
 

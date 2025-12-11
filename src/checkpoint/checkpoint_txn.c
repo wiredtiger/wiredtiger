@@ -253,24 +253,14 @@ err:
 }
 
 /*
- * __checkpoint_update_generation --
+ * __wt_checkpoint_update_generation --
  *     Update the checkpoint generation of the current tree. This indicates that the tree will not
- *     be visited again by the current checkpoint.
+ *     be visited again by the current checkpoint. It also prevents the eviction of pages that
+ *     should be part of the next checkpoint in disaggregated storage.
  */
-static void
-__checkpoint_update_generation(WT_SESSION_IMPL *session)
+void
+__wt_checkpoint_update_generation(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
-    WT_BTREE *btree;
-
-    btree = S2BT(session);
-
-    /*
-     * Updates to the metadata are made by the checkpoint transaction, so the metadata tree's
-     * checkpoint generation should never be updated.
-     */
-    if (WT_IS_METADATA(session->dhandle))
-        return;
-
     __wt_atomic_store_uint64_release(&btree->checkpoint_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
     WT_STAT_DSRC_SET(session, btree_checkpoint_generation, btree->checkpoint_gen);
 }
@@ -467,7 +457,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     S2C(session)->ckpt.handle_stats.lock_time += time_diff;
     WT_RET(ret);
     if (F_ISSET(btree, WT_BTREE_SKIP_CKPT)) {
-        __checkpoint_update_generation(session);
+        __wt_checkpoint_update_generation(session, btree);
         return (0);
     }
 
@@ -483,7 +473,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
      * the duration of this function.
      */
     name = session->dhandle->name;
-    session->dhandle = NULL;
+    WT_DHANDLE_CLEAR(session);
 
     if ((ret = __wt_session_get_dhandle(session, name, NULL, NULL, 0)) != 0)
         return (ret == EBUSY ? 0 : ret);
@@ -697,8 +687,8 @@ __wt_checkpoint_verbose_timer_started(WT_SESSION_IMPL *session)
 static void
 __checkpoint_timer_stats_set(WTI_CKPT_TIMER *timer, uint64_t msec)
 {
-    __wt_atomic_stats_max(&timer->max, msec);
-    __wt_atomic_stats_min(&timer->min, msec);
+    __wt_atomic_stats_max_uint64(&timer->max, msec);
+    __wt_atomic_stats_min_uint64(&timer->min, msec);
     __wt_atomic_store_uint64_relaxed(&timer->recent, msec);
     (void)__wt_atomic_add_uint64_relaxed(&timer->total, msec);
 }
@@ -1203,6 +1193,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_atomic_store_uint64_relaxed(&evict->evict_max_dirty_page_size_per_checkpoint, 0);
     __wt_atomic_store_uint64_relaxed(&evict->evict_max_updates_page_size_per_checkpoint, 0);
     __wt_atomic_store_uint64_relaxed(&evict->evict_max_ms_per_checkpoint, 0);
+    __wt_atomic_store_uint16_relaxed(&evict->evict_max_eviction_queue_attempts, 0);
+    __wt_atomic_store_uint16_relaxed(&evict->evict_max_evict_page_attempts, 0);
     __wt_atomic_store_uint64_relaxed(&evict->reentry_hs_eviction_ms, 0);
     __wt_atomic_store_uint32_relaxed(&conn->heuristic_controls.obsolete_tw_btree_count, 0);
     __wt_atomic_store_uint64_relaxed(&conn->rec_maximum_hs_wrapup_milliseconds, 0);
@@ -1365,8 +1357,10 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * a protection against someone creating a layered table, dropping the table, and then
      * recreating a local table with the same name.
      */
-    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader)
-        WT_ERR(__wt_disagg_copy_metadata_process(session));
+    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
+        WT_WITH_SCHEMA_LOCK(session, ret = __wt_disagg_copy_metadata_process(session));
+        WT_ERR(ret);
+    }
 
     /* Wait prior to checkpointing the history store to simulate checkpoint slowness. */
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, &tsp);
@@ -1403,15 +1397,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
         WT_ERR(ret);
 
-        /*
-         * Once the history store checkpoint is complete, we increment the checkpoint generation of
-         * the associated b-tree. The checkpoint generation controls whether we include the
-         * checkpoint transaction in our calculations of the pinned and oldest_ids for a given
-         * btree. We increment it here to ensure that the visibility checks performed on updates in
-         * the history store do not include the checkpoint transaction.
-         */
-        __checkpoint_update_generation(session);
-
         time_stop_hs = __wt_clock(session);
         hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
         WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
@@ -1430,7 +1415,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * bother restoring the handle since it doesn't make sense to carry a handle across a
      * checkpoint.
      */
-    session->dhandle = NULL;
+    WT_DHANDLE_CLEAR(session);
 
     /*
      * We have to update the system information before we release the snapshot. Drop the system
@@ -1640,7 +1625,7 @@ err:
          * bother restoring the handle since it doesn't make sense to carry a handle across a
          * checkpoint.
          */
-        session->dhandle = NULL;
+        WT_DHANDLE_CLEAR(session);
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_ROLLBACK);
         WT_TRET(__wt_txn_rollback(session, NULL, false));
     }
@@ -2529,6 +2514,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
         __wt_checkpoint_tree_reconcile_update(session, &ta);
 
         fake_ckpt = true;
+        __wt_checkpoint_update_generation(session, btree);
         goto fake;
     }
 
@@ -2735,12 +2721,6 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
     /* Restore the use of the timestamp for other tables. */
     if (with_timestamp)
         F_SET(txn, WT_TXN_SHARED_TS_READ);
-
-    /*
-     * Whatever happened, we aren't visiting this tree again in this checkpoint. Don't keep updates
-     * pinned any longer.
-     */
-    __checkpoint_update_generation(session);
 
     /*
      * In case this tree was being skipped by the eviction server during the checkpoint, restore the

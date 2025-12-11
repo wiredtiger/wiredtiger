@@ -2562,6 +2562,40 @@ __wti_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __wti_disagg_debug_mode_config --
+ *     Set the connection-wide disaggregated storage debug mode configuration.
+ */
+int
+__wti_disagg_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE address_cookie_upgrade;
+
+    conn = S2C(session);
+
+    /* Parse the address cookie upgrade mode, which is an enumeration. */
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.disagg_address_cookie_upgrade", &cval));
+    if (cval.len == 0 || WT_CONFIG_LIT_MATCH("none", cval))
+        address_cookie_upgrade = WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_NONE;
+    else if (WT_CONFIG_LIT_MATCH("compatible", cval))
+        address_cookie_upgrade = WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_COMPATIBLE;
+    else if (WT_CONFIG_LIT_MATCH("incompatible", cval))
+        address_cookie_upgrade = WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_INCOMPATIBLE;
+    else
+        WT_RET_MSG(session, EINVAL, "Invalid value for debug.disagg_address_cookie_upgrade: '%.*s'",
+          (int)cval.len, cval.str);
+    conn->debug_disagg_address_cookie_upgrade = address_cookie_upgrade;
+
+    /* Check whether we are pretending to have an optional field. */
+    WT_RET(
+      __wt_config_gets(session, cfg, "debug_mode.disagg_address_cookie_optional_field", &cval));
+    conn->debug_disagg_address_cookie_optional_field = cval.val != 0;
+
+    return (0);
+}
+
+/*
  * __conn_write_base_config --
  *     Save the base configuration used to create a database.
  */
@@ -2671,6 +2705,36 @@ err:
     __wt_free(session, base_config);
 
     return (ret);
+}
+
+/*
+ * __conn_set_key_provider --
+ *     Configure a custom key provider implementation on database open.
+ */
+static int
+__conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_provider, const char *config)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    CONNECTION_API_CALL_NOCONF(conn, session, set_key_provider);
+
+    /* The configuration string has no use but may be useful at a later time. */
+    if (config != NULL)
+        WT_ERR_MSG(session, EINVAL, "key provider configuration currently not supported.");
+
+    /*
+     * You can only configure the key provider system with early-load set.
+     */
+    if (conn->key_provider != NULL)
+        WT_ERR_MSG(session, EINVAL, "key provider system must be configured with early_load set");
+
+    conn->key_provider = key_provider;
+
+err:
+    API_END_RET(session, ret);
 }
 
 /*
@@ -2979,7 +3043,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
       __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
       __conn_add_encryptor, __conn_set_file_system, __conn_add_page_log, __conn_add_storage_source,
       __conn_get_page_log, __conn_get_storage_source, __conn_set_context_uint,
-      __conn_dump_error_log, __conn_get_extension_api};
+      __conn_dump_error_log, __conn_set_key_provider, __conn_get_extension_api};
     static const WT_NAME_FLAG file_types[] = {
       {"data", WT_FILE_TYPE_DATA}, {"log", WT_FILE_TYPE_LOG}, {NULL, 0}};
 
@@ -3191,6 +3255,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wti_json_config(session, cfg, false));
     WT_ERR(__wt_verbose_config(session, cfg, false));
     WT_ERR(__wti_timing_stress_config(session, cfg));
+    WT_ERR(__wti_disagg_debug_mode_config(session, cfg));
     WT_ERR(__wt_blkcache_setup(session, cfg, false));
     WT_ERR(__wti_extra_diagnostics_config(session, cfg));
     WT_ERR(__wti_conn_optrack_setup(session, cfg, false));

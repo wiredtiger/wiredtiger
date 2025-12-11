@@ -2707,13 +2707,14 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         if (page->evict_pass_gen == 0) {
             const uint64_t gen_gap =
               __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen) - page->cache_create_gen;
-            __wt_atomic_stats_max(&evict->evict_max_unvisited_gen_gap, gen_gap);
-            __wt_atomic_stats_max(&evict->evict_max_unvisited_gen_gap_per_checkpoint, gen_gap);
+            __wt_atomic_stats_max_uint64(&evict->evict_max_unvisited_gen_gap, gen_gap);
+            __wt_atomic_stats_max_uint64(
+              &evict->evict_max_unvisited_gen_gap_per_checkpoint, gen_gap);
         } else {
             const uint64_t gen_gap =
               __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen) - page->evict_pass_gen;
-            __wt_atomic_stats_max(&evict->evict_max_visited_gen_gap, gen_gap);
-            __wt_atomic_stats_max(&evict->evict_max_visited_gen_gap_per_checkpoint, gen_gap);
+            __wt_atomic_stats_max_uint64(&evict->evict_max_visited_gen_gap, gen_gap);
+            __wt_atomic_stats_max_uint64(&evict->evict_max_visited_gen_gap_per_checkpoint, gen_gap);
         }
 
         page->evict_pass_gen = __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen);
@@ -2737,9 +2738,13 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
             continue;
         }
 
+        /* update number of attempts this page has been evicted */
+        ++page->evict_queue_attempts;
+        __wt_atomic_stats_max_uint16(
+          &evict->evict_max_eviction_queue_attempts, page->evict_queue_attempts);
+
         __evict_try_queue_page(
           session, queue, ref, last_parent, evict_entry, &urgent_queued, &queued);
-
         if (queued) {
             ++evict_entry;
             ++pages_queued;
@@ -3024,7 +3029,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
             WT_STAT_CONN_INCR(session, eviction_app_dirty_attempt);
         }
         WT_STAT_CONN_INCR(session, eviction_app_attempt);
-        S2C(session)->evict->app_evicts++;
+        ++S2C(session)->evict->app_evicts;
         time_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
     }
 
@@ -3327,8 +3332,8 @@ done:
  *     priority unless eviction is in an aggressive state and the Btree is significantly utilizing
  *     the cache.
  *
- *     At present, it is exclusively called for metadata and bloom filter files, as these are meant
- *     to be retained in the cache.
+ *     At present, it is exclusively called for metadata file as this is meant to be retained in the
+ *     cache.
  *
  *     Input parameter:
  *       `v`: An integer that denotes the priority level.

@@ -654,7 +654,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
      * allowed to be relocked by the same session.
      */
     if (F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) && !LF_ISSET(WT_BTREE_BULK)) {
-        dhandle->excl_session = session;
+        __wt_tsan_suppress_store_pointer((void *)&dhandle->excl_session, (void *)session);
         dhandle->excl_ref = 1;
     }
     F_SET(dhandle, WT_DHANDLE_OPEN);
@@ -883,7 +883,7 @@ __wt_conn_dhandle_close_all(
     }
 
 err:
-    session->dhandle = NULL;
+    WT_DHANDLE_CLEAR(session);
     return (ret);
 }
 
@@ -958,7 +958,7 @@ __wti_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mar
      */
     if (ret == 0 || final) {
         WT_TRET(__conn_dhandle_destroy(session, dhandle, final));
-        session->dhandle = NULL;
+        WT_DHANDLE_CLEAR(session);
     }
 #ifdef HAVE_DIAGNOSTIC
     WT_CONN_CLOSE_ABORT(session, ret);

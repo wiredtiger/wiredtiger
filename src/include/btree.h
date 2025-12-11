@@ -71,7 +71,6 @@
 #define WT_NPOS_IS_INVALID(pos) ((pos) < 0.0)
 
 typedef enum __wt_btree_type {
-    BTREE_COL_FIX = 1, /* Fixed-length column store */
     BTREE_COL_VAR = 2, /* Variable-length column store */
     BTREE_ROW = 3      /* Row-store */
 } WT_BTREE_TYPE;
@@ -208,12 +207,12 @@ struct __wt_btree {
  * with a sync.
  */
 #define WT_BTREE_SYNCING(btree) \
-    (__wt_atomic_load_enum_relaxed(&(btree)->syncing) != WT_BTREE_SYNC_OFF)
+    (__wt_atomic_load_enum_acquire(&(btree)->syncing) != WT_BTREE_SYNC_OFF)
 #define WT_SESSION_BTREE_SYNC(session) \
-    (__wt_atomic_load_ptr_relaxed(&S2BT(session)->sync_session) == (session))
+    (__wt_atomic_load_ptr_acquire(&S2BT(session)->sync_session) == (session))
 #define WT_SESSION_BTREE_SYNC_SAFE(session, btree)                                \
-    (__wt_atomic_load_enum_relaxed(&(btree)->syncing) != WT_BTREE_SYNC_RUNNING || \
-      __wt_atomic_load_ptr_relaxed(&(btree)->sync_session) == (session))
+    (__wt_atomic_load_enum_acquire(&(btree)->syncing) != WT_BTREE_SYNC_RUNNING || \
+      __wt_atomic_load_ptr_acquire(&(btree)->sync_session) == (session))
 
     wt_shared uint64_t bytes_dirty_intl;    /* Bytes in dirty internal pages. */
     wt_shared uint64_t bytes_dirty_leaf;    /* Bytes in dirty leaf pages. */
@@ -343,3 +342,59 @@ struct __wt_salvage_cookie {
 #define WT_DELTA_ENABLED_FOR_PAGE(session, type)                   \
     ((type) == WT_PAGE_ROW_LEAF ? WT_DELTA_LEAF_ENABLED(session) : \
                                   WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
+
+/*
+ * WTI_DELTA_LEAF_MERGE_STATE --
+ *	The delta's merge state for merging deltas with base image leaf.
+ */
+struct __wti_delta_leaf_merge_state {
+    /* Unpacked delta k/v pair. */
+    WT_CELL_UNPACK_DELTA_LEAF_KV *unpack;
+    /* Prefix decompressed key. */
+    WT_ITEM *current_key;
+    uint8_t *cell;
+    /* Set when we have unpacked and decompressed a k/v pair. */
+    bool unpacked;
+    /* Entries remain that are not merged into the disk image. */
+    uint32_t entries;
+};
+
+/*
+ * WTI_BASE_LEAF_MERGE_STATE --
+ *	The base image's merge state for merging deltas with base image leaf.
+ */
+struct __wti_base_leaf_merge_state {
+    /* Unpacked key. */
+    WT_CELL_UNPACK_KV *unpack_key;
+    /* Unpacked value. */
+    WT_CELL_UNPACK_KV *unpack_value;
+    /* Prefix decompressed key. */
+    WT_ITEM *current_key;
+    /*
+     * Entries remain that are not merged into the disk image. We may have unpacked an entry, but we
+     * only decrement the count when a k/v pair is actually merged into the disk image.
+     */
+    uint32_t entries;
+    uint8_t *cell;
+    /* Set when we have unpacked and decompressed a k/v pair. */
+    bool unpacked;
+    /*
+     * Set when the current key/value pair has an empty value cell. This implies that the next key
+     * cell has been unpacked but not decompressed yet.
+     */
+    bool empty_value_cell;
+};
+
+/*
+ * WTI_DISK_LEAF_MERGE_STATE --
+ *	The new disk image's merge state for merging deltas with base image leaf.
+ */
+struct __wti_disk_leaf_merge_state {
+    WT_ITEM *last_key;
+    uint8_t key_pfx_last;
+    bool key_pfx_compress;
+    bool all_empty_value;
+    bool any_empty_value;
+    uint8_t *p_ptr;
+    uint32_t entries;
+};

@@ -975,6 +975,13 @@ __wt_disagg_copy_metadata_process(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
+    /*
+     * This requires schema lock to ensure that we capture a consistent snapshot of metadata entries
+     * related to the given shared table, e.g., the various file, colgroup, table, and layered
+     * entries.
+     */
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
     __wt_spin_lock(session, &conn->disaggregated_storage.copy_metadata_lock);
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.copy_metadata_qh, q, tmp)
@@ -1239,6 +1246,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_DECL_RET;
     WT_ITEM complete_checkpoint_meta;
     WT_NAMED_PAGE_LOG *npage_log;
+    uint64_t time_start, time_stop;
     bool leader, picked_up, was_leader;
 
     conn = S2C(session);
@@ -1294,12 +1302,23 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_STAT_CONN_SET(session, disagg_role_leader, leader ? 1 : 0);
     } else if (!was_leader && leader) {
         /* Follower step-up. */
+        time_start = __wt_clock(session);
         WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_step_up(session));
+        time_stop = __wt_clock(session);
         WT_ERR_MSG_CHK(session, ret, "Failed to step up to the leader role");
-    } else if (was_leader && !leader)
+        WT_STAT_CONN_SET(session, disagg_step_up_time, WT_CLOCKDIFF_MS(time_stop, time_start));
+        __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Step up completed in %" PRIu64 " milliseconds", WT_CLOCKDIFF_MS(time_stop, time_start));
+    } else if (was_leader && !leader) {
         /* Leader step-down. */
+        time_start = __wt_clock(session);
         WT_WITH_CHECKPOINT_LOCK(session, __disagg_step_down(session));
-
+        time_stop = __wt_clock(session);
+        WT_STAT_CONN_SET(session, disagg_step_down_time, WT_CLOCKDIFF_MS(time_stop, time_start));
+        __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Step down completed in %" PRIu64 " milliseconds",
+          WT_CLOCKDIFF_MS(time_stop, time_start));
+    }
     /* Connection init settings only. */
 
     if (reconfig)
@@ -1314,10 +1333,15 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_ERR(__wt_schema_open_page_log(session, &cval, &npage_log));
     conn->disaggregated_storage.npage_log = npage_log;
 
-    /* Set up a handle for accessing shared metadata. */
     if (npage_log != NULL) {
+        /* Set up a handle for accessing shared metadata. */
         WT_ERR(npage_log->page_log->pl_open_handle(npage_log->page_log, &session->iface,
           WT_DISAGG_METADATA_TABLE_ID, &conn->disaggregated_storage.page_log_meta));
+
+        /* Set up a handle for accessing the key provider table if configured. */
+        if (conn->key_provider != NULL)
+            WT_ERR(npage_log->page_log->pl_open_handle(npage_log->page_log, &session->iface,
+              WT_DISAGG_KEY_PROVIDER_TABLE_ID, &conn->disaggregated_storage.page_log_key_provider));
     }
 
     /* FIXME-WT-14965: Exit the function immediately if this check returns false. */
@@ -1611,6 +1635,13 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     if (disagg->page_log_meta != NULL) {
         WT_TRET(disagg->page_log_meta->plh_close(disagg->page_log_meta, &session->iface));
         disagg->page_log_meta = NULL;
+    }
+
+    /* Close the key provider handle. */
+    if (disagg->page_log_key_provider != NULL) {
+        WT_TRET(
+          disagg->page_log_key_provider->plh_close(disagg->page_log_key_provider, &session->iface));
+        disagg->page_log_key_provider = NULL;
     }
 
     __wt_free(session, disagg->last_checkpoint_root);

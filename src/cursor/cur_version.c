@@ -8,7 +8,12 @@
 
 #include "wt_internal.h"
 
+/*
+ * Format: txn ID, start ts, start durable ts, stop txn ID, stop ts, stop durable ts, type, prepare,
+ * flags, location, value.
+ */
 #define WT_CURVERSION_METADATA_FORMAT WT_UNCHECKED_STRING(QQQQQQBBBB)
+
 /*
  * __curversion_set_key --
  *     WT_CURSOR->set_key implementation for version cursors.
@@ -328,17 +333,6 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                 WT_ERR(WT_NOTFOUND);
             }
             break;
-        case WT_PAGE_COL_FIX:
-            /*
-             * If search returned an insert, we might be past the end of page in the append list, so
-             * there's no on-disk value.
-             */
-            if (cbt->recno >= cbt->ref->ref_recno + page->entries) {
-                F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
-                F_SET(version_cursor, WT_CURVERSION_HS_EXHAUSTED);
-                WT_ERR(WT_NOTFOUND);
-            }
-            break;
         case WT_PAGE_COL_VAR:
             /* Empty page doesn't have any on page value. */
             if (page->entries == 0) {
@@ -582,9 +576,9 @@ skip_on_page:
                 goto done;
 
             /*
-             * TODO: for history store, it is hard to determine if the stop durable timestamp is
-             * from a tombstone or the previous full value. Always return the value for now if its
-             * stop durable timestamp is larger than the end timestamp.
+             * FIXME-WT-16136: for history store, it is hard to determine if the stop durable
+             * timestamp is from a tombstone or the previous full value. Always return the value for
+             * now if its stop durable timestamp is larger than the end timestamp.
              */
             if (twp->stop_ts == WT_TS_MAX &&
               twp->durable_start_ts <= version_cursor->start_timestamp)
@@ -683,7 +677,6 @@ __curversion_skip_starting_updates(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *
             upd = WT_ROW_UPDATE(page, rip);
         }
         break;
-    case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_VAR:
         if (cbt->ins != NULL)
             upd = cbt->ins->upd;
