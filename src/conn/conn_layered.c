@@ -1953,6 +1953,72 @@ err:
 }
 
 /*
+ * __layered_drain_worker_run --
+ *     blah blah
+ */
+static int
+__layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_UNUSED(ctx);
+    __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
+    /* If the queue is empty we are done. */
+    if (TAILQ_EMPTY(&conn->layered_drain_data.work_queue)) {
+        __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
+        return (0);
+    }
+
+    WT_LAYERED_DRAIN_ENTRY *work_item = TAILQ_FIRST(&conn->layered_drain_data.work_queue);
+    WT_ASSERT(session, work_item != NULL);
+    TAILQ_REMOVE(&conn->layered_drain_data.work_queue, work_item, q);
+    __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
+    printf("Worker draining: %s\n", work_item->entry->ingest_uri);
+    WT_RET_MSG(session, __layered_copy_ingest_table(session, work_item->entry),
+              "Failed to copy ingest table \"%s\" to stable table \"%s\"", work_item->entry->ingest_uri,
+              work_item->entry->stable_uri);
+    WT_RET_MSG(session,
+              __layered_clear_ingest_table(session, work_item->entry->ingest_uri),
+              "Failed to clear ingest table \"%s\"", work_item->entry->ingest_uri);
+    return (0);
+}
+
+/*
+ * __layered_drain_worker_check --
+ *     blah blah
+ */
+static bool
+__layered_drain_worker_check(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
+
+    if (TAILQ_EMPTY(&conn->layered_drain_data.work_queue)) {
+        __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
+        return (false);
+    }
+    __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
+    return (true);
+}
+
+static void
+__layered_drain_clear_work_queue(WT_SESSION_IMPL *session) {
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
+    if (!TAILQ_EMPTY(&conn->layered_drain_data.work_queue)) {
+        WT_LAYERED_DRAIN_ENTRY *work_item = NULL, *work_item_tmp = NULL;
+        TAILQ_FOREACH_SAFE(work_item, &conn->layered_drain_data.work_queue, q, work_item_tmp)
+        {
+            TAILQ_REMOVE(&conn->layered_drain_data.work_queue, work_item, q);
+            __wt_free(session, work_item);
+        }
+    }
+    WT_ASSERT_ALWAYS(
+      session, TAILQ_EMPTY(&conn->layered_drain_data.work_queue), "Layered drain work queue failed to drain");
+    __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
+    __wt_spin_destroy(session, &conn->layered_drain_data.queue_lock);
+}
+
+/*
  * __layered_drain_ingest_tables --
  *     Moving all the data from the ingest tables to the stable tables
  */
@@ -1969,7 +2035,6 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     conn = S2C(session);
     manager = &conn->layered_table_manager;
 
-    WT_RET(__wt_open_internal_session(conn, "disagg-drain", false, 0, 0, &internal_session));
 
     __wt_spin_lock(session, &manager->layered_table_lock);
 
@@ -1980,20 +2045,37 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
      * reallocated, or individual entries could get removed or freed.
      */
     __wt_spin_unlock(session, &manager->layered_table_lock);
+    /* Initialize the work queue. */
+    TAILQ_INIT(&conn->layered_drain_data.work_queue);
+    WT_RET(__wt_spin_init(session, &conn->layered_drain_data.queue_lock, "layered drain work queue lock"));
 
     /* FIXME-WT-14735: skip empty ingest tables. */
     for (i = 0; i < table_count; i++) {
         if ((entry = manager->entries[i]) != NULL) {
-            WT_ERR_MSG_CHK(session, __layered_copy_ingest_table(internal_session, entry),
-              "Failed to copy ingest table \"%s\" to stable table \"%s\"", entry->ingest_uri,
-              entry->stable_uri);
-            WT_ERR_MSG_CHK(session,
-              __layered_clear_ingest_table(internal_session, entry->ingest_uri),
-              "Failed to clear ingest table \"%s\"", entry->ingest_uri);
+            WT_LAYERED_DRAIN_ENTRY *work_item;
+            WT_ERR(__wt_calloc_one(session, &work_item));
+            work_item->entry = entry;
+            TAILQ_INSERT_HEAD(&conn->layered_drain_data.work_queue, work_item, q);
         }
     }
 
+    WT_ERR(__wt_thread_group_create(session, &conn->layered_drain_data.threads,
+      "layered drain threads", WT_LAYERED_DRAIN_THREAD_COUNT, WT_LAYERED_DRAIN_THREAD_COUNT, 0,
+      __layered_drain_worker_check, __layered_drain_worker_run, NULL));
+
+    /*
+     * We can be lazy here and use ourself as a thread. Then once this loop exits we can kill our
+     * thread group.
+     */
+    WT_ERR(__wt_open_internal_session(conn, "disagg-drain", false, 0, 0, &internal_session));
+    while (__layered_drain_worker_check(internal_session)) {
+        WT_ERR(__layered_drain_worker_run(internal_session, NULL));
+    }
+
 err:
+    WT_TRET(__wt_thread_group_destroy(session, &conn->layered_drain_data.threads));
+    /* Empty the queue if not empty and destory the lock. */
+    __layered_drain_clear_work_queue(session);
     WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }

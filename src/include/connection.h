@@ -447,6 +447,15 @@ struct __wt_name_flag {
 };
 
 /*
+ * WT_LAYERED_DRAIN_ENTRY --
+ *	Queue entry for layered table drain threads.
+ */
+struct __wt_layered_drain_entry {
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    TAILQ_ENTRY(__wt_layered_drain_entry) q; /* List of pages queued for pre-fetch. */
+};
+
+/*
  * WT_CONN_CHECK_PANIC --
  *	Check if we've panicked and return the appropriate error.
  */
@@ -772,6 +781,13 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_pf_qh, __wt_prefetch_queue_entry) pfqh; /* Locked: prefetch_lock */
     bool prefetch_auto_on;
     bool prefetch_available;
+
+#define WT_LAYERED_DRAIN_THREAD_COUNT 8
+    struct __wt_layered_drain_data {
+        WT_THREAD_GROUP threads;
+        WT_SPINLOCK queue_lock;
+        TAILQ_HEAD(__wt_layered_drain_qh, __wt_layered_drain_entry) work_queue;
+    } layered_drain_data;
 
     WT_DISAGGREGATED_STORAGE disaggregated_storage;
     WT_PAGE_DELTA_CONFIG page_delta; /* Page delta configuration */
