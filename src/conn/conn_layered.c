@@ -603,7 +603,9 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ERR_NOTFOUND_OK(ret, false);
 
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Checkpoint pickup processed %" PRIu32 " existing tables, %" PRIu32 " new tables, %" PRIu32 " new ingest tables", existing_tables, new_tables, new_ingest);
+      "Checkpoint pickup processed %" PRIu32 " existing tables, %" PRIu32 " new tables, %" PRIu32
+      " new ingest tables",
+      existing_tables, new_tables, new_ingest);
 
     /*
      * Part 3: Do the bookkeeping.
