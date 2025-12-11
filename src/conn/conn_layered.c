@@ -972,13 +972,24 @@ __wt_disagg_copy_metadata_process(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGG_COPY_METADATA *entry, *tmp;
+    bool locked;
 
     conn = S2C(session);
 
+    /*
+     * We need to hold the copy metadata lock when traversing to the next element, but we'll release
+     * it while we're processing the element. That's to avoid a deadlock that can occur when we try
+     * to acquire a dhandle lock. This works because new entries are only added at the end of the
+     * list, and never removed, and there can only be one thread processing or clearing the list at
+     * one time.
+     */
     __wt_spin_lock(session, &conn->disaggregated_storage.copy_metadata_lock);
+    locked = true;
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.copy_metadata_qh, q, tmp)
     {
+        __wt_spin_unlock(session, &conn->disaggregated_storage.copy_metadata_lock);
+        locked = false;
         WT_ERR_NOTFOUND_OK(__disagg_copy_shared_metadata_one(session, entry->stable_uri), true);
 
         /*
@@ -995,7 +1006,7 @@ __wt_disagg_copy_metadata_process(WT_SESSION_IMPL *session)
                   "will retry later",
                   entry->table_name);
                 entry->retries_left--;
-                continue;
+                goto next_entry;
             }
         } else
             WT_ERR(__wt_disagg_copy_shared_metadata_layered(session, entry->table_name));
@@ -1004,10 +1015,15 @@ __wt_disagg_copy_metadata_process(WT_SESSION_IMPL *session)
         __wt_free(session, entry->stable_uri);
         __wt_free(session, entry->table_name);
         __wt_free(session, entry);
+
+next_entry:
+        __wt_spin_lock(session, &conn->disaggregated_storage.copy_metadata_lock);
+        locked = true;
     }
 
 err:
-    __wt_spin_unlock(session, &conn->disaggregated_storage.copy_metadata_lock);
+    if (locked)
+        __wt_spin_unlock(session, &conn->disaggregated_storage.copy_metadata_lock);
 
     return (ret);
 }
