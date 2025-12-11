@@ -71,13 +71,6 @@ __rec_delete_hs_upd_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *
     delete_hs_upd->tombstone = tombstone;
     ++r->delete_hs_upd_next;
 
-    /* Clear the durable flag to allow them being included in a delta. */
-    if (F_ISSET(upd, WT_UPDATE_DURABLE))
-        F_CLR(upd, WT_UPDATE_DURABLE);
-
-    if (tombstone != NULL && F_ISSET(tombstone, WT_UPDATE_DURABLE))
-        F_CLR(tombstone, WT_UPDATE_DURABLE);
-
     return (0);
 }
 
@@ -1409,6 +1402,37 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
             upd_select->upd = tombstone;
         }
     }
+
+    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
+        if (write_start_prepare) {
+            WT_UPDATE *first_committed_upd = upd_select->upd->next;
+            for (; first_committed_upd != NULL; first_committed_upd = first_committed_upd->next) {
+                uint64_t next_txnid =
+                  __wt_atomic_load_uint64_v_relaxed(&first_committed_upd->txnid);
+                if (next_txnid == WT_TXN_ABORTED)
+                    continue;
+
+                if (next_txnid == upd_select->tw.start_txn)
+                    continue;
+
+                break;
+            }
+
+            /*
+             * Clear the durable flags on the first committed update to ensure it can be included in
+             * a future write if the prepared update is rolled back.
+             */
+            if (first_committed_upd != NULL)
+                F_CLR(first_committed_upd, WT_UPDATE_DURABLE | WT_UPDATE_DELETE_DURABLE);
+        } else if (write_prepare)
+            /*
+             * When only writing a prepared tombstone, ensure the durable flags on the on-page value
+             * are cleared. Otherwise, if the prepared tombstone is rolled back, the on-page value
+             * may be missed during future reconciliations.
+             */
+            F_CLR(upd_select->upd, WT_UPDATE_DURABLE | WT_UPDATE_DELETE_DURABLE);
+    }
+
     WT_ASSERT(session,
       !WT_TIME_WINDOW_HAS_STOP_PREPARE(&upd_select->tw) ||
         upd_select->tw.stop_prepare_ts >= upd_select->tw.start_ts);
