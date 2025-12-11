@@ -1420,7 +1420,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
 
             /*
              * Clear the durable flags on the first committed update to ensure it can be included in
-             * a future write if the prepared update is rolled back.
+             * a future delta if the prepared update is rolled back.
              */
             if (first_committed_upd != NULL)
                 F_CLR(first_committed_upd, WT_UPDATE_DURABLE | WT_UPDATE_DELETE_DURABLE);
@@ -1428,7 +1428,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
             /*
              * When only writing a prepared tombstone, ensure the durable flags on the on-page value
              * are cleared. Otherwise, if the prepared tombstone is rolled back, the on-page value
-             * may be missed during future reconciliations.
+             * may be missed in the next delta.
              */
             F_CLR(upd_select->upd, WT_UPDATE_DURABLE | WT_UPDATE_DELETE_DURABLE);
     }
