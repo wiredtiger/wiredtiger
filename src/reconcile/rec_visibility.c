@@ -1403,7 +1403,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
         }
     }
 
-    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
+    if (WT_DELTA_LEAF_ENABLED(session)) {
         if (write_start_prepare) {
             WT_UPDATE *first_committed_upd = upd_select->upd->next;
             for (; first_committed_upd != NULL; first_committed_upd = first_committed_upd->next) {
