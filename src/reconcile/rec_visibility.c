@@ -1420,7 +1420,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
 
             /*
              * Clear the durable flags on the first committed update to ensure it can be included in
-             * a future delta if the prepared update is rolled back.
+             * the next delta if the prepared update is rolled back.
              */
             if (first_committed_upd != NULL)
                 F_CLR(first_committed_upd, WT_UPDATE_DURABLE | WT_UPDATE_DELETE_DURABLE);
