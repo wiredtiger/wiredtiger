@@ -2282,6 +2282,7 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     switch (mod->rec_result) {
     case 0:
+        WT_ASSERT(session, r->ref->addr != NULL);
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         WT_ASSERT_ALWAYS(session, false, "write delta for a new page.");
@@ -2293,7 +2294,8 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
               mod->mod_replace.block_cookie_size, &multi->addr.block_cookie));
             multi->addr.block_cookie_size = mod->mod_replace.block_cookie_size;
             multi->addr.type = mod->mod_replace.type;
-        }
+        } else
+            WT_ASSERT(session, r->ref->addr != NULL);
         break;
     case WT_PM_REC_MULTIBLOCK: /* Multiple blocks */
         WT_ASSERT(session, mod->mod_multi_entries == 1);
@@ -3025,7 +3027,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                     page->disagg_info->block_meta = *r->multi->block_meta;
                 WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
             } else
-                WT_ASSERT(session, F_ISSET(btree, WT_BTREE_DISAGGREGATED));
+                WT_ASSERT(session, F_ISSET(btree, WT_BTREE_DISAGGREGATED) && r->ref->addr != NULL);
         } else {
             __wt_checkpoint_tree_reconcile_update(session, &r->multi->addr.ta);
             WT_RET(
