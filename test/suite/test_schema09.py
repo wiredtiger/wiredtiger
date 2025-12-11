@@ -38,7 +38,7 @@ class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
     basename = 'test_schema09_fail'
     tablename = 'table:' + basename
 
-    def create_table(self, fail=False):
+    def create_table(self):
         self.pr('create table')
         self.session.create(self.tablename, 'key_format=5s,value_format=HQ,exclusive=true')
 
@@ -70,7 +70,7 @@ class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
         self.session = self.setUpSessionOpen(self.conn)
 
         self.conn.reconfigure("debug_mode=(crash_point_colgroup=false)")
-        self.check_metadata_entry(fail=False)
+        self.check_metadata_entry(False)
 
         # Test that we can't open a cursor on the table.
         self.assertRaises(
@@ -82,4 +82,4 @@ class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Test that we can create the table.
         self.create_table()
-        self.check_metadata_entry(fail=True)
+        self.check_metadata_entry(True)
