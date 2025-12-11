@@ -1420,7 +1420,7 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
     }
 
     if (write_start_prepare && F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
-        WT_UPDATE *first_committed_upd = upd->next;
+        WT_UPDATE *first_committed_upd = upd_select->upd->next;
         for (; first_committed_upd != NULL; first_committed_upd = first_committed_upd->next) {
             uint64_t next_txnid = __wt_atomic_load_uint64_v_relaxed(&first_committed_upd->txnid);
             if (next_txnid == WT_TXN_ABORTED)
