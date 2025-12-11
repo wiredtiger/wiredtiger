@@ -30,7 +30,6 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -54,19 +53,12 @@
 #define LOG_DEBUG(kp, session, ...) LOG_AT((kp), (session), WT_VERBOSE_DEBUG_1, __VA_ARGS__)
 #define LOG_ERROR(kp, session, ...) LOG_AT((kp), (session), WT_VERBOSE_ERROR, __VA_ARGS__)
 
-/* Convert clock ticks to seconds */
 #define CLOCK_SECS(ct) ((double)(ct) / CLOCKS_PER_SEC)
 
-/* Date format for ISO 8601 */
-#define DATE_FORMAT_ISO8601 "%Y-%m-%dT%H:%M:%S%z"
-
-/* Default initial key */
-static const char DEFAULT_KEY_DATA[] = "abcdefghijklmnopqrstuvwxyz";
-
-static const WT_CRYPT_KEYS DEFAULT_KEY = {
-  .r = {.lsn = 0},
-  .keys = {.data = (const void *)DEFAULT_KEY_DATA, .size = sizeof(DEFAULT_KEY_DATA) - 1},
-};
+/*
+ * A test key provider extension. This extension implements the WT_KEY_PROVIDER interface to provide
+ * encryption key management functionality for testing purposes.
+ */
 
 /*
  * kp_free_key --
@@ -75,7 +67,8 @@ static const WT_CRYPT_KEYS DEFAULT_KEY = {
 static void
 kp_free_key(KEY_PROVIDER *kp)
 {
-    free(kp->state.key_data);
+    if (kp->state.current_key != NULL)
+        free(kp->state.current_key);
     memset(&kp->state, 0, sizeof(kp->state));
 }
 
@@ -86,32 +79,17 @@ kp_free_key(KEY_PROVIDER *kp)
 static int
 kp_set_key(KEY_PROVIDER *kp, const WT_CRYPT_KEYS *crypt)
 {
-    const void *key_data = crypt->keys.data;
-    size_t key_size = crypt->keys.size;
-    uint64_t lsn = crypt->r.lsn;
-
-    /* If no key data provided, use the default key */
-    if (key_data == NULL || key_size == 0) {
-        key_data = DEFAULT_KEY.keys.data;
-        key_size = DEFAULT_KEY.keys.size;
-        lsn = DEFAULT_KEY.r.lsn;
-    }
-
-    /* Verify that the key data matches the expected key data */
-    assert(memcmp(key_data, DEFAULT_KEY_DATA, sizeof(DEFAULT_KEY_DATA) - 1) == 0);
-
     kp_free_key(kp);
 
-    kp->state.key_data = malloc(key_size);
-    if (kp->state.key_data == NULL)
+    kp->state.current_key = malloc(crypt->keys.size);
+    if (kp->state.current_key == NULL)
         return (ENOMEM);
 
-    memcpy(kp->state.key_data, key_data, key_size);
-    kp->state.key_size = key_size;
-    kp->state.lsn = lsn;
+    memcpy(kp->state.current_key, crypt->keys.data, crypt->keys.size);
+    kp->state.key_size = crypt->keys.size;
+    kp->state.current_lsn = crypt->r.lsn;
 
     kp->state.key_time = clock();
-    kp->state.key_state = KEY_STATE_CURRENT;
 
     return (0);
 }
@@ -126,12 +104,11 @@ kp_load_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS *cry
 {
     KEY_PROVIDER *kp = (KEY_PROVIDER *)wtkp;
     LOG_DEBUG(kp, session, "Current key: LSN=%" PRIu64 ", key_time=%.2f, size=%" PRIzu,
-      kp->state.lsn, CLOCK_SECS(kp->state.key_time), kp->state.key_size);
+      kp->state.current_lsn, CLOCK_SECS(kp->state.key_time), kp->state.key_size);
 
     LOG_INFO(
       kp, session, "Loading key for LSN=%" PRIu64 ", size=%" PRIzu, crypt->r.lsn, crypt->keys.size);
 
-    assert(kp->state.key_state == KEY_STATE_CURRENT);
     kp_set_key(kp, crypt);
 
     return (0);
@@ -144,10 +121,8 @@ kp_load_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS *cry
 static bool
 kp_key_expired(KEY_PROVIDER *kp)
 {
-    if (kp->key_expires == KEY_EXPIRES_NEVER)
+    if (kp->key_expires == 0)
         return (false); /* Key does not expire */
-    else if (kp->key_expires == KEY_EXPIRES_ALWAYS)
-        return (true); /* Key always expires */
 
     const clock_t now = clock();
     double elapsed_sec = CLOCK_SECS(now - kp->state.key_time);
@@ -156,11 +131,11 @@ kp_key_expired(KEY_PROVIDER *kp)
 }
 
 /*
- * kp_generate_key --
- *     Generate a new key with a repeating pattern.
+ * kp_rotate_key --
+ *     Rotate the current key by generating a new key with a repeating alphabet pattern.
  */
 static int
-kp_generate_key(uint8_t **new_key, size_t *key_size)
+kp_rotate_key(KEY_PROVIDER *kp)
 {
     /* Calculate new key size with 20% random fluctuation */
     const size_t base_size = 1024;
@@ -168,60 +143,32 @@ kp_generate_key(uint8_t **new_key, size_t *key_size)
     const size_t new_key_size = base_size + (size_t)((int)base_size * fluctuation / 100);
 
     /* Allocate new key buffer */
-    uint8_t *key_buf = malloc(new_key_size);
-    if (key_buf == NULL)
+    uint8_t *new_key = malloc(new_key_size);
+    if (new_key == NULL)
         return (ENOMEM);
 
-    /* Fill with repeating pattern: default key data + ISO8601 time */
-    char iso_time[100] = {0};
-    char pattern[sizeof(DEFAULT_KEY_DATA) + sizeof(iso_time)] = {0};
-    strncat(pattern, DEFAULT_KEY_DATA, sizeof(pattern) - 1);
+    /* Fill with repeating alphabet pattern */
+    const char *alphabet = "abcdefghijklmnopqrstuvwxyz";
+    const size_t alphabet_len = strlen(alphabet);
 
-    time_t now = time(NULL);
-    struct tm *tm_info = localtime(&now);
-    strftime(iso_time, sizeof(iso_time), DATE_FORMAT_ISO8601, tm_info);
-    strncat(pattern, iso_time, sizeof(pattern) - strlen(pattern) - 1);
-
-    const size_t pattern_len = strlen(pattern);
-
-    /* Fill buffer by repeatedly copying the pattern */
+    /* Fill buffer by repeatedly copying the alphabet pattern */
     size_t remaining = new_key_size;
     size_t offset = 0;
     while (remaining > 0) {
-        const size_t copy_len = (remaining >= pattern_len) ? pattern_len : remaining;
-        memcpy(key_buf + offset, pattern, copy_len);
+        const size_t copy_len = (remaining >= alphabet_len) ? alphabet_len : remaining;
+        memcpy(new_key + offset, alphabet, copy_len);
         offset += copy_len;
         remaining -= copy_len;
     }
 
-    *new_key = key_buf;
-    *key_size = new_key_size;
+    /* Free old key and update state */
+    kp_free_key(kp);
+    kp->state.current_key = new_key;
+    kp->state.key_size = new_key_size;
+    kp->state.key_time = clock();
+    kp->state.current_lsn = 0; /* New key, no LSN yet */
 
     return (0);
-}
-
-/*
- * kp_rotate_key --
- *     Rotate the current key by generating a new key with a repeating pattern.
- */
-static int
-kp_rotate_key(KEY_PROVIDER *kp, WT_SESSION *session)
-{
-    int ret = 0;
-    WT_CRYPT_KEYS crypt = {{0}, {0}};
-
-    if ((ret = kp_generate_key((uint8_t **)&crypt.keys.data, &crypt.keys.size)) != 0) {
-        LOG_ERROR(kp, session, "Failed to generate new key: %d", ret);
-        return (ret);
-    }
-
-    if ((ret = kp_set_key(kp, &crypt)) != 0) {
-        LOG_ERROR(kp, session, "Failed to set new key: %d", ret);
-    }
-
-    free((void *)crypt.keys.data);
-
-    return (ret);
 }
 
 /*
@@ -235,7 +182,7 @@ kp_get_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, WT_CRYPT_KEYS *crypt)
 {
     KEY_PROVIDER *kp = (KEY_PROVIDER *)wtkp;
     LOG_DEBUG(kp, session, "Current key: LSN=%" PRIu64 ", key_time=%.2f, size=%" PRIzu,
-      kp->state.lsn, CLOCK_SECS(kp->state.key_time), kp->state.key_size);
+      kp->state.current_lsn, CLOCK_SECS(kp->state.key_time), kp->state.key_size);
 
     /*
      * Real key provider may rotate the key independently of the get_key calls. In the mock
@@ -245,10 +192,7 @@ kp_get_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, WT_CRYPT_KEYS *crypt)
     if (crypt->keys.data == NULL && kp_key_expired(kp)) {
         LOG_INFO(kp, session, "Key expired (key_time=%.2f)", CLOCK_SECS(kp->state.key_time));
 
-        /* Key must be current */
-        assert(kp->state.key_state == KEY_STATE_CURRENT);
-
-        int ret = kp_rotate_key(kp, session);
+        int ret = kp_rotate_key(kp);
         if (ret != 0) {
             LOG_ERROR(kp, session, "Failed to rotate key: %d", ret);
             return (ret);
@@ -257,21 +201,23 @@ kp_get_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, WT_CRYPT_KEYS *crypt)
         LOG_INFO(kp, session, "Reporting new key (key_time=%.2f, key_size=%" PRIzu ")",
           CLOCK_SECS(kp->state.key_time), kp->state.key_size);
         crypt->keys.size = kp->state.key_size;
-        kp->state.key_state = KEY_STATE_PENDING;
     } else if (crypt->keys.data != NULL) {
-        /* Key must be pending read */
-        assert(kp->state.key_state == KEY_STATE_PENDING);
         /* The size of requested data must match previously reported key size. */
         assert(crypt->keys.size == kp->state.key_size);
 
+        /*
+         * If requesting key data, it means that key recently expired and has been rotated. The
+         * current_lsn must be zero because the key is not persisted yet. on_key_update will update
+         * LSN after persistence.
+         */
+        assert(kp->state.current_lsn == 0);
+
         LOG_INFO(kp, session, "Providing new key data (key_time=%.2f, key_size=%" PRIzu ")",
           CLOCK_SECS(kp->state.key_time), kp->state.key_size);
-        memcpy((void *)crypt->keys.data, kp->state.key_data, crypt->keys.size);
-        kp->state.key_state = KEY_STATE_READ;
+        memcpy((void *)crypt->keys.data, kp->state.current_key, crypt->keys.size);
     } else {
         LOG_INFO(kp, session, "Key is still valid, no change (key_time=%.2f)",
           CLOCK_SECS(kp->state.key_time));
-        assert(kp->state.key_state == KEY_STATE_CURRENT);
         crypt->keys.size = 0;
     }
 
@@ -280,36 +226,32 @@ kp_get_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, WT_CRYPT_KEYS *crypt)
 
 /*
  * kp_on_key_update --
- *     Callback function indicating whether the key has been queued. On success, the result field
+ *     Callback function indicating whether the key has been persisted. On success, the result field
  *     contains LSN of the checkpoint the key belongs to. On failure, the result field is set to the
- *     error code and the size is set to 0. This function can only be called after a successful
- *     get_key that returned new key data.
+ *     error code and the size is set to 0.
  */
 static int
 kp_on_key_update(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS *crypt)
 {
     KEY_PROVIDER *kp = (KEY_PROVIDER *)wtkp;
     LOG_DEBUG(kp, session, "Current key: LSN=%" PRIu64 ", key_time=%.2f, size=%" PRIzu,
-      kp->state.lsn, CLOCK_SECS(kp->state.key_time), kp->state.key_size);
+      kp->state.current_lsn, CLOCK_SECS(kp->state.key_time), kp->state.key_size);
 
-    assert(kp->state.key_data != NULL);
-    assert(kp->state.key_state == KEY_STATE_READ); /* Key must have been read */
+    assert(kp->state.current_key != NULL);
+    assert(kp->state.current_lsn == 0); /* Key must be new and not persisted yet */
 
     if (crypt->keys.size == 0) {
         /* Failure case - error is in keys->r.error */
-        LOG_ERROR(kp, session, "Key queueing failed with error %d", crypt->r.error);
-        kp->state.lsn = 0; /* Reset LSN on failure */
+        LOG_ERROR(kp, session, "Key persistence failed with error %d", crypt->r.error);
     } else {
         /* Success case - LSN is in keys->r.lsn */
-        LOG_INFO(kp, session, "Key queued successfully at LSN %" PRIu64, crypt->r.lsn);
+        LOG_INFO(kp, session, "Key persisted successfully at LSN %" PRIu64, crypt->r.lsn);
 
         /* Update our internal state */
-        assert(crypt->r.lsn != 0);
-        kp->state.lsn = crypt->r.lsn;
+        kp->state.current_lsn = crypt->r.lsn;
 
-        assert(memcmp(kp->state.key_data, crypt->keys.data, kp->state.key_size) == 0);
+        assert(memcmp(kp->state.current_key, crypt->keys.data, kp->state.key_size) == 0);
         assert(kp->state.key_size == crypt->keys.size);
-        kp->state.key_state = KEY_STATE_CURRENT;
     }
 
     return (0);
@@ -326,26 +268,40 @@ kp_terminate(WT_KEY_PROVIDER *wtkp, WT_SESSION *session)
 
     LOG_INFO(kp, session, "Terminating key provider");
 
-    kp_free_key(kp);
+    if (kp->state.current_key != NULL)
+        free(kp->state.current_key);
+
     free(kp);
 
     return (0);
 }
 
-/* Configuration parsing helpers */
-
-static int
-configure_int(const char *param, const WT_CONFIG_ITEM *k, const WT_CONFIG_ITEM *v, int *dest)
-{
-    if (strncmp(param, k->str, k->len) == 0 && k->len == strlen(param) && v->len > 0 &&
-      v->type == WT_CONFIG_ITEM_NUM) {
-        *dest = (int)v->val;
-
-        return (0);
+#define CONFIGURE_BEGIN(kp) \
+    if (kp == NULL) {       \
+        assert(kp != NULL); \
+        return (EINVAL);    \
     }
 
-    return (EINVAL);
-}
+#define CONFIGURE_PARAM(kp, param, k, v, ctype, wt_type)                                   \
+    else if (strncmp(#param, k.str, k.len) == 0 && k.len == strlen(#param) && v.len > 0 && \
+      v.type == wt_type)                                                                   \
+    {                                                                                      \
+        kp->param = (ctype)v.val;                                                          \
+        continue;                                                                          \
+    }
+
+#define CONFIGURE_INT(kp, param, k, v) CONFIGURE_PARAM(kp, param, k, v, int, WT_CONFIG_ITEM_NUM)
+#define CONFIGURE_UINT(kp, param, k, v) \
+    CONFIGURE_PARAM(kp, param, k, v, unsigned int, WT_CONFIG_ITEM_NUM)
+
+#define CONFIGURE_END(kp, k, v)                                                           \
+    else                                                                                  \
+    {                                                                                     \
+        LOG_ERROR(kp, NULL, "WT_CONFIG_PARSER.next: unexpected configuration: %.*s=%.*s", \
+          (int)k.len, k.str, (int)v.len, v.str);                                          \
+        ret = EINVAL;                                                                     \
+        goto err;                                                                         \
+    }
 
 /*
  * kp_configure --
@@ -367,15 +323,10 @@ kp_configure(KEY_PROVIDER *kp, WT_CONFIG_ARG *config)
 
     /* Parse configuration key-value pairs */
     while ((ret = config_parser->next(config_parser, &k, &v)) == 0) {
-        if (configure_int("verbose", &k, &v, &kp->verbose) == 0)
-            continue;
-        else if (configure_int("key_expires", &k, &v, &kp->key_expires) == 0)
-            continue;
-
-        LOG_ERROR(kp, NULL, "WT_CONFIG_PARSER.next: unexpected configuration: %.*s=%.*s",
-          (int)k.len, k.str, (int)v.len, v.str);
-        ret = EINVAL;
-        goto err;
+        CONFIGURE_BEGIN(kp)
+        CONFIGURE_INT(kp, verbose, k, v)
+        CONFIGURE_UINT(kp, key_expires, k, v)
+        CONFIGURE_END(kp, k, v)
     }
 
     if (ret != WT_NOTFOUND) {
@@ -419,17 +370,11 @@ wiredtiger_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 
     kp->wtext = wtext;
     kp->verbose = WT_VERBOSE_INFO; /* Default verbosity level */
-    kp->key_expires = 43200;       /* Default: 12 hours = 43200 seconds */
+    kp->key_expires = 0;           /* Default: key does not expire */
 
-    int ret = 0;
     WT_KEY_PROVIDER *wtkp = (WT_KEY_PROVIDER *)kp;
 
-    /* Set initial key */
-    if ((ret = kp_set_key(kp, &DEFAULT_KEY)) != 0) {
-        LOG_ERROR(kp, NULL, "kp_set_key: %d (%s)", ret, wtext->strerror(wtext, NULL, ret));
-        goto err;
-    }
-
+    int ret = 0;
     /* Parse configuration options */
     if ((ret = kp_configure(kp, config)) != 0)
         goto err;
@@ -447,9 +392,7 @@ wiredtiger_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
         goto err;
     }
 
-    LOG_INFO(kp, NULL,
-      "Key provider initialized successfully; config: {verbose=%d, key_expires=%d}", kp->verbose,
-      kp->key_expires);
+    LOG_INFO(kp, NULL, "Key provider initialized successfully");
 
     return (0);
 

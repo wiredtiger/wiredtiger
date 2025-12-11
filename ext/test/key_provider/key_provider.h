@@ -32,44 +32,6 @@
 
 #include <time.h>
 
-/*
- * A test key provider extension. This extension implements the WT_KEY_PROVIDER interface to provide
- * encryption key management functionality for testing purposes.
- *
- * Configuration parameters:
- * - verbose: verbosity level for logging (default: WT_VERBOSE_INFO)
- * - key_expires: key expiration period, in seconds (default: 12 hours = 43200 seconds).
- *     On creation, initial key is set.
- *     Special values:
- *       -1 - key never expires, i.e. get_key always returns without a key
- *        0 - key always expired, i.e. every get_key call gets the default key
- *
- * Enforced key states:
- * - KEY_STATE_CURRENT: the current active key used for new checkpoint writes
- *    allowed API calls: get_key(size), key_load
- * - KEY_STATE_PENDING: the key size has been requested and successfully retrieved
- *    allowed API calls: get_key(data)
- * - KEY_STATE_READ: the key data has been read
- *    allowed API calls: on_key_update
- *
- * Transitions:
- * key not expired:
- * - CURRENT -> CURRENT: get_key called with empty key data, no change
- * key expired:
- * - CURRENT -> PENDING: get_key called with empty key data, key size returned
- * - PENDING -> READ: get_key called with allocated key data, key data filled
- * - READ -> CURRENT: on_key_update called, key marked as current
- * irrespective of key expiration:
- * - CURRENT -> CURRENT: key_load called, key loaded from persisted data
- */
-
-enum {
-    KEY_EXPIRES_NEVER = -1, /* Key never expires */
-    KEY_EXPIRES_ALWAYS = 0  /* Key always expires */
-};
-
-typedef enum { KEY_STATE_CURRENT = 0, KEY_STATE_PENDING, KEY_STATE_READ } KEY_STATE;
-
 typedef struct {
     /* Key provider interface */
     WT_KEY_PROVIDER iface;
@@ -78,15 +40,14 @@ typedef struct {
     WT_EXTENSION_API *wtext;
 
     /* Configuration options */
-    int verbose;     /* Verbosity level for logging. See WT_VERBOSE_LEVEL . */
-    int key_expires; /* Key expiration time in seconds, or special values as described above */
+    int verbose;              /* Verbosity level for logging. See WT_VERBOSE_LEVEL . */
+    unsigned int key_expires; /* Key expiration time in seconds */
 
     /* Simulated key state */
     struct {
-        uint64_t lsn;
-        KEY_STATE key_state;
-        clock_t key_time;
+        uint64_t current_lsn;
         size_t key_size;
-        uint8_t *key_data;
+        uint8_t *current_key;
+        clock_t key_time;
     } state;
 } KEY_PROVIDER;
