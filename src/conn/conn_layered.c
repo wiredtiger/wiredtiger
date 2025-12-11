@@ -368,7 +368,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_SESSION_IMPL *internal_session, *shared_metadata_session;
     size_t len, metadata_value_cfg_len;
     uint64_t checkpoint_timestamp, current_meta_lsn;
-    uint32_t checksum;
+    uint32_t checksum, existing_tables, new_ingest, new_tables;
     char *buf, *cfg_ret, *checkpoint_config, *root, *metadata_value_cfg, *layered_ingest_uri;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
@@ -387,6 +387,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     shared_metadata_session = NULL;
     cfg_ret = NULL;
     WT_CLEAR(item);
+    existing_tables = new_ingest = new_tables = 0;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -515,9 +516,6 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     cfg[1] = NULL;
     WT_ERR(__wt_open_cursor(shared_metadata_session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
 
-    uint32_t existing_tables = 0;
-    uint32_t new_tables = 0;
-    uint32_t new_ingest = 0;
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &metadata_key));
         WT_ERR(cursor->get_value(cursor, &metadata_value));
