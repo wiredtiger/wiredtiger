@@ -51,27 +51,27 @@ extern "C" {
 #include <string>
 #include <charconv>
 #include <iostream>
+enum class workload_type { append, upsert };
 
 using namespace test_harness;
 struct options {
     int collection_count = 3;
+    int cache_size_gb = 16;
     int key_count = 5000;
     int key_size = 10;
     int value_size = 1000;
     int ingest_size_mb = 1;
     int verbose_level = 0;
-    std::string workload_shape = "mixed";
+    workload_type type = workload_type::upsert;
     std::string home_path = DEFAULT_DIR;
-    bool warm_cache = false;
+    int warm_cache_pct = 0;
     bool load_skip = false;
     bool load_copy = false;
-    bool append = true;
 };
 
 options opt;
 static double crud_ratio[] = {0.1, 0.5, 0.3, 0.1};
 wt_timestamp_t ts = 100;
-int last_key = 1;
 test_harness::database *database_model;
 
 /*
@@ -175,6 +175,19 @@ parse_options(const std::vector<std::string_view> &args, options &out, std::stri
                 ++i;
                 continue;
             }
+            if (match_opt(arg, "-cs_gb", val, has_inline_val)) {
+                std::string_view v;
+                if (!require_value("-cs_gb", val, has_inline_val, v))
+                    return false;
+                int n = 0;
+                if (!parse_int(v, n) || n <= 0) {
+                    error = "invalid cache_size_gb: " + std::string(v);
+                    return false;
+                }
+                out.cache_size_gb = n;
+                ++i;
+                continue;
+            }
             if (match_opt(arg, "-kc", val, has_inline_val)) {
                 std::string_view v;
                 if (!require_value("-kc", val, has_inline_val, v))
@@ -214,6 +227,19 @@ parse_options(const std::vector<std::string_view> &args, options &out, std::stri
                 ++i;
                 continue;
             }
+            if (match_opt(arg, "-wc_pct", val, has_inline_val)) {
+                std::string_view v;
+                if (!require_value("-wc_pct ", val, has_inline_val, v))
+                    return false;
+                int n = 0;
+                if (!parse_int(v, n) || n <= 0) {
+                    error = "invalid wc_pct: " + std::string(v);
+                    return false;
+                }
+                out.warm_cache_pct = n;
+                ++i;
+                continue;
+            }
             if (match_opt(arg, "-ve", val, has_inline_val)) {
                 std::string_view v;
                 if (!require_value("-ve", val, has_inline_val, v))
@@ -244,12 +270,14 @@ parse_options(const std::vector<std::string_view> &args, options &out, std::stri
                 std::string_view v;
                 if (!require_value("-shape", val, has_inline_val, v))
                     return false;
-                if (v != "append" && v != "mixed") {
-                    error =
-                      "invalid workload_shape (expected 'append' or 'mixed'): " + std::string(v);
+                if (v == "append")
+                    out.type = workload_type::append;
+                else if (v == "upserts")
+                    out.type = workload_type::upsert;
+                else {
+                    error = "invalid workload_shape (expected 'append' or 'upserts'): " + std::string(v);
                     return false;
                 }
-                out.workload_shape = v;
                 ++i;
                 continue;
             }
@@ -258,12 +286,6 @@ parse_options(const std::vector<std::string_view> &args, options &out, std::stri
                 if (!require_value("-h", val, has_inline_val, v))
                     return false;
                 out.home_path = v;
-                ++i;
-                continue;
-            }
-            if (match_opt(arg, "-wc", val, has_inline_val)) {
-                std::string_view v;
-                out.warm_cache = true;
                 ++i;
                 continue;
             }
@@ -293,7 +315,7 @@ update_global_timestamps()
     std::string config;
     config += STABLE_TS + "=" + timestamp_manager::decimal_to_hex(++ts) + ",";
     config += OLDEST_TS + "=" + timestamp_manager::decimal_to_hex(ts - 20);
-    logger::log_msg(LOG_INFO, "Updating global timestamps " + config);
+    logger::log_msg(LOG_TRACE, "Updating global timestamps " + config);
     connection_manager::instance().set_timestamp(config);
 }
 
@@ -319,7 +341,7 @@ populate()
             wt_timestamp_t commit_ts = ++ts;
             testutil_check(session->timestamp_transaction(session.get(),
               ("commit_timestamp=" + timestamp_manager::decimal_to_hex(commit_ts)).c_str()));
-            testutil_assert(crud::insert(cursor, txn, generate_key(last_key++), generate_value()));
+            testutil_assert(crud::insert(cursor, txn, generate_key(j), generate_value()));
             testutil_assert(txn.commit(session));
             if (j % 1000 == 0)
                 /* Advance the stable and oldest timestamps. */
@@ -361,7 +383,49 @@ cache_warming(int64_t records)
 }
 
 static void
-appends()
+append(collection &coll, scoped_session &session, scoped_cursor &cursor, uint64_t &ingested_data)
+{
+    uint64_t start_key_count = coll.get_key_count();
+    for (int j = 0; j < 10; j++) {
+        transaction txn;
+        txn.begin(session);
+        testutil_check(session->timestamp_transaction(session.get(),
+            ("commit_timestamp=" + timestamp_manager::decimal_to_hex(++ts)).c_str()));
+        testutil_assert(
+            crud::insert(cursor, txn, generate_key(j + start_key_count), generate_value()));
+        testutil_assert(txn.commit(session));
+        ingested_data += opt.key_size + opt.value_size;
+    }
+    coll.increase_key_count(10);
+}
+
+static void
+upsert(collection &coll, scoped_session &session, scoped_cursor &cursor, uint64_t &ingested_data)
+{
+    uint64_t key_count = coll.get_key_count();
+    testutil_assert(key_count != 0);
+    for (int j = 0; j < 10; j++) {
+        transaction txn;
+        uint64_t key = random_generator::instance().generate_integer(0UL, key_count - 1);
+        std::string k = generate_key(key);
+
+        txn.begin(session);
+        testutil_check(session->timestamp_transaction(session.get(),
+            ("commit_timestamp=" + timestamp_manager::decimal_to_hex(++ts)).c_str()));
+
+        // Read the current value (optional, but as per prompt)
+        cursor->set_key(cursor.get(), k.c_str());
+        /* All keys must exist. */
+        testutil_check(cursor->search(cursor.get()));
+        // Overwrite with a new value
+        testutil_assert(crud::update(cursor, txn, k, generate_value()));
+        testutil_assert(txn.commit(session));
+        ingested_data += opt.key_size + opt.value_size;
+    }
+}
+
+static void
+crud_worker(workload_type type)
 {
     scoped_session session = connection_manager::instance().create_session();
     struct collection_cursor {
@@ -373,7 +437,6 @@ appends()
         collection &coll;
     };
     std::map<int, collection_cursor> cursor_map;
-    transaction txn;
     uint64_t ingested_data = 0;
     uint64_t last_logged_mb = 0;
     while (ingested_data < opt.ingest_size_mb * 1000ULL * 1000ULL) {
@@ -398,17 +461,11 @@ appends()
          */
         collection_cursor &cc = cursor_map.at(collection_num);
         scoped_cursor &cursor = cc.cursor;
-        uint64_t start_key_count = cc.coll.get_key_count();
-        for (int j = 0; j < 10; j++) {
-            txn.begin(session);
-            testutil_check(session->timestamp_transaction(session.get(),
-              ("commit_timestamp=" + timestamp_manager::decimal_to_hex(++ts)).c_str()));
-            testutil_assert(
-              crud::insert(cursor, txn, generate_key(j + start_key_count), generate_value()));
-            testutil_assert(txn.commit(session));
-            ingested_data += opt.key_size + opt.value_size;
-        }
-        cc.coll.increase_key_count(10);
+        // Workload logic
+        if (type == workload_type::append)
+            append(cc.coll, session, cursor, ingested_data);
+        else if (type == workload_type::upsert)
+            upsert(cc.coll, session, cursor, ingested_data);
         /* Log every 100MB ingested. */
         uint64_t current_mb = ingested_data / 1000 / 1000;
         if (current_mb >= last_logged_mb + 100) {
@@ -421,9 +478,11 @@ appends()
 static void
 crud_operations()
 {
-    if (opt.append) {
-        appends();
-    }
+    if (opt.type == workload_type::append)
+        logger::log_msg(LOG_INFO, "Performing ingest appends.");
+    else
+        logger::log_msg(LOG_INFO, "Performing ingest upserts.");
+    crud_worker(opt.type);
     logger::log_msg(LOG_INFO, "Ingest phase complete.");
 }
 
@@ -476,18 +535,19 @@ main(int argc, char *argv[])
         std::cerr << "error: " << err << "\n";
         std::cerr << "usage: " << args[0] << " [options]\n"
                   << "  -cc N                   collection_count (int > 0)\n"
+                  << "  -cs_gb N                cache_size_gb (int > 0)\n"
                   << "  -kc N                   key_count (int > 0)\n"
                   << "  -ks N                   key_size (int > 0)\n"
                   << "  -vs N                   value_size (int > 0)\n"
                   << "  -ve N                   verbosity level; 1 turns on WT_VERB_DISAGG:1, 2 "
                   << " will enable the palite module to begin logging with verbosity level 1, 3 "
                   << " will increase the verbosity level of WT_VERB_DISAGG and so on.\n"
-                  << "  -wc                     warm the cache\n"
+                  << "  -wc_pct N               warm the cache as a percentage of initial data set size\n"
                   << "  -lc                     create a copy of the loaded data\n"
                   << "  -ls                     use data in WT_TEST.back instead of loading\n"
                   << "  -ingest_size_mb N       amount of data to insert into ingest tables."
                   << " note: this will only make sense with workload shape append.\n"
-                  << "  -shape S                workload_shape ('append' or 'mixed')\n"
+                  << "  -shape S                workload_shape ('append' or 'upsert')\n"
                   << "  -h PATH                 home_path\n"
                   << "  --                      end of options\n";
         return 1;
@@ -497,8 +557,8 @@ main(int argc, char *argv[])
       "Running with configuration: collection_count=" + std::to_string(opt.collection_count) +
         ", key_count=" + std::to_string(opt.key_count) + ", key_size=" +
         std::to_string(opt.key_size) + ", value_size    =" + std::to_string(opt.value_size) +
-        ", workload_shape=" + opt.workload_shape + ", home_path=" + opt.home_path +
-        ", warm_cache=" + (opt.warm_cache ? "true" : "false") + ", load_copy=" +
+        ", workload_shape=" + (opt.type == workload_type::append ? "append" : "upsert") + ", home_path=" + opt.home_path +
+        ", warm_cache_pct=" + std::to_string(opt.warm_cache_pct) + "%, load_copy=" +
         (opt.load_copy ? "true" : "false") + ", load_skip=" + (opt.load_skip ? "true" : "false"));
 
     logger::log_msg(LOG_INFO,
@@ -523,7 +583,7 @@ main(int argc, char *argv[])
     (void)crud_ratio;
     initialize();
 
-    std::string shared_open_config = CONNECTION_CREATE + ",cache_size=16GB,precise_checkpoint=true";
+    std::string shared_open_config = CONNECTION_CREATE + ",cache_size=" + std::to_string(opt.cache_size_gb) + "GB,precise_checkpoint=true";
     std::string extension_config = ",extensions=[../../ext/page_log/palite/libwiredtiger_palite.so";
     std::string shared_disagg_config = ",disaggregated=(page_log=palite";
 
@@ -593,8 +653,8 @@ main(int argc, char *argv[])
 
     /* TODO: */
     /* TODO: Optionally scan created tables to warm the WT cache. */
-    if (opt.warm_cache)
-        cache_warming(opt.collection_count * opt.key_count / 2);
+    if (opt.warm_cache_pct > 0)
+        cache_warming(opt.collection_count * opt.key_count * opt.warm_cache_pct / 100);
 
     /* TODO: Perform crud operations. */
     crud_operations();
