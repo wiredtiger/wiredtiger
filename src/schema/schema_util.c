@@ -191,15 +191,13 @@ err:
  *     Check whether the given table is simple.
  */
 int
-__wt_is_simple_table(WT_SESSION_IMPL *session, const char **table_cfg, bool *is_simplep)
+__wt_is_simple_table(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *colconf, bool *is_simplep)
 {
     WT_CONFIG cparser;
     WT_CONFIG_ITEM ckey, cval;
-    WT_CONFIG_ITEM colconf;
     WT_DECL_RET;
 
-    WT_RET(__wt_config_gets(session, table_cfg, "columns", &colconf));
-    __wt_config_subinit(session, &cparser, &colconf);
+    __wt_config_subinit(session, &cparser, colconf);
     *is_simplep = true;
     /* Count the number of columns: tables are "simple" if the columns are not named. */
     while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0) {

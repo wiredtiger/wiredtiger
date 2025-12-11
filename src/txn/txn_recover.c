@@ -852,7 +852,8 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
      * tiered shared tables.
      */
     bool is_simple;
-    WT_ERR(__wt_is_simple_table(r->session, metadata_cfg, &is_simple));
+    WT_ERR(__wt_config_gets(r->session, metadata_cfg, "columns", &cval));
+    WT_ERR(__wt_is_simple_table(r->session, &cval, &is_simple));
     if (!is_simple || ((ret = __wt_config_gets(r->session, metadata_cfg, "shared", &cval)) == 0))
         goto done;
     WT_ERR_NOTFOUND_OK(ret, false);
