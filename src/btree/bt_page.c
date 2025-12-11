@@ -299,11 +299,11 @@ err:
 }
 
 /*
- * __page_unpack_deltas_new --
+ * __page_unpack_deltas --
  *     Unpack all delta images into individual arrays (generic wrapper for reuse).
  */
 static int
-__page_unpack_deltas_new(WT_SESSION_IMPL *session, WT_ITEM *deltas, size_t delta_size,
+__page_unpack_deltas(WT_SESSION_IMPL *session, WT_ITEM *deltas, size_t delta_size,
   WT_CELL_UNPACK_DELTA_INT ***unpacked_deltasp, size_t **delta_size_eachp,
   const void *base_image_addr, bool row_leaf_page, bool row_internal_page)
 {
@@ -317,12 +317,12 @@ __page_unpack_deltas_new(WT_SESSION_IMPL *session, WT_ITEM *deltas, size_t delta
 }
 
 /*
- * __page_merge_deltas_common_merge_loop --
- *     Merge base and multiple delta arrays into a single set of WT_REFs. Always prefers the latest
- *     version (delta) when keys are equal.
+ * __page_merge_base_internal_deltas --
+ *     Merge base and multiple internal delta arrays into a single set of WT_REFs. Always prefers
+ *     the latest version (delta) when keys are equal.
  */
 static int
-__page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *base,
+__page_merge_base_internal_deltas(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *base,
   size_t base_entries, WT_CELL_UNPACK_DELTA_INT **unpacked_deltas, size_t *delta_size_each,
   size_t *delta_idx, size_t delta_size, WT_REF *ref, WT_REF ***refsp, size_t *ref_entriesp,
   size_t *incr, WT_ITEM *new_image, bool build_disk, uint64_t latest_write_gen, bool row_leaf_page,
@@ -423,13 +423,13 @@ __page_merge_deltas_common_merge_loop(WT_SESSION_IMPL *session, WT_CELL_UNPACK_A
         /* Diagnostics: detect early exhaustion of base keys or deltas. */
         if (i >= base_entries && min_delta != NULL)
             __wt_verbose_debug2(session, WT_VERB_PAGE_DELTA,
-              "__page_merge_deltas_common_merge_loop: ran out of base keys before deltas "
+              "__page_merge_base_internal_deltas: ran out of base keys before deltas "
               "(base_entries=%" PRIu64 ", delta=%" PRIu64 "/%" PRIu64 ")",
               (uint64_t)base_entries, (uint64_t)min_d, (uint64_t)delta_size);
 
         if (i < base_entries && min_delta == NULL)
             __wt_verbose_debug2(session, WT_VERB_PAGE_DELTA,
-              "__page_merge_deltas_common_merge_loop: ran out of deltas before base keys "
+              "__page_merge_base_internal_deltas: ran out of deltas before base keys "
               "(base_entries=%" PRIu64 ", i=%" PRIu64 ")",
               (uint64_t)base_entries, (uint64_t)i);
 
@@ -827,7 +827,7 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_REF *re
     else
         return (__wt_illegal_value(session, ref->home->type));
 
-    WT_RET(__page_unpack_deltas_new(session, deltas, delta_size, &unpacked_deltas, &delta_size_each,
+    WT_RET(__page_unpack_deltas(session, deltas, delta_size, &unpacked_deltas, &delta_size_each,
       base_image_addr, row_leaf_page, row_internal_page));
 
     /* Retrieve the latest write generation from the last delta. */
@@ -848,7 +848,7 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_REF *re
     WT_ERR(__wt_calloc_def(session, delta_size, &delta_idx));
 
     /* Common merge logic (disk mode) */
-    WT_ERR(__page_merge_deltas_common_merge_loop(session, base, base_entries, unpacked_deltas,
+    WT_ERR(__page_merge_base_internal_deltas(session, base, base_entries, unpacked_deltas,
       delta_size_each, delta_idx, delta_size, ref, &refs, ref_entriesp, incr, new_image, true,
       latest_write_gen, row_leaf_page, row_internal_page));
 
