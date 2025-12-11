@@ -702,11 +702,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             break;
         }
 
-        if (addr == NULL) {
-            WTI_CHILD_RELEASE_ERR(session, cms.hazard, ref);
-            continue;
-        }
-
         /*
          * Build the value cell, the child page's address. Addr points to an on-page cell or an
          * off-page WT_ADDR structure.
