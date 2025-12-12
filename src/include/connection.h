@@ -782,11 +782,13 @@ struct __wt_connection_impl {
     bool prefetch_auto_on;
     bool prefetch_available;
 
-#define WT_LAYERED_DRAIN_THREAD_COUNT 8
+/* This should be N^2 - 1, the application thread is also used to drain the table. */
+#define WT_LAYERED_DRAIN_THREAD_COUNT 7
     struct __wt_layered_drain_data {
         WT_THREAD_GROUP threads;
         WT_SPINLOCK queue_lock;
         TAILQ_HEAD(__wt_layered_drain_qh, __wt_layered_drain_entry) work_queue;
+        bool running;
     } layered_drain_data;
 
     WT_DISAGGREGATED_STORAGE disaggregated_storage;
