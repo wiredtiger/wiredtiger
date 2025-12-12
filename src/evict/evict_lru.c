@@ -769,7 +769,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
         LF_SET(WT_EVICT_CACHE_UPDATES);
     }
 
-    if (WT_EVICT_CACHE_DIRTY || WT_EVICT_CACHE_UPDATES) {
+    if (WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES) {
         LF_CLR(WT_EVICT_CACHE_CLEAN);
     }
     /*
