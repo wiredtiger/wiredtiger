@@ -2887,11 +2887,10 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
     __wt_spin_lock(session, &evict->evict_queue_lock);
     lock_wait_end = __wt_clock(session);
 
-    /* Only track lock wait time for eviction server threads */
-    if (F_ISSET(session, WT_SESSION_INTERNAL)) {
+    /* Only track lock wait time for eviction worker threads */
+    if (F_ISSET(session, WT_SESSION_INTERNAL))
         __wt_atomic_add_uint64_v(
           &evict->evict_lock_wait_time, WT_CLOCKDIFF_US(lock_wait_end, lock_wait_start));
-    }
 
     /* Check the urgent queue first. */
     if (urgent_ok && !__evict_queue_empty(urgent_queue, false))
@@ -2928,10 +2927,9 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
             lock_wait_start = __wt_clock(session);
             __wt_spin_lock(session, &queue->evict_lock);
             lock_wait_end = __wt_clock(session);
-            if (F_ISSET(session, WT_SESSION_INTERNAL)) {
+            if (F_ISSET(session, WT_SESSION_INTERNAL))
                 __wt_atomic_add_uint64_v(
                   &evict->evict_lock_wait_time, WT_CLOCKDIFF_US(lock_wait_end, lock_wait_start));
-            }
         } else if (__wt_spin_trylock(session, &queue->evict_lock) != 0)
             continue;
         break;
