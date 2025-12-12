@@ -1308,6 +1308,7 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
     size_t capacity_in_bytes = 0;
     uint64_t *page_ids = NULL;
     int ret = 0;
+    bool mismatch_found = false;
 
     /*
      * Walk the btree to retrieve the page IDs for all pages in the btree at the loaded checkpoint
@@ -1354,7 +1355,8 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
     WT_ERR(bm->get_page_ids(bm, session, item, &num_pages_found_in_palm, checkpoint_lsn));
 
     if ((uint64_t)num_pages_found_in_palm != num_pages_found_in_btree) {
-        WT_ERR_MSG(session, EINVAL,
+        mismatch_found = true;
+        __wt_verbose_error(session, WT_VERB_VERIFY,
           "Mismatch in the number of page IDs found from PALI and btree walk: PALI %" PRIu64
           " Btree walk %" PRIu64,
           (uint64_t)num_pages_found_in_palm, num_pages_found_in_btree);
@@ -1376,12 +1378,12 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
           index_in_btree < num_pages_found_in_btree ? page_ids[index_in_btree] : 0;
 
         if (index_in_btree == num_pages_found_in_btree || id_in_palm < id_in_btree) {
-            WT_ERR_MSG(session, EINVAL,
+            __wt_verbose_error(session, WT_VERB_VERIFY,
               "Unreferenced page was not discarded: PALM[%" PRIu32 "] %" PRIu64, index_in_palm,
               id_in_palm);
             index_in_palm++;
         } else if (index_in_palm == num_pages_found_in_palm || id_in_palm > id_in_btree) {
-            WT_ERR_MSG(session, EINVAL,
+            __wt_verbose_error(session, WT_VERB_VERIFY,
               "Discarded page is still in use: BTREE[%" PRIu32 "] %" PRIu64, index_in_btree,
               id_in_btree);
             index_in_btree++;
@@ -1390,6 +1392,9 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
             index_in_btree++;
         }
     }
+
+    if (mismatch_found)
+        ret = EINVAL;
 
 err:
 
