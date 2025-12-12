@@ -39,8 +39,13 @@ class test_layered69(test_prepare_preserve_prepare_base):
 
     uri = "table:test_layered68"
 
+    evict = [
+        ('none', dict(evict=False)),
+        ('evict', dict(evict=True)),
+    ]
+
     disagg_storages = gen_disagg_storages('test_layered69', disagg_only = True)
-    scenarios = make_scenarios(disagg_storages)
+    scenarios = make_scenarios(disagg_storages, evict)
 
     def test_rollback_prepared_update(self):
         # Setup: Initialize stable timestamp
@@ -66,6 +71,17 @@ class test_layered69(test_prepare_preserve_prepare_base):
             wiredtiger.stat.dsrc.rec_time_window_prepared: False,
             wiredtiger.stat.dsrc.rec_page_delta_leaf: False,
         }, self.uri)
+
+        if self.evict:
+            # Force the page to be evicted
+            evict_cursor = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
+            self.session.begin_transaction()
+            for i in range(1, 19):
+                evict_cursor.set_key(i)
+                self.assertEqual(evict_cursor.search(), 0)
+                evict_cursor.reset()
+            self.session.rollback_transaction()
+            evict_cursor.close()
 
         # Update key 19 with a prepared update prepared_id=1
         session_prepare = self.conn.open_session()
@@ -138,6 +154,17 @@ class test_layered69(test_prepare_preserve_prepare_base):
             wiredtiger.stat.dsrc.rec_page_delta_leaf: False,
         }, self.uri)
 
+        if self.evict:
+            # Force the page to be evicted
+            evict_cursor = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
+            self.session.begin_transaction()
+            for i in range(1, 19):
+                evict_cursor.set_key(i)
+                self.assertEqual(evict_cursor.search(), 0)
+                evict_cursor.reset()
+            self.session.rollback_transaction()
+            evict_cursor.close()
+
         # Update key 19 with a prepared update prepared_id=1
         session_prepare = self.conn.open_session()
         cursor_prepare = session_prepare.open_cursor(self.uri)
@@ -202,6 +229,17 @@ class test_layered69(test_prepare_preserve_prepare_base):
             wiredtiger.stat.dsrc.rec_time_window_prepared: False,
             wiredtiger.stat.dsrc.rec_page_delta_leaf: False,
         }, self.uri)
+
+        if self.evict:
+            # Force the page to be evicted
+            evict_cursor = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
+            self.session.begin_transaction()
+            for i in range(1, 19):
+                evict_cursor.set_key(i)
+                self.assertEqual(evict_cursor.search(), 0)
+                evict_cursor.reset()
+            self.session.rollback_transaction()
+            evict_cursor.close()
 
         # Delete key 19 with a prepared update prepared_id=1
         session_prepare = self.conn.open_session()

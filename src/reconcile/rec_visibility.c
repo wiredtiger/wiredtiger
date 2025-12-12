@@ -1403,36 +1403,6 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
         }
     }
 
-    if (WT_DELTA_LEAF_ENABLED(session)) {
-        if (write_start_prepare) {
-            WT_UPDATE *first_committed_upd = upd_select->upd->next;
-            for (; first_committed_upd != NULL; first_committed_upd = first_committed_upd->next) {
-                uint64_t next_txnid =
-                  __wt_atomic_load_uint64_v_relaxed(&first_committed_upd->txnid);
-                if (next_txnid == WT_TXN_ABORTED)
-                    continue;
-
-                if (next_txnid == upd_select->tw.start_txn)
-                    continue;
-
-                break;
-            }
-
-            /*
-             * Clear the durable flags on the first committed update to ensure it can be included in
-             * the next delta if the prepared update is rolled back.
-             */
-            if (first_committed_upd != NULL)
-                F_CLR(first_committed_upd, WT_UPDATE_DURABLE | WT_UPDATE_DELETE_DURABLE);
-        } else if (write_prepare)
-            /*
-             * When only writing a prepared tombstone, ensure the durable flags on the on-page value
-             * are cleared. Otherwise, if the prepared tombstone is rolled back, the on-page value
-             * may be missed in the next delta.
-             */
-            F_CLR(upd_select->upd, WT_UPDATE_DURABLE | WT_UPDATE_DELETE_DURABLE);
-    }
-
     WT_ASSERT(session,
       !WT_TIME_WINDOW_HAS_STOP_PREPARE(&upd_select->tw) ||
         upd_select->tw.stop_prepare_ts >= upd_select->tw.start_ts);
@@ -1647,6 +1617,36 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
           session, page, upd_select->upd, vpack, WT_TIME_WINDOW_HAS_PREPARE(&upd_select->tw)));
 
     __wti_rec_time_window_clear_obsolete(session, upd_select, NULL, r);
+
+    if (WT_DELTA_LEAF_ENABLED(session)) {
+        if (WT_TIME_WINDOW_HAS_START_PREPARE(&upd_select->tw)) {
+            WT_UPDATE *first_committed_upd = upd_select->upd->next;
+            for (; first_committed_upd != NULL; first_committed_upd = first_committed_upd->next) {
+                uint64_t next_txnid =
+                  __wt_atomic_load_uint64_v_relaxed(&first_committed_upd->txnid);
+                if (next_txnid == WT_TXN_ABORTED)
+                    continue;
+
+                if (next_txnid == upd_select->tw.start_txn)
+                    continue;
+
+                break;
+            }
+
+            /*
+             * Clear the durable flags on the first committed update to ensure it can be included in
+             * the next delta if the prepared update is rolled back.
+             */
+            if (first_committed_upd != NULL)
+                F_CLR(first_committed_upd, WT_UPDATE_DURABLE | WT_UPDATE_DELETE_DURABLE);
+        } else if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&upd_select->tw))
+            /*
+             * When only writing a prepared tombstone, ensure the durable flags on the on-page value
+             * are cleared. Otherwise, if the prepared tombstone is rolled back, the on-page value
+             * may be missed in the next delta.
+             */
+            F_CLR(upd_select->upd, WT_UPDATE_DURABLE | WT_UPDATE_DELETE_DURABLE);
+    }
 
     WT_ASSERT(
       session, upd_select->tw.stop_txn != WT_TXN_MAX || upd_select->tw.stop_ts == WT_TS_MAX);
