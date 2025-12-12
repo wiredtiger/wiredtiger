@@ -848,6 +848,8 @@ public:
     configure(const Container &cfg_statements)
     {
         /*
+         * FIXME-WT-16159: Enable multi-process DB access in PALite
+         *
          * Execute each configuration statement with retries on BUSY/LOCKED errors. Try each
          * statement for up to 60 seconds. Delays between retries are 100ms.
          */
