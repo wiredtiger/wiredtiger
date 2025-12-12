@@ -41,12 +41,12 @@ class test_layered69(test_prepare_preserve_prepare_base):
 
     evict = [
         ('none', dict(evict=False)),
-        #('evict', dict(evict=True)),
+        ('evict', dict(evict=True)),
     ]
 
     delta = [
         ('disabled', dict(delta=False)),
-        #('enabled', dict(evict=True)),
+        ('enabled', dict(evict=True)),
     ]
 
     disagg_storages = gen_disagg_storages('test_layered69', disagg_only = True)
