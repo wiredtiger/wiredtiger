@@ -2311,7 +2311,6 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     default:
         return (__wt_illegal_value(session, mod->rec_result));
     }
-    WT_STAT_CONN_DSRC_INCR(session, rec_skip_write);
 
     return (0);
 }
@@ -2504,6 +2503,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         /* Copy the previous written page's address if we skip writing. */
         WT_RET(__rec_copy_prev_addr(session, r));
         F_SET(multi, WT_MULTI_SKIP_WRITE);
+        WT_STAT_CONN_DSRC_INCR(session, rec_skip_write);
         goto copy_image;
     } else if (build_delta) {
         /* We must only have one delta. Building deltas for split case is a future thing. */
