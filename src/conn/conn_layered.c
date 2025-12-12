@@ -1434,7 +1434,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         /* Get the number of threads used to drain the ingest tables. */
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.drain_threads", &cval));
         if (cval.len > 0 && cval.val >= 0)
-            conn->layered_drain_data.thread_count = (int)cval.val;
+            conn->layered_drain_data.thread_count = (uint32_t)cval.val;
     }
 
 err:

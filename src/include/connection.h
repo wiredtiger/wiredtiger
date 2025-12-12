@@ -788,7 +788,7 @@ struct __wt_connection_impl {
         WT_SPINLOCK queue_lock;
         TAILQ_HEAD(__wt_layered_drain_qh, __wt_layered_drain_entry) work_queue;
         bool running;
-        int thread_count;
+        uint32_t thread_count;
     } layered_drain_data;
 
     WT_DISAGGREGATED_STORAGE disaggregated_storage;
