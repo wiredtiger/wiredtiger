@@ -51,7 +51,7 @@ extern "C" {
 #include <string>
 #include <charconv>
 #include <iostream>
-enum class workload_type { append, upsert };
+enum class workload_type { append, update };
 
 using namespace test_harness;
 struct options {
@@ -62,7 +62,7 @@ struct options {
     int value_size = 1000;
     int ingest_size_mb = 1;
     int verbose_level = 0;
-    workload_type type = workload_type::upsert;
+    workload_type type = workload_type::update;
     std::string home_path = DEFAULT_DIR;
     int warm_cache_pct = 0;
     bool load_skip = false;
@@ -70,7 +70,6 @@ struct options {
 };
 
 options opt;
-static double crud_ratio[] = {0.1, 0.5, 0.3, 0.1};
 wt_timestamp_t ts = 100;
 test_harness::database *database_model;
 
@@ -272,10 +271,11 @@ parse_options(const std::vector<std::string_view> &args, options &out, std::stri
                     return false;
                 if (v == "append")
                     out.type = workload_type::append;
-                else if (v == "upserts")
-                    out.type = workload_type::upsert;
+                else if (v == "updates")
+                    out.type = workload_type::update;
                 else {
-                    error = "invalid workload_shape (expected 'append' or 'upserts'): " + std::string(v);
+                    error =
+                      "invalid workload_shape (expected 'append' or 'updates'): " + std::string(v);
                     return false;
                 }
                 ++i;
@@ -389,10 +389,10 @@ append(collection &coll, scoped_session &session, scoped_cursor &cursor, uint64_
     for (int j = 0; j < 10; j++) {
         transaction txn;
         txn.begin(session);
-        testutil_check(session->timestamp_transaction(session.get(),
-            ("commit_timestamp=" + timestamp_manager::decimal_to_hex(++ts)).c_str()));
+        testutil_check(session->timestamp_transaction(
+          session.get(), ("commit_timestamp=" + timestamp_manager::decimal_to_hex(++ts)).c_str()));
         testutil_assert(
-            crud::insert(cursor, txn, generate_key(j + start_key_count), generate_value()));
+          crud::insert(cursor, txn, generate_key(j + start_key_count), generate_value()));
         testutil_assert(txn.commit(session));
         ingested_data += opt.key_size + opt.value_size;
     }
@@ -400,7 +400,7 @@ append(collection &coll, scoped_session &session, scoped_cursor &cursor, uint64_
 }
 
 static void
-upsert(collection &coll, scoped_session &session, scoped_cursor &cursor, uint64_t &ingested_data)
+update(collection &coll, scoped_session &session, scoped_cursor &cursor, uint64_t &ingested_data)
 {
     uint64_t key_count = coll.get_key_count();
     testutil_assert(key_count != 0);
@@ -410,8 +410,8 @@ upsert(collection &coll, scoped_session &session, scoped_cursor &cursor, uint64_
         std::string k = generate_key(key);
 
         txn.begin(session);
-        testutil_check(session->timestamp_transaction(session.get(),
-            ("commit_timestamp=" + timestamp_manager::decimal_to_hex(++ts)).c_str()));
+        testutil_check(session->timestamp_transaction(
+          session.get(), ("commit_timestamp=" + timestamp_manager::decimal_to_hex(++ts)).c_str()));
 
         // Read the current value (optional, but as per prompt)
         cursor->set_key(cursor.get(), k.c_str());
@@ -464,12 +464,14 @@ crud_worker(workload_type type)
         // Workload logic
         if (type == workload_type::append)
             append(cc.coll, session, cursor, ingested_data);
-        else if (type == workload_type::upsert)
-            upsert(cc.coll, session, cursor, ingested_data);
+        else if (type == workload_type::update)
+            update(cc.coll, session, cursor, ingested_data);
         /* Log every 100MB ingested. */
         uint64_t current_mb = ingested_data / 1000 / 1000;
         if (current_mb >= last_logged_mb + 100) {
-            logger::log_msg(LOG_INFO, "Appended " + std::to_string(current_mb) + "MB");
+            logger::log_msg(LOG_INFO,
+              (type == workload_type::append ? "Appended " : "Updated ") +
+                std::to_string(current_mb) + "MB");
             last_logged_mb = current_mb;
         }
     }
@@ -481,7 +483,7 @@ crud_operations()
     if (opt.type == workload_type::append)
         logger::log_msg(LOG_INFO, "Performing ingest appends.");
     else
-        logger::log_msg(LOG_INFO, "Performing ingest upserts.");
+        logger::log_msg(LOG_INFO, "Performing ingest updates.");
     crud_worker(opt.type);
     logger::log_msg(LOG_INFO, "Ingest phase complete.");
 }
@@ -533,23 +535,24 @@ main(int argc, char *argv[])
     std::string err;
     if (!parse_options(args, opt, err)) {
         std::cerr << "error: " << err << "\n";
-        std::cerr << "usage: " << args[0] << " [options]\n"
-                  << "  -cc N                   collection_count (int > 0)\n"
-                  << "  -cs_gb N                cache_size_gb (int > 0)\n"
-                  << "  -kc N                   key_count (int > 0)\n"
-                  << "  -ks N                   key_size (int > 0)\n"
-                  << "  -vs N                   value_size (int > 0)\n"
-                  << "  -ve N                   verbosity level; 1 turns on WT_VERB_DISAGG:1, 2 "
-                  << " will enable the palite module to begin logging with verbosity level 1, 3 "
-                  << " will increase the verbosity level of WT_VERB_DISAGG and so on.\n"
-                  << "  -wc_pct N               warm the cache as a percentage of initial data set size\n"
-                  << "  -lc                     create a copy of the loaded data\n"
-                  << "  -ls                     use data in WT_TEST.back instead of loading\n"
-                  << "  -ingest_size_mb N       amount of data to insert into ingest tables."
-                  << " note: this will only make sense with workload shape append.\n"
-                  << "  -shape S                workload_shape ('append' or 'upsert')\n"
-                  << "  -h PATH                 home_path\n"
-                  << "  --                      end of options\n";
+        std::cerr
+          << "usage: " << args[0] << " [options]\n"
+          << "  -cc N                   collection_count (int > 0)\n"
+          << "  -cs_gb N                cache_size_gb (int > 0)\n"
+          << "  -kc N                   key_count (int > 0)\n"
+          << "  -ks N                   key_size (int > 0)\n"
+          << "  -vs N                   value_size (int > 0)\n"
+          << "  -ve N                   verbosity level; 1 turns on WT_VERB_DISAGG:1, 2 "
+          << " will enable the palite module to begin logging with verbosity level 1, 3 "
+          << " will increase the verbosity level of WT_VERB_DISAGG and so on.\n"
+          << "  -wc_pct N               warm the cache as a percentage of initial data set size\n"
+          << "  -lc                     create a copy of the loaded data\n"
+          << "  -ls                     use data in WT_TEST.back instead of loading\n"
+          << "  -ingest_size_mb N       amount of data to insert into ingest tables."
+          << " note: this will only make sense with workload shape append.\n"
+          << "  -shape S                workload_shape ('append' or 'update')\n"
+          << "  -h PATH                 home_path\n"
+          << "  --                      end of options\n";
         return 1;
     }
 
@@ -557,9 +560,10 @@ main(int argc, char *argv[])
       "Running with configuration: collection_count=" + std::to_string(opt.collection_count) +
         ", key_count=" + std::to_string(opt.key_count) + ", key_size=" +
         std::to_string(opt.key_size) + ", value_size    =" + std::to_string(opt.value_size) +
-        ", workload_shape=" + (opt.type == workload_type::append ? "append" : "upsert") + ", home_path=" + opt.home_path +
-        ", warm_cache_pct=" + std::to_string(opt.warm_cache_pct) + "%, load_copy=" +
-        (opt.load_copy ? "true" : "false") + ", load_skip=" + (opt.load_skip ? "true" : "false"));
+        ", workload_shape=" + (opt.type == workload_type::append ? "append" : "update") +
+        ", home_path=" + opt.home_path + ", warm_cache_pct=" + std::to_string(opt.warm_cache_pct) +
+        "%, load_copy=" + (opt.load_copy ? "true" : "false") +
+        ", load_skip=" + (opt.load_skip ? "true" : "false"));
 
     logger::log_msg(LOG_INFO,
       "Data size is: " +
@@ -567,23 +571,15 @@ main(int argc, char *argv[])
           ((1ULL * opt.collection_count * opt.key_count) * (opt.key_size + opt.value_size)) / 1000 /
           1000) +
         "MB");
-    /*
-     * Create a connection, and specify the home directory. We intentionally don't set the cache
-     * size here as WiredTiger's 1/2 of system memory default is sufficient.
-     */
+
     /* Clean up any artifacts from prior runs. */
     testutil_remove(opt.home_path.c_str());
 
-    /* Create connection. */
-    /* connection_manager::instance().create(CONNECTION_CREATE +
-      ",extensions=[../../ext/page_log/palite/libwiredtiger_palite.so=(config=\"(verbose=1)\")],precise_checkpoint=true,disaggregated=(role=\"leader\",page_log=palite),verbose=(disaggregated_storage:2)",
-     home_dir); */
-
     /* Initialize. */
-    (void)crud_ratio;
     initialize();
 
-    std::string shared_open_config = CONNECTION_CREATE + ",cache_size=" + std::to_string(opt.cache_size_gb) + "GB,precise_checkpoint=true";
+    std::string shared_open_config = CONNECTION_CREATE +
+      ",cache_size=" + std::to_string(opt.cache_size_gb) + "GB,precise_checkpoint=true";
     std::string extension_config = ",extensions=[../../ext/page_log/palite/libwiredtiger_palite.so";
     std::string shared_disagg_config = ",disaggregated=(page_log=palite";
 
@@ -598,9 +594,11 @@ main(int argc, char *argv[])
         connection_manager::instance().create(
           shared_open_config + extension_config + "]" + shared_disagg_config + ",role=\"leader\",)",
           opt.home_path);
-        /* We take a checkpoint as the very last stop of populate, this means we don't need to
+        /*
+         * We take a checkpoint as the very last stop of populate, this means we don't need to
          * abandon any work. Abandoning a checkpoint is very slow and makes the perf tests results
-         * relatively meaningless.*/
+         * relatively meaningless.*
+         */
         populate();
     }
     /* Restart WiredTiger in follower mode. */
@@ -620,10 +618,6 @@ main(int argc, char *argv[])
     logger::log_msg(LOG_INFO, "############ Starting WiredTiger as follower. ############");
     logger::log_msg(LOG_INFO, "##########################################################");
 
-    /* connection_manager::instance().reopen(CONNECTION_CREATE +
-     ",extensions=[../../ext/page_log/palite/libwiredtiger_palite.so=(config=\"(verbose=1)\")],precise_checkpoint=true,disaggregated=(role=\"follower\",page_log=palite),verbose=(disaggregated_storage:1)",
-     home_dir); */
-
     std::string other_config =
       ",statistics_log=(json,wait=1,on_close),statistics=(all),file_manager=(close_idle_time=600,"
       "close_handle_minimum=2000)";
@@ -639,6 +633,7 @@ main(int argc, char *argv[])
       opt.home_path);
     WT_CONNECTION *conn = connection_manager::instance().get_connection();
 
+    /* If we loaded an existing database, query the stable timestamp. */
     if (opt.load_skip) {
         char timestamp[256];
         conn->query_timestamp(conn, timestamp, "get=stable");
@@ -648,18 +643,15 @@ main(int argc, char *argv[])
         ts = stable_timestamp + 1;
     }
 
-    // TODO: Do we need to pickup the checkpoint as soon as we start in follower mode?
+    /* Pickup the latest checkpoint after starting in follower mode. */
     wt_timestamp_t timestamp = wt_disagg_pick_up_latest_checkpoint();
 
-    /* TODO: */
-    /* TODO: Optionally scan created tables to warm the WT cache. */
+    /* Optionally scan created tables to warm the WT cache. */
     if (opt.warm_cache_pct > 0)
         cache_warming(opt.collection_count * opt.key_count * opt.warm_cache_pct / 100);
 
-    /* TODO: Perform crud operations. */
     crud_operations();
 
-    /* TODO: Measure time of step up. */
     conn->reconfigure(conn, "disaggregated=(role=\"leader\")");
     std::string stable_config = "stable_timestamp=" + timestamp_manager::decimal_to_hex(timestamp);
     conn->set_timestamp(conn, stable_config.c_str());
