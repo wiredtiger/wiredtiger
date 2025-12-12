@@ -30,6 +30,9 @@
  */
 #include <test_util.h>
 
+#define TESTUTIL_EXAMPLE_CONFIG_DISAGG ",disaggregated=(role=leader,page_log=palite),"
+#define TESTUTIL_EXAMPLE_CONFIG_DISAGG_EXT "../../../ext/page_log/palite/libwiredtiger_palite.so"
+
 /*
  * Extension initialization function.
  */
@@ -169,6 +172,14 @@ set_my_key_provider(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
     kp->on_key_update = my_on_key_update;
     kp->terminate = my_terminate;
 
+    if ((my_kp->encryption_data = calloc(1, sizeof(MY_CRYPT_DATA))) == NULL) {
+        (void)wtext->err_printf(
+          wtext, NULL, "set_my_key_provider: %s", wtext->strerror(wtext, NULL, ENOMEM));
+        return (ENOMEM);
+    }
+    my_kp->encryption_data->data = 1234;
+    my_kp->encryption_data->id = 1;
+
     error_check(conn->set_key_provider(conn, (WT_KEY_PROVIDER *)my_kp, NULL));
     return (0);
 }
@@ -179,7 +190,8 @@ int
 main(int argc, char *argv[])
 {
     WT_CONNECTION *conn;
-    const char *open_config;
+    WT_SESSION *session;
+    char config[1024];
     int ret = 0;
 
     WT_UNUSED(argc);
@@ -201,15 +213,29 @@ main(int argc, char *argv[])
      * extension to indicate that the entry point is in the same executable. Also enable early load
      * for this extension, since WiredTiger needs to be able to find it before doing any operations.
      */
-    open_config =
-      "create,log=(enabled=true),extensions=(local={entry=set_my_key_provider,early_load=true})";
+    snprintf(config, sizeof(config),
+      "create,log=(enabled=true)," TESTUTIL_EXAMPLE_CONFIG_DISAGG
+      "extensions=[local={entry=set_my_key_provider,early_load=true}, %s]",
+      TESTUTIL_EXAMPLE_CONFIG_DISAGG_EXT);
     /* Open a connection to the database, creating it if necessary. */
-    if ((ret = wiredtiger_open(home, NULL, open_config, &conn)) != 0) {
+    if ((ret = wiredtiger_open(home, NULL, config, &conn)) != 0) {
         fprintf(stderr, "Error connecting to %s: %s\n", home == NULL ? "." : home,
           wiredtiger_strerror(ret));
         return (EXIT_FAILURE);
     }
     /*! [WT_KEY_PROVIDER register] */
+
+    /* Open a session for the current thread's work. */
+    error_check(conn->open_session(conn, NULL, NULL, &session));
+
+    /* Create a table that lives locally. Tiered storage is disabled for this file. */
+    error_check(session->create(session, "layered:test_ex", "key_format=i,value_format=S"));
+
+    /*
+     * Do a regular checkpoint. Checkpoints are usually done in their own thread with their own
+     * session. Data is synchronized to local storage.
+     */
+    error_check(session->checkpoint(session, NULL));
 
     return (EXIT_SUCCESS);
 }
