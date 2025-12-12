@@ -768,7 +768,7 @@ class Connection {
     constexpr static std::string_view config_statements[] = {
 
       /* Set busy timeout to 10 seconds. */
-      "PRAGMA busy_timeout = 10000;"
+      "PRAGMA busy_timeout = 10000;",
       /*
        * The WAL journaling mode uses a write-ahead log instead of a rollback journal to implement
        * transactions. This significantly improves performance.
@@ -814,7 +814,28 @@ public:
     configure(const Container &cfg_statements)
     {
         for (const auto &stmt : cfg_statements) {
-            SQL_CALL_CHECK(db, sqlite3_exec, db, stmt.data(), nullptr, nullptr, nullptr);
+            int ret = SQLITE_OK;
+            int retries = 0;
+            const int max_retries = 100; // Try for 10 sec (similar to busy timeout)
+
+            while (true) {
+                ret = sqlite3_exec(db, stmt.data(), nullptr, nullptr, nullptr);
+
+                if (ret == SQLITE_BUSY || ret == SQLITE_LOCKED) {
+                    if (retries++ < max_retries) {
+                        // Wait 100ms and try again
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                        continue;
+                    }
+                }
+
+                if (ret != SQLITE_OK) {
+                    const char *err_msg = sqlite3_errmsg(db);
+                    LOG_AND_THROW(
+                      "Configure failed: {} ({}). Statement: {}", ret, err_msg, stmt.data());
+                }
+                break;
+            }
         }
     }
 
