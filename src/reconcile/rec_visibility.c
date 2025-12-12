@@ -1402,7 +1402,6 @@ __rec_fill_tw_from_upd_select(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_U
             upd_select->upd = tombstone;
         }
     }
-
     WT_ASSERT(session,
       !WT_TIME_WINDOW_HAS_STOP_PREPARE(&upd_select->tw) ||
         upd_select->tw.stop_prepare_ts >= upd_select->tw.start_ts);
