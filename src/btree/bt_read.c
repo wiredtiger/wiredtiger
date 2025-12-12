@@ -595,6 +595,7 @@ read:
                 break;
             }
 
+            WT_ASSERT(session, ref->page != NULL);
             /*
              * If a page has grown too large, we'll try and forcibly evict it before making it
              * available to the caller. There are a variety of cases where that's not possible.
@@ -661,6 +662,8 @@ read:
 
 skip_evict:
             page = ref->page;
+            WT_ASSERT(session, page != NULL);
+
             /*
              * Keep track of whether a session is reading leaf pages into the cache. This allows for
              * the session to decide whether pre-fetch would be helpful. It might not work if a
