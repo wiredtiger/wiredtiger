@@ -49,7 +49,6 @@ extern "C" {
 #include <string_view>
 #include <vector>
 #include <string>
-#include <charconv>
 #include <iostream>
 enum class workload_type { append, update };
 

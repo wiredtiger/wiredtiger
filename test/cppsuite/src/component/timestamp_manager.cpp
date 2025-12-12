@@ -29,6 +29,7 @@
 #include "timestamp_manager.h"
 
 #include <sstream>
+#include <iomanip>
 
 #include "src/common/constants.h"
 #include "src/common/logger.h"
@@ -49,24 +50,14 @@ uint64_t
 timestamp_manager::hex_to_decimal(const char *s)
 {
     assert(s != nullptr && "input must not be null");
-
-    std::string_view sv(s);
-
-    // Accept optional 0x/0X prefix; remove it before validating
-    if (sv.size() >= 2 && sv[0] == '0' && (sv[1] == 'x' || sv[1] == 'X'))
-        sv.remove_prefix(2);
-
-    // After removing optional prefix, string must be non-empty
-    testutil_assert(!sv.empty() && "hex string is empty (after optional 0x removal)");
+    testutil_assert(s[0] != '\0' && "hex string is empty");
 
     uint64_t value = 0;
-    auto res = std::from_chars(sv.data(), sv.data() + sv.size(), value, 16);
+    std::stringstream ss;
+    ss << std::hex << s;
+    ss >> value;
 
-    // Ensure the parse succeeded and consumed the entire string
-    testutil_assert(res.ec == std::errc() && "hex parse failed or out of range");
-    testutil_assert(
-      res.ptr == sv.data() + sv.size() && "unexpected trailing characters in hex string");
-
+    testutil_assert(!ss.fail() && "hex parse failed");
     return value;
 }
 
