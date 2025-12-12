@@ -771,6 +771,7 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
     p = config;
     max = sizeof(config);
     config[0] = '\0';
+    disagg_ext_cfg[0] = '\0';
 
     /* Configuration settings that are not persistent between open calls. */
     enc = encryptor_at_open();
@@ -822,7 +823,6 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
         if (GV(PRESERVE_PREPARED))
             CONFIG_APPEND(p, ",preserve_prepared=true");
 
-        WT_UNUSED(disagg_ext_cfg);
 #if WIREDTIGER_VERSION_MAJOR >= 10
         if (GV(OPS_VERIFY) && verify_metadata)
             CONFIG_APPEND(p, ",verify_metadata=true");
