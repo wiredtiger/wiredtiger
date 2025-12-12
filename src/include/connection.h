@@ -452,7 +452,7 @@ struct __wt_name_flag {
  */
 struct __wt_layered_drain_entry {
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
-    TAILQ_ENTRY(__wt_layered_drain_entry) q; /* List of pages queued for pre-fetch. */
+    TAILQ_ENTRY(__wt_layered_drain_entry) q;
 };
 
 /*
