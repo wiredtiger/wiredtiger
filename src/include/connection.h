@@ -781,6 +781,8 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_pf_qh, __wt_prefetch_queue_entry) pfqh; /* Locked: prefetch_lock */
     bool prefetch_auto_on;
     bool prefetch_available;
+
+    /* Data pertaining to disaggregated storage step up. */
     struct __wt_layered_drain_data {
         WT_THREAD_GROUP threads;
         WT_SPINLOCK queue_lock;
