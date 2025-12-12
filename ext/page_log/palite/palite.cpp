@@ -675,11 +675,41 @@ public:
 
     template <Exec Policy = THROW, typename Func, typename... Args>
     decltype(auto)
+    exec_with_retries(size_t retries, Func &&c_func, Args &&...args)
+    {
+        const std::chrono::milliseconds retry_delay(100);
+        int ret = 0;
+
+        do {
+            retries--;
+            ret = std::invoke(std::forward<Func>(c_func), std::forward<Args>(args)...);
+            LOG_SQL_TRACE(trace_sqlite3_call(ret, args...));
+
+            if (ret != SQLITE_BUSY && ret != SQLITE_LOCKED)
+                break; /* Not busy or locked; exit retry loop */
+
+            std::string error_msg = trace_sqlite3_call(ret, args...);
+            log(loc, config, WT_VERBOSE_DEBUG_1, "{}; retries left: {}", error_msg, retries);
+            std::this_thread::sleep_for(retry_delay);
+        } while ((ret == SQLITE_BUSY || ret == SQLITE_LOCKED) && retries > 0);
+
+        return check_result<Policy>(ret, args...);
+    }
+
+    template <Exec Policy = THROW, typename Func, typename... Args>
+    decltype(auto)
     exec(Func &&c_func, Args &&...args)
     {
         auto ret = std::invoke(std::forward<Func>(c_func), std::forward<Args>(args)...);
         LOG_SQL_TRACE(trace_sqlite3_call(ret, args...));
 
+        return check_result<Policy>(ret, args...);
+    }
+
+    template <Exec Policy = THROW, typename R, typename... Args>
+    int
+    check_result(R ret, Args &&...args)
+    {
         if (ret != SQLITE_OK && ret != SQLITE_ROW && ret != SQLITE_DONE) {
             std::string error_msg = trace_sqlite3_call(ret, args...);
             log(loc, config, WT_VERBOSE_ERROR, "{}", error_msg);
@@ -743,6 +773,10 @@ public:
     }
 };
 
+#define SQL_CALL_CHECK_RETRIES(retries, db, func, ...)             \
+    SQLiteCall(config, db, std::source_location::current(), #func) \
+      .exec_with_retries(retries, func, __VA_ARGS__)
+
 #define SQL_CALL_CHECK(db, func, ...) \
     SQLiteCall(config, db, std::source_location::current(), #func).exec(func, __VA_ARGS__)
 
@@ -766,9 +800,9 @@ class Connection {
 
     /* Common configuration parameters for connections */
     constexpr static std::string_view config_statements[] = {
-
       /* Set busy timeout to 10 seconds. */
       "PRAGMA busy_timeout = 10000;",
+
       /*
        * The WAL journaling mode uses a write-ahead log instead of a rollback journal to implement
        * transactions. This significantly improves performance.
@@ -813,29 +847,15 @@ public:
     void
     configure(const Container &cfg_statements)
     {
+        /*
+         * Execute each configuration statement with retries on BUSY/LOCKED errors. Try each
+         * statement for up to 60 seconds. Delays between retries are 100ms.
+         */
+        const size_t max_retries = 600;
+
         for (const auto &stmt : cfg_statements) {
-            int ret = SQLITE_OK;
-            int retries = 0;
-            const int max_retries = 100; // Try for 10 sec (similar to busy timeout)
-
-            while (true) {
-                ret = sqlite3_exec(db, stmt.data(), nullptr, nullptr, nullptr);
-
-                if (ret == SQLITE_BUSY || ret == SQLITE_LOCKED) {
-                    if (retries++ < max_retries) {
-                        // Wait 100ms and try again
-                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                        continue;
-                    }
-                }
-
-                if (ret != SQLITE_OK) {
-                    const char *err_msg = sqlite3_errmsg(db);
-                    LOG_AND_THROW(
-                      "Configure failed: {} ({}). Statement: {}", ret, err_msg, stmt.data());
-                }
-                break;
-            }
+            SQL_CALL_CHECK_RETRIES(
+              max_retries, db, sqlite3_exec, db, stmt.data(), nullptr, nullptr, nullptr);
         }
     }
 
