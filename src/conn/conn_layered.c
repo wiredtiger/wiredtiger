@@ -1430,6 +1430,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR(__wt_config_gets(session, cfg, "page_delta.max_consecutive_delta", &cval));
         if (cval.len > 0 && cval.val >= 0)
             conn->page_delta.max_consecutive_delta = (uint32_t)cval.val;
+
+        /* Get the number of threads used to drain the ingest tables. */
+        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.drain_threads", &cval));
+        if (cval.len > 0 && cval.val >= 0)
+            conn->layered_drain_data.thread_count = (int)cval.val;
     }
 
 err:
@@ -2052,10 +2057,17 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     __wt_atomic_store_bool_relaxed(&conn->layered_drain_data.running, true);
     __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
 
-    /* Create the thread group. */
-    WT_ERR(__wt_thread_group_create(session, &conn->layered_drain_data.threads,
-      "layered drain threads", WT_LAYERED_DRAIN_THREAD_COUNT, WT_LAYERED_DRAIN_THREAD_COUNT, 0,
-      __layered_drain_worker_check, __layered_drain_worker_run, NULL));
+    /*
+     * Create the thread group. The application thread is also a drain thread so the configured
+     * thread count needs to be greater than 1 for this to be meaningful. We still lock and queue
+     * work for single threaded mode, as such single threaded is only recommended for testing.
+     */
+    bool multithreaded = conn->layered_drain_data.thread_count > 1;
+    if (multithreaded)
+        WT_ERR(__wt_thread_group_create(session, &conn->layered_drain_data.threads,
+          "layered drain threads", conn->layered_drain_data.thread_count - 1,
+          conn->layered_drain_data.thread_count - 1, WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL,
+          __layered_drain_worker_check, __layered_drain_worker_run, NULL));
 
     /* FIXME-WT-14735: skip empty ingest tables. */
     for (i = 0; i < table_count; i++) {
@@ -2091,9 +2103,11 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 
 err:
     /* Let any running threads finish up. */
-    __wt_cond_signal(session, conn->layered_drain_data.threads.wait_cond);
-    __wt_writelock(session, &conn->layered_drain_data.threads.lock);
-    WT_TRET(__wt_thread_group_destroy(session, &conn->layered_drain_data.threads));
+    if (multithreaded) {
+        __wt_cond_signal(session, conn->layered_drain_data.threads.wait_cond);
+        __wt_writelock(session, &conn->layered_drain_data.threads.lock);
+        WT_TRET(__wt_thread_group_destroy(session, &conn->layered_drain_data.threads));
+    }
     /* Empty the queue if not empty and destroy the lock. */
     __layered_drain_clear_work_queue(session);
     WT_TRET(__wt_session_close_internal(internal_session));

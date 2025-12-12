@@ -148,6 +148,8 @@ connection_disaggregated_config_common = [
         This setting skips file system syncs, and will cause data loss outside of a
         disaggregated storage context.''',
         type='boolean', undoc=True),
+    Config('drain_threads', '8', r'''The number of threads used to drain the ingest tables on
+        step up.''', min='1', max='256', type='int', undoc=True),
     Config('role', '', r'''
         whether the stable table in a layered data store should lead or follow''',
         choices=['leader', 'follower'], undoc=True),
