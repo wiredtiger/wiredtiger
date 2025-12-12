@@ -563,6 +563,7 @@ void testutil_copy(const char *, const char *);
 void testutil_copy_data(void);
 void testutil_copy_data_opt(const char *);
 void testutil_copy_ext(const char *, const char *, const WT_FILE_COPY_OPTS *opts);
+void testutil_copy_fast(const char *, const char *);
 void testutil_copy_file(WT_SESSION *, const char *);
 void testutil_copy_if_exists(WT_SESSION *, const char *);
 void testutil_create_backup_directory(const char *, uint64_t, bool);
