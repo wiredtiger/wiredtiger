@@ -248,7 +248,7 @@ __disagg_get_meta(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn, WT_I
 
 /*
  * __disagg_put_crypt_key --
- *     Write encryption key data to disaggregated storage.
+ *     Write key encryption key to disaggregated storage.
  */
 static int
 __disagg_put_crypt_key(
@@ -267,7 +267,7 @@ __disagg_put_crypt_key(
         return (ENOTSUP);
 
     WT_ASSERT_ALWAYS(session, page_id <= WT_DISAGG_KEY_PROVIDER_MAX_PAGE_ID,
-      "Multiple key provider pages is not currently supported");
+      "Key provider page ID %" PRIu64 " out of range", page_id);
     WT_CLEAR(put_args);
     put_args.backlink_lsn = disagg->last_key_provider_page_lsn[page_id];
 
@@ -315,16 +315,47 @@ __disagg_put_meta(WT_SESSION_IMPL *session, uint64_t page_id, const WT_ITEM *ite
 }
 
 /*
+ * __turtle_crypt_key_update --
+ *     Update new persisted encryption information to the turtle page.
+ */
+static int
+__turtle_crypt_key_update(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn)
+{
+    WT_DECL_ITEM(buf);
+    WT_DECL_RET;
+    char *config, *newcfg;
+    const char *cfg[3];
+
+    WT_ERR(__wt_scr_alloc(session, 1024, &buf));
+    config = NULL;
+
+    WT_ERR(__wt_buf_fmt(
+      session, buf, "key_provider=(pages=(page_id=%" PRIu64 ",lsn=%" PRIu64 "))", page_id, lsn));
+
+    /* Retrieve the metadata for this file. */
+    WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
+
+    /* Insert the key provider entry. */
+    cfg[0] = config;
+    cfg[1] = buf->mem;
+    cfg[2] = NULL;
+    WT_ERR(__wt_config_collapse(session, cfg, &newcfg));
+    WT_ERR(__wt_metadata_update(session, WT_METAFILE_URI, newcfg));
+
+err:
+    __wt_scr_free(session, &buf);
+    return (ret);
+}
+
+/*
  * __wt_disagg_put_crypt_helper --
- *     If new encryption key data information is detected, update the metadata page log and callback
- *     to the key provider upon completion.
+ *     Write KEK information to the metadata page log and do the relevant bookkeeping.
  */
 int
 __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CRYPT_KEYS crypt;
-    WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_KEY_PROVIDER *key_provider;
     uint64_t lsn;
@@ -335,35 +366,35 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
-    /* Check for a new encryption key data. If the size is 0, there is none so we can skip. */
+    /* Call get_key() to get the size of buffer. */
     WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
     if (crypt.keys.size == 0)
         goto done;
 
-    /* WiredTiger has the memory ownership of the encryption key buffer. */
-    WT_ERR(__wt_scr_alloc(session, crypt.keys.size, &buf));
-    crypt.keys.data = buf->data;
+    /* Create buffer. */
+    WT_ERR(__wt_buf_initsize(session, &crypt.keys, crypt.keys.size));
 
-    /* Call the function again to fetch the new encryption key data. */
+    /* Call get_key() to get the key data. */
     WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
     WT_ASSERT(session, crypt.keys.size != 0 && crypt.keys.data != NULL);
 
-    /* Write the encryption key data to disaggregated storage. */
+    /*
+     * Write the key provider to disaggregated storage. This should be the last statement in this
+     * function that is allowed to fail.
+     */
     ret = __disagg_put_crypt_key(session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, &crypt.keys, &lsn);
-
-    /* Callback to update key provider on the result of new encryption key data . */
     if (ret == 0)
         crypt.r.lsn = lsn;
-    else {
+    else
         crypt.r.error = ret;
-        /* On error, remove references of crypt key before calling back. */
-        crypt.keys.data = NULL;
-        crypt.keys.size = 0;
-    }
+
+    WT_ERR(__turtle_crypt_key_update(session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, lsn));
+
+    /* Callback to key provider that key is persisted. */
     WT_IGNORE_RET(key_provider->on_key_update(key_provider, (WT_SESSION *)session, &crypt));
 done:
 err:
-    __wt_scr_free(session, &buf);
+    __wt_buf_free(session, &crypt.keys);
     return (ret);
 }
 
