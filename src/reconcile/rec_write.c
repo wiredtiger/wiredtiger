@@ -2255,9 +2255,9 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
       compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
 
     if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL))
-        WT_STAT_CONN_INCR(session, rec_page_full_image_internal);
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_full_image_internal);
     else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF))
-        WT_STAT_CONN_INCR(session, rec_page_full_image_leaf);
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_full_image_leaf);
 
     return (0);
 }
@@ -2475,6 +2475,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         block_meta = &page->disagg_info->block_meta;
 
         if (last_block && r->multi_next == 1 && WT_REC_RESULT_SINGLE_PAGE((session), (r))) {
+
             if (!r->none_durable_upd_used && !WT_PAGE_IS_INTERNAL(page) &&
               !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT))
                 skip_write = true;
@@ -3184,7 +3185,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     WT_DECL_RET;
     WT_MULTI *multi;
     uint32_t i;
-    bool delta_enabled;
+    bool is_disagg;
 
     btree = S2BT(session);
 
@@ -3208,12 +3209,12 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      */
     WT_ERR(__wti_rec_hs_delete_updates(session, r));
 
-    delta_enabled = WT_DELTA_LEAF_ENABLED(session);
+    is_disagg = F_ISSET(btree, WT_BTREE_DISAGGREGATED);
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         if (multi->supd != NULL) {
             WT_ERR(__wti_rec_hs_insert_updates(session, r, multi));
             /* FIXME-WT-15709: build delta for split pages. */
-            if (!delta_enabled && !F_ISSET(multi, WT_MULTI_SUPD_RESTORE)) {
+            if (!is_disagg && !F_ISSET(multi, WT_MULTI_SUPD_RESTORE)) {
                 __wt_free(session, multi->supd);
                 multi->supd_entries = 0;
             }
