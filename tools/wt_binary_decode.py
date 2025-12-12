@@ -213,7 +213,8 @@ class Printer(object):
         self.cellpfx = ''
         if pfx == '' and self.in_cell:
             pfx = '  '
-        print(pfx + s)
+        print(pfx + str(s))
+        # print(f'{pfx}{s}')
 
     def rint_v(self, s):
         if self.verbose:
@@ -337,7 +338,6 @@ def process_timestamps(p, cell: btree_format.Cell, pagestats: PageStats):
 
 def block_decode(p, b, nbytes, opts):
     disk_pos = b.tell()
-    disagg_delta = False
 
     # Switch the printer and the binary stream to work on the page data as opposed to working on
     # the file itself. We need to do this to support compressed blocks. As a consequence, offsets
@@ -345,11 +345,7 @@ def block_decode(p, b, nbytes, opts):
     # the file.
     if opts.disagg:
         # Size of WT_PAGE_HEADER
-        page_data = bytearray(b.read(28))
-        if page_data[0] == 0xdd:
-            disagg_delta = True
-         # Add 16 for block header + 28 bytes for page header, total of 44
-        page_data += bytearray(b.read(16))
+        page_data = bytearray(b.read(44))
     else:
         # Size of WT_PAGE_HEADER + size of WT_BLOCK_HEADER
         page_data = bytearray(b.read(40))
@@ -357,32 +353,22 @@ def block_decode(p, b, nbytes, opts):
     b_page = binary_data.BinaryFile(io.BytesIO(page_data))
     p = Printer(b_page, opts)
 
-    if disagg_delta:
-        # WT_BLOCK_HEADER in block.h (44 bytes)
-        blockhead = btree_format.BlockHeader.parse(b_page, disagg=opts.disagg)
-        # WT_PAGE_HEADER in btmem.h (28 bytes)
-        pagehead = btree_format.PageHeader.parse(b_page)
+    # WT_PAGE_HEADER in btmem.h (28 bytes)
+    pagehead = btree_format.PageHeader.parse(b_page)
+    # WT_BLOCK_HEADER in block.h (12 bytes or 44 bytes)
+    if opts.disagg:
+        blockhead = btree_format.BlockDisaggHeader.parse(b_page)
     else:
-        # WT_PAGE_HEADER in btmem.h (28 bytes)
-        pagehead = btree_format.PageHeader.parse(b_page)
-        # WT_BLOCK_HEADER in block.h (12 bytes or 44 bytes)
-        blockhead = btree_format.BlockHeader.parse(b_page, disagg=opts.disagg)
+        blockhead = btree_format.BlockHeader.parse(b_page)
 
-        if pagehead.unused != 0:
-            p.rint('? garbage in unused bytes')
-            return
-        if pagehead.type == btree_format.PageType.WT_PAGE_INVALID:
-            p.rint('? invalid page')
-            return
+    if pagehead.unused != 0:
+        p.rint('? garbage in unused bytes')
+        return
+    if pagehead.type == btree_format.PageType.WT_PAGE_INVALID:
+        p.rint('? invalid page')
+        return
 
-        p.rint('Page Header:')
-        p.rint('  recno: ' + str(pagehead.recno))
-        p.rint('  writegen: ' + str(pagehead.write_gen))
-        p.rint('  memsize: ' + str(pagehead.mem_size))
-        p.rint('  ncells (oflow len): ' + str(pagehead.entries))
-        p.rint('  page type: ' + str(pagehead.type.value) + ' (' + pagehead.type.name + ')')
-        p.rint('  page flags: ' + hex(pagehead.flags))
-        p.rint('  version: ' + str(pagehead.version))
+    p.rint(pagehead)
 
     if blockhead.unused != 0:
         p.rint('garbage in unused bytes')
@@ -399,19 +385,7 @@ def block_decode(p, b, nbytes, opts):
         # The disk size is too small
         return
 
-    p.rint('Block Header:')
-    p.rint('  disk_size: ' + str(blockhead.disk_size))
-    p.rint('  checksum: ' + hex(blockhead.checksum))
-    p.rint('  block flags: ' + hex(blockhead.flags))
-
-    if disagg_delta:
-        p.rint('Delta Page Header:')
-        p.rint('  writegen: ' + str(pagehead.write_gen))
-        p.rint('  memsize: ' + str(pagehead.mem_size))
-        p.rint('  ncells (oflow len): ' + str(pagehead.entries))
-        p.rint('  page type: ' + str(pagehead.type.value) + ' (' + pagehead.type.name + ')')
-        p.rint('  page flags: ' + hex(pagehead.flags))
-        p.rint('  version: ' + str(pagehead.version))
+    p.rint(blockhead)
 
     pagestats = PageStats()
 
@@ -419,7 +393,7 @@ def block_decode(p, b, nbytes, opts):
     if have_crc32c:
         savepos = b.tell()
         b.seek(disk_pos)
-        if blockhead.flags & btree_format.BlockHeader.WT_BLOCK_DATA_CKSUM != 0:
+        if blockhead.flags & btree_format.BlockFlags.WT_BLOCK_DATA_CKSUM != 0:
             check_size = blockhead.disk_size
         else:
             check_size = 64
@@ -438,10 +412,10 @@ def block_decode(p, b, nbytes, opts):
 
     # Skip the rest if we don't want to display the data
     skip_data = opts.skip_data
-    if opts.disagg and blockhead.flags & btree_format.BlockHeader.WT_BLOCK_DISAGG_COMPRESSED:
+    if opts.disagg and blockhead.flags & btree_format.BlockDisaggFlags.WT_BLOCK_DISAGG_COMPRESSED:
         p.rint(f'? the block is compressed, skipping payload')
         skip_data = True
-    if opts.disagg and blockhead.flags & btree_format.BlockHeader.WT_BLOCK_DISAGG_ENCRYPTED:
+    if opts.disagg and blockhead.flags & btree_format.BlockDisaggFlags.WT_BLOCK_DISAGG_ENCRYPTED:
         p.rint(f'? the block is encrypted, skipping payload')
         skip_data = True
 
@@ -452,7 +426,7 @@ def block_decode(p, b, nbytes, opts):
     # Read the block contents
     payload_pos = b.tell()
     header_length = payload_pos - disk_pos
-    if pagehead.flags & btree_format.PageHeader.WT_PAGE_COMPRESSED != 0:
+    if pagehead.flags & btree_format.PageFlags.WT_PAGE_COMPRESSED:
         if not have_snappy:
             p.rint('? the page is compressed (install python-snappy to parse)')
             return
