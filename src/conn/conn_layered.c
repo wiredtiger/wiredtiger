@@ -2057,6 +2057,9 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     __wt_atomic_store_bool_relaxed(&conn->layered_drain_data.running, true);
     __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
 
+    /* Open the internal session early so we can close it on error. */
+    WT_ERR(__wt_open_internal_session(conn, "disagg-drain application thread", false, 0, 0, &internal_session));
+
     /*
      * Create the thread group. The application thread is also a drain thread so the configured
      * thread count needs to be greater than 1 for this to be meaningful. We still lock and queue
@@ -2065,7 +2068,7 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     bool multithreaded = conn->layered_drain_data.thread_count > 1;
     if (multithreaded)
         WT_ERR(__wt_thread_group_create(session, &conn->layered_drain_data.threads,
-          "layered drain threads", conn->layered_drain_data.thread_count - 1,
+          "disagg-drain", conn->layered_drain_data.thread_count - 1,
           conn->layered_drain_data.thread_count - 1, WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL,
           __layered_drain_worker_check, __layered_drain_worker_run, NULL));
 
@@ -2089,7 +2092,6 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
      * We can be lazy here and use the current thread as a worker thread. Then once this loop exits
      * we can kill our thread group.
      */
-    WT_ERR(__wt_open_internal_session(conn, "disagg-drain", false, 0, 0, &internal_session));
     while (true) {
         __wt_spin_lock(internal_session, &conn->layered_drain_data.queue_lock);
         if (TAILQ_EMPTY(&conn->layered_drain_data.work_queue)) {
