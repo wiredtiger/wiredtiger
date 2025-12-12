@@ -2474,13 +2474,12 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     if (page->disagg_info != NULL) {
         block_meta = &page->disagg_info->block_meta;
 
-        if (last_block && r->multi_next == 1 && WT_REC_RESULT_SINGLE_PAGE((session), (r))) {
-
+        if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
+          WT_REC_RESULT_SINGLE_PAGE((session), (r))) {
             if (!r->none_durable_upd_used && !WT_PAGE_IS_INTERNAL(page) &&
               !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT))
                 skip_write = true;
             else if (WT_DELTA_ENABLED_FOR_PAGE(session, r->page->type) &&
-              block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
               block_meta->delta_count < conn->page_delta.max_consecutive_delta) {
                 WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
                 /*
