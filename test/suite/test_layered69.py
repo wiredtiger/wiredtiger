@@ -178,7 +178,7 @@ class test_layered69(test_prepare_preserve_prepare_base):
         cursor.set_key(19)
         self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
-    def test_rollback_prepared_update(self):
+    def test_rollback_prepared_remove(self):
         # Setup: Initialize stable timestamp
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(20)}')
 
