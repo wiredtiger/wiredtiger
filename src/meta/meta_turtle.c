@@ -700,6 +700,7 @@ __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
     const char *version;
 
     WT_DECL_ITEM(state_str);
+    WT_DECL_ITEM(key_provider_str);
 
     fs = NULL;
     conn = S2C(session);
@@ -733,6 +734,18 @@ __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
           WT_METADATA_LIVE_RESTORE, (char *)state_str->data));
     }
 
+    if (conn->key_provider != NULL &&
+      conn->disaggregated_storage.last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID] !=
+        0) {
+        WT_ERR(__wt_scr_alloc(session, 0, &key_provider_str));
+        WT_ERR(__wt_buf_fmt(session, key_provider_str,
+          "key_provider=(pages=(page_id=%d,lsn=%" PRIu64 "))", WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID,
+          conn->disaggregated_storage
+            .last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID]));
+
+        WT_ERR(__wt_fprintf(
+          session, fs, "%s\n%s\n", WT_METADATA_KEY_PROVIDER, (char *)key_provider_str->data));
+    }
     version = wiredtiger_version(&vmajor, &vminor, &vpatch);
     WT_ERR(__wt_fprintf(session, fs,
       "%s\n%s\n%s\n"
