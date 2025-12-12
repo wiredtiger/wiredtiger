@@ -10,10 +10,10 @@ else()
         misc_tests/test_cell_prepared_time_window.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_error.cpp
-        misc_tests/test_fnv.cpp
         misc_tests/test_futex.cpp
         misc_tests/test_intpack.cpp
         misc_tests/test_mock_session.cpp
+        misc_tests/test_page_log_handle.cpp
         misc_tests/test_pow.cpp
         misc_tests/test_prepare_mod_sort.cpp
         misc_tests/test_rec_upd_select.cpp
@@ -53,20 +53,24 @@ endif()
 
 # FIXME-WT-14051: Live restore is not supported on Windows
 if(NOT WT_WIN)
-    set(unittests live_restore/api/test_live_restore_fh_lock_close_sync.cpp ${unittests})
-    set(unittests live_restore/api/test_live_restore_fh_read_write.cpp ${unittests})
-    set(unittests live_restore/api/test_live_restore_fh_size.cpp ${unittests})
-    set(unittests live_restore/api/test_live_restore_fh_truncate.cpp ${unittests})
-    set(unittests live_restore/api/test_live_restore_fs_directory_list.cpp ${unittests})
-    set(unittests live_restore/api/test_live_restore_fs_open_file.cpp ${unittests})
-    set(unittests live_restore/api/test_live_restore_fs_exist.cpp ${unittests})
-    set(unittests live_restore/api/test_live_restore_fs_remove_rename.cpp ${unittests})
-    set(unittests live_restore/api/test_live_restore_fs_size.cpp ${unittests})
-    set(unittests live_restore/unit/test_live_restore_bitmap_encode_decode.cpp ${unittests})
-    set(unittests live_restore/unit/test_live_restore_bitmap_filling_bit_range.cpp ${unittests})
-    set(unittests live_restore/unit/test_live_restore_compute_read_end_bit.cpp ${unittests})
-    set(unittests live_restore/unit/test_live_restore_fill_hole.cpp ${unittests})
-    set(unittests sub_level_error/unit/test_sub_level_error_live_restore_conflict.cpp ${unittests})
+    set(live_restore_sources
+        live_restore/live_restore_test_env.cpp
+        live_restore/utils_live_restore.cpp
+        live_restore/api/test_live_restore_fh_lock_close_sync.cpp
+        live_restore/api/test_live_restore_fh_read_write.cpp
+        live_restore/api/test_live_restore_fh_size.cpp
+        live_restore/api/test_live_restore_fh_truncate.cpp
+        live_restore/api/test_live_restore_fs_directory_list.cpp
+        live_restore/api/test_live_restore_fs_exist.cpp
+        live_restore/api/test_live_restore_fs_open_file.cpp
+        live_restore/api/test_live_restore_fs_remove_rename.cpp
+        live_restore/api/test_live_restore_fs_size.cpp
+        live_restore/unit/test_live_restore_bitmap_encode_decode.cpp
+        live_restore/unit/test_live_restore_bitmap_filling_bit_range.cpp
+        live_restore/unit/test_live_restore_compute_read_end_bit.cpp
+        live_restore/unit/test_live_restore_fill_hole.cpp
+        sub_level_error/unit/test_sub_level_error_live_restore_conflict.cpp
+    )
 endif()
 
 set(unittest_sources
@@ -82,40 +86,25 @@ set(unittest_sources
     wrappers/mock_connection.cpp
     wrappers/mock_session.cpp
     ${unittests}
+    ${live_restore_sources}
 )
-
-# Live restore is not supported on Windows
-if(NOT WT_WIN)
-    set(unittest_sources
-        live_restore/live_restore_test_env.cpp
-        live_restore/utils_live_restore.cpp
-        ${unittest_sources}
-    )
-endif()
-
-# Disable 4200 warning on windows, its related to struct definitions with zero sized arrays.
-if(WT_WIN)
-    set(UNITTEST_FLAGS /wd4200)
-else()
-    set(UNITTEST_FLAGS -Wno-missing-declarations)
-endif()
 
 create_test_executable(catch2-unittests
-    SOURCES ${unittest_sources}
-    FLAGS ${UNITTEST_FLAGS}
+    SOURCES
+        ${unittest_sources}
+    INCLUDES
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}
+    FLAGS
+        ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
+    LIBS
+        Catch2::Catch2
     CXX
 )
-
-target_compile_options(
-    catch2-unittests
-    PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
-)
-
-target_link_libraries(catch2-unittests Catch2::Catch2)
 
 if(WT_POSIX)
     add_dependencies(catch2-unittests wiredtiger_dir_store)
 endif()
 
-add_test(NAME unittest COMMAND ${CMAKE_CURRENT_BINARY_DIR}/catch2-unittests)
+add_test(NAME unittest COMMAND $<TARGET_FILE:catch2-unittests>)
 set_tests_properties(unittest PROPERTIES LABELS "check;unittest")

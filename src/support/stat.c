@@ -34,8 +34,6 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: btree expected number of compact pages rewritten",
   "btree: btree number of pages reconciled during checkpoint",
   "btree: btree skipped by compaction as process would not reduce size",
-  "btree: column-store fixed-size leaf pages",
-  "btree: column-store fixed-size time windows",
   "btree: column-store internal pages",
   "btree: column-store variable-size RLE encoded values",
   "btree: column-store variable-size deleted values",
@@ -485,8 +483,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing btree_compact_pages_rewritten_expected */
     /* not clearing btree_checkpoint_pages_reconciled */
     /* not clearing btree_compact_skipped */
-    stats->btree_column_fix = 0;
-    stats->btree_column_tws = 0;
     stats->btree_column_internal = 0;
     stats->btree_column_rle = 0;
     stats->btree_column_deleted = 0;
@@ -890,8 +886,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_compact_pages_rewritten_expected += from->btree_compact_pages_rewritten_expected;
     to->btree_checkpoint_pages_reconciled += from->btree_checkpoint_pages_reconciled;
     to->btree_compact_skipped += from->btree_compact_skipped;
-    to->btree_column_fix += from->btree_column_fix;
-    to->btree_column_tws += from->btree_column_tws;
     to->btree_column_internal += from->btree_column_internal;
     to->btree_column_rle += from->btree_column_rle;
     to->btree_column_deleted += from->btree_column_deleted;
@@ -1326,8 +1320,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_checkpoint_pages_reconciled +=
       WT_STAT_DSRC_READ(from, btree_checkpoint_pages_reconciled);
     to->btree_compact_skipped += WT_STAT_DSRC_READ(from, btree_compact_skipped);
-    to->btree_column_fix += WT_STAT_DSRC_READ(from, btree_column_fix);
-    to->btree_column_tws += WT_STAT_DSRC_READ(from, btree_column_tws);
     to->btree_column_internal += WT_STAT_DSRC_READ(from, btree_column_internal);
     to->btree_column_rle += WT_STAT_DSRC_READ(from, btree_column_rle);
     to->btree_column_deleted += WT_STAT_DSRC_READ(from, btree_column_deleted);
@@ -2053,6 +2045,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: maximum milliseconds spent at a single eviction",
   "cache: maximum milliseconds spent at a single eviction per checkpoint",
   "cache: maximum number of times a page tried to be added to eviction queue but fail",
+  "cache: maximum number of times a page tried to be evicted",
   "cache: maximum page size seen at eviction",
   "cache: maximum updates page size seen at eviction per checkpoint",
   "cache: modified page evict attempts by application threads",
@@ -2125,6 +2118,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: size of tombstones restored when reading a page",
   "cache: the number of times full update inserted to history store",
   "cache: the number of times reverse modify inserted to history store",
+  "cache: time eviction worker threads spend waiting for locks (usecs)",
   "cache: total milliseconds spent inside reentrant history store evictions in a reconciliation",
   "cache: tracked bytes belonging to internal pages in the cache",
   "cache: tracked bytes belonging to internal pages in the cache from the ingest btrees",
@@ -3067,6 +3061,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing eviction_maximum_milliseconds */
     /* not clearing eviction_maximum_milliseconds_per_checkpoint */
     /* not clearing eviction_maximum_attempts_to_queue_page */
+    /* not clearing eviction_maximum_attempts_to_evict_page */
     /* not clearing eviction_maximum_page_size */
     /* not clearing eviction_maximum_updates_page_size_per_checkpoint */
     stats->eviction_app_dirty_attempt = 0;
@@ -3135,6 +3130,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read_restored_tombstone_bytes = 0;
     stats->cache_hs_insert_full_update = 0;
     stats->cache_hs_insert_reverse_modify = 0;
+    stats->eviction_worker_lock_wait_time = 0;
     /* not clearing eviction_reentry_hs_eviction_milliseconds */
     /* not clearing cache_bytes_internal */
     /* not clearing cache_bytes_internal_ingest */
@@ -4127,6 +4123,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_maximum_milliseconds_per_checkpoint);
     to->eviction_maximum_attempts_to_queue_page +=
       WT_STAT_CONN_READ(from, eviction_maximum_attempts_to_queue_page);
+    to->eviction_maximum_attempts_to_evict_page +=
+      WT_STAT_CONN_READ(from, eviction_maximum_attempts_to_evict_page);
     to->eviction_maximum_page_size += WT_STAT_CONN_READ(from, eviction_maximum_page_size);
     to->eviction_maximum_updates_page_size_per_checkpoint +=
       WT_STAT_CONN_READ(from, eviction_maximum_updates_page_size_per_checkpoint);
@@ -4214,6 +4212,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_read_restored_tombstone_bytes);
     to->cache_hs_insert_full_update += WT_STAT_CONN_READ(from, cache_hs_insert_full_update);
     to->cache_hs_insert_reverse_modify += WT_STAT_CONN_READ(from, cache_hs_insert_reverse_modify);
+    to->eviction_worker_lock_wait_time += WT_STAT_CONN_READ(from, eviction_worker_lock_wait_time);
     to->eviction_reentry_hs_eviction_milliseconds +=
       WT_STAT_CONN_READ(from, eviction_reentry_hs_eviction_milliseconds);
     to->cache_bytes_internal += WT_STAT_CONN_READ(from, cache_bytes_internal);

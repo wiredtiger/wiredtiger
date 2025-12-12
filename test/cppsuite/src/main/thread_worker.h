@@ -161,7 +161,7 @@ private:
      * _min_op_count and _max_op_count are the minimum and maximum number of operations within one
      * transaction.
      */
-    int64_t _max_op_count = INT64_MAX;
+    int64_t _max_op_count = 1;
     int64_t _min_op_count = 0;
     /*
      * op_count is the current number of operations that have been executed in the current

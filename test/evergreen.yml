@@ -1126,6 +1126,25 @@ functions:
         content_type: application/tar
         display_name: ${artifacts_name|Artifacts}
         remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
+  "upload wtperf test artifact":
+    - command: archive.targz_pack
+      type: setup
+      params:
+        target: ${upload_filename|wt_test.tgz}
+        source_dir: ${upload_source_dir|wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0/}
+        include:
+          - "./**"
+    - command: s3.put
+      type: setup
+      params:
+        aws_secret: ${aws_secret}
+        aws_key: ${aws_key}
+        local_file: ${upload_filename|wt_test.tgz}
+        bucket: build_external
+        permissions: public-read
+        content_type: application/tar
+        display_name: ${artifacts_name|WT_TEST}
+        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
   "upload endian format artifacts":
     - command: s3.put
       type: setup
@@ -1210,7 +1229,7 @@ functions:
         # Check if we running in disagg mode.
         disagg_args=""
         if [[ "${disagg_run|false}" == "true" ]]; then
-            # FIXME-WT-15723: Re-evaluate whether setting large cache size is need after cache stuck issue is solved.
+            # FIXME-WT-16228: Re-evaluate whether setting large cache size is need after cache stuck issue is solved.
             disagg_args="-d leader -t row -x -C cache_size=1000MB"
         fi
         ./test_checkpoint ${checkpoint_args} $disagg_args  2>&1
@@ -1227,7 +1246,7 @@ functions:
         ${PREPARE_TEST_ENV}
         disagg_args=""
         if [[ "${disagg_run|false}" == "true" ]]; then
-            # FIXME-WT-15723: Re-evaluate whether setting large cache size is need after cache stuck issue is solved.
+            # FIXME-WT-16228: Re-evaluate whether setting large cache size is need after cache stuck issue is solved.
             disagg_args="-d leader -t row -x -C cache_size=1000MB"
         fi
         ../../../test/evergreen/checkpoint_test_predictable.sh ${times} "${checkpoint_args} $disagg_args"
@@ -1586,16 +1605,6 @@ variables:
 #    Stress tests that validate disagg behavior in leader, follower, and switch modes.  #
 #########################################################################################
 
-  - &format-stress-test-disagg-leader-palm
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test disagg"
-        vars:
-          format_args: disagg.page_log=palm disagg.mode=leader runs.rows=100000 runs.ops=100000
-          times: 5
-
   - &format-stress-test-disagg-leader-verify
     depends_on:
       - name: compile
@@ -1603,7 +1612,7 @@ variables:
       - func: "fetch artifacts"
       - func: "format test disagg"
         vars:
-          # FIXME-WT-15619 Remove this task when disagg verification is working reliably with deltas.
+          # FIXME-WT-16211 Remove this task when disagg verification is working reliably with deltas.
           format_args: disagg.mode=leader ops.verify=1 disagg.leaf_page_delta=0 disagg.internal_page_delta=0
           times: 5
 
@@ -1645,6 +1654,7 @@ variables:
       - func: "format test script"
         vars:
           format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=follower runs.timer=5:10
+          num_jobs: 1 # Follower requires a larger cache; parallel execution may limit available cache and cause stalls.
       - func: "format test disagg"
         vars:
           format_args: disagg.mode=follower runs.timer=5:10
@@ -1658,6 +1668,18 @@ variables:
       - func: "format test disagg"
         vars:
           format_args: disagg.mode=switch runs.timer=10:15
+          times: 5
+
+  # FIXME-WT-16113: Consolidate this logic in test/format itself.
+  - &format-stress-test-disagg-switch-data-validation
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # Validate data with a non-layered table.
+          format_args: disagg.mode=switch ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
           times: 5
 
 #######################################
@@ -1858,15 +1880,6 @@ tasks:
       - func: "make check directory"
         vars:
           directory: examples/c
-
-  - name: bloom-test
-    tags: ["pull_request"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - func: "make check directory"
-        vars:
-          directory: test/bloom
 
   - name: checkpoint-test
     tags: ["pull_request"]
@@ -3832,12 +3845,6 @@ tasks:
       # extended test/thread runs
       - func: "thread test"
         vars:
-          thread_test_args: -t f
-      - func: "thread test"
-        vars:
-          thread_test_args: -S -F -n 100000 -t f
-      - func: "thread test"
-        vars:
           thread_test_args: -t r
       - func: "thread test"
         vars:
@@ -3876,9 +3883,6 @@ tasks:
           test_name: random_abort
 
       # format test
-      - func: "format test"
-        vars:
-          test_format_extra_args: file_type=fix runs.rows=1000000:2500000
       - func: "format test"
         vars:
           test_format_extra_args: file_type=row runs.rows=1000000:2500000
@@ -4566,9 +4570,6 @@ tasks:
     #      Stress tests for Disagg      #
     #####################################
 
-  - <<: *format-stress-test-disagg-leader-palm
-    name: format-stress-test-disagg-leader-palm
-    tags: ["stress-test-disagg"]
   - <<: *format-stress-test-disagg-leader
     name: format-stress-test-disagg-leader-1
     tags: ["stress-test-disagg"]
@@ -4598,6 +4599,15 @@ tasks:
     tags: ["stress-test-disagg-fail"]
   - <<: *format-stress-test-disagg-switch
     name: format-stress-test-disagg-switch-3
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-switch-data-validation
+    name: format-stress-test-disagg-switch-data-validation-1
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-switch-data-validation
+    name: format-stress-test-disagg-switch-data-validation-2
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-switch-data-validation
+    name: format-stress-test-disagg-switch-data-validation-3
     tags: ["stress-test-disagg-fail"]
 
   - name: format-stress-disagg-leader-pull-request-test
@@ -5548,6 +5558,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_dirty_trigger_read-10_write-90.py
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_dirty_trigger_read-25_write-75
     tags: ["evict-perf"]
@@ -5569,6 +5580,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_dirty_trigger_read-25_write-75.py
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_dirty_trigger_read-50_write-50
     tags: ["evict-perf"]
@@ -5590,6 +5602,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_dirty_trigger_read-50_write-50.py
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_dirty_trigger_read-75_write-25
     tags: ["evict-perf"]
@@ -5611,6 +5624,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_dirty_trigger_read-75_write-25.py
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_dirty_trigger_read-90_write-10
     tags: ["evict-perf"]
@@ -5632,6 +5646,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_dirty_trigger_read-90_write-10.py
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_update_trigger_read-10_write-90
     tags: ["evict-perf"]
@@ -5653,6 +5668,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_update_trigger_read-10_write-90.py
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_update_trigger_read-25_write-75
     tags: ["evict-perf"]
@@ -5674,6 +5690,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_update_trigger_read-25_write-75.py
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_update_trigger_read-50_write-50
     tags: ["evict-perf"]
@@ -5695,6 +5712,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_update_trigger_read-50_write-50.py
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_update_trigger_read-75_write-25
     tags: ["evict-perf"]
@@ -5716,6 +5734,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_update_trigger_read-75_write-25.py
+      - func: "upload wtperf test artifact"
 
   - name: perf-cache_update_trigger_read-90_write-10
     tags: ["evict-perf"]
@@ -5737,6 +5756,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: cache_update_trigger_read-90_write-10.py
+      - func: "upload wtperf test artifact"
 
     ###########################################
     # Performance Tests for log consolidation #
@@ -5915,10 +5935,7 @@ tasks:
       - func: "upload stats to evergreen"
         vars:
           test-name: 500m-btree-populate.wtperf
-      - func: "upload artifact"
-        vars:
-          upload_filename: WT_TEST.tgz
-          upload_source_dir: wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0/
+      - func: "upload wtperf test artifact"
       # Now take and upload a backup. We use this as the source in our live restore perf tests.
       - command: shell.exec
         params:
