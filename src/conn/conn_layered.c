@@ -135,23 +135,19 @@ err:
  *     Create missing stable tables.
  */
 static int
-__layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
+__layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
 {
     WT_CONFIG_ITEM cval;
-    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor_check, *cursor_scan;
     WT_DECL_RET;
-    WT_SESSION_IMPL *internal_session;
     char *stable_uri;
     const char *layered_uri, *layered_cfg;
 
-    conn = S2C(session);
     cursor_check = cursor_scan = NULL;
     stable_uri = NULL;
 
-    WT_ERR(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
-    WT_ERR(__wt_metadata_cursor(internal_session, &cursor_check));
-    WT_ERR(__wt_metadata_cursor(internal_session, &cursor_scan));
+    WT_ERR(__wt_metadata_cursor(session, &cursor_check));
+    WT_ERR(__wt_metadata_cursor(session, &cursor_scan));
 
     cursor_scan->set_key(cursor_scan, "layered:");
     WT_ERR(cursor_scan->bound(cursor_scan, "bound=lower"));
@@ -172,11 +168,11 @@ __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
         /* Create the stable table if it does not exist. */
         if (ret == WT_NOTFOUND) {
             WT_ERR_MSG_CHK(session,
-              __layered_create_missing_stable_table(internal_session, stable_uri, layered_cfg),
+              __layered_create_missing_stable_table(session, stable_uri, layered_cfg),
               "Failed to create missing stable table \"%s\" from \"%s\"", stable_uri, layered_cfg);
             /* Ensure that we properly handle empty tables. */
             WT_ERR(__wt_disagg_copy_metadata_later(
-              internal_session, stable_uri, layered_uri + strlen("layered:")));
+              session, stable_uri, layered_uri + strlen("layered:")));
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Created missing stable table \"%s\" from \"%s\"", stable_uri, layered_uri);
         }
@@ -187,8 +183,30 @@ __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
 
 err:
     __wt_free(session, stable_uri);
-    WT_TRET(__wt_metadata_cursor_release(internal_session, &cursor_check));
-    WT_TRET(__wt_metadata_cursor_release(internal_session, &cursor_scan));
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor_check));
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor_scan));
+    return (ret);
+}
+
+/*
+ * __layered_create_missing_stable_tables --
+ *     Create missing stable tables.
+ */
+static int
+__layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *internal_session;
+
+    conn = S2C(session);
+
+    WT_ERR(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
+    WT_WITH_SCHEMA_LOCK(
+      internal_session, ret = __layered_create_missing_stable_tables_helper(internal_session));
+    WT_ERR(ret);
+
+err:
     WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }
@@ -925,6 +943,24 @@ __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __disagg_copy_metadata_free --
+ *     Free an entry in the copy metadata queue.
+ */
+static void
+__disagg_copy_metadata_free(WT_SESSION_IMPL *session, WT_DISAGG_COPY_METADATA **entry)
+{
+    if (*entry == NULL)
+        return;
+    __wt_free(session, (*entry)->stable_uri);
+    __wt_free(session, (*entry)->table_name);
+    __wt_free(session, (*entry)->colgroup_value);
+    __wt_free(session, (*entry)->layered_value);
+    __wt_free(session, (*entry)->stable_value);
+    __wt_free(session, (*entry)->table_value);
+    __wt_free(session, *entry);
+    *entry = NULL;
+}
+/*
  * __wt_disagg_copy_metadata_later --
  *     Copy the metadata that belongs to the given URI into the shared metadata table at the next
  *     checkpoint.
@@ -934,20 +970,94 @@ __wt_disagg_copy_metadata_later(
   WT_SESSION_IMPL *session, const char *stable_uri, const char *table_name)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *md_cursor;
+    WT_DECL_RET;
     WT_DISAGG_COPY_METADATA *entry;
+    char *md_key;
+    const char *md_value;
+    size_t len;
 
     conn = S2C(session);
+    entry = NULL;
+    md_cursor = NULL;
+    md_key = NULL;
 
-    WT_RET(__wt_calloc_one(session, &entry));
-    WT_RET(__wt_strdup(session, stable_uri, &entry->stable_uri));
-    WT_RET(__wt_strdup(session, table_name, &entry->table_name));
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
+    /* Allocate a buffer for metadata keys. */
+    len = strlen(table_name) + 10;
+    WT_ERR(__wt_calloc_def(session, len, &md_key));
+
+    /* Allocate the entry structure. */
+    WT_ERR(__wt_calloc_one(session, &entry));
+    WT_ERR(__wt_strdup(session, stable_uri, &entry->stable_uri));
+    WT_ERR(__wt_strdup(session, table_name, &entry->table_name));
+
+    /* Get the table metadata. */
+    WT_ERR(__wt_metadata_cursor(session, &md_cursor));
+
+    WT_ERR(__wt_snprintf(md_key, len, "colgroup:%s", table_name));
+    md_cursor->set_key(md_cursor, md_key);
+    WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
+    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+        WT_ERR(md_cursor->get_value(md_cursor, &md_value));
+        WT_ERR(__wt_strdup(session, md_value, &entry->colgroup_value));
+    }
+
+    WT_ERR(__wt_snprintf(md_key, len, "layered:%s", table_name));
+    md_cursor->set_key(md_cursor, md_key);
+    WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
+    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+        WT_ERR(md_cursor->get_value(md_cursor, &md_value));
+        WT_ERR(__wt_strdup(session, md_value, &entry->layered_value));
+    }
+
+    WT_ERR(__wt_snprintf(md_key, len, "table:%s", table_name));
+    md_cursor->set_key(md_cursor, md_key);
+    WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
+    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+        WT_ERR(md_cursor->get_value(md_cursor, &md_value));
+        WT_ERR(__wt_strdup(session, md_value, &entry->table_value));
+    }
+
+    md_cursor->set_key(md_cursor, stable_uri);
+    WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
+    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+        WT_ERR(md_cursor->get_value(md_cursor, &md_value));
+        WT_ERR(__wt_strdup(session, md_value, &entry->stable_value));
+    }
+
+    /* Set the retries. */
     entry->retries_left = 1;
 
+    /* Cannot fail past this point. */
     __wt_spin_lock(session, &conn->disaggregated_storage.copy_metadata_lock);
     TAILQ_INSERT_TAIL(&conn->disaggregated_storage.copy_metadata_qh, entry, q);
     __wt_spin_unlock(session, &conn->disaggregated_storage.copy_metadata_lock);
 
-    return (0);
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Scheduled copying disaggregated metadata for table \"%s\" (stable URI \"%s\") to shared "
+      "metadata table",
+      table_name, stable_uri);
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  colgroup: %s",
+      entry->colgroup_value == NULL ? "<none>" : entry->colgroup_value);
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  layered: %s",
+      entry->layered_value == NULL ? "<none>" : entry->layered_value);
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  table: %s",
+      entry->table_value == NULL ? "<none>" : entry->table_value);
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  stable: %s",
+      entry->stable_value == NULL ? "<none>" : entry->stable_value);
+
+    /* No need to free the entry structure here as it has been added to the queue. */
+    entry = NULL;
+
+err:
+    __wt_free(session, md_key);
+    __disagg_copy_metadata_free(session, &entry);
+
+    if (md_cursor != NULL)
+        WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
+    return (ret);
 }
 
 /*
@@ -967,13 +1077,40 @@ __disagg_copy_metadata_clear(WT_SESSION_IMPL *session)
     WT_TAILQ_SAFE_REMOVE_BEGIN(entry, &conn->disaggregated_storage.copy_metadata_qh, q, tmp)
     {
         TAILQ_REMOVE(&conn->disaggregated_storage.copy_metadata_qh, entry, q);
-        __wt_free(session, entry->stable_uri);
-        __wt_free(session, entry->table_name);
-        __wt_free(session, entry);
+        __disagg_copy_metadata_free(session, &entry);
     }
     WT_TAILQ_SAFE_REMOVE_END
 
     __wt_spin_unlock(session, &conn->disaggregated_storage.copy_metadata_lock);
+}
+
+/*
+ * __disagg_update_shared_metadata --
+ *     Update metadata in the shared metadata table.
+ */
+static int
+__disagg_update_shared_metadata(
+  WT_SESSION_IMPL *session, const char *prefix, const char *key, const char *value)
+{
+    WT_DECL_RET;
+    char *md_key;
+    size_t len;
+
+    md_key = NULL;
+
+    if (value == NULL)
+        return (0);
+
+    len = strlen(key) + 10;
+    WT_ERR(__wt_calloc_def(session, len, &md_key));
+    WT_ERR(__wt_snprintf(md_key, len, "%s%s", prefix, key));
+
+    WT_SAVE_DHANDLE(session, ret = __wt_disagg_update_shared_metadata(session, md_key, value));
+    WT_ERR(ret);
+
+err:
+    __wt_free(session, md_key);
+    return (0);
 }
 
 /*
@@ -1002,29 +1139,17 @@ __wt_disagg_copy_metadata_process(WT_SESSION_IMPL *session)
     {
         WT_ERR_NOTFOUND_OK(__disagg_copy_shared_metadata_one(session, entry->stable_uri), true);
 
-        /*
-         * There are two reasons why we might not find the metadata for the table: either the table
-         * has been dropped, or the table has been created concurrently with the checkpoint, in
-         * which case the table would not be included in the checkpoint. There is no way to
-         * distinguish the two cases, so we retry at the following checkpoint, which would see the
-         * table if it still exists.
-         */
-        if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
-            if (entry->retries_left > 0) {
-                __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-                  "Failed to find metadata for table \"%s\" to copy into shared metadata table, "
-                  "will retry later",
-                  entry->table_name);
-                entry->retries_left--;
-                continue;
-            }
-        } else
-            WT_ERR(__wt_disagg_copy_shared_metadata_layered(session, entry->table_name));
+        WT_ERR(__disagg_update_shared_metadata(
+          session, "colgroup:", entry->table_name, entry->colgroup_value));
+        WT_ERR(__disagg_update_shared_metadata(
+          session, "layered:", entry->table_name, entry->layered_value));
+        WT_ERR(__disagg_update_shared_metadata(
+          session, "table:", entry->table_name, entry->table_value));
+        WT_ERR(
+          __disagg_update_shared_metadata(session, "", entry->stable_uri, entry->stable_value));
 
         TAILQ_REMOVE(&conn->disaggregated_storage.copy_metadata_qh, entry, q);
-        __wt_free(session, entry->stable_uri);
-        __wt_free(session, entry->table_name);
-        __wt_free(session, entry);
+        __disagg_copy_metadata_free(session, &entry);
     }
 
 err:

@@ -824,7 +824,7 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
      */
     __wt_config_subinit(session, &pkcols, &table->colconf);
     for (i = 0; i < table->nkey_columns && (ret = __wt_config_next(&pkcols, &ckey, &cval)) == 0;
-         i++) {
+      i++) {
         /*
          * If the primary key column is already in the secondary key, don't add it again.
          */
@@ -1000,6 +1000,17 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
         table = NULL;
     }
 
+    /* XXX Copy table info for disagg. We have to do this after colgroups are created. */
+    if (__wt_config_getones(session, config, "type", &cval) == 0 &&
+      WT_CONFIG_LIT_MATCH("layered", cval)) {
+        /* Yes, this is a horrible hack. */
+        __wt_free(session, filename);
+        len = strlen("file:") + strlen(tablename) + strlen(".wt_stable") + 1;
+        WT_ERR(__wt_calloc_def(session, len, &filename));
+        WT_ERR(__wt_snprintf(filename, len, "file:%s.wt_stable", tablename));
+        WT_ERR(__wt_disagg_copy_metadata_later(session, filename, tablename));
+    }
+
 err:
     WT_TRET(__wt_schema_release_table(session, &table));
     __wt_scr_free(session, &tmp);
@@ -1117,6 +1128,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
          * Ensure that the new table's metadata would be included in the checkpoint even if it is
          * empty, in order for the new table to appear in the shared metadata table.
          */
+        /* XXX If this is as a part of table creation, we should skip it. */
         WT_ERR(__wt_disagg_copy_metadata_later(session, stable_uri, tablename));
     }
 
