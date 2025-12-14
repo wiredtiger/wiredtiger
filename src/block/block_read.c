@@ -167,6 +167,7 @@ int
 __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint32_t objectid,
   wt_off_t offset, uint32_t size, uint32_t checksum)
 {
+    WT_DECL_RET;
     WT_BLOCK_HEADER *blk, swap;
     size_t bufsize, check_size;
     uint64_t time_start, time_stop;
@@ -209,14 +210,14 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
                  * the error code indicating that it is out of space. We do not propagate this error
                  * up to our caller; we read the needed data ourselves instead.
                  */
-                WT_RET_ERROR_OK(__wt_chunkcache_get(session, block, objectid, offset, size,
+                WT_ERR_ERROR_OK(__wt_chunkcache_get(session, block, objectid, offset, size,
                                   buf->mem, &chunkcache_hit),
-                  ENOSPC);
+                  ENOSPC, false);
             }
         }
         if (!chunkcache_hit || failures > 0) {
             __wt_capacity_throttle(session, size, WT_THROTTLE_READ);
-            WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+            WT_ERR(__wt_read(session, block->fh, offset, size, buf->mem));
         }
 
         /*
@@ -263,8 +264,8 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
               " with possibly stale or corrupt chunk cache content for object id: %" PRIu32
               ". Retrying once.",
               block->name, (uintmax_t)offset, size, objectid);
-            WT_RET(__wt_chunkcache_free_external(session, block, objectid, offset, size));
-            WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+            WT_ERR(__wt_chunkcache_free_external(session, block, objectid, offset, size));
+            WT_ERR(__wt_read(session, block->fh, offset, size, buf->mem));
             WT_STAT_CONN_INCR(session, chunkcache_retries_checksum_mismatch);
         }
     }
@@ -289,9 +290,13 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
     F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
 
     if (block->verify || F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-        return (WT_ERROR);
+        WT_ERR(WT_ERROR);
 
     __wti_block_extlist_dump_all(session, block);
 
     WT_RET_PANIC(session, WT_ERROR, "%s: fatal read error", block->name);
+
+err:
+    __wt_buf_free(session, buf);
+    return (ret);
 }
