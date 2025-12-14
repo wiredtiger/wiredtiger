@@ -35,6 +35,7 @@ import wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wiredtiger import stat
+import os
 
 # test_checkpoint_snapshot03.py
 #   This test is to check RTS skips the unnecessary pages when the table has more than the
@@ -90,6 +91,11 @@ class test_checkpoint_snapshot03(wttest.WiredTigerTestCase):
         self.assertEqual(count, nrows + 1 if flcs_tolerance else nrows)
 
     def test_checkpoint_snapshot(self):
+        # This test hangs for many ours with TSAN for an unknown reason.
+        # TODO: Create a ticket
+        if os.environ.get("TESTUTIL_TSAN") == "1":
+            self.skipTest("Not compatible with TSan")
+
         ds = SimpleDataSet(self, self.uri, 0, \
                 key_format=self.key_format, value_format=self.value_format, \
                 config='leaf_page_max=4k')

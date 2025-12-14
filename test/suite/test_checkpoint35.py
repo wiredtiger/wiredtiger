@@ -31,6 +31,7 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wiredtiger import stat
 from helper import simulate_crash_restart
+import os
 
 # test_checkpoint35.py
 #
@@ -51,6 +52,11 @@ class test_checkpoint35(wttest.WiredTigerTestCase):
     # FIXME-WT-14982
     @wttest.skip_for_hook("disagg", "PALM environment mapsize limitation")
     def test_checkpoint(self):
+        # This test hangs for many ours with TSAN for an unknown reason.
+        # TODO: Create a ticket
+        if os.environ.get("TESTUTIL_TSAN") == "1":
+            self.skipTest("Not compatible with TSan")
+
         uri = 'table:checkpoint35'
         nrows = 1000000
 

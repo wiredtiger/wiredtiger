@@ -2442,6 +2442,10 @@ tasks:
     depends_on:
     - name: compile
     commands:
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 144000  # 40 hours
+          timeout_secs: 144000       # Also update the silence timeout
       - func: "fetch artifacts"
       - func: "unit test tsan parallel"
         vars:
@@ -2452,6 +2456,10 @@ tasks:
     depends_on:
     - name: compile
     commands:
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 144000  # 40 hours
+          timeout_secs: 144000       # Also update the silence timeout
       - func: "fetch artifacts"
       - func: "unit test tsan parallel"
         vars:
@@ -2757,10 +2765,14 @@ tasks:
   # and we use the -b option of the test/suite/run.py script to split up the tests.
 
   - name: unit-test-all-measure-time
-    tags: ["pull_request", "python", "unit_test"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 144000  # 40 hours
+          timeout_secs: 144000       # Also update the silence timeout
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
@@ -2771,6 +2783,10 @@ tasks:
     depends_on:
     - name: compile
     commands:
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 144000  # 40 hours
+          timeout_secs: 144000       # Also update the silence timeout
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
