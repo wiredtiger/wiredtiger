@@ -139,14 +139,12 @@ checksum_table(TABLE *t, void *arg)
 void
 checksum_database(WT_SESSION *session)
 {
-    uint64_t hash = fnv1a_init();
-
     struct checksum_table_arg arg = {
       .session = session,
-      .hash = hash,
+      .hash = fnv1a_init(),
     };
 
     tables_apply(checksum_table, &arg);
 
-    printf("Hashed entire DB, checksum is %lu\n", hash);
+    printf("Hashed entire DB, checksum is %lu\n", arg.hash);
 }
