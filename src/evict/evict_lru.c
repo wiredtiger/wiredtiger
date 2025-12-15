@@ -2707,13 +2707,14 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         if (page->evict_pass_gen == 0) {
             const uint64_t gen_gap =
               __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen) - page->cache_create_gen;
-            __wt_atomic_stats_max(&evict->evict_max_unvisited_gen_gap, gen_gap);
-            __wt_atomic_stats_max(&evict->evict_max_unvisited_gen_gap_per_checkpoint, gen_gap);
+            __wt_atomic_stats_max_uint64(&evict->evict_max_unvisited_gen_gap, gen_gap);
+            __wt_atomic_stats_max_uint64(
+              &evict->evict_max_unvisited_gen_gap_per_checkpoint, gen_gap);
         } else {
             const uint64_t gen_gap =
               __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen) - page->evict_pass_gen;
-            __wt_atomic_stats_max(&evict->evict_max_visited_gen_gap, gen_gap);
-            __wt_atomic_stats_max(&evict->evict_max_visited_gen_gap_per_checkpoint, gen_gap);
+            __wt_atomic_stats_max_uint64(&evict->evict_max_visited_gen_gap, gen_gap);
+            __wt_atomic_stats_max_uint64(&evict->evict_max_visited_gen_gap_per_checkpoint, gen_gap);
         }
 
         page->evict_pass_gen = __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen);
@@ -2739,7 +2740,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
 
         /* update number of attempts this page has been evicted */
         ++page->evict_queue_attempts;
-        __wt_atomic_stats_max(
+        __wt_atomic_stats_max_uint16(
           &evict->evict_max_eviction_queue_attempts, page->evict_queue_attempts);
 
         __evict_try_queue_page(
@@ -2880,7 +2881,16 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
         __evict_queue_empty(evict->evict_fill_queue, false)))
         return (WT_NOTFOUND);
 
+    uint64_t lock_wait_start, lock_wait_end;
+    /* Track time spent waiting for the evict queue lock */
+    lock_wait_start = __wt_clock(session);
     __wt_spin_lock(session, &evict->evict_queue_lock);
+    lock_wait_end = __wt_clock(session);
+
+    /* Only track lock wait time for eviction worker threads */
+    if (F_ISSET(session, WT_SESSION_INTERNAL))
+        __wt_atomic_add_uint64_v(
+          &evict->evict_lock_wait_time, WT_CLOCKDIFF_US(lock_wait_end, lock_wait_start));
 
     /* Check the urgent queue first. */
     if (urgent_ok && !__evict_queue_empty(urgent_queue, false))
@@ -2913,9 +2923,14 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
             WT_STAT_CONN_INCR(session, eviction_get_ref_empty2);
             return (WT_NOTFOUND);
         }
-        if (!is_server)
+        if (!is_server) {
+            lock_wait_start = __wt_clock(session);
             __wt_spin_lock(session, &queue->evict_lock);
-        else if (__wt_spin_trylock(session, &queue->evict_lock) != 0)
+            lock_wait_end = __wt_clock(session);
+            if (F_ISSET(session, WT_SESSION_INTERNAL))
+                __wt_atomic_add_uint64_v(
+                  &evict->evict_lock_wait_time, WT_CLOCKDIFF_US(lock_wait_end, lock_wait_start));
+        } else if (__wt_spin_trylock(session, &queue->evict_lock) != 0)
             continue;
         break;
     }
@@ -3028,7 +3043,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
             WT_STAT_CONN_INCR(session, eviction_app_dirty_attempt);
         }
         WT_STAT_CONN_INCR(session, eviction_app_attempt);
-        S2C(session)->evict->app_evicts++;
+        ++S2C(session)->evict->app_evicts;
         time_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
     }
 
