@@ -30,8 +30,7 @@ import wttest
 from suite_subprocess import suite_subprocess
 
 # test_util23.py
-# Test that wt verify properly handles scratch buffers on usage path
-# as part of WT-15827
+# Test that wt verify properly handles scratch buffers on usage path.
 class test_util23(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_util23.wt'
     uri = 'file:' + tablename
