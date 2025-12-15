@@ -137,13 +137,9 @@ checksum_table(TABLE *t, void *arg)
  *     this checksum against one reported on the follower node, but that's future work.
  */
 void
-checksum_database(void)
+checksum_database(WT_SESSION *session)
 {
     uint64_t hash = fnv1a_init();
-
-    WT_CONNECTION *conn = g.wts_conn;
-    WT_SESSION *session;
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     struct checksum_table_arg arg = {
       .session = session,
@@ -151,8 +147,6 @@ checksum_database(void)
     };
 
     tables_apply(checksum_table, &arg);
-
-    testutil_check(session->close(session, NULL));
 
     printf("Hashed entire DB, checksum is %lu\n", hash);
 }

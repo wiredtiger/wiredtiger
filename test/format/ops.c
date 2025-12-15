@@ -501,7 +501,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
     rollback_to_stable(session);
 
     if (GV(DISAGG_MULTI_CHECKSUM))
-        checksum_database();
+        checksum_database(session);
 
     replay_run_end(session);
 
