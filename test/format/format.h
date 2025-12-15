@@ -97,6 +97,8 @@
 /* Session configuration to enable prefetch. */
 #define SESSION_PREFETCH_CFG_ON "prefetch=(enabled=true)"
 
+#define MIN_TIMESTAMP 2 /* Minimum timestamp */
+
 #include "config.h"
 extern CONFIG configuration_list[];
 
