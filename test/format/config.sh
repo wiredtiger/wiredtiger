@@ -189,7 +189,7 @@ CONFIG configuration_list[] = {
 
 {"disagg.multi", "configure multiple nodes (leader & followers) for disaggregated storage", C_IGNORE | C_BOOL , 0, 0, 0}
 
-{"disagg.multi_checksum", "have multiple nodes checksum and compare database content", C_IGNORE | C_BOOL , 0, 0, 0}
+{"disagg.multi_validation", "have multiple nodes compare database content for equality", C_IGNORE | C_BOOL , 0, 0, 0}
 
 {"disagg.enabled", "configure disaggregated storage", C_IGNORE | C_BOOL | C_TABLE | C_TYPE_ROW, 0, 0, 0}
 
