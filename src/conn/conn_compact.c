@@ -262,7 +262,7 @@ __background_compact_should_skip(WT_SESSION_IMPL *session, const char *uri, int6
     if (ret == ENOENT || ret == EACCES) {
         if (ret == ENOENT)
             WT_STAT_CONN_INCR(session, background_compact_skipped_no_such_file);
-        else if (ret == EACCES)
+        else
             WT_STAT_CONN_INCR(session, background_compact_skipped_missing_permissions);
         *skipp = true;
         return (0);
@@ -504,8 +504,7 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
             WT_ERR(__background_compact_should_skip(session, key, id.val, &skip));
             if (!skip)
                 break;
-            else
-                WT_STAT_CONN_INCR(session, background_compact_skipped);
+            WT_STAT_CONN_INCR(session, background_compact_skipped);
         }
     } while ((ret = cursor->next(cursor)) == 0);
     WT_ERR(ret);

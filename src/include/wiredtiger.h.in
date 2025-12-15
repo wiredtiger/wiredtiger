@@ -6124,32 +6124,32 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! background-compact: background compact running */
 #define	WT_STAT_CONN_BACKGROUND_COMPACT_RUNNING		1007
 /*!
- * background-compact: background compact skipped as last compact was
- * unsuccessful/less successful than average
+ * background-compact: background compact skipped file, it is part of the
+ * exclude list
  */
-#define	WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED_UNSUCCESSFUL	1008
+#define	WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED_EXCLUDE	1008
 /*!
- * background-compact: background compact skipped as there is a
- * permissions issue
- */
-#define	WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED_MISSING_PERMISSIONS	1009
-/*!
- * background-compact: background compact skipped file as it is part of
- * the exclude list
- */
-#define	WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED_EXCLUDE	1010
-/*!
- * background-compact: background compact skipped file as it is smaller
+ * background-compact: background compact skipped file, it is smaller
  * than 1MB in size
  */
-#define	WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED_SMALL_FILE	1011
+#define	WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED_SMALL_FILE	1009
 /*!
- * background-compact: background compact skipped file as not meeting
+ * background-compact: background compact skipped file, not meeting
  * requirements for compaction
  */
-#define	WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED		1012
+#define	WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED		1010
+/*!
+ * background-compact: background compact skipped, last compact was
+ * unsuccessful/less successful than average
+ */
+#define	WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED_UNSUCCESSFUL	1011
 /*! background-compact: background compact skipped, no such file exists */
-#define	WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED_NO_SUCH_FILE	1013
+#define	WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED_NO_SUCH_FILE	1012
+/*!
+ * background-compact: background compact skipped, there is a permissions
+ * issue
+ */
+#define	WT_STAT_CONN_BACKGROUND_COMPACT_SKIPPED_MISSING_PERMISSIONS	1013
 /*! background-compact: background compact sleeps due to cache pressure */
 #define	WT_STAT_CONN_BACKGROUND_COMPACT_SLEEP_CACHE_PRESSURE	1014
 /*! background-compact: background compact successful calls */
