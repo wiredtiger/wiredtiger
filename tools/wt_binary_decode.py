@@ -52,7 +52,17 @@ try:
     import snappy
     have_snappy = True
 except:
-    pass
+    # Try to install it automatically
+    print('python-snappy not found, attempting to install...')
+    try:
+        import subprocess
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'python-snappy'])
+        import snappy
+        have_snappy = True
+        print('Successfully installed python-snappy')
+    except Exception as e:
+        print(f'Warning: Failed to install python-snappy: {e}')
+        print('Compressed pages will not be readable.')
 
 # Optional dependency: bson
 have_bson = False
@@ -454,8 +464,7 @@ def block_decode(p, b, nbytes, opts):
     header_length = payload_pos - disk_pos
     if pagehead.flags & btree_format.PageHeader.WT_PAGE_COMPRESSED != 0:
         if not have_snappy:
-            p.rint('? the page is compressed (install python-snappy to parse)')
-            return
+            raise ModuleNotFoundError('python-snappy is required to decode compressed pages')
         try:
             compress_skip = 64
             # The first few bytes are uncompressed
@@ -693,6 +702,10 @@ def wtdecode_file_object(b, opts, nbytes):
         try:
             block_decode(p, b, nbytes, opts)
         except BrokenPipeError:
+            break
+        except ModuleNotFoundError as e:
+            # We're missing snappy compression support. No point continuing from here.
+            p.rint('ERROR: ' + str(e))
             break
         except Exception:
             p.rint(f'ERROR decoding block at {d_and_h(startblock)}')
