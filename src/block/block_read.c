@@ -167,8 +167,8 @@ int
 __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint32_t objectid,
   wt_off_t offset, uint32_t size, uint32_t checksum)
 {
-    WT_DECL_RET;
     WT_BLOCK_HEADER *blk, swap;
+    WT_DECL_RET;
     size_t bufsize, check_size;
     uint64_t time_start, time_stop;
     int failures, max_failures;
