@@ -96,12 +96,12 @@ class PageFlags(enum.IntFlag):
     '''
     Page flags from btmem.h.
     '''
-    WT_PAGE_COMPRESSED = enum.auto()
-    WT_PAGE_EMPTY_V_ALL = enum.auto()
-    WT_PAGE_EMPTY_V_NONE = enum.auto()
-    WT_PAGE_ENCRYPTED = enum.auto()
-    WT_PAGE_UNUSED = enum.auto()
-    WT_PAGE_FT_UPDATE = enum.auto()
+    WT_PAGE_COMPRESSED = 0x01
+    WT_PAGE_EMPTY_V_ALL = 0x02
+    WT_PAGE_EMPTY_V_NONE = 0x04
+    WT_PAGE_ENCRYPTED = 0x08
+    WT_PAGE_UNUSED = 0x10
+    WT_PAGE_FT_UPDATE = 0x20
 
 class PageHeader(object):
     '''
@@ -167,7 +167,7 @@ class BlockFlags(enum.IntFlag):
     '''
     Block flags from block.h
     '''
-    WT_BLOCK_DATA_CKSUM = enum.auto()
+    WT_BLOCK_DATA_CKSUM = 0x1
 
 class BlockHeader(object):
     '''
@@ -213,9 +213,9 @@ class BlockDisaggFlags(enum.IntFlag):
     '''
     Disagg block flags from block.h
     '''
-    WT_BLOCK_DISAGG_DATA_CKSUM = enum.auto()
-    WT_BLOCK_DISAGG_ENCRYPTED = enum.auto()
-    WT_BLOCK_DISAGG_COMPRESSED = enum.auto()
+    WT_BLOCK_DISAGG_DATA_CKSUM = 0x1
+    WT_BLOCK_DISAGG_ENCRYPTED = 0x2
+    WT_BLOCK_DISAGG_COMPRESSED = 0x4
 
 class BlockDisaggHeader(object):
     '''
