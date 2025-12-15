@@ -34,8 +34,6 @@ from suite_subprocess import suite_subprocess
 class test_util23(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_util23.wt'
     uri = 'file:' + tablename
-    conn_config = ''
-    home = ''
 
     commands = ["-r", "verify", "-d", "dump_offsets", uri]
 
