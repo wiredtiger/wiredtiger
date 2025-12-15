@@ -460,8 +460,6 @@ file_config = format_meta + file_runtime_config + tiered_config + file_disaggreg
 file_meta = file_config + [
     Config('checkpoint', '', r'''
         the file checkpoint entries'''),
-    Config('key_provider', '', r'''
-        the key provider entries'''),
     Config('checkpoint_backup_info', '', r'''
         the incremental backup durable information'''),
     Config('checkpoint_lsn', '', r'''

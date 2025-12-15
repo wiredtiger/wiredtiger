@@ -214,7 +214,7 @@ main(int argc, char *argv[])
      * for this extension, since WiredTiger needs to be able to find it before doing any operations.
      */
     snprintf(config, sizeof(config),
-      "create,log=(enabled=true)," TESTUTIL_EXAMPLE_CONFIG_DISAGG
+      "create," TESTUTIL_EXAMPLE_CONFIG_DISAGG
       "extensions=[local={entry=set_my_key_provider,early_load=true}, %s]",
       TESTUTIL_EXAMPLE_CONFIG_DISAGG_EXT);
     /* Open a connection to the database, creating it if necessary. */

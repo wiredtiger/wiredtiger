@@ -34,6 +34,10 @@ __metadata_turtle(const char *key)
         if (strcmp(key, WT_METADATA_VERSION_STR) == 0)
             return (true);
         break;
+    case 'K':
+        if (strcmp(key, WT_METADATA_KEY_PROVIDER) == 0)
+            return (true);
+        break;
     }
     return (false);
 }
