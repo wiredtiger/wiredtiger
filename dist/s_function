@@ -37,7 +37,6 @@ for f in "$@"; do
     {
         echo "$fp" |
         grep -E '(WT_ERR[_A-Z]*)\(.*(WT_RET[_A-Z]*)\(.*err:|[^a-z_]err:.*(WT_ERR)\(' |
-        grep -v 'WT_RET_PANIC' |
         sed 's/:.*//' > $t-1
 
         test -s $t-1 && {
