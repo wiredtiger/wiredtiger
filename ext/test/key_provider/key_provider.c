@@ -276,32 +276,25 @@ kp_terminate(WT_KEY_PROVIDER *wtkp, WT_SESSION *session)
     return (0);
 }
 
-#define CONFIGURE_BEGIN(kp) \
-    if (kp == NULL) {       \
-        assert(kp != NULL); \
-        return (EINVAL);    \
+/* Configuration parsing helpers */
+
+#define CONFIG_TYPES(X)             \
+    X(int, int, WT_CONFIG_ITEM_NUM) \
+    X(unsigned int, uint, WT_CONFIG_ITEM_NUM)
+
+#define CONFIGURE_FN_T(ctype, suffix, wt_type)                                              \
+    static int configure_##suffix(                                                          \
+      const char *param, const WT_CONFIG_ITEM *k, const WT_CONFIG_ITEM *v, ctype *dest)     \
+    {                                                                                       \
+        if (strncmp(param, k->str, k->len) == 0 && k->len == strlen(param) && v->len > 0 && \
+          v->type == (wt_type)) {                                                           \
+            *dest = (ctype)v->val;                                                          \
+            return (0);                                                                     \
+        }                                                                                   \
+        return (EINVAL);                                                                    \
     }
 
-#define CONFIGURE_PARAM(kp, param, k, v, ctype, wt_type)                                   \
-    else if (strncmp(#param, k.str, k.len) == 0 && k.len == strlen(#param) && v.len > 0 && \
-      v.type == wt_type)                                                                   \
-    {                                                                                      \
-        kp->param = (ctype)v.val;                                                          \
-        continue;                                                                          \
-    }
-
-#define CONFIGURE_INT(kp, param, k, v) CONFIGURE_PARAM(kp, param, k, v, int, WT_CONFIG_ITEM_NUM)
-#define CONFIGURE_UINT(kp, param, k, v) \
-    CONFIGURE_PARAM(kp, param, k, v, unsigned int, WT_CONFIG_ITEM_NUM)
-
-#define CONFIGURE_END(kp, k, v)                                                           \
-    else                                                                                  \
-    {                                                                                     \
-        LOG_ERROR(kp, NULL, "WT_CONFIG_PARSER.next: unexpected configuration: %.*s=%.*s", \
-          (int)k.len, k.str, (int)v.len, v.str);                                          \
-        ret = EINVAL;                                                                     \
-        goto err;                                                                         \
-    }
+CONFIG_TYPES(CONFIGURE_FN_T)
 
 /*
  * kp_configure --
@@ -323,10 +316,16 @@ kp_configure(KEY_PROVIDER *kp, WT_CONFIG_ARG *config)
 
     /* Parse configuration key-value pairs */
     while ((ret = config_parser->next(config_parser, &k, &v)) == 0) {
-        CONFIGURE_BEGIN(kp)
-        CONFIGURE_INT(kp, verbose, k, v)
-        CONFIGURE_UINT(kp, key_expires, k, v)
-        CONFIGURE_END(kp, k, v)
+        if (configure_int("verbose", &k, &v, &kp->verbose) == 0) {
+            continue;
+        } else if (configure_uint("key_expires", &k, &v, &kp->key_expires) == 0) {
+            continue;
+        }
+
+        LOG_ERROR(kp, NULL, "WT_CONFIG_PARSER.next: unexpected configuration: %.*s=%.*s",
+          (int)k.len, k.str, (int)v.len, v.str);
+        ret = EINVAL;
+        goto err;
     }
 
     if (ret != WT_NOTFOUND) {
