@@ -258,15 +258,12 @@ __background_compact_should_skip(WT_SESSION_IMPL *session, const char *uri, int6
     WT_PREFIX_SKIP(filename, "file:");
     ret = __wt_block_manager_named_size(session, filename, &file_size);
 
-    /* Ignore the error if the file no longer exists. */
-    if (ret == ENOENT) {
-        WT_STAT_CONN_INCR(session, background_compact_skipped_no_such_file);
-        *skipp = true;
-        return (0);
-    }
-    /* Ignore the error if it is a case of permission issues. */
-    else if (ret == EACCES) {
-        WT_STAT_CONN_INCR(session, background_compact_skipped_missing_permissions);
+    /* Ignore the error if the file no longer exists or in case of permission issues. */
+    if (ret == ENOENT || ret == EACCES) {
+        if (ret == ENOENT)
+            WT_STAT_CONN_INCR(session, background_compact_skipped_no_such_file);
+        else if (ret == EACCES)
+            WT_STAT_CONN_INCR(session, background_compact_skipped_missing_permissions);
         *skipp = true;
         return (0);
     }
