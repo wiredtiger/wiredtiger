@@ -67,6 +67,8 @@ disagg_teardown_multi_node(void)
         testutil_timeout_wait(120, g.follower_pid);
         g.follower_pid = 0;
     }
+    testutil_check(munmap(g.disagg_multi_db_hash, sizeof(DISAGG_MULTI_DB_HASH)));
+    g.disagg_multi_db_hash = NULL;
 }
 
 /*
@@ -96,6 +98,13 @@ disagg_setup_multi_node(void)
 
     /* Initialize a shared page log directory path for all nodes. */
     testutil_snprintf(g.home_page_log, sizeof(g.home_page_log), "%s", g.home);
+    /*
+     * Allocate a shared memory region to hold hash values shared between leader and follower
+     * processes, used by disagg multi node tests to validate data consistency.
+     */
+    g.disagg_multi_db_hash = mmap(NULL, sizeof(DISAGG_MULTI_DB_HASH), PROT_READ | PROT_WRITE,
+      MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    testutil_assert_errno(g.disagg_multi_db_hash != MAP_FAILED);
 
     fflush(NULL);
     pid = fork();

@@ -35,6 +35,7 @@
 #include <sys/resource.h>
 #endif
 #include <signal.h>
+#include <sys/mman.h>
 
 #define BUILDDIR "../../"
 #define EXTPATH BUILDDIR "ext/" /* Extensions path */
@@ -209,6 +210,11 @@ extern u_int ntables;
 #define DATASOURCE(table, ds) (strcmp((table)->v[V_TABLE_RUNS_SOURCE].vstr, ds) == 0)
 
 typedef struct {
+    wt_shared volatile uint64_t leader_hash;
+    wt_shared volatile uint64_t follower_hash;
+} DISAGG_MULTI_DB_HASH;
+
+typedef struct {
     WT_CONNECTION *wts_conn;
     WT_CONNECTION *wts_conn_inmemory;
 
@@ -303,6 +309,7 @@ typedef struct {
     bool disagg_leader; /* If disaggregated storage role is configured as a leader. */
     pid_t follower_pid; /* For multi-node disagg follower process */
     char checkpoint_metadata[FILENAME_MAX]; /* Last checkpoint metadata picked up by follower. */
+    DISAGG_MULTI_DB_HASH *disagg_multi_db_hash; /* Leader and follower database hash */
 
     bool column_store_config;           /* At least one column-store table configured */
     bool disagg_storage_config;         /* If disaggregated storage is configured */
