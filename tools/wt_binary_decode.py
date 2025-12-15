@@ -218,7 +218,7 @@ class Printer(object):
     def rint_v(self, s):
         if self.verbose:
             self.rint(s)
-            
+
     def rint_ext(self, s):
         if self.ext:
             self.rint(s)
@@ -717,22 +717,89 @@ def encode_bytes(f):
         # Keep anything that looks like it could be hexadecimal,
         # remove everything else.
         nospace = re.sub(r'[^a-fA-F\d]', '', line)
-        print('LINE (len={}): {}'.format(len(nospace), nospace))
+        if opts.debug:
+            print('LINE (len={}): {}'.format(len(nospace), nospace))
         if len(nospace) > 0:
-            print('first={}, last={}'.format(nospace[0], nospace[-1]))
+            if opts.debug:
+                print('first={}, last={}'.format(nospace[0], nospace[-1]))
             b = codecs.decode(nospace, 'hex')
             #b = bytearray.fromhex(line).decode()
             allbytes += b
     return allbytes
 
+def extract_mongodb_log_hex(f):
+    """
+    Extract hex dump from MongoDB log file containing checksum mismatch errors.
+    Looks for __bm_corrupt_dump messages and extracts all hex chunks.
+    Returns the bytes from the __first__ complete checksum mismatch found.
+    """
+    import json
+
+    lines = f.readlines()
+    current_chunks = []
+    block_info = None
+
+    for line_num, line in enumerate(lines):
+        try:
+            log_entry = json.loads(line)
+            msg = log_entry.get('attr', {}).get('message', {})
+
+            # Check if this is a corrupt dump message
+            if isinstance(msg, dict) and '__bm_corrupt_dump' in msg.get('msg', ''):
+                # Extract block info and hex data
+                msg_text = msg.get('msg', '')
+
+                # Parse the block info: {offset, size, checksum}: (chunk N of M): hexdata
+                match = re.search(r'\{0:\s*(\d+),\s*(\d+),\s*(0x[0-9a-f]+)\}:\s*\(chunk\s+(\d+)\s+of\s+(\d+)\):\s*([0-9a-f\s]+)', msg_text)
+                if match:
+                    offset, size, checksum, chunk_num, total_chunks, hexdata = match.groups()
+                    chunk_num = int(chunk_num)
+                    total_chunks = int(total_chunks)
+
+                    if chunk_num == 1:
+                        # Start of a new block
+                        if current_chunks and len(current_chunks) == block_info[4]:
+                            # We have a complete previous block, return it
+                            print(f'Found complete checksum mismatch block: offset={block_info[0]}, size={block_info[1]}, checksum={block_info[2]}')
+                            return b''.join(current_chunks)
+
+                        # Reset for new block
+                        current_chunks = []
+                        block_info = (offset, size, checksum, chunk_num, total_chunks)
+                        print(f'Found checksum mismatch at line: {line_num} for block with address: offset {offset}, size {size}, checksum {checksum} ({total_chunks} chunks)')
+
+                    # Add this chunk
+                    hexdata_clean = re.sub(r'[^0-9a-f]', '', hexdata.lower())
+                    if hexdata_clean:
+                        current_chunks.append(codecs.decode(hexdata_clean, 'hex'))
+
+                    # Check if block is complete
+                    if len(current_chunks) == total_chunks:
+                        print(f'Complete block collected: {len(current_chunks)} chunks')
+                        return b''.join(current_chunks)
+        except json.JSONDecodeError:
+            pass
+        except Exception as e:
+            if opts.debug:
+                print(f'Error parsing line {line_num}: {e}')
+
+    # Return any incomplete block we collected
+    if current_chunks:
+        print(f'Warning: Returning incomplete block with {len(current_chunks)} chunks (expected {block_info[4] if block_info else "unknown"})')
+        return b''.join(current_chunks)
+
+    # No checksum mismatch found
+    print('No checksum mismatch found in log file')
+    return bytearray()
+
 def wtdecode(opts):
     if opts.dumpin:
         opts.fragment = True
         if opts.filename == '-':
-            allbytes = encode_bytes(sys.stdin)
+            allbytes = extract_mongodb_log_hex(sys.stdin)
         else:
             with open(opts.filename, "r") as infile:
-                allbytes = encode_bytes(infile)
+                allbytes = extract_mongodb_log_hex(infile)
         b = binary_data.BinaryFile(io.BytesIO(allbytes))
         wtdecode_file_object(b, opts, len(allbytes))
     elif opts.filename == '-':
