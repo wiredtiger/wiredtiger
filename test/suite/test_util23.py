@@ -50,7 +50,6 @@ class test_util23(wttest.WiredTigerTestCase, suite_subprocess):
         self.check_file_contains("errfile.txt", 'usage:')
         with open("errfile.txt", 'r') as f:
             content = f.read()
-            # ensure that we no longer see the following error:
-            # "scratch buffer allocated and never discarded: util_verify: 73"
+            # Ensure that we no longer see the following error.
             self.assertNotIn('scratch buffer allocated and never discarded', content)
 
