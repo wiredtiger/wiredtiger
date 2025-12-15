@@ -315,41 +315,9 @@ __disagg_put_meta(WT_SESSION_IMPL *session, uint64_t page_id, const WT_ITEM *ite
 }
 
 /*
- * __turtle_crypt_key_update --
- *     Update new persisted encryption information to the turtle page.
- */
-static int
-__turtle_crypt_key_update(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn)
-{
-    WT_DECL_ITEM(buf);
-    WT_DECL_RET;
-    char *config, *newcfg;
-    const char *cfg[3];
-
-    WT_ERR(__wt_scr_alloc(session, 1024, &buf));
-    config = NULL;
-
-    WT_ERR(__wt_buf_fmt(
-      session, buf, "key_provider=(pages=(page_id=%" PRIu64 ",lsn=%" PRIu64 "))", page_id, lsn));
-
-    /* Retrieve the metadata for this file. */
-    WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
-
-    /* Insert the key provider entry. */
-    cfg[0] = config;
-    cfg[1] = buf->mem;
-    cfg[2] = NULL;
-    WT_ERR(__wt_config_collapse(session, cfg, &newcfg));
-    WT_ERR(__wt_metadata_update(session, WT_METAFILE_URI, newcfg));
-
-err:
-    __wt_scr_free(session, &buf);
-    return (ret);
-}
-
-/*
  * __wt_disagg_put_crypt_helper --
- *     Write KEK information to the metadata page log and do the relevant bookkeeping.
+ *     Write key encryption key information to the metadata page log and do the relevant
+ *     bookkeeping.
  */
 int
 __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
@@ -366,15 +334,15 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
-    /* Call get_key() to get the size of buffer. */
+    /* Check for a new key encryption key. If the size is 0, there is none so we can skip. */
     WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
     if (crypt.keys.size == 0)
         goto done;
 
-    /* Create buffer. */
+    /* WiredTiger has the memory ownership of the key encryption buffer. */
     WT_ERR(__wt_buf_initsize(session, &crypt.keys, crypt.keys.size));
 
-    /* Call get_key() to get the key data. */
+    /* Call the getter function again to fetch the new encryption key data. */
     WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
     WT_ASSERT(session, crypt.keys.size != 0 && crypt.keys.data != NULL);
 
@@ -383,14 +351,19 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
      * function that is allowed to fail.
      */
     ret = __disagg_put_crypt_key(session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, &crypt.keys, &lsn);
-    if (ret == 0)
+
+    /*
+     * Upon success, record the encryption key metadata into the turtle file. Otherwise return with
+     * error.
+     */
+    if (ret == 0) {
         crypt.r.lsn = lsn;
-    else
+        WT_WITH_TURTLE_LOCK(session, ret = __wt_metadata_turtle_rewrite(session));
+        WT_ERR(ret);
+    } else
         crypt.r.error = ret;
 
-    WT_ERR(__turtle_crypt_key_update(session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, lsn));
-
-    /* Callback to key provider that key is persisted. */
+    /* Callback to update key provider layer on the result of key encryption data persistence. */
     WT_IGNORE_RET(key_provider->on_key_update(key_provider, (WT_SESSION *)session, &crypt));
 done:
 err:
