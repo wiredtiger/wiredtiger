@@ -100,9 +100,6 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
         WT_ASSERT(session, dhandle->meta_base == NULL);
         WT_ASSERT(session, dhandle->orig_meta_base == NULL);
         WT_ERR(__wt_config_collapse(session, cfg, &tmp));
-        if (strcmp(dhandle->name, "file:WiredTiger.wt") == 0) {
-            WT_ERR(__wt_msg(session, "testing %s", cfg[0]));
-        }
         /*
          * Now strip out the checkpoint and live restore related items from the configuration string
          * and that is now our base metadata string.
