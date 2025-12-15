@@ -50,6 +50,7 @@
 #define WT_DISAGG_KEY_PROVIDER_TABLE_ID 2     /* Table ID for key encryption keys */
 #define WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID 1 /* Page ID for the main key provider table */
 #define WT_DISAGG_KEY_PROVIDER_MAX_PAGE_ID 1  /* Max page ID in the key provider table */
+#define WT_DISAGG_KEY_PROVIDER_VERSION 1      /* Current version of key provider configuration */
 
 #define WT_SYSTEM_PREFIX "system:"                               /* System URI prefix */
 #define WT_SYSTEM_CKPT_TS "checkpoint_timestamp"                 /* Checkpoint timestamp name */

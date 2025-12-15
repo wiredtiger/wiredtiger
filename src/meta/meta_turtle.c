@@ -397,8 +397,8 @@ __turtle_validate_key_provider(WT_SESSION_IMPL *session)
     WT_ASSERT(session, version == 1);
 
     /*
-     * The turtle page is re-written upon every update, therefore we must track the key encryption
-     * LSN to persist onto disk.
+     * The turtle page is re-written upon every update, therefore track the key encryption LSN to
+     * persist the information to disk.
      */
     S2C(session)
       ->disaggregated_storage.last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID] =
@@ -606,8 +606,8 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, const char *cfg[])
         } else if (validate_turtle) {
             WT_ERR(__wt_turtle_validate_version(session));
             /*
-             * Validate the key provider information. This is needed when a key provider was
-             * provided and the disaggregated storage was enabled.
+             * Validate and fetch the key provider meta information. Only required if the key
+             * provider was provided and the disaggregated storage was enabled.
              */
             if (__wt_conn_is_disagg(session) && conn->key_provider != NULL)
                 WT_ERR(__turtle_validate_key_provider(session));
@@ -663,7 +663,6 @@ err:
      * We used to remove the backup file here. But we cannot do that until the metadata is fully
      * synced to disk after recovery.
      */
-    WT_ASSERT(session, ret == 0);
     return (ret);
 }
 
@@ -795,10 +794,11 @@ __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
           .last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID] != 0) {
         WT_ERR(__wt_scr_alloc(session, 0, &key_provider_str));
         WT_ERR(__wt_buf_fmt(session, key_provider_str,
-          "key_provider=((page.1=(page_id=%d,lsn=%" PRIu64 ")),version=1)",
+          "key_provider=((page.1=(page_id=%d,lsn=%" PRIu64 ")),version=%d)",
           WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID,
           conn->disaggregated_storage
-            .last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID]));
+            .last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID],
+          WT_DISAGG_KEY_PROVIDER_VERSION));
 
         WT_ERR(__wt_fprintf(
           session, fs, "%s\n%s\n", WT_METADATA_KEY_PROVIDER, (char *)key_provider_str->data));
