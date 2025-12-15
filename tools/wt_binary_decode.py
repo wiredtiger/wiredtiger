@@ -214,7 +214,6 @@ class Printer(object):
         if pfx == '' and self.in_cell:
             pfx = '  '
         print(pfx + str(s))
-        # print(f'{pfx}{s}')
 
     def rint_v(self, s):
         if self.verbose:
@@ -374,14 +373,13 @@ def block_decode(p, b, nbytes, opts):
         p.rint('garbage in unused bytes')
         return
 
-    if opts.disagg and nbytes > 0:
-        blockhead.disk_size = nbytes
+    disk_size = nbytes if opts.disagg else blockhead.disk_size
 
-    if blockhead.disk_size > 17 * 1024 * 1024:
+    if disk_size > 17 * 1024 * 1024:
         # The maximum document size in MongoDB is 16MB. Larger block sizes are suspect.
         p.rint('the block is too big')
         return
-    if blockhead.disk_size < 40 and not opts.disagg:
+    if disk_size < 40 and not opts.disagg:
         # The disk size is too small
         return
 
@@ -394,7 +392,7 @@ def block_decode(p, b, nbytes, opts):
         savepos = b.tell()
         b.seek(disk_pos)
         if blockhead.flags & btree_format.BlockFlags.WT_BLOCK_DATA_CKSUM != 0:
-            check_size = blockhead.disk_size
+            check_size = disk_size
         else:
             check_size = 64
         data = bytearray(b.read(check_size))
@@ -420,7 +418,7 @@ def block_decode(p, b, nbytes, opts):
         skip_data = True
 
     if skip_data:
-        b.seek(disk_pos + blockhead.disk_size)
+        b.seek(disk_pos + disk_size)
         return
 
     # Read the block contents
@@ -435,10 +433,10 @@ def block_decode(p, b, nbytes, opts):
             # The first few bytes are uncompressed
             payload_data = bytearray(b.read(compress_skip - header_length))
             # Read the length of the remaining data
-            length = min(b.read_uint64(), blockhead.disk_size - compress_skip - 8)
+            length = min(b.read_uint64(), disk_size - compress_skip - 8)
             # Read the compressed data, seek to the end of the block, and uncompress
             compressed_data = b.read(length)
-            b.seek(disk_pos + blockhead.disk_size)
+            b.seek(disk_pos + disk_size)
             payload_data.extend(snappy.uncompress(compressed_data))
         except:
             p.rint('? the page failed to uncompress')
@@ -447,7 +445,7 @@ def block_decode(p, b, nbytes, opts):
             return
     else:
         payload_data = b.read(pagehead.mem_size - header_length)
-        b.seek(disk_pos + blockhead.disk_size)
+        b.seek(disk_pos + disk_size)
 
     # Add the payload to the page data & reinitialize the stream and the printer
     page_data.extend(payload_data)

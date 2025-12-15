@@ -152,7 +152,7 @@ class PageHeader(object):
             f"  recno: {str(self.recno)}\n"
             f"  writegen: {str(self.write_gen)}\n"
             f"  memsize: {str(self.mem_size)}\n"
-            f"  ncells (oflow len): {str(self.entries)}\n"
+            f"  ncells (overflow len): {str(self.entries)}\n"
             f"  page type: {str(self.type.value)} ({self.type.name})\n"
             f"  page flags: {str(self.flags)}\n"
             f"  version: {str(self.version)}"
@@ -188,7 +188,7 @@ class BlockHeader(object):
         self.unused = 0
 
     @staticmethod
-    def parse(b: binary_data.BinaryFile, disagg = False) -> 'BlockHeader':
+    def parse(b: binary_data.BinaryFile) -> 'BlockHeader':
         '''
         Parse a block header.
         '''
@@ -202,7 +202,7 @@ class BlockHeader(object):
     
     def __str__(self):
         header_string = (
-            f"Block Disagg Header:\n"
+            f"Block Header:\n"
             f"  disk_size: {str(self.disk_size)}"
             f"  checksum: {str(self.checksum)}"
             f"  flags: {str(self.flags)}"
