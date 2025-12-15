@@ -34,6 +34,12 @@ usage(void)
     return (1);
 }
 
+#define WT_USE_ERR()   \
+    do {               \
+        ret = usage(); \
+        goto err;      \
+    } while (0)
+
 /*
  * verify_one --
  *     Verify the file specified by the URI.
