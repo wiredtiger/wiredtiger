@@ -196,8 +196,8 @@ struct __wti_reconcile {
     /* Track if any key is removed from the disk image due to its delete is globally visible. */
     bool key_removed_from_disk_image;
 
-    /* Track if we write anything that hasn't been written in the previous reconciliation. */
-    bool none_durable_upd_used;
+    /* Track if we write anything that is newer than the previous reconciliation. */
+    bool newer_updates_than_last_rec_used;
 
     /*
      * When we can't mark the page clean after reconciliation (for example, checkpoint or eviction

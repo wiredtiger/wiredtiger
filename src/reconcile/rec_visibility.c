@@ -50,9 +50,9 @@ __rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT
     } else
         WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT) || upd_memsize == 0);
 
-    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && !r->none_durable_upd_used &&
+    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && !r->newer_updates_than_last_rec_used &&
       __rec_selected_key_changed(session, supd))
-        r->none_durable_upd_used = true;
+        r->newer_updates_than_last_rec_used = true;
 
     return (0);
 }

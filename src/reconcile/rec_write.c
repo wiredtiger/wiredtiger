@@ -746,8 +746,8 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     /* Track if any key on the disk image is removed because of its deletion is globally visible. */
     r->key_removed_from_disk_image = false;
 
-    /* Track if we write anything that hasn't been written in the previous reconciliation. */
-    r->none_durable_upd_used = false;
+    /* Track if we write anything that is newer than in the previous reconciliation. */
+    r->newer_updates_than_last_rec_used = false;
 
     /* Track if the page can be marked clean. */
     r->leave_dirty = false;
@@ -2475,7 +2475,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
         if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
           WT_REC_RESULT_SINGLE_PAGE((session), (r))) {
-            if (!r->none_durable_upd_used && !WT_PAGE_IS_INTERNAL(page) &&
+            if (!r->newer_updates_than_last_rec_used && !WT_PAGE_IS_INTERNAL(page) &&
               !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT))
                 skip_write = true;
             else if (WT_DELTA_ENABLED_FOR_PAGE(session, r->page->type) &&
