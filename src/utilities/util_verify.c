@@ -93,14 +93,14 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
                 if (dump_offsets != NULL) {
                     fprintf(
                       stderr, "%s: only a single 'dump_offsets' argument supported\n", progname);
-                    return (usage());
+                    WT_USE_ERR();
                 }
                 dump_offsets = __wt_optarg + strlen("dump_offsets=");
                 WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_offsets=[%s],", dump_offsets));
             } else if (strcmp(__wt_optarg, "dump_pages") == 0)
                 WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_pages,"));
             else
-                return (usage());
+                WT_USE_ERR();
             break;
         case 'k':
             dump_key_data = true;
@@ -123,7 +123,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             usage();
             return (0);
         default:
-            return (usage());
+            WT_USE_ERR();
         }
 
     if (dump_all_data && dump_key_data)
