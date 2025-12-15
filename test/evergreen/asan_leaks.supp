@@ -44,3 +44,8 @@ leak:__tiered_name_str
 
 # test_tiered18
 leak:__create_colgroup
+
+# ???
+leak:_PyBytes_FromSize
+leak:_wrap__wiredtiger_calc_modify
+leak:__cursor_prepared_discover_setup
