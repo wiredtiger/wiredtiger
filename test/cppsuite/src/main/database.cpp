@@ -64,7 +64,7 @@ database::add_existing_collections(int count, int key_count)
     std::lock_guard<std::mutex> lg(_mtx);
     testutil_assert(_next_collection_id == 0);
     /* We don't support operation tracking across database reopen. */
-    testutil_assert(_operation_tracker == NULL || _operation_tracker->enabled() == false);
+    testutil_assert(_operation_tracker == nullptr || _operation_tracker->enabled() == false);
     for (int i = 0; i < count; i++) {
         uint64_t next_id = _next_collection_id++;
         std::string collection_name = build_collection_name(next_id);

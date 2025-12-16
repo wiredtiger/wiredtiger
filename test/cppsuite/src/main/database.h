@@ -50,7 +50,11 @@ public:
      */
     void add_collection(scoped_session &session, uint64_t key_count = 0);
 
-    /* Add existing collections, should only happen once on startup. */
+    /*
+     * Add existing collections. This is a utility function that can allow the database model
+     * to start on an existing WiredTiger database. Generally it is not used for test that implement
+     * test_harness::test.
+     */
     void add_existing_collections(int count, int key_count);
 
     /* Get a collection using the id of the collection. */
