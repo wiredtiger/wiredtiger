@@ -897,13 +897,15 @@ def extract_mongodb_log_hex(f):
                         # Start of a new block
                         if current_chunks and len(current_chunks) == block_info[4]:
                             # We have a complete previous block, return it
-                            print(f'Found complete checksum mismatch block: offset={block_info[0]}, size={block_info[1]}, checksum={block_info[2]}')
+                            if (opts.debug):
+                                print(f'Found complete checksum mismatch block: offset={block_info[0]}, size={block_info[1]}, checksum={block_info[2]}')
                             return b''.join(current_chunks)
 
                         # Reset for new block
                         current_chunks = []
                         block_info = (offset, size, checksum, chunk_num, total_chunks)
-                        print(f'Found checksum mismatch at line: {line_num} for block with address: offset {offset}, size {size}, checksum {checksum} ({total_chunks} chunks)')
+                        if (opts.debug):
+                            print(f'Found checksum mismatch at line: {line_num} for block with address: offset {offset}, size {size}, checksum {checksum} ({total_chunks} chunks)')
 
                     # Add this chunk
                     hexdata_clean = re.sub(r'[^0-9a-f]', '', hexdata.lower())
@@ -912,10 +914,12 @@ def extract_mongodb_log_hex(f):
 
                     # Check if block is complete
                     if len(current_chunks) == total_chunks:
-                        print(f'Complete block collected: {len(current_chunks)} chunks')
+                        if (opts.debug):
+                            print(f'Complete block collected: {len(current_chunks)} chunks')
                         return b''.join(current_chunks)
         except json.JSONDecodeError:
-            pass
+            # If we don't have a JSON log line, then this isn't a MongoDB log.
+            return encode_bytes(f)
         except Exception as e:
             if opts.debug:
                 print(f'Error parsing line {line_num}: {e}')
@@ -926,7 +930,7 @@ def extract_mongodb_log_hex(f):
         return b''.join(current_chunks)
 
     # No checksum mismatch found
-    print('No checksum mismatch found in log file')
+    print('Error: No checksum mismatch found in log file')
     return bytearray()
 
 def wtdecode(opts):
