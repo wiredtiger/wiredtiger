@@ -362,54 +362,6 @@ err:
 }
 
 /*
- * __turtle_validate_key_provider --
- *     Retrieve key provider configuration from the turtle file and validate the version and page
- *     ID.
- */
-static int
-__turtle_validate_key_provider(WT_SESSION_IMPL *session)
-{
-    WT_DECL_RET;
-    uint64_t crypt_page_id, crypt_key_lsn;
-    uint16_t version;
-    char *key_provider_string;
-
-    if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
-        ret =
-          __wt_live_restore_turtle_read(session, WT_METADATA_KEY_PROVIDER, &key_provider_string);
-    else
-        WT_WITH_TURTLE_LOCK(
-          session, ret = __wt_turtle_read(session, WT_METADATA_KEY_PROVIDER, &key_provider_string));
-
-    if (ret != 0)
-        WT_ERR_MSG(session, ret, "Unable to read key provider string from turtle file");
-    if ((ret = sscanf(key_provider_string,
-           "key_provider=((page.1=(page_id=%" PRIu64 ",lsn=%" PRIu64 ")),version=%" SCNu16 ")",
-           &crypt_page_id, &crypt_key_lsn, &version)) != 3)
-        WT_ERR_MSG(session, ret, "Unable to parse turtle file key provider string");
-    ret = 0;
-
-    /*
-     * There is currently no support for multiple encryption key pages. Ensure that there is only
-     * one main page and is using correct version
-     */
-    WT_ASSERT(session, crypt_page_id == WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID);
-    WT_ASSERT(session, version == 1);
-
-    /*
-     * The turtle page is re-written upon every update, therefore track the key encryption LSN to
-     * persist the information to disk.
-     */
-    S2C(session)
-      ->disaggregated_storage.last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID] =
-      crypt_key_lsn;
-
-err:
-    __wt_free(session, key_provider_string);
-    return (ret);
-}
-
-/*
  * __wt_turtle_exists --
  *     Return if the turtle file exists on startup.
  */
@@ -603,15 +555,8 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, const char *cfg[])
             WT_ERR(__wt_remove_if_exists(session, WT_METAFILE, false));
             WT_ERR(__wt_remove_if_exists(session, WT_METADATA_TURTLE, false));
             load = true;
-        } else if (validate_turtle) {
+        } else if (validate_turtle)
             WT_ERR(__wt_turtle_validate_version(session));
-            /*
-             * Validate and fetch the key provider meta information. Only required if the key
-             * provider was provided and the disaggregated storage was enabled.
-             */
-            if (__wt_conn_is_disagg(session) && conn->key_provider != NULL)
-                WT_ERR(__turtle_validate_key_provider(session));
-        }
     } else
         load = true;
     if (load) {
@@ -734,8 +679,7 @@ err:
      * Failure to read the turtle file when salvaging means it can't be used for salvage.
      */
     if (ret == 0 || strcmp(key, WT_METADATA_COMPAT) == 0 ||
-      strcmp(key, WT_METADATA_LIVE_RESTORE) == 0 || strcmp(key, WT_METADATA_KEY_PROVIDER) == 0 ||
-      F_ISSET(S2C(session), WT_CONN_SALVAGE))
+      strcmp(key, WT_METADATA_LIVE_RESTORE) == 0 || F_ISSET(S2C(session), WT_CONN_SALVAGE))
         return (ret);
     F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
     WT_RET_PANIC(session, WT_TRY_SALVAGE, "%s: fatal turtle file read error %d at %s",
@@ -756,7 +700,6 @@ __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
     const char *version;
 
     WT_DECL_ITEM(state_str);
-    WT_DECL_ITEM(key_provider_str);
 
     fs = NULL;
     conn = S2C(session);
@@ -790,19 +733,6 @@ __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
           WT_METADATA_LIVE_RESTORE, (char *)state_str->data));
     }
 
-    if (conn->disaggregated_storage
-          .last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID] != 0) {
-        WT_ERR(__wt_scr_alloc(session, 0, &key_provider_str));
-        WT_ERR(__wt_buf_fmt(session, key_provider_str,
-          "key_provider=((page.1=(page_id=%d,lsn=%" PRIu64 ")),version=%d)",
-          WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID,
-          conn->disaggregated_storage
-            .last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID],
-          WT_DISAGG_KEY_PROVIDER_VERSION));
-
-        WT_ERR(__wt_fprintf(
-          session, fs, "%s\n%s\n", WT_METADATA_KEY_PROVIDER, (char *)key_provider_str->data));
-    }
     version = wiredtiger_version(&vmajor, &vminor, &vpatch);
     WT_ERR(__wt_fprintf(session, fs,
       "%s\n%s\n%s\n"
@@ -821,7 +751,6 @@ err:
     WT_TRET(__wt_fclose(session, &fs));
     WT_TRET(__wt_remove_if_exists(session, WT_METADATA_TURTLE_SET, false));
     __wt_scr_free(session, &state_str);
-    __wt_scr_free(session, &key_provider_str);
 
     /*
      * An error updating the turtle file means something has gone horribly wrong -- we're done.
