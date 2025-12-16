@@ -177,7 +177,7 @@ create_configs()
 
     echo "##################################################" > $file_name
     echo "runs.type=row" >> $file_name                # WT-7379 - Temporarily disable column store tests
-    echo "block_cache=0" >> $file_name                # WT-16212 - Disable block cache to avoid warning messages
+    echo "block_cache=0" >> $file_name                # Disable block cache to avoid warning messages
     echo "btree.huffman_value=0" >> $file_name        # WT-12456 - Never used, removed from newer releases
     echo "btree.prefix=0" >> $file_name               # WT-7579 - Prefix testing isn't portable between releases
     echo "btree.prefix_len=0" >> $file_name           # WT-15548 - Not supported by older releases
