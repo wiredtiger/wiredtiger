@@ -188,7 +188,7 @@ TEST_CASE_METHOD(kp_fixture, "Config", "[key_provider]")
         for (const char *config : invalid_configs) {
             const char *ext_config[] = {config, nullptr};
             int ret = extension_init(
-              conn.get_wt_connection(), reinterpret_cast<WT_CONFIG_ARG *>(ext_config));
+              conn->get_wt_connection(), reinterpret_cast<WT_CONFIG_ARG *>(ext_config));
             REQUIRE(ret == EINVAL);
         }
     }
