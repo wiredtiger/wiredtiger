@@ -147,6 +147,5 @@ checksum_database(WT_SESSION *session)
 
     tables_apply(checksum_table, &arg);
 
-    printf("Hashed entire DB, checksum is %lu\n", arg.hash);
     return (arg.hash);
 }

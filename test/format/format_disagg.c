@@ -140,7 +140,7 @@ disagg_validate_multi_node(WT_SESSION *session)
                                                 &g.disagg_multi_db_hash->follower_hash;
     *hash = checksum_database(session);
 
-    /* FIXME-WT-16282 Synchronise leader and follower and validate hashes. */
+    /* FIXME-WT-16282 Synchronize leader and follower and validate hashes. */
     if (g.disagg_leader)
         printf("Leader received follower hash: %lu\n", g.disagg_multi_db_hash->follower_hash);
     else
