@@ -27,6 +27,7 @@
  */
 
 #include "format.h"
+#include <sys/mman.h>
 
 /*
  * disagg_redirect_output --

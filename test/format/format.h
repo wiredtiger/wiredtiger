@@ -35,7 +35,6 @@
 #include <sys/resource.h>
 #endif
 #include <signal.h>
-#include <sys/mman.h>
 
 #define BUILDDIR "../../"
 #define EXTPATH BUILDDIR "ext/" /* Extensions path */
