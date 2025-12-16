@@ -141,7 +141,7 @@
 #define WT_CONF_ID_disagg_address_cookie_optional_field 228ULL
 #define WT_CONF_ID_disagg_address_cookie_upgrade 227ULL
 #define WT_CONF_ID_do_not_clear_txn_id 156ULL
-#define WT_CONF_ID_drain_threads 78ULL
+#define WT_CONF_ID_drain_threads 75ULL
 #define WT_CONF_ID_drop 182ULL
 #define WT_CONF_ID_dryrun 94ULL
 #define WT_CONF_ID_dump 139ULL
@@ -222,7 +222,7 @@
 #define WT_CONF_ID_key_gap 35ULL
 #define WT_CONF_ID_keyid 24ULL
 #define WT_CONF_ID_last 83ULL
-#define WT_CONF_ID_last_materialized_lsn 75ULL
+#define WT_CONF_ID_last_materialized_lsn 76ULL
 #define WT_CONF_ID_leaf_item_max 36ULL
 #define WT_CONF_ID_leaf_key_max 37ULL
 #define WT_CONF_ID_leaf_page_delta 288ULL
@@ -230,13 +230,13 @@
 #define WT_CONF_ID_leaf_value_max 39ULL
 #define WT_CONF_ID_leak_memory 186ULL
 #define WT_CONF_ID_legacy_page_visit_strategy 247ULL
-#define WT_CONF_ID_local_files_action 76ULL
+#define WT_CONF_ID_local_files_action 77ULL
 #define WT_CONF_ID_local_retention 56ULL
 #define WT_CONF_ID_lock_wait 124ULL
 #define WT_CONF_ID_log 191ULL
 #define WT_CONF_ID_log_retention 230ULL
 #define WT_CONF_ID_log_size 211ULL
-#define WT_CONF_ID_lose_all_my_data 77ULL
+#define WT_CONF_ID_lose_all_my_data 78ULL
 #define WT_CONF_ID_max_consecutive_delta 289ULL
 #define WT_CONF_ID_max_percent_overhead 202ULL
 #define WT_CONF_ID_memory_page_image_max 42ULL
