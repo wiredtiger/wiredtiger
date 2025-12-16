@@ -97,6 +97,8 @@
 /* Session configuration to enable prefetch. */
 #define SESSION_PREFETCH_CFG_ON "prefetch=(enabled=true)"
 
+#define MIN_TIMESTAMP 2 /* Minimum timestamp */
+
 #include "config.h"
 extern CONFIG configuration_list[];
 
@@ -438,6 +440,7 @@ WT_THREAD_RET random_kv(void *);
 WT_THREAD_RET timestamp(void *);
 
 uint32_t atou32(const char *, const char *, int);
+void checksum_database(WT_SESSION *);
 void config_clear(void);
 void config_compat(const char **);
 void config_error(void);
