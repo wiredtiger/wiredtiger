@@ -1415,6 +1415,8 @@ struct __wt_dsrc_stats {
     int64_t block_major;
     int64_t block_size;
     int64_t block_minor;
+    int64_t block_reusable_over_50;
+    int64_t block_reusable_over_90;
     int64_t btree_checkpoint_generation;
     int64_t btree_clean_checkpoint_timer;
     int64_t btree_compact_pages_reviewed;

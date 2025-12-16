@@ -467,9 +467,18 @@ __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_STATS *stats)
     WT_STAT_WRITE(session, stats, block_magic, WT_BLOCK_MAGIC);
     WT_STAT_WRITE(session, stats, block_major, WT_BLOCK_MAJOR_VERSION);
     WT_STAT_WRITE(session, stats, block_minor, WT_BLOCK_MINOR_VERSION);
-    WT_STAT_WRITE(session, stats, block_reuse_bytes,
-      (int64_t)(__wt_atomic_load_uint64_relaxed(&block->live.avail.bytes)));
+    int64_t reusable_bytes = (int64_t)(__wt_atomic_load_uint64_relaxed(&block->live.avail.bytes));
+    WT_STAT_WRITE(session, stats, block_reuse_bytes, reusable_bytes);
     WT_STAT_WRITE(session, stats, block_size, block->size);
+    int64_t reusable_portation = reusable_bytes * 100 / block->size;
+    if (reusable_portation >= 50)
+        WT_STAT_WRITE(session, stats, block_reusable_over_50, 1);
+    else
+        WT_STAT_WRITE(session, stats, block_reusable_over_50, 0);
+    if (reusable_portation >= 90)
+        WT_STAT_WRITE(session, stats, block_reusable_over_90, 1);
+    else
+        WT_STAT_WRITE(session, stats, block_reusable_over_90, 0);
 }
 
 /*

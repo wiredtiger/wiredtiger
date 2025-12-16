@@ -25,6 +25,8 @@ static const char *const __stats_dsrc_desc[] = {
   "block-manager: file major version number",
   "block-manager: file size in bytes",
   "block-manager: minor version number",
+  "block-manager: reusable space over 50 percent of the file size",
+  "block-manager: reusable space over 90 percent of the file size",
   "btree: btree checkpoint generation",
   "btree: btree clean tree checkpoint expiration time",
   "btree: btree compact pages reviewed",
@@ -474,6 +476,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->block_major = 0;
     stats->block_size = 0;
     stats->block_minor = 0;
+    stats->block_reusable_over_50 = 0;
+    stats->block_reusable_over_90 = 0;
     /* not clearing btree_checkpoint_generation */
     /* not clearing btree_clean_checkpoint_timer */
     /* not clearing btree_compact_pages_reviewed */
@@ -877,6 +881,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->block_size += from->block_size;
     if (from->block_minor > to->block_minor)
         to->block_minor = from->block_minor;
+    to->block_reusable_over_50 += from->block_reusable_over_50;
+    to->block_reusable_over_90 += from->block_reusable_over_90;
     to->btree_checkpoint_generation += from->btree_checkpoint_generation;
     to->btree_clean_checkpoint_timer += from->btree_clean_checkpoint_timer;
     to->btree_compact_pages_reviewed += from->btree_compact_pages_reviewed;
@@ -1308,6 +1314,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->block_size += WT_STAT_DSRC_READ(from, block_size);
     if ((v = WT_STAT_DSRC_READ(from, block_minor)) > to->block_minor)
         to->block_minor = v;
+    to->block_reusable_over_50 += WT_STAT_DSRC_READ(from, block_reusable_over_50);
+    to->block_reusable_over_90 += WT_STAT_DSRC_READ(from, block_reusable_over_90);
     to->btree_checkpoint_generation += WT_STAT_DSRC_READ(from, btree_checkpoint_generation);
     to->btree_clean_checkpoint_timer += WT_STAT_DSRC_READ(from, btree_clean_checkpoint_timer);
     to->btree_compact_pages_reviewed += WT_STAT_DSRC_READ(from, btree_compact_pages_reviewed);

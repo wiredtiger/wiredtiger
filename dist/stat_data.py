@@ -984,6 +984,8 @@ dsrc_stats = [
     BlockStat('block_magic', 'file magic number', 'max_aggregate,no_scale'),
     BlockStat('block_major', 'file major version number', 'max_aggregate,no_scale'),
     BlockStat('block_minor', 'minor version number', 'max_aggregate,no_scale'),
+    BlockStat('block_reusable_over_50', 'reusable space over 50 percent of the file size'),
+    BlockStat('block_reusable_over_90', 'reusable space over 90 percent of the file size'),
     BlockStat('block_reuse_bytes', 'file bytes available for reuse', 'no_scale,size'),
     BlockStat('block_size', 'file size in bytes', 'no_scale,size'),
 
