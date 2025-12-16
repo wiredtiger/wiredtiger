@@ -158,6 +158,7 @@ struct __wt_disagg_copy_metadata {
     char *table_value;
 
     int retries_left;                         /* The number of retries left. */
+    uint64_t timestamp;                       /* The timestamp for propagating the update. */
     TAILQ_ENTRY(__wt_disagg_copy_metadata) q; /* Linked list of entries. */
 };
 

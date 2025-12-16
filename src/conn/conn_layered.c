@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 
-static int __disagg_copy_shared_metadata_one(WT_SESSION_IMPL *session, const char *uri);
 static int __layered_drain_ingest_tables(WT_SESSION_IMPL *session);
 static void __layered_update_prune_timestamps_print_update_logs(WT_SESSION_IMPL *session,
   WT_LAYERED_TABLE *layered_table, wt_timestamp_t prune_timestamp, int64_t ckpt_inuse);
@@ -969,11 +968,12 @@ int
 __wt_disagg_copy_metadata_later(
   WT_SESSION_IMPL *session, const char *stable_uri, const char *table_name)
 {
+    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *md_cursor;
     WT_DECL_RET;
     WT_DISAGG_COPY_METADATA *entry;
-    char *md_key;
+    char *md_key, ts_string[WT_TS_INT_STRING_SIZE];
     const char *md_value;
     size_t len;
 
@@ -999,7 +999,7 @@ __wt_disagg_copy_metadata_later(
     WT_ERR(__wt_snprintf(md_key, len, "colgroup:%s", table_name));
     md_cursor->set_key(md_cursor, md_key);
     WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
-    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+    if (WT_CHECK_AND_RESET(ret, 0)) {
         WT_ERR(md_cursor->get_value(md_cursor, &md_value));
         WT_ERR(__wt_strdup(session, md_value, &entry->colgroup_value));
     }
@@ -1007,7 +1007,7 @@ __wt_disagg_copy_metadata_later(
     WT_ERR(__wt_snprintf(md_key, len, "layered:%s", table_name));
     md_cursor->set_key(md_cursor, md_key);
     WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
-    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+    if (WT_CHECK_AND_RESET(ret, 0)) {
         WT_ERR(md_cursor->get_value(md_cursor, &md_value));
         WT_ERR(__wt_strdup(session, md_value, &entry->layered_value));
     }
@@ -1015,20 +1015,29 @@ __wt_disagg_copy_metadata_later(
     WT_ERR(__wt_snprintf(md_key, len, "table:%s", table_name));
     md_cursor->set_key(md_cursor, md_key);
     WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
-    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+    if (WT_CHECK_AND_RESET(ret, 0)) {
         WT_ERR(md_cursor->get_value(md_cursor, &md_value));
         WT_ERR(__wt_strdup(session, md_value, &entry->table_value));
     }
 
     md_cursor->set_key(md_cursor, stable_uri);
     WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
-    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+    if (WT_CHECK_AND_RESET(ret, 0)) {
         WT_ERR(md_cursor->get_value(md_cursor, &md_value));
         WT_ERR(__wt_strdup(session, md_value, &entry->stable_value));
     }
 
+    /* See if this is a timestamped update. */
+    if (entry->stable_value != NULL) {
+        WT_ERR_NOTFOUND_OK(
+          __wt_config_getones(session, entry->stable_value, "disaggregated.timestamp", &cval), true);
+        if (WT_CHECK_AND_RESET(ret, 0) && cval.len != 0)
+            WT_ERR(__wt_txn_parse_timestamp(
+              session, "metadata update timestamp", &entry->timestamp, &cval));
+    }
+
     /* Set the retries. */
-    entry->retries_left = 1;
+    entry->retries_left = 0; /* XXX Can remove this - no longer needed. */
 
     /* Cannot fail past this point. */
     __wt_spin_lock(session, &conn->disaggregated_storage.copy_metadata_lock);
@@ -1037,8 +1046,9 @@ __wt_disagg_copy_metadata_later(
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Scheduled copying disaggregated metadata for table \"%s\" (stable URI \"%s\") to shared "
-      "metadata table",
-      table_name, stable_uri);
+      "metadata table at timestamp %" PRIx64 " %s",
+      table_name, stable_uri, entry->timestamp,
+      __wt_timestamp_to_string(entry->timestamp, ts_string));
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  colgroup: %s",
       entry->colgroup_value == NULL ? "<none>" : entry->colgroup_value);
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  layered: %s",
@@ -1118,7 +1128,7 @@ err:
  *     Process the copy metadata list.
  */
 int
-__wt_disagg_copy_metadata_process(WT_SESSION_IMPL *session)
+__wt_disagg_copy_metadata_process(WT_SESSION_IMPL *session, uint64_t checkpoint_timestamp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -1137,8 +1147,11 @@ __wt_disagg_copy_metadata_process(WT_SESSION_IMPL *session)
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.copy_metadata_qh, q, tmp)
     {
-        WT_ERR_NOTFOUND_OK(__disagg_copy_shared_metadata_one(session, entry->stable_uri), true);
+        /* Skip entries that are timestamped beyond the checkpoint timestamp. */
+        if (entry->timestamp > checkpoint_timestamp)
+            continue;
 
+        /* XXX Should do this in one transaction, if we are not in a transaction already. */
         WT_ERR(__disagg_update_shared_metadata(
           session, "colgroup:", entry->table_name, entry->colgroup_value));
         WT_ERR(__disagg_update_shared_metadata(
@@ -2419,29 +2432,6 @@ __disagg_copy_shared_metadata(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, co
     WT_RET(ret);
 
     return (0);
-}
-
-/*
- * __disagg_copy_shared_metadata_one --
- *     Copy the metadata associated with the given URI from the main metadata table to the shared
- *     metadata table.
- */
-static int
-__disagg_copy_shared_metadata_one(WT_SESSION_IMPL *session, const char *uri)
-{
-    WT_CURSOR *md_cursor;
-    WT_DECL_RET;
-
-    md_cursor = NULL;
-
-    WT_ERR(__wt_metadata_cursor(session, &md_cursor));
-    WT_ERR(__disagg_copy_shared_metadata(session, md_cursor, uri));
-
-err:
-    if (md_cursor != NULL)
-        WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
-
-    return (ret);
 }
 
 /*

@@ -1211,6 +1211,9 @@ struct __wt_session {
      * default \c 0.}
      * @config{disaggregated = (, configure disaggregated storage for this file., a set of related
      * configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;timestamp, the
+     * timestamp for when this table's metadata should be propagated to the checkpoint., a string;
+     * default empty.}
      * @config{ ),,}
      * @config{encryption = (, configure an encryptor for file blocks.  When a table is created\,
      * its encryptor is not implicitly used for any related indices or column groups., a set of
@@ -3178,6 +3181,9 @@ struct __wt_connection {
  * @config{ ),,}
  * @config{disaggregated = (, configure disaggregated storage for this connection., a set of related
  * configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;timestamp, the
+ * timestamp for when this table's metadata should be propagated to the checkpoint., a string;
+ * default empty.}
  * @config{ ),,}
  * @config{encryption = (, configure an encryptor for system wide metadata and logs.  If a system
  * wide encryptor is set\, it is also used for encrypting data files and tables\, unless encryption

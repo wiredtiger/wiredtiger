@@ -157,6 +157,9 @@ disaggregated_config_common = [
         The page log service used as a backing for this table. This is used experimentally
         by layered tables to back their stable component in shared/object based storage''',
         type='string', undoc=True),
+    # XXX Should figure out where this goes...
+    Config('timestamp', '', r'''
+        the timestamp for when this table's metadata should be propagated to the checkpoint'''),
 ]
 connection_disaggregated_config = [
     Config('disaggregated', '', r'''

@@ -1001,15 +1001,16 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
     }
 
     /* XXX Copy table info for disagg. We have to do this after colgroups are created. */
-    if (__wt_config_getones(session, config, "type", &cval) == 0 &&
-      WT_CONFIG_LIT_MATCH("layered", cval)) {
-        /* Yes, this is a horrible hack. */
-        __wt_free(session, filename);
-        len = strlen("file:") + strlen(tablename) + strlen(".wt_stable") + 1;
-        WT_ERR(__wt_calloc_def(session, len, &filename));
-        WT_ERR(__wt_snprintf(filename, len, "file:%s.wt_stable", tablename));
-        WT_ERR(__wt_disagg_copy_metadata_later(session, filename, tablename));
-    }
+    if (S2C(session)->layered_table_manager.leader)
+        if (__wt_config_getones(session, config, "type", &cval) == 0 &&
+          WT_CONFIG_LIT_MATCH("layered", cval)) {
+            /* Yes, this is a horrible hack. */
+            __wt_free(session, filename);
+            len = strlen("file:") + strlen(tablename) + strlen(".wt_stable") + 1;
+            WT_ERR(__wt_calloc_def(session, len, &filename));
+            WT_ERR(__wt_snprintf(filename, len, "file:%s.wt_stable", tablename));
+            WT_ERR(__wt_disagg_copy_metadata_later(session, filename, tablename));
+        }
 
 err:
     WT_TRET(__wt_schema_release_table(session, &table));
