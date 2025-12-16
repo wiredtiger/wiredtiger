@@ -125,7 +125,7 @@ disagg_setup_multi_node(void)
 
 /*
  * disagg_validate_multi_node --
- *     Multi-node validation.
+ *    Validate the data between leader and follower in multi-node disagg mode.
  */
 void
 disagg_validate_multi_node(WT_SESSION *session)
