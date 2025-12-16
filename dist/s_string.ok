@@ -142,6 +142,7 @@ FLCS
 FLD
 FLSv
 FLv
+FNV
 FOREACH
 FS
 FULLFSYNC
@@ -792,6 +793,7 @@ fixup
 floatnum
 fmt
 fmterr
+fnv
 foc
 fopen
 formatmessage
