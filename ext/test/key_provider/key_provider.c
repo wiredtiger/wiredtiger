@@ -316,11 +316,10 @@ kp_configure(KEY_PROVIDER *kp, WT_CONFIG_ARG *config)
 
     /* Parse configuration key-value pairs */
     while ((ret = config_parser->next(config_parser, &k, &v)) == 0) {
-        if (configure_int("verbose", &k, &v, &kp->verbose) == 0) {
+        if (configure_int("verbose", &k, &v, &kp->verbose) == 0)
             continue;
-        } else if (configure_uint("key_expires", &k, &v, &kp->key_expires) == 0) {
+        else if (configure_uint("key_expires", &k, &v, &kp->key_expires) == 0)
             continue;
-        }
 
         LOG_ERROR(kp, NULL, "WT_CONFIG_PARSER.next: unexpected configuration: %.*s=%.*s",
           (int)k.len, k.str, (int)v.len, v.str);
