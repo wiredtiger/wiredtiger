@@ -29,7 +29,6 @@
 #include "timestamp_manager.h"
 
 #include <sstream>
-#include <iomanip>
 
 #include "src/common/constants.h"
 #include "src/common/logger.h"
@@ -47,14 +46,13 @@ timestamp_manager::decimal_to_hex(uint64_t value)
 }
 
 uint64_t
-timestamp_manager::hex_to_decimal(const char *s)
+timestamp_manager::hex_to_decimal(const std::string &timestamp)
 {
-    assert(s != nullptr && "input must not be null");
-    testutil_assert(s[0] != '\0' && "hex string is empty");
+    testutil_assert(timestamp[0] != '\0' && "hex string is empty");
 
     uint64_t value = 0;
     std::stringstream ss;
-    ss << std::hex << s;
+    ss << std::hex << timestamp;
     ss >> value;
 
     testutil_assert(!ss.fail() && "hex parse failed");
