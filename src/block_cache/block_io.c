@@ -406,10 +406,9 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     WT_BTREE *btree;
     WT_DECL_ITEM(ctmp);
     WT_DECL_ITEM(etmp);
-    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    WT_ITEM *ip, *ip_orig;
     WT_ITEM results[WT_DELTA_LIMIT + 1];
+    WT_ITEM *tmp, *ip, *ip_orig;
     WT_PAGE_BLOCK_META block_meta_tmp;
     const WT_PAGE_HEADER *dsk;
     uint32_t count, i;
@@ -428,11 +427,13 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     found = false;
     ip = NULL;
     skip_cache_put = (blkcache->type == WT_BLKCACHE_UNCONFIGURED);
+    tmp = NULL;
     type = 0;
 
     /* Skip block cache for M2, just read the base + delta pack. */
     count = WT_ELEMENTS(results);
 
+    /* FIXME-WT-16291: clean up tmp usage? */
     if (bm->read_multiple == NULL) {
         WT_RET(__wt_calloc_def(session, 1, &tmp));
         WT_CLEAR(tmp[0]);
@@ -440,10 +441,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
          * FIXME-WT-14717: we used to read garbage values for block meta from the block cache for
          * non-disaggregated case. It's unclear if we still do -- pass a NULL for now.
          */
-        ret = __wt_blkcache_read(session, &tmp[0], NULL, addr, addr_size);
-        if (ret != 0)
-            __wt_buf_free(session, tmp);
-        WT_ERR(ret);
+        WT_ERR(__wt_blkcache_read(session, &tmp[0], NULL, addr, addr_size));
 
         *buf_count = 1;
         *buf = tmp;
