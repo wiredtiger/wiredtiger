@@ -512,9 +512,8 @@ __page_merge_base_internal_deltas(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR 
     }
 
     if (build_disk) {
-        WT_PAGE_HEADER *hdr;
         /* Finalize header once after all appends. */
-        hdr = (WT_PAGE_HEADER *)new_image->data;
+        WT_PAGE_HEADER *hdr = (WT_PAGE_HEADER *)new_image->data;
         memset(hdr, 0, sizeof(WT_PAGE_HEADER));
         hdr->u.entries = entry_count;
         if (row_internal_page)
