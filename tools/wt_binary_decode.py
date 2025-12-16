@@ -345,6 +345,93 @@ def process_timestamps(p, cell: btree_format.Cell, pagestats: PageStats):
         pagestats.num_d_stop_ts += 1
         p.rint_v(' durable stop ts: ' + ts(cell.durable_stop_ts))
 
+def decode_snappy_varint(data):
+    """
+    Decode the uncompressed length from snappy-compressed data.
+    Snappy uses a variable-length encoding for the uncompressed size at the start.
+    Returns (uncompressed_length, bytes_used) or (None, 0) if invalid.
+    """
+    if len(data) == 0:
+        return (None, 0)
+
+    result = 0
+    shift = 0
+    for i, byte in enumerate(data[:5]):  # Varint is max 5 bytes for 32-bit length
+        result |= (byte & 0x7f) << shift
+        if (byte & 0x80) == 0:
+            return (result, i + 1)
+        shift += 7
+    return (None, 0)  # Invalid varint
+
+def print_snappy_diagnostics(p, compressed_data, stored_length, pagehead, compress_skip):
+    """Print detailed diagnostics about invalid compressed data."""
+    p.rint('? Decompression of the block failed, analyzing compressed data:')
+    p.rint(f'??  Compressed data length: {len(compressed_data)} bytes')
+    p.rint(f'??  Stored length from WiredTiger prefix: {stored_length} (0x{stored_length:x})')
+
+    # Analyze the snappy header
+    uncompressed_len, varint_bytes = decode_snappy_varint(compressed_data)
+    if uncompressed_len:
+        p.rint(f'??  Snappy header claims: {uncompressed_len} bytes uncompressed (varint: {varint_bytes} bytes)')
+        expected_uncompressed = pagehead.mem_size - compress_skip
+        p.rint(f'??  Page header expects: {expected_uncompressed} bytes uncompressed')
+
+        if abs(uncompressed_len - expected_uncompressed) > 100:
+            p.rint(f'??  WARNING: size mismatch of {abs(uncompressed_len - expected_uncompressed)} bytes!')
+    else:
+        p.rint(f'??  ERROR: could not decode snappy varint header')
+
+    # Try the full decompression first to get detailed error message
+    try:
+        snappy.uncompress(compressed_data)
+        # If we get here, decompression succeeded (shouldn't happen if we're in diagnostics)
+        p.rint(f'??  WARNING: Full decompression unexpectedly succeeded')
+    except snappy.UncompressError as e:
+        # Try to extract the underlying error message from the exception chain
+        error_details = ""
+        if e.__cause__ is not None:
+            error_details = str(e.__cause__)
+        elif e.__context__ is not None:
+            error_details = str(e.__context__)
+        else:
+            # Fallback to the exception itself
+            error_details = str(e)
+
+        # Parse error message for corruption details
+        import re
+        dst_match = re.search(r'dst position:\s*(\d+)', error_details)
+        offset_match = re.search(r'offset\s+(\d+)', error_details)
+
+        if dst_match:
+            dst_pos = int(dst_match.group(1))
+            p.rint(f'??  Error at output position: {dst_pos} bytes')
+            if uncompressed_len:
+                percent = (dst_pos / uncompressed_len) * 100
+                p.rint(f'??  Successfully decompressed: {dst_pos} / {uncompressed_len} bytes ({percent:.1f}%)')
+            else:
+                p.rint(f'??  Successfully decompressed: {dst_pos} bytes before failure')
+
+        if offset_match:
+            bad_offset = int(offset_match.group(1))
+            p.rint(f'??  Invalid backreference: Snappy tried to copy from output offset {bad_offset}')
+            if dst_match:
+                if bad_offset > dst_pos:
+                    p.rint(f'??  ERROR: backreference offset {bad_offset} exceeds decompressed data {dst_pos} by {bad_offset - dst_pos} bytes')
+                p.rint(f'??  Corruption occurred in compressed stream while decompressing bytes 0-{dst_pos}')
+
+            # Note: The backreference offset may exceed compressed data length - that's expected
+            # because it refers to a position in the OUTPUT buffer, not the input stream
+            if bad_offset > len(compressed_data):
+                p.rint(f'??  Note: backreference offset ({bad_offset}) > compressed size ({len(compressed_data)}) is expected')
+                p.rint(f'??       (offset refers to output buffer position, not input position)')
+
+        if error_details and not (dst_match or offset_match):
+            p.rint(f'??  Error details: {error_details}')
+
+    # Show first bytes for debugging
+    if len(compressed_data) >= 32:
+        p.rint(f'??  first 32 bytes: {compressed_data[:32].hex(" ")}')
+
 def block_decode(p, b, nbytes, opts):
     disk_pos = b.tell()
     disagg_delta = False
@@ -470,13 +557,51 @@ def block_decode(p, b, nbytes, opts):
             # The first few bytes are uncompressed
             payload_data = bytearray(b.read(compress_skip - header_length))
             # Read the length of the remaining data
-            length = min(b.read_uint64(), blockhead.disk_size - compress_skip - 8)
-            # Read the compressed data, seek to the end of the block, and uncompress
-            compressed_data = b.read(length)
+            compressed_byte_count = b.read_uint64()
+            calculated_length = blockhead.disk_size - compress_skip - 8
+            lengths_match = (compressed_byte_count == calculated_length)
+
+            # Read the maximum possible amount of compressed data
+            compressed_data_full = b.read(max(calculated_length, compressed_byte_count))
             b.seek(disk_pos + blockhead.disk_size)
-            payload_data.extend(snappy.uncompress(compressed_data))
+
+            # Try decompression with both sizes, preferring the stored length first
+            decompressed = None
+
+            # Try stored length first (most likely to be correct)
+            if compressed_byte_count <= len(compressed_data_full):
+                p.rint_v(f'Trying to decompress using stored length: {compressed_byte_count} bytes')
+                compressed_data = compressed_data_full[:compressed_byte_count]
+                if snappy.isValidCompressed(compressed_data):
+                    try:
+                        decompressed = snappy.uncompress(compressed_data)
+                        if not lengths_match:
+                            p.rint_v(f'  Successfully decompressed using stored length ({compressed_byte_count} bytes)')
+                    except:
+                        pass
+
+            # If that failed and lengths differ, try calculated length
+            if decompressed is None and not lengths_match and calculated_length <= len(compressed_data_full):
+                p.rint_v(f'Trying to decompress using calculated length: {calculated_length} bytes')
+                compressed_data = compressed_data_full[:calculated_length]
+                if snappy.isValidCompressed(compressed_data):
+                    try:
+                        decompressed = snappy.uncompress(compressed_data)
+                        p.rint_v(f'  Successfully decompressed using calculated length ({calculated_length} bytes)')
+                    except:
+                        pass
+
+            # If any attempt succeeded, use the result
+            if decompressed is not None:
+                payload_data.extend(decompressed)
+            else:
+                # Both failed - print diagnostics and stop processing this block
+                # Use the stored length for diagnostics as it's more likely to be correct
+                compressed_data = compressed_data_full[:min(compressed_byte_count, len(compressed_data_full))]
+                print_snappy_diagnostics(p, compressed_data, compressed_byte_count, pagehead, compress_skip)
+                return  # Stop processing this corrupted block
         except:
-            p.rint('? the page failed to uncompress')
+            p.rint('? The page failed to uncompress')
             if opts.debug:
                 traceback.print_exception(*sys.exc_info())
             return
@@ -706,12 +831,11 @@ def wtdecode_file_object(b, opts, nbytes):
         except ModuleNotFoundError as e:
             # We're missing snappy compression support. No point continuing from here.
             p.rint('ERROR: ' + str(e))
-            break
+            exit(1)
         except Exception:
             p.rint(f'ERROR decoding block at {d_and_h(startblock)}')
             if opts.debug:
                 traceback.print_exception(*sys.exc_info())
-        p.rint('')
         pos = b.tell()
         pos = (pos + 0x1FF) & ~(0x1FF)
         if startblock == pos:
