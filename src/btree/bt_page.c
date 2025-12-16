@@ -335,7 +335,6 @@ __page_merge_base_internal_deltas(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR 
     size_t i = 0, final_entries = 0; /* final_entries = number of WT_REFs emitted */
     uint32_t min_d, entry_count; /* entry_count = number of page cells (cells = keys + values) */
     int cmp;
-    WT_PAGE_HEADER *hdr;
     uint8_t *p_ptr;
 
     WT_ASSERT(session, base != NULL);
@@ -346,7 +345,6 @@ __page_merge_base_internal_deltas(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR 
     entry_count = 0;
     min_d = 0;
     min_delta = NULL;
-    hdr = NULL;
     p_ptr = NULL;
 
     WT_UNUSED(new_image);
@@ -515,7 +513,7 @@ __page_merge_base_internal_deltas(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR 
 
     if (build_disk) {
         /* Finalize header once after all appends. */
-        hdr = (WT_PAGE_HEADER *)new_image->data;
+        WT_PAGE_HEADER *hdr = (WT_PAGE_HEADER *)new_image->data;
         memset(hdr, 0, sizeof(WT_PAGE_HEADER));
         hdr->u.entries = entry_count;
         if (row_internal_page)
