@@ -2095,7 +2095,10 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
         empty = TAILQ_EMPTY(&conn->layered_drain_data.work_queue);
         __wt_spin_unlock(internal_session, &conn->layered_drain_data.queue_lock);
         if (empty) {
-            /* Notify the other threads to exit. */
+            /*
+             * Notify the other threads to exit. Relaxed is okay here as the worker threads will
+             * observe this change eventually.
+             */
             __wt_atomic_store_bool_relaxed(&conn->layered_drain_data.running, false);
             break;
         }
