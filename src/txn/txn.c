@@ -2095,7 +2095,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
                   op->btree->id == S2C(session)->cache->hs_fileid)
                     break;
                 WT_ASSERT(session, upd->txnid == txn->id || upd->txnid == WT_TXN_ABORTED);
-                upd->txnid = WT_TXN_ABORTED;
+                __wt_tsan_suppress_store_uint64_v(&upd->txnid, WT_TXN_ABORTED);
             } else {
                 /*
                  * If an operation has the key repeated flag set, skip resolving prepared updates as

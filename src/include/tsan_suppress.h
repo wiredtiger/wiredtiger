@@ -102,6 +102,16 @@ __wt_tsan_suppress_store_uint64(uint64_t *vp, uint64_t v)
 }
 
 /*
+ * __wt_tsan_suppress_store_uint64 --
+ *     TSAN warnings suppression for uint64 store.
+ */
+static WT_INLINE void
+__wt_tsan_suppress_store_uint64_v(volatile uint64_t *vp, uint64_t v)
+{
+    __wt_atomic_store_uint64_v_relaxed(vp, v);
+}
+
+/*
  * __wt_tsan_suppress_add_uint64 --
  *     TSAN warnings suppression for uint64 add.
  */
@@ -249,6 +259,26 @@ static WT_INLINE void *
 __wt_tsan_suppress_memset(void *ptr, int val, size_t size)
 {
     return (memset(ptr, val, size));
+}
+
+/*
+ * __wt_tsan_suppress_load_wt_insert_ptr --
+ *     TSAN warnings suppression for WT_ADDR pointer load.
+ */
+static WT_INLINE WT_INSERT *
+__wt_tsan_suppress_load_wt_insert_ptr(WT_INSERT **vp)
+{
+    return (WT_INSERT *)(__wt_atomic_load_ptr_relaxed(vp));
+}
+
+/*
+ * __wt_tsan_suppress_store_wt_insert_ptr --
+ *     TSAN warnings suppression for WT_ADDR pointer store.
+ */
+static WT_INLINE void
+__wt_tsan_suppress_store_wt_insert_ptr(WT_INSERT **vp, WT_INSERT *v)
+{
+    __wt_atomic_store_ptr_relaxed(vp, v);
 }
 
 /*

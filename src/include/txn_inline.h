@@ -297,7 +297,7 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
      * if there is an active transaction on the btree. Only try to update the shared value if this
      * transaction is newer than the last transaction that updated it.
      */
-    btree_txn_id_prev = btree->max_upd_txn;
+    btree_txn_id_prev = __wt_tsan_suppress_load_uint64(&btree->max_upd_txn);
     txn_id = txn->id;
     WT_ASSERT_ALWAYS(session, txn_id != WT_TXN_ABORTED,
       "Assert failure: session: %s: txn->id == WT_TXN_ABORTED", session->name);
@@ -1363,9 +1363,9 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
               upd->type == WT_UPDATE_STANDARD))
             return (WT_VISIBLE_TRUE);
 
-        upd_visible =
-          __wt_txn_visible(session, upd->txnid, __wt_atomic_load_uint64_relaxed(&upd->upd_start_ts),
-            __wt_atomic_load_uint64_relaxed(&upd->upd_durable_ts));
+        upd_visible = __wt_txn_visible(session, __wt_tsan_suppress_load_uint64_v(&upd->txnid),
+          __wt_atomic_load_uint64_relaxed(&upd->upd_start_ts),
+          __wt_atomic_load_uint64_relaxed(&upd->upd_durable_ts));
 
         /*
          * The visibility check is only valid if the update does not change state. If the state does
@@ -1551,8 +1551,9 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
          * Save the restored update to use it as base value update in case if we need to reach
          * history store instead of on-disk value.
          */
-        if (upd->txnid != WT_TXN_ABORTED && restored_updp != NULL &&
-          F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS) && upd->type == WT_UPDATE_STANDARD) {
+        if (__wt_tsan_suppress_load_uint64_v(&upd->txnid) != WT_TXN_ABORTED &&
+          restored_updp != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS) &&
+          upd->type == WT_UPDATE_STANDARD) {
             WT_ASSERT(session, *restored_updp == NULL);
             *restored_updp = upd;
         }

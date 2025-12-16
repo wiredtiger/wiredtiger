@@ -2458,6 +2458,28 @@ tasks:
           upload_source_dir: "wiredtiger"
           upload_filename: unit-test-disagg-follower-tsan.tgz
 
+  - name: format-stress-test-tsan
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test"
+        vars:
+          test_format_extra_args: runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
+          times: 3
+
+  - name: format-stress-test-disagg-leader-tsan
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # FIXME-WT-14566 Limit the runs for now.
+          # TODO: Do we need to have this fixme here?
+          format_args: disagg.mode=leader runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
+          times: 3
+
   - name: unit-test-hook-disagg-leader-bucket00
     tags: ["pull_request", "python"]
     depends_on:
@@ -6480,6 +6502,10 @@ buildvariants:
       distros: ubuntu2004-large
     - name: unit-test-disagg-follower-tsan
       distros: ubuntu2004-large
+    - name: format-stress-test-disagg-leader-tsan
+      distros: ubuntu2004-large
+    - name: format-stress-test-tsan
+      distros: ubuntu2004-large
     - name: generate-tsan-metric
     - name: generate-tsan-metric-disagg
     - name: generate-tsan-metric-timestamp
@@ -7357,6 +7383,10 @@ buildvariants:
     - name: unit-test-disagg-leader-tsan
       distros: amazon2023-arm64-latest-large-m8g
     - name: unit-test-disagg-follower-tsan
+      distros: amazon2023-arm64-latest-large-m8g
+    - name: format-stress-test-disagg-leader-tsan
+      distros: amazon2023-arm64-latest-large-m8g
+    - name: format-stress-test-tsan
       distros: amazon2023-arm64-latest-large-m8g
     - name: generate-tsan-metric
     - name: generate-tsan-metric-disagg
