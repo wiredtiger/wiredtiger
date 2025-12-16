@@ -385,7 +385,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     WT_DISAGGREGATED_STORAGE *disagg;
     uint64_t lsn;
     uint32_t checksum;
-    char *checkpoint_root_copy, ts_string[WT_TS_INT_STRING_SIZE];
+    char *checkpoint_root_copy, *key_provider_string, ts_string[WT_TS_INT_STRING_SIZE];
 
     buf = NULL;
     checkpoint_root_copy = NULL;
@@ -404,11 +404,14 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
 
     WT_ERR(__wt_strndup(session, checkpoint_root, checkpoint_root_size, &checkpoint_root_copy));
 
+    WT_ERR_NOTFOUND_OK(
+      __wt_metadata_search(session, WT_METADATA_KEY_PROVIDER, &key_provider_string), true);
+
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
     WT_ERR(__wt_buf_fmt(session, buf,
       "%s\n"
-      "timestamp=%" PRIx64,
-      checkpoint_root_copy, checkpoint_timestamp));
+      "timestamp=%" PRIx64 "\n%s",
+      checkpoint_root_copy, checkpoint_timestamp, key_provider_string));
 
     /* Compute the checksum for the metadata page. */
     checksum = __wt_checksum(buf->data, buf->size);
