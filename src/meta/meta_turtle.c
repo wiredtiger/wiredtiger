@@ -366,7 +366,7 @@ err:
  *     Retrieve key provider configuration from the turtle file and validate the version and page
  *     ID.
  */
-int
+static int
 __turtle_validate_key_provider(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;

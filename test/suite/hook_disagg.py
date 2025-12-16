@@ -95,9 +95,12 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
         skip_test("cannot run disagg hook on a test that uses tiered_storage in the config string")
 
 
-    extension_libs = WiredTigerTestCase.findExtension('page_log', page_log_name)
-    if len(extension_libs) == 0:
-        raise Exception(extension_name + ' storage source extension not found')
+    page_log_extension = WiredTigerTestCase.findExtension('page_log', page_log_name)
+    if len(page_log_extension) == 0:
+        raise Exception(page_log_name + ' storage source extension not found')
+    key_provider_extension = WiredTigerTestCase.findExtension('test', "key_provider")
+    if len(key_provider_extension) == 0:
+        raise Exception(key_provider_extension[0] + ' storage source extension not found')
 
     WiredTigerTestCase.verbose(None, 3, f'role={disagg_parameters.role}')
     disagg_config = ',verbose=[layered]' \
@@ -147,11 +150,13 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
             page_log_config = f"cache_size_mb=2048,{page_log_config}"
 
     if page_log_config == None:
-        ext_lib = '\"%s\"' % extension_libs[0]
+        ext_lib = '\"%s\"' % page_log_extension[0]
     else:
-        ext_lib = '\"%s\"=(config=\"%s\")' % (extension_libs[0], page_log_config)
+        ext_lib = '\"%s\"=(config=\"%s\")' % (page_log_extension[0], page_log_config)
 
-    disagg_config += ',' + ext_string + ',%s]' % ext_lib
+    key_provider_extension_config =  '\"%s\"=(early_load=true,config="verbose=-1")' % (key_provider_extension[0])
+
+    disagg_config += ',' + ext_string + ',%s,%s]' % (ext_lib, key_provider_extension_config)
 
     config = conn_config + disagg_config
 
