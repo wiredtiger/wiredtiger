@@ -88,13 +88,14 @@ struct kp_fixture {
     kp_load_key(const std::string &key_data, uint64_t lsn)
     {
         REQUIRE(kp != nullptr);
+        WT_KEY_PROVIDER *wtkp = &kp->iface;
 
         WT_CRYPT_KEYS crypt = {};
         crypt.r.lsn = lsn;
         crypt.keys.data = key_data.data();
         crypt.keys.size = key_data.size();
 
-        int ret = kp->iface.load_key(&kp->iface, session, &crypt);
+        int ret = wtkp->load_key(wtkp, session, &crypt);
         REQUIRE(ret == 0);
 
         REQUIRE(kp->state.current_lsn == lsn);
@@ -106,6 +107,7 @@ struct kp_fixture {
     WT_CRYPT_KEYS
     kp_get_key()
     {
+        REQUIRE(kp != nullptr);
         WT_KEY_PROVIDER *wtkp = &kp->iface;
 
         /* Get key; first query the size, then get the data */
@@ -135,7 +137,7 @@ TEST_CASE_METHOD(kp_fixture, "Config", "[key_provider]")
         REQUIRE(kp->wtext != nullptr);
 
         REQUIRE(kp->verbose == WT_VERBOSE_INFO);
-        REQUIRE(kp->key_expires == 0);
+        REQUIRE(kp->key_expires == 43200); /* Default: 12 hours */
     }
 
     SECTION("Empty config")
@@ -144,20 +146,34 @@ TEST_CASE_METHOD(kp_fixture, "Config", "[key_provider]")
         REQUIRE(kp->wtext != nullptr);
 
         REQUIRE(kp->verbose == WT_VERBOSE_INFO);
-        REQUIRE(kp->key_expires == 0);
+        REQUIRE(kp->key_expires == 43200); /* Default: 12 hours */
     }
 
-    SECTION("Custom config")
+    SECTION("Custom config, regular key expiration")
     {
         kp_ptr_t kp = kp_init("verbose=2,key_expires=300");
         REQUIRE(kp->wtext != nullptr);
 
         REQUIRE(kp->verbose == WT_VERBOSE_DEBUG_2);
         REQUIRE(kp->key_expires == 300);
-        REQUIRE(kp->state.current_lsn == 0);
-        REQUIRE(kp->state.key_time == 0);
-        REQUIRE(kp->state.current_key == nullptr);
-        REQUIRE(kp->state.key_size == 0);
+    }
+
+    SECTION("Custom config, key never expires")
+    {
+        kp_ptr_t kp = kp_init("verbose=2,key_expires=-1");
+        REQUIRE(kp->wtext != nullptr);
+
+        REQUIRE(kp->verbose == WT_VERBOSE_DEBUG_2);
+        REQUIRE(kp->key_expires == KEY_EXPIRES_NEVER);
+    }
+
+    SECTION("Custom config, key always expires")
+    {
+        kp_ptr_t kp = kp_init("verbose=2,key_expires=0");
+        REQUIRE(kp->wtext != nullptr);
+
+        REQUIRE(kp->verbose == WT_VERBOSE_DEBUG_2);
+        REQUIRE(kp->key_expires == KEY_EXPIRES_ALWAYS);
     }
 
     SECTION("Invalid config")
@@ -178,92 +194,91 @@ TEST_CASE_METHOD(kp_fixture, "Config", "[key_provider]")
     }
 }
 
-TEST_CASE_METHOD(kp_fixture, "Key never expires", "[key_provider]")
+TEST_CASE_METHOD(kp_fixture, "Default values", "[key_provider]")
 {
-    /* By default, the key never expires. */
     kp_ptr_t kp = kp_init(nullptr);
     REQUIRE(kp->wtext != nullptr);
 
     WT_KEY_PROVIDER *wtkp = &kp->iface;
 
     /* Initial state */
-    REQUIRE(kp->verbose == 0);
-    REQUIRE(kp->key_expires == 0);
-    REQUIRE(kp->state.current_lsn == 0);
-    REQUIRE(kp->state.key_time == 0);
-    REQUIRE(kp->state.current_key == nullptr);
-    REQUIRE(kp->state.key_size == 0);
-
-    /* Dummy key and LSN */
-    const std::string dummy_key = "dummy_key_data";
-    const uint64_t dummy_lsn = 42;
-
-    kp_load_key(dummy_key, dummy_lsn);
-
-    /* Probe the key; the key never expires */
-    WT_CRYPT_KEYS crypt_out = {};
-    REQUIRE(wtkp->get_key(wtkp, session, &crypt_out) == 0);
-    REQUIRE(crypt_out.r.lsn == 0);
-    REQUIRE(crypt_out.keys.size == 0); /* Key has not changed */
-    REQUIRE(crypt_out.keys.data == nullptr);
-}
-
-TEST_CASE_METHOD(kp_fixture, "Key expire", "[key_provider]")
-{
-    /* Key expiration period = 12 hours */
-    kp_ptr_t kp = kp_init("verbose=1,key_expires=43200");
-    REQUIRE(kp->wtext != nullptr);
-
-    REQUIRE(kp->verbose == WT_VERBOSE_DEBUG_1);
-    REQUIRE(kp->key_expires == 43200);
-    REQUIRE(kp->state.current_lsn == 0);
-    REQUIRE(kp->state.key_time == 0);
-    REQUIRE(kp->state.current_key == nullptr);
-    REQUIRE(kp->state.key_size == 0);
-
-    /* Dummy key and LSN */
-    const std::string dummy_key = "dummy_key_data";
-    const uint64_t dummy_lsn = 42;
-
-    kp_load_key(dummy_key, dummy_lsn);
-
-    WT_KEY_PROVIDER *wtkp = &kp->iface;
-
-    /* Key is not expired yet */
-    WT_CRYPT_KEYS crypt = {};
-    crypt.keys.data = nullptr; /* Indicate request for key size */
-    crypt.keys.size = 123;     /* Arbitrary non-zero size (just for test) */
-    REQUIRE(wtkp->get_key(wtkp, session, &crypt) == 0);
-
-    REQUIRE(crypt.keys.size == 0); /* Key has not changed */
-
-    /* Expire the key by setting the key_time to the past */
-    kp->state.key_time -= (kp->key_expires + 1) * CLOCKS_PER_SEC;
-
-    crypt = kp_get_key();
-    free(const_cast<void *>(crypt.keys.data));
-}
-
-TEST_CASE_METHOD(kp_fixture, "Persist key, success", "[key_provider]")
-{
-    kp_ptr_t kp = kp_init("key_expires=43200");
-    REQUIRE(kp->wtext != nullptr);
-
     REQUIRE(kp->verbose == WT_VERBOSE_INFO);
     REQUIRE(kp->key_expires == 43200);
     REQUIRE(kp->state.current_lsn == 0);
     REQUIRE(kp->state.key_time == 0);
     REQUIRE(kp->state.current_key == nullptr);
     REQUIRE(kp->state.key_size == 0);
+}
 
-    /* Load initial key */
-    const std::string initial_key = "initial_key_data";
-    const uint64_t initial_lsn = 1;
-    kp_load_key(initial_key, initial_lsn);
+TEST_CASE_METHOD(kp_fixture, "Load key", "[key_provider]")
+{
+    kp_ptr_t kp = kp_init(nullptr);
+    REQUIRE(kp->wtext != nullptr);
+
+    /* Dummy key and LSN */
+    const std::string dummy_key = "dummy_key_data";
+    const uint64_t dummy_lsn = 42;
+
+    kp_load_key(dummy_key, dummy_lsn);
+}
+
+TEST_CASE_METHOD(kp_fixture, "Key expired on first get_key call", "[key_provider][key_debug]")
+{
+    /* Key expiration period = 12 hours */
+    kp_ptr_t kp = kp_init(nullptr);
+    REQUIRE(kp->wtext != nullptr);
+
+    REQUIRE(kp->verbose == WT_VERBOSE_INFO);
+    REQUIRE(kp->key_expires == 43200);
+    REQUIRE(kp->state.key_time == 0);
+
+    WT_KEY_PROVIDER *wtkp = &kp->iface;
+    const void *prev_key = kp->state.current_key;
+
+    /* First call to get_key always generates a new key */
+    WT_CRYPT_KEYS crypt = kp_get_key();
+    REQUIRE(prev_key != kp->state.current_key); /* New key generated */
+    REQUIRE(kp->state.current_lsn == 0);        /* New key is not persisted yet */
+    free(const_cast<void *>(crypt.keys.data));
+
+    /* Subsequent call to get_key should not generate a new key */
+    crypt.keys.data = nullptr; /* Indicate request for key size */
+    REQUIRE(wtkp->get_key(wtkp, session, &crypt) == 0);
+    REQUIRE(crypt.keys.size == 0); /* Key has not changed */
+    REQUIRE(crypt.keys.data == nullptr);
+}
+
+TEST_CASE_METHOD(kp_fixture, "Key expired and rotated", "[key_provider]")
+{
+    /* Key expiration period = 12 hours */
+    kp_ptr_t kp = kp_init(nullptr);
+    REQUIRE(kp->wtext != nullptr);
+
+    REQUIRE(kp->verbose == WT_VERBOSE_INFO);
+    REQUIRE(kp->key_expires == 43200);
+
+    WT_KEY_PROVIDER *wtkp = &kp->iface;
+
+    /* First call to get always generates a new key */
+    WT_CRYPT_KEYS crypt = kp_get_key();
+    const clock_t first_key_time = kp->state.key_time;
+    free(const_cast<void *>(crypt.keys.data));
 
     /* Expire the key by setting the key_time to the past */
     kp->state.key_time -= (kp->key_expires + 1) * CLOCKS_PER_SEC;
 
+    /* Generate a new key */
+    crypt = kp_get_key();
+    REQUIRE(first_key_time != kp->state.key_time); /* New key generated */
+    free(const_cast<void *>(crypt.keys.data));
+}
+
+TEST_CASE_METHOD(kp_fixture, "Persist key, success", "[key_provider]")
+{
+    kp_ptr_t kp = kp_init(nullptr);
+    REQUIRE(kp->wtext != nullptr);
+
+    /* First call to get_key always generates a new key */
     WT_CRYPT_KEYS crypt = kp_get_key();
 
     WT_KEY_PROVIDER *wtkp = &kp->iface;
@@ -271,31 +286,18 @@ TEST_CASE_METHOD(kp_fixture, "Persist key, success", "[key_provider]")
     const uint64_t new_lsn = 84; /* New LSN after persistence */
     crypt.r.lsn = new_lsn;
     REQUIRE(wtkp->on_key_update(wtkp, session, &crypt) == 0);
-    REQUIRE(kp->state.current_lsn == new_lsn); /* LSN should be updated on success */
+    /* LSN should be updated on success */
+    REQUIRE(kp->state.current_lsn == new_lsn);
 
     free(const_cast<void *>(crypt.keys.data));
 }
 
 TEST_CASE_METHOD(kp_fixture, "Persist key, failure", "[key_provider]")
 {
-    kp_ptr_t kp = kp_init("key_expires=43200");
+    kp_ptr_t kp = kp_init(nullptr);
     REQUIRE(kp->wtext != nullptr);
 
-    REQUIRE(kp->verbose == WT_VERBOSE_INFO);
-    REQUIRE(kp->key_expires == 43200);
-    REQUIRE(kp->state.current_lsn == 0);
-    REQUIRE(kp->state.key_time == 0);
-    REQUIRE(kp->state.current_key == nullptr);
-    REQUIRE(kp->state.key_size == 0);
-
-    /* Load initial key */
-    const std::string initial_key = "initial_key_data";
-    const uint64_t initial_lsn = 1;
-    kp_load_key(initial_key, initial_lsn);
-
-    /* Expire the key by setting the key_time to the past */
-    kp->state.key_time -= (kp->key_expires + 1) * CLOCKS_PER_SEC;
-
+    /* First call to get_key always generates a new key */
     WT_CRYPT_KEYS crypt = kp_get_key();
 
     WT_KEY_PROVIDER *wtkp = &kp->iface;
@@ -305,6 +307,69 @@ TEST_CASE_METHOD(kp_fixture, "Persist key, failure", "[key_provider]")
     crypt.r.error = EIO; /* I/O error */
     REQUIRE(wtkp->on_key_update(wtkp, session, &crypt) == 0);
 
-    REQUIRE(kp->state.current_lsn == 0); /* LSN should not be updated on failure */
+    /* LSN should not be updated on failure */
+    REQUIRE(kp->state.current_lsn == 0);
+
+    free(const_cast<void *>(crypt.keys.data));
+}
+
+TEST_CASE_METHOD(kp_fixture, "Key never expires", "[key_provider]")
+{
+    /* Never expires */
+    kp_ptr_t kp = kp_init("key_expires=-1");
+    REQUIRE(kp->wtext != nullptr);
+
+    REQUIRE(kp->verbose == WT_VERBOSE_INFO);
+    REQUIRE(kp->key_expires == KEY_EXPIRES_NEVER);
+    REQUIRE(kp->state.current_lsn == 0);
+    REQUIRE(kp->state.key_time == 0);
+    REQUIRE(kp->state.current_key == nullptr);
+
+    WT_KEY_PROVIDER *wtkp = &kp->iface;
+
+    WT_CRYPT_KEYS crypt = {};
+    REQUIRE(wtkp->get_key(wtkp, session, &crypt) == 0);
+    REQUIRE(crypt.r.lsn == 0);
+    REQUIRE(crypt.keys.size == 0); /* Key has not changed */
+    REQUIRE(crypt.keys.data == nullptr);
+
+    /* Simulate time passing */
+    kp->state.key_time = 0;
+
+    /* Probe the key again; the key has not expired */
+    crypt.keys.data = nullptr; /* Indicate request for key size */
+    REQUIRE(wtkp->get_key(wtkp, session, &crypt) == 0);
+    REQUIRE(crypt.keys.size == 0); /* Key has not changed */
+    REQUIRE(crypt.keys.data == nullptr);
+}
+
+TEST_CASE_METHOD(kp_fixture, "Key always expires", "[key_provider]")
+{
+    kp_ptr_t kp = kp_init("key_expires=0");
+    REQUIRE(kp->wtext != nullptr);
+
+    REQUIRE(kp->verbose == WT_VERBOSE_INFO);
+    REQUIRE(kp->key_expires == KEY_EXPIRES_ALWAYS);
+
+    WT_KEY_PROVIDER *wtkp = &kp->iface;
+
+    /* Probe the key; the key is always expired */
+    WT_CRYPT_KEYS crypt = kp_get_key();
+    const clock_t first_key_time = kp->state.key_time;
+    REQUIRE(first_key_time != 0);
+
+    /* Simulate persistence */
+    const uint64_t new_lsn = 84; /* New LSN after persistence */
+    crypt.r.lsn = new_lsn;
+    REQUIRE(wtkp->on_key_update(wtkp, session, &crypt) == 0);
+    /* LSN should be updated on success */
+    REQUIRE(kp->state.current_lsn == new_lsn);
+    free(const_cast<void *>(crypt.keys.data));
+
+    /* Probe the key again; the key is always expired */
+    crypt = kp_get_key();
+    REQUIRE(first_key_time != kp->state.key_time); /* New key generated */
+    /* New key is not persisted yet */
+    REQUIRE(kp->state.current_lsn == 0);
     free(const_cast<void *>(crypt.keys.data));
 }

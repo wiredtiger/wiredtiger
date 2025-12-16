@@ -32,6 +32,24 @@
 
 #include <time.h>
 
+/*
+ * A test key provider extension. This extension implements the WT_KEY_PROVIDER interface to provide
+ * encryption key management functionality for testing purposes.
+ *
+ * Configuration parameters:
+ * - verbose: verbosity level for logging (default: WT_VERBOSE_INFO)
+ * - key_expires: key expiration period, in seconds (default: 12 hours = 43200 seconds).
+ *     Initial key is always expired. Such that the first get_key call will generate a new key.
+ *     Special values:
+ *       -1 - key never expires, i.e. get_key always returns without a key
+ *        0 - key always expired, i.e. every get_key call gets the default key
+ */
+
+enum {
+    KEY_EXPIRES_NEVER = -1, /* Key never expires */
+    KEY_EXPIRES_ALWAYS = 0  /* Key always expires */
+};
+
 typedef struct {
     /* Key provider interface */
     WT_KEY_PROVIDER iface;
@@ -40,8 +58,8 @@ typedef struct {
     WT_EXTENSION_API *wtext;
 
     /* Configuration options */
-    int verbose;              /* Verbosity level for logging. See WT_VERBOSE_LEVEL . */
-    unsigned int key_expires; /* Key expiration time in seconds */
+    int verbose;     /* Verbosity level for logging. See WT_VERBOSE_LEVEL . */
+    int key_expires; /* Key expiration time in seconds, or special values as described above */
 
     /* Simulated key state */
     struct {

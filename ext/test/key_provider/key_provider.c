@@ -55,10 +55,12 @@
 
 #define CLOCK_SECS(ct) ((double)(ct) / CLOCKS_PER_SEC)
 
-/*
- * A test key provider extension. This extension implements the WT_KEY_PROVIDER interface to provide
- * encryption key management functionality for testing purposes.
- */
+#define DATE_FORMAT_ISO8601 "%Y-%m-%dT%H:%M:%S%z"
+
+static const WT_CRYPT_KEYS DEFAULT_KEY = {
+  .r = {.lsn = 0},
+  .keys = {.data = (const void *)"abcdefghijklmnopqrstuvwxyz", .size = 26},
+};
 
 /*
  * kp_free_key --
@@ -121,8 +123,12 @@ kp_load_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS *cry
 static bool
 kp_key_expired(KEY_PROVIDER *kp)
 {
-    if (kp->key_expires == 0)
+    if (kp->key_expires == KEY_EXPIRES_NEVER)
         return (false); /* Key does not expire */
+    else if (kp->key_expires == KEY_EXPIRES_ALWAYS)
+        return (true); /* Key always expires */
+    else if (kp->state.key_time == 0)
+        return (true); /* No key generated yet */
 
     const clock_t now = clock();
     double elapsed_sec = CLOCK_SECS(now - kp->state.key_time);
@@ -131,11 +137,11 @@ kp_key_expired(KEY_PROVIDER *kp)
 }
 
 /*
- * kp_rotate_key --
- *     Rotate the current key by generating a new key with a repeating alphabet pattern.
+ * kp_generate_key --
+ *     Generate a new key with a repeating pattern.
  */
 static int
-kp_rotate_key(KEY_PROVIDER *kp)
+kp_generate_key(uint8_t **new_key, size_t *key_size)
 {
     /* Calculate new key size with 20% random fluctuation */
     const size_t base_size = 1024;
@@ -143,28 +149,59 @@ kp_rotate_key(KEY_PROVIDER *kp)
     const size_t new_key_size = base_size + (size_t)((int)base_size * fluctuation / 100);
 
     /* Allocate new key buffer */
-    uint8_t *new_key = malloc(new_key_size);
-    if (new_key == NULL)
+    uint8_t *key_buf = malloc(new_key_size);
+    if (key_buf == NULL)
         return (ENOMEM);
 
-    /* Fill with repeating alphabet pattern */
-    const char *alphabet = "abcdefghijklmnopqrstuvwxyz";
-    const size_t alphabet_len = strlen(alphabet);
+    /* Fill with repeating pattern */
+    char iso_time[100] = {0};
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    strftime(iso_time, sizeof(iso_time), DATE_FORMAT_ISO8601 " ", tm_info);
+    const size_t pattern_len = strlen(iso_time);
 
-    /* Fill buffer by repeatedly copying the alphabet pattern */
+    /* Fill buffer by repeatedly copying the pattern */
     size_t remaining = new_key_size;
     size_t offset = 0;
     while (remaining > 0) {
-        const size_t copy_len = (remaining >= alphabet_len) ? alphabet_len : remaining;
-        memcpy(new_key + offset, alphabet, copy_len);
+        const size_t copy_len = (remaining >= pattern_len) ? pattern_len : remaining;
+        memcpy(key_buf + offset, iso_time, copy_len);
         offset += copy_len;
         remaining -= copy_len;
     }
 
-    /* Free old key and update state */
-    kp_free_key(kp);
-    kp->state.current_key = new_key;
-    kp->state.key_size = new_key_size;
+    *new_key = key_buf;
+    *key_size = new_key_size;
+
+    return (0);
+}
+
+/*
+ * kp_rotate_key --
+ *     Rotate the current key by generating a new key with a repeating pattern.
+ */
+static int
+kp_rotate_key(KEY_PROVIDER *kp)
+{
+    /*
+     * Always expiring key is a special case. In this case, we always return the default key to make
+     * sure get_key returns consistent key size. For other expiration policies, we generate a new
+     * key.
+     */
+    if (kp->key_expires != KEY_EXPIRES_ALWAYS) {
+        uint8_t *new_key = NULL;
+        size_t new_key_size = 0;
+        int ret = 0;
+
+        if ((ret = kp_generate_key(&new_key, &new_key_size)) != 0)
+            return (ret);
+
+        /* Free old key and update state */
+        kp_free_key(kp);
+        kp->state.current_key = new_key;
+        kp->state.key_size = new_key_size;
+    }
+
     kp->state.key_time = clock();
     kp->state.current_lsn = 0; /* New key, no LSN yet */
 
@@ -268,9 +305,7 @@ kp_terminate(WT_KEY_PROVIDER *wtkp, WT_SESSION *session)
 
     LOG_INFO(kp, session, "Terminating key provider");
 
-    if (kp->state.current_key != NULL)
-        free(kp->state.current_key);
-
+    kp_free_key(kp);
     free(kp);
 
     return (0);
@@ -278,23 +313,18 @@ kp_terminate(WT_KEY_PROVIDER *wtkp, WT_SESSION *session)
 
 /* Configuration parsing helpers */
 
-#define CONFIG_TYPES(X)             \
-    X(int, int, WT_CONFIG_ITEM_NUM) \
-    X(unsigned int, uint, WT_CONFIG_ITEM_NUM)
+static int
+configure_int(const char *param, const WT_CONFIG_ITEM *k, const WT_CONFIG_ITEM *v, int *dest)
+{
+    if (strncmp(param, k->str, k->len) == 0 && k->len == strlen(param) && v->len > 0 &&
+      v->type == WT_CONFIG_ITEM_NUM) {
+        *dest = (int)v->val;
 
-#define CONFIGURE_FN_T(ctype, suffix, wt_type)                                              \
-    static int configure_##suffix(                                                          \
-      const char *param, const WT_CONFIG_ITEM *k, const WT_CONFIG_ITEM *v, ctype *dest)     \
-    {                                                                                       \
-        if (strncmp(param, k->str, k->len) == 0 && k->len == strlen(param) && v->len > 0 && \
-          v->type == (wt_type)) {                                                           \
-            *dest = (ctype)v->val;                                                          \
-            return (0);                                                                     \
-        }                                                                                   \
-        return (EINVAL);                                                                    \
+        return (0);
     }
 
-CONFIG_TYPES(CONFIGURE_FN_T)
+    return (EINVAL);
+}
 
 /*
  * kp_configure --
@@ -318,7 +348,7 @@ kp_configure(KEY_PROVIDER *kp, WT_CONFIG_ARG *config)
     while ((ret = config_parser->next(config_parser, &k, &v)) == 0) {
         if (configure_int("verbose", &k, &v, &kp->verbose) == 0)
             continue;
-        else if (configure_uint("key_expires", &k, &v, &kp->key_expires) == 0)
+        else if (configure_int("key_expires", &k, &v, &kp->key_expires) == 0)
             continue;
 
         LOG_ERROR(kp, NULL, "WT_CONFIG_PARSER.next: unexpected configuration: %.*s=%.*s",
@@ -368,14 +398,23 @@ wiredtiger_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 
     kp->wtext = wtext;
     kp->verbose = WT_VERBOSE_INFO; /* Default verbosity level */
-    kp->key_expires = 0;           /* Default: key does not expire */
-
-    WT_KEY_PROVIDER *wtkp = (WT_KEY_PROVIDER *)kp;
+    kp->key_expires = 43200;       /* Default: 12 hours = 43200 seconds */
+    kp->state.key_time = 0;        /* Key time is 0 until first get_key call */
 
     int ret = 0;
+    WT_KEY_PROVIDER *wtkp = (WT_KEY_PROVIDER *)kp;
+
     /* Parse configuration options */
     if ((ret = kp_configure(kp, config)) != 0)
         goto err;
+
+    if (kp->key_expires == KEY_EXPIRES_ALWAYS) {
+        /* Use the default key for always-expiring keys */
+        if ((ret = kp_set_key(kp, &DEFAULT_KEY)) != 0) {
+            LOG_ERROR(kp, NULL, "kp_set_key: %d (%s)", ret, wtext->strerror(wtext, NULL, ret));
+            goto err;
+        }
+    }
 
     /* Initialize the key provider function table */
     wtkp->load_key = kp_load_key;
@@ -390,7 +429,9 @@ wiredtiger_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
         goto err;
     }
 
-    LOG_INFO(kp, NULL, "Key provider initialized successfully");
+    LOG_INFO(kp, NULL,
+      "Key provider initialized successfully; config: {verbose=%d, key_expires=%d}", kp->verbose,
+      kp->key_expires);
 
     return (0);
 
