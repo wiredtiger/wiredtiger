@@ -346,7 +346,6 @@ __page_merge_base_internal_deltas(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR 
     entry_count = 0;
     min_d = 0;
     min_delta = NULL;
-    hdr = NULL;
     p_ptr = NULL;
 
     WT_UNUSED(new_image);
