@@ -39,13 +39,17 @@ struct kp_fixture {
     ~kp_fixture()
     {
         kp_reset();
+        session->close(session, nullptr);
+        session = nullptr;
     }
 
     kp_fixture()
         : extension_init(lib.get<extension_init_t>("wiredtiger_extension_init")),
           conn(DB_HOME, "create,in_memory")
     {
-        REQUIRE(conn.get_wt_connection()->open_session(conn.get_wt_connection(), NULL, NULL, &session) == 0);
+        REQUIRE(conn.get_wt_connection()->open_session(
+                  conn.get_wt_connection(), NULL, NULL, &session) == 0);
+        REQUIRE(session != nullptr);
     }
 
     kp_ptr_t
@@ -167,8 +171,8 @@ TEST_CASE_METHOD(kp_fixture, "Config", "[key_provider]")
 
         for (const char *config : invalid_configs) {
             const char *ext_config[] = {config, nullptr};
-            int ret = extension_init(conn.get_wt_connection(),
-              reinterpret_cast<WT_CONFIG_ARG *>(ext_config));
+            int ret = extension_init(
+              conn.get_wt_connection(), reinterpret_cast<WT_CONFIG_ARG *>(ext_config));
             REQUIRE(ret == EINVAL);
         }
     }
