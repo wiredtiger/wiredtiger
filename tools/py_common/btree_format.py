@@ -219,7 +219,9 @@ class BlockDisaggFlags(enum.IntFlag):
 
 class BlockDisaggHeader(object):
     '''
-    A block header (WT_BLOCK_DISAGG_HEADER).
+    A block header (WT_BLOCK_DISAGG_HEADER). Disagg uses additional header fields in the block 
+    header in comparison to standard WiredTiger blocks. This class should only be used for disagg 
+    blocks.
     '''
     magic: int
     version: int
@@ -254,8 +256,6 @@ class BlockDisaggHeader(object):
         '''
         # WT_BLOCK_DISAGG_HEADER in block.h (16 bytes)
         h = BlockDisaggHeader()
-        # Disagg sets additional fields.  If they are examined
-        # by non-disagg code, an exception will be thrown (by design).
         h.magic = b. read_uint8()
         h.version = b.read_uint8()
         h.compatible_version = b.read_uint8()
