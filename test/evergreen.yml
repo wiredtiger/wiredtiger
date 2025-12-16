@@ -418,9 +418,10 @@ functions:
           # Compiling with CMake generated Ninja file.
           cd cmake_build
           if [ "${cmake_generator|Ninja}" = "Ninja" ]; then
+            # Ninja runs compilation in parallel by default, so there's no need to pass -j.
             ninja 2>&1
           else
-            make 2>&1
+            make -j ${num_jobs} 2>&1
           fi
         fi
         echo "Ending 'make wiredtiger' step"

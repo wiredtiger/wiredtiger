@@ -442,7 +442,6 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
          * non-disaggregated case. It's unclear if we still do -- pass a NULL for now.
          */
         WT_ERR(__wt_blkcache_read(session, &tmp[0], NULL, addr, addr_size));
-
         *buf_count = 1;
         *buf = tmp;
         return (0);
