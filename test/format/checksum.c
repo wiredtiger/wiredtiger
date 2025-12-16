@@ -77,6 +77,7 @@ fnv1a_add_u32(uint64_t cur_hash, uint32_t data)
 static void
 checksum_key(uint64_t *hash, TABLE *table, WT_ITEM *key)
 {
+    /* Skip any key prefix added by (e.g.) mirrored tables. */
     uint32_t keyno = atou32("checksum-key", (char *)key->data + NTV(table, BTREE_PREFIX_LEN), '.');
     *hash = fnv1a_add_u32(*hash, keyno);
 }
