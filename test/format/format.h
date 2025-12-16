@@ -447,7 +447,7 @@ WT_THREAD_RET random_kv(void *);
 WT_THREAD_RET timestamp(void *);
 
 uint32_t atou32(const char *, const char *, int);
-void checksum_database(WT_SESSION *);
+uint64_t checksum_database(WT_SESSION *);
 void config_clear(void);
 void config_compat(const char **);
 void config_error(void);
@@ -463,6 +463,7 @@ bool disagg_is_multi_node(void);
 void disagg_setup_multi_node(void);
 void disagg_switch_roles(void);
 void disagg_teardown_multi_node(void);
+void disagg_validate_multi_node(WT_SESSION *);
 bool enable_session_prefetch(void);
 void fclose_and_clear(FILE **);
 void follower_read_latest_checkpoint(void);

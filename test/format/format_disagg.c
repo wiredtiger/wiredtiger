@@ -124,6 +124,30 @@ disagg_setup_multi_node(void)
 }
 
 /*
+ * disagg_validate_multi_node --
+ *     Multi-node validation.
+ */
+void
+disagg_validate_multi_node(WT_SESSION *session)
+{
+    if (!disagg_is_multi_node())
+        return;
+
+    if (!GV(DISAGG_MULTI_VALIDATION))
+        return;
+
+    volatile uint64_t *hash = g.disagg_leader ? &g.disagg_multi_db_hash->leader_hash :
+                                                &g.disagg_multi_db_hash->follower_hash;
+    *hash = checksum_database(session);
+
+    /* FIXME-WT-16282 Synchronise leader and follower and validate hashes. */
+    if (g.disagg_leader)
+        printf("Leader received follower hash: %lu\n", g.disagg_multi_db_hash->follower_hash);
+    else
+        printf("Follower received leader hash: %lu\n", g.disagg_multi_db_hash->leader_hash);
+}
+
+/*
  * disagg_is_multi_node --
  *     Return true if disagg is configured for multi-node.
  */
