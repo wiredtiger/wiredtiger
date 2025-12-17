@@ -316,8 +316,8 @@ __disagg_put_meta(WT_SESSION_IMPL *session, uint64_t page_id, const WT_ITEM *ite
 
 /*
  * __wt_disagg_put_crypt_helper --
- *     Write key encryption key information to the metadata page log and do the relevant
- *     bookkeeping.
+ *     If new key encryption key information is detected, update the metadata page log and callback
+ *     to the key provider upon completion.
  */
 int
 __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
@@ -342,28 +342,18 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     /* WiredTiger has the memory ownership of the key encryption buffer. */
     WT_ERR(__wt_buf_initsize(session, &crypt.keys, crypt.keys.size));
 
-    /* Call the getter function again to fetch the new encryption key data. */
+    /* Call the function again to fetch the new encryption key data. */
     WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
     WT_ASSERT(session, crypt.keys.size != 0 && crypt.keys.data != NULL);
 
-    /*
-     * Write the key provider to disaggregated storage. This should be the last statement in this
-     * function that is allowed to fail.
-     */
+    /* Write the key provider to disaggregated storage. */
     ret = __disagg_put_crypt_key(session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, &crypt.keys, &lsn);
 
-    /*
-     * Upon success, record the encryption key metadata into the turtle file. Otherwise return with
-     * error.
-     */
-    if (ret == 0) {
+    /* Callback to update key provider on the result of new encryption data . */
+    if (ret == 0)
         crypt.r.lsn = lsn;
-        WT_WITH_TURTLE_LOCK(session, ret = __wt_metadata_turtle_rewrite(session));
-        WT_ERR(ret);
-    } else
+    else
         crypt.r.error = ret;
-
-    /* Callback to update key provider layer on the result of key encryption data persistence. */
     WT_IGNORE_RET(key_provider->on_key_update(key_provider, (WT_SESSION *)session, &crypt));
 done:
 err:
