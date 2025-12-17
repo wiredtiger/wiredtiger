@@ -2302,9 +2302,7 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     /* We must be in disagg code. */
     WT_ASSERT(session, multi->block_meta != NULL && page->disagg_info != NULL);
-    /*
-     * Copy the block meta otherwise it will be lost after reconciliation.
-     */
+    /* Copy the block meta otherwise it will be lost after reconciliation. */
     *multi->block_meta = page->disagg_info->block_meta;
 
     switch (mod->rec_result) {
