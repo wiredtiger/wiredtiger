@@ -523,8 +523,9 @@ __wt_txn_op_delete_commit(
                           (*updp)->prev_durable_ts));
 
                     if (assign_timestamp && (*updp)->upd_start_ts == WT_TS_NONE) {
-                        (*updp)->upd_start_ts = txn->commit_timestamp;
-                        (*updp)->upd_durable_ts = txn->durable_timestamp;
+                        /* FIXME-WT-16319: Data races reported. */
+                        __wt_tsan_suppress_store_uint64(&(*updp)->upd_start_ts, txn->commit_timestamp);
+                        __wt_tsan_suppress_store_uint64(&(*updp)->upd_durable_ts, txn->durable_timestamp);
                     }
                     ++updp;
                 } while (*updp != NULL);
@@ -711,6 +712,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
                   upd->upd_start_ts != WT_TS_NONE ? upd->upd_start_ts : txn->commit_timestamp,
                   upd->prev_durable_ts));
             if (upd->upd_start_ts == WT_TS_NONE) {
+                /* FIXME-WT-16319: Data races reported. */
                 __wt_tsan_suppress_store_uint64(&upd->upd_start_ts, txn->commit_timestamp);
                 __wt_tsan_suppress_store_uint64(&upd->upd_durable_ts, txn->durable_timestamp);
             }
