@@ -1545,6 +1545,14 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     saved_meta_next = session->meta_track_next;
     session->meta_track_next = NULL;
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_META_CKPT);
+
+    /*
+     * Metadata checkpoints rewrite the turtle file. Before that happens, gather any updated key
+     * encryption information so it can be written into the new turtle file.
+     */
+    if (conn->key_provider != NULL)
+        WT_ERR(__wt_disagg_put_crypt_helper(session));
+
     WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
       WT_WITH_METADATA_LOCK(session, ret = __wt_checkpoint_file(session, cfg)));
     session->meta_track_next = saved_meta_next;
@@ -2583,10 +2591,6 @@ fake:
      */
     if (WT_IS_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING))
         WT_ERR(__wt_checkpoint_sync(session, NULL));
-
-    /* Update the turtle file on potential new key encryption information. */
-    if (WT_IS_METADATA(dhandle) && __wt_conn_is_disagg(session) && conn->key_provider != NULL)
-        WT_ERR(__wt_disagg_put_crypt_helper(session));
 
     WT_ERR(__wt_lsn_string(&ckptlsn, sizeof(ckptlsn_str), ckptlsn_str));
     WT_ERR(__wt_meta_ckptlist_set(session, dhandle, btree->ckpt, (const char *)ckptlsn_str));
