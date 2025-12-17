@@ -288,6 +288,14 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
     } while (0)
 #define WT_STAT_DSRC_DECR(session, fld) WT_STAT_DSRC_DECRV(session, fld, 1)
 
+#define WT_STAT_DSRC_GETP(session, fld, dst)                                            \
+    do {                                                                                \
+        dst = NULL;                                                                     \
+        if (WT_STAT_ENABLED(session))                                                   \
+            if ((session)->dhandle != NULL && (session)->dhandle->stat_array != NULL)   \
+                dst = &(((session)->dhandle->stats)[(session)->stat_dsrc_bucket]->fld); \
+    } while (0)
+
 #define WT_STATP_DSRC_SET(session, stats, fld, value)                           \
     do {                                                                        \
         if (WT_STAT_ENABLED(session)) {                                         \
@@ -516,6 +524,8 @@ struct __wt_connection_stats {
     int64_t block_byte_write_leaf_delta_gt100;
     int64_t block_remap_file_resize;
     int64_t block_remap_file_write;
+    int64_t block_reusable_over_50;
+    int64_t block_reusable_over_90;
     int64_t block_first_srch_walk_time;
     int64_t eviction_interupted_by_app;
     int64_t eviction_app_time;
