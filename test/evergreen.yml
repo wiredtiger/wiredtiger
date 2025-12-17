@@ -6509,8 +6509,9 @@ buildvariants:
       distros: ubuntu2004-large
     - name: unit-test-disagg-follower-tsan
       distros: ubuntu2004-large
-    - name: ".stress-test-disagg"
-      distros: ubuntu2004-large
+    # FIXME-WT-16309: Enable the common test format tag for TSAN
+    # - name: ".stress-test-disagg"
+    #   distros: ubuntu2004-large
     - name: format-stress-test-disagg-leader-tsan
       distros: ubuntu2004-large
     - name: format-stress-test-tsan
@@ -7398,8 +7399,9 @@ buildvariants:
       distros: amazon2023-arm64-latest-large-m8g
     - name: format-stress-test-tsan
       distros: amazon2023-arm64-latest-large-m8g
-    - name: ".stress-test-disagg"
-      distros: amazon2023-arm64-latest-large-m8g
+    # FIXME-WT-16309: Enable the common test format tag for TSAN
+    # - name: ".stress-test-disagg"
+    #   distros: amazon2023-arm64-latest-large-m8g
     - name: generate-tsan-metric
     - name: generate-tsan-metric-disagg
     - name: generate-tsan-metric-timestamp
