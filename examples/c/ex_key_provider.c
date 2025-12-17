@@ -224,17 +224,10 @@ main(int argc, char *argv[])
         return (EXIT_FAILURE);
     }
     /*! [WT_KEY_PROVIDER register] */
-
-    /* Open a session for the current thread's work. */
     error_check(conn->open_session(conn, NULL, NULL, &session));
-
-    /* Create a table that lives locally. Tiered storage is disabled for this file. */
     error_check(session->create(session, "layered:test_ex", "key_format=i,value_format=S"));
 
-    /*
-     * Do a regular checkpoint. Checkpoints are usually done in their own thread with their own
-     * session. Data is synchronized to local storage.
-     */
+    /* Perform a checkpoint to trigger a new key rotation. */
     error_check(session->checkpoint(session, NULL));
 
     return (EXIT_SUCCESS);

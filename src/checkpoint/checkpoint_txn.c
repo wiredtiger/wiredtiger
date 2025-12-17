@@ -2584,7 +2584,7 @@ fake:
     if (WT_IS_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING))
         WT_ERR(__wt_checkpoint_sync(session, NULL));
 
-    /* Update the turtle file for any new key encryption information. */
+    /* Update the turtle file on potential new key encryption information. */
     if (WT_IS_METADATA(dhandle) && __wt_conn_is_disagg(session) && conn->key_provider != NULL)
         WT_ERR(__wt_disagg_put_crypt_helper(session));
 

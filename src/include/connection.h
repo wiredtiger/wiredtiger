@@ -210,8 +210,7 @@ struct __wt_disaggregated_storage {
     uint64_t last_metadata_page_lsn[WT_DISAGG_METADATA_MAX_PAGE_ID + 1];
 
     /*
-     * The LSN of the last encryption key page written in the global key provider "table," which we
-     * use to track back links between the subsequent versions of previous encryption key pages.
+     * The LSN of the last encryption key page written in the global key provider "table,"
      * Protected by the checkpoint lock.
      */
     uint64_t last_key_provider_page_lsn[WT_DISAGG_METADATA_MAX_PAGE_ID + 1];

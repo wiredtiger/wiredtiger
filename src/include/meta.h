@@ -80,7 +80,6 @@
 
 #define WT_METADATA_COMPAT "Compatibility version"
 #define WT_METADATA_LIVE_RESTORE "Live Restore"
-#define WT_METADATA_KEY_PROVIDER "Key Provider"
 #define WT_METADATA_VERSION "WiredTiger version" /* Version keys */
 #define WT_METADATA_VERSION_STR "WiredTiger version string"
 
