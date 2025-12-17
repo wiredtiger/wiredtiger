@@ -326,11 +326,17 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
               block->name, size, (uintmax_t)offset, swap.checksum, checksum);
 
         /*
+         * Dump the corrupted block for analysis prior to bitflip detection in case detection takes
+         * too long.
+         */
+        WT_IGNORE_RET(__wt_bm_corrupt_dump(session, buf, objectid, offset, size, checksum));
+
+        /*
          * Attempt to detect single-bit flips in the data. This can help diagnose memory corruption
          * issues.
          */
-        size_t bit_position = 0;
         if (full_checksum_mismatch) {
+            size_t bit_position = 0;
             if (__block_bitflip_detect(buf->mem, check_size, checksum, &bit_position))
                 __wt_errx(session,
                   "%s: single-bit flip detected at bit position %" WT_SIZET_FMT
@@ -341,8 +347,6 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
                 __wt_errx(session, "%s: bitflip detection performed but no single-bit flip found",
                   block->name);
         }
-
-        WT_IGNORE_RET(__wt_bm_corrupt_dump(session, buf, objectid, offset, size, checksum));
     }
 
     /* Panic if a checksum fails during an ordinary read. */
