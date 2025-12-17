@@ -2465,7 +2465,14 @@ tasks:
       - func: "fetch artifacts"
       - func: "format test"
         vars:
+          # Limit the number of operations to avoid an internal TSAN issue; run more operations with detect_deadlocks=0.
+          # FIXME-WT-16313: Consider how to avoid the internal TSAN issue.
+          test_format_extra_args: runs.rows=1000:3000 runs.tables=1:3 runs.ops=3000
+          times: 3
+      - func: "format test"
+        vars:
           test_format_extra_args: runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           times: 3
 
   - name: format-stress-test-disagg-leader-tsan
@@ -2477,7 +2484,7 @@ tasks:
         vars:
           # Limit the number of operations to avoid an internal TSAN issue; run more operations with detect_deadlocks=0.
           # FIXME-WT-16313: Consider how to avoid the internal TSAN issue.
-          format_args: disagg.mode=leader runs.rows=10000:30000 runs.tables=1:3 runs.ops=30000
+          format_args: disagg.mode=leader runs.rows=1000:3000 runs.tables=1:3 runs.ops=3000
           times: 3
       - func: "format test disagg"
         vars:

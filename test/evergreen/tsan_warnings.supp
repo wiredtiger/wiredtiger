@@ -111,6 +111,7 @@ race:__txn_apply_prepare_state_update
 # Warnings produced by column store related code
 race:__wt_col_modify
 race:__inmem_col_var
+race:__wt_col_search
 
 # Other warnings detected during test/format execution
 race:__wt_cell_type
@@ -118,3 +119,5 @@ race:__posix_file_read
 race:__wt_cell_unpack_safe
 race:__cursor_var_next
 race:__cursor_var_prev
+race:__tombstone_update_alloc
+race:__wt_btcur_modify

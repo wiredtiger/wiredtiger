@@ -272,6 +272,26 @@ __wt_tsan_suppress_load_wt_insert_ptr(WT_INSERT **vp)
 }
 
 /*
+ * __wt_tsan_suppress_store_wt_page_ptr_v --
+ *     TSAN warnings suppression for WT_ADDR pointer store.
+ */
+static WT_INLINE void
+__wt_tsan_suppress_store_wt_page_ptr_v(WT_PAGE *volatile *vp, WT_PAGE *v)
+{
+    __wt_atomic_store_ptr_relaxed(vp, v);
+}
+
+/*
+ * __wt_tsan_suppress_load_wt_page_ptr_v --
+ *     TSAN warnings suppression for WT_ADDR pointer load.
+ */
+static WT_INLINE WT_PAGE *
+__wt_tsan_suppress_load_wt_page_ptr_v(WT_PAGE *volatile *vp)
+{
+    return (WT_PAGE *)(__wt_atomic_load_ptr_relaxed(vp));
+}
+
+/*
  * __wt_tsan_suppress_store_wt_insert_ptr --
  *     TSAN warnings suppression for WT_ADDR pointer store.
  */
