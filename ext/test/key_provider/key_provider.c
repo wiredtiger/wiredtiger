@@ -61,9 +61,11 @@
 #define DATE_FORMAT_ISO8601 "%Y-%m-%dT%H:%M:%S%z"
 
 /* Default initial key */
+static const char DEFAULT_KEY_DATA[] = "abcdefghijklmnopqrstuvwxyz";
+
 static const WT_CRYPT_KEYS DEFAULT_KEY = {
   .r = {.lsn = 0},
-  .keys = {.data = (const void *)"abcdefghijklmnopqrstuvwxyz", .size = 26},
+  .keys = {.data = (const void *)DEFAULT_KEY_DATA, .size = sizeof(DEFAULT_KEY_DATA) - 1},
 };
 
 /*
@@ -94,6 +96,9 @@ kp_set_key(KEY_PROVIDER *kp, const WT_CRYPT_KEYS *crypt)
         key_size = DEFAULT_KEY.keys.size;
         lsn = DEFAULT_KEY.r.lsn;
     }
+
+    /* Verify that the key data matches the expected key data */
+    assert(memcmp(key_data, DEFAULT_KEY_DATA, sizeof(DEFAULT_KEY_DATA) - 1) == 0);
 
     kp_free_key(kp);
 
@@ -167,19 +172,24 @@ kp_generate_key(uint8_t **new_key, size_t *key_size)
     if (key_buf == NULL)
         return (ENOMEM);
 
-    /* Fill with repeating pattern */
+    /* Fill with repeating pattern: default key data + ISO8601 time */
     char iso_time[100] = {0};
+    char pattern[sizeof(DEFAULT_KEY_DATA) + sizeof(iso_time)] = {0};
+    strncat(pattern, DEFAULT_KEY_DATA, sizeof(pattern) - 1);
+
     time_t now = time(NULL);
     struct tm *tm_info = localtime(&now);
-    strftime(iso_time, sizeof(iso_time), DATE_FORMAT_ISO8601 " ", tm_info);
-    const size_t pattern_len = strlen(iso_time);
+    strftime(iso_time, sizeof(iso_time), DATE_FORMAT_ISO8601, tm_info);
+    strncat(pattern, iso_time, sizeof(pattern) - strlen(pattern) - 1);
+
+    const size_t pattern_len = strlen(pattern);
 
     /* Fill buffer by repeatedly copying the pattern */
     size_t remaining = new_key_size;
     size_t offset = 0;
     while (remaining > 0) {
         const size_t copy_len = (remaining >= pattern_len) ? pattern_len : remaining;
-        memcpy(key_buf + offset, iso_time, copy_len);
+        memcpy(key_buf + offset, pattern, copy_len);
         offset += copy_len;
         remaining -= copy_len;
     }
@@ -195,19 +205,23 @@ kp_generate_key(uint8_t **new_key, size_t *key_size)
  *     Rotate the current key by generating a new key with a repeating pattern.
  */
 static int
-kp_rotate_key(KEY_PROVIDER *kp)
+kp_rotate_key(KEY_PROVIDER *kp, WT_SESSION *session)
 {
     int ret = 0;
+    WT_CRYPT_KEYS crypt = {0};
 
-    kp_free_key(kp);
-    if ((ret = kp_generate_key(&kp->state.key_data, &kp->state.key_size)) != 0)
+    if ((ret = kp_generate_key((uint8_t **)&crypt.keys.data, &crypt.keys.size)) != 0) {
+        LOG_ERROR(kp, session, "Failed to generate new key: %d", ret);
         return (ret);
+    }
 
-    kp->state.key_time = clock();
-    kp->state.lsn = 0;
-    kp->state.key_state = KEY_STATE_PENDING;
+    if ((ret = kp_set_key(kp, &crypt)) != 0) {
+        LOG_ERROR(kp, session, "Failed to set new key: %d", ret);
+    }
 
-    return (0);
+    free((void *)crypt.keys.data);
+
+    return (ret);
 }
 
 /*
@@ -234,7 +248,7 @@ kp_get_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, WT_CRYPT_KEYS *crypt)
         /* Key must be current */
         assert(kp->state.key_state == KEY_STATE_CURRENT);
 
-        int ret = kp_rotate_key(kp);
+        int ret = kp_rotate_key(kp, session);
         if (ret != 0) {
             LOG_ERROR(kp, session, "Failed to rotate key: %d", ret);
             return (ret);

@@ -218,8 +218,8 @@ TEST_CASE_METHOD(kp_fixture, "Load key", "[key_provider]")
     kp_ptr_t kp = kp_init(nullptr);
     REQUIRE(kp->wtext != nullptr);
 
-    /* Dummy key and LSN */
-    const std::string dummy_key = "dummy_key_data";
+    /* Key data must match DEFAULT_KEY_DATA */
+    const std::string dummy_key = "abcdefghijklmnopqrstuvwxyz";
     const uint64_t dummy_lsn = 42;
 
     kp_load_key(dummy_key, dummy_lsn);
