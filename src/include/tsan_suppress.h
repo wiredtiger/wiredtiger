@@ -263,7 +263,7 @@ __wt_tsan_suppress_memset(void *ptr, int val, size_t size)
 
 /*
  * __wt_tsan_suppress_load_wt_insert_ptr --
- *     TSAN warnings suppression for WT_ADDR pointer load.
+ *     TSAN warnings suppression for WT_PAGE pointer load.
  */
 static WT_INLINE WT_INSERT *
 __wt_tsan_suppress_load_wt_insert_ptr(WT_INSERT **vp)
@@ -273,7 +273,7 @@ __wt_tsan_suppress_load_wt_insert_ptr(WT_INSERT **vp)
 
 /*
  * __wt_tsan_suppress_store_wt_page_ptr_v --
- *     TSAN warnings suppression for WT_ADDR pointer store.
+ *     TSAN warnings suppression for WT_PAGE pointer store.
  */
 static WT_INLINE void
 __wt_tsan_suppress_store_wt_page_ptr_v(WT_PAGE *volatile *vp, WT_PAGE *v)
@@ -283,7 +283,7 @@ __wt_tsan_suppress_store_wt_page_ptr_v(WT_PAGE *volatile *vp, WT_PAGE *v)
 
 /*
  * __wt_tsan_suppress_load_wt_page_ptr_v --
- *     TSAN warnings suppression for WT_ADDR pointer load.
+ *     TSAN warnings suppression for WT_INSERT pointer load.
  */
 static WT_INLINE WT_PAGE *
 __wt_tsan_suppress_load_wt_page_ptr_v(WT_PAGE *volatile *vp)
@@ -293,7 +293,7 @@ __wt_tsan_suppress_load_wt_page_ptr_v(WT_PAGE *volatile *vp)
 
 /*
  * __wt_tsan_suppress_store_wt_insert_ptr --
- *     TSAN warnings suppression for WT_ADDR pointer store.
+ *     TSAN warnings suppression for WT_INSERT pointer store.
  */
 static WT_INLINE void
 __wt_tsan_suppress_store_wt_insert_ptr(WT_INSERT **vp, WT_INSERT *v)
@@ -303,7 +303,7 @@ __wt_tsan_suppress_store_wt_insert_ptr(WT_INSERT **vp, WT_INSERT *v)
 
 /*
  * __wt_tsan_suppress_load_wt_insert_ptr --
- *     TSAN warnings suppression for WT_ADDR pointer load.
+ *     TSAN warnings suppression for WT_SESSION_IMPL pointer load.
  */
 static WT_INLINE WT_SESSION_IMPL *
 __wt_tsan_suppress_load_wt_session_impl_ptr(WT_SESSION_IMPL **vp)
@@ -313,7 +313,7 @@ __wt_tsan_suppress_load_wt_session_impl_ptr(WT_SESSION_IMPL **vp)
 
 /*
  * __wt_tsan_suppress_store_wt_insert_ptr --
- *     TSAN warnings suppression for WT_ADDR pointer store.
+ *     TSAN warnings suppression for WT_SESSION_IMPL pointer store.
  */
 static WT_INLINE void
 __wt_tsan_suppress_store_wt_session_impl_ptr(WT_SESSION_IMPL **vp, WT_SESSION_IMPL *v)
