@@ -129,39 +129,38 @@ err:
 /*
  * __block_bitflip_detect --
  *     Check if flipping a single bit in the data would match the expected checksum. This helps
- *     diagnose single-bit memory corruption. Skip check for blocks larger than WT_BITFLIP_MAX_SIZE
- *     to avoid excessive CPU usage.
+ *     diagnose single-bit memory corruption. Skip check for blocks larger than a defined size to
+ *     avoid excessive CPU usage.
  */
 static bool
 __block_bitflip_detect(
   void *data, size_t check_size, uint32_t expected_checksum, size_t *bit_position)
 {
-    size_t byte_idx, bit_idx;
+    size_t byte_index, bit_index;
     uint8_t *bytes;
 
-    /* Skip bitflip detection for blocks larger than 512KB */
     if (check_size > WT_BITFLIP_MAX_SIZE)
         return (false);
 
     bytes = (uint8_t *)data;
 
-    /* Try flipping each bit in the data */
-    for (byte_idx = 0; byte_idx < check_size; ++byte_idx) {
-        for (bit_idx = 0; bit_idx < 8; ++bit_idx) {
-            /* Flip the bit */
-            bytes[byte_idx] ^= (1U << bit_idx);
+    /* Try flipping each bit in the data. */
+    for (byte_index = 0; byte_index < check_size; ++byte_index) {
+        for (bit_index = 0; bit_index < 8; ++bit_index) {
+            /* Flip the bit. */
+            bytes[byte_index] ^= (1U << bit_index);
 
-            /* Check if it matches the expected checksum */
+            /* Check if it matches the expected checksum. */
             if (__wt_checksum_match(data, check_size, expected_checksum)) {
-                /* Found a single bit flip that would produce the expected checksum */
-                *bit_position = byte_idx * 8 + bit_idx;
-                /* Flip the bit back before returning */
-                bytes[byte_idx] ^= (1U << bit_idx);
+                /* Found a single bit flip that would produce the expected checksum. */
+                *bit_position = byte_index * 8 + bit_index;
+                /* Flip the bit back before returning. */
+                bytes[byte_index] ^= (1U << bit_index);
                 return (true);
             }
 
-            /* Flip the bit back */
-            bytes[byte_idx] ^= (1U << bit_idx);
+            /* Flip the bit back. */
+            bytes[byte_index] ^= (1U << bit_index);
         }
     }
 
