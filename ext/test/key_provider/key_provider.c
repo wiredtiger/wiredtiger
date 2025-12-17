@@ -208,7 +208,7 @@ static int
 kp_rotate_key(KEY_PROVIDER *kp, WT_SESSION *session)
 {
     int ret = 0;
-    WT_CRYPT_KEYS crypt = {0};
+    WT_CRYPT_KEYS crypt = {{0}, {0}};
 
     if ((ret = kp_generate_key((uint8_t **)&crypt.keys.data, &crypt.keys.size)) != 0) {
         LOG_ERROR(kp, session, "Failed to generate new key: %d", ret);
