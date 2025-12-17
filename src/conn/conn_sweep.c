@@ -197,8 +197,9 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
             goto expire;
 
         if (WT_IS_METADATA(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-          __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0)
-            continue;
+          __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0 ||
+          __wt_tsan_suppress_load_uint64(&dhandle->timeofdeath) == 0 ||
+          now - dhandle->timeofdeath <= conn->sweep_idle_time)
 
         timeofdeath = __wt_tsan_suppress_load_uint64(&dhandle->timeofdeath);
         if (timeofdeath == 0 || now - timeofdeath <= conn->sweep_idle_time)
