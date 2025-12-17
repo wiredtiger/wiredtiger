@@ -177,7 +177,6 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
-    uint64_t timeofdeath;
 
     conn = S2C(session);
 
