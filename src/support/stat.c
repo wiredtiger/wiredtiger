@@ -332,7 +332,6 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: changes since prior reconciliation (bucket 8) greater than 500",
   "reconciliation: cursor next/prev calls during HS wrapup search_near",
   "reconciliation: dictionary matches",
-  "reconciliation: empty deltas skipped in disaggregated storage",
   "reconciliation: fast-path pages deleted",
   "reconciliation: full internal pages written instead of a page delta",
   "reconciliation: full leaf pages written instead of a page delta",
@@ -384,6 +383,7 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: records written including a stop durable timestamp",
   "reconciliation: records written including a stop timestamp",
   "reconciliation: records written including a stop transaction ID",
+  "reconciliation: writes skipped in disaggregated storage",
   "session: object compaction",
   "transaction: a reader raced with a prepared transaction commit and skipped an update or updates",
   "transaction: number of times overflow removed value is read",
@@ -764,7 +764,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_page_mods_gt500 = 0;
     stats->rec_hs_wrapup_next_prev_calls = 0;
     stats->rec_dictionary = 0;
-    stats->rec_skip_empty_deltas = 0;
     stats->rec_page_delete_fast = 0;
     stats->rec_page_full_image_internal = 0;
     stats->rec_page_full_image_leaf = 0;
@@ -814,6 +813,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_time_window_durable_stop_ts = 0;
     stats->rec_time_window_stop_ts = 0;
     stats->rec_time_window_stop_txn = 0;
+    stats->rec_skip_write = 0;
     stats->session_compact = 0;
     stats->txn_read_race_prepare_commit = 0;
     stats->txn_read_overflow_remove = 0;
@@ -1198,7 +1198,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_page_mods_gt500 += from->rec_page_mods_gt500;
     to->rec_hs_wrapup_next_prev_calls += from->rec_hs_wrapup_next_prev_calls;
     to->rec_dictionary += from->rec_dictionary;
-    to->rec_skip_empty_deltas += from->rec_skip_empty_deltas;
     to->rec_page_delete_fast += from->rec_page_delete_fast;
     to->rec_page_full_image_internal += from->rec_page_full_image_internal;
     to->rec_page_full_image_leaf += from->rec_page_full_image_leaf;
@@ -1251,6 +1250,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_time_window_durable_stop_ts += from->rec_time_window_durable_stop_ts;
     to->rec_time_window_stop_ts += from->rec_time_window_stop_ts;
     to->rec_time_window_stop_txn += from->rec_time_window_stop_txn;
+    to->rec_skip_write += from->rec_skip_write;
     to->session_compact += from->session_compact;
     to->txn_read_race_prepare_commit += from->txn_read_race_prepare_commit;
     to->txn_read_overflow_remove += from->txn_read_overflow_remove;
@@ -1671,7 +1671,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_page_mods_gt500 += WT_STAT_DSRC_READ(from, rec_page_mods_gt500);
     to->rec_hs_wrapup_next_prev_calls += WT_STAT_DSRC_READ(from, rec_hs_wrapup_next_prev_calls);
     to->rec_dictionary += WT_STAT_DSRC_READ(from, rec_dictionary);
-    to->rec_skip_empty_deltas += WT_STAT_DSRC_READ(from, rec_skip_empty_deltas);
     to->rec_page_delete_fast += WT_STAT_DSRC_READ(from, rec_page_delete_fast);
     to->rec_page_full_image_internal += WT_STAT_DSRC_READ(from, rec_page_full_image_internal);
     to->rec_page_full_image_leaf += WT_STAT_DSRC_READ(from, rec_page_full_image_leaf);
@@ -1731,6 +1730,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_time_window_durable_stop_ts += WT_STAT_DSRC_READ(from, rec_time_window_durable_stop_ts);
     to->rec_time_window_stop_ts += WT_STAT_DSRC_READ(from, rec_time_window_stop_ts);
     to->rec_time_window_stop_txn += WT_STAT_DSRC_READ(from, rec_time_window_stop_txn);
+    to->rec_skip_write += WT_STAT_DSRC_READ(from, rec_skip_write);
     to->session_compact += WT_STAT_DSRC_READ(from, session_compact);
     to->txn_read_race_prepare_commit += WT_STAT_DSRC_READ(from, txn_read_race_prepare_commit);
     to->txn_read_overflow_remove += WT_STAT_DSRC_READ(from, txn_read_overflow_remove);
@@ -1768,8 +1768,13 @@ static const char *const __stats_connection_desc[] = {
   "background-compact: background compact moving average of bytes rewritten",
   "background-compact: background compact recovered bytes",
   "background-compact: background compact running",
-  "background-compact: background compact skipped file as it is part of the exclude list",
-  "background-compact: background compact skipped file as not meeting requirements for compaction",
+  "background-compact: background compact skipped file, it is part of the exclude list",
+  "background-compact: background compact skipped file, it is smaller than 1MB in size",
+  "background-compact: background compact skipped file, not meeting requirements for compaction",
+  "background-compact: background compact skipped, last compact was unsuccessful/less successful "
+  "than average",
+  "background-compact: background compact skipped, no such file exists",
+  "background-compact: background compact skipped, there is a permissions issue",
   "background-compact: background compact sleeps due to cache pressure",
   "background-compact: background compact successful calls",
   "background-compact: background compact timeout",
@@ -2118,6 +2123,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: size of tombstones restored when reading a page",
   "cache: the number of times full update inserted to history store",
   "cache: the number of times reverse modify inserted to history store",
+  "cache: time eviction worker threads spend waiting for locks (usecs)",
   "cache: total milliseconds spent inside reentrant history store evictions in a reconciliation",
   "cache: tracked bytes belonging to internal pages in the cache",
   "cache: tracked bytes belonging to internal pages in the cache from the ingest btrees",
@@ -2584,7 +2590,6 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: changes since prior reconciliation (bucket 7) between 201 and 500",
   "reconciliation: changes since prior reconciliation (bucket 8) greater than 500",
   "reconciliation: cursor next/prev calls during HS wrapup search_near",
-  "reconciliation: empty deltas skipped in disaggregated storage",
   "reconciliation: fast-path pages deleted",
   "reconciliation: full internal pages written instead of a page delta",
   "reconciliation: full leaf pages written instead of a page delta",
@@ -2642,6 +2647,7 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: records written including a stop transaction ID",
   "reconciliation: split bytes currently awaiting free",
   "reconciliation: split objects currently awaiting free",
+  "reconciliation: writes skipped in disaggregated storage",
   "session: attempts to remove a local object and the object is in use",
   "session: flush_tier failed calls",
   "session: flush_tier operation calls",
@@ -2819,8 +2825,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->background_compact_ema = 0;
     stats->background_compact_bytes_recovered = 0;
     stats->background_compact_running = 0;
-    stats->background_compact_exclude = 0;
+    stats->background_compact_skipped_exclude = 0;
+    stats->background_compact_skipped_small_file = 0;
     stats->background_compact_skipped = 0;
+    stats->background_compact_skipped_unsuccessful = 0;
+    stats->background_compact_skipped_no_such_file = 0;
+    stats->background_compact_skipped_missing_permissions = 0;
     stats->background_compact_sleep_cache_pressure = 0;
     stats->background_compact_success = 0;
     stats->background_compact_timeout = 0;
@@ -3131,6 +3141,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read_restored_tombstone_bytes = 0;
     stats->cache_hs_insert_full_update = 0;
     stats->cache_hs_insert_reverse_modify = 0;
+    stats->eviction_worker_lock_wait_time = 0;
     /* not clearing eviction_reentry_hs_eviction_milliseconds */
     /* not clearing cache_bytes_internal */
     /* not clearing cache_bytes_internal_ingest */
@@ -3595,7 +3606,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_page_mods_le500 = 0;
     stats->rec_page_mods_gt500 = 0;
     stats->rec_hs_wrapup_next_prev_calls = 0;
-    stats->rec_skip_empty_deltas = 0;
     stats->rec_page_delete_fast = 0;
     stats->rec_page_full_image_internal = 0;
     stats->rec_page_full_image_leaf = 0;
@@ -3649,6 +3659,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_time_window_stop_txn = 0;
     /* not clearing rec_split_stashed_bytes */
     /* not clearing rec_split_stashed_objects */
+    stats->rec_skip_write = 0;
     stats->local_objects_inuse = 0;
     stats->flush_tier_fail = 0;
     stats->flush_tier = 0;
@@ -3798,8 +3809,17 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->background_compact_bytes_recovered +=
       WT_STAT_CONN_READ(from, background_compact_bytes_recovered);
     to->background_compact_running += WT_STAT_CONN_READ(from, background_compact_running);
-    to->background_compact_exclude += WT_STAT_CONN_READ(from, background_compact_exclude);
+    to->background_compact_skipped_exclude +=
+      WT_STAT_CONN_READ(from, background_compact_skipped_exclude);
+    to->background_compact_skipped_small_file +=
+      WT_STAT_CONN_READ(from, background_compact_skipped_small_file);
     to->background_compact_skipped += WT_STAT_CONN_READ(from, background_compact_skipped);
+    to->background_compact_skipped_unsuccessful +=
+      WT_STAT_CONN_READ(from, background_compact_skipped_unsuccessful);
+    to->background_compact_skipped_no_such_file +=
+      WT_STAT_CONN_READ(from, background_compact_skipped_no_such_file);
+    to->background_compact_skipped_missing_permissions +=
+      WT_STAT_CONN_READ(from, background_compact_skipped_missing_permissions);
     to->background_compact_sleep_cache_pressure +=
       WT_STAT_CONN_READ(from, background_compact_sleep_cache_pressure);
     to->background_compact_success += WT_STAT_CONN_READ(from, background_compact_success);
@@ -4214,6 +4234,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_read_restored_tombstone_bytes);
     to->cache_hs_insert_full_update += WT_STAT_CONN_READ(from, cache_hs_insert_full_update);
     to->cache_hs_insert_reverse_modify += WT_STAT_CONN_READ(from, cache_hs_insert_reverse_modify);
+    to->eviction_worker_lock_wait_time += WT_STAT_CONN_READ(from, eviction_worker_lock_wait_time);
     to->eviction_reentry_hs_eviction_milliseconds +=
       WT_STAT_CONN_READ(from, eviction_reentry_hs_eviction_milliseconds);
     to->cache_bytes_internal += WT_STAT_CONN_READ(from, cache_bytes_internal);
@@ -4783,7 +4804,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_page_mods_le500 += WT_STAT_CONN_READ(from, rec_page_mods_le500);
     to->rec_page_mods_gt500 += WT_STAT_CONN_READ(from, rec_page_mods_gt500);
     to->rec_hs_wrapup_next_prev_calls += WT_STAT_CONN_READ(from, rec_hs_wrapup_next_prev_calls);
-    to->rec_skip_empty_deltas += WT_STAT_CONN_READ(from, rec_skip_empty_deltas);
     to->rec_page_delete_fast += WT_STAT_CONN_READ(from, rec_page_delete_fast);
     to->rec_page_full_image_internal += WT_STAT_CONN_READ(from, rec_page_full_image_internal);
     to->rec_page_full_image_leaf += WT_STAT_CONN_READ(from, rec_page_full_image_leaf);
@@ -4848,6 +4868,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_time_window_stop_txn += WT_STAT_CONN_READ(from, rec_time_window_stop_txn);
     to->rec_split_stashed_bytes += WT_STAT_CONN_READ(from, rec_split_stashed_bytes);
     to->rec_split_stashed_objects += WT_STAT_CONN_READ(from, rec_split_stashed_objects);
+    to->rec_skip_write += WT_STAT_CONN_READ(from, rec_skip_write);
     to->local_objects_inuse += WT_STAT_CONN_READ(from, local_objects_inuse);
     to->flush_tier_fail += WT_STAT_CONN_READ(from, flush_tier_fail);
     to->flush_tier += WT_STAT_CONN_READ(from, flush_tier);

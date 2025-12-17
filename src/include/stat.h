@@ -430,8 +430,12 @@ struct __wt_connection_stats {
     int64_t background_compact_ema;
     int64_t background_compact_bytes_recovered;
     int64_t background_compact_running;
-    int64_t background_compact_exclude;
+    int64_t background_compact_skipped_exclude;
+    int64_t background_compact_skipped_small_file;
     int64_t background_compact_skipped;
+    int64_t background_compact_skipped_unsuccessful;
+    int64_t background_compact_skipped_no_such_file;
+    int64_t background_compact_skipped_missing_permissions;
     int64_t background_compact_sleep_cache_pressure;
     int64_t background_compact_success;
     int64_t background_compact_timeout;
@@ -742,6 +746,7 @@ struct __wt_connection_stats {
     int64_t cache_read_restored_tombstone_bytes;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
+    int64_t eviction_worker_lock_wait_time;
     int64_t eviction_reentry_hs_eviction_milliseconds;
     int64_t cache_bytes_internal;
     int64_t cache_bytes_internal_ingest;
@@ -1206,7 +1211,6 @@ struct __wt_connection_stats {
     int64_t rec_page_mods_le500;
     int64_t rec_page_mods_gt500;
     int64_t rec_hs_wrapup_next_prev_calls;
-    int64_t rec_skip_empty_deltas;
     int64_t rec_page_delete_fast;
     int64_t rec_page_full_image_internal;
     int64_t rec_page_full_image_leaf;
@@ -1260,6 +1264,7 @@ struct __wt_connection_stats {
     int64_t rec_time_window_stop_txn;
     int64_t rec_split_stashed_bytes;
     int64_t rec_split_stashed_objects;
+    int64_t rec_skip_write;
     int64_t local_objects_inuse;
     int64_t flush_tier_fail;
     int64_t flush_tier;
@@ -1702,7 +1707,6 @@ struct __wt_dsrc_stats {
     int64_t rec_page_mods_gt500;
     int64_t rec_hs_wrapup_next_prev_calls;
     int64_t rec_dictionary;
-    int64_t rec_skip_empty_deltas;
     int64_t rec_page_delete_fast;
     int64_t rec_page_full_image_internal;
     int64_t rec_page_full_image_leaf;
@@ -1752,6 +1756,7 @@ struct __wt_dsrc_stats {
     int64_t rec_time_window_durable_stop_ts;
     int64_t rec_time_window_stop_ts;
     int64_t rec_time_window_stop_txn;
+    int64_t rec_skip_write;
     int64_t session_compact;
     int64_t txn_read_race_prepare_commit;
     int64_t txn_read_overflow_remove;

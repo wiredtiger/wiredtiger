@@ -202,13 +202,17 @@ conn_stats = [
     ##########################################
     BackgroundCompactStat('background_compact_bytes_recovered', 'background compact recovered bytes', 'no_scale'),
     BackgroundCompactStat('background_compact_ema', 'background compact moving average of bytes rewritten', 'no_scale'),
-    BackgroundCompactStat('background_compact_exclude', 'background compact skipped file as it is part of the exclude list', 'no_scale'),
     BackgroundCompactStat('background_compact_fail', 'background compact failed calls', 'no_scale'),
     BackgroundCompactStat('background_compact_fail_cache_pressure', 'background compact failed calls due to cache pressure', 'no_scale'),
     BackgroundCompactStat('background_compact_files_tracked', 'number of files tracked by background compaction', 'no_scale'),
     BackgroundCompactStat('background_compact_interrupted', 'background compact interrupted', 'no_scale'),
     BackgroundCompactStat('background_compact_running', 'background compact running', 'no_scale'),
-    BackgroundCompactStat('background_compact_skipped', 'background compact skipped file as not meeting requirements for compaction', 'no_scale'),
+    BackgroundCompactStat('background_compact_skipped', 'background compact skipped file, not meeting requirements for compaction', 'no_scale'),
+    BackgroundCompactStat('background_compact_skipped_exclude', 'background compact skipped file, it is part of the exclude list', 'no_scale'),
+    BackgroundCompactStat('background_compact_skipped_missing_permissions', 'background compact skipped, there is a permissions issue', 'no_scale'),
+    BackgroundCompactStat('background_compact_skipped_no_such_file', 'background compact skipped, no such file exists', 'no_scale'),
+    BackgroundCompactStat('background_compact_skipped_small_file', 'background compact skipped file, it is smaller than 1MB in size', 'no_scale'),
+    BackgroundCompactStat('background_compact_skipped_unsuccessful', 'background compact skipped, last compact was unsuccessful/less successful than average', 'no_scale'),
     BackgroundCompactStat('background_compact_sleep_cache_pressure', 'background compact sleeps due to cache pressure', 'no_scale'),
     BackgroundCompactStat('background_compact_success', 'background compact successful calls', 'no_scale'),
     BackgroundCompactStat('background_compact_timeout', 'background compact timeout', 'no_scale'),
@@ -447,6 +451,7 @@ conn_stats = [
     EvictStat('eviction_walks_stopped', 'eviction walks gave up because they restarted their walk twice'),
     EvictStat('eviction_worker_evict_attempt', 'evict page attempts by eviction worker threads'),
     EvictStat('eviction_worker_evict_fail', 'evict page failures by eviction worker threads'),
+    EvictStat('eviction_worker_lock_wait_time', 'time eviction worker threads spend waiting for locks (usecs)'),
     # Note eviction_worker_evict_attempt - eviction_worker_evict_fail = evict page successes by eviction worker threads.
 
     ##########################################
@@ -1384,7 +1389,7 @@ conn_dsrc_stats = [
     RecStat('rec_pages_size_1MB_to_10MB', 'page reconciliation calls for pages between 1 and 10MB'),
     RecStat('rec_pages_with_internal_deltas', 'pages written with at least one internal page delta'),
     RecStat('rec_pages_with_leaf_deltas', 'pages written with at least one leaf page delta'),
-    RecStat('rec_skip_empty_deltas', 'empty deltas skipped in disaggregated storage'),
+    RecStat('rec_skip_write', 'writes skipped in disaggregated storage'),
     RecStat('rec_time_aggr_newest_start_durable_ts', 'pages written including an aggregated newest start durable timestamp '),
     RecStat('rec_time_aggr_newest_stop_durable_ts', 'pages written including an aggregated newest stop durable timestamp '),
     RecStat('rec_time_aggr_newest_stop_ts', 'pages written including an aggregated newest stop timestamp '),
