@@ -2911,7 +2911,6 @@ tasks:
     patch_only: true
     depends_on:
     - name: compile
-    run_on: ubuntu2004-medium
     commands:
       - func: "fetch artifacts"
       - func: "unit test"
@@ -6462,6 +6461,7 @@ buildvariants:
     - name: ".stress-test-asan"
     - name: ".stress-test-disagg"
       distros: ubuntu2004-large
+    # FIXME-WT-16302: Split unit tests into more buckets
     - name: ".unit_test"
     - name: ".unit_test_long"
 
@@ -7352,6 +7352,7 @@ buildvariants:
     - name: ".stress-test-asan"
     - name: ".stress-test-disagg"
       distros: amazon2023-arm64-latest-large-m8g
+    # FIXME-WT-16302: Split unit tests into more buckets
     - name: ".unit_test"
     - name: ".unit_test_long"
 
