@@ -538,7 +538,7 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
      * Compare against the oldest and the stable timestamp. Return an error if the given timestamp
      * is less than oldest and/or stable timestamp.
      */
-    /* FIXME-WT-16310: Check syncronisation aroung `oldest_timestamp` and `stable_timestamp`. */
+    /* FIXME-WT-16310: Check synchronization around `oldest_timestamp` and `stable_timestamp`. */
     has_oldest_ts = __wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp);
     if (has_oldest_ts)
         oldest_ts = __wt_tsan_suppress_load_uint64(&txn_global->oldest_timestamp);
@@ -797,7 +797,7 @@ __txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
     /*
      * Check whether the prepare timestamp is less than the stable timestamp.
      *
-     * FIXME-WT-16306: Ensure correct synchronisation around `stable_timestamp`.
+     * FIXME-WT-16306: Ensure correct synchronization around `stable_timestamp`.
      */
     stable_ts = __wt_tsan_suppress_load_uint64(&txn_global->stable_timestamp);
     if (prepare_ts <= stable_ts) {
