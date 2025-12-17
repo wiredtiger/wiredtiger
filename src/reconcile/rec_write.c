@@ -2302,6 +2302,8 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     /* We must be in disagg code. */
     WT_ASSERT(session, multi->block_meta != NULL && page->disagg_info != NULL);
+    /* Copy the block meta otherwise it will be lost after reconciliation. */
+    *multi->block_meta = page->disagg_info->block_meta;
 
     switch (mod->rec_result) {
     case 0:
@@ -2311,7 +2313,6 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         WT_ASSERT_ALWAYS(session, false, "write delta for a new page.");
         break;
     case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
-        *multi->block_meta = page->disagg_info->block_meta;
         if (mod->mod_replace.block_cookie != NULL) {
             WT_RET(__wt_memdup(session, mod->mod_replace.block_cookie,
               mod->mod_replace.block_cookie_size, &multi->addr.block_cookie));
@@ -2322,7 +2323,6 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         break;
     case WT_PM_REC_MULTIBLOCK: /* Multiple blocks */
         WT_ASSERT(session, mod->mod_multi_entries == 1);
-        *multi->block_meta = *mod->mod_multi->block_meta;
         if (mod->mod_multi->addr.block_cookie != NULL) {
             WT_RET(__wt_memdup(session, mod->mod_multi->addr.block_cookie,
               mod->mod_multi->addr.block_cookie_size, &multi->addr.block_cookie));
