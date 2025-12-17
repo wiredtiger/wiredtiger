@@ -39,10 +39,28 @@
  * Configuration parameters:
  * - verbose: verbosity level for logging (default: WT_VERBOSE_INFO)
  * - key_expires: key expiration period, in seconds (default: 12 hours = 43200 seconds).
- *     Initial key is always expired. Such that the first get_key call will generate a new key.
+ *     On creation, initial key is set.
  *     Special values:
  *       -1 - key never expires, i.e. get_key always returns without a key
  *        0 - key always expired, i.e. every get_key call gets the default key
+ *
+ * Enforced key states:
+ * - KEY_STATE_CURRENT: the current active key used for new checkpoint writes
+ *    allowed API calls: get_key(size), key_load
+ * - KEY_STATE_PENDING: the key size has been requested and successfully retrieved
+ *    allowed API calls: get_key(data)
+ * - KEY_STATE_READ: the key data has been read
+ *    allowed API calls: on_key_update
+ *
+ * Transitions:
+ * key not expired:
+ * - CURRENT -> CURRENT: get_key called with empty key data, no change
+ * key expired:
+ * - CURRENT -> PENDING: get_key called with empty key data, key size returned
+ * - PENDING -> READ: get_key called with allocated key data, key data filled
+ * - READ -> CURRENT: on_key_update called, key marked as current
+ * irrespective of key expiration:
+ * - CURRENT -> CURRENT: key_load called, key loaded from persisted data
  */
 
 enum {

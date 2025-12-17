@@ -126,6 +126,7 @@ kp_load_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS *cry
     LOG_INFO(
       kp, session, "Loading key for LSN=%" PRIu64 ", size=%" PRIzu, crypt->r.lsn, crypt->keys.size);
 
+    assert(kp->state.key_state == KEY_STATE_CURRENT);
     kp_set_key(kp, crypt);
 
     return (0);
