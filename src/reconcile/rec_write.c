@@ -2306,6 +2306,11 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     switch (mod->rec_result) {
     case 0:
         WT_ASSERT(session, r->ref->addr != NULL);
+        /*
+         * The page is read from disk. Copy the block meta otherwise it will be lost after
+         * reconciliation.
+         */
+        *multi->block_meta = page->disagg_info->block_meta;
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         WT_ASSERT_ALWAYS(session, false, "write delta for a new page.");
