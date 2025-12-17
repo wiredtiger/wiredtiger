@@ -34,7 +34,10 @@ from wtscenario import make_scenarios
 from helper import WiredTigerStat, WiredTigerCursor
 
 # test_stat14.py
-# Check block reusable percentage works as expected.
+# This test verifies the block-space reusability indicators at both the file and connection levels when reusable space exceeds 50% and 90%. The test relies on WiredTigers sequential block allocation: newer inserts land at the end of the file, while deleting earlier keys creates holes in earlier blocks and increases the bytes available for reuse. Reusability indicators are evaluated only when the file size is at least 100MB (hardcoded threshold). Therefore, the test exercises two scenarios:
+#   Small file (<100MB): the threshold-based reusability stats should remain zero.
+#   Large file (100MB): the indicators should transition as reusable space crosses 50% and 90%.
+# To reach the threshold quickly, the test writes large value payloads. This test is not applicable to disaggregated storage (disagg storage), which does not model contiguous on-disk block layout; block-space reusability percentages are not meaningful in that environment
 
 class test_stat14(wttest.WiredTigerTestCase):
     uri = 'table:test_stat14'
@@ -42,7 +45,7 @@ class test_stat14(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true)'
     # Try to occupy more pages for given keys
     long_v = 's'*1000
-    
+
     table_cnt = 4
 
     table_scale = [
@@ -55,51 +58,52 @@ class test_stat14(wttest.WiredTigerTestCase):
         with WiredTigerCursor(self.session, uri, None, None) as cursor:
             for i in range(self.key_cnt):
                 cursor[i] = self.long_v
+        # Call eviction to the keys to make sure the changes write to the disk.
         with WiredTigerCursor(self.session, uri, None, "debug=(release_evict)") as cursor:
             for i in range(self.key_cnt):
                 cursor.set_key(i)
                 cursor.search()
         self.session.checkpoint()
-    
+
     def stat_check(self, uri, reuse_50, reuse_90):
         with WiredTigerStat(self.session, uri) as stat_cursor:
             reusable_size = stat_cursor[stat.dsrc.block_reuse_bytes][2]
             block_size = stat_cursor[stat.dsrc.block_size][2]
             ratio_over_50 = stat_cursor[stat.dsrc.block_reusable_over_50][2]
             ratio_over_90 = stat_cursor[stat.dsrc.block_reusable_over_90][2]
-            if self.is_small:
-                self.assertEqual(ratio_over_50, 0)
-                self.assertEqual(ratio_over_90, 0)
-            else:
+            if not self.is_small:
                 self.assertEqual(ratio_over_50, 1 if reusable_size >= 0.5*block_size else 0)
                 self.assertEqual(ratio_over_90, 1 if reusable_size >= 0.9*block_size else 0)
-                self.assertEqual(ratio_over_50, reuse_50)
-                self.assertEqual(ratio_over_90, reuse_90)
-    
+            self.assertEqual(ratio_over_50, 0 if self.is_small else reuse_50)
+            self.assertEqual(ratio_over_90, 0 if self.is_small else reuse_90)
+
     def clear_between(self, uri, start, end):
         with WiredTigerCursor(self.session, uri, None, None) as cursor:
-            # Target to 60%
             for i in range(start, end):
                 cursor.set_key(i)
                 cursor.remove()
+        # Call eviction to the keys to make sure the changes write to the disk.
         with WiredTigerCursor(self.session, uri, None, "debug=(release_evict)") as cursor:
             for i in range(start, end):
                 cursor.set_key(i)
                 cursor.search()
         self.session.checkpoint()
-    
+
     def clean(self, uri):
         self.stat_check(uri, 0, 0)
         split_60 = int(self.key_cnt*0.6)
         split_95 = int(self.key_cnt*0.95)
+        # Remove the first 60% of the file, verify we have at least 50% free.
         self.clear_between(uri, 0, split_60)
         self.stat_check(uri, 1, 0)
+        # Remove more and check we have 90% of the file free.
         self.clear_between(uri, split_60, split_95)
         self.stat_check(uri, 1, 1)
-        
+
     def table_name(self, i:int):
         return f'{self.uri}_{i}'
 
+    @wttest.skip_for_hook("disagg", "Block size only works for ASC mode")
     def test_reusable_percentage(self):
         # Populate a table with a few records. This will create a two-level tree with a root
         # page and one or more leaf pages. We aren't inserting nearly enough records to need
@@ -112,21 +116,11 @@ class test_stat14(wttest.WiredTigerTestCase):
             with WiredTigerStat(self.session) as stat_cursor:
                 files_over_50 = stat_cursor[stat.conn.block_reusable_over_50][2]
                 files_over_90 = stat_cursor[stat.conn.block_reusable_over_90][2]
-                if self.is_small:
-                    self.assertEqual(files_over_50, 0)
-                    self.assertEqual(files_over_90, 0)
-                else:
-                    self.assertEqual(files_over_50, i)
-                    self.assertEqual(files_over_90, i)
+                self.assertEqual(files_over_50, 0 if self.is_small else i)
+                self.assertEqual(files_over_90, 0 if self.is_small else i)
             self.clean(self.table_name(i))
         with WiredTigerStat(self.session) as stat_cursor:
             files_over_50 = stat_cursor[stat.conn.block_reusable_over_50][2]
             files_over_90 = stat_cursor[stat.conn.block_reusable_over_90][2]
-            if self.is_small:
-                self.assertEqual(files_over_50, 0)
-                self.assertEqual(files_over_90, 0)
-            else:
-                self.assertEqual(files_over_50, self.table_cnt)
-                self.assertEqual(files_over_90, self.table_cnt)
-                
-            
+            self.assertEqual(files_over_50, 0 if self.is_small else self.table_cnt)
+            self.assertEqual(files_over_90, 0 if self.is_small else self.table_cnt)

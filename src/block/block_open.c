@@ -473,7 +473,7 @@ __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_STATS *stats)
     int64_t reusable_bytes = (int64_t)(__wt_atomic_load_uint64_relaxed(&block->live.avail.bytes));
     WT_STAT_WRITE(session, stats, block_reuse_bytes, reusable_bytes);
     WT_STAT_WRITE(session, stats, block_size, block->size);
-    /* Only mark file size 100MB*/
+    /* Don't track small files. */
     if (block->size > 100 * WT_MILLION) {
         int64_t reusable_percentage = reusable_bytes * 100 / block->size;
         reusable_over_50 = reusable_percentage >= 50;
