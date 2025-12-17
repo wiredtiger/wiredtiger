@@ -273,6 +273,9 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     rec_start = __wt_clock(session);
     WT_ASSERT(session, rec_start != 0);
 
+    if (ref->page->disagg_info != NULL)
+        __wt_errx(session, "Reconciliation called on a disaggregated page, page id: %" PRIu64 " rec_result %d", page->disagg_info->block_meta.page_id, page->modify->rec_result);
+
     if (*page_lockedp)
         WT_ASSERT_SPINLOCK_OWNED(session, &page->modify->page_lock);
 
