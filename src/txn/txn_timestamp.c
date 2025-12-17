@@ -538,12 +538,13 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
      * Compare against the oldest and the stable timestamp. Return an error if the given timestamp
      * is less than oldest and/or stable timestamp.
      */
+    /* TODO: Create a ticket - likely this issue is an acquire/release violation. Same ticket with the suppression of __txn_check_if_stable_has_moved_ahead_commit_ts */
     has_oldest_ts = __wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp);
     if (has_oldest_ts)
-        oldest_ts = txn_global->oldest_timestamp;
-    has_stable_ts = txn_global->has_stable_timestamp;
+        oldest_ts = __wt_tsan_suppress_load_uint64(&txn_global->oldest_timestamp);
+    has_stable_ts = __wt_tsan_suppress_load_bool(&txn_global->has_stable_timestamp);
     if (has_stable_ts)
-        stable_ts = txn_global->stable_timestamp;
+        stable_ts = __wt_tsan_suppress_load_uint64(&txn_global->stable_timestamp);
 
     if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE)) {
         /* Compare against the first commit timestamp of the current transaction. */
@@ -893,7 +894,7 @@ __wti_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
      */
     __wt_readlock(session, &txn_global->rwlock);
 
-    ts_oldest = txn_global->oldest_timestamp;
+    ts_oldest = __wt_tsan_suppress_load_uint64(&txn_global->oldest_timestamp);
     did_roundup_to_oldest = false;
     if (read_ts < ts_oldest) {
         /*

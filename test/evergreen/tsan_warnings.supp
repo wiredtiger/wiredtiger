@@ -96,10 +96,15 @@ race:__wt_row_search
 # TO DO: Create a ticket
 race:__wt_random
 race:operations
+race:timestamp_minimum_committed
+race:snap_op_init
+race:snap_track
 
-# A potential disagg Issues
+# Potential disagg issues
 # TODO: Create a ticket
 race:__cell_unpack_window_cleanup_kv
+# TODO: Create a ticket - race with __wt_txn_global_set_timestamp
+race:__txn_check_if_stable_has_moved_ahead_commit_ts
 
 # Warnings produced by column store related code
 # TODO: Create a ticket
@@ -108,3 +113,6 @@ race:__inmem_col_var
 
 # Other warnings detected during test/format execution
 race:__wt_cell_type
+race:__posix_file_read
+race:__wt_cell_unpack_safe
+race:__cursor_var_next

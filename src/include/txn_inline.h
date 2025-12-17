@@ -711,8 +711,8 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
                   upd->upd_start_ts != WT_TS_NONE ? upd->upd_start_ts : txn->commit_timestamp,
                   upd->prev_durable_ts));
             if (upd->upd_start_ts == WT_TS_NONE) {
-                upd->upd_start_ts = txn->commit_timestamp;
-                upd->upd_durable_ts = txn->durable_timestamp;
+                __wt_tsan_suppress_store_uint64(&upd->upd_start_ts, txn->commit_timestamp);
+                __wt_tsan_suppress_store_uint64(&upd->upd_durable_ts, txn->durable_timestamp);
             }
         }
     }
@@ -2200,7 +2200,7 @@ __txn_modify_block(
     ignore_prepare_set = F_ISSET(txn, WT_TXN_IGNORE_PREPARE);
     F_CLR(txn, WT_TXN_IGNORE_PREPARE);
     for (; upd != NULL && !__wt_txn_upd_visible(session, upd); upd = upd->next) {
-        if (upd->txnid != WT_TXN_ABORTED) {
+        if (__wt_tsan_suppress_load_uint64_v(&upd->txnid) != WT_TXN_ABORTED) {
             ++txn->modify_block_count;
             __wt_verbose_level(session, WT_VERB_TRANSACTION,
               txn->modify_block_count >= WT_HUNDRED ? WT_VERBOSE_INFO : WT_VERBOSE_DEBUG_1,

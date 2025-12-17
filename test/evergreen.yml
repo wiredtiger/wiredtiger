@@ -2476,8 +2476,15 @@ tasks:
       - func: "format test disagg"
         vars:
           # FIXME-WT-14566 Limit the runs for now.
-          # TODO: Do we need to have this fixme here?
+          # TODO: Create a ticket about TSAN locks failure
+          # https://github.com/google/sanitizers/issues/1611
+          format_args: disagg.mode=leader runs.rows=10000:30000 runs.tables=1:3 runs.ops=30000
+          times: 3
+      - func: "format test disagg"
+        vars:
+          # TODO: Create a ticket about TSAN locks failure
           format_args: disagg.mode=leader runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           times: 3
 
   - name: unit-test-hook-disagg-leader-bucket00
@@ -6502,6 +6509,8 @@ buildvariants:
       distros: ubuntu2004-large
     - name: unit-test-disagg-follower-tsan
       distros: ubuntu2004-large
+    - name: ".stress-test-disagg"
+      distros: ubuntu2004-large
     - name: format-stress-test-disagg-leader-tsan
       distros: ubuntu2004-large
     - name: format-stress-test-tsan
@@ -7384,9 +7393,12 @@ buildvariants:
       distros: amazon2023-arm64-latest-large-m8g
     - name: unit-test-disagg-follower-tsan
       distros: amazon2023-arm64-latest-large-m8g
+    # Remove specific tsan jobs if the tag works
     - name: format-stress-test-disagg-leader-tsan
       distros: amazon2023-arm64-latest-large-m8g
     - name: format-stress-test-tsan
+      distros: amazon2023-arm64-latest-large-m8g
+    - name: ".stress-test-disagg"
       distros: amazon2023-arm64-latest-large-m8g
     - name: generate-tsan-metric
     - name: generate-tsan-metric-disagg
