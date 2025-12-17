@@ -476,8 +476,7 @@ __sweep_server(void *arg)
          * Close handles if we have reached the configured limit. If sweep_idle_time is 0, handles
          * never become idle.
          */
-        if (conn->sweep_idle_time != 0 &&
-          __wt_atomic_load_uint32_relaxed(&conn->open_btree_count) >= conn->sweep_handles_min)
+        if (conn->sweep_idle_time != 0)
             WT_ERR(__sweep_expire(session, now));
 
         WT_ERR(__sweep_discard_trees(session, &dead_handles));
