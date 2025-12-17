@@ -331,8 +331,9 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      */
     if (ret == 0 && !(btree->evict_disabled > 0 || !F_ISSET(btree->dhandle, WT_DHANDLE_OPEN)) &&
       F_ISSET(r, WT_REC_EVICT) && !WT_PAGE_IS_INTERNAL(page) && r->multi_next == 1 &&
-      F_ISSET(r, WT_REC_CALL_URGENT) && !r->update_used && r->cache_write_restore_invisible &&
-      !r->has_upd_chain_all_aborted && !r->key_removed_from_disk_image) {
+      !F_ISSET_ATOMIC_16(page, WT_PAGE_INMEM_SPLIT) && F_ISSET(r, WT_REC_CALL_URGENT) &&
+      !r->update_used && r->cache_write_restore_invisible && !r->has_upd_chain_all_aborted &&
+      !r->key_removed_from_disk_image) {
         /*
          * For disaggregated btree, we should have skipped the write if this page has been
          * reconciled before except for internal pages that have built maximum number of consecutive
