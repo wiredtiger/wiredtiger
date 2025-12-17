@@ -796,8 +796,10 @@ __txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
 
     /*
      * Check whether the prepare timestamp is less than the stable timestamp.
+     *
+     * FIXME-WT-16306: Ensure correct synchronisation around `stable_timestamp`.
      */
-    stable_ts = txn_global->stable_timestamp;
+    stable_ts = __wt_tsan_suppress_load_uint64(&txn_global->stable_timestamp);
     if (prepare_ts <= stable_ts) {
         /*
          * Check whether the application is using the "prepared" roundup mode. This rounds up to

@@ -99,12 +99,15 @@ race:operations
 race:timestamp_minimum_committed
 race:snap_op_init
 race:snap_track
+race:snap_verify_callback
 
-# Potential disagg issues
+# Recently introduced issues
 # TODO: Create a ticket
 race:__cell_unpack_window_cleanup_kv
 # TODO: Create a ticket - race with __wt_txn_global_set_timestamp
 race:__txn_check_if_stable_has_moved_ahead_commit_ts
+# FIXME-WT-16305: Synchornization around prepare_timestamp and upd_durable_ts
+race:__txn_apply_prepare_state_update
 
 # Warnings produced by column store related code
 # TODO: Create a ticket
@@ -116,3 +119,4 @@ race:__wt_cell_type
 race:__posix_file_read
 race:__wt_cell_unpack_safe
 race:__cursor_var_next
+race:__cursor_var_prev
