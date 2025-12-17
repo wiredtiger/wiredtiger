@@ -1550,7 +1550,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * Metadata checkpoints rewrite the turtle file. Before that happens, gather any updated key
      * encryption information so it can be written into the new turtle file.
      */
-    if (conn->key_provider != NULL)
+    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader && conn->key_provider != NULL)
         WT_ERR(__wt_disagg_put_crypt_helper(session));
 
     WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
