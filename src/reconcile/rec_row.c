@@ -164,6 +164,9 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     WT_DECL_RET;
     bool ovfl_key, ovfl_val;
 
+    if (cbulk->allocated >= cbulk->alloc_max)
+        return (ENOMEM);
+
     r = cbulk->reconcile;
     btree = S2BT(session);
     cursor = &cbulk->cbt.iface;
@@ -200,7 +203,6 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 
         cbulk->allocated += r->multi[r->multi_next - 1].key.ikey->size + sizeof(WT_IKEY);
         cbulk->allocated += r->multi[r->multi_next - 1].addr.block_cookie_size + sizeof(WT_ADDR);
-        fprintf(stderr, "cbulk allocated %" WT_SIZET_FMT "\n", cbulk->allocated);
 
         WT_ERR(ret);
     }

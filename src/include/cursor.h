@@ -329,7 +329,9 @@ struct __wt_cursor_bulk {
     void *reconcile; /* Reconciliation support */
     WT_REF *ref;     /* The leaf page */
     WT_PAGE *leaf;
+
     size_t allocated; /* How many bytes we've allocated for IKEY/address structures. */
+    size_t alloc_max; /* How many bytes we're permitted to allocate for IKEY/address structures. */
 };
 
 struct __wt_cursor_config {

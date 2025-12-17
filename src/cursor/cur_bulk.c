@@ -210,7 +210,8 @@ err:
  *     Initialize a bulk cursor.
  */
 int
-__wti_curbulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool skip_sort_check)
+__wti_curbulk_init(
+  WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool skip_sort_check, size_t max_memory_usage)
 {
     WT_CURSOR *cursor;
     WT_CURSOR_BTREE *cbt;
@@ -235,6 +236,8 @@ __wti_curbulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool skip_so
 
     cbulk->first_insert = true;
     cbulk->recno = 0;
+
+    cbulk->alloc_max = max_memory_usage;
 
     /*
      * The bulk last buffer is used to detect out-of-order keys in row-store to avoid corruption,

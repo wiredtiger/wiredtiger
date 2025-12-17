@@ -1820,6 +1820,9 @@ methods = {
     Config('skip_sort_check', 'false', r'''
         skip the check of the sort order of each bulk-loaded key''',
         type='boolean', undoc=True),
+    Config('max_memory_usage', '0', r'''
+        the maximum amount of memory usage permitted by the bulk load operation. 0 means unlimited''',
+        undoc=True),
     Config('statistics', '', r'''
         Specify the statistics to be gathered. Choosing "all" gathers statistics regardless of
         cost and may include traversing on-disk files; "fast" gathers a subset of relatively

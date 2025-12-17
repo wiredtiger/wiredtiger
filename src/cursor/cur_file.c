@@ -1103,7 +1103,11 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
 
         /* Optionally skip the validation of each bulk-loaded key. */
         WT_ERR(__wt_config_gets_def(session, cfg, "skip_sort_check", 0, &cval));
-        WT_ERR(__wti_curbulk_init(session, cbulk, cval.val == 0 ? 0 : 1));
+        bool skip_sort_check = cval.val == 0 ? false : true;
+        WT_ERR(__wt_config_gets_def(session, cfg, "max_memory_usage", 0, &cval));
+        size_t max_usage = (size_t)cval.val;
+        WT_ERR(__wti_curbulk_init(session, cbulk, skip_sort_check,
+          max_usage == 0 ? SIZE_MAX : max_usage)); /* TODO just ugly generally */
     }
 
     /*
