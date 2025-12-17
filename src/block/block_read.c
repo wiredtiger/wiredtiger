@@ -134,10 +134,10 @@ err:
  */
 static bool
 __block_bitflip_detect(
-    void *data, size_t check_size, uint32_t expected_checksum, size_t *bit_position)
+  void *data, size_t check_size, uint32_t expected_checksum, size_t *bit_position)
 {
-    uint8_t *bytes;
     size_t byte_idx, bit_idx;
+    uint8_t *bytes;
 
     /* Skip bitflip detection for blocks larger than 512KB */
     if (check_size > WT_BITFLIP_MAX_SIZE)
@@ -167,15 +167,6 @@ __block_bitflip_detect(
 
     return (false);
 }
-
-#ifdef HAVE_UNITTEST
-bool
-__ut_block_bitflip_detect(
-  void *data, size_t check_size, uint32_t expected_checksum, size_t *bit_position)
-{
-    return (__block_bitflip_detect(data, check_size, expected_checksum, bit_position));
-}
-#endif
 
 #ifdef HAVE_DIAGNOSTIC
 /*
@@ -339,13 +330,17 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
          * issues.
          */
         size_t bit_position = 0;
-        if (full_checksum_mismatch &&
-          __block_bitflip_detect(buf->mem, check_size, checksum, &bit_position))
-            __wt_errx(session,
-              "%s: single-bit flip detected at bit position %" WT_SIZET_FMT
-              " (byte %" WT_SIZET_FMT ", bit %" WT_SIZET_FMT
-              ") would produce the expected checksum",
-              block->name, bit_position, bit_position / 8, bit_position % 8);
+        if (full_checksum_mismatch) {
+            if (__block_bitflip_detect(buf->mem, check_size, checksum, &bit_position))
+                __wt_errx(session,
+                  "%s: single-bit flip detected at bit position %" WT_SIZET_FMT
+                  " (byte %" WT_SIZET_FMT ", bit %" WT_SIZET_FMT
+                  ") would produce the expected checksum",
+                  block->name, bit_position, bit_position / 8, bit_position % 8);
+            else
+                __wt_errx(session, "%s: bitflip detection performed but no single-bit flip found",
+                  block->name);
+        }
 
         WT_IGNORE_RET(__wt_bm_corrupt_dump(session, buf, objectid, offset, size, checksum));
     }
@@ -360,3 +355,12 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
 
     WT_RET_PANIC(session, WT_ERROR, "%s: fatal read error", block->name);
 }
+
+#ifdef HAVE_UNITTEST
+bool
+__ut_block_bitflip_detect(
+  void *data, size_t check_size, uint32_t expected_checksum, size_t *bit_position)
+{
+    return (__block_bitflip_detect(data, check_size, expected_checksum, bit_position));
+}
+#endif
