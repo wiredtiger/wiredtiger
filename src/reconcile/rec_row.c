@@ -198,6 +198,10 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
             __wt_verbose_warning(
               session, WT_VERB_SPLIT, "%s", "bulk insert failed during page split");
 
+        cbulk->allocated += r->multi[r->multi_next - 1].key.ikey->size + sizeof(WT_IKEY);
+        cbulk->allocated += r->multi[r->multi_next - 1].addr.block_cookie_size + sizeof(WT_ADDR);
+        fprintf(stderr, "cbulk allocated %" WT_SIZET_FMT "\n", cbulk->allocated);
+
         WT_ERR(ret);
     }
 
