@@ -267,7 +267,7 @@ __disagg_put_crypt_key(
         return (ENOTSUP);
 
     WT_ASSERT_ALWAYS(session, page_id <= WT_DISAGG_KEY_PROVIDER_MAX_PAGE_ID,
-      "Key provider page ID %" PRIu64 " out of range", page_id);
+      "Multiple key provider pages is not currently supported");
     WT_CLEAR(put_args);
     put_args.backlink_lsn = disagg->last_key_provider_page_lsn[page_id];
 

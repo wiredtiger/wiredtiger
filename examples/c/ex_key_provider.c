@@ -172,6 +172,7 @@ set_my_key_provider(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
     kp->on_key_update = my_on_key_update;
     kp->terminate = my_terminate;
 
+    /* Create a starting default encryption key. */
     if ((my_kp->encryption_data = calloc(1, sizeof(MY_CRYPT_DATA))) == NULL) {
         (void)wtext->err_printf(
           wtext, NULL, "set_my_key_provider: %s", wtext->strerror(wtext, NULL, ENOMEM));
