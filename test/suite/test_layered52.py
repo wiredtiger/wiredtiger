@@ -134,6 +134,7 @@ class test_layered52(wttest.WiredTigerTestCase):
         # Remove the deleted keys from our set of expected keys.
         expected_keys.difference_update(keys_to_delete)
 
+        # FIXME-WT-16316: Fix this test to generate internal delta again.
         # self.verify_stat()
 
         # Verify that only the expected keys are present.
