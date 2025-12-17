@@ -210,7 +210,8 @@ struct __wt_disaggregated_storage {
     uint64_t last_metadata_page_lsn[WT_DISAGG_METADATA_MAX_PAGE_ID + 1];
 
     WT_NAMED_PAGE_LOG *npage_log;
-    WT_PAGE_LOG_HANDLE *page_log_meta; /* The page log for the metadata. */
+    WT_PAGE_LOG_HANDLE *page_log_meta;         /* The page log for the metadata. */
+    WT_PAGE_LOG_HANDLE *page_log_key_provider; /* The page log for the key provider. */
 
     wt_shared uint64_t num_meta_put;     /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
@@ -443,6 +444,15 @@ struct __wt_named_storage_source {
 struct __wt_name_flag {
     const char *name;
     uint64_t flag;
+};
+
+/*
+ * WT_LAYERED_DRAIN_ENTRY --
+ *	Queue entry for layered table drain threads.
+ */
+struct __wt_layered_drain_entry {
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    TAILQ_ENTRY(__wt_layered_drain_entry) q;
 };
 
 /*
@@ -772,6 +782,15 @@ struct __wt_connection_impl {
     bool prefetch_auto_on;
     bool prefetch_available;
 
+    /* Data pertaining to disaggregated storage step up. */
+    struct __wt_layered_drain_data {
+        WT_THREAD_GROUP threads;
+        WT_SPINLOCK queue_lock;
+        TAILQ_HEAD(__wt_layered_drain_qh, __wt_layered_drain_entry) work_queue;
+        bool running;
+        uint32_t thread_count;
+    } layered_drain_data;
+
     WT_DISAGGREGATED_STORAGE disaggregated_storage;
     WT_PAGE_DELTA_CONFIG page_delta; /* Page delta configuration */
     WT_LAYERED_TABLE_MANAGER layered_table_manager;
@@ -888,17 +907,18 @@ struct __wt_connection_impl {
 #define WT_CONN_DEBUG_CKPT_RETAIN 0x0001u
 #define WT_CONN_DEBUG_CONFIGURATION 0x0002u
 #define WT_CONN_DEBUG_CORRUPTION_ABORT 0x0004u
-#define WT_CONN_DEBUG_CURSOR_COPY 0x0008u
-#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x0010u
-#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x0020u
-#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x0040u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0x0080u
-#define WT_CONN_DEBUG_REALLOC_MALLOC 0x0100u
-#define WT_CONN_DEBUG_SLOW_CKPT 0x0200u
-#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x0400u
-#define WT_CONN_DEBUG_TABLE_LOGGING 0x0800u
-#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x1000u
-#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x2000u
+#define WT_CONN_DEBUG_CRASH_POINT_COLGROUP 0x0008u
+#define WT_CONN_DEBUG_CURSOR_COPY 0x0010u
+#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x0020u
+#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x0040u
+#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x0080u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x0100u
+#define WT_CONN_DEBUG_REALLOC_MALLOC 0x0200u
+#define WT_CONN_DEBUG_SLOW_CKPT 0x0400u
+#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x0800u
+#define WT_CONN_DEBUG_TABLE_LOGGING 0x1000u
+#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x2000u
+#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x4000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t debug_flags;
 

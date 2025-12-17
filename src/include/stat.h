@@ -430,8 +430,12 @@ struct __wt_connection_stats {
     int64_t background_compact_ema;
     int64_t background_compact_bytes_recovered;
     int64_t background_compact_running;
-    int64_t background_compact_exclude;
+    int64_t background_compact_skipped_exclude;
+    int64_t background_compact_skipped_small_file;
     int64_t background_compact_skipped;
+    int64_t background_compact_skipped_unsuccessful;
+    int64_t background_compact_skipped_no_such_file;
+    int64_t background_compact_skipped_missing_permissions;
     int64_t background_compact_sleep_cache_pressure;
     int64_t background_compact_success;
     int64_t background_compact_timeout;
@@ -742,6 +746,7 @@ struct __wt_connection_stats {
     int64_t cache_read_restored_tombstone_bytes;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
+    int64_t eviction_worker_lock_wait_time;
     int64_t eviction_reentry_hs_eviction_milliseconds;
     int64_t cache_bytes_internal;
     int64_t cache_bytes_internal_ingest;

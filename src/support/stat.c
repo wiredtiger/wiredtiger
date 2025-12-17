@@ -1768,8 +1768,13 @@ static const char *const __stats_connection_desc[] = {
   "background-compact: background compact moving average of bytes rewritten",
   "background-compact: background compact recovered bytes",
   "background-compact: background compact running",
-  "background-compact: background compact skipped file as it is part of the exclude list",
-  "background-compact: background compact skipped file as not meeting requirements for compaction",
+  "background-compact: background compact skipped file, it is part of the exclude list",
+  "background-compact: background compact skipped file, it is smaller than 1MB in size",
+  "background-compact: background compact skipped file, not meeting requirements for compaction",
+  "background-compact: background compact skipped, last compact was unsuccessful/less successful "
+  "than average",
+  "background-compact: background compact skipped, no such file exists",
+  "background-compact: background compact skipped, there is a permissions issue",
   "background-compact: background compact sleeps due to cache pressure",
   "background-compact: background compact successful calls",
   "background-compact: background compact timeout",
@@ -2118,6 +2123,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: size of tombstones restored when reading a page",
   "cache: the number of times full update inserted to history store",
   "cache: the number of times reverse modify inserted to history store",
+  "cache: time eviction worker threads spend waiting for locks (usecs)",
   "cache: total milliseconds spent inside reentrant history store evictions in a reconciliation",
   "cache: tracked bytes belonging to internal pages in the cache",
   "cache: tracked bytes belonging to internal pages in the cache from the ingest btrees",
@@ -2817,8 +2823,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->background_compact_ema = 0;
     stats->background_compact_bytes_recovered = 0;
     stats->background_compact_running = 0;
-    stats->background_compact_exclude = 0;
+    stats->background_compact_skipped_exclude = 0;
+    stats->background_compact_skipped_small_file = 0;
     stats->background_compact_skipped = 0;
+    stats->background_compact_skipped_unsuccessful = 0;
+    stats->background_compact_skipped_no_such_file = 0;
+    stats->background_compact_skipped_missing_permissions = 0;
     stats->background_compact_sleep_cache_pressure = 0;
     stats->background_compact_success = 0;
     stats->background_compact_timeout = 0;
@@ -3129,6 +3139,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read_restored_tombstone_bytes = 0;
     stats->cache_hs_insert_full_update = 0;
     stats->cache_hs_insert_reverse_modify = 0;
+    stats->eviction_worker_lock_wait_time = 0;
     /* not clearing eviction_reentry_hs_eviction_milliseconds */
     /* not clearing cache_bytes_internal */
     /* not clearing cache_bytes_internal_ingest */
@@ -3794,8 +3805,17 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->background_compact_bytes_recovered +=
       WT_STAT_CONN_READ(from, background_compact_bytes_recovered);
     to->background_compact_running += WT_STAT_CONN_READ(from, background_compact_running);
-    to->background_compact_exclude += WT_STAT_CONN_READ(from, background_compact_exclude);
+    to->background_compact_skipped_exclude +=
+      WT_STAT_CONN_READ(from, background_compact_skipped_exclude);
+    to->background_compact_skipped_small_file +=
+      WT_STAT_CONN_READ(from, background_compact_skipped_small_file);
     to->background_compact_skipped += WT_STAT_CONN_READ(from, background_compact_skipped);
+    to->background_compact_skipped_unsuccessful +=
+      WT_STAT_CONN_READ(from, background_compact_skipped_unsuccessful);
+    to->background_compact_skipped_no_such_file +=
+      WT_STAT_CONN_READ(from, background_compact_skipped_no_such_file);
+    to->background_compact_skipped_missing_permissions +=
+      WT_STAT_CONN_READ(from, background_compact_skipped_missing_permissions);
     to->background_compact_sleep_cache_pressure +=
       WT_STAT_CONN_READ(from, background_compact_sleep_cache_pressure);
     to->background_compact_success += WT_STAT_CONN_READ(from, background_compact_success);
@@ -4210,6 +4230,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_read_restored_tombstone_bytes);
     to->cache_hs_insert_full_update += WT_STAT_CONN_READ(from, cache_hs_insert_full_update);
     to->cache_hs_insert_reverse_modify += WT_STAT_CONN_READ(from, cache_hs_insert_reverse_modify);
+    to->eviction_worker_lock_wait_time += WT_STAT_CONN_READ(from, eviction_worker_lock_wait_time);
     to->eviction_reentry_hs_eviction_milliseconds +=
       WT_STAT_CONN_READ(from, eviction_reentry_hs_eviction_milliseconds);
     to->cache_bytes_internal += WT_STAT_CONN_READ(from, cache_bytes_internal);
