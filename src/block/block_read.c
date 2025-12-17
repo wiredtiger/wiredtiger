@@ -129,8 +129,8 @@ err:
 /*
  * __block_bitflip_detect --
  *     Check if flipping a single bit in the data would match the expected checksum. This helps
- *     diagnose single-bit memory corruption. Skip check for blocks larger than 512KB to avoid
- *     excessive CPU usage.
+ *     diagnose single-bit memory corruption. Skip check for blocks larger than WT_BITFLIP_MAX_SIZE
+ *     to avoid excessive CPU usage.
  */
 static bool
 __block_bitflip_detect(
