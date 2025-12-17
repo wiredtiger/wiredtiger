@@ -3043,7 +3043,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
             WT_STAT_CONN_INCR(session, eviction_app_dirty_attempt);
         }
         WT_STAT_CONN_INCR(session, eviction_app_attempt);
-        __wt_tsan_suppress_add_uint64(S2C(session)->evict->app_evicts, 1);
+        __wt_tsan_suppress_add_uint64(&S2C(session)->evict->app_evicts, 1);
         time_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
     }
 
