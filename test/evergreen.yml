@@ -2475,14 +2475,12 @@ tasks:
       - func: "fetch artifacts"
       - func: "format test disagg"
         vars:
-          # FIXME-WT-14566 Limit the runs for now.
-          # TODO: Create a ticket about TSAN locks failure
-          # https://github.com/google/sanitizers/issues/1611
+          # Limit the number of operations to avoid an internal TSAN issue; run more operations with detect_deadlocks=0.
+          # FIXME-WT-16313: Consider how to avoid the internal TSAN issue.
           format_args: disagg.mode=leader runs.rows=10000:30000 runs.tables=1:3 runs.ops=30000
           times: 3
       - func: "format test disagg"
         vars:
-          # TODO: Create a ticket about TSAN locks failure
           format_args: disagg.mode=leader runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
           additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
           times: 3

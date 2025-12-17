@@ -538,7 +538,7 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
      * Compare against the oldest and the stable timestamp. Return an error if the given timestamp
      * is less than oldest and/or stable timestamp.
      */
-    /* TODO: Create a ticket - likely this issue is an acquire/release violation. Same ticket with the suppression of __txn_check_if_stable_has_moved_ahead_commit_ts */
+    /* FIXME-WT-16310: Check syncronisation aroung `oldest_timestamp` and `stable_timestamp`. */
     has_oldest_ts = __wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp);
     if (has_oldest_ts)
         oldest_ts = __wt_tsan_suppress_load_uint64(&txn_global->oldest_timestamp);
