@@ -282,6 +282,16 @@ __wt_tsan_suppress_load_wt_page_ptr_v(WT_PAGE *volatile *vp)
 }
 
 /*
+ * __wt_tsan_suppress_load_wt_page_ptr --
+ *     TSAN warnings suppression for WT_PAGE pointer load.
+ */
+static WT_INLINE WT_PAGE *
+__wt_tsan_suppress_load_wt_page_ptr(WT_PAGE **vp)
+{
+    return (WT_PAGE *)(__wt_atomic_load_ptr_relaxed(vp));
+}
+
+/*
  * __wt_tsan_suppress_store_wt_insert_ptr --
  *     TSAN warnings suppression for WT_INSERT pointer store.
  */
