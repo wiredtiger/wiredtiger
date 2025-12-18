@@ -24,7 +24,6 @@
  */
 #define WT_BITFLIP_MAX_SIZE (WT_KILOBYTE * 33) /* 33KB */
 
-
 /*
  * The block manager maintains three per-checkpoint extent lists:
  *	alloc:	 the extents allocated in this checkpoint
