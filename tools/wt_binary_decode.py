@@ -610,7 +610,7 @@ def row_decode(p, b, pagehead, pagestats, opts):
             cell = btree_format.Cell.parse(b, True)
             
             p.rint_v(cell.descriptor_string())
-            if (cell.has_timestamps()):
+            if cell.has_timestamps():
                 process_timestamps(p, cell, pagestats)
 
             if cell.is_key:
