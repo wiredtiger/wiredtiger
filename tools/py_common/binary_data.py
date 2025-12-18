@@ -287,3 +287,7 @@ def binary_to_pretty_string(b, per_line=16, line_prefix='  ', start_with_line_pr
             result += '   '
     result += '  ' + printable
     return result
+
+# Show an integer as decimal and hex
+def d_and_h(n):
+    return f'{n} (0x{n:x})'

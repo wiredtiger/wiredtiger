@@ -256,7 +256,7 @@ class BlockDisaggHeader(object):
         '''
         # WT_BLOCK_DISAGG_HEADER in block.h (16 bytes)
         h = BlockDisaggHeader()
-        h.magic = b. read_uint8()
+        h.magic = b.read_uint8()
         h.version = b.read_uint8()
         h.compatible_version = b.read_uint8()
         h.header_size = b.read_uint8()
@@ -423,6 +423,9 @@ class Cell(object):
         if self.extra_descriptor & 0x80:
             raise ValueError('Junk in extra descriptor: ' + hex(self.extra_descriptor))
 
+    def has_timestamps(self) -> bool:
+        return True if self.extra_descriptor != 0 else False
+    
     @staticmethod
     def parse(b: binary_data.BinaryFile, ignore_unsupported: bool = False) -> 'Cell':
         '''
@@ -514,3 +517,97 @@ class Cell(object):
         Check if this cell belongs to a prepared transaction.
         '''
         return self.extra_descriptor & Cell.WT_CELL_PREPARE != 0
+    
+    def descriptor_string(self) -> str:
+        desc_str = f'desc: 0x{self.descriptor:x} '
+        if self.extra_descriptor != 0:
+            desc_str += f'extra: 0x{self.extra_descriptor:x} '
+            # process_timestamps(p, cell, pagestats)
+        if self.run_length is not None:
+            desc_str += + f'runlength/addr: {binary_data.d_and_h(self.run_length)} '
+        
+        return desc_str
+    
+    def type_string(self) -> str:
+        type_str = '? unknown type'
+        if self.is_address:
+            type_str = 'addr (leaf no-overflow) '
+        elif self.is_key:
+            type_str = 'key '
+        elif self.is_value:
+            type_str = 'val '
+        elif self.is_unsupported:
+            type_str = f'celltype = {self.cell_type.value}, cellname = {self.cell_type.name} not implemented'
+            
+        if self.is_overflow:
+            type_str = 'overflow ' + type_str
+        if self.is_short:
+            type_str = 'short ' + type_str
+        if self.prefix is not None:
+            type_str += f'prefix={hex(self.prefix)}'
+        if not self.is_unsupported:
+            type_str += f'{len(self.data)} bytes'
+        
+        return type_str
+    
+    def is_valid_type(self) -> bool:
+        if self.is_address or self.is_key or self.is_value or self.is_unsupported:
+            return True
+        return False
+        
+
+class DisaggAddrFlags(enum.IntFlag):
+    '''
+    Flags for address cookies in disaggregated storage from block.h.
+    '''
+    WT_BLOCK_DISAGG_ADDR_FLAG_DELTA = 0x1
+class DisaggAddr(object):
+    '''
+    A disaggregated storage address cookie (WT_BLOCK_DISAGG_ADDRESS_COOKIE).
+    '''
+    version: int
+    min_version: int
+    page_id: int
+    flags: DisaggAddrFlags
+    lsn: int
+    base_lsn: int
+    size: int
+    checksum: int
+    
+    def __init__(self) -> None:
+        self.page_id = 0
+        self.flags = 0
+        self.lsn = 0
+        self.base_lsn = 0
+        self.size = 0
+        self.checksum = 0
+        
+    @staticmethod
+    def parse(b: bytes) -> 'DisaggAddr':
+        '''
+        Parse a packed address cookie.
+        '''
+        addr = DisaggAddr()
+        addr.version = b[0]
+        b = b[1:]
+        
+        addr.page_id, b = binary_data.unpack_int(b)
+        addr.flags, b = binary_data.unpack_int(b)
+        addr.flags = DisaggAddrFlags(addr.flags)
+        addr.lsn, b = binary_data.unpack_int(b)
+        addr.base_lsn, b = binary_data.unpack_int(b)
+        addr.size, b = binary_data.unpack_int(b)
+        addr.checksum = int.from_bytes(b, 'little')
+        
+        return addr
+    
+    def __str__(self):
+        addr_string = (
+            f"Disagg Page Address:\n"
+            f"  page_id: {str(self.page_id)}\n"
+            f"  flags: {str(self.flags)}\n"
+            f"  lsn: {str(self.lsn)}\n"
+            f"  size: {str(self.size)}\n"
+            f"  checksum: {hex(self.checksum)}\n"
+        )
+        return addr_string
