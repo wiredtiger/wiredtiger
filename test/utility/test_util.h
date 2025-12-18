@@ -76,9 +76,10 @@ extern "C" {
 #define DIR_STORE "dir_store"
 #define S3_STORE "s3_store"
 
-#define TESTUTIL_ENV_CONFIG_DISAGG         \
-    ",disaggregated=(role=%s,page_log=%s)" \
-    ",precise_checkpoint=true"             \
+/* FIXME-WT-16269: Make drain_threads configurable in test format. */
+#define TESTUTIL_ENV_CONFIG_DISAGG                         \
+    ",disaggregated=(role=%s,page_log=%s,drain_threads=4)" \
+    ",precise_checkpoint=true"                             \
     ",page_delta=(internal_page_delta=%s,leaf_page_delta=%s)"
 #define TESTUTIL_ENV_CONFIG_DISAGG_EXT                                                   \
     "\"%s/ext/page_log/%s/libwiredtiger_%s.so\"=("                                       \
@@ -114,9 +115,8 @@ typedef struct {
 
     enum {
         TABLE_NOT_SET = 0, /* Not explicitly set */
-        TABLE_COL = 1,     /* Fixed-length column store */
-        TABLE_FIX = 2,     /* Variable-length column store */
-        TABLE_ROW = 3      /* Row-store */
+        TABLE_COL = 1,     /* Variable-length column store */
+        TABLE_ROW = 2      /* Row-store */
     } table_type;
 
     FILE *progress_fp; /* Progress tracking file */

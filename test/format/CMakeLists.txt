@@ -3,6 +3,7 @@ set(format_sources
     backup.c
     bulk.c
     checkpoint.c
+    checksum.c
     compact.c
     config_compat.c
     follower.c

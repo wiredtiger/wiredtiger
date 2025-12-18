@@ -644,9 +644,6 @@ create_object(TABLE *table, void *arg)
         CONFIG_APPEND(p, ",leaf_value_max=%" PRIu32, maxleafvalue);
 
     switch (table->type) {
-    case FIX:
-        CONFIG_APPEND(p, ",value_format=%" PRIu32 "t", TV(BTREE_BITCNT));
-        break;
     case ROW:
         CONFIG_APPEND(p, ",prefix_compression=%s,prefix_compression_min=%" PRIu32,
           TV(BTREE_PREFIX_COMPRESSION) == 0 ? "false" : "true", TV(BTREE_PREFIX_COMPRESSION_MIN));
@@ -708,14 +705,18 @@ create_object(TABLE *table, void *arg)
  *     If precise checkpoint is enabled, do some extra initialization of a connection.
  */
 static void
-precise_checkpoint_init(WT_CONNECTION *conn)
+precise_checkpoint_init(void)
 {
+    if (!GV(PRECISE_CHECKPOINT))
+        return;
+
+    g.timestamp = MIN_TIMESTAMP;
     /*
      * We do a separate wiredtiger_open call to create the database and tables, and when we close
      * that connection, a checkpoint is done. Precise checkpoints requires the stable timestamp to
      * be set. Set it to the minimum value, which should not interfere with any later operations.
      */
-    testutil_check(conn->set_timestamp(conn, "stable_timestamp=1"));
+    timestamp_once(NULL, false, false);
 }
 
 /*
@@ -745,10 +746,9 @@ wts_create_database(void)
     WT_CONNECTION *conn;
 
     create_database(g.home, &conn);
-    if (GV(PRECISE_CHECKPOINT))
-        precise_checkpoint_init(conn);
-
     g.wts_conn = conn;
+    precise_checkpoint_init();
+
     tables_apply(create_object, g.wts_conn);
     if (GV(RUNS_IN_MEMORY) != 0)
         g.wts_conn_inmemory = g.wts_conn;
@@ -766,7 +766,7 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 {
     WT_CONNECTION *conn;
     size_t max;
-    char config[1024], *p;
+    char config[1024], disagg_ext_cfg[1024], *p;
     const char *enc, *s;
 
     *connp = NULL;
@@ -774,6 +774,7 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
     p = config;
     max = sizeof(config);
     config[0] = '\0';
+    disagg_ext_cfg[0] = '\0';
 
     /* Configuration settings that are not persistent between open calls. */
     enc = encryptor_at_open();
@@ -791,6 +792,9 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 
     /* Optional debug mode. */
     configure_debug_mode(&p, max);
+
+    /* Optional disaggregated storage. */
+    configure_disagg_storage(home, &p, max, disagg_ext_cfg, sizeof(disagg_ext_cfg));
 
     /* Optional live restore. */
     configure_live_restore(&p, max);
@@ -874,6 +878,12 @@ wts_reopen(void)
     if (GV(PRECISE_CHECKPOINT)) {
         memset(&sap, 0, sizeof(sap));
         wt_wrap_open_session(g.wts_conn, &sap, NULL, NULL, &session);
+        /*
+         * Update the oldest/stable timestamps. We may not advance them all the way to the last
+         * committed timestamp, and that's okay we might lose some data, but the goal is to ensure
+         * that when we read the data back and later perform verification and mirrored-table
+         * matching, we don't encounter table mismatches or verification issues.
+         */
         timestamp_once(session, false, false);
         wt_wrap_close_session(session);
     }

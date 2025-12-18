@@ -147,6 +147,9 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
     filename = uri;
     WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
 
+    /* Check for unsupported storage formats. */
+    WT_ERR(__wt_schema_unsupported_format(session, config, true));
+
     WT_ERR(__wt_btree_shared(session, uri, filecfg, &is_shared));
 
     /* Check if the file already exists. */
@@ -613,13 +616,28 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
                 WT_ERR(__wt_struct_reformat(session, table, cval.str, cval.len, NULL, true, &fmt));
             }
 
-            sourcecfg[1] = fmt.data;
+            /*
+             * FIXME-WT-16164: __wt_config_merge expects that the config array passed to it is not
+             * sparsely populate. If the first element is NULL the config merge will not return
+             * anything useful. This ternary achieves that semantic. However there is likely a
+             * better, holistic fix here.
+             */
+            sourcecfg[config == NULL ? 0 : 1] = fmt.data;
         }
 
         WT_ERR(__wt_config_merge(session, sourcecfg, NULL, &sourceconf));
         WT_ERR(__wt_schema_create(session, source, sourceconf));
 
         WT_ERR(__wt_config_collapse(session, cfg, &cgconf));
+
+        /* FIXME-WT-12021 Replace this with a proper failpoint once the framework is available. */
+        if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CRASH_POINT_COLGROUP)) {
+            __wt_verbose_warning(session, WT_VERB_DEFAULT,
+              "Simulating a crash before inserting column group metadata entry '%s'", name);
+            /* Wait for the file metadata entry to be persisted. */
+            __wt_sleep(2, 0);
+            __wt_abort(session);
+        }
 
         if (!exists) {
             WT_ERR(__wt_metadata_insert(session, name, cgconf));

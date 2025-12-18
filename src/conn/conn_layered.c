@@ -368,7 +368,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_SESSION_IMPL *internal_session, *shared_metadata_session;
     size_t len, metadata_value_cfg_len;
     uint64_t checkpoint_timestamp, current_meta_lsn;
-    uint32_t checksum;
+    uint32_t checksum, existing_tables, new_ingest, new_tables;
     char *buf, *cfg_ret, *checkpoint_config, *root, *metadata_value_cfg, *layered_ingest_uri;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
@@ -387,6 +387,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     shared_metadata_session = NULL;
     cfg_ret = NULL;
     WT_CLEAR(item);
+    existing_tables = new_ingest = new_tables = 0;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -507,6 +508,10 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI),
       "Removing old references to disagg tables failed: \"%s\"", WT_DISAGG_METADATA_URI);
 
+    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Processing new disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
+      ckpt_meta->metadata_lsn);
+
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
     cfg[1] = NULL;
     WT_ERR(__wt_open_cursor(shared_metadata_session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
@@ -544,6 +549,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
             WT_ERR_MSG_CHK(session, md_cursor->insert(md_cursor),
               "Failed to insert metadata for key \"%s\"", metadata_key);
 
+            existing_tables++;
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Updated the local metadata for key \"%s\" to include new checkpoint: \"%.*s\"",
               metadata_key, (int)cval.len, cval.str);
@@ -568,14 +574,17 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
                     layered_ingest_uri[cval.len] = '\0';
                     md_cursor->set_key(md_cursor, layered_ingest_uri);
                     WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
-                    if (ret == WT_NOTFOUND)
+                    if (ret == WT_NOTFOUND) {
                         WT_ERR_MSG_CHK(session,
                           __layered_create_missing_ingest_table(
                             internal_session, layered_ingest_uri, metadata_value),
                           "Failed to create missing ingest table \"%s\" from \"%s\"",
                           layered_ingest_uri, metadata_value);
+                        new_ingest++;
+                    }
                     __wt_free(session, layered_ingest_uri);
                 }
+                new_tables++;
             }
 
             /* Insert the actual metadata. */
@@ -590,6 +599,11 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
         }
     }
     WT_ERR_NOTFOUND_OK(ret, false);
+
+    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Checkpoint pickup processed %" PRIu32 " existing tables, %" PRIu32 " new tables, %" PRIu32
+      " new ingest tables",
+      existing_tables, new_tables, new_ingest);
 
     /*
      * Part 3: Do the bookkeeping.
@@ -975,6 +989,13 @@ __wt_disagg_copy_metadata_process(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
+    /*
+     * This requires schema lock to ensure that we capture a consistent snapshot of metadata entries
+     * related to the given shared table, e.g., the various file, colgroup, table, and layered
+     * entries.
+     */
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
+
     __wt_spin_lock(session, &conn->disaggregated_storage.copy_metadata_lock);
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.copy_metadata_qh, q, tmp)
@@ -1239,6 +1260,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_DECL_RET;
     WT_ITEM complete_checkpoint_meta;
     WT_NAMED_PAGE_LOG *npage_log;
+    uint64_t time_start, time_stop;
     bool leader, picked_up, was_leader;
 
     conn = S2C(session);
@@ -1294,12 +1316,23 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_STAT_CONN_SET(session, disagg_role_leader, leader ? 1 : 0);
     } else if (!was_leader && leader) {
         /* Follower step-up. */
+        time_start = __wt_clock(session);
         WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_step_up(session));
+        time_stop = __wt_clock(session);
         WT_ERR_MSG_CHK(session, ret, "Failed to step up to the leader role");
-    } else if (was_leader && !leader)
+        WT_STAT_CONN_SET(session, disagg_step_up_time, WT_CLOCKDIFF_MS(time_stop, time_start));
+        __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Step up completed in %" PRIu64 " milliseconds", WT_CLOCKDIFF_MS(time_stop, time_start));
+    } else if (was_leader && !leader) {
         /* Leader step-down. */
+        time_start = __wt_clock(session);
         WT_WITH_CHECKPOINT_LOCK(session, __disagg_step_down(session));
-
+        time_stop = __wt_clock(session);
+        WT_STAT_CONN_SET(session, disagg_step_down_time, WT_CLOCKDIFF_MS(time_stop, time_start));
+        __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Step down completed in %" PRIu64 " milliseconds",
+          WT_CLOCKDIFF_MS(time_stop, time_start));
+    }
     /* Connection init settings only. */
 
     if (reconfig)
@@ -1314,10 +1347,15 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_ERR(__wt_schema_open_page_log(session, &cval, &npage_log));
     conn->disaggregated_storage.npage_log = npage_log;
 
-    /* Set up a handle for accessing shared metadata. */
     if (npage_log != NULL) {
+        /* Set up a handle for accessing shared metadata. */
         WT_ERR(npage_log->page_log->pl_open_handle(npage_log->page_log, &session->iface,
           WT_DISAGG_METADATA_TABLE_ID, &conn->disaggregated_storage.page_log_meta));
+
+        /* Set up a handle for accessing the key provider table if configured. */
+        if (conn->key_provider != NULL)
+            WT_ERR(npage_log->page_log->pl_open_handle(npage_log->page_log, &session->iface,
+              WT_DISAGG_KEY_PROVIDER_TABLE_ID, &conn->disaggregated_storage.page_log_key_provider));
     }
 
     /* FIXME-WT-14965: Exit the function immediately if this check returns false. */
@@ -1392,6 +1430,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR(__wt_config_gets(session, cfg, "page_delta.max_consecutive_delta", &cval));
         if (cval.len > 0 && cval.val >= 0)
             conn->page_delta.max_consecutive_delta = (uint32_t)cval.val;
+
+        /* Get the number of threads used to drain the ingest tables. */
+        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.drain_threads", &cval));
+        if (cval.len > 0 && cval.val >= 0)
+            conn->layered_drain_data.thread_count = (uint32_t)cval.val;
     }
 
 err:
@@ -1611,6 +1654,13 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     if (disagg->page_log_meta != NULL) {
         WT_TRET(disagg->page_log_meta->plh_close(disagg->page_log_meta, &session->iface));
         disagg->page_log_meta = NULL;
+    }
+
+    /* Close the key provider handle. */
+    if (disagg->page_log_key_provider != NULL) {
+        WT_TRET(
+          disagg->page_log_key_provider->plh_close(disagg->page_log_key_provider, &session->iface));
+        disagg->page_log_key_provider = NULL;
     }
 
     __wt_free(session, disagg->last_checkpoint_root);
@@ -1908,6 +1958,70 @@ err:
 }
 
 /*
+ * __layered_drain_worker_run --
+ *     Run function for drain workers.
+ */
+static int
+__layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
+{
+    WT_DECL_RET;
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_UNUSED(ctx);
+    __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
+    /* If the queue is empty we are done. */
+    if (TAILQ_EMPTY(&conn->layered_drain_data.work_queue)) {
+        __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
+        return (0);
+    }
+
+    WT_LAYERED_DRAIN_ENTRY *work_item = TAILQ_FIRST(&conn->layered_drain_data.work_queue);
+    WT_ASSERT(session, work_item != NULL);
+    TAILQ_REMOVE(&conn->layered_drain_data.work_queue, work_item, q);
+    __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
+    WT_ERR_MSG_CHK(session, __layered_copy_ingest_table(session, work_item->entry),
+      "Failed to copy ingest table \"%s\" to stable table \"%s\"", work_item->entry->ingest_uri,
+      work_item->entry->stable_uri);
+    WT_ERR_MSG_CHK(session, __layered_clear_ingest_table(session, work_item->entry->ingest_uri),
+      "Failed to clear ingest table \"%s\"", work_item->entry->ingest_uri);
+err:
+    __wt_free(session, work_item);
+    return (ret);
+}
+
+/*
+ * __layered_drain_worker_check --
+ *     Check function for drain workers.
+ */
+static bool
+__layered_drain_worker_check(WT_SESSION_IMPL *session)
+{
+    return (__wt_atomic_load_bool_relaxed(&S2C(session)->layered_drain_data.running));
+}
+
+/*
+ * __layered_drain_clear_work_queue --
+ *     Clear the work queue for ingest table drain.
+ */
+static void
+__layered_drain_clear_work_queue(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
+    if (!TAILQ_EMPTY(&conn->layered_drain_data.work_queue)) {
+        WT_LAYERED_DRAIN_ENTRY *work_item = NULL, *work_item_tmp = NULL;
+        TAILQ_FOREACH_SAFE(work_item, &conn->layered_drain_data.work_queue, q, work_item_tmp)
+        {
+            TAILQ_REMOVE(&conn->layered_drain_data.work_queue, work_item, q);
+            __wt_free(session, work_item);
+        }
+    }
+    WT_ASSERT_ALWAYS(session, TAILQ_EMPTY(&conn->layered_drain_data.work_queue),
+      "Layered drain work queue failed to drain");
+    __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
+    __wt_spin_destroy(session, &conn->layered_drain_data.queue_lock);
+}
+
+/*
  * __layered_drain_ingest_tables --
  *     Moving all the data from the ingest tables to the stable tables
  */
@@ -1920,11 +2034,10 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     WT_SESSION_IMPL *internal_session;
     size_t i, table_count;
+    bool empty;
 
     conn = S2C(session);
     manager = &conn->layered_table_manager;
-
-    WT_RET(__wt_open_internal_session(conn, "disagg-drain", false, 0, 0, &internal_session));
 
     __wt_spin_lock(session, &manager->layered_table_lock);
 
@@ -1935,20 +2048,72 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
      * reallocated, or individual entries could get removed or freed.
      */
     __wt_spin_unlock(session, &manager->layered_table_lock);
+    /* Initialize the work queue. */
+    TAILQ_INIT(&conn->layered_drain_data.work_queue);
+    WT_RET(__wt_spin_init(
+      session, &conn->layered_drain_data.queue_lock, "layered drain work queue lock"));
+
+    __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
+    /* WiredTiger doesn't have sequentially consistent stores so we lock around this store. */
+    __wt_atomic_store_bool_relaxed(&conn->layered_drain_data.running, true);
+    __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
+
+    /* Open the internal session early so we can close it on error. */
+    bool multithreaded = conn->layered_drain_data.thread_count > 1;
+    WT_ERR(__wt_open_internal_session(
+      conn, "disagg-drain application thread", false, 0, 0, &internal_session));
+
+    /*
+     * Create the thread group. The application thread is also a drain thread so the configured
+     * thread count needs to be greater than 1 for this to be meaningful. We still lock and queue
+     * work for single threaded mode, as such single threaded is only recommended for testing.
+     */
+    if (multithreaded)
+        WT_ERR(__wt_thread_group_create(session, &conn->layered_drain_data.threads, "disagg-drain",
+          conn->layered_drain_data.thread_count - 1, conn->layered_drain_data.thread_count - 1,
+          WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL, __layered_drain_worker_check,
+          __layered_drain_worker_run, NULL));
 
     /* FIXME-WT-14735: skip empty ingest tables. */
     for (i = 0; i < table_count; i++) {
         if ((entry = manager->entries[i]) != NULL) {
-            WT_ERR_MSG_CHK(session, __layered_copy_ingest_table(internal_session, entry),
-              "Failed to copy ingest table \"%s\" to stable table \"%s\"", entry->ingest_uri,
-              entry->stable_uri);
-            WT_ERR_MSG_CHK(session,
-              __layered_clear_ingest_table(internal_session, entry->ingest_uri),
-              "Failed to clear ingest table \"%s\"", entry->ingest_uri);
+            WT_LAYERED_DRAIN_ENTRY *work_item;
+            WT_ERR(__wt_calloc_one(session, &work_item));
+            work_item->entry = entry;
+            __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
+            TAILQ_INSERT_HEAD(&conn->layered_drain_data.work_queue, work_item, q);
+            __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
         }
     }
 
+    /*
+     * We can be lazy here and use the current thread as a worker thread. Then once this loop exits
+     * we can kill our thread group.
+     */
+    while (true) {
+        __wt_spin_lock(internal_session, &conn->layered_drain_data.queue_lock);
+        empty = TAILQ_EMPTY(&conn->layered_drain_data.work_queue);
+        __wt_spin_unlock(internal_session, &conn->layered_drain_data.queue_lock);
+        if (empty) {
+            /*
+             * Notify the other threads to exit. Relaxed is okay here as the worker threads will
+             * observe this change eventually.
+             */
+            __wt_atomic_store_bool_relaxed(&conn->layered_drain_data.running, false);
+            break;
+        }
+        WT_ERR(__layered_drain_worker_run(internal_session, NULL));
+    }
+
 err:
+    /* Let any running threads finish up. */
+    if (multithreaded) {
+        __wt_cond_signal(session, conn->layered_drain_data.threads.wait_cond);
+        __wt_writelock(session, &conn->layered_drain_data.threads.lock);
+        WT_TRET(__wt_thread_group_destroy(session, &conn->layered_drain_data.threads));
+    }
+    /* Cleanup and release resources. */
+    __layered_drain_clear_work_queue(session);
     WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }

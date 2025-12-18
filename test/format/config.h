@@ -2,24 +2,22 @@
 
 #pragma once
 
-#define C_TYPE_MATCH(cp, type)                                                                    \
-    (!F_ISSET(cp, (C_TYPE_FIX | C_TYPE_ROW | C_TYPE_VAR)) ||                                      \
-      ((type) == FIX && F_ISSET(cp, C_TYPE_FIX)) || ((type) == ROW && F_ISSET(cp, C_TYPE_ROW)) || \
+#define C_TYPE_MATCH(cp, type)                                                                \
+    (!F_ISSET(cp, (C_TYPE_ROW | C_TYPE_VAR)) || ((type) == ROW && F_ISSET(cp, C_TYPE_ROW)) || \
       ((type) == VAR && F_ISSET(cp, C_TYPE_VAR)))
 
 typedef struct {
     const char *name; /* Configuration item */
     const char *desc; /* Configuration description */
 
-#define C_BOOL 0x001u        /* Boolean (true if roll of 1-to-100 is <= CONFIG->min) */
-#define C_IGNORE 0x002u      /* Not a simple randomization, configured specially */
-#define C_POW2 0x004u        /* Value must be power of 2 */
-#define C_STRING 0x008u      /* String (rather than integral) */
-#define C_TABLE 0x010u       /* Value is per table, not global */
-#define C_TYPE_FIX 0x020u    /* Value is only relevant to FLCS */
-#define C_TYPE_ROW 0x040u    /* Value is only relevant to RS */
-#define C_TYPE_VAR 0x080u    /* Value is only relevant to VLCS */
-#define C_ZERO_NOTSET 0x100u /* Ignore zero values */
+#define C_BOOL 0x001u       /* Boolean (true if roll of 1-to-100 is <= CONFIG->min) */
+#define C_IGNORE 0x002u     /* Not a simple randomization, configured specially */
+#define C_POW2 0x004u       /* Value must be power of 2 */
+#define C_STRING 0x008u     /* String (rather than integral) */
+#define C_TABLE 0x010u      /* Value is per table, not global */
+#define C_TYPE_ROW 0x020u   /* Value is only relevant to RS */
+#define C_TYPE_VAR 0x040u   /* Value is only relevant to VLCS */
+#define C_ZERO_NOTSET 0x80u /* Ignore zero values */
     uint32_t flags;
 
     uint32_t min;     /* Minimum value */
@@ -44,53 +42,53 @@ typedef struct {
 #define V_GLOBAL_BLOCK_CACHE_CACHE_ON_CHECKPOINT 10
 #define V_GLOBAL_BLOCK_CACHE_CACHE_ON_WRITES 11
 #define V_GLOBAL_BLOCK_CACHE_SIZE 12
-#define V_TABLE_BTREE_BITCNT 13
-#define V_TABLE_BTREE_COMPRESSION 14
-#define V_TABLE_BTREE_DICTIONARY 15
-#define V_TABLE_BTREE_INTERNAL_KEY_TRUNCATION 16
-#define V_TABLE_BTREE_INTERNAL_PAGE_MAX 17
-#define V_TABLE_BTREE_KEY_MAX 18
-#define V_TABLE_BTREE_KEY_MIN 19
-#define V_TABLE_BTREE_LEAF_PAGE_MAX 20
-#define V_TABLE_BTREE_MEMORY_PAGE_MAX 21
-#define V_TABLE_BTREE_PREFIX_LEN 22
-#define V_TABLE_BTREE_PREFIX_COMPRESSION 23
-#define V_TABLE_BTREE_PREFIX_COMPRESSION_MIN 24
-#define V_TABLE_BTREE_REPEAT_DATA_PCT 25
-#define V_TABLE_BTREE_REVERSE 26
-#define V_TABLE_BTREE_SPLIT_PCT 27
-#define V_TABLE_BTREE_VALUE_MAX 28
-#define V_TABLE_BTREE_VALUE_MIN 29
-#define V_GLOBAL_CACHE 30
-#define V_GLOBAL_CACHE_EVICT_MAX 31
-#define V_GLOBAL_CACHE_EVICTION_DIRTY_TARGET 32
-#define V_GLOBAL_CACHE_EVICTION_DIRTY_TRIGGER 33
-#define V_GLOBAL_CACHE_EVICTION_UPDATES_TARGET 34
-#define V_GLOBAL_CACHE_EVICTION_UPDATES_TRIGGER 35
-#define V_GLOBAL_CACHE_MINIMUM 36
-#define V_GLOBAL_CACHE_MAXIMUM 37
-#define V_GLOBAL_CHECKPOINT 38
-#define V_GLOBAL_CHECKPOINT_LOG_SIZE 39
-#define V_GLOBAL_CHECKPOINT_WAIT 40
-#define V_GLOBAL_CHUNK_CACHE 41
-#define V_GLOBAL_CHUNK_CACHE_CAPACITY 42
-#define V_GLOBAL_CHUNK_CACHE_CHUNK_SIZE 43
-#define V_GLOBAL_CHUNK_CACHE_STORAGE_PATH 44
-#define V_GLOBAL_CHUNK_CACHE_TYPE 45
-#define V_GLOBAL_COMPACT_FREE_SPACE_TARGET 46
-#define V_GLOBAL_DEBUG_BACKGROUND_COMPACT 47
-#define V_GLOBAL_DEBUG_CHECKPOINT_RETENTION 48
-#define V_GLOBAL_DEBUG_CURSOR_REPOSITION 49
-#define V_GLOBAL_DEBUG_EVICTION 50
-#define V_GLOBAL_DEBUG_LOG_RETENTION 51
-#define V_GLOBAL_DEBUG_REALLOC_EXACT 52
-#define V_GLOBAL_DEBUG_REALLOC_MALLOC 53
-#define V_GLOBAL_DEBUG_SLOW_CHECKPOINT 54
-#define V_GLOBAL_DEBUG_TABLE_LOGGING 55
-#define V_GLOBAL_DEBUG_UPDATE_RESTORE_EVICT 56
-#define V_GLOBAL_DISAGG_INTERNAL_PAGE_DELTA 57
-#define V_GLOBAL_DISAGG_LEAF_PAGE_DELTA 58
-#define V_GLOBAL_DISAGG_MULTI 59
+#define V_TABLE_BTREE_COMPRESSION 13
+#define V_TABLE_BTREE_DICTIONARY 14
+#define V_TABLE_BTREE_INTERNAL_KEY_TRUNCATION 15
+#define V_TABLE_BTREE_INTERNAL_PAGE_MAX 16
+#define V_TABLE_BTREE_KEY_MAX 17
+#define V_TABLE_BTREE_KEY_MIN 18
+#define V_TABLE_BTREE_LEAF_PAGE_MAX 19
+#define V_TABLE_BTREE_MEMORY_PAGE_MAX 20
+#define V_TABLE_BTREE_PREFIX_LEN 21
+#define V_TABLE_BTREE_PREFIX_COMPRESSION 22
+#define V_TABLE_BTREE_PREFIX_COMPRESSION_MIN 23
+#define V_TABLE_BTREE_REPEAT_DATA_PCT 24
+#define V_TABLE_BTREE_REVERSE 25
+#define V_TABLE_BTREE_SPLIT_PCT 26
+#define V_TABLE_BTREE_VALUE_MAX 27
+#define V_TABLE_BTREE_VALUE_MIN 28
+#define V_GLOBAL_CACHE 29
+#define V_GLOBAL_CACHE_EVICT_MAX 30
+#define V_GLOBAL_CACHE_EVICTION_DIRTY_TARGET 31
+#define V_GLOBAL_CACHE_EVICTION_DIRTY_TRIGGER 32
+#define V_GLOBAL_CACHE_EVICTION_UPDATES_TARGET 33
+#define V_GLOBAL_CACHE_EVICTION_UPDATES_TRIGGER 34
+#define V_GLOBAL_CACHE_MINIMUM 35
+#define V_GLOBAL_CACHE_MAXIMUM 36
+#define V_GLOBAL_CHECKPOINT 37
+#define V_GLOBAL_CHECKPOINT_LOG_SIZE 38
+#define V_GLOBAL_CHECKPOINT_WAIT 39
+#define V_GLOBAL_CHUNK_CACHE 40
+#define V_GLOBAL_CHUNK_CACHE_CAPACITY 41
+#define V_GLOBAL_CHUNK_CACHE_CHUNK_SIZE 42
+#define V_GLOBAL_CHUNK_CACHE_STORAGE_PATH 43
+#define V_GLOBAL_CHUNK_CACHE_TYPE 44
+#define V_GLOBAL_COMPACT_FREE_SPACE_TARGET 45
+#define V_GLOBAL_DEBUG_BACKGROUND_COMPACT 46
+#define V_GLOBAL_DEBUG_CHECKPOINT_RETENTION 47
+#define V_GLOBAL_DEBUG_CURSOR_REPOSITION 48
+#define V_GLOBAL_DEBUG_EVICTION 49
+#define V_GLOBAL_DEBUG_LOG_RETENTION 50
+#define V_GLOBAL_DEBUG_REALLOC_EXACT 51
+#define V_GLOBAL_DEBUG_REALLOC_MALLOC 52
+#define V_GLOBAL_DEBUG_SLOW_CHECKPOINT 53
+#define V_GLOBAL_DEBUG_TABLE_LOGGING 54
+#define V_GLOBAL_DEBUG_UPDATE_RESTORE_EVICT 55
+#define V_GLOBAL_DISAGG_INTERNAL_PAGE_DELTA 56
+#define V_GLOBAL_DISAGG_LEAF_PAGE_DELTA 57
+#define V_GLOBAL_DISAGG_MULTI 58
+#define V_GLOBAL_DISAGG_MULTI_VALIDATION 59
 #define V_TABLE_DISAGG_ENABLED 60
 #define V_GLOBAL_DISAGG_LAYERED 61
 #define V_GLOBAL_DISAGG_MODE 62

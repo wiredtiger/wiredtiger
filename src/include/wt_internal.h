@@ -99,10 +99,6 @@ struct __wt_block_disagg_header;
 typedef struct __wt_block_disagg_header WT_BLOCK_DISAGG_HEADER;
 struct __wt_block_header;
 typedef struct __wt_block_header WT_BLOCK_HEADER;
-struct __wt_bloom;
-typedef struct __wt_bloom WT_BLOOM;
-struct __wt_bloom_hash;
-typedef struct __wt_bloom_hash WT_BLOOM_HASH;
 struct __wt_bm;
 typedef struct __wt_bm WT_BM;
 struct __wt_btree;
@@ -159,12 +155,6 @@ struct __wt_ckpt_snapshot;
 typedef struct __wt_ckpt_snapshot WT_CKPT_SNAPSHOT;
 struct __wt_col;
 typedef struct __wt_col WT_COL;
-struct __wt_col_fix_auxiliary_header;
-typedef struct __wt_col_fix_auxiliary_header WT_COL_FIX_AUXILIARY_HEADER;
-struct __wt_col_fix_tw;
-typedef struct __wt_col_fix_tw WT_COL_FIX_TW;
-struct __wt_col_fix_tw_entry;
-typedef struct __wt_col_fix_tw_entry WT_COL_FIX_TW_ENTRY;
 struct __wt_col_rle;
 typedef struct __wt_col_rle WT_COL_RLE;
 struct __wt_col_var_repeat;
@@ -295,6 +285,10 @@ struct __wt_json;
 typedef struct __wt_json WT_JSON;
 struct __wt_keyed_encryptor;
 typedef struct __wt_keyed_encryptor WT_KEYED_ENCRYPTOR;
+struct __wt_layered_drain_data;
+typedef struct __wt_layered_drain_data WT_LAYERED_DRAIN_DATA;
+struct __wt_layered_drain_entry;
+typedef struct __wt_layered_drain_entry WT_LAYERED_DRAIN_ENTRY;
 struct __wt_layered_table;
 typedef struct __wt_layered_table WT_LAYERED_TABLE;
 struct __wt_layered_table_manager;
@@ -465,6 +459,8 @@ struct __wt_verify_info;
 typedef struct __wt_verify_info WT_VERIFY_INFO;
 struct __wt_version;
 typedef struct __wt_version WT_VERSION;
+struct __wti_base_leaf_merge_state;
+typedef struct __wti_base_leaf_merge_state WTI_BASE_LEAF_MERGE_STATE;
 struct __wti_ckpt_handle_stats;
 typedef struct __wti_ckpt_handle_stats WTI_CKPT_HANDLE_STATS;
 struct __wti_ckpt_progress;
@@ -477,6 +473,10 @@ struct __wti_cursor_log;
 typedef struct __wti_cursor_log WTI_CURSOR_LOG;
 struct __wti_delete_hs_upd;
 typedef struct __wti_delete_hs_upd WTI_DELETE_HS_UPD;
+struct __wti_delta_leaf_merge_state;
+typedef struct __wti_delta_leaf_merge_state WTI_DELTA_LEAF_MERGE_STATE;
+struct __wti_disk_leaf_merge_state;
+typedef struct __wti_disk_leaf_merge_state WTI_DISK_LEAF_MERGE_STATE;
 struct __wti_evict_entry;
 typedef struct __wti_evict_entry WTI_EVICT_ENTRY;
 struct __wti_evict_queue;
@@ -581,7 +581,6 @@ typedef uint64_t wt_timestamp_t;
 #include "block.h"
 #include "block_cache.h"
 #include "block_chunkcache.h"
-#include "bloom.h"
 #include "btmem.h"
 #include "btree.h"
 #include "cache.h"

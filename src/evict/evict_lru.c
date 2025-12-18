@@ -2881,7 +2881,16 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
         __evict_queue_empty(evict->evict_fill_queue, false)))
         return (WT_NOTFOUND);
 
+    uint64_t lock_wait_start, lock_wait_end;
+    /* Track time spent waiting for the evict queue lock */
+    lock_wait_start = __wt_clock(session);
     __wt_spin_lock(session, &evict->evict_queue_lock);
+    lock_wait_end = __wt_clock(session);
+
+    /* Only track lock wait time for eviction worker threads */
+    if (F_ISSET(session, WT_SESSION_INTERNAL))
+        __wt_atomic_add_uint64_v(
+          &evict->evict_lock_wait_time, WT_CLOCKDIFF_US(lock_wait_end, lock_wait_start));
 
     /* Check the urgent queue first. */
     if (urgent_ok && !__evict_queue_empty(urgent_queue, false))
@@ -2914,9 +2923,14 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
             WT_STAT_CONN_INCR(session, eviction_get_ref_empty2);
             return (WT_NOTFOUND);
         }
-        if (!is_server)
+        if (!is_server) {
+            lock_wait_start = __wt_clock(session);
             __wt_spin_lock(session, &queue->evict_lock);
-        else if (__wt_spin_trylock(session, &queue->evict_lock) != 0)
+            lock_wait_end = __wt_clock(session);
+            if (F_ISSET(session, WT_SESSION_INTERNAL))
+                __wt_atomic_add_uint64_v(
+                  &evict->evict_lock_wait_time, WT_CLOCKDIFF_US(lock_wait_end, lock_wait_start));
+        } else if (__wt_spin_trylock(session, &queue->evict_lock) != 0)
             continue;
         break;
     }
@@ -2998,9 +3012,7 @@ static int
 __evict_page(WT_SESSION_IMPL *session, bool is_server)
 {
     WT_BTREE *btree;
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_EVICT *evict;
     WT_REF *ref;
     WT_REF_STATE previous_state;
     WT_TRACK_OP_DECL;
@@ -3009,9 +3021,6 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
     bool page_is_modified;
 
     WT_TRACK_OP_INIT(session);
-
-    conn = S2C(session);
-    evict = conn->evict;
 
     WT_RET_TRACK(__evict_get_ref(session, is_server, &btree, &ref, &previous_state));
     WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
@@ -3034,7 +3043,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
             WT_STAT_CONN_INCR(session, eviction_app_dirty_attempt);
         }
         WT_STAT_CONN_INCR(session, eviction_app_attempt);
-        ++evict->app_evicts;
+        ++S2C(session)->evict->app_evicts;
         time_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
     }
 
@@ -3057,11 +3066,6 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
     }
 
     if (WT_UNLIKELY(ret != 0)) {
-        ++ref->page->evict_page_attempts;
-
-        __wt_atomic_stats_max_uint16(
-          &evict->evict_max_evict_page_attempts, ref->page->evict_page_attempts);
-
         if (is_server)
             WT_STAT_CONN_INCR(session, eviction_server_evict_fail);
         else if (F_ISSET(session, WT_SESSION_INTERNAL))
@@ -3342,8 +3346,8 @@ done:
  *     priority unless eviction is in an aggressive state and the Btree is significantly utilizing
  *     the cache.
  *
- *     At present, it is exclusively called for metadata and bloom filter files, as these are meant
- *     to be retained in the cache.
+ *     At present, it is exclusively called for metadata file as this is meant to be retained in the
+ *     cache.
  *
  *     Input parameter:
  *       `v`: An integer that denotes the priority level.
