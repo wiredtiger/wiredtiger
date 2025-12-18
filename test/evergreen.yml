@@ -995,6 +995,7 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_TEST_ENV}
+        ${additional_san_vars}
         # Fail, show the configuration file.
         fail() {
           echo "======= FAILURE =========="

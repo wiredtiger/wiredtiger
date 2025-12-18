@@ -121,3 +121,4 @@ race:__cursor_var_next
 race:__cursor_var_prev
 race:__tombstone_update_alloc
 race:__wt_btcur_modify
+race:__wt_cursor_dhandle_decr_use
