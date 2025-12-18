@@ -149,7 +149,7 @@ TEST_CASE("Block bitflip detection: size limits", "[block_bitflip]")
     checksum_fixture fixture;
     size_t bit_position = 0;
 
-    SECTION("Block size at limit - 512KB")
+    SECTION("Block size at limit")
     {
         size_t size = WT_BITFLIP_MAX_SIZE;
         std::vector<uint8_t> data(size, 0);
@@ -177,7 +177,7 @@ TEST_CASE("Block bitflip detection: size limits", "[block_bitflip]")
         std::vector<uint8_t> data(size, 0);
 
         // Initialize with pattern.
-        for (size_t i = 0; i < std::min(size, (size_t)1024); ++i)
+        for (size_t i = 0; i < size; ++i)
             data[i] = static_cast<uint8_t>(i);
 
         uint32_t checksum = __wt_checksum(data.data(), data.size());
@@ -279,6 +279,7 @@ TEST_CASE("Block bitflip detection: edge cases", "[block_bitflip]")
 
 TEST_CASE("Block bitflip detection: data integrity", "[block_bitflip]")
 {
+    checksum_fixture fixture;
     std::vector<uint8_t> data(256, 0);
     size_t bit_position = 0;
 
