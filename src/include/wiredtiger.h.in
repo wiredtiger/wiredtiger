@@ -5770,11 +5770,6 @@ struct __wt_key_provider {
      * function again to fetch the new key. The extension should copy the new key into the
      * WT_CRYPT_KEYS::keys::data field up to WT_CRYPT_KEYS::keys::size.
      *
-     * Important: Key provider implementations should ensure that the keys are stable between
-     * calls within the same checkpoint. Once WiredTiger calls this function for a key size,
-     * it expects the same key to be returned when called again to retrieve key data.
-     * In other words, keys should not change between calls within the same checkpoint.
-     *
      * @param kp the WT_KEY_PROVIDER instance.
      * @param session the current WiredTiger session.
      * @param[out] crypt the WT_CRYPT_KEYS to hold the new key (if changed).
