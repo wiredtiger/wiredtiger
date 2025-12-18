@@ -837,7 +837,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * transaction id, connection will be reset to dirty when reconciliation marks the btree dirty
      * on encountering the dirty page.
      */
-    conn->modified = false;
+    __wt_tsan_suppress_store_bool(&conn->modified, false);
 
     /*
      * Save the checkpoint session ID.
