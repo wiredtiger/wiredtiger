@@ -324,7 +324,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CRYPT_KEYS crypt;
-    WT_DECL_ITEM(saved_buf);
+    WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_KEY_PROVIDER *key_provider;
     uint64_t lsn;
@@ -341,7 +341,8 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
         goto done;
 
     /* WiredTiger has the memory ownership of the key encryption buffer. */
-    WT_ERR(__wt_buf_initsize(session, &crypt.keys, crypt.keys.size));
+    WT_ERR(__wt_scr_alloc(session, crypt.keys.size, &buf));
+    crypt.keys.data = buf->data;
 
     /* Call the function again to fetch the new encryption key data. */
     WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
@@ -356,14 +357,13 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     else {
         crypt.r.error = ret;
         /* On error, remove references of crypt key before calling back. */
-        saved_buf = &crypt.keys;
         crypt.keys.data = NULL;
         crypt.keys.size = 0;
     }
     WT_IGNORE_RET(key_provider->on_key_update(key_provider, (WT_SESSION *)session, &crypt));
 done:
 err:
-    __wt_buf_free(session, saved_buf);
+    __wt_scr_free(session, &buf);
     return (ret);
 }
 
