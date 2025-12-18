@@ -424,7 +424,7 @@ class Cell(object):
             raise ValueError('Junk in extra descriptor: ' + hex(self.extra_descriptor))
 
     def has_timestamps(self) -> bool:
-        return True if self.extra_descriptor != 0 else False
+        return self.extra_descriptor != 0
     
     @staticmethod
     def parse(b: binary_data.BinaryFile, ignore_unsupported: bool = False) -> 'Cell':
@@ -524,7 +524,7 @@ class Cell(object):
             desc_str += f'extra: 0x{self.extra_descriptor:x} '
             # process_timestamps(p, cell, pagestats)
         if self.run_length is not None:
-            desc_str += + f'runlength/addr: {binary_data.d_and_h(self.run_length)} '
+            desc_str += f'runlength/addr: {binary_data.d_and_h(self.run_length)} '
         
         return desc_str
     
@@ -536,13 +536,13 @@ class Cell(object):
             type_str = 'key '
         elif self.is_value:
             type_str = 'val '
-        elif self.is_unsupported:
+        elif self.is_unsupported and self.cell_type != None:
             type_str = f'celltype = {self.cell_type.value}, cellname = {self.cell_type.name} not implemented'
             
         if self.is_overflow:
-            type_str = 'overflow ' + type_str
+            type_str = f'overflow {type_str}'
         if self.is_short:
-            type_str = 'short ' + type_str
+            type_str = f'short {type_str}'
         if self.prefix is not None:
             type_str += f'prefix={hex(self.prefix)}'
         if not self.is_unsupported:
@@ -592,8 +592,8 @@ class DisaggAddr(object):
         b = b[1:]
         
         addr.page_id, b = binary_data.unpack_int(b)
-        addr.flags, b = binary_data.unpack_int(b)
-        addr.flags = DisaggAddrFlags(addr.flags)
+        flags, b = binary_data.unpack_int(b)
+        addr.flags = DisaggAddrFlags(flags)
         addr.lsn, b = binary_data.unpack_int(b)
         addr.base_lsn, b = binary_data.unpack_int(b)
         addr.size, b = binary_data.unpack_int(b)
