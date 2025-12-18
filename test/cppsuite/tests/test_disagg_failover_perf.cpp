@@ -128,7 +128,7 @@ parse_options(int argc, char *argv[], options &out, std::string &error)
             break;
         case 'i':
             out.ingest_size_mb = atoi(__wt_optarg);
-            if (out.ingest_size_mb <= 0) {
+            if (out.ingest_size_mb < 0) {
                 error = "invalid ingest_size_mb: " + std::string(__wt_optarg);
                 return false;
             }
@@ -237,7 +237,7 @@ populate()
                 update_global_timestamps();
 
             /* Log progress every 20% or at significant milestones. */
-            if (j != 0 && (j % (opt.key_count / 5) == 0 || j % 50000 == 0))
+            if (j != 0 && opt.key_count > 5 && (j % (opt.key_count / 5) == 0 || j % 50000 == 0))
                 logger::log_msg(LOG_INFO,
                   "Populate: Collection " + std::to_string(i + 1) + " - loaded " +
                     std::to_string(j) + "/" + std::to_string(opt.key_count) + " keys (" +
@@ -396,6 +396,11 @@ crud_worker(workload_type type)
 static void
 crud_operations()
 {
+    /* The user could request to not ingest any data. */
+    if (opt.ingest_size_mb == 0) {
+        logger::log_msg(LOG_INFO, "Skipping workload phase, ingest data size is 0.");
+        return;
+    }
     logger::log_msg(LOG_INFO,
       "Starting " + std::string(opt.type == workload_type::append ? "append" : "update") +
         " workload phase.");

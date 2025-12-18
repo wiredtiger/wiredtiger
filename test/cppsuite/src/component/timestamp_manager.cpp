@@ -48,7 +48,7 @@ timestamp_manager::decimal_to_hex(uint64_t value)
 uint64_t
 timestamp_manager::hex_to_decimal(const std::string &timestamp)
 {
-    testutil_assert(timestamp[0] != '\0' && "hex string is empty");
+    testutil_assert(!timestamp.empty());
 
     uint64_t value = 0;
     std::stringstream ss;
