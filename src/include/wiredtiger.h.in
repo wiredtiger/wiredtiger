@@ -2955,7 +2955,6 @@ struct __wt_connection {
      * module. The application must first implement the WT_KEY_PROVIDER
      * interface and then register the implementation with WiredTiger:
      *
-     * @snippet ex_key_provider.c WT_KEY_PROVIDER register
      *
      * @param connection the connection handle
      * @param km the key provider structure
@@ -5743,8 +5742,6 @@ struct __wt_crypt_keys {
  * Interface for custom key provider services used by applications.
  *
  * Applications register implementations using WT_CONNECTION::set_key_provider.
- *
- * @snippet ex_key_provider.c WT_KEY_PROVIDER register
  */
 struct __wt_key_provider {
     /*!
