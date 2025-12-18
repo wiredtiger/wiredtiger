@@ -4,8 +4,6 @@ leak:InitModule
 # ARM64 python leaks memory from an unclear source. This suppresses that one leak.
 leak:PyObject_Malloc
 
-# FIXME-WT-16083: Resolve the warnings and remove the suppressions.
-
 # FIXME-WT-16324: test_verify
 leak:__tiered_open
 
@@ -48,7 +46,7 @@ leak:__tiered_name_str
 # FIXME-WT-16332: test_tiered18
 leak:__create_colgroup
 
-# ???
+# FIXME-WT-16083: Resolve the warnings and remove the suppressions.
 leak:_PyBytes_FromSize
 leak:_wrap__wiredtiger_calc_modify
 leak:__cursor_prepared_discover_setup
