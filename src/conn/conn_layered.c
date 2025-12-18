@@ -324,6 +324,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CRYPT_KEYS crypt;
+    WT_DECL_ITEM(saved_buf);
     WT_DECL_RET;
     WT_KEY_PROVIDER *key_provider;
     uint64_t lsn;
@@ -352,12 +353,17 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     /* Callback to update key provider on the result of new encryption data . */
     if (ret == 0)
         crypt.r.lsn = lsn;
-    else
+    else {
         crypt.r.error = ret;
+        /* On error, remove references of crypt key before calling back. */
+        saved_buf = &crypt.keys;
+        crypt.keys.data = NULL;
+        crypt.keys.size = 0;
+    }
     WT_IGNORE_RET(key_provider->on_key_update(key_provider, (WT_SESSION *)session, &crypt));
 done:
 err:
-    __wt_buf_free(session, &crypt.keys);
+    __wt_buf_free(session, saved_buf);
     return (ret);
 }
 
