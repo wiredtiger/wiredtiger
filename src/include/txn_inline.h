@@ -524,8 +524,10 @@ __wt_txn_op_delete_commit(
 
                     if (assign_timestamp && (*updp)->upd_start_ts == WT_TS_NONE) {
                         /* FIXME-WT-16319: Data races reported. */
-                        __wt_tsan_suppress_store_uint64(&(*updp)->upd_start_ts, txn->commit_timestamp);
-                        __wt_tsan_suppress_store_uint64(&(*updp)->upd_durable_ts, txn->durable_timestamp);
+                        __wt_tsan_suppress_store_uint64(
+                          &(*updp)->upd_start_ts, txn->commit_timestamp);
+                        __wt_tsan_suppress_store_uint64(
+                          &(*updp)->upd_durable_ts, txn->durable_timestamp);
                     }
                     ++updp;
                 } while (*updp != NULL);
