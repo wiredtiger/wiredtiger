@@ -248,7 +248,7 @@ __disagg_get_meta(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn, WT_I
 
 /*
  * __disagg_put_crypt_key --
- *     Write key encryption key to disaggregated storage.
+ *     Write encryption key data to disaggregated storage.
  */
 static int
 __disagg_put_crypt_key(
@@ -316,7 +316,7 @@ __disagg_put_meta(WT_SESSION_IMPL *session, uint64_t page_id, const WT_ITEM *ite
 
 /*
  * __wt_disagg_put_crypt_helper --
- *     If new key encryption key information is detected, update the metadata page log and callback
+ *     If new encryption key data information is detected, update the metadata page log and callback
  *     to the key provider upon completion.
  */
 int
@@ -335,12 +335,12 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
-    /* Check for a new key encryption key. If the size is 0, there is none so we can skip. */
+    /* Check for a new encryption key data. If the size is 0, there is none so we can skip. */
     WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
     if (crypt.keys.size == 0)
         goto done;
 
-    /* WiredTiger has the memory ownership of the key encryption buffer. */
+    /* WiredTiger has the memory ownership of the encryption key buffer. */
     WT_ERR(__wt_scr_alloc(session, crypt.keys.size, &buf));
     crypt.keys.data = buf->data;
 
@@ -348,10 +348,10 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
     WT_ASSERT(session, crypt.keys.size != 0 && crypt.keys.data != NULL);
 
-    /* Write the key provider to disaggregated storage. */
+    /* Write the encryption key data to disaggregated storage. */
     ret = __disagg_put_crypt_key(session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, &crypt.keys, &lsn);
 
-    /* Callback to update key provider on the result of new encryption data . */
+    /* Callback to update key provider on the result of new encryption key data . */
     if (ret == 0)
         crypt.r.lsn = lsn;
     else {
