@@ -2955,7 +2955,6 @@ struct __wt_connection {
      * module. The application must first implement the WT_KEY_PROVIDER
      * interface and then register the implementation with WiredTiger:
      *
-     *
      * @param connection the connection handle
      * @param km the key provider structure
      * @configempty{WT_CONNECTION.set_key_provider, see dist/api_data.py}
