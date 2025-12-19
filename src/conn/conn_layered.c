@@ -2038,11 +2038,12 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     manager = &conn->layered_table_manager;
+    group_created = false;
+    internal_session = NULL;
 
     __wt_spin_lock(session, &manager->layered_table_lock);
 
     table_count = manager->open_layered_table_count;
-    group_created = false;
 
     /*
      * FIXME-WT-14734: shouldn't we hold this lock longer, e.g. manager->entries could get
