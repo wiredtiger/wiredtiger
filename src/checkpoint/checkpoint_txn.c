@@ -1545,7 +1545,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     saved_meta_next = session->meta_track_next;
     session->meta_track_next = NULL;
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_META_CKPT);
-
     WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
       WT_WITH_METADATA_LOCK(session, ret = __wt_checkpoint_file(session, cfg)));
     session->meta_track_next = saved_meta_next;
