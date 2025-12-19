@@ -288,14 +288,6 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
     } while (0)
 #define WT_STAT_DSRC_DECR(session, fld) WT_STAT_DSRC_DECRV(session, fld, 1)
 
-#define WT_STAT_DSRC_GETP(session, fld, dst)                                            \
-    do {                                                                                \
-        dst = NULL;                                                                     \
-        if (WT_STAT_ENABLED(session))                                                   \
-            if ((session)->dhandle != NULL && (session)->dhandle->stat_array != NULL)   \
-                dst = &(((session)->dhandle->stats)[(session)->stat_dsrc_bucket]->fld); \
-    } while (0)
-
 #define WT_STATP_DSRC_SET(session, stats, fld, value)                           \
     do {                                                                        \
         if (WT_STAT_ENABLED(session)) {                                         \
@@ -1425,8 +1417,6 @@ struct __wt_dsrc_stats {
     int64_t block_major;
     int64_t block_size;
     int64_t block_minor;
-    int64_t block_reusable_over_50;
-    int64_t block_reusable_over_90;
     int64_t btree_checkpoint_generation;
     int64_t btree_clean_checkpoint_timer;
     int64_t btree_compact_pages_reviewed;

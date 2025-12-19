@@ -462,43 +462,14 @@ __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_STATS *stats)
      * Reading from the live system's structure normally requires locking, but it's an 8B statistics
      * read, there's no need.
      */
-    bool reusable_over_50 = false;
-    bool reusable_over_90 = false;
-    int64_t *statp;
     WT_STAT_WRITE(session, stats, allocation_size, block->allocsize);
     WT_STAT_WRITE(session, stats, block_checkpoint_size, (int64_t)block->live.ckpt_size);
     WT_STAT_WRITE(session, stats, block_magic, WT_BLOCK_MAGIC);
     WT_STAT_WRITE(session, stats, block_major, WT_BLOCK_MAJOR_VERSION);
     WT_STAT_WRITE(session, stats, block_minor, WT_BLOCK_MINOR_VERSION);
-    int64_t reusable_bytes = (int64_t)(__wt_atomic_load_uint64_relaxed(&block->live.avail.bytes));
-    WT_STAT_WRITE(session, stats, block_reuse_bytes, reusable_bytes);
+    WT_STAT_WRITE(session, stats, block_reuse_bytes,
+      (int64_t)(__wt_atomic_load_uint64_relaxed(&block->live.avail.bytes)));
     WT_STAT_WRITE(session, stats, block_size, block->size);
-    /* Don't track small files. */
-    if (block->size > 100 * WT_MILLION) {
-        int64_t reusable_percentage = reusable_bytes * 100 / block->size;
-        reusable_over_50 = reusable_percentage >= 50;
-        reusable_over_90 = reusable_percentage >= 90;
-    }
-    WT_STAT_DSRC_GETP(session, block_reusable_over_50, statp);
-    if (statp) {
-        if (reusable_over_50) {
-            if (__wt_atomic_cas_int64(statp, 0, 1))
-                WT_STAT_CONN_INCR_ATOMIC(session, block_reusable_over_50);
-        } else {
-            if (__wt_atomic_cas_int64(statp, 1, 0))
-                WT_STAT_CONN_DECR_ATOMIC(session, block_reusable_over_50);
-        }
-    }
-    WT_STAT_DSRC_GETP(session, block_reusable_over_90, statp);
-    if (statp) {
-        if (reusable_over_90) {
-            if (__wt_atomic_cas_int64(statp, 0, 1))
-                WT_STAT_CONN_INCR_ATOMIC(session, block_reusable_over_90);
-        } else {
-            if (__wt_atomic_cas_int64(statp, 1, 0))
-                WT_STAT_CONN_DECR_ATOMIC(session, block_reusable_over_90);
-        }
-    }
 }
 
 /*

@@ -1444,6 +1444,10 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     time_start_fsync = __wt_clock(session);
 
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_BM_SYNC);
+    /* reset reuse ratio stats. */
+    WT_STAT_CONN_SET(session, block_reusable_over_50, 0);
+    WT_STAT_CONN_SET(session, block_reusable_over_90, 0);
+
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __wt_checkpoint_sync));
 
     /* Sync the history store file. */
@@ -2787,7 +2791,6 @@ __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_BM *bm;
     WT_BTREE *btree;
-    WT_DECL_RET;
 
     WT_UNUSED(cfg);
 
@@ -2799,14 +2802,19 @@ __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Unnecessary if checkpoint_sync has been configured "off". */
     if (!F_ISSET(S2C(session), WT_CONN_CKPT_SYNC))
-        return (ret);
+        return (0);
 
     WT_STAT_CONN_INCR(session, checkpoint_sync);
 
-    /* Update btree stat after each checkpoint. */
-    WT_TRET(bm->stat(btree->bm, session, btree->dhandle->stats[0]));
-    WT_TRET(bm->sync(bm, session, true));
-    return (ret);
+    /* Update btree reusable after each checkpoint. */
+    if (bm->block->size > 100 * WT_MILLION) {
+        int64_t reusable_percentage = (int64_t)bm->block->live.avail.bytes * 100 / bm->block->size;
+        if (reusable_percentage >= 50)
+            WT_STAT_CONN_INCR(session, block_reusable_over_50);
+        if (reusable_percentage >= 90)
+            WT_STAT_CONN_INCR(session, block_reusable_over_90);
+    }
+    return (bm->sync(bm, session, true));
 }
 
 /*

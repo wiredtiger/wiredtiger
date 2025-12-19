@@ -69,13 +69,9 @@ class test_stat14(wttest.WiredTigerTestCase):
         with WiredTigerStat(self.session, uri) as stat_cursor:
             reusable_size = stat_cursor[stat.dsrc.block_reuse_bytes][2]
             block_size = stat_cursor[stat.dsrc.block_size][2]
-            ratio_over_50 = stat_cursor[stat.dsrc.block_reusable_over_50][2]
-            ratio_over_90 = stat_cursor[stat.dsrc.block_reusable_over_90][2]
             if not self.is_small:
-                self.assertEqual(ratio_over_50, 1 if reusable_size >= 0.5*block_size else 0)
-                self.assertEqual(ratio_over_90, 1 if reusable_size >= 0.9*block_size else 0)
-            self.assertEqual(ratio_over_50, 0 if self.is_small else reuse_50)
-            self.assertEqual(ratio_over_90, 0 if self.is_small else reuse_90)
+                self.assertEqual(reuse_50, 1 if reusable_size >= 0.5*block_size else 0)
+                self.assertEqual(reuse_90, 1 if reusable_size >= 0.9*block_size else 0)
 
     def clear_between(self, uri, start, end):
         with WiredTigerCursor(self.session, uri, None, None) as cursor:
