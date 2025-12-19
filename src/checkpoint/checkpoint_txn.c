@@ -1536,12 +1536,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * commit as the updates have gone from memory.
      */
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
-        /*
-         * Gather any updated key encryption information so it can be written into the shared
-         * metadata table.
-         */
-        if (conn->key_provider != NULL)
-            WT_ERR(__wt_disagg_put_crypt_helper(session));
         WT_ERR(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
         if (S2BT(session)->modified)
             WT_ERR(__wt_checkpoint_file(session, cfg));
