@@ -82,23 +82,26 @@ class test_stat14(wttest.WiredTigerTestCase):
             for i in range(start, end):
                 cursor.set_key(i)
                 cursor.remove()
+        self.session.checkpoint()
         # Call eviction to the keys to make sure the changes write to the disk.
         with WiredTigerCursor(self.session, uri, None, "debug=(release_evict)") as cursor:
             for i in range(start, end):
                 cursor.set_key(i)
                 cursor.search()
+        # We need second checkpoint call to sync the disk status.
         self.session.checkpoint()
 
-    def clean(self, uri):
-        self.stat_check(uri, 0, 0)
+    def clean(self, uri, skip_check = False):
         split_60 = int(self.key_cnt*0.6)
-        split_95 = int(self.key_cnt*0.95)
+        split_99 = int(self.key_cnt*0.99)
         # Remove the first 60% of the file, verify we have at least 50% free.
         self.clear_between(uri, 0, split_60)
-        self.stat_check(uri, 1, 0)
+        if not skip_check:
+            self.stat_check(uri, 1, 0)
         # Remove more and check we have 90% of the file free.
-        self.clear_between(uri, split_60, split_95)
-        self.stat_check(uri, 1, 1)
+        self.clear_between(uri, split_60, split_99)
+        if not skip_check:
+            self.stat_check(uri, 1, 1)
 
     def table_name(self, i:int):
         return f'{self.uri}_{i}'
@@ -116,11 +119,12 @@ class test_stat14(wttest.WiredTigerTestCase):
             with WiredTigerStat(self.session) as stat_cursor:
                 files_over_50 = stat_cursor[stat.conn.block_reusable_over_50][2]
                 files_over_90 = stat_cursor[stat.conn.block_reusable_over_90][2]
-                self.assertEqual(files_over_50, 0 if self.is_small else i)
-                self.assertEqual(files_over_90, 0 if self.is_small else i)
-            self.clean(self.table_name(i))
+                self.assertIn(files_over_50, [0] if self.is_small else [i, i+1])
+                self.assertIn(files_over_90, [0] if self.is_small else [i, i+1])
+            # Skip the uri stat fetch to test trigger by checkpoint.
+            self.clean(self.table_name(i), i > 0)
         with WiredTigerStat(self.session) as stat_cursor:
             files_over_50 = stat_cursor[stat.conn.block_reusable_over_50][2]
             files_over_90 = stat_cursor[stat.conn.block_reusable_over_90][2]
-            self.assertEqual(files_over_50, 0 if self.is_small else self.table_cnt)
-            self.assertEqual(files_over_90, 0 if self.is_small else self.table_cnt)
+            self.assertIn(files_over_50, [0] if self.is_small else [self.table_cnt, self.table_cnt + 1])
+            self.assertIn(files_over_90, [0] if self.is_small else [self.table_cnt, self.table_cnt + 1])

@@ -2786,10 +2786,13 @@ int
 __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_BM *bm;
+    WT_BTREE *btree;
+    WT_DECL_RET;
 
     WT_UNUSED(cfg);
 
-    bm = S2BT(session)->bm;
+    btree = S2BT(session);
+    bm = btree->bm;
 
     /* Should not be called with a checkpoint handle. */
     WT_ASSERT(session, !WT_READING_CHECKPOINT(session));
@@ -2799,7 +2802,11 @@ __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
         return (0);
 
     WT_STAT_CONN_INCR(session, checkpoint_sync);
-    return (bm->sync(bm, session, true));
+
+    /* Update btree stat after each checkpoint. */
+    WT_RET(bm->stat(btree->bm, session, btree->dhandle->stats[0]));
+    WT_RET(bm->sync(bm, session, true));
+    return (ret);
 }
 
 /*
