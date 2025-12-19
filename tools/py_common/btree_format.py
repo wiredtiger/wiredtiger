@@ -567,6 +567,7 @@ class DisaggAddr(object):
     '''
     version: int
     min_version: int
+    min_version: int
     page_id: int
     flags: DisaggAddrFlags
     lsn: int
@@ -588,7 +589,13 @@ class DisaggAddr(object):
         Parse a packed address cookie.
         '''
         addr = DisaggAddr()
-        addr.version = b[0]
+        
+        # The first byte contains the version and min_version packed into 4b chunks.
+        # See block_disagg_addr.c and int4bitpack_inline.h for implementation details.
+        version_array = binary_data.unpack_4b_array((b[:1]), 2)
+        addr.version = version_array[0]
+        addr.min_version = version_array[1]
+        
         b = b[1:]
         
         addr.page_id, b = binary_data.unpack_int(b)
