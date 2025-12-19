@@ -2799,13 +2799,13 @@ __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Unnecessary if checkpoint_sync has been configured "off". */
     if (!F_ISSET(S2C(session), WT_CONN_CKPT_SYNC))
-        return (0);
+        return (ret);
 
     WT_STAT_CONN_INCR(session, checkpoint_sync);
 
     /* Update btree stat after each checkpoint. */
-    WT_RET(bm->stat(btree->bm, session, btree->dhandle->stats[0]));
-    WT_RET(bm->sync(bm, session, true));
+    WT_TRET(bm->stat(btree->bm, session, btree->dhandle->stats[0]));
+    WT_TRET(bm->sync(bm, session, true));
     return (ret);
 }
 
