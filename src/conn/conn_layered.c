@@ -377,6 +377,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(buf);
+    WT_DECL_ITEM(key_provider_buf);
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg;
     uint64_t lsn;
@@ -399,18 +400,30 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
         checkpoint_root_size = strlen(checkpoint_root);
 
     WT_ERR(__wt_strndup(session, checkpoint_root, checkpoint_root_size, &checkpoint_root_copy));
+    
+    /* Write key provider information to the metadata page log.  */
+    if (conn->key_provider != NULL) {
+        WT_ASSERT(session, conn->disaggregated_storage.last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID] != 0);
+        WT_ERR(__wt_scr_alloc(session, 0, &key_provider_buf));
+        WT_ERR(__wt_buf_fmt(session, key_provider_buf,
+          "key_provider=((page.1=(page_id=%d,lsn=%" PRIu64 ")),version=1)",
+          WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID,
+          conn->disaggregated_storage
+            .last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID]));
+    }
 
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
     WT_ERR(__wt_buf_fmt(session, buf,
       "%s\n"
-      "timestamp=%" PRIx64,
-      checkpoint_root_copy, checkpoint_timestamp));
+      "timestamp=%" PRIx64 "\n"
+      "%s",
+      checkpoint_root_copy, checkpoint_timestamp, (char*)key_provider_buf->data));
 
     /* Compute the checksum for the metadata page. */
     checksum = __wt_checksum(buf->data, buf->size);
 
     /*
-     * Write the metadata to disaggregated storage. This should be the last statement in this
+     * Write the metadata to disaggregated storage This should be the last statement in this
      * function that is allowed to fail.
      */
     WT_ERR(__disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, buf, &lsn));
@@ -435,6 +448,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
 
 err:
     __wt_free(session, checkpoint_root_copy);
+    __wt_scr_free(session, &key_provider_buf);
     __wt_scr_free(session, &buf);
     return (ret);
 }
