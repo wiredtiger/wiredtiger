@@ -32,7 +32,12 @@ __curhs_file_cursor_open(
     const char *open_cursor_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "", NULL, NULL};
 
-    if (WT_READING_CHECKPOINT(session)) {
+    if (session->layered_checkpoint != NULL) {
+        len = strlen(uri) + strlen(session->layered_checkpoint) + 2;
+        WT_RET(__wt_malloc(session, len, &tmp));
+        WT_ERR(__wt_snprintf(tmp, len, "%s/%s", uri, session->layered_checkpoint));
+        uri = tmp;
+    } else if (WT_READING_CHECKPOINT(session)) {
         /*
          * Propagate the checkpoint setting to the history cursor. Use the indicated history store
          * checkpoint. If that's null, it means there is no history store checkpoint to read and we

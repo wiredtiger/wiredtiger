@@ -505,6 +505,7 @@ struct __wt_cursor_layered {
     WT_CURSOR *current_cursor; /* The current cursor for iteration */
     WT_CURSOR *ingest_cursor;  /* The ingest table */
     WT_CURSOR *stable_cursor;  /* The stable table */
+    const char *checkpoint;    /* The checkpoint for the stable table on follower */
 
     int64_t next_random_seed;
     u_int next_random_sample_size;

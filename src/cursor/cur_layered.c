@@ -121,6 +121,11 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update, bool iter
     bool external_state_change;
 
     session = CUR2S(clayered);
+
+    /* At the moment, we never have nested calls - layered cursors using layered cursors. */
+    WT_ASSERT(session, session->layered_checkpoint == NULL);
+    session->layered_checkpoint = clayered->checkpoint;
+
     /*
      * FIXME-WT-15058: When inside a read committed isolation, the file cursor code expects to
      * release the snapshot when the count of active cursors is zero. Reset the constituent cursors
@@ -185,6 +190,7 @@ __clayered_leave(WT_CURSOR_LAYERED *clayered)
 
     session = CUR2S(clayered);
 
+    session->layered_checkpoint = NULL;
     if (F_ISSET(clayered, WT_CLAYERED_ACTIVE)) {
         --session->ncursors;
         __cursor_leave(session);
@@ -209,6 +215,7 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
     if ((c = clayered->stable_cursor) != NULL) {
         WT_RET(c->close(c));
         clayered->stable_cursor = NULL;
+        __wt_free(CUR2S(c), clayered->checkpoint);
     }
 
     /* Some flags persist across closes of constituents. */
@@ -250,6 +257,7 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     WT_SESSION_IMPL *session;
+    WT_TXN_SHARED *txn_shared;
     const char *cfg[4] = {WT_CONFIG_BASE(CUR2S(clayered), WT_SESSION_open_cursor), "", NULL, NULL};
     const char *checkpoint_name, *stable_uri;
 
@@ -275,9 +283,17 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
          * different WiredTiger instances eventually.
          */
 
-        /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
-        WT_ERR_NOTFOUND_OK(
-          __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL), true);
+        txn_shared = WT_SESSION_TXN_SHARED(session);
+
+        if (txn_shared != NULL && txn_shared->read_timestamp != WT_TS_NONE)
+            /* Get the name that works with the read timestamp. */
+            WT_ERR(__wt_meta_checkpoint_name_for_timestamp(
+              session, stable_uri, txn_shared->read_timestamp, &checkpoint_name));
+        else
+            /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
+            WT_ERR_NOTFOUND_OK(
+              __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL),
+              true);
 
         if (ret == WT_NOTFOUND) {
             /*
@@ -325,7 +341,7 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
 err:
     __wt_scr_free(session, &random_config);
     __wt_scr_free(session, &stable_uri_buf);
-    __wt_free(session, checkpoint_name);
+    clayered->checkpoint = checkpoint_name;
 
     return (ret);
 }
@@ -477,6 +493,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
          */
         old_stable = clayered->stable_cursor;
         clayered->stable_cursor = NULL;
+        __wt_free(session, clayered->checkpoint);
         snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
 
         WT_RET(__clayered_open_stable(clayered, current_leader));
@@ -2003,6 +2020,7 @@ err:
     /* For cached cursors, free any extra buffers retained now. */
     __wt_cursor_free_cached_memory(cursor);
     cursor->internal_uri = NULL;
+    __wt_free(session, clayered->checkpoint);
 
     WT_TRET(__clayered_close_int(cursor));
 done:

@@ -9,7 +9,8 @@
 #include "wt_internal.h"
 
 static int __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
-static int __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **, int64_t *, uint64_t *);
+static int __ckpt_last_name(
+  WT_SESSION_IMPL *, const char *, uint64_t, const char **, int64_t *, uint64_t *);
 static int __ckpt_load(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT_CKPT *);
 static int __ckpt_named(WT_SESSION_IMPL *, const char *, const char *, WT_CKPT *);
 static int __ckpt_parse_time(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, uint64_t *);
@@ -185,7 +186,34 @@ __wt_meta_checkpoint_last_name(
     WT_ERR(__ckpt_version_chk(session, fname, config));
 
     /* Retrieve the name of the last unnamed checkpoint. */
-    WT_ERR(__ckpt_last_name(session, config, namep, orderp, timep));
+    WT_ERR(__ckpt_last_name(session, config, WT_TS_NONE, namep, orderp, timep));
+
+err:
+    __wt_free(session, config);
+    return (ret);
+}
+
+/*
+ * __wt_meta_checkpoint_name_for_timestamp --
+ *     Return the name for the checkpoint that corresponds to the read timestamp.
+ */
+int
+__wt_meta_checkpoint_name_for_timestamp(
+  WT_SESSION_IMPL *session, const char *fname, uint64_t read_timestamp, const char **namep)
+{
+    WT_DECL_RET;
+    char *config;
+
+    config = NULL;
+
+    /* Retrieve the metadata entry for the file. */
+    WT_RET(__wt_metadata_search(session, fname, &config));
+
+    /* Check the major/minor version numbers. */
+    WT_ERR(__ckpt_version_chk(session, fname, config));
+
+    /* Retrieve the name of the last unnamed checkpoint. */
+    WT_ERR(__ckpt_last_name(session, config, read_timestamp, namep, NULL, NULL));
 
 err:
     __wt_free(session, config);
@@ -402,54 +430,75 @@ __ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
 
 /*
  * __ckpt_last_name --
- *     Return the name associated with the file's last unnamed checkpoint. Except: in keeping with
- *     global snapshot/timestamp metadata being about the most recent checkpoint (named or unnamed),
- *     we return the most recent checkpoint (named or unnamed), since all callers need a checkpoint
- *     that matches the snapshot info they're using.
+ *     Return the name associated with the file's last unnamed checkpoint, optionally matching a
+ *     timestamp. Except: in keeping with global snapshot/timestamp metadata being about the most
+ *     recent checkpoint (named or unnamed), we return the most recent checkpoint (named or
+ *     unnamed), since all callers need a checkpoint that matches the snapshot info they're using.
  */
 static int
-__ckpt_last_name(WT_SESSION_IMPL *session, const char *config, const char **namep, int64_t *orderp,
-  uint64_t *timep)
+__ckpt_last_name(WT_SESSION_IMPL *session, const char *config, uint64_t read_timestamp,
+  const char **namep, int64_t *orderp, uint64_t *timep)
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM a, k, v;
+    WT_CONFIG_ITEM best = {0};
     WT_DECL_RET;
     uint64_t time;
-    int64_t found;
+    uint64_t best_timestamp, ts;
+    int64_t order;
+    bool found;
 
+    best_timestamp = WT_TS_NONE;
+    found = false;
     *namep = NULL;
     time = 0;
 
     WT_ERR(__wt_config_getones(session, config, "checkpoint", &v));
     __wt_config_subinit(session, &ckptconf, &v);
-    for (found = 0; __wt_config_next(&ckptconf, &k, &v) == 0;) {
+    for (order = 0; __wt_config_next(&ckptconf, &k, &v) == 0;) {
+        if (read_timestamp != WT_TS_NONE) {
+            WT_ERR(__wt_config_subgets(session, &v, "newest_start_durable_ts", &a));
+            WT_RET_NOTFOUND_OK(ret);
+            if (ret == WT_NOTFOUND || a.len != 0)
+                continue;
+            ts = (uint64_t)a.val;
+            if (ts == WT_TS_NONE || ts > read_timestamp ||
+              (best_timestamp != WT_TS_NONE && ts > best_timestamp))
+                continue;
+            best_timestamp = ts;
+            best = k;
+            found = true;
+            if (orderp != NULL) {
+                WT_ERR(__wt_config_subgets(session, &v, "order", &a));
+                order = a.val;
+            }
+        } else {
+            /* Ignore checkpoints before (by the order numbering) the ones we've already seen. */
+            WT_ERR(__wt_config_subgets(session, &v, "order", &a));
+            if (order != 0 && a.val < order)
+                continue;
+            order = a.val;
+            best = k;
+            found = true;
+        }
 
-        /* Ignore checkpoints before (by the order numbering) the ones we've already seen. */
-        WT_ERR(__wt_config_subgets(session, &v, "order", &a));
-        if (found && a.val < found)
-            continue;
-        found = a.val;
-
-        /* Extract the wall-clock time for matching purposes. */
-        WT_ERR(__wt_config_subgets(session, &v, "time", &a));
-        WT_ERR(__ckpt_parse_time(session, &a, &time));
-
-        __wt_free(session, *namep);
-        WT_ERR(__wt_strndup(session, k.str, k.len, namep));
+        if (timep != NULL) {
+            /* Extract the wall-clock time for matching purposes. */
+            WT_ERR(__wt_config_subgets(session, &v, "time", &a));
+            WT_ERR(__ckpt_parse_time(session, &a, &time));
+        }
     }
     if (!found)
         ret = WT_NOTFOUND;
     else {
         if (orderp != NULL)
-            *orderp = found;
+            *orderp = order;
         if (timep != NULL)
             *timep = time;
+        WT_ERR(__wt_strndup(session, best.str, best.len, namep));
     }
 
-    if (0) {
 err:
-        __wt_free(session, *namep);
-    }
     return (ret);
 }
 
