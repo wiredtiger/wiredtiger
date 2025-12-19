@@ -444,7 +444,7 @@ __ckpt_last_name(WT_SESSION_IMPL *session, const char *config, uint64_t read_tim
     WT_CONFIG_ITEM best = {0};
     WT_DECL_RET;
     uint64_t time;
-    uint64_t best_timestamp, ts;
+    uint64_t best_timestamp, newest_ts, oldest_ts;
     int64_t order;
     bool found;
 
@@ -457,15 +457,38 @@ __ckpt_last_name(WT_SESSION_IMPL *session, const char *config, uint64_t read_tim
     __wt_config_subinit(session, &ckptconf, &v);
     for (order = 0; __wt_config_next(&ckptconf, &k, &v) == 0;) {
         if (read_timestamp != WT_TS_NONE) {
+            /*
+             * Get the newest timestamp for this checkpoint. Skip the rest of the checks if it is
+             * too old for us.
+             */
             WT_ERR(__wt_config_subgets(session, &v, "newest_start_durable_ts", &a));
             WT_RET_NOTFOUND_OK(ret);
-            if (ret == WT_NOTFOUND || a.len != 0)
+            if (ret == WT_NOTFOUND || a.len == 0)
                 continue;
-            ts = (uint64_t)a.val;
-            if (ts == WT_TS_NONE || ts > read_timestamp ||
-              (best_timestamp != WT_TS_NONE && ts > best_timestamp))
+            newest_ts = (uint64_t)a.val;
+            if (newest_ts == WT_TS_NONE || newest_ts < read_timestamp)
                 continue;
-            best_timestamp = ts;
+
+            /*
+             * Get the oldest timestamp for this checkpoint. Skip the rest of the checks if it is
+             * too new for us.
+             */
+            WT_ERR(__wt_config_subgets(session, &v, "oldest_start_ts", &a));
+            WT_RET_NOTFOUND_OK(ret);
+            if (ret == WT_NOTFOUND || a.len == 0)
+                continue;
+            oldest_ts = (uint64_t)a.val;
+            if (oldest_ts == WT_TS_NONE || read_timestamp < oldest_ts)
+                continue;
+
+            /*
+             * At this point, we have a checkpoint we can use. But it may not be the best, so keep
+             * looking. We want the most recent checkpoint; using that policy tends to minimize the
+             * number of btrees we have open.
+             */
+            if (best_timestamp != WT_TS_NONE && newest_ts < best_timestamp)
+                continue;
+            best_timestamp = newest_ts;
             best = k;
             found = true;
             if (orderp != NULL) {
