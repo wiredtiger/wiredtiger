@@ -158,7 +158,7 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
         ext_lib = '\"%s\"=(config=\"%s\")' % (page_log_extension[0], page_log_config)
 
     if key_provider:
-        key_provider_extension_config =  '\"%s\"=(early_load=true,config="verbose=-1")' % (key_provider_extension[0])
+        key_provider_extension_config =  '\"%s\"=(early_load=true,config="verbose=-1,key_expires=0")' % (key_provider_extension[0])
         disagg_config += ',' + ext_string + ',%s,%s]' % (ext_lib, key_provider_extension_config)
     else:
         disagg_config += ',' + ext_string + ',%s]' % ext_lib
