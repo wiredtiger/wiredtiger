@@ -567,7 +567,6 @@ class DisaggAddr(object):
     '''
     version: int
     min_version: int
-    min_version: int
     page_id: int
     flags: DisaggAddrFlags
     lsn: int
@@ -576,6 +575,8 @@ class DisaggAddr(object):
     checksum: int
     
     def __init__(self) -> None:
+        self.version = 0
+        self.min_version = 0
         self.page_id = 0
         self.flags = 0
         self.lsn = 0
@@ -611,6 +612,8 @@ class DisaggAddr(object):
     def __str__(self):
         addr_string = (
             f"Disagg Page Address:\n"
+            f"  version: {str(self.version)}"
+            f"  min_version: {str(self.min_version)}"
             f"  page_id: {str(self.page_id)}\n"
             f"  flags: {str(self.flags)}\n"
             f"  lsn: {str(self.lsn)}\n"
