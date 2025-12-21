@@ -238,7 +238,7 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      * can know if statistics are enabled or not.
      */
     WT_RET(__wti_statlog_create(session, cfg));
-    WT_RET(__wti_tiered_storage_create(session));
+    WT_RET(__wti_tiered_storage_create(session, cfg));
     WT_RET(__wt_logmgr_create(session));
 
     /* Initialize the page history tracker. */

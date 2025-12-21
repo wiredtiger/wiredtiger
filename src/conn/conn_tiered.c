@@ -487,12 +487,21 @@ err:
  *     Start the tiered storage subsystem.
  */
 int
-__wti_tiered_storage_create(WT_SESSION_IMPL *session)
+__wti_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
 
     conn = S2C(session);
+
+    /* If disaggregated storage is configured, do not start tiered storage. */
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
+    if (cval.len != 0) {
+        __wt_verbose_info(
+          session, WT_VERB_TIERED, "%s", "Tiered storage not started: disaggregated storage.");
+        return (0);
+    }
 
     /* Start the internal thread. */
     WT_ERR(__wt_cond_alloc(session, "flush tier", &conn->flush_cond));

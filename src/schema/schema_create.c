@@ -1209,6 +1209,9 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
     tiered = NULL;
     free_metadata = true;
 
+    if (__wt_conn_is_disagg(session))
+        WT_RET_MSG(session, ENOTSUP, "Tiered storage does not work with disaggregated storage.");
+
     /* Check if the tiered table already exists. */
     if ((ret = __wt_metadata_search(session, uri, &meta_value)) != WT_NOTFOUND) {
         if (exclusive)
