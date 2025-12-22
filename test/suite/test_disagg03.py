@@ -60,8 +60,19 @@ class test_disagg03(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.captureout.checkAdditionalPattern(self,
             'Tiered storage not started: disaggregated storage.')
 
-        # Hit the NOT SUPPORTED error
+        # Hit the NOT SUPPORTED error with "tiered" uri prefix
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
         lambda: self.session.create('tiered:test_disagg03',
+            'key_format=S,value_format=S'),
+            '/Operation not supported/')
+
+    def test_disagg_tier_tree_create_disabled(self):
+        # Test that creating a tiered table fails in disaggregated storage mode.
+        self.captureout.checkAdditionalPattern(self,
+            'Tiered storage not started: disaggregated storage.')
+
+        # Hit the NOT SUPPORTED error with "tier" uri prefix
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+        lambda: self.session.create('tier:test_disagg03',
             'key_format=S,value_format=S'),
             '/Operation not supported/')

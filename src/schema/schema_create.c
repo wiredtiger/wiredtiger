@@ -1185,6 +1185,9 @@ __create_tiered_tree(WT_SESSION_IMPL *session, const char *uri, bool exclusive, 
     WT_UNUSED(exclusive);
     cfg[1] = config;
 
+    if (__wt_conn_is_disagg(session))
+        WT_RET_MSG(session, ENOTSUP, "Tiered storage does not work with disaggregated storage.");
+
     return (__tiered_metadata_insert(session, uri, cfg));
 }
 
@@ -1207,10 +1210,12 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
     conn = S2C(session);
     metadata = NULL;
     tiered = NULL;
+    shared = false;
+    meta_value = NULL;
     free_metadata = true;
 
     if (__wt_conn_is_disagg(session))
-        WT_RET_MSG(session, ENOTSUP, "Tiered storage does not work with disaggregated storage.");
+        WT_ERR_MSG(session, ENOTSUP, "Tiered storage does not work with disaggregated storage.");
 
     /* Check if the tiered table already exists. */
     if ((ret = __wt_metadata_search(session, uri, &meta_value)) != WT_NOTFOUND) {
