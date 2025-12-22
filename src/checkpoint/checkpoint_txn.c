@@ -1139,15 +1139,17 @@ __checkpoint_block_stats(WT_SESSION_IMPL *session, const char *cfg[])
     btree = S2BT(session);
     bm = btree->bm;
 
+    /* Only check file size over 100MB. */
+    if (bm->block->size < 100 * WT_MILLION)
+        return (0);
+
     /* Update btree reusable after each checkpoint. */
-    if (bm->block->size > 100 * WT_MILLION) {
-        int64_t reusable_percentage = (int64_t)bm->block->live.avail.bytes * 100 / bm->block->size;
-        if (reusable_percentage >= 50)
-            WT_STAT_CONN_INCR(session, block_reusable_over_50);
-        if (reusable_percentage >= 90)
-            WT_STAT_CONN_INCR(session, block_reusable_over_90);
-    }
-    WT_RET(0);
+    int64_t reusable_percentage = (int64_t)bm->block->live.avail.bytes * 100 / bm->block->size;
+    if (reusable_percentage >= 50)
+        WT_STAT_CONN_INCR(session, block_reusable_over_50);
+    if (reusable_percentage >= 90)
+        WT_STAT_CONN_INCR(session, block_reusable_over_90);
+    return (0);
 }
 
 /*
