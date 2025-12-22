@@ -13,7 +13,7 @@ static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, con
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
-static int __checkpoint_block_stats(WT_SESSION_IMPL *, const char *[]);
+static int __checkpoint_block_reusable_stats(WT_SESSION_IMPL *, const char *[]);
 static void __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final);
 static void __checkpoint_progress(WT_SESSION_IMPL *, bool);
 static void __checkpoint_progress_clear(WT_SESSION_IMPL *);
@@ -725,9 +725,8 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     __checkpoint_timer_stats_set(&conn->ckpt.prepare, msec);
 
     /* update reuse ratio stats. */
-    WT_STAT_CONN_SET(session, block_reusable_over_50, 0);
-    WT_STAT_CONN_SET(session, block_reusable_over_90, 0);
-    WT_IGNORE_RET(__wt_conn_btree_apply(session, NULL, __checkpoint_block_stats, NULL, NULL));
+    WT_IGNORE_RET(
+      __wt_conn_btree_apply(session, NULL, __checkpoint_block_reusable_stats, NULL, NULL));
 }
 
 /*
@@ -1125,11 +1124,11 @@ __checkpoint_clear_time(WT_SESSION_IMPL *session)
 }
 
 /*
- * __checkpoint_block_stats --
+ * __checkpoint_block_reusable_stats --
  *     Update block reusable ratio stats.
  */
 int
-__checkpoint_block_stats(WT_SESSION_IMPL *session, const char *cfg[])
+__checkpoint_block_reusable_stats(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -1236,6 +1235,10 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_atomic_store_uint64_relaxed(&conn->rec_maximum_milliseconds, 0);
     __wt_atomic_store_uint64_relaxed(&conn->page_delta.max_internal_delta_count, 0);
     __wt_atomic_store_uint64_relaxed(&conn->page_delta.max_leaf_delta_count, 0);
+
+    /* Reset reusable file count to 0. */
+    WT_STAT_CONN_SET(session, block_reusable_over_50, 0);
+    WT_STAT_CONN_SET(session, block_reusable_over_90, 0);
 
     /* Initialize the verbose tracking timer */
     __wt_epoch(session, &conn->ckpt.ckpt_api.timer_start);
@@ -2820,12 +2823,10 @@ int
 __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_BM *bm;
-    WT_BTREE *btree;
 
     WT_UNUSED(cfg);
 
-    btree = S2BT(session);
-    bm = btree->bm;
+    bm = S2BT(session)->bm;
 
     /* Should not be called with a checkpoint handle. */
     WT_ASSERT(session, !WT_READING_CHECKPOINT(session));
