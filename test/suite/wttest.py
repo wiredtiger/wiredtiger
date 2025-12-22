@@ -629,7 +629,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             if not re.match("test_layered(39|65)", str(self)):
                 self.verifyLayered()
             else:
-                self.prout('skipping verify for unsupported tests')
+                self.pr('skipping verify for unsupported tests')
 
         try:
             self.platform_api.tearDown(self)
