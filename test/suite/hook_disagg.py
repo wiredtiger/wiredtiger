@@ -97,13 +97,13 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
 
     page_log_extension = WiredTigerTestCase.findExtension('page_log', page_log_name)
     if len(page_log_extension) == 0:
-        raise Exception(page_log_name + ' storage source extension not found')
+        raise RuntimeError(page_log_name + ' storage source extension not found')
 
     key_provider_extension = None
     if (key_provider is not None):
         key_provider_extension = WiredTigerTestCase.findExtension('test', "key_provider")
         if len(key_provider_extension) == 0:
-            raise Exception(key_provider_extension[0] + ' key provider extension not found')
+            raise RuntimeError(key_provider_extension[0] + ' key provider extension not found')
 
     WiredTigerTestCase.verbose(None, 3, f'role={disagg_parameters.role}')
     disagg_config = ',verbose=[layered]' \
@@ -157,11 +157,13 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
     else:
         ext_lib = '\"%s\"=(config=\"%s\")' % (page_log_extension[0], page_log_config)
 
+    disagg_config += f',{ext_string},{ext_lib}'
+    # Load the key provider extension. Configure low verbosity to eliminate test failures due to unexpected output and
+    # to always key expire such that we can perform a key rotation everytime a checkpoint is called.
     if key_provider:
         key_provider_extension_config =  '\"%s\"=(early_load=true,config="verbose=-1,key_expires=0")' % (key_provider_extension[0])
-        disagg_config += ',' + ext_string + ',%s,%s]' % (ext_lib, key_provider_extension_config)
-    else:
-        disagg_config += ',' + ext_string + ',%s]' % ext_lib
+        disagg_config += f',{key_provider_extension_config}'
+    disagg_config += ']'
 
     config = conn_config + disagg_config
 
