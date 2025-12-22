@@ -326,8 +326,8 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     WT_CRYPT_KEYS crypt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    WT_KEY_PROVIDER *key_provider;
     WT_KEY_HEADER key_header;
+    WT_KEY_PROVIDER *key_provider;
     uint64_t lsn;
 
     conn = S2C(session);
