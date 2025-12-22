@@ -121,7 +121,7 @@ from packing import pack, unpack
  * and WT_CURSOR have a lang_private field that stores a pointer to the
  * associated Python object.  {session,cursor}CloseHandler()
  * functions reach into the associated Python object, set the 'this'
- * asttribute to None, and clear the lang_private field.
+ * attribute to None, and clear the lang_private field.
  */
 %typemap(argout) WT_SESSION ** {
 	$result = SWIG_NewPointerObj(SWIG_as_voidptr(*$1),
