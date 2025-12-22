@@ -400,10 +400,16 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
         checkpoint_root_size = strlen(checkpoint_root);
 
     WT_ERR(__wt_strndup(session, checkpoint_root, checkpoint_root_size, &checkpoint_root_copy));
-    
+
     /* Write key provider information to the metadata page log.  */
     if (conn->key_provider != NULL) {
-        WT_ASSERT(session, conn->disaggregated_storage.last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID] != 0);
+        /*
+         * The key provider LSN field should always be initialized. The LSN is provided either
+         * during startup, or when we detect a new encryption key.
+         */
+        WT_ASSERT(session,
+          conn->disaggregated_storage
+              .last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID] != 0);
         WT_ERR(__wt_scr_alloc(session, 0, &key_provider_buf));
         WT_ERR(__wt_buf_fmt(session, key_provider_buf,
           "key_provider=((page.1=(page_id=%d,lsn=%" PRIu64 ")),version=1)",
@@ -413,11 +419,13 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     }
 
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
-    WT_ERR(__wt_buf_fmt(session, buf,
-      "%s\n"
-      "timestamp=%" PRIx64 "\n"
-      "%s",
-      checkpoint_root_copy, checkpoint_timestamp, (char*)key_provider_buf->data));
+    WT_ERR(
+      __wt_buf_fmt(session, buf,
+        "%s\n"
+        "timestamp=%" PRIx64 "\n"
+        "%s",
+        checkpoint_root_copy, checkpoint_timestamp,
+        conn->key_provider != NULL ? (char *)key_provider_buf->data : ""));
 
     /* Compute the checksum for the metadata page. */
     checksum = __wt_checksum(buf->data, buf->size);
