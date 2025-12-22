@@ -246,6 +246,9 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      *
      * As it stands, __wt_conn_is_disagg only works after we have metadata access, which depends on
      * having run recovery, so the config hack is the simplest way to break that dependency.
+     *
+     * Note that tiered storage does not work in disagg mode. We need this check to ensure the
+     * tiered serer is not started when disagg is enabled.
      */
     WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
     bool disagg = (cval.len != 0);
