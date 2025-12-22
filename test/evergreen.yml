@@ -6500,7 +6500,6 @@ buildvariants:
   tags: ["pull_request", "sanitizer"]
   tasks:
     - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test"
-    - name: unit-test-hook-disagg-leader-key-provider
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
