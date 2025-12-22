@@ -2061,7 +2061,6 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
 
     /* Open the internal session early so we can close it on error. */
-    bool multithreaded = conn->layered_drain_data.thread_count > 1;
     WT_ERR(__wt_open_internal_session(
       conn, "disagg-drain application thread", false, 0, 0, &internal_session));
 
@@ -2070,6 +2069,7 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
      * thread count needs to be greater than 1 for this to be meaningful. We still lock and queue
      * work for single threaded mode, as such single threaded is only recommended for testing.
      */
+    bool multithreaded = conn->layered_drain_data.thread_count > 1;
     if (multithreaded) {
         WT_ERR(__wt_thread_group_create(session, &conn->layered_drain_data.threads, "disagg-drain",
           conn->layered_drain_data.thread_count - 1, conn->layered_drain_data.thread_count - 1,
@@ -2111,11 +2111,10 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 
 err:
     /* Let any running threads finish up. */
-    if (multithreaded) {
+    if (group_created) {
         __wt_cond_signal(session, conn->layered_drain_data.threads.wait_cond);
         __wt_writelock(session, &conn->layered_drain_data.threads.lock);
-        if (group_created)
-            WT_TRET(__wt_thread_group_destroy(session, &conn->layered_drain_data.threads));
+        WT_TRET(__wt_thread_group_destroy(session, &conn->layered_drain_data.threads));
     }
     /* Cleanup and release resources. */
     __layered_drain_clear_work_queue(session);
