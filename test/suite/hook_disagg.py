@@ -153,15 +153,15 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, conn_config):
             page_log_config = f"cache_size_mb=2048,{page_log_config}"
 
     if page_log_config == None:
-        ext_lib = '\"%s\"' % page_log_extension[0]
+        ext_lib = f'\"{page_log_extension[0]}\"'
     else:
-        ext_lib = '\"%s\"=(config=\"%s\")' % (page_log_extension[0], page_log_config)
+        ext_lib = f'\"{page_log_extension[0]}\"=(config=\"{page_log_config}\")'
 
     disagg_config += f',{ext_string},{ext_lib}'
     # Load the key provider extension. Configure low verbosity to eliminate test failures due to unexpected output and
     # to always key expire such that we can perform a key rotation everytime a checkpoint is called.
     if key_provider:
-        key_provider_extension_config =  '\"%s\"=(early_load=true,config="verbose=-1,key_expires=0")' % (key_provider_extension[0])
+        key_provider_extension_config =  f'\"{key_provider_extension[0]}\"=(early_load=true,config="verbose=-1,key_expires=0")'
         disagg_config += f',{key_provider_extension_config}'
     disagg_config += ']'
 
