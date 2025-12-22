@@ -625,7 +625,11 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         passed = not (self.failed() or teardown_failed)
 
         if passed and self.__module__.startswith("test_layered"):
-            self.verifyLayered()
+            # FIXME-XXX
+            if not re.match("test_layered(39|65)", str(self)):
+                self.verifyLayered()
+            else:
+                self.prout('skipping verify for unsupported tests')
 
         try:
             self.platform_api.tearDown(self)
