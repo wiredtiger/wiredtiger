@@ -353,7 +353,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
     WT_ASSERT(session, crypt.keys.size != 0 && crypt.keys.data != NULL);
 
-    /* Prepare the key header. */
+    /* Prepare the crypt header. */
     crypt_header.signature = WT_CRYPT_HEADER_SIGNATURE;
     crypt_header.version = WT_CRYPT_HEADER_VERSION;
     crypt_header.header_size = sizeof(WT_CRYPT_HEADER);
