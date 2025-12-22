@@ -124,3 +124,11 @@ class test_stat14(wttest.WiredTigerTestCase):
             files_over_90 = stat_cursor[stat.conn.block_reusable_over_90][2]
             self.assertIn(files_over_50, [0] if self.is_small else [self.table_cnt, self.table_cnt + 1])
             self.assertIn(files_over_90, [0] if self.is_small else [self.table_cnt, self.table_cnt + 1])
+        for i in range(2):
+            self.session.drop(self.table_name(i), None)
+        self.session.checkpoint()
+        with WiredTigerStat(self.session) as stat_cursor:
+            files_over_50 = stat_cursor[stat.conn.block_reusable_over_50][2]
+            files_over_90 = stat_cursor[stat.conn.block_reusable_over_90][2]
+            self.assertIn(files_over_50, [0] if self.is_small else [self.table_cnt - 2, self.table_cnt - 1])
+            self.assertIn(files_over_90, [0] if self.is_small else [self.table_cnt - 2, self.table_cnt - 1])

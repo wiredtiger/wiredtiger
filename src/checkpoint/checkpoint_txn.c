@@ -13,6 +13,7 @@ static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, con
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
+static int __checkpoint_block_stats(WT_SESSION_IMPL *, const char *[]);
 static void __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final);
 static void __checkpoint_progress(WT_SESSION_IMPL *, bool);
 static void __checkpoint_progress_clear(WT_SESSION_IMPL *);
@@ -722,6 +723,11 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     /* Compute timer statistics for the checkpoint prepare. */
     msec = WT_TIMEDIFF_MS(conn->ckpt.prepare.timer_end, conn->ckpt.prepare.timer_start);
     __checkpoint_timer_stats_set(&conn->ckpt.prepare, msec);
+
+    /* update reuse ratio stats. */
+    WT_STAT_CONN_SET(session, block_reusable_over_50, 0);
+    WT_STAT_CONN_SET(session, block_reusable_over_90, 0);
+    WT_IGNORE_RET(__wt_conn_btree_apply(session, NULL, __checkpoint_block_stats, NULL, NULL));
 }
 
 /*
@@ -1119,6 +1125,32 @@ __checkpoint_clear_time(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __checkpoint_block_stats --
+ *     Update block reusable ratio stats.
+ */
+int
+__checkpoint_block_stats(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_BM *bm;
+    WT_BTREE *btree;
+
+    WT_UNUSED(cfg);
+
+    btree = S2BT(session);
+    bm = btree->bm;
+
+    /* Update btree reusable after each checkpoint. */
+    if (bm->block->size > 100 * WT_MILLION) {
+        int64_t reusable_percentage = (int64_t)bm->block->live.avail.bytes * 100 / bm->block->size;
+        if (reusable_percentage >= 50)
+            WT_STAT_CONN_INCR(session, block_reusable_over_50);
+        if (reusable_percentage >= 90)
+            WT_STAT_CONN_INCR(session, block_reusable_over_90);
+    }
+    WT_RET(0);
+}
+
+/*
  * __checkpoint_db_internal --
  *     Checkpoint a database or a list of objects in the database.
  */
@@ -1444,9 +1476,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     time_start_fsync = __wt_clock(session);
 
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_BM_SYNC);
-    /* reset reuse ratio stats. */
-    WT_STAT_CONN_SET(session, block_reusable_over_50, 0);
-    WT_STAT_CONN_SET(session, block_reusable_over_90, 0);
 
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __wt_checkpoint_sync));
 
@@ -2806,14 +2835,6 @@ __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_STAT_CONN_INCR(session, checkpoint_sync);
 
-    /* Update btree reusable after each checkpoint. */
-    if (bm->block->size > 100 * WT_MILLION) {
-        int64_t reusable_percentage = (int64_t)bm->block->live.avail.bytes * 100 / bm->block->size;
-        if (reusable_percentage >= 50)
-            WT_STAT_CONN_INCR(session, block_reusable_over_50);
-        if (reusable_percentage >= 90)
-            WT_STAT_CONN_INCR(session, block_reusable_over_90);
-    }
     return (bm->sync(bm, session, true));
 }
 
