@@ -431,7 +431,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     checksum = __wt_checksum(buf->data, buf->size);
 
     /*
-     * Write the metadata to disaggregated storage This should be the last statement in this
+     * Write the metadata to disaggregated storage. This should be the last statement in this
      * function that is allowed to fail.
      */
     WT_ERR(__disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, buf, &lsn));
