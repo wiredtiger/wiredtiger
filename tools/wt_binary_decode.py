@@ -587,7 +587,7 @@ def block_decode(p, b, nbytes, opts):
         p.rint_v(binary_to_pretty_string(payload_data))
     elif pagehead.type == btree_format.PageType.WT_PAGE_ROW_INT or \
         pagehead.type == btree_format.PageType.WT_PAGE_ROW_LEAF:
-        row_decode(p, b_page, pagehead, blockhead, pagestats, opts)
+        row_decode(p, b_page, pagehead, pagestats, opts)
     elif pagehead.type == btree_format.PageType.WT_PAGE_OVFL:
         # Use b_page.read() so that we can also print the raw bytes in the split mode
         p.rint_v(raw_bytes(b_page.read(len(payload_data))))
