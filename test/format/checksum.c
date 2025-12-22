@@ -137,7 +137,7 @@ checksum_table(TABLE *t, void *arg)
  *     Calculate and report a checksum over every table we know about. Eventually we should compare
  *     this checksum against one reported on the follower node, but that's future work.
  */
-void
+uint64_t
 checksum_database(WT_SESSION *session)
 {
     struct checksum_table_arg arg = {
@@ -147,5 +147,5 @@ checksum_database(WT_SESSION *session)
 
     tables_apply(checksum_table, &arg);
 
-    printf("Hashed entire DB, checksum is %lu\n", arg.hash);
+    return (arg.hash);
 }

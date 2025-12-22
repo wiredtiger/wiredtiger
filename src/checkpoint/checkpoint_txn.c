@@ -808,7 +808,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
             WT_ERR(EINVAL);
 
         /* Precise checkpoint needs the stable timestamp. */
-        if (txn_global->stable_timestamp == WT_TS_NONE)
+        if (__wt_tsan_suppress_load_uint64(&txn_global->stable_timestamp) == WT_TS_NONE)
             WT_ERR_MSG(session, EINVAL, "Precise checkpoint requires a stable timestamp");
     }
 
@@ -842,7 +842,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * transaction id, connection will be reset to dirty when reconciliation marks the btree dirty
      * on encountering the dirty page.
      */
-    conn->modified = false;
+    __wt_tsan_suppress_store_bool(&conn->modified, false);
 
     /*
      * Save the checkpoint session ID.
@@ -2670,7 +2670,7 @@ err:
                  * the discard logic would also need to be reconsidered.
                  */
                 if (F_ISSET(ckpt_temp, WT_CKPT_DELETE) && ckpt_temp->raw.data)
-                    bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size);
+                    WT_TRET(bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size));
             }
         }
     }

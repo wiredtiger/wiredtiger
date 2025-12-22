@@ -500,8 +500,7 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
      */
     rollback_to_stable(session);
 
-    if (GV(DISAGG_MULTI_VALIDATION))
-        checksum_database(session);
+    disagg_validate_multi_node(session);
 
     replay_run_end(session);
 

@@ -313,10 +313,14 @@ struct __wt_multi {
      * image.
      */
     WT_SAVE_UPD *supd;
-    uint32_t supd_entries;
-    bool supd_restore; /* Whether to restore saved update chains to this page */
-
     WT_ADDR addr; /* Disk image written address */
+    uint32_t supd_entries;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_MULTI_SKIP_WRITE 0x1u
+#define WT_MULTI_SUPD_RESTORE 0x2u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
 };
 
 /*
@@ -346,7 +350,7 @@ struct __wt_ovfl_track {
  */
 struct __wt_page_modify {
     /* The first unwritten transaction ID (approximate). */
-    uint64_t first_dirty_txn;
+    wt_shared uint64_t first_dirty_txn;
 
     /* The transaction state last time eviction was attempted. */
     uint64_t last_evict_pass_gen;

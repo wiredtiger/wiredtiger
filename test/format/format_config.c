@@ -428,7 +428,6 @@ config_table(TABLE *table, void *arg)
     /* Column-store tables require special row insert resolution. */
     if (table->type != ROW) {
         g.column_store_config = true;
-        /* FIXME-WT-15274 Support column store with precise checkpoint */
         if (GV(PRECISE_CHECKPOINT)) {
             if (config_explicit(NULL, "precise_checkpoint"))
                 WARN("turning off precise_checkpoint as table%" PRIu32 " is a column-store",
@@ -659,6 +658,8 @@ config_cache(void)
 {
     uint64_t cache, workers;
     bool cache_maximum_explicit;
+#define PRECISE_CHECKPOINT_MIN_CACHE ((uint32_t)3072)
+    char buf[64];
 
     /* The maximum cache is only set if it is non-zero and explicitly set. */
     cache_maximum_explicit = GV(CACHE_MAXIMUM) != 0 && config_explicit(NULL, "cache.maximum");
@@ -736,11 +737,11 @@ config_cache(void)
     if (GV(CACHE) < cache)
         GV(CACHE) = (uint32_t)cache;
 
-    if (GV(PRECISE_CHECKPOINT) && GV(CACHE) < 2048)
-        GV(CACHE) = 2048;
+    if (GV(PRECISE_CHECKPOINT) && GV(CACHE) < PRECISE_CHECKPOINT_MIN_CACHE)
+        GV(CACHE) = PRECISE_CHECKPOINT_MIN_CACHE;
 
     if (cache_maximum_explicit && GV(CACHE) > GV(CACHE_MAXIMUM)) {
-        if (GV(PRECISE_CHECKPOINT) && GV(CACHE_MAXIMUM) < 2048)
+        if (GV(PRECISE_CHECKPOINT) && GV(CACHE_MAXIMUM) < PRECISE_CHECKPOINT_MIN_CACHE)
             config_off(NULL, "cache.maximum");
         else
             GV(CACHE) = GV(CACHE_MAXIMUM);
@@ -773,9 +774,11 @@ dirty_eviction_config:
         config_single(NULL, "cache.eviction_updates_trigger=95", false);
     }
 
-    if (GV(PRECISE_CHECKPOINT) && GV(CACHE) < 2048) {
-        WARN("%s", "Setting cache to minimum of 2048MB due to precise_checkpoint");
-        config_single(NULL, "cache=2048", false);
+    if (GV(PRECISE_CHECKPOINT) && GV(CACHE) < PRECISE_CHECKPOINT_MIN_CACHE) {
+        WARN("Setting cache to minimum of %" PRIu32 "MB due to precise_checkpoint",
+          PRECISE_CHECKPOINT_MIN_CACHE);
+        testutil_snprintf(buf, sizeof(buf), "cache=%" PRIu32, PRECISE_CHECKPOINT_MIN_CACHE);
+        config_single(NULL, buf, false);
     }
 }
 
