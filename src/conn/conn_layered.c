@@ -385,6 +385,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     char *checkpoint_root_copy, ts_string[WT_TS_INT_STRING_SIZE];
 
     buf = NULL;
+    key_provider_buf = NULL;
     checkpoint_root_copy = NULL;
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
@@ -425,7 +426,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
         "timestamp=%" PRIx64 "\n"
         "%s",
         checkpoint_root_copy, checkpoint_timestamp,
-        conn->key_provider != NULL ? (char *)key_provider_buf->data : ""));
+        key_provider_buf != NULL ? (char *)key_provider_buf->data : ""));
 
     /* Compute the checksum for the metadata page. */
     checksum = __wt_checksum(buf->data, buf->size);
