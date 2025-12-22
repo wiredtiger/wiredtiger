@@ -2120,10 +2120,12 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     WT_SESSION_IMPL *internal_session;
     size_t i, table_count;
-    bool empty;
+    bool empty, group_created;
 
     conn = S2C(session);
     manager = &conn->layered_table_manager;
+    group_created = false;
+    internal_session = NULL;
 
     __wt_spin_lock(session, &manager->layered_table_lock);
 
@@ -2154,11 +2156,13 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
      * thread count needs to be greater than 1 for this to be meaningful. We still lock and queue
      * work for single threaded mode, as such single threaded is only recommended for testing.
      */
-    if (multithreaded)
+    if (multithreaded) {
         WT_ERR(__wt_thread_group_create(session, &conn->layered_drain_data.threads, "disagg-drain",
           conn->layered_drain_data.thread_count - 1, conn->layered_drain_data.thread_count - 1,
           WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL, __layered_drain_worker_check,
           __layered_drain_worker_run, NULL));
+        group_created = true;
+    }
 
     /* FIXME-WT-14735: skip empty ingest tables. */
     for (i = 0; i < table_count; i++) {
@@ -2193,14 +2197,15 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 
 err:
     /* Let any running threads finish up. */
-    if (multithreaded) {
+    if (group_created) {
         __wt_cond_signal(session, conn->layered_drain_data.threads.wait_cond);
         __wt_writelock(session, &conn->layered_drain_data.threads.lock);
         WT_TRET(__wt_thread_group_destroy(session, &conn->layered_drain_data.threads));
     }
     /* Cleanup and release resources. */
     __layered_drain_clear_work_queue(session);
-    WT_TRET(__wt_session_close_internal(internal_session));
+    if (internal_session != NULL)
+        WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }
 
