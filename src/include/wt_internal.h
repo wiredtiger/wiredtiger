@@ -283,6 +283,8 @@ struct __wt_insert_head;
 typedef struct __wt_insert_head WT_INSERT_HEAD;
 struct __wt_json;
 typedef struct __wt_json WT_JSON;
+struct __wt_key_header;
+typedef struct __wt_key_header WT_KEY_HEADER;
 struct __wt_keyed_encryptor;
 typedef struct __wt_keyed_encryptor WT_KEYED_ENCRYPTOR;
 struct __wt_layered_drain_data;
@@ -599,6 +601,7 @@ typedef uint64_t wt_timestamp_t;
 #include "hash_map.h"
 #include "hazard.h"
 #include "json.h"
+#include "key_header.h"
 #include "../live_restore/live_restore.h"
 #include "../log/log.h"
 #include "meta.h" /* required by block.h */

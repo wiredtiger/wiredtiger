@@ -327,11 +327,14 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_KEY_PROVIDER *key_provider;
+    WT_KEY_HEADER key_header;
     uint64_t lsn;
 
     conn = S2C(session);
     key_provider = conn->key_provider;
     WT_CLEAR(crypt.keys);
+    WT_CLEAR(key_header);
+    lsn = 0;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -341,12 +344,26 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
         goto done;
 
     /* WiredTiger has the memory ownership of the encryption key buffer. */
-    WT_ERR(__wt_scr_alloc(session, crypt.keys.size, &buf));
-    crypt.keys.data = buf->data;
+    WT_ERR(__wt_scr_alloc(session, crypt.keys.size + sizeof(WT_KEY_HEADER), &buf));
+    crypt.keys.mem = buf->mem;
+    crypt.keys.memsize = buf->memsize;
+    crypt.keys.data = (uint8_t *)crypt.keys.mem + sizeof(WT_KEY_HEADER);
 
     /* Call the function again to fetch the new encryption key data. */
     WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
     WT_ASSERT(session, crypt.keys.size != 0 && crypt.keys.data != NULL);
+
+    /* Prepare the key header. */
+    key_header.signature = WT_KEY_HEADER_SIGNATURE;
+    key_header.version = WT_KEY_HEADER_VERSION;
+    key_header.hdr_size = sizeof(WT_KEY_HEADER);
+    key_header.key_size = (uint32_t)crypt.keys.size;
+    key_header.checksum = __wt_checksum(crypt.keys.data, crypt.keys.size);
+
+    __wt_key_header_byteswap(&key_header);
+    memcpy(crypt.keys.mem, &key_header, sizeof(WT_KEY_HEADER));
+    crypt.keys.data = crypt.keys.mem;
+    crypt.keys.size += sizeof(WT_KEY_HEADER);
 
     /* Write the encryption key data to disaggregated storage. */
     ret = __disagg_put_crypt_key(session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, &crypt.keys, &lsn);
