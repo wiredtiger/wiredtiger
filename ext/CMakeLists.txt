@@ -42,5 +42,6 @@ if(WT_POSIX)
 
     # Build the test extensions.
     add_subdirectory(test/fail_fs)
-    add_subdirectory(test/key_provider)
 endif()
+
+add_subdirectory(test/key_provider)

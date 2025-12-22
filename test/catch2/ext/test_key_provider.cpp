@@ -14,11 +14,11 @@
 #include "wiredtiger.h"
 #include "wt_internal.h"
 
-#include <catch2/catch.hpp>
-
 #include <functional>
 #include <iostream>
 #include <memory>
+
+#include <catch2/catch.hpp>
 
 /*
  * kp_fixture

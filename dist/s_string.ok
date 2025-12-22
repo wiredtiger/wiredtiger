@@ -529,6 +529,7 @@ bitcnt
 bitfield
 bitfields
 bitflip
+bitflips
 bitpack
 bitstr
 bitstring
@@ -898,6 +899,7 @@ inmemory
 inserters
 instantiation
 interruptible
+intialized
 intl
 intnum
 intpack

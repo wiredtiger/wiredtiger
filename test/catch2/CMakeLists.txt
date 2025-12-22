@@ -25,6 +25,7 @@ else()
         block/api/test_block_api_write.cpp
         block/unit/test_bitstring.cpp
         block/unit/test_block_addr.cpp
+        block/unit/test_block_bitflip.cpp
         block/unit/test_block_ckpt.cpp
         block/unit/test_block_file.cpp
         block/unit/test_block_other.cpp
@@ -38,7 +39,6 @@ else()
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
-        ext/test_key_provider.cpp
         sub_level_error/api/test_sub_level_error_session_get_last_error.cpp
         sub_level_error/api/test_sub_level_error_strerror.cpp
         sub_level_error/unit/test_sub_level_error_api_end.cpp
@@ -74,6 +74,13 @@ if(NOT WT_WIN)
     )
 endif()
 
+# FIXME-WT-16344: Key provider extension tests are not supported on Windows
+if(NOT WT_WIN)
+    set(key_provider_sources
+        ext/test_key_provider.cpp
+    )
+endif()
+
 set(unittest_sources
     main.cpp
     utils.cpp
@@ -88,6 +95,7 @@ set(unittest_sources
     wrappers/mock_session.cpp
     ${unittests}
     ${live_restore_sources}
+    ${key_provider_sources}
 )
 
 create_test_executable(catch2-unittests
