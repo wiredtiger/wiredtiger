@@ -13,8 +13,11 @@
  *	Header for encryption key data.
  */
 WT_PACKED_STRUCT_BEGIN(__wt_crypt_header)
-#define WT_CRYPT_HEADER_SIGNATURE 0x686b7477 /* 'wtkh' */
-    uint32_t signature;                      /* 00-03: Key header signature; always 'wtkh' */
+/*
+ * Signature 'wtch' (WiredTiger Crypt Header)
+ */
+#define WT_CRYPT_HEADER_SIGNATURE 0x68637477
+    uint32_t signature; /* 00-03: Key header signature; always 'wtch' */
 #define WT_CRYPT_HEADER_VERSION 1
     uint8_t version;     /* 04: Header version */
     uint8_t header_size; /* 05: Header size, in bytes */
