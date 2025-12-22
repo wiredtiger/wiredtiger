@@ -443,7 +443,6 @@ WILLNEED
 WIREDTIGER
 WRLSN
 WRNOLOCK
-wtkh
 WTI
 WTPERF
 WaitForSingleObject
@@ -1485,6 +1484,7 @@ wrlock
 wrlsn
 wthread
 wti
+wtkh
 wtobj
 wtperf
 wts
