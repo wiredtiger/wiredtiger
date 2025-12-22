@@ -185,6 +185,8 @@ struct __wt_connection_impl;
 typedef struct __wt_connection_impl WT_CONNECTION_IMPL;
 struct __wt_connection_stats;
 typedef struct __wt_connection_stats WT_CONNECTION_STATS;
+struct __wt_crypt_header;
+typedef struct __wt_crypt_header WT_CRYPT_HEADER;
 struct __wt_cursor_backup;
 typedef struct __wt_cursor_backup WT_CURSOR_BACKUP;
 struct __wt_cursor_bounds_state;
@@ -283,8 +285,6 @@ struct __wt_insert_head;
 typedef struct __wt_insert_head WT_INSERT_HEAD;
 struct __wt_json;
 typedef struct __wt_json WT_JSON;
-struct __wt_key_header;
-typedef struct __wt_key_header WT_KEY_HEADER;
 struct __wt_keyed_encryptor;
 typedef struct __wt_keyed_encryptor WT_KEYED_ENCRYPTOR;
 struct __wt_layered_drain_data;
@@ -595,13 +595,13 @@ typedef uint64_t wt_timestamp_t;
 #include "conf_keys.h" /* required by conf.h */
 #include "conf.h"
 #include "config.h"
+#include "crypt_header.h"
 #include "dlh.h"
 #include "futex.h"
 #include "generation.h"
 #include "hash_map.h"
 #include "hazard.h"
 #include "json.h"
-#include "key_header.h"
 #include "../live_restore/live_restore.h"
 #include "../log/log.h"
 #include "meta.h" /* required by block.h */
