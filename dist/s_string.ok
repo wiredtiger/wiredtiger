@@ -1482,9 +1482,9 @@ writelock
 writeunlock
 wrlock
 wrlsn
+wtch
 wthread
 wti
-wtkh
 wtobj
 wtperf
 wts
