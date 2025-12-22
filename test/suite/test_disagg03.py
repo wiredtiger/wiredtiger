@@ -39,8 +39,13 @@ class test_disagg03(wttest.WiredTigerTestCase, DisaggConfigMixin):
         ('leader', dict(role='leader')),
         ('follower', dict(role='follower')),
     ]
+    prefix_scenarios = [
+        ('tiered', dict(prefix='tiered:')),
+        ('tier', dict(prefix='tier:')),
+        ('object', dict(prefix='object:')),
+    ]
     disagg_storages = gen_disagg_storages('test_disagg03', disagg_only = True)
-    scenarios = make_scenarios(disagg_storages, role_scenarios)
+    scenarios = make_scenarios(disagg_storages, role_scenarios, prefix_scenarios)
     conn_base_config = 'statistics=(all),verbose=(tiered),'
 
     def conn_config(self):
@@ -60,19 +65,8 @@ class test_disagg03(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.captureout.checkAdditionalPattern(self,
             'Tiered storage not started: disaggregated storage.')
 
-        # Hit the NOT SUPPORTED error with "tiered" uri prefix
+        # Hit ENOTSUP with "tier", "tiered", and tiered "object" uri prefix
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-        lambda: self.session.create('tiered:test_disagg03',
-            'key_format=S,value_format=S'),
-            '/Operation not supported/')
-
-    def test_disagg_tier_tree_create_disabled(self):
-        # Test that creating a tiered table fails in disaggregated storage mode.
-        self.captureout.checkAdditionalPattern(self,
-            'Tiered storage not started: disaggregated storage.')
-
-        # Hit the NOT SUPPORTED error with "tier" uri prefix
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-        lambda: self.session.create('tier:test_disagg03',
+        lambda: self.session.create(self.prefix + 'test_disagg03',
             'key_format=S,value_format=S'),
             '/Operation not supported/')
