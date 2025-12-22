@@ -625,17 +625,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         passed = not (self.failed() or teardown_failed)
 
         if passed and self.__module__.startswith("test_layered"):
-            # FIXME-WT-16211: We can run verify on layered tables when deltas are
-            # written as a full image. Once resolved we can immediately run verify on all layered tests.
-            config = self.conn_config
-            if hasattr(config, '__call__'):
-                config = self.conn_config()
-
-            # Deltas are enabled by default so we must ensure they're explicitly disabled.
-            if 'internal_page_delta=false' in config and 'leaf_page_delta=false' in config:
-                self.verifyLayered()
-            else:
-                self.pr('skipping verify due to delta pages being enabled')
+            self.verifyLayered()
 
         try:
             self.platform_api.tearDown(self)
