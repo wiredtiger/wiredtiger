@@ -1217,6 +1217,7 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
     meta_value = NULL;
     free_metadata = true;
 
+    /* FIXME-WT-16351: Fix the mix of WT_RET and WT_ERR */
     if (__wt_conn_is_disagg(session))
         WT_RET_MSG(session, ENOTSUP, "Tiered storage does not work with disaggregated storage.");
 
