@@ -10,7 +10,7 @@
 
 /*
  * WT_CRYPT_HEADER --
- *	Key encryption key header structure.
+ *	Header for encryption key data.
  */
 WT_PACKED_STRUCT_BEGIN(__wt_crypt_header)
 #define WT_CRYPT_HEADER_SIGNATURE 0x686b7477 /* 'wtkh' */

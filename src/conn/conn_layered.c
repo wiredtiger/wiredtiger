@@ -323,8 +323,8 @@ int
 __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_CRYPT_KEYS crypt;
     WT_CRYPT_HEADER crypt_header;
+    WT_CRYPT_KEYS crypt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_KEY_PROVIDER *key_provider;
