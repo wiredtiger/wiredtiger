@@ -1476,7 +1476,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     time_start_fsync = __wt_clock(session);
 
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_BM_SYNC);
-
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __wt_checkpoint_sync));
 
     /* Sync the history store file. */
@@ -2834,7 +2833,6 @@ __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
         return (0);
 
     WT_STAT_CONN_INCR(session, checkpoint_sync);
-
     return (bm->sync(bm, session, true));
 }
 
