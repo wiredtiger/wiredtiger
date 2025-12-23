@@ -424,7 +424,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
       __wt_buf_fmt(session, buf,
         "%s\n"
         "timestamp=%" PRIx64 "\n"
-        "%s",
+        "%s\n",
         checkpoint_root_copy, checkpoint_timestamp,
         key_provider_buf != NULL ? (char *)key_provider_buf->data : ""));
 
@@ -463,6 +463,34 @@ err:
 }
 
 /*
+ * __disagg_construct_meta_config_array --
+ *     Construct the metadata configuration array from the shared metadata table. Each configuration
+ *     is separated by a newline (\n). Extract each config and place into array.
+ */
+static int
+__disagg_construct_meta_config_array(WT_SESSION_IMPL *session, char *meta_cfg, char **results)
+{
+    size_t len;
+    int i;
+    char *cur_config, *prev_config;
+
+    i = 0;
+    cur_config = prev_config = meta_cfg;
+
+    /* Each configuration is separated by a new line. */
+    for (i = 0; (cur_config = strchr(cur_config, '\n')) != NULL; i++) {
+        *cur_config = '\0';
+        cur_config++;
+
+        /* Copy configuration into results array. */
+        len = (size_t)(cur_config - prev_config);
+        WT_RET(__wt_calloc_def(session, len, &results[i]));
+        memcpy(results[i], prev_config, len);
+        prev_config = cur_config;
+    }
+    return (0);
+}
+/*
  * __disagg_pick_up_checkpoint --
  *     Pick up a new checkpoint.
  */
@@ -478,7 +506,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     size_t len, metadata_value_cfg_len;
     uint64_t checkpoint_timestamp, current_meta_lsn;
     uint32_t checksum, existing_tables, new_ingest, new_tables;
-    char *buf, *cfg_ret, *checkpoint_config, *root, *metadata_value_cfg, *layered_ingest_uri;
+    char *buf, *cfg_ret, *results[3], *root, *metadata_value_cfg, *layered_ingest_uri;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
 
@@ -547,15 +575,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ERR(__wt_calloc_def(session, len, &buf)); /* This already zeroes out the buffer. */
     memcpy(buf, item.data, item.size);
 
-    /* Parse out the checkpoint config string. */
-    checkpoint_config = strchr(buf, '\n');
-    if (checkpoint_config == NULL)
-        WT_ERR_MSG(session, EINVAL, "Invalid checkpoint metadata: No checkpoint config string");
-    *checkpoint_config = '\0';
-    checkpoint_config++;
-
-    /* Parse the checkpoint config. */
-    WT_ERR(__wt_config_getones(session, checkpoint_config, "timestamp", &cval));
+    WT_ERR(__disagg_construct_meta_config_array(session, buf, results));
+    WT_ERR(__wt_config_getones(session, results[1], "timestamp", &cval));
     if (cval.len > 0 && cval.val == 0)
         checkpoint_timestamp = WT_TS_NONE;
     else
