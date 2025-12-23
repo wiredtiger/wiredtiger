@@ -97,6 +97,7 @@ class test_stat14(wttest.WiredTigerTestCase):
         split_99 = int(self.key_cnt*0.99)
         # Remove the first 60% of the file, verify we have at least 50% free.
         self.clear_between(uri, 0, split_60)
+        self.session.checkpoint()
         # We need second checkpoint call to sync the disk status.
         self.evict_between(uri, 0, split_60)
         self.session.checkpoint()
@@ -104,6 +105,7 @@ class test_stat14(wttest.WiredTigerTestCase):
             self.stat_check(uri, 1, 0)
         # Remove more and check we have 90% of the file free.
         self.clear_between(uri, split_60, split_99)
+        self.session.checkpoint()
         self.evict_between(uri, split_60, split_99)
         self.session.checkpoint()
         if not skip_check:
@@ -112,7 +114,6 @@ class test_stat14(wttest.WiredTigerTestCase):
     def table_name(self, i:int):
         return f'{self.uri}_{i}'
 
-    @wttest.skip_for_hook("disagg", "Block size only works for ASC mode")
     def test_reusable_percentage(self):
         # Populate a table with a few records. This will create a two-level tree with a root
         # page and one or more leaf pages. We aren't inserting nearly enough records to need
