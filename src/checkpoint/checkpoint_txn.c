@@ -724,9 +724,12 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     msec = WT_TIMEDIFF_MS(conn->ckpt.prepare.timer_end, conn->ckpt.prepare.timer_start);
     __checkpoint_timer_stats_set(&conn->ckpt.prepare, msec);
 
-    /* update reuse ratio stats. */
-    WT_IGNORE_RET(
-      __wt_conn_btree_apply(session, NULL, __checkpoint_block_reusable_stats, NULL, NULL));
+    /*
+     * Update reuse ratio stats. Skip when using disagg.
+     */
+    if (!__wt_conn_is_disagg(session))
+        WT_IGNORE_RET(
+          __wt_conn_btree_apply(session, NULL, __checkpoint_block_reusable_stats, NULL, NULL));
 }
 
 /*
