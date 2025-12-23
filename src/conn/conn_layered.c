@@ -370,10 +370,10 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 
     /* Callback to update key provider on the result of new encryption key data . */
     if (ret == 0) {
-      /* Provide the reference to the same encryption data on callback. */
-      crypt.keys.data = (uint8_t *)crypt.keys.mem + sizeof(WT_CRYPT_HEADER);
-      crypt.keys.size = crypt_header.crypt_size;
-      crypt.r.lsn = lsn;
+        /* Provide the reference to the same encryption data on callback. */
+        crypt.keys.data = (uint8_t *)crypt.keys.mem + sizeof(WT_CRYPT_HEADER);
+        crypt.keys.size = crypt_header.crypt_size;
+        crypt.r.lsn = lsn;
     } else {
         crypt.r.error = ret;
         /* On error, remove references of crypt key before calling back. */
@@ -497,7 +497,7 @@ __disagg_construct_meta_config_array(WT_SESSION_IMPL *session, char *meta_cfg, c
     cur_config = prev_config = meta_cfg;
 
     /* Each configuration is separated by a new line. */
-    for (i = 0;(cur_config = strchr(cur_config, '\n')) != NULL; i++) {
+    for (i = 0; (cur_config = strchr(cur_config, '\n')) != NULL; i++) {
         *cur_config = '\0';
         cur_config++;
 
