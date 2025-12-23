@@ -26,19 +26,25 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
-import time
+import wttest
 from wiredtiger import stat
-from wtdataset import SimpleDataSet, simple_key
 from wtscenario import make_scenarios
 from helper import WiredTigerStat, WiredTigerCursor
 
 # test_stat14.py
-# This test verifies the block-space reusability indicators at both the file and connection levels when reusable space exceeds 50% and 90%. The test relies on WiredTigers sequential block allocation: newer inserts land at the end of the file, while deleting earlier keys creates holes in earlier blocks and increases the bytes available for reuse. Reusability indicators are evaluated only when the file size is at least 100MB (hardcoded threshold). Therefore, the test exercises two scenarios:
+# This test verifies the block-space reusability indicators at both the file and connection levels
+# when reusable space exceeds 50% and 90%. The test relies on WiredTigers sequential block
+# allocation: newer inserts land at the end of the file, while deleting earlier keys creates holes
+# in earlier blocks and increases the bytes available for reuse. Reusability indicators are
+# evaluated only when the file size is at least 100MB (hardcoded threshold). Therefore, the test
+# exercises two scenarios:
 #   Small file (<100MB): the threshold-based reusability stats should remain zero.
 #   Large file (100MB): the indicators should transition as reusable space crosses 50% and 90%.
-# To reach the threshold quickly, the test writes large value payloads. This test is not applicable to disaggregated storage (disagg storage), which does not model contiguous on-disk block layout; block-space reusability percentages are not meaningful in that environment
+# To reach the threshold quickly, the test writes large value payloads. This test is not applicable
+# to disaggregated storage, which does not model contiguous on-disk block layout; block-space
+# reusability percentages are not meaningful in that environment
 
+@wttest.skip_for_hook("disagg", "Block size only works for ASC mode")
 class test_stat14(wttest.WiredTigerTestCase):
     uri = 'table:test_stat14'
 
