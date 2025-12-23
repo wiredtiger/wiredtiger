@@ -725,7 +725,8 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     __checkpoint_timer_stats_set(&conn->ckpt.prepare, msec);
 
     /*
-     * Update reuse ratio stats. Skip when using disagg.
+     * Walk the list of open handles, updating the connection level count of files with available
+     * space above 50 and 90 percent respectively. Skip when using disagg.
      */
     if (!__wt_conn_is_disagg(session))
         WT_IGNORE_RET(
