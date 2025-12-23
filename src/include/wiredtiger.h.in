@@ -6320,76 +6320,82 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! block-manager: mapped bytes read */
 #define	WT_STAT_CONN_BLOCK_BYTE_MAP_READ		1079
 /*!
+ * block-manager: number of files checkpointed with reusable space over
+ * 50 percent
+ */
+#define	WT_STAT_CONN_BLOCK_REUSABLE_OVER_50		1080
+/*!
+ * block-manager: number of files checkpointed with reusable space over
+ * 90 percent
+ */
+#define	WT_STAT_CONN_BLOCK_REUSABLE_OVER_90		1081
+/*!
  * block-manager: number of internal page deltas written that were
  * between 0-20 percent the size of the full image
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_LT20	1080
+#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_LT20	1082
 /*!
  * block-manager: number of internal page deltas written that were
  * between 20-40 percent the size of the full image
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_LT40	1081
+#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_LT40	1083
 /*!
  * block-manager: number of internal page deltas written that were
  * between 40-60 percent the size of the full image
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_LT60	1082
+#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_LT60	1084
 /*!
  * block-manager: number of internal page deltas written that were
  * between 60-80 percent the size of the full image
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_LT80	1083
+#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_LT80	1085
 /*!
  * block-manager: number of internal page deltas written that were
  * between 80-100 percent the size of the full image
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_LT100	1084
+#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_LT100	1086
 /*!
  * block-manager: number of internal page deltas written that were
  * greater than the size of the full image
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_GT100	1085
+#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DELTA_GT100	1087
 /*!
  * block-manager: number of leaf page deltas written that were between
  * 0-20 percent the size of the full image
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_LT20	1086
+#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_LT20	1088
 /*!
  * block-manager: number of leaf page deltas written that were between
  * 20-40 percent the size of the full image
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_LT40	1087
+#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_LT40	1089
 /*!
  * block-manager: number of leaf page deltas written that were between
  * 40-60 percent the size of the full image
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_LT60	1088
+#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_LT60	1090
 /*!
  * block-manager: number of leaf page deltas written that were between
  * 60-80 percent the size of the full image
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_LT80	1089
+#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_LT80	1091
 /*!
  * block-manager: number of leaf page deltas written that were between
  * 80-100 percent the size of the full image
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_LT100	1090
+#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_LT100	1092
 /*!
  * block-manager: number of leaf page deltas written that were greater
  * than the size of the full image
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_GT100	1091
+#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DELTA_GT100	1093
 /*!
  * block-manager: number of times the file was remapped because it
  * changed size via fallocate or truncate
  */
-#define	WT_STAT_CONN_BLOCK_REMAP_FILE_RESIZE		1092
+#define	WT_STAT_CONN_BLOCK_REMAP_FILE_RESIZE		1094
 /*! block-manager: number of times the region was remapped via write */
-#define	WT_STAT_CONN_BLOCK_REMAP_FILE_WRITE		1093
-/*! block-manager: reusable space over 50 percent of the file size */
-#define	WT_STAT_CONN_BLOCK_REUSABLE_OVER_50		1094
-/*! block-manager: reusable space over 90 percent of the file size */
-#define	WT_STAT_CONN_BLOCK_REUSABLE_OVER_90		1095
+#define	WT_STAT_CONN_BLOCK_REMAP_FILE_WRITE		1095
 /*!
  * block-manager: time spent(usecs) on the most recent linear walk of
  * extents during first-fit allocation

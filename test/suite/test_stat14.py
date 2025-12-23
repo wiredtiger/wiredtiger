@@ -73,29 +73,33 @@ class test_stat14(wttest.WiredTigerTestCase):
                 self.assertEqual(reuse_50, 1 if reusable_size >= 0.5*block_size else 0)
                 self.assertEqual(reuse_90, 1 if reusable_size >= 0.9*block_size else 0)
 
-    def clear_between(self, uri, start, end):
-        with WiredTigerCursor(self.session, uri, None, None) as cursor:
-            for i in range(start, end):
-                cursor.set_key(i)
-                cursor.remove()
-        self.session.checkpoint()
+    def evict_between(self, uri, start, end):
         # Call eviction to the keys to make sure the changes write to the disk.
         with WiredTigerCursor(self.session, uri, None, "debug=(release_evict)") as cursor:
             for i in range(start, end):
                 cursor.set_key(i)
                 cursor.search()
-        # We need second checkpoint call to sync the disk status.
-        self.session.checkpoint()
+
+    def clear_between(self, uri, start, end):
+        with WiredTigerCursor(self.session, uri, None, None) as cursor:
+            for i in range(start, end):
+                cursor.set_key(i)
+                cursor.remove()
 
     def clean(self, uri, skip_check = False):
         split_60 = int(self.key_cnt*0.6)
         split_99 = int(self.key_cnt*0.99)
         # Remove the first 60% of the file, verify we have at least 50% free.
         self.clear_between(uri, 0, split_60)
+        # We need second checkpoint call to sync the disk status.
+        self.evict_between(uri, 0, split_60)
+        self.session.checkpoint()
         if not skip_check:
             self.stat_check(uri, 1, 0)
         # Remove more and check we have 90% of the file free.
         self.clear_between(uri, split_60, split_99)
+        self.evict_between(uri, split_60, split_99)
+        self.session.checkpoint()
         if not skip_check:
             self.stat_check(uri, 1, 1)
 
