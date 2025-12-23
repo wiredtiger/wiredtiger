@@ -599,7 +599,6 @@ main(int argc, char *argv[])
     scoped_cursor stat_cursor = stat_session.open_scoped_cursor("statistics:");
     int64_t step_up_time = 0;
     metrics_monitor::get_stat(stat_cursor, WT_STAT_CONN_DISAGG_STEP_UP_TIME, &step_up_time);
-    logger::log_msg(LOG_INFO, "disagg_step_up_time = " + std::to_string(step_up_time) + " msecs");
 
     /* Add the statistics to metrics_writer and output to JSON file. */
     std::string stat_json =
