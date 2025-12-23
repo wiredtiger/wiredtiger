@@ -13,6 +13,7 @@ function Find-VcVars {
     # 17 is the version of Visual Studio 2022.
     $installPath = & $vswhere `
         -version "[17.0,)" `
+        -latest `
         -products * `
         -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
         -property installationPath `
@@ -21,6 +22,8 @@ function Find-VcVars {
     if ($LastExitCode -ne 0 -or -not $installPath) {
         throw "vswhere did not find any suitable Visual Studio installations."
     }
+
+    Write-Host "Selected Visual Studio installation: $installPath"
 
     $candidate = Join-Path $installPath "VC\Auxiliary\Build\vcvars64.bat"
     if (Test-Path $candidate) {
