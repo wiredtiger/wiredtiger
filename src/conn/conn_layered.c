@@ -323,6 +323,7 @@ int
 __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_CRYPT_HEADER crypt_header;
     WT_CRYPT_KEYS crypt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
@@ -332,6 +333,8 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     conn = S2C(session);
     key_provider = conn->key_provider;
     WT_CLEAR(crypt.keys);
+    WT_CLEAR(crypt_header);
+    lsn = 0;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -341,12 +344,26 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
         goto done;
 
     /* WiredTiger has the memory ownership of the encryption key buffer. */
-    WT_ERR(__wt_scr_alloc(session, crypt.keys.size, &buf));
-    crypt.keys.data = buf->data;
+    WT_ERR(__wt_scr_alloc(session, crypt.keys.size + sizeof(WT_CRYPT_HEADER), &buf));
+    crypt.keys.mem = buf->mem;
+    crypt.keys.memsize = buf->memsize;
+    crypt.keys.data = (uint8_t *)crypt.keys.mem + sizeof(WT_CRYPT_HEADER);
 
     /* Call the function again to fetch the new encryption key data. */
     WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
     WT_ASSERT(session, crypt.keys.size != 0 && crypt.keys.data != NULL);
+
+    /* Prepare the crypt header. */
+    crypt_header.signature = WT_CRYPT_HEADER_SIGNATURE;
+    crypt_header.version = WT_CRYPT_HEADER_VERSION;
+    crypt_header.header_size = sizeof(WT_CRYPT_HEADER);
+    crypt_header.crypt_size = (uint32_t)crypt.keys.size;
+    crypt_header.checksum = __wt_checksum(crypt.keys.data, crypt.keys.size);
+
+    __wt_crypt_header_byteswap(&crypt_header);
+    memcpy(crypt.keys.mem, &crypt_header, sizeof(WT_CRYPT_HEADER));
+    crypt.keys.data = crypt.keys.mem;
+    crypt.keys.size += sizeof(WT_CRYPT_HEADER);
 
     /* Write the encryption key data to disaggregated storage. */
     ret = __disagg_put_crypt_key(session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, &crypt.keys, &lsn);
@@ -2164,10 +2181,12 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     WT_SESSION_IMPL *internal_session;
     size_t i, table_count;
-    bool empty;
+    bool empty, group_created;
 
     conn = S2C(session);
     manager = &conn->layered_table_manager;
+    group_created = false;
+    internal_session = NULL;
 
     __wt_spin_lock(session, &manager->layered_table_lock);
 
@@ -2198,11 +2217,13 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
      * thread count needs to be greater than 1 for this to be meaningful. We still lock and queue
      * work for single threaded mode, as such single threaded is only recommended for testing.
      */
-    if (multithreaded)
+    if (multithreaded) {
         WT_ERR(__wt_thread_group_create(session, &conn->layered_drain_data.threads, "disagg-drain",
           conn->layered_drain_data.thread_count - 1, conn->layered_drain_data.thread_count - 1,
           WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL, __layered_drain_worker_check,
           __layered_drain_worker_run, NULL));
+        group_created = true;
+    }
 
     /* FIXME-WT-14735: skip empty ingest tables. */
     for (i = 0; i < table_count; i++) {
@@ -2237,14 +2258,15 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 
 err:
     /* Let any running threads finish up. */
-    if (multithreaded) {
+    if (group_created) {
         __wt_cond_signal(session, conn->layered_drain_data.threads.wait_cond);
         __wt_writelock(session, &conn->layered_drain_data.threads.lock);
         WT_TRET(__wt_thread_group_destroy(session, &conn->layered_drain_data.threads));
     }
     /* Cleanup and release resources. */
     __layered_drain_clear_work_queue(session);
-    WT_TRET(__wt_session_close_internal(internal_session));
+    if (internal_session != NULL)
+        WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }
 
