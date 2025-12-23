@@ -304,11 +304,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     rollbacksAllowed -= 1
             except wiredtiger.WiredTigerError as err:
                 self.prexception(sys.exc_info())
-                if self.conn is not None and self.conn.is_open():
-                    self.conn.dump_error_log()
-                else:
-                    sys.stderr.write('Error log after WiredTigerError exception, connection is closed:\n')
-                    wiredtiger.wiredtiger_dump_error_log(lambda e: sys.stderr.write(e))
+                self.dumpErrorLog()
                 # Prevent an unnecessary "unexpected output" error.
                 self.ignoreTearDownLogs = True
                 raise
@@ -548,6 +544,17 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         if exc_list and exc_list[-1][0] is self:
             return exc_list[-1][1]
 
+    # FIXME-WT-16369: Consider printing error dumps for self.conn_follow in DisAgg tests
+    def dumpErrorLog(self):
+        """
+        Dump the error log, handling both open and closed connection cases.
+        """
+        if self.conn is not None and self.conn.is_open():
+            self.conn.dump_error_log()
+        else:
+            sys.stderr.write('Error log after WiredTigerError exception, connection is closed:\n')
+            wiredtiger.wiredtiger_dump_error_log(lambda e: sys.stderr.write(e))
+
     def cleanStderr(self):
         self.captureerr.ignorePreviousOutput()
 
@@ -598,6 +605,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                 try:
                     self.verifyUntilSuccess(sess, uri)
                 except wiredtiger.WiredTigerError as e:
+                    self.dumpErrorLog()
                     raise Exception(f'Layered verification failed for {uri}: {str(e)}')
 
         sess.close()
