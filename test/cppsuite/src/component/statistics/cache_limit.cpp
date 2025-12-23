@@ -55,10 +55,10 @@ cache_limit::check(scoped_cursor &cursor)
         logger::log_msg(LOG_TRACE, name + " usage: " + std::to_string(use_percent));
 }
 
-std::string
-cache_limit::get_value_str(scoped_cursor &cursor)
+double
+cache_limit::get_value_double(scoped_cursor &cursor)
 {
-    return std::to_string(get_cache_value(cursor));
+    return get_cache_value(cursor);
 }
 
 double

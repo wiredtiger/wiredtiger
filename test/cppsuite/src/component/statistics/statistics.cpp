@@ -55,12 +55,24 @@ statistics::check(scoped_cursor &cursor)
         logger::log_msg(LOG_TRACE, name + " usage: " + std::to_string(stat_value));
 }
 
-std::string
-statistics::get_value_str(scoped_cursor &cursor)
+int64_t
+statistics::get_value_int64(scoped_cursor &cursor)
 {
     int64_t stat_value;
     metrics_monitor::get_stat(cursor, field, &stat_value);
-    return std::to_string(stat_value);
+    return stat_value;
+}
+
+double
+statistics::get_value_double(scoped_cursor &cursor)
+{
+    return static_cast<double>(get_value_int64(cursor));
+}
+
+size_t
+statistics::get_value_size_t(scoped_cursor &cursor)
+{
+    return static_cast<size_t>(get_value_int64(cursor));
 }
 
 int

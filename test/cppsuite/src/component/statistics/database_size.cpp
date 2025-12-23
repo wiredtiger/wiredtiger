@@ -73,10 +73,10 @@ database_size::check(scoped_cursor &)
 #endif
 }
 
-std::string
-database_size::get_value_str(scoped_cursor &)
+size_t
+database_size::get_value_size_t(scoped_cursor &)
 {
-    return std::to_string(get_db_size());
+    return get_db_size();
 }
 
 size_t
