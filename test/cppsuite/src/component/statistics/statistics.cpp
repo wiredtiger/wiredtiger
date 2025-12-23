@@ -56,25 +56,11 @@ statistics::check(scoped_cursor &cursor)
 }
 
 int64_t
-statistics::get_value_int64(scoped_cursor &cursor)
+statistics::get_value(scoped_cursor &cursor)
 {
     int64_t stat_value;
     metrics_monitor::get_stat(cursor, field, &stat_value);
     return stat_value;
-}
-
-double
-statistics::get_value_double(scoped_cursor &cursor)
-{
-    testutil_assert(false);
-    return 0.0;
-}
-
-size_t
-statistics::get_value_size_t(scoped_cursor &cursor)
-{
-    testutil_assert(false);
-    return 0;
 }
 
 int

@@ -55,10 +55,11 @@ cache_limit::check(scoped_cursor &cursor)
         logger::log_msg(LOG_TRACE, name + " usage: " + std::to_string(use_percent));
 }
 
-double
-cache_limit::get_value_double(scoped_cursor &cursor)
+/* This loses precision but the metrics monitor requires an int64_t return type. */
+int64_t
+cache_limit::get_value(scoped_cursor &cursor)
 {
-    return get_cache_value(cursor);
+    return static_cast<int64_t>(get_cache_value(cursor));
 }
 
 double

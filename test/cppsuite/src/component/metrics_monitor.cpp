@@ -125,14 +125,14 @@ metrics_monitor::finish()
 
         /* Append stats to the statistics writer if it needs to be saved. */
         if (stat->get_save())
-            metrics_writer::instance().add_stat(stat_name, stat->get_value<int64_t>(_cursor));
+            metrics_writer::instance().add_stat(stat_name, stat->get_value(_cursor));
 
         if (!stat->get_postrun())
             continue;
 
         int64_t stat_max = stat->get_max();
         int64_t stat_min = stat->get_min();
-        int64_t stat_value = stat->get_value<int64_t>(_cursor);
+        int64_t stat_value = stat->get_value(_cursor);
 
         if (stat_value < stat_min || stat_value > stat_max) {
             const std::string error_string = "metrics_monitor: Post-run stat \"" + stat_name +

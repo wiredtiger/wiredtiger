@@ -42,9 +42,8 @@ public:
     virtual ~cache_limit() = default;
 
     void check(scoped_cursor &cursor) override final;
-
+    int64_t get_value(scoped_cursor &cursor) override final;
 protected:
-    double get_value_double(scoped_cursor &cursor) override final;
 
 private:
     double get_cache_value(scoped_cursor &cursor);

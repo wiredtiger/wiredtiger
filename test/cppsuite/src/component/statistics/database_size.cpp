@@ -73,10 +73,11 @@ database_size::check(scoped_cursor &)
 #endif
 }
 
-size_t
-database_size::get_value_size_t(scoped_cursor &)
+/* We assume that the database will never grow larger than INT64_MAX.*/
+int64_t
+database_size::get_value(scoped_cursor &)
 {
-    return get_db_size();
+    return static_cast<int64_t>(get_db_size());
 }
 
 size_t

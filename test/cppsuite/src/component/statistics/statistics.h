@@ -45,21 +45,8 @@ public:
     /* Check that the statistics are within bounds. */
     virtual void check(scoped_cursor &cursor);
 
-    /* Retrieve the value and return it as an arithmetic type. */
-    template <typename T>
-    T
-    get_value(scoped_cursor &cursor)
-    {
-        static_assert(std::is_same<T, size_t>::value || std::is_same<T, int64_t>::value ||
-            std::is_same<T, double>::value,
-          "T must be an implemented type.");
-        if constexpr (std::is_same<T, size_t>::value)
-            return get_value_size_t(cursor);
-        else if constexpr (std::is_same<T, int64_t>::value)
-            return get_value_int64(cursor);
-        else if constexpr (std::is_same<T, double>::value)
-            return get_value_double(cursor);
-    }
+    /* Retrieve the value and return it. */
+    virtual int64_t get_value(scoped_cursor &cursor);
 
     /* Getters. */
     int get_field() const;
@@ -71,11 +58,6 @@ public:
     bool get_save() const;
 
 protected:
-    /* Virtual functions that derived classes can override to return their numeric value. */
-    virtual int64_t get_value_int64(scoped_cursor &cursor);
-    virtual double get_value_double(scoped_cursor &cursor);
-    virtual size_t get_value_size_t(scoped_cursor &cursor);
-
     int field;
     int64_t max;
     int64_t min;
