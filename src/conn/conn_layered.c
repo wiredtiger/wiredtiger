@@ -523,7 +523,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     size_t len, metadata_value_cfg_len;
     uint64_t checkpoint_timestamp, current_meta_lsn;
     uint32_t checksum, existing_tables, new_ingest, new_tables;
-    char *buf, *cfg_ret, *results[3], *root, *metadata_value_cfg, *layered_ingest_uri;
+    char *buf, *cfg_ret, *cfg_meta_array[3], *root, *metadata_value_cfg, *layered_ingest_uri;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
 
@@ -542,6 +542,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     cfg_ret = NULL;
     WT_CLEAR(item);
     existing_tables = new_ingest = new_tables = 0;
+    memset(cfg_meta_array, 0, sizeof(cfg_meta_array));
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -592,8 +593,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ERR(__wt_calloc_def(session, len, &buf)); /* This already zeroes out the buffer. */
     memcpy(buf, item.data, item.size);
 
-    WT_ERR(__disagg_construct_meta_config_array(session, buf, results));
-    WT_ERR(__wt_config_getones(session, results[1], "timestamp", &cval));
+    WT_ERR(__disagg_construct_meta_config_array(session, buf, cfg_meta_array));
+    WT_ERR(__wt_config_getones(session, cfg_meta_array[1], "timestamp", &cval));
     if (cval.len > 0 && cval.val == 0)
         checkpoint_timestamp = WT_TS_NONE;
     else
