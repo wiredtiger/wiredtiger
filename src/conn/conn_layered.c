@@ -482,7 +482,7 @@ err:
 /*
  * __disagg_construct_meta_config_array --
  *     Construct the metadata configuration array from the shared metadata table. Each configuration
- *     is separated by a newline (\n). Extract each config and place into array.
+ *     is separated by a newline (\n).
  */
 static int
 __disagg_construct_meta_config_array(WT_SESSION_IMPL *session, char *meta_cfg, char **results)
@@ -804,6 +804,9 @@ err:
         WT_TRET(__wt_session_close_internal(internal_session));
     if (shared_metadata_session != NULL)
         WT_TRET(__wt_session_close_internal(shared_metadata_session));
+
+    for (int i = 0; cfg_meta_array[i] != NULL; i++)
+      __wt_free(session, cfg_meta_array[i]);
 
     __wt_free(session, buf);
     __wt_free(session, metadata_value_cfg);
