@@ -370,7 +370,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 
     /* Callback to update key provider on the result of new encryption key data . */
     if (ret == 0) {
-        /* Provide the reference to the same encryption data on callback. */
+        /* Point to the same encryption data on callback. */
         crypt.keys.data = (uint8_t *)crypt.keys.mem + sizeof(WT_CRYPT_HEADER);
         crypt.keys.size = crypt_header.crypt_size;
         crypt.r.lsn = lsn;
