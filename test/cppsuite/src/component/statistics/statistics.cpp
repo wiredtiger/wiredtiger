@@ -66,13 +66,15 @@ statistics::get_value_int64(scoped_cursor &cursor)
 double
 statistics::get_value_double(scoped_cursor &cursor)
 {
-    return static_cast<double>(get_value_int64(cursor));
+    testutil_assert(false);
+    return 0.0;
 }
 
 size_t
 statistics::get_value_size_t(scoped_cursor &cursor)
 {
-    return static_cast<size_t>(get_value_int64(cursor));
+    testutil_assert(false);
+    return 0;
 }
 
 int
