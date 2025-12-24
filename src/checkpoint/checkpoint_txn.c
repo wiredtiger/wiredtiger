@@ -726,7 +726,8 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
 
     /*
      * Walk the list of open handles, updating the connection level count of files with available
-     * space above 50 and 90 percent respectively. Skip when using disagg.
+     * space above 50 and 90 percent respectively. Skip when using disagg, as available file space
+     * does not apply.
      */
     if (!__wt_conn_is_disagg(session))
         WT_IGNORE_RET(
