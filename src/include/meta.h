@@ -136,7 +136,7 @@ struct __wt_blkincr {
 };
 
 /*
- * metadata configs from the shared main metadata table.
+ * Metadata configs extracted from the shared main metadata table.
  */
 typedef enum {
     CHECKPOINT_CONFIG = 0,
