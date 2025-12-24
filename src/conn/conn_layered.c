@@ -485,29 +485,28 @@ err:
 /*
  * __disagg_construct_meta_config_array --
  *     Construct the metadata configuration array from the shared metadata table. Each configuration
- *     is separated by a newline (\n).
+ *     is separated by a newline (\n). Modify all newlines to null terminator and reference each
+ *     separate configuration to result.
  */
-static int
-__disagg_construct_meta_config_array(WT_SESSION_IMPL *session, char *meta_cfg, char **results)
+static void
+__disagg_construct_meta_config_array(char *meta_cfg, char **results)
 {
-    size_t len;
     u_int i;
-    char *cur_config, *prev_config;
+    char *cur_config;
 
-    cur_config = prev_config = meta_cfg;
+    cur_config = meta_cfg;
+    for (i = 0; i < MAX_NUM_CONFIG; i++) {
+        results[i] = cur_config;
 
-    /* Each configuration is separated by a new line. */
-    for (i = 0; (cur_config = strchr(cur_config, '\n')) != NULL; i++) {
+        /* Each configuration is separated by a new line. */
+        cur_config = strchr(cur_config, '\n');
+        if (cur_config == NULL)
+            break;
+
+        /* Convert new line to null terminator. */
         *cur_config = '\0';
         cur_config++;
-
-        /* Copy configuration into results array. */
-        len = (size_t)(cur_config - prev_config);
-        WT_RET(__wt_calloc_def(session, len, &results[i]));
-        memcpy(results[i], prev_config, len);
-        prev_config = cur_config;
     }
-    return (0);
 }
 /*
  * __disagg_pick_up_checkpoint --
@@ -525,7 +524,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     size_t len, metadata_value_cfg_len;
     uint64_t checkpoint_timestamp, current_meta_lsn;
     uint32_t checksum, existing_tables, new_ingest, new_tables;
-    char *buf, *cfg_ret, *cfg_meta_array[3], *root, *metadata_value_cfg, *layered_ingest_uri;
+    char *buf, *cfg_ret, *cfg_meta_array[MAX_NUM_CONFIG], *root, *metadata_value_cfg,
+      *layered_ingest_uri;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
 
@@ -570,7 +570,6 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     /*
      * Part 1: Get the metadata of the shared metadata table and insert it into our metadata table.
      */
-
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
       ckpt_meta->metadata_lsn);
@@ -595,8 +594,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ERR(__wt_calloc_def(session, len, &buf)); /* This already zeroes out the buffer. */
     memcpy(buf, item.data, item.size);
 
-    WT_ERR(__disagg_construct_meta_config_array(session, buf, cfg_meta_array));
-    WT_ERR(__wt_config_getones(session, cfg_meta_array[1], "timestamp", &cval));
+    __disagg_construct_meta_config_array(buf, cfg_meta_array);
+    WT_ERR(__wt_config_getones(session, cfg_meta_array[TIMESTAMP_CONFIG], "timestamp", &cval));
     if (cval.len > 0 && cval.val == 0)
         checkpoint_timestamp = WT_TS_NONE;
     else
@@ -806,9 +805,6 @@ err:
         WT_TRET(__wt_session_close_internal(internal_session));
     if (shared_metadata_session != NULL)
         WT_TRET(__wt_session_close_internal(shared_metadata_session));
-
-    for (int i = 0; i < 3; i++)
-        __wt_free(session, cfg_meta_array[i]);
 
     __wt_free(session, buf);
     __wt_free(session, metadata_value_cfg);
