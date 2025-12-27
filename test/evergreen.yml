@@ -1521,6 +1521,7 @@ variables:
       - name: make-check-test
       # Use a special version of unit-test for macOS that checks for Python version consistency.
       - name: unit-test-macos
+      - name: unit-test-disagg-leader-macos
       - name: fops
       - name: memory-model-test-mac
         batchtime: 40320 # 28 days
@@ -2367,6 +2368,21 @@ tasks:
       - func: "python config check"
       - func: "unit test"
 
+  - name: unit-test-disagg-leader-macos
+    tags: ["python"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "python config check"
+      - func: "unit test"
+        vars:
+          # As leader, run the set of tests that are not in the fail list.
+          unit_test_ignore: test/suite/hook_disagg.fail
+          # The timeout for this command is on a test file basis. Make the timeouts long,
+          # as there are a few files that contain a large number of slower tests.
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)"
+
   - name: unit-test-zstd
     tags: ["python"]
     depends_on:
@@ -2386,6 +2402,20 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 --extra-long
+
+  - name: unit-test-disagg-leader-extra-long
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          # As leader, run the set of tests that are not in the fail list.
+          unit_test_ignore: test/suite/hook_disagg.fail
+          # The timeout for this command is on a test file basis. Make the timeouts long,
+          # as there are a few files that contain a large number of slower tests.
+          unit_test_args: -v 2 --timeout 1800 --extra-long --hook "disagg=(role=leader)"
 
   # FIXME-WT-15652 Remove PALM tests when PALite is fully validated.
   # Run the tests with PALM for comparison with PALite to catch discrepancies.
@@ -2474,7 +2504,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,key_provider=true)"
 
   - name: unit-test-hook-disagg-leader-bucket00
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "unit_test_disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2488,7 +2518,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 0/5
 
   - name: unit-test-hook-disagg-leader-bucket01
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "unit_test_disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2502,7 +2532,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 1/5
 
   - name: unit-test-hook-disagg-leader-bucket02
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "unit_test_disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2516,7 +2546,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 2/5
 
   - name: unit-test-hook-disagg-leader-bucket03
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "unit_test_disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2530,7 +2560,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 3/5
 
   - name: unit-test-hook-disagg-leader-bucket04
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "unit_test_disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2544,7 +2574,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 4/5
 
   - name: unit-test-hook-disagg-leader-table-bucket00
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "unit_test_disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2558,7 +2588,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 0/5
 
   - name: unit-test-hook-disagg-leader-table-bucket01
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "unit_test_disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2572,7 +2602,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 1/5
 
   - name: unit-test-hook-disagg-leader-table-bucket02
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "unit_test_disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2586,7 +2616,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 2/5
 
   - name: unit-test-hook-disagg-leader-table-bucket03
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "unit_test_disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2600,7 +2630,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 3/5
 
   - name: unit-test-hook-disagg-leader-table-bucket04
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "unit_test_disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2614,7 +2644,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 4/5
 
   - name: unit-test-hook-disagg-follower
-    tags: ["python"]
+    tags: ["pull_request", "python"]
     depends_on:
     - name: compile
     commands:
@@ -2625,7 +2655,7 @@ tasks:
           unit_test_args: -v 2 --timeout 60 --hook "disagg=(role=follower)" base01
 
   - name: unit-test-hook-disagg-follower-table
-    tags: ["python"]
+    tags: ["pull_request", "python"]
     depends_on:
     - name: compile
     commands:
@@ -6434,6 +6464,8 @@ buildvariants:
       distros: ubuntu2004-large
     - name: unit-test-extra-long
       distros: ubuntu2004-large
+    - name: unit-test-disagg-leader-extra-long
+      distros: ubuntu2004-large
     - name: static-wt-build-test
     - name: format-mirror-test
     - name: format-smoke-test
@@ -6502,6 +6534,7 @@ buildvariants:
       distros: ubuntu2004-large
     # FIXME-WT-16302: Split unit tests into more buckets
     - name: ".unit_test"
+    - name: ".unit_test_disagg"
     - name: ".unit_test_long"
 
 # FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
@@ -6774,6 +6807,8 @@ buildvariants:
     - name: unit-test-zstd
     - name: unit-test-extra-long
       distros: rhel80-large
+    - name: unit-test-disagg-leader-extra-long
+      distros: rhel80-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
     - name: wtperf-test
@@ -6922,6 +6957,8 @@ buildvariants:
     - name: unit-test-palm
     - name: unit-test-extra-long
       distros: ubuntu2004-arm64-large
+    - name: unit-test-disagg-leader-extra-long
+      distros: ubuntu2004-arm64-large
     - name: unit-test-zstd
     - name: wtperf-test
 
@@ -6966,6 +7003,8 @@ buildvariants:
       distros: amazon2-arm64-large
     - name: unit-test
     - name: unit-test-extra-long
+      distros: amazon2-arm64-large
+    - name: unit-test-disagg-leader-extra-long
       distros: amazon2-arm64-large
     - name: unit-test-hook-timing-stress-log
     - name: unit-test-zstd
@@ -7088,6 +7127,8 @@ buildvariants:
     - name: make-check-test
     - name: unit-test-extra-long
       distros: ubuntu2004-large
+    - name: unit-test-disagg-leader-extra-long
+      distros: ubuntu2004-large
     - name: ".data-validation-stress-test"
 
 - name: ubuntu2004-stress-nonstandalone
@@ -7153,6 +7194,7 @@ buildvariants:
     - name: unit-test
       distros: ubuntu2004-arm64-small
     - name: unit-test-extra-long
+    - name: unit-test-disagg-leader-extra-long
     - name: ".stress-test-1"
     - name: ".stress-test-2"
     - name: ".stress-test-3"
@@ -7187,6 +7229,8 @@ buildvariants:
     - name: unit-test
     - name: unit-test-extra-long
       distros: ubuntu2004-arm64-large
+    - name: unit-test-disagg-leader-extra-long
+      distros: ubuntu2004-arm64-large
 
 - name: amazon2-arm64-nonstandalone
   display_name: "Amazon Linux 2 ARM64 Non-standalone"
@@ -7206,6 +7250,8 @@ buildvariants:
       distros: amazon2-arm64-large
     - name: unit-test
     - name: unit-test-extra-long
+      distros: amazon2-arm64-large
+    - name: unit-test-disagg-leader-extra-long
       distros: amazon2-arm64-large
 
 - name: amazon2023-armv9-release-nonstandalone
@@ -7232,6 +7278,8 @@ buildvariants:
     - name: unit-test
     - name: unit-test-extra-long
       distros: amazon2023-arm64-latest-large-m8g
+    - name: unit-test-disagg-leader-extra-long
+      distros: amazon2023-arm64-latest-large-m8g
 
 - name: amazon2023-armv9-nonstandalone
   display_name: (ARMV9) Amazon Linux 2023 (ARM64, Non-standalone)
@@ -7250,6 +7298,7 @@ buildvariants:
     - name: unit-test
       distros: amazon2023-arm64-latest-small-m8g
     - name: unit-test-extra-long
+    - name: unit-test-disagg-leader-extra-long
     - name: ".stress-test-1"
     - name: ".stress-test-2"
     - name: ".stress-test-3"
@@ -7327,6 +7376,8 @@ buildvariants:
     - name: unit-test-palm
     - name: unit-test-extra-long
       distros: amazon2023-arm64-latest-large-m8g
+    - name: unit-test-disagg-leader-extra-long
+      distros: amazon2023-arm64-latest-large-m8g
     - name: unit-test-zstd
     - name: wtperf-test
     - name: checkpoint-filetypes-test
@@ -7401,6 +7452,7 @@ buildvariants:
       distros: amazon2023-arm64-latest-large-m8g
     # FIXME-WT-16302: Split unit tests into more buckets
     - name: ".unit_test"
+    - name: ".unit_test_disagg"
     - name: ".unit_test_long"
 
 # FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
