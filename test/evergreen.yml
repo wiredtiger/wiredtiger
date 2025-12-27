@@ -2416,7 +2416,7 @@ tasks:
           upload_source_dir: "wiredtiger"
           upload_filename: unit-test-tsan.tgz
 
-  - name: unit-test-disagg-leader-tsan
+  - name: unit-test-hook-disagg-leader-tsan
     tags: ["python"]
     depends_on:
     - name: compile
@@ -2432,9 +2432,9 @@ tasks:
       - func: "upload artifact"
         vars:
           upload_source_dir: "wiredtiger"
-          upload_filename: unit-test-disagg-leader-tsan.tgz
+          upload_filename: unit-test-hook-disagg-leader-tsan.tgz
 
-  - name: unit-test-disagg-follower-tsan
+  - name: unit-test-hook-disagg-follower-tsan
     tags: ["python"]
     depends_on:
     - name: compile
@@ -2447,7 +2447,7 @@ tasks:
       - func: "upload artifact"
         vars:
           upload_source_dir: "wiredtiger"
-          upload_filename: unit-test-disagg-follower-tsan.tgz
+          upload_filename: unit-test-hook-disagg-follower-tsan.tgz
 
   - name: format-stress-test-tsan
     depends_on:
@@ -4916,18 +4916,18 @@ tasks:
   - name: generate-tsan-metric-disagg
     tags: ["pull_request_code_statistics"]
     depends_on:
-      - name: "unit-test-disagg-leader-tsan"
-      - name: "unit-test-disagg-follower-tsan"
+      - name: "unit-test-hook-disagg-leader-tsan"
+      - name: "unit-test-hook-disagg-follower-tsan"
     commands:
       - func: "get project"
       - func: "fetch artifacts"
         vars:
-          dependent_task: unit-test-disagg-leader-tsan
-          destination: wiredtiger/unit-test-disagg-leader-tsan
+          dependent_task: unit-test-hook-disagg-leader-tsan
+          destination: wiredtiger/unit-test-hook-disagg-leader-tsan
       - func: "fetch artifacts"
         vars:
-          dependent_task: unit-test-disagg-follower-tsan
-          destination: wiredtiger/unit-test-disagg-follower-tsan
+          dependent_task: unit-test-hook-disagg-follower-tsan
+          destination: wiredtiger/unit-test-hook-disagg-follower-tsan
       - func: "tsan warning metric"
 
     ###############################
@@ -6523,9 +6523,9 @@ buildvariants:
     - name: examples-c-test
     - name: unit-test-tsan
       distros: ubuntu2004-large
-    - name: unit-test-disagg-leader-tsan
+    - name: unit-test-hook-disagg-leader-tsan
       distros: ubuntu2004-large
-    - name: unit-test-disagg-follower-tsan
+    - name: unit-test-hook-disagg-follower-tsan
       distros: ubuntu2004-large
     # FIXME-WT-16309: Remove TSAN-specific jobs once the common tag works
     - name: format-stress-test-disagg-leader-tsan
@@ -7421,9 +7421,9 @@ buildvariants:
     - name: examples-c-test
     - name: unit-test-tsan
       distros: amazon2023-arm64-latest-large-m8g
-    - name: unit-test-disagg-leader-tsan
+    - name: unit-test-hook-disagg-leader-tsan
       distros: amazon2023-arm64-latest-large-m8g
-    - name: unit-test-disagg-follower-tsan
+    - name: unit-test-hook-disagg-follower-tsan
       distros: amazon2023-arm64-latest-large-m8g
     # FIXME-WT-16309: Remove TSAN-specific jobs once the common tag works
     - name: format-stress-test-disagg-leader-tsan
