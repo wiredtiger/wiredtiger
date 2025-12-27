@@ -2336,6 +2336,16 @@ tasks:
         vars:
           test_name: wt11126_compile_config
 
+  - name: csuite-long-running
+    # Set 6 hours timeout (60 * 60 * 6 = 21600)
+    exec_timeout_secs: 21600
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          ctest_extra_args: -L long_running -j ${num_jobs}
+
   # End of csuite test tasks
 
   # Start of Python unit test tasks
@@ -2448,40 +2458,6 @@ tasks:
         vars:
           upload_source_dir: "wiredtiger"
           upload_filename: unit-test-hook-disagg-follower-tsan.tgz
-
-  - name: format-stress-test-tsan
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test"
-        vars:
-          # Limit the number of operations to avoid an internal TSAN issue; run more operations with detect_deadlocks=0.
-          # FIXME-WT-16313: Consider how to avoid the internal TSAN issue.
-          test_format_extra_args: runs.rows=1000:3000 runs.tables=1:3 runs.ops=3000
-          times: 3
-      - func: "format test"
-        vars:
-          test_format_extra_args: runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
-          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
-          times: 3
-
-  - name: format-stress-test-disagg-leader-tsan
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "format test disagg"
-        vars:
-          # Limit the number of operations to avoid an internal TSAN issue; run more operations with detect_deadlocks=0.
-          # FIXME-WT-16313: Consider how to avoid the internal TSAN issue.
-          format_args: disagg.mode=leader runs.rows=1000:3000 runs.tables=1:3 runs.ops=3000
-          times: 3
-      - func: "format test disagg"
-        vars:
-          format_args: disagg.mode=leader runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
-          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
-          times: 3
 
   - name: unit-test-hook-disagg-leader-key-provider
     tags: ["python"]
@@ -2766,16 +2742,6 @@ tasks:
               echo "Test count: $i"
               ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} -v 4 test_prepare_hs03.py --hook timestamp
             done
-
-  - name: csuite-long-running
-    # Set 6 hours timeout (60 * 60 * 6 = 21600)
-    exec_timeout_secs: 21600
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - func: "make check directory"
-        vars:
-          ctest_extra_args: -L long_running -j ${num_jobs}
 
   # Break out Python unit tests into multiple buckets/tasks.  We have a fixed number of buckets,
   # and we use the -b option of the test/suite/run.py script to split up the tests.
@@ -4002,6 +3968,23 @@ tasks:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           test_format_extra_args: -C "verbose=(checkpoint_cleanup:1)"
 
+  - name: format-stress-test-tsan
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test"
+        vars:
+          # Limit the number of operations to avoid an internal TSAN issue; run more operations with detect_deadlocks=0.
+          # FIXME-WT-16313: Consider how to avoid the internal TSAN issue.
+          test_format_extra_args: runs.rows=1000:3000 runs.tables=1:3 runs.ops=3000
+          times: 3
+      - func: "format test"
+        vars:
+          test_format_extra_args: runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
+          times: 3
+
   - name: format-wtperf-test
     commands:
       - func: "get project"
@@ -4693,6 +4676,23 @@ tasks:
           # MemorySanitizer requires that all program code is instrumented, otherwise it may generate false reports.
           format_test_script_args: -c ../../../test/format/CONFIG.disagg -t 10 -- disagg.page_log=palm disagg.mode=follower runs.rows=10000 runs.ops=50000 disk.encryption=none
           num_jobs: 1  # MSAN builds (with PALM) can cause OOM issues if multiple jobs are run in parallel.
+
+  - name: format-stress-test-disagg-leader-tsan
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # Limit the number of operations to avoid an internal TSAN issue; run more operations with detect_deadlocks=0.
+          # FIXME-WT-16313: Consider how to avoid the internal TSAN issue.
+          format_args: disagg.mode=leader runs.rows=1000:3000 runs.tables=1:3 runs.ops=3000
+          times: 3
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.mode=leader runs.rows=100000:300000 runs.tables=1:3 runs.ops=300000
+          additional_san_vars: export TSAN_OPTIONS="$TSAN_OPTIONS:detect_deadlocks=0"
+          times: 3
 
   - name: format-stress-test-no-barrier
     tags: ["stress-test-no-barrier"]
