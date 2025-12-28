@@ -262,6 +262,13 @@ main(int argc, char *argv[])
             fprintf(stderr, "disaggregated storage feature requires usage of timestamps (-x/-X)");
             return (EXIT_FAILURE);
         }
+
+        if (!g.precise_checkpoint) {
+            fprintf(
+              stderr, "disaggregated storage feature requires usage of precise checkpoint (-e)");
+            return (EXIT_FAILURE);
+        }
+
         if (ttype != ROW) {
             fprintf(
               stderr, "disaggregated storage feature only supports row store table types (-r)");
