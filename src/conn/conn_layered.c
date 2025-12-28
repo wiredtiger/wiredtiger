@@ -375,9 +375,12 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
         __wt_debug_crash(session);
 
     /* Callback to update key provider on the result of new encryption key data . */
-    if (ret == 0)
+    if (ret == 0) {
+        /* Point to the same encryption data on callback. */
+        crypt.keys.data = (uint8_t *)crypt.keys.mem + sizeof(WT_CRYPT_HEADER);
+        crypt.keys.size = crypt_header.crypt_size;
         crypt.r.lsn = lsn;
-    else {
+    } else {
         crypt.r.error = ret;
         /* On error, remove references of crypt key before calling back. */
         crypt.keys.data = NULL;
@@ -491,30 +494,28 @@ err:
 /*
  * __disagg_construct_meta_config_array --
  *     Construct the metadata configuration array from the shared metadata table. Each configuration
- *     is separated by a newline (\n).
+ *     is separated by a newline (\n). Modify all newlines to null terminator and reference each
+ *     separate configuration to result.
  */
-static int
-__disagg_construct_meta_config_array(WT_SESSION_IMPL *session, char *meta_cfg, char **results)
+static void
+__disagg_construct_meta_config_array(char *meta_cfg, char **results)
 {
-    size_t len;
-    int i;
-    char *cur_config, *prev_config;
+    u_int i;
+    char *cur_config;
 
-    i = 0;
-    cur_config = prev_config = meta_cfg;
+    cur_config = meta_cfg;
+    for (i = 0; i < MAX_NUM_CONFIG; i++) {
+        results[i] = cur_config;
 
-    /* Each configuration is separated by a new line. */
-    for (i = 0; (cur_config = strchr(cur_config, '\n')) != NULL; i++) {
+        /* Each configuration is separated by a new line. */
+        cur_config = strchr(cur_config, '\n');
+        if (cur_config == NULL)
+            break;
+
+        /* Convert new line to null terminator. */
         *cur_config = '\0';
         cur_config++;
-
-        /* Copy configuration into results array. */
-        len = (size_t)(cur_config - prev_config);
-        WT_RET(__wt_calloc_def(session, len, &results[i]));
-        memcpy(results[i], prev_config, len);
-        prev_config = cur_config;
     }
-    return (0);
 }
 /*
  * __disagg_pick_up_checkpoint --
@@ -532,7 +533,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     size_t len, metadata_value_cfg_len;
     uint64_t checkpoint_timestamp, current_meta_lsn;
     uint32_t checksum, existing_tables, new_ingest, new_tables;
-    char *buf, *cfg_ret, *cfg_meta_array[3], *root, *metadata_value_cfg, *layered_ingest_uri;
+    char *buf, *cfg_ret, *cfg_meta_array[MAX_NUM_CONFIG], *root, *metadata_value_cfg,
+      *layered_ingest_uri;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
 
@@ -602,8 +604,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ERR(__wt_calloc_def(session, len, &buf)); /* This already zeroes out the buffer. */
     memcpy(buf, item.data, item.size);
 
-    WT_ERR(__disagg_construct_meta_config_array(session, buf, cfg_meta_array));
-    WT_ERR(__wt_config_getones(session, cfg_meta_array[1], "timestamp", &cval));
+    __disagg_construct_meta_config_array(buf, cfg_meta_array);
+    WT_ERR(__wt_config_getones(session, cfg_meta_array[TIMESTAMP_CONFIG], "timestamp", &cval));
     if (cval.len > 0 && cval.val == 0)
         checkpoint_timestamp = WT_TS_NONE;
     else
