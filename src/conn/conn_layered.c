@@ -816,9 +816,6 @@ err:
     if (shared_metadata_session != NULL)
         WT_TRET(__wt_session_close_internal(shared_metadata_session));
 
-    for (int i = 0; cfg_meta_array[i] != NULL; i++)
-        __wt_free(session, cfg_meta_array[i]);
-
     __wt_free(session, buf);
     __wt_free(session, metadata_value_cfg);
     __wt_free(session, layered_ingest_uri);
