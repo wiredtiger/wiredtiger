@@ -122,6 +122,8 @@ class test_stat14(wttest.WiredTigerTestCase):
         for i in range(self.table_cnt):
             self.session.create(self.table_name(i), create_params)
             self.populate(self.table_name(i))
+        # The reason to always check target number and target number + 1 is that the
+        # we cannot guarantee the history store will meet the ratio at the same time or not.
         for i in range(self.table_cnt):
             with WiredTigerStat(self.session) as stat_cursor:
                 files_over_50 = stat_cursor[stat.conn.block_reusable_over_50][2]
