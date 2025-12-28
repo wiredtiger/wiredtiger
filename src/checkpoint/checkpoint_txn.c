@@ -1271,6 +1271,9 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_WITH_SCHEMA_LOCK(session, ret = __checkpoint_prepare(session, &tracking, cfg));
     WT_ERR(ret);
 
+    WT_ERR(__wt_config_gets(session, cfg, "debug.key_provider_trigger_crash_point", &cval));
+    session->ckpt.key_provider_crash_point = (int)cval.val;
+
     WT_ERR(__wt_config_gets(session, cfg, "debug.checkpoint_crash_point", &cval));
     ckpt_crash_point = (int)cval.val;
 
