@@ -60,14 +60,16 @@ get_stat_field(const std::string &name)
     testutil_die(EINVAL, "get_stat_field: Stat \"%s\" is unrecognized", name.c_str());
 }
 
-void
-metrics_monitor::get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep)
+int64_t
+metrics_monitor::get_stat(scoped_cursor &cursor, int stat_field)
 {
     const char *desc, *pvalue;
     cursor->set_key(cursor.get(), stat_field);
     testutil_check(cursor->search(cursor.get()));
-    testutil_check(cursor->get_value(cursor.get(), &desc, &pvalue, valuep));
+    int64_t value = 0;
+    testutil_check(cursor->get_value(cursor.get(), &desc, &pvalue, &value));
     testutil_check(cursor->reset(cursor.get()));
+    return value;
 }
 
 metrics_monitor::metrics_monitor(
