@@ -982,11 +982,13 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, WT_LSN *ls
         goto err;
     }
 
-    if (!__log_checksum_match(buf, allocsize))
+    if (!__log_checksum_match(buf, allocsize)) {
+        __wt_abort(session);
         WT_ERR_MSG(session, WT_ERROR,
           "%s: System log record checksum mismatch: calculated block checksum of %#" PRIx32
           " doesn't match expected checksum of %#" PRIx32,
           fh->name, __wt_checksum(buf, allocsize), logrec->checksum);
+    }
     __wti_log_record_byteswap(logrec);
     p = WT_LOG_SKIP_HEADER(buf->data);
     end = (const uint8_t *)buf->data + allocsize;
@@ -2314,6 +2316,12 @@ advance:
          */
         buf->size = reclen;
         logrec = (WT_LOG_RECORD *)buf->mem;
+        do {
+            char *inject_flag = getenv("WT_INJECT_CHCK_SUM_FAULT");
+            if (inject_flag != NULL && strcmp(inject_flag, "1") == 0) {
+                __wt_abort(session);
+            }
+        } while (0);
         if (!__log_checksum_match(buf, reclen)) {
             /*
              * A checksum mismatch means we have reached the end of the useful part of the log. This
