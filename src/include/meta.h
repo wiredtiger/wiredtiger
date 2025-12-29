@@ -134,13 +134,3 @@ struct __wt_blkincr {
                               /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
-
-/*
- * Metadata configs extracted from the shared main metadata table.
- */
-typedef enum {
-    CHECKPOINT_CONFIG = 0,
-    TIMESTAMP_CONFIG,
-    KEY_PROVIDER_CONFIG,
-    MAX_NUM_CONFIG
-} WTI_SHARED_MAIN_CFG;
