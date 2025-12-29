@@ -323,6 +323,7 @@ int
 __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_CRYPT_HEADER crypt_header;
     WT_CRYPT_KEYS crypt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
@@ -332,6 +333,8 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     conn = S2C(session);
     key_provider = conn->key_provider;
     WT_CLEAR(crypt.keys);
+    WT_CLEAR(crypt_header);
+    lsn = 0;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -341,20 +344,37 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
         goto done;
 
     /* WiredTiger has the memory ownership of the encryption key buffer. */
-    WT_ERR(__wt_scr_alloc(session, crypt.keys.size, &buf));
-    crypt.keys.data = buf->data;
+    WT_ERR(__wt_scr_alloc(session, crypt.keys.size + sizeof(WT_CRYPT_HEADER), &buf));
+    crypt.keys.mem = buf->mem;
+    crypt.keys.memsize = buf->memsize;
+    crypt.keys.data = (uint8_t *)crypt.keys.mem + sizeof(WT_CRYPT_HEADER);
 
     /* Call the function again to fetch the new encryption key data. */
     WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
     WT_ASSERT(session, crypt.keys.size != 0 && crypt.keys.data != NULL);
 
+    /* Prepare the crypt header. */
+    crypt_header.signature = WT_CRYPT_HEADER_SIGNATURE;
+    crypt_header.version = WT_CRYPT_HEADER_VERSION;
+    crypt_header.header_size = sizeof(WT_CRYPT_HEADER);
+    crypt_header.crypt_size = (uint32_t)crypt.keys.size;
+    crypt_header.checksum = __wt_checksum(crypt.keys.data, crypt.keys.size);
+
+    __wt_crypt_header_byteswap(&crypt_header);
+    memcpy(crypt.keys.mem, &crypt_header, sizeof(WT_CRYPT_HEADER));
+    crypt.keys.data = crypt.keys.mem;
+    crypt.keys.size += sizeof(WT_CRYPT_HEADER);
+
     /* Write the encryption key data to disaggregated storage. */
     ret = __disagg_put_crypt_key(session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, &crypt.keys, &lsn);
 
     /* Callback to update key provider on the result of new encryption key data . */
-    if (ret == 0)
+    if (ret == 0) {
+        /* Point to the same encryption data on callback. */
+        crypt.keys.data = (uint8_t *)crypt.keys.mem + sizeof(WT_CRYPT_HEADER);
+        crypt.keys.size = crypt_header.crypt_size;
         crypt.r.lsn = lsn;
-    else {
+    } else {
         crypt.r.error = ret;
         /* On error, remove references of crypt key before calling back. */
         crypt.keys.data = NULL;
@@ -377,6 +397,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(buf);
+    WT_DECL_ITEM(key_provider_buf);
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg;
     uint64_t lsn;
@@ -384,6 +405,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     char *checkpoint_root_copy, ts_string[WT_TS_INT_STRING_SIZE];
 
     buf = NULL;
+    key_provider_buf = NULL;
     checkpoint_root_copy = NULL;
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
@@ -400,11 +422,31 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
 
     WT_ERR(__wt_strndup(session, checkpoint_root, checkpoint_root_size, &checkpoint_root_copy));
 
+    /* Write key provider information to the metadata page log.  */
+    if (conn->key_provider != NULL) {
+        /*
+         * The key provider LSN field should always be initialized. The LSN is provided either
+         * during startup, or when we detect a new encryption key.
+         */
+        WT_ASSERT(session,
+          conn->disaggregated_storage
+              .last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID] != 0);
+        WT_ERR(__wt_scr_alloc(session, 0, &key_provider_buf));
+        WT_ERR(__wt_buf_fmt(session, key_provider_buf,
+          "key_provider=((page.1=(page_id=%d,lsn=%" PRIu64 ")),version=1)",
+          WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID,
+          conn->disaggregated_storage
+            .last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID]));
+    }
+
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
-    WT_ERR(__wt_buf_fmt(session, buf,
-      "%s\n"
-      "timestamp=%" PRIx64,
-      checkpoint_root_copy, checkpoint_timestamp));
+    WT_ERR(
+      __wt_buf_fmt(session, buf,
+        "%s\n"
+        "timestamp=%" PRIx64 "\n"
+        "%s\n",
+        checkpoint_root_copy, checkpoint_timestamp,
+        key_provider_buf != NULL ? (char *)key_provider_buf->data : ""));
 
     /* Compute the checksum for the metadata page. */
     checksum = __wt_checksum(buf->data, buf->size);
@@ -435,10 +477,37 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
 
 err:
     __wt_free(session, checkpoint_root_copy);
+    __wt_scr_free(session, &key_provider_buf);
     __wt_scr_free(session, &buf);
     return (ret);
 }
 
+/*
+ * __disagg_construct_meta_config_array --
+ *     Construct the metadata configuration array from the shared metadata table. Each configuration
+ *     is separated by a newline (\n). Modify all newlines to null terminator and reference each
+ *     separate configuration to result.
+ */
+static void
+__disagg_construct_meta_config_array(char *meta_cfg, char **results)
+{
+    u_int i;
+    char *cur_config;
+
+    cur_config = meta_cfg;
+    for (i = 0; i < MAX_NUM_CONFIG; i++) {
+        results[i] = cur_config;
+
+        /* Each configuration is separated by a new line. */
+        cur_config = strchr(cur_config, '\n');
+        if (cur_config == NULL)
+            break;
+
+        /* Convert new line to null terminator. */
+        *cur_config = '\0';
+        cur_config++;
+    }
+}
 /*
  * __disagg_pick_up_checkpoint --
  *     Pick up a new checkpoint.
@@ -455,7 +524,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     size_t len, metadata_value_cfg_len;
     uint64_t checkpoint_timestamp, current_meta_lsn;
     uint32_t checksum, existing_tables, new_ingest, new_tables;
-    char *buf, *cfg_ret, *checkpoint_config, *root, *metadata_value_cfg, *layered_ingest_uri;
+    char *buf, *cfg_ret, *cfg_meta_array[MAX_NUM_CONFIG], *root, *metadata_value_cfg,
+      *layered_ingest_uri;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
 
@@ -474,6 +544,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     cfg_ret = NULL;
     WT_CLEAR(item);
     existing_tables = new_ingest = new_tables = 0;
+    memset(cfg_meta_array, 0, sizeof(cfg_meta_array));
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -524,15 +595,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ERR(__wt_calloc_def(session, len, &buf)); /* This already zeroes out the buffer. */
     memcpy(buf, item.data, item.size);
 
-    /* Parse out the checkpoint config string. */
-    checkpoint_config = strchr(buf, '\n');
-    if (checkpoint_config == NULL)
-        WT_ERR_MSG(session, EINVAL, "Invalid checkpoint metadata: No checkpoint config string");
-    *checkpoint_config = '\0';
-    checkpoint_config++;
-
-    /* Parse the checkpoint config. */
-    WT_ERR(__wt_config_getones(session, checkpoint_config, "timestamp", &cval));
+    __disagg_construct_meta_config_array(buf, cfg_meta_array);
+    WT_ERR(__wt_config_getones(session, cfg_meta_array[TIMESTAMP_CONFIG], "timestamp", &cval));
     if (cval.len > 0 && cval.val == 0)
         checkpoint_timestamp = WT_TS_NONE;
     else
@@ -2120,10 +2184,12 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     WT_SESSION_IMPL *internal_session;
     size_t i, table_count;
-    bool empty;
+    bool empty, group_created;
 
     conn = S2C(session);
     manager = &conn->layered_table_manager;
+    group_created = false;
+    internal_session = NULL;
 
     __wt_spin_lock(session, &manager->layered_table_lock);
 
@@ -2154,11 +2220,13 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
      * thread count needs to be greater than 1 for this to be meaningful. We still lock and queue
      * work for single threaded mode, as such single threaded is only recommended for testing.
      */
-    if (multithreaded)
+    if (multithreaded) {
         WT_ERR(__wt_thread_group_create(session, &conn->layered_drain_data.threads, "disagg-drain",
           conn->layered_drain_data.thread_count - 1, conn->layered_drain_data.thread_count - 1,
           WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL, __layered_drain_worker_check,
           __layered_drain_worker_run, NULL));
+        group_created = true;
+    }
 
     /* FIXME-WT-14735: skip empty ingest tables. */
     for (i = 0; i < table_count; i++) {
@@ -2193,14 +2261,15 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 
 err:
     /* Let any running threads finish up. */
-    if (multithreaded) {
+    if (group_created) {
         __wt_cond_signal(session, conn->layered_drain_data.threads.wait_cond);
         __wt_writelock(session, &conn->layered_drain_data.threads.lock);
         WT_TRET(__wt_thread_group_destroy(session, &conn->layered_drain_data.threads));
     }
     /* Cleanup and release resources. */
     __layered_drain_clear_work_queue(session);
-    WT_TRET(__wt_session_close_internal(internal_session));
+    if (internal_session != NULL)
+        WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }
 
