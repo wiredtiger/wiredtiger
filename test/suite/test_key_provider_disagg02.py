@@ -25,19 +25,20 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import re
+import re, os
 import wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from suite_subprocess import suite_subprocess
 from wtdataset import SimpleDataSet
 import sqlite3
 
 from wtscenario import make_scenarios
 
 # test_key_provider_disagg02.py
-#    Test crash scenarios
+#    Ensure that a crash during checkpoint will not corrupt key provider meta information.
 #
 @disagg_test_class
-class test_key_provider_disagg02(wttest.WiredTigerTestCase):
+class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
@@ -49,15 +50,10 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase):
         ('crash_during_key_rotation', dict(crash_point=1)),
         ('crash_after_key_rotation', dict(crash_point=2)),
     ]
-    scenarios = make_scenarios(disagg_storages, crash_points)
 
+    scenarios = make_scenarios(disagg_storages, crash_points)
     sqlite_meta_cursor = None
     nentries = 1000
-    current_lsn = 0
-
-    MAIN_KEK_PAGE_ID = 1
-    EXPECTED_KEK_VERSION = 1
-
     uri = "layered:test_key_provider_disagg02"
 
     # Load the storage store extension.
@@ -67,58 +63,56 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def subprocess_func(self):
-        self.session.checkpoint(f"debug=(crash_point_key_provider={self.crash_point})") # Expected to fail
-
-
-    def validate_persist_meta_file(self, expect_persisted=False):
-        self.sqlite_meta_cursor.execute("SELECT * FROM pages ORDER BY lsn DESC LIMIT 1")
-        result = self.sqlite_meta_cursor.fetchone()
-        m = re.search(".*page_id=(\d+),lsn=(\d+).*version=(\d+)", result[-1].decode("utf-8"))
-
-        if expect_persisted:
-            self.assertTrue(m)
-            if (m):
-                page_id, lsn, version = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
-                self.assertEqual(page_id, self.MAIN_KEK_PAGE_ID)
-                self.assertEqual(lsn, self.current_lsn)
-                self.assertEqual(version, self.EXPECTED_KEK_VERSION)
-
-                self.current_lsn = lsn
-        else:
-            self.assertFalse(m)
-
-    # Test simple inserts to a leader/follower
-    def test_key_provider_disagg02(self):
         # Open turtle metadata sqlite database
         conn1 = sqlite3.connect("kv_home/pages_000001.db")
         self.sqlite_meta_cursor = conn1.cursor()
 
-        # # Populate table.
-        # ds = SimpleDataSet(self, self.uri, self.nentries)
-        # ds.populate()
-        # ds.check()
-        # self.validate_persist_meta_file(expect_persisted=False)
+        # Populate table.
+        ds = SimpleDataSet(self, self.uri, self.nentries)
+        ds.populate()
+        ds.check()
 
-        # # Crashing before key has ever persisted should not persist key provider in the shared turtle file.
-        # subdir = 'SUBPROCESS'
-        # [ignore_result, new_home_dir] = self.run_subprocess_function(subdir,
-        #     'test_key_provider_disagg02.test_key_provider_disagg02.subprocess_func', silent=True)
-        # self.validate_persist_meta_file(expect_persisted=False)
+        # Initiate checkpoint to trigger key provider semantics.
+        self.session.checkpoint()
+        self.write_meta_file()
 
-        # self.conn = self.setUpConnectionOpen(new_home_dir)
-        # self.session = self.setUpSessionOpen(self.conn)
+        # Trigger again and crash.
+        self.session.checkpoint(f"debug=(key_provider_trigger_crash_points={self.crash_point})") # Expected to fail
 
-        # # Populate table.
-        # ds = SimpleDataSet(self, self.uri, self.nentries)
-        # ds.populate()
-        # ds.check()
+    # Verify results of metadata file. After a crash, the key provider should be the same unless checkpoint completes.
+    def validate_persist_meta_file(self, new_home_dir):
+        self.sqlite_meta_cursor.execute("SELECT * FROM pages ORDER BY lsn DESC LIMIT 1")
+        result = self.sqlite_meta_cursor.fetchone()
+        m = re.search("(.*page_id=\d+,lsn=\d+.*version=\d+.*)", result[-1].decode("utf-8"))
+        self.assertTrue(m)
 
-        # # Initiate checkpoint again to trigger key provider semantics.
-        # self.session.checkpoint()
-        # self.validate_persist_meta_file(expect_persisted=True)
+        result_file = os.path.join(new_home_dir, "key_provider.results")
+        with open(result_file, "r") as f:
+            self.assertEqual(f.read(), m.group(1))
 
-        # # Crashing before key has ever persisted should not persist key provider in the shared turtle file.
-        # subdir = 'SUBPROCESS'
-        # [ignore_result, new_home_dir] = self.run_subprocess_function(subdir,
-        #     'test_key_provider_disagg02.test_key_provider_disagg02.subprocess_func', silent=True)
-        # self.validate_persist_meta_file()
+    # Write out the latest key provider information for validation after crash/restart.
+    def write_meta_file(self):
+        self.sqlite_meta_cursor.execute("SELECT * FROM pages ORDER BY lsn DESC LIMIT 1")
+        result = self.sqlite_meta_cursor.fetchone()
+        m = re.search("(.*page_id=\d+,lsn=\d+.*version=\d+.*)", result[-1].decode("utf-8"))
+
+        self.assertTrue(m)
+        result_file = os.path.join(self.home, "key_provider.results")
+        with open(result_file, "w") as f:
+            f.write(str(m.group(1)))
+
+
+    def test_key_provider_disagg02(self):
+        self.conn.close()
+
+        # Ensure that metadata file doesn't update key provider after crash.
+        subdir = 'SUBPROCESS'
+        [ignore_result, new_home_dir] = self.run_subprocess_function(subdir,
+            'test_key_provider_disagg02.test_key_provider_disagg02.subprocess_func', silent=True)
+
+        conn1 = sqlite3.connect(f"{new_home_dir}/kv_home/pages_000001.db")
+        self.sqlite_meta_cursor = conn1.cursor()
+
+        self.validate_persist_meta_file(new_home_dir)
+
+
