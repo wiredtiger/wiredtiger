@@ -1259,9 +1259,7 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
     conn = S2C(session);
     cursor = &clayered->iface;
     found = false;
-
-    reset_ignore_prepare =
-      F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE) && !conn->layered_table_manager.leader;
+    reset_ignore_prepare = false;
 
     if (!conn->layered_table_manager.leader) {
         c = clayered->ingest_cursor;
@@ -1290,8 +1288,11 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
          * conflict issue. Therefore for layered cursor operations, we need to ignore these prepared
          * updates to allow reading through to committed data.
          */
-        if (reset_ignore_prepare)
+        if ((!conn->layered_table_manager.leader || F_ISSET(conn, WT_CONN_RECONFIGURING_STEP_UP)) &&
+          !F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
+            reset_ignore_prepare = true;
             F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
+        }
         WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(c, clayered, value), true);
         if (ret == 0)
             found = true;
