@@ -1701,7 +1701,7 @@ err:
     __wt_free(session, session->ckpt.handle);
     WT_ASSERT(session, session->ckpt.crash_point == 0);
     session->ckpt.handle_allocated = session->ckpt.handle_next = session->ckpt.crash_point = 0;
-    session->ckpt.key_provider_crash_point = -1;
+    session->ckpt.key_provider_crash_point = KEY_PROVIDER_CRASH_NONE;
 
     session->isolation = txn->isolation = saved_isolation;
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);

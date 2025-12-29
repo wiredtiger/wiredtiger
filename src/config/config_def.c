@@ -4128,7 +4128,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     WT_CONF_SIZING_INITIALIZE(WT_SESSION, begin_transaction), true},
   {"WT_SESSION.checkpoint",
     "debug=(checkpoint_cleanup=false,checkpoint_crash_point=-1,"
-    "key_provider_trigger_crash_points=-1),drop=,"
+    "key_provider_trigger_crash_points=0),drop=,"
     "flush_tier=(enabled=false,force=false,sync=true,timeout=0),"
     "force=false,name=,use_timestamp=true",
     confchk_WT_SESSION_checkpoint, 6, confchk_WT_SESSION_checkpoint_jump, 21, WT_CONF_SIZING_NONE,

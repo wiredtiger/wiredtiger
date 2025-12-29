@@ -43,9 +43,9 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
     disagg_storages = gen_disagg_storages('test_key_provider_disagg02', disagg_only = True)
 
     crash_points = [
-        ('crash_before_key_rotation', dict(crash_point=0)),
-        ('crash_during_key_rotation', dict(crash_point=1)),
-        ('crash_after_key_rotation', dict(crash_point=2)),
+        ('crash_before_key_rotation', dict(crash_point=1)),
+        ('crash_during_key_rotation', dict(crash_point=2)),
+        ('crash_after_key_rotation', dict(crash_point=3)),
     ]
 
     scenarios = make_scenarios(disagg_storages, crash_points)
@@ -71,32 +71,40 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Initiate checkpoint to trigger key provider semantics.
         self.session.checkpoint()
-        self.write_meta_file()
+        self.sqlite_fetch_shared_meta(write=True)
 
         # Trigger again and crash.
         self.session.checkpoint(f"debug=(key_provider_trigger_crash_points={self.crash_point})") # Expected to fail
 
-    # Verify results of metadata file. After a crash, the key provider should be the same unless checkpoint completes.
+    # Verify results of metadata file. After a crash, the key provider information should be the same.
     def validate_persist_meta_file(self, new_home_dir):
-        self.sqlite_meta_cursor.execute("SELECT * FROM pages ORDER BY lsn DESC LIMIT 1")
-        result = self.sqlite_meta_cursor.fetchone()
-        m = re.search("(.*page_id=\d+,lsn=\d+.*version=\d+.*)", result[-1].decode("utf-8"))
-        self.assertTrue(m)
+        after_crash_meta = self.sqlite_fetch_shared_meta(write=False)
+        pattern = (
+            r"page_id=(?P<page_id>\d+),"
+            r"lsn=(?P<lsn>\d+).*"
+            r"version=(?P<version>\d+)"
+        )
+        after_crash_match = re.search(pattern, after_crash_meta)
+        self.assertTrue(after_crash_match)
 
         result_file = os.path.join(new_home_dir, "key_provider.results")
         with open(result_file, "r") as f:
-            self.assertEqual(f.read(), m.group(1))
+            before_crash_meta  = f.read()
+            before_crash_match = re.search(pattern, before_crash_meta)
+            self.assertEqual(before_crash_match.group("page_id"), after_crash_match.group("page_id"))
+            self.assertEqual(before_crash_match.group("lsn"), after_crash_match.group("lsn"))
+            self.assertEqual(before_crash_match.group("version"), after_crash_match.group("version"))
 
-    # Write out the latest key provider information for validation after crash/restart.
-    def write_meta_file(self):
+    # Fetch the latest meta information and read/write for validation.
+    def sqlite_fetch_shared_meta(self, write):
         self.sqlite_meta_cursor.execute("SELECT * FROM pages ORDER BY lsn DESC LIMIT 1")
         result = self.sqlite_meta_cursor.fetchone()
-        m = re.search("(.*page_id=\d+,lsn=\d+.*version=\d+.*)", result[-1].decode("utf-8"))
 
-        self.assertTrue(m)
         result_file = os.path.join(self.home, "key_provider.results")
-        with open(result_file, "w") as f:
-            f.write(str(m.group(1)))
+        if (write):
+            with open(result_file, "w") as f:
+                f.write(result[-1].decode("utf-8"))
+        return result[-1].decode("utf-8")
 
 
     def test_key_provider_disagg02(self):

@@ -32,8 +32,8 @@ struct __wt_ckpt_session {
     /* Key provider crash. */
     int key_provider_crash_point; /* Crash points during key provider process */
     enum {
-
-        KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION = 0,
+        KEY_PROVIDER_CRASH_NONE = 0,
+        KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION,
         KEY_PROVIDER_CRASH_DURING_KEY_ROTATION,
         KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION,
         KEY_PROVIDER_CRASH_ENUM_END

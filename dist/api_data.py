@@ -2088,8 +2088,8 @@ methods = {
             checkpoint, while higher values will result in crashes in the final phase of the
             checkpoint process''',
             type='int'),
-        Config('key_provider_trigger_crash_points', '-1', r'''
-            non-negative number between 0 and 3 will trigger a controlled crash during the
+        Config('key_provider_trigger_crash_points', '0', r'''
+            non-negative number between 1 and 3 will trigger a controlled crash during the
             key provider process. A lower value would trigger crashes in the initial phase of
             key provider, while a higher value would result in crashes in a later phase.''',
             type='int'),
