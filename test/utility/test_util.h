@@ -85,7 +85,7 @@ extern "C" {
     "\"%s/ext/page_log/%s/libwiredtiger_%s.so\"=("                                       \
     "config=(home=\"%s\",delay_ms=%" PRIu64 ",error_ms=%" PRIu64 ",force_delay=%" PRIu64 \
     ",force_error=%" PRIu64 ",cache_size_mb=%" PRIu64 ",verbose=%" PRIu32 "))"
-#define TESTUTIL_ENV_CONFIG_KEY_PROVIDER_EXT                       \
+#define TESTUTIL_ENV_CONFIG_KEY_PROVIDER_EXT                        \
     ",\"%s/ext/test/key_provider/libwiredtiger_key_provider.so\"=(" \
     "early_load=true,config=(key_expires=60,verbose=-1))"
 #define TESTUTIL_ENV_CONFIG_TIERED               \

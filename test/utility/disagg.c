@@ -47,7 +47,8 @@ testutil_disagg_storage_configuration(TEST_OPTS *opts, const char *home, char *d
         if (opts->disagg_key_provider) {
             testutil_snprintf(key_provider_ext_cfg, sizeof(key_provider_ext_cfg),
               TESTUTIL_ENV_CONFIG_KEY_PROVIDER_EXT, opts->build_dir);
-            testutil_strcat(ext_cfg, sizeof(ext_cfg) + sizeof(key_provider_ext_cfg), key_provider_ext_cfg);
+            testutil_strcat(
+              ext_cfg, sizeof(ext_cfg) + sizeof(key_provider_ext_cfg), key_provider_ext_cfg);
         }
 
         testutil_snprintf(disagg_cfg, disagg_cfg_size, TESTUTIL_ENV_CONFIG_DISAGG,
