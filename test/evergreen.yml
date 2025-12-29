@@ -1226,6 +1226,17 @@ functions:
         ${PREPARE_TEST_ENV}
         ../../../test/evergreen/checkpoint_stress_test.sh ${tiered|0} ${times|1} ${no_of_procs|1} "${wt_config|cache_size=100M}" "${timestamp_config|}"
 
+  "model test":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build/test/model/tools"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        ./model_test ${model_test_args}
+
   "compatibility test":
     - command: shell.exec
       params:
@@ -4417,44 +4428,36 @@ tasks:
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/test/model/tools"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-            # Check if we running in disagg mode.
-            disagg_args=""
-            if [[ "${disagg_run|false}" == "true" ]]; then
-                disagg_args="-D"
-            fi
-            echo "./model_test $disagg_args -l 2000-3000 -t 3600"
-            # Keep repeating the model test for 60 minutes
-            ./model_test $disagg_args -l 2000-3000 -t 3600
+      - func: "model test"
+        vars:
+          model_test_args: -l 2000-3000 -t 3600
+
+  - name: model-test-long-disagg
+    tags: ["model_checking"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "model test"
+        vars:
+          model_test_args: -D -l 2000-3000 -t 3600
 
   - name: model-test-long-random-config
     tags: ["model_checking"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/test/model/tools"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-            # Check if we running in disagg mode.
-            disagg_args=""
-            if [[ "${disagg_run|false}" == "true" ]]; then
-                disagg_args="-D"
-            fi
+      - func: "model test"
+        vars:
+          model_test_args: -l 100-200 -g -t 3600
 
-            # Keep repeating the model test for 60 minutes
-            ./model_test $disagg_args -l 100-200 -g -t 3600
+  - name: model-test-long-random-config-disagg
+    tags: ["model_checking"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "model test"
+        vars:
+          model_test_args: -D -l 100-200 -g -t 3600
 
   - name: model-test-long-with-coverage
     tags: ["model_checking"]
@@ -6437,6 +6440,10 @@ buildvariants:
       batchtime: 1440 # once a day
     - name: model-test-long-random-config
       batchtime: 1440 # once a day
+    - name: model-test-long-disagg
+      batchtime: 1440 # once a day
+    - name: model-test-long-random-config-disagg
+      batchtime: 1440 # once a day
     - name: csuite-long-running
       batchtime: 1440 # once a day
     - name: live-restore-long
@@ -6469,6 +6476,10 @@ buildvariants:
     - name: model-test-long
       batchtime: 1440 # once a day
     - name: model-test-long-random-config
+      batchtime: 1440 # once a day
+    - name: model-test-long-disagg
+      batchtime: 1440 # once a day
+    - name: model-test-long-random-config-disagg
       batchtime: 1440 # once a day
     - name: live-restore-long
     - name: ".stress-test-asan"
@@ -6888,6 +6899,10 @@ buildvariants:
     - name: model-test-long-random-config
       batchtime: 1440 # once a day
     - name: model-unit-test
+    - name: model-test-long-disagg
+      batchtime: 1440 # once a day
+    - name: model-test-long-random-config-disagg
+      batchtime: 1440 # once a day
     - name: s3-tiered-storage-extensions-test
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
@@ -7293,6 +7308,10 @@ buildvariants:
     - name: model-test-long-random-config
       batchtime: 1440 # once a day
     - name: model-unit-test
+    - name: model-test-long-disagg
+      batchtime: 1440 # once a day
+    - name: model-test-long-random-config-disagg
+      batchtime: 1440 # once a day
     - name: s3-tiered-storage-extensions-test
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
@@ -7368,6 +7387,10 @@ buildvariants:
     - name: model-test-long
       batchtime: 1440 # once a day
     - name: model-test-long-random-config
+      batchtime: 1440 # once a day
+    - name: model-test-long-disagg
+      batchtime: 1440 # once a day
+    - name: model-test-long-random-config-disagg
       batchtime: 1440 # once a day
     - name: live-restore-long
     - name: ".stress-test-asan"
@@ -7507,8 +7530,6 @@ buildvariants:
   tasks:
     - name: compile
     - name: ".stress-test-disagg-fail"
-    - name: model-test-long
-    - name: model-test-long-random-config
 
 - name: amazon2023-disagg-asan-stress
   display_name: "[Failure Expected] (ARMV9) Amazon 2023 ASAN Disagg Stress tests"
