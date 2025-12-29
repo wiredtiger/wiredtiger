@@ -582,7 +582,7 @@ __disagg_load_checkpoint_meta(
                   session, "checkpoint timestamp", &checkpoint_timestamp, &cfg_value));
             timestamp_found = true;
         } else if (WT_CONFIG_LIT_MATCH("key_provider", cfg_key)) {
-            /* FIXME-WT-16055 Implement KEK read path mechanism */
+            /* FIXME-WT-16055 Implement key read path mechanism */
         }
     }
     WT_ERR_NOTFOUND_OK(ret, false);
