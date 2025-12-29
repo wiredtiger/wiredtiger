@@ -982,13 +982,11 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, WT_LSN *ls
         goto err;
     }
 
-    if (!__log_checksum_match(buf, allocsize)) {
-        __wt_abort(session);
+    if (!__log_checksum_match(buf, allocsize))
         WT_ERR_MSG(session, WT_ERROR,
           "%s: System log record checksum mismatch: calculated block checksum of %#" PRIx32
           " doesn't match expected checksum of %#" PRIx32,
           fh->name, __wt_checksum(buf, allocsize), logrec->checksum);
-    }
     __wti_log_record_byteswap(logrec);
     p = WT_LOG_SKIP_HEADER(buf->data);
     end = (const uint8_t *)buf->data + allocsize;
