@@ -25,18 +25,15 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import re, os
+import re, os, sqlite3
 import wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from suite_subprocess import suite_subprocess
 from wtdataset import SimpleDataSet
-import sqlite3
-
 from wtscenario import make_scenarios
 
 # test_key_provider_disagg02.py
 #    Ensure that a crash during checkpoint will not corrupt key provider meta information.
-#
 @disagg_test_class
 class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
@@ -114,5 +111,3 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
         self.sqlite_meta_cursor = conn1.cursor()
 
         self.validate_persist_meta_file(new_home_dir)
-
-
