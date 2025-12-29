@@ -54,7 +54,7 @@ public:
         std::lock_guard<std::mutex> lg(_stat_mutex);
         std::string stat_string =
           "{\"name\":\"" + name + "\",\"value\":" + std::to_string(value) + "}";
-        _stats.push_back(stat_string);
+        _stats.emplace_back(std::move(stat_string));
     }
     void output_perf_file(const std::string &test_name);
 

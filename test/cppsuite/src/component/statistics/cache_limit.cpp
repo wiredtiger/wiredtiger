@@ -45,7 +45,7 @@ cache_limit::cache_limit(configuration &config, const std::string &name)
 void
 cache_limit::check(scoped_cursor &cursor)
 {
-    double use_percent = get_cache_value(cursor);
+    int64_t use_percent = get_value(cursor);
     if (use_percent > max) {
         const std::string error_string =
           "metrics_monitor: Cache usage exceeded during test! Limit: " + std::to_string(max) +
@@ -55,15 +55,8 @@ cache_limit::check(scoped_cursor &cursor)
         logger::log_msg(LOG_TRACE, name + " usage: " + std::to_string(use_percent));
 }
 
-/* This loses precision but the metrics monitor requires an int64_t return type. */
 int64_t
 cache_limit::get_value(scoped_cursor &cursor)
-{
-    return static_cast<int64_t>(get_cache_value(cursor));
-}
-
-double
-cache_limit::get_cache_value(scoped_cursor &cursor)
 {
     int64_t cache_bytes_image, cache_bytes_other, cache_bytes_max;
     double use_percent;
@@ -77,6 +70,6 @@ cache_limit::get_cache_value(scoped_cursor &cursor)
      */
     testutil_assert(cache_bytes_max > 0);
     use_percent = ((cache_bytes_image + cache_bytes_other + 0.0) / cache_bytes_max) * 100;
-    return use_percent;
+    return static_cast<int64_t>(use_percent);
 }
 } // namespace test_harness
