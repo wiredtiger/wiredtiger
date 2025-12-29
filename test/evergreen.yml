@@ -1863,7 +1863,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "make check directory"
         vars:
-          ctest_extra_args: -LE "long_running" ${ctest_extra_args}
+          ctest_extra_args: -LE "long_running|check_disagg" ${ctest_extra_args}
           directory: test/checkpoint
 
   - name: checkpoint-test-disagg-leader
@@ -1873,7 +1873,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "make check directory"
         vars:
-          ctest_extra_args: -L "disagg_leader"
+          ctest_extra_args: -L "check_disagg"
           directory: test/checkpoint
 
   - name: checkpoint-test-long-running
@@ -2240,7 +2240,7 @@ tasks:
       - func: "make check directory"
         vars:
           directory: test/csuite
-          ctest_extra_args: -LE "long_running|disagg" ${ctest_extra_args} -j ${num_jobs}
+          ctest_extra_args: -LE "long_running|check_disagg" ${ctest_extra_args} -j ${num_jobs}
 
   - name: csuite-timestamp-abort-test-s3
     commands:

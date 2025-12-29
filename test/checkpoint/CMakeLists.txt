@@ -47,6 +47,18 @@ define_test_variants(test_checkpoint
         test_checkpoint
 )
 
+# Define long running test variants for the checkpoint test
+# See SERVER-93028
+define_test_variants(test_checkpoint
+    VARIANTS
+        "row_server_93028_1|-t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=250MB"
+        "row_server_93028_2|-t r -W 50 -r 2 -s 1 -n 100000 -k 100000 -C cache_size=250MB"
+    LABELS
+        check
+        test_checkpoint
+        long_running
+)
+
 # Define test variants for the disagg test
 define_test_variants(test_checkpoint
     VARIANTS
@@ -66,19 +78,6 @@ define_test_variants(test_checkpoint
         # FIXME-WT-16228: Re-evaluate whether setting large cache size is need after cache stuck issue is solved.
         "disagg_leader_row_server_93028|-d leader -e -t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=1500MB"
     LABELS
-        check
-        disagg_leader
+        check_disagg
         test_checkpoint
-)
-
-# Define long running test variants for the checkpoint test
-# See SERVER-93028
-define_test_variants(test_checkpoint
-    VARIANTS
-        "row_server_93028_1|-t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=250MB"
-        "row_server_93028_2|-t r -W 50 -r 2 -s 1 -n 100000 -k 100000 -C cache_size=250MB"
-    LABELS
-        check
-        test_checkpoint
-        long_running
 )
