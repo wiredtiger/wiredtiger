@@ -63,6 +63,7 @@ define_test_variants(test_checkpoint
 define_test_variants(test_checkpoint
     VARIANTS
         "disagg_leader_6_row|-d leader -e -t r -T 6 -x"
+        # FIXME-WT-16228: Re-evaluate whether setting large cache size is needed after PALI.
         "disagg_leader_6_row_long_running|-d leader -e -t r -W 3 -x -n 1000000 -k 1000000 -C cache_size=4000MB"
         # Prepare operations is not supported on Disagg yet.
         #"disagg_6_row_prepare|-d leader -e -t r -T 6 -p -x"
@@ -75,7 +76,7 @@ define_test_variants(test_checkpoint
         "disagg_leader_row_failpoint_eviction_split|-d leader -e -t r -W 3 -r 2 -s 7 -x -n 100000 -k 100000"
         "disagg_leader_row_failpoint_rec_before_wrapup|-d leader -e -t r -W 3 -r 2 -s 8 -x -n 100000 -k 100000"
 
-        # FIXME-WT-16228: Re-evaluate whether setting large cache size is need after cache stuck issue is solved.
+        # FIXME-WT-16228: Re-evaluate whether setting large cache size is needed after PALI.
         "disagg_leader_row_server_93028|-d leader -e -t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=1500MB"
     LABELS
         check_disagg
