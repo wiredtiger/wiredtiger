@@ -1045,9 +1045,8 @@ err:
 /*
  * __txn_resolve_prepared_update_chain --
  *     Helper for resolving updates. Recursively visit the update chain and resolve the updates on
- *     the way back out, so older updates are resolved first. This ensures that a reconciliation
- *     racing with us will always see the newest update from the prepared transaction if any updates
- *     are still unresolved.
+ *     the way back out, so older updates are resolved first; this avoids a race with reconciliation
+ *     (see WT-6778).
  */
 static void
 __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool commit)
@@ -2601,7 +2600,7 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
 
 #ifndef WT_STANDALONE_BUILD
     /*
-     * FIXME-WT-15823
+     * FIXME: SERVER-44870
      *
      * MongoDB can't (yet) handle rolling back read only transactions. For this reason, don't check
      * unless there's at least one update or we're configured to time out thread operations (a way
