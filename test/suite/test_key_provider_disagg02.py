@@ -100,6 +100,9 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
 
 
     def test_key_provider_disagg02(self):
+        if (self.ds_name != "palite"):
+            self.skipTest("Must use PALite to verify contents")
+
         self.conn.close()
 
         # Ensure that metadata file doesn't update key provider after crash.
