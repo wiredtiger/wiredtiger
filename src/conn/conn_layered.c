@@ -34,7 +34,7 @@ static int __disagg_save_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *interna
   size_t *metadata_value_cfg_lenp);
 static int __disagg_load_checkpoint_meta(WT_SESSION_IMPL *session, char *meta_buf,
   char **metadata_valuep, uint64_t *checkpoint_timestampp);
-static int __disagg_process_checkpoint(WT_SESSION_IMPL *session,
+static int __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session,
   const WT_DISAGG_CHECKPOINT_META *ckpt_meta, WT_SESSION_IMPL *internal_session,
   WT_CURSOR *md_cursor, char **metadata_value_cfgp, size_t *metadata_value_cfg_lenp);
 static int __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session,
@@ -496,11 +496,11 @@ err:
 }
 
 /*
- * __disagg_read_meta --
+ * __disagg_fetch_shared_meta --
  *     Fetch the checkpoint metadata page, validate it, and return a zero-terminated buffer copy.
  */
 static int
-__disagg_read_meta(
+__disagg_fetch_shared_meta(
   WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta, char **bufp)
 {
     WT_DECL_RET;
@@ -568,12 +568,13 @@ __disagg_load_checkpoint_meta(
           "Disaggregated checkpoint metadata item \"%.*s\"=\"%.*s\"", (int)cfg_key.len, cfg_key.str,
           (int)cfg_value.len, cfg_value.str);
         if (WT_CONFIG_LIT_MATCH("checkpoint", cfg_key)) {
-            if (checkpoint_found)
-                WT_ERR_MSG(
-                  session, EINVAL, "Duplicate checkpoint entry in disaggregated storage metadata");
+            WT_ASSERT_ALWAYS(session, !checkpoint_found,
+              "Duplicate checkpoint entry in disaggregated storage metadata");
             WT_ERR(__wt_strndup(session, cfg_value.str, cfg_value.len, &metadata_value));
             checkpoint_found = true;
         } else if (WT_CONFIG_LIT_MATCH("timestamp", cfg_key)) {
+            WT_ASSERT_ALWAYS(session, !timestamp_found,
+              "Duplicate timestamp entry in disaggregated storage metadata");
             if (cfg_value.len > 0 && cfg_value.val == 0)
                 checkpoint_timestamp = WT_TS_NONE;
             else
@@ -581,7 +582,7 @@ __disagg_load_checkpoint_meta(
                   session, "checkpoint timestamp", &checkpoint_timestamp, &cfg_value));
             timestamp_found = true;
         } else if (WT_CONFIG_LIT_MATCH("key_provider", cfg_key)) {
-            /* Logged above; no additional action required yet. */
+            /* FIXME-WT-16055 Implement KEK read path mechanism */
         }
     }
     WT_ERR_NOTFOUND_OK(ret, false);
@@ -649,11 +650,11 @@ err:
 }
 
 /*
- * __disagg_process_checkpoint --
+ * __disagg_apply_checkpoint_meta --
  *     Process the metadata entries stored in the shared metadata table for a new checkpoint.
  */
 static int
-__disagg_process_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
+__disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
   WT_SESSION_IMPL *internal_session, WT_CURSOR *md_cursor, char **metadata_value_cfgp,
   size_t *metadata_value_cfg_lenp)
 {
@@ -886,7 +887,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      * Part 1: Get the metadata of the shared metadata table and insert it into our metadata table.
      */
 
-    WT_ERR(__disagg_read_meta(session, ckpt_meta, &buf));
+    WT_ERR(__disagg_fetch_shared_meta(session, ckpt_meta, &buf));
     WT_ERR(__disagg_load_checkpoint_meta(session, buf, &metadata_value, &checkpoint_timestamp));
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
@@ -906,10 +907,10 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       &metadata_value_cfg, &metadata_value_cfg_len));
 
     /*
-     * Part 2: Get the metadata for other tables from the shared metadata table.
+     * Part 2: Apply the metadata for other tables from the shared metadata table.
      */
 
-    WT_ERR(__disagg_process_checkpoint(session, ckpt_meta, internal_session, md_cursor,
+    WT_ERR(__disagg_apply_checkpoint_meta(session, ckpt_meta, internal_session, md_cursor,
       &metadata_value_cfg, &metadata_value_cfg_len));
 
     /*
