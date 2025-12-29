@@ -351,6 +351,9 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
+    if (session->ckpt.key_provider_crash_point == KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION)
+        __wt_debug_crash(session);
+
     /* Check for a new encryption key data. If the size is 0, there is none so we can skip. */
     WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
     if (crypt.keys.size == 0)
@@ -381,6 +384,9 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     /* Write the encryption key data to disaggregated storage. */
     ret = __disagg_put_crypt_key(session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, &crypt.keys, &lsn);
 
+    if (session->ckpt.key_provider_crash_point == KEY_PROVIDER_CRASH_DURING_KEY_ROTATION)
+        __wt_debug_crash(session);
+
     /* Callback to update key provider on the result of new encryption key data . */
     if (ret == 0) {
         /* Point to the same encryption data on callback. */
@@ -394,6 +400,9 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
         crypt.keys.size = 0;
     }
     WT_IGNORE_RET(key_provider->on_key_update(key_provider, (WT_SESSION *)session, &crypt));
+
+    if (session->ckpt.key_provider_crash_point == KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION)
+        __wt_debug_crash(session);
 done:
 err:
     __wt_scr_free(session, &buf);
