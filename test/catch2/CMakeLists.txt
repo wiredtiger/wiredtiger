@@ -9,6 +9,7 @@ else()
         misc_tests/test_bitmap.cpp
         misc_tests/test_cell_prepared_time_window.cpp
         misc_tests/test_crc32.cpp
+        misc_tests/test_disagg.cpp
         misc_tests/test_error.cpp
         misc_tests/test_futex.cpp
         misc_tests/test_intpack.cpp
