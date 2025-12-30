@@ -45,6 +45,7 @@ from helper import WiredTigerStat, WiredTigerCursor
 # reusability percentages are not meaningful in that environment
 
 @wttest.skip_for_hook("disagg", "Block size only works for ASC mode")
+@wttest.skip_for_hook("tiered", "Block size only works for ASC mode")
 class test_stat14(wttest.WiredTigerTestCase):
     uri = 'table:test_stat14'
 
