@@ -1142,7 +1142,9 @@ __checkpoint_block_reusable_stats(WT_SESSION_IMPL *session, const char *cfg[])
     WT_UNUSED(cfg);
 
     btree = S2BT(session);
-    bm = btree->bm;
+
+    if ((bm = btree->bm) == NULL)
+        return (0);
 
     /* Only check file size over 100MB. */
     if (bm->block->size < 100 * WT_MILLION)
