@@ -698,11 +698,12 @@ __checkpoint_timer_stats_set(WTI_CKPT_TIMER *timer, uint64_t msec)
  * __checkpoint_stats --
  *     Update checkpoint timer stats.
  */
-static void
+static int
 __checkpoint_stats(WT_SESSION_IMPL *session)
 {
     struct timespec stop;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     uint64_t msec;
 
     conn = S2C(session);
@@ -730,8 +731,10 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
      * does not apply.
      */
     if (!__wt_conn_is_disagg(session))
-        WT_IGNORE_RET(
+        WT_TRET(
           __wt_conn_btree_apply(session, NULL, __checkpoint_block_reusable_stats, NULL, NULL));
+
+    return (ret);
 }
 
 /*
@@ -1605,7 +1608,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      */
     __wt_atomic_store_uint64_v_relaxed(&txn_global->checkpoint_txn_shared.pinned_id, WT_TXN_NONE);
 
-    __checkpoint_stats(session);
+    WT_ERR(__checkpoint_stats(session));
 
     /*
      * If timestamps defined the checkpoint's content, set the saved last checkpoint timestamp,
