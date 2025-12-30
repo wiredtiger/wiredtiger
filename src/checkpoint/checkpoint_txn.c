@@ -703,7 +703,6 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
 {
     struct timespec stop;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
     uint64_t msec;
 
     conn = S2C(session);
@@ -731,10 +730,9 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
      * does not apply.
      */
     if (!__wt_conn_is_disagg(session))
-        WT_TRET(
-          __wt_conn_btree_apply(session, NULL, __checkpoint_block_reusable_stats, NULL, NULL));
+        WT_RET(__wt_conn_btree_apply(session, NULL, __checkpoint_block_reusable_stats, NULL, NULL));
 
-    return (ret);
+    return (0);
 }
 
 /*
