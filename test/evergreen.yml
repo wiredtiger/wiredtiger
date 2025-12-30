@@ -1521,7 +1521,7 @@ variables:
       - name: make-check-test
       # Use a special version of unit-test for macOS that checks for Python version consistency.
       - name: unit-test-macos
-      - name: unit-test-disagg-leader-macos
+      - name: unit-test-hook-disagg-leader-macos
       - name: fops
       - name: memory-model-test-mac
         batchtime: 40320 # 28 days
@@ -2368,7 +2368,7 @@ tasks:
       - func: "python config check"
       - func: "unit test"
 
-  - name: unit-test-disagg-leader-macos
+  - name: unit-test-hook-disagg-leader-macos
     tags: ["python"]
     depends_on:
       - name: compile
@@ -2403,7 +2403,7 @@ tasks:
         vars:
           unit_test_args: -v 2 --extra-long
 
-  - name: unit-test-disagg-leader-extra-long
+  - name: unit-test-hook-disagg-leader-extra-long
     tags: ["python"]
     depends_on:
     - name: compile
@@ -6464,7 +6464,7 @@ buildvariants:
       distros: ubuntu2004-large
     - name: unit-test-extra-long
       distros: ubuntu2004-large
-    - name: unit-test-disagg-leader-extra-long
+    - name: unit-test-hook-disagg-leader-extra-long
       distros: ubuntu2004-large
     - name: static-wt-build-test
     - name: format-mirror-test
@@ -6807,7 +6807,7 @@ buildvariants:
     - name: unit-test-zstd
     - name: unit-test-extra-long
       distros: rhel80-large
-    - name: unit-test-disagg-leader-extra-long
+    - name: unit-test-hook-disagg-leader-extra-long
       distros: rhel80-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
@@ -6957,7 +6957,7 @@ buildvariants:
     - name: unit-test-palm
     - name: unit-test-extra-long
       distros: ubuntu2004-arm64-large
-    - name: unit-test-disagg-leader-extra-long
+    - name: unit-test-hook-disagg-leader-extra-long
       distros: ubuntu2004-arm64-large
     - name: unit-test-zstd
     - name: wtperf-test
@@ -7004,7 +7004,7 @@ buildvariants:
     - name: unit-test
     - name: unit-test-extra-long
       distros: amazon2-arm64-large
-    - name: unit-test-disagg-leader-extra-long
+    - name: unit-test-hook-disagg-leader-extra-long
       distros: amazon2-arm64-large
     - name: unit-test-hook-timing-stress-log
     - name: unit-test-zstd
@@ -7127,7 +7127,7 @@ buildvariants:
     - name: make-check-test
     - name: unit-test-extra-long
       distros: ubuntu2004-large
-    - name: unit-test-disagg-leader-extra-long
+    - name: unit-test-hook-disagg-leader-extra-long
       distros: ubuntu2004-large
     - name: ".data-validation-stress-test"
 
@@ -7194,7 +7194,7 @@ buildvariants:
     - name: unit-test
       distros: ubuntu2004-arm64-small
     - name: unit-test-extra-long
-    - name: unit-test-disagg-leader-extra-long
+    - name: unit-test-hook-disagg-leader-extra-long
     - name: ".stress-test-1"
     - name: ".stress-test-2"
     - name: ".stress-test-3"
@@ -7229,7 +7229,7 @@ buildvariants:
     - name: unit-test
     - name: unit-test-extra-long
       distros: ubuntu2004-arm64-large
-    - name: unit-test-disagg-leader-extra-long
+    - name: unit-test-hook-disagg-leader-extra-long
       distros: ubuntu2004-arm64-large
 
 - name: amazon2-arm64-nonstandalone
@@ -7251,7 +7251,7 @@ buildvariants:
     - name: unit-test
     - name: unit-test-extra-long
       distros: amazon2-arm64-large
-    - name: unit-test-disagg-leader-extra-long
+    - name: unit-test-hook-disagg-leader-extra-long
       distros: amazon2-arm64-large
 
 - name: amazon2023-armv9-release-nonstandalone
@@ -7278,7 +7278,7 @@ buildvariants:
     - name: unit-test
     - name: unit-test-extra-long
       distros: amazon2023-arm64-latest-large-m8g
-    - name: unit-test-disagg-leader-extra-long
+    - name: unit-test-hook-disagg-leader-extra-long
       distros: amazon2023-arm64-latest-large-m8g
 
 - name: amazon2023-armv9-nonstandalone
@@ -7298,7 +7298,7 @@ buildvariants:
     - name: unit-test
       distros: amazon2023-arm64-latest-small-m8g
     - name: unit-test-extra-long
-    - name: unit-test-disagg-leader-extra-long
+    - name: unit-test-hook-disagg-leader-extra-long
     - name: ".stress-test-1"
     - name: ".stress-test-2"
     - name: ".stress-test-3"
@@ -7376,7 +7376,7 @@ buildvariants:
     - name: unit-test-palm
     - name: unit-test-extra-long
       distros: amazon2023-arm64-latest-large-m8g
-    - name: unit-test-disagg-leader-extra-long
+    - name: unit-test-hook-disagg-leader-extra-long
       distros: amazon2023-arm64-latest-large-m8g
     - name: unit-test-zstd
     - name: wtperf-test
