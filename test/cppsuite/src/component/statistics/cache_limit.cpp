@@ -63,7 +63,7 @@ cache_limit::get_value(scoped_cursor &cursor)
     cache_bytes_image = metrics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_IMAGE);
     cache_bytes_other = metrics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_OTHER);
     cache_bytes_max = metrics_monitor::get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_MAX);
-    testutil_assert(cache_bytes_image + cache_bytes_other < INT64_MAX / 100);
+    testutil_assert((cache_bytes_image + cache_bytes_other) * 100 < INT64_MAX);
     /* Assert that we never exceed our configured limit for cache usage. */
     testutil_assert(cache_bytes_max > 0);
     return (cache_bytes_image + cache_bytes_other) * 100 / cache_bytes_max;
