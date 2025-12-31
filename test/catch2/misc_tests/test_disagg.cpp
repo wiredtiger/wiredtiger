@@ -60,8 +60,7 @@ struct disagg_fixture {
     connection_wrapper conn;
     WT_SESSION_IMPL *session = nullptr;
 
-    disagg_fixture()
-        : conn(DB_HOME, "create,in_memory")
+    disagg_fixture() : conn(DB_HOME, "create,in_memory")
     {
         session = conn.create_session();
         REQUIRE(session != nullptr);
