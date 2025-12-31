@@ -524,7 +524,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
 
         WT_ERR(__wt_buf_catfmt(session, metadata_buf,
           ",\n"
-          "key_provider=((page.1=(page_id=%d,lsn=%" PRIu64 ")),version=1)",
+          "key_provider=(page.1=(page_id=%d,lsn=%" PRIu64 "),version=1)",
           WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID,
           conn->disaggregated_storage
             .last_key_provider_page_lsn[WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID]));
