@@ -25,12 +25,10 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import re
-import wttest
+import re, wttest, subprocess
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from helper import simulate_crash_restart
 from wtdataset import SimpleDataSet
-import sqlite3
 
 from wtscenario import make_scenarios
 
@@ -58,8 +56,6 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
     disagg_storages = gen_disagg_storages('test_layered17', disagg_only = True)
     scenarios = make_scenarios(disagg_storages, key_rotate, crash_value)
 
-    sqlite_meta_cursor = None
-    sqlite_key_provider_cursor = None
     nentries = 1000
     current_lsn = 0
 
@@ -74,21 +70,28 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
         extlist.extension('test', "key_provider" + config)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def validate_number_elements(self):
-        self.sqlite_meta_cursor.execute("SELECT COUNT(*) FROM pages")
-        (meta_count,) = self.sqlite_meta_cursor.fetchone()
+    # Fetch the latest meta information and read/write for validation.
+    def sqlite_fetch_information(self, database, sql_command):
+        result = subprocess.run(
+            ["sqlite3", f"./kv_home/{database}", sql_command],
+            capture_output=True,
+            text=True
+        )
+        return result.stdout.strip()
 
-        self.sqlite_key_provider_cursor.execute("SELECT COUNT(*) FROM pages")
-        (key_provider_count,) = self.sqlite_key_provider_cursor.fetchone()
+    def validate_number_elements(self):
+        shared_meta_count = self.sqlite_fetch_information("pages_000001.db", "SELECT COUNT(*) FROM pages")
+        key_provider_count = self.sqlite_fetch_information("pages_000002.db", "SELECT COUNT(*) FROM pages")
+
         if (self.key_expire == 0):
-            self.assertEqual(key_provider_count, meta_count)
+            self.assertEqual(key_provider_count, shared_meta_count)
         else:
-            self.assertGreaterEqual(key_provider_count, meta_count)
+            self.assertGreaterEqual(key_provider_count, shared_meta_count)
 
     def validate_meta_file(self):
-        self.sqlite_meta_cursor.execute("SELECT * FROM pages ORDER BY lsn DESC LIMIT 1")
-        result = self.sqlite_meta_cursor.fetchone()
-        m = re.search(".*page_id=(\d+),lsn=(\d+).*version=(\d+)", result[-1].decode("utf-8"))
+        result = self.sqlite_fetch_information("pages_000001.db", "SELECT * FROM pages ORDER BY lsn DESC LIMIT 1;")
+        last_column = result.split('|')[-1]
+        m = re.search(".*page_id=(\d+),lsn=(\d+).*version=(\d+)", last_column)
 
         self.assertTrue(m)
         if (m):
@@ -105,14 +108,6 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
     def test_key_provider_disagg01(self):
         if (self.ds_name != "palite"):
             self.skipTest("Must use PALite to verify contents")
-
-        # Open turtle metadata sqlite database
-        conn1 = sqlite3.connect("kv_home/pages_000001.db")
-        self.sqlite_meta_cursor = conn1.cursor()
-
-        # Open key provider sqlite database
-        conn2 = sqlite3.connect("kv_home/pages_000002.db")
-        self.sqlite_key_provider_cursor = conn2.cursor()
 
         # Populate table.
         ds = SimpleDataSet(self, self.uri, self.nentries)
