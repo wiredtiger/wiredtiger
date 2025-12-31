@@ -107,7 +107,6 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
                 f.write(last_column)
         return last_column
 
-
     def test_key_provider_disagg02(self):
         if (self.ds_name != "palite"):
             self.skipTest("Must use PALite to verify contents")
