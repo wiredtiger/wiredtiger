@@ -1595,7 +1595,7 @@ extern int __wti_tiered_put_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered, u
   uint64_t generation) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_tiered_put_remove_shared(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_tiered_storage_create(WT_SESSION_IMPL *session)
+extern int __wti_tiered_storage_create(WT_SESSION_IMPL *session, bool disagg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_tiered_storage_destroy(WT_SESSION_IMPL *session, bool final_flush)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
