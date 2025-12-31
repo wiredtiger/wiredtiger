@@ -597,13 +597,9 @@ main(int argc, char *argv[])
     logger::log_msg(LOG_INFO, "Retrieving statistics.");
     scoped_session stat_session = connection_manager::instance().create_session();
     scoped_cursor stat_cursor = stat_session.open_scoped_cursor("statistics:");
-    int64_t step_up_time = 0;
-    metrics_monitor::get_stat(stat_cursor, WT_STAT_CONN_DISAGG_STEP_UP_TIME, &step_up_time);
-
+    int64_t step_up_time = metrics_monitor::get_stat(stat_cursor, WT_STAT_CONN_DISAGG_STEP_UP_TIME);
     /* Add the statistics to metrics_writer and output to JSON file. */
-    std::string stat_json =
-      "{\"name\":\"disagg_step_up_time\",\"value\":" + std::to_string(step_up_time) + "}";
-    metrics_writer::instance().add_stat(stat_json);
+    metrics_writer::instance().add_stat("disagg_step_up_time", step_up_time);
     metrics_writer::instance().output_perf_file(progname);
     logger::log_msg(LOG_INFO, "Statistics written to " + progname + ".json");
 
