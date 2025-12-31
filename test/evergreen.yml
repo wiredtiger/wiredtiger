@@ -2288,8 +2288,8 @@ tasks:
       - func: "fetch artifacts"
       - func: "disagg failover perf test"
         vars:
-          # Ingest 3.2GB of data into 10 1GB tables using append operations, keys are 10 bytes long
-          # and values 1014 bytes. Cache size is 32GB.
+          # Ingest 3.2GB of data into 10 1GB tables using append operations, keys are 10 bytes and
+          # values 1014 bytes. Cache size is 32GB.
           test_args: "-c 10 -k 1000000 -i 3200 -S append -g 32 -s 10 -v 1014 -V 1"
 
   - name: cppsuite-disagg-failover-perf-updates
@@ -2300,8 +2300,8 @@ tasks:
       - func: "fetch artifacts"
       - func: "disagg failover perf test"
         vars:
-          # Ingest 3.2GB of data into 10 1GB tables using append operations, keys are 10 bytes long
-          # and values 1014 bytes. Cache size is 32GB.
+          # Ingest 3.2GB of data into 10 1GB tables using update operations, keys are 10 bytes and
+          # values 1014 bytes. Cache size is 32GB.
           test_args: "-c 10 -k 1000000 -i 3200 -S updates -g 32 -s 10 -v 1014 -V 1"
 
   # End of cppsuite test tasks.
