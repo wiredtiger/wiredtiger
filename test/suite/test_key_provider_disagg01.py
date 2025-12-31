@@ -70,7 +70,7 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
         extlist.extension('test', "key_provider" + config)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    # Fetch the latest meta information and read/write for validation.
+    # Use sqlite to grab information for read/write validation.
     def sqlite_fetch_information(self, database, sql_command):
         result = subprocess.run(
             ["sqlite3", f"./kv_home/{database}", sql_command],
@@ -132,6 +132,3 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
             self.reopen_conn()
         self.validate_meta_file()
         self.validate_number_elements()
-
-
-
