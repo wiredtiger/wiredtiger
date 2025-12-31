@@ -25,7 +25,8 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import re, wttest, subprocess
+import re, os, wttest, subprocess
+from run import wt_builddir
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from helper import simulate_crash_restart
 from wtdataset import SimpleDataSet
@@ -70,10 +71,12 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
         extlist.extension('test', "key_provider" + config)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    # Use sqlite to grab information for read/write validation.
+    # Use sqlite to grab information for read/write validation. Use the built‑in sqlite3 to 
+    # match Palite’s SQLite version; some system SQLite builds are too old and may fail.
     def sqlite_fetch_information(self, database, sql_command):
+        sqlite_exe = os.path.join(wt_builddir, "sqlite3")
         result = subprocess.run(
-            ["sqlite3", f"./kv_home/{database}", sql_command],
+            [sqlite_exe, f"./kv_home/{database}", sql_command],
             capture_output=True,
             text=True
         )

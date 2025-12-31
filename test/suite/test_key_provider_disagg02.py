@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 import re, os, subprocess
 import wttest
+from run import wt_builddir
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from suite_subprocess import suite_subprocess
 from wtdataset import SimpleDataSet
@@ -91,10 +92,12 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
             self.assertEqual(before_crash_match.group("lsn"), after_crash_match.group("lsn"))
             self.assertEqual(before_crash_match.group("version"), after_crash_match.group("version"))
 
-    # Fetch the latest meta information and read/write for validation.
+    # Fetch the latest metadata and perform read/write validation. Use the built‑in sqlite3 to 
+    # match Palite’s SQLite version; some system SQLite builds are too old and may fail.
     def sqlite_fetch_shared_meta(self, write):
+        sqlite_exe = os.path.join(wt_builddir, "sqlite3")
         result = subprocess.run(
-            ["sqlite3", f"{self.dir}/kv_home/pages_000001.db", "SELECT * FROM pages ORDER BY lsn DESC LIMIT 1;"],
+            [sqlite_exe, f"{self.dir}/kv_home/pages_000001.db", "SELECT * FROM pages ORDER BY lsn DESC LIMIT 1;"],
             capture_output=True,
             text=True
         )
