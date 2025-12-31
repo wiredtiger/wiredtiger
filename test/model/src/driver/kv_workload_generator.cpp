@@ -594,7 +594,11 @@ kv_workload_generator::run()
 
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::checkpoint_crash);
-                uint64_t random_number = _random.next_uint64(1000);
+                /* 
+                 * We want to trigger crash points during middle of checkpoint and special crash
+                 * points around metadata sync.
+                 */
+                uint64_t random_number = _random.next_uint64(1002);
                 *p << operation::checkpoint_crash(random_number);
                 _sequences.push_back(std::move(p));
 
