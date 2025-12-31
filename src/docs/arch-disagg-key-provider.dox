@@ -1,12 +1,12 @@
 /*! @arch_page arch-disagg-key-provider Key Provider
 The WiredTiger key provider extension gives users a mechanism to persist custom metadata.
 Use this API when your application needs to store durable metadata outside of standard WiredTiger tables.
-A common example is persisting encryption‑key metadata. The key provider extension is strictly used 
+A common example is persisting encryption‑key metadata. The key provider extension is strictly used
 with Disaggregated Storage Clusters (DSC).
 
 The key provider extension operates passively. It does not decide when data is persisted.
 WiredTiger persists metadata only during checkpoint operations. When a checkpoint occurs,
-WiredTiger writes the metadata to a special table named key provider and keeps the 
+WiredTiger writes the metadata to a special table named key provider and keeps the
 reference inside the shared metadata table.
 
 Only the leader node can run checkpoints and write to the key provider table.
