@@ -92,8 +92,8 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
             self.assertEqual(before_crash_match.group("lsn"), after_crash_match.group("lsn"))
             self.assertEqual(before_crash_match.group("version"), after_crash_match.group("version"))
 
-    # Fetch the latest metadata and perform read/write validation. Use the built‑in sqlite3 to 
-    # match Palite’s SQLite version; some system SQLite builds are too old and may fail.
+    # Fetch the latest metadata and perform read/write validation. Use the builtin sqlite3 to
+    # match Palites SQLite version; some system SQLite builds are too old and may fail.
     def sqlite_fetch_shared_meta(self, write):
         sqlite_exe = os.path.join(wt_builddir, "sqlite3")
         result = subprocess.run(

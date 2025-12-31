@@ -71,8 +71,8 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
         extlist.extension('test', "key_provider" + config)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    # Use sqlite to grab information for read/write validation. Use the built‑in sqlite3 to 
-    # match Palite’s SQLite version; some system SQLite builds are too old and may fail.
+    # Use sqlite to grab information for read/write validation. Use the builtin sqlite3 to
+    # match Palites SQLite version; some system SQLite builds are too old and may fail.
     def sqlite_fetch_information(self, database, sql_command):
         sqlite_exe = os.path.join(wt_builddir, "sqlite3")
         result = subprocess.run(
