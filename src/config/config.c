@@ -8,84 +8,6 @@
 
 #include "wt_internal.h"
 
-/* !!!
- * __config_parse_dec --
- *     Parse a decimal number from a string up to a specified length.
- *
- *     Return value:
- *      - If successful, an integer value corresponding to the contents of str is returned.
- *      - If the converted value falls out of range, a range error occurs (setting errno to ERANGE)
- *          and INT64_MAX or INT64_MIN is returned.
- *      - If no conversion can be performed, 0 is returned.
- */
-static int64_t
-__config_parse_dec(const char *str, size_t len, char **endptr)
-{
-    const char *cur = str;
-    const char *end = str + len;
-    bool neg = false;
-
-    /*
-     * Skip leading spaces and pick up optional sign.
-     */
-    while (cur < end && __wt_isspace((u_char)*cur))
-        ++cur;
-
-    if (cur < end) {
-        if (*cur == '-') {
-            neg = true;
-            ++cur;
-        } else if (*cur == '+')
-            ++cur;
-    }
-
-    /*
-     * Calculate:
-     *  - cutoff: largest valid number without last digit,
-     *  - cutlim: last digit limit.
-     * All numbers are positive.
-     */
-    const uint64_t maxval = neg ? -(uint64_t)INT64_MIN : INT64_MAX;
-    const uint64_t cutoff = maxval / 10;
-    const int cutlim = maxval % 10;
-
-    uint64_t acc = 0;
-    int flag = 0;
-    while (cur < end) {
-        int c = *cur;
-
-        if (__wt_isdigit((u_char)c)) {
-            c -= '0';
-            ++cur;
-        } else
-            break;
-
-        if (flag < 0 || acc > cutoff || (acc == cutoff && c > cutlim)) {
-            /*
-             * Overflow or underflow. No stopping here, keep parsing to find the end of the number.
-             */
-            flag = -1;
-        } else {
-            flag = 1;
-            acc *= 10;
-            acc += (uint64_t)c;
-        }
-    }
-
-    int64_t value = 0;
-    if (flag == -1) {
-        value = neg ? INT64_MIN : INT64_MAX;
-        errno = ERANGE;
-    } else {
-        value = neg ? -(int64_t)acc : (int64_t)acc;
-    }
-
-    if (endptr != NULL)
-        *endptr = (char *)(flag != 0 ? cur : str);
-
-    return (value);
-}
-
 /*
  * __config_err --
  *     Error message and return for config string parse failures.
@@ -544,7 +466,7 @@ __config_process_value(WT_CONFIG_ITEM *value)
         }
     } else if (value->type == WT_CONFIG_ITEM_NUM) {
         errno = 0;
-        value->val = __config_parse_dec(value->str, value->len, &endptr);
+        value->val = strtoll(value->str, &endptr, 10);
 
         /*
          * If we parsed the string but the number is out of range, treat the value as an identifier.
