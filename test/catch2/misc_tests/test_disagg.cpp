@@ -61,7 +61,6 @@ struct disagg_fixture {
     WT_SESSION_IMPL *session = nullptr;
 
     disagg_fixture()
-        /* verbose = WT_VERBOSE_DEBUG_2 */
         : conn(DB_HOME, "create,in_memory")
     {
         session = conn.create_session();
