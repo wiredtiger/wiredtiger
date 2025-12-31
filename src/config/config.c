@@ -49,7 +49,7 @@ __config_parse_dec(const char *str, size_t len, char **endptr)
     const uint64_t cutoff = maxval / 10;
     const int cutlim = maxval % 10;
 
-    int64_t value = 0;
+    uint64_t acc = 0;
     int flag = 0;
     while (cur < end) {
         int c = *cur;
@@ -60,23 +60,24 @@ __config_parse_dec(const char *str, size_t len, char **endptr)
         } else
             break;
 
-        if (flag < 0 || (uint64_t)value > cutoff || ((uint64_t)value == cutoff && c > cutlim)) {
+        if (flag < 0 || acc > cutoff || (acc == cutoff && c > cutlim)) {
             /*
              * Overflow or underflow. No stopping here, keep parsing to find the end of the number.
              */
             flag = -1;
         } else {
             flag = 1;
-            value *= 10;
-            value += c;
+            acc *= 10;
+            acc += (uint64_t)c;
         }
     }
 
+    int64_t value = 0;
     if (flag == -1) {
         value = neg ? INT64_MIN : INT64_MAX;
         errno = ERANGE;
-    } else if (neg) {
-        value = -value;
+    } else {
+        value = neg ? -(int64_t)acc : (int64_t)acc;
     }
 
     if (endptr != NULL)
