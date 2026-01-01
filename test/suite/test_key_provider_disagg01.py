@@ -25,7 +25,7 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import re, os, wttest, subprocess
+import re, os, wttest, subprocess, json
 from run import wt_builddir
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from helper import simulate_crash_restart
@@ -54,7 +54,7 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
         ('key_rotate', dict(key_expire=0)) # Always perform key rotation
     ]
 
-    disagg_storages = gen_disagg_storages('test_layered17', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_key_provider_disagg01', disagg_only = True)
     scenarios = make_scenarios(disagg_storages, key_rotate, crash_value)
 
     nentries = 1000
@@ -73,28 +73,30 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
 
     # Use sqlite to grab information for read/write validation. Use the builtin sqlite3 to
     # match Palites SQLite version; some system SQLite builds are too old and may fail.
-    def sqlite_fetch_information(self, database, sql_command):
+    def sqlite_fetch_information(self, database, sql_query):
         sqlite_exe = os.path.join(wt_builddir, "sqlite3")
+        database_home = os.path.join('.', 'kv_home', database)
         result = subprocess.run(
-            [sqlite_exe, f"./kv_home/{database}", sql_command],
+            [sqlite_exe, "-json", database_home, sql_query],
             capture_output=True,
-            text=True
+            text=True,
+            check=True
         )
-        return result.stdout.strip()
+        result_data = json.loads(result.stdout)
+        return result_data[0]
 
     def validate_number_elements(self):
         shared_meta_count = self.sqlite_fetch_information("pages_000001.db", "SELECT COUNT(*) FROM pages")
         key_provider_count = self.sqlite_fetch_information("pages_000002.db", "SELECT COUNT(*) FROM pages")
 
         if (self.key_expire == 0):
-            self.assertEqual(key_provider_count, shared_meta_count)
+            self.assertEqual(key_provider_count['COUNT(*)'], shared_meta_count['COUNT(*)'])
         else:
-            self.assertGreaterEqual(key_provider_count, shared_meta_count)
+            self.assertGreaterEqual(key_provider_count['COUNT(*)'], shared_meta_count['COUNT(*)'])
 
     def validate_meta_file(self):
         result = self.sqlite_fetch_information("pages_000001.db", "SELECT * FROM pages ORDER BY lsn DESC LIMIT 1;")
-        last_column = result.split('|')[-1]
-        m = re.search(".*page_id=(\d+),lsn=(\d+).*version=(\d+)", last_column)
+        m = re.search(".*page_id=(\d+),lsn=(\d+).*version=(\d+)", result['page_data'])
 
         self.assertTrue(m)
         if (m):

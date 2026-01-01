@@ -25,7 +25,7 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import re, os, subprocess
+import re, os, subprocess, json
 import wttest
 from run import wt_builddir
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
@@ -96,19 +96,19 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
     # match Palites SQLite version; some system SQLite builds are too old and may fail.
     def sqlite_fetch_shared_meta(self, write):
         sqlite_exe = os.path.join(wt_builddir, "sqlite3")
+        database_home = os.path.join(self.dir, 'kv_home', 'pages_000001.db')
         result = subprocess.run(
-            [sqlite_exe, f"{self.dir}/kv_home/pages_000001.db", "SELECT * FROM pages ORDER BY lsn DESC LIMIT 1;"],
+            [sqlite_exe, "-json", database_home, "SELECT * FROM pages ORDER BY lsn DESC LIMIT 1;"],
             capture_output=True,
-            text=True
+            text=True,
+            check=True
         )
-        row = result.stdout.strip()
-        last_column = row.split('|')[-1]
-
+        result_data = json.loads(result.stdout)[0]
         result_file = os.path.join(self.dir, "key_provider.results")
         if (write):
             with open(result_file, "w") as f:
-                f.write(last_column)
-        return last_column
+                f.write(result_data['page_data'])
+        return result_data['page_data']
 
     def test_key_provider_disagg02(self):
         if (self.ds_name != "palite"):

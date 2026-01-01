@@ -646,9 +646,11 @@ __wti_conn_remove_key_provider(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     /* Terminate the key provider. */
-    if (conn->key_provider != NULL && conn->key_provider->terminate != NULL)
-        WT_TRET(conn->key_provider->terminate(conn->key_provider, (WT_SESSION *)session));
-
+    if (conn->key_provider != NULL) {
+        if (conn->key_provider->terminate != NULL)
+            WT_TRET(conn->key_provider->terminate(conn->key_provider, (WT_SESSION *)session));
+        conn->key_provider = NULL;
+    }
     return (ret);
 }
 
