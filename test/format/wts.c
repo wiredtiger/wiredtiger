@@ -330,11 +330,11 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
     opts.disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
     opts.disagg_page_log_home = disagg_is_multi_node() ? g.home_page_log : (char *)home;
     opts.disagg_mode = (char *)(g.disagg_leader ? "leader" : "follower");
+    opts.disagg_key_provider = GV(DISAGG_KEY_PROVIDER);
     opts.home = (char *)home;
     opts.build_dir = (char *)BUILDDIR;
     opts.palm_map_size_mb = 2048; /* 2 Gigabytes for PALM map */
     opts.page_log_verbose = GV(DISAGG_PAGE_LOG_VERBOSE);
-    opts.disagg_key_provider = GV(DISAGG_KEY_PROVIDER);
 
     /* Set page deltas. */
     opts.internal_page_delta = (bool)GV(DISAGG_INTERNAL_PAGE_DELTA);
