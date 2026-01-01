@@ -15,7 +15,7 @@ available, and load_key() to supply the key provider with the latest metadata.
 
 Follower nodes cannot update this metadata. They can only read the most recent metadata through load_key().
 
-@subsection key-provider-header Header information
+@section key-provider-header Header information
 When WiredTiger persists metadata, it prepends a WT_CRYPT_HEADER. The header contains versioning and integrity fields
 (including a checksum) that WiredTiger uses to validate the metadata and recover it safely after a crash.
 
