@@ -226,6 +226,7 @@ class DisaggConfigMixin:
     # Let the follower pick up the latest checkpoint
     def disagg_advance_checkpoint(self, conn_follower, conn_leader=None):
         m = self.disagg_get_complete_checkpoint_meta(conn_leader)
+        print("hi", m)
         conn_follower.reconfigure(f'disaggregated=(checkpoint_meta="{m}")')
 
     # Switch the leader and the follower

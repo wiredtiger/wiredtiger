@@ -1,7 +1,7 @@
 /*! @arch_page arch-disagg-key-provider Key Provider
 The WiredTiger key provider extension gives users a mechanism to persist custom metadata.
 Use this API when your application needs to store durable metadata outside of standard WiredTiger tables.
-A common example is persisting encryption‑key metadata. The key provider extension is strictly used
+A common example is persisting encryption key metadata. The key provider extension is strictly used
 with Disaggregated Storage Clusters (DSC).
 
 The key provider extension operates passively. It does not decide when data is persisted.
@@ -27,7 +27,7 @@ WiredTiger calls load_key() during startup and checkpoint. It reads the persiste
 If no metadata exists, it passes an empty WT_CRYPT_KEYS::keys structure..
 
 WiredTiger calls get_key() during a checkpoint to determine whether new metadata should be persisted.
-If WT_CRYPT_KEYS::keys::size is non‑zero, WiredTiger allocates a buffer and calls get_key() again so the key provider
+If WT_CRYPT_KEYS::keys::size is non zero, WiredTiger allocates a buffer and calls get_key() again so the key provider
 can write the new metadata into WT_CRYPT_KEYS::keys::data.
 
 WiredTiger invokes on_key_update() after it successfully persists the new metadata.
