@@ -49,8 +49,7 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
     ]
 
     key_rotate = [
-        # FIXME-WT-16055: Re-enable once startup or checkpoint pick-up.
-        #('no_key_rotate', dict(key_expire=-1)), # Never perform key rotation
+        ('no_key_rotate', dict(key_expire=-1)), # Never perform key rotation
         ('key_rotate', dict(key_expire=0)) # Always perform key rotation
     ]
 
