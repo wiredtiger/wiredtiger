@@ -42,7 +42,7 @@ def get_conn_config(disagg_storage):
     return \
         f'statistics=(all),name={disagg_storage.ds_name},lose_all_my_data=true'
 
-def gen_disagg_storages(test_name='', disagg_only = False):
+def gen_disagg_storages(test_name='', disagg_only = False, key_provider_only = False):
     # Get the string of the configured page_log, e.g. 'palm' or 'palite'.
     page_log = wttest.WiredTigerTestCase.vars().page_log
     page_log_verbose = wttest.WiredTigerTestCase.vars().page_log_verbose
@@ -63,6 +63,14 @@ def gen_disagg_storages(test_name='', disagg_only = False):
 
     if disagg_only:
         return disagg_storages[:-1]
+
+    if key_provider_only:
+        disagg_storages = [(page_log + '_with_key_provider', dict(is_disagg = True,
+                is_local_storage = True,
+                ds_name = page_log,
+                disagg_verbose = int(page_log_verbose),
+                key_provider = True))
+            ]
 
     return disagg_storages
 

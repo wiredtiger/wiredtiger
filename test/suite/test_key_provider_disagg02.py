@@ -28,7 +28,7 @@
 import re, os, subprocess, json
 import wttest
 from run import wt_builddir
-from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_key_provider_storages
 from suite_subprocess import suite_subprocess
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
@@ -41,7 +41,7 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    disagg_storages = gen_disagg_storages('test_key_provider_disagg02', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_key_provider_disagg02', key_provider_only = True)
 
     crash_points = [
         ('crash_before_key_rotation', dict(crash_point=1)),
