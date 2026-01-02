@@ -162,22 +162,13 @@ TEST_CASE_METHOD(kp_fixture, "Config", "[key_provider]")
         REQUIRE(kp->key_expires == 300);
     }
 
-    SECTION("Custom config, key never expires")
-    {
-        kp_ptr_t kp = kp_init("verbose=2,key_expires=-1");
-        REQUIRE(kp->wtext != nullptr);
-
-        REQUIRE(kp->verbose == WT_VERBOSE_DEBUG_2);
-        REQUIRE(kp->key_expires == KEY_EXPIRES_NEVER);
-    }
-
     SECTION("Custom config, key always expires")
     {
         kp_ptr_t kp = kp_init("verbose=2,key_expires=0");
         REQUIRE(kp->wtext != nullptr);
 
         REQUIRE(kp->verbose == WT_VERBOSE_DEBUG_2);
-        REQUIRE(kp->key_expires == KEY_EXPIRES_ALWAYS);
+        REQUIRE(kp->key_expires == 0);
     }
 
     SECTION("Invalid config")
@@ -206,11 +197,6 @@ TEST_CASE_METHOD(kp_fixture, "Default values", "[key_provider]")
     /* Initial state */
     REQUIRE(kp->verbose == WT_VERBOSE_INFO);
     REQUIRE(kp->key_expires == 43200);
-    REQUIRE(kp->state.key_state == KEY_STATE_CURRENT);
-    REQUIRE(kp->state.lsn == 0);
-    REQUIRE(kp->state.key_time != 0);
-    REQUIRE(kp->state.key_size != 0);
-    REQUIRE(kp->state.key_data != nullptr);
 }
 
 TEST_CASE_METHOD(kp_fixture, "Load key", "[key_provider]")
@@ -314,38 +300,6 @@ TEST_CASE_METHOD(kp_fixture, "Persist key, failure", "[key_provider]")
     REQUIRE(kp->state.key_state == KEY_STATE_READ);
 
     free(const_cast<void *>(crypt.keys.data));
-}
-
-TEST_CASE_METHOD(kp_fixture, "Key never expires", "[key_provider]")
-{
-    /* Never expires */
-    kp_ptr_t kp = kp_init("key_expires=-1");
-    REQUIRE(kp->wtext != nullptr);
-
-    REQUIRE(kp->verbose == WT_VERBOSE_INFO);
-    REQUIRE(kp->key_expires == KEY_EXPIRES_NEVER);
-    REQUIRE(kp->state.key_state == KEY_STATE_CURRENT);
-    REQUIRE(kp->state.lsn == 0);
-    REQUIRE(kp->state.key_time != 0);
-    REQUIRE(kp->state.key_size != 0);
-    REQUIRE(kp->state.key_data != nullptr);
-
-    WT_KEY_PROVIDER *wtkp = &kp->iface;
-
-    WT_CRYPT_KEYS crypt = {};
-    crypt.keys.data = nullptr; /* Indicate request for key size */
-    REQUIRE(wtkp->get_key(wtkp, session, &crypt) == 0);
-    REQUIRE(kp->state.key_state == KEY_STATE_CURRENT);
-    REQUIRE(crypt.keys.size == 0); /* Key has not changed */
-
-    /* Simulate time passing */
-    kp->state.key_time = 0;
-
-    /* Probe the key again; the key has not expired */
-    crypt.keys.data = nullptr; /* Indicate request for key size */
-    REQUIRE(wtkp->get_key(wtkp, session, &crypt) == 0);
-    REQUIRE(kp->state.key_state == KEY_STATE_CURRENT);
-    REQUIRE(crypt.keys.size == 0); /* Key has not changed */
 }
 
 TEST_CASE_METHOD(kp_fixture, "Key always expires", "[key_provider]")

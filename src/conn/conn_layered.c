@@ -1608,6 +1608,13 @@ __disagg_begin_checkpoint(WT_SESSION_IMPL *session)
     if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
         return (0);
 
+    /* On fresh startup, load an empty key to key provider. */
+    if (conn->key_provider != NULL) {
+        WT_DISAGG_METADATA metadata;
+        metadata.key_provider = NULL;
+        WT_RET(__disagg_load_crypt_key(session, &metadata));
+    }
+
     WT_RET(disagg->npage_log->page_log->pl_begin_checkpoint(
       disagg->npage_log->page_log, &session->iface, 0));
 
