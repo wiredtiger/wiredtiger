@@ -4711,7 +4711,8 @@ tasks:
       - func: "fetch artifacts"
       - func: "format test disagg"
         vars:
-          # FIXME-WT-16228: Re-evaluate whether setting large cache size is needed after PALI.
+          # FIXME-WT-16228: Re-evaluate whether increased cache settings (size & triggers) are needed after PALI.
+          # For sustained throughput over long runs, larger cache and higher eviction triggers help.
           format_args: disagg.mode=leader runs.timer=30:45 cache=10000 cache.eviction_dirty_trigger=50 cache.eviction_updates_trigger=50
           times: 1
 
