@@ -9,17 +9,25 @@
 #include "wt_internal.h"
 
 /* !!!
- * __config_parse_dec --
+ * __wti_config_parse_dec --
  *     Parse a decimal number from a string up to a specified length.
  *
+ *     This function is designed to be a drop-in replacement for strtoll, but
+ *     with a length argument.
+ *
  *     Return value:
- *      - If successful, an integer value corresponding to the contents of str is returned.
- *      - If the converted value falls out of range, a range error occurs (setting errno to ERANGE)
- *          and INT64_MAX or INT64_MIN is returned.
+ *      - If successful, an integer value corresponding to the contents of str
+ *        is returned.
+ *      - If the converted value falls out of range, a range error occurs
+ *        (setting errno to ERANGE) and INT64_MAX or INT64_MIN is returned.
  *      - If no conversion can be performed, 0 is returned.
+ *
+ *     The endptr is updated to point to the character after the last character
+ *     used in the conversion.
+ *     If no conversion is performed, endptr is set to str.
  */
-static int64_t
-__config_parse_dec(const char *str, size_t len, char **endptr)
+int64_t
+__wti_config_parse_dec(const char *str, size_t len, char **endptr)
 {
     const char *cur = str;
     const char *end = str + len;
@@ -39,6 +47,9 @@ __config_parse_dec(const char *str, size_t len, char **endptr)
             ++cur;
     }
 
+    /* Parsing state */
+    typedef enum { S_NAN, S_DIGITS, S_ERANGE } STATE;
+
     /*
      * Calculate:
      *  - cutoff: largest valid number without last digit,
@@ -50,7 +61,7 @@ __config_parse_dec(const char *str, size_t len, char **endptr)
     const int cutlim = maxval % 10;
 
     uint64_t acc = 0;
-    int flag = 0;
+    STATE state = S_NAN;
     while (cur < end) {
         int c = *cur;
 
@@ -60,28 +71,27 @@ __config_parse_dec(const char *str, size_t len, char **endptr)
         } else
             break;
 
-        if (flag < 0 || acc > cutoff || (acc == cutoff && c > cutlim)) {
+        if (state == S_ERANGE || acc > cutoff || (acc == cutoff && c > cutlim)) {
             /*
              * Overflow or underflow. No stopping here, keep parsing to find the end of the number.
              */
-            flag = -1;
+            state = S_ERANGE;
         } else {
-            flag = 1;
+            state = S_DIGITS;
             acc *= 10;
             acc += (uint64_t)c;
         }
     }
 
     int64_t value = 0;
-    if (flag == -1) {
+    if (state == S_ERANGE) {
         value = neg ? INT64_MIN : INT64_MAX;
         errno = ERANGE;
-    } else {
+    } else
         value = neg ? -(int64_t)acc : (int64_t)acc;
-    }
 
     if (endptr != NULL)
-        *endptr = (char *)(flag != 0 ? cur : str);
+        *endptr = (char *)(state != S_NAN ? cur : str);
 
     return (value);
 }
@@ -544,7 +554,7 @@ __config_process_value(WT_CONFIG_ITEM *value)
         }
     } else if (value->type == WT_CONFIG_ITEM_NUM) {
         errno = 0;
-        value->val = __config_parse_dec(value->str, value->len, &endptr);
+        value->val = __wti_config_parse_dec(value->str, value->len, &endptr);
 
         /*
          * If we parsed the string but the number is out of range, treat the value as an identifier.
