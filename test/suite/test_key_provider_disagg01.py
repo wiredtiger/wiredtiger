@@ -46,7 +46,7 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
         ('crash', dict(crash=True)),
     ]
 
-    disagg_storages = gen_disagg_storages('test_key_provider_disagg01', key_provider_only = True)
+    disagg_storages = gen_disagg_storages('test_key_provider_disagg01', disagg_only = True)
     scenarios = make_scenarios(disagg_storages, crash_value)
 
     nentries = 1000
