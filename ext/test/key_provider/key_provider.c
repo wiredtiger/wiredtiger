@@ -95,7 +95,7 @@ kp_set_key(KEY_PROVIDER *kp, const WT_CRYPT_KEYS *crypt)
         key_data = DEFAULT_KEY.keys.data;
         key_size = DEFAULT_KEY.keys.size;
         lsn = DEFAULT_KEY.r.lsn;
-        kp->first_time = true;
+        kp->init = true;
     }
 
     /* Verify that the key data matches the expected key data */
@@ -144,8 +144,8 @@ kp_load_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS *cry
 static bool
 kp_key_expired(KEY_PROVIDER *kp)
 {
-    if (kp->first_time) {
-        kp->first_time = false;
+    if (kp->init) {
+        kp->init = false;
         return (true);
     }
     const clock_t now = clock();
