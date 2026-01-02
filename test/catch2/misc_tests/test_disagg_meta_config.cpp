@@ -176,11 +176,12 @@ TEST_CASE_METHOD(disagg_fixture, "Parse crypt key metadata", "[disagg]")
 {
     SECTION("Well-formed")
     {
-        WT_DISAGG_METADATA metadata{.checkpoint = nullptr,
-          .checkpoint_len = 0,
-          .checkpoint_timestamp = 0,
-          .key_provider = config[KEY_PROVIDER].second.data(),
-          .key_provider_len = config[KEY_PROVIDER].second.length()};
+        WT_DISAGG_METADATA metadata{};
+        metadata.checkpoint = nullptr;
+        metadata.checkpoint_len = 0;
+        metadata.checkpoint_timestamp = 0;
+        metadata.key_provider = config[KEY_PROVIDER].second.data();
+        metadata.key_provider_len = config[KEY_PROVIDER].second.length();
 
         uint64_t page_id = 0, lsn = 0;
         const auto ret = __wti_disagg_parse_crypt_meta(session, &metadata, &page_id, &lsn);
