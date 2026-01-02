@@ -6,16 +6,15 @@
  * See the file LICENSE for redistribution information.
  */
 
-#include "wrappers/connection_wrapper.h"
-#include "utils.h"
-
-#include "wt_internal.h"
-
 #include <catch2/catch.hpp>
 #include <array>
 #include <utility>
-#include <sstream>
 #include <string_view>
+
+#include "wt_internal.h"
+
+#include "wrappers/connection_wrapper.h"
+#include "utils.h"
 
 /*
  * Unit tests for disaggregated storage metadata parsing.
