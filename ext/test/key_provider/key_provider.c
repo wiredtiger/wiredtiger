@@ -95,6 +95,7 @@ kp_set_key(KEY_PROVIDER *kp, const WT_CRYPT_KEYS *crypt)
         key_data = DEFAULT_KEY.keys.data;
         key_size = DEFAULT_KEY.keys.size;
         lsn = DEFAULT_KEY.r.lsn;
+        kp->state.key_time = 0;
     }
 
     /* Verify that the key data matches the expected key data */
@@ -112,7 +113,6 @@ kp_set_key(KEY_PROVIDER *kp, const WT_CRYPT_KEYS *crypt)
 
     kp->state.key_time = clock();
     kp->state.key_state = KEY_STATE_CURRENT;
-
     return (0);
 }
 
@@ -144,14 +144,8 @@ kp_load_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS *cry
 static bool
 kp_key_expired(KEY_PROVIDER *kp)
 {
-    if (kp->key_expires == KEY_EXPIRES_NEVER)
-        return (false); /* Key does not expire */
-    else if (kp->key_expires == KEY_EXPIRES_ALWAYS)
-        return (true); /* Key always expires */
-
     const clock_t now = clock();
     double elapsed_sec = CLOCK_SECS(now - kp->state.key_time);
-
     return (elapsed_sec >= kp->key_expires);
 }
 
@@ -423,12 +417,6 @@ wiredtiger_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 
     int ret = 0;
     WT_KEY_PROVIDER *wtkp = (WT_KEY_PROVIDER *)kp;
-
-    /* Set initial key */
-    if ((ret = kp_set_key(kp, &DEFAULT_KEY)) != 0) {
-        LOG_ERROR(kp, NULL, "kp_set_key: %d (%s)", ret, wtext->strerror(wtext, NULL, ret));
-        goto err;
-    }
 
     /* Parse configuration options */
     if ((ret = kp_configure(kp, config)) != 0)
