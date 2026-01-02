@@ -283,6 +283,8 @@ __disagg_get_crypt_key(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn,
 
     WT_RET(__disagg_get_page(session, disagg->page_log_key_provider, page_id, lsn, item));
 
+    disagg->last_key_provider_page_lsn[page_id] = lsn;
+
     return (0);
 }
 
@@ -663,7 +665,7 @@ __disagg_load_crypt_key(WT_SESSION_IMPL *session, WT_DISAGG_METADATA *metadata)
 
     /*
      * No key provider information stored in disaggregated storage. Use empty crypt keys to let the
-     * key provider load the default key.
+     * key provider decide about the appropriate key.
      */
     if (metadata->key_provider == NULL) {
         WT_ERR(key_provider->load_key(key_provider, (WT_SESSION *)session, &crypt));

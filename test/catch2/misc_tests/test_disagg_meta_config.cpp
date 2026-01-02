@@ -17,6 +17,10 @@
 #include <sstream>
 #include <string_view>
 
+/*
+ * Unit tests for disaggregated storage metadata parsing.
+ */
+
 struct disagg_fixture {
     enum Config { CHECKPOINT, TIMESTAMP, KEY_PROVIDER };
 
