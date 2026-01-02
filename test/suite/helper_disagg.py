@@ -42,35 +42,22 @@ def get_conn_config(disagg_storage):
     return \
         f'statistics=(all),name={disagg_storage.ds_name},lose_all_my_data=true'
 
-def gen_disagg_storages(test_name='', disagg_only = False, key_provider_only = False):
+def gen_disagg_storages(test_name='', disagg_only = False):
     # Get the string of the configured page_log, e.g. 'palm' or 'palite'.
     page_log = wttest.WiredTigerTestCase.vars().page_log
     page_log_verbose = wttest.WiredTigerTestCase.vars().page_log_verbose
     disagg_storages = [
         (page_log, dict(is_disagg = True,
             is_local_storage = True,
+            num_ops=100,
             ds_name = page_log,
-            disagg_verbose = int(page_log_verbose),
-            key_provider = False)),
-        (page_log + '_with_key_provider', dict(is_disagg = True,
-                is_local_storage = True,
-                ds_name = page_log,
-                disagg_verbose = int(page_log_verbose),
-                key_provider = True)),
+            disagg_verbose = int(page_log_verbose))),
         # This must be the last item as we separate the non-disagg from the disagg items later on.
         ('non_disagg', dict(is_disagg = False)),
     ]
 
     if disagg_only:
         return disagg_storages[:-1]
-
-    if key_provider_only:
-        disagg_storages = [(page_log + '_with_key_provider', dict(is_disagg = True,
-                is_local_storage = True,
-                ds_name = page_log,
-                disagg_verbose = int(page_log_verbose),
-                key_provider = True))
-            ]
 
     return disagg_storages
 
@@ -217,12 +204,6 @@ class DisaggConfigMixin:
         # Windows doesn't support dynamically loaded extension libraries.
         if os.name == 'nt':
             extlist.skip_if_missing = True
-
-        # Check if key provider extension has already been added in the extension list. If not
-        # enable it if configured.
-        if not any(ext.startswith('test/key_provider') for ext in extlist) and self.key_provider:
-            key_provider_config = f'=(early_load=true,config=\"verbose=-1,key_expires=0\")'
-            extlist.extension('test', "key_provider" + key_provider_config)
         extlist.extension('page_log', self.ds_name + config)
 
     # Get the information about the last completed checkpoint: ID, LSN, and metadata
