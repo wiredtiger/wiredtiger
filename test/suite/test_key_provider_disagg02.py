@@ -25,8 +25,9 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import re, os, sqlite3
+import re, os, subprocess, json
 import wttest
+from run import wt_builddir
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from suite_subprocess import suite_subprocess
 from wtdataset import SimpleDataSet
@@ -49,7 +50,6 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
     ]
 
     scenarios = make_scenarios(disagg_storages, crash_points)
-    sqlite_meta_cursor = None
     nentries = 1000
     uri = "layered:test_key_provider_disagg02"
 
@@ -60,10 +60,7 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def subprocess_func(self):
-        # Open turtle metadata sqlite database
-        conn1 = sqlite3.connect("kv_home/pages_000001.db")
-        self.sqlite_meta_cursor = conn1.cursor()
-
+        self.dir = self.home
         # Populate table.
         ds = SimpleDataSet(self, self.uri, self.nentries)
         ds.populate()
@@ -77,7 +74,7 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.checkpoint(f"debug=(key_provider_trigger_crash_points={self.crash_point})") # Expected to fail
 
     # Verify results of metadata file. After a crash, the key provider information should be the same.
-    def validate_persist_meta_file(self, new_home_dir):
+    def validate_persist_meta_file(self):
         after_crash_meta = self.sqlite_fetch_shared_meta(write=False)
         pattern = (
             r"page_id=(?P<page_id>\d+),"
@@ -87,7 +84,7 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
         after_crash_match = re.search(pattern, after_crash_meta)
         self.assertTrue(after_crash_match)
 
-        result_file = os.path.join(new_home_dir, "key_provider.results")
+        result_file = os.path.join(self.dir, "key_provider.results")
         with open(result_file, "r") as f:
             before_crash_meta  = f.read()
             before_crash_match = re.search(pattern, before_crash_meta)
@@ -95,17 +92,23 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
             self.assertEqual(before_crash_match.group("lsn"), after_crash_match.group("lsn"))
             self.assertEqual(before_crash_match.group("version"), after_crash_match.group("version"))
 
-    # Fetch the latest meta information and read/write for validation.
+    # Fetch the latest metadata and perform read/write validation. Use the builtin sqlite3 to
+    # match Palites SQLite version; some system SQLite builds are too old and may fail.
     def sqlite_fetch_shared_meta(self, write):
-        self.sqlite_meta_cursor.execute("SELECT * FROM pages ORDER BY lsn DESC LIMIT 1")
-        result = self.sqlite_meta_cursor.fetchone()
-
-        result_file = os.path.join(self.home, "key_provider.results")
+        sqlite_exe = os.path.join(wt_builddir, "sqlite3")
+        database_home = os.path.join(self.dir, 'kv_home', 'pages_000001.db')
+        result = subprocess.run(
+            [sqlite_exe, "-json", database_home, "SELECT * FROM pages ORDER BY lsn DESC LIMIT 1;"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        result_data = json.loads(result.stdout)[0]
+        result_file = os.path.join(self.dir, "key_provider.results")
         if (write):
             with open(result_file, "w") as f:
-                f.write(result[-1].decode("utf-8"))
-        return result[-1].decode("utf-8")
-
+                f.write(result_data['page_data'])
+        return result_data['page_data']
 
     def test_key_provider_disagg02(self):
         if (self.ds_name != "palite"):
@@ -118,7 +121,5 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
         [ignore_result, new_home_dir] = self.run_subprocess_function(subdir,
             'test_key_provider_disagg02.test_key_provider_disagg02.subprocess_func', silent=True)
 
-        conn1 = sqlite3.connect(f"{new_home_dir}/kv_home/pages_000001.db")
-        self.sqlite_meta_cursor = conn1.cursor()
-
-        self.validate_persist_meta_file(new_home_dir)
+        self.dir = new_home_dir
+        self.validate_persist_meta_file()

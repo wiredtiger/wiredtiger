@@ -25,12 +25,11 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import re
-import wttest
+import re, os, wttest, subprocess, json
+from run import wt_builddir
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from helper import simulate_crash_restart
 from wtdataset import SimpleDataSet
-import sqlite3
 
 from wtscenario import make_scenarios
 
@@ -42,26 +41,17 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    disagg_storages = gen_disagg_storages('test_key_provider_disagg01', disagg_only = True)
-
     crash_value = [
         ('reopen', dict(crash=False)),
         ('crash', dict(crash=True)),
     ]
 
-    key_rotate = [
-        # FIXME-WT-16055: Re-enable once startup or checkpoint pick-up.
-        #('no_key_rotate', dict(key_expire=-1)), # Never perform key rotation
-        ('key_rotate', dict(key_expire=0)) # Always perform key rotation
-    ]
+    disagg_storages = gen_disagg_storages('test_key_provider_disagg01', disagg_only = True)
+    scenarios = make_scenarios(disagg_storages, crash_value)
 
-    disagg_storages = gen_disagg_storages('test_layered17', disagg_only = True)
-    scenarios = make_scenarios(disagg_storages, key_rotate, crash_value)
-
-    sqlite_meta_cursor = None
-    sqlite_key_provider_cursor = None
     nentries = 1000
     current_lsn = 0
+    key_expire = 0
 
     MAIN_KEK_PAGE_ID = 1
     EXPECTED_KEK_VERSION = 1
@@ -74,21 +64,32 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
         extlist.extension('test', "key_provider" + config)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def validate_number_elements(self):
-        self.sqlite_meta_cursor.execute("SELECT COUNT(*) FROM pages")
-        (meta_count,) = self.sqlite_meta_cursor.fetchone()
+    # Use sqlite to grab information for read/write validation. Use the builtin sqlite3 to
+    # match Palites SQLite version; some system SQLite builds are too old and may fail.
+    def sqlite_fetch_information(self, home, database, sql_query):
+        sqlite_exe = os.path.join(wt_builddir, "sqlite3")
+        database_home = os.path.join(home, 'kv_home', database)
+        result = subprocess.run(
+            [sqlite_exe, "-json", database_home, sql_query],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        result_data = json.loads(result.stdout)
+        return result_data[0]
 
-        self.sqlite_key_provider_cursor.execute("SELECT COUNT(*) FROM pages")
-        (key_provider_count,) = self.sqlite_key_provider_cursor.fetchone()
+    def validate_number_elements(self, home="."):
+        shared_meta_count = self.sqlite_fetch_information(home, "pages_000001.db", "SELECT COUNT(*) FROM pages")
+        key_provider_count = self.sqlite_fetch_information(home, "pages_000002.db", "SELECT COUNT(*) FROM pages")
+
         if (self.key_expire == 0):
-            self.assertEqual(key_provider_count, meta_count)
+            self.assertEqual(key_provider_count['COUNT(*)'], shared_meta_count['COUNT(*)'])
         else:
-            self.assertGreaterEqual(key_provider_count, meta_count)
+            self.assertGreaterEqual(key_provider_count['COUNT(*)'], shared_meta_count['COUNT(*)'])
 
-    def validate_meta_file(self):
-        self.sqlite_meta_cursor.execute("SELECT * FROM pages ORDER BY lsn DESC LIMIT 1")
-        result = self.sqlite_meta_cursor.fetchone()
-        m = re.search(".*page_id=(\d+),lsn=(\d+).*version=(\d+)", result[-1].decode("utf-8"))
+    def validate_meta_file(self, home="."):
+        result = self.sqlite_fetch_information(home, "pages_000001.db", "SELECT * FROM pages ORDER BY lsn DESC LIMIT 1;")
+        m = re.search(".*page_id=(\d+),lsn=(\d+).*version=(\d+)", result['page_data'])
 
         self.assertTrue(m)
         if (m):
@@ -106,14 +107,6 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
         if (self.ds_name != "palite"):
             self.skipTest("Must use PALite to verify contents")
 
-        # Open turtle metadata sqlite database
-        conn1 = sqlite3.connect("kv_home/pages_000001.db")
-        self.sqlite_meta_cursor = conn1.cursor()
-
-        # Open key provider sqlite database
-        conn2 = sqlite3.connect("kv_home/pages_000002.db")
-        self.sqlite_key_provider_cursor = conn2.cursor()
-
         # Populate table.
         ds = SimpleDataSet(self, self.uri, self.nentries)
         ds.populate()
@@ -121,22 +114,31 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
 
         # Initiate checkpoint to trigger key provider semantics.
         self.session.checkpoint()
+        self.validate_meta_file()
 
         # Initiate checkpoint again to trigger key provider semantics.
         self.session.checkpoint()
+        self.validate_meta_file()
 
         first_row = ds.rows + 1
-        ds.rows += 1000
         ds.populate(first_row=first_row)
         ds.check()
 
         # Validate that key persists after crash/restart.
+        self.key_expire = -1
         if (self.crash):
             simulate_crash_restart(self, ".", "RESTART")
+            self.validate_meta_file("RESTART")
+            self.validate_number_elements("RESTART")
         else:
             self.reopen_conn()
+            self.validate_meta_file()
+            self.validate_number_elements()
+
+        first_row = ds.rows + 1
+        ds.populate(first_row=first_row)
+        ds.check()
+
+        # Initiate checkpoint and check for new key expiry.
+        self.session.checkpoint()
         self.validate_meta_file()
-        self.validate_number_elements()
-
-
-
