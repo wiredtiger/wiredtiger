@@ -44,6 +44,7 @@ class test_prepare_discover06(wttest.WiredTigerTestCase):
     uri = 'layered:' + tablename
 
     resolve_scenarios = [
+        ('commit', dict(commit=True)),
         ('rollback', dict(commit=False)),
     ]
     # Use disaggregated storage scenarios
