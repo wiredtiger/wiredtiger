@@ -79,7 +79,6 @@ arch_doc_pages = [
     ArchDocPage('arch-disagg-layered-cursor',
         ['WT_CURSOR_LAYERED'],
         ['src/cursor/cur_layered.c']),
-    
     ArchDocPage('arch-eviction',
         ['WTI_EVICT_ENTRY', 'WTI_EVICT_QUEUE', 'WT_EVICT'],
         ['src/evict/']),
