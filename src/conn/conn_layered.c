@@ -1872,10 +1872,6 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             WT_ERR_MSG_CHK(session, ret, "Failed to begin a new checkpoint");
         }
 
-        WT_ERR(__wt_config_gets(session, cfg, "page_delta.flatten_leaf_page_delta", &cval));
-        if (cval.val != 0)
-            F_SET(&conn->page_delta, WT_FLATTEN_LEAF_PAGE_DELTA);
-
         WT_ERR(__wt_config_gets(session, cfg, "page_delta.internal_page_delta", &cval));
         if (cval.val != 0)
             F_SET(&conn->page_delta, WT_INTERNAL_PAGE_DELTA);
