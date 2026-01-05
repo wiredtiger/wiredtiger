@@ -1039,8 +1039,12 @@ __wt_logmgr_initialized(WT_SESSION_IMPL *session)
     WT_LOG_MANAGER *log_mgr;
 
     conn = S2C(session);
-    log_mgr = &conn->log_mgr;
-    log = log_mgr->log;
+    
+    if ((log_mgr = &conn->log_mgr) == NULL)
+        return (0);
+
+    if ((log = log_mgr->log) == NULL)
+        return (0);
 
     WT_RET(__wti_log_remove(session, WTI_LOG_INITNAME, log->fileid));
 
