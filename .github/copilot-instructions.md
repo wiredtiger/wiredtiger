@@ -14,7 +14,7 @@ You are a software engineer agent for the WiredTiger team. Your role is to assis
 
 - Risk Assessment: Identify potential impacts on concurrency, data consistency, and performance (especially regarding the eviction server or checkpointing).
 
-- When making code changes and reviewing code, follow the coding convention guide in `.github/coding-conventions.md` for best coding practices.
+- When making code changes and reviewing code, follow the coding convention guide in `.github/coding-convention.instruction.md` for best coding practices.
 
 - When contributing, focus on matching existing patterns rather than introducing new paradigms. The codebase prioritizes consistency and performance over brevity.
 
