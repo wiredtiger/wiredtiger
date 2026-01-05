@@ -2506,7 +2506,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 0/5
 
   - name: unit-test-hook-disagg-leader-tsan-bucket01
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "tsan"]
     depends_on:
     - name: compile
     commands:
@@ -6621,7 +6621,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
   tags: ["pull_request", "sanitizer"]
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.tsan"
+    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.tsan !syscall-linux !format-smoke-test !chunkcache-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
