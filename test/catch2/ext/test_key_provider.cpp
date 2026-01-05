@@ -308,7 +308,7 @@ TEST_CASE_METHOD(kp_fixture, "Key always expires", "[key_provider]")
     REQUIRE(kp->wtext != nullptr);
 
     REQUIRE(kp->verbose == WT_VERBOSE_INFO);
-    REQUIRE(kp->key_expires == KEY_EXPIRES_ALWAYS);
+    REQUIRE(kp->key_expires == 0);
     REQUIRE(kp->state.key_state == KEY_STATE_CURRENT);
 
     const clock_t initial_key_time = kp->state.key_time;
