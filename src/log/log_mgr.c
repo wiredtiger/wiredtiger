@@ -1039,7 +1039,7 @@ __wt_logmgr_initialized(WT_SESSION_IMPL *session)
     WT_LOG_MANAGER *log_mgr;
 
     conn = S2C(session);
-    
+
     if ((log_mgr = &conn->log_mgr) == NULL)
         return (0);
 
