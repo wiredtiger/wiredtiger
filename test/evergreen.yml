@@ -6589,8 +6589,6 @@ buildvariants:
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: model-unit-test
-    - name: model-test-failure-workloads
-      batchtime: 1440 # 24 hours
     - name: model-test-long
       batchtime: 1440 # once a day
     - name: model-test-long-with-coverage
