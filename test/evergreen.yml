@@ -3211,7 +3211,6 @@ tasks:
             fi
 
   - name: bench-tiered-push-pull-s3
-    tags: ["pull_request", "tiered_unittest"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -3231,7 +3230,6 @@ tasks:
             ./test_push_pull -PT -Po s3_store
 
   - name: bench-tiered-push-pull
-    tags: ["pull_request", "tiered_unittest"]
     depends_on:
     - name: compile
     commands:
