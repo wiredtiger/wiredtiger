@@ -7,9 +7,6 @@ leak:PyObject_Malloc
 # FIXME-WT-16324: test_verify
 leak:__tiered_open
 
-# FIXME-WT-16291: test_verify.test_verify.test_verify_api_75pct_null
-leak:__wt_blkcache_read_multi
-
 # FIXME-WT-16321: test_backup11
 leak:__backup_list_append
 leak:__backup_config
