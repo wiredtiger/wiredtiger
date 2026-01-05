@@ -124,8 +124,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: modified pages evicted",
   "cache: multi-block reconciliation blocked whilst checkpoint is running",
   "cache: number of internal pages read that had deltas attached",
-  "cache: number of leaf pages flattened that had deltas attached",
-  "cache: number of leaf pages not flattened that had deltas attached due to failure",
   "cache: number of leaf pages read that had deltas attached",
   "cache: number of times dirty trigger was reached",
   "cache: number of times eviction trigger was reached",
@@ -562,8 +560,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_dirty = 0;
     stats->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint = 0;
     stats->cache_read_internal_delta = 0;
-    stats->cache_read_flatten_leaf_delta = 0;
-    stats->cache_read_flatten_leaf_delta_fail = 0;
     stats->cache_read_leaf_delta = 0;
     stats->cache_eviction_trigger_dirty_reached = 0;
     stats->cache_eviction_trigger_reached = 0;
@@ -985,8 +981,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint +=
       from->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint;
     to->cache_read_internal_delta += from->cache_read_internal_delta;
-    to->cache_read_flatten_leaf_delta += from->cache_read_flatten_leaf_delta;
-    to->cache_read_flatten_leaf_delta_fail += from->cache_read_flatten_leaf_delta_fail;
     to->cache_read_leaf_delta += from->cache_read_leaf_delta;
     to->cache_eviction_trigger_dirty_reached += from->cache_eviction_trigger_dirty_reached;
     to->cache_eviction_trigger_reached += from->cache_eviction_trigger_reached;
@@ -1436,9 +1430,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_multi_block_reconciliation_during_checkpoint);
     to->cache_read_internal_delta += WT_STAT_DSRC_READ(from, cache_read_internal_delta);
-    to->cache_read_flatten_leaf_delta += WT_STAT_DSRC_READ(from, cache_read_flatten_leaf_delta);
-    to->cache_read_flatten_leaf_delta_fail +=
-      WT_STAT_DSRC_READ(from, cache_read_flatten_leaf_delta_fail);
     to->cache_read_leaf_delta += WT_STAT_DSRC_READ(from, cache_read_leaf_delta);
     to->cache_eviction_trigger_dirty_reached +=
       WT_STAT_DSRC_READ(from, cache_eviction_trigger_dirty_reached);
@@ -2061,8 +2052,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: multi-block reconciliation blocked whilst checkpoint is running",
   "cache: npos read - had to walk this many pages",
   "cache: number of internal pages read that had deltas attached",
-  "cache: number of leaf pages flattened that had deltas attached",
-  "cache: number of leaf pages not flattened that had deltas attached due to failure",
   "cache: number of leaf pages read that had deltas attached",
   "cache: number of times dirty trigger was reached",
   "cache: number of times eviction trigger was reached",
@@ -3083,8 +3072,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint = 0;
     stats->npos_read_walk_max = 0;
     stats->cache_read_internal_delta = 0;
-    stats->cache_read_flatten_leaf_delta = 0;
-    stats->cache_read_flatten_leaf_delta_fail = 0;
     stats->cache_read_leaf_delta = 0;
     stats->cache_eviction_trigger_dirty_reached = 0;
     stats->cache_eviction_trigger_reached = 0;
@@ -4160,9 +4147,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     if ((v = WT_STAT_CONN_READ(from, npos_read_walk_max)) > to->npos_read_walk_max)
         to->npos_read_walk_max = v;
     to->cache_read_internal_delta += WT_STAT_CONN_READ(from, cache_read_internal_delta);
-    to->cache_read_flatten_leaf_delta += WT_STAT_CONN_READ(from, cache_read_flatten_leaf_delta);
-    to->cache_read_flatten_leaf_delta_fail +=
-      WT_STAT_CONN_READ(from, cache_read_flatten_leaf_delta_fail);
     to->cache_read_leaf_delta += WT_STAT_CONN_READ(from, cache_read_leaf_delta);
     to->cache_eviction_trigger_dirty_reached +=
       WT_STAT_CONN_READ(from, cache_eviction_trigger_dirty_reached);
