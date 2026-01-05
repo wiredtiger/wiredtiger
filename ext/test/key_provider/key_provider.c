@@ -90,12 +90,12 @@ kp_set_key(KEY_PROVIDER *kp, const WT_CRYPT_KEYS *crypt)
     size_t key_size = crypt->keys.size;
     uint64_t lsn = crypt->r.lsn;
 
-    // /* If no key data provided, use the default key */
-    // if (key_data == NULL || key_size == 0) {
-    //     key_data = DEFAULT_KEY.keys.data;
-    //     key_size = DEFAULT_KEY.keys.size;
-    //     lsn = DEFAULT_KEY.r.lsn;
-    // }
+    /* If no key data provided, use the default key */
+    if (key_data == NULL || key_size == 0) {
+        key_data = DEFAULT_KEY.keys.data;
+        key_size = DEFAULT_KEY.keys.size;
+        lsn = DEFAULT_KEY.r.lsn;
+    }
 
     /* Verify that the key data matches the expected key data */
     assert(memcmp(key_data, DEFAULT_KEY_DATA, sizeof(DEFAULT_KEY_DATA) - 1) == 0);

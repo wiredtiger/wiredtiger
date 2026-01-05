@@ -1129,35 +1129,48 @@ __checkpoint_clear_time(WT_SESSION_IMPL *session)
     session->ckpt.current_sec = 0;
 }
 
+/*
+ * __checkpoint_db_debug_crash_points --
+ *     Parse and apply the checkpoint_crash_point setting.
+ */
 static int
 __checkpoint_db_debug_crash_points(WT_SESSION_IMPL *session, const char *cfg[])
 {
 
     WT_CONFIG_ITEM cval;
-    int ckpt_crash_point;
+    u_int ckpt_crash_point;
 
     WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_crash_point", &cval));
-    ckpt_crash_point = (int)cval.val;
+    ckpt_crash_point = (u_int)cval.val;
 
-    if (ckpt_crash_point < 0)
+    if (ckpt_crash_point == 0)
         return (0);
     /*
      * If the crash point is less than WT_THOUSAND, we will trigger a crash point in the middle of
      * checkpointing regular tables. If the crash point is greater than WT_THOUSAND, we will trigger
      * special crash points.
      */
-    if (ckpt_crash_point < WT_THOUSAND)
+    if (ckpt_crash_point < WT_THOUSAND) {
+        u_int ckpt_total_crash_points;
+        /*
+         * Calculate total checkpoint crash points. The total checkpoint points required are the
+         * number of data handles that need to be checkpointed plus the additional crash points.
+         */
+        ckpt_total_crash_points = session->ckpt.handle_next + CKPT_CRASH_ENUM_END;
+
         /*
          * Calculate the relative crash point. The total checkpoint points required are the
          * number of data handles that need to be checkpointed. The input crash_point ranges from
          * 0 to 1000; convert it to its corresponding crash point position.
          */
         session->ckpt.crash_point =
-          (((u_int)ckpt_crash_point * session->ckpt.handle_next) / WT_THOUSAND) + 1;
-    else
+          (((u_int)ckpt_crash_point * ckpt_total_crash_points) / WT_THOUSAND) + 1;
+    } else if (ckpt_crash_point >= WT_THOUSAND && ckpt_crash_point < 2 * WT_THOUSAND)
         session->ckpt.crash_point = (u_int)ckpt_crash_point;
+
     return (0);
 }
+
 /*
  * __checkpoint_block_reusable_stats --
  *     Update block reusable ratio stats.
@@ -1745,7 +1758,6 @@ err:
     __wt_free(session, session->ckpt.handle);
     WT_ASSERT(session, session->ckpt.crash_point == 0);
     session->ckpt.handle_allocated = session->ckpt.handle_next = session->ckpt.crash_point = 0;
-    session->ckpt.key_provider_crash_point = KEY_PROVIDER_CRASH_NONE;
 
     session->isolation = txn->isolation = saved_isolation;
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);
