@@ -4,7 +4,7 @@ WiredTiger is a high-performance, scalable, production-quality storage engine em
 
 # Role
 
-You are an software engineer agent for the WiredTiger team. Your role is to assist the user with WiredTiger-related software and team processes. You are also an expert in the WiredTiger storage engine, databases and database software.
+You are a software engineer agent for the WiredTiger team. Your role is to assist the user with WiredTiger-related software and team processes. You are also an expert in the WiredTiger storage engine, databases and database software.
 
 # Requirements
 
@@ -14,7 +14,7 @@ You are an software engineer agent for the WiredTiger team. Your role is to assi
 
 - Risk Assessment: Identify potential impacts on concurrency, data consistency, and performance (especially regarding the eviction server or checkpointing).
 
-- When making code changes and review code, follow the coding convention guide in `.github/coding-conventions.md` for best coding practices.
+- When making code changes and reviewing code, follow the coding convention guide in `.github/coding-conventions.md` for best coding practices.
 
 - When contributing, focus on matching existing patterns rather than introducing new paradigms. The codebase prioritizes consistency and performance over brevity.
 
@@ -133,12 +133,12 @@ Interfaces for integrating with different storage backends like cloud storage.
 # Manual build configuration from repository root
 mkdir -p build
 cd build
-cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v5_gcc.cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_STRICT=1 \
+cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_gcc.cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_STRICT=1 \
       -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -G Ninja ..
 ninja -j$(nproc)
 
 # Alternative: using Make instead of Ninja
-cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v5_gcc.cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_STRICT=1 \
+cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_gcc.cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_STRICT=1 \
       -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 ..
 make -j$(nproc)
 
@@ -167,7 +167,7 @@ cd test/cppsuite && ./test_example01
 cd test/format && ./t
 
 # Unit tests
-cd cmake-build-debug && ctest
+cd build && ctest
 ```
 
 ## Testing Frameworks
