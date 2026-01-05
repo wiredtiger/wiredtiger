@@ -31,7 +31,7 @@ struct __wt_ckpt_session {
         CKPT_CRASH_ENUM_END,
     } ckpt_crash_crash_points;
 
-    /* Key provider crash points. 1000 - 2000 values are reserved for key provider */
+    /* Key provider crash points. 1001 - 2000 values are reserved for key provider */
     enum {
         KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION = 1001,
         KEY_PROVIDER_CRASH_DURING_KEY_ROTATION,

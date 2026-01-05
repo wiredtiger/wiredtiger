@@ -44,9 +44,9 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
     disagg_storages = gen_disagg_storages('test_key_provider_disagg02', disagg_only = True)
 
     crash_points = [
-        ('crash_before_key_rotation', dict(crash_point=1000)),
-        ('crash_during_key_rotation', dict(crash_point=1001)),
-        ('crash_after_key_rotation', dict(crash_point=1002)),
+        ('crash_before_key_rotation', dict(crash_point=1001)),
+        ('crash_during_key_rotation', dict(crash_point=1002)),
+        ('crash_after_key_rotation', dict(crash_point=1003)),
     ]
 
     scenarios = make_scenarios(disagg_storages, crash_points)

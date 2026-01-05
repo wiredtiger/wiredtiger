@@ -1921,7 +1921,7 @@ struct __wt_session {
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_cleanup, if true\, checkpoint cleanup thread is
      * triggered to perform the checkpoint cleanup., a boolean flag; default \c false.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_crash_point, A value between 1 and 2000 triggers a
-     * controlled crash during the checkpoint process.  Values between 1 and 1000 crash during core
+     * controlled crash during the checkpoint process.  Values between 1 and 1001 crash during core
      * checkpoint phases: lower values crash earlier phases\, higher values crash later phases.
      * Values between 1000 and 2000 designate crash points reserved for the key provider., an
      * integer between \c -0 and \c 2000; default \c 0.}
