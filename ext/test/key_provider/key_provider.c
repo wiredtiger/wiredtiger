@@ -137,8 +137,9 @@ kp_load_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS *cry
     assert(kp->state.key_state == KEY_STATE_CURRENT);
     kp_set_key(kp, crypt);
 
-    /* In case the key was previously marked as one-shot expired, reset expiration */
-    KEY_RESET_EXPIRE(kp);
+    /* Reset expiration if a valid key was loaded. */
+    if (crypt->keys.data != NULL)
+        KEY_RESET_EXPIRE(kp);
 
     return (0);
 }

@@ -201,6 +201,11 @@ TEST_CASE_METHOD(kp_fixture, "Default values", "[key_provider]")
     REQUIRE(kp->verbose == WT_VERBOSE_INFO);
     /* Default: 12 hours; negative indicates never used */
     REQUIRE(kp->key_expires == -43200);
+    REQUIRE(kp->state.key_state == KEY_STATE_CURRENT);
+    REQUIRE(kp->state.lsn == 0);
+    REQUIRE(kp->state.key_time != 0);
+    REQUIRE(kp->state.key_size != 0);
+    REQUIRE(kp->state.key_data != nullptr);
 }
 
 TEST_CASE_METHOD(kp_fixture, "Load key", "[key_provider]")

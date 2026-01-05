@@ -1610,8 +1610,7 @@ __disagg_begin_checkpoint(WT_SESSION_IMPL *session)
 
     /* On fresh startup, load an empty key to key provider. */
     if (conn->key_provider != NULL) {
-        WT_DISAGG_METADATA metadata;
-        metadata.key_provider = NULL;
+        WT_DISAGG_METADATA metadata = {0};
         WT_RET(__disagg_load_crypt_key(session, &metadata));
     }
 
