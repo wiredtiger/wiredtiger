@@ -2491,8 +2491,78 @@ tasks:
           upload_source_dir: "wiredtiger"
           upload_filename: unit-test-disagg-leader-tsan.tgz
 
+  - name: unit-test-hook-disagg-leader-tsan-bucket00
+    tags: ["pull_request", "tsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          # As leader, run the set of tests that are not in the fail list.
+          unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          # The timeout for this command is on a test file basis. Make the timeouts long,
+          # as there are a few files that contain a large number of slower tests.
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 0/5
+
+  - name: unit-test-hook-disagg-leader-tsan-bucket01
+    tags: ["pull_request", "python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          # As leader, run the set of tests that are not in the fail list.
+          unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          # The timeout for this command is on a test file basis. Make the timeouts long,
+          # as there are a few files that contain a large number of slower tests.
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 1/5
+
+  - name: unit-test-hook-disagg-leader-tsan-bucket02
+    tags: ["pull_request", "tsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          # As leader, run the set of tests that are not in the fail list.
+          unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          # The timeout for this command is on a test file basis. Make the timeouts long,
+          # as there are a few files that contain a large number of slower tests.
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 2/5
+
+  - name: unit-test-hook-disagg-leader-tsan-bucket03
+    tags: ["pull_request", "tsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          # As leader, run the set of tests that are not in the fail list.
+          unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          # The timeout for this command is on a test file basis. Make the timeouts long,
+          # as there are a few files that contain a large number of slower tests.
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 3/5
+
+  - name: unit-test-hook-disagg-leader-tsan-bucket04
+    tags: ["pull_request", "tsan"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          # As leader, run the set of tests that are not in the fail list.
+          unit_test_ignore: test/suite/tsan.fail test/suite/hook_disagg.fail
+          # The timeout for this command is on a test file basis. Make the timeouts long,
+          # as there are a few files that contain a large number of slower tests.
+          unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 4/5
+
   - name: unit-test-disagg-follower-tsan
-    tags: ["python"]
+    tags: ["pull_request", "tsan", "python"]
     depends_on:
     - name: compile
     commands:
@@ -2507,6 +2577,7 @@ tasks:
           upload_filename: unit-test-disagg-follower-tsan.tgz
 
   - name: format-stress-test-tsan
+    tags: ["pull_request", "tsan"]
     depends_on:
       - name: compile
     commands:
@@ -2524,6 +2595,7 @@ tasks:
           times: 3
 
   - name: format-stress-test-disagg-leader-tsan
+    tags: ["pull_request", "tsan"]
     depends_on:
       - name: compile
     commands:
@@ -6479,7 +6551,7 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
   tags: ["pull_request"]
   tasks:
-    - name: ".pull_request !.pull_request_compilers"
+    - name: ".pull_request !.pull_request_compilers !.tsan"
     - name: ".lint"
     - name: ".unit_test_long"
       distros: ubuntu2004-large
@@ -6551,7 +6623,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
   tags: ["pull_request", "sanitizer"]
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test"
+    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.tsan"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
@@ -6633,7 +6705,7 @@ buildvariants:
     validation_stress_num_runs: 20
   tasks:
     # Skip the azure/gcp/s3 tests as they don't compile under clang
-    - name: ".pull_request !s3-tiered-test-small !.tiered_unittest !azure-gcp-tiered-test-small !.pull_request_compilers !.model_checking !csuite-wt12015-backup-corruption-test"
+    - name: ".pull_request !s3-tiered-test-small !.tiered_unittest !azure-gcp-tiered-test-small !.pull_request_compilers !.model_checking !csuite-wt12015-backup-corruption-test !.tsan"
     - name: compile
     - name: make-check-test
     - name: configure-combinations
@@ -7139,7 +7211,7 @@ buildvariants:
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
     unit_test_variant_args: "--hook nonstandalone"
   tasks:
-    - name: ".pull_request !.pull_request_compilers"
+    - name: ".pull_request !.pull_request_compilers !.tsan"
     - name: compile
     - name: make-check-test
     - name: unit-test-extra-long
@@ -7449,7 +7521,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
     ctest_extra_args: -E "wt12015_backup_corruption"
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test"
+    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.tsan"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
