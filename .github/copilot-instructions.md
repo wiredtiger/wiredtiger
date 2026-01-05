@@ -157,8 +157,10 @@ ninja -j$(nproc)  # or: make -j$(nproc)
 
 **Testing:**
 ```bash
+cd build
+
 # Python test suite (primary testing framework)
-cd test/suite && python run.py test_cursor01.py
+python3 ../test/suite/run.py test_cursor01.py
 
 # C++ stress test framework
 cd test/cppsuite && ./test_example01
