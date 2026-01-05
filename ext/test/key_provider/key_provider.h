@@ -72,7 +72,6 @@ typedef struct {
     /* Configuration options */
     int verbose;     /* Verbosity level for logging. See WT_VERBOSE_LEVEL . */
     int key_expires; /* Key expiration time in seconds, or special values as described above */
-    bool init; /* Flag indicating that the default key state has been persisted during start-up. */
 
     /* Simulated key state */
     struct {

@@ -141,7 +141,8 @@ TEST_CASE_METHOD(kp_fixture, "Config", "[key_provider]")
         REQUIRE(kp->wtext != nullptr);
 
         REQUIRE(kp->verbose == WT_VERBOSE_INFO);
-        REQUIRE(kp->key_expires == 43200); /* Default: 12 hours */
+        /* Default: 12 hours; negative indicates never used */
+        REQUIRE(kp->key_expires == -43200);
     }
 
     SECTION("Empty config")
@@ -150,7 +151,8 @@ TEST_CASE_METHOD(kp_fixture, "Config", "[key_provider]")
         REQUIRE(kp->wtext != nullptr);
 
         REQUIRE(kp->verbose == WT_VERBOSE_INFO);
-        REQUIRE(kp->key_expires == 43200); /* Default: 12 hours */
+        /* Default: 12 hours; negative indicates never used */
+        REQUIRE(kp->key_expires == -43200);
     }
 
     SECTION("Custom config, regular key expiration")
@@ -159,7 +161,8 @@ TEST_CASE_METHOD(kp_fixture, "Config", "[key_provider]")
         REQUIRE(kp->wtext != nullptr);
 
         REQUIRE(kp->verbose == WT_VERBOSE_DEBUG_2);
-        REQUIRE(kp->key_expires == 300);
+        /* Regular key expiration; negative indicates never used */
+        REQUIRE(kp->key_expires == -300);
     }
 
     SECTION("Custom config, key always expires")
@@ -196,7 +199,8 @@ TEST_CASE_METHOD(kp_fixture, "Default values", "[key_provider]")
 
     /* Initial state */
     REQUIRE(kp->verbose == WT_VERBOSE_INFO);
-    REQUIRE(kp->key_expires == 43200);
+    /* Default: 12 hours; negative indicates never used */
+    REQUIRE(kp->key_expires == -43200);
 }
 
 TEST_CASE_METHOD(kp_fixture, "Load key", "[key_provider]")
@@ -211,14 +215,14 @@ TEST_CASE_METHOD(kp_fixture, "Load key", "[key_provider]")
     kp_load_key(dummy_key, dummy_lsn);
 }
 
-TEST_CASE_METHOD(kp_fixture, "Key not expired", "[key_provider]")
+TEST_CASE_METHOD(kp_fixture, "Key one-shot expired", "[key_provider]")
 {
-    /* Key expiration period = 12 hours */
     kp_ptr_t kp = kp_init(nullptr);
     REQUIRE(kp->wtext != nullptr);
 
     REQUIRE(kp->verbose == WT_VERBOSE_INFO);
-    REQUIRE(kp->key_expires == 43200);
+    /* Default: 12 hours; negative indicates never used */
+    REQUIRE(kp->key_expires == -43200);
     REQUIRE(kp->state.key_state == KEY_STATE_CURRENT);
 
     WT_KEY_PROVIDER *wtkp = &kp->iface;
@@ -227,18 +231,26 @@ TEST_CASE_METHOD(kp_fixture, "Key not expired", "[key_provider]")
     crypt.keys.data = nullptr; /* Indicate request for key size */
     REQUIRE(wtkp->get_key(wtkp, session, &crypt) == 0);
 
-    REQUIRE(kp->state.key_state == KEY_STATE_CURRENT);
+    REQUIRE(kp->state.key_state == KEY_STATE_PENDING);
+    REQUIRE(crypt.keys.size != 0); /* Key is pending for reading */
+    REQUIRE(crypt.keys.data == nullptr);
+
+    /* Advance key state as if read-update is done. */
+    kp->state.key_state = KEY_STATE_CURRENT;
+
+    /* Key is one-shot expired; next get_key should indicate no expiration */
+    REQUIRE(wtkp->get_key(wtkp, session, &crypt) == 0);
     REQUIRE(crypt.keys.size == 0); /* Key has not changed */
 }
 
 TEST_CASE_METHOD(kp_fixture, "Key expired and rotated", "[key_provider]")
 {
-    /* Key expiration period = 12 hours */
     kp_ptr_t kp = kp_init(nullptr);
     REQUIRE(kp->wtext != nullptr);
 
     REQUIRE(kp->verbose == WT_VERBOSE_INFO);
-    REQUIRE(kp->key_expires == 43200);
+    /* Default: 12 hours; negative indicates never used */
+    REQUIRE(kp->key_expires == -43200);
     REQUIRE(kp->state.key_state == KEY_STATE_CURRENT);
 
     const clock_t init_key_time = kp->state.key_time;

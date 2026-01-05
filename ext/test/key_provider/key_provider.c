@@ -60,6 +60,10 @@
 /* Date format for ISO 8601 */
 #define DATE_FORMAT_ISO8601 "%Y-%m-%dT%H:%M:%S%z"
 
+#define KEY_ONESHOT_EXPIRE(kp) (kp)->key_expires = -((kp)->key_expires)
+#define KEY_NEVER_USED(kp) ((kp)->key_expires < 0)
+#define KEY_RESET_EXPIRE(kp) (kp)->key_expires = abs((kp)->key_expires)
+
 /* Default initial key */
 static const char DEFAULT_KEY_DATA[] = "abcdefghijklmnopqrstuvwxyz";
 
@@ -95,7 +99,6 @@ kp_set_key(KEY_PROVIDER *kp, const WT_CRYPT_KEYS *crypt)
         key_data = DEFAULT_KEY.keys.data;
         key_size = DEFAULT_KEY.keys.size;
         lsn = DEFAULT_KEY.r.lsn;
-        kp->init = true;
     }
 
     /* Verify that the key data matches the expected key data */
@@ -134,6 +137,9 @@ kp_load_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS *cry
     assert(kp->state.key_state == KEY_STATE_CURRENT);
     kp_set_key(kp, crypt);
 
+    /* In case the key was previously marked as one-shot expired, reset expiration */
+    KEY_RESET_EXPIRE(kp);
+
     return (0);
 }
 
@@ -144,10 +150,11 @@ kp_load_key(WT_KEY_PROVIDER *wtkp, WT_SESSION *session, const WT_CRYPT_KEYS *cry
 static bool
 kp_key_expired(KEY_PROVIDER *kp)
 {
-    if (kp->init) {
-        kp->init = false;
+    if (KEY_NEVER_USED(kp)) {
+        KEY_RESET_EXPIRE(kp);
         return (true);
     }
+
     const clock_t now = clock();
     double elapsed_sec = CLOCK_SECS(now - kp->state.key_time);
     return (elapsed_sec >= kp->key_expires);
@@ -447,6 +454,9 @@ wiredtiger_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
     LOG_INFO(kp, NULL,
       "Key provider initialized successfully; config: {verbose=%d, key_expires=%d}", kp->verbose,
       kp->key_expires);
+
+    /* One-shot key expiration: first get_key call always expires the key. */
+    KEY_ONESHOT_EXPIRE(kp);
 
     return (0);
 
