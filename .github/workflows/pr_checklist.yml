@@ -29,6 +29,7 @@ jobs:
 
             ## Type of change made in this PR
             - [ ] Functional change
+            - [ ] Data or metadata format change
             - [ ] Test-only change
             - [ ] Refactor-only change
             - [ ] Other non-functional change
