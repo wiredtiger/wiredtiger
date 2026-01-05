@@ -1028,6 +1028,26 @@ err:
 }
 
 /*
+ * __wt_logmgr_initialized --
+ *     Finish initializing the log subsystem.
+ */
+int
+__wt_logmgr_initialized(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WTI_LOG *log;
+    WT_LOG_MANAGER *log_mgr;
+
+    conn = S2C(session);
+    log_mgr = &conn->log_mgr;
+    log = log_mgr->log;
+
+    WT_RET(__wti_log_remove(session, WTI_LOG_INITNAME, log->fileid));
+
+    return (0);
+}
+
+/*
  * __wt_logmgr_create --
  *     Initialize the log subsystem (before running recovery).
  */

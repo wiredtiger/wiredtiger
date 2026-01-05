@@ -3568,6 +3568,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     __wt_verbose_info(
       session, WT_VERB_RECOVERY, "%s", "the WiredTiger library has successfully opened");
 
+    WT_ERR(__wt_logmgr_initialized(session));
 err:
     /* Discard the scratch buffers. */
     __wt_scr_free(session, &encbuf);

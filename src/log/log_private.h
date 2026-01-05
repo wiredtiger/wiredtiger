@@ -10,6 +10,7 @@
 
 #define WTI_LOG_PREPNAME "WiredTigerPreplog" /* Log pre-allocated name */
 #define WTI_LOG_TMPNAME "WiredTigerTmplog"   /* Log temporary name */
+#define WTI_LOG_INITNAME "WiredTigerInitlog" /* Log initialize name */
 
 /* Logging subsystem declarations. */
 #define WTI_LOG_ALIGN 128

@@ -13,6 +13,8 @@ static int __log_newfile(WT_SESSION_IMPL *, bool, bool *, bool *);
 static int __log_openfile(WT_SESSION_IMPL *, uint32_t, uint32_t, WT_FH **);
 static int __log_truncate(WT_SESSION_IMPL *, WT_LSN *, bool, bool);
 static int __log_write_internal(WT_SESSION_IMPL *, WT_ITEM *, WT_LSN *, uint32_t);
+static int __log_touch(WT_SESSION_IMPL *, const char *, uint32_t);
+static int __log_exist(WT_SESSION_IMPL *, const char *, uint32_t, bool *);
 
 #define WT_LOG_COMPRESS_SKIP (offsetof(WT_LOG_RECORD, record))
 #define WT_LOG_ENCRYPT_SKIP (offsetof(WT_LOG_RECORD, record))
@@ -1579,6 +1581,56 @@ err:
 }
 
 /*
+ * __log_touch --
+ *     Touch a file, used as flag only.
+ */
+int
+__log_touch(WT_SESSION_IMPL *session, const char *file_prefix, uint32_t lognum)
+{
+    WT_DECL_ITEM(path);
+    WT_DECL_RET;
+    WT_FH *fh;
+    u_int wtopen_flags;
+    bool exist;
+
+    exist = false;
+    wtopen_flags = 0;
+    fh = NULL;
+
+    WT_RET(__wt_scr_alloc(session, 0, &path));
+    WT_ERR(__wt_log_filename(session, lognum, file_prefix, path));
+    __wt_verbose(session, WT_VERB_LOG, "log_touch: touch log %s", (const char *)path->data);
+    WT_ERR(__wt_fs_exist(session, path->data, &exist));
+    if (!exist) {
+        wtopen_flags = WT_FS_OPEN_CREATE;
+        WT_ERR(__wt_open(session, path->data, WT_FS_OPEN_FILE_TYPE_LOG, wtopen_flags, &fh));
+        WT_ERR(__wt_close(session, &fh));
+    }
+err:
+    __wt_scr_free(session, &path);
+    return (ret);
+}
+
+/*
+ * __log_exist --
+ *     Given a log number, check the existence of a log file.
+ */
+int
+__log_exist(WT_SESSION_IMPL *session, const char *file_prefix, uint32_t lognum, bool *existp)
+{
+    WT_DECL_ITEM(path);
+    WT_DECL_RET;
+
+    WT_RET(__wt_scr_alloc(session, 0, &path));
+    WT_ERR(__wt_log_filename(session, lognum, file_prefix, path));
+    __wt_verbose(session, WT_VERB_LOG, "log_exist: check log %s", (const char *)path->data);
+    WT_ERR(__wt_fs_exist(session, path->data, existp));
+err:
+    __wt_scr_free(session, &path);
+    return (ret);
+}
+
+/*
  * __wti_log_remove --
  *     Given a log number, remove that log file.
  */
@@ -1683,11 +1735,19 @@ again:
         WT_INIT_LSN(&log->first_lsn);
     } else {
         WT_SET_LSN(&log->first_lsn, firstlog, 0);
-        /*
-         * If we have existing log files, check the last log now before we create a new log file so
-         * that we can detect an unsupported version before modifying the file space.
-         */
-        WT_ERR(__log_open_verify(session, lastlog, NULL, NULL, &version, &need_salvage));
+        /* Check if the file is half initialized. */
+        WT_ERR(__log_exist(session, WTI_LOG_INITNAME, log->fileid, &need_salvage));
+
+        if (need_salvage) {
+            WT_ERR(__wti_log_remove(session, WTI_LOG_INITNAME, log->fileid));
+            __wt_verbose_warning(
+              session, WT_VERB_LOG, "salvage: log file %" PRIu32 " removed", log->fileid);
+        } else
+            /*
+             * If we have existing log files, check the last log now before we create a new log file
+             * so that we can detect an unsupported version before modifying the file space.
+             */
+            WT_ERR(__log_open_verify(session, lastlog, NULL, NULL, &version, &need_salvage));
 
         /*
          * If we were asked to salvage and the last log file was indeed corrupt, remove it and try
@@ -1710,6 +1770,8 @@ again:
     if (!F_ISSET(conn, WT_CONN_READONLY)) {
         WTI_WITH_SLOT_LOCK(session, log, ret = __log_newfile(session, true, NULL, NULL));
         WT_ERR(ret);
+        /* Touch the new file */
+        WT_ERR(__log_touch(session, WTI_LOG_INITNAME, log->fileid));
     }
 
     /* If we found log files, save the new state. */

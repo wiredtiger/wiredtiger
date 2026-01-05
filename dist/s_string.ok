@@ -462,6 +462,7 @@ WiredTigerCC
 WiredTigerCheckpoint
 WiredTigerChunkCache
 WiredTigerHS
+WiredTigerInitlog
 WiredTigerLAS
 WiredTigerLog
 WiredTigerPreplog
