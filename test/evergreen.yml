@@ -7124,7 +7124,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
-    - name: unit-test
+    - name: .unit-test
     - name: format-smoke-test
     - name: fops
     - name: checkpoint-filetypes-test
