@@ -859,6 +859,7 @@ hashsize
 hashtable
 havesize
 hdr
+hhhh
 hijinx
 hpp
 hs
@@ -1357,6 +1358,7 @@ timespec
 tinfo
 tlb
 tmp
+tmstmp
 tod
 tokenizer
 toklen
@@ -1511,3 +1513,4 @@ zu
 zyxwvutsrqponmlkjihgfedcba
 zz
 zzz
+zzzz
