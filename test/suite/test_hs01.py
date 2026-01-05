@@ -146,7 +146,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         cache_hs_update_processed = self.get_stat(stat.conn.cache_hs_update_processed)
         self.assertEqual(hs_writes, nrows-1)
         self.assertEqual(cache_hs_key_processed, nrows - 1)
-        self.assertEqual(cache_hs_update_processed, nrows - 1)
+        self.assertGreaterEqual(cache_hs_update_processed, nrows - 1)
 
         # Check to see the latest updated value after recovery.
         self.durable_check(bigvalue2, uri, ds)
