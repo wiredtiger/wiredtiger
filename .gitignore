@@ -17,6 +17,12 @@ dist/clang-format
 test-compatibility-run/
 TCMALLOC_LIB/
 
+# Github Copilot folders
+instructions
+skills
+agents
+.github/*.md
+
 # Python artifacts
 **/*.pyc
 
