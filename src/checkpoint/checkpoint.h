@@ -9,6 +9,7 @@
 #pragma once
 
 #include "checkpoint_private.h"
+
 /*
  * WT_CKPT_SESSION --
  *     Per-session checkpoint information.
@@ -32,7 +33,7 @@ struct __wt_ckpt_session {
 
     /* Key provider crash points. 1000 - 2000 values are reserved for key provider */
     enum {
-        KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION = 1000,
+        KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION = 1001,
         KEY_PROVIDER_CRASH_DURING_KEY_ROTATION,
         KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION,
         KEY_PROVIDER_CRASH_ENUM_END
@@ -44,6 +45,12 @@ struct __wt_ckpt_session {
     /* Checkpoint time of current checkpoint, during a checkpoint */
     uint64_t current_sec;
 };
+
+#define WITHIN_RANGE(x, begin, end) ((x) > (begin) && (x) <= (end))
+#define CHKPT_CRASH_POINT_WITHIN_RANGE(x) \
+    WITHIN_RANGE(x, CKPT_CRASH_BEFORE_METADATA_SYNC, CHKPT_CRASH_ENUM_END)
+#define KEY_PROVIDER_CRASH_POINT_WITHIN_RANGE(x) \
+    WITHIN_RANGE(x, KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION, KEY_PROVIDER_CRASH_ENUM_END)
 
 /*
  * WT_CKPT_CONNECTION --

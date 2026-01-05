@@ -1150,7 +1150,7 @@ __checkpoint_db_debug_crash_points(WT_SESSION_IMPL *session, const char *cfg[])
      * checkpointing regular tables. If the crash point is greater than WT_THOUSAND, we will trigger
      * special crash points.
      */
-    if (ckpt_crash_point < WT_THOUSAND) {
+    if (CHKPT_CRASH_POINT_WITHIN_RANGE(ckpt_crash_point)) {
         u_int ckpt_total_crash_points;
         /*
          * Calculate total checkpoint crash points. The total checkpoint points required are the
@@ -1161,12 +1161,15 @@ __checkpoint_db_debug_crash_points(WT_SESSION_IMPL *session, const char *cfg[])
         /*
          * Calculate the relative crash point. The total checkpoint points required are the
          * number of data handles that need to be checkpointed. The input crash_point ranges from
-         * 0 to 1000; convert it to its corresponding crash point position.
+         * 1 to 1000; convert it to its corresponding crash point position.
          */
         session->ckpt.crash_point =
           (((u_int)ckpt_crash_point * ckpt_total_crash_points) / WT_THOUSAND) + 1;
-    } else if (ckpt_crash_point >= WT_THOUSAND && ckpt_crash_point < 2 * WT_THOUSAND)
+    } else if (KEY_PROVIDER_CRASH_POINT_WITHIN_RANGE(ckpt_crash_point))
         session->ckpt.crash_point = (u_int)ckpt_crash_point;
+    else
+        WT_RET_MSG(session, EINVAL, "Debug checkpoint crash point %" PRIu32 " is invalid",
+          session->ckpt.crash_point);
 
     return (0);
 }
