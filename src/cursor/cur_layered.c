@@ -1288,8 +1288,7 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
          * conflict issue. Therefore for layered cursor operations, we need to ignore these prepared
          * updates to allow reading through to committed data.
          */
-        if ((!conn->layered_table_manager.leader || F_ISSET(conn, WT_CONN_RECONFIGURING_STEP_UP)) &&
-          !F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
+        if (!conn->layered_table_manager.leader && !F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
             reset_ignore_prepare = true;
             F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
         }
