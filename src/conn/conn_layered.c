@@ -754,8 +754,8 @@ static int
 __disagg_parse_legacy_meta(
   WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG_METADATA *metadata)
 {
-    WT_DECL_RET;
     WT_CONFIG_ITEM timestamp;
+    WT_DECL_RET;
     const char *s = (const char *)meta_buf->data;
     const char *meta_end = NULL;
 
