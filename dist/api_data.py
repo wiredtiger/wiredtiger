@@ -2084,10 +2084,10 @@ methods = {
             type='boolean'),
         Config('checkpoint_crash_point', '0', r'''
             A value between 1 and 2000 triggers a controlled crash during the checkpoint process.
-            Values between 1 and 1001 crash during core checkpoint phases: lower values crash
-            earlier phases, higher values crash later phases. Values between 1000 and 2000
+            Values between 1 and 1000 crash during core checkpoint phases: lower values crash
+            earlier phases, higher values crash later phases. Values between 1001 and 2000
             designate crash points reserved for the key provider.''',
-            type='int', min='-0', max='2000'),
+            type='int', min='0', max='2000'),
         ]),
     Config('drop', '', r'''
         specify a list of checkpoints to drop. The list may additionally contain one of the

@@ -46,7 +46,11 @@ struct __wt_ckpt_session {
     uint64_t current_sec;
 };
 
-#define WITHIN_RANGE(x, begin, end) ((x) > (begin) && (x) <= (end))
+/*
+ * Macro that evaluates whether a value falls within the half open interval range [begin, end). The
+ * begin bound is inclusive, and the end bound is exclusive.
+ */
+#define WITHIN_RANGE(x, begin, end) ((x) >= (begin) && (x) < (end))
 #define CHKPT_CRASH_POINT_WITHIN_RANGE(x) \
     WITHIN_RANGE(x, CKPT_CRASH_BEFORE_METADATA_SYNC, CKPT_CRASH_ENUM_END)
 #define KEY_PROVIDER_CRASH_POINT_WITHIN_RANGE(x) \

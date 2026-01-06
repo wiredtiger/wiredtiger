@@ -1079,7 +1079,7 @@ static const uint8_t confchk_WT_SESSION_begin_transaction_jump[WT_CONFIG_JUMP_TA
 static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint_debug_subconfigs[] = {
   {"checkpoint_cleanup", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 180,
     INT64_MIN, INT64_MAX, NULL},
-  {"checkpoint_crash_point", "int", NULL, "min=-0,max=2000", NULL, 0, NULL,
+  {"checkpoint_crash_point", "int", NULL, "min=0,max=2000", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_INT, 181, 0, 2000, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
