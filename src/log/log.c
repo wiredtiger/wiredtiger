@@ -2270,26 +2270,6 @@ advance:
         reclen = __wt_bswap32(reclen);
 #endif
         /*
-         * Overflow behavior: __wt_rduppo2 returns 0 if rounding up would overflow uint32_t, i.e.,
-         * when n == UINT32_MAX the return is 0. WT_LOG_FILE_MAX bounds the maximum log record
-         * length below this threshold, so a 0 return is not expected in normal operation.
-         */
-        if (reclen > log_size - __wt_lsn_offset(&rd_lsn)) {
-            need_salvage = true;
-            /*
-             * The situation is designed to perform salvage to avoid a infinite restart loop. Point
-             * bad offset to the record offset.
-             * Salvage will perform following actions:
-             *   Use error code of WT_ERROR jump to the err branch.
-             *   Skip this log record and any further log records of the file.
-             *   Truncate this log file to release the unused space.
-             *   Reset the ret code to 0 as actions of drop commits after this lsn.
-             *     The consistent here is aligned to minimum to latest checkpoint.
-             */
-            WT_ERR(__log_salvage_message(
-              session, log_fh->name, " record length oversize", __wt_lsn_offset(&rd_lsn)));
-        }
-        /*
          * Log files are pre-allocated. We need to detect the difference between a hole in the file
          * (where this location would be considered the end of log) and the last record in the log
          * and we're at the zeroed part of the file. If we find a zeroed record, scan forward in the
@@ -2327,6 +2307,15 @@ advance:
             WT_ERR(
               __log_fs_read(session, log_fh, __wt_lsn_offset(&rd_lsn), (size_t)rdup_len, buf->mem));
             WT_STAT_CONN_INCR(session, log_scan_rereads);
+        }
+        /*
+         * If the record length is larger than the remaining bytes to EOF from the records offset,
+         * flag log file corruption.
+         */
+        if (reclen > log_size - __wt_lsn_offset(&rd_lsn)) {
+            need_salvage = true;
+            WT_ERR(__log_salvage_message(
+              session, log_fh->name, " record length oversize", __wt_lsn_offset(&rd_lsn)));
         }
         /*
          * We read in the record, now verify the checksum. A failed checksum does not imply
