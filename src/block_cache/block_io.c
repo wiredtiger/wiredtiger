@@ -625,7 +625,6 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
 err:
         /* Single read path. tmp points to a single WT_ITEM with a buffer */
         if (bm->read_multiple == NULL)
-            /* free tmp[0].mem */
             __wt_buf_free(session, tmp);
 
         else {
