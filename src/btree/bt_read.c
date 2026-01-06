@@ -288,6 +288,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             __wt_overwrite_and_free(session, ref->page_del);
 
         if (ref->page_del == NULL) {
+            WT_ERR(__wt_ref_block_free(session, ref, true));
             WT_ERR(__wti_btree_new_leaf_page(session, ref));
             WT_ERR(__wt_page_modify_init(session, ref->page));
             ref->page->modify->instantiated = true;
