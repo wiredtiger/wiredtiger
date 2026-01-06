@@ -2270,6 +2270,20 @@ advance:
         reclen = __wt_bswap32(reclen);
 #endif
         /*
+         * Overflow behavior: __wt_rduppo2 returns 0 if rounding up would overflow uint32_t, i.e.,
+         * when n == UINT32_MAX the return is 0. WT_LOG_FILE_MAX bounds the maximum log record
+         * length below this threshold, so a 0 return is not expected in normal operation.
+         */
+        if (reclen > WT_LOG_FILE_MAX) {
+            need_salvage = true;
+            /*
+             * The situation is designed to perform salvage to avoid a infinite restart loop. Point
+             * bad offset to the record offset.
+             */
+            WT_ERR(__log_salvage_message(
+              session, log_fh->name, " record length oversize", __wt_lsn_offset(&rd_lsn)));
+        }
+        /*
          * Log files are pre-allocated. We need to detect the difference between a hole in the file
          * (where this location would be considered the end of log) and the last record in the log
          * and we're at the zeroed part of the file. If we find a zeroed record, scan forward in the
