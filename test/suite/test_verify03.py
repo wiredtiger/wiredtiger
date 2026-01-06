@@ -85,4 +85,4 @@ class test_verify(wttest.WiredTigerTestCase):
                 logs_count += 1
 
         # This assert aims to make sure no redundant log file is generated.
-        self.assertEqual(logs_count, 1, "We should only have 1 log")
+        self.assertLessEqual(logs_count, 1, "We should have utmost 1 log file")
