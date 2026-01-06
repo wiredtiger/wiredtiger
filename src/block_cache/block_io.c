@@ -627,11 +627,9 @@ err:
         if (bm->read_multiple == NULL)
             __wt_buf_free(session, tmp);
 
-        else {
-            /* Multi-read path. Results array is the current owner of any buffer we've allocated */
-            for (i = 0; i < count; ++i)
-                __wt_buf_free(session, &results[i]);
-        }
+        /* Multi-read path: results array is the current owner of any buffer we've allocated. */
+        for (i = 0; i < count; ++i)
+            __wt_buf_free(session, &results[i]);
 
         __wt_free(session, tmp);
         __wt_scr_free(session, &etmp);
