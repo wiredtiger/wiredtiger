@@ -2574,7 +2574,7 @@ tasks:
           # as there are a few files that contain a large number of slower tests.
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 4/5
 
-  - name: unit-test-disagg-follower-tsan
+  - name: unit-test-hook-disagg-follower-tsan
     tags: ["pull_request", "tsan", "python"]
     depends_on:
     - name: compile
