@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import re, struct
+import os, re, struct
 import wttest
 from helper import WiredTigerCursor
 
@@ -40,6 +40,8 @@ class test_verify(wttest.WiredTigerTestCase):
 
     WT_TURTLE_FILE_NAME = "WiredTiger.turtle"
     WT_LOG_FILE = "WiredTigerLog.0000000%03d"
+
+    test_round = 20
 
     def extract_key_from_turtle(self, line, key):
         m = re.search(key + r'=\(\s*(\d+)\s*,\s*(\d+)\s*\)', line)
@@ -70,12 +72,17 @@ class test_verify(wttest.WiredTigerTestCase):
             for i in range(1000):
                 c[f'key_{i}'] = f'val_{i}'
         self.session.commit_transaction()
-        
-        for i in range(10):
-            try:
-                self.close_conn()
-                self.inject_faulty_to_log(i+1)
-                with self.expectedStdoutPattern("orrupted record length oversize at position"):
-                    self.open_conn()
-            except Exception as e:
-                print(e)
+
+        for i in range(self.test_round):
+            self.close_conn()
+            self.inject_faulty_to_log(i+1)
+            with self.expectedStdoutPattern("orrupted record length oversize at position"):
+                self.open_conn()
+
+        logs_count = 0
+        for i in range(self.test_round):
+            if os.path.exists(self.WT_LOG_FILE % (i+1)):
+                logs_count += 1
+
+        # This assert aims to make sure no redundant log file is generated.
+        self.assertEqual(logs_count, 1, "We should only have 1 log")
