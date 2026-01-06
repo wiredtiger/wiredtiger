@@ -729,13 +729,6 @@ __disagg_fetch_shared_meta(
         }
     }
 
-    /* !!!
-     * FIXME-WT-16386 Config parser reads beyond config length limit
-     * Add a zero terminator to the metadata buffer for safe parsing.
-     */
-    WT_ERR(__wt_buf_grow(session, item, item->size + 1));
-    ((char *)item->data)[item->size] = '\0';
-
 err:
     return (ret);
 }
