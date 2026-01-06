@@ -7122,9 +7122,10 @@ buildvariants:
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
+    - name: ".pull_request !.pull_request_compilers !.tsan"
     - name: compile
     - name: make-check-test
-    - name: .unit-test
+    - name: unit-test
     - name: format-smoke-test
     - name: fops
     - name: checkpoint-filetypes-test
