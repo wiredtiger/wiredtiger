@@ -271,10 +271,13 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * it gets discarded before something else modifies it, eviction will see the instantiated flag
      * and set the ref state back to WT_REF_DELETED.
      *
-     * Skip this optimization in cases that need the obsolete values. To minimize the number of
-     * special cases, use the same test as for skipping instantiation below.
+     * Skip this optimization in cases that need the obsolete values. For disaggregated storage,
+     * this optimization results in the loss of page ID information, which can lead to a leaked
+     * block. To minimize the number of special cases, use the same test as for skipping
+     * instantiation below.
      */
-    if (previous_state == WT_REF_DELETED && !F_ISSET(btree, WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
+    if (previous_state == WT_REF_DELETED && !F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+      !F_ISSET(btree, WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
         /*
          * If the deletion has not yet been found to be globally visible (page_del isn't NULL),
          * check if it is now, in case we can in fact avoid reading the page. Hide prepared deletes
@@ -288,7 +291,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             __wt_overwrite_and_free(session, ref->page_del);
 
         if (ref->page_del == NULL) {
-            WT_ERR(__wt_ref_block_free(session, ref, true));
             WT_ERR(__wti_btree_new_leaf_page(session, ref));
             WT_ERR(__wt_page_modify_init(session, ref->page));
             ref->page->modify->instantiated = true;
