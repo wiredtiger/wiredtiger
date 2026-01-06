@@ -466,7 +466,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     if (ret == 0) {
         /* Point to the same encryption data on callback. */
         crypt.keys.data = (uint8_t *)crypt.keys.mem + sizeof(WT_CRYPT_HEADER);
-        crypt.keys.size = crypt_header.crypt_size;
+        crypt.keys.size -= sizeof(WT_CRYPT_HEADER);
         crypt.r.lsn = lsn;
     } else {
         crypt.r.error = ret;
@@ -1705,6 +1705,12 @@ __disagg_begin_checkpoint(WT_SESSION_IMPL *session)
     /* Only the leader can begin a global checkpoint. */
     if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
         return (0);
+
+    /* On fresh startup, load an empty key to key provider. */
+    if (conn->key_provider != NULL) {
+        WT_DISAGG_METADATA metadata = {0};
+        WT_RET(__disagg_load_crypt_key(session, &metadata));
+    }
 
     WT_RET(disagg->npage_log->page_log->pl_begin_checkpoint(
       disagg->npage_log->page_log, &session->iface, 0));
