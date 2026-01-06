@@ -30,13 +30,18 @@ import os, re, struct
 import wttest
 from helper import WiredTigerCursor
 
-# test_verify.py
-#    Utilities: wt verify
-class test_verify(wttest.WiredTigerTestCase):
+# test_verify03.py
+#    This test simulates log file corruption by manually setting
+#    a log records length field to UINT32_MAX. The expected behavior is that
+#    the record-length validation fails, salvage is invoked, and recovery
+#    completes successfully. By repeating this corruptrecover cycle,
+#    the test also verifies that recovery does not create additional log files
+#    and that disk space usage remains stable.
+class test_verify03(wttest.WiredTigerTestCase):
 
     uri = 'table:verify03'
 
-    conn_config = 'log=(enabled=true),statistics=(all),statistics_log=(json,wait=1,on_close=true,sources=[file:])'
+    conn_config = 'log=(enabled=true)'
 
     WT_TURTLE_FILE_NAME = "WiredTiger.turtle"
     WT_LOG_FILE = "WiredTigerLog.0000000%03d"
@@ -50,8 +55,10 @@ class test_verify(wttest.WiredTigerTestCase):
         file_num, offset = map(int, m.groups())
         return (file_num, offset)
 
-    def inject_faulty_to_log(self, id):
-        # Read checkpoint lsn
+    def inject_fault_to_log(self, id):
+        # Read checkpoint_lsn from turtle file.
+        # The checkpoint_lsn points to the byte offset (in its log file)
+        # of the checkpoint log record structure.
         with open(self.WT_TURTLE_FILE_NAME, 'r') as f:
             lines = f.read().splitlines()
             self.turtle_file = lines
@@ -61,6 +68,8 @@ class test_verify(wttest.WiredTigerTestCase):
                 break
         self.assertTrue(value is not None, "Checkpoint lsn is missing in turtle file")
         _, offset = value
+        # The first four bytes of each log record are parsed as a 32-bit unsigned length.
+        # To simulate corruption, overwrite these bytes to UINT32_MAX.
         with open(self.WT_LOG_FILE % id, 'r+b') as f:
             f.seek(offset)
             f.write(struct.pack('<I', 0xFFFFFFFF))
@@ -75,8 +84,8 @@ class test_verify(wttest.WiredTigerTestCase):
 
         for i in range(self.test_round):
             self.close_conn()
-            self.inject_faulty_to_log(i+1)
-            with self.expectedStdoutPattern("orrupted record length oversize at position"):
+            self.inject_fault_to_log(i+1)
+            with self.expectedStdoutPattern("corrupted record length oversize at position"):
                 self.open_conn()
 
         logs_count = 0
@@ -85,4 +94,4 @@ class test_verify(wttest.WiredTigerTestCase):
                 logs_count += 1
 
         # This assert aims to make sure no redundant log file is generated.
-        self.assertLessEqual(logs_count, 1, "We should have utmost 1 log file")
+        self.assertLessEqual(logs_count, 1, "We should have at most 1 log file")

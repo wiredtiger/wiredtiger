@@ -2274,7 +2274,7 @@ advance:
          * when n == UINT32_MAX the return is 0. WT_LOG_FILE_MAX bounds the maximum log record
          * length below this threshold, so a 0 return is not expected in normal operation.
          */
-        if (reclen > WT_LOG_FILE_MAX) {
+        if (reclen > log_size - __wt_lsn_offset(&rd_lsn)) {
             need_salvage = true;
             /*
              * The situation is designed to perform salvage to avoid a infinite restart loop. Point
