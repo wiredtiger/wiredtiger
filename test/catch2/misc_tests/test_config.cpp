@@ -41,6 +41,21 @@ TEST_CASE("Parse integer", "[config][parse_int]")
         REQUIRE(endptr_min == min_s + strlen(min_s));
     }
 
+    SECTION("Boundary conditions less than one")
+    {
+        const char *max_s = "9223372036854775806"; /* INT64_MAX - 1 */
+        char *endptr_max = nullptr;
+        const int64_t max_val = __wti_config_parse_dec(max_s, strlen(max_s), &endptr_max);
+        REQUIRE(max_val == INT64_MAX - 1);
+        REQUIRE(endptr_max == max_s + strlen(max_s));
+
+        const char *min_s = "-9223372036854775807"; /* INT64_MIN + 1 */
+        char *endptr_min = nullptr;
+        const int64_t min_val = __wti_config_parse_dec(min_s, strlen(min_s), &endptr_min);
+        REQUIRE(min_val == INT64_MIN + 1);
+        REQUIRE(endptr_min == min_s + strlen(min_s));
+    }
+
     SECTION("Out of range")
     {
         const char *overflow_s = "9223372036854775808"; /* INT64_MAX + 1 */
