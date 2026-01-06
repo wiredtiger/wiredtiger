@@ -2279,6 +2279,12 @@ advance:
             /*
              * The situation is designed to perform salvage to avoid a infinite restart loop. Point
              * bad offset to the record offset.
+             * Salvage will perform following actions:
+             *   Use error code of WT_ERROR jump to the err branch.
+             *   Skip this log record and any further log records of the file.
+             *   Truncate this log file to release the unused space.
+             *   Reset the ret code to 0 as actions of drop commits after this lsn.
+             *     The consistent here is aligned to minimum to latest checkpoint.
              */
             WT_ERR(__log_salvage_message(
               session, log_fh->name, " record length oversize", __wt_lsn_offset(&rd_lsn)));
