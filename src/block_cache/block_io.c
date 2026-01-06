@@ -628,7 +628,7 @@ err:
             __wt_buf_free(session, tmp);
 
         /* Multi-read path: results array is the current owner of any buffer we've allocated. */
-        for (i = 0; i < count; ++i)
+        for (i = 0; i < WT_ELEMENTS(results); ++i)
             __wt_buf_free(session, &results[i]);
 
         __wt_free(session, tmp);
