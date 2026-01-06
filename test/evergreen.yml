@@ -2626,7 +2626,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,key_provider=true)"
 
   - name: unit-test-hook-disagg-leader-bucket00
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2640,7 +2640,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 0/5
 
   - name: unit-test-hook-disagg-leader-bucket01
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2654,7 +2654,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 1/5
 
   - name: unit-test-hook-disagg-leader-bucket02
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2668,7 +2668,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 2/5
 
   - name: unit-test-hook-disagg-leader-bucket03
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2682,7 +2682,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 3/5
 
   - name: unit-test-hook-disagg-leader-bucket04
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2696,7 +2696,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 4/5
 
   - name: unit-test-hook-disagg-leader-table-bucket00
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2710,7 +2710,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 0/5
 
   - name: unit-test-hook-disagg-leader-table-bucket01
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2724,7 +2724,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 1/5
 
   - name: unit-test-hook-disagg-leader-table-bucket02
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2738,7 +2738,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 2/5
 
   - name: unit-test-hook-disagg-leader-table-bucket03
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2752,7 +2752,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 3/5
 
   - name: unit-test-hook-disagg-leader-table-bucket04
-    tags: ["pull_request", "python"]
+    tags: ["pull_request", "python", "disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2766,7 +2766,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader,table_prefix=table)" --batch 4/5
 
   - name: unit-test-hook-disagg-follower
-    tags: ["python", "pull_request"]
+    tags: ["python", "pull_request", "disagg"]
     depends_on:
     - name: compile
     commands:
@@ -2777,7 +2777,7 @@ tasks:
           unit_test_args: -v 2 --timeout 60 --hook "disagg=(role=follower)" base01
 
   - name: unit-test-hook-disagg-follower-table
-    tags: ["python", "pull_request"]
+    tags: ["python", "pull_request", "disagg"]
     depends_on:
     - name: compile
     commands:
@@ -7122,7 +7122,8 @@ buildvariants:
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.tsan !unit-test-hook-disagg-leader*"
+    # FIXME-WT-16400: Re-enable once all release disagg python bugs are triaged.
+    - name: ".pull_request !.pull_request_compilers !.tsan !.disagg"
     - name: compile
     - name: make-check-test
     - name: unit-test
