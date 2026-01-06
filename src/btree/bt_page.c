@@ -1033,12 +1033,8 @@ int
 __wti_page_reconstruct_deltas(
   WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas, size_t delta_size)
 {
-    WT_DECL_RET;
-    WT_MULTI multi;
-    WT_PAGE_MODIFY *mod;
     uint64_t time_start, time_stop;
     int i;
-    void *tmp;
 
     WT_ASSERT(session, delta_size != 0);
 
@@ -1052,43 +1048,6 @@ __wti_page_reconstruct_deltas(
         time_start = __wt_clock(session);
         for (i = (int)delta_size - 1; i >= 0; --i)
             WT_RET(__page_reconstruct_leaf_delta(session, ref, &deltas[i]));
-
-        /*
-         * We may be in a reconciliation already. Don't rewrite in this case as reconciliation is
-         * not reentrant.
-         *
-         * FIXME-WT-16207: this should go away when we use an algorithm to directly rewrite delta.
-         */
-        ret = __wt_reconcile(session, ref, false, 0);
-        mod = ref->page->modify;
-        /*
-         * We may generate an empty page if the keys all have a globally visible tombstone. Give up
-         * the rewrite in this case.
-         */
-        if (ret == 0 && mod->mod_disk_image != NULL) {
-            WT_ASSERT(session, mod->mod_replace.block_cookie == NULL);
-
-            /* The split code works with WT_MULTI structures, build one for the disk image. */
-            memset(&multi, 0, sizeof(multi));
-            multi.disk_image = mod->mod_disk_image;
-            WT_RET(__wt_calloc_one(session, &multi.block_meta));
-            *multi.block_meta = ref->page->disagg_info->block_meta;
-
-            /*
-             * Store the disk image to a temporary pointer in case we fail to rewrite the page and
-             * we need to link the new disk image back to the old disk image.
-             */
-            tmp = mod->mod_disk_image;
-            mod->mod_disk_image = NULL;
-            ret = __wt_split_rewrite(session, ref, &multi, false);
-            __wt_free(session, multi.block_meta);
-            if (ret != 0) {
-                mod->mod_disk_image = tmp;
-                WT_RET(ret);
-            }
-
-        } else if (ret != 0)
-            WT_RET(ret);
 
         time_stop = __wt_clock(session);
         __wt_stat_usecs_hist_incr_leaf_reconstruct(session, WT_CLOCKDIFF_US(time_stop, time_start));
