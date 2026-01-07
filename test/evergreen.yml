@@ -7585,8 +7585,6 @@ buildvariants:
       distros: amazon2023-arm64-latest-large-m8g
     - name: unit-test-hook-disagg-leader-tsan
       distros: amazon2023-arm64-latest-large-m8g
-    - name: unit-test-hook-disagg-follower-tsan
-      distros: amazon2023-arm64-latest-large-m8g
     # FIXME-WT-16309: Remove TSAN-specific jobs once the common tag works
     - name: format-stress-test-disagg-leader-tsan
       distros: amazon2023-arm64-latest-large-m8g
