@@ -7581,15 +7581,10 @@ buildvariants:
     - name: compile
     - name: examples-c-test
     - name: unit-test-hook-disagg-leader-tsan-bucket00
-      distros: amazon2023-arm64-latest-large-m8g
     - name: unit-test-hook-disagg-leader-tsan-bucket01
-      distros: amazon2023-arm64-latest-large-m8g
     - name: unit-test-hook-disagg-leader-tsan-bucket02
-      distros: amazon2023-arm64-latest-large-m8g
     - name: unit-test-hook-disagg-leader-tsan-bucket03
-      distros: amazon2023-arm64-latest-large-m8g
     - name: unit-test-hook-disagg-leader-tsan-bucket04
-      distros: amazon2023-arm64-latest-large-m8g
     - name: unit-test-tsan
       distros: amazon2023-arm64-latest-large-m8g
     - name: unit-test-hook-disagg-leader-tsan
