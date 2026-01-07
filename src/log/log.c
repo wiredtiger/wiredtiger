@@ -2270,6 +2270,15 @@ advance:
         reclen = __wt_bswap32(reclen);
 #endif
         /*
+         * If the record length is larger than the remaining bytes to EOF from the records offset,
+         * flag log file corruption.
+         */
+        if (reclen > log_size - __wt_lsn_offset(&rd_lsn)) {
+            need_salvage = true;
+            WT_ERR(__log_salvage_message(
+              session, log_fh->name, " record length oversize", __wt_lsn_offset(&rd_lsn)));
+        }
+        /*
          * Log files are pre-allocated. We need to detect the difference between a hole in the file
          * (where this location would be considered the end of log) and the last record in the log
          * and we're at the zeroed part of the file. If we find a zeroed record, scan forward in the
@@ -2307,15 +2316,6 @@ advance:
             WT_ERR(
               __log_fs_read(session, log_fh, __wt_lsn_offset(&rd_lsn), (size_t)rdup_len, buf->mem));
             WT_STAT_CONN_INCR(session, log_scan_rereads);
-        }
-        /*
-         * If the record length is larger than the remaining bytes to EOF from the records offset,
-         * flag log file corruption.
-         */
-        if (reclen > log_size - __wt_lsn_offset(&rd_lsn)) {
-            need_salvage = true;
-            WT_ERR(__log_salvage_message(
-              session, log_fh->name, " record length oversize", __wt_lsn_offset(&rd_lsn)));
         }
         /*
          * We read in the record, now verify the checksum. A failed checksum does not imply

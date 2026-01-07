@@ -121,9 +121,7 @@ __wt_rduppo2(uint32_t n, uint32_t po2)
     if (__wt_ispo2(po2)) {
         bits = __wt_log2_int(po2);
         res = (((n - 1) >> bits) + 1) << bits;
-        /*
-         * This assert is designed to avoid overflow for large values.
-         */
+        /* This assert is designed to avoid overflow for large values. */
         WT_ASSERT(NULL, res >= n);
     } else
         res = 0;
