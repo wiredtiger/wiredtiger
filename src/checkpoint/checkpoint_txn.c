@@ -1169,7 +1169,7 @@ __checkpoint_db_debug_crash_points(WT_SESSION_IMPL *session, const char *cfg[])
         session->ckpt.crash_point = (u_int)ckpt_crash_point;
     else
         WT_RET_MSG(session, EINVAL, "Debug checkpoint crash point %" PRIu32 " is invalid",
-          session->ckpt.crash_point);
+         ckpt_crash_point);
 
     return (0);
 }
