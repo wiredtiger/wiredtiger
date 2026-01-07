@@ -99,8 +99,8 @@ __wti_block_disagg_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root
      */
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_ADD))
-            WT_RET(__bmd_checkpoint_pack_raw(
-              block_disagg, session, root_image, block_meta, root_image->size, ckpt));
+            WT_RET(__bmd_checkpoint_pack_raw(block_disagg, session, root_image, block_meta,
+              root_image == NULL ? 0 : root_image->size, ckpt));
 
     return (0);
 }
