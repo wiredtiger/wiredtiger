@@ -9,7 +9,6 @@
 #pragma once
 
 #include "checkpoint_private.h"
-
 /*
  * WT_CKPT_SESSION --
  *     Per-session checkpoint information.

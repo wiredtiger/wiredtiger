@@ -1164,36 +1164,6 @@ __checkpoint_db_debug_crash_points(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __checkpoint_block_reusable_stats --
- *     Update block reusable ratio stats.
- */
-int
-__checkpoint_block_reusable_stats(WT_SESSION_IMPL *session, const char *cfg[])
-{
-    WT_BM *bm;
-    WT_BTREE *btree;
-
-    WT_UNUSED(cfg);
-
-    btree = S2BT(session);
-
-    if ((bm = btree->bm) == NULL)
-        return (0);
-
-    /* Only check file size over 100MB. */
-    if (bm->block->size < 100 * WT_MILLION)
-        return (0);
-
-    /* Update btree reusable after each checkpoint. */
-    int64_t reusable_percentage = (int64_t)bm->block->live.avail.bytes * 100 / bm->block->size;
-    if (reusable_percentage >= 50)
-        WT_STAT_CONN_INCR(session, block_reusable_over_50);
-    if (reusable_percentage >= 90)
-        WT_STAT_CONN_INCR(session, block_reusable_over_90);
-    return (0);
-}
-
-/*
  * __checkpoint_db_internal --
  *     Checkpoint a database or a list of objects in the database.
  */
