@@ -2505,7 +2505,7 @@ tasks:
           upload_filename: unit-test-hook-disagg-leader-tsan.tgz
 
   - name: unit-test-hook-disagg-leader-tsan-bucket00
-    tags: ["pull_request", "tsan"]
+    tags: ["pull_request", "unit_test_tsan", "python"]
     depends_on:
     - name: compile
     commands:
@@ -2519,7 +2519,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 0/5
 
   - name: unit-test-hook-disagg-leader-tsan-bucket01
-    tags: ["pull_request", "tsan"]
+    tags: ["pull_request", "unit_test_tsan", "python"]
     depends_on:
     - name: compile
     commands:
@@ -2533,7 +2533,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 1/5
 
   - name: unit-test-hook-disagg-leader-tsan-bucket02
-    tags: ["pull_request", "tsan"]
+    tags: ["pull_request", "unit_test_tsan", "python"]
     depends_on:
     - name: compile
     commands:
@@ -2547,7 +2547,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 2/5
 
   - name: unit-test-hook-disagg-leader-tsan-bucket03
-    tags: ["pull_request", "tsan"]
+    tags: ["pull_request", "unit_test_tsan", "python"]
     depends_on:
     - name: compile
     commands:
@@ -2561,7 +2561,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 3/5
 
   - name: unit-test-hook-disagg-leader-tsan-bucket04
-    tags: ["pull_request", "tsan"]
+    tags: ["pull_request", "unit_test_tsan", "python"]
     depends_on:
     - name: compile
     commands:
@@ -2575,7 +2575,7 @@ tasks:
           unit_test_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)" --batch 4/5
 
   - name: unit-test-hook-disagg-follower-tsan
-    tags: ["pull_request", "tsan", "python"]
+    tags: ["pull_request", "unit_test_tsan", "python"]
     depends_on:
     - name: compile
     commands:
@@ -7580,11 +7580,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: examples-c-test
-    - name: unit-test-hook-disagg-leader-tsan-bucket00
-    - name: unit-test-hook-disagg-leader-tsan-bucket01
-    - name: unit-test-hook-disagg-leader-tsan-bucket02
-    - name: unit-test-hook-disagg-leader-tsan-bucket03
-    - name: unit-test-hook-disagg-leader-tsan-bucket04
+    - name: .unit_test_tsan
     - name: unit-test-tsan
       distros: amazon2023-arm64-latest-large-m8g
     - name: unit-test-hook-disagg-leader-tsan
