@@ -502,7 +502,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
                 *addr = mod->mod_replace;
                 mod->mod_replace.block_cookie = NULL;
                 mod->mod_replace.block_cookie_size = 0;
-                ref->addr = addr;
+                __wt_tsan_suppress_store_wt_addr_ptr(&ref->addr, addr);
             } else
                 WT_ASSERT(
                   session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && ref->addr != NULL);
