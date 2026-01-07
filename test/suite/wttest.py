@@ -173,7 +173,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
                     longtest = False, extralongtest = False, zstdtest = False, ignoreStdout = False,
                     printOutput = False, seedw = 0, seedz = 0, hookmgr = None,
-                    ss_random_prefix = 0, timeout = 0):
+                    ss_random_prefix = 0, timeout = 0, tsan = False):
         # Make a readonly view of the command line options passed in.
         # This view will be shared by all test cases.
         WiredTigerTestCase._command_line_vars = ReadonlySimpleNamespace(command_line_vars)
@@ -191,6 +191,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         WiredTigerTestCase._retriesAfterRollback = 0
         WiredTigerTestCase._testsRun = 0
         WiredTigerTestCase._timeout = timeout
+        WiredTigerTestCase._tsan = tsan
         if hookmgr == None:
             hookmgr = wthooks.WiredTigerHookManager()
         WiredTigerTestCase._hookmgr = hookmgr
