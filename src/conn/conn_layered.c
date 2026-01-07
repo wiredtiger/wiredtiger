@@ -2360,9 +2360,9 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
  *     Moving all the data from a single ingest table to the corresponding stable table
  */
 static int
-__layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_ENTRY *entry)
+__layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_CURSOR *stable_cursor,
+  WT_CURSOR *ingest_version_cursor, wt_timestamp_t last_checkpoint_timestamp)
 {
-    WT_CURSOR *stable_cursor, *version_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(tmp_key);
@@ -2370,31 +2370,11 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
     WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_UPDATE *prev_upd, *tombstone, *upd, *upds;
-    wt_timestamp_t last_checkpoint_timestamp;
     uint8_t flags, location, prepare, type;
-    int cmp;
-    char buf[256], buf2[64];
-    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
 
-    stable_cursor = version_cursor = NULL;
     prev_upd = tombstone = upd = upds = NULL;
     WT_TIME_WINDOW_INIT(&tw);
-
-    last_checkpoint_timestamp = __wt_atomic_load_uint64_acquire(
-      &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
-    WT_RET(__layered_table_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
     cbt = (WT_CURSOR_BTREE *)stable_cursor;
-    if (last_checkpoint_timestamp != WT_TS_NONE)
-        WT_ERR(__wt_snprintf(
-          buf2, sizeof(buf2), "start_timestamp=%" PRIx64 "", last_checkpoint_timestamp));
-    else
-        buf2[0] = '\0';
-    WT_ERR(__wt_snprintf(buf, sizeof(buf),
-      "debug=(dump_version=(enabled=true,raw_key_value=true,visible_only=true,timestamp_order=true,"
-      "cross_key=true,%s))",
-      buf2));
-    cfg[1] = buf;
-    WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &version_cursor));
 
     WT_ERR(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wt_scr_alloc(session, 0, &tmp_key));
@@ -2402,7 +2382,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
 
     for (;;) {
         tombstone = upd = NULL;
-        WT_ERR_NOTFOUND_OK(version_cursor->next(version_cursor), true);
+        WT_ERR_NOTFOUND_OK(ingest_version_cursor->next(ingest_version_cursor), true);
         if (ret == WT_NOTFOUND) {
             if (key->size > 0 && upds != NULL) {
                 WT_WITH_DHANDLE(
@@ -2414,7 +2394,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
             break;
         }
 
-        WT_ERR(version_cursor->get_key(version_cursor, tmp_key));
+        WT_ERR(ingest_version_cursor->get_key(ingest_version_cursor, tmp_key));
+        int cmp;
         WT_ERR(__wt_compare(session, CUR2BT(cbt)->collator, key, tmp_key, &cmp));
         if (cmp != 0) {
             /*
@@ -2434,7 +2415,7 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
             WT_ERR(__wt_buf_set(session, key, tmp_key->data, tmp_key->size));
         }
 
-        WT_ERR(version_cursor->get_value(version_cursor, &tw.start_txn, &tw.start_ts,
+        WT_ERR(ingest_version_cursor->get_value(ingest_version_cursor, &tw.start_txn, &tw.start_ts,
           &tw.durable_start_ts, &tw.stop_txn, &tw.stop_ts, &tw.durable_stop_ts, &type, &prepare,
           &flags, &location, value));
         /* We shouldn't see any prepared updates. */
@@ -2524,10 +2505,49 @@ err:
     __wt_scr_free(session, &key);
     __wt_scr_free(session, &tmp_key);
     __wt_scr_free(session, &value);
-    if (version_cursor != NULL)
-        WT_TRET(version_cursor->close(version_cursor));
-    if (stable_cursor != NULL)
-        WT_TRET(stable_cursor->close(stable_cursor));
+    return (ret);
+}
+
+/*
+ * __layered_copy_setup_cursors --
+ *     Setup the cursors needed to copy data from the ingest table to the stable table.
+ */
+static int
+__layered_copy_setup_cursors(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_ENTRY *entry,
+  WT_CURSOR **stable_cursorp, WT_CURSOR **ingest_version_cursorp,
+  wt_timestamp_t *last_checkpoint_timestampp)
+{
+    WT_DECL_RET;
+
+    *last_checkpoint_timestampp = __wt_atomic_load_uint64_acquire(
+      &S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
+
+    WT_CURSOR *stable_cursor = NULL;
+    WT_CURSOR *ingest_version_cursor = NULL;
+    char buf[256], buf2[64];
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
+    WT_RET(__layered_table_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
+    if (*last_checkpoint_timestampp != WT_TS_NONE)
+        WT_ERR(__wt_snprintf(
+          buf2, sizeof(buf2), "start_timestamp=%" PRIx64 "", *last_checkpoint_timestampp));
+    else
+        buf2[0] = '\0';
+    WT_ERR(__wt_snprintf(buf, sizeof(buf),
+      "debug=(dump_version=(enabled=true,raw_key_value=true,visible_only=true,timestamp_order=true,"
+      "cross_key=true,%s))",
+      buf2));
+    cfg[1] = buf;
+    WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &ingest_version_cursor));
+err:
+    if (ret != 0) {
+        if (stable_cursor != NULL)
+            WT_TRET(stable_cursor->close(stable_cursor));
+        if (ingest_version_cursor != NULL)
+            WT_TRET(ingest_version_cursor->close(ingest_version_cursor));
+    } else {
+        *stable_cursorp = stable_cursor;
+        *ingest_version_cursorp = ingest_version_cursor;
+    }
     return (ret);
 }
 
@@ -2548,17 +2568,38 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
         return (0);
     }
 
+    /* Take the first item on the queue. */
     WT_LAYERED_DRAIN_ENTRY *work_item = TAILQ_FIRST(&conn->layered_drain_data.work_queue);
     WT_ASSERT(session, work_item != NULL);
     TAILQ_REMOVE(&conn->layered_drain_data.work_queue, work_item, q);
     __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
-    WT_ERR_MSG_CHK(session, __layered_copy_ingest_table(session, work_item->entry),
-      "Failed to copy ingest table \"%s\" to stable table \"%s\"", work_item->entry->ingest_uri,
-      work_item->entry->stable_uri);
-    WT_ERR_MSG_CHK(session, __layered_clear_ingest_table(session, work_item->entry->ingest_uri),
-      "Failed to clear ingest table \"%s\"", work_item->entry->ingest_uri);
-err:
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry = work_item->entry;
     __wt_free(session, work_item);
+
+    /*
+     * Open a cursor on the stable table, which will be closed out afer we've cleared the associated
+     * ingest table. This will prevent the sweep server from cleaning up the relevant dhandle
+     * prematurely. We need to be careful here once drop is implemented. In theory the work queue
+     * could contain items that no longer exist in the system.
+     */
+    WT_CURSOR *stable_cursor = NULL;
+    WT_CURSOR *ingest_version_cursor = NULL;
+    wt_timestamp_t last_checkpoint_ts = WT_TS_NONE;
+    WT_RET(__layered_copy_setup_cursors(
+      session, entry, &stable_cursor, &ingest_version_cursor, &last_checkpoint_ts));
+
+    WT_ERR_MSG_CHK(session,
+      __layered_copy_ingest_table(
+        session, stable_cursor, ingest_version_cursor, last_checkpoint_ts),
+      "Failed to copy ingest table \"%s\" to stable table \"%s\"", entry->ingest_uri,
+      entry->stable_uri);
+    WT_ERR_MSG_CHK(session, __layered_clear_ingest_table(session, entry->ingest_uri),
+      "Failed to clear ingest table \"%s\"", entry->ingest_uri);
+err:
+    if (stable_cursor != NULL)
+        WT_TRET(stable_cursor->close(stable_cursor));
+    if (ingest_version_cursor != NULL)
+        WT_TRET(ingest_version_cursor->close(ingest_version_cursor));
     return (ret);
 }
 
@@ -2615,15 +2656,15 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     group_created = false;
     internal_session = NULL;
 
-    __wt_spin_lock(session, &manager->layered_table_lock);
-
-    table_count = manager->open_layered_table_count;
-
     /*
-     * FIXME-WT-14734: shouldn't we hold this lock longer, e.g. manager->entries could get
-     * reallocated, or individual entries could get removed or freed.
+     * FIXME-WT-14734: Shouldn't we hold this lock longer? e.g. manager->entries could get
+     * reallocated, or individual entries could get removed or freed. Currently it seems like this
+     * isn't true but may be in the future.
      */
+    __wt_spin_lock(session, &manager->layered_table_lock);
+    table_count = manager->open_layered_table_count;
     __wt_spin_unlock(session, &manager->layered_table_lock);
+
     /* Initialize the work queue. */
     TAILQ_INIT(&conn->layered_drain_data.work_queue);
     WT_RET(__wt_spin_init(
