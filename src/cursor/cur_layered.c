@@ -1585,31 +1585,6 @@ __clayered_remove_int(
     return (0);
 }
 
-static WT_INLINE int
-__clayered_modify_int_old(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key,
-  WT_MODIFY *entries, int nentries)
-{
-    WT_CURSOR *c;
-
-    /*
-     * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
-     * anyway.
-     */
-    WT_RET(__clayered_reset_cursors(clayered, true));
-
-    if (S2C(session)->layered_table_manager.leader)
-        c = clayered->stable_cursor;
-    else
-        c = clayered->ingest_cursor;
-
-    c->set_key(c, key);
-    WT_RET(c->modify(c, entries, nentries));
-
-    clayered->current_cursor = c;
-
-    return (0);
-}
-
 /*
  * __clayered_copy_duplicate_kv --
  *     Copy the duplicate key value from the constitute cursor.
@@ -2073,8 +2048,13 @@ err:
     API_END_RET(session, ret);
 }
 
+/*
+ * __clayered_modify_leader --
+ *     Write some words here later.
+ */
 static int
-__clayered_modify_leader(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
+__clayered_modify_leader(
+  WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
     WT_CURSOR *c = clayered->stable_cursor;
@@ -2089,6 +2069,10 @@ __clayered_modify_leader(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY 
     return (0);
 }
 
+/*
+ * __clayered_modify_follower_insert --
+ *     Write some words here later.
+ */
 static int
 __clayered_modify_follower_insert(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered,
   const WT_ITEM *key, WT_MODIFY *entries, int nentries)
@@ -2128,8 +2112,13 @@ __clayered_modify_follower_insert(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *c
     return (0);
 }
 
+/*
+ * __clayered_modify_follower --
+ *     Write some words here later.
+ */
 static int
-__clayered_modify_follower(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
+__clayered_modify_follower(
+  WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
     WT_DECL_RET;
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
@@ -2162,6 +2151,10 @@ __clayered_modify_follower(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIF
     return (0);
 }
 
+/*
+ * __clayered_modify_int --
+ *     Write some words here later.
+ */
 static int
 __clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
@@ -2194,6 +2187,13 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     if (nentries <= 0)
         WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
 
+    /*
+     * TODO this is a test to see if the eviction race goes away. It shouldn't happen in the first
+     * place -- we only see the race on the follower, which shouldn't be evicting???
+     */
+    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT))
+        WT_ERR(cursor->search(cursor));
+
     WT_ERR(__clayered_modify_int(session, cursor, entries, nentries));
 
     /*
@@ -2210,6 +2210,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
      * Move the value out of the positioned cursor.
      */
     WT_ASSERT(session, F_MASK(current, WT_CURSTD_VALUE_SET) != 0);
+    __wt_buf_free(session, &cursor->value);
     WT_ITEM_MOVE(cursor->value, current->value);
     F_SET(cursor, F_MASK(current, WT_CURSTD_VALUE_SET));
     F_CLR(current, WT_CURSTD_VALUE_SET);
