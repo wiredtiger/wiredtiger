@@ -299,7 +299,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
                     self.reopen_conn(newdir, self.base_config)
             else:
                 self.reopen_conn(newdir, self.base_config)
-                # Check corrupted by invalid record length
+                # The test may corrupt logs, ignore the error messages.
                 out_text = self.readStdout()
                 if re.search('log file .* corrupted record length oversize', out_text):
                     self.cleanStdout()
