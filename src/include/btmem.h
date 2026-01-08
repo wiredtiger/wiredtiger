@@ -386,7 +386,6 @@ struct __wt_page_modify {
     /* Dirty bytes added to the cache. */
     wt_shared uint64_t bytes_dirty;
     wt_shared uint64_t bytes_updates;
-    wt_shared uint64_t bytes_delta_updates;
 
     /*
      * When pages are reconciled, the result is one or more replacement blocks. A replacement block
@@ -1585,7 +1584,7 @@ struct __wt_update {
  */
 #define WT_UPDATE_SELECT_FOR_DS                                                      \
     WT_UPDATE_DS | WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DS | \
-      WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_RESTORED_FROM_DELTA
+      WT_UPDATE_RESTORED_FROM_HS
     /*
      * Zero or more bytes of value (the payload) immediately follows the WT_UPDATE structure. We use
      * a C99 flexible array member which has the semantics we want.
