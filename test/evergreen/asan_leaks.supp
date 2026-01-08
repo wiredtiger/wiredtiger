@@ -28,9 +28,6 @@ leak:__wt_chunkcache_setup
 # FIXME-WT-16327: test_chunkcache02
 leak:__chunkcache_metadata_queue_internal
 
-# FIXME-WT-16328: test_layered08
-leak:__wt_dlopen
-
 # FIXME-WT-16329: test_layered44
 leak:__wt_meta_ckptlist_set
 
