@@ -7145,7 +7145,6 @@ buildvariants:
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
-    # FIXME-WT-16400: Re-enable once all release disagg python bugs are triaged.
     - name: ".pull_request !.pull_request_compilers !.unit_test_tsan"
     - name: compile
     - name: make-check-test
