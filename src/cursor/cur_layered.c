@@ -2060,7 +2060,8 @@ __clayered_modify_leader(
     WT_CURSOR *c = clayered->stable_cursor;
     WT_UNUSED(session);
 
-    c->set_key(c, &cursor->key);
+    /* TODO may not need to do this set_key if the current cursor was already the stable cursor. */
+    c->set_key(c, &cursor->key); /* Needed? */
     WT_RET(c->search(c));
     WT_RET(c->modify(c, entries, nentries));
 
@@ -2180,7 +2181,10 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
-    WT_ERR(__cursor_checkkey(cursor));
+    WT_ERR(__cursor_needkey(cursor)); /* TODO may not need this either if already positioned. */
+    /* WT_ERR(__cursor_needvalue(cursor)); /\* TODO may not need this either if already positioned. *\/ */
+    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_EXT));
+    /* WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_VALUE_EXT)); */
     WT_ERR(__clayered_enter(clayered, false, true, false));
 
     /* Check for a rational modify vector count. */
@@ -2191,10 +2195,12 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
      * TODO this is a test to see if the eviction race goes away. It shouldn't happen in the first
      * place -- we only see the race on the follower, which shouldn't be evicting???
      */
-    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT))
-        WT_ERR(cursor->search(cursor));
+    /* WT_IGNORE_RET(cursor->search(cursor)); */
 
     WT_ERR(__clayered_modify_int(session, cursor, entries, nentries));
+    /* c->set_key(c, &cursor->key); */
+    /* WT_ERR(c->search(c)); */
+    /* WT_ERR(c->modify(c, entries, nentries)); */
 
     /*
      * Copy the key out of the positioned cursor.
@@ -2204,22 +2210,26 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     WT_ASSERT(session, F_MASK(current, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
     WT_ERR(__wt_buf_set(session, &cursor->key, current->key.data, current->key.size));
-    F_SET(cursor, WT_CURSTD_KEY_INT);
+    F_SET(cursor, WT_CURSTD_KEY_EXT);
 
     /*
-     * Move the value out of the positioned cursor.
+     * Copy the value out of the positioned cursor.
      */
-    WT_ASSERT(session, F_MASK(current, WT_CURSTD_VALUE_SET) != 0);
-    __wt_buf_free(session, &cursor->value);
-    WT_ITEM_MOVE(cursor->value, current->value);
-    F_SET(cursor, F_MASK(current, WT_CURSTD_VALUE_SET));
-    F_CLR(current, WT_CURSTD_VALUE_SET);
+    /* WT_ASSERT(session, F_MASK(current, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT); */
+    WT_ERR(__wt_buf_set(session, &cursor->value, current->value.data, current->value.size));
+    F_SET(cursor, WT_CURSTD_VALUE_EXT);
+
+    /* WT_ASSERT(session, F_MASK(current, WT_CURSTD_VALUE_SET) != 0); */
+    /* __wt_buf_free(session, &cursor->value); */
+    /* WT_ITEM_MOVE(cursor->value, current->value); */
+    /* F_SET(cursor, F_MASK(current, WT_CURSTD_VALUE_SET)); */
+    /* F_CLR(current, WT_CURSTD_VALUE_SET); */
 
     /*
      * Modify maintains a position, key and value. Unlike update, it's not always an internal value.
      */
-    WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
-    WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) != 0);
+    /* WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT); */
+    /* WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) != 0); */
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_update);
 
