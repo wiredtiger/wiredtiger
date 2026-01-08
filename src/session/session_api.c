@@ -2701,6 +2701,8 @@ err:
     __wt_spin_destroy(session, &session->thread_check.lock);
 #endif
     __wt_spin_unlock(session, &conn->api_lock);
+    if (ret != 0 && session_ret != NULL)
+        __wt_txn_destroy(session_ret);
     return (ret);
 }
 
