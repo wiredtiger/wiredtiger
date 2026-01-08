@@ -2061,10 +2061,15 @@ __clayered_modify_leader(
     WT_UNUSED(session);
 
     /* TODO may not need to do this set_key if the current cursor was already the stable cursor. */
-    c->set_key(c, &cursor->key); /* Needed? */
-    WT_RET(c->search(c));
-    WT_RET(__cursor_needvalue(c));
-    WT_RET(c->modify(c, entries, nentries));
+    /* c->set_key(c, &cursor->key); /\* Needed? *\/ */
+    /* WT_RET(c->search(c)); */
+    WT_RET(__wt_buf_set(session, &c->key, cursor->key.data, cursor->key.size));
+    WT_RET(__wt_buf_set(session, &c->value, cursor->value.data, cursor->value.size));
+    F_SET(c, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
+    WT_RET(__wt_modify_apply_api(c, entries, nentries));
+    WT_RET(c->update(c));
+    /* WT_RET(__cursor_needvalue(c)); */
+    /* WT_RET(c->modify(c, entries, nentries)); */
 
     clayered->current_cursor = c;
 
