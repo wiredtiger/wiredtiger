@@ -34,9 +34,6 @@ leak:__wt_dlopen
 # FIXME-WT-16329: test_layered44
 leak:__wt_meta_ckptlist_set
 
-# FIXME-WT-16323: test_prefetch01
-leak:__wt_txn_init
-
 # FIXME-WT-16330: test_schema02
 leak:__schema_open_table
 
