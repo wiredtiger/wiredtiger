@@ -717,6 +717,7 @@ err:
         F_CLR(cb, WT_CURBACKUP_CONSOLIDATE);
         F_SET(cb, consolidate);
     }
+    __backup_free(session, cb);
     __wt_scr_free(session, &tmp);
     return (ret);
 }
