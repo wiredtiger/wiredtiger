@@ -28,7 +28,7 @@ struct __wt_ckpt_session {
         CKPT_CRASH_BEFORE_METADATA_SYNC,
         CKPT_CRASH_BEFORE_METADATA_UPDATE,
         CKPT_CRASH_ENUM_END,
-    } ckpt_crash_crash_points;
+    } ckpt_crash_state;
 
     /* Key provider crash points. 1001 - 2000 values are reserved for key provider */
     enum {
