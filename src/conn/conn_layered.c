@@ -1341,12 +1341,12 @@ __wt_layered_table_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_i
 
     WT_ERR(__wt_calloc_one(session, &entry));
     /*
-     * It's safe to just reference the same string. The lifecycle of the layered tree is longer than
-     * it will live in the tracker here.
+     * Duplicate the URI strings to ensure proper ownership and avoid use-after-free bugs if the
+     * layered table or dhandle is freed before the entry is removed.
      */
-    entry->stable_uri = layered->stable_uri;
-    entry->ingest_uri = layered->ingest_uri;
-    entry->layered_uri = session->dhandle->name;
+    WT_ERR(__wt_strdup(session, layered->stable_uri, &entry->stable_uri));
+    WT_ERR(__wt_strdup(session, layered->ingest_uri, &entry->ingest_uri));
+    WT_ERR(__wt_strdup(session, session->dhandle->name, &entry->layered_uri));
     entry->ingest_id = ingest_id;
 
     __wt_spin_lock(session, &manager->layered_table_lock);
@@ -1370,7 +1370,12 @@ __wt_layered_table_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_i
 
 err:
     __wt_spin_unlock(session, &manager->layered_table_lock);
-
+    if (ret != 0 && entry != NULL) {
+        __wt_free(session, entry->stable_uri);
+        __wt_free(session, entry->ingest_uri);
+        __wt_free(session, entry->layered_uri);
+        __wt_free(session, entry);
+    }
     return (ret);
 }
 
@@ -1392,6 +1397,10 @@ __layered_table_manager_remove_table_inlock(WT_SESSION_IMPL *session, uint32_t i
           "__wt_layered_table_manager_remove_table stable_uri=%s ingest_id=%" PRIu32,
           entry->stable_uri, ingest_id);
 
+        /* Free the duplicated URI strings. */
+        __wt_free(session, entry->stable_uri);
+        __wt_free(session, entry->ingest_uri);
+        __wt_free(session, entry->layered_uri);
         __wt_free(session, entry);
         manager->entries[ingest_id] = NULL;
     }
@@ -2593,8 +2602,13 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
         session, stable_cursor, ingest_version_cursor, last_checkpoint_ts),
       "Failed to copy ingest table \"%s\" to stable table \"%s\"", entry->ingest_uri,
       entry->stable_uri);
-    WT_ERR_MSG_CHK(session, __layered_clear_ingest_table(session, entry->ingest_uri),
-      "Failed to clear ingest table \"%s\"", entry->ingest_uri);
+    ret = (__layered_clear_ingest_table(session, entry->ingest_uri));
+    if (ret != 0) {
+        ((void)!(__wt_error_log_add("/home/ubuntu/wiredtiger/src/conn/conn_layered.c", __PRETTY_FUNCTION__, 2597, "ret", ret, (-32000)))); 
+        __wt_err_func( session, ret, __PRETTY_FUNCTION__, 2597, WT_VERB_DEFAULT, "Failed to clear ingest table \"%s\"", entry->ingest_uri); 
+        __wt_session_set_last_error(session, ret, (-32000), "Failed to clear ingest table \"%s\"", entry->ingest_uri); 
+        goto err;
+    }
 err:
     if (stable_cursor != NULL)
         WT_TRET(stable_cursor->close(stable_cursor));
