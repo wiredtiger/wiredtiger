@@ -2063,6 +2063,7 @@ __clayered_modify_leader(
     /* TODO may not need to do this set_key if the current cursor was already the stable cursor. */
     c->set_key(c, &cursor->key); /* Needed? */
     WT_RET(c->search(c));
+    WT_RET(__cursor_needvalue(c));
     WT_RET(c->modify(c, entries, nentries));
 
     clayered->current_cursor = c;
@@ -2145,8 +2146,10 @@ __clayered_modify_follower(
     if (ret == WT_NOTFOUND)
         /*  We found nothing (not even a tombstone) in the ingest table. */
         WT_RET(__clayered_modify_follower_insert(session, clayered, key, entries, nentries));
-    else
+    else {
+        WT_RET(__cursor_needvalue(ingest));
         WT_RET(ingest->modify(ingest, entries, nentries));
+    }
 
     clayered->current_cursor = ingest;
     return (0);
