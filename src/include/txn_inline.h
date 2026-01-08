@@ -12,7 +12,6 @@
  * __wt_txn_context_prepare_check --
  *     Return an error if the current transaction is in the prepare state.
  */
-#include "misc.h"
 static WT_INLINE int
 __wt_txn_context_prepare_check(WT_SESSION_IMPL *session)
 {
