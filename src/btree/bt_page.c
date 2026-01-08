@@ -15,11 +15,6 @@ static int __inmem_row_leaf(WT_SESSION_IMPL *, WT_PAGE *, bool *);
 static int __inmem_row_leaf_entries(WT_SESSION_IMPL *, const WT_PAGE_HEADER *, uint32_t *);
 
 /*
- * Define functions that increment histogram statistics for reconstruction of pages with deltas.
- */
-WT_STAT_USECS_HIST_INCR_FUNC(leaf_reconstruct, perf_hist_leaf_reconstruct_latency)
-
-/*
  * __page_find_min_delta --
  *     Identify the smallest key across all active delta streams and return the corresponding delta
  *     entry and its stream index (min_d).
