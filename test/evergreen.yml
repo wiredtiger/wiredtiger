@@ -3551,7 +3551,6 @@ tasks:
             WT_BUILDDIR=$(pwd)/../../cmake_build LD_LIBRARY_PATH=$WT_BUILDDIR ${python_binary|python3} syscall.py --verbose --preserve
 
   - name: checkpoint-filetypes-test
-    tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
