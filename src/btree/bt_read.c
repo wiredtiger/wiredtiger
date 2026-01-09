@@ -428,16 +428,12 @@ err:
         __wt_ref_out(session, ref);
     }
 
+    /*
+     * Free any disk images or delta buffers we allocated or read.
+     */
     if (tmp != NULL) {
-        size_t start = disk_image_freed ? 1 : 0;
-
-        for (i = start; i < count; ++i)
+        for (i = 0; i < count; ++i)
             __wt_buf_free(session, &tmp[i]);
-
-        /* Free the base image memory when a full disk image is constructed from deltas. */
-        if (build_full_disk_image_from_deltas)
-            __wt_buf_free(session, &tmp[0]);
-
         __wt_free(session, tmp);
     }
 
