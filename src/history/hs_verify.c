@@ -177,6 +177,8 @@ __hs_verify(WT_SESSION_IMPL *session, uint32_t hs_id)
 
     /* Go through the history store and validate each btree. */
     while (ret == 0) {
+        if (uri_data)
+            __wt_free(session, uri_data);
         /*
          * The cursor is positioned either from above or left over from the internal call on the
          * first key of a new btree id.
@@ -204,7 +206,6 @@ __hs_verify(WT_SESSION_IMPL *session, uint32_t hs_id)
         }
 
         WT_ERR(ds_cursor->close(ds_cursor));
-        __wt_free(session, uri_data);
     }
 err:
     __wt_scr_free(session, &buf);
