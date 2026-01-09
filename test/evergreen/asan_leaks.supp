@@ -11,9 +11,6 @@ leak:__tiered_open
 leak:__backup_list_append
 leak:__backup_config
 
-# FIXME-WT-16325: test_bug035
-leak:__wt_metadata_btree_id_to_uri
-
 # FIXME-WT-16322: test_checkpoint13
 leak:__curfile_create
 
