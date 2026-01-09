@@ -14,8 +14,6 @@ leak:__backup_config
 # FIXME-WT-16325: test_bug035
 leak:__wt_metadata_btree_id_to_uri
 
-# FIXME-WT-16322: test_checkpoint13
-leak:__curfile_create
 
 # FIXME-WT-16326: test_chunkcache01
 leak:__tier_do_operation
@@ -25,8 +23,6 @@ leak:__wt_chunkcache_setup
 # FIXME-WT-16327: test_chunkcache02
 leak:__chunkcache_metadata_queue_internal
 
-# FIXME-WT-16323: test_prefetch01
-leak:__wt_txn_init
 
 # FIXME-WT-16330: test_schema02
 leak:__schema_open_table
