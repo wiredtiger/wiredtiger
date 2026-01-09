@@ -2078,12 +2078,17 @@ methods = {
         Config('checkpoint_cleanup', 'false', r'''
             if true, checkpoint cleanup thread is triggered to perform the checkpoint cleanup''',
             type='boolean'),
-        Config('checkpoint_crash_point', '0', r'''
-            A value between 1 and 2000 triggers a controlled crash during the checkpoint process.
-            Values between 1 and 1000 crash during core checkpoint phases: lower values crash
-            earlier phases, higher values crash later phases. Values between 1001 and 2000
-            designate crash points reserved for the key provider.''',
-            type='int', min='0', max='2000'),
+        Config('checkpoint_crash_point', '-1', r'''
+            non-negative number between 0 and 1000 will trigger a controlled crash during the
+            checkpoint process. Lower values will trigger crashes in the initial phase of
+            checkpoint, while higher values will result in crashes in the final phase of the
+            checkpoint process''',
+            type='int'),
+        Config('key_provider_trigger_crash_points', '0', r'''
+            non-negative number between 1 and 3 will trigger a controlled crash during the
+            key provider process. A lower value would trigger crashes in the initial phase of
+            key provider, while a higher value would result in crashes in a later phase.''',
+            type='int'),
         ]),
     Config('drop', '', r'''
         specify a list of checkpoints to drop. The list may additionally contain one of the
