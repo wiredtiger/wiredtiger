@@ -663,6 +663,10 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     else
         btree->next_page_id = ckpt->next_page_id;
 
+    /* Load the total compressed bytes for disaggregated storage. */
+    if (__wt_conn_is_disagg(session))
+        btree->bytes_compressed_total = ckpt->size;
+
     /*
      * We've just overwritten the runtime write generation based off the fact that know that we're
      * importing and therefore, the checkpoint data's runtime write generation is meaningless. We

@@ -138,6 +138,9 @@ struct __wt_btree {
 
     WT_BTREE_CHECKSUM checksum; /* Checksum configuration */
 
+    /* Total compressed size of all blocks in this btree. Tracked for disaggregated storage. */
+    wt_shared uint64_t bytes_compressed_total;
+
     /*
      * Reconciliation...
      */

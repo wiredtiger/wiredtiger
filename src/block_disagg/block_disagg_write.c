@@ -208,6 +208,8 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     *sizep = WT_STORE_SIZE(buf->size);
     *checksump = checksum;
 
+    /* Update the btree's running total of compressed bytes. */
+    (void)__wt_atomic_add_uint64(&S2BT(session)->bytes_compressed_total, *sizep);
     return (0);
 }
 
@@ -249,8 +251,15 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
     cookie.flags = __block_disagg_addr_flags(block_meta);
     cookie.lsn = block_meta->disagg_lsn;
     cookie.base_lsn = block_meta->base_lsn;
-    cookie.size = size;
     cookie.checksum = checksum;
+
+    /* Calculate the cumulative compressed size and store it in cookie.size. */
+    if (block_meta->delta_count == 0)
+        cookie.size = size;
+    else
+        cookie.size = block_meta->cumulative_compressed_size + size;
+    /* Update the block_meta for future delta writes. */
+    block_meta->cumulative_compressed_size = cookie.size;
 
     endp = addr;
     WT_RET(__wti_block_disagg_addr_pack(session, &endp, &cookie));
@@ -278,6 +287,12 @@ __wti_block_disagg_page_discard(
 
     /* Create the discard request. */
     WT_PAGE_LOG_HANDLE *plhandle = block_disagg->plhandle;
+
+    /*
+     * Decrement the btree's running total of compressed bytes. The cookie.size field represents the
+     * cumulative compressed size of the block chain (base + deltas).
+     */
+    (void)__wt_atomic_sub_uint64(&S2BT(session)->bytes_compressed_total, cookie.size);
 
     /* Ignore the call if the function is not implemented. */
     if (plhandle->plh_discard == NULL) {

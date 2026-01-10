@@ -225,6 +225,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                     block_meta->delta_count = (uint8_t)(*results_count - 1);
                     block_meta->checksum = checksum;
                     block_meta->encryption = get_args.encryption;
+                    block_meta->compressed_size = size;
                     if (block_meta->delta_count > 0)
                         WT_ASSERT(session, get_args.base_lsn > 0);
                     else
