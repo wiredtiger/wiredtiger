@@ -646,6 +646,9 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
 
         /* Reset the last filled configuration for the next column group. */
         *--cfgp = NULL;
+
+        __wt_free(session, cgconf);
+        __wt_free(session, sourceconf);
     }
 
 err:
