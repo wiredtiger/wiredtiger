@@ -2064,6 +2064,8 @@ __clayered_modify_leader(
     /* c->set_key(c, &cursor->key); /\* Needed? *\/ */
     /* WT_RET(c->search(c)); */
     WT_RET(__wt_buf_set(session, &c->key, cursor->key.data, cursor->key.size));
+    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_VALUE_EXT));
+    WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->value));
     WT_RET(__wt_buf_set(session, &c->value, cursor->value.data, cursor->value.size));
     F_SET(c, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
     WT_RET(__wt_modify_apply_api(c, entries, nentries));
