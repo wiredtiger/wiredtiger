@@ -2060,18 +2060,12 @@ __clayered_modify_leader(
     WT_CURSOR *c = clayered->stable_cursor;
     WT_UNUSED(session);
 
-    /* TODO may not need to do this set_key if the current cursor was already the stable cursor. */
-    /* c->set_key(c, &cursor->key); /\* Needed? *\/ */
-    /* WT_RET(c->search(c)); */
-    WT_RET(__wt_buf_set(session, &c->key, cursor->key.data, cursor->key.size));
-    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_VALUE_EXT));
-    WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->value));
-    WT_RET(__wt_buf_set(session, &c->value, cursor->value.data, cursor->value.size));
-    F_SET(c, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
-    WT_RET(__wt_modify_apply_api(c, entries, nentries));
-    WT_RET(c->update(c));
-    /* WT_RET(__cursor_needvalue(c)); */
-    /* WT_RET(c->modify(c, entries, nentries)); */
+    if (!F_ISSET(c, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT)) {
+        c->set_key(c, &cursor->key); /* Needed? */
+        WT_RET(c->search(c));
+    }
+
+    WT_RET(c->modify(c, entries, nentries));
 
     clayered->current_cursor = c;
 
@@ -2135,6 +2129,7 @@ __clayered_modify_follower(
     WT_ITEM *key = &cursor->key;
 
     /* Do we have a base value in the ingest table? */
+    /* TODO the thing chenhao said */
     ingest->set_key(ingest, key);
     ret = ingest->search(ingest);
     WT_RET_NOTFOUND_OK(ret);
@@ -2201,11 +2196,9 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     if (nentries <= 0)
         WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
 
-    /*
-     * TODO this is a test to see if the eviction race goes away. It shouldn't happen in the first
-     * place -- we only see the race on the follower, which shouldn't be evicting???
-     */
-    /* WT_IGNORE_RET(cursor->search(cursor)); */
+    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT))
+        WT_ERR(cursor->search(cursor));
+    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_INT));
 
     WT_ERR(__clayered_modify_int(session, cursor, entries, nentries));
     /* c->set_key(c, &cursor->key); */
