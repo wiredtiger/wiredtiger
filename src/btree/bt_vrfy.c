@@ -316,7 +316,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * page discard function if we're in disagg mode.
              */
             if (ret == 0 && (ckpt + 1)->name == NULL) {
-                /* The page discard verification routine depends on get_page_ids being implemented. */
+                /* The page discard verification routine depends on get_page_ids being implemented.
+                 */
                 if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->raw.data &&
                   bm->get_page_ids != NULL)
                     WT_TRET(__verify_page_discard(session, bm));
