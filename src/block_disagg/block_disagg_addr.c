@@ -16,8 +16,8 @@
  * a new version number would be more appropriate when introducing a new mandatory field, changing
  * the meaning of an existing field, or removing a field or a flag.
  *
- * Version 1: Changed the meaning of the size field from block size to cumulative compressed size
- *            (base image + all deltas). This change does not have backwards compatibility.
+ * Version 1: Size now represents the cumulative compressed size (base image + all deltas). This
+ *            change does not have backwards compatibility.
  */
 #define WT_BLOCK_DISAGG_ADDR_VERSION 1
 #define WT_BLOCK_DISAGG_ADDR_VERSION_MIN 1 /* The oldest version that can read this format. */

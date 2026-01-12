@@ -266,11 +266,8 @@ struct __wt_page_block_meta {
     uint32_t checksum;
 
     size_t image_size; /* The in-memory size of the fully constructed page image. */
-    /*
-     * The cumulative compressed size of the block chain. For a base image, this is the size of the
-     * base image. For deltas this is the cumulative size of the base image plus all deltas applied
-     * to it.
-     */
+
+    /* The cumulative compressed size of the page + delta chain. */
     uint32_t cumulative_compressed_size;
 
     WT_PAGE_LOG_ENCRYPTION encryption;
