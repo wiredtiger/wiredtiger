@@ -1047,7 +1047,8 @@ def get_arg_parser():
     parser.add_argument('--continue', help="continue on checksum failure", dest='cont', action='store_true')
     parser.add_argument('-D', '--debug', help="debug this tool", action='store_true')
     parser.add_argument('-d', '--dumpin', help="input is hex dump (may be embedded in log messages)", action='store_true')
-    parser.add_argument('--disagg_table', help="input is a full disagg table", action='store_true')
+    parser.add_argument('--disagg_table', help="input is a full disagg table from the GetTableAtLSN endpoint on the Object Read Proxy (ORP). \
+        The table can be downloaded from S3 as a jsonl file containing all of the pages linked to a table_id. ", action='store_true')
     parser.add_argument('--disagg', help="input comes from disaggregated storage", action='store_true')
     parser.add_argument('--ext', help="dump only the extent lists", action='store_true')
     parser.add_argument('-f', '--fragment', help="input file is a fragment, does not have a WT file header", action='store_true')
