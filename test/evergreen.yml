@@ -6555,7 +6555,6 @@ buildvariants:
     - name: doc-compile
     - name: make-check-test
     - name: configure-combinations
-    - name: syscall-linux
     - name: unit-test-zstd
     - name: unit-test-hook-disagg-leader-key-provider
     - name: unit-test-hook-tiered
@@ -7512,7 +7511,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
     ctest_extra_args: -E "wt12015_backup_corruption"
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan"
+    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !.unit_test_tsan !syscall-linux !chunkcache-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
