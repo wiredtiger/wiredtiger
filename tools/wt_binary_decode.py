@@ -892,7 +892,7 @@ def disagg_metadata_string(page):
         f"  table_id: {metadata.get('table_id', {}).get('val', {}).get('IntVal', 'None')}\n"
         f"  lsn: {page.get('lsn', {}).get('lsn', 'None')}\n"
         f"  base_lsn: {metadata.get('base_lsn', {}).get('val', {}).get('LongVal', 'None')}\n"
-        f"  backlinkLsn: {metadata.get('backlink_lsn', {}).get('val', {}).get('LongVal', 'None')}"
+        f"  backlink_lsn: {metadata.get('backlink_lsn', {}).get('val', {}).get('LongVal', 'None')}"
     )
     
     return meta_string
