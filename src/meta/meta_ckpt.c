@@ -1332,8 +1332,13 @@ __wt_meta_ckptlist_set(
 
     /* Add B-tree metadata to any added checkpoint. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
-        if (F_ISSET(ckpt, WT_CKPT_ADD))
+        if (F_ISSET(ckpt, WT_CKPT_ADD)) {
             ckpt->next_page_id = S2BT(session)->next_page_id;
+            /* For disaggregated storage, save the current total compressed bytes to ckpt->size. */
+            if (__wt_conn_is_disagg(session))
+                ckpt->size =
+                  __wt_atomic_load_uint64_relaxed(&S2BT(session)->bytes_compressed_total);
+        }
 
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
 
@@ -1341,13 +1346,8 @@ __wt_meta_ckptlist_set(
 
     /* Add backup block modifications for any added checkpoint. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
-        if (F_ISSET(ckpt, WT_CKPT_ADD)) {
+        if (F_ISSET(ckpt, WT_CKPT_ADD))
             WT_ERR(__ckpt_blkmod_to_meta(session, buf, ckpt));
-            /* For disaggregated storage, save the current total compressed bytes to ckpt->size. */
-            if (__wt_conn_is_disagg(session))
-                ckpt->size =
-                  __wt_atomic_load_uint64_relaxed(&S2BT(session)->bytes_compressed_total);
-        }
 
     /* "If provided, the metadata needs the LSN of this checkpoint for recovery. */
     has_lsn = ckptlsn_str != NULL;
