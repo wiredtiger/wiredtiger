@@ -24,9 +24,6 @@ leak:__schema_open_table
 # FIXME-WT-16331: test_tiered04
 leak:__tiered_name_str
 
-# FIXME-WT-16332: test_tiered18
-leak:__create_colgroup
-
 # FIXME-WT-16083: Resolve the warnings and remove the suppressions.
 leak:_PyBytes_FromSize
 leak:_wrap__wiredtiger_calc_modify
