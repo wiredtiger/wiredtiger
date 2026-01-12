@@ -815,7 +815,9 @@ def decrypt_page(page):
         raise FileNotFoundError(
             "pagedecryptor not found: Decryption requires the 'pagedecryptor' tool from the MongoDB "
             "encryption module. Please install the tool and ensure the 'pagedecryptor' binary is on your "
-            "PATH."
+            "PATH.\n"
+            "Hint - compile from the mongo repo with:\n"
+            "bazel build //src/mongo/db/modules/atlas/src/disagg_storage/encryption:pagedecryptor"
         )
         
     if not opts.keyfile or not os.path.exists(opts.keyfile):
