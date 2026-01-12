@@ -839,46 +839,46 @@ def decrypt_page(page):
     base_lsn = metadata.get('base_lsn', {}).get('val', {}).get('LongVal')
     backlink_lsn = metadata.get('backlink_lsn', {}).get('val', {}).get('LongVal')
     
-    temp_input = tempfile.NamedTemporaryFile(mode='w', delete=True, suffix='.in')
-    temp_output = tempfile.NamedTemporaryFile(mode='rb', delete=True, suffix='.out')
+    with tempfile.NamedTemporaryFile(mode='w', delete=True, suffix='.in') as temp_input, \
+         tempfile.NamedTemporaryFile(mode='rb', delete=True, suffix='.out') as temp_output:
     
-    # Write the page bytes to the temporary input file. The decrypt tool expects a file containing a
-    # base64 encoded byte string.
-    entry_bytes = page.get('entry', [])
-    raw_bytes = bytes(entry_bytes)
-    base64_encoded = base64.b64encode(raw_bytes)
-    temp_input.write(base64_encoded.decode('ascii'))
-    temp_input.flush()
-    
-    cmd = [
-        'pagedecryptor',
-        '--inputPath', temp_input.name,
-        '--outputPath', temp_output.name,
-        '--keyFile', opts.keyfile,
-        '--lsn', str(lsn),
-        '--tableId', str(table_id),
-        '--pageId', str(page_id),
-    ]
-    
-    if base_lsn is not None:
-        cmd.extend(['--baseLsn', str(base_lsn)])
-    if backlink_lsn is not None:
-        cmd.extend(['--backlinkLsn', str(backlink_lsn)])
+        # Write the page bytes to the temporary input file. The decrypt tool expects a file containing a
+        # base64 encoded byte string.
+        entry_bytes = page.get('entry', [])
+        raw_bytes = bytes(entry_bytes)
+        base64_encoded = base64.b64encode(raw_bytes)
+        temp_input.write(base64_encoded.decode('ascii'))
+        temp_input.flush()
         
-    if metadata.get('flags', {}).get("val", {}).get("IntVal", {}) == page_service.UpdateTypeFlags.UPDATE_TYPE_DELTA:
-        cmd.extend(['--isDelta'])
-    
-    try:
-        decrypt_result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        if (opts.debug):
-            print(f'pagedecryptor stdout: {decrypt_result.stdout}')
-            print(f'pagedecryptor stderr: {decrypt_result.stderr}')
-    except subprocess.CalledProcessError as e:
-        print(f"Error decrypting page {page_id}: {e}", file=sys.stderr)
-        print(f"pagedecryptor stderr: {e.stderr}", file=sys.stderr)
-        raise
+        cmd = [
+            'pagedecryptor',
+            '--inputPath', temp_input.name,
+            '--outputPath', temp_output.name,
+            '--keyFile', opts.keyfile,
+            '--lsn', str(lsn),
+            '--tableId', str(table_id),
+            '--pageId', str(page_id),
+        ]
         
-    decrypted_bytes = temp_output.read()
+        if base_lsn is not None:
+            cmd.extend(['--baseLsn', str(base_lsn)])
+        if backlink_lsn is not None:
+            cmd.extend(['--backlinkLsn', str(backlink_lsn)])
+            
+        if metadata.get('flags', {}).get("val", {}).get("IntVal", {}) == page_service.UpdateTypeFlags.UPDATE_TYPE_DELTA:
+            cmd.extend(['--isDelta'])
+        
+        try:
+            decrypt_result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            if (opts.debug):
+                print(f'pagedecryptor stdout: {decrypt_result.stdout}')
+                print(f'pagedecryptor stderr: {decrypt_result.stderr}')
+        except subprocess.CalledProcessError as e:
+            print(f"Error decrypting page {page_id}: {e}", file=sys.stderr)
+            print(f"pagedecryptor stderr: {e.stderr}", file=sys.stderr)
+            raise
+        
+        decrypted_bytes = temp_output.read()
     
     return decrypted_bytes
 
