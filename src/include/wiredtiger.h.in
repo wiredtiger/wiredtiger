@@ -1920,11 +1920,11 @@ struct __wt_session {
      * for internal testing purposes., a set of related configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_cleanup, if true\, checkpoint cleanup thread is
      * triggered to perform the checkpoint cleanup., a boolean flag; default \c false.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_crash_point, A value between 1 and 2000 triggers a
-     * controlled crash during the checkpoint process.  Values between 1 and 1000 crash during core
-     * checkpoint phases: lower values crash earlier phases\, higher values crash later phases.
-     * Values between 1001 and 2000 designate crash points reserved for the key provider., an
-     * integer between \c 0 and \c 2000; default \c 0.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_crash_relative_point, A value between 1 and 1000
+     * will trigger a controlled crash during the checkpoint process.  Lower values will trigger
+     * crashes in the initial phase of checkpoint\, while higher values will result in crashes in
+     * the final phase of the checkpoint process., an integer between \c 0 and \c 1000; default \c
+     * 0.}
      * @config{ ),,}
      * @config{drop, specify a list of checkpoints to drop.  The list may additionally contain one
      * of the following keys: \c "from=all" to drop all checkpoints\, \c "from=<checkpoint>" to drop

@@ -2078,12 +2078,17 @@ methods = {
         Config('checkpoint_cleanup', 'false', r'''
             if true, checkpoint cleanup thread is triggered to perform the checkpoint cleanup''',
             type='boolean'),
-        Config('checkpoint_crash_point', '0', r'''
-            A value between 1 and 2000 triggers a controlled crash during the checkpoint process.
-            Values between 1 and 1000 crash during core checkpoint phases: lower values crash
-            earlier phases, higher values crash later phases. Values between 1001 and 2000
-            designate crash points reserved for the key provider.''',
-            type='int', min='0', max='2000'),
+        Config('checkpoint_crash_relative_point', '0', r'''
+            A value between 1 and 1000 will trigger a controlled crash during the
+            checkpoint process. Lower values will trigger crashes in the initial phase of
+            checkpoint, while higher values will result in crashes in the final phase of the
+            checkpoint process''', type='int', min='0', max='1000'),
+        Config('checkpoint_crash_point', '', r'''
+            enable code that performs a crash duriing checkpoint process with a goal of uncovering
+            race conditions at unexpected times. This option is intended for use with internal
+            testing of WiredTiger.''', undoc=True,
+            choices=['before_metadata_sync', 'before_metadata_update',
+                'before_key_rotation', 'during_key_rotation', 'after_key_rotation']),
         ]),
     Config('drop', '', r'''
         specify a list of checkpoints to drop. The list may additionally contain one of the

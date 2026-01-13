@@ -67,7 +67,7 @@
     (s)->name = (s)->lastop = #struct_name "." #func_name
 #define API_SESSION_POP(s)  \
     (s)->dhandle = __olddh; \
-    (s)->name = __oldname;  \
+    (s)->name = __oldname;  \f
     --(s)->api_call_counter
 
 /* Standard entry points to the API: declares/initializes local variables. */
