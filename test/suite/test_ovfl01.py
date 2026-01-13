@@ -63,7 +63,7 @@ class test_ovfl01(wttest.WiredTigerTestCase):
 
         # Closing the cursor might hit the failpoint if the page needs to split during
         # reconciliation, therefore turn off the failpoint.
-        self.conn.reconfigure(self.base_conn_config)
+        self.conn.reconfigure(self.base_conn_config + ',timing_stress_for_test=()')
         c.close()
 
     def test_ovfl01(self):
