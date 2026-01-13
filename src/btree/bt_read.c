@@ -334,6 +334,21 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         WT_ERR(__page_read_build_full_disk_image(
           session, ref, deltas, count - 1, &new_image, tmp[0].data));
 
+#ifdef HAVE_DIAGNOSTIC
+        /* Verify the newly built full disk image. */
+        WT_ADDR addr_tmp;
+        addr_tmp.block_cookie = addr.addr;
+        addr_tmp.block_cookie_size = addr.size;
+        addr_tmp.type = addr.type;
+        WT_TIME_AGGREGATE_COPY(&addr_tmp.ta, &addr.ta);
+        int verify_ret =
+          __wt_verify_dsk_image(session, "[verify the newly built full disk image from deltas]",
+            new_image.data, new_image.size, &addr_tmp, WT_VRFY_DISK_EMPTY_PAGE_OK);
+        WT_ASSERT_ALWAYS(session, verify_ret == 0,
+          "verification failed for the newly built full disk image from deltas!");
+        WT_ERR(verify_ret);
+#endif
+
         build_full_disk_image_from_deltas = true;
         WT_PAGE_HEADER *tmp_header = (WT_PAGE_HEADER *)new_image.data;
         __wt_verbose_debug2(session, WT_VERB_PAGE_DELTA,
