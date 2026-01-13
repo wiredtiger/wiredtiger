@@ -1685,7 +1685,6 @@ main(int argc, char *argv[])
                 if (wait_time % 10 == 0)
                     printf("Wait %ds for checkpoint generation\n", wait_time);
             }
-
             sleep(timeout);
             sa.sa_handler = SIG_DFL;
             testutil_assert_errno(sigaction(SIGCHLD, &sa, NULL) == 0);
