@@ -1188,12 +1188,15 @@ const char __WT_CONFIG_CHOICE_unencrypted[] = "unencrypted";
 
 static const char *confchk_checksum_choices[] = {__WT_CONFIG_CHOICE_on, __WT_CONFIG_CHOICE_off,
   __WT_CONFIG_CHOICE_uncompressed, __WT_CONFIG_CHOICE_unencrypted, NULL};
+const char __WT_CONFIG_CHOICE_cold[] = "cold";
+
+static const char *confchk_storage_tier_choices[] = {__WT_CONFIG_CHOICE_cold, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_disaggregated_subconfigs[] = {
   {"page_log", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 21, INT64_MIN,
     INT64_MAX, NULL},
-  {"storage_tier", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 22,
-    INT64_MIN, INT64_MAX, NULL},
+  {"storage_tier", "string", NULL, "choices=[\"cold\"]", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_STRING, 22, INT64_MIN, INT64_MAX, confchk_storage_tier_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t

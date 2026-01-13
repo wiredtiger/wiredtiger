@@ -39,19 +39,54 @@ class test_disagg04(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     disagg_storages = gen_disagg_storages('test_disagg04', disagg_only = True)
 
-    uri = "layered:test_disagg04"
+    uri = "layered:test_disagg04_%02d"
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def test_disagg_storage_tier(self):
-        self.conn.reconfigure(f'disaggregated=(role=leader)')
-        self.session.create(self.uri, 'key_format=S,value_format=S,disaggregated=(storage_tier=cold),')
+    def validate_config(self, uri, config_str, check_func=None):
+        self.session.create(uri, config_str)
 
         self.reopen_conn()
         c = self.session.open_cursor('metadata:', None, None)
-        c.set_key(self.uri)
+        c.set_key(uri)
         self.assertNotEqual(c.search(), wiredtiger.WT_NOTFOUND)
-        value = c.get_value()
-        self.assertTrue(value.find('storage_tier=cold') != -1)
+        if check_func is not None:
+            check_func(c.get_value())
+        c.close()
+
+
+    def test_disagg_storage_tier(self):
+        self.conn.reconfigure(f'disaggregated=(role=leader)')
+
+        # Test invalid storage_tier value (empty)
+        with self.expectedStderrPattern('Invalid argument'):
+            with self.assertRaises(wiredtiger.WiredTigerError):
+                self.validate_config(
+                    self.uri%1,
+                    'key_format=S,value_format=S,disaggregated=(storage_tier=),'
+                )
+
+        #  Test no storage_tier specified, should use default (none)
+        self.validate_config(
+            self.uri%2,
+            'key_format=S,value_format=S,',
+            lambda v: self.assertTrue(v.find('storage_tier=') == -1)
+        )
+
+        # Test valid storage_tier configuration value (cold)
+        self.validate_config(
+            self.uri%3,
+            'key_format=S,value_format=S,disaggregated=(storage_tier=cold),',
+            lambda v: self.assertTrue(v.find('storage_tier=cold') != -1)
+        )
+
+        # Test invalid storage_tier value (typo)
+        with self.expectedStderrPattern('Invalid argument'):
+            with self.assertRaises(wiredtiger.WiredTigerError):
+                self.validate_config(
+                    self.uri%4,
+                    'key_format=S,value_format=S,disaggregated=(storage_tier=coldd),',
+                    lambda v: self.assertTrue(v.find('storage_tier=cold') == -1)
+                )
