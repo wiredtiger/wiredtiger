@@ -222,6 +222,12 @@ struct __wt_disaggregated_storage {
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
                                          /* Updates are protected by the checkpoint lock. */
 
+    /*
+     * Total compressed size of all btrees in the database, saved to and read from the metadata file
+     * to persist across crash / restart.
+     */
+    wt_shared uint64_t database_compressed_size;
+
     /* To copy at the next checkpoint. */
     TAILQ_HEAD(__wt_disagg_copy_metadata_qh, __wt_disagg_copy_metadata) copy_metadata_qh;
     WT_SPINLOCK copy_metadata_lock;

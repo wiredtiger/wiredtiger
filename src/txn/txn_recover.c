@@ -636,19 +636,22 @@ __recovery_set_checkpoint_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
- * __recovery_set_ckpt_base_write_gen --
- *     Set the base write gen as retrieved from the metadata file.
+ * __recovery_set_sysinfo --
+ *     Set system information retrieved from the metadata file, including base write gen and
+ *     database-level compressed size for disaggregated storage.
  */
 static int
-__recovery_set_ckpt_base_write_gen(WT_RECOVERY *r)
+__recovery_set_sysinfo(WT_RECOVERY *r)
 {
     WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     char *sys_config;
 
     sys_config = NULL;
     session = r->session;
+    conn = S2C(session);
 
     /* Search the metadata for checkpoint base write gen information. */
     WT_ERR_NOTFOUND_OK(
@@ -657,7 +660,18 @@ __recovery_set_ckpt_base_write_gen(WT_RECOVERY *r)
         WT_CLEAR(cval);
         WT_ERR(__wt_config_getones(session, sys_config, WT_SYSTEM_BASE_WRITE_GEN, &cval));
         if (cval.len != 0)
-            S2C(session)->ckpt.last_base_write_gen = (uint64_t)cval.val;
+            conn->ckpt.last_base_write_gen = (uint64_t)cval.val;
+        __wt_free(session, sys_config);
+    }
+
+    /* Search the metadata for database compressed size information. */
+    WT_ERR_NOTFOUND_OK(
+      __wt_metadata_search(session, WT_SYSTEM_DISAGG_SIZE_URI, &sys_config), false);
+    if (sys_config != NULL) {
+        WT_CLEAR(cval);
+        WT_ERR(__wt_config_getones(session, sys_config, WT_SYSTEM_DISAGG_SIZE, &cval));
+        if (cval.len != 0)
+            conn->disaggregated_storage.database_compressed_size = (uint64_t)cval.val;
     }
 
 err:
@@ -1045,7 +1059,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
     metafile = &r.files[WT_METAFILE_ID];
     metafile->c = metac;
 
-    WT_ERR(__recovery_set_ckpt_base_write_gen(&r));
+    WT_ERR(__recovery_set_sysinfo(&r));
 
     /*
      * If no log was found (including if logging is disabled), or if the last checkpoint was done

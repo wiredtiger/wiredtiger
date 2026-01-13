@@ -68,6 +68,10 @@
 #define WT_SYSTEM_BASE_WRITE_GEN_URI "system:checkpoint_base_write_gen" /* Base write gen URI */
 #define WT_SYSTEM_BASE_WRITE_GEN "base_write_gen"                       /* Base write gen name */
 
+/* Database compressed size for disaggregated storage. */
+#define WT_SYSTEM_DISAGG_SIZE_URI "system:disagg_compressed_size" /* Disagg compressed size URI */
+#define WT_SYSTEM_DISAGG_SIZE "disagg_compressed_size"            /* Disagg compressed size name */
+
 /* Check whether a string is a legal URI for a btree object */
 #define WT_BTREE_PREFIX(str) (WT_PREFIX_MATCH(str, "file:") || WT_PREFIX_MATCH(str, "tiered:"))
 

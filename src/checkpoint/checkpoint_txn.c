@@ -1590,6 +1590,15 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     } else
         conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
 
+    /*
+     * Apply the accumulated compressed size delta to the in-memory database_compressed_size now
+     * that the checkpoint has succeeded.
+     */
+    if (session->ckpt.ckpt_compressed_size_delta != 0)
+        conn->disaggregated_storage.database_compressed_size = (uint64_t)(
+          (int64_t)conn->disaggregated_storage.database_compressed_size +
+          session->ckpt.ckpt_compressed_size_delta);
+
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 
 err:
@@ -1702,6 +1711,7 @@ err:
     WT_ASSERT(session, session->ckpt.crash_point == 0);
     session->ckpt.handle_allocated = session->ckpt.handle_next = session->ckpt.crash_point = 0;
     session->ckpt.key_provider_crash_point = KEY_PROVIDER_CRASH_NONE;
+    session->ckpt.ckpt_compressed_size_delta = 0;
 
     session->isolation = txn->isolation = saved_isolation;
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);
