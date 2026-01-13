@@ -285,6 +285,7 @@ functions:
           ${NONSTANDALONE|} \
           ${ENABLE_SHARED|} \
           ${ENABLE_STATIC|} \
+          ${HAVE_BUILTIN_EXTENSION_KEY_PROVIDER|} \
           ${HAVE_BUILTIN_EXTENSION_LZ4|} \
           ${HAVE_BUILTIN_EXTENSION_SNAPPY|} \
           ${HAVE_BUILTIN_EXTENSION_ZLIB|} \
@@ -6884,6 +6885,7 @@ buildvariants:
     # Remove the default configurations for the toolchain, install prefix and number of jobs.
     CMAKE_TOOLCHAIN_FILE:
     CMAKE_INSTALL_PREFIX:
+    HAVE_BUILTIN_EXTENSION_KEY_PROVIDER: -DHAVE_BUILTIN_EXTENSION_KEY_PROVIDER=1
     num_jobs:
     python_binary: "/cygdrive/c/python/Python311/python"
   tasks:
