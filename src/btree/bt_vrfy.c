@@ -322,7 +322,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
                      * implemented.
                      */
                     WT_BLOCK_DISAGG * block_disagg = (WT_BLOCK_DISAGG *)bm->block;
-                    if(block_disagg->plhandle->plh_get_page_ids != NULL && ckpt->raw.data)
+                    if(block_disagg->plhandle->plh_get_page_ids != NULL && ckpt->raw.data != NULL)
                         WT_TRET(__verify_page_discard(session, bm));
                 }
 
