@@ -428,9 +428,7 @@ err:
         __wt_ref_out(session, ref);
     }
 
-    /*
-     * Free any disk images or delta buffers we allocated or read.
-     */
+    /* Free any disk images or delta buffers we allocated or read. */
     if (tmp != NULL) {
         for (i = 0; i < count; ++i)
             __wt_buf_free(session, &tmp[i]);
