@@ -1449,7 +1449,7 @@ main(int argc, char *argv[])
     struct sigaction sa;
     pid_t pid;
     uint32_t iteration, num_iterations, rand_value, timeout, tmp;
-    int ch, ret, status;
+    int ch, ret, status, wait_time;
     char buf[PATH_MAX], bucket[512];
     char cwd_start[PATH_MAX]; /* The working directory when we started */
     bool rand_th, rand_time, verify_only;
@@ -1678,8 +1678,13 @@ main(int argc, char *argv[])
             testutil_assertfmt(waitpid(pid, &status, WNOHANG) == 0,
               "Child process %" PRIu64 " already exited with status %d", pid, status);
 
-            while (!testutil_exists(NULL, ckpt_file))
+            wait_time = 0;
+            while (!testutil_exists(NULL, ckpt_file)) {
                 testutil_sleep_wait(1, pid);
+                ++wait_time;
+                if (wait_time % 10 == 0)
+                    printf("Wait %ds for checkpoint generation\n", wait_time);
+            }
 
             sleep(timeout);
             sa.sa_handler = SIG_DFL;
