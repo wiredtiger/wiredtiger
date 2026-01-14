@@ -20,8 +20,8 @@ WT_PACKED_STRUCT_BEGIN(__wt_crypt_header)
     uint32_t signature; /* 00-03: Key header signature; always 'wtch' */
 
     /*
-     * As we create new versions, we bump the version number here, and consider what previous
-     * versions are compatible with it.
+     * As we create new versions, bump the version number here, and consider what previous versions
+     * are compatible with it.
      */
 #define WT_CRYPT_HEADER_VERSION 0x1u
     uint8_t version; /* 04: Header version */
