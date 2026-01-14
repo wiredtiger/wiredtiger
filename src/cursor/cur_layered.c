@@ -2079,19 +2079,22 @@ __clayered_modify_follower(
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
     WT_CURSOR *ingest = clayered->ingest_cursor;
     WT_ITEM *key = &cursor->key;
-    WT_DECL_ITEM(value);
+    /* WT_DECL_ITEM(value); */
     WT_UNUSED(session);
 
     if (clayered->current_cursor != ingest) {
         /* Get the base value from the top-level cursor. */
-        cursor->get_value(cursor, &value);
+        /* WT_RET(__wt_buf_init(session, value, 0)); */
+        /* cursor->get_value(cursor, &value); */
         ingest->set_key(ingest, key);
-        ingest->set_value(ingest, value);
+        ingest->set_value(ingest, &cursor->value);
+        /* __wt_buf_free(session, value); */
     }
     WT_RET(__wt_modify_apply_api(ingest, entries, nentries));
     WT_RET(ingest->update(ingest));
 
     clayered->current_cursor = ingest;
+
     return (0);
 }
 
@@ -2147,8 +2150,10 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_ITEM_SET(cursor->key, current->key);
     WT_ITEM_SET(cursor->value, current->value);
     WT_ASSERT(session, F_MASK(current, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
-    WT_ASSERT(session, F_MASK(current, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
-    F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+    F_SET(cursor, WT_CURSTD_KEY_INT);
+
+    WT_ASSERT(session, F_ISSET(current, WT_CURSTD_VALUE_SET));
+    F_SET(cursor, F_MASK(current, WT_CURSTD_VALUE_SET));
 
     /*
      * Modify maintains a position, key and value. Unlike update, it's not always an internal value.
