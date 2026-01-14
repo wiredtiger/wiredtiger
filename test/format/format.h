@@ -212,8 +212,8 @@ extern u_int ntables;
 #define DATASOURCE(table, ds) (strcmp((table)->v[V_TABLE_RUNS_SOURCE].vstr, ds) == 0)
 
 typedef struct {
-    uint64_t leader_hash;
-    uint64_t follower_hash;
+    wt_shared uint64_t leader_hash;
+    wt_shared uint64_t follower_hash;
 } DISAGG_MULTI_DB_HASH;
 
 typedef struct {

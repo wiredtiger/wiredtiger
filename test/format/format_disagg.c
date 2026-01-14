@@ -148,6 +148,7 @@ disagg_multi_sync_point(void)
     /* Signal from leader or follower to synchronize. */
     if (write(g.disagg_multi_sync_socket, &send, 1) != 1)
         testutil_die(errno, "disagg_multi_sync_point: write");
+
     track("Reached sync point. Waiting for other process...", 0ULL);
 
     /* Wait for synchronization signal from the other process. */
@@ -162,28 +163,30 @@ disagg_multi_sync_point(void)
 void
 disagg_sync_multi_node(WT_SESSION *session)
 {
+    uint64_t hash = 0;
     if (!disagg_is_multi_node())
         return;
 
-    uint64_t *hash = NULL;
     if (GV(DISAGG_MULTI_VALIDATION)) {
-        hash = g.disagg_leader ? &g.disagg_multi_db_hash->leader_hash :
-                                 &g.disagg_multi_db_hash->follower_hash;
-        *hash = checksum_database(session);
+        hash = checksum_database(session);
+        if (g.disagg_leader)
+            g.disagg_multi_db_hash->leader_hash = hash;
+        else
+            g.disagg_multi_db_hash->follower_hash = hash;
     }
 
     /* Initial synchronization between leader and follower processes. */
     disagg_multi_sync_point();
 
-    if (!GV(DISAGG_MULTI_VALIDATION))
-        return;
+    if (GV(DISAGG_MULTI_VALIDATION)) {
+        if (g.disagg_leader)
+            testutil_assert(hash == g.disagg_multi_db_hash->follower_hash);
+        else
+            testutil_assert(hash == g.disagg_multi_db_hash->leader_hash);
 
-    testutil_assert(*hash ==
-      (g.disagg_leader ? g.disagg_multi_db_hash->follower_hash :
-                         g.disagg_multi_db_hash->leader_hash));
-
-    /* Exit synchronization between leader and follower processes. */
-    disagg_multi_sync_point();
+        /* Exit synchronization between leader and follower processes. */
+        disagg_multi_sync_point();
+    }
 }
 
 /*
