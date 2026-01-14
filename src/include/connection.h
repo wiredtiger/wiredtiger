@@ -233,8 +233,8 @@ struct __wt_disaggregated_storage {
                                          /* Updates are protected by the checkpoint lock. */
 
     /* To copy at the next checkpoint. */
-    TAILQ_HEAD(__wt_disagg_update_metadata_qh, __wt_disagg_update_metadata) copy_metadata_qh;
-    WT_SPINLOCK copy_metadata_lock;
+    TAILQ_HEAD(__wt_disagg_update_metadata_qh, __wt_disagg_update_metadata) update_metadata_qh;
+    WT_SPINLOCK update_metadata_lock;
 
     /*
      * Ideally we'd have flags passed to the IO system, which could make it all the way to the

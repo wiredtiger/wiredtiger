@@ -1596,9 +1596,9 @@ __wt_disagg_update_metadata_later(
     }
 
     /* Cannot fail past this point. */
-    __wt_spin_lock(session, &conn->disaggregated_storage.copy_metadata_lock);
-    TAILQ_INSERT_TAIL(&conn->disaggregated_storage.copy_metadata_qh, entry, q);
-    __wt_spin_unlock(session, &conn->disaggregated_storage.copy_metadata_lock);
+    __wt_spin_lock(session, &conn->disaggregated_storage.update_metadata_lock);
+    TAILQ_INSERT_TAIL(&conn->disaggregated_storage.update_metadata_qh, entry, q);
+    __wt_spin_unlock(session, &conn->disaggregated_storage.update_metadata_lock);
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Scheduled copying disaggregated metadata for table \"%s\" (stable URI \"%s\") to shared "
@@ -1638,16 +1638,16 @@ __disagg_update_metadata_clear(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    __wt_spin_lock(session, &conn->disaggregated_storage.copy_metadata_lock);
+    __wt_spin_lock(session, &conn->disaggregated_storage.update_metadata_lock);
 
-    WT_TAILQ_SAFE_REMOVE_BEGIN(entry, &conn->disaggregated_storage.copy_metadata_qh, q, tmp)
+    WT_TAILQ_SAFE_REMOVE_BEGIN(entry, &conn->disaggregated_storage.update_metadata_qh, q, tmp)
     {
-        TAILQ_REMOVE(&conn->disaggregated_storage.copy_metadata_qh, entry, q);
+        TAILQ_REMOVE(&conn->disaggregated_storage.update_metadata_qh, entry, q);
         __disagg_update_metadata_free(session, &entry);
     }
     WT_TAILQ_SAFE_REMOVE_END
 
-    __wt_spin_unlock(session, &conn->disaggregated_storage.copy_metadata_lock);
+    __wt_spin_unlock(session, &conn->disaggregated_storage.update_metadata_lock);
 }
 
 /*
@@ -1725,9 +1725,9 @@ __wt_disagg_update_metadata_process(WT_SESSION_IMPL *session)
      */
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
-    __wt_spin_lock(session, &conn->disaggregated_storage.copy_metadata_lock);
+    __wt_spin_lock(session, &conn->disaggregated_storage.update_metadata_lock);
 
-    TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.copy_metadata_qh, q, tmp)
+    TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.update_metadata_qh, q, tmp)
     {
         WT_ERR(__disagg_update_shared_metadata(
           session, "colgroup:", entry->table_name, entry->colgroup_value));
@@ -1738,12 +1738,12 @@ __wt_disagg_update_metadata_process(WT_SESSION_IMPL *session)
         WT_ERR(
           __disagg_update_shared_metadata(session, "", entry->stable_uri, entry->stable_value));
 
-        TAILQ_REMOVE(&conn->disaggregated_storage.copy_metadata_qh, entry, q);
+        TAILQ_REMOVE(&conn->disaggregated_storage.update_metadata_qh, entry, q);
         __disagg_update_metadata_free(session, &entry);
     }
 
 err:
-    __wt_spin_unlock(session, &conn->disaggregated_storage.copy_metadata_lock);
+    __wt_spin_unlock(session, &conn->disaggregated_storage.update_metadata_lock);
 
     return (ret);
 }
