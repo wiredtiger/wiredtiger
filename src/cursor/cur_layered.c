@@ -2057,60 +2057,13 @@ __clayered_modify_leader(
   WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
-    WT_CURSOR *c = clayered->stable_cursor;
-    WT_UNUSED(session);
-
-    if (!F_ISSET(c, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT)) {
-        c->set_key(c, &cursor->key); /* Needed? */
-        WT_RET(c->search(c));
-    }
-
-    WT_RET(c->modify(c, entries, nentries));
-
-    clayered->current_cursor = c;
-
-    return (0);
-}
-
-/*
- * __clayered_modify_follower_insert --
- *     Write some words here later.
- */
-static int
-__clayered_modify_follower_insert(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered,
-  const WT_ITEM *key, WT_MODIFY *entries, int nentries)
-{
-    WT_CURSOR *ingest = clayered->ingest_cursor;
     WT_CURSOR *stable = clayered->stable_cursor;
 
-    if (stable == NULL)
-        /*
-         * If we have no stable table, or we can't find the key in the stable table, then there's
-         * nothing we can do -- the user is calling modify, but we can't get a base value.
-         */
-        return (WT_NOTFOUND);
+    WT_ASSERT(session, F_ISSET(stable, WT_CURSTD_KEY_INT));
 
-    /* Pull the base value out of the stable table. */
-    stable->set_key(stable, key);
-    WT_RET(stable->search(stable));
+    WT_RET(stable->modify(stable, entries, nentries));
 
-    /* Insert that base value in the ingest table, then apply our modifications. */
-    WT_RET(__wt_buf_set(session, &ingest->key, stable->key.data, stable->key.size));
-    WT_RET(__wt_buf_set(session, &ingest->value, stable->value.data, stable->value.size));
-    F_SET(ingest, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
-
-    /*
-     * We use this instead of calling cursor->modify, since we just want to operate directly on the
-     * WT_ITEM behind ingest->value. The "normal" cursor operations don't do that, and expect the
-     * value to be in the btree.
-     */
-    WT_RET(__wt_modify_apply_api(ingest, entries, nentries));
-
-    /*
-     * Constituent cursors are opened with the overwrite flag, so it'll insert. Ergo, we may as well
-     * use update (rather than insert) since it leaves the cursor positioned.
-     */
-    WT_RET(ingest->update(ingest));
+    clayered->current_cursor = stable;
 
     return (0);
 }
@@ -2123,35 +2076,20 @@ static int
 __clayered_modify_follower(
   WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
-    WT_DECL_RET;
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
     WT_CURSOR *ingest = clayered->ingest_cursor;
     WT_ITEM *key = &cursor->key;
+    WT_DECL_ITEM(value);
+    WT_UNUSED(session);
 
-    /* Do we have a base value in the ingest table? */
-    /* TODO the thing chenhao said */
-    ingest->set_key(ingest, key);
-    ret = ingest->search(ingest);
-    WT_RET_NOTFOUND_OK(ret);
-
-    /*
-     * Manually handle tombstones. We can't apply a modify on top of an explicitly deleted value, so
-     * bail out here if the ingest cursor finds a tombstone.
-     */
-    if (ret == 0 && __wt_clayered_deleted(&ingest->value))
-        WT_RET(WT_NOTFOUND);
-
-    /*
-     * If we have a base value, just delegate the work to the ingest cursor. Otherwise, we need to
-     * get a base value somehow -- pull it out of the stable table.
-     */
-    if (ret == WT_NOTFOUND)
-        /*  We found nothing (not even a tombstone) in the ingest table. */
-        WT_RET(__clayered_modify_follower_insert(session, clayered, key, entries, nentries));
-    else {
-        WT_RET(__cursor_needvalue(ingest));
-        WT_RET(ingest->modify(ingest, entries, nentries));
+    if (clayered->current_cursor != ingest) {
+        /* Get the base value from the top-level cursor. */
+        cursor->get_value(cursor, &value);
+        ingest->set_key(ingest, key);
+        ingest->set_value(ingest, value);
     }
+    WT_RET(__wt_modify_apply_api(ingest, entries, nentries));
+    WT_RET(ingest->update(ingest));
 
     clayered->current_cursor = ingest;
     return (0);
@@ -2187,9 +2125,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor)); /* TODO may not need this either if already positioned. */
-    /* WT_ERR(__cursor_needvalue(cursor)); /\* TODO may not need this either if already positioned. *\/ */
     WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_EXT));
-    /* WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_VALUE_EXT)); */
     WT_ERR(__clayered_enter(clayered, false, true, false));
 
     /* Check for a rational modify vector count. */
@@ -2201,9 +2137,6 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_INT));
 
     WT_ERR(__clayered_modify_int(session, cursor, entries, nentries));
-    /* c->set_key(c, &cursor->key); */
-    /* WT_ERR(c->search(c)); */
-    /* WT_ERR(c->modify(c, entries, nentries)); */
 
     /*
      * Copy the key out of the positioned cursor.
@@ -2226,7 +2159,6 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     /* __wt_buf_free(session, &cursor->value); */
     /* WT_ITEM_MOVE(cursor->value, current->value); */
     /* F_SET(cursor, F_MASK(current, WT_CURSTD_VALUE_SET)); */
-    /* F_CLR(current, WT_CURSTD_VALUE_SET); */
 
     /*
      * Modify maintains a position, key and value. Unlike update, it's not always an internal value.
