@@ -51,7 +51,7 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     WT_RET(__wt_spin_init(session, &conn->background_compact.lock, "background compact"));
     WT_RET(__wt_spin_init(session, &conn->chunkcache_metadata_lock, "chunk cache metadata"));
     WT_RET(__wt_spin_init(
-      session, &conn->disaggregated_storage.update_metadata_lock, "copy shared metadata"));
+      session, &conn->disaggregated_storage.update_metadata_lock, "update shared metadata"));
     WT_RET(__wt_spin_init(session, &conn->encryptor_lock, "encryptor"));
     WT_RET(__wt_spin_init(session, &conn->fh_lock, "file list"));
     WT_RET(__wt_spin_init(session, &conn->flush_tier_lock, "flush tier"));

@@ -71,7 +71,7 @@ TEST_CASE("Test disaggregated configuration logic", "[disagg_config]")
     const char *disagg_cfg[] = {"disaggregated=(role=follower,page_log=mock)", NULL};
 
     REQUIRE(__wt_spin_init(session, &conn_impl->disaggregated_storage.update_metadata_lock,
-              "copy shared metadata") == 0);
+              "update shared metadata") == 0);
     REQUIRE(__wt_spin_init(session, &conn_impl->api_lock, "api") == 0);
 
     /* Setup the page log queue. */
