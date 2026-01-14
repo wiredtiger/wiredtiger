@@ -13,11 +13,11 @@ trap 'onintr' 2
 
 usage() {
     echo "usage: $0"
-    echo "    -h home      run directory (defaults to RUNDIR)"
+    echo "    -h home      run directory (defaults to $home_dir)"
     echo "    -c config    custom config file (defaults to CONFIG.disagg)"
-    echo "    -v           enable multi-node validation"
-    echo "    -r rows      rows range for multi-node disagg (default:100000:500000)"
-    echo "    -o ops       ops range for multi-node disagg (default:500000:2000000)"
+    echo "    -v           enable multi-node validation (default: disabled)"
+    echo "    -r rows      rows range for multi-node disagg (default:$rows_val)"
+    echo "    -o ops       ops range for multi-node disagg (default:$ops_val)"
     exit 1
 }
 
