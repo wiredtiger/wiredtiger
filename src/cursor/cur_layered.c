@@ -2132,39 +2132,29 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     if (nentries <= 0)
         WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
 
-    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT))
+    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT))
         WT_ERR(cursor->search(cursor));
     WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_INT));
 
     WT_ERR(__clayered_modify_int(session, cursor, entries, nentries));
 
     /*
-     * Copy the key out of the positioned cursor.
+     * Set the cursor to reference the internal key/value of the positioned cursor.
      */
     current = clayered->current_cursor;
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
+    WT_ITEM_SET(cursor->key, current->key);
+    WT_ITEM_SET(cursor->value, current->value);
     WT_ASSERT(session, F_MASK(current, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
-    WT_ERR(__wt_buf_set(session, &cursor->key, current->key.data, current->key.size));
-    F_SET(cursor, WT_CURSTD_KEY_EXT);
-
-    /*
-     * Copy the value out of the positioned cursor.
-     */
-    /* WT_ASSERT(session, F_MASK(current, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT); */
-    WT_ERR(__wt_buf_set(session, &cursor->value, current->value.data, current->value.size));
-    F_SET(cursor, WT_CURSTD_VALUE_EXT);
-
-    /* WT_ASSERT(session, F_MASK(current, WT_CURSTD_VALUE_SET) != 0); */
-    /* __wt_buf_free(session, &cursor->value); */
-    /* WT_ITEM_MOVE(cursor->value, current->value); */
-    /* F_SET(cursor, F_MASK(current, WT_CURSTD_VALUE_SET)); */
+    WT_ASSERT(session, F_MASK(current, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+    F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
     /*
      * Modify maintains a position, key and value. Unlike update, it's not always an internal value.
      */
-    /* WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT); */
-    /* WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) != 0); */
+    WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
+    WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) != 0);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_update);
 
