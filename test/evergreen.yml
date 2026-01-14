@@ -3227,14 +3227,14 @@ tasks:
         vars:
           compat_test_args: -n
 
-  - name: compatibility-test-for-older-releases
+  - name: compatibility-test-for-older-releases-weekly
     commands:
       - func: "get project"
       - func: "compatibility test"
         vars:
           compat_test_args: -o
 
-  - name: compatibility-test-upgrade-to-latest
+  - name: compatibility-test-upgrade-to-latest-daily
     commands:
       - func: "get project"
       - func: "compatibility test"
@@ -3253,7 +3253,7 @@ tasks:
             set -o verbose
             test/compatibility/compatibility_test_for_releases.sh -p
 
-  - name: compatibility-test-suite
+  - name: compatibility-test-suite-daily
     tags: ["python"]
     commands:
       - func: "get project"
@@ -3268,7 +3268,7 @@ tasks:
             ${PREPARE_TEST_ENV}
             ${python_binary|python3} test/compatibility/suite/compatibility_test.py ${compat_suite_args|-v 2} 2>&1
 
-  - name: compatibility-test-for-wt-standalone-releases
+  - name: compatibility-test-for-wt-standalone-releases-weekly
     commands:
       - func: "get project"
       - func: "compatibility test"
@@ -6687,6 +6687,7 @@ buildvariants:
     - name: catch2-test
     - name: examples-c-test
     - name: ".pull_request_compilers"
+      distro: ubuntu2004-wt-build
 
 # FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
 # Investigate whether a similar thing could happen for MSAN.

@@ -64,18 +64,6 @@ buildvariants:
     - name: compile
     - ".cppsuite-perf-test-arm"
 
-- name: documentation-update
-  display_name: "Documentation update"
-  batchtime: 10080 # 7 days
-  run_on:
-  - ubuntu2004-test
-  expansions:
-    ENABLE_TCMALLOC: 0
-    doc_update_branches: develop,mongodb-8.0,mongodb-7.0,mongodb-6.0,mongodb-5.0,mongodb-4.4,mongodb-4.2
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-  tasks:
-    - name: doc-update
-
 - name: code-statistics
   display_name: "Ubuntu2004 ARM64 Code statistics"
   run_on:
@@ -98,30 +86,6 @@ buildvariants:
     - name: code-change-report
     - name: modularity_metrics
 
-- name: compatibility-tests-less-frequent
-  display_name: Compatibility tests (less frequent)
-  batchtime: 10080 # 7 days
-  run_on:
-  - ubuntu2004-test
-  expansions:
-    ENABLE_TCMALLOC: 0
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-  tasks:
-    - name: compatibility-test-for-older-releases
-    - name: compatibility-test-for-wt-standalone-releases
-
-- name: compatibility-tests-daily
-  display_name: Compatibility tests (daily)
-  batchtime: 1440 # 1 day
-  run_on:
-  - ubuntu2004-test
-  expansions:
-    ENABLE_TCMALLOC: 0
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-  tasks:
-    - name: compatibility-test-suite
-    - name: compatibility-test-upgrade-to-latest
-
 - name: compatibility-tests
   display_name: Compatibility tests
   run_on:
@@ -130,18 +94,28 @@ buildvariants:
     ENABLE_TCMALLOC: 0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
+    - name: compatibility-test-suite-daily
+      batchtime: 1440 # 1 day
+    - name: compatibility-test-upgrade-to-latest-daily
+      batchtime: 1440 # 1 day
+    - name: compatibility-test-for-older-releases-weekly
+      batchtime: 10080 # 7 days
+    - name: compatibility-test-for-wt-standalone-releases-weekly
+      batchtime: 10080 # 7 days
     - name: compatibility-test-for-newer-releases
     - name: compatibility-test-for-patch-releases
     - name: import-compatibility-test
     - name: compatibility-test-dirty-restart
 
-- name: infrequent-checks
-  display_name: "Infrequent checks"
+- name: infrequent-misc
+  display_name: "Infrequent Misc"
   run_on:
   - ubuntu2004-test
   expansions:
+    ENABLE_TCMALLOC: 0
     cmake_generator: Ninja
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    doc_update_branches: develop,mongodb-8.0,mongodb-7.0,mongodb-6.0,mongodb-5.0,mongodb-4.4,mongodb-4.2
   # As these tests run infrequently by the time they fail we may have had
   # a lot of prior commits that would also fail for the same test. This is acceptable
   # as our infrequent tests aren't tracking critical failures, but we don't want
@@ -153,6 +127,8 @@ buildvariants:
       batchtime: 40320 # 28 days
     - name: s-outdated-fixmes
       batchtime: 1440 # 1 day
+    - name: doc-update
+      batchtime: 10080 # 7 days
 
 - name: lazyfs-tests
   display_name: "LazyFS tests"
