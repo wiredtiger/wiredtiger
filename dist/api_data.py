@@ -163,11 +163,11 @@ connection_disaggregated_config = [
               disaggregated_config_common),
 ]
 table_disaggregated_config = [
-    Config('storage_tier', '', r'''
+    Config('storage_tier', 'none', r'''
         A hint to the storage service about the expected storage
         characteristics of this table. Currently the default (empty) value indicates a hot
         collection, and it can be configured to 'cold' to indicate a cold collection.''',
-        choices=['cold'], undoc=True),
+        choices=['cold', 'none'], undoc=True),
 ]
 connection_page_delta_config = [
     Config('page_delta', '', r'''

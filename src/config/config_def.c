@@ -1190,12 +1190,13 @@ static const char *confchk_checksum_choices[] = {__WT_CONFIG_CHOICE_on, __WT_CON
   __WT_CONFIG_CHOICE_uncompressed, __WT_CONFIG_CHOICE_unencrypted, NULL};
 const char __WT_CONFIG_CHOICE_cold[] = "cold";
 
-static const char *confchk_storage_tier_choices[] = {__WT_CONFIG_CHOICE_cold, NULL};
+static const char *confchk_storage_tier_choices[] = {
+  __WT_CONFIG_CHOICE_cold, __WT_CONFIG_CHOICE_none, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_disaggregated_subconfigs[] = {
   {"page_log", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 21, INT64_MIN,
     INT64_MAX, NULL},
-  {"storage_tier", "string", NULL, "choices=[\"cold\"]", NULL, 0, NULL,
+  {"storage_tier", "string", NULL, "choices=[\"cold\",\"none\"]", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_STRING, 22, INT64_MIN, INT64_MAX, confchk_storage_tier_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -4149,7 +4150,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "read_timestamp=none,write_timestamp=off),block_allocation=best,"
     "block_compressor=,block_manager=default,cache_resident=false,"
     "checksum=on,colgroups=,collator=,columns=,dictionary=0,"
-    "disaggregated=(page_log=,storage_tier=),encryption=(keyid=,"
+    "disaggregated=(page_log=,storage_tier=none),encryption=(keyid=,"
     "name=),exclusive=false,extractor=,format=btree,huffman_key=,"
     "huffman_value=,ignore_in_memory_cache_size=false,immutable=false"
     ",import=(compare_timestamp=oldest_timestamp,enabled=false,"
@@ -4236,7 +4237,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "read_timestamp=none,write_timestamp=off),block_allocation=best,"
     "block_compressor=,block_manager=default,cache_resident=false,"
     "checksum=on,collator=,columns=,dictionary=0,"
-    "disaggregated=(page_log=,storage_tier=),encryption=(keyid=,"
+    "disaggregated=(page_log=,storage_tier=none),encryption=(keyid=,"
     "name=),format=btree,huffman_key=,huffman_value=,"
     "ignore_in_memory_cache_size=false,in_memory=false,"
     "internal_item_max=0,internal_key_max=0,"
@@ -4258,7 +4259,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "block_compressor=,block_manager=default,cache_resident=false,"
     "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,checksum=on,"
     "collator=,columns=,dictionary=0,disaggregated=(page_log=,"
-    "storage_tier=),encryption=(keyid=,name=),format=btree,"
+    "storage_tier=none),encryption=(keyid=,name=),format=btree,"
     "huffman_key=,huffman_value=,id=,"
     "ignore_in_memory_cache_size=false,in_memory=false,"
     "internal_item_max=0,internal_key_max=0,"
@@ -4297,7 +4298,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "block_compressor=,block_manager=default,cache_resident=false,"
     "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,checksum=on,"
     "collator=,columns=,dictionary=0,disaggregated=(page_log=,"
-    "storage_tier=),encryption=(keyid=,name=),flush_time=0,"
+    "storage_tier=none),encryption=(keyid=,name=),flush_time=0,"
     "flush_timestamp=0,format=btree,huffman_key=,huffman_value=,id=,"
     "ignore_in_memory_cache_size=false,in_memory=false,"
     "internal_item_max=0,internal_key_max=0,"
@@ -4326,10 +4327,11 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "block_compressor=,block_manager=default,bucket=,bucket_prefix=,"
     "cache_directory=,cache_resident=false,checkpoint=,"
     "checkpoint_backup_info=,checkpoint_lsn=,checksum=on,collator=,"
-    "columns=,dictionary=0,disaggregated=(page_log=,storage_tier=),"
-    "encryption=(keyid=,name=),format=btree,huffman_key=,"
-    "huffman_value=,id=,ignore_in_memory_cache_size=false,"
-    "in_memory=false,internal_item_max=0,internal_key_max=0,"
+    "columns=,dictionary=0,disaggregated=(page_log=,"
+    "storage_tier=none),encryption=(keyid=,name=),format=btree,"
+    "huffman_key=,huffman_value=,id=,"
+    "ignore_in_memory_cache_size=false,in_memory=false,"
+    "internal_item_max=0,internal_key_max=0,"
     "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
     "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
     "leaf_value_max=0,live_restore=(bitmap=,nbits=0),"
@@ -4349,7 +4351,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "block_compressor=,block_manager=default,cache_resident=false,"
     "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,checksum=on,"
     "collator=,columns=,dictionary=0,disaggregated=(page_log=,"
-    "storage_tier=),encryption=(keyid=,name=),flush_time=0,"
+    "storage_tier=none),encryption=(keyid=,name=),flush_time=0,"
     "flush_timestamp=0,format=btree,huffman_key=,huffman_value=,id=,"
     "ignore_in_memory_cache_size=false,in_memory=false,"
     "internal_item_max=0,internal_key_max=0,"

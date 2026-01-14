@@ -1505,8 +1505,9 @@ __schema_create_config_check(
       __wt_config_getones(session, config, "disaggregated.storage_tier", &cval) == 0 &&
       cval.len != 0;
     if (!__wt_conn_is_disagg(session) && storage_tier_set)
-        WT_RET_SUB(session, EINVAL, WT_CONFLICT_DISAGG,
-          "Cold collections only supported when disaggregated storage is enabled");
+        if (strncmp("none", cval.str, cval.len) != 0)
+            WT_RET_SUB(session, EINVAL, WT_CONFLICT_DISAGG,
+              "Cold collections only supported when disaggregated storage is enabled");
 
     return (0);
 }
