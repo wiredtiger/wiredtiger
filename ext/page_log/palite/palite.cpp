@@ -1315,6 +1315,7 @@ struct PageInfo {
     uint64_t base_lsn;
     uint32_t flags;
     WT_PAGE_LOG_ENCRYPTION encryption;
+    uint32_t storage_tier;
 };
 
 template <> struct std::formatter<PageInfo> {
@@ -1651,7 +1652,9 @@ struct Pages : public Table<Pages> {
               .backlink_lsn = args->backlink_lsn,
               .base_lsn = args->base_lsn,
               .flags = args->flags,
-              .encryption = args->encryption};
+              .encryption = args->encryption,
+              /* PAlite or other impl of plh_handle should handle this. */
+              .storage_tier = args->storage_tier};
             auto acc_r = request(AccessMode::READ);
             verify_chain(acc_r.conn, start_page);
         }
@@ -1677,7 +1680,8 @@ struct Pages : public Table<Pages> {
               .backlink_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 1)),
               .base_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 2)),
               .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt, 3)),
-              .encryption = WT_PAGE_LOG_ENCRYPTION{}};
+              .encryption = WT_PAGE_LOG_ENCRYPTION{},
+              .storage_tier = WT_DISAGG_STORAGE_TIER_COLD};
 
             const char *enc = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4));
             strncpy(page.encryption.dek, enc ? enc : "", sizeof(page.encryption.dek));
@@ -1931,7 +1935,8 @@ private:
                 .backlink_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 3)),
                 .base_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 4)),
                 .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt.get(), 5)),
-                .encryption = WT_PAGE_LOG_ENCRYPTION{}});
+                .encryption = WT_PAGE_LOG_ENCRYPTION{},
+                .storage_tier = WT_DISAGG_STORAGE_TIER_COLD});
         }
     }
 

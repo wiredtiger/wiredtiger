@@ -602,6 +602,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     if (cval.val)
         F_SET(btree, WT_BTREE_READONLY);
 
+    /* Disaggregated config. Put all the disagg related config together. */
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.storage_tier", &cval));
+    if (cval.len > 0)
+        if (strncmp(cval.str, "cold", cval.len) == 0)
+            btree->btree_disagg.storage_tier = WT_BTREE_DISAGG_STORAGE_TIER_COLD;
+
     /* Initialize locks. */
     WT_RET(__wt_rwlock_init(session, &btree->ovfl_lock));
     WT_RET(__wt_spin_init(session, &btree->flush_lock, "btree flush"));
@@ -754,10 +760,12 @@ __wti_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
     if (ret != 0 && WT_IS_METADATA(session->dhandle)) {
         __wt_err(session, ret, "WiredTiger has failed to open its metadata");
         __wt_err(session, ret,
-          "This may be due to the database files being encrypted, being from an older version or "
+          "This may be due to the database files being encrypted, being from an older version "
+          "or "
           "due to corruption on disk");
         __wt_err(session, ret,
-          "You should confirm that you have opened the database with the correct options including "
+          "You should confirm that you have opened the database with the correct options "
+          "including "
           "all encryption and compression options");
     }
     WT_ERR(ret);
@@ -807,13 +815,14 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
         btree->original = 1;
 
     /*
-     * A note about empty trees: the initial tree is a single root page. It has a single reference
-     * to a leaf page, marked deleted. The leaf page will be created by the first update. If the
-     * root is evicted without being modified, that's OK, nothing is ever written.
+     * A note about empty trees: the initial tree is a single root page. It has a single
+     * reference to a leaf page, marked deleted. The leaf page will be created by the first
+     * update. If the root is evicted without being modified, that's OK, nothing is ever
+     * written.
      *
      * !!!
-     * Be cautious about changing the order of updates in this code: to call __wt_page_out on error,
-     * we require a correct page setup at each point where we might fail.
+     * Be cautious about changing the order of updates in this code: to call __wt_page_out on
+     * error, we require a correct page setup at each point where we might fail.
      */
     switch (btree->type) {
     case BTREE_COL_VAR:

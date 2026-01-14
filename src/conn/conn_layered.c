@@ -356,6 +356,9 @@ __disagg_put_page(WT_SESSION_IMPL *session, WT_PAGE_LOG_HANDLE *page_log, uint64
   const WT_ITEM *item, uint64_t last_page_lsn[], uint64_t *lsnp)
 {
     WT_PAGE_LOG_PUT_ARGS put_args;
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
 
     if (page_log == NULL)
         return (ENOTSUP);
@@ -363,6 +366,14 @@ __disagg_put_page(WT_SESSION_IMPL *session, WT_PAGE_LOG_HANDLE *page_log, uint64
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
 
     WT_CLEAR(put_args);
+
+    /*
+     * Set storage tier.
+     */
+    if (btree->btree_disagg.storage_tier == WT_BTREE_DISAGG_STORAGE_TIER_COLD)
+        /* The reason for different value for tier is they may mean different for WT and PS. */
+        put_args.storage_tier = WT_DISAGG_STORAGE_TIER_COLD;
+
     put_args.backlink_lsn = last_page_lsn[page_id];
 
     WT_RET(page_log->plh_put(page_log, &session->iface, page_id, 0, &put_args, item));
@@ -370,6 +381,12 @@ __disagg_put_page(WT_SESSION_IMPL *session, WT_PAGE_LOG_HANDLE *page_log, uint64
 
     if (lsnp != NULL)
         *lsnp = put_args.lsn;
+
+    /*
+     * Update the stat. One thing to confirm here is do we need to identify delta.
+     */
+    if (put_args.storage_tier == WT_DISAGG_STORAGE_TIER_COLD)
+        WT_STAT_CONN_INCR(session, disagg_block_put_cold);
 
     return (0);
 }

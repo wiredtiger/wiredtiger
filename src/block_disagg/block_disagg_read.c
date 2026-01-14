@@ -160,6 +160,8 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         WT_ERR(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id, 0,
           &get_args, results_array, &tmp_count));
 
+        /* We cannot use get_args as a holder for return value. */
+
         WT_ASSERT(session, tmp_count <= WT_DELTA_LIMIT + 1);
     }
 
