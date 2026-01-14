@@ -18,11 +18,19 @@ WT_PACKED_STRUCT_BEGIN(__wt_crypt_header)
  */
 #define WT_CRYPT_HEADER_SIGNATURE 0x68637477u
     uint32_t signature; /* 00-03: Key header signature; always 'wtch' */
-#define WT_CRYPT_HEADER_VERSION 1u
-    uint8_t version;     /* 04: Header version */
-    uint8_t header_size; /* 05: Header size, in bytes */
-    uint32_t crypt_size; /* 06-09: Payload size, in bytes */
-    uint32_t checksum;   /* 10-13: Payload CRC32 checksum */
+
+    /*
+     * As we create new versions, we bump the version number here, and consider what previous
+     * versions are compatible with it.
+     */
+#define WT_CRYPT_HEADER_VERSION 0x1u
+    uint8_t version; /* 04: Header version */
+#define WT_CRYPT_HEADER_COMPATIBLE_VERSION 0x1u
+    uint8_t compatible_version; /* 05: Minimum compatibility version */
+    uint8_t header_size;        /* 06: Header size, in bytes */
+    uint32_t crypt_size;        /* 07-10: Payload size, in bytes */
+    uint32_t checksum;          /* 11-14: Payload CRC32 checksum */
+    uint8_t flags;              /* 15: Flags */
 WT_PACKED_STRUCT_END
 
 /*

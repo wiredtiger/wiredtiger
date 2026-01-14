@@ -335,6 +335,11 @@ __disagg_validate_crypt(WT_SESSION_IMPL *session, const WT_ITEM *key_item, WT_CR
           header->crypt_size, (uint32_t)(key_item->size - sizeof(WT_CRYPT_HEADER)));
     }
 
+    WT_ASSERT_ALWAYS(session, header->version >= WT_CRYPT_HEADER_COMPATIBLE_VERSION,
+      "Compatible version error, version %" PRIu8
+      "is lower than than compatible version of %" PRIu8,
+      header->version, WT_CRYPT_HEADER_COMPATIBLE_VERSION);
+
     checksum =
       __wt_checksum((uint8_t *)key_item->data + sizeof(WT_CRYPT_HEADER), header->crypt_size);
     if (checksum != header->checksum) {
@@ -465,9 +470,11 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     /* Prepare the crypt header. */
     crypt_header.signature = WT_CRYPT_HEADER_SIGNATURE;
     crypt_header.version = WT_CRYPT_HEADER_VERSION;
+    crypt_header.compatible_version = WT_CRYPT_HEADER_COMPATIBLE_VERSION;
     crypt_header.header_size = sizeof(WT_CRYPT_HEADER);
     crypt_header.crypt_size = (uint32_t)crypt.keys.size;
     crypt_header.checksum = __wt_checksum(crypt.keys.data, crypt.keys.size);
+    crypt_header.flags = 0;
 
     __wt_crypt_header_byteswap(&crypt_header);
     memcpy(crypt.keys.mem, &crypt_header, sizeof(WT_CRYPT_HEADER));
