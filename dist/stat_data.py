@@ -298,6 +298,7 @@ conn_stats = [
     ##########################################
     # Cache statistics
     ##########################################
+    CacheStat('cache_bytes_delta_updates', 'bytes allocated for delta updates', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_dirty_ingest', 'tracked dirty bytes in the cache from the ingest btrees', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_dirty_internal_ingest', 'tracked dirty internal page bytes in the cache from the ingest btrees', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_dirty_internal_stable', 'tracked dirty internal page bytes in the cache from the stable btrees', 'no_clear,no_scale,size'),
