@@ -1506,7 +1506,7 @@ __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
 
 /*
  * __disagg_update_metadata_free --
- *     Free an entry in the copy metadata queue.
+ *     Free an entry in the update metadata queue.
  */
 static void
 __disagg_update_metadata_free(WT_SESSION_IMPL *session, WT_DISAGG_UPDATE_METADATA **entry)
@@ -1628,7 +1628,7 @@ err:
 
 /*
  * __disagg_update_metadata_clear --
- *     Clear the copy metadata list.
+ *     Clear the update metadata list.
  */
 static void
 __disagg_update_metadata_clear(WT_SESSION_IMPL *session)
@@ -1707,7 +1707,7 @@ err:
 
 /*
  * __wt_disagg_update_metadata_process --
- *     Process the copy metadata list.
+ *     Process the update metadata list.
  */
 int
 __wt_disagg_update_metadata_process(WT_SESSION_IMPL *session)
@@ -2364,7 +2364,7 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
 
-    /* Remove the list of URIs for which we still need to copy metadata entries. */
+    /* Remove the list of URIs for which we still need to update metadata entries. */
     __disagg_update_metadata_clear(session);
 
     /* Close the metadata handles. */
