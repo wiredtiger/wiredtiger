@@ -329,13 +329,13 @@
     {                                                                                      \
         RELEASE_WRITE(*(vp), v);                                                           \
     }                                                                                      \
-    static inline void __wt_atomic_store_##suffix##_v(volatile _type *vp, _type v)         \
-    {                                                                                      \
-        __atomic_store_n(vp, v, __ATOMIC_SEQ_CST);                                         \
-    }                                                                                      \
     static inline _type __wt_atomic_load_##suffix##_v(volatile _type *vp)                  \
     {                                                                                      \
         return (__atomic_load_n(vp, __ATOMIC_SEQ_CST));                                    \
+    }                                                                                      \
+    static inline void __wt_atomic_store_##suffix##_v(volatile _type *vp, _type v)         \
+    {                                                                                      \
+        __atomic_store_n(vp, v, __ATOMIC_SEQ_CST);                                         \
     }
 
 #define WT_ATOMIC_CAS_FUNC(suffix, _type)                                                      \

@@ -117,6 +117,14 @@ WT_RELEASE_BARRIER(void)
         WT_RELEASE_BARRIER();                                                              \
         *vp = v;                                                                           \
     }                                                                                      \
+    static inline _type __wt_atomic_load_##suffix(_type *vp)                               \
+    {                                                                                      \
+        return (*(vp));                                                                    \
+    }                                                                                      \
+    static inline void __wt_atomic_store_##suffix(_type *vp, _type v)                      \
+    {                                                                                      \
+        *vp = v;                                                                           \
+    }                                                                                      \
     static inline _type __wt_atomic_load_##suffix##_v_relaxed(volatile _type *vp)          \
     {                                                                                      \
         return (*(vp));                                                                    \
@@ -134,6 +142,14 @@ WT_RELEASE_BARRIER(void)
     static inline void __wt_atomic_store_##suffix##_v_release(volatile _type *vp, _type v) \
     {                                                                                      \
         WT_RELEASE_BARRIER();                                                              \
+        *vp = v;                                                                           \
+    }                                                                                      \
+    static inline _type __wt_atomic_load_##suffix##_v(volatile _type *vp)                  \
+    {                                                                                      \
+        return (*(vp));                                                                    \
+    }                                                                                      \
+    static inline void __wt_atomic_store_##suffix##_v(volatile _type *vp, _type v)         \
+    {                                                                                      \
         *vp = v;                                                                           \
     }
 
