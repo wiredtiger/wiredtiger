@@ -518,7 +518,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     wt_timestamp_t oldest_timestamp;
     uint64_t lsn;
     uint32_t checksum;
-    char *checkpoint_root_copy, ts_string[WT_TS_INT_STRING_SIZE];
+    char *checkpoint_root_copy, ts_string[2][WT_TS_INT_STRING_SIZE];
 
     checkpoint_root_copy = NULL;
     conn = S2C(session);
@@ -538,14 +538,12 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_buf));
 
     /* Format metadata settings. */
-    oldest_timestamp = conn->txn_global.pinned_timestamp;
+    oldest_timestamp = conn->txn_global.oldest_timestamp;
     WT_ERR(__wt_buf_fmt(session, metadata_buf,
       "checkpoint=%s,\n"
       "timestamp=%" PRIx64 ",\noldest_timestamp=%" PRIx64,
       checkpoint_root_copy, checkpoint_timestamp, oldest_timestamp));
-    printf("Writing disagg checkpoint metadata: root=\"%s\", timestamp=%" PRIu64
-           " oldest_timestamp=%" PRIu64 "\n",
-      checkpoint_root_copy, checkpoint_timestamp, oldest_timestamp);
+    printf("Writing disagg checkpoint metadata: %s\n", metadata_buf->data);
 
     /* Append key provider metadata, if available. */
     if (conn->key_provider != NULL) {
@@ -580,12 +578,14 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
      */
     __wt_atomic_store_uint64_release(&disagg->last_checkpoint_meta_lsn, lsn);
     __wt_atomic_store_uint64_release(&disagg->last_checkpoint_timestamp, checkpoint_timestamp);
+    __wt_atomic_store_uint64_release(&disagg->last_oldest_timestamp, oldest_timestamp);
     disagg->last_checkpoint_meta_checksum = checksum; /* Protected by the checkpoint lock. */
 
-    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+    __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Wrote disaggregated checkpoint metadata: lsn=%" PRIu64 ", timestamp=%" PRIu64
-      " %s, checksum=%" PRIx32 ", root=\"%s\"",
-      lsn, checkpoint_timestamp, __wt_timestamp_to_string(checkpoint_timestamp, ts_string),
+      " %s, oldest_timestamp=%" PRIu64 " %s, checksum=%" PRIx32 ", root=\"%s\"",
+      lsn, checkpoint_timestamp, __wt_timestamp_to_string(checkpoint_timestamp, ts_string[0]),
+      oldest_timestamp, __wt_timestamp_to_string(oldest_timestamp, ts_string[1]),
       checksum, checkpoint_root_copy);
 
     __wt_free(session, disagg->last_checkpoint_root);
@@ -1130,9 +1130,13 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_meta_lsn, ckpt_meta->metadata_lsn);
 
-    /* Update the checkpoint timestamp. */
+    /* Update the timestamps. */
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_timestamp, metadata->checkpoint_timestamp);
+    __wt_atomic_store_uint64_release(
+      &conn->disaggregated_storage.last_oldest_timestamp, metadata->oldest_timestamp);
+    printf("__disagg_update_checkpoint_meta: oldest_timestamp=%" PRIu64 "\n",
+      metadata->oldest_timestamp);
 
     /* Remember the root config of the last checkpoint. */
     __wt_free(session, conn->disaggregated_storage.last_checkpoint_root);

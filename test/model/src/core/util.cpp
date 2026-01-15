@@ -539,7 +539,6 @@ wt_disagg_pick_up_latest_checkpoint(WT_CONNECTION *conn, model::timestamp_t &che
 
     std::ostringstream config;
     config << "disaggregated=(checkpoint_meta=\"" << checkpoint_meta << "\")";
-    std::cout << "checkpoint_meta: " << checkpoint_meta << std::endl;
     free(checkpoint_meta);
 
     std::string config_str = config.str();
