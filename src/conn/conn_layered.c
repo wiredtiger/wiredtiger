@@ -1524,6 +1524,33 @@ __disagg_update_metadata_free(WT_SESSION_IMPL *session, WT_DISAGG_UPDATE_METADAT
 }
 
 /*
+ * __disagg_save_metadata --
+ *     Fetch a metadata key/value pair from the metadata table and save the value.
+ */
+static int
+__disagg_save_metadata(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, const char *prefix,
+  const char *key, char **valuep)
+{
+    WT_DECL_ITEM(md_key);
+    WT_DECL_RET;
+    const char *md_value;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &md_key));
+    WT_ERR(__wt_buf_fmt(session, md_key, "%s%s", prefix, key));
+
+    md_cursor->set_key(md_cursor, md_key->data);
+    WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
+    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+        WT_ERR(md_cursor->get_value(md_cursor, &md_value));
+        WT_ERR(__wt_strdup(session, md_value, valuep));
+    }
+
+err:
+    __wt_scr_free(session, &md_key);
+    return (ret);
+}
+
+/*
  * __wt_disagg_update_metadata_later --
  *     Copy the metadata that belongs to the given URI into the shared metadata table at the next
  *     checkpoint.
@@ -1533,17 +1560,13 @@ __wt_disagg_update_metadata_later(
   WT_SESSION_IMPL *session, const char *stable_uri, const char *table_name)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *md_cursor;
+    WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_DISAGG_UPDATE_METADATA *entry;
-    size_t len;
-    char *md_key, ts_string[WT_TS_INT_STRING_SIZE];
-    const char *md_value;
 
     conn = S2C(session);
+    cursor = NULL;
     entry = NULL;
-    md_cursor = NULL;
-    md_key = NULL;
 
     /*
      * Ensure that the schema lock is held. We cannot check this via spinlock ownership, because
@@ -1552,48 +1575,20 @@ __wt_disagg_update_metadata_later(
      */
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
 
-    /* Allocate a buffer for metadata keys. */
-    len = strlen(table_name) + 10;
-    WT_ERR(__wt_calloc_def(session, len, &md_key));
-
     /* Allocate the entry structure. */
     WT_ERR(__wt_calloc_one(session, &entry));
     WT_ERR(__wt_strdup(session, stable_uri, &entry->stable_uri));
     WT_ERR(__wt_strdup(session, table_name, &entry->table_name));
 
     /* Get the table metadata. */
-    WT_ERR(__wt_metadata_cursor(session, &md_cursor));
+    WT_ERR(__wt_metadata_cursor(session, &cursor));
 
-    WT_ERR(__wt_snprintf(md_key, len, "colgroup:%s", table_name));
-    md_cursor->set_key(md_cursor, md_key);
-    WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
-    if (WT_CHECK_AND_RESET(ret, 0)) {
-        WT_ERR(md_cursor->get_value(md_cursor, &md_value));
-        WT_ERR(__wt_strdup(session, md_value, &entry->colgroup_value));
-    }
-
-    WT_ERR(__wt_snprintf(md_key, len, "layered:%s", table_name));
-    md_cursor->set_key(md_cursor, md_key);
-    WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
-    if (WT_CHECK_AND_RESET(ret, 0)) {
-        WT_ERR(md_cursor->get_value(md_cursor, &md_value));
-        WT_ERR(__wt_strdup(session, md_value, &entry->layered_value));
-    }
-
-    WT_ERR(__wt_snprintf(md_key, len, "table:%s", table_name));
-    md_cursor->set_key(md_cursor, md_key);
-    WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
-    if (WT_CHECK_AND_RESET(ret, 0)) {
-        WT_ERR(md_cursor->get_value(md_cursor, &md_value));
-        WT_ERR(__wt_strdup(session, md_value, &entry->table_value));
-    }
-
-    md_cursor->set_key(md_cursor, stable_uri);
-    WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
-    if (WT_CHECK_AND_RESET(ret, 0)) {
-        WT_ERR(md_cursor->get_value(md_cursor, &md_value));
-        WT_ERR(__wt_strdup(session, md_value, &entry->stable_value));
-    }
+    /* Fetch the relevant data from the metadata table and save it in the entry. */
+    WT_ERR(
+      __disagg_save_metadata(session, cursor, "colgroup:", table_name, &entry->colgroup_value));
+    WT_ERR(__disagg_save_metadata(session, cursor, "layered:", table_name, &entry->layered_value));
+    WT_ERR(__disagg_save_metadata(session, cursor, "table:", table_name, &entry->table_value));
+    WT_ERR(__disagg_save_metadata(session, cursor, "", stable_uri, &entry->stable_value));
 
     /* Cannot fail past this point. */
     __wt_spin_lock(session, &conn->disaggregated_storage.update_metadata_lock);
@@ -1602,9 +1597,8 @@ __wt_disagg_update_metadata_later(
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Scheduled copying disaggregated metadata for table \"%s\" (stable URI \"%s\") to shared "
-      "metadata table at timestamp %" PRIx64 " %s",
-      table_name, stable_uri, entry->timestamp,
-      __wt_timestamp_to_string(entry->timestamp, ts_string));
+      "metadata table at next checkpoint:",
+      table_name, stable_uri);
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  colgroup: %s",
       entry->colgroup_value == NULL ? "<none>" : entry->colgroup_value);
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  layered: %s",
@@ -1618,11 +1612,9 @@ __wt_disagg_update_metadata_later(
     entry = NULL;
 
 err:
-    __wt_free(session, md_key);
     __disagg_update_metadata_free(session, &entry);
 
-    if (md_cursor != NULL)
-        WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
 }
 

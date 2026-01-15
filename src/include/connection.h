@@ -161,7 +161,6 @@ struct __wt_disagg_update_metadata {
     char *stable_value;   /* The value for the stable component. */
     char *table_value;    /* The value for the table component. */
 
-    uint64_t timestamp;                         /* The timestamp for propagating the update. */
     TAILQ_ENTRY(__wt_disagg_update_metadata) q; /* Linked list of entries. */
 };
 

@@ -178,6 +178,7 @@ __block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool fail
             WT_ERR(__wt_snprintf(table_name, len, "%s", block_disagg->name));
             table_name[strlen(table_name) - 10] = '\0'; /* Remove the .wt_stable suffix */
         } else
+            /* This can happen if the "file:" is created without a suffix in our tests. */
             WT_ERR(__wt_snprintf(table_name, len, "%s", block_disagg->name));
 
         /* Remember the metadata of the stable/shared table. */

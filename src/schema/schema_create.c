@@ -1016,7 +1016,9 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
      * Update the table info in the shared metadata if this is a layered table. This has to get done
      * after the column groups are created, so that the metadata is complete.
      *
-     * XXX We need to find a better way to do this.
+     * FIXME-WT-16462 We should determine if there is a better way to determine if this is a layered
+     * table and to determine the stable component's URI. The correct logic works well with the
+     * current implementation, but may not be robust to future changes.
      */
     if (__wt_conn_is_disagg(session) && S2C(session)->layered_table_manager.leader)
         if (__wt_config_getones(session, config, "type", &cval) == 0 &&
