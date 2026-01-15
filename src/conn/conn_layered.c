@@ -967,16 +967,18 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     WT_CONFIG_ITEM cval;
     WT_CURSOR *cursor;
     WT_DECL_ITEM(metadata_cfg);
+    WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
     WT_SESSION_IMPL *shared_metadata_session;
     uint32_t existing_tables, new_tables, new_ingest;
     char *layered_ingest_uri, *cfg_ret;
-    const char *cfg[3], *current_value, *metadata_key, *metadata_value;
+    const char *cfg[3], *checkpoint_name, *current_value, *metadata_key, *metadata_value;
 
     cursor = NULL;
     shared_metadata_session = NULL;
     layered_ingest_uri = cfg_ret = NULL;
     existing_tables = new_tables = new_ingest = 0;
+    WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
 
     /* We need a separate internal session to pick up the new checkpoint. */
     WT_ERR(__wt_open_internal_session(
@@ -1018,6 +1020,13 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
             cfg[2] = NULL;
             WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
 
+            /* Before inserting the new value, get the name of the file at the previous checkpoint.
+             */
+            checkpoint_name = NULL;
+            WT_ERR_NOTFOUND_OK(
+              __wt_meta_checkpoint_last_name(session, metadata_key, &checkpoint_name, NULL, NULL),
+              false);
+
             /* FIXME-WT-14730: check that the other parts of the metadata are identical. */
 
             /* Put our new config in */
@@ -1031,11 +1040,14 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
               metadata_key, (int)cval.len, cval.str);
 
             /*
-             * Mark any matching data handles to be out of date. Any new opens will get the new
-             * metadata.
+             * Mark any matching data handles associated with the previous checkpoint to be out of
+             * date. Any new opens will get the new metadata.
              */
-            WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, metadata_key),
-              "Marking data handles outdated failed: \"%s\"", metadata_key);
+            if (checkpoint_name != NULL) {
+                WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", metadata_key, checkpoint_name));
+                WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, old_uri_buf->data),
+                  "Marking data handles outdated failed: \"%s\"", (const char *)old_uri_buf->data);
+            }
             __wt_free(session, cfg_ret);
             cfg_ret = NULL;
         } else if (ret == WT_NOTFOUND) {
@@ -1087,6 +1099,7 @@ err:
     __wt_free(session, layered_ingest_uri);
     __wt_free(session, cfg_ret);
     __wt_scr_free(session, &metadata_cfg);
+    __wt_scr_free(session, &old_uri_buf);
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
     if (shared_metadata_session != NULL)
