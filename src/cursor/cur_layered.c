@@ -2123,7 +2123,8 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
 
-    WT_ERR(__cursor_checkkey(cursor));
+    /* WT_ERR(__cursor_checkkey(cursor)); */
+    WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__clayered_enter(clayered, false, true, false));
 
     /* Check for a rational modify vector count. */
