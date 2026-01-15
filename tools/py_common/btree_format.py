@@ -30,6 +30,7 @@
 
 import enum, typing
 from py_common import binary_data
+from py_common.stats import PageStats
 
 
 #
@@ -280,6 +281,50 @@ class BlockDisaggHeader(object):
         
         return header_string
     
+#
+# Extent List
+#
+
+class ExtentItem(object):
+    '''
+    An extent list item from a block manager page (written by block_ext.c).
+    Each item consists of an offset and size, both packed uint64 values.
+    '''
+    offset: int
+    size: int
+
+    # Constants
+    WT_BLOCK_EXTLIST_MAGIC: typing.Final[int] = 71002
+
+    def __init__(self) -> None:
+        '''
+        Initialize the instance with default values.
+        '''
+        self.offset = 0
+        self.size = 0
+
+    @staticmethod
+    def parse(b: binary_data.BinaryFile) -> 'ExtentItem':
+        '''
+        Parse an extent list item.
+        '''
+        item = ExtentItem()
+        item.offset = b.read_packed_uint64()
+        item.size = b.read_packed_uint64()
+        return item
+
+    def is_magic(self) -> bool:
+        '''
+        Check if this is the magic number entry (first entry in the list).
+        '''
+        return self.offset == ExtentItem.WT_BLOCK_EXTLIST_MAGIC and self.size == 0
+
+    def is_end_of_list(self) -> bool:
+        '''
+        Check if this is an end of list marker (offset == 0).
+        '''
+        return self.offset == 0
+
 #
 # Cell
 #
@@ -554,6 +599,40 @@ class Cell(object):
         if self.is_address or self.is_key or self.is_value or self.is_unsupported:
             return True
         return False
+    
+    def process_timestamps(self, p, pagestats: PageStats):
+        if self.extra_descriptor == 0:
+            return
+
+        p.rint_v('cell has timestamps:')
+        if self.prepared:
+            p.rint_v(' prepared')
+
+        if self.start_ts is not None:
+            pagestats.start_ts_sz += self.size_start_ts
+            pagestats.num_start_ts += 1
+            p.rint_v(' start ts: ' + binary_data.ts(self.start_ts))
+        if self.start_txn is not None:
+            pagestats.start_txn_sz += self.size_start_txn
+            pagestats.num_start_txn += 1
+            p.rint_v(' start txn: ' + binary_data.txn(self.start_txn))
+        if self.durable_start_ts is not None:
+            pagestats.d_start_ts_sz += self.size_durable_start_ts
+            pagestats.num_d_start_ts += 1
+            p.rint_v(' durable start ts: ' + binary_data.ts(self.durable_start_ts))
+
+        if self.stop_ts is not None:
+            pagestats.stop_ts_sz += self.size_stop_ts
+            pagestats.num_stop_ts += 1
+            p.rint_v(' stop ts: ' + binary_data.ts(self.stop_ts))
+        if self.stop_txn is not None:
+            pagestats.stop_txn_sz += self.size_stop_txn
+            pagestats.num_stop_txn += 1
+            p.rint_v(' stop txn: ' + binary_data.txn(self.stop_txn))
+        if self.durable_stop_ts is not None:
+            pagestats.d_stop_ts_sz += self.size_durable_stop_ts
+            pagestats.num_d_stop_ts += 1
+            p.rint_v(' durable stop ts: ' + binary_data.ts(self.durable_stop_ts))
         
 
 class DisaggAddrFlags(enum.IntFlag):

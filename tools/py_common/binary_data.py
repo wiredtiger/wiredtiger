@@ -294,31 +294,11 @@ class BinaryFile(object):
         self.saved = bytearray()
         return bytes(result)
 
-# Convert binary data to a multi-line string with hex and printable characters
-def binary_to_pretty_string(b, per_line=16, line_prefix='  ', start_with_line_prefix=True):
-    printable = ''
-    result = ''
-    if start_with_line_prefix:
-        result += line_prefix
-    if len(b) == 0:
-        return result
-    for i in range(0, len(b)):
-        if i > 0:
-            if i % per_line == 0:
-                result += '  ' + printable + '\n' + line_prefix
-                printable = ''
-            else:
-                result += ' '
-        result += '%02x' % b[i]
-        if b[i] >= ord(' ') and b[i] < 0x7f:
-            printable += chr(b[i])
-        else:
-            printable += '.'
-    if i % per_line != per_line - 1:
-        for j in range(i % per_line + 1, per_line):
-            result += '   '
-    result += '  ' + printable
-    return result
+def ts(uint64):
+    return hex(uint64)
+
+def txn(uint64):
+    return hex(uint64)
 
 # Show an integer as decimal and hex
 def d_and_h(n):
