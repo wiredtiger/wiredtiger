@@ -6704,7 +6704,7 @@ buildvariants:
     - name: examples-c-test
     - name: ".pull_request_compilers"
       run_on:
-        distro: ubuntu2004-wt-build
+        - ubuntu2004-wt-build
 
 # FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
 # Investigate whether a similar thing could happen for MSAN.
