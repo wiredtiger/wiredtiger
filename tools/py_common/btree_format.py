@@ -204,8 +204,8 @@ class BlockHeader(object):
     def __str__(self):
         header_string = (
             f"Block Header:\n"
-            f"  disk_size: {str(self.disk_size)}"
-            f"  checksum: {str(self.checksum)}"
+            f"  disk_size: {str(self.disk_size)}\n"
+            f"  checksum: {str(self.checksum)}\n"
             f"  flags: {str(self.flags)}"
         )
         return header_string

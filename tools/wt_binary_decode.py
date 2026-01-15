@@ -33,7 +33,7 @@
 # libraries), and may be useful as 1) a learning tool 2) quick way to hack/extend dumping.
 
 import codecs, io, os, re, sys, traceback, json, shutil, tempfile, subprocess, base64
-from py_common import binary_data, btree_format, page_service, WTPage, PageStats, Printer
+from py_common import binary_data, btree_format, page_service, WTPage, PageStats, Printer, encode_bytes
 
 decode_version = "2023-03-03.0"
 
@@ -123,25 +123,6 @@ def wtdecode_file_object(b, opts, nbytes):
             startblock = pos
         pagecount += 1
     p.rint('')
-
-def encode_bytes(f):
-    lines = f.readlines()
-    allbytes = bytearray()
-    for line in lines:
-        if ':' in line:
-            (_, _, line) = line.rpartition(':')
-        # Keep anything that looks like it could be hexadecimal,
-        # remove everything else.
-        nospace = re.sub(r'[^a-fA-F\d]', '', line)
-        if opts.debug:
-            print('LINE (len={}): {}'.format(len(nospace), nospace))
-        if len(nospace) > 0:
-            if opts.debug:
-                print('first={}, last={}'.format(nospace[0], nospace[-1]))
-            b = codecs.decode(nospace, 'hex')
-            #b = bytearray.fromhex(line).decode()
-            allbytes += b
-    return allbytes
 
 def decrypt_page(page):
     """
