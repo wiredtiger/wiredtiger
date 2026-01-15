@@ -497,7 +497,7 @@ __schema_open_table(WT_SESSION_IMPL *session)
 
     if (0) {
 err:
-        __wt_schema_close_table(session, table);
+        WT_TRET(__wt_schema_close_table(session, table));
     }
 
     return (ret);
