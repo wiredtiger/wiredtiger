@@ -2130,7 +2130,8 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     if (nentries <= 0)
         WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
 
-    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT | WT_CURSTD_VALUE_EXT))
+    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) ||
+      !F_ISSET(cursor, WT_CURSTD_VALUE_INT | WT_CURSTD_VALUE_EXT))
         WT_ERR(cursor->search(cursor));
     WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_INT));
 
