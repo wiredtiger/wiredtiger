@@ -706,6 +706,7 @@ kv_workload_runner_wt::wiredtiger_open_nolock()
 
         /* Set the stable timestamp. */
         if (picked_up) {
+            // Set the oldest ts here?
             std::ostringstream stable_config;
             stable_config << "stable_timestamp=" << std::hex << checkpoint_timestamp;
             std::string stable_config_str = stable_config.str();
