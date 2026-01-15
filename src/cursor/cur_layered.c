@@ -2078,17 +2078,12 @@ __clayered_modify_follower(
 {
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
     WT_CURSOR *ingest = clayered->ingest_cursor;
-    WT_ITEM *key = &cursor->key;
-    /* WT_DECL_ITEM(value); */
     WT_UNUSED(session);
 
     if (clayered->current_cursor != ingest) {
         /* Get the base value from the top-level cursor. */
-        /* WT_RET(__wt_buf_init(session, value, 0)); */
-        /* cursor->get_value(cursor, &value); */
-        ingest->set_key(ingest, key);
+        ingest->set_key(ingest, &cursor->key);
         ingest->set_value(ingest, &cursor->value);
-        /* __wt_buf_free(session, value); */
     }
     WT_RET(__wt_modify_apply_api(ingest, entries, nentries));
     WT_RET(ingest->update(ingest));
@@ -2127,15 +2122,15 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
-    WT_ERR(__cursor_needkey(cursor)); /* TODO may not need this either if already positioned. */
-    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_EXT));
+
+    WT_ERR(__cursor_checkkey(cursor));
     WT_ERR(__clayered_enter(clayered, false, true, false));
 
     /* Check for a rational modify vector count. */
     if (nentries <= 0)
         WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
 
-    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT))
+    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT | WT_CURSTD_VALUE_EXT))
         WT_ERR(cursor->search(cursor));
     WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_INT));
 
