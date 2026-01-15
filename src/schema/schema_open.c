@@ -486,7 +486,7 @@ __schema_open_table(WT_SESSION_IMPL *session)
     WT_ERR_NOTFOUND_OK(ret, false);
 
     if (table->ncolgroups > 0 && table->is_simple)
-        WT_RET_MSG(session, EINVAL, "%s requires a table with named columns", tablename);
+        WT_ERR_MSG(session, EINVAL, "%s requires a table with named columns", tablename);
 
     if ((ret = __wt_config_gets(session, table_cfg, "shared", &cval)) == 0)
         table->is_tiered_shared = true;
