@@ -7550,7 +7550,7 @@ buildvariants:
     - name: compile
     - name: examples-c-test
     - name: .unit_test_tsan
-    # FIXME-WT-16424 Remove unit test tsan once we incorporate TSAN environment variable setting into run.py
+    # FIXME-WT-16066 Remove unit test tsan once we incorporate TSAN environment variable setting into run.py
     - name: unit-test-tsan
       distros: amazon2023-arm64-latest-large-m8g
     - name: unit-test-hook-disagg-leader-tsan
