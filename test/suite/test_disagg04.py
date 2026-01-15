@@ -68,8 +68,8 @@ class test_disagg04(wttest.WiredTigerTestCase, DisaggConfigMixin):
                     'key_format=S,value_format=S,disaggregated=(storage_tier=),'
                 )
 
-        # Test no storage_tier specified: the option is not specified in the config,
-        # so it's missing in metadata. This keeps backward compatibility with
+        # Test no storage_tier specified: when this option is not specified in the config,
+        # it will not be included in the metadata string. This keeps backward compatibility with
         # all existing test cases, config patterns, and existing databases.
         self.validate_config(
             self.uri%2,
