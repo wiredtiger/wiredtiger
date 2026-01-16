@@ -33,7 +33,7 @@
 # libraries), and may be useful as 1) a learning tool 2) quick way to hack/extend dumping.
 
 import codecs, io, os, re, sys, traceback, json, shutil, tempfile, subprocess, base64
-from py_common import binary_data, btree_format, page_service, WTPage, PageStats, Printer, encode_bytes
+from py_common import binary_data, btree_format, page_service, WTPage, PageStats, Printer, encode_bytes, log
 
 decode_version = "2023-03-03.0"
 
@@ -103,7 +103,9 @@ def wtdecode_file_object(b, opts, nbytes):
         print('Decode at ' + d_h)
         b.seek(startblock)
         try:
-            WTPage.parse(b, nbytes, opts)
+            page = WTPage.parse(b, nbytes, opts)
+            if page.success:
+                page.print_page(opts)
             p.rint('')
         except BrokenPipeError:
             break
@@ -386,6 +388,8 @@ if __name__ == '__main__':
     parser = get_arg_parser()
     opts = parser.parse_args()
 
+    log.set_level(log.LogLevel.INFO)
+    
     if opts.version:
         print('wt_binary_decode version "{}"'.format(decode_version))
         sys.exit(0)

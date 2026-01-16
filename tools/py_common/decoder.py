@@ -38,6 +38,7 @@ from py_common import btree_format, binary_data
 from py_common.stats import PageStats
 from py_common.snappy_util import print_snappy_diagnostics
 from py_common.printer import binary_to_pretty_string, raw_bytes, Printer, dumpraw
+from py_common import log
 
 @dataclass
 class WTPage:
@@ -53,10 +54,14 @@ class WTPage:
     cells: Optional[List[btree_format.Cell]] = None
     extents: Optional[List[btree_format.ExtentItem]] = None
     
+    raw_bytes: binary_data.BinaryFile = None
+    
     @staticmethod
     def parse(b: binary_data.BinaryFile, nbytes: int, opts) -> 'WTPage':
         
         page = WTPage(success=False)
+        
+        page.raw_bytes = b
                 
         disk_pos = b.tell()
 
@@ -80,29 +85,25 @@ class WTPage:
             page.block_header = btree_format.BlockHeader.parse(b_page)
 
         if page.page_header.unused != 0:
-            p.rint('? garbage in unused bytes')
+            log.error('? garbage in unused bytes')
             return page
         if page.page_header.type == btree_format.PageType.WT_PAGE_INVALID:
-            p.rint('? invalid page')
+            log.error('? invalid page')
             return page
 
-        p.rint(page.page_header)
-
         if page.block_header.unused != 0:
-            p.rint('garbage in unused bytes')
+            log.error('garbage in unused bytes')
             return page
 
         disk_size = nbytes if opts.disagg else page.block_header.disk_size
 
         if disk_size > 17 * 1024 * 1024:
             # The maximum document size in MongoDB is 16MB. Larger block sizes are suspect.
-            p.rint('the block is too big')
+            log.error('the block is too big')
             return page
         if disk_size < 40 and not opts.disagg:
             # The disk size is too small
             return page
-
-        p.rint(page.block_header)
 
         pagestats = PageStats()
 
@@ -128,11 +129,11 @@ class WTPage:
             # Zero-out the checksum field
             data[32] = data[33] = data[34] = data[35] = 0
             if len(data) < check_size:
-                p.rint('? reached EOF before the end of the block')
+                log.error('? reached EOF before the end of the block')
                 return page
             checksum = crc32c.crc32c(data)
             if checksum != page.block_header.checksum:
-                p.rint(f'? the calculated checksum {hex(checksum)} does not match header checksum {page.block_header.checksum}')
+                log.error(f'? the calculated checksum {hex(checksum)} does not match header checksum {page.block_header.checksum}')
                 if (not opts.cont):
                     return page
 
@@ -155,16 +156,16 @@ class WTPage:
                 have_snappy = True
             except:
                 # Try to install it automatically
-                print('python-snappy not found, attempting to install...')
+                log.warn('python-snappy not found, attempting to install...')
                 try:
                     import subprocess
                     subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'python-snappy'])
                     import snappy
                     have_snappy = True
-                    print('Successfully installed python-snappy')
+                    log.info('Successfully installed python-snappy')
                 except Exception as e:
-                    print(f'Warning: Failed to install python-snappy: {e}')
-                    print('Compressed pages will not be readable.')
+                    log.warn(f'Failed to install python-snappy: {e}')
+                    log.warn('Compressed pages will not be readable.')
         
             if not have_snappy:
                 raise ModuleNotFoundError('python-snappy is required to decode compressed pages')
@@ -186,24 +187,24 @@ class WTPage:
 
                 # Try stored length first (most likely to be correct)
                 if compressed_byte_count <= len(compressed_data_full):
-                    p.rint_v(f'Trying to decompress using stored length: {compressed_byte_count} bytes')
+                    log.info(f'Trying to decompress using stored length: {compressed_byte_count} bytes')
                     compressed_data = compressed_data_full[:compressed_byte_count]
                     if snappy.isValidCompressed(compressed_data):
                         try:
                             decompressed = snappy.uncompress(compressed_data)
                             if not lengths_match:
-                                p.rint_v(f'  Successfully decompressed using stored length ({compressed_byte_count} bytes)')
+                                log.info(f'  Successfully decompressed using stored length ({compressed_byte_count} bytes)')
                         except:
                             pass
 
                 # If that failed and lengths differ, try calculated length
                 if decompressed is None and not lengths_match and calculated_length <= len(compressed_data_full):
-                    p.rint_v(f'Trying to decompress using calculated length: {calculated_length} bytes')
+                    log.info(f'Trying to decompress using calculated length: {calculated_length} bytes')
                     compressed_data = compressed_data_full[:calculated_length]
                     if snappy.isValidCompressed(compressed_data):
                         try:
                             decompressed = snappy.uncompress(compressed_data)
-                            p.rint_v(f'  Successfully decompressed using calculated length ({calculated_length} bytes)')
+                            log.info(f'  Successfully decompressed using calculated length ({calculated_length} bytes)')
                         except:
                             pass
 
@@ -217,7 +218,7 @@ class WTPage:
                     print_snappy_diagnostics(p, compressed_data, compressed_byte_count, page.page_header, compress_skip)
                     return page  # Stop processing this corrupted block
             except:
-                p.rint('? The page failed to uncompress')
+                log.error('? The page failed to uncompress')
                 if opts.debug:
                     traceback.print_exception(*sys.exc_info())
                 return page
@@ -235,147 +236,174 @@ class WTPage:
         if page.page_header.type == btree_format.PageType.WT_PAGE_INVALID:
             pass    # a blank page: TODO maybe should check that it's all zeros?
         elif page.page_header.type == btree_format.PageType.WT_PAGE_BLOCK_MANAGER:
-            extents = page.decode_extlist(b_page, p)
+            extents = page.decode_extlist(b_page)
             page.extents = extents
         elif page.page_header.type == btree_format.PageType.WT_PAGE_ROW_INT or \
             page.page_header.type == btree_format.PageType.WT_PAGE_ROW_LEAF:
-            cells = page.decode_rows(b_page, p, opts, pagestats)
+            cells = page.decode_rows(b_page, p, pagestats)
             page.cells = cells
         elif page.page_header.type == btree_format.PageType.WT_PAGE_OVFL:
             # Use b_page.read() so that we can also print the raw bytes in the split mode
-            p.rint_v(raw_bytes(b_page.read(len(payload_data))))
+            # p.rint_v(raw_bytes(b_page.read(len(payload_data))))
+            pass
         else:
-            p.rint_v('? unimplemented decode for page type {}'.format(page.page_header.type))
-            p.rint_v(binary_to_pretty_string(payload_data))
+            log.warn('? unimplemented decode for page type {}'.format(page.page_header.type))
+            # p.rint_v(binary_to_pretty_string(payload_data))
 
         PageStats.outfile_stats_end(opts, page.page_header, page.block_header, pagestats)
         page.success = True
         return page
+    
+    def print_page(self, opts):
+        p = Printer(self.raw_bytes, opts)
+        p.rint(self.page_header)
+        p.rint(self.block_header)
         
-    def decode_rows(self, b, p, opts, pagestats) -> List[btree_format.Cell]:
+        if self.page_header.type == btree_format.PageType.WT_PAGE_INVALID:
+            pass    # a blank page: TODO maybe should check that it's all zeros?
+        elif self.page_header.type == btree_format.PageType.WT_PAGE_BLOCK_MANAGER:
+            self.print_extents(p, opts)
+        elif self.page_header.type == btree_format.PageType.WT_PAGE_ROW_INT or \
+            self.page_header.type == btree_format.PageType.WT_PAGE_ROW_LEAF:
+            self.print_cells(p, opts)
+        elif self.page_header.type == btree_format.PageType.WT_PAGE_OVFL:
+            # Use b_page.read() so that we can also print the raw bytes in the split mode
+            # p.rint_v(raw_bytes(b_page.read(len(payload_data))))
+            pass
+        
+        return
+
+    def print_cells(self, p, opts):
+
+        for cellnum, cell in enumerate(self.cells):
+            p.begin_cell(cellnum)
+            p.rint_v(cell.descriptor_string())
+            p.rint_v(cell.type_string())
+            cell.print_timestamps(p)
+
+            # Print the contents of the cell.
+            try:
+                # Optional dependency: bson
+                have_bson = False
+                try:
+                    import bson
+                    have_bson = True
+                except:
+                    pass
+                # Attempt the decode the cell as BSON.
+                if (cell.is_value and opts.bson and have_bson):
+                    decoded_data = bson.BSON(cell.data).decode()
+                    p.rint_v(pprint.pformat(decoded_data, indent=2))
+                # If the cell is an address and we're in disagg mode, print the cell as a DisaggAddr
+                # type.
+                elif cell.is_address and opts.disagg:
+                    addr = btree_format.DisaggAddr.parse(cell.data)
+                    p.rint(json.dumps(addr.__dict__))
+                else:
+                    p.rint_v(raw_bytes(cell.data))
+            except bson.InvalidBSON as e:
+                p.rint_v(f"cannot decode cell as BSON: {e}")
+                p.rint_v(raw_bytes(cell.data))
+            except (IndexError, ValueError):
+                # FIXME-WT-13000 theres a bug in raw_bytes
+                pass
+            
+            p.end_cell()
+            
+    def print_extents(self, p, opts):
+        p.rint_ext('extent list follows:')
+        for extnum, extent in enumerate(self.extents):
+            p.begin_cell(extnum)
+            p.rint_ext(f'  {extent.offset}, {extent.size}{extent.extra_stuff}')
+
+        
+    def decode_rows(self, b, p , pagestats) -> List[btree_format.Cell]:
         cells = []
         for cellnum in range(0, self.page_header.entries):
             cellpos = b.tell()
             if cellpos >= self.page_header.mem_size:
-                p.rint_v('** OVERFLOW memsize **')
+                log.warn('** OVERFLOW memsize **')
                 return cells
-            p.begin_cell(cellnum)
 
-            try:
-                cell = btree_format.Cell.parse(b, True)
-                cells.append(cell)
-                
-                p.rint_v(cell.descriptor_string())
-                if cell.has_timestamps():
-                    cell.process_timestamps(p, pagestats)
+            # try:
+            cell = btree_format.Cell.parse(b, True)
+            cells.append(cell)
+            
+            if cell.has_timestamps():
+                cell.process_timestamps(p, pagestats)
 
-                if cell.is_key:
-                    pagestats.num_keys += 1
-                    pagestats.keys_sz += len(cell.data)
-                
-                # If the cell cannot be decoded as a valid type, dump the raw bytes and raise an error.
-                if not cell.is_valid_type():
-                    dumpraw(p, b, cellpos)
-                    raise ValueError('Unexpected cell type')
-
-                p.rint_v(cell.type_string())
-                
-                # Print the contents of the cell.
-                try:
-                    # Optional dependency: bson
-                    have_bson = False
-                    try:
-                        import bson
-                        have_bson = True
-                    except:
-                        pass
-                    # Attempt the decode the cell as BSON.
-                    if (cell.is_value and opts.bson and have_bson):
-                        decoded_data = bson.BSON(cell.data).decode()
-                        p.rint_v(pprint.pformat(decoded_data, indent=2))
-                    # If the cell is an address and we're in disagg mode, print the cell as a DisaggAddr
-                    # type.
-                    elif cell.is_address and opts.disagg:
-                        addr = btree_format.DisaggAddr.parse(cell.data)
-                        p.rint(json.dumps(addr.__dict__))
-                    else:
-                        p.rint_v(raw_bytes(cell.data))
-                except bson.InvalidBSON as e:
-                    p.rint_v(f"cannot decode cell as BSON: {e}")
-                    p.rint_v(raw_bytes(cell.data))
-                except (IndexError, ValueError):
-                    # FIXME-WT-13000 theres a bug in raw_bytes
-                    pass
-
-            finally:
-                p.end_cell()
+            if cell.is_key:
+                pagestats.num_keys += 1
+                pagestats.keys_sz += len(cell.data)
+            
+            # If the cell cannot be decoded as a valid type, dump the raw bytes and raise an error.
+            if not cell.is_valid_type():
+                dumpraw(p, b, cellpos)
+                raise ValueError('Unexpected cell type')
         
         return cells
         
-    def decode_extlist(self, b, p) -> List[btree_format.ExtentItem]:
+    def decode_extlist(self, b) -> List[btree_format.ExtentItem]:
         # Written by block_ext.c
         extents = []
         okay = True
         cellnum = -1
         lastoff = 0
-        p.rint_ext('extent list follows:')
+        # p.rint_ext('extent list follows:')
         while True:
             cellnum += 1
             cellpos = b.tell()
             if cellpos >= self.page_header.mem_size:
-                p.rint_ext(f'** OVERFLOW memsize ** memsize={self.page_header.mem_size}, position={cellpos}')
+                log.warn(f'** OVERFLOW memsize ** memsize={self.page_header.mem_size}, position={cellpos}')
                 return extents
-            p.begin_cell(cellnum)
 
-            try:
-                extent = btree_format.ExtentItem.parse(b)
-                extents.append(extent)
-                extra_stuff = ''
-                
-                if cellnum == 0:
-                    extra_stuff += '  # magic number'
-                    if not extent.is_magic():
-                        extra_stuff = f'  # ERROR: magic number did not match expected value=' + \
-                            f'{btree_format.ExtentItem.WT_BLOCK_EXTLIST_MAGIC}'
-                        okay = False
-                else:
-                    if extent.offset < lastoff:
-                        extra_stuff = f'  # ERROR: list out of order'
-                        okay = False
-
-                    # We expect sizes and positions to be multiples of
-                    # this number, it is conservative.
-                    multiple = 256
-                    if extent.offset % multiple != 0:
-                        extra_stuff = f'  # ERROR: offset is not a multiple of {multiple}'
-                        okay = False
-                    if extent.offset != 0 and extent.size % multiple != 0:
-                        extra_stuff = f'  # ERROR: size is not a multiple of {multiple}'
-                        okay = False
-
-                # A zero offset is written as an end of list marker,
-                # in that case, the size is a version number.
-                # For version 0, this is truly the end of the list.
-                # For version 1, additional entries may be appended to this (avail) list.
-                #
-                # See __wti_block_extlist_write() in block_ext.c, and calls
-                # to that function in block_ckpt.c.
-                if extent.is_end_of_list():
-                    extra_stuff += '  # end of list'
-                    if extent.size == 0:
-                        extra_stuff += ', version 0'
-                    elif extent.size == 1:
-                        extra_stuff += ', version 1,' + \
-                        ' any following entries are not yet in this (incomplete) checkpoint'
-                    else:
-                        extra_stuff += f' -- ERROR unexpected size={extent.size} has no meaning here'
-                        okay = False
-                
-                p.rint_ext(f'  {extent.offset}, {extent.size}{extra_stuff}')
+            extent = btree_format.ExtentItem.parse(b)
+            extents.append(extent)
+            extra_stuff = ''
+            
+            if cellnum == 0:
+                extra_stuff += '  # magic number'
                 if not extent.is_magic():
-                    lastoff = extent.offset
-            finally:
-                p.end_cell()
+                    log.error(f'  # ERROR: magic number did not match expected value=\
+                        {btree_format.ExtentItem.WT_BLOCK_EXTLIST_MAGIC}')
+                    okay = False
+            else:
+                if extent.offset < lastoff and not extent.is_end_of_list():
+                    log.error(f'  # ERROR: list out of order')
+                    okay = False
+
+                # We expect sizes and positions to be multiples of
+                # this number, it is conservative.
+                multiple = 256
+                if extent.offset % multiple != 0:
+                    log.error(f'  # ERROR: offset is not a multiple of {multiple}')
+                    okay = False
+                if extent.offset != 0 and extent.size % multiple != 0:
+                    log.error(f'  # ERROR: size is not a multiple of {multiple}')
+                    okay = False
+
+            # A zero offset is written as an end of list marker,
+            # in that case, the size is a version number.
+            # For version 0, this is truly the end of the list.
+            # For version 1, additional entries may be appended to this (avail) list.
+            #
+            # See __wti_block_extlist_write() in block_ext.c, and calls
+            # to that function in block_ckpt.c.
+            if extent.is_end_of_list():
+                extra_stuff += '  # end of list'
+                if extent.size == 0:
+                    extra_stuff += ', version 0'
+                elif extent.size == 1:
+                    extra_stuff += ', version 1,' + \
+                    ' any following entries are not yet in this (incomplete) checkpoint'
+                else:
+                    log.error(f' -- ERROR unexpected size={extent.size} has no meaning here')
+                    okay = False
+            
+            extent.extra_stuff = extra_stuff
+            if not extent.is_magic():
+                lastoff = extent.offset
+
             if extent.is_end_of_list() or not okay:
                 break
         

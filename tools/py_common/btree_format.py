@@ -292,6 +292,7 @@ class ExtentItem(object):
     '''
     offset: int
     size: int
+    extra_stuff: str
 
     # Constants
     WT_BLOCK_EXTLIST_MAGIC: typing.Final[int] = 71002
@@ -600,7 +601,8 @@ class Cell(object):
             return True
         return False
     
-    def process_timestamps(self, p, pagestats: PageStats):
+    
+    def print_timestamps(self, p):
         if self.extra_descriptor == 0:
             return
 
@@ -609,30 +611,42 @@ class Cell(object):
             p.rint_v(' prepared')
 
         if self.start_ts is not None:
+            p.rint_v(' start ts: ' + binary_data.ts(self.start_ts))
+        if self.start_txn is not None:
+            p.rint_v(' start txn: ' + binary_data.txn(self.start_txn))
+        if self.durable_start_ts is not None:
+            p.rint_v(' durable start ts: ' + binary_data.ts(self.durable_start_ts))
+
+        if self.stop_ts is not None:
+            p.rint_v(' stop ts: ' + binary_data.ts(self.stop_ts))
+        if self.stop_txn is not None:
+            p.rint_v(' stop txn: ' + binary_data.txn(self.stop_txn))
+        if self.durable_stop_ts is not None:
+            p.rint_v(' durable stop ts: ' + binary_data.ts(self.durable_stop_ts))
+    
+    def process_timestamps(self, p, pagestats: PageStats):
+        if self.extra_descriptor == 0:
+            return
+
+        if self.start_ts is not None:
             pagestats.start_ts_sz += self.size_start_ts
             pagestats.num_start_ts += 1
-            p.rint_v(' start ts: ' + binary_data.ts(self.start_ts))
         if self.start_txn is not None:
             pagestats.start_txn_sz += self.size_start_txn
             pagestats.num_start_txn += 1
-            p.rint_v(' start txn: ' + binary_data.txn(self.start_txn))
         if self.durable_start_ts is not None:
             pagestats.d_start_ts_sz += self.size_durable_start_ts
             pagestats.num_d_start_ts += 1
-            p.rint_v(' durable start ts: ' + binary_data.ts(self.durable_start_ts))
 
         if self.stop_ts is not None:
             pagestats.stop_ts_sz += self.size_stop_ts
             pagestats.num_stop_ts += 1
-            p.rint_v(' stop ts: ' + binary_data.ts(self.stop_ts))
         if self.stop_txn is not None:
             pagestats.stop_txn_sz += self.size_stop_txn
             pagestats.num_stop_txn += 1
-            p.rint_v(' stop txn: ' + binary_data.txn(self.stop_txn))
         if self.durable_stop_ts is not None:
             pagestats.d_stop_ts_sz += self.size_durable_stop_ts
             pagestats.num_d_stop_ts += 1
-            p.rint_v(' durable stop ts: ' + binary_data.ts(self.durable_stop_ts))
         
 
 class DisaggAddrFlags(enum.IntFlag):
