@@ -295,11 +295,20 @@ class BinaryFile(object):
         return bytes(result)
 
 def ts(uint64):
+    '''  
+    Return a timestamp as hex.  
+    '''  
     return hex(uint64)
 
 def txn(uint64):
+    '''
+    Return a transaction ID as hex.
+    '''
     return hex(uint64)
 
 # Show an integer as decimal and hex
 def d_and_h(n):
+    '''
+    Return a string showing the integer in decimal and hex.
+    '''
     return f'{n} (0x{n:x})'
