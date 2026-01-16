@@ -133,3 +133,32 @@ class PageStats:
                 *pagestats.to_csv_cols(),
             ]
             opts.output.write(",".join(str(x) for x in line))
+
+    def process_timestamps(self, cell) -> None:
+        """
+        Update this PageStats instance with timestamp/transaction information
+        from a parsed `cell`.
+        """
+        # If the cell has no extra descriptor, nothing to do.
+        if getattr(cell, 'extra_descriptor', 0) == 0:
+            return
+
+        if getattr(cell, 'start_ts', None) is not None:
+            self.start_ts_sz += getattr(cell, 'size_start_ts', 0)
+            self.num_start_ts += 1
+        if getattr(cell, 'start_txn', None) is not None:
+            self.start_txn_sz += getattr(cell, 'size_start_txn', 0)
+            self.num_start_txn += 1
+        if getattr(cell, 'durable_start_ts', None) is not None:
+            self.d_start_ts_sz += getattr(cell, 'size_durable_start_ts', 0)
+            self.num_d_start_ts += 1
+
+        if getattr(cell, 'stop_ts', None) is not None:
+            self.stop_ts_sz += getattr(cell, 'size_stop_ts', 0)
+            self.num_stop_ts += 1
+        if getattr(cell, 'stop_txn', None) is not None:
+            self.stop_txn_sz += getattr(cell, 'size_stop_txn', 0)
+            self.num_stop_txn += 1
+        if getattr(cell, 'durable_stop_ts', None) is not None:
+            self.d_stop_ts_sz += getattr(cell, 'size_durable_stop_ts', 0)
+            self.num_d_stop_ts += 1

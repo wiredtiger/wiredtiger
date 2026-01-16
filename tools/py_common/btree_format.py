@@ -633,29 +633,8 @@ class Cell(object):
         if self.durable_stop_ts is not None:
             p.rint_v(' durable stop ts: ' + binary_data.ts(self.durable_stop_ts))
     
-    def process_timestamps(self, p, pagestats: PageStats):
-        if self.extra_descriptor == 0:
-            return
-
-        if self.start_ts is not None:
-            pagestats.start_ts_sz += self.size_start_ts
-            pagestats.num_start_ts += 1
-        if self.start_txn is not None:
-            pagestats.start_txn_sz += self.size_start_txn
-            pagestats.num_start_txn += 1
-        if self.durable_start_ts is not None:
-            pagestats.d_start_ts_sz += self.size_durable_start_ts
-            pagestats.num_d_start_ts += 1
-
-        if self.stop_ts is not None:
-            pagestats.stop_ts_sz += self.size_stop_ts
-            pagestats.num_stop_ts += 1
-        if self.stop_txn is not None:
-            pagestats.stop_txn_sz += self.size_stop_txn
-            pagestats.num_stop_txn += 1
-        if self.durable_stop_ts is not None:
-            pagestats.d_stop_ts_sz += self.size_durable_stop_ts
-            pagestats.num_d_stop_ts += 1
+    def process_timestamps(self, pagestats: PageStats):
+        pagestats.process_timestamps(self)
         
 
 class DisaggAddrFlags(enum.IntFlag):
