@@ -445,11 +445,17 @@ class Oplog(object):
     # Apply the oplog entries starting at the position to the session
     def apply(self, testcase, session, pos, count):
         # Keep a cache of open cursors
+        # TODO: this cache is much larger than it needs to be.
         cursors = [None] * len(self._entries)
         while count > 0:
             (table, k, v) = self._entries[pos]
             ts = pos + 1
             cursor = cursors[table - 1]
+            if ts == 1901:
+                vstr = str(v)
+                if v == self._tombstone_value:
+                    vstr = "<deleted>"
+                testcase.tty(f'1901: table={table} {k}={vstr}')
             if not cursor:
                 uri = self._uris[table - 1][0]
                 cursor = session.open_cursor(uri)
@@ -498,6 +504,7 @@ class Oplog(object):
                 uri = self._uris[table - 1][0]
                 cursor = session.open_cursor(uri)
                 cursors[table - 1] = cursor
+            #testcase.tty(f'Checking at ts={ts}, use_timestamps={self._use_timestamps}')
             if self._use_timestamps:
                 expected_value_int = v
                 session.begin_transaction(f'read_timestamp={testcase.timestamp_str(ts)}')
@@ -510,11 +517,23 @@ class Oplog(object):
             else:
                 actual_key = self.gen_key(k)
                 expected_value = self.gen_value(expected_value_int)
-                result_value = cursor[actual_key]
+                cursor.set_key(actual_key)
+                ret = cursor.search()
+                if ret != 0:
+                    testcase.tty(f'point-read of {actual_key} at ts={ts} search returns {ret}, expected 0')
+                    testcase.pr(f'point-read of {actual_key} at ts={ts} search returns {ret}, expected 0')
+
+                    uri = cursor.uri
+                    uri = uri.replace('layered:', 'file:')
+                    uri = uri + '.wt_stable/WiredTigerCheckpoint.2'
+                    testcase.show_version_cursor(session, "stable table at point of failure", uri, actual_key)
+                    testcase.assertEqual(ret, 0)
+                result_value = cursor.get_value()
                 if (result_value != expected_value):
                     testcase.pr(f'point-read of {actual_key} at ts={ts} gives {result_value}, expected {expected_value}')
                     testcase.assertEqual(result_value, expected_value)
             session.rollback_transaction()
+            #testcase.tty(f'Checked at ts={ts}')
             pos += 1
             count -= 1
         for cursor in cursors:

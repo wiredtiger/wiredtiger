@@ -36,6 +36,9 @@ __curversion_set_key(WT_CURSOR *cursor, ...)
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     file_cursor = version_cursor->file_cursor;
+    fprintf(
+      stderr, "VERSION CURSOR, dhandle=%p\n", (void *)((WT_CURSOR_BTREE *)file_cursor)->dhandle);
+
     va_start(ap, cursor);
     flags = file_cursor->flags;
     /* Pass on the raw flag. */

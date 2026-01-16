@@ -298,7 +298,9 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     # Note that this method first appears in Python 3.7.  When running with an older Python,
     # this method does not override anything.  The test method is called a different way,
     # and we will not get any retry behavior.
-    @dumpErrorLogOnWtError
+
+    # TODO: commenting this annotation allows this to work on macOS
+    #@dumpErrorLogOnWtError
     def _callTestMethod(self, method):
         rollbacksAllowed = self.rollbacks_allowed
         finished = False
@@ -617,7 +619,8 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
 
         sess.close()
 
-    @dumpErrorLogOnWtError
+    # TODO: commenting this annotation allows this to work on macOS
+    #@dumpErrorLogOnWtError
     def tearDown(self, dueToRetry=False):
         dumped_error_log = False
         teardown_failed = False

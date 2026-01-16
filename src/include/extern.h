@@ -710,6 +710,10 @@ extern int __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype
   const char **tokstart, size_t *toklen) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_key_return(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_layered_checkpoint_for_ts(WT_SESSION_IMPL *session, const char *uri,
+  uint64_t timestamp, const char **result) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_layered_history_store_for_ts(WT_SESSION_IMPL *session, uint64_t timestamp,
+  const char **result) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_layered_table_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_id)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_library_init(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -734,6 +738,8 @@ extern int __wt_meta_checkpoint_clear(WT_SESSION_IMPL *session, const char *fnam
 extern int __wt_meta_checkpoint_last_name(
   WT_SESSION_IMPL *session, const char *fname, const char **namep, int64_t *orderp, uint64_t *timep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_meta_checkpoint_name_for_ts(WT_SESSION_IMPL *session, const char *fname,
+  uint64_t ts, const char **namep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_meta_ckptlist_get(WT_SESSION_IMPL *session, const char *fname, bool update,
   WT_CKPT **ckptbasep, size_t *allocated) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_meta_ckptlist_get_from_config(WT_SESSION_IMPL *session, bool update,

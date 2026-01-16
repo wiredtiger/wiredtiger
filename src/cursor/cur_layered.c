@@ -336,10 +336,9 @@ err:
  *     our decision about when we can upgrade by when a snapshot is allowed to be upgraded.
  */
 static bool
-__clayered_can_stable_upgrade(WT_CURSOR_LAYERED *clayered, bool iteration)
+__clayered_can_stable_upgrade(WT_CURSOR_LAYERED *clayered, bool iteration, uint64_t read_ts)
 {
     WT_SESSION_IMPL *session;
-    WT_TXN_SHARED *txn_shared;
     bool can_upgrade;
 
     session = CUR2S(clayered);
@@ -350,8 +349,7 @@ __clayered_can_stable_upgrade(WT_CURSOR_LAYERED *clayered, bool iteration)
      * it's always safe to update cursors, even during iterations. That's because the view at a
      * timestamp is always consistent, the history store covers that.
      */
-    txn_shared = WT_SESSION_TXN_SHARED(session);
-    if (txn_shared != NULL && txn_shared->read_timestamp != WT_TS_NONE)
+    if (read_ts != WT_TS_NONE)
         can_upgrade = true;
     else {
         /* if this is an iteration, we won't upgrade the cursor, we're done. */
@@ -385,7 +383,8 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *old_stable;
     WT_SESSION_IMPL *session;
-    uint64_t last_checkpoint_meta_lsn, snapshot_gen;
+    WT_TXN_SHARED *txn_shared;
+    uint64_t last_checkpoint_meta_lsn, read_ts, snapshot_gen;
     bool change_ingest, change_stable, current_leader;
 
     *state_updated = false;
@@ -400,6 +399,16 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
     else
         last_checkpoint_meta_lsn = WT_DISAGG_LSN_NONE;
 
+    read_ts = WT_TS_NONE;
+    txn_shared = WT_SESSION_TXN_SHARED(session);
+    if (txn_shared != NULL)
+        WT_ACQUIRE_READ_WITH_BARRIER(read_ts, txn_shared->read_timestamp);
+
+    /* TODO: debug */
+    if (read_ts == 1901)
+        fprintf(stderr, " clayered->stable_uri for 1901: %s\n",
+          clayered->stable_cursor == NULL ? "<NULL>" : clayered->stable_cursor->uri);
+
     /*
      * Has any state changed? What is not checked here is the possibility that a step down and step
      * up have both occurred since the last check. We don't have a way to detect that (or its
@@ -407,7 +416,8 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
      * any changes. FIXME-WT-14545.
      */
     if (current_leader == clayered->leader &&
-      last_checkpoint_meta_lsn == clayered->checkpoint_meta_lsn)
+      last_checkpoint_meta_lsn == clayered->checkpoint_meta_lsn &&
+      read_ts == clayered->last_read_ts)
         return (0);
 
     change_ingest = false;
@@ -443,11 +453,12 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
          * we've done read operations to this point. So again, we should upgrade if we can.
          */
     }
+
     /*
      * Even if the leader hasn't changed, we can get here if we have a new checkpoint on the
      * follower. And again, we'd like to reopen the stable cursor if we can.
      */
-    change_stable = __clayered_can_stable_upgrade(clayered, iteration);
+    change_stable = __clayered_can_stable_upgrade(clayered, iteration, read_ts);
 
     /* See if there's nothing to do for the ingest cursor. */
     if (clayered->ingest_cursor == NULL)
@@ -509,6 +520,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
     clayered->leader = current_leader;
     clayered->checkpoint_meta_lsn = last_checkpoint_meta_lsn;
     clayered->snapshot_gen = snapshot_gen;
+    clayered->last_read_ts = read_ts;
     *state_updated = (change_ingest || change_stable);
 
     return (0);
@@ -1221,6 +1233,44 @@ __clayered_reopen(WT_CURSOR *cursor, bool sweep_check_only)
     API_RET_STAT(session, ret, cursor_reopen);
 }
 
+static int
+show_version_cursor(WT_SESSION_IMPL *session, const char *label, const char *uri, WT_ITEM *key)
+{
+    WT_CURSOR *vcursor;
+    WT_DECL_RET;
+    wt_timestamp_t start_ts, start_durable_ts, stop_ts, stop_durable_ts;
+    uint64_t start_txnid, stop_txnid;
+    uint8_t type, prepare_state, flags, location;
+    const char *value;
+
+    fprintf(stderr, "C Version Cursor for %s (%s)\n", label, uri);
+    const char *config = "debug=(dump_version=(enabled=true))";
+    WT_RET(session->iface.open_cursor(&session->iface, uri, NULL, config, &vcursor));
+    vcursor->set_key(vcursor, (const char *)key->data);
+    WT_ERR(vcursor->search(vcursor));
+    while (1) {
+#define U64(x) #x "=%" PRIu64 ", "
+#define U8(x) #x "=%" PRIu8 ", "
+        value = "foo";
+        WT_ERR(vcursor->get_value(vcursor, &start_txnid, &start_ts, &start_durable_ts, &stop_txnid,
+          &stop_ts, &stop_durable_ts, &type, &prepare_state, &flags, &location, &value));
+        fprintf(stderr,
+          "  " U64(start_txnid) U64(start_ts) U64(start_durable_ts) U64(stop_ts) U64(stop_txnid)
+            U64(stop_durable_ts) U8(type) U8(prepare_state) U8(flags) U8(location) "value=%s\n",
+          start_txnid, start_ts, start_durable_ts, stop_txnid, stop_ts, stop_durable_ts, type,
+          prepare_state, flags, location, value);
+        ret = vcursor->next(vcursor);
+        if (ret == WT_NOTFOUND) {
+            ret = 0;
+            break;
+        }
+    }
+    fprintf(stderr, "\n");
+    WT_ERR(vcursor->close(vcursor));
+err:
+    return (ret);
+}
+
 /*
  * __clayered_lookup_constituent --
  *     The cursor-agnostic parts of layered table lookups.
@@ -1239,6 +1289,10 @@ __clayered_lookup_constituent(WT_CURSOR *c, WT_CURSOR_LAYERED *clayered, WT_ITEM
         WT_RET(c->get_value(c, value));
         clayered->current_cursor = c;
     }
+    /* TODO: debug */
+    if (clayered->last_read_ts == 1901 && ret != 0)
+        fprintf(stderr, "Lookup 1901 failed for %s: %d, dhandle=%p\n", c->uri, ret,
+          (void *)((WT_CURSOR_BTREE *)c)->dhandle);
 
     return (ret);
 }
@@ -1261,6 +1315,14 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
     found = false;
     reset_ignore_prepare = false;
 
+    /* TODO: debug */
+    if (clayered->last_read_ts == 1901) {
+        fprintf(stderr, "Lookup 1901: key=%.*s, stable_cursor=%p\n", (int)cursor->key.size,
+          (const char *)cursor->key.data, (void *)clayered->stable_cursor);
+        if (clayered->stable_cursor != NULL)
+            WT_ERR(show_version_cursor(
+              session, "just before clayered search", clayered->stable_cursor->uri, &cursor->key));
+    }
     if (!conn->layered_table_manager.leader) {
         c = clayered->ingest_cursor;
         WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(c, clayered, value), true);

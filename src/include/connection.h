@@ -159,11 +159,13 @@ struct __wt_disagg_copy_metadata {
 
 /*
  * WT_DISAGGREGATED_CHECKPOINT_TRACK --
- *      A relationship between the checkpoint order number and the history timestamp.
+ *      Information about the past checkpoints on a follower.
  */
 struct __wt_disaggregated_checkpoint_track {
-    int64_t ckpt_order;
-    wt_timestamp_t timestamp;
+    wt_timestamp_t checkpoint_timestamp; /* The timestamp of the checkpoint. */
+    char *history_name;                  /* History file name with checkpoint annotation. */
+    int64_t history_number;              /* Number of the history checkpoint. */
+    WT_DATA_HANDLE *history_dhandle;     /* Data handle for HS btree, to keep it alive. */
 };
 
 /*
@@ -225,6 +227,12 @@ struct __wt_disaggregated_storage {
     /* To copy at the next checkpoint. */
     TAILQ_HEAD(__wt_disagg_copy_metadata_qh, __wt_disagg_copy_metadata) copy_metadata_qh;
     WT_SPINLOCK copy_metadata_lock;
+
+    WT_DISAGGREGATED_CHECKPOINT_TRACK
+      *ckpt_track;             /* Info for each history store in a checkpoint. */
+    size_t ckpt_track_alloc;   /* Allocated bytes for track. */
+    uint32_t ckpt_track_cnt;   /* Number of entries in use for track. */
+    WT_RWLOCK ckpt_track_lock; /* Lock for history tracking. */
 
     /*
      * Ideally we'd have flags passed to the IO system, which could make it all the way to the

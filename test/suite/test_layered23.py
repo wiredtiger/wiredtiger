@@ -49,6 +49,34 @@ class test_layered23(wttest.WiredTigerTestCase):
         self.assertEqual(stat_cur[stat.conn.checkpoints_total_succeed][2], expected)
         stat_cur.close()
 
+    def show_version_cursor(self, session, label, uri, key):
+        self.tty(f'Python Version Cursor for {label} ({uri})')
+        config = "debug=(dump_version=(enabled=true))"
+        vcursor = session.open_cursor(uri, None, config)
+        vcursor.set_key(key)
+        self.assertEqual(vcursor.search(), 0)
+        while True:
+            self.assertEqual(vcursor.get_key(), key)
+            v = vcursor.get_values()
+            line = f'txnid={v[0]}, ' + \
+                f'start_ts={v[1]}, ' + \
+                f'start_durable_ts={v[2]}, ' + \
+                f'stop_ts={v[4]}, ' + \
+                f'stop_durable_ts={v[5]}, ' + \
+                f'type={v[6]}, ' + \
+                f'prepare_state={v[7]}, ' + \
+                f'flags={v[8]}, ' + \
+                f'location={v[9]}, ' + \
+                f'value={v[10]}'
+            self.tty('  ' + line)
+            self.pr('  ' + line)
+            ret = vcursor.next()
+            if ret == wiredtiger.WT_NOTFOUND:
+                break
+            self.assertEqual(ret, 0)
+        self.tty(' ')
+        vcursor.close()
+
     # Test simple inserts to a leader/follower
     def test_leader_follower(self):
         # Create the oplog
@@ -77,6 +105,7 @@ class test_layered23(wttest.WiredTigerTestCase):
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
 
         self.session.checkpoint()     # checkpoint 1
+        self.show_version_cursor(self.session, "checkpoint 1 leader", 'file:test_layered23.wt_stable', "1")
         checkpoint_count = 1
         self.check_checkpoint(checkpoint_count)
 
@@ -96,6 +125,10 @@ class test_layered23(wttest.WiredTigerTestCase):
         # Then advance the checkpoint and make sure everything is still good
         self.pr('advance checkpoint')
         self.disagg_advance_checkpoint(conn_follow)
+        self.show_version_cursor(session_follow, "checkpoint 1 follower ingest",
+                                 f'file:test_layered23.wt_ingest', "1")
+        self.show_version_cursor(session_follow, "checkpoint 1 follower stable",
+                                 f'file:test_layered23.wt_stable/WiredTigerCheckpoint.1', "1")
         oplog.check(self, session_follow, 0, 2100)
 
         # Now go back to leader, checkpoint and insert more.
@@ -105,10 +138,13 @@ class test_layered23(wttest.WiredTigerTestCase):
         follower_pos = 2100
 
         for i in range(1, 10):
+            self.tty(f'iteration {i}, setting stable_timestamp to {oplog.last_timestamp()}')
             self.pr(f'iteration {i}')
             self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
+            self.conn.set_timestamp(f'oldest_timestamp=1')
 
             self.session.checkpoint()
+            self.show_version_cursor(self.session, f"checkpoint {i+1} leader", 'file:test_layered23.wt_stable', "1")
             checkpoint_pos = leader_pos
             checkpoint_count += 1
             self.check_checkpoint(checkpoint_count)
@@ -133,13 +169,28 @@ class test_layered23(wttest.WiredTigerTestCase):
             oplog.apply(self, session_follow, follower_pos, to_apply)
             follower_pos = follower_new_pos
 
+            self.show_version_cursor(session_follow, f"checkpoint {i} follower ingest before pickup",
+                                     f'file:test_layered23.wt_ingest', "1")
+            self.show_version_cursor(session_follow, f"checkpoint {i} follower stable before pickup",
+                                     f'file:test_layered23.wt_stable/WiredTigerCheckpoint.{i}', "1")
+
+            if i == 2:
+                self.tty('\n\n!!! STOP HERE!!!\n\n')
+
+            self.tty(f'checking follower from pos 0 to {follower_pos} before checkpoint pick-up')
             self.pr(f'checking follower from pos 0 to {follower_pos} before checkpoint pick-up')
             oplog.check(self, session_follow, 0, follower_pos)
 
             # advance checkpoint
+            self.tty('advance checkpoint')
             self.pr('advance checkpoint')
             self.disagg_advance_checkpoint(conn_follow)
+            self.show_version_cursor(session_follow, f"checkpoint {i+1} follower ingest",
+                                     f'file:test_layered23.wt_ingest', "1")
+            self.show_version_cursor(session_follow, f"checkpoint {i+1} follower stable",
+                                     f'file:test_layered23.wt_stable/WiredTigerCheckpoint.{i+1}', "1")
 
             # The check begins at 0, which means this test will have quadratic performance.
+            self.tty(f'checking follower from pos 0 to {follower_pos} after checkpoint pick-up')
             self.pr(f'checking follower from pos 0 to {follower_pos} after checkpoint pick-up')
             oplog.check(self, session_follow, 0, follower_pos)

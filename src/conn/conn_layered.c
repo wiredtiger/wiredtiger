@@ -955,13 +955,181 @@ err:
     return (ret);
 }
 
+int
+__wt_layered_history_store_for_ts(WT_SESSION_IMPL *session, uint64_t timestamp, const char **result)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_DISAGGREGATED_STORAGE *ds;
+    int i;
+
+    conn = S2C(session);
+    ds = &conn->disaggregated_storage;
+    *result = NULL;
+
+    __wt_readlock(session, &ds->ckpt_track_lock);
+    for (i = 0; i < (int)ds->ckpt_track_cnt; ++i) {
+        if (timestamp >= ds->ckpt_track[i].checkpoint_timestamp) {
+            if (i > 0)
+                --i;
+            *result = ds->ckpt_track[i].history_name;
+            break;
+        }
+    }
+    if (*result == NULL) {
+        /* If we haven't seen checkpoints, use the shared history store, but not at a checkpoint. */
+        if (ds->ckpt_track_cnt == 0)
+            *result = WT_HS_URI_SHARED;
+        /* If the timestamp is older than the oldest history store timestamp, use the oldest. */
+        else if (timestamp < ds->ckpt_track[0].checkpoint_timestamp)
+            *result = ds->ckpt_track[ds->ckpt_track_cnt - 1].history_name;
+    }
+    __wt_readunlock(session, &ds->ckpt_track_lock);
+
+    if (*result == NULL) /* TODO: can it ever happen? */
+        ret = WT_NOTFOUND;
+
+    return (ret);
+}
+
+/*
+ * __disagg_pick_up_history_store --
+ *     Register a history store that has been picked up in a checkpoint.
+ */
+static int
+__disagg_pick_up_history_store(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *hs_config)
+{
+    WT_DECL_RET;
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGGREGATED_STORAGE *ds;
+    int64_t checkpoint_number;
+    size_t namelen, cplen;
+    uint32_t i;
+    char *name;
+    const char *p;
+    bool locked;
+
+    name = NULL;
+    conn = S2C(session);
+    ds = &conn->disaggregated_storage;
+    locked = false;
+
+    /* TODO: debug */
+    fprintf(stderr, "pickup: %.*s\n", (int)hs_config->len, hs_config->str);
+
+    p = hs_config->str;
+    if (*p != '(')
+        WT_ERR_MSG(session, EINVAL, "unexpected format for history config");
+    p = strchr(p + 1, '=');
+    if (p == NULL)
+        WT_ERR_MSG(session, EINVAL, "unexpected format ending for history config");
+    cplen = (size_t)(p - hs_config->str - 1);
+    if (cplen + 1 > hs_config->len)
+        WT_ERR_MSG(session, EINVAL, "unexpected format size for history config");
+    namelen = strlen(WT_HS_URI_SHARED) + cplen + 2;
+    WT_RET(__wt_calloc(session, 1, namelen, &name));
+    WT_ERR(
+      __wt_snprintf(name, namelen, "%s/%.*s", WT_HS_URI_SHARED, (int)cplen, hs_config->str + 1));
+    p = strrchr(name, '.');
+    if (p == NULL)
+        WT_ERR_MSG(session, EINVAL, "unexpected format for checkpoint in history config");
+    checkpoint_number = (int64_t)strtoll(p + 1, NULL, 10);
+    if (checkpoint_number <= 0)
+        WT_ERR_MSG(session, EINVAL, "unexpected checkpoint number in history config");
+
+    __wt_writelock(session, &ds->ckpt_track_lock);
+    locked = true;
+    /*
+     * Allocate one more, and fill it. Most recent entries are first.
+     */
+    WT_ASSERT(session, ds->ckpt_track_cnt > 0);
+    WT_ASSERT(session, ds->ckpt_track[0].history_name == NULL);
+    ds->ckpt_track[0].history_name = name;
+    ds->ckpt_track[0].history_number = checkpoint_number;
+
+    /* TODO: debug */
+    fprintf(stderr, "HS checkpoint at ts=%" PRIu64 " is %s (%d)\n",
+      ds->ckpt_track[0].checkpoint_timestamp, name, (int)checkpoint_number);
+    name = NULL;
+
+    /*
+     * At this point, we want to ensure that the dhandle for this history store doesn't disappear
+     * until after our oldest timestamp advances beyond that. So we want to get it and keep its
+     * reference count non-zero. However, if we are starting up, we're not permitted to open any
+     * dhandles. In that case, getting the reference will be deferred to the next checkpoint pickup,
+     * when we'll be permitted to open dhandles.
+     */
+    if (!F_ISSET(session, WT_SESSION_NO_DATA_HANDLES)) {
+        for (i = 0; i < ds->ckpt_track_cnt; ++i) {
+            if (ds->ckpt_track[0].history_dhandle != NULL)
+                break;
+            WT_ASSERT(session, ds->ckpt_track[i].history_name != NULL);
+            WT_SAVE_DHANDLE(session, {
+                ret =
+                  __wt_session_get_dhandle(session, ds->ckpt_track[i].history_name, NULL, NULL, 0);
+                if (ret == 0)
+                    ds->ckpt_track[0].history_dhandle = session->dhandle;
+            });
+            WT_ERR(ret);
+        }
+    }
+
+    /*
+     * TODO: release the soft reference to the dhandle. Actually we probably need an open cursor as
+     * instead to make sure the btree doesn't ever get closed, as we may not be able to open the
+     * btree again (the metadata table information may be "too new".)
+     *
+     * TODO: free the history_name. TODO: free the ckpt_track array.
+     */
+
+err:
+    if (locked)
+        __wt_writeunlock(session, &ds->ckpt_track_lock);
+    __wt_free(session, name);
+    return (ret);
+}
+/*
+ * __disagg_track_checkpoint --
+ *     Track a follower's checkpoint for disaggregated storage.
+ */
+static int
+__disagg_track_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_ts)
+{
+    WT_DECL_RET;
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGGREGATED_STORAGE *ds;
+
+    conn = S2C(session);
+    ds = &conn->disaggregated_storage;
+
+    /* TODO: debug */
+    fprintf(stderr, "tracking checkpoint at ts=%" PRIu64 "\n", checkpoint_ts);
+
+    __wt_writelock(session, &ds->ckpt_track_lock);
+    /*
+     * Allocate one more, and fill it. Most recent entries are first.
+     */
+    ++ds->ckpt_track_cnt;
+    WT_ERR(__wt_realloc_def(session, &ds->ckpt_track_alloc, ds->ckpt_track_cnt, &ds->ckpt_track));
+    memmove(
+      &ds->ckpt_track[1], &ds->ckpt_track[0], sizeof(ds->ckpt_track[0]) * (ds->ckpt_track_cnt - 1));
+    WT_CLEAR(ds->ckpt_track[0]);
+    ds->ckpt_track[0].checkpoint_timestamp = checkpoint_ts;
+
+    /* TODO: expire any entries in the track table that are older than the oldest timestamp. */
+err:
+    __wt_writeunlock(session, &ds->ckpt_track_lock);
+    return (ret);
+}
+
 /*
  * __disagg_apply_checkpoint_meta --
  *     Process the metadata entries stored in the shared metadata table for a new checkpoint.
  */
 static int
 __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *internal_session,
-  WT_CURSOR *md_cursor, const WT_DISAGG_CHECKPOINT_META *ckpt_meta)
+  WT_CURSOR *md_cursor, const WT_DISAGG_CHECKPOINT_META *ckpt_meta,
+  const WT_DISAGG_METADATA *metadata)
 {
     WT_CONFIG_ITEM cval;
     WT_CURSOR *cursor;
@@ -976,6 +1144,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     shared_metadata_session = NULL;
     layered_ingest_uri = cfg_ret = NULL;
     existing_tables = new_tables = new_ingest = 0;
+
+    WT_ERR(__disagg_track_checkpoint(session, metadata->checkpoint_timestamp));
 
     /* We need a separate internal session to pick up the new checkpoint. */
     WT_ERR(__wt_open_internal_session(
@@ -1010,6 +1180,11 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
             WT_ERR(__wt_config_getones(session, metadata_value, "checkpoint", &cval));
             WT_ERR(__wt_buf_fmt(session, metadata_cfg, "checkpoint=%.*s", (int)cval.len, cval.str));
 
+            /* TODO: debug */
+            if (WT_STREQ(metadata_key, "file:test_layered23.wt_stable"))
+                fprintf(stderr, "\nMETADATA checkpoints for %s: %.*s\n\n", metadata_key,
+                  (int)cval.len, cval.str);
+
             /* Merge the new checkpoint metadata into the current table metadata. */
             WT_ERR(md_cursor->get_value(md_cursor, &current_value));
             cfg[0] = current_value;
@@ -1035,11 +1210,23 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
              */
             WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, metadata_key),
               "Marking data handles outdated failed: \"%s\"", metadata_key);
+
+            /*
+             * Pick up the new history store and cache its data handle.
+             */
+            if (WT_PREFIX_MATCH(metadata_key, WT_HS_URI_SHARED))
+                WT_ERR(__disagg_pick_up_history_store(session, &cval));
+
             __wt_free(session, cfg_ret);
             cfg_ret = NULL;
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
             /* FIXME-WT-14730: verify that there is no btree ID conflict. */
+
+            /* TODO: debug */
+            if (WT_STREQ(metadata_key, "file:test_layered23.wt_stable"))
+                fprintf(
+                  stderr, "\nMETADATA (first time) for %s: %s\n\n", metadata_key, metadata_value);
 
             /* Create the corresponding ingest table, if it does not exist. */
             if (WT_PREFIX_MATCH(metadata_key, "layered:")) {
@@ -1210,7 +1397,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      * Part 2: Apply the metadata for other tables from the shared metadata table.
      */
 
-    WT_ERR(__disagg_apply_checkpoint_meta(session, internal_session, md_cursor, ckpt_meta));
+    WT_ERR(
+      __disagg_apply_checkpoint_meta(session, internal_session, md_cursor, ckpt_meta, &metadata));
 
     /*
      * Part 3: Do the bookkeeping.

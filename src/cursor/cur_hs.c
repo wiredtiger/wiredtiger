@@ -26,11 +26,15 @@ __curhs_file_cursor_open(
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    uint64_t read_ts;
     size_t len;
+    const char *hs_checkpoint;
     char *tmp;
 
     const char *open_cursor_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "", NULL, NULL};
+
+    tmp = NULL;
 
     if (WT_READING_CHECKPOINT(session)) {
         /*
@@ -43,8 +47,27 @@ __curhs_file_cursor_open(
         WT_RET(__wt_malloc(session, len, &tmp));
         WT_ERR(__wt_snprintf(tmp, len, "checkpoint=%s", session->hs_checkpoint));
         open_cursor_cfg[2] = tmp;
-    } else
-        tmp = NULL;
+    } else if (!S2C(session)->layered_table_manager.leader) {
+        /*
+         * On a follower, get a history store name positioned at a checkpoint that works with the
+         * read timestamp.
+         */
+        WT_ACQUIRE_READ_WITH_BARRIER(read_ts, WT_SESSION_TXN_SHARED(session)->read_timestamp);
+        if (read_ts != WT_TS_NONE)
+            WT_RET(__wt_layered_history_store_for_ts(session, read_ts, &uri));
+        else {
+            /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
+            WT_ERR_NOTFOUND_OK(
+              __wt_meta_checkpoint_last_name(session, uri, &hs_checkpoint, NULL, NULL), true);
+            if (ret == 0) {
+                len = strlen(uri) + strlen(hs_checkpoint) + 2;
+                WT_RET(__wt_malloc(session, len, &tmp));
+                WT_ERR(__wt_snprintf(tmp, len, "%s/%s", uri, hs_checkpoint));
+                uri = tmp;
+            } else
+                ret = 0;
+        }
+    }
 
     WT_WITHOUT_DHANDLE(
       session, ret = __wt_open_cursor(session, uri, owner, open_cursor_cfg, &cursor));
@@ -140,7 +163,6 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
      */
     WT_RET(__curhs_file_cursor_open(session, WT_HS_URI, NULL, &cursor));
     WT_RET(cursor->close(cursor));
-
     if (__wt_conn_is_disagg(session)) {
         WT_RET(__curhs_file_cursor_open(session, WT_HS_URI_SHARED, NULL, &cursor));
         WT_RET(cursor->close(cursor));

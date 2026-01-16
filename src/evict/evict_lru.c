@@ -318,7 +318,9 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * then opens a different file (in this case, the HS file), it can deadlock with a thread
      * waiting for the first file to drain from the eviction queue.
      */
-    WT_ERR(__wt_curhs_cache(session));
+    /* TODO: catch the assert right away - temporary debug change. */
+    ret = __wt_curhs_cache(session);
+    WT_ASSERT(session, ret == 0);
     if (__wt_atomic_load_bool_relaxed(&conn->evict_server_running) &&
       __wt_spin_trylock(session, &evict->evict_pass_lock) == 0) {
         /*
@@ -329,6 +331,7 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         FLD_SET(session->lock_flags, WT_SESSION_LOCKED_PASS);
         FLD_SET(evict->walk_session->lock_flags, WT_SESSION_LOCKED_PASS);
         ret = __evict_server(session, &did_work);
+        WT_ASSERT(session, ret == 0);
         FLD_CLR(evict->walk_session->lock_flags, WT_SESSION_LOCKED_PASS);
         FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_PASS);
         was_intr = __wt_atomic_load_uint32_v_relaxed(&evict->pass_intr) != 0;
@@ -351,8 +354,10 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
             __wt_cond_auto_wait(session, evict->evict_cond, did_work, NULL);
             __wt_verbose_debug2(session, WT_VERB_EVICTION, "%s", "waking");
         }
-    } else
-        WT_ERR(__evict_lru_pages(session, false));
+    } else {
+        ret = __evict_lru_pages(session, false);
+        WT_ASSERT(session, ret == 0);
+    }
 
     if (0) {
 err:

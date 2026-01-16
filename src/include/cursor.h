@@ -511,6 +511,7 @@ struct __wt_cursor_layered {
 
     uint64_t snapshot_gen;        /* Snapshot generation on last update */
     uint64_t checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata */
+    uint64_t last_read_ts;        /* The last read timestamp used with this cursor */
     bool leader;                  /* Leader/follower state on last update */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
