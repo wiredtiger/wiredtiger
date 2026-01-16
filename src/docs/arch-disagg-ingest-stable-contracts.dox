@@ -327,7 +327,6 @@ records the latest checkpoint information. The durability of the checkpoint does
 (e.g. WiredTiger.wt or metadata) being flushed to disk, as per the DSC model where local files are treated as
 disposable.
 
-Donald Anderson:
 "If there were N tables updated in the checkpoint, note that the primary must have updated N entries in its
 metadata during the checkpoint. So the standby does as well. There's no additional burden on the standby
 implied."
