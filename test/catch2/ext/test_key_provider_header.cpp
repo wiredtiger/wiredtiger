@@ -44,7 +44,6 @@ TEST_CASE("Key provider set header function", "[key_provider_header]")
     uint32_t checksum = __wt_checksum(crypt.keys.data, crypt.keys.size);
     SECTION("Validate key provider pack")
     {
-
         __ut_disagg_set_crypt_header(session->get_wt_session_impl(), &crypt);
 
         /* Validate crypt header information. */
