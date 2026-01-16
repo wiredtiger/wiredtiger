@@ -524,6 +524,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
     lsn = 0;
+    oldest_timestamp = WT_TS_NONE;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -538,7 +539,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_buf));
 
     /* Format metadata settings. */
-    oldest_timestamp = conn->txn_global.oldest_timestamp;
+    __wt_atomic_store_uint64_relaxed(&conn->txn_global.oldest_timestamp, oldest_timestamp);
     WT_ERR(
       __wt_buf_fmt(session, metadata_buf,
         "checkpoint=%s,\n"
