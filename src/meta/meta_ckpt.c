@@ -1346,13 +1346,13 @@ __wt_meta_ckptlist_set(
              * accumulate the delta. The accumulated delta will be applied to the database-level
              * compressed size after the checkpoint succeeds.
              */
-            if (__wt_conn_is_disagg(session)) {
-                uint64_t current_size = __wt_atomic_load_uint64_relaxed(&btree->bytes_compressed_total);
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+                uint64_t current_size =
+                  __wt_atomic_load_uint64_relaxed(&btree->bytes_compressed_total);
                 ckpt->size = current_size;
 
                 /* Accumulate the delta for this btree. */
-                session->ckpt.ckpt_compressed_size_delta +=
-                  (int64_t)current_size - (int64_t)prev_ckpt_size;
+                session->ckpt.ckpt_size_delta += (int64_t)current_size - (int64_t)prev_ckpt_size;
             }
         } else
             prev_ckpt_size = ckpt->size;

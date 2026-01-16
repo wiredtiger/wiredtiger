@@ -47,9 +47,9 @@ struct __wt_ckpt_session {
 
     /*
      * Accumulated change in database compressed size during this checkpoint. Applied to the
-     * connection-level database_compressed_size only after the checkpoint succeeds.
+     * connection-level database_size only after the checkpoint succeeds.
      */
-    int64_t ckpt_compressed_size_delta;
+    int64_t ckpt_size_delta;
 };
 
 /*
