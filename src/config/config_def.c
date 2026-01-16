@@ -1079,7 +1079,7 @@ const char __WT_CONFIG_CHOICE_before_key_rotation[] = "before_key_rotation";
 const char __WT_CONFIG_CHOICE_during_key_rotation[] = "during_key_rotation";
 const char __WT_CONFIG_CHOICE_after_key_rotation[] = "after_key_rotation";
 
-static const char *confchk_checkpoint_crash_point_choices[] = {
+static const char *confchk_checkpoint_crash_trigger_point_choices[] = {
   __WT_CONFIG_CHOICE_before_metadata_sync, __WT_CONFIG_CHOICE_before_metadata_update,
   __WT_CONFIG_CHOICE_before_key_rotation, __WT_CONFIG_CHOICE_during_key_rotation,
   __WT_CONFIG_CHOICE_after_key_rotation, NULL};
@@ -1087,14 +1087,14 @@ static const char *confchk_checkpoint_crash_point_choices[] = {
 static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint_debug_subconfigs[] = {
   {"checkpoint_cleanup", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 180,
     INT64_MIN, INT64_MAX, NULL},
-  {"checkpoint_crash_point", "string", NULL,
+  {"checkpoint_crash_point", "int", NULL, "min=0,max=1000", NULL, 0, NULL,
+    WT_CONFIG_COMPILED_TYPE_INT, 181, 0, 1000, NULL},
+  {"checkpoint_crash_trigger_point", "string", NULL,
     "choices=[\"before_metadata_sync\","
     "\"before_metadata_update\",\"before_key_rotation\","
     "\"during_key_rotation\",\"after_key_rotation\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 182, INT64_MIN, INT64_MAX,
-    confchk_checkpoint_crash_point_choices},
-  {"checkpoint_crash_relative_point", "int", NULL, "min=0,max=1000", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 181, 0, 1000, NULL},
+    confchk_checkpoint_crash_trigger_point_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t
@@ -4136,10 +4136,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     confchk_WT_SESSION_begin_transaction, 10, confchk_WT_SESSION_begin_transaction_jump, 20,
     WT_CONF_SIZING_INITIALIZE(WT_SESSION, begin_transaction), true},
   {"WT_SESSION.checkpoint",
-    "debug=(checkpoint_cleanup=false,checkpoint_crash_point=,"
-    "checkpoint_crash_relative_point=0),drop=,"
-    "flush_tier=(enabled=false,force=false,sync=true,timeout=0),"
-    "force=false,name=,use_timestamp=true",
+    "debug=(checkpoint_cleanup=false,checkpoint_crash_point=0,"
+    "checkpoint_crash_trigger_point=),drop=,flush_tier=(enabled=false"
+    ",force=false,sync=true,timeout=0),force=false,name=,"
+    "use_timestamp=true",
     confchk_WT_SESSION_checkpoint, 6, confchk_WT_SESSION_checkpoint_jump, 21, WT_CONF_SIZING_NONE,
     false},
   {"WT_SESSION.close", "", NULL, 0, NULL, 22, WT_CONF_SIZING_NONE, false},

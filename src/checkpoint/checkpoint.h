@@ -21,14 +21,15 @@ struct __wt_ckpt_session {
     u_int handle_next;       /* Next empty slot */
     size_t handle_allocated; /* Bytes allocated */
 
-    /* Crash at a relative point progress in checkpoint. */
-    u_int crash_relative_point;
-    /* Crash at a specific point in checkpoint. */
+    /* Crash at a progress point in checkpoint. */
     u_int crash_point;
+    /* Crash at a specific point in checkpoint. */
+    u_int crash_trigger_point;
     enum {
         CKPT_CRASH_NONE = 0,
         CKPT_CRASH_BEFORE_METADATA_SYNC,
         CKPT_CRASH_BEFORE_METADATA_UPDATE,
+        CKPT_CRASH_PROGRESS_ENUM_END,
         KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION,
         KEY_PROVIDER_CRASH_DURING_KEY_ROTATION,
         KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION,
