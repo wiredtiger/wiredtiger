@@ -585,8 +585,8 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
       "Wrote disaggregated checkpoint metadata: lsn=%" PRIu64 ", timestamp=%" PRIu64
       " %s, oldest_timestamp=%" PRIu64 " %s, checksum=%" PRIx32 ", root=\"%s\"",
       lsn, checkpoint_timestamp, __wt_timestamp_to_string(checkpoint_timestamp, ts_string[0]),
-      oldest_timestamp, __wt_timestamp_to_string(oldest_timestamp, ts_string[1]),
-      checksum, checkpoint_root_copy);
+      oldest_timestamp, __wt_timestamp_to_string(oldest_timestamp, ts_string[1]), checksum,
+      checkpoint_root_copy);
 
     __wt_free(session, disagg->last_checkpoint_root);
     disagg->last_checkpoint_root = checkpoint_root_copy;
