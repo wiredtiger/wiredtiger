@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_salvage03.py
+# test_txn22.py
 #   Transactions: test salvage with removed
 
 import os
@@ -34,8 +34,10 @@ from wtscenario import make_scenarios
 from suite_subprocess import suite_subprocess
 import helper, wiredtiger, wttest
 
+# FIXME-WT-14740: Re-enable once salvage is supported for disaggregated storage.
+@wttest.skip_for_hook("disagg", "Fails with disaggregated storage")
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
-class test_salvage03(wttest.WiredTigerTestCase, suite_subprocess):
+class test_txn22(wttest.WiredTigerTestCase, suite_subprocess):
     base_config = 'cache_size=1GB'
     conn_config = base_config
 
@@ -51,7 +53,7 @@ class test_salvage03(wttest.WiredTigerTestCase, suite_subprocess):
         ('WiredTiger.turtle', dict(filename='WiredTiger.turtle')),
         ('WiredTiger.wt', dict(filename='WiredTiger.wt')),
         ('WiredTigerHS.wt', dict(filename='WiredTigerHS.wt')),
-        ('test_salvage03.wt', dict(filename='test_salvage03.wt')),
+        ('test_txn22.wt', dict(filename='test_txn22.wt')),
     ]
 
     # In many cases, wiredtiger_open without any salvage options will
@@ -68,7 +70,7 @@ class test_salvage03(wttest.WiredTigerTestCase, suite_subprocess):
     ]
 
     scenarios = make_scenarios(format_values, filename_scenarios)
-    uri = 'table:test_salvage03'
+    uri = 'table:test_txn22'
 
     def valuegen(self, i):
         return str(i) + 'A' * 1024
@@ -148,7 +150,7 @@ class test_salvage03(wttest.WiredTigerTestCase, suite_subprocess):
                         '/.*/')
 
                 self.reopen_conn(salvagedir, salvage_config)
-                if self.filename == 'test_salvage03':
+                if self.filename == 'test_txn22':
                     self.checks()
             else:
                 # Certain cases are not currently salvageable, they result in
