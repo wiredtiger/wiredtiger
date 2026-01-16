@@ -268,8 +268,11 @@ class WTPage:
             self.print_cells(p, opts)
         elif self.page_header.type == btree_format.PageType.WT_PAGE_OVFL:
             # Use b_page.read() so that we can also print the raw bytes in the split mode
-            # p.rint_v(raw_bytes(b_page.read(len(payload_data))))
-            pass
+            b_page = binary_data.BinaryFile(io.BytesIO(self.raw_bytes))
+            p.rint_v(raw_bytes(b_page.read(len(self.raw_bytes))))
+        else:
+            log.warn(f'? unimplemented decode for page type {self.page_header.type}')
+            p.rint_v(binary_to_pretty_string(self.raw_bytes))
         
         return
 
