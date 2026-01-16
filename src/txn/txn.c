@@ -237,7 +237,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
 
     /* Walk the array of concurrent transactions. */
     WT_ACQUIRE_READ_WITH_BARRIER(session_cnt, conn->session_array.cnt);
-    WT_STAT_CONN_INCR_ATOMIC(session, txn_walk_sessions);
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         /*
          * Build our snapshot of any concurrent transaction IDs.
@@ -278,7 +278,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
             WT_PAUSE();
         }
     }
-    WT_STAT_CONN_INCRV_ATOMIC(session, txn_sessions_walked, i);
+    WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
 
     /*
      * If we got a new snapshot, update the published pinned ID for this session.
@@ -399,7 +399,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
 
     /* Walk the array of concurrent transactions. */
     WT_ACQUIRE_READ_WITH_BARRIER(session_cnt, conn->session_array.cnt);
-    WT_STAT_CONN_INCR_ATOMIC(session, txn_walk_sessions);
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         /* Update the last running transaction ID. */
         while ((id = __wt_atomic_load_uint64_v_relaxed(&s->id)) != WT_TXN_NONE &&
@@ -444,7 +444,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
             oldest_session = &WT_CONN_SESSIONS_GET(conn)[i];
         }
     }
-    WT_STAT_CONN_INCRV_ATOMIC(session, txn_sessions_walked, i);
+    WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
 
     if (last_running < oldest_id)
         oldest_id = last_running;
@@ -1082,11 +1082,11 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
 
     if (!commit) {
         /* As updating timestamp might not be an atomic operation, we will manage using state. */
-        upd->prepare_state = WT_PREPARE_LOCKED;
+        __wt_atomic_store_uint8_v_relaxed(&upd->prepare_state, WT_PREPARE_LOCKED);
         WT_RELEASE_BARRIER();
         if (F_ISSET(txn, WT_TXN_HAS_TS_ROLLBACK))
-            upd->upd_rollback_ts = txn->rollback_timestamp;
-        upd->upd_saved_txnid = upd->txnid;
+            __wt_atomic_store_uint64_relaxed(&upd->upd_rollback_ts, txn->rollback_timestamp);
+        __wt_atomic_store_uint64_relaxed(&upd->upd_saved_txnid, upd->txnid);
         __wt_atomic_store_uint64_v_release(&upd->txnid, WT_TXN_ABORTED);
         __wt_atomic_store_uint8_v_release(&upd->prepare_state, WT_PREPARE_INPROGRESS);
         WT_STAT_CONN_INCR(session, txn_prepared_updates_rolledback);

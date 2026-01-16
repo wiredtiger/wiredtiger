@@ -285,6 +285,7 @@ functions:
           ${NONSTANDALONE|} \
           ${ENABLE_SHARED|} \
           ${ENABLE_STATIC|} \
+          ${HAVE_BUILTIN_EXTENSION_KEY_PROVIDER|} \
           ${HAVE_BUILTIN_EXTENSION_LZ4|} \
           ${HAVE_BUILTIN_EXTENSION_SNAPPY|} \
           ${HAVE_BUILTIN_EXTENSION_ZLIB|} \
@@ -1679,6 +1680,27 @@ variables:
         vars:
           # Validate data with a non-layered table.
           format_args: disagg.mode=switch ops.verify=1 runs.mirror=1 table1.runs.source=table table1.disagg.enabled=0 runs.timer=5:10
+          times: 5
+
+  - &format-stress-test-disagg-multi
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          format_args: disagg.multi=1 runs.predictable_replay=1 runs.ops=500000:2000000
+          times: 5
+
+  - &format-stress-test-disagg-multi-data-validation
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test disagg"
+        vars:
+          # Validate data with a non-layered table.
+          format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.ops=500000:2000000
           times: 5
 
 #######################################
@@ -4759,6 +4781,18 @@ tasks:
   - <<: *format-stress-test-disagg-switch-data-validation
     name: format-stress-test-disagg-switch-data-validation-3
     tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-multi
+    name: format-stress-test-disagg-multi-1
+    tags: ["stress-test-disagg-fail", "stress-test-disagg-san-fail"]
+  - <<: *format-stress-test-disagg-multi
+    name: format-stress-test-disagg-multi-2
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-multi-data-validation
+    name: format-stress-test-disagg-multi-validation-1
+    tags: ["stress-test-disagg-fail"]
+  - <<: *format-stress-test-disagg-multi-data-validation
+    name: format-stress-test-disagg-multi-validation-2
+    tags: ["stress-test-disagg-fail"]
 
   - name: format-stress-test-disagg-leader-pull-request
     tags: ["pull_request"]
@@ -6555,7 +6589,6 @@ buildvariants:
     - name: doc-compile
     - name: make-check-test
     - name: configure-combinations
-    - name: syscall-linux
     - name: unit-test-zstd
     - name: unit-test-hook-disagg-leader-key-provider
     - name: unit-test-hook-tiered
@@ -6683,53 +6716,6 @@ buildvariants:
     - name: generate-tsan-metric-timestamp
     - name: generate-tsan-metric-disagg-timestamp
     - name: tsan-playground-test
-
-# FIXME-WT-13256
-# This variant runs all possible tasks under TSan but instructs TSan to not report any issues it
-# encounters. This allows us to check whether a TSan change may cause unexpected failures (for example
-# if adding a new field to a struct wrapped in #ifdef TSAN changes the struct layout and causes a segfault)
-# while also not having to fix every TSan issue discovered. At the conclusion of the TSan work this
-# variant will be deleted.
-- name: ubuntu2004-tsan-no-throw
-  display_name: "~ Ubuntu 20.04 TSAN (No throw)"
-  patch_only: true
-  run_on:
-  - ubuntu2004-large
-  expansions:
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
-    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
-    ENABLE_TCMALLOC: 0
-    data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
-    additional_env_vars: |
-      # We intentionally suppress all TSan warnings.
-      export TSAN_OPTIONS="detect_deadlocks=0:report_bugs=0:report_atomic_races=0:allocator_may_return_null=1"
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-    # We don't run C++ memory sanitized testing as it creates false positives. TSan also significantly increases the runtime
-    # of some csuite tests, so disable the already long tests as well as tests heavily impacted by TSan.
-    ctest_extra_args: -LE "cppsuite|long_running|disagg"
-    # TSan slows down python testing enough that we start printing "operation took X seconds" warnings.
-    # These don't impact functionality, but the python tests fail on detection of any content in stdout so ignore it instead.
-    ignore_stdout: --ignore-stdout
-    # Reduce the number of test iterations in validation stressing as TSan increases runtime by a factor of roughly 10x
-    validation_stress_num_runs: 20
-  tasks:
-    # Skip the azure/gcp/s3 tests as they don't compile under clang
-    - name: ".pull_request !s3-tiered-test-small !.tiered_unittest !azure-gcp-tiered-test-small !.pull_request_compilers !.model_checking !csuite-wt12015-backup-corruption-test !.unit_test_tsan"
-    - name: compile
-    - name: make-check-test
-    - name: configure-combinations
-    - name: syscall-linux
-    - name: unit-test-zstd
-    - name: unit-test-random-seed
-    - name: unit-test-hook-timestamp
-    - name: test-prepare-hs03-hook-timestamp
-    - name: spinlock-gcc-test
-    - name: spinlock-pthread-adaptive-test
-    - name: static-wt-build-test
-    - name: format-smoke-test
-    - name: ".data-validation-stress-test"
-    - name: catch2-test
-    - name: bench-tiered-push-pull
 
 # Very minimal set without any extensions
 - name: ubuntu2004-minimal
@@ -6932,6 +6918,7 @@ buildvariants:
     # Remove the default configurations for the toolchain, install prefix and number of jobs.
     CMAKE_TOOLCHAIN_FILE:
     CMAKE_INSTALL_PREFIX:
+    HAVE_BUILTIN_EXTENSION_KEY_PROVIDER: -DHAVE_BUILTIN_EXTENSION_KEY_PROVIDER=1
     num_jobs:
     python_binary: "/cygdrive/c/python/Python311/python"
   tasks:
@@ -7559,7 +7546,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
     ctest_extra_args: -E "wt12015_backup_corruption"
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan"
+    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !.unit_test_tsan !syscall-linux !chunkcache-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
@@ -7596,7 +7583,7 @@ buildvariants:
     - name: compile
     - name: examples-c-test
     - name: .unit_test_tsan
-    # FIXME-WT-16424 Remove unit test tsan once we incorporate TSAN environment variable setting into run.py
+    # FIXME-WT-16066 Remove unit test tsan once we incorporate TSAN environment variable setting into run.py
     - name: unit-test-tsan
       distros: amazon2023-arm64-latest-large-m8g
     - name: unit-test-hook-disagg-leader-tsan
