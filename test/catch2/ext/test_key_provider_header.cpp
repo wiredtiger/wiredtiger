@@ -37,6 +37,7 @@ TEST_CASE("Key provider set header function", "[key_provider_header]")
     WT_CRYPT_KEYS crypt;
     std::shared_ptr<mock_session> session = mock_session::build_test_mock_session();
 
+    WT_CLEAR(crypt.keys);
     std::string test_string("hello");
 
     WT_SESSION_IMPL *session_impl = session->get_wt_session_impl();
