@@ -547,7 +547,6 @@ wt_disagg_pick_up_latest_checkpoint(WT_CONNECTION *conn, model::timestamp_t &che
         throw wiredtiger_exception("Cannot reconfigure WiredTiger", ret);
 
     checkpoint_timestamp = model::timestamp_t(timestamp);
-    std::cout << "checkpoint_timestamp: " << checkpoint_timestamp << std::endl;
     return true;
 }
 

@@ -581,7 +581,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     __wt_atomic_store_uint64_release(&disagg->last_oldest_timestamp, oldest_timestamp);
     disagg->last_checkpoint_meta_checksum = checksum; /* Protected by the checkpoint lock. */
 
-    __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Wrote disaggregated checkpoint metadata: lsn=%" PRIu64 ", timestamp=%" PRIu64
       " %s, oldest_timestamp=%" PRIu64 " %s, checksum=%" PRIx32 ", root=\"%s\"",
       lsn, checkpoint_timestamp, __wt_timestamp_to_string(checkpoint_timestamp, ts_string[0]),
@@ -869,8 +869,6 @@ __disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG
             else
                 WT_ERR(__wt_txn_parse_timestamp(
                   session, "oldest timestamp", &metadata->oldest_timestamp, &cfg_value));
-            printf(
-              "__disagg_parse_meta: oldest_timestamp=%" PRIu64 "\n", metadata->oldest_timestamp);
         } else if (WT_CONFIG_LIT_MATCH("key_provider", cfg_key)) {
             WT_ASSERT_ALWAYS(session, metadata->key_provider == NULL,
               "Duplicate key_provider entry in disaggregated storage metadata");
@@ -1135,8 +1133,6 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
       &conn->disaggregated_storage.last_checkpoint_timestamp, metadata->checkpoint_timestamp);
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_oldest_timestamp, metadata->oldest_timestamp);
-    printf("__disagg_update_checkpoint_meta: oldest_timestamp=%" PRIu64 "\n",
-      metadata->oldest_timestamp);
 
     /* Remember the root config of the last checkpoint. */
     __wt_free(session, conn->disaggregated_storage.last_checkpoint_root);
@@ -1209,7 +1205,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ERR(__disagg_fetch_shared_meta(session, ckpt_meta, &metadata_buf));
     WT_ERR(__wti_disagg_parse_meta(session, &metadata_buf, &metadata));
 
-    __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64 ", timestamp=%" PRIu64
       " %s"
       ", oldest_timestamp=%" PRIu64 " %s, root=\"%.*s\"",
