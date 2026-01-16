@@ -4,7 +4,7 @@ Contract: Stable and Ingest Tables
 
 See also @ref arch-disagg-layered for the high-level architecture of layered tables.
 
-This page defines the relationship between the ingest and stable tables used in WiredTiger’s layered
+This page defines the relationship between the ingest and stable tables used in WiredTiger's layered
 tables, and captures the invariants required for correctness.
 
 Contract entries follow this format:
@@ -17,7 +17,7 @@ Contract entries follow this format:
 @section layered-contract-background Background on layered tables
 
 Layered tables are a new access method in WiredTiger designed to support distributed systems that
-leverage shared storage for the majority of a table’s data. This mechanism enables a single node to
+leverage shared storage for the majority of a table's data. This mechanism enables a single node to
 perform writes to the table, while other nodes maintain a consistent view by tracking recent changes.
 
 Having nodes follow along with recent changes allows two key features:
@@ -34,7 +34,7 @@ table, so any operations on a node with both an ingest and stable table will fir
 the ingest table, and if no result is found, fall back on the shared table.
 
 Layered tables are primarily for Disaggregated Storage Clusters (DSC) but can also be used outside of DSC
-for testing purposes, in particular, via WiredTiger’s local Page and Log Mock (PALM) infrastructure.
+for testing purposes, in particular, via the local Page and Log Mock (PALM) infrastructure in WiredTiger.
 
 Stable Table:
 - A table shared across nodes in the cluster
@@ -190,7 +190,7 @@ file.
 
 Rationale:
 The new leader must start from the same durable state that all nodes can reference. Using the latest complete
-checkpoint ensures the new leader is aligned with the previous leader’s final committed state.
+checkpoint ensures the new leader is aligned with the previous leader's final committed state.
 
 Violation Consequence:
 If a new leader does not pick up the latest complete checkpoint:
@@ -207,14 +207,14 @@ until the transition is complete [SU.02].
 
 Rationale:
 Role transitions modify layered table state (e.g. draining ingest into stable during step-up [SU.01], stopping
-writes during step-down [SD.02]). To ensure we transition correctly, user operations must be isolated from
+writes during step-down [SD.02]). To ensure a correct transition, user operations must be isolated from
 these transitions. Cursor closure guarantees no conflicting read/write operations, while exclusivity ensures
 updates are applied consistently and in order.
 
 Violation Consequence:
 Step-up:
 - If user operations overlap ingest draining, updates can be duplicated, skipped, or applied out of order.
-- This breaks the layered table’s timestamp ordering invariant and can lead to reconciliation errors or
+- This breaks the layered table's timestamp ordering invariant and can lead to reconciliation errors or
   corrupted stable state.
 
 Step-down:
@@ -361,7 +361,7 @@ exists in both ingest and stable tables, they must be bitwise identical [DP.01].
 
 Rationale:
 The layered cursor merges results from the ingest and stable cursors. If both point to the same key-version,
-they must agree exactly, or we risk inconsistent read behavior.
+they must agree exactly, or risk inconsistent read behavior.
 
 Violation Consequence:
 If the versions differ:
@@ -371,8 +371,8 @@ If the versions differ:
 
 @subsection layered-contract-dup-insert Duplicates: insert ops must check both ingest and stable tables
 
-Rule: When inserting a key with overwrite=false, we must check for duplicates in both the ingest and stable
-tables [DP.02].
+Rule: When inserting a key with overwrite=false, it is essential to check for duplicates in both the ingest and
+stable tables [DP.02].
 
 Rationale:
 If the same key exists in either ingest or stable, and the insert is not allowed to overwrite, then the insert
@@ -434,7 +434,7 @@ In DSC, durability is provided by checkpoints, unlike classic WiredTiger where d
 write-ahead-log (WAL).
 
 Stable table checkpoints:
-- Once we’ve checkpointed, shared storage is used to persist data.
+- Once we've checkpointed, shared storage is used to persist data.
 
 Oplog replay:
 - Since DSC does not run RTS (due to recovery time objectives), and since the oplog is now a layered table,
@@ -514,7 +514,7 @@ triggered by __wti_disagg_conn_config.
 On step-down, the system checks update and session->txn->mod_count to detect uncommitted changes, issuing a
 WT_ROLLBACK to prevent writes after the leader steps down. Cursor state is then reset through
 __clayered_adjust_state, which reopens cursors as needed. This reopening logic also considers read timestamps
-and snapshots to ensure cursors match the node’s new role.
+and snapshots to ensure cursors match the node's new role.
 
 @subsection layered-contract-impl-schema Table creation and schema rules
 
