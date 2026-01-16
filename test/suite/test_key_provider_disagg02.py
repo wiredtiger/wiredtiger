@@ -71,7 +71,7 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
         self.sqlite_fetch_shared_meta(write=True)
 
         # Trigger again and crash.
-        self.session.checkpoint(f"debug=(checkpoint_crash_point={self.crash_point})") # Expected to fail
+        self.session.checkpoint(f"debug=(checkpoint_crash_trigger_point={self.crash_point})") # Expected to fail
 
     # Verify results of metadata file. After a crash, the key provider information should be the same.
     def validate_persist_meta_file(self):

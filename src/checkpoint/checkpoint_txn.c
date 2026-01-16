@@ -1146,6 +1146,14 @@ __checkpoint_db_debug_crash_points(WT_SESSION_IMPL *session, const char *cfg[])
          */
         session->ckpt.crash_point =
           (((crash_point - 1) * ckpt_total_crash_points) / (WT_THOUSAND - 1)) + 1;
+
+        /*
+         * If the crash point exceeds the number of handles, crash in the final phase after all
+         * regular tables are checkpointed. Use the crash trigger points to achieve this. Calculate
+         * and set the appropriate trigger point.
+         */
+        if (session->ckpt.crash_point > session->ckpt.handle_next)
+            session->ckpt.crash_trigger_point = ckpt_total_crash_points - session->ckpt.crash_point;
     }
 
     /* Perform a crash at a specific point in checkpoint. */
