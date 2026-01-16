@@ -17,6 +17,9 @@ typedef struct __wt_disagg_checkpoint_meta {
 
     bool has_metadata_checksum; /* Whether the metadata page checksum is present. */
     uint32_t metadata_checksum; /* The checksum of the metadata page. */
+
+    bool has_database_compressed_size;       /* Whether the database compressed size is present. */
+    uint64_t database_compressed_size;       /* The total database compressed size. */
 } WT_DISAGG_CHECKPOINT_META;
 
 /* Function prototypes for disaggregated storage and layered tables. */
@@ -1115,6 +1118,11 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_timestamp, metadata->checkpoint_timestamp);
 
+    /* Set the database compressed size if present. */
+    if (ckpt_meta->has_database_compressed_size)
+        conn->disaggregated_storage.database_compressed_size =
+          ckpt_meta->database_compressed_size;
+
     /* Remember the root config of the last checkpoint. */
     __wt_free(session, conn->disaggregated_storage.last_checkpoint_root);
     WT_ERR(__wt_strndup(session, metadata->checkpoint, metadata->checkpoint_len,
@@ -1280,6 +1288,17 @@ __disagg_pick_up_checkpoint_meta(
               session, EINVAL, "Invalid metadata checksum value: %" PRIx64, metadata_checksum);
         ckpt_meta.has_metadata_checksum = true;
         ckpt_meta.metadata_checksum = (uint32_t)metadata_checksum;
+    }
+
+    /*
+     * Extract the database compressed size, if it exists. This was added later, so treat it as
+     * optional for backward compatibility.
+     */
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_getones(session, meta_str, "database_compressed_size", &cval), true);
+    if (WT_CHECK_AND_RESET(ret, 0) && cval.len != 0) {
+        ckpt_meta.has_database_compressed_size = true;
+        ckpt_meta.database_compressed_size = (uint64_t)cval.val;
     }
 
     /* Now actually pick up the checkpoint. */
@@ -2291,8 +2310,9 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
          * Important: To keep testing simple, keep the metadata to be a valid configuration string
          * without quotation marks or escape characters.
          */
-        WT_ERR(__wt_buf_fmt(session, meta, "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32,
-          meta_lsn, meta_checksum));
+        WT_ERR(__wt_buf_fmt(session, meta,
+          "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32 ",database_compressed_size=%" PRIu64,
+          meta_lsn, meta_checksum, conn->disaggregated_storage.database_compressed_size));
         WT_ERR(disagg->npage_log->page_log->pl_complete_checkpoint_ext(disagg->npage_log->page_log,
           &session->iface, 0, (uint64_t)checkpoint_timestamp, meta, NULL));
         __wt_atomic_store_uint64_release(

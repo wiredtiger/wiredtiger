@@ -664,16 +664,6 @@ __recovery_set_sysinfo(WT_RECOVERY *r)
         __wt_free(session, sys_config);
     }
 
-    /* Search the metadata for database compressed size information. */
-    WT_ERR_NOTFOUND_OK(
-      __wt_metadata_search(session, WT_SYSTEM_DISAGG_SIZE_URI, &sys_config), false);
-    if (sys_config != NULL) {
-        WT_CLEAR(cval);
-        WT_ERR(__wt_config_getones(session, sys_config, WT_SYSTEM_DISAGG_SIZE, &cval));
-        if (cval.len != 0)
-            conn->disaggregated_storage.database_compressed_size = (uint64_t)cval.val;
-    }
-
 err:
     __wt_free(session, sys_config);
     return (ret);

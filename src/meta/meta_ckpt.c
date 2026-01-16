@@ -1579,20 +1579,6 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, const char *name, size_t namelen
       __wt_buf_fmt(session, valbuf, WT_SYSTEM_BASE_WRITE_GEN "=%" PRIu64, conn->base_write_gen));
     WT_ERR(__wt_metadata_update(session, WT_SYSTEM_BASE_WRITE_GEN_URI, valbuf->data));
 
-    /*
-     * Record the database-level total compressed size for disaggregated storage. Write the new
-     * value (current in-memory value plus accumulated delta) to metadata. The in-memory value will
-     * be updated after the checkpoint succeeds.
-     */
-    {
-        uint64_t current_db_size = conn->disaggregated_storage.database_compressed_size;
-        int64_t delta = session->ckpt.ckpt_compressed_size_delta;
-        uint64_t new_db_size = (uint64_t)((int64_t)current_db_size + delta);
-
-        WT_ERR(__wt_buf_fmt(session, valbuf, WT_SYSTEM_DISAGG_SIZE "=%" PRIu64, new_db_size));
-        WT_ERR(__wt_metadata_update(session, WT_SYSTEM_DISAGG_SIZE_URI, valbuf->data));
-    }
-
 err:
     __wt_scr_free(session, &valbuf);
     if (name != NULL)
