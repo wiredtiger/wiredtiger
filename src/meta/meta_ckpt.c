@@ -307,7 +307,7 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
     config = newcfg = NULL;
     dhandle = session->dhandle;
     str = v == NULL ? "checkpoint=(),checkpoint_backup_info=(),checkpoint_lsn=" : v;
-    if (use_base && dhandle != NULL) {
+    if (use_base && dhandle != NULL && false /* XXX */) {
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         WT_ASSERT(session, strcmp(dhandle->name, fname) == 0);
 

@@ -1551,6 +1551,75 @@ err:
 }
 
 /*
+ * __wt_disagg_extract_visibility_timestamp --
+ *     Parse the visibility timestamp from the metadata config value.
+ */
+int
+__wt_disagg_extract_visibility_timestamp(
+  WT_SESSION_IMPL *session, const char *cfg, wt_timestamp_t *visibility_timestamp)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+
+    *visibility_timestamp = WT_TS_NONE;
+
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_getones(session, cfg, "disaggregated.visibility_timestamp", &cval), true);
+    if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND) || cval.len == 0)
+        return (0);
+
+    if (WT_CONFIG_LIT_MATCH(WT_DISAGG_VISIBILITY_TIMESTAMP_STR_UNSET, cval))
+        *visibility_timestamp = WT_DISAGG_VISIBILITY_TIMESTAMP_UNSET;
+    else
+        WT_ERR(__wt_txn_parse_timestamp(
+          session, "metadata visibility timestamp", visibility_timestamp, &cval));
+
+err:
+    return (ret);
+}
+
+/*
+ * __wt_disagg_validate_visibility_timestamp --
+ *     Validate a disaggregated storage visibility timestamp during metadata update.
+ */
+int
+__wt_disagg_validate_visibility_timestamp(
+  WT_SESSION_IMPL *session, const char *name, wt_timestamp_t ts, wt_timestamp_t previous_ts)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_TXN_GLOBAL *txn_global;
+    wt_timestamp_t stable_timestamp;
+
+    conn = S2C(session);
+    txn_global = &conn->txn_global;
+
+    /* Allowing transition: unset --> set. */
+    if (previous_ts != WT_DISAGG_VISIBILITY_TIMESTAMP_UNSET &&
+      ts == WT_DISAGG_VISIBILITY_TIMESTAMP_UNSET)
+        WT_RET_MSG(session, EINVAL,
+          "Disaggregated storage visibility timestamp for \"%s\" cannot be set to \"%s\" during "
+          "metadata update",
+          name, WT_DISAGG_VISIBILITY_TIMESTAMP_STR_UNSET);
+
+    /* Allowing transition: Advancing a set timestamp. */
+    if (previous_ts != WT_DISAGG_VISIBILITY_TIMESTAMP_UNSET && ts < previous_ts)
+        WT_RET_MSG(session, EINVAL,
+          "Disaggregated storage visibility timestamp for \"%s\" moved backwards from %" PRIu64
+          " to %" PRIu64,
+          name, previous_ts, ts);
+
+    /* Validate against the stable timestamp. */
+    stable_timestamp = txn_global->has_stable_timestamp ? txn_global->stable_timestamp : 0;
+    if (ts != 0 && ts <= stable_timestamp)
+        WT_RET_MSG(session, EINVAL,
+          "Disaggregated storage visibility timestamp for \"%s\" must be greater than the stable "
+          "timestamp (%" PRIu64 "), got %" PRIu64,
+          name, stable_timestamp, ts);
+
+    return (0);
+}
+
+/*
  * __wt_disagg_update_metadata_later --
  *     Copy the metadata that belongs to the given URI into the shared metadata table at the next
  *     checkpoint.
@@ -1563,6 +1632,7 @@ __wt_disagg_update_metadata_later(
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_DISAGG_UPDATE_METADATA *entry;
+    char ts_string[WT_TS_INT_STRING_SIZE];
 
     conn = S2C(session);
     cursor = NULL;
@@ -1590,15 +1660,35 @@ __wt_disagg_update_metadata_later(
     WT_ERR(__disagg_save_metadata(session, cursor, "table:", table_name, &entry->table_value));
     WT_ERR(__disagg_save_metadata(session, cursor, "", stable_uri, &entry->stable_value));
 
+    /* Extract the visibility timestamp. */
+    if (entry->stable_value != NULL)
+        WT_ERR(__wt_disagg_extract_visibility_timestamp(
+          session, entry->stable_value, &entry->visibility_timestamp));
+
+    /* If the visibility timestamp is set to "unset," ignore the table update. */
+    if (entry->visibility_timestamp == WT_DISAGG_VISIBILITY_TIMESTAMP_UNSET) {
+        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Ignoring copying disaggregated metadata for table \"%s\" (stable URI \"%s\") to shared "
+          "metadata table, because the timestamp is set to \"%s\"",
+          table_name, stable_uri, WT_DISAGG_VISIBILITY_TIMESTAMP_STR_UNSET);
+        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  stable: %s",
+          entry->stable_value == NULL ? "<none>" : entry->stable_value);
+        goto err;
+    }
+
     /* Cannot fail past this point. */
     __wt_spin_lock(session, &conn->disaggregated_storage.update_metadata_lock);
     TAILQ_INSERT_TAIL(&conn->disaggregated_storage.update_metadata_qh, entry, q);
     __wt_spin_unlock(session, &conn->disaggregated_storage.update_metadata_lock);
 
+    /* Log a message. */
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Scheduled copying disaggregated metadata for table \"%s\" (stable URI \"%s\") to shared "
-      "metadata table at next checkpoint:",
-      table_name, stable_uri);
+      "metadata table at timestamp %" PRIx64 " %s",
+      table_name, stable_uri, entry->visibility_timestamp,
+      entry->visibility_timestamp == WT_TS_NONE ?
+        "(next checkpoint)" :
+        __wt_timestamp_to_string(entry->visibility_timestamp, ts_string));
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  colgroup: %s",
       entry->colgroup_value == NULL ? "<none>" : entry->colgroup_value);
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  layered: %s",
@@ -1702,7 +1792,7 @@ err:
  *     Process the update metadata list.
  */
 int
-__wt_disagg_update_metadata_process(WT_SESSION_IMPL *session)
+__wt_disagg_update_metadata_process(WT_SESSION_IMPL *session, wt_timestamp_t checkpoint_timestamp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -1721,6 +1811,10 @@ __wt_disagg_update_metadata_process(WT_SESSION_IMPL *session)
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.update_metadata_qh, q, tmp)
     {
+        /* Skip entries that are timestamped beyond the checkpoint timestamp. */
+        if (entry->visibility_timestamp > checkpoint_timestamp)
+            continue;
+
         WT_ERR(__disagg_update_shared_metadata(
           session, "colgroup:", entry->table_name, entry->colgroup_value));
         WT_ERR(__disagg_update_shared_metadata(
@@ -1737,6 +1831,134 @@ __wt_disagg_update_metadata_process(WT_SESSION_IMPL *session)
 err:
     __wt_spin_unlock(session, &conn->disaggregated_storage.update_metadata_lock);
 
+    return (ret);
+}
+
+/*
+ * __disagg_set_metadata_visibility_timestamp --
+ *     Set the metadata visibility timestamp for the given object.
+ */
+static int
+__disagg_set_metadata_visibility_timestamp(
+  WT_SESSION_IMPL *session, const char *name, wt_timestamp_t ts)
+{
+    WT_CURSOR *md_cursor;
+    WT_DECL_ITEM(stable_uri);
+    WT_DECL_ITEM(table_name);
+    WT_DECL_ITEM(timestamp_cfg);
+    WT_DECL_RET;
+    wt_timestamp_t prev_ts;
+    char *cfg_ret;
+    const char *cfg[3], *md_value;
+
+    cfg_ret = NULL;
+    md_cursor = NULL;
+    md_value = NULL;
+
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
+    WT_ASSERT(session, __wt_conn_is_disagg(session) && S2C(session)->layered_table_manager.leader);
+
+    WT_ERR(__wt_scr_alloc(session, 0, &stable_uri));
+    WT_ERR(__wt_scr_alloc(session, 0, &table_name));
+    WT_ERR(__wt_scr_alloc(session, 0, &timestamp_cfg));
+
+    /* We cannot unset a timestamp, or even just keep the timestamp as unset. */
+    if (ts == WT_DISAGG_VISIBILITY_TIMESTAMP_UNSET)
+        WT_ERR_MSG(session, EINVAL,
+          "Disaggregated storage visibility timestamp for \"%s\" cannot be set to \"%s\"", name,
+          WT_DISAGG_VISIBILITY_TIMESTAMP_STR_UNSET);
+
+    /*
+     * Convert the passed-in object to its stable URI, as that's where the timestamp lives. Also get
+     * the table name.
+     */
+    if (WT_PREFIX_MATCH(name, "layered:")) {
+        WT_ERR(__wt_buf_fmt(session, stable_uri, "file:%s.wt_stable", name + strlen("layered:")));
+        WT_ERR(__wt_buf_fmt(session, table_name, "%s", name + strlen("layered:")));
+    } else if (WT_PREFIX_MATCH(name, "table:")) {
+        WT_ERR(__wt_buf_fmt(session, stable_uri, "file:%s.wt_stable", name + strlen("table:")));
+        WT_ERR(__wt_buf_fmt(session, table_name, "%s", name + strlen("table:")));
+    } else if (WT_PREFIX_MATCH(name, "file:")) {
+        WT_ERR(__wt_buf_fmt(session, stable_uri, "%s", name));
+        WT_ERR(__wt_buf_fmt(session, table_name, "%s", name + strlen("file:")));
+    } else
+        WT_ERR_MSG(session, EINVAL, "Invalid disaggregated object name: \"%s\"", name);
+
+    /* Get the current metadata for the stable URI. */
+    WT_ERR(__wt_metadata_cursor(session, &md_cursor));
+    md_cursor->set_key(md_cursor, stable_uri->data);
+    WT_ERR_MSG_CHK(session, md_cursor->search(md_cursor),
+      "Disaggregated object \"%s\" not found in metadata", (const char *)stable_uri->data);
+    WT_ERR(md_cursor->get_value(md_cursor, &md_value));
+    WT_ERR(__wt_disagg_extract_visibility_timestamp(session, md_value, &prev_ts));
+
+    /* Validate the timestamp transition. */
+    WT_ERR(__wt_disagg_validate_visibility_timestamp(session, name, ts, prev_ts));
+
+    /* Prepare the new configuration string for the visibility timestamp. */
+    WT_ERR(
+      __wt_buf_fmt(session, timestamp_cfg, "disaggregated=(visibility_timestamp=%" PRIx64 ")", ts));
+    cfg[0] = md_value;
+    cfg[1] = (const char *)timestamp_cfg->data;
+    cfg[2] = NULL;
+    WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
+
+    /* Release the metadata cursor early, so that the next call can reuse it from the cache. */
+    WT_ERR(__wt_metadata_cursor_release(session, &md_cursor));
+
+    /* Update the metadata entry in the local metadata. */
+    WT_ERR(__wt_metadata_insert(session, stable_uri->data, cfg_ret));
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Updated the local metadata of \"%s\" to: %s", (const char *)stable_uri->data, cfg_ret);
+
+    /* Add a verbose message about the visibility timestamp update. */
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Updated disaggregated storage visibility timestamp for \"%s\" (stable URI \"%s\") from "
+      "%" PRIu64 " to %" PRIu64,
+      (const char *)table_name->data, (const char *)stable_uri->data, prev_ts, ts);
+
+    /* Schedule the metadata update for the disaggregated storage checkpoint. */
+    WT_ERR(__wt_disagg_update_metadata_later(session, stable_uri->data, table_name->data));
+
+err:
+    __wt_free(session, cfg_ret);
+    __wt_scr_free(session, &stable_uri);
+    __wt_scr_free(session, &table_name);
+    __wt_scr_free(session, &timestamp_cfg);
+
+    WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
+    return (ret);
+}
+
+/*
+ * __wt_disagg_set_metadata_visibility_timestamp --
+ *     Set the metadata visibility timestamp for the given object.
+ */
+int
+__wt_disagg_set_metadata_visibility_timestamp(
+  WT_SESSION_IMPL *session, const char *name, wt_timestamp_t ts)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *internal_session;
+
+    if (!__wt_conn_is_disagg(session))
+        WT_RET(ENOTSUP);
+
+    /* We support setting metadata visibility timestamp only if the node is the leader. */
+    if (!S2C(session)->layered_table_manager.leader)
+        WT_RET(ENOTSUP);
+
+    /* We need an internal session, because the caller could be in its own transaction. */
+    WT_ERR(__wt_open_internal_session(
+      S2C(session), "disagg-set-metadata-ts", false, 0, 0, &internal_session));
+
+    /* Use the internal session for the metadata update. */
+    WT_WITH_SCHEMA_LOCK(internal_session,
+      ret = __disagg_set_metadata_visibility_timestamp(internal_session, name, ts));
+    WT_ERR(ret);
+
+err:
+    WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }
 

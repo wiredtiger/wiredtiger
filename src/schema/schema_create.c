@@ -135,6 +135,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
     char *fileconf, *filemeta;
     uint32_t allocsize, fileid;
     bool against_stable, exists, import, import_repair, is_metadata, is_shared;
+    wt_timestamp_t disagg_visibility_ts;
 
     fileconf = filemeta = NULL;
     filestripped = NULL;
@@ -164,6 +165,16 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
     }
 
     exists = false;
+
+    /*
+     * Validate the metadata visibility timestamp, if available. This is only applicable for
+     * disaggregated storage files. As the timestamp would not be set for non-disaggregated files,
+     * the validation would simply pass given the default timestamp.
+     */
+    WT_ERR(__wt_disagg_extract_visibility_timestamp(session, config, &disagg_visibility_ts));
+    WT_ERR(__wt_disagg_validate_visibility_timestamp(
+      session, uri, disagg_visibility_ts, WT_DISAGG_VISIBILITY_TIMESTAMP_UNSET));
+
     /*
      * At this moment the uri doesn't exist in the metadata. In scenarios like, the database folder
      * is copied without a checkpoint into another location and trying to recover from it leads to

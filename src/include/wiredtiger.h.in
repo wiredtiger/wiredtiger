@@ -817,6 +817,11 @@ typedef enum {
     WT_TS_TXN_TYPE_ROLLBACK, /*!< Rollback timestamp. */
 } WT_TS_TXN_TYPE;
 
+/*! WT_SESSION::timestamp_metadata_uint timestamp types */
+typedef enum {
+    WT_TS_METADATA_TYPE_DISAGG_VISIBILITY, /*!< Visibility timestamp for disaggregated storage. */
+} WT_TS_METADATA_TYPE;
+
 /*!
  * All data operations are performed in the context of a WT_SESSION.  This
  * encapsulates the thread and transactional context of the operation.
@@ -1211,6 +1216,9 @@ struct __wt_session {
      * default \c 0.}
      * @config{disaggregated = (, configure disaggregated storage for this file., a set of related
      * configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+     * visibility_timestamp, The timestamp for as of which the table becomes visible for followers.,
+     * a string; default empty.}
      * @config{ ),,}
      * @config{encryption = (, configure an encryptor for file blocks.  When a table is created\,
      * its encryptor is not implicitly used for any related indices or column groups., a set of
@@ -1850,6 +1858,19 @@ struct __wt_session {
      */
     int __F(timestamp_transaction_uint)(WT_SESSION *session, WT_TS_TXN_TYPE which,
             uint64_t ts);
+
+    /*!
+     * Assign a timestamp to a metadata operation. This currently works only in disaggregated
+     * storage.
+     *
+     * @param session the session handle
+     * @param name the name of the table, including the appropriate prefix, e.g., "table:mytable".
+     * @param which the timestamp being set.
+     * @param ts the timestamp.
+     * @errors
+     */
+    int __F(timestamp_metadata_uint)(WT_SESSION *session, const char *name,
+            WT_TS_METADATA_TYPE which, uint64_t ts);
 
     /*!
      * Set a prepared_id on a transaction.

@@ -208,3 +208,20 @@ __wt_is_simple_table(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *colconf, bool *is
 
     return (0);
 }
+
+/*
+ * __wt_schema_timestamp_uint --
+ *     Set the metadata timestamp for the given object.
+ */
+int
+__wt_schema_timestamp_uint(
+  WT_SESSION_IMPL *session, const char *name, WT_TS_METADATA_TYPE which, wt_timestamp_t ts)
+{
+    switch (which) {
+    case WT_TS_METADATA_TYPE_DISAGG_VISIBILITY:
+        WT_RET(__wt_disagg_set_metadata_visibility_timestamp(session, name, ts));
+        break;
+    }
+
+    return (0);
+}

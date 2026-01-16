@@ -161,6 +161,10 @@ struct __wt_disagg_update_metadata {
     char *stable_value;   /* The value for the stable component. */
     char *table_value;    /* The value for the table component. */
 
+    wt_timestamp_t visibility_timestamp; /* When the update becomes visible in the checkpoint. */
+#define WT_DISAGG_VISIBILITY_TIMESTAMP_UNSET WT_TS_MAX
+#define WT_DISAGG_VISIBILITY_TIMESTAMP_STR_UNSET "unset"
+
     TAILQ_ENTRY(__wt_disagg_update_metadata) q; /* Linked list of entries. */
 };
 

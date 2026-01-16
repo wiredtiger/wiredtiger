@@ -170,7 +170,10 @@ connection_page_delta_config = [
 file_disaggregated_config = [
     Config('disaggregated', '', r'''
         configure disaggregated storage for this file''',
-        type='category', subconfig=disaggregated_config_common
+        type='category', subconfig=disaggregated_config_common + [
+            Config('visibility_timestamp', '', r'''
+            The timestamp for as of which the table becomes visible for followers'''),
+        ]
     ),
 ]
 wiredtiger_open_disaggregated_storage_configuration = connection_disaggregated_config
@@ -644,7 +647,7 @@ connection_runtime_config = [
                type='boolean'),
         Config('crash_point_colgroup', 'false', r'''
             if true, force crash in table creation while creating colgroup metadata entry. This is
-            intended for testing purposes only.''', 
+            intended for testing purposes only.''',
             type='boolean'),
         Config('corruption_abort', 'true', r'''
             if true and built in diagnostic mode, dump core in the case of data corruption''',
