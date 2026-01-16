@@ -543,7 +543,6 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
       "checkpoint=%s,\n"
       "timestamp=%" PRIx64 ",\noldest_timestamp=%" PRIx64,
       checkpoint_root_copy, checkpoint_timestamp, oldest_timestamp));
-    printf("Writing disagg checkpoint metadata: %s\n", (char *)metadata_buf->data);
 
     /* Append key provider metadata, if available. */
     if (conn->key_provider != NULL) {
