@@ -57,7 +57,7 @@ TEST_CASE("Key provider set header function", "[key_provider_header]")
         REQUIRE(write_crypt_header.checksum == checksum);
         REQUIRE(crypt.keys.size == test_string.size() + sizeof(WT_CRYPT_HEADER));
     }
-    __wt_buf_free(session->get_wt_session_impl(), &crypt.keys);
+    __wt_buf_free(session_impl, &crypt.keys);
 }
 
 TEST_CASE("Key provider: validate crypt function", "[key_provider_header]")
