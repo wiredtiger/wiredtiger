@@ -539,10 +539,12 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
 
     /* Format metadata settings. */
     oldest_timestamp = conn->txn_global.oldest_timestamp;
-    WT_ERR(__wt_buf_fmt(session, metadata_buf,
-      "checkpoint=%s,\n"
-      "timestamp=%" PRIx64 ",\noldest_timestamp=%" PRIx64,
-      checkpoint_root_copy, checkpoint_timestamp, oldest_timestamp));
+    WT_ERR(
+      __wt_buf_fmt(session, metadata_buf,
+        "checkpoint=%s,\n"
+        "timestamp=%" PRIx64 ",\n"
+        "oldest_timestamp=%" PRIx64,
+        checkpoint_root_copy, checkpoint_timestamp, oldest_timestamp));
 
     /* Append key provider metadata, if available. */
     if (conn->key_provider != NULL) {
