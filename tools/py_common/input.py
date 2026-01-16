@@ -31,7 +31,8 @@ import re
 
 
 def encode_bytes(f, debug: bool = False):
-    """Encode a text hex dump into raw bytes.
+    """
+    Encode a text hex dump into raw bytes.
 
     This mirrors the logic used by the standalone decoding tools: for each line,
     strip off any prefix up to and including the last ':', then keep only

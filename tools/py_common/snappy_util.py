@@ -95,7 +95,10 @@ def snappy_decompress_page(b: binary_data.BinaryFile, page_header, header_length
 
         # If any attempt succeeded, use the result
         if decompressed is not None:
-            payload_data.extend(decompressed)
+            if decompressed is str:
+                log.warn('Invalid decompressed type')
+            else:
+                payload_data.extend(decompressed)
         else:
             # Both failed - print diagnostics and stop processing this block
             # Use the stored length for diagnostics as it's more likely to be correct
