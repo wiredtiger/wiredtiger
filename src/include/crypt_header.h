@@ -12,7 +12,7 @@
  * WT_CRYPT_HEADER --
  *	Header for encryption key data.
  */
-WT_PACKED_STRUCT_BEGIN(__wt_crypt_header)
+struct __wt_crypt_header {
 /*
  * Signature 'wtch' (WiredTiger Crypt Header)
  */
@@ -28,10 +28,10 @@ WT_PACKED_STRUCT_BEGIN(__wt_crypt_header)
 #define WT_CRYPT_HEADER_COMPATIBLE_VERSION 0x1u
     uint8_t compatible_version; /* 05: Minimum compatibility version */
     uint8_t header_size;        /* 06: Header size, in bytes */
-    uint32_t crypt_size;        /* 07-10: Payload size, in bytes */
-    uint32_t checksum;          /* 11-14: Payload CRC32 checksum */
-    uint8_t flags;              /* 15: Flags */
-WT_PACKED_STRUCT_END
+    uint8_t unused[1];          /* 07: Unused padding */
+    uint32_t crypt_size;        /* 08-11: Payload size, in bytes */
+    uint32_t checksum;          /* 12-15: Payload CRC32 checksum */
+};
 
 /*
  * __wt_crypt_header_byteswap --
