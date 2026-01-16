@@ -27,10 +27,19 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 # Tools and data structures for reading and decoding the on-disk format of WiredTiger's files.
-
-import enum, typing
 from py_common import binary_data
 from py_common.stats import PageStats
+from py_common.printer import Printer, raw_bytes, dumpraw
+from py_common.snappy_util import print_snappy_diagnostics
+from py_common import log
+import io
+import json
+import pprint
+import sys
+import traceback
+import enum
+from dataclasses import dataclass
+from typing import Optional, List, Union, Final
 
 
 #
@@ -48,9 +57,9 @@ class BlockFileHeader(object):
     unused: int
 
     # Constants
-    WT_BLOCK_MAGIC: typing.Final[int] = 120897
-    WT_BLOCK_MAJOR_VERSION: typing.Final[int] = 1
-    WT_BLOCK_MINOR_VERSION: typing.Final[int] = 0
+    WT_BLOCK_MAGIC: Final[int] = 120897
+    WT_BLOCK_MAJOR_VERSION: Final[int] = 1
+    WT_BLOCK_MINOR_VERSION: Final[int] = 0
 
     def __init__(self) -> None:
         '''
@@ -234,8 +243,8 @@ class BlockDisaggHeader(object):
     unused: int
 
     # Block types (magic byte)
-    WT_BLOCK_DISAGG_MAGIC_BASE: typing.Final[int] = 0xdb
-    WT_BLOCK_DISAGG_MAGIC_DELTA: typing.Final[int] = 0xdd
+    WT_BLOCK_DISAGG_MAGIC_BASE: Final[int] = 0xdb
+    WT_BLOCK_DISAGG_MAGIC_DELTA: Final[int] = 0xdd
 
     def __init__(self) -> None:
         '''
@@ -295,7 +304,7 @@ class ExtentItem(object):
     extra_stuff: str
 
     # Constants
-    WT_BLOCK_EXTLIST_MAGIC: typing.Final[int] = 71002
+    WT_BLOCK_EXTLIST_MAGIC: Final[int] = 71002
 
     def __init__(self) -> None:
         '''
@@ -366,9 +375,9 @@ class Cell(object):
     extra_descriptor: int
     data: bytes
 
-    cell_type: typing.Optional[CellType]
-    prefix: typing.Optional[int]
-    run_length: typing.Optional[int]
+    cell_type: Optional[CellType]
+    prefix: Optional[int]
+    run_length: Optional[int]
 
     is_address: bool
     is_key: bool
@@ -378,12 +387,12 @@ class Cell(object):
     is_value: bool
 
     # Timestamps & transactions
-    durable_start_ts: typing.Optional[int]
-    durable_stop_ts: typing.Optional[int]
-    start_ts: typing.Optional[int]
-    stop_ts: typing.Optional[int]
-    start_txn: typing.Optional[int]
-    stop_txn: typing.Optional[int]
+    durable_start_ts: Optional[int]
+    durable_stop_ts: Optional[int]
+    start_ts: Optional[int]
+    stop_ts: Optional[int]
+    start_txn: Optional[int]
+    stop_txn: Optional[int]
 
     # Sizes of the various timestamp & transaction fields (track this for statistics)
     size_durable_start_ts: int
@@ -394,20 +403,20 @@ class Cell(object):
     size_stop_txn: int
 
     # Constants and flags for the descriptor byte
-    WT_CELL_KEY_SHORT: typing.Final[int] = 0x01
-    WT_CELL_KEY_SHORT_PFX: typing.Final[int] = 0x02
-    WT_CELL_VALUE_SHORT: typing.Final[int] = 0x03
-    WT_CELL_64V: typing.Final[int] = 0x04
-    WT_CELL_SECOND_DESC: typing.Final[int] = 0x08
+    WT_CELL_KEY_SHORT: Final[int] = 0x01
+    WT_CELL_KEY_SHORT_PFX: Final[int] = 0x02
+    WT_CELL_VALUE_SHORT: Final[int] = 0x03
+    WT_CELL_64V: Final[int] = 0x04
+    WT_CELL_SECOND_DESC: Final[int] = 0x08
 
     # Flags for the extra descriptor byte
-    WT_CELL_PREPARE: typing.Final[int] = 0x01
-    WT_CELL_TS_DURABLE_START: typing.Final[int] = 0x02
-    WT_CELL_TS_DURABLE_STOP: typing.Final[int] = 0x04
-    WT_CELL_TS_START: typing.Final[int] = 0x08
-    WT_CELL_TS_STOP: typing.Final[int] = 0x10
-    WT_CELL_TXN_START: typing.Final[int] = 0x20
-    WT_CELL_TXN_STOP: typing.Final[int] = 0x40
+    WT_CELL_PREPARE: Final[int] = 0x01
+    WT_CELL_TS_DURABLE_START: Final[int] = 0x02
+    WT_CELL_TS_DURABLE_STOP: Final[int] = 0x04
+    WT_CELL_TS_START: Final[int] = 0x08
+    WT_CELL_TS_STOP: Final[int] = 0x10
+    WT_CELL_TXN_START: Final[int] = 0x20
+    WT_CELL_TXN_STOP: Final[int] = 0x40
 
     def __init__(self) -> None:
         '''
@@ -714,3 +723,375 @@ class DisaggAddr(object):
             f"  checksum: {hex(self.checksum)}\n"
         )
         return addr_string
+
+
+@dataclass
+class WTPage:
+    """
+    Representation of a decoded WT page.
+    """
+
+    success: bool = False
+
+    page_header: Optional[PageHeader] = None
+    block_header: Optional[Union[BlockHeader, BlockDisaggHeader]] = None
+    cells: Optional[List[Cell]] = None
+    extents: Optional[List[ExtentItem]] = None
+
+    raw_bytes: binary_data.BinaryFile = None
+
+    @staticmethod
+    def parse(b: binary_data.BinaryFile, nbytes: int, opts) -> 'WTPage':
+        page = WTPage(success=False)
+
+        page.raw_bytes = b
+
+        disk_pos = b.tell()
+
+        if opts.disagg:
+            # Size of WT_PAGE_HEADER
+            page_data = bytearray(b.read(44))
+        else:
+            # Size of WT_PAGE_HEADER + size of WT_BLOCK_HEADER
+            page_data = bytearray(b.read(40))
+        b.saved_bytes()
+        b_page = binary_data.BinaryFile(io.BytesIO(page_data))
+
+        p = Printer(b_page, opts)
+
+        # WT_PAGE_HEADER in btmem.h (28 bytes)
+        page.page_header = PageHeader.parse(b_page)
+        # WT_BLOCK_HEADER in block.h (12 bytes or 44 bytes)
+        if opts.disagg:
+            page.block_header = BlockDisaggHeader.parse(b_page)
+        else:
+            page.block_header = BlockHeader.parse(b_page)
+
+        if page.page_header.unused != 0:
+            log.error('? garbage in unused bytes')
+            return page
+        if page.page_header.type == PageType.WT_PAGE_INVALID:
+            log.error('? invalid page')
+            return page
+
+        if page.block_header.unused != 0:
+            log.error('garbage in unused bytes')
+            return page
+
+        disk_size = nbytes if opts.disagg else page.block_header.disk_size
+
+        if disk_size > 17 * 1024 * 1024:
+            # The maximum document size in MongoDB is 16MB. Larger block sizes are suspect.
+            log.error('the block is too big')
+            return page
+        if disk_size < 40 and not opts.disagg:
+            # The disk size is too small
+            return page
+
+        pagestats = PageStats()
+
+        # Optional dependency: crc32c
+        have_crc32c = False
+        try:
+            import crc32c
+            have_crc32c = True
+        except:
+            pass
+
+        # Verify the checksum
+        if have_crc32c:
+            savepos = b.tell()
+            b.seek(disk_pos)
+            if (opts.disagg and page.block_header.flags & BlockDisaggFlags.WT_BLOCK_DISAGG_DATA_CKSUM) \
+                or (not opts.disagg and page.block_header.flags & BlockFlags.WT_BLOCK_DATA_CKSUM):
+                check_size = disk_size
+            else:
+                check_size = 64
+            data = bytearray(b.read(check_size))
+            b.seek(savepos)
+            # Zero-out the checksum field
+            data[32] = data[33] = data[34] = data[35] = 0
+            if len(data) < check_size:
+                log.error('? reached EOF before the end of the block')
+                return page
+            checksum = crc32c.crc32c(data)
+            if checksum != page.block_header.checksum:
+                log.error(f'? the calculated checksum {hex(checksum)} does not match header checksum {page.block_header.checksum}')
+                if (not opts.cont):
+                    return page
+
+        # Skip the rest if we don't want to display the data
+        skip_data = opts.skip_data
+
+        if skip_data:
+            b.seek(disk_pos + disk_size)
+            page.success = True
+            return page
+
+        # Read the block contents
+        payload_pos = b.tell()
+        header_length = payload_pos - disk_pos
+        if page.page_header.flags & PageFlags.WT_PAGE_COMPRESSED:
+            # Optional dependency: python-snappy
+            have_snappy = False
+            try:
+                import snappy
+                have_snappy = True
+            except:
+                # Try to install it automatically
+                log.warn('python-snappy not found, attempting to install...')
+                try:
+                    import subprocess
+                    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'python-snappy'])
+                    import snappy
+                    have_snappy = True
+                    log.info('Successfully installed python-snappy')
+                except Exception as e:
+                    log.warn(f'Failed to install python-snappy: {e}')
+                    log.warn('Compressed pages will not be readable.')
+
+            if not have_snappy:
+                raise ModuleNotFoundError('python-snappy is required to decode compressed pages')
+            try:
+                compress_skip = 64
+                # The first few bytes are uncompressed
+                payload_data = bytearray(b.read(compress_skip - header_length))
+                # Read the length of the remaining data
+                compressed_byte_count = b.read_uint64()
+                calculated_length = disk_size - compress_skip - 8
+                lengths_match = (compressed_byte_count == calculated_length)
+
+                # Read the maximum possible amount of compressed data
+                compressed_data_full = b.read(max(calculated_length, compressed_byte_count))
+                b.seek(disk_pos + disk_size)
+
+                # Try decompression with both sizes, preferring the stored length first
+                decompressed = None
+
+                # Try stored length first (most likely to be correct)
+                if compressed_byte_count <= len(compressed_data_full):
+                    log.info(f'Trying to decompress using stored length: {compressed_byte_count} bytes')
+                    compressed_data = compressed_data_full[:compressed_byte_count]
+                    if snappy.isValidCompressed(compressed_data):
+                        try:
+                            decompressed = snappy.uncompress(compressed_data)
+                            if not lengths_match:
+                                log.info(f'  Successfully decompressed using stored length ({compressed_byte_count} bytes)')
+                        except:
+                            pass
+
+                # If that failed and lengths differ, try calculated length
+                if decompressed is None and not lengths_match and calculated_length <= len(compressed_data_full):
+                    log.info(f'Trying to decompress using calculated length: {calculated_length} bytes')
+                    compressed_data = compressed_data_full[:calculated_length]
+                    if snappy.isValidCompressed(compressed_data):
+                        try:
+                            decompressed = snappy.uncompress(compressed_data)
+                            log.info(f'  Successfully decompressed using calculated length ({calculated_length} bytes)')
+                        except:
+                            pass
+
+                # If any attempt succeeded, use the result
+                if decompressed is not None:
+                    payload_data.extend(decompressed)
+                else:
+                    # Both failed - print diagnostics and stop processing this block
+                    # Use the stored length for diagnostics as it's more likely to be correct
+                    compressed_data = compressed_data_full[:min(compressed_byte_count, len(compressed_data_full))]
+                    print_snappy_diagnostics(p, compressed_data, compressed_byte_count, page.page_header, compress_skip)
+                    return page  # Stop processing this corrupted block
+            except:
+                log.error('? The page failed to uncompress')
+                if opts.debug:
+                    traceback.print_exception(*sys.exc_info())
+                return page
+        else:
+            payload_data = b.read(page.page_header.mem_size - header_length)
+            b.seek(disk_pos + disk_size)
+
+        # Add the payload to the page data & reinitialize the stream and the printer
+        page_data.extend(payload_data)
+        b_page = binary_data.BinaryFile(io.BytesIO(page_data))
+        b_page.seek(header_length)
+        p = Printer(b_page, opts)
+
+        # Parse the block contents
+        if page.page_header.type == PageType.WT_PAGE_INVALID:
+            pass    # a blank page: TODO maybe should check that it's all zeros?
+        elif page.page_header.type == PageType.WT_PAGE_BLOCK_MANAGER:
+            extents = page.decode_extlist(b_page)
+            page.extents = extents
+        elif page.page_header.type == PageType.WT_PAGE_ROW_INT or \
+            page.page_header.type == PageType.WT_PAGE_ROW_LEAF:
+            cells = page.decode_rows(b_page, p, pagestats)
+            page.cells = cells
+        elif page.page_header.type == PageType.WT_PAGE_OVFL:
+            # Use b_page.read() so that we can also print the raw bytes in the split mode
+            # p.rint_v(raw_bytes(b_page.read(len(payload_data))))
+            pass
+        else:
+            log.warn('? unimplemented decode for page type {}'.format(page.page_header.type))
+            # p.rint_v(binary_to_pretty_string(payload_data))
+
+        PageStats.outfile_stats_end(opts, page.page_header, page.block_header, pagestats)
+        page.success = True
+        return page
+
+    def print_page(self, opts):
+        p = Printer(self.raw_bytes, opts)
+        p.rint(self.page_header)
+        p.rint(self.block_header)
+        
+        if self.page_header.type == PageType.WT_PAGE_INVALID:
+            pass    # a blank page: TODO maybe should check that it's all zeros?
+        elif self.page_header.type == PageType.WT_PAGE_BLOCK_MANAGER:
+            self.print_extents(p, opts)
+        elif self.page_header.type == PageType.WT_PAGE_ROW_INT or \
+            self.page_header.type == PageType.WT_PAGE_ROW_LEAF:
+            self.print_cells(p, opts)
+        elif self.page_header.type == PageType.WT_PAGE_OVFL:
+            # Use b_page.read() so that we can also print the raw bytes in the split mode
+            b_page = binary_data.BinaryFile(io.BytesIO(self.raw_bytes))
+            p.rint_v(raw_bytes(b_page.read(len(self.raw_bytes))))
+        else:
+            log.warn(f'? unimplemented decode for page type {self.page_header.type}')
+            p.rint_v(binary_to_pretty_string(self.raw_bytes))
+        
+        return
+
+    def print_cells(self, p, opts):
+
+        for cellnum, cell in enumerate(self.cells):
+            p.begin_cell(cellnum)
+            p.rint_v(cell.descriptor_string())
+            p.rint_v(cell.type_string())
+            cell.print_timestamps(p)
+
+            # Print the contents of the cell.
+            try:
+                # Optional dependency: bson
+                have_bson = False
+                try:
+                    import bson
+                    have_bson = True
+                except:
+                    pass
+                # Attempt the decode the cell as BSON.
+                if (cell.is_value and opts.bson and have_bson):
+                    decoded_data = bson.BSON(cell.data).decode()
+                    p.rint_v(pprint.pformat(decoded_data, indent=2))
+                # If the cell is an address and we're in disagg mode, print the cell as a DisaggAddr
+                # type.
+                elif cell.is_address and opts.disagg:
+                    addr = DisaggAddr.parse(cell.data)
+                    p.rint(json.dumps(addr.__dict__))
+                else:
+                    p.rint_v(raw_bytes(cell.data))
+            except bson.InvalidBSON as e:
+                p.rint_v(f"cannot decode cell as BSON: {e}")
+                p.rint_v(raw_bytes(cell.data))
+            except (IndexError, ValueError):
+                # FIXME-WT-13000 theres a bug in raw_bytes
+                pass
+            
+            p.end_cell()
+            
+    def print_extents(self, p, opts):
+        p.rint_ext('extent list follows:')
+        for extnum, extent in enumerate(self.extents):
+            p.begin_cell(extnum)
+            p.rint_ext(f'  {extent.offset}, {extent.size}{extent.extra_stuff}')
+
+        
+    def decode_rows(self, b, p , pagestats) -> List[Cell]:
+        cells = []
+        for cellnum in range(0, self.page_header.entries):
+            cellpos = b.tell()
+            if cellpos >= self.page_header.mem_size:
+                log.warn('** OVERFLOW memsize **')
+                return cells
+
+            # try:
+            cell = Cell.parse(b, True)
+            cells.append(cell)
+            
+            if cell.has_timestamps():
+                cell.process_timestamps(p, pagestats)
+
+            if cell.is_key:
+                pagestats.num_keys += 1
+                pagestats.keys_sz += len(cell.data)
+            
+            # If the cell cannot be decoded as a valid type, dump the raw bytes and raise an error.
+            if not cell.is_valid_type():
+                dumpraw(p, b, cellpos)
+                raise ValueError('Unexpected cell type')
+        
+        return cells
+        
+    def decode_extlist(self, b) -> List[ExtentItem]:
+        # Written by block_ext.c
+        extents = []
+        okay = True
+        cellnum = -1
+        lastoff = 0
+        # p.rint_ext('extent list follows:')
+        while True:
+            cellnum += 1
+            cellpos = b.tell()
+            if cellpos >= self.page_header.mem_size:
+                log.warn(f'** OVERFLOW memsize ** memsize={self.page_header.mem_size}, position={cellpos}')
+                return extents
+
+            extent = ExtentItem.parse(b)
+            extents.append(extent)
+            extra_stuff = ''
+            
+            if cellnum == 0:
+                extra_stuff += '  # magic number'
+                if not extent.is_magic():
+                    log.error(f'  # ERROR: magic number did not match expected value=\
+                        {ExtentItem.WT_BLOCK_EXTLIST_MAGIC}')
+                    okay = False
+            else:
+                if extent.offset < lastoff and not extent.is_end_of_list():
+                    log.error(f'  # ERROR: list out of order')
+                    okay = False
+
+                # We expect sizes and positions to be multiples of
+                # this number, it is conservative.
+                multiple = 256
+                if extent.offset % multiple != 0:
+                    log.error(f'  # ERROR: offset is not a multiple of {multiple}')
+                    okay = False
+                if extent.offset != 0 and extent.size % multiple != 0:
+                    log.error(f'  # ERROR: size is not a multiple of {multiple}')
+                    okay = False
+
+            # A zero offset is written as an end of list marker,
+            # in that case, the size is a version number.
+            # For version 0, this is truly the end of the list.
+            # For version 1, additional entries may be appended to this (avail) list.
+            #
+            # See __wti_block_extlist_write() in block_ext.c, and calls
+            # to that function in block_ckpt.c.
+            if extent.is_end_of_list():
+                extra_stuff += '  # end of list'
+                if extent.size == 0:
+                    extra_stuff += ', version 0'
+                elif extent.size == 1:
+                    extra_stuff += ', version 1,' + \
+                    ' any following entries are not yet in this (incomplete) checkpoint'
+                else:
+                    log.error(f' -- ERROR unexpected size={extent.size} has no meaning here')
+                    okay = False
+            
+            extent.extra_stuff = extra_stuff
+            if not extent.is_magic():
+                lastoff = extent.offset
+
+            if extent.is_end_of_list() or not okay:
+                break
+        
+        return extents
+
