@@ -29,8 +29,8 @@
 # Tools and data structures for reading and decoding the on-disk format of WiredTiger's files.
 from py_common import binary_data
 from py_common.stats import PageStats
-from py_common.printer import Printer, raw_bytes, dumpraw
-from py_common.snappy_util import print_snappy_diagnostics
+from py_common.printer import Printer, binary_to_pretty_string, raw_bytes, dumpraw
+from py_common.snappy_util import print_snappy_diagnostics, snappy_decompress_page
 from py_common import log
 import io
 import json
@@ -811,79 +811,7 @@ class WTPage:
         payload_pos = b.tell()
         header_length = payload_pos - disk_pos
         if page.page_header.flags & PageFlags.WT_PAGE_COMPRESSED:
-            # Optional dependency: python-snappy
-            have_snappy = False
-            try:
-                import snappy
-                have_snappy = True
-            except:
-                # Try to install it automatically
-                log.warn('python-snappy not found, attempting to install...')
-                try:
-                    import subprocess
-                    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'python-snappy'])
-                    import snappy
-                    have_snappy = True
-                    log.info('Successfully installed python-snappy')
-                except Exception as e:
-                    log.warn(f'Failed to install python-snappy: {e}')
-                    log.warn('Compressed pages will not be readable.')
-
-            if not have_snappy:
-                raise ModuleNotFoundError('python-snappy is required to decode compressed pages')
-            try:
-                compress_skip = 64
-                # The first few bytes are uncompressed
-                payload_data = bytearray(b.read(compress_skip - header_length))
-                # Read the length of the remaining data
-                compressed_byte_count = b.read_uint64()
-                calculated_length = disk_size - compress_skip - 8
-                lengths_match = (compressed_byte_count == calculated_length)
-
-                # Read the maximum possible amount of compressed data
-                compressed_data_full = b.read(max(calculated_length, compressed_byte_count))
-                b.seek(disk_pos + disk_size)
-
-                # Try decompression with both sizes, preferring the stored length first
-                decompressed = None
-
-                # Try stored length first (most likely to be correct)
-                if compressed_byte_count <= len(compressed_data_full):
-                    log.info(f'Trying to decompress using stored length: {compressed_byte_count} bytes')
-                    compressed_data = compressed_data_full[:compressed_byte_count]
-                    if snappy.isValidCompressed(compressed_data):
-                        try:
-                            decompressed = snappy.uncompress(compressed_data)
-                            if not lengths_match:
-                                log.info(f'  Successfully decompressed using stored length ({compressed_byte_count} bytes)')
-                        except:
-                            pass
-
-                # If that failed and lengths differ, try calculated length
-                if decompressed is None and not lengths_match and calculated_length <= len(compressed_data_full):
-                    log.info(f'Trying to decompress using calculated length: {calculated_length} bytes')
-                    compressed_data = compressed_data_full[:calculated_length]
-                    if snappy.isValidCompressed(compressed_data):
-                        try:
-                            decompressed = snappy.uncompress(compressed_data)
-                            log.info(f'  Successfully decompressed using calculated length ({calculated_length} bytes)')
-                        except:
-                            pass
-
-                # If any attempt succeeded, use the result
-                if decompressed is not None:
-                    payload_data.extend(decompressed)
-                else:
-                    # Both failed - print diagnostics and stop processing this block
-                    # Use the stored length for diagnostics as it's more likely to be correct
-                    compressed_data = compressed_data_full[:min(compressed_byte_count, len(compressed_data_full))]
-                    print_snappy_diagnostics(p, compressed_data, compressed_byte_count, page.page_header, compress_skip)
-                    return page  # Stop processing this corrupted block
-            except:
-                log.error('? The page failed to uncompress')
-                if opts.debug:
-                    traceback.print_exception(*sys.exc_info())
-                return page
+            payload_data = snappy_decompress_page(b, page.page_header, header_length, disk_size, disk_pos, opts)
         else:
             payload_data = b.read(page.page_header.mem_size - header_length)
             b.seek(disk_pos + disk_size)
@@ -904,13 +832,8 @@ class WTPage:
             page.page_header.type == PageType.WT_PAGE_ROW_LEAF:
             cells = page.decode_rows(b_page, p, pagestats)
             page.cells = cells
-        elif page.page_header.type == PageType.WT_PAGE_OVFL:
-            # Use b_page.read() so that we can also print the raw bytes in the split mode
-            # p.rint_v(raw_bytes(b_page.read(len(payload_data))))
-            pass
         else:
             log.warn('? unimplemented decode for page type {}'.format(page.page_header.type))
-            # p.rint_v(binary_to_pretty_string(payload_data))
 
         PageStats.outfile_stats_end(opts, page.page_header, page.block_header, pagestats)
         page.success = True
@@ -995,7 +918,7 @@ class WTPage:
             cells.append(cell)
             
             if cell.has_timestamps():
-                cell.process_timestamps(p, pagestats)
+                cell.process_timestamps(pagestats)
 
             if cell.is_key:
                 pagestats.num_keys += 1

@@ -257,6 +257,7 @@ def extract_disagg_pages(disagg_table, opts):
             p = Printer(b, opts)
             page = WTPage()
             page = page.parse(b, len(decrypted_page_bytes), opts)
+            page.print_page(opts)
             p.rint('')
 
 def extract_mongodb_log_hex(f):
