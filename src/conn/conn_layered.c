@@ -538,7 +538,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_buf));
 
     /* Format metadata settings. */
-    __wt_atomic_store_uint64_relaxed(&conn->txn_global.oldest_timestamp, oldest_timestamp);
+    oldest_timestamp = __wt_atomic_load_uint64_acquire(&conn->txn_global.oldest_timestamp);
     WT_ERR(
       __wt_buf_fmt(session, metadata_buf,
         "checkpoint=%s,\n"
