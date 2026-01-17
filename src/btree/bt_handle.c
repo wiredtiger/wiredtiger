@@ -48,11 +48,11 @@ __btree_clear(WT_SESSION_IMPL *session)
 }
 
 /*
- * __btree_get_hs_dhandle --
+ * __btree_pin_hs_dhandle --
  *     Pin the history store dhandle for the stable btree.
  */
 static int
-__btree_get_hs_dhandle(WT_SESSION_IMPL *session, WT_BTREE *btree, int64_t ds_checkpoint_order)
+__btree_pin_hs_dhandle(WT_SESSION_IMPL *session, WT_BTREE *btree, int64_t ds_checkpoint_order)
 {
     WT_DECL_ITEM(hs_uri_buf);
     WT_DECL_RET;
@@ -178,7 +178,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     /* Pin the matching history store dhandle in the session. */
     if (checkpoint != NULL && !WT_IS_URI_HS(dhandle_name)) {
-        WT_WITHOUT_DHANDLE(session, ret = __btree_get_hs_dhandle(session, btree, ckpt.order));
+        WT_WITHOUT_DHANDLE(session, ret = __btree_pin_hs_dhandle(session, btree, ckpt.order));
         /* The shared history store might be empty and may not have been checkpointed before. */
         WT_ERR_NOTFOUND_OK(ret, false);
     }

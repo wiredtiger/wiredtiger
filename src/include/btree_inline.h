@@ -312,15 +312,14 @@ __wt_btree_shared_base_name(
     /* Move the suffix to point to the slash */
     suffix += strlen(".wt_stable");
 
-    if (name_bufp != NULL) {
-        /* The returned name is the part before the suffix */
-        len = (size_t)(suffix - name);
-        WT_RET(__wt_scr_alloc(session, len + 1, name_bufp));
-        name_buf = *name_bufp;
-        WT_RET(__wt_buf_catfmt(session, name_buf, "%s", name));
-        ((char *)name_buf->data)[len] = '\0';
-        *namep = (const char *)name_buf->data;
-    }
+    /* The returned name is the part before the suffix */
+    len = (size_t)(suffix - name);
+    WT_RET(__wt_scr_alloc(session, len + 1, name_bufp));
+    name_buf = *name_bufp;
+    WT_RET(__wt_buf_catfmt(session, name_buf, "%s", name));
+    ((char *)name_buf->data)[len] = '\0';
+
+    *namep = (const char *)name_buf->data;
 
     /* The checkpoint id string, if needed, immediately follows the suffix. */
     if (checkpointp != NULL)
