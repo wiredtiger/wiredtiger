@@ -1008,12 +1008,12 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     cursor->set_key(cursor, WT_HS_URI_SHARED);
     WT_ERR_NOTFOUND_OK(cursor->search(cursor), true);
     if (ret == WT_NOTFOUND) {
-        WT_ERR(cursor->next(cursor));
+        WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
         is_shared_hs = false;
     } else
         is_shared_hs = true;
 
-    while (true) {
+    while (ret == 0) {
         WT_ERR(cursor->get_key(cursor, &metadata_key));
         WT_ERR(cursor->get_value(cursor, &metadata_value));
 
@@ -1091,10 +1091,10 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
         }
 
         if (is_shared_hs) {
-            WT_ERR(cursor->reset(cursor));
             is_shared_hs = false;
-        } else
-            WT_ERR(cursor->next(cursor));
+            WT_ERR(cursor->reset(cursor));
+        }
+        WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
