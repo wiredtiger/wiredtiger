@@ -457,6 +457,7 @@ retry:
     ret = __wt_session_get_dhandle(session, stable_uri, NULL, NULL, 0);
     if (ret == EBUSY)
         goto retry;
+
     WT_ERR(ret);
 
     WT_ERR(__init_layered_constituent_stats(session, cst));

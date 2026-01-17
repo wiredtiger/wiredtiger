@@ -489,10 +489,9 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * call the underlying function directly.
      */
     WT_RET_NOTFOUND_OK(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
-    if (cval.len == 0) {
+    if (cval.len == 0)
         /* We are not opening a checkpoint. This is the simple case; retire it immediately. */
         return (__wt_session_get_dhandle(session, uri, NULL, cfg, flags));
-    }
 
     /*
      * Here and below is only for checkpoints.
@@ -968,7 +967,6 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
             return (ret);
         }
 
-        /* Open the handle. */
         if ((ret = __wt_conn_dhandle_open(session, cfg, flags)) == 0 &&
           LF_ISSET(WT_DHANDLE_EXCLUSIVE))
             break;
