@@ -971,6 +971,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     uint32_t existing_tables, new_tables, new_ingest;
     char *layered_ingest_uri, *cfg_ret;
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
+    bool is_shared_hs;
 
     cursor = NULL;
     shared_metadata_session = NULL;
@@ -998,7 +999,21 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
 
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_cfg));
 
-    while ((ret = cursor->next(cursor)) == 0) {
+    /*
+     * TODO: Temporary workaround to ensure the shared history store is copied to the local metadata
+     * before other tables. This ensures detection of any race conditions between pinning a shared
+     * history store checkpoint while opening a stable table checkpoint and picking up a new
+     * checkpoint.
+     */
+    cursor->set_key(cursor, WT_HS_URI_SHARED);
+    WT_ERR_NOTFOUND_OK(cursor->search(cursor), true);
+    if (ret == WT_NOTFOUND) {
+        WT_ERR(cursor->next(cursor));
+        is_shared_hs = false;
+    } else
+        is_shared_hs = true;
+
+    while (true) {
         WT_ERR(cursor->get_key(cursor, &metadata_key));
         WT_ERR(cursor->get_value(cursor, &metadata_value));
 
@@ -1074,6 +1089,12 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
               "Inserted new key to the local metadata \"%s\": \"%s\"", metadata_key,
               metadata_value);
         }
+
+        if (is_shared_hs) {
+            WT_ERR(cursor->reset(cursor));
+            is_shared_hs = false;
+        } else
+            WT_ERR(cursor->next(cursor));
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 

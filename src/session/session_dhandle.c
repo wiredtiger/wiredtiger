@@ -429,7 +429,8 @@ static int
 __session_open_hs_ckpt(WT_SESSION_IMPL *session, const char *checkpoint, const char *cfg[],
   uint32_t flags, int64_t order_expected, WT_DATA_HANDLE **hs_dhandlep)
 {
-    WT_RET(__wt_session_get_dhandle(session, WT_HS_URI, checkpoint, cfg, flags));
+    WT_RET(__wt_session_get_dhandle(session,
+      __wt_conn_is_disagg(session) ? WT_HS_URI_SHARED : WT_HS_URI, checkpoint, cfg, flags));
 
     if (session->dhandle->checkpoint_order != order_expected) {
         /* Not what we were expecting; treat as EBUSY and let the caller retry. */
@@ -654,11 +655,13 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
         /* Look up the history store checkpoint. */
         if (hs_dhandlep != NULL) {
             if (is_unnamed_ckpt)
-                WT_RET_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
-                  session, WT_HS_URI, &hs_checkpoint, &hs_order, &hs_time));
+                WT_RET_NOTFOUND_OK(__wt_meta_checkpoint_last_name(session,
+                  __wt_conn_is_disagg(session) ? WT_HS_URI_SHARED : WT_HS_URI, &hs_checkpoint,
+                  &hs_order, &hs_time));
             else {
-                ret =
-                  __wt_meta_checkpoint_by_name(session, WT_HS_URI, checkpoint, &hs_order, &hs_time);
+                ret = __wt_meta_checkpoint_by_name(session,
+                  __wt_conn_is_disagg(session) ? WT_HS_URI_SHARED : WT_HS_URI, checkpoint,
+                  &hs_order, &hs_time);
                 WT_RET_NOTFOUND_OK(ret);
                 if (ret == WT_NOTFOUND)
                     ret = 0;

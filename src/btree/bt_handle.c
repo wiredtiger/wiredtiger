@@ -48,6 +48,64 @@ __btree_clear(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __btree_get_hs_dhandle --
+ *     Pin the history store dhandle for the stable btree.
+ */
+static int
+__btree_get_hs_dhandle(WT_SESSION_IMPL *session, WT_BTREE *btree, int64_t ds_checkpoint_order)
+{
+    WT_DECL_ITEM(hs_uri_buf);
+    WT_DECL_RET;
+    int64_t hs_checkpoint_order;
+    const char *hs_checkpoint_name;
+
+    /* Look up the most recent history store checkpoint. This fetches the exact name to use. */
+    WT_RET(__wt_meta_checkpoint_last_name(
+      session, WT_HS_URI_SHARED, &hs_checkpoint_name, &hs_checkpoint_order, NULL));
+
+    /*
+     * The history store checkpoint is more recent than the data store table checkpoint, indicating
+     * a race condition while acquiring a new checkpoint. Respond with "busy" to prompt the caller
+     * to retry.
+     *
+     * TODO: how to ensure the order are consistent for checkpoints written by different nodes?
+     */
+    if (hs_checkpoint_order > ds_checkpoint_order) {
+        ret = __wt_set_return(session, EBUSY);
+        goto err;
+    }
+
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_uri_buf));
+    /*
+     * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from the stable
+     * checkpoint, but without it being a traditional checkpoint cursor.
+     */
+    WT_ERR(__wt_buf_fmt(session, hs_uri_buf, "%s/%s", WT_HS_URI_SHARED, hs_checkpoint_name));
+    WT_ERR_NOTFOUND_OK(__wt_session_get_dhandle(session, hs_uri_buf->data, NULL, NULL, 0), true);
+
+    /*
+     * A new checkpoint is promptly picked up, and the old checkpoint is removed. Respond with a
+     * "busy" status to prompt the caller to retry.
+     */
+    if (ret == WT_NOTFOUND) {
+        ret = __wt_set_return(session, EBUSY);
+        goto err;
+    }
+
+    (void)__wt_atomic_add_int32(&session->dhandle->session_inuse, 1);
+    WT_ERR(__wt_session_release_dhandle(session));
+    btree->hs_checkpoint_name = hs_checkpoint_name;
+
+    __wt_scr_free(session, &hs_uri_buf);
+    return (0);
+
+err:
+    __wt_scr_free(session, &hs_uri_buf);
+    __wt_free(session, hs_checkpoint_name);
+    return (ret);
+}
+
+/*
  * __wt_btree_open --
  *     Open a Btree.
  */
@@ -66,12 +124,13 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     size_t root_addr_size;
     uint8_t root_addr[WT_ADDR_MAX_COOKIE];
     const char *dhandle_name, *checkpoint;
-    bool creation, forced_salvage;
+    bool creation, forced_salvage, has_ckpt;
 
     btree = S2BT(session);
     dhandle = session->dhandle;
     dhandle_name = dhandle->name;
     checkpoint = NULL;
+    has_ckpt = false;
     WT_CLEAR(lr_fh_meta);
 
     /*
@@ -97,14 +156,32 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     /* Get the checkpoint information for this name/checkpoint pair. */
     if (checkpoint != NULL) {
-        WT_ERR(__wt_meta_checkpoint(session, dhandle_name, checkpoint, &ckpt, &lr_fh_meta));
+        WT_ERR_NOTFOUND_OK(
+          __wt_meta_checkpoint(session, dhandle_name, checkpoint, &ckpt, &lr_fh_meta), true);
+        /*
+         * A new checkpoint is promptly picked up, and the old checkpoint is removed. Respond with a
+         * "busy" status to prompt the caller to retry.
+         */
+        if (ret == WT_NOTFOUND) {
+            ret = __wt_set_return(session, EBUSY);
+            goto err;
+        }
         F_SET(btree, WT_BTREE_READONLY);
     } else
         WT_ERR(
           __wt_meta_checkpoint(session, dhandle_name, dhandle->checkpoint, &ckpt, &lr_fh_meta));
 
+    has_ckpt = true;
+
     /* Set the order number. */
     dhandle->checkpoint_order = ckpt.order;
+
+    /* Pin the matching history store dhandle in the session. */
+    if (checkpoint != NULL && !WT_IS_URI_HS(dhandle_name)) {
+        WT_WITHOUT_DHANDLE(session, ret = __btree_get_hs_dhandle(session, btree, ckpt.order));
+        /* The shared history store might be empty and may not have been checkpointed before. */
+        WT_ERR_NOTFOUND_OK(ret, false);
+    }
 
     /*
      * Bulk-load is only permitted on newly created files, not any empty file -- see the checkpoint
@@ -198,7 +275,8 @@ err:
         WT_TRET(__wt_btree_close(session));
     }
     __wt_free(session, lr_fh_meta.bitmap_str);
-    __wt_checkpoint_free(session, &ckpt);
+    if (has_ckpt)
+        __wt_checkpoint_free(session, &ckpt);
 
     __wt_scr_free(session, &name_buf);
     __wt_scr_free(session, &tmp);
@@ -228,6 +306,25 @@ __wt_btree_close(WT_SESSION_IMPL *session)
      */
     if (F_ISSET(btree, WT_BTREE_CLOSED))
         return (0);
+
+    if (btree->hs_checkpoint_name != NULL) {
+        WT_DECL_ITEM(hs_uri_buf);
+        WT_TRET(__wt_scr_alloc(session, 0, &hs_uri_buf));
+        /*
+         * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from the
+         * stable checkpoint, but without it being a traditional checkpoint cursor.
+         */
+        WT_TRET(
+          __wt_buf_fmt(session, hs_uri_buf, "%s/%s", WT_HS_URI_SHARED, btree->hs_checkpoint_name));
+        WT_DATA_HANDLE *dhandle_save = session->dhandle;
+        WT_TRET(__wt_session_get_dhandle(session, hs_uri_buf->data, NULL, NULL, 0));
+        (void)__wt_atomic_sub_int32(&session->dhandle->session_inuse, 1);
+        WT_TRET(__wt_session_release_dhandle(session));
+        session->dhandle = dhandle_save;
+        __wt_scr_free(session, &hs_uri_buf);
+        __wt_free(session, btree->hs_checkpoint_name);
+    }
+
     F_SET(btree, WT_BTREE_CLOSED);
 
     /*

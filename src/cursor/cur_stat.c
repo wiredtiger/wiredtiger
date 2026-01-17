@@ -430,6 +430,7 @@ __curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT
     WT_ERR(__init_layered_constituent_stats(session, cst));
     WT_ERR(__wt_session_release_dhandle(session));
 
+retry:
     stable_uri = layered->stable_uri;
     /* Now do the stable table. */
     if (!S2C(session)->layered_table_manager.leader) {
@@ -453,7 +454,11 @@ __curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT
         stable_uri = stable_uri_buf->data;
     }
 
-    WT_ERR(__wt_session_get_dhandle(session, stable_uri, NULL, NULL, 0));
+    ret = __wt_session_get_dhandle(session, stable_uri, NULL, NULL, 0);
+    if (ret == EBUSY)
+        goto retry;
+    WT_ERR(ret);
+
     WT_ERR(__init_layered_constituent_stats(session, cst));
     WT_ERR(__wt_session_release_dhandle(session));
 
