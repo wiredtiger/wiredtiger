@@ -536,8 +536,13 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     WT_ERR(__wt_strndup(session, checkpoint_root, checkpoint_root_size, &checkpoint_root_copy));
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_buf));
 
+    /*
+     * Get the oldest timestamp from the metadata, don't use the one from the global transaction
+     * structure as we need the timestamp associated with the checkpoint.
+     */
+    WT_ERR(__wt_meta_read_checkpoint_oldest(session, NULL, &oldest_timestamp, NULL));
+
     /* Format metadata settings. */
-    oldest_timestamp = __wt_atomic_load_uint64_acquire(&conn->txn_global.oldest_timestamp);
     WT_ERR(
       __wt_buf_fmt(session, metadata_buf,
         "checkpoint=%s,\n"
