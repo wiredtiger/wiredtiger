@@ -714,8 +714,9 @@ kv_workload_runner_wt::wiredtiger_open_nolock()
             stable_config << "stable_timestamp=" << std::hex << checkpoint_timestamp;
 
             /*
-             * FIXME: WT-XXX WiredTiger may do it internally when picking up the first checkpoint.
-             * If this is the case, we don't have to set the oldest timestamp here.
+             * FIXME-WT-16475: WiredTiger may set the oldest timestamp internally when picking up
+             * the first checkpoint. If this is the case, we don't have to set the oldest timestamp
+             * here inside test/model.
              */
             model::timestamp_t oldest_timestamp =
               model::timestamp_t(((WT_CONNECTION_IMPL *)_connection)
