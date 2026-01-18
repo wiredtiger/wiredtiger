@@ -105,7 +105,9 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
         goto done;
     }
 
-    /* No shared history store checkpoint matches the stable btree. Simply return without any data.
+    /*
+     * No shared history store checkpoint that matches the stable btree. Simply return without any
+     * data.
      */
     if (btree->hs_checkpoint_name == NULL && F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
       F_ISSET(btree, WT_BTREE_READONLY)) {
