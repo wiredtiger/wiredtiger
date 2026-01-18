@@ -455,10 +455,10 @@ extern int __wt_curhs_get_cached(WT_SESSION_IMPL *session, uint32_t hs_id, WT_BT
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curhs_next_hs_id(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t *next_hs_idp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_curhs_open(WT_SESSION_IMPL *session, const char *checkpoint_name, uint32_t btree_id,
+extern int __wt_curhs_open(WT_SESSION_IMPL *session, uint32_t btree_id, const char *checkpoint_name,
   WT_CURSOR *owner, WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_curhs_open_ext(WT_SESSION_IMPL *session, const char *checkpoint_name,
-  uint32_t hs_id, uint32_t btree_id, WT_CURSOR *owner, WT_CURSOR **cursorp)
+extern int __wt_curhs_open_ext(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t btree_id,
+  const char *checkpoint_name, WT_CURSOR *owner, WT_CURSOR **cursorp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curhs_range_truncate(WT_TRUNCATE_INFO *trunc_info)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

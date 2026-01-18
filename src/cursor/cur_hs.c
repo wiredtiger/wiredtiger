@@ -1407,13 +1407,13 @@ __wt_curhs_set_btree_id(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
  *     Initialize a history store cursor.
  */
 int
-__wt_curhs_open(WT_SESSION_IMPL *session, const char *checkpoint_name, uint32_t btree_id,
+__wt_curhs_open(WT_SESSION_IMPL *session, uint32_t btree_id, const char *checkpoint_name,
   WT_CURSOR *owner, WT_CURSOR **cursorp)
 {
     uint32_t hs_id;
 
     hs_id = __curhs_btree_id_to_hs_id(session, btree_id);
-    return (__wt_curhs_open_ext(session, checkpoint_name, hs_id, btree_id, owner, cursorp));
+    return (__wt_curhs_open_ext(session, hs_id, btree_id, checkpoint_name, owner, cursorp));
 }
 
 /*
@@ -1423,8 +1423,8 @@ __wt_curhs_open(WT_SESSION_IMPL *session, const char *checkpoint_name, uint32_t 
  *     the it.
  */
 int
-__wt_curhs_open_ext(WT_SESSION_IMPL *session, const char *checkpoint_name, uint32_t hs_id,
-  uint32_t btree_id, WT_CURSOR *owner, WT_CURSOR **cursorp)
+__wt_curhs_open_ext(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t btree_id,
+  const char *checkpoint_name, WT_CURSOR *owner, WT_CURSOR **cursorp)
 {
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
       __wt_cursor_get_value,                          /* get-value */

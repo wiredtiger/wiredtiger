@@ -165,7 +165,11 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     /* Get the checkpoint information for this name/checkpoint pair. */
     if (checkpoint != NULL) {
-        /* Acquiring the checkpoint lock to prevent racing with picking up a new checkpoint. */
+        /*
+         * Acquiring the checkpoint lock to prevent racing with picking up a new checkpoint.
+         *
+         * TODO: if we directly read from the shared metadata, we can avoid the lock here.
+         */
         WT_WITH_CHECKPOINT_LOCK(session,
           ret = __btree_pin_hs_dhandle_and_get_meta_checkpoint(
             session, btree, dhandle_name, checkpoint, &ckpt, &lr_fh_meta));
