@@ -113,9 +113,16 @@ TEST_CASE("Key provider: validate crypt function", "[key_provider_header]")
           __ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == ENOTSUP);
     }
 
-    SECTION("Test key provider header size smaller than header")
+    SECTION("Test key provider item size smaller than expected")
     {
         crypt.keys.size = 1;
+        REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == EIO);
+    }
+
+    SECTION("Test key provider header size smaller than expected")
+    {
+        WT_CRYPT_HEADER *header = (WT_CRYPT_HEADER *)crypt.keys.data;
+        header->header_size = 10;
         REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == EIO);
     }
 
