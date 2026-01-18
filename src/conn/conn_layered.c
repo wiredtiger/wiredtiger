@@ -336,8 +336,7 @@ __disagg_validate_crypt(WT_SESSION_IMPL *session, const WT_ITEM *key_item, WT_CR
 
     if (header->header_size < sizeof(WT_CRYPT_HEADER)) {
         WT_ERR_MSG(session, EIO,
-          "Encryption key header is too small: expected at least %" WT_SIZET_FMT
-          ", got %" WT_SIZET_FMT,
+          "Encryption key header is too small: expected at least %" WT_SIZET_FMT ", got %" PRIu8,
           sizeof(WT_CRYPT_HEADER), header->header_size);
     }
 
