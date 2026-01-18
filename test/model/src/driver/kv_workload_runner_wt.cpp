@@ -718,7 +718,7 @@ kv_workload_runner_wt::wiredtiger_open_nolock()
              * If this is the case, we don't have to set the oldest timestamp here.
              */
             model::timestamp_t oldest_timestamp = model::timestamp_t(
-              ((WT_CONNECTION_IMPL *)_connection)->disaggregated_storage.last_oldest_timestamp);
+              ((WT_CONNECTION_IMPL *)_connection)->disaggregated_storage.last_checkpoint_oldest_timestamp);
             /* The oldest timestamp may not be set, in that case, ignore it. */
             if (oldest_timestamp != k_timestamp_none)
                 stable_config << ",oldest_timestamp=" << std::hex << oldest_timestamp;
