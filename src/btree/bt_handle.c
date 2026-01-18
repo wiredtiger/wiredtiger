@@ -168,7 +168,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
         /*
          * Acquiring the checkpoint lock to prevent racing with picking up a new checkpoint.
          *
-         * TODO: if we directly read from the shared metadata, we can avoid the lock here.
+         * FIXME-WT-16477: if we directly read from the shared metadata, we can avoid taking the
+         * checkpoint lock here.
          */
         WT_WITH_CHECKPOINT_LOCK(session,
           ret = __btree_pin_hs_dhandle_and_get_meta_checkpoint(

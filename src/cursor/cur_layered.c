@@ -289,8 +289,8 @@ retry:
              * wasteful, but it's a corner case, it will be resolved at the next checkpoint, and it
              * keeps the code easy.
              *
-             * TODO: how to close this dhandle later as it is a live btree handle? We may get this
-             * dhandle when the node steps up.
+             * FIXME-WT-16476: how to close this dhandle later as it is a live btree handle? We may
+             * get this dhandle when the node steps up.
              */
             cfg[2] = "read_only=true";
             F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
