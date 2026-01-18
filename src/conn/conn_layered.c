@@ -859,7 +859,7 @@ __disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG
                 WT_ERR(__wt_txn_parse_timestamp(
                   session, "checkpoint timestamp", &metadata->checkpoint_timestamp, &cfg_value));
         } else if (WT_CONFIG_LIT_MATCH("oldest_timestamp", cfg_key)) {
-            WT_ASSERT_ALWAYS(session, metadata->oldest_timestamp == 0,
+            WT_ASSERT_ALWAYS(session, metadata->oldest_timestamp == WT_TS_NONE,
               "Duplicate timestamp entry in disaggregated storage metadata: "
               "metadata->oldest_timestamp=%" PRIu64,
               metadata->oldest_timestamp);
