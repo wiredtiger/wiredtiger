@@ -103,6 +103,8 @@ struct __wt_bm;
 typedef struct __wt_bm WT_BM;
 struct __wt_btree;
 typedef struct __wt_btree WT_BTREE;
+struct __wt_btree_disagg;
+typedef struct __wt_btree_disagg WT_BTREE_DISAGG;
 struct __wt_bucket_storage;
 typedef struct __wt_bucket_storage WT_BUCKET_STORAGE;
 struct __wt_cache;

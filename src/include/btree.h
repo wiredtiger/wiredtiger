@@ -106,14 +106,9 @@ typedef enum { /* Start position for eviction walk */
 #define WT_BTREE_ID_NAMESPACE_ID(x) ((x) & ((1 << WT_BTREE_ID_NAMESPACE_BITS) - 1))
 #define WT_BTREE_ID_SHARED(x) (WT_BTREE_ID_NAMESPACE_ID(x) == WT_BTREE_ID_NAMESPACE_SHARED)
 
-typedef enum {
-    WT_BTREE_DISAGG_STORAGE_TIER_NONE = 0,
-    WT_BTREE_DISAGG_STORAGE_TIER_COLD = 1
-} WT_BTREE_DISAGG_STORAGE_TIER;
-
-typedef struct __wt_btree_disagg {
+struct __wt_btree_disagg {
     WT_BTREE_DISAGG_STORAGE_TIER storage_tier;
-} WT_BTREE_DISAGG;
+};
 
 /*
  * WT_BTREE --
