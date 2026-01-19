@@ -311,6 +311,7 @@ retry:
 
     if (ret == EBUSY && !leader) {
         __wt_free(session, checkpoint_name);
+        /* FIXME-WT-16476: no need to yield if we no longer take the checkpoint lock. */
         __wt_yield();
         goto retry;
     }
