@@ -2084,9 +2084,11 @@ __clayered_modify_follower(
         /* Get the base value from the top-level cursor. */
         ingest->set_key(ingest, &cursor->key);
         ingest->set_value(ingest, &cursor->value);
+        WT_RET(__wt_modify_apply_api(ingest, entries, nentries));
+        WT_RET(ingest->update(ingest));
+    } else {
+        WT_RET(ingest->modify(ingest, entries, nentries));
     }
-    WT_RET(__wt_modify_apply_api(ingest, entries, nentries));
-    WT_RET(ingest->update(ingest));
 
     clayered->current_cursor = ingest;
 
@@ -2117,13 +2119,13 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
     WT_CURSOR *current;
     WT_DECL_RET;
+    WT_ITEM value;
     WT_SESSION_IMPL *session;
 
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
 
-    /* WT_ERR(__cursor_checkkey(cursor)); */
     WT_ERR(__cursor_needkey(cursor));
     WT_ERR(__clayered_enter(clayered, false, true, false));
 
@@ -2131,9 +2133,8 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     if (nentries <= 0)
         WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
 
-    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) ||
-      !F_ISSET(cursor, WT_CURSTD_VALUE_INT | WT_CURSTD_VALUE_EXT))
-        WT_ERR(cursor->search(cursor));
+    if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT))
+        WT_ERR(__clayered_lookup(session, clayered, &value));
     WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_INT));
 
     WT_ERR(__clayered_modify_int(session, cursor, entries, nentries));
