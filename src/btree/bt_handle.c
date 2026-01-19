@@ -87,7 +87,7 @@ err:
  * __btree_release_hs_dhandle --
  *     Release the history store dhandle for the stable btree.
  */
-int
+static int
 __btree_release_hs_dhandle(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_DECL_ITEM(hs_uri_buf);
