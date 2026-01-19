@@ -392,9 +392,9 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
         FLD_SET(dhandle->advisory_flags, WT_DHANDLE_ADVISORY_EVICTED);
 
         /*
-         * Release the history store checkpoint handle if it exists before we set the no schema lock
-         * flag. We may deadlock if we need to acquire a schema lock when releasing the history
-         * store dhandle.
+         * Release the history store checkpoint handle, if it exists, before setting the no schema
+         * lock flag. Failing to do so could result in a deadlock if a schema lock is required while
+         * releasing the history store dhandle.
          */
         if (btree->hs_checkpoint_name != NULL) {
             WT_SAVE_DHANDLE(session, ret = __wt_btree_release_hs_dhandle(session, btree));
