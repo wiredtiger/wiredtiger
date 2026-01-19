@@ -390,6 +390,16 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
 
         /* Mark the advisory bit that the tree has been evicted. */
         FLD_SET(dhandle->advisory_flags, WT_DHANDLE_ADVISORY_EVICTED);
+
+        /*
+         * Release the history store checkpoint handle if it exists before we set the no schema lock
+         * flag. We may deadlock if we need to acquire a schema lock when releasing the history
+         * store dhandle.
+         */
+        if (btree->hs_checkpoint_name != NULL) {
+            WT_SAVE_DHANDLE(session, ret = __wt_btree_release_hs_dhandle(session, btree));
+            WT_TRET(ret);
+        }
     }
 
     /*
