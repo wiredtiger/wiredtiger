@@ -974,6 +974,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     const char *cfg[3], *checkpoint_name, *current_value, *metadata_key, *metadata_value;
 
     cursor = NULL;
+    checkpoint_name = NULL;
     shared_metadata_session = NULL;
     layered_ingest_uri = cfg_ret = NULL;
     existing_tables = new_tables = new_ingest = 0;
@@ -998,6 +999,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     WT_ERR(__wt_open_cursor(shared_metadata_session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
 
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_cfg));
+    WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
 
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &metadata_key));
@@ -1022,7 +1024,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
              * Before inserting the new value, get the checkpoint name of the file at the previous
              * checkpoint.
              */
-            checkpoint_name = NULL;
             WT_ERR_NOTFOUND_OK(
               __wt_meta_checkpoint_last_name(session, metadata_key, &checkpoint_name, NULL, NULL),
               false);
@@ -1044,7 +1045,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
              * date. Any new opens will get the new metadata.
              */
             if (checkpoint_name != NULL) {
-                WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
                 WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", metadata_key, checkpoint_name));
                 __wt_free(session, checkpoint_name);
                 WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, old_uri_buf->data),
@@ -1101,8 +1101,8 @@ err:
     __wt_free(session, cfg_ret);
     __wt_free(session, checkpoint_name);
     __wt_free(session, layered_ingest_uri);
-    __wt_scr_free(session, &old_uri_buf);
     __wt_scr_free(session, &metadata_cfg);
+    __wt_scr_free(session, &old_uri_buf);
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
     if (shared_metadata_session != NULL)
