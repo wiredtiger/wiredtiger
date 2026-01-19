@@ -225,6 +225,7 @@ __wt_fs_size(WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)
     return (ret);
 }
 
+#ifndef _WIN32
 /*
  * __wt_fs_free_space_posix --
  *     Return the free space disk available in the file system containing the file.
@@ -243,6 +244,7 @@ __wt_fs_free_space_posix(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t *freep)
 
     WT_RET_MSG(session, ret, "%s: free-disk-space: statvfs", fh->name);
 }
+#endif
 
 /*
  * __wt_fs_free_space --
