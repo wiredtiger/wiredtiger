@@ -32,6 +32,18 @@ create_crypt_key_buffer(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt, const st
     crypt->keys.data = (uint8_t *)(crypt->keys.data) + sizeof(WT_CRYPT_HEADER);
 }
 
+TEST_CASE_METHOD(checksum_fixture, "Validate crypt header offsets and size", "[key_provider_header]")
+{
+    REQUIRE(sizeof(WT_CRYPT_HEADER) == 16);
+    REQUIRE(offsetof(WT_CRYPT_HEADER, signature) == 0);
+    REQUIRE(offsetof(WT_CRYPT_HEADER, version) == 4);
+    REQUIRE(offsetof(WT_CRYPT_HEADER, compatible_version) == 5);
+    REQUIRE(offsetof(WT_CRYPT_HEADER, header_size) == 6);
+    REQUIRE(offsetof(WT_CRYPT_HEADER, unused) == 7);
+    REQUIRE(offsetof(WT_CRYPT_HEADER, crypt_size) == 8);
+    REQUIRE(offsetof(WT_CRYPT_HEADER, checksum) == 12);
+}
+
 TEST_CASE_METHOD(checksum_fixture, "Key provider set header function", "[key_provider_header]")
 {
     WT_CRYPT_KEYS crypt = {};
