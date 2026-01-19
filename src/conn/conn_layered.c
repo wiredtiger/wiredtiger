@@ -971,10 +971,12 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     WT_SESSION_IMPL *shared_metadata_session;
     uint32_t existing_tables, new_tables, new_ingest;
     char *layered_ingest_uri, *cfg_ret;
-    const char *cfg[3], *checkpoint_name, *current_value, *metadata_key, *metadata_value;
+    const char *cfg[3], *checkpoint_name, *checkpoint_name_new, *current_value, *metadata_key,
+      *metadata_value;
 
     cursor = NULL;
     checkpoint_name = NULL;
+    checkpoint_name_new = NULL;
     shared_metadata_session = NULL;
     layered_ingest_uri = cfg_ret = NULL;
     existing_tables = new_tables = new_ingest = 0;
@@ -1020,22 +1022,30 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
             cfg[2] = NULL;
             WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
 
+            int64_t old_order, order;
+            u_int64_t old_time, time;
             /*
              * Before inserting the new value, get the checkpoint name of the file at the previous
              * checkpoint.
              */
-            WT_ERR_NOTFOUND_OK(
-              __wt_meta_checkpoint_last_name(session, metadata_key, &checkpoint_name, NULL, NULL),
+            WT_ERR_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
+                                 session, metadata_key, &checkpoint_name, &old_order, &old_time),
               false);
 
+            /* Retrieve the name of the current unnamed checkpoint. */
+            WT_ERR(__wt_ckpt_last_name(session, metadata_value, &checkpoint_name_new, &order, &time));
+
             /* FIXME-WT-14730: check that the other parts of the metadata are identical. */
+            bool same_checkpoint = checkpoint_name != NULL && checkpoint_name_new != NULL &&
+              strcmp(checkpoint_name, checkpoint_name_new) == 0 && old_order == order &&
+              old_time == time;
 
             /* Put our new config in */
             md_cursor->set_value(md_cursor, cfg_ret);
             WT_ERR_MSG_CHK(session, md_cursor->insert(md_cursor),
               "Failed to insert metadata for key \"%s\"", metadata_key);
 
-            existing_tables++;
+            ++existing_tables;
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Updated the local metadata for key \"%s\" to include new checkpoint: \"%.*s\"",
               metadata_key, (int)cval.len, cval.str);
@@ -1044,9 +1054,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
              * Mark any matching data handles associated with the previous checkpoint to be out of
              * date. Any new opens will get the new metadata.
              */
-            if (checkpoint_name != NULL) {
+            if (!same_checkpoint) {
                 WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", metadata_key, checkpoint_name));
-                __wt_free(session, checkpoint_name);
                 WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, old_uri_buf->data),
                   "Marking data handles outdated failed: \"%s\"", (const char *)old_uri_buf->data);
             }
@@ -1058,7 +1067,10 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
             WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, metadata_key),
               "Marking data handles outdated failed: \"%s\"", (const char *)metadata_key);
             __wt_free(session, cfg_ret);
-            cfg_ret = NULL;
+            if (checkpoint_name != NULL)
+                __wt_free(session, checkpoint_name);
+            if (checkpoint_name_new != NULL)
+                __wt_free(session, checkpoint_name_new);
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
             /* FIXME-WT-14730: verify that there is no btree ID conflict. */
@@ -1106,7 +1118,10 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
 
 err:
     __wt_free(session, cfg_ret);
-    __wt_free(session, checkpoint_name);
+    if (checkpoint_name != NULL)
+        __wt_free(session, checkpoint_name);
+    if (checkpoint_name_new != NULL)
+        __wt_free(session, checkpoint_name_new);
     __wt_free(session, layered_ingest_uri);
     __wt_scr_free(session, &metadata_cfg);
     __wt_scr_free(session, &old_uri_buf);
