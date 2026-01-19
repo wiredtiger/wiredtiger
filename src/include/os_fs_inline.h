@@ -226,6 +226,26 @@ __wt_fs_size(WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)
 }
 
 /*
+ * __wt_fs_free_space_posix --
+ *     Return the free space disk available in the file system containing the file.
+ */
+static WT_INLINE int
+__wt_fs_free_space_posix(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t *freep)
+{
+    struct statvfs stats;
+    WT_DECL_RET;
+
+    WT_SYSCALL(statvfs(fh->name, &stats), ret);
+    if (ret == 0) {
+        *freep = (wt_off_t)((uint64_t)stats.f_bavail * (uint64_t)stats.f_frsize);
+        return (0);
+    }
+
+    WT_RET_MSG(session, ret, "%s: free-disk-space: statvfs", fh->name);
+}
+
+
+/*
  * __wt_fs_free_space --
  *     Get the free disk space for the filesystem containing the given file.
  */
