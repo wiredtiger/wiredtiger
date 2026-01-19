@@ -326,7 +326,7 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
 
         /* Log the free disk space on full or partial checksum mismatch*/
         wt_off_t free_disk_space = 0;
-        if (wt_fs_free_space(session, block->fh, &free_disk_space) == 0) {
+        if (__wt_fs_free_space(session, block->fh, &free_disk_space) == 0) {
             __wt_errx(session, "%s: free disk space is %" PRIuMAX " bytes", block->name,
               (uintmax_t)free_disk_space);
         } else
