@@ -8,8 +8,9 @@
 #include "wt_internal.h"
 
 #include <catch2/catch.hpp>
-#include "../wrappers/mock_session.h"
-void create_crypt_key_buffer(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt, std::string &str);
+#include "wrappers/mock_session.h"
+static void create_crypt_key_buffer(
+  WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt, const std::string &str);
 
 /* Fixture to initialize the checksum function needed by __wt_checksum and __wt_checksum_match. */
 struct checksum_fixture {
@@ -21,8 +22,8 @@ struct checksum_fixture {
     }
 };
 
-void
-create_crypt_key_buffer(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt, std::string &str)
+static void
+create_crypt_key_buffer(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt, const std::string &str)
 {
     /* Allocate a buffer and make sure we leave enough space for the header at the start. */
     REQUIRE(__wt_buf_initsize(session, &crypt->keys, 512) == 0);
@@ -31,14 +32,12 @@ create_crypt_key_buffer(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt, std::str
     crypt->keys.data = (uint8_t *)(crypt->keys.data) + sizeof(WT_CRYPT_HEADER);
 }
 
-TEST_CASE("Key provider set header function", "[key_provider_header]")
+TEST_CASE_METHOD(checksum_fixture, "Key provider set header function", "[key_provider_header]")
 {
-    checksum_fixture fixture;
-    WT_CRYPT_KEYS crypt;
+    WT_CRYPT_KEYS crypt = {};
     std::shared_ptr<mock_session> session = mock_session::build_test_mock_session();
 
-    WT_CLEAR(crypt.keys);
-    std::string test_string("hello");
+    const std::string test_string("hello");
 
     WT_SESSION_IMPL *session_impl = session->get_wt_session_impl();
     create_crypt_key_buffer(session_impl, &crypt, test_string);
@@ -50,6 +49,8 @@ TEST_CASE("Key provider set header function", "[key_provider_header]")
         /* Validate crypt header information. */
         WT_CRYPT_HEADER write_crypt_header;
         memcpy(&write_crypt_header, crypt.keys.data, sizeof(WT_CRYPT_HEADER));
+        /* Set function internally calls byteswap, swap it back to validate the header. */
+        __wt_crypt_header_byteswap(&write_crypt_header);
         REQUIRE(write_crypt_header.signature == WT_CRYPT_HEADER_SIGNATURE);
         REQUIRE(write_crypt_header.version == WT_CRYPT_HEADER_VERSION);
         REQUIRE(write_crypt_header.compatible_version == WT_CRYPT_HEADER_COMPATIBLE_VERSION);
@@ -61,14 +62,12 @@ TEST_CASE("Key provider set header function", "[key_provider_header]")
     __wt_buf_free(session_impl, &crypt.keys);
 }
 
-TEST_CASE("Key provider: validate crypt function", "[key_provider_header]")
+TEST_CASE_METHOD(checksum_fixture, "Key provider: validate crypt function", "[key_provider_header]")
 {
-    checksum_fixture fixture;
-    WT_CRYPT_KEYS crypt;
+    WT_CRYPT_KEYS crypt = {};
     std::shared_ptr<mock_session> session = mock_session::build_test_mock_session();
 
-    WT_CLEAR(crypt.keys);
-    std::string test_string("hello");
+    const std::string test_string("hello");
     WT_SESSION_IMPL *session_impl = session->get_wt_session_impl();
 
     /* Set the header inside the crypt struct. */
@@ -81,7 +80,8 @@ TEST_CASE("Key provider: validate crypt function", "[key_provider_header]")
         /* Fetch the baseline header before performing read. */
         WT_CRYPT_HEADER write_crypt_header;
         memcpy(&write_crypt_header, crypt.keys.data, sizeof(WT_CRYPT_HEADER));
-
+        /* Set function internally calls byteswap, swap it back to validate the header. */
+        __wt_crypt_header_byteswap(&write_crypt_header);
         REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == 0);
 
         /* Validate that before and after validation should not change the header. */
@@ -93,6 +93,8 @@ TEST_CASE("Key provider: validate crypt function", "[key_provider_header]")
         /* Fetch the baseline header before performing read. */
         WT_CRYPT_HEADER write_crypt_header;
         memcpy(&write_crypt_header, crypt.keys.data, sizeof(WT_CRYPT_HEADER));
+        /* Set function internally calls byteswap, swap it back to validate the header. */
+        __wt_crypt_header_byteswap(&write_crypt_header);
         write_crypt_header.version = 2;
 
         WT_CRYPT_HEADER *header = (WT_CRYPT_HEADER *)crypt.keys.data;
