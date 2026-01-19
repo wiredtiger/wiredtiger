@@ -84,6 +84,36 @@ err:
 }
 
 /*
+ * __btree_release_hs_dhandle --
+ *     Release the history store dhandle for the stable btree.
+ */
+static int
+__btree_release_hs_dhandle(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    WT_DECL_ITEM(hs_uri_buf);
+    WT_DECL_RET;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_uri_buf));
+    /*
+     * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from the stable
+     * checkpoint, but without it being a traditional checkpoint cursor.
+     */
+    WT_ERR(__wt_buf_fmt(session, hs_uri_buf, "%s/%s", WT_HS_URI_SHARED, btree->hs_checkpoint_name));
+    WT_ERR(__wt_session_get_dhandle(session, hs_uri_buf->data, NULL, NULL, 0));
+
+    (void)__wt_atomic_sub_int32(&session->dhandle->session_inuse, 1);
+    WT_ERR(__wt_session_release_dhandle(session));
+    __wt_free(session, btree->hs_checkpoint_name);
+
+    __wt_scr_free(session, &hs_uri_buf);
+    return (0);
+
+err:
+    __wt_scr_free(session, &hs_uri_buf);
+    return (ret);
+}
+
+/*
  * __btree_pin_hs_dhandle_and_get_meta_checkpoint --
  *     Pin the history store dhandle for the stable btree and get the stable btree checkpoint
  *     information.
@@ -308,23 +338,8 @@ __wt_btree_close(WT_SESSION_IMPL *session)
     if (F_ISSET(btree, WT_BTREE_CLOSED))
         return (0);
 
-    if (btree->hs_checkpoint_name != NULL) {
-        WT_DECL_ITEM(hs_uri_buf);
-        WT_TRET(__wt_scr_alloc(session, 0, &hs_uri_buf));
-        /*
-         * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from the
-         * stable checkpoint, but without it being a traditional checkpoint cursor.
-         */
-        WT_TRET(
-          __wt_buf_fmt(session, hs_uri_buf, "%s/%s", WT_HS_URI_SHARED, btree->hs_checkpoint_name));
-        WT_DATA_HANDLE *dhandle_save = session->dhandle;
-        WT_TRET(__wt_session_get_dhandle(session, hs_uri_buf->data, NULL, NULL, 0));
-        (void)__wt_atomic_sub_int32(&session->dhandle->session_inuse, 1);
-        WT_TRET(__wt_session_release_dhandle(session));
-        session->dhandle = dhandle_save;
-        __wt_scr_free(session, &hs_uri_buf);
-        __wt_free(session, btree->hs_checkpoint_name);
-    }
+    if (btree->hs_checkpoint_name != NULL)
+        WT_SAVE_DHANDLE(session, __btree_release_hs_dhandle(session, btree));
 
     F_SET(btree, WT_BTREE_CLOSED);
 
