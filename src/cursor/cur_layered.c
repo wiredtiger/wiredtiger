@@ -2050,7 +2050,7 @@ err:
 
 /*
  * __clayered_modify_leader --
- *     Write some words here later.
+ *     Apply a set of modifications on a leader node.
  */
 static int
 __clayered_modify_leader(
@@ -2059,6 +2059,7 @@ __clayered_modify_leader(
     WT_CURSOR_LAYERED *clayered = (WT_CURSOR_LAYERED *)cursor;
     WT_CURSOR *stable = clayered->stable_cursor;
 
+    /* Leaders should always be positioned on the stable table. */
     WT_ASSERT(session, F_ISSET(stable, WT_CURSTD_KEY_INT));
 
     WT_RET(stable->modify(stable, entries, nentries));
@@ -2070,7 +2071,7 @@ __clayered_modify_leader(
 
 /*
  * __clayered_modify_follower --
- *     Write some words here later.
+ *     Apply a set of modifications on a leader node.
  */
 static int
 __clayered_modify_follower(
@@ -2080,13 +2081,15 @@ __clayered_modify_follower(
     WT_CURSOR *ingest = clayered->ingest_cursor;
     WT_UNUSED(session);
 
+    /* Did the lookup find a value in the ingest table? */
     if (clayered->current_cursor != ingest) {
-        /* Get the base value from the top-level cursor. */
+        /* If not, get the base value from the top-level cursor. */
         ingest->set_key(ingest, &cursor->key);
         ingest->set_value(ingest, &cursor->value);
         WT_RET(__wt_modify_apply_api(ingest, entries, nentries));
         WT_RET(ingest->update(ingest));
     } else {
+        /* It did -- we can directly modify the ingest table. */
         WT_RET(ingest->modify(ingest, entries, nentries));
     }
 
@@ -2097,7 +2100,7 @@ __clayered_modify_follower(
 
 /*
  * __clayered_modify_int --
- *     Write some words here later.
+ *     Dispatch a modify call based on leader/follower status.
  */
 static int
 __clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
@@ -2133,6 +2136,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     if (nentries <= 0)
         WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
 
+    /* Do a search if we're not positioned. */
     if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT))
         WT_ERR(__clayered_lookup(session, clayered, &value));
     WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_INT));
@@ -2145,6 +2149,9 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     current = clayered->current_cursor;
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
+    /*
+     * Assign the new key/value to the top-level cursor.
+     */
     WT_ITEM_SET(cursor->key, current->key);
     WT_ITEM_SET(cursor->value, current->value);
     WT_ASSERT(session, F_MASK(current, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
