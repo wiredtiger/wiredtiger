@@ -117,7 +117,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd,
         }
 
         /* Done if the update was restored from the history store or delta. */
-        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_RESTORED_FROM_DELTA))
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS))
             return (0);
 
         /* Done if the update is a full update restored from the data store. */
@@ -383,9 +383,6 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
     WT_BTREE *btree;
     WT_UPDATE *upd;
     bool visible_all;
-
-    if (F_ISSET(r, WT_REC_REWRITE_DELTA))
-        return (false);
 
     if (WT_TIME_WINDOW_HAS_PREPARE(&(upd_select->tw)))
         return (true);
@@ -850,8 +847,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
          * this through reconfiguration, we need to ensure we have run a rollback to stable before
          * we run the first checkpoint with the precise mode.
          */
-        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
-          !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA)) {
+        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
             if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
                 if (upd->prepare_ts > r->rec_start_pinned_stable_ts) {
                     WT_ASSERT(session, !is_hs_page);
@@ -927,7 +923,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPACK_KV *
                 *has_newer_updatesp = true;
                 continue;
             }
-        } else if (!F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA)) {
+        } else {
             if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) {
                 WT_ASSERT_ALWAYS(session,
                   upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid,
@@ -1534,8 +1530,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      * functions perform the history store truncation for this key.
      */
     if (!WT_IS_HS(session->dhandle) && upd_select->tombstone != NULL &&
-      !F_ISSET(upd_select->tombstone,
-        WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_RESTORED_FROM_DELTA) &&
+      !F_ISSET(upd_select->tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS) &&
       !WT_TIME_WINDOW_HAS_STOP_PREPARE(&upd_select->tw)) {
         if (upd_select->tw.start_ts > upd_select->tw.stop_ts ||
           (WT_REC_HAS_ON_DISK(vpack) && vpack->tw.start_ts > upd_select->tw.stop_ts &&
@@ -1660,16 +1655,4 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
       session, upd_select->tw.stop_txn != WT_TXN_MAX || upd_select->tw.stop_ts == WT_TS_MAX);
 
     return (0);
-}
-
-/*
- * __wt_rec_in_progress --
- *     Whether we're currently reconciling.
- */
-bool
-__wt_rec_in_progress(WT_SESSION_IMPL *session)
-{
-    WTI_RECONCILE *rec = session->reconcile;
-
-    return (rec != NULL && rec->ref != NULL);
 }

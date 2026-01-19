@@ -256,7 +256,6 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
     session = CUR2S(clayered);
     c = &clayered->iface;
     layered = (WT_LAYERED_TABLE *)clayered->dhandle;
-    stable_uri = layered->stable_uri;
     checkpoint_name = NULL;
 
     WT_RET(__wt_scr_alloc(session, 0, &random_config));
@@ -266,6 +265,8 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
     if (random_config->size > 0)
         cfg[1] = random_config->data;
 
+retry:
+    stable_uri = layered->stable_uri;
     if (!leader) {
         /*
          * We may have a stable chunk with no checkpoint yet. If that's the case then open a cursor
@@ -287,11 +288,15 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
              * next checkpoint is picked up. So technically, opening this (empty) stable table is
              * wasteful, but it's a corner case, it will be resolved at the next checkpoint, and it
              * keeps the code easy.
+             *
+             * FIXME-WT-16476: how to close this dhandle later as it is a live btree handle? We may
+             * get this dhandle when the node steps up.
              */
-            cfg[2] = "checkpoint_use_history=false";
+            cfg[2] = "read_only=true";
             F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
         } else {
-            WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
+            if (stable_uri_buf == NULL)
+                WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
             /*
              * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from the
              * stable checkpoint, but without it being a traditional checkpoint cursor.
@@ -303,6 +308,14 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
     }
 
     ret = __wt_open_cursor(session, stable_uri, c, cfg, &clayered->stable_cursor);
+
+    if (ret == EBUSY && !leader) {
+        __wt_free(session, checkpoint_name);
+        /* FIXME-WT-16476: no need to yield if we no longer take the checkpoint lock. */
+        __wt_yield();
+        goto retry;
+    }
+
     /* Opening a cursor can return both of these, unfortunately. FIXME-WT-15816. */
     if ((ret == ENOENT || ret == WT_NOTFOUND) && !leader)
         /*
@@ -1253,12 +1266,13 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *c, *cursor;
     WT_DECL_RET;
-    bool found;
+    bool found, reset_ignore_prepare;
 
     c = NULL;
     conn = S2C(session);
     cursor = &clayered->iface;
     found = false;
+    reset_ignore_prepare = false;
 
     if (!conn->layered_table_manager.leader) {
         c = clayered->ingest_cursor;
@@ -1280,6 +1294,17 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
      */
     if (!found && F_ISSET(clayered, WT_CLAYERED_OPEN_READ) && clayered->stable_cursor != NULL) {
         c = clayered->stable_cursor;
+        /*
+         * Temporarily set ignore prepared flag when searching for update in the stable cursor. In
+         * disaggregated storage, the stable table may contain prepared updates that is rolled back
+         * on ingest table. If reading this prepared update on stable table, it will cause prepared
+         * conflict issue. Therefore for layered cursor operations, we need to ignore these prepared
+         * updates to allow reading through to committed data.
+         */
+        if (!conn->layered_table_manager.leader && !F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
+            reset_ignore_prepare = true;
+            F_SET(session->txn, WT_TXN_IGNORE_PREPARE);
+        }
         WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(c, clayered, value), true);
         if (ret == 0)
             found = true;
@@ -1289,6 +1314,8 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
         F_CLR(c, WT_CURSTD_KEY_SET);
 
 err:
+    if (reset_ignore_prepare)
+        F_CLR(session->txn, WT_TXN_IGNORE_PREPARE);
     if (ret == 0) {
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT);

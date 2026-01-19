@@ -32,8 +32,8 @@
 # see "wt dump" for that.  But this is standalone (doesn't require linkage with any WT
 # libraries), and may be useful as 1) a learning tool 2) quick way to hack/extend dumping.
 
-import codecs, io, os, re, sys, traceback, pprint
-from py_common import binary_data, btree_format
+import codecs, io, os, re, sys, traceback, pprint, json, shutil, tempfile, subprocess, base64
+from py_common import binary_data, btree_format, page_service
 from dataclasses import dataclass
 import typing
 binary_to_pretty_string = binary_data.binary_to_pretty_string  # a convenient function nam
@@ -260,7 +260,7 @@ def raw_bytes(b):
         val, s = binary_data.unpack_int(s)
         if result != '':
             result += ' '
-        result += f'<packed {d_and_h(val)}>'
+        result += f'<packed {binary_data.d_and_h(val)}>'
     if len(s) == 0:
         return result
 
@@ -274,10 +274,6 @@ def raw_bytes(b):
 
     # The earlier steps failed, so it must be binary data
     return binary_to_pretty_string(b, start_with_line_prefix=False)
-
-# Show an integer as decimal and hex
-def d_and_h(n):
-    return f'{n} (0x{n:x})'
 
 def dumpraw(p, b, pos):
     savepos = b.tell()
@@ -488,7 +484,8 @@ def block_decode(p, b, nbytes, opts):
     if have_crc32c:
         savepos = b.tell()
         b.seek(disk_pos)
-        if blockhead.flags & btree_format.BlockFlags.WT_BLOCK_DATA_CKSUM != 0:
+        if (opts.disagg and blockhead.flags & btree_format.BlockDisaggFlags.WT_BLOCK_DISAGG_DATA_CKSUM) \
+            or (not opts.disagg and blockhead.flags & btree_format.BlockFlags.WT_BLOCK_DATA_CKSUM):
             check_size = disk_size
         else:
             check_size = 64
@@ -507,12 +504,6 @@ def block_decode(p, b, nbytes, opts):
 
     # Skip the rest if we don't want to display the data
     skip_data = opts.skip_data
-    if opts.disagg and blockhead.flags & btree_format.BlockDisaggFlags.WT_BLOCK_DISAGG_COMPRESSED:
-        p.rint(f'? the block is compressed, skipping payload')
-        skip_data = True
-    if opts.disagg and blockhead.flags & btree_format.BlockDisaggFlags.WT_BLOCK_DISAGG_ENCRYPTED:
-        p.rint(f'? the block is encrypted, skipping payload')
-        skip_data = True
 
     if skip_data:
         b.seek(disk_pos + disk_size)
@@ -597,7 +588,7 @@ def block_decode(p, b, nbytes, opts):
         p.rint_v(binary_to_pretty_string(payload_data))
     elif pagehead.type == btree_format.PageType.WT_PAGE_ROW_INT or \
         pagehead.type == btree_format.PageType.WT_PAGE_ROW_LEAF:
-        row_decode(p, b_page, pagehead, blockhead, pagestats, opts)
+        row_decode(p, b_page, pagehead, pagestats, opts)
     elif pagehead.type == btree_format.PageType.WT_PAGE_OVFL:
         # Use b_page.read() so that we can also print the raw bytes in the split mode
         p.rint_v(raw_bytes(b_page.read(len(payload_data))))
@@ -607,8 +598,8 @@ def block_decode(p, b, nbytes, opts):
 
     outfile_stats_end(opts, pagehead, blockhead, pagestats)
 
-# Hacking this up so we count timestamps and txns
-def row_decode(p, b, pagehead, blockhead, pagestats, opts):
+# Decode the contents of a cell 
+def row_decode(p, b, pagehead, pagestats, opts):
     for cellnum in range(0, pagehead.entries):
         cellpos = b.tell()
         if cellpos >= pagehead.mem_size:
@@ -618,59 +609,38 @@ def row_decode(p, b, pagehead, blockhead, pagestats, opts):
 
         try:
             cell = btree_format.Cell.parse(b, True)
-
-            desc_str = f'desc: 0x{cell.descriptor:x} '
-            if cell.extra_descriptor != 0:
-                p.rint_v(desc_str + f'extra: 0x{cell.extra_descriptor:x}')
-                desc_str = ''
+            
+            p.rint_v(cell.descriptor_string())
+            if cell.has_timestamps():
                 process_timestamps(p, cell, pagestats)
-            if cell.run_length is not None:
-                p.rint_v(desc_str + f'runlength/addr: {d_and_h(cell.run_length)}')
-                desc_str = ''
-
-            s = '?'
-            if cell.is_address:
-                s = 'addr (leaf no-overflow) '
-            elif cell.is_key:
-                s = 'key '
-            elif cell.is_value:
-                s = 'val '
-            elif cell.is_unsupported:
-                p.rint(desc_str + ', celltype = {} ({}) not implemented' \
-                       .format(cell.cell_type.value, cell.cell_type.name))
-                desc_str = ''
-            else:
-                raise ValueError('Unexpected cell type')
-
-            if cell.is_overflow:
-                s = 'overflow ' + s
-            if cell.is_short:
-                s = 'short ' + s
-            if cell.prefix is not None:
-                s += 'prefix={}'.format(hex(cell.prefix))
-            if not cell.is_unsupported:
-                s += '{} bytes'.format(len(cell.data))
 
             if cell.is_key:
                 pagestats.num_keys += 1
                 pagestats.keys_sz += len(cell.data)
+            
+            # If the cell cannot be decoded as a valid type, dump the raw bytes and raise an error.
+            if not cell.is_valid_type():
+                dumpraw(p, b, cellpos)
+                raise ValueError('Unexpected cell type')
 
+            p.rint_v(cell.type_string())
+            
+            # Print the contents of the cell.
             try:
-                if s != '?':
-                    if (cell.is_value and opts.bson and have_bson):
-                        if (bson.is_valid(cell.data)):
-                            p.rint_v("cell is valid BSON")
-                            decoded_data = bson.BSON(cell.data).decode()
-                            p.rint_v(pprint.pformat(decoded_data, indent=2))
-                        else:
-                            p.rint_v("cannot decode cell as BSON")
-                            p.rint_v(f'{desc_str}{s}:')
-                            p.rint_v(raw_bytes(cell.data))
-                    else:
-                        p.rint_v(f'{desc_str}{s}:')
-                        p.rint_v(raw_bytes(cell.data))
+                # Attempt the decode the cell as BSON.
+                if (cell.is_value and opts.bson and have_bson):
+                    decoded_data = bson.BSON(cell.data).decode()
+                    p.rint_v(pprint.pformat(decoded_data, indent=2))
+                # If the cell is an address and we're in disagg mode, print the cell as a DisaggAddr
+                # type.
+                elif cell.is_address and opts.disagg:
+                    addr = btree_format.DisaggAddr.parse(cell.data)
+                    p.rint(json.dumps(addr.__dict__))
                 else:
-                    dumpraw(p, b, cellpos)
+                    p.rint_v(raw_bytes(cell.data))
+            except bson.InvalidBSON as e:
+                p.rint_v(f"cannot decode cell as BSON: {e}")
+                p.rint_v(raw_bytes(cell.data))
             except (IndexError, ValueError):
                 # FIXME-WT-13000 theres a bug in raw_bytes
                 pass
@@ -678,7 +648,7 @@ def row_decode(p, b, pagehead, blockhead, pagestats, opts):
         finally:
             p.end_cell()
 
-def extlist_decode(p, b, pagehead, blockhead, pagestats):
+def extlist_decode(p, b, pagehead):
     WT_BLOCK_EXTLIST_MAGIC = 71002       # from block.h
     # Written by block_ext.c
     okay = True
@@ -792,7 +762,7 @@ def wtdecode_file_object(b, opts, nbytes):
     outfile_header(opts)
 
     while (nbytes == 0 or startblock < nbytes) and (opts.pages == 0 or pagecount < opts.pages):
-        d_h = d_and_h(startblock)
+        d_h = binary_data.d_and_h(startblock)
         outfile_stats_start(opts, d_h)
         print('Decode at ' + d_h)
         b.seek(startblock)
@@ -805,7 +775,7 @@ def wtdecode_file_object(b, opts, nbytes):
             p.rint('ERROR: ' + str(e))
             exit(1)
         except Exception:
-            p.rint(f'ERROR decoding block at {d_and_h(startblock)}')
+            p.rint(f'ERROR decoding block at {binary_data.d_and_h(startblock)}')
             if opts.debug:
                 traceback.print_exception(*sys.exc_info())
         pos = b.tell()
@@ -835,6 +805,138 @@ def encode_bytes(f):
             #b = bytearray.fromhex(line).decode()
             allbytes += b
     return allbytes
+
+def decrypt_page(page):
+    """
+    Call the pagedecryptor tool from the mongo repo.
+    """
+    
+    if not shutil.which('pagedecryptor'):
+        raise FileNotFoundError(
+            "pagedecryptor not found: Decryption requires the 'pagedecryptor' tool from the MongoDB "
+            "encryption module. Please install the tool and ensure the 'pagedecryptor' binary is on your "
+            "PATH.\n"
+            "Hint - compile from the mongo repo with:\n"
+            "bazel build //src/mongo/db/modules/atlas/src/disagg_storage/encryption:pagedecryptor"
+        )
+        
+    if not opts.keyfile or not os.path.exists(opts.keyfile):
+        raise FileNotFoundError(
+            "keyfile not found: Decryption requires the test_keyfile for the KEK."
+        )
+        
+    # Mandatory fields for decryption
+    metadata = page.get('metadata', {})
+    page_id = metadata.get('page_id', {}).get('val', {}).get('LongVal')
+    if page_id is None:
+        raise ValueError(f"Missing 'page_id' in page: {page}")
+    lsn = page.get('lsn', {}).get('lsn')
+    if lsn is None:
+        raise ValueError(f"Missing 'lsn' in page: {page_id}")
+    table_id = metadata.get('table_id', {}).get('val', {}).get('IntVal')
+    if table_id is None:
+        raise ValueError(f"Missing 'table_id' in page: {page_id}")
+    
+    # Optional fields depending on the page type.
+    base_lsn = metadata.get('base_lsn', {}).get('val', {}).get('LongVal')
+    backlink_lsn = metadata.get('backlink_lsn', {}).get('val', {}).get('LongVal')
+    
+    with tempfile.NamedTemporaryFile(mode='w', delete=True, suffix='.in') as temp_input, \
+         tempfile.NamedTemporaryFile(mode='rb', delete=True, suffix='.out') as temp_output:
+    
+        # Write the page bytes to the temporary input file. The decrypt tool expects a file containing a
+        # base64 encoded byte string.
+        entry_bytes = page.get('entry', [])
+        raw_bytes = bytes(entry_bytes)
+        base64_encoded = base64.b64encode(raw_bytes)
+        temp_input.write(base64_encoded.decode('ascii'))
+        temp_input.flush()
+        
+        cmd = [
+            'pagedecryptor',
+            '--inputPath', temp_input.name,
+            '--outputPath', temp_output.name,
+            '--keyFile', opts.keyfile,
+            '--lsn', str(lsn),
+            '--tableId', str(table_id),
+            '--pageId', str(page_id),
+        ]
+        
+        if base_lsn is not None:
+            cmd.extend(['--baseLsn', str(base_lsn)])
+        if backlink_lsn is not None:
+            cmd.extend(['--backlinkLsn', str(backlink_lsn)])
+            
+        if metadata.get('flags', {}).get("val", {}).get("IntVal", {}) == page_service.UpdateTypeFlags.UPDATE_TYPE_DELTA:
+            cmd.extend(['--isDelta'])
+        
+        try:
+            decrypt_result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            if (opts.debug):
+                print(f'pagedecryptor stdout: {decrypt_result.stdout}')
+                print(f'pagedecryptor stderr: {decrypt_result.stderr}')
+        except subprocess.CalledProcessError as e:
+            print(f"Error decrypting page {page_id}: {e}", file=sys.stderr)
+            print(f"pagedecryptor stderr: {e.stderr}", file=sys.stderr)
+            raise
+        
+        decrypted_bytes = temp_output.read()
+    
+    return decrypted_bytes
+
+def disagg_metadata_string(page):
+    metadata = page.get('metadata', {})
+    meta_string = (
+        f"Disagg Page Metadata:\n"
+        f"  page_id: {metadata.get('page_id', {}).get('val', {}).get('LongVal', 'None')}\n"
+        f"  table_id: {metadata.get('table_id', {}).get('val', {}).get('IntVal', 'None')}\n"
+        f"  lsn: {page.get('lsn', {}).get('lsn', 'None')}\n"
+        f"  base_lsn: {metadata.get('base_lsn', {}).get('val', {}).get('LongVal', 'None')}\n"
+        f"  backlink_lsn: {metadata.get('backlink_lsn', {}).get('val', {}).get('LongVal', 'None')}"
+    )
+    
+    return meta_string
+    
+def extract_disagg_pages(disagg_table, opts):
+    for line in disagg_table:
+        # Parse each line as a separate json object containing the page entries associated with a 
+        # page id.
+        pages = json.loads(line.strip())
+        page_entries = pages.get('entries', [])
+        
+        # Each page_id can have a number of entries associated with it. 
+        for page in page_entries:
+            print(disagg_metadata_string(page))
+            
+            # If the page entry is empty do not try and decrypt/decode it. SLS sometimes stores
+            # empty pages.
+            if not page['entry']:
+                print('empty page')
+                print('')
+                continue
+            
+            decrypted_page_bytes = decrypt_page(page)
+            
+            # The disagg metadata page is plaintext, print it as such.
+            if page['metadata']['table_id']['val']['IntVal'] == 1:
+                print('Disagg Metadata File:')
+                page_string = decrypted_page_bytes.decode('ascii')
+                print(f'  {page_string}')
+                
+                # The metadata table root page address cookie is stored as plaintext hex in the addr 
+                # field of the checkpoint string. Extract it and decode it to print the disagg
+                # page metadata.
+                print('Metadata Table Root Page:')
+                addr_string = page_string.split('addr="')[1].split('"')[0]
+                addr = btree_format.DisaggAddr.parse(bytes.fromhex(addr_string))
+                print(addr)
+                print('')
+                continue
+                
+            b = binary_data.BinaryFile(io.BytesIO(decrypted_page_bytes))
+            p = Printer(b, opts)
+            block_decode(p, b, len(decrypted_page_bytes), opts)
+            p.rint('')
 
 def extract_mongodb_log_hex(f):
     """
@@ -890,7 +992,9 @@ def extract_mongodb_log_hex(f):
                             print(f'Complete block collected: {len(current_chunks)} chunks')
                         return b''.join(current_chunks)
         except json.JSONDecodeError:
-            # If we don't have a JSON log line, then this isn't a MongoDB log.
+            # If we don't have a JSON log line, then this isn't a MongoDB log. Reset the file 
+            # pointer to the start to read all the bytes again.
+            f.seek(0)
             return encode_bytes(f)
         except Exception as e:
             if opts.debug:
@@ -915,6 +1019,15 @@ def wtdecode(opts):
                 allbytes = extract_mongodb_log_hex(infile)
         b = binary_data.BinaryFile(io.BytesIO(allbytes))
         wtdecode_file_object(b, opts, len(allbytes))
+    elif opts.disagg_table:
+        opts.disagg = True
+        opts.fragment = True
+        if opts.filename == '-':
+            extract_disagg_pages(sys.stdin, opts)
+        else:
+            with open(opts.filename, "r") as infile:
+                extract_disagg_pages(infile, opts)
+        
     elif opts.filename == '-':
         nbytes = 0      # unknown length
         print('stdin, position ' + hex(opts.offset) + ', pagelimit ' +  str(opts.pages))
@@ -934,9 +1047,12 @@ def get_arg_parser():
     parser.add_argument('--continue', help="continue on checksum failure", dest='cont', action='store_true')
     parser.add_argument('-D', '--debug', help="debug this tool", action='store_true')
     parser.add_argument('-d', '--dumpin', help="input is hex dump (may be embedded in log messages)", action='store_true')
+    parser.add_argument('--disagg_table', help="input is a full disagg table from the GetTableAtLSN endpoint on the Object Read Proxy (ORP). \
+        The table can be downloaded from S3 as a jsonl file containing all of the pages linked to a table_id. ", action='store_true')
     parser.add_argument('--disagg', help="input comes from disaggregated storage", action='store_true')
     parser.add_argument('--ext', help="dump only the extent lists", action='store_true')
     parser.add_argument('-f', '--fragment', help="input file is a fragment, does not have a WT file header", action='store_true')
+    parser.add_argument('--keyfile', help="Keyfile path used for mongodb encryption", type=str)
     parser.add_argument('-o', '--offset', help="seek offset before decoding", type=int, default=0)
     parser.add_argument('-p', '--pages', help="number of pages to decode", type=int, default=0)
     parser.add_argument('-v', '--verbose', help="print things about data, not just the headers", action='store_true')

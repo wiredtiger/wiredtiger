@@ -330,6 +330,7 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
     opts.disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
     opts.disagg_page_log_home = disagg_is_multi_node() ? g.home_page_log : (char *)home;
     opts.disagg_mode = (char *)(g.disagg_leader ? "leader" : "follower");
+    opts.disagg_key_provider = GV(DISAGG_KEY_PROVIDER);
     opts.home = (char *)home;
     opts.build_dir = (char *)BUILDDIR;
     opts.palm_map_size_mb = 2048; /* 2 Gigabytes for PALM map */
@@ -710,13 +711,16 @@ precise_checkpoint_init(void)
     if (!GV(PRECISE_CHECKPOINT))
         return;
 
+    WT_SESSION *session;
+    testutil_check(g.wts_conn->open_session(g.wts_conn, NULL, NULL, &session));
     g.timestamp = MIN_TIMESTAMP;
     /*
      * We do a separate wiredtiger_open call to create the database and tables, and when we close
      * that connection, a checkpoint is done. Precise checkpoints requires the stable timestamp to
      * be set. Set it to the minimum value, which should not interfere with any later operations.
      */
-    timestamp_once(NULL, false, false);
+    timestamp_once(session, false, false);
+    testutil_check(session->close(session, NULL));
 }
 
 /*
@@ -747,6 +751,8 @@ wts_create_database(void)
 
     create_database(g.home, &conn);
     g.wts_conn = conn;
+
+    locks_init(g.wts_conn);
     precise_checkpoint_init();
 
     tables_apply(create_object, g.wts_conn);

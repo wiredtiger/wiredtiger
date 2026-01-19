@@ -803,7 +803,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
             WT_ERR(EINVAL);
 
         /* Precise checkpoint needs the stable timestamp. */
-        if (txn_global->stable_timestamp == WT_TS_NONE)
+        if (__wt_tsan_suppress_load_uint64(&txn_global->stable_timestamp) == WT_TS_NONE)
             WT_ERR_MSG(session, EINVAL, "Precise checkpoint requires a stable timestamp");
     }
 
@@ -837,7 +837,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * transaction id, connection will be reset to dirty when reconciliation marks the btree dirty
      * on encountering the dirty page.
      */
-    conn->modified = false;
+    __wt_tsan_suppress_store_bool(&conn->modified, false);
 
     /*
      * Save the checkpoint session ID.
@@ -1271,6 +1271,9 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_WITH_SCHEMA_LOCK(session, ret = __checkpoint_prepare(session, &tracking, cfg));
     WT_ERR(ret);
 
+    WT_ERR(__wt_config_gets(session, cfg, "debug.key_provider_trigger_crash_points", &cval));
+    session->ckpt.key_provider_crash_point = (int)cval.val;
+
     WT_ERR(__wt_config_gets(session, cfg, "debug.checkpoint_crash_point", &cval));
     ckpt_crash_point = (int)cval.val;
 
@@ -1644,12 +1647,15 @@ err:
 
     /*
      * If the stable timestamp advanced, ensure that we reflect it in the checkpoint metadata in
-     * disaggregated storage, even if there were no other changes.
+     * disaggregated storage, even if there were no other changes. Also check for any updated key
+     * encryption information.
      */
     num_meta_put = __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.num_meta_put);
     if (!failed && __wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
       conn->disaggregated_storage.num_meta_put_at_ckpt_begin == num_meta_put &&
       ckpt_tmp_ts != conn->disaggregated_storage.last_checkpoint_timestamp) {
+        if (conn->key_provider != NULL)
+            WT_TRET(__wt_disagg_put_crypt_helper(session));
         WT_TRET(__wt_disagg_put_checkpoint_meta(
           session, conn->disaggregated_storage.last_checkpoint_root, 0, ckpt_tmp_ts));
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
@@ -1695,6 +1701,7 @@ err:
     __wt_free(session, session->ckpt.handle);
     WT_ASSERT(session, session->ckpt.crash_point == 0);
     session->ckpt.handle_allocated = session->ckpt.handle_next = session->ckpt.crash_point = 0;
+    session->ckpt.key_provider_crash_point = KEY_PROVIDER_CRASH_NONE;
 
     session->isolation = txn->isolation = saved_isolation;
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);

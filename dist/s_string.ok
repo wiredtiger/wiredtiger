@@ -129,6 +129,7 @@ ETIMEDOUT
 EXTLIST
 EXTLIST's
 EXTSUBPATH
+Emplace
 Encryptor
 Encryptors
 Enqueue
@@ -137,6 +138,7 @@ Exxx
 FALLTHROUGH
 FH
 FILEOPS
+FILETIME
 FIXME
 FLCS
 FLD
@@ -145,6 +147,7 @@ FLv
 FNV
 FOREACH
 FS
+FTDC
 FULLFSYNC
 FUNCSIG
 Failpoint
@@ -413,6 +416,7 @@ UNSKIPPED
 UPD
 URI
 URIs
+USECS
 UTF
 UltraSparc
 Unbuffered
@@ -481,6 +485,7 @@ Zstd
 Zstd's
 aa
 aaa
+abc
 abcdef
 abcdefghijklmnopqrstuvwxyz
 ackSstu
@@ -527,6 +532,7 @@ bitcnt
 bitfield
 bitfields
 bitflip
+bitflips
 bitpack
 bitstr
 bitstring
@@ -660,6 +666,7 @@ curversion
 cust
 customizable
 customp
+cutlim
 cv
 cval
 cx
@@ -676,6 +683,7 @@ dbar
 dbs
 dcalloc
 ddd
+dec
 decile
 deciles
 decl
@@ -744,6 +752,7 @@ encodings
 encryptor
 encryptors
 endian
+endptr
 enomem
 enum
 env
@@ -764,6 +773,7 @@ extern
 extlist
 fadvise
 fahrenheit
+failover
 failpoint
 fallocate
 fallthrough
@@ -774,6 +784,7 @@ fd
 fdatasync
 fextend
 ffc
+ffee
 fff
 ffffffffffffffff
 fflush
@@ -854,6 +865,7 @@ hashsize
 hashtable
 havesize
 hdr
+hhhh
 hijinx
 hpp
 hs
@@ -895,6 +907,7 @@ inmemory
 inserters
 instantiation
 interruptible
+intialized
 intl
 intnum
 intpack
@@ -938,6 +951,7 @@ las
 lazyfs
 lbrace
 lbracket
+lc
 ld
 ldapr
 ldaprb
@@ -1350,6 +1364,7 @@ timespec
 tinfo
 tlb
 tmp
+tmstmp
 tod
 tokenizer
 toklen
@@ -1442,6 +1457,7 @@ valuev
 variadic
 vd
 vdata
+ve
 vec
 vectorized
 verifier
@@ -1463,6 +1479,7 @@ waker
 wakeup
 wakeups
 warmup
+wc
 whitespace
 wiredTiger
 wiredTigerTables
@@ -1474,6 +1491,7 @@ writelock
 writeunlock
 wrlock
 wrlsn
+wtch
 wthread
 wti
 wtobj
@@ -1501,3 +1519,4 @@ zu
 zyxwvutsrqponmlkjihgfedcba
 zz
 zzz
+zzzz

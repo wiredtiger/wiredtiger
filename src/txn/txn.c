@@ -237,7 +237,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
 
     /* Walk the array of concurrent transactions. */
     WT_ACQUIRE_READ_WITH_BARRIER(session_cnt, conn->session_array.cnt);
-    WT_STAT_CONN_INCR_ATOMIC(session, txn_walk_sessions);
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         /*
          * Build our snapshot of any concurrent transaction IDs.
@@ -278,7 +278,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
             WT_PAUSE();
         }
     }
-    WT_STAT_CONN_INCRV_ATOMIC(session, txn_sessions_walked, i);
+    WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
 
     /*
      * If we got a new snapshot, update the published pinned ID for this session.
@@ -399,7 +399,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
 
     /* Walk the array of concurrent transactions. */
     WT_ACQUIRE_READ_WITH_BARRIER(session_cnt, conn->session_array.cnt);
-    WT_STAT_CONN_INCR_ATOMIC(session, txn_walk_sessions);
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         /* Update the last running transaction ID. */
         while ((id = __wt_atomic_load_uint64_v_relaxed(&s->id)) != WT_TXN_NONE &&
@@ -444,7 +444,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
             oldest_session = &WT_CONN_SESSIONS_GET(conn)[i];
         }
     }
-    WT_STAT_CONN_INCRV_ATOMIC(session, txn_sessions_walked, i);
+    WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
 
     if (last_running < oldest_id)
         oldest_id = last_running;
@@ -1045,8 +1045,9 @@ err:
 /*
  * __txn_resolve_prepared_update_chain --
  *     Helper for resolving updates. Recursively visit the update chain and resolve the updates on
- *     the way back out, so older updates are resolved first; this avoids a race with reconciliation
- *     (see WT-6778).
+ *     the way back out, so older updates are resolved first. This ensures that a reconciliation
+ *     racing with us will always see the newest update from the prepared transaction if any updates
+ *     are still unresolved.
  */
 static void
 __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool commit)
@@ -1081,11 +1082,11 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
 
     if (!commit) {
         /* As updating timestamp might not be an atomic operation, we will manage using state. */
-        upd->prepare_state = WT_PREPARE_LOCKED;
+        __wt_atomic_store_uint8_v_relaxed(&upd->prepare_state, WT_PREPARE_LOCKED);
         WT_RELEASE_BARRIER();
         if (F_ISSET(txn, WT_TXN_HAS_TS_ROLLBACK))
-            upd->upd_rollback_ts = txn->rollback_timestamp;
-        upd->upd_saved_txnid = upd->txnid;
+            __wt_atomic_store_uint64_relaxed(&upd->upd_rollback_ts, txn->rollback_timestamp);
+        __wt_atomic_store_uint64_relaxed(&upd->upd_saved_txnid, upd->txnid);
         __wt_atomic_store_uint64_v_release(&upd->txnid, WT_TXN_ABORTED);
         __wt_atomic_store_uint8_v_release(&upd->prepare_state, WT_PREPARE_INPROGRESS);
         WT_STAT_CONN_INCR(session, txn_prepared_updates_rolledback);
@@ -1250,7 +1251,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * Open a history store table cursor and scan the history store for the given btree and key
          * with maximum start timestamp to let the search point to the last version of the key.
          */
-        WT_ERR(__wt_curhs_open(session, btree->id, NULL, &hs_cursor));
+        WT_ERR(__wt_curhs_open(session, btree->id, NULL, NULL, &hs_cursor));
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
         if (btree->type == BTREE_ROW)
             hs_cursor->set_key(hs_cursor, 4, btree->id, &cbt->iface.key, WT_TS_MAX, UINT64_MAX);
@@ -1582,7 +1583,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * Switch reserved operations to abort to simplify obsolete update list truncation.
                  */
                 if (upd->type == WT_UPDATE_RESERVE) {
-                    upd->txnid = WT_TXN_ABORTED;
+                    __wt_tsan_suppress_store_uint64_v(&upd->txnid, WT_TXN_ABORTED);
                     break;
                 }
 
@@ -1791,7 +1792,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     update_durable_ts = false;
     prev_durable_timestamp = WT_TS_NONE;
     if (candidate_durable_timestamp != WT_TS_NONE) {
-        prev_durable_timestamp = txn_global->durable_timestamp;
+        prev_durable_timestamp = __wt_tsan_suppress_load_uint64(&txn_global->durable_timestamp);
         update_durable_ts = candidate_durable_timestamp > prev_durable_timestamp;
     }
 
@@ -1803,10 +1804,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         while (candidate_durable_timestamp > prev_durable_timestamp) {
             if (__wt_atomic_cas_uint64(&txn_global->durable_timestamp, prev_durable_timestamp,
                   candidate_durable_timestamp)) {
-                txn_global->has_durable_timestamp = true;
+                __wt_tsan_suppress_store_bool(&txn_global->has_durable_timestamp, true);
                 break;
             }
-            prev_durable_timestamp = txn_global->durable_timestamp;
+            prev_durable_timestamp = __wt_tsan_suppress_load_uint64(&txn_global->durable_timestamp);
         }
 
     /*
@@ -2095,7 +2096,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
                   op->btree->id == S2C(session)->cache->hs_fileid)
                     break;
                 WT_ASSERT(session, upd->txnid == txn->id || upd->txnid == WT_TXN_ABORTED);
-                upd->txnid = WT_TXN_ABORTED;
+                __wt_tsan_suppress_store_uint64_v(&upd->txnid, WT_TXN_ABORTED);
             } else {
                 /*
                  * If an operation has the key repeated flag set, skip resolving prepared updates as
@@ -2600,7 +2601,7 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
 
 #ifndef WT_STANDALONE_BUILD
     /*
-     * FIXME: SERVER-44870
+     * FIXME-WT-15823
      *
      * MongoDB can't (yet) handle rolling back read only transactions. For this reason, don't check
      * unless there's at least one update or we're configured to time out thread operations (a way

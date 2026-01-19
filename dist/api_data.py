@@ -117,10 +117,6 @@ connection_page_delta_config_common = [
         Conversely, if the delta came to 21 bytes, reconciliation would not emit a
         delta. Deltas larger than full pages are permitted for measurement and testing
         reasons, and may be disallowed in future.''', min='1', max='1000', type='int', undoc=True),
-    Config('flatten_leaf_page_delta', 'false', r'''
-        When enabled, page read rewrites the leaf pages with deltas to a new
-        disk image if successful''',
-        type='boolean', undoc=True),
     Config('internal_page_delta', 'true', r'''
         When enabled, reconciliation may write deltas for internal pages
         instead of writing entire pages every time''',
@@ -166,6 +162,13 @@ connection_disaggregated_config = [
         type='category', subconfig=connection_disaggregated_config_common +\
               disaggregated_config_common),
 ]
+table_disaggregated_config = [
+    Config('storage_tier', 'none', r'''
+        A hint to the storage service about the expected storage
+        characteristics of this table. Currently the default (empty) value indicates a hot
+        collection, and it can be configured to 'cold' to indicate a cold collection.''',
+        choices=['cold', 'none'], undoc=True),
+]
 connection_page_delta_config = [
     Config('page_delta', '', r'''
         configure page delta settings for this connection''',
@@ -174,7 +177,7 @@ connection_page_delta_config = [
 file_disaggregated_config = [
     Config('disaggregated', '', r'''
         configure disaggregated storage for this file''',
-        type='category', subconfig=disaggregated_config_common
+        type='category', subconfig=disaggregated_config_common + table_disaggregated_config
     ),
 ]
 wiredtiger_open_disaggregated_storage_configuration = connection_disaggregated_config
@@ -759,7 +762,8 @@ connection_runtime_config = [
                 type='boolean', undoc=True),
             Config('legacy_page_visit_strategy', 'false', r'''
                 Use legacy page visit strategy for eviction. Using this option is highly discouraged
-                as it will re-introduce the bug described in WT-9121.''',
+                as it will re-introduce a bug where eviction can fail to find older cache
+                content.''',
                 type='boolean'),
             Config('app_eviction_min_cache_fill_ratio', '0', r'''
                 This setting establishes a minimum cache fill ratio that must be met before
@@ -2086,6 +2090,11 @@ methods = {
             checkpoint process. Lower values will trigger crashes in the initial phase of
             checkpoint, while higher values will result in crashes in the final phase of the
             checkpoint process''',
+            type='int'),
+        Config('key_provider_trigger_crash_points', '0', r'''
+            non-negative number between 1 and 3 will trigger a controlled crash during the
+            key provider process. A lower value would trigger crashes in the initial phase of
+            key provider, while a higher value would result in crashes in a later phase.''',
             type='int'),
         ]),
     Config('drop', '', r'''

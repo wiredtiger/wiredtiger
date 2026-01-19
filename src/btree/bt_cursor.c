@@ -152,11 +152,11 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
         return (false);
 
     /*
-     * XXX No fast-path searches at read-committed isolation. Underlying transactional functions
-     * called by the fast and slow path search code handle transaction IDs differently, resulting in
-     * different search results at read-committed isolation. This makes no difference for the update
-     * functions, but in the case of a search, we will see different results based on the cursor's
-     * initial location. See WT-5134 for the details.
+     * FIXME-WT-5147 No fast-path searches at read-committed isolation. Underlying transactional
+     * functions called by the fast and slow path search code handle transaction IDs differently,
+     * resulting in different search results at read-committed isolation. This makes no difference
+     * for the update functions, but in the case of a search, we will see different results based on
+     * the cursor's initial location.
      */
     if (search_operation && session->txn->isolation == WT_ISO_READ_COMMITTED)
         return (false);
@@ -236,14 +236,10 @@ __cursor_valid_insert(WT_CURSOR_BTREE *cbt, WT_ITEM *key, bool *valid, bool chec
             return (0);
     }
 
-    if (CUR2BT(cbt)->type == BTREE_ROW) {
-        WT_ITEM tmp_key;
-        tmp_key.data = WT_INSERT_KEY(cbt->ins);
-        tmp_key.size = WT_INSERT_KEY_SIZE(cbt->ins);
-        WT_RET(__wt_txn_read_upd_list(session, cbt, &tmp_key, WT_RECNO_OOB, cbt->ins->upd));
-    } else
-        WT_RET(
-          __wt_txn_read_upd_list(session, cbt, NULL, WT_INSERT_RECNO(cbt->ins), cbt->ins->upd));
+    if (CUR2BT(cbt)->type == BTREE_ROW)
+        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
+    else
+        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
 
     *valid =
       cbt->upd_value->type != WT_UPDATE_INVALID && cbt->upd_value->type != WT_UPDATE_TOMBSTONE;
@@ -1525,7 +1521,9 @@ __cursor_chain_needs_full_upd(WT_CURSOR_BTREE *cbt)
      * those two cases, we can't know which transaction the aborted entries belong to, so we can't
      * calculate a correct delta. (This is only a problem in read-uncommitted isolation.)
      */
-    if (upd != NULL && (upd->txnid == WT_TXN_ABORTED || upd->type == WT_UPDATE_TOMBSTONE))
+    if (upd != NULL &&
+      (__wt_tsan_suppress_load_uint64_v(&upd->txnid) == WT_TXN_ABORTED ||
+        upd->type == WT_UPDATE_TOMBSTONE))
         return (true);
 
     /*

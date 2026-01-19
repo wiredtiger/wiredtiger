@@ -714,8 +714,8 @@ __meta_ckptlist_allocate_new_ckpt(
      *
      * Second, a single-tree checkpoint can occur while a global checkpoint is in progress. In that
      * case the global checkpoint will have an earlier time, but might get to the tree in question
-     * later. With WT-8695 this should only be possible with the metadata, so we could rule it out
-     * by only checking non-metadata files.
+     * later. This should only be possible with the metadata, so we could rule it out by only
+     * checking non-metadata files.
      *
      * Third, it appears to be possible for a close checkpoint to occur while a global checkpoint is
      * in progress, with the same consequences. There doesn't seem to be any obvious way to detect
@@ -1511,7 +1511,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, const char *name, size_t namelen
      * different values of the oldest timestamp.
      */
 
-    oldest_timestamp = txn_global->oldest_timestamp;
+    oldest_timestamp = __wt_tsan_suppress_load_uint64(&txn_global->oldest_timestamp);
     WT_ACQUIRE_BARRIER();
     __wt_timestamp_to_hex_string(
       WT_MIN(oldest_timestamp, txn_global->meta_ckpt_timestamp), hex_timestamp);
@@ -1613,11 +1613,11 @@ __wt_meta_read_checkpoint_snapshot(WT_SESSION_IMPL *session, const char *ckpt_na
     sys_config = NULL;
 
     /*
-     * There's an issue with checkpoints produced by some old versions having bad snapshot data.
-     * (See WT-8395.) We should ignore those snapshots when we can identify them. This only applies
-     * to reading the last checkpoint during recovery, however, so it is done in our caller. (In
-     * other cases, for WiredTigerCheckpoint the checkpoint taken after recovery will have replaced
-     * any old and broken snapshot; and for named checkpoints, the broken versions didn't write out
+     * There was an issue with checkpoints produced by certain old versions having bad snapshot
+     * data. We should ignore those snapshots when we can identify them. This only applies to
+     * reading the last checkpoint during recovery, however, so it is done in our caller. (In other
+     * cases, for WiredTigerCheckpoint the checkpoint taken after recovery will have replaced any
+     * old and broken snapshot; and for named checkpoints, the broken versions didn't write out
      * snapshot information at all anyway.)
      */
 

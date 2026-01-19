@@ -8,7 +8,9 @@ else()
         misc_tests/test_binary_search_string.cpp
         misc_tests/test_bitmap.cpp
         misc_tests/test_cell_prepared_time_window.cpp
+        misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
+        misc_tests/test_disagg_meta_config.cpp
         misc_tests/test_error.cpp
         misc_tests/test_futex.cpp
         misc_tests/test_intpack.cpp
@@ -25,6 +27,7 @@ else()
         block/api/test_block_api_write.cpp
         block/unit/test_bitstring.cpp
         block/unit/test_block_addr.cpp
+        block/unit/test_block_bitflip.cpp
         block/unit/test_block_ckpt.cpp
         block/unit/test_block_file.cpp
         block/unit/test_block_other.cpp
@@ -38,6 +41,7 @@ else()
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
+        ext/test_key_provider.cpp
         sub_level_error/api/test_sub_level_error_session_get_last_error.cpp
         sub_level_error/api/test_sub_level_error_strerror.cpp
         sub_level_error/unit/test_sub_level_error_api_end.cpp
@@ -87,6 +91,7 @@ set(unittest_sources
     wrappers/mock_session.cpp
     ${unittests}
     ${live_restore_sources}
+    ${key_provider_sources}
 )
 
 create_test_executable(catch2-unittests
@@ -101,6 +106,13 @@ create_test_executable(catch2-unittests
         Catch2::Catch2
     CXX
 )
+
+if(NOT HAVE_BUILTIN_EXTENSION_KEY_PROVIDER)
+    target_compile_definitions(catch2-unittests
+        PRIVATE
+            KEY_PROVIDER_EXTENSION="$<TARGET_FILE:wiredtiger_key_provider>"
+    )
+endif()
 
 if(WT_POSIX)
     add_dependencies(catch2-unittests wiredtiger_dir_store)

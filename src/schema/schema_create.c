@@ -625,9 +625,11 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
             sourcecfg[config == NULL ? 0 : 1] = fmt.data;
         }
 
+        __wt_free(session, sourceconf);
         WT_ERR(__wt_config_merge(session, sourcecfg, NULL, &sourceconf));
         WT_ERR(__wt_schema_create(session, source, sourceconf));
 
+        __wt_free(session, cgconf);
         WT_ERR(__wt_config_collapse(session, cfg, &cgconf));
 
         /* FIXME-WT-12021 Replace this with a proper failpoint once the framework is available. */
@@ -1170,6 +1172,9 @@ __create_object(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
     WT_UNUSED(exclusive);
     cfg[1] = config;
 
+    if (__wt_conn_is_disagg(session))
+        WT_RET_MSG(session, ENOTSUP, "Tiered storage does not work with disaggregated storage.");
+
     return (__tiered_metadata_insert(session, uri, cfg));
 }
 
@@ -1184,6 +1189,9 @@ __create_tiered_tree(WT_SESSION_IMPL *session, const char *uri, bool exclusive, 
 
     WT_UNUSED(exclusive);
     cfg[1] = config;
+
+    if (__wt_conn_is_disagg(session))
+        WT_RET_MSG(session, ENOTSUP, "Tiered storage does not work with disaggregated storage.");
 
     return (__tiered_metadata_insert(session, uri, cfg));
 }
@@ -1207,7 +1215,13 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
     conn = S2C(session);
     metadata = NULL;
     tiered = NULL;
+    shared = false;
+    meta_value = NULL;
     free_metadata = true;
+
+    /* FIXME-WT-16351: Fix the mix of WT_RET and WT_ERR */
+    if (__wt_conn_is_disagg(session))
+        WT_RET_MSG(session, ENOTSUP, "Tiered storage does not work with disaggregated storage.");
 
     /* Check if the tiered table already exists. */
     if ((ret = __wt_metadata_search(session, uri, &meta_value)) != WT_NOTFOUND) {
@@ -1446,7 +1460,7 @@ __schema_create_config_check(
   WT_SESSION_IMPL *session, const char *uri, const char *config, bool import)
 {
     WT_CONFIG_ITEM cval;
-    bool file_metadata, is_tiered, tiered_name_set;
+    bool file_metadata, is_tiered, tiered_name_set, storage_tier_set;
 
     file_metadata =
       __wt_config_getones(session, config, "import.file_metadata", &cval) == 0 && cval.val != 0;
@@ -1487,6 +1501,15 @@ __schema_create_config_check(
     if (__wt_conn_is_disagg(session) && write_ts_never)
         WT_RET_SUB(session, EINVAL, WT_CONFLICT_DISAGG,
           "write_timestamp_usage cannot be set to never when disaggregated storage is enabled");
+
+    /* We only support storage tier of cold in disagg mode. */
+    storage_tier_set =
+      __wt_config_getones(session, config, "disaggregated.storage_tier", &cval) == 0 &&
+      cval.len != 0;
+    if (!__wt_conn_is_disagg(session) && storage_tier_set)
+        if (strncmp("none", cval.str, cval.len) != 0)
+            WT_RET_SUB(session, EINVAL, WT_CONFLICT_DISAGG,
+              "Cold collections only supported when disaggregated storage is enabled");
 
     return (0);
 }

@@ -36,14 +36,16 @@ create_test_executable(tsan_playground_gcc_acq_rel_barriers
     SOURCES
         tsan_playground.c
     FLAGS
-        "-D_GCC_ACQ_REL_BARRIERS=1"
+        # Suppress the 'atomic_thread_fence' is not supported with '-fsanitize=thread' warning
+        "-D_GCC_ACQ_REL_BARRIERS=1" "-Wno-error=tsan"
 )
 
 create_test_executable(tsan_playground_gcc_full_barriers
     SOURCES
         tsan_playground.c
     FLAGS
-        "-D_GCC_FULL_BARRIERS=1"
+        # Suppress the 'atomic_thread_fence' is not supported with '-fsanitize=thread' warning
+        "-D_GCC_FULL_BARRIERS=1" "-Wno-error=tsan"
 )
 
 # WT variants

@@ -116,6 +116,8 @@ struct __wt_btree {
     WT_CKPT *ckpt;               /* Checkpoint information */
     size_t ckpt_bytes_allocated; /* Checkpoint information array allocation size */
 
+    const char *hs_checkpoint_name; /* History store checkpoint name. */
+
     WT_BTREE_TYPE type; /* Type */
 
     const char *key_format;   /* Key format */
@@ -214,15 +216,14 @@ struct __wt_btree {
     (__wt_atomic_load_enum_acquire(&(btree)->syncing) != WT_BTREE_SYNC_RUNNING || \
       __wt_atomic_load_ptr_acquire(&(btree)->sync_session) == (session))
 
-    wt_shared uint64_t bytes_dirty_intl;    /* Bytes in dirty internal pages. */
-    wt_shared uint64_t bytes_dirty_leaf;    /* Bytes in dirty leaf pages. */
-    wt_shared uint64_t bytes_dirty_total;   /* Bytes ever dirtied in cache. */
-    wt_shared uint64_t bytes_inmem;         /* Cache bytes in memory. */
-    wt_shared uint64_t bytes_internal;      /* Bytes in internal pages. */
-    wt_shared uint64_t bytes_updates;       /* Bytes in updates. */
-    wt_shared uint64_t bytes_delta_updates; /* Bytes of updates reconstructed from deltas */
+    wt_shared uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
+    wt_shared uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */
+    wt_shared uint64_t bytes_dirty_total; /* Bytes ever dirtied in cache. */
+    wt_shared uint64_t bytes_inmem;       /* Cache bytes in memory. */
+    wt_shared uint64_t bytes_internal;    /* Bytes in internal pages. */
+    wt_shared uint64_t bytes_updates;     /* Bytes in updates. */
 
-    uint64_t max_upd_txn; /* Transaction ID for the latest update on the btree. */
+    wt_shared uint64_t max_upd_txn; /* Transaction ID for the latest update on the btree. */
 
     /*
      * The maximum bytes allowed to be used for the table on disk. This is currently only used for

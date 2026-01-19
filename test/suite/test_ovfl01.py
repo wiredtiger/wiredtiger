@@ -61,18 +61,11 @@ class test_ovfl01(wttest.WiredTigerTestCase):
                     raise e
 
         # Closing the cursor might hit the failpoint if the page needs to split during
-        # reconciliation, try again if this occurs.
-        while True:
-            try:
-                c.close()
-                return
-            except wiredtiger.WiredTigerError as e:
-                if str(e) != os.strerror(errno.EBUSY):
-                    raise e
+        # reconciliation, therefore turn off the failpoint.
+        self.conn.reconfigure('timing_stress_for_test=()')
+        c.close()
 
     def test_ovfl01(self):
-        # FIXME-WT-15849: Need to fix bulk insert with overflow keys and page splits.
-        self.skipTest("Bulk insert with overflow keys and page splits needs fixing")
         # Create and populate a table.
         self.session.create(self.uri, self.table_config)
         self.populate(self.uri)
