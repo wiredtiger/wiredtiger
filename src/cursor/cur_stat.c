@@ -430,7 +430,6 @@ __curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT
     WT_ERR(__init_layered_constituent_stats(session, cst));
     WT_ERR(__wt_session_release_dhandle(session));
 
-retry:
     stable_uri = layered->stable_uri;
     /* Now do the stable table. */
     if (!S2C(session)->layered_table_manager.leader) {
@@ -454,15 +453,7 @@ retry:
         stable_uri = stable_uri_buf->data;
     }
 
-    ret = __wt_session_get_dhandle(session, stable_uri, NULL, NULL, 0);
-    if (ret == EBUSY) {
-        /* FIXME-WT-16476: no need to yield if we no longer take the checkpoint lock. */
-        __wt_yield();
-        goto retry;
-    }
-
-    WT_ERR(ret);
-
+    WT_ERR(__wt_session_get_dhandle(session, stable_uri, NULL, NULL, 0));
     WT_ERR(__init_layered_constituent_stats(session, cst));
     WT_ERR(__wt_session_release_dhandle(session));
 
