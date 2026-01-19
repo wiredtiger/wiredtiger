@@ -30,7 +30,7 @@ import codecs
 import re
 
 
-def encode_bytes(f, debug: bool = False):
+def encode_bytes(f, opts):
     """
     Encode a text hex dump into raw bytes.
 
@@ -48,10 +48,10 @@ def encode_bytes(f, debug: bool = False):
         # Keep anything that looks like it could be hexadecimal,
         # remove everything else.
         nospace = re.sub(r"[^a-fA-F\d]", "", line)
-        if debug:
+        if opts.debug:
             print("LINE (len={}): {}".format(len(nospace), nospace))
         if len(nospace) > 0:
-            if debug:
+            if opts.debug:
                 print("first={}, last={}".format(nospace[0], nospace[-1]))
             b = codecs.decode(nospace, "hex")
             # b = bytearray.fromhex(line).decode()

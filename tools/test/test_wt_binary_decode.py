@@ -55,20 +55,21 @@ class Test(unittest.TestCase):
             output=None,
         )
 
-    def load_page_bytes(self):
+    def load_page_bytes(self, opts):
         """Read WiredTiger01.txt and convert its hex dump into raw bytes."""
         cur_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(cur_dir, "binary_files", "WiredTiger01.txt")
         with open(file_path, "r", encoding="utf-8") as f:
-            return encode_bytes(f)
+            return encode_bytes(f, opts)
 
     def test_wtpage_headers_from_wiredtiger01(self):
         """Decode WiredTiger01.txt and verify page and block header fields."""
-        page_bytes = self.load_page_bytes()
+        opts = self.make_opts()
+        
+        page_bytes = self.load_page_bytes(opts)
         self.assertGreater(len(page_bytes), 0, "Encoded page bytes should not be empty")
 
         b = binary_data.BinaryFile(io.BytesIO(page_bytes))
-        opts = self.make_opts()
 
         page = WTPage.parse(b, len(page_bytes), opts)
         self.assertTrue(page.success, "WTPage parsing failed")

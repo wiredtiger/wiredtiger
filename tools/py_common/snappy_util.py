@@ -26,10 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import logging
 import sys
 import traceback
 from py_common import binary_data
-from py_common import log
+
+logger = logging.getLogger(__name__)
 
 have_snappy = False
 
@@ -41,16 +43,16 @@ def snappy_decompress_page(b: binary_data.BinaryFile, page_header, header_length
         have_snappy = True
     except:
         # Try to install it automatically
-        log.warn('python-snappy not found, attempting to install...')
+        logger.warning('python-snappy not found, attempting to install...')
         try:
             import subprocess
             subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'python-snappy'])
             import snappy
             have_snappy = True
-            log.info('Successfully installed python-snappy')
+            logger.info('Successfully installed python-snappy')
         except Exception as e:
-            log.warn(f'Failed to install python-snappy: {e}')
-            log.warn('Compressed pages will not be readable.')
+            logger.warning(f'Failed to install python-snappy: {e}')
+            logger.warning('Compressed pages will not be readable.')
 
     if not have_snappy:
         raise ModuleNotFoundError('python-snappy is required to decode compressed pages')
@@ -72,31 +74,31 @@ def snappy_decompress_page(b: binary_data.BinaryFile, page_header, header_length
 
         # Try stored length first (most likely to be correct)
         if compressed_byte_count <= len(compressed_data_full):
-            log.info(f'Trying to decompress using stored length: {compressed_byte_count} bytes')
+            logger.info(f'Trying to decompress using stored length: {compressed_byte_count} bytes')
             compressed_data = compressed_data_full[:compressed_byte_count]
             if snappy.isValidCompressed(compressed_data):
                 try:
                     decompressed = snappy.uncompress(compressed_data)
                     if not lengths_match:
-                        log.info(f'  Successfully decompressed using stored length ({compressed_byte_count} bytes)')
+                        logger.info(f'  Successfully decompressed using stored length ({compressed_byte_count} bytes)')
                 except:
                     pass
 
         # If that failed and lengths differ, try calculated length
         if decompressed is None and not lengths_match and calculated_length <= len(compressed_data_full):
-            log.info(f'Trying to decompress using calculated length: {calculated_length} bytes')
+            logger.info(f'Trying to decompress using calculated length: {calculated_length} bytes')
             compressed_data = compressed_data_full[:calculated_length]
             if snappy.isValidCompressed(compressed_data):
                 try:
                     decompressed = snappy.uncompress(compressed_data)
-                    log.info(f'  Successfully decompressed using calculated length ({calculated_length} bytes)')
+                    logger.info(f'  Successfully decompressed using calculated length ({calculated_length} bytes)')
                 except:
                     pass
 
         # If any attempt succeeded, use the result
         if decompressed is not None:
             if isinstance(decompressed, str):
-                log.warn('Invalid decompressed type')
+                logger.warning('Invalid decompressed type')
             else:
                 payload_data.extend(decompressed)
         else:
@@ -104,12 +106,12 @@ def snappy_decompress_page(b: binary_data.BinaryFile, page_header, header_length
             # Use the stored length for diagnostics as it's more likely to be correct
             compressed_data = compressed_data_full[:min(compressed_byte_count, len(compressed_data_full))]
             print_snappy_diagnostics(compressed_data, compressed_byte_count, page_header, compress_skip)
-            return
+            return payload_data
     except:
-        log.error('? The page failed to uncompress')
+        logger.error('? The page failed to uncompress')
         if opts.debug:
             traceback.print_exception(*sys.exc_info())
-        return
+        return payload_data
     
     return payload_data
 
@@ -134,27 +136,27 @@ def decode_snappy_varint(data):
 def print_snappy_diagnostics(compressed_data, stored_length, pagehead, compress_skip):
     """Print detailed diagnostics about invalid compressed data."""
     import snappy
-    log.error('? Decompression of the block failed, analyzing compressed data:')
-    log.info(f'??  Compressed data length: {len(compressed_data)} bytes')
-    log.info(f'??  Stored length from WiredTiger prefix: {stored_length} (0x{stored_length:x})')
+    logger.error('? Decompression of the block failed, analyzing compressed data:')
+    logger.info(f'??  Compressed data length: {len(compressed_data)} bytes')
+    logger.info(f'??  Stored length from WiredTiger prefix: {stored_length} (0x{stored_length:x})')
 
     # Analyze the snappy header
     uncompressed_len, varint_bytes = decode_snappy_varint(compressed_data)
     if uncompressed_len:
-        log.info(f'??  Snappy header claims: {uncompressed_len} bytes uncompressed (varint: {varint_bytes} bytes)')
+        logger.info(f'??  Snappy header claims: {uncompressed_len} bytes uncompressed (varint: {varint_bytes} bytes)')
         expected_uncompressed = pagehead.mem_size - compress_skip
-        log.info(f'??  Page header expects: {expected_uncompressed} bytes uncompressed')
+        logger.info(f'??  Page header expects: {expected_uncompressed} bytes uncompressed')
 
         if abs(uncompressed_len - expected_uncompressed) > 100:
-            log.warn(f'??  WARNING: size mismatch of {abs(uncompressed_len - expected_uncompressed)} bytes!')
+            logger.warning(f'??  WARNING: size mismatch of {abs(uncompressed_len - expected_uncompressed)} bytes!')
     else:
-        log.error(f'??  ERROR: could not decode snappy varint header')
+        logger.error(f'??  ERROR: could not decode snappy varint header')
 
     # Try the full decompression first to get detailed error message
     try:
         snappy.uncompress(compressed_data)
         # If we get here, decompression succeeded (shouldn't happen if we're in diagnostics)
-        log.warn(f'??  WARNING: Full decompression unexpectedly succeeded')
+        logger.warning(f'??  WARNING: Full decompression unexpectedly succeeded')
     except snappy.UncompressError as e:
         # Try to extract the underlying error message from the exception chain
         error_details = ""
@@ -173,30 +175,30 @@ def print_snappy_diagnostics(compressed_data, stored_length, pagehead, compress_
 
         if dst_match:
             dst_pos = int(dst_match.group(1))
-            log.info(f'??  Error at output position: {dst_pos} bytes')
+            logger.info(f'??  Error at output position: {dst_pos} bytes')
             if uncompressed_len:
                 percent = (dst_pos / uncompressed_len) * 100
-                log.info(f'??  Successfully decompressed: {dst_pos} / {uncompressed_len} bytes ({percent:.1f}%)')
+                logger.info(f'??  Successfully decompressed: {dst_pos} / {uncompressed_len} bytes ({percent:.1f}%)')
             else:
-                log.info(f'??  Successfully decompressed: {dst_pos} bytes before failure')
+                logger.info(f'??  Successfully decompressed: {dst_pos} bytes before failure')
 
         if offset_match:
             bad_offset = int(offset_match.group(1))
-            log.error(f'??  Invalid backreference: Snappy tried to copy from output offset {bad_offset}')
+            logger.error(f'??  Invalid backreference: Snappy tried to copy from output offset {bad_offset}')
             if dst_match:
                 if bad_offset > dst_pos:
-                    log.error(f'??  ERROR: backreference offset {bad_offset} exceeds decompressed data {dst_pos} by {bad_offset - dst_pos} bytes')
-                log.info(f'??  Corruption occurred in compressed stream while decompressing bytes 0-{dst_pos}')
+                    logger.error(f'??  ERROR: backreference offset {bad_offset} exceeds decompressed data {dst_pos} by {bad_offset - dst_pos} bytes')
+                logger.info(f'??  Corruption occurred in compressed stream while decompressing bytes 0-{dst_pos}')
 
             # Note: The backreference offset may exceed compressed data length - that's expected
             # because it refers to a position in the OUTPUT buffer, not the input stream
             if bad_offset > len(compressed_data):
-                log.info(f'??  Note: backreference offset ({bad_offset}) > compressed size ({len(compressed_data)}) is expected')
-                log.info(f'??       (offset refers to output buffer position, not input position)')
+                logger.info(f'??  Note: backreference offset ({bad_offset}) > compressed size ({len(compressed_data)}) is expected')
+                logger.info(f'??       (offset refers to output buffer position, not input position)')
 
         if error_details and not (dst_match or offset_match):
-            log.info(f'??  Error details: {error_details}')
+            logger.info(f'??  Error details: {error_details}')
 
     # Show first bytes for debugging
     if len(compressed_data) >= 32:
-        log.info(f'??  first 32 bytes: {compressed_data[:32].hex(" ")}')
+        logger.info(f'??  first 32 bytes: {compressed_data[:32].hex(" ")}')

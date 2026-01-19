@@ -25,22 +25,21 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+import pprint
+import enum
+import io
+import json
+import logging
+from dataclasses import dataclass
+from typing import Optional, List, Union, Final
 
 # Tools and data structures for reading and decoding the on-disk format of WiredTiger's files.
 from py_common import binary_data
 from py_common.stats import PageStats
 from py_common.printer import Printer, binary_to_pretty_string, raw_bytes, dumpraw
-from py_common.snappy_util import print_snappy_diagnostics, snappy_decompress_page
-from py_common import log
-import io
-import json
-import pprint
-import sys
-import traceback
-import enum
-from dataclasses import dataclass
-from typing import Optional, List, Union, Final
+from py_common.snappy_util import snappy_decompress_page
 
+logger = logging.getLogger(__name__)
 
 #
 # Block File Header
@@ -693,8 +692,8 @@ class DisaggAddr(object):
     def __str__(self):
         addr_string = (
             f"Disagg Page Address:\n"
-            f"  version: {str(self.version)}"
-            f"  min_version: {str(self.min_version)}"
+            f"  version: {str(self.version)}\n"
+            f"  min_version: {str(self.min_version)}\n"
             f"  page_id: {str(self.page_id)}\n"
             f"  flags: {str(self.flags)}\n"
             f"  lsn: {str(self.lsn)}\n"
@@ -747,21 +746,21 @@ class WTPage:
             page.block_header = BlockHeader.parse(b_page)
 
         if page.page_header.unused != 0:
-            log.error('? garbage in unused bytes')
+            logger.error('? garbage in unused bytes')
             return page
         if page.page_header.type == PageType.WT_PAGE_INVALID:
-            log.error('? invalid page')
+            logger.error('? invalid page')
             return page
 
         if page.block_header.unused != 0:
-            log.error('garbage in unused bytes')
+            logger.error('garbage in unused bytes')
             return page
 
         disk_size = nbytes if opts.disagg else page.block_header.disk_size
 
         if disk_size > 17 * 1024 * 1024:
             # The maximum document size in MongoDB is 16MB. Larger block sizes are suspect.
-            log.error('the block is too big')
+            logger.error('the block is too big')
             return page
         if disk_size < 40 and not opts.disagg:
             # The disk size is too small
@@ -791,11 +790,11 @@ class WTPage:
             # Zero-out the checksum field
             data[32] = data[33] = data[34] = data[35] = 0
             if len(data) < check_size:
-                log.error('? reached EOF before the end of the block')
+                logger.error('? reached EOF before the end of the block')
                 return page
             checksum = crc32c.crc32c(data)
             if checksum != page.block_header.checksum:
-                log.error(f'? the calculated checksum {hex(checksum)} does not match header checksum {page.block_header.checksum}')
+                logger.error(f'? the calculated checksum {hex(checksum)} does not match header checksum {page.block_header.checksum}')
                 if (not opts.cont):
                     return page
 
@@ -833,7 +832,7 @@ class WTPage:
             cells = page.decode_rows(b_page, p, pagestats)
             page.cells = cells
         else:
-            log.warn('? unimplemented decode for page type {}'.format(page.page_header.type))
+            logger.warning('? unimplemented decode for page type {}'.format(page.page_header.type))
 
         PageStats.outfile_stats_end(opts, page.page_header, page.block_header, pagestats)
         page.success = True
@@ -844,6 +843,10 @@ class WTPage:
         p.rint(self.page_header)
         p.rint(self.block_header)
         
+        # Don't print the cell data unless configured.
+        if not opts.verbose:
+            return
+        
         if self.page_header.type == PageType.WT_PAGE_INVALID:
             pass    # a blank page: TODO maybe should check that it's all zeros?
         elif self.page_header.type == PageType.WT_PAGE_BLOCK_MANAGER:
@@ -853,15 +856,24 @@ class WTPage:
             self.print_cells(p, opts)
         elif self.page_header.type == PageType.WT_PAGE_OVFL:
             # Use b_page.read() so that we can also print the raw bytes in the split mode
-            b_page = binary_data.BinaryFile(io.BytesIO(self.raw_bytes))
+            b_page = self.raw_bytes
             p.rint_v(raw_bytes(b_page.read(len(self.raw_bytes))))
         else:
-            log.warn(f'? unimplemented decode for page type {self.page_header.type}')
+            logger.warning(f'? unimplemented decode for page type {self.page_header.type}')
             p.rint_v(binary_to_pretty_string(self.raw_bytes))
         
         return
 
     def print_cells(self, p, opts):
+        # Optional dependency: bson
+        have_bson = False
+        bson = None
+        if opts.bson:
+            try:
+                import bson
+                have_bson = True
+            except ImportError as e:
+                logger.error(f'Failed to import bson: {e}')
 
         for cellnum, cell in enumerate(self.cells):
             p.begin_cell(cellnum)
@@ -871,13 +883,6 @@ class WTPage:
 
             # Print the contents of the cell.
             try:
-                # Optional dependency: bson
-                have_bson = False
-                try:
-                    import bson
-                    have_bson = True
-                except:
-                    pass
                 # Attempt the decode the cell as BSON.
                 if (cell.is_value and opts.bson and have_bson):
                     decoded_data = bson.BSON(cell.data).decode()
@@ -910,7 +915,7 @@ class WTPage:
         for cellnum in range(0, self.page_header.entries):
             cellpos = b.tell()
             if cellpos >= self.page_header.mem_size:
-                log.warn('** OVERFLOW memsize **')
+                logger.warning('** OVERFLOW memsize **')
                 return cells
 
             # try:
@@ -942,7 +947,7 @@ class WTPage:
             cellnum += 1
             cellpos = b.tell()
             if cellpos >= self.page_header.mem_size:
-                log.warn(f'** OVERFLOW memsize ** memsize={self.page_header.mem_size}, position={cellpos}')
+                logger.warning(f'** OVERFLOW memsize ** memsize={self.page_header.mem_size}, position={cellpos}')
                 return extents
 
             extent = ExtentItem.parse(b)
@@ -952,22 +957,22 @@ class WTPage:
             if cellnum == 0:
                 extra_stuff += '  # magic number'
                 if not extent.is_magic():
-                    log.error(f'  # ERROR: magic number did not match expected value=\
+                    logger.error(f'  # ERROR: magic number did not match expected value=\
                         {ExtentItem.WT_BLOCK_EXTLIST_MAGIC}')
                     okay = False
             else:
                 if extent.offset < lastoff and not extent.is_end_of_list():
-                    log.error(f'  # ERROR: list out of order')
+                    logger.error(f'  # ERROR: list out of order')
                     okay = False
 
                 # We expect sizes and positions to be multiples of
                 # this number, it is conservative.
                 multiple = 256
                 if extent.offset % multiple != 0:
-                    log.error(f'  # ERROR: offset is not a multiple of {multiple}')
+                    logger.error(f'  # ERROR: offset is not a multiple of {multiple}')
                     okay = False
                 if extent.offset != 0 and extent.size % multiple != 0:
-                    log.error(f'  # ERROR: size is not a multiple of {multiple}')
+                    logger.error(f'  # ERROR: size is not a multiple of {multiple}')
                     okay = False
 
             # A zero offset is written as an end of list marker,
@@ -985,7 +990,7 @@ class WTPage:
                     extra_stuff += ', version 1,' + \
                     ' any following entries are not yet in this (incomplete) checkpoint'
                 else:
-                    log.error(f' -- ERROR unexpected size={extent.size} has no meaning here')
+                    logger.error(f' -- ERROR unexpected size={extent.size} has no meaning here')
                     okay = False
             
             extent.extra_stuff = extra_stuff

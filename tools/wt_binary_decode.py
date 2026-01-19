@@ -32,8 +32,10 @@
 # see "wt dump" for that.  But this is standalone (doesn't require linkage with any WT
 # libraries), and may be useful as 1) a learning tool 2) quick way to hack/extend dumping.
 
-import codecs, io, os, re, sys, traceback, json, shutil, tempfile, subprocess, base64
-from py_common import binary_data, btree_format, page_service, WTPage, PageStats, Printer, encode_bytes, log
+import codecs, io, logging, os, re, sys, traceback, json, shutil, tempfile, subprocess, base64
+from py_common import binary_data, btree_format, page_service, WTPage, PageStats, Printer, encode_bytes
+
+logger = logging.getLogger(__name__)
 
 decode_version = "2023-03-03.0"
 
@@ -260,7 +262,7 @@ def extract_disagg_pages(disagg_table, opts):
             page.print_page(opts)
             p.rint('')
 
-def extract_mongodb_log_hex(f):
+def extract_mongodb_log_hex(f, opts):
     """
     Extract hex dump from MongoDB log file containing checksum mismatch errors.
     Looks for __bm_corrupt_dump messages and extracts all hex chunks.
@@ -317,7 +319,7 @@ def extract_mongodb_log_hex(f):
             # If we don't have a JSON log line, then this isn't a MongoDB log. Reset the file 
             # pointer to the start to read all the bytes again.
             f.seek(0)
-            return encode_bytes(f)
+            return encode_bytes(f, opts)
         except Exception as e:
             if opts.debug:
                 print(f'Error parsing line {line_num}: {e}')
@@ -335,10 +337,10 @@ def wtdecode(opts):
     if opts.dumpin:
         opts.fragment = True
         if opts.filename == '-':
-            allbytes = extract_mongodb_log_hex(sys.stdin)
+            allbytes = extract_mongodb_log_hex(sys.stdin, opts)
         else:
             with open(opts.filename, "r") as infile:
-                allbytes = extract_mongodb_log_hex(infile)
+                allbytes = extract_mongodb_log_hex(infile, opts)
         b = binary_data.BinaryFile(io.BytesIO(allbytes))
         wtdecode_file_object(b, opts, len(allbytes))
     elif opts.disagg_table:
@@ -375,6 +377,7 @@ def get_arg_parser():
     parser.add_argument('--ext', help="dump only the extent lists", action='store_true')
     parser.add_argument('-f', '--fragment', help="input file is a fragment, does not have a WT file header", action='store_true')
     parser.add_argument('--keyfile', help="Keyfile path used for mongodb encryption", type=str)
+    parser.add_argument('--log', help="Debug logs for decoding logic", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], default='INFO')
     parser.add_argument('-o', '--offset', help="seek offset before decoding", type=int, default=0)
     parser.add_argument('-p', '--pages', help="number of pages to decode", type=int, default=0)
     parser.add_argument('-v', '--verbose', help="print things about data, not just the headers", action='store_true')
@@ -389,7 +392,7 @@ if __name__ == '__main__':
     parser = get_arg_parser()
     opts = parser.parse_args()
 
-    log.set_level(log.LogLevel.INFO)
+    logging.basicConfig(level=opts.log.upper(), format='[%(levelname)s] %(message)s')
     
     if opts.version:
         print('wt_binary_decode version "{}"'.format(decode_version))
