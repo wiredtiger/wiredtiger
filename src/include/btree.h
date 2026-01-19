@@ -106,6 +106,12 @@ typedef enum { /* Start position for eviction walk */
 #define WT_BTREE_ID_NAMESPACE_ID(x) ((x) & ((1 << WT_BTREE_ID_NAMESPACE_BITS) - 1))
 #define WT_BTREE_ID_SHARED(x) (WT_BTREE_ID_NAMESPACE_ID(x) == WT_BTREE_ID_NAMESPACE_SHARED)
 
+typedef struct __wt_btree_disagg {
+#define WT_BTREE_DISAGG_STORAGE_TIER_NONE 0
+#define WT_BTREE_DISAGG_STORAGE_TIER_COLD 1
+    uint32_t storage_tier;
+} WT_BTREE_DISAGG;
+
 /*
  * WT_BTREE --
  *	A btree handle.
@@ -314,6 +320,8 @@ struct __wt_btree {
 #define WT_BTREE_VERIFY 0x1000000u          /* Handle is for verify */
                                             /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
+
+    WT_BTREE_DISAGG btree_disagg;
 };
 
 /* Flags that make a btree handle special (not for normal use). */
