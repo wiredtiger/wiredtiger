@@ -6826,7 +6826,7 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
   tags: ["pull_request"]
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.unit_test_tsan"
+    - name: ".pull_request !.pull_request_compilers !.unit_test_tsan !.unit_test_xsan"
     - name: ".lint"
     - name: ".unit_test_long"
       distros: ubuntu2004-large
@@ -6905,7 +6905,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
   tags: ["pull_request", "sanitizer"]
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !chunkcache-test"
+    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !chunkcache-test !format-mirror-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
@@ -7375,7 +7375,7 @@ buildvariants:
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.unit_test_tsan"
+    - name: ".pull_request !.pull_request_compilers !.unit_test_tsan !.unit_test_xsan"
     - name: compile
     - name: make-check-test
     - name: unit-test
@@ -7463,7 +7463,7 @@ buildvariants:
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
     unit_test_variant_args: "--hook nonstandalone"
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.unit_test_tsan"
+    - name: ".pull_request !.pull_request_compilers !.unit_test_tsan !.unit_test_xsan"
     - name: compile
     - name: make-check-test
     - name: unit-test-extra-long
@@ -7790,7 +7790,7 @@ buildvariants:
     additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
     ctest_extra_args: -E "wt12015_backup_corruption"
   tasks:
-    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !.unit_test_tsan !syscall-linux !chunkcache-test"
+    - name: ".pull_request !.pull_request_compilers !.unit_test_xsan !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test !.unit_test_tsan !syscall-linux !chunkcache-test"
     - name: examples-c-test
     - name: format-asan-smoke-test
     - name: model-test-long
