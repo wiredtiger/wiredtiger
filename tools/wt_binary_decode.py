@@ -33,7 +33,10 @@
 # libraries), and may be useful as 1) a learning tool 2) quick way to hack/extend dumping.
 
 import codecs, io, logging, os, re, sys, traceback, json, shutil, tempfile, subprocess, base64
-from py_common import binary_data, btree_format, page_service, WTPage, PageStats, Printer, encode_bytes
+from py_common import binary_data, btree_format, page_service
+from py_common.printer import Printer
+from py_common.stats import PageStats
+from py_common.input import encode_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +108,7 @@ def wtdecode_file_object(b, opts, nbytes):
         print('Decode at ' + d_h)
         b.seek(startblock)
         try:
-            page = WTPage.parse(b, nbytes, opts)
+            page = btree_format.WTPage.parse(b, nbytes, opts)
             if page.success:
                 page.print_page(opts)
             p.rint('')
@@ -128,7 +131,7 @@ def wtdecode_file_object(b, opts, nbytes):
         pagecount += 1
     p.rint('')
 
-def decrypt_page(page):
+def decrypt_page(page, opts):
     """
     Call the pagedecryptor tool from the mongo repo.
     """
@@ -237,7 +240,7 @@ def extract_disagg_pages(disagg_table, opts):
                 print('')
                 continue
             
-            decrypted_page_bytes = decrypt_page(page)
+            decrypted_page_bytes = decrypt_page(page, opts)
             
             # The disagg metadata page is plaintext, print it as such.
             if page['metadata']['table_id']['val']['IntVal'] == 1:
@@ -257,7 +260,7 @@ def extract_disagg_pages(disagg_table, opts):
                 
             b = binary_data.BinaryFile(io.BytesIO(decrypted_page_bytes))
             p = Printer(b, opts)
-            page = WTPage()
+            page = btree_format.WTPage()
             page = page.parse(b, len(decrypted_page_bytes), opts)
             page.print_page(opts)
             p.rint('')

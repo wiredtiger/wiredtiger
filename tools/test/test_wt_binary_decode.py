@@ -35,7 +35,9 @@ from types import SimpleNamespace
 # Add tools directory to sys.path so we can import py_common
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from py_common import WTPage, encode_bytes, binary_data, btree_format
+import py_common.btree_format as btree_format
+import py_common.binary_data as binary_data
+from py_common.input import encode_bytes
 
 
 class Test(unittest.TestCase):
@@ -71,7 +73,7 @@ class Test(unittest.TestCase):
 
         b = binary_data.BinaryFile(io.BytesIO(page_bytes))
 
-        page = WTPage.parse(b, len(page_bytes), opts)
+        page = btree_format.WTPage.parse(b, len(page_bytes), opts)
         self.assertTrue(page.success, "WTPage parsing failed")
 
         # Validate Page Header fields

@@ -118,7 +118,7 @@ class PageHeader(object):
     '''
     recno: int
     write_gen: int
-    memsize: int
+    mem_size: int
     entries: int # Or: overflow data length
     type: PageType
     flags: PageFlags
