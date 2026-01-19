@@ -105,9 +105,6 @@ __btree_release_hs_dhandle(WT_SESSION_IMPL *session, WT_BTREE *btree)
     WT_ERR(__wt_session_release_dhandle(session));
     __wt_free(session, btree->hs_checkpoint_name);
 
-    __wt_scr_free(session, &hs_uri_buf);
-    return (0);
-
 err:
     __wt_scr_free(session, &hs_uri_buf);
     return (ret);
