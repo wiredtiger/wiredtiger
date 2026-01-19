@@ -324,6 +324,12 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
               " doesn't match expected checksum of %#" PRIx32,
               block->name, size, (uintmax_t)offset, swap.checksum, checksum);
 
+        /* Log the free disk space on full or partial checksum mismatch*/
+        wt_off_t free_disk_space = 0;
+        WT_RET(__wt_fs_free_space(session, block->fh, &free_disk_space));
+        __wt_errx(session, "%s: free disk space is %" PRIuMAX " bytes", block->name,
+          (uintmax_t)free_disk_space);
+
         /*
          * Dump the corrupted block for analysis prior to bitflip detection in case detection takes
          * too long.
