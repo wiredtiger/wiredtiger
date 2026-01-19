@@ -1295,6 +1295,7 @@ srch
 ss
 ssize
 statlog
+statvfs
 stb
 stdbool
 stderr
