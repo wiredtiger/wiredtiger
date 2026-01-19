@@ -3030,10 +3030,10 @@ tasks:
         vars:
           unit_test_args: -v 2 -b 11/12
 
-# XSAN testing runs longer and needs more buckets to keep individual task turnaround time reasonable.
+  # XSAN testing runs longer and needs more buckets to keep individual task turnaround time reasonable.
 
   - name: unit-test-xsan-bucket00
-    tags: ["python","unit_test_xsan"]
+    tags: ["python","pull_request","unit_test_xsan"]
     depends_on:
     - name: compile
     commands:
@@ -3043,7 +3043,7 @@ tasks:
           unit_test_args: -v 2 -b 0/24
 
   - name: unit-test-xsan-bucket01
-    tags: ["python","unit_test_xsan"]
+    tags: ["python","pull_request","unit_test_xsan"]
     depends_on:
     - name: compile
     commands:
@@ -3271,6 +3271,9 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 23/24
+
+  # Long running tests are broken out into their own buckets/tasks so that they can be scheduled
+  # to run at a later testing stage, e.g. merge queue testing.
 
   - name: unit-test-long-bucket00
     tags: ["python", "unit_test_long"]
@@ -6917,7 +6920,6 @@ buildvariants:
     - name: ".stress-test-asan"
     - name: ".stress-test-disagg"
       distros: ubuntu2004-large
-    # FIXME-WT-16302: Split unit tests into more buckets
     - name: ".unit_test_xsan"
     - name: ".unit_test_disagg"
     - name: ".unit_test_long"
@@ -7803,7 +7805,6 @@ buildvariants:
     - name: ".stress-test-asan"
     - name: ".stress-test-disagg"
       distros: amazon2023-arm64-latest-large-m8g
-    # FIXME-WT-16302: Split unit tests into more buckets
     - name: ".unit_test"
     - name: ".unit_test_disagg"
     - name: ".unit_test_long"
