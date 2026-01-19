@@ -345,7 +345,7 @@ __wt_btree_close(WT_SESSION_IMPL *session)
         return (0);
 
     if (btree->hs_checkpoint_name != NULL) {
-        WT_SAVE_DHANDLE(session, ret = __btree_release_hs_dhandle(session, btree));
+        WT_SAVE_DHANDLE(session, ret = __wt_btree_release_hs_dhandle(session, btree));
         WT_TRET(ret);
     }
 
