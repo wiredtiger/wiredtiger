@@ -97,8 +97,10 @@ __btree_release_hs_dhandle(WT_SESSION_IMPL *session, WT_BTREE *btree)
      * If the connection is closing, all data is being discarded, and the history store dhandle may
      * already have been removed. In this case, no further action is necessary.
      */
-    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING))
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING)) {
+        __wt_free(session, btree->hs_checkpoint_name);
         return (0);
+    }
 
     WT_RET(__wt_scr_alloc(session, 0, &hs_uri_buf));
     /*
