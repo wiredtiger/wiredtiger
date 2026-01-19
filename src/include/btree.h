@@ -294,6 +294,8 @@ struct __wt_btree {
 
     /* The next page ID available for allocation in disaggregated storage for this tree. */
     wt_shared uint64_t next_page_id;
+    /* Maximum LSN of the pages assigned to the tree during reconciliation. */
+    wt_shared uint64_t rec_lsn_max;
 
 /*
  * Flag values up to 0xfff are reserved for WT_DHANDLE_XXX. See comment with dhandle flags for an

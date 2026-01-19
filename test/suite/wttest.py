@@ -626,10 +626,11 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
 
         if passed and self.__module__.startswith("test_layered"):
             # FIXME-WT-16362: Always call verifyLayered once the unsupported tests are fixed.
-            if not re.match("test_layered(39|65)", str(self)):
+            unsupported_tests = "test_layered(65)"
+            if not re.match(unsupported_tests, str(self)):
                 self.verifyLayered()
             else:
-                self.pr('skipping verify for unsupported tests')
+                self.pr(f'skipping verify for unsupported tests: {unsupported_tests}')
 
         try:
             self.platform_api.tearDown(self)

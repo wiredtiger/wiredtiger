@@ -476,6 +476,16 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
               mod->mod_multi[mod->mod_multi_entries - 1].block_meta->disagg_lsn;
         else
             page->disagg_info->rec_lsn_max = page->disagg_info->block_meta.disagg_lsn;
+
+        for (;;) {
+            uint64_t old_rec_lsn_max = __wt_atomic_load_uint64_relaxed(&btree->rec_lsn_max);
+            if (old_rec_lsn_max < page->disagg_info->rec_lsn_max &&
+              !__wt_atomic_cas_uint64(
+                &btree->rec_lsn_max, old_rec_lsn_max, page->disagg_info->rec_lsn_max))
+                continue;
+
+            break;
+        }
     }
 
     /*

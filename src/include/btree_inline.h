@@ -2205,6 +2205,36 @@ __wt_page_materialization_check(WT_SESSION_IMPL *session, uint64_t rec_lsn_max)
 }
 
 /*
+ * __wt_btree_can_discard --
+ *     Check if a btree can be discarded based on the materialization frontier.
+ */
+static WT_INLINE bool
+__wt_btree_can_discard(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_DISAGGREGATED_STORAGE *disagg;
+    uint64_t rec_lsn_max, last_materialized_lsn;
+
+    btree = S2BT(session);
+
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+        return (true);
+    }
+
+    rec_lsn_max = __wt_atomic_load_uint64_acquire(&btree->rec_lsn_max);
+    if (rec_lsn_max == WT_DISAGG_LSN_NONE)
+        return (true);
+
+    disagg = &S2C(session)->disaggregated_storage;
+    last_materialized_lsn = __wt_atomic_load_uint64_acquire(&disagg->last_materialized_lsn);
+
+    if (last_materialized_lsn == WT_DISAGG_LSN_NONE)
+        return (true);
+
+    return (rec_lsn_max <= last_materialized_lsn);
+}
+
+/*
  * __wt_page_can_evict --
  *     Check whether a page can be evicted.
  */
