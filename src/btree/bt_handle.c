@@ -93,7 +93,7 @@ __btree_release_hs_dhandle(WT_SESSION_IMPL *session, WT_BTREE *btree)
     WT_DECL_ITEM(hs_uri_buf);
     WT_DECL_RET;
 
-    WT_RET_NOLOG(__wt_scr_alloc(session, 0, &hs_uri_buf));
+    WT_RET(__wt_scr_alloc(session, 0, &hs_uri_buf));
     /*
      * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from the stable
      * checkpoint, but without it being a traditional checkpoint cursor.
