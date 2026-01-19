@@ -64,6 +64,18 @@ buildvariants:
     - name: compile
     - ".cppsuite-perf-test-arm"
 
+- name: documentation-update
+  display_name: "~ Documentation update"
+  batchtime: 10080 # 7 days
+  run_on:
+  - ubuntu2004-test
+  expansions:
+    ENABLE_TCMALLOC: 0
+    doc_update_branches: develop,mongodb-8.0,mongodb-7.0,mongodb-6.0,mongodb-5.0,mongodb-4.4,mongodb-4.2
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+  tasks:
+    - name: doc-update
+
 - name: code-statistics
   display_name: "Ubuntu2004 ARM64 Code statistics"
   run_on:
@@ -106,18 +118,6 @@ buildvariants:
     - name: compatibility-test-for-patch-releases
     - name: import-compatibility-test
     - name: compatibility-test-dirty-restart
-
-- name: documentation-update
-  display_name: "~ Documentation update"
-  batchtime: 10080 # 7 days
-  run_on:
-  - ubuntu2004-test
-  expansions:
-    ENABLE_TCMALLOC: 0
-    doc_update_branches: develop,mongodb-8.0,mongodb-7.0,mongodb-6.0,mongodb-5.0,mongodb-4.4,mongodb-4.2
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-  tasks:
-    - name: doc-update
 
 - name: infrequent-checks
   display_name: "~ Infrequent Checks"
