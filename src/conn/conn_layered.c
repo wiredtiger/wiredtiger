@@ -1023,7 +1023,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
             WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
 
             int64_t old_order, order;
-            u_int64_t old_time, time;
+            uint64_t old_time, time;
             /*
              * Before inserting the new value, get the checkpoint name of the file at the previous
              * checkpoint.
