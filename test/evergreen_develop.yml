@@ -87,7 +87,7 @@ buildvariants:
     - name: modularity_metrics
 
 - name: compatibility-tests
-  display_name: Compatibility tests
+  display_name: "Compatibility tests"
   run_on:
   - ubuntu2004-test
   expansions:
@@ -107,15 +107,25 @@ buildvariants:
     - name: import-compatibility-test
     - name: compatibility-test-dirty-restart
 
-- name: infrequent-misc
-  display_name: "Infrequent Misc"
+- name: documentation-update
+  display_name: "~ Documentation update"
+  batchtime: 10080 # 7 days
   run_on:
   - ubuntu2004-test
   expansions:
     ENABLE_TCMALLOC: 0
+    doc_update_branches: develop,mongodb-8.0,mongodb-7.0,mongodb-6.0,mongodb-5.0,mongodb-4.4,mongodb-4.2
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+  tasks:
+    - name: doc-update
+
+- name: infrequent-checks
+  display_name: "~ Infrequent Checks"
+  run_on:
+  - ubuntu2004-test
+  expansions:
     cmake_generator: Ninja
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-    doc_update_branches: develop,mongodb-8.0,mongodb-7.0,mongodb-6.0,mongodb-5.0,mongodb-4.4,mongodb-4.2
   # As these tests run infrequently by the time they fail we may have had
   # a lot of prior commits that would also fail for the same test. This is acceptable
   # as our infrequent tests aren't tracking critical failures, but we don't want
@@ -127,11 +137,9 @@ buildvariants:
       batchtime: 40320 # 28 days
     - name: s-outdated-fixmes
       batchtime: 1440 # 1 day
-    - name: doc-update
-      batchtime: 10080 # 7 days
 
 - name: lazyfs-tests
-  display_name: "LazyFS tests"
+  display_name: "~ LazyFS tests"
   run_on:
   - ubuntu2004-libfuse-small
   batchtime: 1440 # 1 day
