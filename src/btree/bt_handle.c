@@ -605,9 +605,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     /* Configure disaggregated storage tier. */
     WT_RET(__wt_config_gets(session, cfg, "disaggregated.storage_tier", &cval));
     if (cval.len > 0 && strncmp(cval.str, "cold", cval.len) == 0)
-        btree->btree_disagg.storage_tier = WT_BTREE_DISAGG_STORAGE_TIER_COLD;
+        btree->storage_tier = WT_BTREE_STORAGE_TIER_COLD;
     else
-        btree->btree_disagg.storage_tier = WT_BTREE_DISAGG_STORAGE_TIER_NONE;
+        btree->storage_tier = WT_BTREE_STORAGE_TIER_NONE;
 
     /* Initialize locks. */
     WT_RET(__wt_rwlock_init(session, &btree->ovfl_lock));

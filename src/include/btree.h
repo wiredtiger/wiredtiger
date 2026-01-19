@@ -106,10 +106,6 @@ typedef enum { /* Start position for eviction walk */
 #define WT_BTREE_ID_NAMESPACE_ID(x) ((x) & ((1 << WT_BTREE_ID_NAMESPACE_BITS) - 1))
 #define WT_BTREE_ID_SHARED(x) (WT_BTREE_ID_NAMESPACE_ID(x) == WT_BTREE_ID_NAMESPACE_SHARED)
 
-struct __wt_btree_disagg {
-    WT_BTREE_DISAGG_STORAGE_TIER storage_tier;
-};
-
 /*
  * WT_BTREE --
  *	A btree handle.
@@ -297,6 +293,7 @@ struct __wt_btree {
 
     /* The next page ID available for allocation in disaggregated storage for this tree. */
     wt_shared uint64_t next_page_id;
+    WT_BTREE_STORAGE_TIER storage_tier; /* Disaggregated storage tier type */
 
 /*
  * Flag values up to 0xfff are reserved for WT_DHANDLE_XXX. See comment with dhandle flags for an
@@ -318,8 +315,6 @@ struct __wt_btree {
 #define WT_BTREE_VERIFY 0x1000000u          /* Handle is for verify */
                                             /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
-
-    WT_BTREE_DISAGG btree_disagg;
 };
 
 /* Flags that make a btree handle special (not for normal use). */

@@ -5813,9 +5813,9 @@ struct __wt_page_log_encryption {
  * Btree disaggregated storage tier types
  */
 typedef enum {
-    WT_BTREE_DISAGG_STORAGE_TIER_NONE = 0, /*!< No storage tier specified (default). */
-    WT_BTREE_DISAGG_STORAGE_TIER_COLD = 1  /*!< Cold storage tier. */
-} WT_BTREE_DISAGG_STORAGE_TIER;
+    WT_BTREE_STORAGE_TIER_NONE = 0, /*!< No storage tier specified (default). */
+    WT_BTREE_STORAGE_TIER_COLD = 1  /*!< Cold storage tier. */
+} WT_BTREE_STORAGE_TIER;
 
 /*!
  * Values given to, or returned by the WT_PAGE_LOG_HANDLE::plh_put interface.
