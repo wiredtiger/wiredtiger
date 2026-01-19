@@ -311,6 +311,7 @@ retry:
 
     if (ret == EBUSY && !leader) {
         __wt_free(session, checkpoint_name);
+        __wt_yield();
         goto retry;
     }
 
