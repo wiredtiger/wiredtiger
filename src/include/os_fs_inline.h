@@ -255,6 +255,9 @@ __wt_fs_free_space(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t *freep)
 {
 #ifdef _WIN32
     /* Windows not compatible */
+    WT_UNUSED(session);
+    WT_UNUSED(fh);
+    WT_UNUSED(freep);
     return (ENOTSUP);
 #else
     return (__wt_fs_free_space_posix(session, fh, freep));
