@@ -84,14 +84,23 @@ err:
 }
 
 /*
- * __btree_release_hs_dhandle --
+ * __wt_btree_release_hs_dhandle --
  *     Release the history store dhandle for the stable btree.
  */
-static int
-__btree_release_hs_dhandle(WT_SESSION_IMPL *session, WT_BTREE *btree)
+int
+__wt_btree_release_hs_dhandle(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_DECL_ITEM(hs_uri_buf);
     WT_DECL_RET;
+
+    /*
+     * If the connection is closing, all data is being discarded, and the history store dhandle may
+     * already have been removed. In this case, no further action is necessary.
+     */
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING)) {
+        __wt_free(session, btree->hs_checkpoint_name);
+        return (0);
+    }
 
     WT_RET(__wt_scr_alloc(session, 0, &hs_uri_buf));
     /*
@@ -335,8 +344,10 @@ __wt_btree_close(WT_SESSION_IMPL *session)
     if (F_ISSET(btree, WT_BTREE_CLOSED))
         return (0);
 
-    if (btree->hs_checkpoint_name != NULL)
-        WT_SAVE_DHANDLE(session, __btree_release_hs_dhandle(session, btree));
+    if (btree->hs_checkpoint_name != NULL) {
+        WT_SAVE_DHANDLE(session, ret = __wt_btree_release_hs_dhandle(session, btree));
+        WT_TRET(ret);
+    }
 
     F_SET(btree, WT_BTREE_CLOSED);
 
