@@ -965,8 +965,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
 {
     WT_CONFIG_ITEM cval;
     WT_CURSOR *cursor;
-    WT_DECL_ITEM(old_uri_buf);
     WT_DECL_ITEM(metadata_cfg);
+    WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
     WT_SESSION_IMPL *shared_metadata_session;
     uint32_t existing_tables, new_tables, new_ingest;
@@ -1019,7 +1019,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
             WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
 
             /*
-             * Before inserting the new value, get the name of the file at the previous checkpoint.
+             * Before inserting the new value, get the checkpoint name of the file at the previous
+             * checkpoint.
              */
             checkpoint_name = NULL;
             WT_ERR_NOTFOUND_OK(
@@ -1045,6 +1046,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
             if (checkpoint_name != NULL) {
                 WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
                 WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", metadata_key, checkpoint_name));
+                __wt_free(session, checkpoint_name);
                 WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, old_uri_buf->data),
                   "Marking data handles outdated failed: \"%s\"", (const char *)old_uri_buf->data);
             }
@@ -1096,8 +1098,9 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
       existing_tables, new_tables, new_ingest);
 
 err:
-    __wt_free(session, layered_ingest_uri);
     __wt_free(session, cfg_ret);
+    __wt_free(session, checkpoint_name);
+    __wt_free(session, layered_ingest_uri);
     __wt_scr_free(session, &old_uri_buf);
     __wt_scr_free(session, &metadata_cfg);
     if (cursor != NULL)
