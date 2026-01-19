@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 have_snappy = False
 
 def snappy_decompress_page(b: binary_data.BinaryFile, page_header, header_length, disk_size, disk_pos, opts) -> bytearray:
-    # # Optional dependency: python-snappy
+    # Optional dependency: python-snappy
     try:
         import snappy
         global have_snappy
@@ -148,15 +148,15 @@ def print_snappy_diagnostics(compressed_data, stored_length, pagehead, compress_
         logger.info(f'??  Page header expects: {expected_uncompressed} bytes uncompressed')
 
         if abs(uncompressed_len - expected_uncompressed) > 100:
-            logger.warning(f'??  WARNING: size mismatch of {abs(uncompressed_len - expected_uncompressed)} bytes!')
+            logger.warning(f'??  size mismatch of {abs(uncompressed_len - expected_uncompressed)} bytes!')
     else:
-        logger.error(f'??  ERROR: could not decode snappy varint header')
+        logger.error(f'??  could not decode snappy varint header')
 
     # Try the full decompression first to get detailed error message
     try:
         snappy.uncompress(compressed_data)
         # If we get here, decompression succeeded (shouldn't happen if we're in diagnostics)
-        logger.warning(f'??  WARNING: Full decompression unexpectedly succeeded')
+        logger.warning(f'??  Full decompression unexpectedly succeeded')
     except snappy.UncompressError as e:
         # Try to extract the underlying error message from the exception chain
         error_details = ""
@@ -187,7 +187,7 @@ def print_snappy_diagnostics(compressed_data, stored_length, pagehead, compress_
             logger.error(f'??  Invalid backreference: Snappy tried to copy from output offset {bad_offset}')
             if dst_match:
                 if bad_offset > dst_pos:
-                    logger.error(f'??  ERROR: backreference offset {bad_offset} exceeds decompressed data {dst_pos} by {bad_offset - dst_pos} bytes')
+                    logger.error(f'??  backreference offset {bad_offset} exceeds decompressed data {dst_pos} by {bad_offset - dst_pos} bytes')
                 logger.info(f'??  Corruption occurred in compressed stream while decompressing bytes 0-{dst_pos}')
 
             # Note: The backreference offset may exceed compressed data length - that's expected

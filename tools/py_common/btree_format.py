@@ -957,22 +957,22 @@ class WTPage:
             if cellnum == 0:
                 extra_stuff += '  # magic number'
                 if not extent.is_magic():
-                    logger.error(f'  # ERROR: magic number did not match expected value=\
+                    logger.error(f'Magic number did not match expected value=\
                         {ExtentItem.WT_BLOCK_EXTLIST_MAGIC}')
                     okay = False
             else:
                 if extent.offset < lastoff and not extent.is_end_of_list():
-                    logger.error(f'  # ERROR: list out of order')
+                    logger.error(f'Extent list out of order')
                     okay = False
 
                 # We expect sizes and positions to be multiples of
                 # this number, it is conservative.
                 multiple = 256
                 if extent.offset % multiple != 0:
-                    logger.error(f'  # ERROR: offset is not a multiple of {multiple}')
+                    logger.error(f'Offset is not a multiple of {multiple}')
                     okay = False
                 if extent.offset != 0 and extent.size % multiple != 0:
-                    logger.error(f'  # ERROR: size is not a multiple of {multiple}')
+                    logger.error(f'Size is not a multiple of {multiple}')
                     okay = False
 
             # A zero offset is written as an end of list marker,
@@ -990,7 +990,7 @@ class WTPage:
                     extra_stuff += ', version 1,' + \
                     ' any following entries are not yet in this (incomplete) checkpoint'
                 else:
-                    logger.error(f' -- ERROR unexpected size={extent.size} has no meaning here')
+                    logger.error(f'Unexpected size={extent.size} has no meaning here')
                     okay = False
             
             extent.extra_stuff = extra_stuff
