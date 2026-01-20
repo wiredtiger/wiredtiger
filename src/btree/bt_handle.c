@@ -210,6 +210,10 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
          * FIXME-WT-16477: if we directly read from the shared metadata, we can avoid taking the
          * checkpoint lock here.
          */
+        WT_ASSERT_ALWAYS(session,
+          !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA) ||
+            FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT),
+          "deadlock");
         WT_WITH_CHECKPOINT_LOCK(session,
           ret = __btree_pin_hs_dhandle_and_get_meta_checkpoint(
             session, btree, dhandle_name, checkpoint, &ckpt, &lr_fh_meta));
@@ -725,6 +729,13 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     WT_RET(__wt_config_gets(session, cfg, "readonly", &cval));
     if (cval.val)
         F_SET(btree, WT_BTREE_READONLY);
+
+    /* Configure disaggregated storage tier. */
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.storage_tier", &cval));
+    if (cval.len > 0 && strncmp(cval.str, "cold", cval.len) == 0)
+        btree->storage_tier = WT_BTREE_STORAGE_TIER_COLD;
+    else
+        btree->storage_tier = WT_BTREE_STORAGE_TIER_NONE;
 
     /* Initialize locks. */
     WT_RET(__wt_rwlock_init(session, &btree->ovfl_lock));
