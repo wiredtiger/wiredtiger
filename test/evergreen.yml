@@ -7312,7 +7312,6 @@ buildvariants:
   display_name: "! Amazon2023 ARM64"
   run_on:
   - amazon2023-arm64-latest-small-m8g
-  batchtime: 1440 # 24 hours
   expansions:
     ENABLE_TCMALLOC: 1
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v5_gcc.cmake
