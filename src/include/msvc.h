@@ -215,7 +215,7 @@ WT_RELEASE_BARRIER(void)
         return (                                                                                  \
           _InterlockedCompareExchange##s((t *)(vp), (t)(new_val), (t)(old_val)) == (t)(old_val)); \
     }                                                                                             \
-    WT_ATOMIC_FUNC_STORE_LOAD(suffix, _type, s, _type)
+    WT_ATOMIC_FUNC_STORE_LOAD(suffix, _type, s, t)
 
 WT_ATOMIC_FUNC(uint8, uint8_t, 8, char)
 WT_ATOMIC_FUNC(uint16, uint16_t, 16, short)
