@@ -146,7 +146,7 @@ struct __wt_btree {
     bool prefix_compression;      /* Prefix compression */
     u_int prefix_compression_min; /* Prefix compression min */
 
-    /* FIXME-WT-15633: Combine `prune_timestamp` and `ckpt_timestamp` into one variable */
+    /* FIXME-WT-15633: Combine `prune_timestamp` and `checkpoint_timestamp` into one variable */
     wt_shared wt_timestamp_t prune_timestamp; /* Ingest table GC collection timestamp */
     wt_timestamp_t checkpoint_timestamp;      /* Stable table checkpoint timestamp */
 

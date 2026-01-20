@@ -144,6 +144,7 @@ typedef struct __wt_disagg_metadata {
     const char *checkpoint;        /* Checkpoint metadata string */
     size_t checkpoint_len;         /* Length of checkpoint metadata string */
     uint64_t checkpoint_timestamp; /* Checkpoint timestamp */
+    uint64_t oldest_timestamp;     /* Oldest timestamp */
 
     const char *key_provider; /* Key provider metadata string */
     size_t key_provider_len;  /* Length of key provider metadata string */
