@@ -28,6 +28,7 @@
 
 # Data structures for decoding pages from the page service.
 import base64
+from dataclasses import dataclass
 import enum
 import io
 import json
@@ -103,6 +104,10 @@ class PageLogMetadata():
     def is_delta(self):
         return self.flags == UpdateTypeFlags.UPDATE_TYPE_DELTA
     
+    # The turtle metadata page has a set table_id of 1. Defined in meta.h
+    def is_metadata_page(self):
+        return self.table_id == 1
+    
     def __str__(self):
         meta_string = (
             f"Disagg Page Metadata:\n"
@@ -115,6 +120,22 @@ class PageLogMetadata():
         
         return meta_string
     
+@dataclass
+class DisaggTableSummary:
+    """
+    Summary statistics for the decoded B-tree.
+    """
+    total_pages: int = 0
+    delta_pages: int = 0
+    full_pages: int = 0
+    
+    def update_with_page(self, page: PageLogMetadata):
+        self.total_pages += 1
+        if page.is_delta():
+            self.delta_pages += 1
+        else:
+            self.full_pages += 1
+            
 def decrypt_page(page, page_metadata, opts):
     """
     Call the pagedecryptor tool from the mongo repo.
@@ -184,7 +205,7 @@ def decrypt_page(page, page_metadata, opts):
     
     return decrypted_bytes
 
-def extract_disagg_pages(disagg_table, opts):
+def extract_disagg_pages(disagg_table, opts) -> DisaggTableSummary:
     '''
     Extract pages a json objects from the GetTableAtLSN API on the Object Read Proxy.
     
@@ -193,6 +214,9 @@ def extract_disagg_pages(disagg_table, opts):
     contents as a byte array. The page contents are encrypted by default and require the
     pagedecryptor tool in order to be decrypted and then decoded.
     '''
+    
+    table_summary = DisaggTableSummary()
+    
     for line in disagg_table:
         # Parse each line as a separate json object containing the page entries associated with a 
         # page id.
@@ -218,7 +242,7 @@ def extract_disagg_pages(disagg_table, opts):
             decrypted_page_bytes = decrypt_page(page_entry, page_metadata, opts)
             
             # The disagg metadata page is plaintext, print it as such.
-            if page_entry['metadata']['table_id']['val']['IntVal'] == 1:
+            if page_metadata.is_metadata_page():
                 print('Disagg Metadata File:')
                 page_string = decrypted_page_bytes.decode('ascii')
                 print(f'  {page_string}')
@@ -273,5 +297,9 @@ def extract_disagg_pages(disagg_table, opts):
                 # Reset the delta chain list.
                 delta_chain = []
                 
+            # Update the table summary statistics.
+            table_summary.update_with_page(page_metadata)
             page.print_page(opts)
             p.rint('')
+
+    return table_summary
