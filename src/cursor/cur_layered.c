@@ -2088,10 +2088,9 @@ __clayered_modify_follower(
         ingest->set_value(ingest, &cursor->value);
         WT_RET(__wt_modify_apply_api(ingest, entries, nentries));
         WT_RET(ingest->update(ingest));
-    } else {
+    } else
         /* It did -- we can directly modify the ingest table. */
         WT_RET(ingest->modify(ingest, entries, nentries));
-    }
 
     clayered->current_cursor = ingest;
 
@@ -2165,7 +2164,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
     WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) != 0);
 
-    WT_STAT_CONN_DSRC_INCR(session, layered_curs_update);
+    WT_STAT_CONN_DSRC_INCR(session, layered_curs_modify);
 
 err:
     __clayered_leave(clayered);
