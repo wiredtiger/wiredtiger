@@ -3109,4 +3109,10 @@ __ut_disagg_validate_crypt(
 {
     return (__disagg_validate_crypt(session, key_item, header));
 }
+
+void
+__ut_disagg_get_crypt_header(const WT_ITEM *key_item, WT_CRYPT_HEADER *header)
+{
+    return (__disagg_get_crypt_header(key_item, header));
+}
 #endif
