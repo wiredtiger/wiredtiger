@@ -965,15 +965,18 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
              * FIXME-WT-16477: work around to ensure we always acquire the checkpoint lock before
              * the schema lock.
              */
-            if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader) {
+            bool checkpoint_lock_needed = false;
+            if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader &&
+              !WT_IS_URI_SHARED_HS(uri)) {
                 const char *suffix = strstr(uri, ".wt_stable/");
                 if (suffix != NULL)
-                    WT_WITH_CHECKPOINT_LOCK(session,
-                      WT_WITH_SCHEMA_LOCK(session,
-                        ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags)));
-                else
-                    WT_WITH_SCHEMA_LOCK(session,
-                      ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
+                    checkpoint_lock_needed = true;
+            }
+
+            if (checkpoint_lock_needed) {
+                WT_WITH_CHECKPOINT_LOCK(session,
+                  WT_WITH_SCHEMA_LOCK(
+                    session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags)));
             } else
                 WT_WITH_SCHEMA_LOCK(
                   session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
