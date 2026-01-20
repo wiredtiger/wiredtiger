@@ -1138,3 +1138,22 @@ __wti_posix_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_sessio
     /* Signal that we are done resizing the buffer */
     (void)__wt_atomic_sub_uint32_v(&pfh->mmap_resizing, 1);
 }
+
+/*
+ * __wt_posix_fs_free_space --
+ *     Return the free space disk available in the file system containing the file.
+ */
+int
+__wt_posix_fs_free_space(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t *freep)
+{
+    struct statvfs stats;
+    WT_DECL_RET;
+
+    WT_SYSCALL(statvfs(fh->name, &stats), ret);
+    if (ret == 0) {
+        *freep = (wt_off_t)((uint64_t)stats.f_bavail * (uint64_t)stats.f_frsize);
+        return (0);
+    }
+
+    WT_RET_MSG(session, ret, "%s: free-disk-space: statvfs", fh->name);
+}
