@@ -966,8 +966,7 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
              * the schema lock.
              */
             bool checkpoint_lock_needed = false;
-            if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader &&
-              !WT_IS_URI_SHARED_HS(uri)) {
+            if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader) {
                 const char *suffix = strstr(uri, ".wt_stable/");
                 if (suffix != NULL)
                     checkpoint_lock_needed = true;

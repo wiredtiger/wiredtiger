@@ -85,13 +85,9 @@
 /*
  * Other useful comparisons.
  */
-#define WT_IS_URI_SHARED_HS(uri) (strncmp((uri), WT_HS_URI_SHARED, strlen(WT_HS_URI_SHARED)) == 0)
-
-/*
- * Other useful comparisons.
- */
-#define WT_IS_URI_HS(uri) \
-    (strncmp((uri), WT_HS_URI, strlen(WT_HS_URI)) == 0 || WT_IS_URI_SHARED_HS((uri)))
+#define WT_IS_URI_HS(uri)                                 \
+    (strncmp((uri), WT_HS_URI, strlen(WT_HS_URI)) == 0 || \
+      (strncmp((uri), WT_HS_URI_SHARED, strlen(WT_HS_URI_SHARED)) == 0))
 
 #define WT_HS_ID_TO_URI(session, hs_id, uri)                                                   \
     do {                                                                                       \
