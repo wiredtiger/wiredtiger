@@ -288,8 +288,19 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
     bucket = __wt_hash_city64(uri, strlen(uri)) & (conn->dh_hash_size - 1);
     if (checkpoint == NULL) {
         TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
-            if (F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED))
+            if (F_ISSET(dhandle, WT_DHANDLE_DEAD))
                 continue;
+            if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
+                /*
+                 * The pinned shared history store checkpoint may be still needed by the read. They
+                 * are really outdated when they are not in use any more.
+                 */
+                if (WT_IS_HS(dhandle) && F_ISSET((WT_BTREE *)dhandle->handle, WT_BTREE_READONLY)) {
+                    if (__wt_atomic_load_int32_acquire(&dhandle->session_inuse) == 0)
+                        continue;
+                } else
+                    continue;
+            }
             if (dhandle->checkpoint == NULL && strcmp(uri, dhandle->name) == 0) {
                 session->dhandle = dhandle;
                 return (0);
@@ -297,7 +308,8 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
         }
     } else
         TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
-            if (F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED))
+            WT_ASSERT(session, !F_ISSET(dhandle, WT_DHANDLE_OUTDATED));
+            if (F_ISSET(dhandle, WT_DHANDLE_DEAD))
                 continue;
             if (dhandle->checkpoint != NULL && strcmp(uri, dhandle->name) == 0 &&
               strcmp(checkpoint, dhandle->checkpoint) == 0) {
