@@ -259,7 +259,7 @@ class BlockDisaggHeader(object):
         self.unused = 0
 
     @staticmethod
-    def parse(b: binary_data.BinaryFile, disagg = False) -> 'BlockDisaggHeader':
+    def parse(b: binary_data.BinaryFile) -> 'BlockDisaggHeader':
         '''
         Parse a block header.
         '''
@@ -400,6 +400,9 @@ class Cell(object):
     size_stop_ts: int
     size_start_txn: int
     size_stop_txn: int
+    
+    # Flag used for delta updates in disagg.
+    delta_flag: Optional[int]
 
     # Constants and flags for the descriptor byte
     WT_CELL_KEY_SHORT: Final[int] = 0x01
@@ -481,7 +484,7 @@ class Cell(object):
         return self.extra_descriptor != 0
     
     @staticmethod
-    def parse(b: binary_data.BinaryFile, ignore_unsupported: bool = False) -> 'Cell':
+    def parse(b: binary_data.BinaryFile, is_delta: bool = False, ignore_unsupported: bool = False) -> 'Cell':
         '''
         Parse a cell.
         '''
@@ -514,6 +517,13 @@ class Cell(object):
                     l = b.read_packed_uint64()
                 else:
                     l = b.read_long_length()
+                    
+                # Delta pages use the value_format 'uB'. Since we explicitly set the 'u' config we 
+                # store an extra variable length encoded size byte to indicate the size of this 
+                # value. In this case this is the real value length we're interested in. The 'B' 
+                # byte is stored at the end.
+                if is_delta:
+                    l = b.read_packed_uint64()
                 cell.is_value = True
             elif cell.cell_type == CellType.WT_CELL_KEY:
                 # 64 is WT_CELL_SIZE_ADJUST. If the size was less than that, we would have used the
@@ -562,7 +572,11 @@ class Cell(object):
         else:
             assert(False)
 
-        cell.data = b.read(l)
+        if is_delta and cell.cell_type == CellType.WT_CELL_VALUE:
+            cell.data = b.read(l)
+            cell.delta_flag = b.read_uint8()
+        else: 
+            cell.data = b.read(l)
         return cell
 
     @property
@@ -909,6 +923,11 @@ class WTPage:
             p.begin_cell(extnum)
             p.rint_ext(f'  {extent.offset}, {extent.size}{extent.extra_stuff}')
 
+    def is_delta(self):
+        if not isinstance(self.block_header, BlockDisaggHeader):
+            return False
+        
+        return self.block_header.magic == BlockDisaggHeader.WT_BLOCK_DISAGG_MAGIC_DELTA
         
     def decode_rows(self, b, p , pagestats) -> List[Cell]:
         cells = []
@@ -918,8 +937,7 @@ class WTPage:
                 logger.warning('** OVERFLOW memsize **')
                 return cells
 
-            # try:
-            cell = Cell.parse(b, True)
+            cell = Cell.parse(b, is_delta=self.is_delta(), ignore_unsupported=True)
             cells.append(cell)
             
             if cell.has_timestamps():
