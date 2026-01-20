@@ -170,6 +170,7 @@ GF
 GIDs
 GLIBC
 Geoff
+GetDiskFreeSpaceExA
 GetEnvironmentVariableA
 GetFileAttributesEx
 GetFileSizeEx
