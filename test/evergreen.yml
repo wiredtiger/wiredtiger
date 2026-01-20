@@ -1693,7 +1693,7 @@ variables:
         vars:
           format_args: disagg.multi=1 runs.predictable_replay=1 runs.ops=500000:2000000
           times: 5
-          reopen: false # FIXME-WT-16135 Reopen currently causes failures in disagg multi mode.
+          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
   - &format-stress-test-disagg-multi-data-validation
     depends_on:
@@ -1705,7 +1705,7 @@ variables:
           # Validate data with a non-layered table.
           format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.ops=500000:2000000
           times: 5
-          reopen: false # FIXME-WT-16135 Reopen currently causes failures in disagg multi mode.
+          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
 #######################################
 #               Tasks                 #
