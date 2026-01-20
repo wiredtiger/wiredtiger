@@ -181,7 +181,8 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
     conn = S2C(session);
 
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
-        bool sweep_non_outdated_handle = __wt_atomic_load_uint32_relaxed(&conn->open_btree_count) >= conn->sweep_handles_min;
+        bool sweep_non_outdated_handle =
+          __wt_atomic_load_uint32_relaxed(&conn->open_btree_count) >= conn->sweep_handles_min;
         /*
          * Ignore open files once the btree file count is below the minimum number of handles.
          */
@@ -193,8 +194,8 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
          * outdated, wait until the idle time has elapsed since time of death.
          */
         if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
-          if(__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) == 0)
-            goto expire;
+            if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) == 0)
+                goto expire;
         } else if (!sweep_non_outdated_handle)
             continue;
 
@@ -475,10 +476,12 @@ __sweep_server(void *arg)
             __sweep_mark(session, now);
 
         /*
-         * Close handles if we have reached the configured limit or in disaggregated storage. If sweep_idle_time is 0, handles
-         * never become idle.
+         * Close handles if we have reached the configured limit or in disaggregated storage. If
+         * sweep_idle_time is 0, handles never become idle.
          */
-        if (conn->sweep_idle_time != 0 && (__wt_atomic_load_uint32_relaxed(&conn->open_btree_count) >= conn->sweep_handles_min || __wt_conn_is_disagg(session)))
+        if (conn->sweep_idle_time != 0 &&
+          (__wt_atomic_load_uint32_relaxed(&conn->open_btree_count) >= conn->sweep_handles_min ||
+            __wt_conn_is_disagg(session)))
             WT_ERR(__sweep_expire(session, now));
 
         WT_ERR(__sweep_discard_trees(session, &dead_handles));

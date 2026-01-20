@@ -1086,8 +1086,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
             }
             /*
              * TODO: Mark all live btrees as outdated. Otherwise, we will not open a new dhandle for
-             * live btrees after step-up. This is better done at step-up to force close all live
-             * btrees.
+             * live btrees after step-up. This is better done at step-up or step-down to force close
+             * all live btrees.
              */
             WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, metadata_key),
               "Marking data handles outdated failed: \"%s\"", (const char *)metadata_key);
