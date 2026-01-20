@@ -328,15 +328,14 @@ __disagg_validate_crypt(WT_SESSION_IMPL *session, const WT_ITEM *key_item, WT_CR
     WT_DECL_RET;
     uint32_t checksum = 0;
 
-    if (key_item->size < sizeof(WT_CRYPT_HEADER)) {
+    if (key_item->size < sizeof(WT_CRYPT_HEADER))
         WT_ERR_MSG(session, EIO,
           "Encryption key data too small: expected at least %" WT_SIZET_FMT ", got %" WT_SIZET_FMT,
           sizeof(WT_CRYPT_HEADER), key_item->size);
-    }
     __disagg_get_crypt_header(key_item, header);
 
     /* Check for compatibility versions before validating header fields. */
-    if (header->compatible_version > header->version)
+    if (header->compatible_version > WT_CRYPT_HEADER_COMPATIBLE_VERSION)
         WT_ERR_MSG(session, ENOTSUP,
           "Unsupported encryption key data version %" PRIu8 ", min %" PRIu8, header->version,
           header->compatible_version);
@@ -345,23 +344,20 @@ __disagg_validate_crypt(WT_SESSION_IMPL *session, const WT_ITEM *key_item, WT_CR
       "Invalid encryption key data signature: expected 0x%08" PRIx32 ", got 0x%08" PRIx32,
       WT_CRYPT_HEADER_SIGNATURE, header->signature);
 
-    if (header->header_size < sizeof(WT_CRYPT_HEADER)) {
+    if (header->header_size < sizeof(WT_CRYPT_HEADER))
         WT_ERR_MSG(session, EIO,
           "Encryption key header is too small: expected at least %" WT_SIZET_FMT ", got %" PRIu8,
           sizeof(WT_CRYPT_HEADER), header->header_size);
-    }
 
-    if (key_item->size - header->header_size != header->crypt_size) {
+    if (key_item->size - header->header_size != header->crypt_size)
         WT_ERR_MSG(session, EIO, "Encryption key data size mismatch: expected %u, got %u",
           header->crypt_size, (uint32_t)(key_item->size - header->header_size));
-    }
 
     checksum = __wt_checksum((uint8_t *)key_item->data + header->header_size, header->crypt_size);
-    if (checksum != header->checksum) {
+    if (checksum != header->checksum)
         WT_ERR_MSG(session, EIO,
           "Encryption key data checksum mismatch: expected %" PRIx32 ", got %" PRIx32,
           header->checksum, checksum);
-    }
 
 err:
     return (ret);
