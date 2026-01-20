@@ -68,7 +68,7 @@ class TestDecodeDisaggTable(unittest.TestCase):
         """Decode the disagg table in JSONL format."""
         opts = self.make_opts()
         cur_dir = os.path.dirname(os.path.abspath(__file__))
-        table_path = os.path.join(cur_dir, "binary_files", "tableId65-oplog.jsonl")
+        table_path = os.path.join(cur_dir, "binary_files", "disagg_oplog.jsonl")
 
         self.assertTrue(
             os.path.exists(table_path),
