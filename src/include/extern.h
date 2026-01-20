@@ -2099,8 +2099,6 @@ static WT_INLINE int __wt_fs_exist(WT_SESSION_IMPL *session, const char *name, b
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_fs_free_space(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t *freep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE int __wt_fs_free_space_posix(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t *freep)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_fs_remove(WT_SESSION_IMPL *session, const char *name, bool durable,
   bool locked) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_fs_rename(WT_SESSION_IMPL *session, const char *from, const char *to,
