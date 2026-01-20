@@ -3113,6 +3113,6 @@ __ut_disagg_validate_crypt(
 void
 __ut_disagg_get_crypt_header(const WT_ITEM *key_item, WT_CRYPT_HEADER *header)
 {
-    return (__disagg_get_crypt_header(key_item, header));
+    __disagg_get_crypt_header(key_item, header);
 }
 #endif
