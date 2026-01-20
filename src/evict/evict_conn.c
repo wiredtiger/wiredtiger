@@ -138,6 +138,14 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
     bool precise_checkpoint = F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT);
     if (evict->eviction_updates_target < DBL_EPSILON) {
         if (precise_checkpoint) {
+            /*
+             * If we are running with precise checkpoint enabled we want to discourage update based
+             * eviction. To do this we set the updates target to the dirty target by default. This
+             * change improves performance with regards to history store eviction as previously we
+             * were evicting history store pages ahead of the checkpoint as they would have updates
+             * on them. These pages would then be read back in due to checkpoint moving updates to
+             * the history store.
+             */
             WT_CONFIG_DEBUG(session,
               "config eviction_updates_target (%f) cannot be zero. Setting "
               "to eviction_dirty_target (%f) for precise checkpoint.",
