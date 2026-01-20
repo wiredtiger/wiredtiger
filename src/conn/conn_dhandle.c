@@ -292,7 +292,7 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
                 continue;
             if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
                 /*
-                 * The pinned shared history store checkpoint may be still needed by the readers.
+                 * The pinned shared history store checkpoints may be still needed by the readers.
                  * They are really outdated when they are not in use any more.
                  */
                 if (WT_IS_HS(dhandle) && F_ISSET((WT_BTREE *)dhandle->handle, WT_BTREE_READONLY)) {
