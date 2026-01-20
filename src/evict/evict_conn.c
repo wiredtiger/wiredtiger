@@ -136,11 +136,19 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     if (evict->eviction_updates_target < DBL_EPSILON) {
-        WT_CONFIG_DEBUG(session,
-          "config eviction_updates_target (%f) cannot be zero. Setting "
-          "to 50%% of eviction_dirty_target (%f).",
-          evict->eviction_updates_target, evict->eviction_dirty_target / 2);
-        evict->eviction_updates_target = evict->eviction_dirty_target / 2;
+        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+            WT_CONFIG_DEBUG(session,
+              "config eviction_updates_target (%f) cannot be zero. Setting "
+              "to eviction_dirty_target (%f) for precise checkpoint.",
+              evict->eviction_updates_target, evict->eviction_dirty_target);
+            evict->eviction_updates_target = evict->eviction_dirty_target;
+        } else {
+            WT_CONFIG_DEBUG(session,
+              "config eviction_updates_target (%f) cannot be zero. Setting "
+              "to 50%% of eviction_dirty_target (%f).",
+              evict->eviction_updates_target, evict->eviction_dirty_target / 2);
+            evict->eviction_updates_target = evict->eviction_dirty_target / 2;
+        }
     }
 
     if (evict->eviction_updates_trigger < DBL_EPSILON) {
