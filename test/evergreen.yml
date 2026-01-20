@@ -6822,6 +6822,7 @@ buildvariants:
 
 - name: rhel80
   display_name: "~ RHEL 8.0"
+  batchtime: 1440 # once a day
   run_on:
   - rhel80-test
   expansions:
