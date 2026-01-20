@@ -38,8 +38,7 @@ struct kp_header_fixture {
     kp_crypt_key_buffer(WT_SESSION_IMPL *session, const std::string &str)
     {
         /* Allocate a buffer and make sure we leave enough space for the header at the start. */
-        REQUIRE(
-          __wt_buf_initsize(session, &crypt.keys, sizeof(WT_CRYPT_HEADER) + str.size()) == 0);
+        REQUIRE(__wt_buf_initsize(session, &crypt.keys, sizeof(WT_CRYPT_HEADER) + str.size()) == 0);
         memcpy(((uint8_t *)(crypt.keys.data) + sizeof(WT_CRYPT_HEADER)), str.data(), str.size());
         crypt.keys.size = str.size();
         crypt.keys.data = (uint8_t *)(crypt.keys.data) + sizeof(WT_CRYPT_HEADER);
@@ -80,7 +79,8 @@ TEST_CASE_METHOD(kp_header_fixture, "Key provider set header function", "[key_pr
     __wt_buf_free(session_impl, &crypt.keys);
 }
 
-TEST_CASE_METHOD(kp_header_fixture, "Key provider: validate crypt function", "[key_provider_header]")
+TEST_CASE_METHOD(
+  kp_header_fixture, "Key provider: validate crypt function", "[key_provider_header]")
 {
     /* Set the header inside the crypt struct. */
     __ut_disagg_set_crypt_header(session_impl, &crypt);
