@@ -116,6 +116,8 @@ struct __wt_btree {
     WT_CKPT *ckpt;               /* Checkpoint information */
     size_t ckpt_bytes_allocated; /* Checkpoint information array allocation size */
 
+    const char *hs_checkpoint_name; /* History store checkpoint name. */
+
     WT_BTREE_TYPE type; /* Type */
 
     const char *key_format;   /* Key format */
