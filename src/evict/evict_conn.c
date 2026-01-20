@@ -135,8 +135,9 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
         evict->eviction_dirty_trigger = evict->eviction_trigger;
     }
 
+    bool precise_checkpoint = F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT);
     if (evict->eviction_updates_target < DBL_EPSILON) {
-        if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+        if (precise_checkpoint) {
             WT_CONFIG_DEBUG(session,
               "config eviction_updates_target (%f) cannot be zero. Setting "
               "to eviction_dirty_target (%f) for precise checkpoint.",
@@ -152,11 +153,19 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     if (evict->eviction_updates_trigger < DBL_EPSILON) {
-        WT_CONFIG_DEBUG(session,
-          "config eviction_updates_trigger (%f) cannot be zero. Setting "
-          "to 50%% of eviction_dirty_trigger (%f).",
-          evict->eviction_updates_trigger, evict->eviction_dirty_trigger / 2);
-        evict->eviction_updates_trigger = evict->eviction_dirty_trigger / 2;
+        if (precise_checkpoint) {
+            WT_CONFIG_DEBUG(session,
+              "config eviction_updates_trigger (%f) cannot be zero. Setting "
+              "to eviction_dirty_trigger (%f) for precise checkpoint.",
+              evict->eviction_updates_trigger, evict->eviction_dirty_trigger);
+            evict->eviction_updates_trigger = evict->eviction_dirty_trigger;
+        } else {
+            WT_CONFIG_DEBUG(session,
+              "config eviction_updates_trigger (%f) cannot be zero. Setting "
+              "to 50%% of eviction_dirty_trigger (%f).",
+              evict->eviction_updates_trigger, evict->eviction_dirty_trigger / 2);
+            evict->eviction_updates_trigger = evict->eviction_dirty_trigger / 2;
+        }
     }
 
     /* Don't allow the trigger to be larger than the overall trigger. */
