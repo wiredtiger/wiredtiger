@@ -56,6 +56,7 @@ __curhs_file_cursor_open(WT_SESSION_IMPL *session, const char *uri, const char *
          */
         WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "%s/%s", uri, checkpoint_name));
         uri = stable_uri_buf->data;
+        open_cursor_cfg[2] = "readonly";
     }
 
     WT_WITHOUT_DHANDLE(

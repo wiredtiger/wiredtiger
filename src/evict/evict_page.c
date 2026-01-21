@@ -151,7 +151,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_PAGE *page;
     uint64_t page_size;
     uint8_t stats_flags;
-    bool clean_page, closing, ebusy_only, inmem_split, is_dirty, tree_dead;
+    bool clean_page, closing, ebusy_only, inmem_split, is_dirty, is_follower_stable, tree_dead;
 
     conn = S2C(session);
     page = ref->page;
@@ -236,8 +236,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     if (__wt_page_is_modified(page))
         is_dirty = true;
 
-    /* No need to reconcile the page if it is from a dead tree or it is clean. */
-    if (!tree_dead && is_dirty)
+    is_follower_stable = (ref->page->disagg_info != NULL && !conn->layered_table_manager.leader);
+
+    /*
+     * No need to reconcile the page if it is from a dead tree or it is clean. Stable tables on the
+     * follower are never modified, and should never be reconciled.
+     */
+    if (!tree_dead && is_dirty && !is_follower_stable)
         WT_ERR(__evict_reconcile(session, ref, flags));
 
     /* After this spot, the only recoverable failure is EBUSY. */
