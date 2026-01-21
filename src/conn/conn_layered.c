@@ -2816,7 +2816,6 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
 
     layered_table = NULL;
     prune_timestamp = WT_TS_NONE;
-    session_inuse = 0;
 
     /*
      * Get the layered table from the provided URI. We don't hold any global locks so that's
