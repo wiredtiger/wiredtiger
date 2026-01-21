@@ -724,6 +724,9 @@ struct __wt_connection_impl {
 
     WT_CKPT_CONNECTION ckpt;
 
+    /* Parallel page reconciliation during a checkpoint. */
+    WT_CHECKPOINT_RECONCILE_THREADS *ckpt_reconcile_threads, _ckpt_reconcile_threads;
+
     /* Record the important timestamps of each stage in recovery. */
     struct __wt_recovery_timeline {
         uint64_t log_replay_ms;
@@ -1023,16 +1026,17 @@ struct __wt_connection_impl {
 #define WT_CONN_SERVER_CAPACITY 0x0001u
 #define WT_CONN_SERVER_CHECKPOINT 0x0002u
 #define WT_CONN_SERVER_CHECKPOINT_CLEANUP 0x0004u
-#define WT_CONN_SERVER_CHUNKCACHE_METADATA 0x0008u
-#define WT_CONN_SERVER_COMPACT 0x0010u
-#define WT_CONN_SERVER_EVICTION 0x0020u
-#define WT_CONN_SERVER_LAYERED 0x0040u
-#define WT_CONN_SERVER_LOG 0x0080u
-#define WT_CONN_SERVER_PREFETCH 0x0100u
-#define WT_CONN_SERVER_RTS 0x0200u
-#define WT_CONN_SERVER_STATISTICS 0x0400u
-#define WT_CONN_SERVER_SWEEP 0x0800u
-#define WT_CONN_SERVER_TIERED 0x1000u
+#define WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS 0x0008u
+#define WT_CONN_SERVER_CHUNKCACHE_METADATA 0x0010u
+#define WT_CONN_SERVER_COMPACT 0x0020u
+#define WT_CONN_SERVER_EVICTION 0x0040u
+#define WT_CONN_SERVER_LAYERED 0x0080u
+#define WT_CONN_SERVER_LOG 0x0100u
+#define WT_CONN_SERVER_PREFETCH 0x0200u
+#define WT_CONN_SERVER_RTS 0x0400u
+#define WT_CONN_SERVER_STATISTICS 0x0800u
+#define WT_CONN_SERVER_SWEEP 0x1000u
+#define WT_CONN_SERVER_TIERED 0x2000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t server_flags;
 

@@ -393,7 +393,8 @@ done:
           "tree walk took more than 10 seconds (%" PRIu64 "ms)", time_diff_ms);
 err:
     WT_TRET(__wt_page_release(session, couple, flags));
-    WT_TRET(__wt_page_release(session, ref_orig, flags));
+    if (!LF_ISSET(WT_READ_NO_PAGE_RELEASE))
+        WT_TRET(__wt_page_release(session, ref_orig, flags));
     WT_LEAVE_PAGE_INDEX(session);
     return (ret);
 }

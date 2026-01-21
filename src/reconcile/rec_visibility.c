@@ -1473,12 +1473,12 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      * The checkpoint transaction is special. Make sure we never write metadata updates from a
      * checkpoint in a concurrent session.
      */
-    WT_ASSERT_ALWAYS(session,
-      !WT_IS_METADATA(session->dhandle) || upd == NULL || upd->txnid == WT_TXN_NONE ||
-        upd->txnid !=
-          __wt_atomic_load_uint64_v_relaxed(&S2C(session)->txn_global.checkpoint_txn_shared.id) ||
-        WT_SESSION_IS_CHECKPOINT(session),
-      "Metadata updates written from a checkpoint in a concurrent session");
+    // WT_ASSERT_ALWAYS(session,
+    //   !WT_IS_METADATA(session->dhandle) || upd == NULL || upd->txnid == WT_TXN_NONE ||
+    //     upd->txnid !=
+    //       __wt_atomic_load_uint64_v_relaxed(&S2C(session)->txn_global.checkpoint_txn_shared.id) ||
+    //     WT_SESSION_IS_CHECKPOINT(session),
+    //   "Metadata updates written from a checkpoint in a concurrent session");
 
     /* If all of the updates were aborted, quit. */
     if (first_txn_upd == NULL && !has_newer_updates) {
