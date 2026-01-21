@@ -1680,7 +1680,7 @@ struct Pages : public Table<Pages> {
               .base_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 2)),
               .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt, 3)),
               .encryption = WT_PAGE_LOG_ENCRYPTION{},
-              .storage_tier = WT_BTREE_STORAGE_TIER_COLD};
+              .storage_tier = WT_BTREE_STORAGE_TIER{}};
 
             const char *enc = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4));
             strncpy(page.encryption.dek, enc ? enc : "", sizeof(page.encryption.dek));
@@ -1935,7 +1935,7 @@ private:
                 .base_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 4)),
                 .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt.get(), 5)),
                 .encryption = WT_PAGE_LOG_ENCRYPTION{},
-                .storage_tier = WT_BTREE_STORAGE_TIER_COLD});
+                .storage_tier = WT_BTREE_STORAGE_TIER{}});
         }
     }
 
