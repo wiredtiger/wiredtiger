@@ -43,6 +43,7 @@ class test_bug010(wttest.WiredTigerTestCase):
     # increase the likelihood of triggering the symptom
     conn_config = 'checkpoint_sync=false'
 
+    @wttest.skip_for_hook("disagg", "layered trees do not support opening checkpoint cursors")
     def test_checkpoint_dirty(self):
         # Create a lot of tables
         # insert the same item in each
