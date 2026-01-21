@@ -384,6 +384,7 @@ class Cell(object):
     is_short: bool
     is_unsupported: bool
     is_value: bool
+    is_delta: bool
 
     # Timestamps & transactions
     durable_start_ts: Optional[int]
@@ -492,6 +493,7 @@ class Cell(object):
         '''
         cell = Cell()
         cell.descriptor = b.read_uint8()
+        cell.is_delta  = is_delta
 
         short = cell.descriptor & 0x3
         if short == 0:
