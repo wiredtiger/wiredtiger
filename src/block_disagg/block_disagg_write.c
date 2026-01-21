@@ -78,6 +78,7 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
   uint32_t *checksump, bool data_checksum, bool checkpoint_io)
 {
     WT_BLOCK_DISAGG_HEADER *blk;
+    WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_PAGE_HEADER *header;
     WT_PAGE_LOG_HANDLE *plhandle;
@@ -86,6 +87,7 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     uint32_t checksum;
 
     time_start = __wt_clock(session);
+    btree = S2BT(session);
 
     WT_ASSERT(session, block_meta != NULL);
     WT_ASSERT(session, block_meta->page_id >= WT_BLOCK_MIN_PAGE_ID);
@@ -97,6 +99,9 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
 
     plhandle = block_disagg->plhandle;
     WT_CLEAR(put_args);
+
+    if (btree->storage_tier == WT_BTREE_STORAGE_TIER_COLD)
+        put_args.storage_tier = WT_BTREE_STORAGE_TIER_COLD;
 
     WT_ASSERT_ALWAYS(session, plhandle != NULL, "Disaggregated block store requires page log");
 
@@ -188,6 +193,10 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     if (F_ISSET(block_disagg, WT_BLOCK_DISAGG_HS)) {
         WT_STAT_CONN_INCR(session, disagg_block_hs_put);
         WT_STAT_CONN_INCRV(session, disagg_block_hs_byte_write, buf->size);
+    }
+    if (put_args.storage_tier == WT_BTREE_STORAGE_TIER_COLD) {
+        WT_STAT_CONN_INCR(session, disagg_block_put_cold);
+        WT_STAT_CONN_INCR(session, disagg_block_put_cold_internal);
     }
     if (checkpoint_io)
         WT_STAT_CONN_INCRV(session, block_byte_write_checkpoint, buf->size);
