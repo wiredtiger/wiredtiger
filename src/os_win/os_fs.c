@@ -173,12 +173,11 @@ __wt_win_fs_free_space(WT_SESSION_IMPL *session, const char *path, wt_off_t *fre
 {
     WT_DECL_RET;
     DWORD windows_error;
-    uint64_t free_bytes_to_caller, total_bytes, total_free_bytes;
+    ULARGE_INTEGER free_bytes_to_caller, total_bytes, total_free_bytes;
 
     /* This function only works with directory paths */
-    if (GetDiskFreeSpaceExA(path, (PULARGE_INTEGER)&free_bytes_to_caller,
-          (PULARGE_INTEGER)&total_bytes, (PULARGE_INTEGER)&total_free_bytes)) {
-        *freep = (wt_off_t)free_bytes_to_caller;
+    if (GetDiskFreeSpaceExA(path, &free_bytes_to_caller, &total_bytes, &total_free_bytes)) {
+        *freep = (wt_off_t)free_bytes_to_caller.QuadPart;
         return (0);
     }
 
