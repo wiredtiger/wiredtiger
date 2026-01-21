@@ -239,36 +239,35 @@ def extract_disagg_pages(disagg_table, opts) -> DisaggTableSummary:
         # Each page_id can have a number of entries associated with it. 
         for page_entry in page_entries:
             page_metadata = PageLogMetadata(page_entry)
-            print(page_metadata)
-            # print(disagg_metadata_string(page_entry))
             
             # If the page entry is empty do not try and decrypt/decode it. SLS sometimes stores
             # empty pages.
             if not page_entry['entry']:
-                print('empty page')
-                print('')
+                logger.info(f'page_id: {page_metadata.page_id} - empty page')
                 continue
             
             decrypted_page_bytes = decrypt_page(page_entry, page_metadata, opts)
+            b = binary_data.BinaryFile(io.BytesIO(decrypted_page_bytes))
+            p = Printer(b, opts)
+            
+            p.rint(page_metadata)
             
             # The disagg metadata page is plaintext, print it as such.
             if page_metadata.is_metadata_page():
-                print('Disagg Metadata File:')
+                p.rint('Disagg Metadata File:')
                 page_string = decrypted_page_bytes.decode('ascii')
-                print(f'  {page_string}')
+                p.rint(f'  {page_string}')
                 
                 # The metadata table root page address cookie is stored as plaintext hex in the addr 
                 # field of the checkpoint string. Extract it and decode it to print the disagg
                 # page metadata.
-                print('Metadata Table Root Page:')
+                p.rint('Metadata Table Root Page:')
                 addr_string = page_string.split('addr="')[1].split('"')[0]
                 addr = btree_format.DisaggAddr.parse(bytes.fromhex(addr_string))
-                print(addr)
-                print('')
+                p.rint(addr)
+                p.rint('')
                 continue
                 
-            b = binary_data.BinaryFile(io.BytesIO(decrypted_page_bytes))
-            p = Printer(b, opts)
             page = btree_format.WTPage()
             page = page.parse(b, len(decrypted_page_bytes), opts)
         
