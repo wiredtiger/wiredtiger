@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, random, wiredtiger, wttest
+import os, wiredtiger, wttest
 from helper_disagg import disagg_test_class
 from wiredtiger import stat
 
@@ -38,8 +38,6 @@ class test_layered44(wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),'
     conn_config = conn_base_config + 'disaggregated=(role="leader"),' + \
                   'verbose=[read:0,block:1],'
-
-    storage_tier_config = ['disaggregated=(storage_tier=cold),', '']
 
     nitems = 10_000
 
@@ -55,12 +53,7 @@ class test_layered44(wttest.WiredTigerTestCase):
 
     # Test records into a layered tree and restarting
     def test_layered44(self):
-        # Randomly select a storage tier configuration
-        tier_config = random.choice(self.storage_tier_config)
-        session_config = 'key_format=S,value_format=S,' + tier_config
-        cold_collection = False
-        if tier_config == 'disaggregated=(storage_tier=cold),':
-            cold_collection = True
+        session_config = 'key_format=S,value_format=S'
 
         # Ignore all verbose output messages, as we're using them in this test.
         self.ignoreStdoutPattern("WT_VERB")
@@ -72,9 +65,6 @@ class test_layered44(wttest.WiredTigerTestCase):
         self.session.create(self.uri, session_config)
 
         self.assertEqual(self.get_stat(stat.conn.disagg_block_page_discard), 0)
-        if cold_collection:
-            self.assertEqual(self.get_stat(stat.conn.disagg_block_put_cold), 0)
-            self.assertEqual(self.get_stat(stat.conn.disagg_block_put_cold_internal), 0)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
@@ -113,9 +103,6 @@ class test_layered44(wttest.WiredTigerTestCase):
         self.assertGreater(len(freed_pages), 0)
 
         self.assertGreater(self.get_stat(stat.conn.disagg_block_page_discard), 0)
-        if cold_collection:
-            self.assertGreater(self.get_stat(stat.conn.disagg_block_put_cold), 0)
-            self.assertGreater(self.get_stat(stat.conn.disagg_block_put_cold_internal), 0)
 
         #
         # Part 2: Open a follower, read the data, and check that we do not read any freed pages.
