@@ -37,7 +37,7 @@ extern int __wt_thread_str(char *buf, size_t buflen)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_vsnprintf_len_incr(char *buf, size_t size, size_t *retsizep, const char *fmt,
   va_list ap) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_win_fs_free_space(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t *freep)
+extern int __wt_win_fs_free_space(WT_SESSION_IMPL *session, const char *path, wt_off_t *freep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_to_utf16_string(WT_SESSION_IMPL *session, const char *utf8, WT_ITEM **outbuf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
