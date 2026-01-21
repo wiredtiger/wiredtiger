@@ -2508,6 +2508,8 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
         if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) &&
           !F_ISSET(evict, WT_EVICT_CACHE_UPDATES_HARD) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN) &&
           !modified && __wt_atomic_load_bool_v_relaxed(&conn->txn_global.checkpoint_running)) {
+            WT_STAT_CONN_INCR(
+              session, eviction_server_skip_history_store_pages_with_updates_during_checkpoint);
             return;
         }
     }
