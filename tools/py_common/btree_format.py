@@ -446,6 +446,8 @@ class Cell(object):
         self.stop_ts = None
         self.start_txn = None
         self.stop_txn = None
+        
+        self.delta_flag = None
 
     def _parse_timestamps(self, b: binary_data.BinaryFile):
         '''
