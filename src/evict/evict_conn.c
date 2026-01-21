@@ -161,7 +161,15 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     if (evict->eviction_updates_trigger < DBL_EPSILON) {
-        if (precise_checkpoint) {
+        /*
+         * Generally we want to allow a reasonable amount of updates content, the default dirty
+         * targets of 5% target and 20% dirty would result in a 2.5% dirty target which is lower
+         * than ideal when precise checkpoints are configured. Allow more updates content to remain
+         * in cache, but handle cases where non-default dirty configurations would cause updates
+         * target to exceed the trigger value with an asymmetric formula.
+         */
+        if (precise_checkpoint &&
+          evict->eviction_dirty_trigger / 2 < evict->eviction_updates_target) {
             WT_CONFIG_DEBUG(session,
               "config eviction_updates_trigger (%f) cannot be zero. Setting "
               "to eviction_dirty_trigger (%f) for precise checkpoint.",
