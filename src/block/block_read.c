@@ -324,13 +324,45 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
               " doesn't match expected checksum of %#" PRIx32,
               block->name, size, (uintmax_t)offset, swap.checksum, checksum);
 
-        /* Log the free disk space on full or partial checksum mismatch*/
-        wt_off_t free_disk_space = 0;
-        if (__wt_fs_free_space(session, block->fh, &free_disk_space) == 0) {
-            __wt_errx(session, "%s: free disk space is %" PRIuMAX " bytes", block->name,
-              (uintmax_t)free_disk_space);
+        /*
+         * Log the free disk space on the main databse directiory and on the journal directory for
+         * both full or partial checksum mismatch
+         */
+        wt_off_t db_dir_free_space, journal_dir_free_space = 0;
+        const char *db_dir = S2C(session)->home;
+        const char *journal_dir = NULL;
+        WT_CONFIG_ITEM cval;
+        const char *cfg[] = {
+          S2C(session)->cfg, NULL}; /* __wt_config_gets expects NULL terminated array */
+
+        if (__wt_config_gets(session, cfg, "log.path", &cval) == 0 && cval.len > 0 &&
+          !(cval.len == 1 && cval.str[0] == '.'))
+            /*
+             * If the journal directory path is not the same as the main database directory path,
+             * set it.
+             */
+            journal_dir = (strcmp(db_dir, cval.str) != 0) ? cval.str : NULL;
+
+        /* Log free space on the main database directory, and the journal directory if different */
+        if (__wt_fs_free_space(session, db_dir, &db_dir_free_space) == 0) {
+            __wt_errx(session,
+              "%s: free disk space on main database directory (%s) is %" PRIuMAX " bytes",
+              block->name, db_dir, (uintmax_t)db_dir_free_space);
         } else
-            __wt_errx(session, "%s: unable to determine free disk space", block->name);
+            __wt_errx(session,
+              "%s: unable to determine free disk space on main database directory (%s)",
+              block->name, db_dir);
+
+        if (journal_dir != NULL) {
+            if (__wt_fs_free_space(session, journal_dir, &journal_dir_free_space) == 0) {
+                __wt_errx(session,
+                  "%s: free disk space on journal directory (%s) is %" PRIuMAX " bytes",
+                  block->name, journal_dir, (uintmax_t)journal_dir_free_space);
+            } else
+                __wt_errx(session,
+                  "%s: unable to determine free disk space on journal directory (%s)", block->name,
+                  journal_dir);
+        }
 
         /*
          * Dump the corrupted block for analysis prior to bitflip detection in case detection takes
