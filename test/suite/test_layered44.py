@@ -59,7 +59,7 @@ class test_layered44(wttest.WiredTigerTestCase):
         tier_config = random.choice(self.storage_tier_config)
         session_config = 'key_format=S,value_format=S,' + tier_config
         cold_collection = False
-        if tier_config == 'diasaggregated=(storage_tier=cold),':
+        if tier_config == 'disaggregated=(storage_tier=cold),':
             cold_collection = True
 
         # Ignore all verbose output messages, as we're using them in this test.
