@@ -142,7 +142,6 @@ class test_layered38(wttest.WiredTigerTestCase):
 
         # Now eviction should remove all the items from the ingest table, but it can't
         # until we pick up another checkpoint.
-
         self.session.checkpoint()
         self.disagg_advance_checkpoint(conn_follow)
 

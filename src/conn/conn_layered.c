@@ -2813,7 +2813,7 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     WT_LAYERED_TABLE *layered_table;
     wt_timestamp_t prune_timestamp, btree_checkpoint_timestamp;
     int64_t ckpt_inuse, last_ckpt;
-    int32_t dhandle_inuse;
+    int32_t dhandle_inuse, session_inuse;
 
     layered_table = NULL;
     prune_timestamp = WT_TS_NONE;
@@ -2881,7 +2881,9 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
         ++ckpt_inuse;
     }
 
-    if (ckpt_inuse == last_ckpt && last_ckpt != 1)
+    session_inuse =
+      __wt_atomic_load_int32_acquire(&((WT_DATA_HANDLE *)layered_table)->session_inuse);
+    if (ckpt_inuse == last_ckpt && (last_ckpt != 1 || session_inuse == 0))
         prune_timestamp = checkpoint_timestamp;
 
     if (ckpt_inuse == layered_table->last_ckpt_inuse) {
@@ -2914,7 +2916,8 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
 
     WT_ASSERT(session, prune_timestamp >= btree->prune_timestamp);
     __wt_atomic_store_uint64_release(&btree->prune_timestamp, prune_timestamp);
-    layered_table->last_ckpt_inuse = ckpt_inuse;
+    if (ckpt_inuse > 1 || session_inuse == 0)
+        layered_table->last_ckpt_inuse = ckpt_inuse;
 
     WT_ERR(__wt_session_release_dhandle(session));
 
