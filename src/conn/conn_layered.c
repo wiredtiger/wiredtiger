@@ -1059,8 +1059,10 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
               session, metadata_value, &checkpoint_name_new, &order_new, &time_new));
 
             /* FIXME-WT-14730: check that the other parts of the metadata are identical. */
-            /* TODO: how to decide two checkpoints are different if they are written by different
-             * nodes. */
+            /*
+             * FIXME-WT-16494: how to decide two checkpoints are different if they are written by
+             * different nodes.
+             */
             bool same_checkpoint = checkpoint_name != NULL && checkpoint_name_new != NULL &&
               strcmp(checkpoint_name, checkpoint_name_new) == 0 && order == order_new &&
               time == time_new;
