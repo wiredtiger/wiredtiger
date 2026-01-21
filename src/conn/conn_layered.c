@@ -20,7 +20,8 @@ typedef struct __wt_disagg_checkpoint_meta {
 } WT_DISAGG_CHECKPOINT_META;
 
 /* Function prototypes for disaggregated storage and layered tables. */
-
+static void __disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt);
+static void __disagg_get_crypt_header(const WT_ITEM *key_item, WT_CRYPT_HEADER *header);
 static int __disagg_copy_shared_metadata_one(WT_SESSION_IMPL *session, const char *uri);
 static int __layered_drain_ingest_tables(WT_SESSION_IMPL *session);
 static void __layered_update_prune_timestamps_print_update_logs(WT_SESSION_IMPL *session,
@@ -133,27 +134,23 @@ err:
 }
 
 /*
- * __layered_create_missing_stable_tables --
+ * __layered_create_missing_stable_tables_helper --
  *     Create missing stable tables.
  */
 static int
-__layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
+__layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
 {
     WT_CONFIG_ITEM cval;
-    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor_check, *cursor_scan;
     WT_DECL_RET;
-    WT_SESSION_IMPL *internal_session;
     char *stable_uri;
     const char *layered_uri, *layered_cfg;
 
-    conn = S2C(session);
     cursor_check = cursor_scan = NULL;
     stable_uri = NULL;
 
-    WT_ERR(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
-    WT_ERR(__wt_metadata_cursor(internal_session, &cursor_check));
-    WT_ERR(__wt_metadata_cursor(internal_session, &cursor_scan));
+    WT_ERR(__wt_metadata_cursor(session, &cursor_check));
+    WT_ERR(__wt_metadata_cursor(session, &cursor_scan));
 
     cursor_scan->set_key(cursor_scan, "layered:");
     WT_ERR(cursor_scan->bound(cursor_scan, "bound=lower"));
@@ -174,11 +171,11 @@ __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
         /* Create the stable table if it does not exist. */
         if (ret == WT_NOTFOUND) {
             WT_ERR_MSG_CHK(session,
-              __layered_create_missing_stable_table(internal_session, stable_uri, layered_cfg),
+              __layered_create_missing_stable_table(session, stable_uri, layered_cfg),
               "Failed to create missing stable table \"%s\" from \"%s\"", stable_uri, layered_cfg);
             /* Ensure that we properly handle empty tables. */
             WT_ERR(__wt_disagg_copy_metadata_later(
-              internal_session, stable_uri, layered_uri + strlen("layered:")));
+              session, stable_uri, layered_uri + strlen("layered:")));
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Created missing stable table \"%s\" from \"%s\"", stable_uri, layered_uri);
         }
@@ -189,8 +186,30 @@ __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
 
 err:
     __wt_free(session, stable_uri);
-    WT_TRET(__wt_metadata_cursor_release(internal_session, &cursor_check));
-    WT_TRET(__wt_metadata_cursor_release(internal_session, &cursor_scan));
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor_check));
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor_scan));
+    return (ret);
+}
+
+/*
+ * __layered_create_missing_stable_tables --
+ *     Create missing stable tables.
+ */
+static int
+__layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *internal_session;
+
+    conn = S2C(session);
+
+    WT_ERR(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
+    WT_WITH_SCHEMA_LOCK(
+      internal_session, ret = __layered_create_missing_stable_tables_helper(internal_session));
+    WT_ERR(ret);
+
+err:
     WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }
@@ -289,6 +308,17 @@ __disagg_get_crypt_key(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn,
 }
 
 /*
+ * __disagg_get_crypt_header --
+ *     Copy and byte-swap the crypt header from the key item. Note: This function is not idempotent.
+ */
+static void
+__disagg_get_crypt_header(const WT_ITEM *key_item, WT_CRYPT_HEADER *header)
+{
+    memcpy(header, key_item->data, sizeof(WT_CRYPT_HEADER));
+    __wt_crypt_header_byteswap(header);
+}
+
+/*
  * __disagg_validate_crypt --
  *     Validate the crypt header and payload stored in key_item.
  */
@@ -298,32 +328,36 @@ __disagg_validate_crypt(WT_SESSION_IMPL *session, const WT_ITEM *key_item, WT_CR
     WT_DECL_RET;
     uint32_t checksum = 0;
 
-    if (key_item->size < sizeof(WT_CRYPT_HEADER)) {
+    if (key_item->size < sizeof(WT_CRYPT_HEADER))
         WT_ERR_MSG(session, EIO,
           "Encryption key data too small: expected at least %" WT_SIZET_FMT ", got %" WT_SIZET_FMT,
           sizeof(WT_CRYPT_HEADER), key_item->size);
-    }
-    memcpy(header, key_item->data, sizeof(WT_CRYPT_HEADER));
-    __wt_crypt_header_byteswap(header);
+    __disagg_get_crypt_header(key_item, header);
+
+    /* Check for compatibility versions before validating header fields. */
+    if (header->compatible_version > WT_CRYPT_HEADER_COMPATIBLE_VERSION)
+        WT_ERR_MSG(session, ENOTSUP,
+          "Unsupported encryption key data version %" PRIu8 ", min %" PRIu8, header->version,
+          header->compatible_version);
 
     WT_ASSERT_ALWAYS(session, header->signature == WT_CRYPT_HEADER_SIGNATURE,
       "Invalid encryption key data signature: expected 0x%08" PRIx32 ", got 0x%08" PRIx32,
       WT_CRYPT_HEADER_SIGNATURE, header->signature);
-    WT_ASSERT_ALWAYS(session, header->version == WT_CRYPT_HEADER_VERSION,
-      "Unsupported encryption key data version: expected %u, got %u", WT_CRYPT_HEADER_VERSION,
-      header->version);
-    if (key_item->size - sizeof(WT_CRYPT_HEADER) != header->crypt_size) {
-        WT_ERR_MSG(session, EIO, "Encryption key data size mismatch: expected %u, got %u",
-          header->crypt_size, (uint32_t)(key_item->size - sizeof(WT_CRYPT_HEADER)));
-    }
 
-    checksum =
-      __wt_checksum((uint8_t *)key_item->data + sizeof(WT_CRYPT_HEADER), header->crypt_size);
-    if (checksum != header->checksum) {
+    if (header->header_size < sizeof(WT_CRYPT_HEADER))
+        WT_ERR_MSG(session, EIO,
+          "Encryption key header is too small: expected at least %" WT_SIZET_FMT ", got %" PRIu8,
+          sizeof(WT_CRYPT_HEADER), header->header_size);
+
+    if (key_item->size - header->header_size != header->crypt_size)
+        WT_ERR_MSG(session, EIO, "Encryption key data size mismatch: expected %u, got %u",
+          header->crypt_size, (uint32_t)(key_item->size - header->header_size));
+
+    checksum = __wt_checksum((uint8_t *)key_item->data + header->header_size, header->crypt_size);
+    if (checksum != header->checksum)
         WT_ERR_MSG(session, EIO,
           "Encryption key data checksum mismatch: expected %" PRIx32 ", got %" PRIx32,
           header->checksum, checksum);
-    }
 
 err:
     return (ret);
@@ -403,6 +437,31 @@ __disagg_put_meta(WT_SESSION_IMPL *session, uint64_t page_id, const WT_ITEM *ite
 }
 
 /*
+ * __disagg_set_crypt_header --
+ *     Pack and byte-swap the crypt header information into the struct. Note: This function is not
+ *     idempotent.
+ */
+static void
+__disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt)
+{
+    WT_CRYPT_HEADER crypt_header;
+
+    WT_CLEAR(crypt_header);
+    WT_ASSERT(session, crypt->keys.data != NULL);
+    /* Prepare the crypt header. */
+    crypt_header.signature = WT_CRYPT_HEADER_SIGNATURE;
+    crypt_header.version = WT_CRYPT_HEADER_VERSION;
+    crypt_header.compatible_version = WT_CRYPT_HEADER_COMPATIBLE_VERSION;
+    crypt_header.header_size = sizeof(WT_CRYPT_HEADER);
+    crypt_header.crypt_size = (uint32_t)crypt->keys.size;
+    crypt_header.checksum = __wt_checksum(crypt->keys.data, crypt->keys.size);
+
+    __wt_crypt_header_byteswap(&crypt_header);
+    memcpy(crypt->keys.mem, &crypt_header, sizeof(WT_CRYPT_HEADER));
+    crypt->keys.data = crypt->keys.mem;
+    crypt->keys.size += sizeof(WT_CRYPT_HEADER);
+}
+/*
  * __wt_disagg_put_crypt_helper --
  *     If new encryption key data information is detected, update the metadata page log and callback
  *     to the key provider upon completion.
@@ -411,7 +470,6 @@ int
 __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_CRYPT_HEADER crypt_header;
     WT_CRYPT_KEYS crypt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
@@ -421,7 +479,6 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     conn = S2C(session);
     key_provider = conn->key_provider;
     WT_CLEAR(crypt.keys);
-    WT_CLEAR(crypt_header);
     lsn = 0;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
@@ -444,17 +501,8 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     WT_ERR(key_provider->get_key(key_provider, (WT_SESSION *)session, &crypt));
     WT_ASSERT(session, crypt.keys.size != 0 && crypt.keys.data != NULL);
 
-    /* Prepare the crypt header. */
-    crypt_header.signature = WT_CRYPT_HEADER_SIGNATURE;
-    crypt_header.version = WT_CRYPT_HEADER_VERSION;
-    crypt_header.header_size = sizeof(WT_CRYPT_HEADER);
-    crypt_header.crypt_size = (uint32_t)crypt.keys.size;
-    crypt_header.checksum = __wt_checksum(crypt.keys.data, crypt.keys.size);
-
-    __wt_crypt_header_byteswap(&crypt_header);
-    memcpy(crypt.keys.mem, &crypt_header, sizeof(WT_CRYPT_HEADER));
-    crypt.keys.data = crypt.keys.mem;
-    crypt.keys.size += sizeof(WT_CRYPT_HEADER);
+    /* Pack the crypt header information into the struct. */
+    __disagg_set_crypt_header(session, &crypt);
 
     /* Write the encryption key data to disaggregated storage. */
     ret = __disagg_put_crypt_key(session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, &crypt.keys, &lsn);
@@ -496,9 +544,10 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     WT_DECL_ITEM(metadata_buf);
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg;
+    wt_timestamp_t oldest_timestamp;
     uint64_t lsn;
     uint32_t checksum;
-    char *checkpoint_root_copy, ts_string[WT_TS_INT_STRING_SIZE];
+    char *checkpoint_root_copy, ts_string[2][WT_TS_INT_STRING_SIZE];
 
     checkpoint_root_copy = NULL;
     conn = S2C(session);
@@ -517,11 +566,19 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     WT_ERR(__wt_strndup(session, checkpoint_root, checkpoint_root_size, &checkpoint_root_copy));
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_buf));
 
+    /*
+     * Get the oldest timestamp from the metadata, don't use the one from the global transaction
+     * structure as we need the timestamp associated with the checkpoint.
+     */
+    WT_ERR(__wt_meta_read_checkpoint_oldest(session, NULL, &oldest_timestamp, NULL));
+
     /* Format metadata settings. */
-    WT_ERR(__wt_buf_fmt(session, metadata_buf,
-      "checkpoint=%s,\n"
-      "timestamp=%" PRIx64,
-      checkpoint_root_copy, checkpoint_timestamp));
+    WT_ERR(
+      __wt_buf_fmt(session, metadata_buf,
+        "checkpoint=%s,\n"
+        "timestamp=%" PRIx64 ",\n"
+        "oldest_timestamp=%" PRIx64,
+        checkpoint_root_copy, checkpoint_timestamp, oldest_timestamp));
 
     /* Append key provider metadata, if available. */
     if (conn->key_provider != NULL) {
@@ -556,13 +613,15 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
      */
     __wt_atomic_store_uint64_release(&disagg->last_checkpoint_meta_lsn, lsn);
     __wt_atomic_store_uint64_release(&disagg->last_checkpoint_timestamp, checkpoint_timestamp);
+    __wt_atomic_store_uint64_release(&disagg->last_checkpoint_oldest_timestamp, oldest_timestamp);
     disagg->last_checkpoint_meta_checksum = checksum; /* Protected by the checkpoint lock. */
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Wrote disaggregated checkpoint metadata: lsn=%" PRIu64 ", timestamp=%" PRIu64
-      " %s, checksum=%" PRIx32 ", root=\"%s\"",
-      lsn, checkpoint_timestamp, __wt_timestamp_to_string(checkpoint_timestamp, ts_string),
-      checksum, checkpoint_root_copy);
+      " %s, oldest_timestamp=%" PRIu64 " %s, checksum=%" PRIx32 ", root=\"%s\"",
+      lsn, checkpoint_timestamp, __wt_timestamp_to_string(checkpoint_timestamp, ts_string[0]),
+      oldest_timestamp, __wt_timestamp_to_string(oldest_timestamp, ts_string[1]), checksum,
+      checkpoint_root_copy);
 
     __wt_free(session, disagg->last_checkpoint_root);
     disagg->last_checkpoint_root = checkpoint_root_copy;
@@ -692,7 +751,7 @@ __disagg_load_crypt_key(WT_SESSION_IMPL *session, WT_DISAGG_METADATA *metadata)
     WT_ERR(__disagg_validate_crypt(session, &key_item, &crypt_header));
 
     /* Prepare the crypt keys for loading. */
-    crypt.keys.data = (uint8_t *)key_item.data + sizeof(WT_CRYPT_HEADER);
+    crypt.keys.data = (uint8_t *)key_item.data + crypt_header.header_size;
     crypt.keys.size = crypt_header.crypt_size;
     crypt.r.lsn = lsn;
 
@@ -834,6 +893,17 @@ __disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG
             else
                 WT_ERR(__wt_txn_parse_timestamp(
                   session, "checkpoint timestamp", &metadata->checkpoint_timestamp, &cfg_value));
+        } else if (WT_CONFIG_LIT_MATCH("oldest_timestamp", cfg_key)) {
+            WT_ASSERT_ALWAYS(session, metadata->oldest_timestamp == WT_TS_NONE,
+              "Duplicate timestamp entry in disaggregated storage metadata: "
+              "metadata->oldest_timestamp=%" PRIu64,
+              metadata->oldest_timestamp);
+
+            if (cfg_value.len > 0 && cfg_value.val == 0)
+                metadata->oldest_timestamp = WT_TS_NONE;
+            else
+                WT_ERR(__wt_txn_parse_timestamp(
+                  session, "oldest timestamp", &metadata->oldest_timestamp, &cfg_value));
         } else if (WT_CONFIG_LIT_MATCH("key_provider", cfg_key)) {
             WT_ASSERT_ALWAYS(session, metadata->key_provider == NULL,
               "Duplicate key_provider entry in disaggregated storage metadata");
@@ -948,13 +1018,17 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     WT_CONFIG_ITEM cval;
     WT_CURSOR *cursor;
     WT_DECL_ITEM(metadata_cfg);
+    WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
     WT_SESSION_IMPL *shared_metadata_session;
     uint32_t existing_tables, new_tables, new_ingest;
     char *layered_ingest_uri, *cfg_ret;
-    const char *cfg[3], *current_value, *metadata_key, *metadata_value;
+    const char *cfg[3], *checkpoint_name, *checkpoint_name_new, *current_value, *metadata_key,
+      *metadata_value;
 
     cursor = NULL;
+    checkpoint_name = NULL;
+    checkpoint_name_new = NULL;
     shared_metadata_session = NULL;
     layered_ingest_uri = cfg_ret = NULL;
     existing_tables = new_tables = new_ingest = 0;
@@ -979,6 +1053,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     WT_ERR(__wt_open_cursor(shared_metadata_session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
 
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_cfg));
+    WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
 
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &metadata_key));
@@ -999,26 +1074,59 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
             cfg[2] = NULL;
             WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
 
+            int64_t order, order_new;
+            uint64_t time, time_new;
+            /*
+             * Before inserting the new value, get the checkpoint name of the file at the previous
+             * checkpoint.
+             */
+            WT_ERR_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
+                                 session, metadata_key, &checkpoint_name, &order, &time),
+              false);
+
+            /* Retrieve the name of the current unnamed checkpoint. */
+            WT_ERR(__wt_ckpt_last_name(
+              session, metadata_value, &checkpoint_name_new, &order_new, &time_new));
+
             /* FIXME-WT-14730: check that the other parts of the metadata are identical. */
+            /*
+             * FIXME-WT-16494: how to decide two checkpoints are different if they are written by
+             * different nodes.
+             */
+            bool same_checkpoint = checkpoint_name != NULL && checkpoint_name_new != NULL &&
+              strcmp(checkpoint_name, checkpoint_name_new) == 0 && order == order_new &&
+              time == time_new;
 
             /* Put our new config in */
             md_cursor->set_value(md_cursor, cfg_ret);
             WT_ERR_MSG_CHK(session, md_cursor->insert(md_cursor),
               "Failed to insert metadata for key \"%s\"", metadata_key);
 
-            existing_tables++;
+            ++existing_tables;
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Updated the local metadata for key \"%s\" to include new checkpoint: \"%.*s\"",
               metadata_key, (int)cval.len, cval.str);
 
             /*
-             * Mark any matching data handles to be out of date. Any new opens will get the new
-             * metadata.
+             * Mark any matching data handles associated with the previous checkpoint to be out of
+             * date. Any new opens will get the new metadata.
+             */
+            if (!same_checkpoint) {
+                WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", metadata_key, checkpoint_name));
+                WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, old_uri_buf->data),
+                  "Marking data handles outdated failed: \"%s\"", (const char *)old_uri_buf->data);
+            }
+            /*
+             * Mark all live btrees as outdated. Otherwise, we will not open a new dhandle for live
+             * btrees after step-up.
+             *
+             * TODO: This is better done at step-up or step-down to force close all live btrees.
              */
             WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, metadata_key),
-              "Marking data handles outdated failed: \"%s\"", metadata_key);
+              "Marking data handles outdated failed: \"%s\"", (const char *)metadata_key);
             __wt_free(session, cfg_ret);
-            cfg_ret = NULL;
+            __wt_free(session, checkpoint_name);
+            __wt_free(session, checkpoint_name_new);
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
             /* FIXME-WT-14730: verify that there is no btree ID conflict. */
@@ -1065,9 +1173,12 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
       existing_tables, new_tables, new_ingest);
 
 err:
-    __wt_free(session, layered_ingest_uri);
     __wt_free(session, cfg_ret);
+    __wt_free(session, checkpoint_name);
+    __wt_free(session, checkpoint_name_new);
+    __wt_free(session, layered_ingest_uri);
     __wt_scr_free(session, &metadata_cfg);
+    __wt_scr_free(session, &old_uri_buf);
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
     if (shared_metadata_session != NULL)
@@ -1093,9 +1204,11 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_meta_lsn, ckpt_meta->metadata_lsn);
 
-    /* Update the checkpoint timestamp. */
+    /* Update the timestamps. */
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_timestamp, metadata->checkpoint_timestamp);
+    __wt_atomic_store_uint64_release(
+      &conn->disaggregated_storage.last_checkpoint_oldest_timestamp, metadata->oldest_timestamp);
 
     /* Remember the root config of the last checkpoint. */
     __wt_free(session, conn->disaggregated_storage.last_checkpoint_root);
@@ -1126,7 +1239,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ITEM metadata_buf;
     WT_SESSION_IMPL *internal_session;
     uint64_t current_meta_lsn;
-    char ts_string[WT_TS_INT_STRING_SIZE];
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     conn = S2C(session);
 
@@ -1171,9 +1284,10 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64 ", timestamp=%" PRIu64
       " %s"
-      ", root=\"%.*s\"",
+      ", oldest_timestamp=%" PRIu64 " %s, root=\"%.*s\"",
       ckpt_meta->metadata_lsn, metadata.checkpoint_timestamp,
-      __wt_timestamp_to_string(metadata.checkpoint_timestamp, ts_string),
+      __wt_timestamp_to_string(metadata.checkpoint_timestamp, ts_string[0]),
+      metadata.oldest_timestamp, __wt_timestamp_to_string(metadata.oldest_timestamp, ts_string[1]),
       (int)metadata.checkpoint_len, metadata.checkpoint);
 
     /* Load crypt key data with the key provider extension, if any. */
@@ -2618,10 +2732,7 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     WT_RET(__wt_spin_init(
       session, &conn->layered_drain_data.queue_lock, "layered drain work queue lock"));
 
-    __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
-    /* WiredTiger doesn't have sequentially consistent stores so we lock around this store. */
-    __wt_atomic_store_bool_relaxed(&conn->layered_drain_data.running, true);
-    __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
+    __wt_atomic_store_bool(&conn->layered_drain_data.running, true);
 
     /* Open the internal session early so we can close it on error. */
     bool multithreaded = conn->layered_drain_data.thread_count > 1;
@@ -2728,7 +2839,7 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     WT_LAYERED_TABLE *layered_table;
     wt_timestamp_t prune_timestamp, btree_checkpoint_timestamp;
     int64_t ckpt_inuse, last_ckpt;
-    int32_t dhandle_inuse;
+    int32_t layered_dhandle_inuse, stable_dhandle_inuse;
 
     layered_table = NULL;
     prune_timestamp = WT_TS_NONE;
@@ -2770,7 +2881,7 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     /* Find the last checkpoint which is still in use. */
     while (ckpt_inuse < last_ckpt) {
         btree_checkpoint_timestamp = WT_TS_NONE;
-        dhandle_inuse = 0;
+        stable_dhandle_inuse = 0;
         WT_ERR(__wt_buf_fmt(session, uri_at_checkpoint_buf, "%s/%s.%" PRId64,
           layered_table->stable_uri, WT_CHECKPOINT, ckpt_inuse));
 
@@ -2781,7 +2892,7 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
 
         /* If one exists, read all the required info, then release. */
         if (ret == 0) {
-            dhandle_inuse = session->dhandle->session_inuse;
+            stable_dhandle_inuse = __wt_atomic_load_int32_acquire(&session->dhandle->session_inuse);
             btree_checkpoint_timestamp = S2BT(session)->checkpoint_timestamp;
             WT_DHANDLE_RELEASE(session->dhandle);
         }
@@ -2789,15 +2900,16 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
         WT_ERR_NOTFOUND_OK(ret, false);
 
         /* If it's in use by any session, then we're done. */
-        if (dhandle_inuse > 0) {
-            prune_timestamp = btree_checkpoint_timestamp;
+        if (stable_dhandle_inuse > 0)
             break;
-        }
 
+        prune_timestamp = btree_checkpoint_timestamp;
         ++ckpt_inuse;
     }
 
-    if (ckpt_inuse == last_ckpt)
+    layered_dhandle_inuse =
+      __wt_atomic_load_int32_acquire(&((WT_DATA_HANDLE *)layered_table)->session_inuse);
+    if (ckpt_inuse == last_ckpt && (last_ckpt != 1 || layered_dhandle_inuse == 0))
         prune_timestamp = checkpoint_timestamp;
 
     if (ckpt_inuse == layered_table->last_ckpt_inuse) {
@@ -2830,7 +2942,8 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
 
     WT_ASSERT(session, prune_timestamp >= btree->prune_timestamp);
     __wt_atomic_store_uint64_release(&btree->prune_timestamp, prune_timestamp);
-    layered_table->last_ckpt_inuse = ckpt_inuse;
+    if (ckpt_inuse > 1 || layered_dhandle_inuse == 0)
+        layered_table->last_ckpt_inuse = ckpt_inuse;
 
     WT_ERR(__wt_session_release_dhandle(session));
 
@@ -3043,3 +3156,24 @@ err:
 
     return (ret);
 }
+
+#ifdef HAVE_UNITTEST
+void
+__ut_disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt)
+{
+    __disagg_set_crypt_header(session, crypt);
+}
+
+int
+__ut_disagg_validate_crypt(
+  WT_SESSION_IMPL *session, const WT_ITEM *key_item, WT_CRYPT_HEADER *header)
+{
+    return (__disagg_validate_crypt(session, key_item, header));
+}
+
+void
+__ut_disagg_get_crypt_header(const WT_ITEM *key_item, WT_CRYPT_HEADER *header)
+{
+    __disagg_get_crypt_header(key_item, header);
+}
+#endif
