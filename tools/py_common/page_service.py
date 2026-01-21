@@ -59,8 +59,8 @@ class PageLogMetadata():
     lsn: int
     page_id: int
     table_id: int
-    base_lsn: int
-    backlink_lsn: int
+    base_lsn: Optional[int]
+    backlink_lsn: Optional[int]
     flags: int
     
     def __init__(self, log_entry: Dict[str, Any]):
@@ -73,33 +73,43 @@ class PageLogMetadata():
         meta = log_entry.get("metadata", {})
         
         # Mandatory fields
-        self.page_id: Optional[int] = self._extract_value(meta, "page_id")
-        if self.page_id is None:
-            raise ValueError(f"Missing 'page_id' in page: {log_entry}")
-        
-        self.table_id: Optional[int] = self._extract_value(meta, "table_id")
-        if self.table_id is None:
-            raise ValueError(f"Missing 'table_id' in page: {self.page_id}")
-        
-        self.flags: Optional[int] = self._extract_value(meta, "flags")
-        if self.flags is None:
-            raise ValueError(f"Missing 'flags' in page: {log_entry}")
+        self.page_id = self._extract_value_required(meta, "page_id")
+        self.table_id = self._extract_value_required(meta, "table_id")
+        self.flags = self._extract_value_required(meta, "flags")
             
         # Optional fields
         self.base_lsn: Optional[int] = self._extract_value(meta, "base_lsn")
         self.backlink_lsn: Optional[int] = self._extract_value(meta, "backlink_lsn")
 
     def _extract_value(self, metadata: Dict, key: str) -> Optional[int]:
+        '''
+        Extracts an optional value from the json object returning None if it does not exist.
+        '''
         if key not in metadata:
             return None
             
         val_wrapper = metadata[key].get("val", {})
         
         # We take the first value found in the wrapper 
-        if val_wrapper:
+        if val_wrapper is not None:
             [val] = val_wrapper.values()
             return val
         return None
+    
+    def _extract_value_required(self, metadata: Dict, key: str) -> int:
+        '''
+        Extracts a value from the json object raising an error if it doesn't exist.
+        '''
+        if key not in metadata:
+            raise ValueError(f"Missing {key} in metadata: {metadata}")
+            
+        val_wrapper = metadata[key].get("val", {})
+        
+        # We take the first value found in the wrapper 
+        if val_wrapper is not None:
+            [val] = val_wrapper.values()
+            return val
+        raise ValueError(f"Missing {key} in metadata: {metadata}")
     
     def is_delta(self):
         return self.flags == UpdateTypeFlags.UPDATE_TYPE_DELTA
