@@ -189,23 +189,21 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
         if (!__wt_conn_is_disagg(session) && !sweep_non_outdated_handle)
             break;
 
+        if (!F_ISSET(dhandle, WT_DHANDLE_OUTDATED) && !sweep_non_outdated_handle)
+            continue;
         /*
          * Close outdated btrees immediately, even if they are metadata. For trees not marked with
          * outdated, wait until the idle time has elapsed since time of death.
          */
         if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
-            if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) == 0)
-                goto expire;
-        } else if (!sweep_non_outdated_handle)
-            continue;
-
-        if (WT_IS_METADATA(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+            if (__wt_atomic_load_int32_relaxed(&dhandle->session_inuse) > 0)
+                continue;
+        } else if (WT_IS_METADATA(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
           __wt_atomic_load_int32_relaxed(&dhandle->session_inuse) != 0 ||
           __wt_tsan_suppress_load_uint64(&dhandle->timeofdeath) == 0 ||
           now - dhandle->timeofdeath <= conn->sweep_idle_time)
             continue;
 
-expire:
         /*
          * For tables, we need to hold the table lock to avoid racing with cursor opens.
          */

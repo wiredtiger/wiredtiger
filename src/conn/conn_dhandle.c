@@ -292,10 +292,10 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
                 continue;
             if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
                 /*
-                 * For stable table checkpoints, they are really outdated when they are not in use
-                 * any more. The pinned shared history store checkpoints may be still needed by the
-                 * readers while the stable table checkpoints may still be needed by the checkpoint
-                 * tracking logic.
+                 * For read-only stable table checkpoints, they are really outdated when they are
+                 * not in use any more. The pinned shared history store checkpoints may be still
+                 * needed by the readers while the stable table checkpoints may still be needed by
+                 * the checkpoint tracking logic.
                  */
                 if (WT_DHANDLE_BTREE(dhandle) &&
                   F_ISSET((WT_BTREE *)dhandle->handle, WT_BTREE_READONLY)) {

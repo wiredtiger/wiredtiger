@@ -1044,26 +1044,26 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
             cfg[2] = NULL;
             WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
 
-            int64_t old_order, order;
-            uint64_t old_time, time;
+            int64_t order, order_new;
+            uint64_t time, time_new;
             /*
              * Before inserting the new value, get the checkpoint name of the file at the previous
              * checkpoint.
              */
             WT_ERR_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
-                                 session, metadata_key, &checkpoint_name, &old_order, &old_time),
+                                 session, metadata_key, &checkpoint_name, &order, &time),
               false);
 
             /* Retrieve the name of the current unnamed checkpoint. */
-            WT_ERR(
-              __wt_ckpt_last_name(session, metadata_value, &checkpoint_name_new, &order, &time));
+            WT_ERR(__wt_ckpt_last_name(
+              session, metadata_value, &checkpoint_name_new, &order_new, &time_new));
 
             /* FIXME-WT-14730: check that the other parts of the metadata are identical. */
             /* TODO: how to decide two checkpoints are different if they are written by different
              * nodes. */
             bool same_checkpoint = checkpoint_name != NULL && checkpoint_name_new != NULL &&
-              strcmp(checkpoint_name, checkpoint_name_new) == 0 && old_order == order &&
-              old_time == time;
+              strcmp(checkpoint_name, checkpoint_name_new) == 0 && order == order_new &&
+              time == time_new;
 
             /* Put our new config in */
             md_cursor->set_value(md_cursor, cfg_ret);
@@ -1085,17 +1085,16 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
                   "Marking data handles outdated failed: \"%s\"", (const char *)old_uri_buf->data);
             }
             /*
-             * TODO: Mark all live btrees as outdated. Otherwise, we will not open a new dhandle for
-             * live btrees after step-up. This is better done at step-up or step-down to force close
-             * all live btrees.
+             * Mark all live btrees as outdated. Otherwise, we will not open a new dhandle for live
+             * btrees after step-up.
+             *
+             * TODO: This is better done at step-up or step-down to force close all live btrees.
              */
             WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, metadata_key),
               "Marking data handles outdated failed: \"%s\"", (const char *)metadata_key);
             __wt_free(session, cfg_ret);
-            if (checkpoint_name != NULL)
-                __wt_free(session, checkpoint_name);
-            if (checkpoint_name_new != NULL)
-                __wt_free(session, checkpoint_name_new);
+            __wt_free(session, checkpoint_name);
+            __wt_free(session, checkpoint_name_new);
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
             /* FIXME-WT-14730: verify that there is no btree ID conflict. */
@@ -1143,10 +1142,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
 
 err:
     __wt_free(session, cfg_ret);
-    if (checkpoint_name != NULL)
-        __wt_free(session, checkpoint_name);
-    if (checkpoint_name_new != NULL)
-        __wt_free(session, checkpoint_name_new);
+    __wt_free(session, checkpoint_name);
+    __wt_free(session, checkpoint_name_new);
     __wt_free(session, layered_ingest_uri);
     __wt_scr_free(session, &metadata_cfg);
     __wt_scr_free(session, &old_uri_buf);

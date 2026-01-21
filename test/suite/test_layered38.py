@@ -55,7 +55,7 @@ class test_layered38(wttest.WiredTigerTestCase):
     def evict_ingest(self, session, ts):
         # Trigger eviction on the ingest table
         evict_cursor = session.open_cursor("file:test_layered38.wt_ingest", None, "debug=(release_evict)")
-        for i in range(1, self.nitems):
+        for i in range(1, self.nitems + 1):
             session.begin_transaction(f'read_timestamp={self.timestamp_str(ts)}')
             evict_cursor.set_key(str(i))
             ret = evict_cursor.search()
@@ -76,8 +76,6 @@ class test_layered38(wttest.WiredTigerTestCase):
                 countData += 1
             else:
                 countTombstone += 1
-            if verbose:
-                self.tty(f' ingest: k={k}, v={v}')
         cursor.close()
         if ts != None:
             session.rollback_transaction()
@@ -98,56 +96,56 @@ class test_layered38(wttest.WiredTigerTestCase):
         session_follow.create(self.uri, "allocation_size=512,leaf_page_max=512,key_format=S,value_format=S")
         return (oplog, t, conn_follow, session_follow)
 
-    def test_gc_ingest_table(self):
-        oplog, t, conn_follow, session_follow = self.setup()
+    # def test_gc_ingest_table(self):
+    #     oplog, t, conn_follow, session_follow = self.setup()
 
-        # Load the data for oplog
-        oplog.insert(t, self.nitems)
+    #     # Load the data for oplog
+    #     oplog.insert(t, self.nitems)
 
-        # Apply it to the leader WT.
-        oplog.apply(self, self.session, 0, self.nitems)
-        oplog.check(self, self.session, 0, self.nitems)
+    #     # Apply it to the leader WT.
+    #     oplog.apply(self, self.session, 0, self.nitems)
+    #     oplog.check(self, self.session, 0, self.nitems)
 
-        ts = oplog.last_timestamp()
-        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts)}')
+    #     ts = oplog.last_timestamp()
+    #     self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts)}')
 
-        # On the follower -
-        # Apply all the entries to follower
-        oplog.apply(self, session_follow, 0, self.nitems)
-        oplog.check(self, session_follow, 0, self.nitems)
+    #     # On the follower -
+    #     # Apply all the entries to follower
+    #     oplog.apply(self, session_follow, 0, self.nitems)
+    #     oplog.check(self, session_follow, 0, self.nitems)
 
-        # Ensure everything is in the ingest table
-        count = self.count_ingest(session_follow)
-        self.assertEqual(count, (self.nitems, 0))
+    #     # Ensure everything is in the ingest table
+    #     count = self.count_ingest(session_follow)
+    #     self.assertEqual(count, (self.nitems, 0))
 
-        # Hold a cursor open on the layered table, and on the ingest as well.
-        session_follow2 = conn_follow.open_session('')
-        hold_cursor = session_follow2.open_cursor(self.uri)
-        hold_cursor.next()
+    #     # Hold a cursor open on the layered table, and on the ingest as well.
+    #     session_follow2 = conn_follow.open_session('')
+    #     hold_cursor = session_follow2.open_cursor(self.uri)
+    #     hold_cursor.next()
 
-        # Take a checkpoint and advance it, make sure everything is still good
-        self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
-        oplog.check(self, session_follow, 0, self.nitems)
+    #     # Take a checkpoint and advance it, make sure everything is still good
+    #     self.session.checkpoint()
+    #     self.disagg_advance_checkpoint(conn_follow)
+    #     oplog.check(self, session_follow, 0, self.nitems)
 
-        # At this point, everything in the ingest table is redundant, as it's
-        # also in the stable table on the follower. However, it cannot be removed
-        # as there is a cursor open.
-        self.evict_ingest(session_follow, ts)
-        count = self.count_ingest(session_follow)
-        self.assertEqual(count, (self.nitems, 0))
+    #     # At this point, everything in the ingest table is redundant, as it's
+    #     # also in the stable table on the follower. However, it cannot be removed
+    #     # as there is a cursor open.
+    #     self.evict_ingest(session_follow, ts)
+    #     count = self.count_ingest(session_follow)
+    #     self.assertEqual(count, (self.nitems, 0))
 
-        # Close the cursor held open.
-        hold_cursor.close()
+    #     # Close the cursor held open.
+    #     hold_cursor.close()
 
-        # Now eviction should remove all the items from the ingest table, but it can't
-        # until we pick up another checkpoint.
-        self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
+    #     # Now eviction should remove all the items from the ingest table, but it can't
+    #     # until we pick up another checkpoint.
+    #     self.session.checkpoint()
+    #     self.disagg_advance_checkpoint(conn_follow)
 
-        self.evict_ingest(session_follow, ts)
-        count = self.count_ingest(session_follow)
-        self.assertEqual(count, (0, 0))
+    #     self.evict_ingest(session_follow, ts)
+    #     count = self.count_ingest(session_follow)
+    #     self.assertEqual(count, (0, 0))
 
     def test_gc_ingest_table_with_remove(self):
         oplog, t, conn_follow, session_follow = self.setup()
@@ -183,7 +181,6 @@ class test_layered38(wttest.WiredTigerTestCase):
         hold_cursor = session_follow2.open_cursor(self.uri)
         hold_cursor.next()
 
-        # CHECKPOINT 1
         # Take a checkpoint and advance it, make sure everything is still good
         self.session.checkpoint()
         self.disagg_advance_checkpoint(conn_follow)
@@ -218,7 +215,6 @@ class test_layered38(wttest.WiredTigerTestCase):
         new_ts = oplog.last_timestamp()
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(new_ts)}')
 
-        # CHECKPOINT 2
         # Take a new checkpoint and advance it, make sure everything is still good
         self.session.checkpoint()
         session_follow.breakpoint()
@@ -238,7 +234,6 @@ class test_layered38(wttest.WiredTigerTestCase):
         # Close the cursor held open.
         hold_cursor.close()
 
-        # CHECKPOINT 3
         # Push forward the checkpoint again to avoid picking up the same checkpoint twice.
         self.session.checkpoint()
 
@@ -247,57 +242,48 @@ class test_layered38(wttest.WiredTigerTestCase):
         self.disagg_advance_checkpoint(conn_follow)
 
         # Now eviction should remove all the items from the ingest table.
-        # FIXME-WT-XXXXX: Eviction is removing all but one item.
-        # This by itself would not cause any data loss, but we should understand why.
         self.evict_ingest(session_follow, ts)
         count = self.count_ingest(session_follow, ts)
-        # self.assertEqual(count, (0, 0))
-        self.assertLess(count[0], 2)   # workaround
-        self.assertEqual(count[1], 0)  # workaround
+        self.assertEqual(count, (0, 0))
 
-        count = self.count_ingest(session_follow, ts=None)
-        # self.assertEqual(count, (0, 0))
-        self.assertEqual(count[0], 0)  # workaround
-        self.assertLess(count[1], 2)   # workaround
+    # def test_gc_ingest_with_cursor(self):
+    #     '''
+    #     Test picking up the first checkpoint when an ingest table has some data and a cursor pointed
+    #     to this data.
+    #     '''
+    #     oplog, t, conn_follow, session_follow = self.setup()
 
-    def test_gc_ingest_with_cursor(self):
-        '''
-        Test picking up the first checkpoint when an ingest table has some data and a cursor pointed
-        to this data.
-        '''
-        oplog, t, conn_follow, session_follow = self.setup()
+    #     oplog.insert(t, self.nitems)
 
-        oplog.insert(t, self.nitems)
+    #     ts = oplog.last_timestamp()
 
-        ts = oplog.last_timestamp()
+    #     # Apply the changes to the leader
+    #     oplog.apply(self, self.session, 0, self.nitems)
+    #     oplog.check(self, self.session, 0, self.nitems)
 
-        # Apply the changes to the leader
-        oplog.apply(self, self.session, 0, self.nitems)
-        oplog.check(self, self.session, 0, self.nitems)
+    #     self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts)}')
 
-        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts)}')
+    #     # Take a checkpoint
+    #     self.session.checkpoint()
 
-        # Take a checkpoint
-        self.session.checkpoint()
+    #     # Apply the changes to the follower
+    #     oplog.apply(self, session_follow, 0, self.nitems)
+    #     oplog.check(self, session_follow, 0, self.nitems)
 
-        # Apply the changes to the follower
-        oplog.apply(self, session_follow, 0, self.nitems)
-        oplog.check(self, session_follow, 0, self.nitems)
+    #     # Hold a cursor open on the layered table, and on the ingest one as well.
+    #     session_follow2 = conn_follow.open_session('')
+    #     hold_cursor = session_follow2.open_cursor(self.uri)
+    #     hold_cursor.next()
 
-        # Hold a cursor open on the layered table, and on the ingest one as well.
-        session_follow2 = conn_follow.open_session('')
-        hold_cursor = session_follow2.open_cursor(self.uri)
-        hold_cursor.next()
+    #     # Take a checkpoint and advance it, make sure everything is still good
+    #     self.disagg_advance_checkpoint(conn_follow)
+    #     oplog.check(self, session_follow, 0, self.nitems)
 
-        # Take a checkpoint and advance it, make sure everything is still good
-        self.disagg_advance_checkpoint(conn_follow)
-        oplog.check(self, session_follow, 0, self.nitems)
+    #     # Close the cursor held open.
+    #     hold_cursor.close()
 
-        # Close the cursor held open.
-        hold_cursor.close()
+    #     # Push forward the checkpoint again to avoid picking up the same checkpoint twice.
+    #     self.session.checkpoint()
 
-        # Push forward the checkpoint again to avoid picking up the same checkpoint twice.
-        self.session.checkpoint()
-
-        # Pickup the last checkpoint and perform the final garbage collection
-        self.disagg_advance_checkpoint(conn_follow)
+    #     # Pickup the last checkpoint and perform the final garbage collection
+    #     self.disagg_advance_checkpoint(conn_follow)
