@@ -2874,15 +2874,14 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
         WT_ERR_NOTFOUND_OK(ret, false);
 
         /* If it's in use by any session, then we're done. */
-        if (dhandle_inuse > 0) {
-            prune_timestamp = btree_checkpoint_timestamp;
+        if (dhandle_inuse > 0)
             break;
-        }
 
+        prune_timestamp = btree_checkpoint_timestamp;
         ++ckpt_inuse;
     }
 
-    if (ckpt_inuse == last_ckpt)
+    if (ckpt_inuse == last_ckpt && last_ckpt != 1)
         prune_timestamp = checkpoint_timestamp;
 
     if (ckpt_inuse == layered_table->last_ckpt_inuse) {
