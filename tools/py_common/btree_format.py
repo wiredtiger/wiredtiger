@@ -791,7 +791,8 @@ class WTPage:
         try:
             import crc32c
             have_crc32c = True
-        except:
+        except ImportError:
+            logger.warning("could not import crc32c, skipping checksum validation")
             pass
 
         # Verify the checksum
@@ -891,7 +892,7 @@ class WTPage:
                 import bson
                 have_bson = True
             except ImportError as e:
-                logger.error(f'Failed to import bson: {e}')
+                logger.error(f'Failed to import bson: {e}\n Please install pymongo.')
 
         for cellnum, cell in enumerate(self.cells):
             p.begin_cell(cellnum)
