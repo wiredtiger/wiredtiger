@@ -169,13 +169,14 @@ err:
  *     Return the free space disk available in a windows file system containing the file.
  */
 int
-__wt_win_fs_free_space(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t *freep)
+__wt_win_fs_free_space(WT_SESSION_IMPL *session, const char *path, wt_off_t *freep)
 {
     WT_DECL_RET;
     DWORD windows_error;
     uint64_t free_bytes_to_caller, total_bytes, total_free_bytes;
 
-    if (GetDiskFreeSpaceExA(fh->name, (PULARGE_INTEGER)&free_bytes_to_caller,
+    /* This function only works with directory paths */
+    if (GetDiskFreeSpaceExA(path, (PULARGE_INTEGER)&free_bytes_to_caller,
           (PULARGE_INTEGER)&total_bytes, (PULARGE_INTEGER)&total_free_bytes)) {
         *freep = (wt_off_t)free_bytes_to_caller;
         return (0);
@@ -183,7 +184,7 @@ __wt_win_fs_free_space(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t *freep)
 
     windows_error = __wt_getlasterror();
     ret = __wt_map_windows_error(windows_error);
-    WT_RET_MSG(session, ret, "%s: free-disk-space: GetDiskFreeSpaceExA: %s", fh->name,
+    WT_RET_MSG(session, ret, "%s: free-disk-space: GetDiskFreeSpaceExA: %s", path,
       __wt_formatmessage(session, windows_error));
 }
 
