@@ -2286,6 +2286,7 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
               mod->mod_replace.block_cookie_size, &multi->addr.block_cookie));
             multi->addr.block_cookie_size = mod->mod_replace.block_cookie_size;
             multi->addr.type = mod->mod_replace.type;
+            WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &mod->mod_replace.ta);
         } else
             WT_ASSERT(session, r->ref->addr != NULL);
         break;
@@ -2296,6 +2297,7 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
               mod->mod_multi->addr.block_cookie_size, &multi->addr.block_cookie));
             multi->addr.block_cookie_size = mod->mod_multi->addr.block_cookie_size;
             multi->addr.type = mod->mod_multi->addr.type;
+            WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &mod->mod_multi->addr.ta);
         } else
             WT_ASSERT(session, r->ref->addr != NULL);
         break;
@@ -2355,6 +2357,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     /* Initialize the address (set the addr type for the parent). */
     WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &chunk->ta);
+    WT_TIME_AGGREGATE_COPY(&multi->disk_image_ta, &chunk->ta);
 
     switch (page->type) {
     case WT_PAGE_COL_VAR:
@@ -2528,9 +2531,10 @@ copy_image:
      * The I/O routines verify all disk images we write, but there are paths in reconciliation that
      * don't do I/O. Verify those images, too.
      */
+    WT_ADDR *verify_addr = skip_write ? NULL : &multi->addr;
     WT_ASSERT(session,
       verify_image == false ||
-        __wt_verify_dsk_image(session, "[reconcile-image]", chunk->image.data, 0, &multi->addr,
+        __wt_verify_dsk_image(session, "[reconcile-image]", chunk->image.data, 0, verify_addr,
           WT_VRFY_DISK_EMPTY_PAGE_OK) == 0);
 #endif
     /*
