@@ -2324,7 +2324,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     uint8_t addr[WT_ADDR_MAX_COOKIE];
     bool build_delta, skip_write;
 #ifdef HAVE_DIAGNOSTIC
-    WT_ADDR *verify_addr, __verify_address;
+    WT_ADDR *verify_addr, __verify_addr;
     bool verify_image;
 #endif
 
@@ -2537,8 +2537,8 @@ copy_image:
      */
     if (skip_write) {
         /* Create a dummy address with the aggregated time window of the disk image. */
-        WT_CLEAR(__verify_address);
-        verify_addr = &__verify_address;
+        WT_CLEAR(__verify_addr);
+        verify_addr = &__verify_addr;
         WT_TIME_AGGREGATE_COPY(&verify_addr->ta, &chunk->ta);
     } else
         verify_addr = &multi->addr;
