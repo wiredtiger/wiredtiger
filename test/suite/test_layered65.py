@@ -233,6 +233,7 @@ class test_layered65(wttest.WiredTigerTestCase):
 
         # Insert the committed update on follower.
         self.session_follow.begin_transaction()
+        cursor_follow = self.session_follow.open_cursor(uri)
         cursor_follow[2] = "value1"
         self.session_follow.commit_transaction(f"commit_timestamp={self.timestamp_str(10)}")
 
@@ -314,6 +315,7 @@ class test_layered65(wttest.WiredTigerTestCase):
 
         # Insert the committed update on follower.
         self.session_follow.begin_transaction()
+        cursor_follow = self.session_follow.open_cursor(uri)
         cursor_follow[2] = "value1"
         self.session_follow.commit_transaction(f"commit_timestamp={self.timestamp_str(10)}")
 
