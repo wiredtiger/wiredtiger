@@ -2357,7 +2357,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     /* Initialize the address (set the addr type for the parent). */
     WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &chunk->ta);
-    WT_TIME_AGGREGATE_COPY(&multi->disk_image_ta, &chunk->ta);
 
     switch (page->type) {
     case WT_PAGE_COL_VAR:

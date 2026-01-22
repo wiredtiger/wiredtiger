@@ -300,7 +300,6 @@ struct __wt_multi {
      * memory.
      */
     void *disk_image;
-    WT_TIME_AGGREGATE disk_image_ta;
     WT_PAGE_BLOCK_META *block_meta; /* the metadata for the disk image */
 
     /*
