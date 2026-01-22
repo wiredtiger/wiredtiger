@@ -100,9 +100,6 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     plhandle = block_disagg->plhandle;
     WT_CLEAR(put_args);
 
-    if (btree->storage_tier == WT_BTREE_STORAGE_TIER_COLD)
-        put_args.storage_tier = WT_BTREE_STORAGE_TIER_COLD;
-
     WT_ASSERT_ALWAYS(session, plhandle != NULL, "Disaggregated block store requires page log");
 
     /*
@@ -178,6 +175,7 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     put_args.base_lsn = block_meta->base_lsn;
     put_args.encryption = block_meta->encryption;
     put_args.image_size = page_image_size;
+    put_args.storage_tier = btree->storage_tier;
 
     if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED))
         F_SET(&put_args, WT_PAGE_LOG_COMPRESSED);
@@ -196,7 +194,6 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     }
     if (put_args.storage_tier == WT_BTREE_STORAGE_TIER_COLD) {
         WT_STAT_CONN_INCR(session, disagg_block_put_cold);
-        WT_STAT_CONN_INCR(session, disagg_block_put_cold_internal);
     }
     if (checkpoint_io)
         WT_STAT_CONN_INCRV(session, block_byte_write_checkpoint, buf->size);

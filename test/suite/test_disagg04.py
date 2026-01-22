@@ -42,8 +42,6 @@ class test_disagg04(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     uri = "layered:test_disagg04_%02d"
 
-    nitems = 1000
-
     # Load the storage store extension.
     def conn_extensions(self, extlist):
         DisaggConfigMixin.conn_extensions(self, extlist)
@@ -64,6 +62,13 @@ class test_disagg04(wttest.WiredTigerTestCase, DisaggConfigMixin):
         val = stat_cursor[stat][2]
         stat_cursor.close()
         return val
+
+    def add_data(self, uri, nitems):
+        cursor = self.session.open_cursor(uri, None, None)
+        for i in range(nitems):
+            cursor["Key " + str(i)] = str(i)
+        cursor.close()
+        self.session.checkpoint()
 
 
     def test_disagg_storage_tier(self):
@@ -105,32 +110,12 @@ class test_disagg04(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def test_cold_write(self):
         self.conn.reconfigure(f'disaggregated=(role=leader)')
 
-        self.session.create(self.uri%5, 'key_format=S,value_format=S,disaggregated=(storage_tier=cold),')
+        uri = self.uri%5
+
+        self.session.create(uri, 'key_format=S,value_format=S,disaggregated=(storage_tier=cold),')
+
         self.assertEqual(self.get_stat(stat.conn.disagg_block_put_cold), 0)
-        self.assertEqual(self.get_stat(stat.conn.disagg_block_put_cold_internal), 0)
 
-        cursor = self.session.open_cursor(self.uri%5, None, None)
-        for i in range(self.nitems):
-            cursor["Key " + str(i)] = str(i)
-        cursor.close()
-
-        self.session.checkpoint()
-
-        cursor = self.session.open_cursor(self.uri%5, None, None)
-        for i in range(self.nitems):
-            if i % 2 == 0:
-                cursor["Key " + str(i)] = str(i) + "_even"
-        cursor.close()
-
-        self.session.checkpoint()
-
-        cursor = self.session.open_cursor(self.uri%5, None, None)
-        for i in range(self.nitems):
-            if i % 100 == 0:
-                cursor["Key " + str(i)] = str(i) + "_hundred"
-        cursor.close()
-
-        self.session.checkpoint()
+        self.add_data(uri, 1000)
 
         self.assertGreater(self.get_stat(stat.conn.disagg_block_put_cold), 0)
-        self.assertGreater(self.get_stat(stat.conn.disagg_block_put_cold_internal), 0)

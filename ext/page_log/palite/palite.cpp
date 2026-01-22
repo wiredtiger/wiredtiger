@@ -1315,7 +1315,7 @@ struct PageInfo {
     uint64_t base_lsn;
     uint32_t flags;
     WT_PAGE_LOG_ENCRYPTION encryption;
-    uint32_t storage_tier;
+    WT_BTREE_STORAGE_TIER storage_tier;
 };
 
 template <> struct std::formatter<PageInfo> {
@@ -1331,8 +1331,9 @@ template <> struct std::formatter<PageInfo> {
         /* TODO: print encryption if special formatting is given, e.g. {:e} */
         return std::format_to(ctx.out(),
           "{{table_id={}, page_id={}, lsn={}, backlink_lsn={}, base_lsn={}, "
-          "flags={:#x}}}",
-          page.table_id, page.page_id, page.lsn, page.backlink_lsn, page.base_lsn, page.flags);
+          "flags={:#x}, storage_tier={}}}",
+          page.table_id, page.page_id, page.lsn, page.backlink_lsn, page.base_lsn, page.flags,
+          static_cast<int>(page.storage_tier));
     }
 };
 
@@ -1378,8 +1379,9 @@ struct Pages : public Table<Pages> {
                   flags,
                   encryption,
                   timestamp_materialized_us,
-                  page_data)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);)";
+                  page_data,
+                  storage_tier)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);)";
 
         /*
          * Get all unique page IDs for a given table that have their latest page record with LSN <=
@@ -1516,6 +1518,7 @@ struct Pages : public Table<Pages> {
              encryption STRING NOT NULL,
              timestamp_materialized_us INTEGER NOT NULL,
              page_data BLOB,
+             storage_tier INTEGER NOT NULL DEFAULT 0,
          PRIMARY KEY (table_id, page_id, lsn));)",
 
       /*
@@ -1642,6 +1645,8 @@ struct Pages : public Table<Pages> {
             SQ_CHECK(sqlite3_bind_int64, stmt.get(), 8,
               static_cast<sqlite3_int64>(now_us() + (config.materialization_delay_ms * 1ms / 1us)));
             SQ_CHECK(sqlite3_bind_blob, stmt.get(), 9, buf->data, buf->size, SQLITE_STATIC);
+            SQ_CHECK(
+              sqlite3_bind_int64, stmt.get(), 10, static_cast<sqlite3_int64>(args->storage_tier));
             SQ_CHECK(sqlite3_step, stmt.get());
         }
 
@@ -1680,7 +1685,7 @@ struct Pages : public Table<Pages> {
               .base_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 2)),
               .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt, 3)),
               .encryption = WT_PAGE_LOG_ENCRYPTION{},
-              .storage_tier = WT_BTREE_STORAGE_TIER{}};
+              .storage_tier = WT_BTREE_STORAGE_TIER_NONE};
 
             const char *enc = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4));
             strncpy(page.encryption.dek, enc ? enc : "", sizeof(page.encryption.dek));
@@ -1935,7 +1940,7 @@ private:
                 .base_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 4)),
                 .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt.get(), 5)),
                 .encryption = WT_PAGE_LOG_ENCRYPTION{},
-                .storage_tier = WT_BTREE_STORAGE_TIER{}});
+                .storage_tier = WT_BTREE_STORAGE_TIER_NONE});
         }
     }
 
