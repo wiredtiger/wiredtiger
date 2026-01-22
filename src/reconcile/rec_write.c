@@ -2536,6 +2536,7 @@ copy_image:
      * updated aggregated time window from the new disk image during the verification process.
      */
     if (skip_write) {
+        /* Create a dummy address with the aggregated time window of the disk image. */
         WT_CLEAR(__verify_address);
         verify_addr = &__verify_address;
         WT_TIME_AGGREGATE_COPY(&verify_addr->ta, &chunk->ta);
