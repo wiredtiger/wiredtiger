@@ -69,7 +69,7 @@ class test_rollback_to_stable46(test_rollback_to_stable_base):
         ds = SimpleDataSet(self, uri, 0,
             key_format=self.key_format, value_format=self.value_format, config=ds_config)
         ds.populate()
-        value_stable = "ssssss" * 100
+        nrows = 5000
 
         value_a = "aaaaa" * 100
         value_b = "bbbbb" * 100
@@ -79,36 +79,33 @@ class test_rollback_to_stable46(test_rollback_to_stable_base):
 
         # Insert 5000 record at time 20
         session = self.session
-        self.printOnce("Inserting records at ts=20")
         cursor = session.open_cursor(uri)
         session.begin_transaction()
 
-        for i in range(5000):
+        for i in range(1,nrows+1):
             cursor[ds.key(i)] = value_a
 
         session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
         cursor.close()
 
-        self.printOnce("Triggering eviction")
-
         # Call eviction to trigger reconciliation. These updates should be written to the disk image.
-        self.evict_cursor(uri, 5000)
+        self.evict_cursor(uri, nrows, value_a)
 
         # Insert another 2000 records in the next page(s)
         cursor = session.open_cursor(uri)
         session.begin_transaction()
-        for i in range(5000, 7000):
+        for i in range(nrows+1, nrows+2001):
             cursor[ds.key(i)] = ds.value(value_b)
 
         session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
         cursor.close()
 
         # Verify data is visible and correct.
-        self.check(value_a, uri, 5000, 20)
+        self.check(value_a, uri, nrows, 20)
 
         session.begin_transaction('read_timestamp=' + self.timestamp_str(30))
         cursor = session.open_cursor(uri)
-        for i in range(5000, 7000):
+        for i in range(nrows+1, nrows+2001):
             cursor.set_key(ds.key(i))
             self.assertEqual(cursor.search(), 0)
             self.assertEqual(cursor.get_value(), ds.value(value_b))
