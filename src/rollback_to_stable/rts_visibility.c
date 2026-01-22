@@ -97,10 +97,9 @@ __wti_rts_visibility_page_needs_abort(
 
     /*
      * The rollback operation should be performed on this page when any of the following is true:
-     * 1. The btree is in-memory (WT_BTREE_IN_MEMORY)  in this case rollback should always be
-     *    performed regardless of timestamps because in-memory trees do not have checkpoint metadata
-     *    or a ref address so we cannot check if the page has modifications newer than the given
-     * timestamp.
+     * 1. The btree is in-memory. In this case rollback should always be performed regardless of
+     * timestamps because in-memory trees do not have checkpoint metadata or a ref address
+     * so we cannot check if the page has modifications newer than the given timestamp.
      *
      * 2. Any one of the following timestamp is
      * greater than the given timestamp or during recovery if the newest transaction id on the page

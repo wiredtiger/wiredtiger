@@ -63,7 +63,6 @@ class test_rollback_to_stable46(test_rollback_to_stable_base):
         return config
 
     def test_rollback_to_stable(self):
-
         # Create a table.
         uri = "table:rollback_to_stable46"
         ds_config = ',log=(enabled=false)' if self.in_memory else ''
