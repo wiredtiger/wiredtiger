@@ -179,9 +179,9 @@ kv_table_verifier::verify(WT_CONNECTION *connection, kv_checkpoint_ptr ckpt)
         /* Try to call verify() as the last step. */
         ret = session->verify(session, uri.c_str(), "strict");
         if (ret == EBUSY) {
-             std::cerr << "Warning: Table " << uri << " verify is skipped because of EBUSY"
-                       << std::endl;
-             ret = 0;
+            std::cerr << "Warning: Table " << uri << " verify is skipped because of EBUSY"
+                      << std::endl;
+            ret = 0;
         }
 
     } catch (std::exception &e) {
