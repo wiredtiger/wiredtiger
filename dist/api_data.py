@@ -162,6 +162,13 @@ connection_disaggregated_config = [
         type='category', subconfig=connection_disaggregated_config_common +\
               disaggregated_config_common),
 ]
+table_disaggregated_config = [
+    Config('storage_tier', 'none', r'''
+        A hint to the storage service about the expected storage
+        characteristics of this table. Currently the default (empty) value indicates a hot
+        collection, and it can be configured to 'cold' to indicate a cold collection.''',
+        choices=['cold', 'none'], undoc=True),
+]
 connection_page_delta_config = [
     Config('page_delta', '', r'''
         configure page delta settings for this connection''',
@@ -170,7 +177,7 @@ connection_page_delta_config = [
 file_disaggregated_config = [
     Config('disaggregated', '', r'''
         configure disaggregated storage for this file''',
-        type='category', subconfig=disaggregated_config_common
+        type='category', subconfig=disaggregated_config_common + table_disaggregated_config
     ),
 ]
 wiredtiger_open_disaggregated_storage_configuration = connection_disaggregated_config
@@ -823,8 +830,9 @@ connection_runtime_config = [
         perform eviction in worker threads when the cache contains at least this many bytes of
         updates. It is a percentage of the cache size if the value is within the range of 0 to 100
         or an absolute size when greater than 100. Calculated as half of \c eviction_dirty_target
-        by default. The value is not allowed to exceed the \c cache_size and has to be lower
-        than its counterpart \c eviction_updates_trigger''',
+        by default unless precise checkpoints are enabled, in which case it is equal to the \c
+        eviction_dirty_target. The value is not allowed to exceed the \c cache_size and has to be
+        lower than its counterpart \c eviction_updates_trigger''',
         min=0, max='10TB'),
     Config('eviction_updates_trigger', '0', r'''
         trigger application threads to perform eviction when the cache contains at least this

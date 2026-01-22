@@ -293,6 +293,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: update key and value bytes",
   "cursor: update value size change",
   "layered: Layered table cursor insert operations",
+  "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",
   "layered: Layered table cursor next operations from the ingest btrees",
   "layered: Layered table cursor next operations from the stable btrees",
@@ -723,6 +724,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
     stats->layered_curs_insert = 0;
+    stats->layered_curs_modify = 0;
     stats->layered_curs_next = 0;
     stats->layered_curs_next_ingest = 0;
     stats->layered_curs_next_stable = 0;
@@ -1152,6 +1154,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_update_bytes += from->cursor_update_bytes;
     to->cursor_update_bytes_changed += from->cursor_update_bytes_changed;
     to->layered_curs_insert += from->layered_curs_insert;
+    to->layered_curs_modify += from->layered_curs_modify;
     to->layered_curs_next += from->layered_curs_next;
     to->layered_curs_next_ingest += from->layered_curs_next_ingest;
     to->layered_curs_next_stable += from->layered_curs_next_stable;
@@ -1618,6 +1621,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_update_bytes += WT_STAT_DSRC_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_DSRC_READ(from, cursor_update_bytes_changed);
     to->layered_curs_insert += WT_STAT_DSRC_READ(from, layered_curs_insert);
+    to->layered_curs_modify += WT_STAT_DSRC_READ(from, layered_curs_modify);
     to->layered_curs_next += WT_STAT_DSRC_READ(from, layered_curs_next);
     to->layered_curs_next_ingest += WT_STAT_DSRC_READ(from, layered_curs_next_ingest);
     to->layered_curs_next_stable += WT_STAT_DSRC_READ(from, layered_curs_next_stable);
@@ -1884,6 +1888,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: bytes not belonging to page images in the cache",
   "cache: bytes read into cache",
   "cache: bytes written from cache",
+  "cache: cache tolerance configured",
   "cache: checkpoint blocked page eviction",
   "cache: checkpoint of history store file blocked non-history store page eviction",
   "cache: dirty bytes belonging to the history store table in the cache",
@@ -1916,6 +1921,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server skipped the pages already in the urgent queue",
   "cache: eviction server skipped the pages when prefetching",
   "cache: eviction server skipped the root pages",
+  "cache: eviction server skips clean history store pages with updates when a precise checkpoint "
+  "is in progress",
   "cache: eviction server skips dirty pages during a running checkpoint",
   "cache: eviction server skips ingest btrees in disagg",
   "cache: eviction server skips internal pages as it has an active child.",
@@ -2346,6 +2353,7 @@ static const char *const __stats_connection_desc[] = {
   "disagg: step down most recent time (msecs)",
   "disagg: step up most recent time (msecs)",
   "layered: Layered table cursor insert operations",
+  "layered: Layered table cursor modify operations",
   "layered: Layered table cursor next operations",
   "layered: Layered table cursor next operations from the ingest btrees",
   "layered: Layered table cursor next operations from the stable btrees",
@@ -2921,6 +2929,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_bytes_other */
     stats->cache_bytes_read = 0;
     stats->cache_bytes_write = 0;
+    /* not clearing cache_tolerance_level */
     stats->cache_eviction_blocked_checkpoint = 0;
     stats->cache_eviction_blocked_checkpoint_hs = 0;
     /* not clearing cache_bytes_hs_dirty */
@@ -2948,6 +2957,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_server_skip_pages_already_in_urgent_queue = 0;
     stats->cache_eviction_blocked_prefetched = 0;
     stats->eviction_root_pages_skipped = 0;
+    stats->eviction_server_skip_history_store_pages_with_updates_during_checkpoint = 0;
     stats->eviction_server_skip_dirty_pages_during_checkpoint = 0;
     stats->eviction_server_skip_ingest_trees = 0;
     stats->eviction_server_skip_intl_page_with_active_child = 0;
@@ -3357,6 +3367,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_step_down_time = 0;
     stats->disagg_step_up_time = 0;
     stats->layered_curs_insert = 0;
+    stats->layered_curs_modify = 0;
     stats->layered_curs_next = 0;
     stats->layered_curs_next_ingest = 0;
     stats->layered_curs_next_stable = 0;
@@ -3929,6 +3940,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_bytes_other += WT_STAT_CONN_READ(from, cache_bytes_other);
     to->cache_bytes_read += WT_STAT_CONN_READ(from, cache_bytes_read);
     to->cache_bytes_write += WT_STAT_CONN_READ(from, cache_bytes_write);
+    to->cache_tolerance_level += WT_STAT_CONN_READ(from, cache_tolerance_level);
     to->cache_eviction_blocked_checkpoint +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_checkpoint);
     to->cache_eviction_blocked_checkpoint_hs +=
@@ -3970,6 +3982,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_blocked_prefetched +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_prefetched);
     to->eviction_root_pages_skipped += WT_STAT_CONN_READ(from, eviction_root_pages_skipped);
+    to->eviction_server_skip_history_store_pages_with_updates_during_checkpoint +=
+      WT_STAT_CONN_READ(
+        from, eviction_server_skip_history_store_pages_with_updates_during_checkpoint);
     to->eviction_server_skip_dirty_pages_during_checkpoint +=
       WT_STAT_CONN_READ(from, eviction_server_skip_dirty_pages_during_checkpoint);
     to->eviction_server_skip_ingest_trees +=
@@ -4473,6 +4488,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);
     to->layered_curs_insert += WT_STAT_CONN_READ(from, layered_curs_insert);
+    to->layered_curs_modify += WT_STAT_CONN_READ(from, layered_curs_modify);
     to->layered_curs_next += WT_STAT_CONN_READ(from, layered_curs_next);
     to->layered_curs_next_ingest += WT_STAT_CONN_READ(from, layered_curs_next_ingest);
     to->layered_curs_next_stable += WT_STAT_CONN_READ(from, layered_curs_next_stable);
