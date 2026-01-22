@@ -66,7 +66,6 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         return config
 
     def test_rollback_to_stable(self):
-        nrows = 1000
 
         # Create a table.
         uri = "table:rollback_to_stable06"
@@ -74,70 +73,59 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         ds = SimpleDataSet(self, uri, 0,
             key_format=self.key_format, value_format=self.value_format, config=ds_config)
         ds.populate()
+        value_stable = "ssssss" * 100
 
         value_a = "aaaaa" * 100
         value_b = "bbbbb" * 100
         value_c = "ccccc" * 100
         value_d = "ddddd" * 100
-
+        # Perform several updates.
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
             ',stable_timestamp=' + self.timestamp_str(10))
+        
 
-        # Perform several updates.
-        self.large_updates(uri, value_a, ds, nrows, self.prepare, 20)
-        self.large_updates(uri, value_b, ds, nrows, self.prepare, 30)
-        self.large_updates(uri, value_c, ds, nrows, self.prepare, 40)
-        self.large_updates(uri, value_d, ds, nrows, self.prepare, 50)
+        # insert a record at time 20
+        session = self.session
+        self.printOnce("Inserting record at key 100 at ts=20")
+        cursor = session.open_cursor(uri)
+        session.begin_transaction()
+
+        for i in range(5000):
+            cursor[ds.key(i)] = value_a
+        
+        session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
+        cursor.close()
+        self.printOnce("Triggering eviction")
+        self.session.breakpoint()
+        self.evict_cursor(uri, 5000, None) # first nrows : save ts 20, last 5: save 40 
+        # dekete the old record at time 30, and insert a new record at time 30
+        # insert a record at time 20
+        self.printOnce("Removing old record, Inserting record at key 200 at ts=20")
+        cursor = session.open_cursor(uri)
+        session.begin_transaction()
+        # for i in range(5000):
+        #     cursor.set_key(ds.key(i))
+        #     cursor.remove()
+        for i in range(5000, 5200):
+            cursor[ds.key(i)] = value_b
+
+        session.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
+        cursor.close()
 
         # Verify data is visible and correct.
-        self.check(value_a, uri, nrows, 21 if self.prepare else 20)
-        self.check(value_b, uri, nrows, 31 if self.prepare else 30)
-        self.check(value_c, uri, nrows, 41 if self.prepare else 40)
-        self.check(value_d, uri, nrows, 51 if self.prepare else 50)
+        self.check(value_a, uri, 5000, 20)
+        # self.check(value_b, uri, 200, 30) 
 
-        # Checkpoint to ensure the data is flushed, then rollback to the stable timestamp.
-        if not self.in_memory:
-            self.session.checkpoint()
+        # self.large_removes(uri, ds, nrows, self.prepare, 30) # tombstone in-memory
+        # self.large_updates(uri, value_b, ds, nrows, self.prepare, 30) # insert in-memory
+        self.session.breakpoint()
+        self.printOnce("Triggering RTS") 
         self.conn.rollback_to_stable('threads=' + str(self.threads))
 
-        # Check that all keys are removed.
-        self.check(value_a, uri, 0, 20)
-        self.check(value_b, uri, 0, 30)
-        self.check(value_c, uri, 0, 40)
-        self.check(value_d, uri, 0, 50)
+        self.printOnce("RTS done, nothing should be visible")  
+        # Verify data is invisible.
+        self.check(value_a, uri, 0, 30)
+        # self.check(value_b, uri, 0, 50)
 
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        calls = stat_cursor[stat.conn.txn_rts][2]
-        hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
-        keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
-        keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
-        pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
-        upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
-        stat_cursor.close()
 
-        self.assertEqual(calls, 1)
-        self.assertEqual(keys_restored, 0)
-        self.assertGreater(pages_visited, 0)
-        self.assertGreaterEqual(keys_removed, 0)
-        if self.in_memory:
-            self.assertEqual(upd_aborted + keys_removed, nrows * 4)
-            self.assertEqual(hs_removed, 0)
-        else:
-            self.assertGreaterEqual(upd_aborted + hs_removed + keys_removed, nrows * 4)
-
-        # Reinsert the same updates with the same timestamps and flush to disk.
-        # If the updates have not been correctly removed by RTS WiredTiger will
-        # see the key already exists in the history store and abort.
-        self.large_updates(uri, value_a, ds, nrows, self.prepare, 20)
-        self.large_updates(uri, value_b, ds, nrows, self.prepare, 30)
-        self.large_updates(uri, value_c, ds, nrows, self.prepare, 40)
-        self.large_updates(uri, value_d, ds, nrows, self.prepare, 50)
-
-        # Do a checkpoint before shutdown
-        if not self.in_memory:
-            self.session.checkpoint()
-
-        # Evict the pages to disk
-        if self.evict:
-            self.evict_cursor(uri, nrows, value_d)

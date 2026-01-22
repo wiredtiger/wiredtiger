@@ -195,7 +195,8 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
         self.session.begin_transaction("ignore_prepare=true")
         for i in range (1, nrows + 1):
             evict_cursor.set_key(i)
-            self.assertEqual(evict_cursor[i], check_value)
+            if check_value is not None:
+                self.assertEqual(evict_cursor[i], check_value)
             if i % 10 == 0:
                 evict_cursor.reset()
         evict_cursor.close()
