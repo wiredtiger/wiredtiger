@@ -453,6 +453,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
+    uint64_t old_rec_lsn_max;
 
     btree = S2BT(session);
     page = r->page;
@@ -476,7 +477,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             page->disagg_info->rec_lsn_max = page->disagg_info->block_meta.disagg_lsn;
 
         for (;;) {
-            uint64_t old_rec_lsn_max = __wt_atomic_load_uint64_relaxed(&btree->rec_lsn_max);
+            WT_ACQUIRE_READ_WITH_BARRIER(old_rec_lsn_max, btree->rec_lsn_max);
             if (old_rec_lsn_max < page->disagg_info->rec_lsn_max &&
               !__wt_atomic_cas_uint64(
                 &btree->rec_lsn_max, old_rec_lsn_max, page->disagg_info->rec_lsn_max))
