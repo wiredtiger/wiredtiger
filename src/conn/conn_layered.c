@@ -384,16 +384,14 @@ __disagg_put_page(WT_SESSION_IMPL *session, WT_PAGE_LOG_HANDLE *page_log, uint64
     WT_CLEAR(put_args);
 
     put_args.backlink_lsn = last_page_lsn[page_id];
-    put_args.storage_tier = btree->storage_tier;
+
+    WT_ASSERT(session, btree->storage_tier != WT_BTREE_STORAGE_TIER_COLD);
 
     WT_RET(page_log->plh_put(page_log, &session->iface, page_id, 0, &put_args, item));
     last_page_lsn[page_id] = put_args.lsn;
 
     if (lsnp != NULL)
         *lsnp = put_args.lsn;
-
-    if (put_args.storage_tier == WT_BTREE_STORAGE_TIER_COLD)
-        WT_STAT_CONN_INCR(session, disagg_block_put_cold);
 
     return (0);
 }

@@ -1315,7 +1315,6 @@ struct PageInfo {
     uint64_t base_lsn;
     uint32_t flags;
     WT_PAGE_LOG_ENCRYPTION encryption;
-    WT_BTREE_STORAGE_TIER storage_tier;
 };
 
 template <> struct std::formatter<PageInfo> {
@@ -1331,9 +1330,8 @@ template <> struct std::formatter<PageInfo> {
         /* TODO: print encryption if special formatting is given, e.g. {:e} */
         return std::format_to(ctx.out(),
           "{{table_id={}, page_id={}, lsn={}, backlink_lsn={}, base_lsn={}, "
-          "flags={:#x}, storage_tier={}}}",
-          page.table_id, page.page_id, page.lsn, page.backlink_lsn, page.base_lsn, page.flags,
-          static_cast<int>(page.storage_tier));
+          "flags={:#x}}}",
+          page.table_id, page.page_id, page.lsn, page.backlink_lsn, page.base_lsn, page.flags);
     }
 };
 
@@ -1379,9 +1377,8 @@ struct Pages : public Table<Pages> {
                   flags,
                   encryption,
                   timestamp_materialized_us,
-                  page_data,
-                  storage_tier)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);)";
+                  page_data)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);)";
 
         /*
          * Get all unique page IDs for a given table that have their latest page record with LSN <=
@@ -1502,7 +1499,7 @@ struct Pages : public Table<Pages> {
       "SQL statements must not be empty");
 
     /* These flags used below in generated columns for 'pages' table. */
-    static_assert(WT_PAGE_LOG_DELTA == 0x2, "WT_PAGE_LOG_DELTA value changed");
+    static_assert(WT_PAGE_LOG_DELTA == 0x4, "WT_PAGE_LOG_DELTA value changed");
     static_assert(WT_PAGE_LOG_DISCARDED == 0x10000, "WT_PAGE_LOG_DISCARDED value changed");
 
     constexpr static std::string_view create_statements[] = {
@@ -1513,12 +1510,11 @@ struct Pages : public Table<Pages> {
              backlink_lsn INTEGER NOT NULL,
              base_lsn INTEGER NOT NULL,
              flags INTEGER NOT NULL,
-             delta INTEGER AS ((flags & 0x2) != 0) VIRTUAL, -- WT_PAGE_LOG_DELTA
+             delta INTEGER AS ((flags & 0x4) != 0) VIRTUAL, -- WT_PAGE_LOG_DELTA
              discarded INTEGER AS ((flags & 0x10000) != 0) VIRTUAL, -- WT_PAGE_LOG_DISCARDED
              encryption STRING NOT NULL,
              timestamp_materialized_us INTEGER NOT NULL,
              page_data BLOB,
-             storage_tier INTEGER NOT NULL DEFAULT 0,
          PRIMARY KEY (table_id, page_id, lsn));)",
 
       /*
@@ -1645,8 +1641,6 @@ struct Pages : public Table<Pages> {
             SQ_CHECK(sqlite3_bind_int64, stmt.get(), 8,
               static_cast<sqlite3_int64>(now_us() + (config.materialization_delay_ms * 1ms / 1us)));
             SQ_CHECK(sqlite3_bind_blob, stmt.get(), 9, buf->data, buf->size, SQLITE_STATIC);
-            SQ_CHECK(
-              sqlite3_bind_int64, stmt.get(), 10, static_cast<sqlite3_int64>(args->storage_tier));
             SQ_CHECK(sqlite3_step, stmt.get());
         }
 
@@ -1657,8 +1651,7 @@ struct Pages : public Table<Pages> {
               .backlink_lsn = args->backlink_lsn,
               .base_lsn = args->base_lsn,
               .flags = args->flags,
-              .encryption = args->encryption,
-              .storage_tier = args->storage_tier};
+              .encryption = args->encryption};
             auto acc_r = request(AccessMode::READ);
             verify_chain(acc_r.conn, start_page);
         }
@@ -1684,8 +1677,7 @@ struct Pages : public Table<Pages> {
               .backlink_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 1)),
               .base_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 2)),
               .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt, 3)),
-              .encryption = WT_PAGE_LOG_ENCRYPTION{},
-              .storage_tier = WT_BTREE_STORAGE_TIER_NONE};
+              .encryption = WT_PAGE_LOG_ENCRYPTION{}};
 
             const char *enc = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4));
             strncpy(page.encryption.dek, enc ? enc : "", sizeof(page.encryption.dek));
@@ -1939,8 +1931,7 @@ private:
                 .backlink_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 3)),
                 .base_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 4)),
                 .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt.get(), 5)),
-                .encryption = WT_PAGE_LOG_ENCRYPTION{},
-                .storage_tier = WT_BTREE_STORAGE_TIER_NONE});
+                .encryption = WT_PAGE_LOG_ENCRYPTION{}});
         }
     }
 

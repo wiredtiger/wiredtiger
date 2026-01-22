@@ -175,12 +175,13 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     put_args.base_lsn = block_meta->base_lsn;
     put_args.encryption = block_meta->encryption;
     put_args.image_size = page_image_size;
-    put_args.storage_tier = btree->storage_tier;
 
     if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED))
         F_SET(&put_args, WT_PAGE_LOG_COMPRESSED);
     if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED))
         F_SET(&put_args, WT_PAGE_LOG_ENCRYPTED);
+    if (btree->storage_tier == WT_BTREE_STORAGE_TIER_COLD)
+        F_SET(&put_args, WT_PAGE_LOG_COLD);
 
     /* Write the block. */
     WT_RET(plhandle->plh_put(plhandle, &session->iface, page_id, 0, &put_args, buf));
@@ -192,7 +193,7 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
         WT_STAT_CONN_INCR(session, disagg_block_hs_put);
         WT_STAT_CONN_INCRV(session, disagg_block_hs_byte_write, buf->size);
     }
-    if (put_args.storage_tier == WT_BTREE_STORAGE_TIER_COLD) {
+    if (F_ISSET(&put_args, WT_PAGE_LOG_COLD)) {
         WT_STAT_CONN_INCR(session, disagg_block_put_cold);
     }
     if (checkpoint_io)
