@@ -5706,6 +5706,18 @@ struct __wt_page_log {
     int (*pl_set_last_materialized_lsn)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t lsn);
 
     /*!
+     * Discard an table into the paging/logging service.
+     *
+     * @errors
+     *
+     * @param plh the WT_PAGE_LOG_HANDLE
+     * @param session the current WiredTiger session
+     * @param table_id the table to be discarded
+     * @param args additional arguments used or returned by the call, memory owned by caller
+     */
+    int (*pl_trim_table)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t table_id);
+
+    /*!
      * A callback performed when the page log service or reference is closed
      * and will no longer be used.  The initial creation of the page log service
      * counts as a reference, and each call to WT_PAGE_LOG::add_reference

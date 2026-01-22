@@ -2131,6 +2131,13 @@ public:
     }
 
     void
+    trim_table(uint64_t table_id)
+    {
+        Pages &table = get_table(table_id);
+        table.discard(table_id, page_id, lsn, args);
+    }
+
+    void
     abandon_checkpoint(uint64_t checkpoint_lsn)
     {
         /* Ensure exclusive access to storage since we update multiple tables. */
@@ -2462,6 +2469,14 @@ public:
     }
 
     int
+    trim_table(uint64_t table_id)
+    {
+        int ret = storage.get_checkpoint(last_ckpt_lsn, checkpoint_timestamp, checkpoint_metadata);
+        LOG_DEBUG("Set last_materialized_lsn={}", lsn);
+        return 0;
+    }
+
+    int
     terminate()
     {
         --ref_count;
@@ -2531,6 +2546,12 @@ palite_set_last_materialized_lsn(WT_PAGE_LOG *page_log, WT_SESSION *sess, uint64
 }
 
 static int
+palite_trim_table(WT_PAGE_LOG *page_log, WT_SESSION *sess, uint64_t table_id)
+{
+    return safe_call<Palite>(sess, page_log, &Palite::trim_table, table_id);
+}
+
+static int
 palite_terminate(WT_PAGE_LOG *page_log, WT_SESSION *sess)
 {
     return safe_call<Palite>(sess, page_log, &Palite::terminate);
@@ -2548,6 +2569,7 @@ Palite::initialize_interface()
     pl_get_last_lsn = palite_get_last_lsn;
     pl_open_handle = palite_open_handle;
     pl_set_last_materialized_lsn = palite_set_last_materialized_lsn;
+    pl_trim_table = palite_trim_table;
     static_cast<WT_PAGE_LOG *>(this)->terminate = palite_terminate;
 }
 
