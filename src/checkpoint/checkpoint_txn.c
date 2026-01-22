@@ -1442,10 +1442,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     __checkpoint_verbose_track(session, "committing transaction");
 
-    /* We need to clear the checkpoint flag here, as this has to be matched to the commit above. */
-    // XXX CKPT: Really?
-    F_CLR(session, WT_SESSION_CHECKPOINT);
-
     /*
      * Checkpoints have to hit disk (it would be reasonable to configure for lazy checkpoints, but
      * we don't support them yet).
@@ -1486,6 +1482,9 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_COMMIT);
     WT_ERR(__wt_txn_commit(session, NULL));
+
+    /* Clear the checkpoint flag, as it governs the checkpoint transaction above. */
+    F_CLR(session, WT_SESSION_CHECKPOINT);
 
     /* Crash before updating the metadata if checkpoint crash point is configured. */
     if (ckpt_crash_before_metadata_update)
@@ -1702,6 +1701,7 @@ err:
     __checkpoint_clear_time(session);
 
     F_CLR(session, WT_SESSION_CHECKPOINT);
+
     /* Clear the timestamp of the in-progress checkpoint now that we are done. */
     conn->disaggregated_storage.cur_checkpoint_timestamp = WT_TS_NONE;
 
