@@ -2530,6 +2530,10 @@ copy_image:
     /*
      * The I/O routines verify all disk images we write, but there are paths in reconciliation that
      * don't do I/O. Verify those images, too.
+     *
+     * If we skip writing the page, the newly created disk image might have a different aggregated
+     * time window compared to the previously written page. To avoid verification failures, use the
+     * updated aggregated time window from the new disk image during the verification process.
      */
     if (skip_write) {
         WT_CLEAR(__verify_address);
