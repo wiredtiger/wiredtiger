@@ -980,6 +980,7 @@ struct __wt_connection_stats {
     int64_t disagg_step_down_time;
     int64_t disagg_step_up_time;
     int64_t layered_curs_insert;
+    int64_t layered_curs_modify;
     int64_t layered_curs_next;
     int64_t layered_curs_next_ingest;
     int64_t layered_curs_next_stable;
@@ -1667,6 +1668,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_update_bytes;
     int64_t cursor_update_bytes_changed;
     int64_t layered_curs_insert;
+    int64_t layered_curs_modify;
     int64_t layered_curs_next;
     int64_t layered_curs_next_ingest;
     int64_t layered_curs_next_stable;
