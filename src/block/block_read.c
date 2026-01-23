@@ -396,8 +396,8 @@ __fs_free_space_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
     ret = fs->fs_free_space(fs, (WT_SESSION *)session, db_dir, &db_dir_free_space);
     if (ret == 0) {
         __wt_errx(session,
-          "%s: free disk space on main database directory (%s) is %" PRIuMAX " bytes", block->name,
-          db_dir, (uintmax_t)db_dir_free_space);
+          "%s: free disk space on main database directory (%s) is %" PRIdMAX " bytes", block->name,
+          db_dir, (intmax_t)db_dir_free_space);
     } else
         __wt_err(session, ret,
           "%s: unable to determine free disk space on main database directory (%s)", block->name,
@@ -407,8 +407,8 @@ __fs_free_space_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
         ret = fs->fs_free_space(fs, (WT_SESSION *)session, journal_dir, &journal_dir_free_space);
         if (ret == 0) {
             __wt_errx(session,
-              "%s: free disk space on journal directory (%s) is %" PRIuMAX " bytes", block->name,
-              journal_dir, (uintmax_t)journal_dir_free_space);
+              "%s: free disk space on journal directory (%s) is %" PRIdMAX " bytes", block->name,
+              journal_dir, (intmax_t)journal_dir_free_space);
         } else
             __wt_err(session, ret,
               "%s: unable to determine free disk space on journal directory (%s)", block->name,
