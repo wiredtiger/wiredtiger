@@ -5104,6 +5104,19 @@ struct __wt_file_system {
         WT_SESSION *session, const char *name, wt_off_t *sizep);
 
     /*!
+     * Return the free disk space for the filesystem.
+     *
+     * @errors
+     *
+     * @param file_system the WT_FILE_SYSTEM
+     * @param session the current WiredTiger session
+     * @param path the path to check free space for
+     * @param[out] freep the free space in bytes
+     */
+    int (*fs_free_space)(WT_FILE_SYSTEM *file_system,
+        WT_SESSION *session, const char *path, wt_off_t *freep);
+
+    /*!
      * A callback performed when the file system is closed and will no
      * longer be accessed by the WiredTiger database.
      *
