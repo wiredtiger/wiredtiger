@@ -224,8 +224,13 @@ __drop_table(
      *
      * FIXME-WT-16146: Add capability for cleaning up incomplete complex and tiered tables.
      */
-    if (!table->cg_complete && table->is_simple)
+    if (!table->cg_complete && table->is_simple) {
+        __wt_verbose_warning(session, WT_VERB_HANDLEOPS,
+          "TESTING: hi. uri=%s", uri);
         WT_ERR(__wt_schema_drop(session, file_uri_buf->data, cfg, check_visibility));
+        __wt_verbose_warning(session, WT_VERB_HANDLEOPS,
+          "TESTING: hi2 uri=%s", uri);
+    }
 
     /* Drop the column groups. */
     for (i = 0; i < WT_COLGROUPS(table); i++) {
