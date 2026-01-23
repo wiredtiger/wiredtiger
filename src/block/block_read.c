@@ -386,7 +386,7 @@ __fs_free_space_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
          */
         journal_dir = (!WT_STREQ(db_dir, log_mgr->log_path)) ? log_mgr->log_path : NULL;
 
-    /* Log free space on the main database directory, and the journal directory if different */
+    /* Log free space on the main database directory, and the journal directory if different. */
     ret = __wt_fs_free_space(session, db_dir, &db_dir_free_space);
     if (ret == 0) {
         __wt_errx(session,

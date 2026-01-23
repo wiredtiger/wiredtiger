@@ -175,7 +175,7 @@ __wt_win_fs_free_space(WT_SESSION_IMPL *session, const char *path, wt_off_t *fre
     DWORD windows_error;
     ULARGE_INTEGER free_bytes_to_caller, total_bytes, total_free_bytes;
 
-    /* This function only works with directory paths */
+    /* This function only works with directory paths. */
     if (!GetDiskFreeSpaceExA(path, &free_bytes_to_caller, &total_bytes, &total_free_bytes)) {
         windows_error = __wt_getlasterror();
         ret = __wt_map_windows_error(windows_error);
