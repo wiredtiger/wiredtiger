@@ -1499,7 +1499,7 @@ struct Pages : public Table<Pages> {
       "SQL statements must not be empty");
 
     /* These flags used below in generated columns for 'pages' table. */
-    static_assert(WT_PAGE_LOG_DELTA == 0x4, "WT_PAGE_LOG_DELTA value changed");
+    static_assert(WT_PAGE_LOG_DELTA == 0x2, "WT_PAGE_LOG_DELTA value changed");
     static_assert(WT_PAGE_LOG_DISCARDED == 0x10000, "WT_PAGE_LOG_DISCARDED value changed");
 
     constexpr static std::string_view create_statements[] = {
@@ -1510,7 +1510,7 @@ struct Pages : public Table<Pages> {
              backlink_lsn INTEGER NOT NULL,
              base_lsn INTEGER NOT NULL,
              flags INTEGER NOT NULL,
-             delta INTEGER AS ((flags & 0x4) != 0) VIRTUAL, -- WT_PAGE_LOG_DELTA
+             delta INTEGER AS ((flags & 0x2) != 0) VIRTUAL, -- WT_PAGE_LOG_DELTA
              discarded INTEGER AS ((flags & 0x10000) != 0) VIRTUAL, -- WT_PAGE_LOG_DISCARDED
              encryption STRING NOT NULL,
              timestamp_materialized_us INTEGER NOT NULL,

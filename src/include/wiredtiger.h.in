@@ -5832,11 +5832,17 @@ struct __wt_page_log_put_args {
 
        WT_PAGE_LOG_ENCRYPTION encryption;
 
+        /*
+        * NOTE: These flags are passed through the API and may be persisted or consumed
+        * by external components (e.g. SLS / PALite). Their numeric values must remain
+        * stable for compatibility. Do not reorder or renumber these flags.
+        */
+
        /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_PAGE_LOG_COLD 0x1u
-#define WT_PAGE_LOG_COMPRESSED 0x2u
-#define WT_PAGE_LOG_DELTA 0x4u
-#define WT_PAGE_LOG_ENCRYPTED 0x8u
+#define WT_PAGE_LOG_COMPRESSED 0x1u
+#define WT_PAGE_LOG_DELTA 0x2u
+#define WT_PAGE_LOG_ENCRYPTED 0x4u
+#define WT_PAGE_LOG_STORAGE_TIER_COLD 0x8u
         /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
 
        uint32_t flags;

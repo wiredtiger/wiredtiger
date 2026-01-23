@@ -372,10 +372,7 @@ static int
 __disagg_put_page(WT_SESSION_IMPL *session, WT_PAGE_LOG_HANDLE *page_log, uint64_t page_id,
   const WT_ITEM *item, uint64_t last_page_lsn[], uint64_t *lsnp)
 {
-    WT_BTREE *btree;
     WT_PAGE_LOG_PUT_ARGS put_args;
-
-    btree = S2BT(session);
 
     if (page_log == NULL)
         return (ENOTSUP);
@@ -385,8 +382,6 @@ __disagg_put_page(WT_SESSION_IMPL *session, WT_PAGE_LOG_HANDLE *page_log, uint64
     WT_CLEAR(put_args);
 
     put_args.backlink_lsn = last_page_lsn[page_id];
-
-    WT_ASSERT(session, btree->storage_tier != WT_BTREE_STORAGE_TIER_COLD);
 
     WT_RET(page_log->plh_put(page_log, &session->iface, page_id, 0, &put_args, item));
     last_page_lsn[page_id] = put_args.lsn;
