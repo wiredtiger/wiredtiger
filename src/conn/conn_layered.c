@@ -2842,7 +2842,7 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     int32_t layered_dhandle_inuse, stable_dhandle_inuse;
 
     layered_table = NULL;
-    prune_timestamp = btree->prune_timestamp;
+    prune_timestamp = WT_TS_NONE;
 
     /*
      * Get the layered table from the provided URI. We don't hold any global locks so that's
@@ -2940,8 +2940,8 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     __layered_update_prune_timestamps_print_update_logs(
       session, layered_table, prune_timestamp, ckpt_inuse);
 
-    WT_ASSERT(session, prune_timestamp >= btree->prune_timestamp);
-    __wt_atomic_store_uint64_release(&btree->prune_timestamp, prune_timestamp);
+    if (prune_timestamp > __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp))
+        __wt_atomic_store_uint64_release(&btree->prune_timestamp, prune_timestamp);
     if (ckpt_inuse > 1 || layered_dhandle_inuse == 0)
         layered_table->last_ckpt_inuse = ckpt_inuse;
 
