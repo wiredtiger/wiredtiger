@@ -3108,6 +3108,7 @@ __checkpoint_reconcile_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
     WT_DECL_RET;
     bool signalled;
+    int count;
 
     WT_UNUSED(thread);
 
@@ -3117,26 +3118,37 @@ __checkpoint_reconcile_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     __wt_cond_wait_signal(
       session, ckpt_threads->work_cond, WT_MILLION, __checkpoint_reconcile_thread_chk, &signalled);
 
+    count = 0;
     for (;;) {
         __checkpoint_reconcile_pop_page(session, &entry);
         if (entry == NULL)
             break;
 
-        memcpy(&session->txn->snapshot_data, entry->snapshot, sizeof(WT_TXN_SNAPSHOT));
+        /* Begin a transaction, if we don't already have one. */
+        if (!F_ISSET(session->txn, WT_TXN_RUNNING))
+            WT_ERR(__wt_txn_begin(session, NULL));
+
+        /* Set up the transaction for the given entry. */
+        WT_ERR(__wt_txn_import_snapshot(session, entry->snapshot));
         F_SET(session, WT_SESSION_CHECKPOINT);
-        F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
-        F_SET(session->txn, WT_TXN_RUNNING);
-        session->txn->id = S2C(session)->txn_global.checkpoint_txn_shared.id;
-        // session->txn->isolation = entry->isolation;
+        F_SET(session, WT_SESSION_CHECKPOINT_WORKER);
 
         /* It's not an error if we make no progress. */
         WT_WITH_DHANDLE(session, entry->dhandle,
           ret = __wt_reconcile(session, entry->ref, NULL, entry->reconcile_flags));
         WT_ERR(ret);
 
+        ++count;
         entry->ret = ret;
         __checkpoint_reconcile_push_done(session, entry);
+
+        F_CLR(session, WT_SESSION_CHECKPOINT);
+        F_CLR(session, WT_SESSION_CHECKPOINT_WORKER);
     }
+
+    // XXX CKPT This should be committed only at the end of the checkpoint if possible
+    if (count > 0 && F_ISSET(session->txn, WT_TXN_RUNNING))
+        WT_ERR(__wt_txn_commit(session, NULL));
 
     if (0) {
 err:
@@ -3144,10 +3156,6 @@ err:
         WT_RET_PANIC(session, ret, "checkpoint page reconciliation thread error");
     }
 
-    F_CLR(session, WT_SESSION_CHECKPOINT);
-    F_CLR(session->txn, WT_TXN_HAS_SNAPSHOT);
-    F_CLR(session->txn, WT_TXN_RUNNING);
-    session->txn->id = WT_TXN_NONE;
     return (0);
 }
 
@@ -3161,8 +3169,7 @@ __checkpoint_reconcile_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
     if (thread->id != 0)
         return (0);
 
-    __wt_verbose(
-      session, WT_VERB_EVICTION, "%s", "checkpoint page reconciliation thread exiting");
+    __wt_verbose(session, WT_VERB_EVICTION, "%s", "checkpoint page reconciliation thread exiting");
     return (0);
 }
 

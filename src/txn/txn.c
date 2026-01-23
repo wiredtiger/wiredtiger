@@ -85,6 +85,30 @@ __txn_sort_snapshot(WT_SESSION_IMPL *session, uint32_t n, uint64_t snap_max)
 }
 
 /*
+ * __wt_txn_import_snapshot --
+ *     Import a snapshot into the current transaction.
+ */
+int
+__wt_txn_import_snapshot(WT_SESSION_IMPL *session, const WT_TXN_SNAPSHOT *snapshot)
+{
+    WT_DECL_RET;
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    /* TODO: Check that the array capacity is sufficient. */
+
+    txn->snapshot_data.snapshot_count = snapshot->snapshot_count;
+    txn->snapshot_data.snap_max = snapshot->snap_max;
+    txn->snapshot_data.snap_min = snapshot->snap_min;
+    memcpy(txn->snapshot_data.snapshot, snapshot->snapshot,
+      snapshot->snapshot_count * sizeof(snapshot->snapshot[0]));
+    F_SET(txn, WT_TXN_HAS_SNAPSHOT);
+
+    return (ret);
+}
+
+/*
  * __wt_txn_release_snapshot --
  *     Release the snapshot in the current transaction.
  */
@@ -751,7 +775,7 @@ __wt_txn_reconfigure(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     if (ret == 0 && cval.len != 0) {
         session->isolation = txn->isolation = WT_CONFIG_LIT_MATCH("snapshot", cval) ?
-                                                          WT_ISO_SNAPSHOT :
+          WT_ISO_SNAPSHOT :
           WT_CONFIG_LIT_MATCH("read-uncommitted", cval) ? WT_ISO_READ_UNCOMMITTED :
                                                           WT_ISO_READ_COMMITTED;
     }
@@ -1177,9 +1201,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
           __wt_txn_timestamp_usage_check(session, op, txn->commit_timestamp, upd->prev_durable_ts));
 
     for (first_committed_upd = upd; first_committed_upd != NULL &&
-         (first_committed_upd->txnid == WT_TXN_ABORTED ||
-           first_committed_upd->prepare_state == WT_PREPARE_INPROGRESS);
-         first_committed_upd = first_committed_upd->next)
+      (first_committed_upd->txnid == WT_TXN_ABORTED ||
+        first_committed_upd->prepare_state == WT_PREPARE_INPROGRESS);
+      first_committed_upd = first_committed_upd->next)
         ;
 
     /*

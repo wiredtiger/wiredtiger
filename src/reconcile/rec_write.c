@@ -233,7 +233,7 @@ __reconcile_post_wrapup(
      * Ignore checkpoints, once the checkpoint completes, all unnecessary session resources will be
      * discarded.
      */
-    if (!WT_SESSION_IS_CHECKPOINT(session)) {
+    if (!WT_SESSION_IS_CHECKPOINT(session) || F_ISSET(session, WT_SESSION_CHECKPOINT_WORKER)) {
         /*
          * Clean up the underlying block manager memory too: it's not reconciliation, but threads
          * discarding reconciliation structures want to clean up the block manager's structures as

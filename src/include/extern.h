@@ -1140,6 +1140,8 @@ extern int __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *c
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_txn_import_snapshot(WT_SESSION_IMPL *session, const WT_TXN_SNAPSHOT *snapshot)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_init_checkpoint_cursor(WT_SESSION_IMPL *session, WT_CKPT_SNAPSHOT *snapinfo,
