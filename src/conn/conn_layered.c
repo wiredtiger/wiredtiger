@@ -2842,7 +2842,7 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     int32_t layered_dhandle_inuse, stable_dhandle_inuse;
 
     layered_table = NULL;
-    prune_timestamp = WT_TS_NONE;
+    prune_timestamp = btree->prune_timestamp;
 
     /*
      * Get the layered table from the provided URI. We don't hold any global locks so that's
