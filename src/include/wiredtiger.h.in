@@ -5836,6 +5836,8 @@ struct __wt_page_log_put_args {
         * NOTE: These flags are passed through the API and may be persisted or consumed
         * by external components (e.g. SLS / PALite). Their numeric values must remain
         * stable for compatibility. Do not reorder or renumber these flags.
+        *
+        * The range 0x08-0x20 is reserved for storage tiers. Start next flag from the value 0x40.
         */
 
        /* AUTOMATIC FLAG VALUE GENERATION START 0 */
