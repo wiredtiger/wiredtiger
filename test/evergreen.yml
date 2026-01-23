@@ -81,6 +81,14 @@ functions:
               fi
             fi
 
+            # Set extensions to load
+            EXT="extensions=["
+            EXT+="ext/compressors/snappy/libwiredtiger_snappy.so,"
+            EXT+="ext/collators/reverse/libwiredtiger_reverse_collator.so, "
+            EXT+="ext/encryptors/rotn/libwiredtiger_rotn.so, "
+            EXT+="]"
+            export EXT
+
             ${additional_env_vars}
 
             echo "Dump Environment"
@@ -262,6 +270,17 @@ functions:
         echo "BAZELISK_HOME=${workdir}/bazelisk_home" >> ~/.bazeliskrc
 
         bazel build --mongo_toolchain_version=v5 --config=opt --build_enterprise=False install-mongod
+  "checkout develop": &checkout_develop
+    command: shell.exec
+    type: setup
+    params:
+      working_dir: "wiredtiger"
+      shell: bash
+      script: |
+        set -o errexit
+        ${PREPARE_PATH}
+        echo "Checking out develop branch ..."
+        git checkout develop
   "configure wiredtiger": &configure_wiredtiger
     command: shell.exec
     params:
@@ -433,6 +452,12 @@ functions:
   "compile wiredtiger":
     - *gen_github_token
     - *get_automation_scripts
+    - *configure_wiredtiger
+    - *make_wiredtiger
+  "compile wiredtiger develop":
+    - *gen_github_token
+    - *get_automation_scripts
+    - *checkout_develop
     - *configure_wiredtiger
     - *make_wiredtiger
   "dump stacktraces": &dump_stacktraces
@@ -1138,6 +1163,26 @@ functions:
         content_type: application/tar
         display_name: ${artifacts_name|Artifacts}
         remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
+  "upload artifact for compatibility test":
+    - command: archive.targz_pack
+      type: setup
+      params:
+        target: ${upload_filename|wiredtiger_compat.tgz}
+        source_dir: ${upload_source_dir|.}
+        include:
+          - "wiredtiger/**"
+          - "wiredtiger-develop/**"
+    - command: s3.put
+      type: setup
+      params:
+        aws_secret: ${aws_secret}
+        aws_key: ${aws_key}
+        local_file: ${upload_filename|wiredtiger_compat.tgz}
+        bucket: build_external
+        permissions: public-read
+        content_type: application/tar
+        display_name: ${artifacts_name|Artifacts_Compat}
+        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
   "upload wtperf test artifact":
     - command: archive.targz_pack
       type: setup
@@ -1399,6 +1444,34 @@ functions:
           set -o errexit
           set -o verbose
           ./test/evergreen/verify_wt_datafiles.sh 2>&1
+
+  "run format test with table config":
+    command: shell.exec
+    params:
+      working_dir: ${build_dir}
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        # Run test/format in the build_dir to generate data files.
+        # cd ${build_dir}/test/format
+        cd test/format
+        # ./t -h ../../RUNDIR runs.source=table runs.type=row-store
+        ./t runs.source=table runs.type=row-store
+
+  "verify wt datafiles with binary":
+    command: shell.exec
+    params:
+      working_dir: ${build_dir}
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        # Verify data files generated in the data_dir using wt binary in the build_dir.
+        WIREDTIGER_CONFIG="$EXT" ./wt -h ../../${data_dir} list
+        WIREDTIGER_CONFIG="$EXT" ./wt -h ../../${data_dir} verify table:T00001
 
   "install gcp dependencies":
     - command: shell.exec
@@ -1719,6 +1792,13 @@ tasks:
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
+      - func: "upload artifact"
+      - func: "cleanup"
+
+  - name: compile-develop
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger develop"
       - func: "upload artifact"
       - func: "cleanup"
 
@@ -3610,6 +3690,41 @@ tasks:
             set -o verbose
             ${PREPARE_TEST_ENV}
             ${python_binary|python3} test/compatibility/suite/compatibility_test.py ${compat_suite_args|-v 2} 2>&1
+  
+  - name: compatibility-test-against-develop
+    depends_on:
+    - name: compile
+    - name: compile-develop
+    commands:
+      # Fetch artifact for the compile build.
+      - func: "fetch artifacts"
+      # Fetch artifact for the compile-develop build.
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-develop
+          destination: "wiredtiger-develop"
+      # Run format using the binary in the compile build.
+      - func: "run format test with table config"
+        vars:
+          build_dir: "wiredtiger/cmake_build"
+      # Run format using the binary in the compile-develop build.
+      - func: "run format test with table config"
+        vars:
+          build_dir: "wiredtiger-develop/cmake_build"
+      # Verify data files generated in wiredtiger-develop using binary built from the compile build.
+      - func: "verify wt datafiles with binary"
+        vars:
+          build_dir: "wiredtiger/cmake_build"
+          data_dir: "wiredtiger-develop/cmake_build/test/format/RUNDIR"
+      # Verify data files generated in wiredtiger using binary built from the compile-develop build.
+      - func: "verify wt datafiles with binary"
+        vars:
+          build_dir: "wiredtiger-develop/cmake_build"
+          data_dir: "wiredtiger/cmake_build/test/format/RUNDIR"
+      # Upload both folders as artifacts.
+      - func: "upload artifact for compatibility test"
+      # To prevent the default post task re-archiving again.
+      - func: "cleanup"
 
   - name: compatibility-test-for-wt-standalone-releases
     commands:
@@ -6835,6 +6950,8 @@ buildvariants:
     - name: ".unit_test_long"
       distros: ubuntu2004-large
     - name: compile
+    - name: compile-develop
+    - name: compatibility-test-against-develop
     - name: doc-compile
     - name: make-check-test
     - name: configure-combinations
