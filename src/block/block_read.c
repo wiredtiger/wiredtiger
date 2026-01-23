@@ -327,7 +327,7 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
 
         /*
          * Dump the free disk space on the main database directory and on the journal directory for
-         * both full or partial checksum mismatch
+         * both full or partial checksum mismatch.
          */
         __fs_free_space_dump(session, block);
 
@@ -369,7 +369,7 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
 /*
  * __fs_free_space_dump --
  *     Dump the free disk space on the main database directory and on the journal directory for both
- *     full or partial checksum mismatch
+ *     full or partial checksum mismatch.
  */
 static void
 __fs_free_space_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
@@ -377,17 +377,13 @@ __fs_free_space_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
     wt_off_t db_dir_free_space, journal_dir_free_space = 0;
     const char *db_dir = S2C(session)->home;
     const char *journal_dir = NULL;
-    WT_CONFIG_ITEM cval;
-    const char *cfg[] = {
-      S2C(session)->cfg, NULL}; /* __wt_config_gets expects NULL terminated array */
+    WT_LOG_MANAGER *log_mgr = &S2C(session)->log_mgr;
 
-    if (__wt_config_gets(session, cfg, "log.path", &cval) == 0 && cval.len > 0 &&
-      !(cval.len == 1 && cval.str[0] == '.'))
+    if (log_mgr->log_path != NULL && strlen(log_mgr->log_path) > 0)
         /*
-         * If the journal directory path is not the same as the main database directory path, set
-         * it.
+         * If the journal directory is not the same as the main database directory path, set it.
          */
-        journal_dir = (strcmp(db_dir, cval.str) != 0) ? cval.str : NULL;
+        journal_dir = (strcmp(db_dir, log_mgr->log_path) != 0) ? log_mgr->log_path : NULL;
 
     /* Log free space on the main database directory, and the journal directory if different */
     if (__wt_fs_free_space(session, db_dir, &db_dir_free_space) == 0) {
