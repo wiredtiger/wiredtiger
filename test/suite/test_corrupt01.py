@@ -132,5 +132,7 @@ class test_corrupt01(wttest.WiredTigerTestCase, suite_subprocess):
             self.assertRaises(
                 wiredtiger.WiredTigerError, lambda: corrupt_conn.close())
 
+        # Check that free disk space message is logged
+        self.captureerr.checkAdditionalPattern(self, "test_corrupt01.wt: free disk space on .* is .* bytes")
         self.ignoreStdoutPatternIfExists('extent list')
         self.ignoreStderrPatternIfExists('checksum error')
