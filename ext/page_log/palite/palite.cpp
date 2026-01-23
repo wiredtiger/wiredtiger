@@ -936,6 +936,7 @@ protected:
     std::filesystem::path table_file;
 
     std::once_flag create_table;
+    std::once_flag drop_table;
     std::shared_mutex conn_state; /* protects 'connections' map */
     std::unordered_map<std::thread::id, std::unique_ptr<Connection>> connections;
 
@@ -946,6 +947,22 @@ public:
     Table(Config &cfg, std::shared_mutex &str_access, const std::filesystem::path &file)
         : config(cfg), store_access(str_access), table_file(file)
     {
+    }
+
+    void
+    trim()
+    {
+        assert(connections.empty());
+        Connection drop_conn(config, table_file);
+        drop_conn.configure(static_cast<Traits *>(this)->conn_config());
+
+        std::call_once(
+            drop_table,
+            [this](Connection &c) {
+                c.configure(Traits::drop_statements);
+                LOG_DEBUG("SQLite database dropped: {}", c.db_instance());
+            },
+            drop_conn);
     }
 
     void
@@ -1575,6 +1592,13 @@ struct Pages : public Table<Pages> {
     };
 
     /*
+     * Drop table.
+     */
+    constexpr static std::string_view drop_statements[] = {
+        R"(DROP TABLE pages;)"
+    };
+
+    /*
      * 'pages' table requires user configuration parameters, therefore SQL config statements created
      * at runtime when configuration is available.
      */
@@ -2134,7 +2158,7 @@ public:
     trim_table(uint64_t table_id)
     {
         Pages &table = get_table(table_id);
-        table.discard(table_id, page_id, lsn, args);
+        table.trim();
     }
 
     void
@@ -2471,8 +2495,7 @@ public:
     int
     trim_table(uint64_t table_id)
     {
-        int ret = storage.get_checkpoint(last_ckpt_lsn, checkpoint_timestamp, checkpoint_metadata);
-        LOG_DEBUG("Set last_materialized_lsn={}", lsn);
+        storage.trim_table(table_id);
         return 0;
     }
 
