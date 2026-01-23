@@ -120,7 +120,7 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
     is_disagg = __wt_conn_is_disagg(session);
 
     /* No need to cache the history store cursor for standby as it doesn't do any reconciliation. */
-    if (is_disagg && !S2C(session)->layered_table_manager.leader)
+    if (is_disagg && !conn->layered_table_manager.leader)
         return (0);
 
     /*
