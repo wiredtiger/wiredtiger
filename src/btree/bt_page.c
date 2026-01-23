@@ -143,7 +143,7 @@ __page_find_min_delta_leaf(WT_SESSION_IMPL *session, WT_ITEM *deltas,
 }
 
 /*
- * __page_unpack_deltas_internal_new --
+ * __page_unpack_deltas_internal --
  *     Internal helper: allocate and unpack all delta images into arrays.
  */
 static int
@@ -333,7 +333,7 @@ __page_merge_base_internal_deltas(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR 
               __wt_compare(session, S2BT(session)->collator, &base_key_buf, &delta_key_buf, &cmp));
         }
 
-        /* New implementation: build_disk == true: append to new_image */
+        /* Append to new_image */
         if (cmp < 0) {
             /* Base entry wins */
             /*
