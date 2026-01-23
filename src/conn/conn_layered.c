@@ -24,8 +24,6 @@ static void __disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *c
 static void __disagg_get_crypt_header(const WT_ITEM *key_item, WT_CRYPT_HEADER *header);
 static int __disagg_copy_shared_metadata_one(WT_SESSION_IMPL *session, const char *uri);
 static int __layered_drain_ingest_tables(WT_SESSION_IMPL *session);
-static void __layered_update_prune_timestamps_print_update_logs(WT_SESSION_IMPL *session,
-  WT_LAYERED_TABLE *layered_table, wt_timestamp_t prune_timestamp, int64_t ckpt_inuse);
 static int __layered_iterate_ingest_tables_for_gc_pruning(
   WT_SESSION_IMPL *session, wt_timestamp_t checkpoint_timestamp);
 static int __layered_last_checkpoint_order(
@@ -2798,23 +2796,6 @@ err:
 }
 
 /*
- * __layered_update_prune_timestamps_print_update_logs --
- *     Print logs for the prune timestamp update.
- */
-static WT_INLINE void
-__layered_update_prune_timestamps_print_update_logs(WT_SESSION_IMPL *session,
-  WT_LAYERED_TABLE *layered_table, wt_timestamp_t prune_timestamp, int64_t ckpt_inuse)
-{
-    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-      "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64, layered_table->iface.name,
-      S2BT(session)->prune_timestamp, prune_timestamp);
-
-    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-      "GC %s: update checkpoint in use from %" PRId64 " to %" PRId64, layered_table->iface.name,
-      layered_table->last_ckpt_inuse, ckpt_inuse);
-}
-
-/*
  * __layered_update_ingest_table_prune_timestamp --
  *     Update the prune timestamp of the specified ingest table.
  *
@@ -2937,13 +2918,22 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
 
     btree = (WT_BTREE *)session->dhandle->handle;
 
-    __layered_update_prune_timestamps_print_update_logs(
-      session, layered_table, prune_timestamp, ckpt_inuse);
-
-    if (prune_timestamp > __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp))
+    if (prune_timestamp != WT_TS_NONE) {
+        WT_ASSERT(
+          session, prune_timestamp >= __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp));
         __wt_atomic_store_uint64_release(&btree->prune_timestamp, prune_timestamp);
-    if (ckpt_inuse > 1 || layered_dhandle_inuse == 0)
+
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+          "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64, layered_table->iface.name,
+          S2BT(session)->prune_timestamp, prune_timestamp);
+    }
+    if (ckpt_inuse > 1 || layered_dhandle_inuse == 0) {
         layered_table->last_ckpt_inuse = ckpt_inuse;
+
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+          "GC %s: update checkpoint in use from %" PRId64 " to %" PRId64, layered_table->iface.name,
+          layered_table->last_ckpt_inuse, ckpt_inuse);
+    }
 
     WT_ERR(__wt_session_release_dhandle(session));
 
