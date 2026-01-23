@@ -378,6 +378,7 @@ __fs_free_space_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
     const char *db_dir = S2C(session)->home;
     const char *journal_dir = NULL;
     WT_LOG_MANAGER *log_mgr = &S2C(session)->log_mgr;
+    WT_DECL_RET;
 
     if (log_mgr->log_path != NULL && strlen(log_mgr->log_path) > 0)
         /*
@@ -386,23 +387,26 @@ __fs_free_space_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
         journal_dir = (!WT_STREQ(db_dir, log_mgr->log_path)) ? log_mgr->log_path : NULL;
 
     /* Log free space on the main database directory, and the journal directory if different */
-    if (__wt_fs_free_space(session, db_dir, &db_dir_free_space) == 0) {
+    ret = __wt_fs_free_space(session, db_dir, &db_dir_free_space);
+    if (ret == 0) {
         __wt_errx(session,
           "%s: free disk space on main database directory (%s) is %" PRIuMAX " bytes", block->name,
           db_dir, (uintmax_t)db_dir_free_space);
     } else
-        __wt_errx(session,
+        __wt_err(session, ret,
           "%s: unable to determine free disk space on main database directory (%s)", block->name,
           db_dir);
 
     if (journal_dir != NULL) {
-        if (__wt_fs_free_space(session, journal_dir, &journal_dir_free_space) == 0) {
+        ret = __wt_fs_free_space(session, journal_dir, &journal_dir_free_space);
+        if (ret == 0) {
             __wt_errx(session,
               "%s: free disk space on journal directory (%s) is %" PRIuMAX " bytes", block->name,
               journal_dir, (uintmax_t)journal_dir_free_space);
         } else
-            __wt_errx(session, "%s: unable to determine free disk space on journal directory (%s)",
-              block->name, journal_dir);
+            __wt_err(session, ret,
+              "%s: unable to determine free disk space on journal directory (%s)", block->name,
+              journal_dir);
     }
 }
 
