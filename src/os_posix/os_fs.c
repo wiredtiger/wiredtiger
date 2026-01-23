@@ -1150,10 +1150,9 @@ __wt_posix_fs_free_space(WT_SESSION_IMPL *session, const char *path, wt_off_t *f
     WT_DECL_RET;
 
     WT_SYSCALL(statvfs(path, &stats), ret);
-    if (ret == 0) {
-        *freep = (wt_off_t)((uint64_t)stats.f_bavail * (uint64_t)stats.f_frsize);
-        return (0);
+    if (ret != 0) {
+        WT_RET_MSG(session, ret, "%s: free-disk-space: statvfs", path);
     }
-
-    WT_RET_MSG(session, ret, "%s: free-disk-space: statvfs", path);
+    *freep = (wt_off_t)((uint64_t)stats.f_bavail * (uint64_t)stats.f_frsize);
+    return (0);
 }

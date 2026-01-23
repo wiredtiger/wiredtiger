@@ -176,15 +176,15 @@ __wt_win_fs_free_space(WT_SESSION_IMPL *session, const char *path, wt_off_t *fre
     ULARGE_INTEGER free_bytes_to_caller, total_bytes, total_free_bytes;
 
     /* This function only works with directory paths */
-    if (GetDiskFreeSpaceExA(path, &free_bytes_to_caller, &total_bytes, &total_free_bytes)) {
-        *freep = (wt_off_t)free_bytes_to_caller.QuadPart;
-        return (0);
+    if (!GetDiskFreeSpaceExA(path, &free_bytes_to_caller, &total_bytes, &total_free_bytes)) {
+        windows_error = __wt_getlasterror();
+        ret = __wt_map_windows_error(windows_error);
+        WT_RET_MSG(session, ret, "%s: free-disk-space: GetDiskFreeSpaceExA: %s", path,
+          __wt_formatmessage(session, windows_error));
     }
 
-    windows_error = __wt_getlasterror();
-    ret = __wt_map_windows_error(windows_error);
-    WT_RET_MSG(session, ret, "%s: free-disk-space: GetDiskFreeSpaceExA: %s", path,
-      __wt_formatmessage(session, windows_error));
+    *freep = (wt_off_t)free_bytes_to_caller.QuadPart;
+    return (0);
 }
 
 /*
