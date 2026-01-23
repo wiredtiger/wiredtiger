@@ -149,9 +149,7 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
      * generally unsafe and can lead to undefined behavior. This is because the sweep server checks
      * for references to dhandles, and closing the cursor may result in the dhandle being swept
      * while still in use. However, history store dhandles are an exception as they are not subject
-     * to sweeping except on the standby in disaggregated storage. Therefore, it is unsafe to cache
-     * the history store on the standby as the sweep server may close the outdated history store
-     * dhandles.
+     * to sweeping except on the standby in disaggregated storage.
      */
     WT_RET(__curhs_file_cursor_open(session, WT_HS_URI, NULL, NULL, &cursor));
     WT_RET(cursor->close(cursor));
