@@ -224,17 +224,3 @@ __wt_fs_size(WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)
     __wt_free(session, path);
     return (ret);
 }
-
-/*
- * __wt_fs_free_space --
- *     Get the free disk space for the filesystem.
- */
-static WT_INLINE int
-__wt_fs_free_space(WT_SESSION_IMPL *session, const char *path, wt_off_t *freep)
-{
-#ifdef _WIN32
-    return (__wt_win_fs_free_space(session, path, freep));
-#else
-    return (__wt_posix_fs_free_space(session, path, freep));
-#endif
-}

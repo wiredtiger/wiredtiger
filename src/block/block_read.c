@@ -374,11 +374,17 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
 static void
 __fs_free_space_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-    wt_off_t db_dir_free_space, journal_dir_free_space = 0;
-    const char *db_dir = S2C(session)->home;
-    const char *journal_dir = NULL;
-    WT_LOG_MANAGER *log_mgr = &S2C(session)->log_mgr;
     WT_DECL_RET;
+    WT_FILE_SYSTEM *fs;
+    WT_LOG_MANAGER *log_mgr;
+    wt_off_t db_dir_free_space, journal_dir_free_space;
+    const char *db_dir, *journal_dir;
+
+    db_dir_free_space = journal_dir_free_space = 0;
+    db_dir = S2C(session)->home;
+    journal_dir = NULL;
+    log_mgr = &S2C(session)->log_mgr;
+    fs = __wt_fs_file_system(session);
 
     if (log_mgr->log_path != NULL && strlen(log_mgr->log_path) > 0)
         /*
@@ -387,7 +393,7 @@ __fs_free_space_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
         journal_dir = (!WT_STREQ(db_dir, log_mgr->log_path)) ? log_mgr->log_path : NULL;
 
     /* Log free space on the main database directory, and the journal directory if different. */
-    ret = __wt_fs_free_space(session, db_dir, &db_dir_free_space);
+    ret = fs->fs_free_space(fs, (WT_SESSION *)session, db_dir, &db_dir_free_space);
     if (ret == 0) {
         __wt_errx(session,
           "%s: free disk space on main database directory (%s) is %" PRIuMAX " bytes", block->name,
@@ -398,7 +404,7 @@ __fs_free_space_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
           db_dir);
 
     if (journal_dir != NULL) {
-        ret = __wt_fs_free_space(session, journal_dir, &journal_dir_free_space);
+        ret = fs->fs_free_space(fs, (WT_SESSION *)session, journal_dir, &journal_dir_free_space);
         if (ret == 0) {
             __wt_errx(session,
               "%s: free disk space on journal directory (%s) is %" PRIuMAX " bytes", block->name,
