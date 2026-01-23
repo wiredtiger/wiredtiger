@@ -814,6 +814,7 @@ foward
 fprintf
 fread
 free'd
+freep
 freopen
 fs
 fscanf
