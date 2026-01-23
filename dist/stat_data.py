@@ -177,7 +177,6 @@ conn_stats = [
     ##########################################
     # System statistics
     ##########################################
-    ConnStat('btree_open', 'btrees currently open', 'no_clear,no_scale'),
     ConnStat('buckets', 'hash bucket array size general', 'no_clear,no_scale,size'),
     ConnStat('buckets_dh', 'hash bucket array size for data handles', 'no_clear,no_scale,size'),
     ConnStat('cond_auto_wait', 'auto adjusting condition wait calls'),
@@ -409,6 +408,7 @@ conn_stats = [
     # Note eviction_server_evict_attempt - eviction_server_evict_fail = evict page successes by eviction server.
     EvictStat('eviction_server_skip_checkpointing_trees', 'eviction server skips trees that are being checkpointed'),
     EvictStat('eviction_server_skip_dirty_pages_during_checkpoint', 'eviction server skips dirty pages during a running checkpoint'),
+    EvictStat('eviction_server_skip_history_store_pages_with_updates_during_checkpoint', 'eviction server skips clean history store pages with updates when a precise checkpoint is in progress'),
     EvictStat('eviction_server_skip_ingest_trees', 'eviction server skips ingest btrees in disagg'),
     EvictStat('eviction_server_skip_intl_page_non_aggressive', 'eviction server skipped the internal pages if eviction is not in aggressive mode.'),
     EvictStat('eviction_server_skip_intl_page_with_active_child', 'eviction server skips internal pages as it has an active child.'),
@@ -602,7 +602,6 @@ conn_stats = [
     DhandleStat('dh_conn_handle_checkpoint_count', 'checkpoint connection data handles currently active', 'no_clear,no_scale'),
     # dh_conn_handle_count = The sum of dh_conn_handle_{btree,table,tiered,tiered_tree}_count.
     DhandleStat('dh_conn_handle_count', 'connection data handles currently active', 'no_clear,no_scale'),
-    DhandleStat('dh_conn_handle_layered_count', 'Layered connection data handles currently active', 'no_clear,no_scale'),
     DhandleStat('dh_conn_handle_size', 'connection data handle size', 'no_clear,no_scale,size'),
     DhandleStat('dh_conn_handle_table_count', 'Table connection data handles currently active', 'no_clear,no_scale'),
     DhandleStat('dh_conn_handle_tiered_count', 'Tiered connection data handles currently active', 'no_clear,no_scale'),
@@ -1326,6 +1325,7 @@ conn_dsrc_stats = [
     # Layered table statistics
     ##########################################
     LayeredStat('layered_curs_insert', 'Layered table cursor insert operations'),
+    LayeredStat('layered_curs_modify', 'Layered table cursor modify operations'),
     LayeredStat('layered_curs_next', 'Layered table cursor next operations'),
     LayeredStat('layered_curs_next_ingest', 'Layered table cursor next operations from the ingest btrees'),
     LayeredStat('layered_curs_next_stable', 'Layered table cursor next operations from the stable btrees'),
