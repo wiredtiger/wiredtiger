@@ -114,18 +114,8 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
-    bool is_disagg;
 
     conn = S2C(session);
-    is_disagg = __wt_conn_is_disagg(session);
-
-    /*
-     * No need to cache the history store cursor for standby as it doesn't do any reconciliation. It
-     * is also unsafe to cache the history store on the standby as the sweep server may close the
-     * outdated history store dhandles.
-     */
-    if (is_disagg && !conn->layered_table_manager.leader)
-        return (0);
 
     /*
      * Make sure this session has a cached history store cursor, otherwise we can deadlock with a
@@ -163,9 +153,18 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
      * the history store on the standby as the sweep server may close the outdated history store
      * dhandles.
      */
-    WT_RET(__curhs_file_cursor_open(
-      session, is_disagg ? WT_HS_URI_SHARED : WT_HS_URI, NULL, NULL, &cursor));
+    WT_RET(__curhs_file_cursor_open(session, WT_HS_URI, NULL, NULL, &cursor));
     WT_RET(cursor->close(cursor));
+
+    /*
+     * No need to cache the shared history store cursor for standby as it doesn't do any
+     * reconciliation for shared tables. It is also unsafe to cache the shared history store on the
+     * standby as the sweep server may close the outdated history store dhandles.
+     */
+    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
+        WT_RET(__curhs_file_cursor_open(session, WT_HS_URI_SHARED, NULL, NULL, &cursor));
+        WT_RET(cursor->close(cursor));
+    }
     return (0);
 }
 
