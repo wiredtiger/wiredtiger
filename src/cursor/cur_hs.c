@@ -114,8 +114,14 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
+    bool is_disagg;
 
     conn = S2C(session);
+    is_disagg = __wt_conn_is_disagg(session);
+
+    /* No need to cache the history store cursor for standby as it doesn't do any reconciliation. */
+    if (is_disagg && !S2C(session)->layered_table_manager.leader)
+        return (0);
 
     /*
      * Make sure this session has a cached history store cursor, otherwise we can deadlock with a
@@ -149,15 +155,13 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
      * generally unsafe and can lead to undefined behavior. This is because the sweep server checks
      * for references to dhandles, and closing the cursor may result in the dhandle being swept
      * while still in use. However, history store dhandles are an exception as they are not subject
-     * to sweeping.
+     * to sweeping except on the standby in disaggregated storage. Therefore, it is unsafe to cache
+     * the history store on the standby as it may force the sweep server to close the outdated
+     * history store dhandles.
      */
-    WT_RET(__curhs_file_cursor_open(session, WT_HS_URI, NULL, NULL, &cursor));
+    WT_RET(__curhs_file_cursor_open(
+      session, is_disagg ? WT_HS_URI_SHARED : WT_HS_URI, NULL, NULL, &cursor));
     WT_RET(cursor->close(cursor));
-
-    if (__wt_conn_is_disagg(session)) {
-        WT_RET(__curhs_file_cursor_open(session, WT_HS_URI_SHARED, NULL, NULL, &cursor));
-        WT_RET(cursor->close(cursor));
-    }
     return (0);
 }
 
