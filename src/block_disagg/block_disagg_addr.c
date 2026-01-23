@@ -15,6 +15,10 @@
  * by introducing a new flag. For example, a flag would be useful if adding an optional field, while
  * a new version number would be more appropriate when introducing a new mandatory field, changing
  * the meaning of an existing field, or removing a field or a flag.
+ *
+ * The checkpoint size feature modified the address cookie format by updating the meaning of the
+ * size field to be the sum of the base image and delta sizes. However we have chosen not to bump
+ * the version number as the field is being reused.
  */
 #define WT_BLOCK_DISAGG_ADDR_VERSION 0
 #define WT_BLOCK_DISAGG_ADDR_VERSION_MIN 0 /* The oldest version that can read this format. */
