@@ -2919,13 +2919,13 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     btree = (WT_BTREE *)session->dhandle->handle;
 
     if (prune_timestamp != WT_TS_NONE) {
-        WT_ASSERT(
-          session, prune_timestamp >= __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp));
+        uint64_t btree_prune_timestamp = __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
+        WT_ASSERT(session, prune_timestamp >= btree_prune_timestamp);
         __wt_atomic_store_uint64_release(&btree->prune_timestamp, prune_timestamp);
 
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
           "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64, layered_table->iface.name,
-          S2BT(session)->prune_timestamp, prune_timestamp);
+          btree_prune_timestamp, prune_timestamp);
     }
     if (ckpt_inuse > 1 || layered_dhandle_inuse == 0) {
         layered_table->last_ckpt_inuse = ckpt_inuse;
