@@ -5573,18 +5573,14 @@ struct __wt_page_log {
     int (*pl_add_reference)(WT_PAGE_LOG *page_log);
 
     /*!
-     * Abandon an incomplete checkpoint. This is an optional function, required only for internal
-     * testing.
+     * Abandon an incomplete checkpoint.
      *
      * @errors
      *
      * @param page_log the WT_PAGE_LOG
      * @param session the current WiredTiger session
-     * @param last_checkpoint_lsn the LSN of the last completed checkpoint (use
-     *        WT_PAGE_LOG_LSN_MAX for the most recent checkpoint)
      */
-    int (*pl_abandon_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session,
-        uint64_t last_checkpoint_lsn);
+    int (*pl_abandon_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session);
 
     /*!
      * Begin checkpointing using the given checkpoint_id.  After this call, any handle
