@@ -48,12 +48,7 @@ class LogParser():
             return self.process_wiredtiger_log(f, opts)
     
     def is_mongo_log(self, line):
-        try:
-            json.loads(line)
-        except (ValueError, json.JSONDecodeError):
-            return False
-        
-        return True
+        return line and line.startswith('{')
     
     def process_mongod_log(self, f, opts):
         byte_dump = self.extract_mongodb_log_hex(f, opts)
