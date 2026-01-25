@@ -62,7 +62,6 @@ class LogParser():
         wtdecode_file_object(b, opts, len(byte_dump))
         
     def process_wiredtiger_log(self, f, opts):
-        # 
         while True:
             byte_dump = self.encode_bytes(f, opts)
             if not byte_dump:
