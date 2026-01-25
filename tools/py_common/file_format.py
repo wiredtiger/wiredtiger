@@ -1,4 +1,5 @@
 import traceback
+import sys
 from py_common import binary_data, btree_format
 from py_common.printer import Printer
 from py_common.stats import PageStats
