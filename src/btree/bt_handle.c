@@ -246,11 +246,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     WT_ERR(__btree_conf(session, &ckpt, WT_DHANDLE_IS_CHECKPOINT(dhandle)));
     lr_fh_meta.allocsize = btree->allocsize;
 
-    /* Ensure that followers will not write to shared tables. */
-    if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader &&
-      btree->page_log != NULL)
-        F_SET(btree, WT_BTREE_READONLY);
-
     /* Connect to the underlying block manager. */
     WT_ERR(__wt_blkcache_open(session, dhandle_name, dhandle->cfg, forced_salvage, false,
       btree->allocsize, &lr_fh_meta, &btree->bm));
