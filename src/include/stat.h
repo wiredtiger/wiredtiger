@@ -477,6 +477,7 @@ struct __wt_connection_stats {
     int64_t disagg_block_hs_get;
     int64_t disagg_block_page_discard;
     int64_t disagg_block_put;
+    int64_t disagg_block_put_cold;
     int64_t disagg_block_hs_put;
     int64_t disagg_block_read_ahead_frontier;
     int64_t block_preload;
@@ -866,6 +867,7 @@ struct __wt_connection_stats {
     int64_t cond_auto_wait_reset;
     int64_t cond_auto_wait;
     int64_t cond_auto_wait_skipped;
+    int64_t btree_open;
     int64_t time_travel;
     int64_t file_open;
     int64_t buckets_dh;
@@ -959,6 +961,7 @@ struct __wt_connection_stats {
     int64_t cursor_open_count;
     int64_t cursor_open_time_user_usecs;
     int64_t cursor_open_time_internal_usecs;
+    int64_t dh_conn_handle_layered_count;
     int64_t dh_conn_handle_table_count;
     int64_t dh_conn_handle_tiered_count;
     int64_t dh_conn_handle_tiered_tree_count;
@@ -1404,6 +1407,7 @@ struct __wt_dsrc_stats {
     int64_t disagg_block_hs_get;
     int64_t disagg_block_page_discard;
     int64_t disagg_block_put;
+    int64_t disagg_block_put_cold;
     int64_t disagg_block_hs_put;
     int64_t disagg_block_read_ahead_frontier;
     int64_t block_extension;
