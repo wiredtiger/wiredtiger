@@ -42,7 +42,7 @@ class test_layered28(wttest.WiredTigerTestCase):
 
     disagg_storages = gen_disagg_storages('test_key_provider_disagg02', disagg_only = True)
 
-    # Test simple create and drop
+    # Test simple create and drop on leader mode.
     def test_create_drop(self):
         base_create = 'key_format=S,value_format=S,type=layered'
 
@@ -61,7 +61,7 @@ class test_layered28(wttest.WiredTigerTestCase):
         self.assertFalse(os.path.isfile(database_home))
 
     # Test create and drop with a subsequent checkpoint and enough time for sweep to come through
-    def create_drop_checkpoint(self):
+    def test_create_drop_checkpoint(self):
         base_create = 'key_format=S,value_format=S'
 
         # Use a session so it can be closed which releases the reference to the dhandle and
@@ -76,31 +76,33 @@ class test_layered28(wttest.WiredTigerTestCase):
         cursor.close()
 
         custom_session.checkpoint()
-        # custom_session.drop(self.uri, "")
-        # custom_session.close()
-        # database_home = os.path.join('/kv_home', 'pages_000041.db')
-        # self.assertFalse(os.path.isfile(database_home))
+        custom_session.drop(self.uri, "")
+        custom_session.close()
+        database_home = os.path.join('/kv_home', 'pages_000041.db')
+        self.assertFalse(os.path.isfile(database_home))
 
-
-
-    # Test create and drop on follower node
-    def create_drop_checkpoint(self):
+    # Test create and drop on follower mode.
+    def test_create_drop_follower(self):
         base_create = 'key_format=S,value_format=S,type=layered'
 
         self.pr("create layered tree")
         self.session.create(self.uri, base_create)
 
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(1000):
+            cursor[str(i)] = str(i)
+        cursor.close()
+
         self.session.checkpoint()
-        # # Get the checkpoint metadata before closing
-        # checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        # Get the checkpoint metadata before closing
+        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
 
-        # #print(checkpoint_meta)
-        # # Configure as follower with checkpoint pickup (not using backup)
-        # follower_config = 'disaggregated=(role="follower",' + \
-        #                  f'checkpoint_meta="{checkpoint_meta}")'
+        # Configure as follower with checkpoint pickup (not using backup)
+        follower_config = 'disaggregated=(role="follower",' + \
+                         f'checkpoint_meta="{checkpoint_meta}")'
 
-        # # Create a secondary
-        # self.reopen_conn(config=follower_config)
-        # self.session.drop(self.uri, "")
-        # database_home = os.path.join('kv_home', 'pages_000041.db')
-        # self.assertTrue(os.path.isfile(database_home))
+        # Create a secondary
+        self.reopen_conn(config=follower_config)
+        self.session.drop(self.uri, "")
+        database_home = os.path.join('kv_home', 'pages_000041.db')
+        self.assertTrue(os.path.isfile(database_home))
