@@ -1036,6 +1036,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     /* We need a separate internal session to pick up the new checkpoint. */
     WT_ERR(__wt_open_internal_session(
       S2C(session), "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
+    session = shared_metadata_session;
 
     /*
      * Throw away any references to the old disaggregated metadata table. This ensures that we are
@@ -1050,7 +1051,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
 
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
     cfg[1] = NULL;
-    WT_ERR(__wt_open_cursor(shared_metadata_session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
+    WT_ERR(__wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
 
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_cfg));
     WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
