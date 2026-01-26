@@ -965,6 +965,7 @@ public:
           drop_conn);
 
         std::filesystem::remove(table_file);
+        drop_conn.close();
     }
 
     void

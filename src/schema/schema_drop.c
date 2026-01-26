@@ -130,10 +130,12 @@ __drop_layered(
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
     const char *ingest_uri, *stable_uri, *tablename;
+    bool got_dhandle;
     WT_UNUSED(force);
 
     WT_ASSERT(session, WT_PREFIX_MATCH(uri, "layered:"));
 
+    WT_NOT_READ(got_dhandle, false);
     WT_RET(__wt_scr_alloc(session, 0, &ingest_uri_buf));
     WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
 
@@ -148,6 +150,7 @@ __drop_layered(
     if (S2C(session)->layered_table_manager.leader) {
         /* Get the layered data handle. */
         ret = __wt_session_get_dhandle(session, stable_uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE);
+        got_dhandle = true;
         if (ret == EBUSY)
             WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
         /*
@@ -159,6 +162,7 @@ __drop_layered(
         WT_ERR(S2BT(session)->page_log->pl_trim_table(
           S2BT(session)->page_log, &session->iface, S2BT(session)->id, 0));
         WT_ERR(__wt_session_release_dhandle(session));
+        got_dhandle = false;
     }
 
     WT_ERR(__wt_schema_drop(session, stable_uri, cfg, check_visibility));
@@ -176,6 +180,8 @@ __drop_layered(
      */
 
 err:
+    if (got_dhandle)
+        WT_TRET(__wt_session_release_dhandle(session));
     __wt_scr_free(session, &ingest_uri_buf);
     __wt_scr_free(session, &stable_uri_buf);
     return (ret);
