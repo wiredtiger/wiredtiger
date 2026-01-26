@@ -144,13 +144,26 @@ __drop_layered(
     WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "file:%s.wt_stable", tablename));
     stable_uri = stable_uri_buf->data;
 
-    WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility));
+    /* Only the leader can drop the stable table and issue a trim command. */
+    if (S2C(session)->layered_table_manager.leader) {
+        /* Get the layered data handle. */
+        ret = __wt_session_get_dhandle(session, stable_uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE);
+        if (ret == EBUSY)
+            WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
+        /*
+         * The trim request must be performed before removing entries from metadata table. Otherwise
+         * there maybe orphaned tables.
+         *
+         * FIXME-WT-16527: Set start LSN once implemented.
+         */
+        WT_ERR(S2BT(session)->page_log->pl_trim_table(
+          S2BT(session)->page_log, &session->iface, S2BT(session)->id, 0));
+        WT_ERR(__wt_session_release_dhandle(session));
+    }
 
-    /*
-     * FIXME-WT-14503: as part of the bigger garbage-collection picture, we should eventually find a
-     * way to tell PALI that this was dropped.
-     */
     WT_ERR(__wt_schema_drop(session, stable_uri, cfg, check_visibility));
+
+    WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility));
 
     /* Now drop the top-level table. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
@@ -158,7 +171,8 @@ __drop_layered(
     WT_ERR(ret);
     WT_ERR(__wt_metadata_remove(session, uri));
 
-    /* No need for a meta track drop, since the top-level table has no underlying files to remove.
+    /*
+     * No need for a meta track drop, since the top-level table has no underlying files to remove.
      */
 
 err:

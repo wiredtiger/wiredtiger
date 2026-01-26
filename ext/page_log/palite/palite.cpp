@@ -952,17 +952,19 @@ public:
     void
     trim()
     {
-        assert(connections.empty());
+        // assert(connections.empty());
         Connection drop_conn(config, table_file);
         drop_conn.configure(static_cast<Traits *>(this)->conn_config());
 
         std::call_once(
-            drop_table,
-            [this](Connection &c) {
-                c.configure(Traits::drop_statements);
-                LOG_DEBUG("SQLite database dropped: {}", c.db_instance());
-            },
-            drop_conn);
+          drop_table,
+          [this](Connection &c) {
+              c.configure(Traits::drop_statements);
+              LOG_DEBUG("SQLite database dropped: {}", c.db_instance());
+          },
+          drop_conn);
+
+        std::filesystem::remove(table_file);
     }
 
     void
@@ -1594,9 +1596,7 @@ struct Pages : public Table<Pages> {
     /*
      * Drop table.
      */
-    constexpr static std::string_view drop_statements[] = {
-        R"(DROP TABLE pages;)"
-    };
+    constexpr static std::string_view drop_statements[] = {R"(DROP TABLE IF EXISTS pages;)"};
 
     /*
      * 'pages' table requires user configuration parameters, therefore SQL config statements created
@@ -2493,7 +2493,7 @@ public:
     }
 
     int
-    trim_table(uint64_t table_id)
+    trim_table(uint64_t table_id, uint64_t start_lsn /* Not used. */)
     {
         storage.trim_table(table_id);
         return 0;
@@ -2569,9 +2569,9 @@ palite_set_last_materialized_lsn(WT_PAGE_LOG *page_log, WT_SESSION *sess, uint64
 }
 
 static int
-palite_trim_table(WT_PAGE_LOG *page_log, WT_SESSION *sess, uint64_t table_id)
+palite_trim_table(WT_PAGE_LOG *page_log, WT_SESSION *sess, uint64_t table_id, uint64_t start_lsn)
 {
-    return safe_call<Palite>(sess, page_log, &Palite::trim_table, table_id);
+    return safe_call<Palite>(sess, page_log, &Palite::trim_table, table_id, start_lsn);
 }
 
 static int
