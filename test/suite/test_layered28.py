@@ -101,7 +101,7 @@ class test_layered28(wttest.WiredTigerTestCase):
         follower_config = 'disaggregated=(role="follower",' + \
                          f'checkpoint_meta="{checkpoint_meta}")'
 
-        # Create a secondary
+        # Switch to follower mode.
         self.reopen_conn(config=follower_config)
         self.session.drop(self.uri, "")
         database_home = os.path.join('kv_home', 'pages_000041.db')
