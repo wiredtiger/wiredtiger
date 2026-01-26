@@ -1779,7 +1779,7 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
         WT_RET(EINVAL);
 
     /*
-     * FIXME-WT-XXX: This function is no longer an optional operation for testing, remove this
+     * FIXME-WT-16524: This function is no longer an optional operation for testing, remove this
      * check.
      */
     if (disagg->npage_log->page_log->pl_abandon_checkpoint == NULL) {
