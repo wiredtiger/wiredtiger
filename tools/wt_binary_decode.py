@@ -53,10 +53,10 @@ def wtdecode(opts):
     if opts.dumpin:
         opts.fragment = True
         if opts.filename == '-':
-            mdb_log_parse.process_log_file(sys.stdin, opts)
+            mdb_log_parse.process_logs(sys.stdin, opts)
         else:
             with open(opts.filename, "r") as infile:
-                mdb_log_parse.process_log_file(infile, opts)
+                mdb_log_parse.process_logs(infile, opts)
     elif opts.disagg_table:
         opts.disagg = True
         opts.fragment = True

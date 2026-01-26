@@ -35,7 +35,7 @@ from py_common import binary_data
 from py_common.file_format import wtdecode_file_object
 
     
-def process_log_file(f, opts):
+def process_logs(f, opts):
     '''
     Extract the byte dump from mongo or wiredtiger logs.
     '''
