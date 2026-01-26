@@ -82,6 +82,8 @@ class test_layered64(wttest.WiredTigerTestCase):
         checkpoint_meta_no_checksum = re.sub(r',metadata_checksum=[0-9a-fA-F]+', '', checkpoint_meta)
         self.pr(f'Checkpoint metadata without a checksum: {checkpoint_meta_no_checksum}')
         self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta_no_checksum}")')
+        self.captureout.checkAdditionalPattern(self,
+            'Missing metadata_checksum')
 
         # Check that all the data is present.
         cursor = self.session.open_cursor(self.uri, None, None)
