@@ -50,14 +50,13 @@ if not _python3:
 ################################################################
 
 def wtdecode(opts):
-    log_parser = mdb_log_parse.LogParser()
     if opts.dumpin:
         opts.fragment = True
         if opts.filename == '-':
-            log_parser.process_log_file(sys.stdin, opts)
+            mdb_log_parse.process_log_file(sys.stdin, opts)
         else:
             with open(opts.filename, "r") as infile:
-                log_parser.process_log_file(infile, opts)
+                mdb_log_parse.process_log_file(infile, opts)
     elif opts.disagg_table:
         opts.disagg = True
         opts.fragment = True
