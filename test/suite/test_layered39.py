@@ -87,6 +87,7 @@ class test_layered39(wttest.WiredTigerTestCase):
                                                last_lsn)
 
         # Finally setting the last materialised lsn
+        cursor.close()
         self.session.checkpoint()
         (ret, last_lsn) = page_log.pl_get_last_lsn(self.session)
 
@@ -96,7 +97,6 @@ class test_layered39(wttest.WiredTigerTestCase):
                                                last_lsn)
 
         page_log.terminate(self.session) # dereference
-        cursor.close()
 
         self.pr(f'cache_scrub_restore = {self.get_stat(wiredtiger.stat.conn.cache_scrub_restore)}')
         self.pr(f'cache_eviction_blocked_precise_checkpoint = {self.get_stat(wiredtiger.stat.conn.cache_eviction_blocked_precise_checkpoint)}')

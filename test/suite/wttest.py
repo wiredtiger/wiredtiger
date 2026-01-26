@@ -462,6 +462,12 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             self.conn = self.setUpConnectionOpen(directory)
             if config != None:
                 self.conn_config = self._old_config
+            # Close old session if it exists before creating a new one
+            if self.session is not None:
+                try:
+                    self.session.close()
+                except:
+                    pass
             self.session = self.setUpSessionOpen(self.conn)
 
     def reopen_conn(self, directory=".", config=None):
@@ -598,24 +604,30 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         if self.conn is None or not self.conn.is_open():
             # If the connection is closed, reopen it.
             self.conn = self.setUpConnectionOpen(".")
-        elif self.session is not None or self.session.this is not None:
+        elif self.session is not None and self.session.this is not None:
             # Need to check ".this" because SWIG proxies don't evaluate to None even after being
             # freed. Ensure all cursors are closed by closing the session.
-            self.session.close()
+            try:
+                self.session.close()
+            except:
+                pass
 
         sess = self.conn.open_session()
-
-        cur = sess.open_cursor('metadata:', None, None)
-        while cur.next() == 0:
-            uri = cur.get_key()
-            if uri.startswith('layered:'):
-                try:
-                    self.verifyUntilSuccess(sess, uri)
-                except wiredtiger.WiredTigerError as e:
-                    print(f'Layered verification failed for {uri}: {str(e)}')
-                    raise e
-
-        sess.close()
+        try:
+            cur = sess.open_cursor('metadata:', None, None)
+            while cur.next() == 0:
+                uri = cur.get_key()
+                if uri.startswith('layered:'):
+                    try:
+                        self.verifyUntilSuccess(sess, uri)
+                    except wiredtiger.WiredTigerError as e:
+                        print(f'Layered verification failed for {uri}: {str(e)}')
+                        raise e
+        finally:
+            try:
+                sess.close()
+            except:
+                pass
 
     @dumpErrorLogOnWtError
     def tearDown(self, dueToRetry=False):

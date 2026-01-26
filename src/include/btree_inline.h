@@ -2158,7 +2158,15 @@ __wt_page_materialization_check(WT_SESSION_IMPL *session, uint64_t rec_lsn_max)
     if (last_materialized_lsn == WT_DISAGG_LSN_NONE)
         return (true);
 
-    return (rec_lsn_max <= last_materialized_lsn);
+    if (rec_lsn_max > last_materialized_lsn) {
+        __wt_verbose_debug1(session, WT_VERB_EVICTION,
+          "Materialization check failed: page rec_lsn_max %" PRIu64
+          " > last_materialized_frontier_lsn %" PRIu64,
+          rec_lsn_max, last_materialized_lsn);
+        return (false);
+    }
+
+    return (true);
 }
 
 /*
