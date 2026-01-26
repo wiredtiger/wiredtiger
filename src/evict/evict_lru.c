@@ -1461,9 +1461,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     if (__evict_queue_full(queue) && !__evict_queue_full(other_queue))
         queue = other_queue;
 
-    /*
-     * If both queues are full and haven't been empty on recent refills, we're done.
-     */
+    /* If both queues are full and haven't been empty on recent refills, we're done. */
     if (__evict_queue_full(queue) && evict->evict_empty_score < WT_EVICT_SCORE_CUTOFF) {
         WT_STAT_CONN_INCR(session, eviction_queue_not_empty);
         goto err;
@@ -1582,9 +1580,8 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     }
 
     WT_STAT_CONN_INCRV(session, eviction_pages_queued_post_lru, queue->evict_candidates);
-    /*
-     * Add stats about pages that have been queued.
-     */
+
+    /* Add stats about pages that have been queued. */
     for (candidates = 0; candidates < queue->evict_candidates; ++candidates) {
         WT_PAGE *page = queue->evict_queue[candidates].ref->page;
         if (__wt_page_is_modified(page))
@@ -1598,9 +1595,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     queue->evict_current = queue->evict_queue;
     __wt_spin_unlock(session, &queue->evict_lock);
 
-    /*
-     * Signal any application or helper threads that may be waiting to help with eviction.
-     */
+    /* Signal any application or helper threads that may be waiting to help with eviction. */
     __wt_cond_signal(session, conn->evict_threads.wait_cond);
 
 err:
