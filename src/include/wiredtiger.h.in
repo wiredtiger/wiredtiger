@@ -6900,7 +6900,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: number of times updates trigger was reached */
 #define	WT_STAT_CONN_CACHE_EVICTION_TRIGGER_UPDATES_REACHED	1268
 /*! cache: number of times when cas update the btree max_lsn failed */
-#define	WT_STAT_CONN_CACHE_CAS_BTREE_MAX_LSN_ERROR	1269
+#define	WT_STAT_CONN_CACHE_CAS_BTREE_MAX_LSN_RACE	1269
 /*! cache: obsolete updates removed */
 #define	WT_STAT_CONN_CACHE_OBSOLETE_UPDATES_REMOVED	1270
 /*! cache: operations timed out waiting for space in cache */
@@ -9029,7 +9029,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: number of times updates trigger was reached */
 #define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_UPDATES_REACHED	2113
 /*! cache: number of times when cas update the btree max_lsn failed */
-#define	WT_STAT_DSRC_CACHE_CAS_BTREE_MAX_LSN_ERROR	2114
+#define	WT_STAT_DSRC_CACHE_CAS_BTREE_MAX_LSN_RACE	2114
 /*! cache: obsolete updates removed */
 #define	WT_STAT_DSRC_CACHE_OBSOLETE_UPDATES_REMOVED	2115
 /*!
