@@ -33,8 +33,8 @@
 # libraries), and may be useful as 1) a learning tool 2) quick way to hack/extend dumping.
 
 import logging, os, sys
+from py_common import mdb_log_parse
 from py_common import binary_data, page_service
-from py_common import log_parse
 from py_common import file_format
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ if not _python3:
 ################################################################
 
 def wtdecode(opts):
-    log_parser = log_parse.LogParser()
+    log_parser = mdb_log_parse.LogParser()
     if opts.dumpin:
         opts.fragment = True
         if opts.filename == '-':

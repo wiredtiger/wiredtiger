@@ -37,7 +37,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import py_common.btree_format as btree_format
 import py_common.binary_data as binary_data
-import py_common.log_parse as log_parse
+import py_common.mdb_log_parse as log_parse
 
 class Test(unittest.TestCase):
     """Unit tests for decoding a single WT pages using only."""
