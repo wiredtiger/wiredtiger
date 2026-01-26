@@ -6544,7 +6544,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_EVICTION_SERVER_RACE_RECONFIGURE_DISAGG	1142
 /*!
  * cache: eviction server skipped the internal pages if eviction is not
- * in aggressive mode.
+ * in aggressive mode
  */
 #define	WT_STAT_CONN_EVICTION_SERVER_SKIP_INTL_PAGE_NON_AGGRESSIVE	1143
 /*! cache: eviction server skipped the pages already in the urgent queue */
@@ -6562,7 +6562,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_EVICTION_SERVER_SKIP_DIRTY_PAGES_DURING_CHECKPOINT	1148
 /*! cache: eviction server skips ingest btrees in disagg */
 #define	WT_STAT_CONN_EVICTION_SERVER_SKIP_INGEST_TREES	1149
-/*! cache: eviction server skips internal pages as it has an active child. */
+/*! cache: eviction server skips internal pages as it has an active child */
 #define	WT_STAT_CONN_EVICTION_SERVER_SKIP_INTL_PAGE_WITH_ACTIVE_CHILD	1150
 /*! cache: eviction server skips metadata pages with history */
 #define	WT_STAT_CONN_EVICTION_SERVER_SKIP_METATDATA_WITH_HISTORY	1151
@@ -7334,7 +7334,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CHUNKCACHE_CHUNKS_INUSE		1438
 /*!
  * chunk-cache: total number of chunks inserted on startup from persisted
- * metadata.
+ * metadata
  */
 #define	WT_STAT_CONN_CHUNKCACHE_CREATED_FROM_METADATA	1439
 /*! chunk-cache: total pinned chunks held by the chunk cache */
