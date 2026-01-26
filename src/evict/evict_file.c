@@ -52,9 +52,8 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
     if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && syncop == WT_SYNC_DISCARD &&
-      !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING))
-        if (!__wt_btree_can_discard(session))
-            WT_RET(__wt_set_return(session, EBUSY));
+      !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING) && !__wt_btree_can_discard(session))
+        WT_RET(__wt_set_return(session, EBUSY));
 
     /* Walk the tree, discarding pages. */
     walk_flags = WT_READ_CACHE | WT_READ_NO_EVICT;

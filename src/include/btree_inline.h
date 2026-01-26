@@ -2137,19 +2137,15 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __wt_page_materialization_check --
- *     Check if the page can be evicted given the current materialization frontier.
+ * __materialization_check --
+ *     Check if the record LSN max is behind the materialization frontier.
  */
-static WT_INLINE bool
-__wt_page_materialization_check(WT_SESSION_IMPL *session, uint64_t rec_lsn_max)
+static WT_INLINE int
+__materialization_check(WT_SESSION_IMPL *session, uint64_t rec_lsn_max)
 {
     WT_DISAGGREGATED_STORAGE *disagg;
     uint64_t last_materialized_lsn;
 
-    /*
-     * Pages that haven't been written back can be evicted. This will lead to them being reconciled
-     * and retained, not actually evicted.
-     */
     if (rec_lsn_max == WT_DISAGG_LSN_NONE)
         return (true);
 
@@ -2160,13 +2156,27 @@ __wt_page_materialization_check(WT_SESSION_IMPL *session, uint64_t rec_lsn_max)
 
     if (rec_lsn_max > last_materialized_lsn) {
         __wt_verbose_debug1(session, WT_VERB_EVICTION,
-          "Materialization check, page's max lsn: %" PRIu64
+          "Materialization check the max lsn: %" PRIu64
           " is ahead of the last materialized lsn: %" PRIu64,
           rec_lsn_max, last_materialized_lsn);
         return (false);
     }
 
     return (true);
+}
+
+/*
+ * __wt_page_materialization_check --
+ *     Check if the page can be evicted given the current materialization frontier.
+ */
+static WT_INLINE bool
+__wt_page_materialization_check(WT_SESSION_IMPL *session, uint64_t rec_lsn_max)
+{
+    /*
+     * Pages that haven't been written back can be evicted. This will lead to them being reconciled
+     * and retained, not actually evicted.
+     */
+    return __materialization_check(session, rec_lsn_max);
 }
 
 /*
@@ -2178,31 +2188,20 @@ __wt_btree_can_discard(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
-    WT_DISAGGREGATED_STORAGE *disagg;
-    uint64_t rec_lsn_max, last_materialized_lsn;
+    uint64_t rec_lsn_max;
 
     btree = S2BT(session);
     conn = S2C(session);
 
-    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
         return (true);
-    }
 
-    if (!conn->layered_table_manager.leader) {
+    if (!conn->layered_table_manager.leader)
         return (true);
-    }
 
     rec_lsn_max = __wt_atomic_load_uint64_acquire(&btree->rec_lsn_max);
-    if (rec_lsn_max == WT_DISAGG_LSN_NONE)
-        return (true);
 
-    disagg = &conn->disaggregated_storage;
-    last_materialized_lsn = __wt_atomic_load_uint64_acquire(&disagg->last_materialized_lsn);
-
-    if (last_materialized_lsn == WT_DISAGG_LSN_NONE)
-        return (true);
-
-    return (rec_lsn_max <= last_materialized_lsn);
+    return __materialization_check(session, rec_lsn_max);
 }
 
 /*
