@@ -604,6 +604,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             self.session.close()
 
         sess = self.conn.open_session()
+
         cur = sess.open_cursor('metadata:', None, None)
         while cur.next() == 0:
             uri = cur.get_key()
@@ -613,6 +614,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                 except wiredtiger.WiredTigerError as e:
                     print(f'Layered verification failed for {uri}: {str(e)}')
                     raise e
+
         sess.close()
 
     @dumpErrorLogOnWtError
