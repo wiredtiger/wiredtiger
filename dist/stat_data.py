@@ -177,6 +177,7 @@ conn_stats = [
     ##########################################
     # System statistics
     ##########################################
+    ConnStat('btree_open', 'btrees currently open', 'no_clear,no_scale'),
     ConnStat('buckets', 'hash bucket array size general', 'no_clear,no_scale,size'),
     ConnStat('buckets_dh', 'hash bucket array size for data handles', 'no_clear,no_scale,size'),
     ConnStat('cond_auto_wait', 'auto adjusting condition wait calls'),
@@ -298,7 +299,6 @@ conn_stats = [
     ##########################################
     # Cache statistics
     ##########################################
-    CacheStat('cache_bytes_delta_updates', 'bytes allocated for delta updates', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_dirty_ingest', 'tracked dirty bytes in the cache from the ingest btrees', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_dirty_internal_ingest', 'tracked dirty internal page bytes in the cache from the ingest btrees', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_dirty_internal_stable', 'tracked dirty internal page bytes in the cache from the stable btrees', 'no_clear,no_scale,size'),
@@ -336,6 +336,7 @@ conn_stats = [
     CacheStat('cache_pages_inuse_stable', 'pages currently held in the cache from the stable btrees', 'no_clear,no_scale'),
     CacheStat('cache_read_app_count', 'application threads page read from disk to cache count'),
     CacheStat('cache_read_app_time', 'application threads page read from disk to cache time (usecs)'),
+    CacheStat('cache_tolerance_level', 'cache tolerance configured', 'no_clear,no_scale,size'),
     CacheStat('cache_updates_txn_uncommitted_bytes', 'updates in uncommitted txn - bytes', 'no_clear,no_scale,size'),
     CacheStat('cache_updates_txn_uncommitted_count', 'updates in uncommitted txn - count', 'no_clear,no_scale,size'),
     CacheStat('cache_write_app_count', 'application threads page write from cache to disk count'),
@@ -408,6 +409,7 @@ conn_stats = [
     # Note eviction_server_evict_attempt - eviction_server_evict_fail = evict page successes by eviction server.
     EvictStat('eviction_server_skip_checkpointing_trees', 'eviction server skips trees that are being checkpointed'),
     EvictStat('eviction_server_skip_dirty_pages_during_checkpoint', 'eviction server skips dirty pages during a running checkpoint'),
+    EvictStat('eviction_server_skip_history_store_pages_with_updates_during_checkpoint', 'eviction server skips clean history store pages with updates when a precise checkpoint is in progress'),
     EvictStat('eviction_server_skip_ingest_trees', 'eviction server skips ingest btrees in disagg'),
     EvictStat('eviction_server_skip_intl_page_non_aggressive', 'eviction server skipped the internal pages if eviction is not in aggressive mode.'),
     EvictStat('eviction_server_skip_intl_page_with_active_child', 'eviction server skips internal pages as it has an active child.'),
@@ -601,6 +603,7 @@ conn_stats = [
     DhandleStat('dh_conn_handle_checkpoint_count', 'checkpoint connection data handles currently active', 'no_clear,no_scale'),
     # dh_conn_handle_count = The sum of dh_conn_handle_{btree,table,tiered,tiered_tree}_count.
     DhandleStat('dh_conn_handle_count', 'connection data handles currently active', 'no_clear,no_scale'),
+    DhandleStat('dh_conn_handle_layered_count', 'Layered connection data handles currently active', 'no_clear,no_scale'),
     DhandleStat('dh_conn_handle_size', 'connection data handle size', 'no_clear,no_scale,size'),
     DhandleStat('dh_conn_handle_table_count', 'Table connection data handles currently active', 'no_clear,no_scale'),
     DhandleStat('dh_conn_handle_tiered_count', 'Tiered connection data handles currently active', 'no_clear,no_scale'),
@@ -1317,12 +1320,14 @@ conn_dsrc_stats = [
     BlockDisaggStat('disagg_block_hs_put', 'Disaggregated block manager put to the shared history store in SLS'),
     BlockDisaggStat('disagg_block_page_discard', 'Disaggregated block manager page discard calls'),
     BlockDisaggStat('disagg_block_put', 'Disaggregated block manager put '),
+    BlockDisaggStat('disagg_block_put_cold', 'Disaggregated block manager put cold page'),
     BlockDisaggStat('disagg_block_read_ahead_frontier', 'Disaggregated block manager read ahead of materialization frontier'),
 
     ##########################################
     # Layered table statistics
     ##########################################
     LayeredStat('layered_curs_insert', 'Layered table cursor insert operations'),
+    LayeredStat('layered_curs_modify', 'Layered table cursor modify operations'),
     LayeredStat('layered_curs_next', 'Layered table cursor next operations'),
     LayeredStat('layered_curs_next_ingest', 'Layered table cursor next operations from the ingest btrees'),
     LayeredStat('layered_curs_next_stable', 'Layered table cursor next operations from the stable btrees'),

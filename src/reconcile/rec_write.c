@@ -1015,8 +1015,8 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
         WT_RET(ret);
     }
 
-    return (__wt_blkcache_write(session, buf, block_meta, addr, addr_sizep, compressed_sizep,
-      checkpoint, checkpoint_io, compressed));
+    return (__wt_blkcache_write(session, buf, block_meta, buf->size, addr, addr_sizep,
+      compressed_sizep, checkpoint, checkpoint_io, compressed));
 }
 
 /*
@@ -2121,12 +2121,11 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         multi->block_meta->base_lsn = multi->block_meta->disagg_lsn;
     WT_ASSERT(session, multi->block_meta->base_lsn > 0);
     multi->block_meta->backlink_lsn = block_meta->disagg_lsn;
-    multi->block_meta->image_size = chunk->image.size;
     ++multi->block_meta->delta_count;
 
     /* Get the checkpoint ID. */
-    WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, addr, addr_sizep,
-      compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
+    WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, chunk->image.size, addr,
+      addr_sizep, compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
     /* Turn off compression adjustment for delta. */
     *compressed_sizep = 0;
 
@@ -2242,8 +2241,6 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
             multi->block_meta->base_lsn = WT_DISAGG_LSN_NONE;
         } else
             __wt_page_block_meta_assign(session, multi->block_meta);
-
-        multi->block_meta->image_size = chunk->image.size;
     }
     WT_RET(__rec_write(session, &chunk->image, multi->block_meta, addr, addr_sizep,
       compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
@@ -2289,6 +2286,7 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
               mod->mod_replace.block_cookie_size, &multi->addr.block_cookie));
             multi->addr.block_cookie_size = mod->mod_replace.block_cookie_size;
             multi->addr.type = mod->mod_replace.type;
+            WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &mod->mod_replace.ta);
         } else
             WT_ASSERT(session, r->ref->addr != NULL);
         break;
@@ -2299,6 +2297,7 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
               mod->mod_multi->addr.block_cookie_size, &multi->addr.block_cookie));
             multi->addr.block_cookie_size = mod->mod_multi->addr.block_cookie_size;
             multi->addr.type = mod->mod_multi->addr.type;
+            WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &mod->mod_multi->addr.ta);
         } else
             WT_ASSERT(session, r->ref->addr != NULL);
         break;
@@ -2325,6 +2324,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     uint8_t addr[WT_ADDR_MAX_COOKIE];
     bool build_delta, skip_write;
 #ifdef HAVE_DIAGNOSTIC
+    WT_ADDR *verify_addr, __verify_addr;
     bool verify_image;
 #endif
 
@@ -2530,10 +2530,21 @@ copy_image:
     /*
      * The I/O routines verify all disk images we write, but there are paths in reconciliation that
      * don't do I/O. Verify those images, too.
+     *
+     * If we skip writing the page, the newly created disk image might have a different aggregated
+     * time window compared to the previously written page. To avoid verification failures, use the
+     * updated aggregated time window from the new disk image during the verification process.
      */
+    if (skip_write) {
+        /* Create a dummy address with the aggregated time window of the disk image. */
+        WT_CLEAR(__verify_addr);
+        verify_addr = &__verify_addr;
+        WT_TIME_AGGREGATE_COPY(&verify_addr->ta, &chunk->ta);
+    } else
+        verify_addr = &multi->addr;
     WT_ASSERT(session,
       verify_image == false ||
-        __wt_verify_dsk_image(session, "[reconcile-image]", chunk->image.data, 0, &multi->addr,
+        __wt_verify_dsk_image(session, "[reconcile-image]", chunk->image.data, 0, verify_addr,
           WT_VRFY_DISK_EMPTY_PAGE_OK) == 0);
 #endif
     /*
@@ -3322,13 +3333,13 @@ __wti_rec_hs_clear_on_tombstone(
      * matches the current btree and attempt to reuse it if it does not.
      */
     if (r->hs_cursor == NULL)
-        WT_RET(__wt_curhs_open(session, btree->id, NULL, &r->hs_cursor));
+        WT_RET(__wt_curhs_open(session, btree->id, NULL, NULL, &r->hs_cursor));
     else if (__wt_curhs_get_btree_id(session, r->hs_cursor) != btree->id) {
         WT_RET_ERROR_OK(ret = __wt_curhs_set_btree_id(session, r->hs_cursor, btree->id), EINVAL);
         if (ret == EINVAL) {
             WT_RET(r->hs_cursor->close(r->hs_cursor));
             r->hs_cursor = NULL;
-            WT_RET(__wt_curhs_open(session, btree->id, NULL, &r->hs_cursor));
+            WT_RET(__wt_curhs_open(session, btree->id, NULL, NULL, &r->hs_cursor));
         }
     }
 

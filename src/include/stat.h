@@ -477,6 +477,7 @@ struct __wt_connection_stats {
     int64_t disagg_block_hs_get;
     int64_t disagg_block_page_discard;
     int64_t disagg_block_put;
+    int64_t disagg_block_put_cold;
     int64_t disagg_block_hs_put;
     int64_t disagg_block_read_ahead_frontier;
     int64_t block_preload;
@@ -528,7 +529,6 @@ struct __wt_connection_stats {
     int64_t cache_read_app_time;
     int64_t cache_write_app_count;
     int64_t cache_write_app_time;
-    int64_t cache_bytes_delta_updates;
     int64_t cache_bytes_updates;
     int64_t cache_bytes_updates_ingest;
     int64_t cache_bytes_updates_stable;
@@ -541,6 +541,7 @@ struct __wt_connection_stats {
     int64_t cache_bytes_other;
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
+    int64_t cache_tolerance_level;
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t cache_bytes_hs_dirty;
@@ -568,6 +569,7 @@ struct __wt_connection_stats {
     int64_t eviction_server_skip_pages_already_in_urgent_queue;
     int64_t cache_eviction_blocked_prefetched;
     int64_t eviction_root_pages_skipped;
+    int64_t eviction_server_skip_history_store_pages_with_updates_during_checkpoint;
     int64_t eviction_server_skip_dirty_pages_during_checkpoint;
     int64_t eviction_server_skip_ingest_trees;
     int64_t eviction_server_skip_intl_page_with_active_child;
@@ -864,6 +866,7 @@ struct __wt_connection_stats {
     int64_t cond_auto_wait_reset;
     int64_t cond_auto_wait;
     int64_t cond_auto_wait_skipped;
+    int64_t btree_open;
     int64_t time_travel;
     int64_t file_open;
     int64_t buckets_dh;
@@ -957,6 +960,7 @@ struct __wt_connection_stats {
     int64_t cursor_open_count;
     int64_t cursor_open_time_user_usecs;
     int64_t cursor_open_time_internal_usecs;
+    int64_t dh_conn_handle_layered_count;
     int64_t dh_conn_handle_table_count;
     int64_t dh_conn_handle_tiered_count;
     int64_t dh_conn_handle_tiered_tree_count;
@@ -977,6 +981,7 @@ struct __wt_connection_stats {
     int64_t disagg_step_down_time;
     int64_t disagg_step_up_time;
     int64_t layered_curs_insert;
+    int64_t layered_curs_modify;
     int64_t layered_curs_next;
     int64_t layered_curs_next_ingest;
     int64_t layered_curs_next_stable;
@@ -1401,6 +1406,7 @@ struct __wt_dsrc_stats {
     int64_t disagg_block_hs_get;
     int64_t disagg_block_page_discard;
     int64_t disagg_block_put;
+    int64_t disagg_block_put_cold;
     int64_t disagg_block_hs_put;
     int64_t disagg_block_read_ahead_frontier;
     int64_t block_extension;
@@ -1664,6 +1670,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_update_bytes;
     int64_t cursor_update_bytes_changed;
     int64_t layered_curs_insert;
+    int64_t layered_curs_modify;
     int64_t layered_curs_next;
     int64_t layered_curs_next_ingest;
     int64_t layered_curs_next_stable;

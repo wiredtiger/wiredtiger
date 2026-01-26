@@ -1,8 +1,21 @@
-set(sources
-    "key_provider.h"
-    "key_provider.c"
+config_bool(
+    HAVE_BUILTIN_EXTENSION_KEY_PROVIDER
+    "Builtin key provider extension."
+    DEFAULT OFF
 )
-add_library(wiredtiger_key_provider MODULE ${sources})
+
+set(sources
+    key_provider.h
+    key_provider.c
+)
+
+if(HAVE_BUILTIN_EXTENSION_KEY_PROVIDER)
+    set(link_type "OBJECT")
+else()
+    set(link_type "MODULE")
+endif()
+
+add_library(wiredtiger_key_provider ${link_type} ${sources})
 
 target_include_directories(
     wiredtiger_key_provider
@@ -10,14 +23,4 @@ target_include_directories(
         ${CMAKE_SOURCE_DIR}/src/include
         ${CMAKE_BINARY_DIR}/include
         ${CMAKE_BINARY_DIR}/config
-)
-
-target_compile_options(
-    wiredtiger_key_provider
-    PRIVATE
-        ${COMPILER_DIAGNOSTIC_C_FLAGS}
-        # Allow zero variadic macro arguments for GNU and Clang compilers.
-        $<$<OR:$<BOOL:${GNU_C_COMPILER}>,$<BOOL:${CLANG_C_COMPILER}>>:
-            -Wno-gnu-zero-variadic-macro-arguments
-        >
 )
