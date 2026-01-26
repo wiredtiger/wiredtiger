@@ -1153,7 +1153,7 @@ __checkpoint_db_debug_crash_points(WT_SESSION_IMPL *session, const char *cfg[])
          * and set the appropriate trigger point.
          */
         if (session->ckpt.crash_point > session->ckpt.handle_next)
-            session->ckpt.crash_trigger_point = ckpt_total_crash_points - session->ckpt.crash_point;
+            session->ckpt.crash_trigger_point = session->ckpt.crash_point - session->ckpt.handle_next;
     }
 
     /* Perform a crash at a specific point in checkpoint. */
