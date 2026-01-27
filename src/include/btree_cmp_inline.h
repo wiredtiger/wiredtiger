@@ -14,6 +14,10 @@
 #endif
 #endif
 
+#if defined(HAVE_INTRIN_H)
+#include <intrin.h>
+#endif
+
 #if defined(HAVE_ARM_NEON_INTRIN_H)
 #include <arm_neon.h>
 #endif
@@ -21,6 +25,20 @@
 /* 16B alignment */
 #define WT_ALIGNED_16(p) (((uintptr_t)(p)&0x0f) == 0)
 #define WT_VECTOR_SIZE 16 /* chunk size */
+
+static WT_INLINE int
+__wt_mem_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
+{
+    int cmp;
+
+    const size_t min_size = WT_MIN(user_item->size, tree_item->size);
+    if ((cmp = memcmp(user_item->data, tree_item->data, min_size)) != 0)
+        return (cmp < 0 ? -1 : 1);
+    if (user_item->size == tree_item->size)
+        return (0);
+
+    return (user_item->size < tree_item->size ? -1 : 1);
+}
 
 /*
  * __wt_lex_compare --
@@ -42,7 +60,7 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
     userp = (const uint8_t *)user_item->data;
     treep = (const uint8_t *)tree_item->data;
 
-#ifdef HAVE_X86INTRIN_H
+#if defined(HAVE_X86INTRIN_H) || defined(HAVE_INTRIN_H)
     /* Use vector instructions if we'll execute at least 2 of them. */
     if (len >= WT_VECTOR_SIZE * 2) {
         size_t remain;

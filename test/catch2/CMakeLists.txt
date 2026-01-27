@@ -7,6 +7,7 @@ else()
         misc_tests/test_acquire_release_macros.cpp
         misc_tests/test_binary_search_string.cpp
         misc_tests/test_bitmap.cpp
+        misc_tests/test_btree_cmp.cpp
         misc_tests/test_cell_prepared_time_window.cpp
         misc_tests/test_config.cpp
         misc_tests/test_crc32.cpp
@@ -111,6 +112,7 @@ if(NOT HAVE_BUILTIN_EXTENSION_KEY_PROVIDER)
     target_compile_definitions(catch2-unittests
         PRIVATE
             KEY_PROVIDER_EXTENSION="$<TARGET_FILE:wiredtiger_key_provider>"
+            CATCH_CONFIG_ENABLE_BENCHMARKING=1
     )
 endif()
 

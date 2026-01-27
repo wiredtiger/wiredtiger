@@ -160,6 +160,9 @@
 /* Define to 1 if you have the <x86intrin.h> header file. */
 #cmakedefine HAVE_X86INTRIN_H 1
 
+/* Define to 1 if you have the <intrin.h> header file. */
+#cmakedefine HAVE_INTRIN_H 1
+
 /* Define to 1 if you have the <arm_neon.h> header file. */
 #cmakedefine HAVE_ARM_NEON_INTRIN_H 1
 

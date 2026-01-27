@@ -9,6 +9,12 @@ config_include(
 )
 
 config_include(
+    HAVE_INTRIN_H
+    "Include header intrin.h exists."
+    FILE "intrin.h"
+)
+
+config_include(
     HAVE_ARM_NEON_INTRIN_H
     "Include header arm_neon.h exists."
     FILE "arm_neon.h"
