@@ -5712,8 +5712,8 @@ struct __wt_page_log {
      *
      * @param plh the WT_PAGE_LOG_HANDLE
      * @param session the current WiredTiger session
-     * @param start_lsn the LSN at which table was created.
      * @param table_id the table to be discarded
+     * @param start_lsn the LSN at which table was created.
      */
     int (*pl_trim_table)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t table_id,
         uint64_t start_lsn);
