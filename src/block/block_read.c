@@ -333,6 +333,7 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
 
         /* Dump the free disk space. */
         __fs_free_space_dump(session, block);
+
         /*
          * Attempt to detect single-bit flips in the data. This can help diagnose memory corruption
          * issues.
@@ -390,6 +391,10 @@ __fs_free_space_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     /* Log free space on the main database directory, and the journal directory if different. */
     ret = fs->fs_free_space(fs, (WT_SESSION *)session, db_dir, &db_dir_free_space);
+    /*
+     * Using __wt_errx here is intentional: we're already in a corruption path (checksum mismatch).
+     * We're being consistent with other corruption logs so free-space details are always recorded.
+     */
     if (ret == 0) {
         __wt_errx(session,
           "%s: free disk space on main database directory (%s) is %" PRIdMAX " bytes", block->name,
