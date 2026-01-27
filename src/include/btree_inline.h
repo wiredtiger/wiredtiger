@@ -2176,7 +2176,7 @@ __wt_page_materialization_check(WT_SESSION_IMPL *session, uint64_t rec_lsn_max)
      * Pages that haven't been written back can be evicted. This will lead to them being reconciled
      * and retained, not actually evicted.
      */
-    return __materialization_check(session, rec_lsn_max);
+    return (__materialization_check(session, rec_lsn_max));
 }
 
 /*
@@ -2201,7 +2201,7 @@ __wt_btree_can_discard(WT_SESSION_IMPL *session)
 
     rec_lsn_max = __wt_atomic_load_uint64_acquire(&btree->rec_lsn_max);
 
-    return __materialization_check(session, rec_lsn_max);
+    return (__materialization_check(session, rec_lsn_max));
 }
 
 /*
