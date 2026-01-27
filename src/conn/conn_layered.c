@@ -1273,7 +1273,7 @@ __disagg_pick_up_checkpoint_meta(
      * treat it as optional, in order to support clusters with an earlier data format.
      */
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "metadata_checksum", &cval), true);
-    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND) && cval.len != 0) {
+    if (ret == 0 && cval.len != 0) {
         WT_ERR(__wt_conf_parse_hex(session, "metadata_checksum", &metadata_checksum, &cval));
         if (metadata_checksum > UINT32_MAX)
             WT_ERR_MSG(
