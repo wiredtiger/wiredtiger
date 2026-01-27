@@ -162,6 +162,10 @@ __page_read_build_full_disk_image(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM
     refs_entries = 0;
     incr = 0;
 
+#ifndef HAVE_DIAGNOSTIC
+    WT_UNUSED(new_ta);
+#endif
+
     /* Merge deltas directly with the base image to build refs in a single pass. */
     if (base_dsk->type == WT_PAGE_ROW_LEAF) {
         time_start = __wt_clock(session);
