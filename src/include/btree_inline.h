@@ -2137,15 +2137,19 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __materialization_check --
+ * __wt_materialization_check --
  *     Check if the record LSN max is behind the materialization frontier.
  */
-static WT_INLINE int
-__materialization_check(WT_SESSION_IMPL *session, uint64_t rec_lsn_max)
+static WT_INLINE bool
+__wt_materialization_check(WT_SESSION_IMPL *session, uint64_t rec_lsn_max)
 {
     WT_DISAGGREGATED_STORAGE *disagg;
     uint64_t last_materialized_lsn;
 
+    /*
+     * Pages that haven't been written back can be evicted. This will lead to them being reconciled
+     * and retained, not actually evicted.
+     */
     if (rec_lsn_max == WT_DISAGG_LSN_NONE)
         return (true);
 
@@ -2163,20 +2167,6 @@ __materialization_check(WT_SESSION_IMPL *session, uint64_t rec_lsn_max)
     }
 
     return (true);
-}
-
-/*
- * __wt_page_materialization_check --
- *     Check if the page can be evicted given the current materialization frontier.
- */
-static WT_INLINE bool
-__wt_page_materialization_check(WT_SESSION_IMPL *session, uint64_t rec_lsn_max)
-{
-    /*
-     * Pages that haven't been written back can be evicted. This will lead to them being reconciled
-     * and retained, not actually evicted.
-     */
-    return (__materialization_check(session, rec_lsn_max));
 }
 
 /*
@@ -2201,7 +2191,7 @@ __wt_btree_can_discard(WT_SESSION_IMPL *session)
 
     rec_lsn_max = __wt_atomic_load_uint64_acquire(&btree->rec_lsn_max);
 
-    return (__materialization_check(session, rec_lsn_max));
+    return (__wt_materialization_check(session, rec_lsn_max));
 }
 
 /*
@@ -2248,7 +2238,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     if (mod == NULL) {
         if (page->disagg_info == NULL)
             return (true);
-        else if (__wt_page_materialization_check(session, page->disagg_info->rec_lsn_max))
+        else if (__wt_materialization_check(session, page->disagg_info->rec_lsn_max))
             return (true);
         else {
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
@@ -2306,7 +2296,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * They would not go through reconciliation, but just be discarded which isn't OK.
      */
     if (!modified && page->disagg_info != NULL &&
-      !__wt_page_materialization_check(session, page->disagg_info->rec_lsn_max)) {
+      !__wt_materialization_check(session, page->disagg_info->rec_lsn_max)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
         return (false);
     }
