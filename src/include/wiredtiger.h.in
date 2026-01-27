@@ -5851,9 +5851,6 @@ struct __wt_page_log_put_args {
 
        WT_PAGE_LOG_ENCRYPTION encryption;
 
-       /*
-       * Page log flags
-       */
        uint32_t flags;
 
        /*
@@ -5871,6 +5868,9 @@ struct __wt_page_log_get_args {
         */
        uint64_t lsn;    /* If non-zero, we are asking for a specific LSN */
 
+       /*
+        * Input arguments
+        */
        uint32_t flags;
 
        /*
