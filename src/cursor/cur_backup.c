@@ -243,6 +243,13 @@ __backup_free(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     if (cb->incr_file != NULL)
         __wt_free(session, cb->incr_file);
 
+    /* Free the exclude list. */
+    if (cb->exclude_list != NULL) {
+        for (i = 0; i < (int)cb->exclude_count; ++i)
+            __wt_free(session, cb->exclude_list[i]);
+        __wt_free(session, cb->exclude_list);
+    }
+
     return (__wti_curbackup_free_incr(session, cb));
 }
 
@@ -547,18 +554,19 @@ static int
 __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[],
   WT_CURSOR_BACKUP *othercb, bool *foundp)
 {
-    WT_CONFIG targetconf;
+    WT_CONFIG targetconf, exclude_targetconf;
     WT_CONFIG_ITEM cval, k, v;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     const char *uri;
-    bool consolidate, incremental_config, is_dup, log_config, target_list;
+    bool consolidate, exclude_list, incremental_config, is_dup, log_config, target_list;
 
     *foundp = false;
 
     conn = S2C(session);
     incremental_config = log_config = false;
+    exclude_list = false;
     is_dup = othercb != NULL;
 
     if (!is_dup) {
@@ -645,6 +653,42 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     }
 
     /*
+     * Process exclude_target configuration first. Build the exclude list that will be used later
+     * when doing a full backup to filter out unwanted objects.
+     */
+    WT_ERR(__wt_config_gets(session, cfg, "exclude_target", &cval));
+    __wt_config_subinit(session, &exclude_targetconf, &cval);
+    for (exclude_list = false; (ret = __wt_config_next(&exclude_targetconf, &k, &v)) == 0;
+         exclude_list = true) {
+        /* If it is our first time through, allocate temp buffer. */
+        if (!exclude_list)
+            WT_ERR(__wt_scr_alloc(session, 512, &tmp));
+
+        WT_ERR(__wt_buf_fmt(session, tmp, "%.*s", (int)k.len, k.str));
+        uri = tmp->data;
+        if (v.len != 0)
+            WT_ERR_MSG(
+              session, EINVAL, "%s: invalid backup exclude target: URIs may need quoting", uri);
+
+        if (strchr(uri, ':') == NULL)
+            WT_ERR_MSG(session, EINVAL, "%s: invalid backup exclude target: missing prefix", uri);
+
+        if (is_dup)
+            WT_ERR_MSG(
+              session, EINVAL, "duplicate backup cursor cannot be used with exclude_target");
+
+        /* Add URI to exclude list. */
+        WT_ERR(__wt_realloc_def(
+          session, &cb->exclude_allocated, cb->exclude_count + 1, &cb->exclude_list));
+        WT_ERR(__wt_strdup(session, uri, &cb->exclude_list[cb->exclude_count]));
+        cb->exclude_count++;
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    if (exclude_list)
+        F_SET(cb, WT_CURBACKUP_EXCLUDE);
+
+    /*
      * If we find a non-empty target configuration string, we have a job, otherwise it's not our
      * problem.
      */
@@ -655,7 +699,8 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
         /* If it is our first time through, allocate. */
         if (!target_list) {
             *foundp = true;
-            WT_ERR(__wt_scr_alloc(session, 512, &tmp));
+            if (tmp == NULL)
+                WT_ERR(__wt_scr_alloc(session, 512, &tmp));
         }
 
         WT_ERR(__wt_buf_fmt(session, tmp, "%.*s", (int)k.len, k.str));
@@ -688,6 +733,13 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     /*
      * Compatibility checking.
      *
+     * target and exclude_target are mutually exclusive.
+     */
+    if (target_list && exclude_list)
+        WT_ERR_MSG(
+          session, EINVAL, "backup target and exclude_target options are mutually exclusive");
+
+    /*
      * Duplicate backup cursors are only for log targets or block-based incremental backups. But log
      * targets don't make sense with block-based incremental backup.
      */
@@ -700,6 +752,9 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     if (incremental_config && (log_config || target_list))
         WT_ERR_MSG(
           session, EINVAL, "block-based incremental backup incompatible with a list of targets");
+    if (incremental_config && exclude_list)
+        WT_ERR_MSG(
+          session, EINVAL, "block-based incremental backup incompatible with exclude_target");
 
     if (incremental_config) {
         if (is_dup && !F_ISSET(othercb, WT_CURBACKUP_INCR))
@@ -943,6 +998,74 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
 }
 
 /*
+ * __backup_uri_in_exclude_list --
+ *     Check if the given URI should be excluded from backup. Returns true if the URI matches any
+ *     entry in the exclude list.
+ */
+static bool
+__backup_uri_in_exclude_list(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_CURSOR_BACKUP *cb;
+    size_t i, table_name_len;
+    const char *exclude_uri, *table_name;
+
+    cb = session->bkp_cursor;
+
+    /* If no exclude list is set, nothing is excluded. */
+    if (!F_ISSET(cb, WT_CURBACKUP_EXCLUDE) || cb->exclude_list == NULL || cb->exclude_count == 0)
+        return (false);
+
+    for (i = 0; i < cb->exclude_count; i++) {
+        exclude_uri = cb->exclude_list[i];
+
+        /* Direct match. */
+        if (strcmp(uri, exclude_uri) == 0)
+            return (true);
+
+        /*
+         * Handle table: prefix. If exclude_uri is "table:foo", we should also exclude
+         * "file:foo.wt", "colgroup:foo", "index:foo:*", "tier:foo", "tiered:foo", etc.
+         */
+        if (WT_PREFIX_MATCH(exclude_uri, "table:")) {
+            table_name = exclude_uri + strlen("table:");
+            table_name_len = strlen(table_name);
+
+            /* Check if uri is the underlying file for this table. */
+            if (WT_PREFIX_MATCH(uri, "file:")) {
+                const char *file_name = uri + strlen("file:");
+                /* Match "file:tablename.wt" */
+                if (strncmp(file_name, table_name, table_name_len) == 0 &&
+                  strcmp(file_name + table_name_len, ".wt") == 0)
+                    return (true);
+            }
+
+            /*
+             * Check other prefixes that follow the "prefix:tablename[:...]" pattern. This includes
+             * colgroup, index, object, tier, and tiered.
+             */
+            if (WT_PREFIX_MATCH(uri, "table:") || WT_PREFIX_MATCH(uri, "colgroup:") ||
+              WT_PREFIX_MATCH(uri, "index:") || WT_PREFIX_MATCH(uri, "object:") ||
+              WT_PREFIX_MATCH(uri, "tier:") || WT_PREFIX_MATCH(uri, "tiered:")) {
+                const char *sub_name = strchr(uri, ':') + 1;
+                if (strncmp(sub_name, table_name, table_name_len) == 0 &&
+                  (sub_name[table_name_len] == '\0' || sub_name[table_name_len] == ':'))
+                    return (true);
+            }
+        }
+
+        /*
+         * Handle file: prefix. If exclude_uri is "file:foo.wt", only exclude that specific file.
+         */
+        if (WT_PREFIX_MATCH(exclude_uri, "file:") && WT_PREFIX_MATCH(uri, "file:")) {
+            if (strcmp(uri, exclude_uri) == 0)
+                return (true);
+        }
+    }
+
+    return (false);
+}
+
+/*
  * __backup_all --
  *     Backup all objects in the database.
  */
@@ -967,6 +1090,15 @@ __backup_list_uri_append(WT_SESSION_IMPL *session, const char *name, bool *skip)
 
     cb = session->bkp_cursor;
     WT_UNUSED(skip);
+
+    /*
+     * Check if this URI is in the exclude list. If so, skip it entirely. We skip both the metadata
+     * entry and the file copy.
+     */
+    if (__backup_uri_in_exclude_list(session, name)) {
+        __wt_verbose_debug2(session, WT_VERB_BACKUP, "Excluding %s from backup", name);
+        return (0);
+    }
 
     /*
      * While reading the metadata file, check there are no data sources that can't support hot

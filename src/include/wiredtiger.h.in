@@ -985,6 +985,10 @@ struct __wt_session {
      * compatible with the @ref util_dump and @ref util_load commands., a string\, chosen from the
      * following options: \c "hex"\, \c "json"\, \c "pretty"\, \c "pretty_hex"\, \c "print"; default
      * empty.}
+     * @config{exclude_target, if non-empty\, exclude the given list of objects from the backup;
+     * valid only for a backup data source.  This option is mutually exclusive with the \c target
+     * option.  When specified\, all objects except the listed ones will be backed up., a list of
+     * strings; default empty.}
      * @config{incremental = (, configure the cursor for block incremental backup usage.  These
      * formats are only compatible with the backup data source; see @ref backup., a set of related
      * configuration options defined as follows.}
