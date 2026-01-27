@@ -2420,6 +2420,12 @@ __layered_move_updates(
 {
     WT_DECL_RET;
 
+    /*
+     * Disable bulk load if the btree is empty. Otherwise, checkpoint may skip this btree if it has
+     * never been checkpointed.
+     */
+    __wt_btree_disable_bulk(session);
+
     /* Search the page. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
     WT_ERR(ret);
