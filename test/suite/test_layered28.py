@@ -42,6 +42,15 @@ class test_layered28(wttest.WiredTigerTestCase):
 
     disagg_storages = gen_disagg_storages('test_key_provider_disagg02', disagg_only = True)
 
+    def validate_drop(self, expect_exists):
+        database_home = os.path.join('kv_home', 'pages_000041.db')
+        if expect_exists:
+            self.assertTrue(os.path.isfile(database_home))
+        else:
+            self.assertFalse(os.path.isfile(database_home))
+        self.assertRaises(wiredtiger.WiredTigerError,
+            lambda:self.session.open_cursor(self.uri, None, None))
+
     # Test simple create and drop on leader mode.
     def test_create_drop(self):
         base_create = 'key_format=S,value_format=S,type=layered'
@@ -57,8 +66,7 @@ class test_layered28(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         self.session.drop(self.uri, "")
-        database_home = os.path.join('kv_home', 'pages_000041.db')
-        self.assertFalse(os.path.isfile(database_home))
+        self.validate_drop(expect_exists=False)
 
     # Test create and drop with a subsequent checkpoint and enough time for sweep to come through
     def test_create_drop_checkpoint(self):
@@ -78,8 +86,7 @@ class test_layered28(wttest.WiredTigerTestCase):
         custom_session.checkpoint()
         custom_session.drop(self.uri, "")
         custom_session.close()
-        database_home = os.path.join('/kv_home', 'pages_000041.db')
-        self.assertFalse(os.path.isfile(database_home))
+        self.validate_drop(expect_exists=False)
 
     # Test create and drop on follower mode.
     def test_create_drop_follower(self):
@@ -104,5 +111,4 @@ class test_layered28(wttest.WiredTigerTestCase):
         # Switch to follower mode.
         self.reopen_conn(config=follower_config)
         self.session.drop(self.uri, "")
-        database_home = os.path.join('kv_home', 'pages_000041.db')
-        self.assertTrue(os.path.isfile(database_home))
+        self.validate_drop(expect_exists=True)

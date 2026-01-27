@@ -952,7 +952,10 @@ public:
     void
     trim()
     {
-        // assert(connections.empty());
+        /*
+         * Ideally we should be asserting that the connection map is empty() before dropping.
+         * However the current PALite implementation doesn't clear it's connection on handle close.
+         */
         Connection drop_conn(config, table_file);
         drop_conn.configure(static_cast<Traits *>(this)->conn_config());
 
@@ -1594,9 +1597,6 @@ struct Pages : public Table<Pages> {
          WHERE delta = 1 AND discarded = 0;)",
     };
 
-    /*
-     * Drop table.
-     */
     constexpr static std::string_view drop_statements[] = {R"(DROP TABLE IF EXISTS pages;)"};
 
     /*
