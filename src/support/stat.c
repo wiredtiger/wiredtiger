@@ -1926,7 +1926,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server candidate queue not empty when topping up",
   "cache: eviction server push pages to queue failed because of racing with setting flag",
   "cache: eviction server races with the reconfigure API call in disagg",
-  "cache: eviction server skipped the internal pages if eviction is not in aggressive mode.",
+  "cache: eviction server skipped the internal pages if eviction is not in aggressive mode",
   "cache: eviction server skipped the pages already in the urgent queue",
   "cache: eviction server skipped the pages when prefetching",
   "cache: eviction server skipped the root pages",
@@ -1934,7 +1934,7 @@ static const char *const __stats_connection_desc[] = {
   "is in progress",
   "cache: eviction server skips dirty pages during a running checkpoint",
   "cache: eviction server skips ingest btrees in disagg",
-  "cache: eviction server skips internal pages as it has an active child.",
+  "cache: eviction server skips internal pages as it has an active child",
   "cache: eviction server skips metadata pages with history",
   "cache: eviction server skips pages that are written with transactions greater than the "
   "checkpoint timestamp",
@@ -2057,7 +2057,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: maximum milliseconds spent at a single eviction per checkpoint",
   "cache: maximum number of times a page tried to be added to eviction queue but fail",
   "cache: maximum number of times a page tried to be evicted",
-  "cache: maximum page size seen at eviction",
   "cache: maximum updates page size seen at eviction per checkpoint",
   "cache: modified page evict attempts by application threads",
   "cache: modified page evict failures by application threads",
@@ -2243,7 +2242,7 @@ static const char *const __stats_connection_desc[] = {
   "chunk-cache: total bytes used by the cache",
   "chunk-cache: total bytes used by the cache for pinned chunks",
   "chunk-cache: total chunks held by the chunk cache",
-  "chunk-cache: total number of chunks inserted on startup from persisted metadata.",
+  "chunk-cache: total number of chunks inserted on startup from persisted metadata",
   "chunk-cache: total pinned chunks held by the chunk cache",
   "connection: auto adjusting condition resets",
   "connection: auto adjusting condition wait calls",
@@ -3081,7 +3080,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing eviction_maximum_milliseconds_per_checkpoint */
     /* not clearing eviction_maximum_attempts_to_queue_page */
     /* not clearing eviction_maximum_attempts_to_evict_page */
-    /* not clearing eviction_maximum_page_size */
     /* not clearing eviction_maximum_updates_page_size_per_checkpoint */
     stats->eviction_app_dirty_attempt = 0;
     stats->eviction_app_dirty_fail = 0;
@@ -4159,7 +4157,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_maximum_attempts_to_queue_page);
     to->eviction_maximum_attempts_to_evict_page +=
       WT_STAT_CONN_READ(from, eviction_maximum_attempts_to_evict_page);
-    to->eviction_maximum_page_size += WT_STAT_CONN_READ(from, eviction_maximum_page_size);
     to->eviction_maximum_updates_page_size_per_checkpoint +=
       WT_STAT_CONN_READ(from, eviction_maximum_updates_page_size_per_checkpoint);
     to->eviction_app_dirty_attempt += WT_STAT_CONN_READ(from, eviction_app_dirty_attempt);
