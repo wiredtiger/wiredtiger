@@ -2160,8 +2160,7 @@ __wt_materialization_check(WT_SESSION_IMPL *session, uint64_t rec_lsn_max)
 
     if (rec_lsn_max > last_materialized_lsn) {
         __wt_verbose_debug1(session, WT_VERB_EVICTION,
-          "Materialization check the max lsn: %" PRIu64
-          " is ahead of the last materialized lsn: %" PRIu64,
+          "The max lsn (%" PRIu64 ") is ahead of the last materialized lsn (%" PRIu64 ")",
           rec_lsn_max, last_materialized_lsn);
         return (false);
     }
