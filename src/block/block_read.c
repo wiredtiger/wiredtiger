@@ -325,15 +325,14 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
               " doesn't match expected checksum of %#" PRIx32,
               block->name, size, (uintmax_t)offset, swap.checksum, checksum);
 
-        /* Dump the free disk space. */
-        __fs_free_space_dump(session, block);
-
         /*
          * Dump the corrupted block for analysis prior to bitflip detection in case detection takes
          * too long.
          */
         WT_IGNORE_RET(__wt_bm_corrupt_dump(session, buf, objectid, offset, size, checksum));
 
+        /* Dump the free disk space. */
+        __fs_free_space_dump(session, block);
         /*
          * Attempt to detect single-bit flips in the data. This can help diagnose memory corruption
          * issues.
