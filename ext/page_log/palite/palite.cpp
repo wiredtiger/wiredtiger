@@ -952,10 +952,10 @@ public:
     void
     trim()
     {
-        /* 
-         * Ideally we should be asserting that the connection map is empty() before dropping. However the 
-         * current PALite implementation doesn't clear it's connection on handle close.
-         */  
+        /*
+         * Ideally we should be asserting that the connection map is empty() before dropping.
+         * However the current PALite implementation doesn't clear it's connection on handle close.
+         */
         Connection drop_conn(config, table_file);
         drop_conn.configure(static_cast<Traits *>(this)->conn_config());
 
@@ -970,11 +970,11 @@ public:
         std::string directory = table_file.parent_path().string();
 
         /* Remove all files associated with the database name. */
-        for (const auto& entry : std::filesystem::directory_iterator(directory)) {  
-            std::string filename = entry.path().filename().string();  
-            if (filename.starts_with(table_file.filename().string()))   
+        for (const auto &entry : std::filesystem::directory_iterator(directory)) {
+            std::string filename = entry.path().filename().string();
+            if (filename.starts_with(table_file.filename().string()))
                 std::filesystem::remove(entry);
-        }    
+        }
         drop_conn.close();
     }
 
