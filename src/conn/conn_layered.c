@@ -1295,8 +1295,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ERR(__disagg_save_checkpoint_meta(session, internal_session, md_cursor, &metadata));
 
     /*
-     * Part 2: Apply the metadata for other tables from the shared metadata table. We need a
-     * separate internal session to pick up the new checkpoint.
+     * Part 2: Apply the metadata for other tables from the shared metadata table. FIXME-WT-16528
+     * Investigate whether we need a separate internal session to pick up the new checkpoint.
      */
     WT_ERR(__wt_open_internal_session(
       conn, "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
