@@ -16,12 +16,12 @@
  * a new version number would be more appropriate when introducing a new mandatory field, changing
  * the meaning of an existing field, or removing a field or a flag.
  *
- * Version 1: Size now represents the cumulative size (base image + all deltas). This change has
- *            backward compatibility, if we read a version <1 we will disable the checkpoint size
- *            functionality.
+ * The checkpoint size feature modified the address cookie format by updating the meaning of the
+ * size field to be the sum of the base image and delta sizes. However we have chosen not to bump
+ * the version number as the field is being reused.
  */
-#define WT_BLOCK_DISAGG_ADDR_VERSION 1
-#define WT_BLOCK_DISAGG_ADDR_VERSION_MIN 1 /* The oldest version that can read this format. */
+#define WT_BLOCK_DISAGG_ADDR_VERSION 0
+#define WT_BLOCK_DISAGG_ADDR_VERSION_MIN 0 /* The oldest version that can read this format. */
 
 /*
  * __block_disagg_addr_debug_upgrade --
