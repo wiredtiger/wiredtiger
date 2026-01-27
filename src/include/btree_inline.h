@@ -875,12 +875,25 @@ __wt_page_modify_init(WT_SESSION_IMPL *session, WT_PAGE *page)
 static WT_INLINE void
 __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
+
+    btree = S2BT(session);
+    conn = S2C(session);
+
     WT_ASSERT(session, !F_ISSET(session->dhandle, WT_DHANDLE_DEAD));
 
     WT_ASSERT_ALWAYS(session, !F_ISSET(page->modify, WT_PAGE_MODIFY_EXCLUSIVE),
       "Illegal attempt to modify a page that is being exclusively reconciled");
 
-    if (F_ISSET(S2BT(session), WT_BTREE_READONLY))
+    if (F_ISSET(btree, WT_BTREE_READONLY))
+        return;
+
+    /*
+     * At the moment, disaggregated shared btrees on the follower are not marked as read-only,
+     * although they effectively are.
+     */
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !conn->layered_table_manager.leader)
         return;
     /*
      * This is a relatively complex dance of operations so pay attention prior to modifying the code
@@ -914,12 +927,12 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     uint32_t page_state = __wt_atomic_load_uint32_acquire(&page->modify->page_state);
     uint64_t last_running = WT_TXN_NONE;
     if (page_state == WT_PAGE_CLEAN)
-        last_running = __wt_atomic_load_uint64_v_relaxed(&S2C(session)->txn_global.last_running);
+        last_running = __wt_atomic_load_uint64_v_relaxed(&conn->txn_global.last_running);
 
     bool increase_dirty_size_first = false;
     size_t page_memory_footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
     uint64_t dirty_leaf_pages_total =
-      __wt_atomic_load_uint64_relaxed(&S2C(session)->cache->pages_dirty_leaf);
+      __wt_atomic_load_uint64_relaxed(&conn->cache->pages_dirty_leaf);
     if (!WT_PAGE_IS_INTERNAL(page) && page_state == WT_PAGE_CLEAN && dirty_leaf_pages_total < 10 &&
       (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
         WT_IS_HS(session->dhandle))) {
@@ -940,9 +953,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
          * performing the compare-and-swap operation.
          */
         (void)__wt_atomic_add_uint64_relaxed(
-          &S2C(session)->cache->bytes_dirty_total, page_memory_footprint);
-        (void)__wt_atomic_add_uint64_relaxed(
-          &S2BT(session)->bytes_dirty_total, page_memory_footprint);
+          &conn->cache->bytes_dirty_total, page_memory_footprint);
+        (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_dirty_total, page_memory_footprint);
         /*
          * The bytes dirty count for a page is decreased later when the page is marked clean, so
          * there's no need to decrease it within this function. As a result, it also doesn't need to
