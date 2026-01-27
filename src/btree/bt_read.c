@@ -370,7 +370,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
           session, ref, deltas, count - 1, &new_image, tmp[0].data, &full_image_ta));
 
 #ifdef HAVE_DIAGNOSTIC
-
         WT_ADDR addr_tmp;
         addr_tmp.block_cookie = addr.addr;
         addr_tmp.block_cookie_size = addr.size;
@@ -382,7 +381,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             new_image.data, new_image.size, &addr_tmp, WT_VRFY_DISK_EMPTY_PAGE_OK);
         WT_ASSERT_ALWAYS(session, verify_ret == 0,
           "verification failed for the newly built full disk image from deltas!");
-        WT_ERR(verify_ret);
 #endif
 
         build_full_disk_image_from_deltas = true;
