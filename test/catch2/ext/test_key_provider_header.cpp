@@ -45,7 +45,7 @@ struct kp_header_fixture {
     }
 
     void
-    kp_copy_crypt_key_buffer(WT_SESSION_IMPL *session, WT_CRYPT_HEADER *write_crypt_header)
+    kp_copy_crypt_key_buffer(WT_CRYPT_HEADER *write_crypt_header)
     {
         WT_CRYPT_HEADER *crypt_header;
         __ut_disagg_get_crypt_header(&crypt.keys, &crypt_header);
@@ -104,7 +104,7 @@ TEST_CASE_METHOD(
     {
         /* Fetch the baseline header before performing read. */
         WT_CRYPT_HEADER write_crypt_header;
-        kp_copy_crypt_key_buffer(session_impl, &write_crypt_header);
+        kp_copy_crypt_key_buffer(&write_crypt_header);
         REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == 0);
 
         /* Validate that before and after validation should not change the header. */
@@ -115,7 +115,7 @@ TEST_CASE_METHOD(
     {
         /* Fetch the baseline header before performing read. */
         WT_CRYPT_HEADER write_crypt_header;
-        kp_copy_crypt_key_buffer(session_impl, &write_crypt_header);
+        kp_copy_crypt_key_buffer(&write_crypt_header);
         write_crypt_header.version = 2;
 
         WT_CRYPT_HEADER *header = (WT_CRYPT_HEADER *)crypt.keys.data;
@@ -150,12 +150,17 @@ TEST_CASE_METHOD(
     {
         WT_CRYPT_HEADER *header = (WT_CRYPT_HEADER *)crypt.keys.data;
         header->header_size = 10;
+        header->checksum = 0;
+        header->checksum = __wt_checksum(crypt.keys.data, crypt.keys.size);
         REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == EIO);
     }
 
     SECTION("Test key provider header mismatch size")
     {
-        crypt.keys.size = 50;
+        WT_CRYPT_HEADER *header = (WT_CRYPT_HEADER *)crypt.keys.data;
+        header->header_size = 50;
+        header->checksum = 0;
+        header->checksum = __wt_checksum(crypt.keys.data, crypt.keys.size);
         REQUIRE(__ut_disagg_validate_crypt(session_impl, &crypt.keys, &read_crypt_header) == EIO);
     }
 

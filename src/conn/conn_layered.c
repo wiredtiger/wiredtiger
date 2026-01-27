@@ -337,6 +337,10 @@ __disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_item, WT_CRYPT_HE
     expected_checksum = header->checksum;
     header->checksum = 0;
     checksum = __wt_checksum((uint8_t *)key_item->data, key_item->size);
+    if (checksum != expected_checksum)
+        WT_ERR_MSG(session, EIO,
+          "Encryption key data checksum mismatch: expected %" PRIx32 ", got %" PRIx32,
+          expected_checksum, checksum);
     __wt_crypt_header_byteswap(header);
 
     if (header->header_size < sizeof(WT_CRYPT_HEADER))
@@ -347,11 +351,6 @@ __disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_item, WT_CRYPT_HE
     if (key_item->size - header->header_size != header->crypt_size)
         WT_ERR_MSG(session, EIO, "Encryption key data size mismatch: expected %u, got %u",
           header->crypt_size, (uint32_t)(key_item->size - header->header_size));
-
-    if (checksum != expected_checksum)
-        WT_ERR_MSG(session, EIO,
-          "Encryption key data checksum mismatch: expected %" PRIx32 ", got %" PRIx32,
-          expected_checksum, checksum);
 
     /* Check for compatibility versions before validating header fields. */
     if (header->compatible_version > WT_CRYPT_HEADER_COMPATIBLE_VERSION)
