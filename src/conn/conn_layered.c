@@ -1020,7 +1020,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     WT_DECL_ITEM(metadata_cfg);
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
-    WT_SESSION_IMPL *shared_metadata_session;
     uint32_t existing_tables, new_tables, new_ingest;
     char *layered_ingest_uri, *cfg_ret;
     const char *cfg[3], *checkpoint_name, *checkpoint_name_new, *current_value, *metadata_key,
@@ -1029,14 +1028,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     cursor = NULL;
     checkpoint_name = NULL;
     checkpoint_name_new = NULL;
-    shared_metadata_session = NULL;
     layered_ingest_uri = cfg_ret = NULL;
     existing_tables = new_tables = new_ingest = 0;
-
-    /* We need a separate internal session to pick up the new checkpoint. */
-    WT_ERR(__wt_open_internal_session(
-      S2C(session), "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
-    session = shared_metadata_session;
 
     /*
      * Throw away any references to the old disaggregated metadata table. This ensures that we are
@@ -1182,8 +1175,6 @@ err:
     __wt_scr_free(session, &old_uri_buf);
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
-    if (shared_metadata_session != NULL)
-        WT_TRET(__wt_session_close_internal(shared_metadata_session));
     return (ret);
 }
 
@@ -1238,7 +1229,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_DECL_RET;
     WT_DISAGG_METADATA metadata;
     WT_ITEM metadata_buf;
-    WT_SESSION_IMPL *internal_session;
+    WT_SESSION_IMPL *internal_session, *shared_metadata_session;
     uint64_t current_meta_lsn;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
@@ -1304,10 +1295,15 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ERR(__disagg_save_checkpoint_meta(session, internal_session, md_cursor, &metadata));
 
     /*
-     * Part 2: Apply the metadata for other tables from the shared metadata table.
+     * Part 2: Apply the metadata for other tables from the shared metadata table. We need a
+     * separate internal session to pick up the new checkpoint.
      */
-
-    WT_ERR(__disagg_apply_checkpoint_meta(session, internal_session, md_cursor, ckpt_meta));
+    WT_ERR(__wt_open_internal_session(
+      conn, "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
+    ret = __disagg_apply_checkpoint_meta(
+      shared_metadata_session, internal_session, md_cursor, ckpt_meta);
+    WT_TRET(__wt_session_close_internal(shared_metadata_session));
+    WT_ERR(ret);
 
     /*
      * Part 3: Do the bookkeeping.
