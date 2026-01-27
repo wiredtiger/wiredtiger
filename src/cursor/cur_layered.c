@@ -1325,7 +1325,6 @@ err:
             F_SET(cursor, WT_CURSTD_VALUE_INT);
     } else if (ret != WT_PREPARE_CONFLICT) {
         WT_TRET(__clayered_reset_cursors(clayered, false));
-        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     }
 
     return (ret);

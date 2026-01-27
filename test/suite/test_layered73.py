@@ -116,7 +116,7 @@ class test_layered73(wttest.WiredTigerTestCase):
 
         # next() should encounter the prepared key 2 and return prepare conflict
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.next())
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.get_key())
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.get_key(),  "/requires key be set/")
 
         # After prepare conflict, key state should be preserved
         # Calling prev() should return the previous key
@@ -151,6 +151,7 @@ class test_layered73(wttest.WiredTigerTestCase):
 
         # prev() should encounter the prepared key 4
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.prev())
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.get_key(),  "/requires key be set/")
 
         # After prepare conflict, key state should be preserved
         # Calling next() should return the next key
