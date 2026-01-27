@@ -150,7 +150,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
  */
 static int
 __page_read_build_full_disk_image(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas,
-  size_t delta_size, WT_ITEM *new_image, const void *base_image_addr)
+  size_t delta_size, WT_ITEM *new_image, const void *base_image_addr, WT_TIME_AGGREGATE *new_ta)
 {
     WT_DECL_RET;
     WT_REF **refs;
@@ -180,7 +180,37 @@ __page_read_build_full_disk_image(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM
         WT_STAT_CONN_DSRC_INCR(session, cache_read_internal_delta);
     }
 
-    /* Merge deltas directly with the base image in a single pass. */
+    /* Calculate the time aggregate. */
+#ifdef HAVE_DIAGNOSTIC
+    WT_PAGE_HEADER *new_dsk;
+    WT_CELL_UNPACK_KV unpack_kv;
+    WT_CELL_UNPACK_ADDR unpack_addr;
+    WT_TIME_AGGREGATE ta;
+
+    new_dsk = (WT_PAGE_HEADER *)new_image->mem;
+    WT_TIME_AGGREGATE_INIT_MERGE(&ta);
+
+    switch (new_dsk->type) {
+    case WT_PAGE_ROW_LEAF:
+        WT_CELL_FOREACH_KV (session, new_dsk, unpack_kv) {
+            WT_TIME_AGGREGATE_UPDATE(session, &ta, &unpack_kv.tw);
+        }
+        WT_CELL_FOREACH_END;
+        break;
+    case WT_PAGE_ROW_INT:
+        WT_CELL_FOREACH_ADDR (session, new_dsk, unpack_addr) {
+            WT_TIME_AGGREGATE_MERGE(session, &ta, &unpack_addr.ta);
+        }
+        WT_CELL_FOREACH_END;
+        break;
+    default:
+        WT_ERR(__wt_illegal_value(session, new_dsk->type));
+    }
+
+    if (new_ta != NULL)
+        WT_TIME_AGGREGATE_COPY(new_ta, &ta);
+
+#endif
 
 err:
     /* COMMON CLEANUP PATH (both success and error). */
@@ -330,17 +360,19 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         new_image_buf_size = 2 * WT_ALIGN(WT_MAX(btree->maxleafpage, split_size), btree->allocsize);
 
         WT_ERR(__wt_buf_init(session, &new_image, new_image_buf_size));
+        WT_TIME_AGGREGATE full_image_ta;
 
         WT_ERR(__page_read_build_full_disk_image(
-          session, ref, deltas, count - 1, &new_image, tmp[0].data));
+          session, ref, deltas, count - 1, &new_image, tmp[0].data, &full_image_ta));
 
 #ifdef HAVE_DIAGNOSTIC
-        /* Verify the newly built full disk image. */
+
         WT_ADDR addr_tmp;
         addr_tmp.block_cookie = addr.addr;
         addr_tmp.block_cookie_size = addr.size;
         addr_tmp.type = addr.type;
-        WT_TIME_AGGREGATE_COPY(&addr_tmp.ta, &addr.ta);
+        WT_TIME_AGGREGATE_COPY(&addr_tmp.ta, &full_image_ta);
+
         int verify_ret =
           __wt_verify_dsk_image(session, "[verify the newly built full disk image from deltas]",
             new_image.data, new_image.size, &addr_tmp, WT_VRFY_DISK_EMPTY_PAGE_OK);
