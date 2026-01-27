@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
+import re, os, wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wiredtiger import stat
 
@@ -41,13 +41,40 @@ class test_layered28(wttest.WiredTigerTestCase):
     uri = "layered:" + uri_base
 
     disagg_storages = gen_disagg_storages('test_key_provider_disagg02', disagg_only = True)
-
-    def validate_drop(self, expect_exists):
-        database_home = os.path.join('kv_home', 'pages_000041.db')
-        if expect_exists:
-            self.assertTrue(os.path.isfile(database_home))
-        else:
+    def check_metadata_entry(self):
+        meta_cursor = self.session.open_cursor('metadata:')
+        meta_cursor.set_key("file:" + self.uri_base + ".wt_stable")
+        self.assertEqual(meta_cursor.search(), wiredtiger.WT_NOTFOUND)
+        meta_cursor.set_key("file:" + self.uri_base + ".wt_ingest")
+        self.assertEqual(meta_cursor.search(), wiredtiger.WT_NOTFOUND)
+        meta_cursor.set_key("layered:" + self.uri_base)
+        self.assertEqual(meta_cursor.search(), wiredtiger.WT_NOTFOUND)
+        meta_cursor.close()
+        
+    def fetch_table_id_from_metadata(self):
+        # Fetch the metadata for the file.
+        c = self.session.open_cursor('metadata:', None, None)
+        file_uri = 'file:' + self.uri_base + '.wt_stable'
+        original_db_file_config = c[file_uri]
+        match = re.search(r'id=([0-9]+)', original_db_file_config)
+        c.close()
+        
+        return match.group(1)
+        
+    def validate_drop(self, leader, table_id):
+        database_table = f"pages_{int(table_id):06d}.db"
+        database_home = os.path.join('kv_home', database_table)
+        
+        # Validate that all metadata entries are removed.
+        self.check_metadata_entry()
+        
+        # Validate that only leaders issue trim command.
+        if leader:
             self.assertFalse(os.path.isfile(database_home))
+        else:
+            self.assertTrue(os.path.isfile(database_home))
+            
+        # Validate that we can't open a cursor on the dropped table.
         self.assertRaises(wiredtiger.WiredTigerError,
             lambda:self.session.open_cursor(self.uri, None, None))
 
@@ -65,8 +92,9 @@ class test_layered28(wttest.WiredTigerTestCase):
 
         self.session.checkpoint()
 
+        table_id = self.fetch_table_id_from_metadata()
         self.session.drop(self.uri, "")
-        self.validate_drop(expect_exists=False)
+        self.validate_drop(leader=True, table_id=table_id)
 
     # Test create and drop with a subsequent checkpoint and enough time for sweep to come through
     def test_create_drop_checkpoint(self):
@@ -84,9 +112,10 @@ class test_layered28(wttest.WiredTigerTestCase):
         cursor.close()
 
         custom_session.checkpoint()
-        custom_session.drop(self.uri, "")
+        table_id = self.fetch_table_id_from_metadata()
+        self.session.drop(self.uri, "")
         custom_session.close()
-        self.validate_drop(expect_exists=False)
+        self.validate_drop(leader=True, table_id=table_id)
 
     # Test create and drop on follower mode.
     def test_create_drop_follower(self):
@@ -110,5 +139,6 @@ class test_layered28(wttest.WiredTigerTestCase):
 
         # Switch to follower mode.
         self.reopen_conn(config=follower_config)
+        table_id = self.fetch_table_id_from_metadata()
         self.session.drop(self.uri, "")
-        self.validate_drop(expect_exists=True)
+        self.validate_drop(leader=False, table_id=table_id)
