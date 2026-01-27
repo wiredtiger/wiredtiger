@@ -372,8 +372,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                             goto skip_on_page;
                     } else {
                         if (cbt->upd_value->tw.start_txn > version_cursor->upd_stop_txnid ||
-                          cbt->upd_value->tw.start_ts > version_cursor->upd_stop_ts ||
-                          cbt->upd_value->tw.durable_start_ts > version_cursor->upd_durable_stop_ts)
+                          cbt->upd_value->tw.start_ts > version_cursor->upd_stop_ts)
                             goto skip_on_page;
                     }
 
@@ -402,8 +401,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                             goto skip_on_page;
                     } else {
                         if (cbt->upd_value->tw.stop_txn > version_cursor->upd_stop_txnid ||
-                          cbt->upd_value->tw.stop_ts > version_cursor->upd_stop_ts ||
-                          cbt->upd_value->tw.durable_stop_ts > version_cursor->upd_durable_stop_ts)
+                          cbt->upd_value->tw.stop_ts > version_cursor->upd_stop_ts)
                             goto skip_on_page;
                     }
 
@@ -970,7 +968,7 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     /* Open the history store cursor for btrees that may have data in the history store.*/
     file_btree = CUR2BT(version_cursor->file_cursor);
     if (F_ISSET_ATOMIC_32(conn, WT_CONN_HS_OPEN) && !F_ISSET(file_btree, WT_BTREE_IN_MEMORY)) {
-        WT_ERR(__wt_curhs_open(session, file_btree->id, cursor, &version_cursor->hs_cursor));
+        WT_ERR(__wt_curhs_open(session, file_btree->id, NULL, cursor, &version_cursor->hs_cursor));
         F_SET(version_cursor->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     }
 

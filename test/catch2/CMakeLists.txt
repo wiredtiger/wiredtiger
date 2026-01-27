@@ -41,6 +41,8 @@ else()
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
+        ext/test_key_provider.cpp
+        ext/test_key_provider_header.cpp
         sub_level_error/api/test_sub_level_error_session_get_last_error.cpp
         sub_level_error/api/test_sub_level_error_strerror.cpp
         sub_level_error/unit/test_sub_level_error_api_end.cpp
@@ -76,13 +78,6 @@ if(NOT WT_WIN)
     )
 endif()
 
-# FIXME-WT-16344: Key provider extension tests are not supported on Windows
-if(NOT WT_WIN)
-    set(key_provider_sources
-        ext/test_key_provider.cpp
-    )
-endif()
-
 set(unittest_sources
     main.cpp
     utils.cpp
@@ -97,7 +92,6 @@ set(unittest_sources
     wrappers/mock_session.cpp
     ${unittests}
     ${live_restore_sources}
-    ${key_provider_sources}
 )
 
 create_test_executable(catch2-unittests
@@ -113,10 +107,12 @@ create_test_executable(catch2-unittests
     CXX
 )
 
-target_compile_definitions(catch2-unittests
-    PRIVATE
-        KEY_PROVIDER_EXTENSION="$<TARGET_FILE:wiredtiger_key_provider>"
-)
+if(NOT HAVE_BUILTIN_EXTENSION_KEY_PROVIDER)
+    target_compile_definitions(catch2-unittests
+        PRIVATE
+            KEY_PROVIDER_EXTENSION="$<TARGET_FILE:wiredtiger_key_provider>"
+    )
+endif()
 
 if(WT_POSIX)
     add_dependencies(catch2-unittests wiredtiger_dir_store)

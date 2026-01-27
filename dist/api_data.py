@@ -162,6 +162,13 @@ connection_disaggregated_config = [
         type='category', subconfig=connection_disaggregated_config_common +\
               disaggregated_config_common),
 ]
+table_disaggregated_config = [
+    Config('storage_tier', 'none', r'''
+        A hint to the storage service about the expected storage
+        characteristics of this table. Currently the default (empty) value indicates a hot
+        collection, and it can be configured to 'cold' to indicate a cold collection.''',
+        choices=['cold', 'none'], undoc=True),
+]
 connection_page_delta_config = [
     Config('page_delta', '', r'''
         configure page delta settings for this connection''',
@@ -170,7 +177,7 @@ connection_page_delta_config = [
 file_disaggregated_config = [
     Config('disaggregated', '', r'''
         configure disaggregated storage for this file''',
-        type='category', subconfig=disaggregated_config_common
+        type='category', subconfig=disaggregated_config_common + table_disaggregated_config
     ),
 ]
 wiredtiger_open_disaggregated_storage_configuration = connection_disaggregated_config
@@ -823,8 +830,9 @@ connection_runtime_config = [
         perform eviction in worker threads when the cache contains at least this many bytes of
         updates. It is a percentage of the cache size if the value is within the range of 0 to 100
         or an absolute size when greater than 100. Calculated as half of \c eviction_dirty_target
-        by default. The value is not allowed to exceed the \c cache_size and has to be lower
-        than its counterpart \c eviction_updates_trigger''',
+        by default unless precise checkpoints are enabled, in which case it is equal to the \c
+        eviction_dirty_target. The value is not allowed to exceed the \c cache_size and has to be
+        lower than its counterpart \c eviction_updates_trigger''',
         min=0, max='10TB'),
     Config('eviction_updates_trigger', '0', r'''
         trigger application threads to perform eviction when the cache contains at least this
@@ -2078,17 +2086,17 @@ methods = {
         Config('checkpoint_cleanup', 'false', r'''
             if true, checkpoint cleanup thread is triggered to perform the checkpoint cleanup''',
             type='boolean'),
-        Config('checkpoint_crash_point', '-1', r'''
-            non-negative number between 0 and 1000 will trigger a controlled crash during the
+        Config('checkpoint_crash_point', '0', r'''
+            A value between 1 and 1000 will trigger a controlled crash during the
             checkpoint process. Lower values will trigger crashes in the initial phase of
             checkpoint, while higher values will result in crashes in the final phase of the
-            checkpoint process''',
-            type='int'),
-        Config('key_provider_trigger_crash_points', '0', r'''
-            non-negative number between 1 and 3 will trigger a controlled crash during the
-            key provider process. A lower value would trigger crashes in the initial phase of
-            key provider, while a higher value would result in crashes in a later phase.''',
-            type='int'),
+            checkpoint process''', type='int', min='0', max='1000'),
+        Config('checkpoint_crash_trigger_point', '', r'''
+            enable code that performs a crash duriing checkpoint process with a goal of uncovering
+            race conditions at unexpected times. This option is intended for use with internal
+            testing of WiredTiger.''', undoc=True,
+            choices=['before_metadata_sync', 'before_metadata_update',
+                'before_key_rotation', 'during_key_rotation', 'after_key_rotation']),
         ]),
     Config('drop', '', r'''
         specify a list of checkpoints to drop. The list may additionally contain one of the

@@ -116,6 +116,8 @@ struct __wt_btree {
     WT_CKPT *ckpt;               /* Checkpoint information */
     size_t ckpt_bytes_allocated; /* Checkpoint information array allocation size */
 
+    const char *hs_checkpoint_name; /* History store checkpoint name. */
+
     WT_BTREE_TYPE type; /* Type */
 
     const char *key_format;   /* Key format */
@@ -146,7 +148,7 @@ struct __wt_btree {
     bool prefix_compression;      /* Prefix compression */
     u_int prefix_compression_min; /* Prefix compression min */
 
-    /* FIXME-WT-15633: Combine `prune_timestamp` and `ckpt_timestamp` into one variable */
+    /* FIXME-WT-15633: Combine `prune_timestamp` and `checkpoint_timestamp` into one variable */
     wt_shared wt_timestamp_t prune_timestamp; /* Ingest table GC collection timestamp */
     wt_timestamp_t checkpoint_timestamp;      /* Stable table checkpoint timestamp */
 
@@ -214,13 +216,12 @@ struct __wt_btree {
     (__wt_atomic_load_enum_acquire(&(btree)->syncing) != WT_BTREE_SYNC_RUNNING || \
       __wt_atomic_load_ptr_acquire(&(btree)->sync_session) == (session))
 
-    wt_shared uint64_t bytes_dirty_intl;    /* Bytes in dirty internal pages. */
-    wt_shared uint64_t bytes_dirty_leaf;    /* Bytes in dirty leaf pages. */
-    wt_shared uint64_t bytes_dirty_total;   /* Bytes ever dirtied in cache. */
-    wt_shared uint64_t bytes_inmem;         /* Cache bytes in memory. */
-    wt_shared uint64_t bytes_internal;      /* Bytes in internal pages. */
-    wt_shared uint64_t bytes_updates;       /* Bytes in updates. */
-    wt_shared uint64_t bytes_delta_updates; /* Bytes of updates reconstructed from deltas */
+    wt_shared uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
+    wt_shared uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */
+    wt_shared uint64_t bytes_dirty_total; /* Bytes ever dirtied in cache. */
+    wt_shared uint64_t bytes_inmem;       /* Cache bytes in memory. */
+    wt_shared uint64_t bytes_internal;    /* Bytes in internal pages. */
+    wt_shared uint64_t bytes_updates;     /* Bytes in updates. */
 
     wt_shared uint64_t max_upd_txn; /* Transaction ID for the latest update on the btree. */
 
@@ -294,6 +295,7 @@ struct __wt_btree {
 
     /* The next page ID available for allocation in disaggregated storage for this tree. */
     wt_shared uint64_t next_page_id;
+    WT_BTREE_STORAGE_TIER storage_tier; /* Disaggregated storage tier type */
 
 /*
  * Flag values up to 0xfff are reserved for WT_DHANDLE_XXX. See comment with dhandle flags for an

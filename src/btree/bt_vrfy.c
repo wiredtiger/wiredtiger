@@ -316,11 +316,15 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * page discard function if we're in disagg mode.
              */
             if (ret == 0 && (ckpt + 1)->name == NULL) {
-                /* The page discard verification routine depends on get_page_ids being implemented.
-                 */
-                if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->raw.data &&
-                  bm->get_page_ids != NULL)
-                    WT_TRET(__verify_page_discard(session, bm));
+                if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+                    /*
+                     * The page discard verification routine depends on get_page_ids being
+                     * implemented.
+                     */
+                    WT_BLOCK_DISAGG *block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+                    if (block_disagg->plhandle->plh_get_page_ids != NULL && ckpt->raw.data != NULL)
+                        WT_TRET(__verify_page_discard(session, bm));
+                }
 
                 if (!skip_hs) {
                     __wt_verbose(session, WT_VERB_VERIFY, "%s: verify against history store", name);
@@ -1068,7 +1072,7 @@ __verify_key_hs(
 
     btree = S2BT(session);
     hs_btree_id = btree->id;
-    WT_RET(__wt_curhs_open(session, hs_btree_id, NULL, &hs_cursor));
+    WT_RET(__wt_curhs_open(session, hs_btree_id, NULL, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /*
