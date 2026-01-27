@@ -50,7 +50,7 @@ class test_layered28(wttest.WiredTigerTestCase):
         meta_cursor.set_key("layered:" + self.uri_base)
         self.assertEqual(meta_cursor.search(), wiredtiger.WT_NOTFOUND)
         meta_cursor.close()
-        
+
     def fetch_table_id_from_metadata(self):
         # Fetch the metadata for the file.
         c = self.session.open_cursor('metadata:', None, None)
@@ -58,22 +58,22 @@ class test_layered28(wttest.WiredTigerTestCase):
         original_db_file_config = c[file_uri]
         match = re.search(r'id=([0-9]+)', original_db_file_config)
         c.close()
-        
+
         return match.group(1)
-        
+
     def validate_drop(self, leader, table_id):
         database_table = f"pages_{int(table_id):06d}.db"
         database_home = os.path.join('kv_home', database_table)
-        
+
         # Validate that all metadata entries are removed.
         self.check_metadata_entry()
-        
+
         # Validate that only leaders issue trim command.
         if leader:
             self.assertFalse(os.path.isfile(database_home))
         else:
             self.assertTrue(os.path.isfile(database_home))
-            
+
         # Validate that we can't open a cursor on the dropped table.
         self.assertRaises(wiredtiger.WiredTigerError,
             lambda:self.session.open_cursor(self.uri, None, None))
