@@ -1280,10 +1280,9 @@ __disagg_pick_up_checkpoint_meta(
               session, EINVAL, "Invalid metadata checksum value: %" PRIx64, metadata_checksum);
         ckpt_meta.has_metadata_checksum = true;
         ckpt_meta.metadata_checksum = (uint32_t)metadata_checksum;
-    } else {
+    } else
         __wt_verbose_warning(
           session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Missing metadata_checksum");
-    }
 
     /* Now actually pick up the checkpoint. */
     WT_ERR(__disagg_pick_up_checkpoint(session, &ckpt_meta));
