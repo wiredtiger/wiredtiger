@@ -1273,17 +1273,16 @@ __disagg_pick_up_checkpoint_meta(
      * treat it as optional, in order to support clusters with an earlier data format.
      */
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "metadata_checksum", &cval), true);
-    if (ret == 0 && cval.len != 0) {
+    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND) && cval.len != 0) {
         WT_ERR(__wt_conf_parse_hex(session, "metadata_checksum", &metadata_checksum, &cval));
         if (metadata_checksum > UINT32_MAX)
             WT_ERR_MSG(
               session, EINVAL, "Invalid metadata checksum value: %" PRIx64, metadata_checksum);
         ckpt_meta.has_metadata_checksum = true;
         ckpt_meta.metadata_checksum = (uint32_t)metadata_checksum;
-    } else if (ret == WT_NOTFOUND) {
+    } else {
         __wt_verbose_warning(
           session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Missing metadata_checksum");
-        ret = 0;
     }
 
     /* Now actually pick up the checkpoint. */
