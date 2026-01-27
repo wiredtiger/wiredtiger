@@ -1321,6 +1321,7 @@ conn_dsrc_stats = [
     BlockDisaggStat('disagg_block_page_discard', 'Disaggregated block manager page discard calls'),
     BlockDisaggStat('disagg_block_put', 'Disaggregated block manager put '),
     BlockDisaggStat('disagg_block_put_cold', 'Disaggregated block manager put cold page'),
+    BlockDisaggStat('disagg_block_get_cold', 'Disaggregated block manager get cold page'),
     BlockDisaggStat('disagg_block_read_ahead_frontier', 'Disaggregated block manager read ahead of materialization frontier'),
 
     ##########################################

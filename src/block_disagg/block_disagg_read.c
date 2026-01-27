@@ -104,6 +104,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
   uint32_t size, uint32_t checksum, WT_ITEM *results_array, uint32_t *results_count)
 {
     WT_BLOCK_DISAGG_HEADER *blk, swap;
+    WT_BTREE *btree;
     WT_DECL_RET;
     WT_ITEM *current;
     WT_PAGE_LOG_GET_ARGS get_args;
@@ -119,6 +120,10 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     get_args.lsn = lsn;
     WT_ASSERT(session, block_meta != NULL);
 
+    btree = S2BT(session);
+    if (btree->storage_tier == WT_BTREE_STORAGE_TIER_COLD)
+        F_SET(&get_args, WT_PAGE_LOG_COLD);
+
     __wt_verbose(session, WT_VERB_READ,
       "page_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64 ", base_lsn %" PRIu64 ", size %" PRIu32
       ", checksum %" PRIx32,
@@ -133,6 +138,8 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         WT_STAT_CONN_INCR(session, disagg_block_hs_get);
         WT_STAT_CONN_INCRV(session, disagg_block_hs_byte_read, size);
     }
+    if (F_ISSET(&get_args, WT_PAGE_LOG_COLD))
+        WT_STAT_CONN_INCR(session, disagg_block_get_cold);
 
     /*
      * If the page server returns no data but doesn't explicitly fail with an error, retry the read

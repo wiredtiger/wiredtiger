@@ -119,3 +119,19 @@ class test_disagg04(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.add_data(uri, 1000)
 
         self.assertGreater(self.get_stat(stat.conn.disagg_block_put_cold), 0)
+
+    def test_cold_read(self):
+        self.conn.reconfigure('disaggregated=(role=leader)')
+
+        uri = self.uri%6
+
+        self.session.create(uri, 'key_format=S,value_format=S,disaggregated=(storage_tier=cold),')
+
+        self.add_data(uri, 1000)
+
+        self.assertEqual(self.get_stat(stat.conn.disagg_block_get_cold), 0)
+
+        # Verify the table - this triggers __block_disagg_read_multiple for all pages
+        self.verifyUntilSuccess(uri=uri)
+
+        self.assertGreater(self.get_stat(stat.conn.disagg_block_get_cold), 0)
