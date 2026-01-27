@@ -1080,8 +1080,14 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
               false);
 
             /* Retrieve the name of the current unnamed checkpoint. */
-            WT_ERR(__wt_ckpt_last_name(
-              session, metadata_value, &checkpoint_name_new, &order_new, &time_new));
+            checkpoint_name_new = NULL;
+            order_new = 0;
+            time_new = 0;
+            WT_ERR_NOTFOUND_OK(__wt_ckpt_last_name(session, metadata_value, &checkpoint_name_new,
+                                 &order_new, &time_new),
+              false);
+            WT_ERR_MSG_CHK(session, ret,
+              "Retrieving the last checkpoint name failed for key \"%s\"", metadata_key);
 
             /* FIXME-WT-14730: check that the other parts of the metadata are identical. */
             /*
