@@ -102,6 +102,7 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
     WT_STAT_DSRC_SET(session, cache_state_avg_written_size,
       written_size_cnt == 0 ? 0 : written_size_sum / written_size_cnt);
     WT_STAT_DSRC_SET(session, cache_state_gen_max_gap, gen_gap_max);
+    WT_STAT_DSRC_SET(session, cache_state_max_pagesize, max_pagesize);
     WT_STAT_DSRC_SET(session, cache_state_min_written_size, min_written_size);
     WT_STAT_DSRC_SET(session, cache_state_memory, num_memory);
     WT_STAT_DSRC_SET(session, cache_state_queued, num_queued);

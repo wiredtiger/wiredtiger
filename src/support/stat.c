@@ -182,6 +182,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache_walk: Leaf pages currently in cache",
   "cache_walk: Maximum difference between current eviction generation when the page was last "
   "considered",
+  "cache_walk: Maximum page size seen",
   "cache_walk: Minimum on-disk page image size seen",
   "cache_walk: Number of pages never visited by eviction server",
   "cache_walk: On-disk page image sizes smaller than a single allocation unit",
@@ -615,6 +616,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing cache_state_pages_internal */
     /* not clearing cache_state_pages_leaf */
     /* not clearing cache_state_gen_max_gap */
+    /* not clearing cache_state_max_pagesize */
     /* not clearing cache_state_min_written_size */
     /* not clearing cache_state_unvisited_count */
     /* not clearing cache_state_smaller_alloc_size */
@@ -1042,6 +1044,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_state_pages_internal += from->cache_state_pages_internal;
     to->cache_state_pages_leaf += from->cache_state_pages_leaf;
     to->cache_state_gen_max_gap += from->cache_state_gen_max_gap;
+    to->cache_state_max_pagesize += from->cache_state_max_pagesize;
     to->cache_state_min_written_size += from->cache_state_min_written_size;
     to->cache_state_unvisited_count += from->cache_state_unvisited_count;
     to->cache_state_smaller_alloc_size += from->cache_state_smaller_alloc_size;
@@ -1500,6 +1503,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_state_pages_internal += WT_STAT_DSRC_READ(from, cache_state_pages_internal);
     to->cache_state_pages_leaf += WT_STAT_DSRC_READ(from, cache_state_pages_leaf);
     to->cache_state_gen_max_gap += WT_STAT_DSRC_READ(from, cache_state_gen_max_gap);
+    to->cache_state_max_pagesize += WT_STAT_DSRC_READ(from, cache_state_max_pagesize);
     to->cache_state_min_written_size += WT_STAT_DSRC_READ(from, cache_state_min_written_size);
     to->cache_state_unvisited_count += WT_STAT_DSRC_READ(from, cache_state_unvisited_count);
     to->cache_state_smaller_alloc_size += WT_STAT_DSRC_READ(from, cache_state_smaller_alloc_size);
@@ -2049,6 +2053,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: maximum milliseconds spent at a single eviction per checkpoint",
   "cache: maximum number of times a page tried to be added to eviction queue but fail",
   "cache: maximum number of times a page tried to be evicted",
+  "cache: maximum page size seen at eviction",
   "cache: maximum updates page size seen at eviction per checkpoint",
   "cache: modified page evict attempts by application threads",
   "cache: modified page evict failures by application threads",
@@ -3071,6 +3076,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing eviction_maximum_milliseconds_per_checkpoint */
     /* not clearing eviction_maximum_attempts_to_queue_page */
     /* not clearing eviction_maximum_attempts_to_evict_page */
+    /* not clearing eviction_maximum_page_size */
     /* not clearing eviction_maximum_updates_page_size_per_checkpoint */
     stats->eviction_app_dirty_attempt = 0;
     stats->eviction_app_dirty_fail = 0;
@@ -4147,6 +4153,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_maximum_attempts_to_queue_page);
     to->eviction_maximum_attempts_to_evict_page +=
       WT_STAT_CONN_READ(from, eviction_maximum_attempts_to_evict_page);
+    to->eviction_maximum_page_size += WT_STAT_CONN_READ(from, eviction_maximum_page_size);
     to->eviction_maximum_updates_page_size_per_checkpoint +=
       WT_STAT_CONN_READ(from, eviction_maximum_updates_page_size_per_checkpoint);
     to->eviction_app_dirty_attempt += WT_STAT_CONN_READ(from, eviction_app_dirty_attempt);
