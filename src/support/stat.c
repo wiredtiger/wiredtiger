@@ -13,6 +13,7 @@ static const char *const __stats_dsrc_desc[] = {
   "block-disagg: Disaggregated block manager get from the shared history store in SLS",
   "block-disagg: Disaggregated block manager page discard calls",
   "block-disagg: Disaggregated block manager put ",
+  "block-disagg: Disaggregated block manager put cold page",
   "block-disagg: Disaggregated block manager put to the shared history store in SLS",
   "block-disagg: Disaggregated block manager read ahead of materialization frontier",
   "block-manager: allocations requiring file extension",
@@ -461,6 +462,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->disagg_block_hs_get = 0;
     stats->disagg_block_page_discard = 0;
     stats->disagg_block_put = 0;
+    stats->disagg_block_put_cold = 0;
     stats->disagg_block_hs_put = 0;
     stats->disagg_block_read_ahead_frontier = 0;
     stats->block_extension = 0;
@@ -859,6 +861,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->disagg_block_hs_get += from->disagg_block_hs_get;
     to->disagg_block_page_discard += from->disagg_block_page_discard;
     to->disagg_block_put += from->disagg_block_put;
+    to->disagg_block_put_cold += from->disagg_block_put_cold;
     to->disagg_block_hs_put += from->disagg_block_hs_put;
     to->disagg_block_read_ahead_frontier += from->disagg_block_read_ahead_frontier;
     to->block_extension += from->block_extension;
@@ -1288,6 +1291,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->disagg_block_hs_get += WT_STAT_DSRC_READ(from, disagg_block_hs_get);
     to->disagg_block_page_discard += WT_STAT_DSRC_READ(from, disagg_block_page_discard);
     to->disagg_block_put += WT_STAT_DSRC_READ(from, disagg_block_put);
+    to->disagg_block_put_cold += WT_STAT_DSRC_READ(from, disagg_block_put_cold);
     to->disagg_block_hs_put += WT_STAT_DSRC_READ(from, disagg_block_hs_put);
     to->disagg_block_read_ahead_frontier +=
       WT_STAT_DSRC_READ(from, disagg_block_read_ahead_frontier);
@@ -1811,6 +1815,7 @@ static const char *const __stats_connection_desc[] = {
   "block-disagg: Disaggregated block manager get from the shared history store in SLS",
   "block-disagg: Disaggregated block manager page discard calls",
   "block-disagg: Disaggregated block manager put ",
+  "block-disagg: Disaggregated block manager put cold page",
   "block-disagg: Disaggregated block manager put to the shared history store in SLS",
   "block-disagg: Disaggregated block manager read ahead of materialization frontier",
   "block-manager: blocks pre-loaded",
@@ -1917,7 +1922,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server candidate queue not empty when topping up",
   "cache: eviction server push pages to queue failed because of racing with setting flag",
   "cache: eviction server races with the reconfigure API call in disagg",
-  "cache: eviction server skipped the internal pages if eviction is not in aggressive mode.",
+  "cache: eviction server skipped the internal pages if eviction is not in aggressive mode",
   "cache: eviction server skipped the pages already in the urgent queue",
   "cache: eviction server skipped the pages when prefetching",
   "cache: eviction server skipped the root pages",
@@ -1925,7 +1930,7 @@ static const char *const __stats_connection_desc[] = {
   "is in progress",
   "cache: eviction server skips dirty pages during a running checkpoint",
   "cache: eviction server skips ingest btrees in disagg",
-  "cache: eviction server skips internal pages as it has an active child.",
+  "cache: eviction server skips internal pages as it has an active child",
   "cache: eviction server skips metadata pages with history",
   "cache: eviction server skips pages that are written with transactions greater than the "
   "checkpoint timestamp",
@@ -2233,7 +2238,7 @@ static const char *const __stats_connection_desc[] = {
   "chunk-cache: total bytes used by the cache",
   "chunk-cache: total bytes used by the cache for pinned chunks",
   "chunk-cache: total chunks held by the chunk cache",
-  "chunk-cache: total number of chunks inserted on startup from persisted metadata.",
+  "chunk-cache: total number of chunks inserted on startup from persisted metadata",
   "chunk-cache: total pinned chunks held by the chunk cache",
   "connection: auto adjusting condition resets",
   "connection: auto adjusting condition wait calls",
@@ -2868,6 +2873,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_block_hs_get = 0;
     stats->disagg_block_page_discard = 0;
     stats->disagg_block_put = 0;
+    stats->disagg_block_put_cold = 0;
     stats->disagg_block_hs_put = 0;
     stats->disagg_block_read_ahead_frontier = 0;
     stats->block_preload = 0;
@@ -3861,6 +3867,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_block_hs_get += WT_STAT_CONN_READ(from, disagg_block_hs_get);
     to->disagg_block_page_discard += WT_STAT_CONN_READ(from, disagg_block_page_discard);
     to->disagg_block_put += WT_STAT_CONN_READ(from, disagg_block_put);
+    to->disagg_block_put_cold += WT_STAT_CONN_READ(from, disagg_block_put_cold);
     to->disagg_block_hs_put += WT_STAT_CONN_READ(from, disagg_block_hs_put);
     to->disagg_block_read_ahead_frontier +=
       WT_STAT_CONN_READ(from, disagg_block_read_ahead_frontier);

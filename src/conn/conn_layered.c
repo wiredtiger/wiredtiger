@@ -24,8 +24,6 @@ static void __disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *c
 static void __disagg_get_crypt_header(const WT_ITEM *key_item, WT_CRYPT_HEADER *header);
 static int __disagg_copy_shared_metadata_one(WT_SESSION_IMPL *session, const char *uri);
 static int __layered_drain_ingest_tables(WT_SESSION_IMPL *session);
-static void __layered_update_prune_timestamps_print_update_logs(WT_SESSION_IMPL *session,
-  WT_LAYERED_TABLE *layered_table, wt_timestamp_t prune_timestamp, int64_t ckpt_inuse);
 static int __layered_iterate_ingest_tables_for_gc_pruning(
   WT_SESSION_IMPL *session, wt_timestamp_t checkpoint_timestamp);
 static int __layered_last_checkpoint_order(
@@ -365,7 +363,8 @@ err:
 
 /*
  * __disagg_put_page --
- *     Write a page to disaggregated storage.
+ *     Write a page to disaggregated storage. This is intended for pages that are not part of a
+ *     btree, such as shared turtle files and encryption key.
  */
 static int
 __disagg_put_page(WT_SESSION_IMPL *session, WT_PAGE_LOG_HANDLE *page_log, uint64_t page_id,
@@ -379,6 +378,7 @@ __disagg_put_page(WT_SESSION_IMPL *session, WT_PAGE_LOG_HANDLE *page_log, uint64
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
 
     WT_CLEAR(put_args);
+
     put_args.backlink_lsn = last_page_lsn[page_id];
 
     WT_RET(page_log->plh_put(page_log, &session->iface, page_id, 0, &put_args, item));
@@ -483,7 +483,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
-    if (session->ckpt.key_provider_crash_point == KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION)
+    if (session->ckpt.crash_trigger_point == KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION)
         __wt_debug_crash(session);
 
     /* Check for a new encryption key data. If the size is 0, there is none so we can skip. */
@@ -507,7 +507,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     /* Write the encryption key data to disaggregated storage. */
     ret = __disagg_put_crypt_key(session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, &crypt.keys, &lsn);
 
-    if (session->ckpt.key_provider_crash_point == KEY_PROVIDER_CRASH_DURING_KEY_ROTATION)
+    if (session->ckpt.crash_trigger_point == KEY_PROVIDER_CRASH_DURING_KEY_ROTATION)
         __wt_debug_crash(session);
 
     /* Callback to update key provider on the result of new encryption key data . */
@@ -524,7 +524,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     }
     WT_IGNORE_RET(key_provider->on_key_update(key_provider, (WT_SESSION *)session, &crypt));
 
-    if (session->ckpt.key_provider_crash_point == KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION)
+    if (session->ckpt.crash_trigger_point == KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION)
         __wt_debug_crash(session);
 done:
 err:
@@ -1778,9 +1778,15 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
     if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
         WT_RET(EINVAL);
 
-    /* This is an optional operation for testing, so ignore it if it's not supported. */
-    if (disagg->npage_log->page_log->pl_abandon_checkpoint == NULL)
+    /*
+     * FIXME-WT-16524: This function is no longer an optional operation for testing, remove this
+     * check.
+     */
+    if (disagg->npage_log->page_log->pl_abandon_checkpoint == NULL) {
+        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
+          "Abandon checkpoint operation is not supported by the current PALI implementation");
         return (0);
+    }
 
     /*
      * Call the PALI function to abandon the checkpoint. Since we are not specifying the latest
@@ -1789,7 +1795,7 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
      * the last complete checkpoint, the function would have no effect.
      */
     WT_RET(disagg->npage_log->page_log->pl_abandon_checkpoint(
-      disagg->npage_log->page_log, &session->iface, WT_PAGE_LOG_LSN_MAX));
+      disagg->npage_log->page_log, &session->iface));
 
     return (0);
 }
@@ -2798,23 +2804,6 @@ err:
 }
 
 /*
- * __layered_update_prune_timestamps_print_update_logs --
- *     Print logs for the prune timestamp update.
- */
-static WT_INLINE void
-__layered_update_prune_timestamps_print_update_logs(WT_SESSION_IMPL *session,
-  WT_LAYERED_TABLE *layered_table, wt_timestamp_t prune_timestamp, int64_t ckpt_inuse)
-{
-    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-      "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64, layered_table->iface.name,
-      S2BT(session)->prune_timestamp, prune_timestamp);
-
-    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-      "GC %s: update checkpoint in use from %" PRId64 " to %" PRId64, layered_table->iface.name,
-      layered_table->last_ckpt_inuse, ckpt_inuse);
-}
-
-/*
  * __layered_update_ingest_table_prune_timestamp --
  *     Update the prune timestamp of the specified ingest table.
  *
@@ -2937,13 +2926,22 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
 
     btree = (WT_BTREE *)session->dhandle->handle;
 
-    __layered_update_prune_timestamps_print_update_logs(
-      session, layered_table, prune_timestamp, ckpt_inuse);
+    if (prune_timestamp != WT_TS_NONE) {
+        uint64_t btree_prune_timestamp = __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
+        WT_ASSERT(session, prune_timestamp >= btree_prune_timestamp);
+        __wt_atomic_store_uint64_release(&btree->prune_timestamp, prune_timestamp);
 
-    WT_ASSERT(session, prune_timestamp >= btree->prune_timestamp);
-    __wt_atomic_store_uint64_release(&btree->prune_timestamp, prune_timestamp);
-    if (ckpt_inuse > 1 || layered_dhandle_inuse == 0)
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+          "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64, layered_table->iface.name,
+          btree_prune_timestamp, prune_timestamp);
+    }
+    if (ckpt_inuse > 1 || layered_dhandle_inuse == 0) {
         layered_table->last_ckpt_inuse = ckpt_inuse;
+
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+          "GC %s: update checkpoint in use from %" PRId64 " to %" PRId64, layered_table->iface.name,
+          layered_table->last_ckpt_inuse, ckpt_inuse);
+    }
 
     WT_ERR(__wt_session_release_dhandle(session));
 
