@@ -76,7 +76,6 @@ extern "C" {
 #define DIR_STORE "dir_store"
 #define S3_STORE "s3_store"
 
-/* FIXME-WT-16269: Make drain_threads configurable in test format. */
 #define TESTUTIL_ENV_CONFIG_DISAGG         \
     ",disaggregated=(role=%s,page_log=%s)" \
     ",precise_checkpoint=true"             \
