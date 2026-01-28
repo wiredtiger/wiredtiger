@@ -88,7 +88,13 @@ class test_layered39(wttest.WiredTigerTestCase):
 
         # Finally setting the last materialised lsn
         cursor.close()
+
+        # Set stable timestamp to ensure all pages are written during checkpoint
+        timestamp = 100
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(timestamp)}')
+
         self.session.checkpoint()
+
         (ret, last_lsn) = page_log.pl_get_last_lsn(self.session)
 
         self.pr(f'Finalise the last materialised lsn = {last_lsn}')
