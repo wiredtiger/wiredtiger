@@ -26,9 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os
-import platform
-import time
 import wiredtiger
 import wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
@@ -86,7 +83,6 @@ class test_layered39(wttest.WiredTigerTestCase):
                     self.conn.set_context_uint(wiredtiger.WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN,
                                                last_lsn)
 
-        # Finally setting the last materialised lsn
         cursor.close()
 
         # Set stable timestamp to ensure all pages are written during checkpoint
@@ -95,7 +91,9 @@ class test_layered39(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         (ret, last_lsn) = page_log.pl_get_last_lsn(self.session)
+        self.assertEqual(ret, 0)
 
+        # Finally setting the last materialised lsn
         self.pr(f'Finalise the last materialised lsn = {last_lsn}')
         page_log.pl_set_last_materialized_lsn(self.session, last_lsn)
         self.conn.set_context_uint(wiredtiger.WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN,
