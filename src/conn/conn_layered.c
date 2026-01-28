@@ -466,7 +466,7 @@ __disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt)
     /* Calculate checksum on both data and header. */
     crypt_header->checksum = __wt_checksum(crypt->keys.data, crypt->keys.size);
 #ifdef WORDS_BIGENDIAN
-    crypt_header->checksum = __wt_bswap32(crypt_header.checksum);
+    crypt_header->checksum = __wt_bswap32(crypt_header->checksum);
 #endif
 }
 /*
