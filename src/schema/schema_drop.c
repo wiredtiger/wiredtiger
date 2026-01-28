@@ -179,9 +179,18 @@ __drop_layered(
     WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "file:%s.wt_stable", tablename));
     stable_uri = stable_uri_buf->data;
 
-    /* Only the leader can drop the stable table and issue a trim command. */
-    if (S2C(session)->layered_table_manager.leader)
+    /* Only the leader can remove the metadata from shared metadata table and issue a trim command.
+     */
+    if (S2C(session)->layered_table_manager.leader) {
         WT_ERR(__drop_issue_trim(session, stable_uri));
+
+        /* Remove the metadata from shared metadata table. */
+        WT_SAVE_DHANDLE(session, ret = __wt_disagg_remove_shared_metadata(session, stable_uri));
+        WT_ERR(ret);
+
+        /* Remove the all associated metadata from shared metadata table. */
+        WT_ERR_NOTFOUND_OK(__wt_disagg_remove_shared_metadata_layered(session, tablename), false);
+    }
 
     WT_ERR(__wt_schema_drop(session, stable_uri, cfg, check_visibility));
 

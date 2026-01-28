@@ -3037,6 +3037,65 @@ err:
 }
 
 /*
+ * __wt_disagg_remove_shared_metadata --
+ *     Remove an entry from the shared metadata.
+ */
+int
+__wt_disagg_remove_shared_metadata(WT_SESSION_IMPL *session, const char *key)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL};
+
+    WT_ASSERT(session, S2C(session)->layered_table_manager.leader);
+
+    cursor = NULL;
+
+    WT_ERR(__wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
+    cursor->set_key(cursor, key);
+    WT_ERR(cursor->remove(cursor));
+
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Removed disaggregated shared metadata: key=\"%s\"", key);
+
+err:
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
+    return (ret);
+}
+
+/*
+ * __wt_disagg_remove_shared_metadata_layered --
+ *     Remove all metadata relevant to the given base name (without prefix or suffix) from the
+ *     shared metadata table.
+ */
+int
+__wt_disagg_remove_shared_metadata_layered(WT_SESSION_IMPL *session, const char *name)
+{
+    WT_DECL_RET;
+    size_t len;
+    char *md_key;
+
+    md_key = NULL;
+
+    len = strlen(name) + 16;
+    WT_ERR(__wt_calloc_def(session, len, &md_key));
+
+    WT_ERR(__wt_snprintf(md_key, len, "colgroup:%s", name));
+    WT_ERR_NOTFOUND_OK(__wt_disagg_remove_shared_metadata(session, md_key), false);
+
+    WT_ERR(__wt_snprintf(md_key, len, "layered:%s", name));
+    WT_ERR_NOTFOUND_OK(__wt_disagg_remove_shared_metadata(session, md_key), false);
+
+    WT_ERR(__wt_snprintf(md_key, len, "table:%s", name));
+    WT_ERR_NOTFOUND_OK(__wt_disagg_remove_shared_metadata(session, md_key), false);
+
+err:
+    __wt_free(session, md_key);
+    return (ret);
+}
+
+/*
  * __disagg_copy_shared_metadata --
  *     Copy shared metadata from the main metadata table to the shared metadata table.
  */
