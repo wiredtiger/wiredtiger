@@ -254,8 +254,16 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
     cookie.flags = __block_disagg_addr_flags(block_meta);
     cookie.lsn = block_meta->disagg_lsn;
     cookie.base_lsn = block_meta->base_lsn;
-    cookie.size = size;
     cookie.checksum = checksum;
+
+    /* Calculate the cumulative size and store it in cookie.size. */
+    if (block_meta->delta_count == 0)
+        cookie.size = size;
+    else
+        cookie.size = block_meta->cumulative_size + size;
+
+    /* Update the block_meta for future delta writes. */
+    block_meta->cumulative_size = cookie.size;
 
     endp = addr;
     WT_RET(__wti_block_disagg_addr_pack(session, &endp, &cookie));
