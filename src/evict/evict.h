@@ -88,11 +88,6 @@ struct __wt_evict {
     uint32_t evict_tune_num_points;              /* Number of values tried */
 
     /*
-     * Pass interrupt counter.
-     */
-    wt_shared volatile uint32_t pass_intr; /* Interrupt eviction pass. */
-
-    /*
      * LRU eviction list information.
      */
     WT_SPINLOCK evict_pass_lock;   /* Eviction pass lock */
@@ -110,6 +105,11 @@ struct __wt_evict {
                                             before it switches. */
     WTI_EVICT_QUEUE *evict_other_queue;   /* LRU queue not in use */
     WTI_EVICT_QUEUE *evict_urgent_queue;  /* LRU urgent queue */
+
+    /*
+     * Pass interrupt counter.
+     */
+    wt_shared volatile uint32_t pass_intr; /* Interrupt eviction pass. */
     uint32_t evict_slots;                 /* LRU list eviction slots */
 
 #define WT_EVICT_PRESSURE_THRESHOLD 0.95
