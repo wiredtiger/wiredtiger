@@ -42,8 +42,13 @@ class test_layered73(wttest.WiredTigerTestCase):
     tablename = 'test_layered73'
     uri = 'layered:' + tablename
 
+    resolve_scenarios = [
+        ('commit', dict(commit = True)),
+        ('rollback', dict(commit = False)),
+    ]
+
     disagg_storages = gen_disagg_storages('test_layered73', disagg_only=True)
-    scenarios = make_scenarios(disagg_storages)
+    scenarios = make_scenarios(disagg_storages, resolve_scenarios)
 
     conn_base_config = 'cache_size=10MB,statistics=(all),precise_checkpoint=true,preserve_prepared=true,'
 
@@ -51,7 +56,6 @@ class test_layered73(wttest.WiredTigerTestCase):
         return self.conn_base_config + 'disaggregated=(role="follower")'
 
     def setup_table_with_data(self, keys):
-        """Create table and insert committed data at the given keys."""
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
 
@@ -90,12 +94,21 @@ class test_layered73(wttest.WiredTigerTestCase):
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(60))
 
         cursor.set_key(2)
-        # Assert that search_near should return a prepare conflict and the key is persisted
+        # Assert that search_near should return a prepare conflict and the cursor position doesn't reset
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.search_near())
         retrieved_key = cursor.get_key()
         self.assertEqual(retrieved_key, 2,
                 "Key should be preserved after WT_PREPARE_CONFLICT")
-        prepare_session.rollback_transaction()
+
+        if self.commit:
+            prepare_session.breakpoint()
+            prepare_session.commit_transaction('commit_timestamp=' + self.timestamp_str(60)+',durable_timestamp='+self.timestamp_str(60))
+            # Key 2 is now committed so calling search_near() again should return the committed value
+            self.assertEqual(cursor.search_near(), 0)
+            self.assertEqual(cursor.get_key(), 2)
+            self.assertEqual(cursor.get_value(), "prepared_value")
+        else:
+            prepare_session.rollback_transaction()
         prepare_cursor.close()
 
     def test_next_key_preserved_on_prepare_conflict(self):
@@ -125,15 +138,19 @@ class test_layered73(wttest.WiredTigerTestCase):
         self.assertEqual(retrieved_key, 1,
                 "Key should be preserved after WT_PREPARE_CONFLICT on next()")
 
-        prepare_session.rollback_transaction()
+        if self.commit:
+            prepare_session.breakpoint()
+            prepare_session.commit_transaction('commit_timestamp=' + self.timestamp_str(60)+',durable_timestamp='+self.timestamp_str(60))
+            # Key 2 is now committed so calling next() should return key 2
+            self.assertEqual(cursor.next(), 0)
+            self.assertEqual(cursor.get_key(), 2)
+            self.assertEqual(cursor.get_value(), "prepared_value")
+        else:
+            prepare_session.rollback_transaction()
+
         prepare_cursor.close()
 
     def test_prev_key_preserved_on_prepare_conflict(self):
-        """
-        Test that prev() preserves key state when WT_PREPARE_CONFLICT is returned.
-
-        This tests cursor positioning after encountering a prepared key during reverse traversal.
-        """
         # Setup: keys 1, 3, 5 committed
         self.setup_table_with_data([1, 3, 5])
 
@@ -160,5 +177,13 @@ class test_layered73(wttest.WiredTigerTestCase):
         self.assertEqual(retrieved_key, 5,
                 "Key should be preserved after WT_PREPARE_CONFLICT on prev()")
 
-        prepare_session.rollback_transaction()
+        if self.commit:
+            prepare_session.commit_transaction('commit_timestamp=' + self.timestamp_str(60)+',durable_timestamp='+self.timestamp_str(60))
+            # Key 4 is now committed so calling prev() should return key 4
+            self.assertEqual(cursor.prev(), 0)
+            self.assertEqual(cursor.get_key(), 4)
+            self.assertEqual(cursor.get_value(), "prepared_value")
+        else:
+            prepare_session.rollback_transaction()
+
         prepare_cursor.close()

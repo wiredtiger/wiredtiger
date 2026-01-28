@@ -1323,9 +1323,8 @@ err:
 
         if (value == &cursor->value)
             F_SET(cursor, WT_CURSTD_VALUE_INT);
-    } else if (ret != WT_PREPARE_CONFLICT) {
+    } else if (ret != WT_PREPARE_CONFLICT)
         WT_TRET(__clayered_reset_cursors(clayered, false));
-    }
 
     return (ret);
 }
