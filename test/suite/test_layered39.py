@@ -90,8 +90,7 @@ class test_layered39(wttest.WiredTigerTestCase):
         cursor.close()
 
         # Set stable timestamp to ensure all pages are written during checkpoint
-        timestamp = 100
-        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(timestamp)}')
+        self.conn.set_timestamp(f'stable_timestamp=100')
 
         self.session.checkpoint()
 
