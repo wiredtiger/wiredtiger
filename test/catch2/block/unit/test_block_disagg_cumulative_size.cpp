@@ -13,8 +13,8 @@
 /*
  * [block_disagg_cumulative_size]: block_disagg_write.c, block_disagg_read.c
  * This file unit tests cumulative size tracking for disaggregated address cookies.
-*/
-TEST_CASE("Disagg block: cumulative size tracking", "[block_disagg]")  
+ */
+TEST_CASE("Disagg block: cumulative size tracking", "[block_disagg]")
 {
     WT_PAGE_BLOCK_META block_meta;
     WT_CLEAR(block_meta);
@@ -27,8 +27,8 @@ TEST_CASE("Disagg block: cumulative size tracking", "[block_disagg]")
         uint32_t size = 100;
 
         // Test the core logic from __wti_block_disagg_write
-        uint32_t cookie_size = (block_meta.delta_count == 0) ? size :
-                              block_meta.cumulative_size + size;
+        uint32_t cookie_size =
+          (block_meta.delta_count == 0) ? size : block_meta.cumulative_size + size;
 
         REQUIRE(cookie_size == 100);
 
@@ -61,8 +61,8 @@ TEST_CASE("Disagg block: cumulative size tracking", "[block_disagg]")
         block_meta.cumulative_size = 0;
         uint32_t size = 100;
 
-        uint32_t cookie_size = (block_meta.delta_count == 0) ? size :
-                              block_meta.cumulative_size + size;
+        uint32_t cookie_size =
+          (block_meta.delta_count == 0) ? size : block_meta.cumulative_size + size;
         block_meta.cumulative_size = cookie_size;
         REQUIRE(block_meta.cumulative_size == 100);
 
