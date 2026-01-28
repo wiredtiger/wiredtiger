@@ -907,12 +907,6 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (__wt_btree_never_written(session, btree))
         return;
 
-<<<<<<< Updated upstream
-=======
-    WT_ASSERT(
-      session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || conn->layered_table_manager.leader);
-
->>>>>>> Stashed changes
     /*
      * This is a relatively complex dance of operations so pay attention prior to modifying the code
      * further. Firstly, the atomic increment on page state to mark the page as dirty is effectively
@@ -1014,23 +1008,12 @@ static WT_INLINE void
 __wt_tree_modify_set(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
-<<<<<<< Updated upstream
 
     btree = S2BT(session);
 
     if (__wt_btree_never_written(session, btree))
-=======
-    WT_CONNECTION_IMPL *conn;
-
-    btree = S2BT(session);
-    conn = S2C(session);
-
-    if (F_ISSET(btree, WT_BTREE_READONLY))
->>>>>>> Stashed changes
         return;
 
-    WT_ASSERT(
-      session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || conn->layered_table_manager.leader);
     /*
      * Test before setting the dirty flag, it's a hot cache line.
      *
@@ -1074,8 +1057,8 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
      * The btree may already be marked dirty while the connection is still clean; mark the
      * connection dirty outside the test of the btree state.
      */
-    if (!conn->modified)
-        conn->modified = true;
+    if (!S2C(session)->modified)
+        S2C(session)->modified = true;
 }
 
 /*
@@ -1121,23 +1104,13 @@ __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_BTREE *btree;
 
     btree = S2BT(session);
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
     /*
      * Prepared records in the datastore require page updates, even for read-only handles, don't
      * mark the tree or page dirty.
      */
-<<<<<<< Updated upstream
     if (__wt_btree_never_written(session, btree))
-=======
-    if (F_ISSET(btree, WT_BTREE_READONLY))
->>>>>>> Stashed changes
         return;
-
-    WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
 
     /*
      * Mark the tree dirty (even if the page is already marked dirty), newly created pages to
