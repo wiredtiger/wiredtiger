@@ -66,8 +66,7 @@ class test_layered09(wttest.WiredTigerTestCase):
     def session_create_config(self):
         # The delta percentage of 100 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
-        cfg = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
-        return cfg
+        return 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
 
     def conn_config(self):
         enc_conf = 'encryption=(name={0},{1})'.format(self.encryptor, self.encrypt_args)

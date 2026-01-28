@@ -887,8 +887,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (F_ISSET(btree, WT_BTREE_READONLY))
         return;
 
-    WT_ASSERT(
-      session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
+    WT_ASSERT(session,
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
 
     /*
      * This is a relatively complex dance of operations so pay attention prior to modifying the code
