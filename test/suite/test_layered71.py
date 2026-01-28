@@ -107,7 +107,7 @@ class test_layered71(wttest.WiredTigerTestCase):
         # No need for a timing stress after this point
         self.conn.reconfigure('timing_stress_for_test=[]')
 
-        # # Check that the table still exists in the follower and is empty
+        # Check that the table still exists in the follower and is empty
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_config)
         self.disagg_advance_checkpoint(conn_follow)
         session_follow = conn_follow.open_session('')
