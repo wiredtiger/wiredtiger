@@ -143,6 +143,16 @@ __wti_prepared_discover_add_artifact_upd(WT_SESSION_IMPL *session, WT_UPDATE *up
      * txn.
      */
     WT_RET(__wt_pending_prepared_next_op(session, &op, prepared_item, key));
+    /*
+     * Special case - If the pending update is a tombstone, since we're restoring the update into
+     * ingest table with no tombstone allowed, convert the tombstone to a special tombstone value
+     * instead of a real tombstone update structure.
+     */
+    if (upd->type == WT_UPDATE_TOMBSTONE) {
+        memcpy(upd->data, __wt_tombstone.data, __wt_tombstone.size);
+        upd->size = __wt_tombstone.size;
+        upd->type = WT_UPDATE_STANDARD;
+    }
     WT_RET(__wt_op_modify(session, upd, op));
 
     WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW);
