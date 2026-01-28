@@ -953,11 +953,11 @@ public:
     trim()
     {
         /*
-         * Ideally we should be asserting that the connection map is empty() before dropping.
-         * However the current PALite implementation doesn't clear it's connection on handle close.
+         * Ideally the connection map should be empty() before dropping. However the current PALite
+         * implementation doesn't clear it's connection on handle close.
          */
-        Connection drop_conn(config, table_file);
-        drop_conn.configure(static_cast<Traits *>(this)->conn_config());
+        auto acc = request(AccessMode::WRITE);
+        Connection &drop_conn = acc.conn;
 
         std::call_once(
           drop_table,
@@ -1076,6 +1076,7 @@ struct Globals : public Table<Globals> {
         MAKE_NEXT_LSN,
         GET_LAST_LSN,
         ADD_TABLE_ID,
+        REMOVE_TABLE_ID,
         GET_TABLE_IDS,
         COUNT /* number of statements */
     };
@@ -1100,13 +1101,18 @@ struct Globals : public Table<Globals> {
         /* Add a new table ID if it does not already exist. */
           stmt[ADD_TABLE_ID] =
             R"(INSERT OR IGNORE INTO globals (id, val)
-               VALUES (1, ?);)";
+            VALUES (1, ?);)";
 
         /* Get all known table IDs. */
         stmt[GET_TABLE_IDS] =
           R"(SELECT val
              FROM globals
              WHERE id = 1;)";
+
+        /* Remove an existing table ID. */
+        stmt[REMOVE_TABLE_ID] =
+          R"(DELETE FROM globals
+             WHERE id = 1 and val = ?;)";
 
         return stmt;
     }
@@ -1180,6 +1186,17 @@ struct Globals : public Table<Globals> {
         Connection &conn = acc.conn;
 
         Connection::StatementPtr stmt = conn.db_statement(Statement::ADD_TABLE_ID);
+        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
+        SQ_CHECK(sqlite3_step, stmt.get());
+    }
+
+    void
+    remove_table_id(uint64_t table_id)
+    {
+        auto acc = request(AccessMode::WRITE);
+        Connection &conn = acc.conn;
+
+        Connection::StatementPtr stmt = conn.db_statement(Statement::REMOVE_TABLE_ID);
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
         SQ_CHECK(sqlite3_step, stmt.get());
     }
@@ -2167,6 +2184,9 @@ public:
     {
         Pages &table = get_table(table_id);
         table.trim();
+
+        /* Remove the table ID from global table. */
+        globals.remove_table_id(table_id);
     }
 
     void
