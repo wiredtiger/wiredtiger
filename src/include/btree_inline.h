@@ -37,6 +37,26 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_btree_never_written --
+ *     Return whether this btree should never be written.
+ */
+static bool
+__wt_btree_never_written(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    if (F_ISSET(btree, WT_BTREE_READONLY))
+        return (true);
+
+    /*
+     * At the moment, disaggregated shared btrees on the follower are not marked as read-only,
+     * although they effectively are.
+     */
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !S2C(session)->layered_table_manager.leader)
+        return (true);
+
+    return (false);
+}
+
+/*
  * __wt_page_is_empty --
  *     Return if the page is empty.
  */
@@ -876,24 +896,15 @@ static WT_INLINE void
 __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_BTREE *btree;
-    WT_CONNECTION_IMPL *conn;
 
     btree = S2BT(session);
-    conn = S2C(session);
 
     WT_ASSERT(session, !F_ISSET(session->dhandle, WT_DHANDLE_DEAD));
 
     WT_ASSERT_ALWAYS(session, !F_ISSET(page->modify, WT_PAGE_MODIFY_EXCLUSIVE),
       "Illegal attempt to modify a page that is being exclusively reconciled");
 
-    if (F_ISSET(btree, WT_BTREE_READONLY))
-        return;
-
-    /*
-     * At the moment, disaggregated shared btrees on the follower are not marked as read-only,
-     * although they effectively are.
-     */
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !conn->layered_table_manager.leader)
+    if (__wt_btree_never_written(session, btree))
         return;
 
     /*
@@ -928,12 +939,12 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     uint32_t page_state = __wt_atomic_load_uint32_acquire(&page->modify->page_state);
     uint64_t last_running = WT_TXN_NONE;
     if (page_state == WT_PAGE_CLEAN)
-        last_running = __wt_atomic_load_uint64_v_relaxed(&conn->txn_global.last_running);
+        last_running = __wt_atomic_load_uint64_v_relaxed(&S2C(session)->txn_global.last_running);
 
     bool increase_dirty_size_first = false;
     size_t page_memory_footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
     uint64_t dirty_leaf_pages_total =
-      __wt_atomic_load_uint64_relaxed(&conn->cache->pages_dirty_leaf);
+      __wt_atomic_load_uint64_relaxed(&S2C(session)->cache->pages_dirty_leaf);
     if (!WT_PAGE_IS_INTERNAL(page) && page_state == WT_PAGE_CLEAN && dirty_leaf_pages_total < 10 &&
       (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
         WT_IS_HS(session->dhandle))) {
@@ -954,7 +965,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
          * performing the compare-and-swap operation.
          */
         (void)__wt_atomic_add_uint64_relaxed(
-          &conn->cache->bytes_dirty_total, page_memory_footprint);
+          &S2C(session)->cache->bytes_dirty_total, page_memory_footprint);
         (void)__wt_atomic_add_uint64_relaxed(&btree->bytes_dirty_total, page_memory_footprint);
         /*
          * The bytes dirty count for a page is decreased later when the page is marked clean, so
@@ -996,7 +1007,11 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 static WT_INLINE void
 __wt_tree_modify_set(WT_SESSION_IMPL *session)
 {
-    if (F_ISSET(S2BT(session), WT_BTREE_READONLY))
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+
+    if (__wt_btree_never_written(session, btree))
         return;
 
     /*
@@ -1007,7 +1022,7 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
      * the pages clean, it might result in an extra checkpoint that doesn't do any work but it
      * shouldn't cause problems; regardless, let's play it safe.)
      */
-    if (!S2BT(session)->modified) {
+    if (!btree->modified) {
         /* Assert we never dirty a checkpoint handle. */
         WT_ASSERT(session, !WT_READING_CHECKPOINT(session));
 
@@ -1027,7 +1042,7 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
                 !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING_CHECKPOINT),
               "%s", "A btree is marked dirty during recovery or shutdown");
         }
-        S2BT(session)->modified = true;
+        btree->modified = true;
         WT_FULL_BARRIER();
 
         /*
@@ -1086,11 +1101,15 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
 static WT_INLINE void
 __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+
     /*
      * Prepared records in the datastore require page updates, even for read-only handles, don't
      * mark the tree or page dirty.
      */
-    if (F_ISSET(S2BT(session), WT_BTREE_READONLY))
+    if (__wt_btree_never_written(session, btree))
         return;
 
     /*
@@ -1122,9 +1141,12 @@ __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 static WT_INLINE int
 __wt_page_parent_modify_set(WT_SESSION_IMPL *session, WT_REF *ref, bool page_only)
 {
+    WT_BTREE *btree;
     WT_PAGE *parent;
 
-    if (F_ISSET(S2BT(session), WT_BTREE_READONLY))
+    btree = S2BT(session);
+
+    if (__wt_btree_never_written(session, btree))
         return (0);
 
     /*
