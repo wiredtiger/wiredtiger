@@ -151,7 +151,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_PAGE *page;
     uint64_t page_size;
     uint8_t stats_flags;
-    bool clean_page, closing, ebusy_only, inmem_split, is_dirty, is_follower_stable, tree_dead;
+    bool clean_page, closing, ebusy_only, inmem_split, is_dirty, tree_dead;
 
     conn = S2C(session);
     page = ref->page;

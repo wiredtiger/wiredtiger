@@ -1302,7 +1302,8 @@ __curhs_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     stop_file_cursor = NULL;
 
     WT_ASSERT_ALWAYS(session,
-      !__wt_conn_is_disagg(session) || !F_ISSET(CUR2BT(file_cursor), WT_BTREE_DISAGGREGATED) ||
+      !__wt_conn_is_disagg(session) ||
+        !F_ISSET(CUR2BT(start_file_cursor), WT_BTREE_DISAGGREGATED) ||
         S2C(session)->layered_table_manager.leader,
       "truncate applied to hs on standby");
 

@@ -893,8 +893,9 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      * At the moment, disaggregated shared btrees on the follower are not marked as read-only,
      * although they effectively are. Make sure we're not trying to modify such a tree.
      */
-    WT_ASSERT_ALWAYS(
-      session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || conn->layered_table_manager.leader);
+    WT_ASSERT_ALWAYS(session,
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || conn->layered_table_manager.leader,
+      "Attempt to modify a shared btree on a follower");
 
     /*
      * This is a relatively complex dance of operations so pay attention prior to modifying the code
