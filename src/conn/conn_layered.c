@@ -483,7 +483,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
-    if (session->ckpt.key_provider_crash_point == KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION)
+    if (session->ckpt.crash_trigger_point == KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION)
         __wt_debug_crash(session);
 
     /* Check for a new encryption key data. If the size is 0, there is none so we can skip. */
@@ -507,7 +507,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     /* Write the encryption key data to disaggregated storage. */
     ret = __disagg_put_crypt_key(session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, &crypt.keys, &lsn);
 
-    if (session->ckpt.key_provider_crash_point == KEY_PROVIDER_CRASH_DURING_KEY_ROTATION)
+    if (session->ckpt.crash_trigger_point == KEY_PROVIDER_CRASH_DURING_KEY_ROTATION)
         __wt_debug_crash(session);
 
     /* Callback to update key provider on the result of new encryption key data . */
@@ -524,7 +524,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     }
     WT_IGNORE_RET(key_provider->on_key_update(key_provider, (WT_SESSION *)session, &crypt));
 
-    if (session->ckpt.key_provider_crash_point == KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION)
+    if (session->ckpt.crash_trigger_point == KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION)
         __wt_debug_crash(session);
 done:
 err:
@@ -1020,7 +1020,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     WT_DECL_ITEM(metadata_cfg);
     WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
-    WT_SESSION_IMPL *shared_metadata_session;
     uint32_t existing_tables, new_tables, new_ingest;
     char *layered_ingest_uri, *cfg_ret;
     const char *cfg[3], *checkpoint_name, *checkpoint_name_new, *current_value, *metadata_key,
@@ -1029,13 +1028,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     cursor = NULL;
     checkpoint_name = NULL;
     checkpoint_name_new = NULL;
-    shared_metadata_session = NULL;
     layered_ingest_uri = cfg_ret = NULL;
     existing_tables = new_tables = new_ingest = 0;
-
-    /* We need a separate internal session to pick up the new checkpoint. */
-    WT_ERR(__wt_open_internal_session(
-      S2C(session), "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
 
     /*
      * Throw away any references to the old disaggregated metadata table. This ensures that we are
@@ -1050,7 +1044,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
 
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
     cfg[1] = NULL;
-    WT_ERR(__wt_open_cursor(shared_metadata_session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
+    WT_ERR(__wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
 
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_cfg));
     WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
@@ -1181,8 +1175,6 @@ err:
     __wt_scr_free(session, &old_uri_buf);
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
-    if (shared_metadata_session != NULL)
-        WT_TRET(__wt_session_close_internal(shared_metadata_session));
     return (ret);
 }
 
@@ -1237,7 +1229,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_DECL_RET;
     WT_DISAGG_METADATA metadata;
     WT_ITEM metadata_buf;
-    WT_SESSION_IMPL *internal_session;
+    WT_SESSION_IMPL *internal_session, *shared_metadata_session;
     uint64_t current_meta_lsn;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
@@ -1303,10 +1295,15 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ERR(__disagg_save_checkpoint_meta(session, internal_session, md_cursor, &metadata));
 
     /*
-     * Part 2: Apply the metadata for other tables from the shared metadata table.
+     * Part 2: Apply the metadata for other tables from the shared metadata table. FIXME-WT-16528
+     * Investigate whether we need a separate internal session to pick up the new checkpoint.
      */
-
-    WT_ERR(__disagg_apply_checkpoint_meta(session, internal_session, md_cursor, ckpt_meta));
+    WT_ERR(__wt_open_internal_session(
+      conn, "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
+    ret = __disagg_apply_checkpoint_meta(
+      shared_metadata_session, internal_session, md_cursor, ckpt_meta);
+    WT_TRET(__wt_session_close_internal(shared_metadata_session));
+    WT_ERR(ret);
 
     /*
      * Part 3: Do the bookkeeping.
@@ -1778,9 +1775,15 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
     if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
         WT_RET(EINVAL);
 
-    /* This is an optional operation for testing, so ignore it if it's not supported. */
-    if (disagg->npage_log->page_log->pl_abandon_checkpoint == NULL)
+    /*
+     * FIXME-WT-16524: This function is no longer an optional operation for testing, remove this
+     * check.
+     */
+    if (disagg->npage_log->page_log->pl_abandon_checkpoint == NULL) {
+        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
+          "Abandon checkpoint operation is not supported by the current PALI implementation");
         return (0);
+    }
 
     /*
      * Call the PALI function to abandon the checkpoint. Since we are not specifying the latest
@@ -1789,7 +1792,7 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
      * the last complete checkpoint, the function would have no effect.
      */
     WT_RET(disagg->npage_log->page_log->pl_abandon_checkpoint(
-      disagg->npage_log->page_log, &session->iface, WT_PAGE_LOG_LSN_MAX));
+      disagg->npage_log->page_log, &session->iface));
 
     return (0);
 }
@@ -2416,6 +2419,12 @@ __layered_move_updates(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upds)
 {
     WT_DECL_RET;
+
+    /*
+     * Disable bulk load if the btree is empty. Otherwise, checkpoint may skip this btree if it has
+     * never been checkpointed.
+     */
+    __wt_btree_disable_bulk(session);
 
     /* Search the page. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
