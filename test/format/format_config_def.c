@@ -198,7 +198,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"disagg.page_log.verbose", "set page log verbosity (default=WT_VERBOSE_INFO)", C_IGNORE, 0, 0,
     WT_VERBOSE_DEBUG_5, V_GLOBAL_DISAGG_PAGE_LOG_VERBOSE},
 
-  {"disagg.drain_threads", "set number of drain threads for disaggregated storage", 0x0, 1, 8, 16,
+  {"disagg.drain_threads", "set number of drain threads for disaggregated storage", 0x0, 1, 8, 256,
     V_GLOBAL_DISAGG_DRAIN_THREADS},
 
   {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)",
