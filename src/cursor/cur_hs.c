@@ -1040,6 +1040,11 @@ __curhs_insert(WT_CURSOR *cursor)
     CURSOR_API_CALL_PREPARE_ALLOWED(
       cursor, session, insert, ((WT_CURSOR_BTREE *)file_cursor)->dhandle);
 
+    WT_ASSERT_ALWAYS(session,
+      !__wt_conn_is_disagg(session) || !F_ISSET(CUR2BT(file_cursor), WT_BTREE_DISAGGREGATED) ||
+        S2C(session)->layered_table_manager.leader,
+      "insert applied to hs on standby");
+
     /*
      * Disable bulk loads into history store. This would normally occur when updating a record with
      * a cursor however the history store doesn't use cursor update, so we do it here.
@@ -1175,6 +1180,11 @@ __curhs_remove(WT_CURSOR *cursor)
     CURSOR_API_CALL_PREPARE_ALLOWED(
       cursor, session, remove, ((WT_CURSOR_BTREE *)file_cursor)->dhandle);
 
+    WT_ASSERT_ALWAYS(session,
+      !__wt_conn_is_disagg(session) || !F_ISSET(CUR2BT(file_cursor), WT_BTREE_DISAGGREGATED) ||
+        S2C(session)->layered_table_manager.leader,
+      "remove applied to hs on standby");
+
     /* Remove must be called with cursor positioned. */
     WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
 
@@ -1216,6 +1226,11 @@ __curhs_update(WT_CURSOR *cursor)
 
     CURSOR_API_CALL_PREPARE_ALLOWED(
       cursor, session, update, ((WT_CURSOR_BTREE *)file_cursor)->dhandle);
+
+    WT_ASSERT_ALWAYS(session,
+      !__wt_conn_is_disagg(session) || !F_ISSET(CUR2BT(file_cursor), WT_BTREE_DISAGGREGATED) ||
+        S2C(session)->layered_table_manager.leader,
+      "update applied to hs on standby");
 
     /* Update must be called with cursor positioned. */
     WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
@@ -1285,6 +1300,11 @@ __curhs_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     session = trunc_info->session;
     start_file_cursor = ((WT_CURSOR_HS *)trunc_info->start)->file_cursor;
     stop_file_cursor = NULL;
+
+    WT_ASSERT_ALWAYS(session,
+      !__wt_conn_is_disagg(session) || !F_ISSET(CUR2BT(file_cursor), WT_BTREE_DISAGGREGATED) ||
+        S2C(session)->layered_table_manager.leader,
+      "truncate applied to hs on standby");
 
     WT_STAT_DSRC_INCR(session, cursor_truncate);
 

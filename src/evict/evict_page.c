@@ -236,14 +236,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     if (__wt_page_is_modified(page))
         is_dirty = true;
 
-    is_follower_stable = (ref->page->disagg_info != NULL && !conn->layered_table_manager.leader);
-
     /*
      * No need to reconcile the page if it is from a dead tree or it is clean. Stable tables on the
      * follower are never modified, and should never be reconciled.
      */
-    if (!tree_dead && is_dirty && !is_follower_stable)
+    if (!tree_dead && is_dirty) {
+        WT_ASSERT(session, ref->page->disagg_info == NULL || conn->layered_table_manager.leader);
         WT_ERR(__evict_reconcile(session, ref, flags));
+    }
 
     /* After this spot, the only recoverable failure is EBUSY. */
     ebusy_only = true;
