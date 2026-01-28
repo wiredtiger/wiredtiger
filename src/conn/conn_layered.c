@@ -3067,6 +3067,9 @@ err:
 /*
  * __wt_disagg_remove_shared_metadata_layered --
  *     Remove all metadata relevant to the table_name from the shared metadata table.
+ *
+ * Note: If the table was created and dropped before a checkpoint has occurred, it is expected to
+ *     have no metadata entries on the shared metadata table.
  */
 int
 __wt_disagg_remove_shared_metadata_layered(WT_SESSION_IMPL *session, const char *table_name)
@@ -3080,16 +3083,15 @@ __wt_disagg_remove_shared_metadata_layered(WT_SESSION_IMPL *session, const char 
     len = strlen(table_name) + 20;
     WT_ERR(__wt_calloc_def(session, len, &uri_buf));
 
-    /* Remove the file and layered metadata entries from shared metadata table. */
+    /* Remove all relevant metadata entries from shared metadata table (if exists). */
     WT_ERR(__wt_snprintf(uri_buf, len, "file:%s.wt_stable", table_name));
     WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf));
-    WT_ERR(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     WT_ERR(__wt_snprintf(uri_buf, len, "layered:%s", table_name));
     WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf));
-    WT_ERR(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
-    /* Remove the colgroup and table metadata from shared metadata table (if exists). */
     WT_ERR(__wt_snprintf(uri_buf, len, "colgroup:%s", table_name));
     WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf));
     WT_ERR_NOTFOUND_OK(ret, false);

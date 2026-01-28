@@ -1101,7 +1101,7 @@ struct Globals : public Table<Globals> {
         /* Add a new table ID if it does not already exist. */
           stmt[ADD_TABLE_ID] =
             R"(INSERT OR IGNORE INTO globals (id, val)
-            VALUES (1, ?);)";
+             VALUES (1, ?);)";
 
         /* Get all known table IDs. */
         stmt[GET_TABLE_IDS] =

@@ -5706,7 +5706,7 @@ struct __wt_page_log {
     int (*pl_set_last_materialized_lsn)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t lsn);
 
     /*!
-     * Discard an table into the paging/logging service.
+     * Discard a table from the paging/logging service.
      *
      * @errors
      *
