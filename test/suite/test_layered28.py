@@ -40,7 +40,7 @@ class test_layered28(wttest.WiredTigerTestCase):
                 + 'file_manager=(close_scan_interval=1)'
 
     table_types = [
-        #('layered-prefix', dict(prefix='layered:', table_config='')),
+        ('layered-prefix', dict(prefix='layered:', table_config='')),
         ('table-prefix', dict(prefix='table:', table_config=',block_manager=disagg,type=layered')),
     ]
 
