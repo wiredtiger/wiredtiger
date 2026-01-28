@@ -10,6 +10,7 @@ static const char *const __stats_dsrc_desc[] = {
   "block-disagg: Bytes read from the shared history store in SLS",
   "block-disagg: Bytes written to the shared history store in SLS",
   "block-disagg: Disaggregated block manager get",
+  "block-disagg: Disaggregated block manager get cold page",
   "block-disagg: Disaggregated block manager get from the shared history store in SLS",
   "block-disagg: Disaggregated block manager page discard calls",
   "block-disagg: Disaggregated block manager put ",
@@ -460,6 +461,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->disagg_block_hs_byte_read = 0;
     stats->disagg_block_hs_byte_write = 0;
     stats->disagg_block_get = 0;
+    stats->disagg_block_get_cold = 0;
     stats->disagg_block_hs_get = 0;
     stats->disagg_block_page_discard = 0;
     stats->disagg_block_put = 0;
@@ -860,6 +862,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->disagg_block_hs_byte_read += from->disagg_block_hs_byte_read;
     to->disagg_block_hs_byte_write += from->disagg_block_hs_byte_write;
     to->disagg_block_get += from->disagg_block_get;
+    to->disagg_block_get_cold += from->disagg_block_get_cold;
     to->disagg_block_hs_get += from->disagg_block_hs_get;
     to->disagg_block_page_discard += from->disagg_block_page_discard;
     to->disagg_block_put += from->disagg_block_put;
@@ -1291,6 +1294,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->disagg_block_hs_byte_read += WT_STAT_DSRC_READ(from, disagg_block_hs_byte_read);
     to->disagg_block_hs_byte_write += WT_STAT_DSRC_READ(from, disagg_block_hs_byte_write);
     to->disagg_block_get += WT_STAT_DSRC_READ(from, disagg_block_get);
+    to->disagg_block_get_cold += WT_STAT_DSRC_READ(from, disagg_block_get_cold);
     to->disagg_block_hs_get += WT_STAT_DSRC_READ(from, disagg_block_hs_get);
     to->disagg_block_page_discard += WT_STAT_DSRC_READ(from, disagg_block_page_discard);
     to->disagg_block_put += WT_STAT_DSRC_READ(from, disagg_block_put);
@@ -1816,6 +1820,7 @@ static const char *const __stats_connection_desc[] = {
   "block-disagg: Bytes read from the shared history store in SLS",
   "block-disagg: Bytes written to the shared history store in SLS",
   "block-disagg: Disaggregated block manager get",
+  "block-disagg: Disaggregated block manager get cold page",
   "block-disagg: Disaggregated block manager get from the shared history store in SLS",
   "block-disagg: Disaggregated block manager page discard calls",
   "block-disagg: Disaggregated block manager put ",
@@ -2874,6 +2879,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_block_hs_byte_read = 0;
     stats->disagg_block_hs_byte_write = 0;
     stats->disagg_block_get = 0;
+    stats->disagg_block_get_cold = 0;
     stats->disagg_block_hs_get = 0;
     stats->disagg_block_page_discard = 0;
     stats->disagg_block_put = 0;
@@ -3868,6 +3874,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_block_hs_byte_read += WT_STAT_CONN_READ(from, disagg_block_hs_byte_read);
     to->disagg_block_hs_byte_write += WT_STAT_CONN_READ(from, disagg_block_hs_byte_write);
     to->disagg_block_get += WT_STAT_CONN_READ(from, disagg_block_get);
+    to->disagg_block_get_cold += WT_STAT_CONN_READ(from, disagg_block_get_cold);
     to->disagg_block_hs_get += WT_STAT_CONN_READ(from, disagg_block_hs_get);
     to->disagg_block_page_discard += WT_STAT_CONN_READ(from, disagg_block_page_discard);
     to->disagg_block_put += WT_STAT_CONN_READ(from, disagg_block_put);
