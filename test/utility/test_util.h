@@ -77,9 +77,9 @@ extern "C" {
 #define S3_STORE "s3_store"
 
 /* FIXME-WT-16269: Make drain_threads configurable in test format. */
-#define TESTUTIL_ENV_CONFIG_DISAGG                         \
-    ",disaggregated=(role=%s,page_log=%s,drain_threads=4)" \
-    ",precise_checkpoint=true"                             \
+#define TESTUTIL_ENV_CONFIG_DISAGG         \
+    ",disaggregated=(role=%s,page_log=%s)" \
+    ",precise_checkpoint=true"             \
     ",page_delta=(internal_page_delta=%s,leaf_page_delta=%s)"
 #define TESTUTIL_ENV_CONFIG_DISAGG_EXT                                                   \
     "\"%s/ext/page_log/%s/libwiredtiger_%s.so\"=("                                       \
@@ -159,6 +159,7 @@ typedef struct {
     uint64_t n_append_threads; /* Number of append threads */
     uint64_t n_read_threads;   /* Number of read threads */
     uint64_t n_write_threads;  /* Number of write threads */
+    uint32_t n_drain_threads;  /* Number of drain threads */
 
     uint64_t tiered_flush_interval_us; /* Microseconds between flush_tier calls */
     uint64_t tiered_flush_next_us;     /* Next tiered flush in epoch microseconds */
