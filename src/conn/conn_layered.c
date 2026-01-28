@@ -3037,11 +3037,11 @@ err:
 }
 
 /*
- * __wt_disagg_remove_shared_metadata --
+ * __disagg_remove_shared_metadata --
  *     Remove an entry from the shared metadata.
  */
-int
-__wt_disagg_remove_shared_metadata(WT_SESSION_IMPL *session, const char *key)
+static int
+__disagg_remove_shared_metadata(WT_SESSION_IMPL *session, const char *key)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -3066,32 +3066,40 @@ err:
 
 /*
  * __wt_disagg_remove_shared_metadata_layered --
- *     Remove all metadata relevant to the given base name (without prefix or suffix) from the
- *     shared metadata table.
+ *     Remove all metadata relevant to the table_name from the shared metadata table.
  */
 int
-__wt_disagg_remove_shared_metadata_layered(WT_SESSION_IMPL *session, const char *name)
+__wt_disagg_remove_shared_metadata_layered(WT_SESSION_IMPL *session, const char *table_name)
 {
     WT_DECL_RET;
     size_t len;
-    char *md_key;
+    char *uri_buf;
 
-    md_key = NULL;
+    uri_buf = NULL;
 
-    len = strlen(name) + 16;
-    WT_ERR(__wt_calloc_def(session, len, &md_key));
+    len = strlen(table_name) + 20;
+    WT_ERR(__wt_calloc_def(session, len, &uri_buf));
 
-    WT_ERR(__wt_snprintf(md_key, len, "colgroup:%s", name));
-    WT_ERR_NOTFOUND_OK(__wt_disagg_remove_shared_metadata(session, md_key), false);
+    /* Remove the file and layered metadata entries from shared metadata table. */
+    WT_ERR(__wt_snprintf(uri_buf, len, "file:%s.wt_stable", table_name));
+    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf));
+    WT_ERR(ret);
 
-    WT_ERR(__wt_snprintf(md_key, len, "layered:%s", name));
-    WT_ERR_NOTFOUND_OK(__wt_disagg_remove_shared_metadata(session, md_key), false);
+    WT_ERR(__wt_snprintf(uri_buf, len, "layered:%s", table_name));
+    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf));
+    WT_ERR(ret);
 
-    WT_ERR(__wt_snprintf(md_key, len, "table:%s", name));
-    WT_ERR_NOTFOUND_OK(__wt_disagg_remove_shared_metadata(session, md_key), false);
+    /* Remove the colgroup and table metadata from shared metadata table (if exists). */
+    WT_ERR(__wt_snprintf(uri_buf, len, "colgroup:%s", table_name));
+    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf));
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    WT_ERR(__wt_snprintf(uri_buf, len, "table:%s", table_name));
+    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf));
+    WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
-    __wt_free(session, md_key);
+    __wt_free(session, uri_buf);
     return (ret);
 }
 

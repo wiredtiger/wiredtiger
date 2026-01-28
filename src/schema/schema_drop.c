@@ -184,12 +184,10 @@ __drop_layered(
     if (S2C(session)->layered_table_manager.leader) {
         WT_ERR(__drop_issue_trim(session, stable_uri));
 
-        /* Remove the metadata from shared metadata table. */
-        WT_SAVE_DHANDLE(session, ret = __wt_disagg_remove_shared_metadata(session, stable_uri));
-        WT_ERR(ret);
-
         /* Remove the all associated metadata from shared metadata table. */
-        WT_ERR_NOTFOUND_OK(__wt_disagg_remove_shared_metadata_layered(session, tablename), false);
+        WT_SAVE_DHANDLE(
+          session, ret = __wt_disagg_remove_shared_metadata_layered(session, tablename));
+        WT_ERR(ret);
     }
 
     WT_ERR(__wt_schema_drop(session, stable_uri, cfg, check_visibility));
