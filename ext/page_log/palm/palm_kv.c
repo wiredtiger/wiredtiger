@@ -382,19 +382,29 @@ palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id, 
 
 /*
  * palm_kv_abandon_after --
- *     Abandon (delete) all page log entries with an LSN greater than the given LSN.
+ *     Abandon (delete) all page log entries with an LSN greater than the given LSN. Optionally
+ *     restrict deletion to a given table ID.
  */
 int
-palm_kv_abandon_after(PALM_KV_CONTEXT *context, uint64_t abandon_after_lsn)
+palm_kv_abandon_after(PALM_KV_CONTEXT *context, uint64_t abandon_after_lsn, uint64_t table_id)
 {
     MDB_cursor *cursor;
     MDB_val kval;
     MDB_val vval;
+    PAGE_KEY page_key;
     int ret;
 
     cursor = NULL;
     memset(&kval, 0, sizeof(kval));
     memset(&vval, 0, sizeof(vval));
+
+    if (table_id != 0) {
+        memset(&page_key, 0, sizeof(page_key));
+        page_key.table_id = table_id;
+        swap_page_key(&page_key, &page_key);
+        kval.mv_size = sizeof(page_key);
+        kval.mv_data = &page_key;
+    }
 
     if ((ret = mdb_cursor_open(context->lmdb_txn, context->env->lmdb_pages_dbi, &cursor)) != 0)
         goto err;
@@ -423,6 +433,10 @@ palm_kv_abandon_after(PALM_KV_CONTEXT *context, uint64_t abandon_after_lsn)
         PAGE_KEY *key = (PAGE_KEY *)kval.mv_data;
         PAGE_KEY decoded_key;
         swap_page_key(key, &decoded_key);
+
+        if (decoded_key.table_id > table_id)
+            break;
+
         if (decoded_key.lsn > abandon_after_lsn) {
             ret = mdb_cursor_del(cursor, 0);
             if (ret != 0)

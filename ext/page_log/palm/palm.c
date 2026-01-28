@@ -660,7 +660,7 @@ palm_abandon_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session)
     PALM_VERBOSE_PRINT(
       palm, session, "palm_abandon_checkpoint(lsn=%" PRIu64 ")\n", last_checkpoint_lsn);
 
-    PALM_KV_ERR(palm, session, palm_kv_abandon_after(&context, last_checkpoint_lsn));
+    PALM_KV_ERR(palm, session, palm_kv_abandon_after(&context, last_checkpoint_lsn, 0));
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
 
     if (0) {
@@ -1326,6 +1326,36 @@ palm_set_last_materialized_lsn(WT_PAGE_LOG *storage, WT_SESSION *session, uint64
 }
 
 /*
+ * palm_trim_table --
+ *     Discard an table for testing purposes.
+ */
+static int
+palm_trim_table(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t table_id, uint64_t start_lsn)
+{
+    PALM *palm;
+    WT_DECL_RET;
+    PALM_KV_CONTEXT context;
+
+    palm = (PALM *)page_log;
+    palm_init_context(palm, &context);
+    (void)start_lsn; /* Unused parameter */
+
+    PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
+
+    PALM_VERBOSE_PRINT(palm, session, "palm_trim_table(lsn=%" PRIu64 ")\n", table_id);
+    PALM_KV_ERR(palm, session, palm_kv_abandon_after(&context, table_id, 0));
+    PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
+
+    if (0) {
+err:
+        palm_kv_rollback_transaction(&context);
+        PALM_VERBOSE_PRINT(
+          palm, session, "palm_trim_table(lsn=%" PRIu64 ") returned %d\n", table_id, ret);
+    }
+    return (0);
+}
+
+/*
  * palm_terminate --
  *     Discard any resources on termination
  */
@@ -1399,6 +1429,7 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     palm->page_log.pl_get_last_lsn = palm_get_last_lsn;
     palm->page_log.pl_get_open_checkpoint = NULL;
     palm->page_log.pl_open_handle = palm_open_handle;
+    palm->page_log.pl_trim_table = palm_trim_table;
     palm->page_log.pl_set_last_materialized_lsn = palm_set_last_materialized_lsn;
     palm->page_log.terminate = palm_terminate;
 
