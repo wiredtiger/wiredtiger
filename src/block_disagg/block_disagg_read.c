@@ -104,7 +104,6 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
   uint32_t size, uint32_t checksum, WT_ITEM *results_array, uint32_t *results_count)
 {
     WT_BLOCK_DISAGG_HEADER *blk, swap;
-    WT_BTREE *btree;
     WT_DECL_RET;
     WT_ITEM *current;
     WT_PAGE_LOG_GET_ARGS get_args;
@@ -120,8 +119,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     get_args.lsn = lsn;
     WT_ASSERT(session, block_meta != NULL);
 
-    btree = S2BT(session);
-    if (btree->storage_tier == WT_BTREE_STORAGE_TIER_COLD)
+    if (S2BT(session)->storage_tier == WT_BTREE_STORAGE_TIER_COLD)
         F_SET(&get_args, WT_PAGE_LOG_COLD);
 
     __wt_verbose(session, WT_VERB_READ,
