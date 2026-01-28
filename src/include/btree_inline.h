@@ -2173,35 +2173,12 @@ __wt_materialization_check(WT_SESSION_IMPL *session, uint64_t rec_lsn_max)
  *     Check if a btree can be discarded based on the materialization frontier.
  */
 static WT_INLINE bool
-__wt_btree_can_discard1(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *btree;
-    WT_CONNECTION_IMPL *conn;
-    uint64_t rec_lsn_max;
-
-    btree = S2BT(session);
-    conn = S2C(session);
-
-    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-        return (true);
-
-    if (!conn->layered_table_manager.leader)
-        return (true);
-
-    rec_lsn_max = __wt_atomic_load_uint64_acquire(&btree->rec_lsn_max);
-
-    return (__wt_materialization_check(session, rec_lsn_max));
-}
-
-static WT_INLINE bool
 __wt_btree_can_discard(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     uint64_t rec_lsn_max;
-     WT_DISAGGREGATED_STORAGE *disagg;
-    uint64_t last_materialized_lsn;
-    
+
     btree = S2BT(session);
     conn = S2C(session);
 
@@ -2211,26 +2188,7 @@ __wt_btree_can_discard(WT_SESSION_IMPL *session)
     if (!conn->layered_table_manager.leader)
         return (true);
 
-    rec_lsn_max = __wt_atomic_load_uint64_acquire(&btree->rec_lsn_max);
-
-    /*
-     * Pages that haven't been written back can be evicted. This will lead to them being reconciled
-     * and retained, not actually evicted.
-     */
-    if (rec_lsn_max == WT_DISAGG_LSN_NONE)
-        return (true);
-
-    disagg = &S2C(session)->disaggregated_storage;
-    last_materialized_lsn = __wt_atomic_load_uint64_acquire(&disagg->last_materialized_lsn);
-    if (last_materialized_lsn == WT_DISAGG_LSN_NONE)
-        return (true);
-
-    if (rec_lsn_max > last_materialized_lsn) {
-        printf("Btree check the max lsn (%" PRIu64 ") is ahead of the last materialized lsn (%" PRIu64 ")",
-          rec_lsn_max, last_materialized_lsn);
-        return (false);
-    }
-
+    rec_lsn_max = __wt_atomic_load_uint64_relaxed(&btree->rec_lsn_max);
 
     return (__wt_materialization_check(session, rec_lsn_max));
 }
