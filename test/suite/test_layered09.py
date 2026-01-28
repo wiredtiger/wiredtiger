@@ -48,11 +48,6 @@ class test_layered09(wttest.WiredTigerTestCase):
         ('snappy', dict(block_compress='snappy')),
     ]
 
-    uris = [
-        ('layered', dict(uri='layered:test_layered09')),
-        ('btree', dict(uri='file:test_layered09')),
-    ]
-
     ts = [
         ('ts', dict(ts=True)),
         ('non-ts', dict(ts=False)),
@@ -61,9 +56,10 @@ class test_layered09(wttest.WiredTigerTestCase):
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'page_delta=(delta_pct=100),,'
     disagg_storages = gen_disagg_storages('test_layered09', disagg_only = True)
+    uri='layered:test_layered09'
 
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, ts)
+    scenarios = make_scenarios(encrypt, compress, disagg_storages, ts)
 
     nitems = 100
 
@@ -71,8 +67,6 @@ class test_layered09(wttest.WiredTigerTestCase):
         # The delta percentage of 100 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
         cfg = 'key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
-        if self.uri.startswith('file'):
-            cfg += ',block_manager=disagg'
         return cfg
 
     def conn_config(self):

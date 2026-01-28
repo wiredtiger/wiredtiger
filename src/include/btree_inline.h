@@ -37,26 +37,6 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_btree_never_written --
- *     Return whether this btree should never be written.
- */
-static bool
-__wt_btree_never_written(WT_SESSION_IMPL *session, WT_BTREE *btree)
-{
-    if (F_ISSET(btree, WT_BTREE_READONLY))
-        return (true);
-
-    /*
-     * At the moment, disaggregated shared btrees on the follower are not marked as read-only,
-     * although they effectively are.
-     */
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !S2C(session)->layered_table_manager.leader)
-        return (true);
-
-    return (false);
-}
-
-/*
  * __wt_page_is_empty --
  *     Return if the page is empty.
  */
@@ -904,8 +884,11 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_ASSERT_ALWAYS(session, !F_ISSET(page->modify, WT_PAGE_MODIFY_EXCLUSIVE),
       "Illegal attempt to modify a page that is being exclusively reconciled");
 
-    if (__wt_btree_never_written(session, btree))
+    if (F_ISSET(btree, WT_BTREE_READONLY))
         return;
+
+    WT_ASSERT(
+      session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
 
     /*
      * This is a relatively complex dance of operations so pay attention prior to modifying the code
@@ -1008,11 +991,16 @@ static WT_INLINE void
 __wt_tree_modify_set(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
 
     btree = S2BT(session);
+    conn = S2C(session);
 
-    if (__wt_btree_never_written(session, btree))
+    if (F_ISSET(btree, WT_BTREE_READONLY))
         return;
+
+    WT_ASSERT(
+      session, !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || conn->layered_table_manager.leader);
 
     /*
      * Test before setting the dirty flag, it's a hot cache line.
@@ -1034,12 +1022,12 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
          */
         if (WT_SESSION_BTREE_SYNC(session) && !WT_IS_METADATA(session->dhandle) &&
           !WT_IS_DISAGG_META(session->dhandle) &&
-          !FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE)) {
+          !FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE)) {
             WT_ASSERT_ALWAYS(session, !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE), "%s",
               "A btree is marked dirty during RTS");
             WT_ASSERT_ALWAYS(session,
-              !F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
-                !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING_CHECKPOINT),
+              !F_ISSET(conn, WT_CONN_RECOVERING) &&
+                !F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING_CHECKPOINT),
               "%s", "A btree is marked dirty during recovery or shutdown");
         }
         btree->modified = true;
@@ -1057,8 +1045,8 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
      * The btree may already be marked dirty while the connection is still clean; mark the
      * connection dirty outside the test of the btree state.
      */
-    if (!S2C(session)->modified)
-        S2C(session)->modified = true;
+    if (!conn->modified)
+        conn->modified = true;
 }
 
 /*
@@ -1109,8 +1097,11 @@ __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      * Prepared records in the datastore require page updates, even for read-only handles, don't
      * mark the tree or page dirty.
      */
-    if (__wt_btree_never_written(session, btree))
+    if (F_ISSET(btree, WT_BTREE_READONLY))
         return;
+
+    WT_ASSERT(session,
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
 
     /*
      * Mark the tree dirty (even if the page is already marked dirty), newly created pages to
@@ -1146,8 +1137,11 @@ __wt_page_parent_modify_set(WT_SESSION_IMPL *session, WT_REF *ref, bool page_onl
 
     btree = S2BT(session);
 
-    if (__wt_btree_never_written(session, btree))
+    if (F_ISSET(btree, WT_BTREE_READONLY))
         return (0);
+
+    WT_ASSERT(session,
+      !F_ISSET(btree, WT_BTREE_DISAGGREGATED) || S2C(session)->layered_table_manager.leader);
 
     /*
      * This function exists as a place to stash this comment. There are a few places where we need
