@@ -111,6 +111,7 @@ typedef struct {
 
     const char *progname;             /* Truncated program name */
     char *build_dir;                  /* Build directory path */
+    /* FIXME-WT-16543 Create a struct for disagg options in TEST_OPTS */
     const char *disagg_mode;          /* Disaggregated storage mode */
     const char *disagg_page_log;      /* Page and log service for disaggregated storage */
     const char *disagg_page_log_home; /* Page and log service home dir for disaggregated storage */
@@ -143,6 +144,7 @@ typedef struct {
 
     bool absolute_bucket_dir;      /* Use an absolute bucket path when it is a directory */
     bool compat;                   /* Compatibility */
+    /* FIXME-WT-16543 Create a struct for disagg options in TEST_OPTS */
     bool disagg_storage;           /* Uses disaggregated storage */
     bool disagg_key_provider;      /* Uses key provider testing module for disaggregated storage */
     bool disagg_switch_mode;       /* Switching disaggregated storage mode during the test */
@@ -153,6 +155,7 @@ typedef struct {
     bool tiered_begun;             /* Tiered storage ready */
     bool tiered_storage;           /* Configure tiered storage */
     bool verbose;                  /* Run in verbose mode */
+    /* FIXME-WT-16543 Create a struct for disagg options in TEST_OPTS */
     uint64_t disagg_drain_threads; /* Number of drain threads for disaggregated storage*/
     uint64_t nrecords;             /* Number of records */
     uint64_t nops;                 /* Number of operations */
