@@ -1267,8 +1267,8 @@ SIDESTEP_METHOD(__wt_page_log, pl_set_last_materialized_lsn,
   (self, session, lsn))
 
 SIDESTEP_METHOD(__wt_page_log, pl_trim_table,
-  (WT_SESSION *session, uint64_t table_id, uint64_t start_lsn),
-  (self, session, table_id, start_lsn))
+  (WT_SESSION *session, uint64_t table_id, uint64_t start_lsn, uint64_t *lsnp),
+  (self, session, table_id, start_lsn, lsnp))
 
 SIDESTEP_METHOD(__wt_page_log, terminate,
   (WT_SESSION *session),

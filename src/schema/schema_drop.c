@@ -146,7 +146,7 @@ __drop_issue_trim(WT_SESSION_IMPL *session, const char *uri)
      *
      * FIXME-WT-16527: Set start LSN once implemented.
      */
-    WT_ERR(btree->page_log->pl_trim_table(btree->page_log, &session->iface, btree->id, 0));
+    WT_ERR(btree->page_log->pl_trim_table(btree->page_log, &session->iface, btree->id, 0, NULL));
 
 err:
     WT_TRET(__wt_session_release_dhandle(session));
