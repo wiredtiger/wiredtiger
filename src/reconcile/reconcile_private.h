@@ -24,16 +24,16 @@
 /*
  * WTI_REC_TW_START_TXNID_VISIBLE_ALL
  *     An update's transaction id is considered to be globally visible when its transaction id is
- * less than the pinned id.
+ *     less than the pinned id.
  */
 #define WTI_REC_TW_START_TXNID_VISIBLE_ALL(r, tw) ((tw)->start_txn < (r)->rec_start_oldest_id)
 
 /*
  * WTI_REC_TW_START_TS_VISIBLE_ALL
  *     An update's timestamp is considered to be globally visible when its start timestamp is less
- * than or equal to the pinned timestamp. Due to a difference in transaction id based visibility and
- * timestamp visibility the timestamp comparison is inclusive whereas the transaction id comparison
- * isn't.
+ *     than or equal to the pinned timestamp. Due to a difference in transaction id based visibility
+ *     and timestamp visibility the timestamp comparison is inclusive whereas the transaction id
+ *     comparison isn't.
  */
 #define WTI_REC_TW_START_TS_VISIBLE_ALL(r, tw)   \
     ((tw)->durable_start_ts == WT_TS_NONE ||     \
