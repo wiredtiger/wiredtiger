@@ -3223,8 +3223,8 @@ err:
 int
 __wt_disagg_remove_shared_metadata_layered(WT_SESSION_IMPL *session, const char *table_name)
 {
-    WT_DECL_RET;
     WT_DECL_ITEM(uri_buf);
+    WT_DECL_RET;
 
     WT_RET(__wt_scr_alloc(session, 0, &uri_buf));
 
