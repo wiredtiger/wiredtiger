@@ -182,6 +182,7 @@ class test_layered32(wttest.WiredTigerTestCase):
         # Assert that we have written at least one internal page delta.
         if (self.delta_type == 'both' or self.delta_type == 'leaf_only'):
             self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
+        # FIXME-WT-16545: make the test to write internal deltas.
         # if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
         #     self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
         if (self.delta_type == 'none'):
