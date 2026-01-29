@@ -47,9 +47,7 @@ __prepare_discover_alloc_upd(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_U
   WT_UPDATE **updp, size_t *sizep)
 {
     WT_UPDATE *upd;
-    size_t size;
 
-    size = 0;
     *sizep = 0;
     upd = NULL;
     if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&(unpack->tw))) {
@@ -60,7 +58,7 @@ __prepare_discover_alloc_upd(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_U
          * case where the update has both start and stop prepared, no need to restore the start
          * prepared.
          */
-        WT_RET(__wt_upd_alloc(session, &__wt_tombstone, WT_UPDATE_STANDARD, &upd, &size));
+        WT_RET(__wt_upd_alloc(session, &__wt_tombstone, WT_UPDATE_STANDARD, &upd, sizep));
         upd->txnid = unpack->tw.stop_txn;
         upd->prepared_id = unpack->tw.stop_prepared_id;
         upd->prepare_ts = unpack->tw.stop_prepare_ts;
@@ -69,7 +67,7 @@ __prepare_discover_alloc_upd(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_U
         upd->prepare_state = WT_PREPARE_INPROGRESS;
     } else {
         WT_ASSERT(session, WT_TIME_WINDOW_HAS_START_PREPARE(&(unpack->tw)));
-        WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, &size));
+        WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, sizep));
         upd->txnid = unpack->tw.start_txn;
         upd->prepared_id = unpack->tw.start_prepared_id;
         upd->prepare_ts = unpack->tw.start_prepare_ts;
@@ -78,7 +76,6 @@ __prepare_discover_alloc_upd(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_U
         upd->prepare_state = WT_PREPARE_INPROGRESS;
     }
     *updp = upd;
-    *sizep = size;
     return (0);
 }
 
