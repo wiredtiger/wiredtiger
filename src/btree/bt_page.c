@@ -876,8 +876,8 @@ err:
  *     Create the actual update for a tombstone.
  */
 static int
-__page_inmem_tombstone(
-  WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp, size_t *sizep)
+__page_inmem_tombstone(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp,
+  size_t *sizep, bool tombstone_allowed)
 {
     WT_UPDATE *tombstone;
     size_t size, total_size;
@@ -890,8 +890,16 @@ __page_inmem_tombstone(
     total_size = 0;
 
     WT_ASSERT(session, WT_TIME_WINDOW_HAS_STOP(&unpack->tw));
+    if (tombstone_allowed)
+        WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &size));
+    else
+        /*
+         *  If tombstone_allowed is false, create a standard update with a special tombstone value
+         * instead of a tombstone. This is used when a prepared delete on is restored to the ingest
+         * table in disaggregated storage.
+         */
+        WT_RET(__wt_upd_alloc(session, &__wt_tombstone, WT_UPDATE_STANDARD, &tombstone, &size));
 
-    WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &size));
     total_size += size;
     tombstone->upd_durable_ts = unpack->tw.durable_stop_ts;
     tombstone->upd_start_ts = unpack->tw.stop_ts;
@@ -913,7 +921,7 @@ __page_inmem_tombstone(
  */
 static int
 __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
-  WT_UPDATE **updp, size_t *sizep)
+  WT_UPDATE **updp, size_t *sizep, bool tombstone_allowed)
 {
     WT_DECL_RET;
     WT_UPDATE *upd, *tombstone;
@@ -953,7 +961,15 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
             F_SET(upd, WT_UPDATE_DURABLE);
     }
     if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&(unpack->tw))) {
-        WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
+        if (tombstone_allowed)
+            WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
+        else
+            /*
+             *  If tombstone_allowed is false, create a standard update with a special tombstone
+             * value instead of a tombstone. This is used when a prepared delete on is restored to
+             * the ingest table in disaggregated storage.
+             */
+            WT_RET(__wt_upd_alloc(session, &__wt_tombstone, WT_UPDATE_STANDARD, &tombstone, &size));
         total_size += size;
         tombstone->upd_durable_ts = WT_TS_NONE;
         tombstone->txnid = unpack->tw.stop_txn;
@@ -986,13 +1002,14 @@ err:
  */
 int
 __wt_page_inmem_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
-  WT_UPDATE **updp, size_t *sizep)
+  WT_UPDATE **updp, size_t *sizep, bool tombstone_allowed)
 {
     if (WT_TIME_WINDOW_HAS_PREPARE(&unpack->tw))
-        return (__page_inmem_prepare_update(session, value, unpack, updp, sizep));
+        return (
+          __page_inmem_prepare_update(session, value, unpack, updp, sizep, tombstone_allowed));
 
     WT_ASSERT(session, WT_TIME_WINDOW_HAS_STOP(&unpack->tw));
-    return (__page_inmem_tombstone(session, unpack, updp, sizep));
+    return (__page_inmem_tombstone(session, unpack, updp, sizep, tombstone_allowed));
 }
 
 /*
@@ -1003,7 +1020,7 @@ static int
 __page_inmem_update_col(WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR_BTREE *cbt, uint64_t recno,
   WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp, size_t *sizep)
 {
-    WT_RET(__wt_page_inmem_update(session, value, unpack, updp, sizep));
+    WT_RET(__wt_page_inmem_update(session, value, unpack, updp, sizep, true));
 
     /* Search the page and apply the modification. */
     WT_RET(__wt_col_search(cbt, recno, ref, true, NULL));
@@ -1099,7 +1116,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
             WT_ASSERT_ALWAYS(session, __wt_cell_type_raw(unpack.cell) != WT_CELL_VALUE_OVFL_RM,
               "Should never read an overflow removed value for a prepared update");
 
-            WT_ERR(__wt_page_inmem_update(session, value, &unpack, &upd, &size));
+            WT_ERR(__wt_page_inmem_update(session, value, &unpack, &upd, &size, true));
             total_size += size;
 
             /* Search the page and apply the modification. */
