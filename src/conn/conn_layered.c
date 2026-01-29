@@ -1281,6 +1281,7 @@ __disagg_pick_up_checkpoint_meta(
         ckpt_meta.has_metadata_checksum = true;
         ckpt_meta.metadata_checksum = (uint32_t)metadata_checksum;
     } else
+        /* FIXME-WT-16000: Make the checksum parameter in "checkpoint_meta" required */
         __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE, "%s\"%s\"",
           "Missing metadata_checksum from metadata: ", meta_str);
 
