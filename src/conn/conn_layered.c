@@ -335,6 +335,9 @@ __disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_item, WT_CRYPT_HE
     __disagg_get_crypt_header(key_item, &header);
 
     expected_checksum = header->checksum;
+#ifdef WORDS_BIGENDIAN
+    expected_checksum = __wt_bswap32(expected_checksum);
+#endif
     header->checksum = 0;
     checksum = __wt_checksum((uint8_t *)key_item->data, key_item->size);
     if (checksum != expected_checksum)
