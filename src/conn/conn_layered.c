@@ -19,6 +19,7 @@ typedef struct __wt_disagg_checkpoint_meta {
     uint32_t metadata_checksum; /* The checksum of the metadata page. */
 
     uint64_t database_size; /* The total database size. */
+    bool has_database_size; /* Whether the database size is present. */
 } WT_DISAGG_CHECKPOINT_META;
 
 /* Function prototypes for disaggregated storage and layered tables. */
@@ -1212,7 +1213,8 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
       &conn->disaggregated_storage.last_checkpoint_oldest_timestamp, metadata->oldest_timestamp);
 
     /* Set the database size. */
-    conn->disaggregated_storage.database_size = ckpt_meta->database_size;
+    if (ckpt_meta->has_database_size)
+        conn->disaggregated_storage.database_size = ckpt_meta->database_size;
 
     /* Remember the root config of the last checkpoint. */
     __wt_free(session, conn->disaggregated_storage.last_checkpoint_root);
@@ -1390,10 +1392,18 @@ __disagg_pick_up_checkpoint_meta(
         __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE, "%s\"%s\"",
           "Missing metadata_checksum from metadata: ", meta_str);
 
-    /* Extract the database size. */
-    WT_ERR(__wt_config_getones(session, meta_str, "database_size", &cval));
-    if (cval.len > 0)
+    /* Extract the database compressed size, if it exists. */
+    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "database_size", &cval), true);
+    if (WT_CHECK_AND_RESET(ret, 0) && cval.len != 0) {
+        /*
+         * FIXME-WT-16562 Checkpoint size tech debt cleanup. Disagg checkpoint metadata may be
+         * received without database_size. For now we treat this field as optional to avoid crashing
+         * when size information is missing. Once checkpoint size support is fully established, this
+         * fallback path should be removed and database_size made mandatory.
+         */
+        ckpt_meta.has_database_size = true;
         ckpt_meta.database_size = (uint64_t)cval.val;
+    }
 
     /* Now actually pick up the checkpoint. */
     WT_ERR(__disagg_pick_up_checkpoint(session, &ckpt_meta));
