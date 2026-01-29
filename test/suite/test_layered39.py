@@ -123,7 +123,7 @@ class test_layered39(wttest.WiredTigerTestCase):
         page_log.pl_set_last_materialized_lsn(self.session, last_lsn)
         self.conn.set_context_uint(wiredtiger.WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN, last_lsn)
 
-        # Evict pages to ensure all pages are written including the dirty parents pages
+        # Evict pages to ensure all pages are written including the internal pages dirtied by eviction of split child pages
         self.evict(self.uri, data)
 
         self.session.checkpoint()
