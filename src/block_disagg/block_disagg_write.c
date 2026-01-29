@@ -296,8 +296,8 @@ __wti_block_disagg_page_discard(
     WT_PAGE_LOG_HANDLE *plhandle = block_disagg->plhandle;
 
     /*
-     * Decrement the btree's running total of compressed bytes. The cookie.size field represents the
-     * cumulative size of the block chain (base + deltas).
+     * Decrement the btree's running total of bytes. The cookie.size field represents the cumulative
+     * size of the block chain (base + deltas).
      */
     (void)__wt_atomic_sub_uint64(&S2BT(session)->bytes_total, cookie.size);
 
