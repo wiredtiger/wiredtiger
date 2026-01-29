@@ -22,17 +22,19 @@
 #define WTI_REC_SPLIT_MIN_ITEMS_USE_MEM 10
 
 /*
- * WTI_REC_TW_START_VISIBLE_ALL
- *     Check if the provided time window's start is globally visible as per the saved state on the
- *     reconciliation structure.
- *
- *     An update is considered to be globally visible when its transaction id is less than the
- *     pinned id, and when its start timestamp is less than or equal to the pinned timestamp.
- *     Due to a difference in transaction id based visibility and timestamp visibility the timestamp
- *     comparison is inclusive whereas the transaction id comparison isn't.
+ * WTI_REC_TW_START_TXNID_VISIBLE_ALL
+ *     An update's transaction id is considered to be globally visible when its transaction id is
+ * less than the pinned id.
  */
 #define WTI_REC_TW_START_TXNID_VISIBLE_ALL(r, tw) ((tw)->start_txn < (r)->rec_start_oldest_id)
 
+/*
+ * WTI_REC_TW_START_TS_VISIBLE_ALL
+ *     An update's timestamp is considered to be globally visible when its start timestamp is less
+ * than or equal to the pinned timestamp. Due to a difference in transaction id based visibility and
+ * timestamp visibility the timestamp comparison is inclusive whereas the transaction id comparison
+ * isn't.
+ */
 #define WTI_REC_TW_START_TS_VISIBLE_ALL(r, tw)   \
     ((tw)->durable_start_ts == WT_TS_NONE ||     \
       ((r)->rec_start_pinned_ts != WT_TS_NONE && \

@@ -398,6 +398,7 @@ TSO
 TSan
 TW
 TXN
+TXNID
 ThreadList
 ThreadListWrapper
 Timespec
