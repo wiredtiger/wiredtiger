@@ -84,8 +84,9 @@ functions:
             # Set extensions to load
             EXT="extensions=["
             EXT+="ext/compressors/snappy/libwiredtiger_snappy.so,"
-            EXT+="ext/collators/reverse/libwiredtiger_reverse_collator.so, "
-            EXT+="ext/encryptors/rotn/libwiredtiger_rotn.so, "
+            EXT+="ext/collators/reverse/libwiredtiger_reverse_collator.so,"
+            EXT+="ext/encryptors/rotn/libwiredtiger_rotn.so,"
+            EXT+="ext/page_log/palite/libwiredtiger_palite.so,"
             EXT+="]"
             export EXT
 
@@ -1457,8 +1458,8 @@ functions:
         # Run test/format in the build_dir to generate data files.
         # cd ${build_dir}/test/format
         cd test/format
-        # ./t -h ../../RUNDIR runs.source=table runs.type=row-store
-        ./t runs.source=table runs.type=row-store
+        # Run format test with disagg leader mode for now, which can be extended later.
+        ./t -c ../../../test/format/CONFIG.disagg disagg.mode=leader runs.timer=5:10
 
   "verify wt datafiles with binary":
     command: shell.exec
