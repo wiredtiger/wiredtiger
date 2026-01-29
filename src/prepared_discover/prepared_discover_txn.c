@@ -47,12 +47,11 @@ __prepare_discover_alloc_upd(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_U
   WT_UPDATE **updp, size_t *sizep)
 {
     WT_UPDATE *upd;
-    size_t size, total_size;
+    size_t size;
 
     size = 0;
     *sizep = 0;
     upd = NULL;
-    total_size = 0;
     if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&(unpack->tw))) {
         /*
          * Usually we would allocate a tombstone update when seeing a stop timestamp. However in
@@ -78,10 +77,8 @@ __prepare_discover_alloc_upd(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_U
         upd->upd_start_ts = unpack->tw.start_prepare_ts;
         upd->prepare_state = WT_PREPARE_INPROGRESS;
     }
-    total_size += size;
-
     *updp = upd;
-    *sizep = total_size;
+    *sizep = size;
     return (0);
 }
 
