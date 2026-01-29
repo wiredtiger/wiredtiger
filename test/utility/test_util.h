@@ -109,8 +109,8 @@ typedef struct {
     const char *argv0; /* Exec name */
     char usage[512];   /* Usage string for this parser */
 
-    const char *progname;             /* Truncated program name */
-    char *build_dir;                  /* Build directory path */
+    const char *progname; /* Truncated program name */
+    char *build_dir;      /* Build directory path */
     /* FIXME-WT-16543 Create a struct for disagg options in TEST_OPTS */
     const char *disagg_mode;          /* Disaggregated storage mode */
     const char *disagg_page_log;      /* Page and log service for disaggregated storage */
@@ -142,19 +142,19 @@ typedef struct {
     bool internal_page_delta; /* Use internal page deltas */
     bool leaf_page_delta;     /* Use leaf page deltas */
 
-    bool absolute_bucket_dir;      /* Use an absolute bucket path when it is a directory */
-    bool compat;                   /* Compatibility */
+    bool absolute_bucket_dir; /* Use an absolute bucket path when it is a directory */
+    bool compat;              /* Compatibility */
     /* FIXME-WT-16543 Create a struct for disagg options in TEST_OPTS */
-    bool disagg_storage;           /* Uses disaggregated storage */
-    bool disagg_key_provider;      /* Uses key provider testing module for disaggregated storage */
-    bool disagg_switch_mode;       /* Switching disaggregated storage mode during the test */
-    bool do_data_ops;              /* Have schema ops use data */
-    bool inmem;                    /* In-memory */
-    bool make_bucket_dir;          /* Create bucket when it is a directory */
-    bool preserve;                 /* Don't remove files on exit */
-    bool tiered_begun;             /* Tiered storage ready */
-    bool tiered_storage;           /* Configure tiered storage */
-    bool verbose;                  /* Run in verbose mode */
+    bool disagg_storage;      /* Uses disaggregated storage */
+    bool disagg_key_provider; /* Uses key provider testing module for disaggregated storage */
+    bool disagg_switch_mode;  /* Switching disaggregated storage mode during the test */
+    bool do_data_ops;         /* Have schema ops use data */
+    bool inmem;               /* In-memory */
+    bool make_bucket_dir;     /* Create bucket when it is a directory */
+    bool preserve;            /* Don't remove files on exit */
+    bool tiered_begun;        /* Tiered storage ready */
+    bool tiered_storage;      /* Configure tiered storage */
+    bool verbose;             /* Run in verbose mode */
     /* FIXME-WT-16543 Create a struct for disagg options in TEST_OPTS */
     uint64_t disagg_drain_threads; /* Number of drain threads for disaggregated storage*/
     uint64_t nrecords;             /* Number of records */
