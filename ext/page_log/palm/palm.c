@@ -1333,7 +1333,7 @@ static int
 palm_trim_table(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t table_id, uint64_t start_lsn)
 {
     PALM *palm;
-    WT_DECL_RET;
+    int ret = 0;
     PALM_KV_CONTEXT context;
 
     palm = (PALM *)page_log;
@@ -1352,7 +1352,7 @@ err:
         PALM_VERBOSE_PRINT(
           palm, session, "palm_trim_table(lsn=%" PRIu64 ") returned %d\n", table_id, ret);
     }
-    return (0);
+    return (ret);
 }
 
 /*
