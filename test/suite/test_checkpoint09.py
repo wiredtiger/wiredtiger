@@ -120,7 +120,11 @@ class test_checkpoint09(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         val = self.get_stat(stat.conn.rec_time_window_start_ts)
-        self.assertEqual(val, nrows)
+        # Column store uses rle to encode all the entries that are the same.
+        if self.key_format == 'r':
+            self.assertEqual(val, 1)
+        else:
+            self.assertEqual(val, nrows)
 
         self.evict_cursor(uri, ds, nrows)
         self.large_updates(uri, value2, ds, nrows, 10, 20)
@@ -131,7 +135,11 @@ class test_checkpoint09(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         val = self.get_stat(stat.conn.rec_time_window_start_ts)
-        self.assertEqual(val, nrows + nrows/10)
+        # Column store uses rle to encode all the entries that are the same.
+        if self.key_format == 'r':
+            self.assertEqual(val, 1 + nrows/10)
+        else:
+            self.assertEqual(val, nrows + nrows/10)
 
         self.evict_cursor(uri, ds, nrows)
         self.large_updates(uri, value3, ds, nrows, 100, 30)
@@ -142,6 +150,10 @@ class test_checkpoint09(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         val = self.get_stat(stat.conn.rec_time_window_start_ts)
-        self.assertEqual(val, nrows + nrows/10 + nrows/100)
+        # Column store uses rle to encode all the entries that are the same.
+        if self.key_format == 'r':
+            self.assertEqual(val, 1 + nrows/10 + nrows/100)
+        else:
+            self.assertEqual(val, nrows + nrows/10 + nrows/100)
 
         self.session.close()
