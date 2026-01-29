@@ -2466,10 +2466,10 @@ public:
     {
         const uint64_t lsn = storage.make_next_lsn();
 
-        /* 
-         * Followers can read trimmed tables for a limited time after we issue a drop command on leader mode.
-         * For this reason, we will no-op the trim table. Both leader and follower nodes
-         * should have removed the table reference removed from their metadata tables.
+        /*
+         * Followers can read trimmed tables for a limited time after we issue a drop command on
+         * leader mode. For this reason, we will no-op the trim table. Both leader and follower
+         * nodes should have removed the table reference removed from their metadata tables.
          */
         LOG_DEBUG("Trim table for table_id={}, lsn={}", table_id, start_lsn);
         if (lsnp) {
@@ -2548,7 +2548,8 @@ palite_set_last_materialized_lsn(WT_PAGE_LOG *page_log, WT_SESSION *sess, uint64
 }
 
 static int
-palite_trim_table(WT_PAGE_LOG *page_log, WT_SESSION *sess, uint64_t table_id, uint64_t start_lsn, uint64_t *lsnp)
+palite_trim_table(
+  WT_PAGE_LOG *page_log, WT_SESSION *sess, uint64_t table_id, uint64_t start_lsn, uint64_t *lsnp)
 {
     return safe_call<Palite>(sess, page_log, &Palite::trim_table, table_id, start_lsn, lsnp);
 }
