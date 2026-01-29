@@ -54,9 +54,20 @@ class test_layered39(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return val
 
+    def evict(self, uri, keys):
+        self.session.begin_transaction()
+        # Configure debug behavior on a cursor to evict the page positioned on when the reset API is used.
+        evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
+        for key in keys:
+            evict_cursor.set_key(key)
+            self.assertEqual(evict_cursor.search(), 0)
+            evict_cursor.reset()
+        self.session.rollback_transaction()
+        evict_cursor.close()
+
     def test_layered39(self):
         # Avoid checkpoint error with precise checkpoint
-        self.conn.set_timestamp('stable_timestamp=1')
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
 
         # The node started as a follower, so step it up as the leader
         self.conn.reconfigure('disaggregated=(role="leader")')
@@ -66,11 +77,26 @@ class test_layered39(wttest.WiredTigerTestCase):
         # we only evict pages that have been materialized.
         self.session.create(self.uri, self.session_create_config())
         cursor = self.session.open_cursor(self.uri, None, None)
+
+        # Build key data structure for easier management and reuse in evict function
+        data = []
         for i in range(self.nitems):
-            cursor["Hello " + str(i)] = "World"
-            cursor["Hi " + str(i)] = "There"
-            cursor["OK " + str(i)] = "Go"
+            keys = [
+                "Hello " + f"{i}",
+                "Hi " + f"{i}",
+                "OK " + f"{i}"
+            ]
+            data.extend(keys)
+
+        # Insert data using the prepared keys and corresponding values
+        for i in range(self.nitems):
+            self.session.begin_transaction()
+            cursor[data[i*3]] = "World"
+            cursor[data[i*3+1]] = "There"
+            cursor[data[i*3+2]] = "Go"
+            self.session.commit_transaction('commit_timestamp='+self.timestamp_str(15))
             if i % 10_000 == 0:
+                self.pr(f'Checkpoint {i}')
                 self.session.checkpoint()
                 (ret, last_lsn) = page_log.pl_get_last_lsn(self.session)
                 self.pr(f"{i=} {last_lsn=}")
@@ -82,11 +108,10 @@ class test_layered39(wttest.WiredTigerTestCase):
                 else:
                     self.conn.set_context_uint(wiredtiger.WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN,
                                                last_lsn)
-
         cursor.close()
 
         # Set stable timestamp to ensure all pages are written during checkpoint
-        self.conn.set_timestamp(f'stable_timestamp=100')
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(100))
 
         self.session.checkpoint()
 
@@ -96,8 +121,19 @@ class test_layered39(wttest.WiredTigerTestCase):
         # Finally setting the last materialised lsn
         self.pr(f'Finalise the last materialised lsn = {last_lsn}')
         page_log.pl_set_last_materialized_lsn(self.session, last_lsn)
-        self.conn.set_context_uint(wiredtiger.WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN,
-                                               last_lsn)
+        self.conn.set_context_uint(wiredtiger.WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN, last_lsn)
+
+        # manually evict pages to ensure all pages are written including the split parents pages
+        self.evict(self.uri, data)
+
+        self.session.checkpoint()
+        (ret, last_lsn) = page_log.pl_get_last_lsn(self.session)
+        self.assertEqual(ret, 0)
+
+        # Finally setting the last materialised lsn
+        self.pr(f'Finalise the last materialised lsn = {last_lsn}')
+        page_log.pl_set_last_materialized_lsn(self.session, last_lsn)
+        self.conn.set_context_uint(wiredtiger.WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN, last_lsn)
 
         page_log.terminate(self.session) # dereference
 
