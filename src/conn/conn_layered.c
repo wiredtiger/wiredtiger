@@ -22,10 +22,7 @@ typedef struct __wt_disagg_checkpoint_meta {
 /* Function prototypes for disaggregated storage and layered tables. */
 static void __disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt);
 static void __disagg_get_crypt_header(WT_ITEM *key_item, WT_CRYPT_HEADER **header);
-static int __disagg_copy_shared_metadata_one(WT_SESSION_IMPL *session, const char *uri);
 static int __layered_drain_ingest_tables(WT_SESSION_IMPL *session);
-static void __layered_update_prune_timestamps_print_update_logs(WT_SESSION_IMPL *session,
-  WT_LAYERED_TABLE *layered_table, wt_timestamp_t prune_timestamp, int64_t ckpt_inuse);
 static int __layered_iterate_ingest_tables_for_gc_pruning(
   WT_SESSION_IMPL *session, wt_timestamp_t checkpoint_timestamp);
 static int __layered_last_checkpoint_order(
@@ -149,6 +146,8 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
     cursor_check = cursor_scan = NULL;
     stable_uri = NULL;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
     WT_ERR(__wt_metadata_cursor(session, &cursor_check));
     WT_ERR(__wt_metadata_cursor(session, &cursor_scan));
 
@@ -174,7 +173,7 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
               __layered_create_missing_stable_table(session, stable_uri, layered_cfg),
               "Failed to create missing stable table \"%s\" from \"%s\"", stable_uri, layered_cfg);
             /* Ensure that we properly handle empty tables. */
-            WT_ERR(__wt_disagg_copy_metadata_later(
+            WT_ERR(__wt_disagg_update_metadata_later(
               session, stable_uri, layered_uri + strlen("layered:")));
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Created missing stable table \"%s\" from \"%s\"", stable_uri, layered_uri);
@@ -372,7 +371,8 @@ err:
 
 /*
  * __disagg_put_page --
- *     Write a page to disaggregated storage.
+ *     Write a page to disaggregated storage. This is intended for pages that are not part of a
+ *     btree, such as shared turtle files and encryption key.
  */
 static int
 __disagg_put_page(WT_SESSION_IMPL *session, WT_PAGE_LOG_HANDLE *page_log, uint64_t page_id,
@@ -386,6 +386,7 @@ __disagg_put_page(WT_SESSION_IMPL *session, WT_PAGE_LOG_HANDLE *page_log, uint64
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
 
     WT_CLEAR(put_args);
+
     put_args.backlink_lsn = last_page_lsn[page_id];
 
     WT_RET(page_log->plh_put(page_log, &session->iface, page_id, 0, &put_args, item));
@@ -494,7 +495,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
-    if (session->ckpt.key_provider_crash_point == KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION)
+    if (session->ckpt.crash_trigger_point == KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION)
         __wt_debug_crash(session);
 
     /* Check for a new encryption key data. If the size is 0, there is none so we can skip. */
@@ -518,7 +519,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     /* Write the encryption key data to disaggregated storage. */
     ret = __disagg_put_crypt_key(session, WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID, &crypt.keys, &lsn);
 
-    if (session->ckpt.key_provider_crash_point == KEY_PROVIDER_CRASH_DURING_KEY_ROTATION)
+    if (session->ckpt.crash_trigger_point == KEY_PROVIDER_CRASH_DURING_KEY_ROTATION)
         __wt_debug_crash(session);
 
     /* Callback to update key provider on the result of new encryption key data . */
@@ -535,7 +536,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     }
     WT_IGNORE_RET(key_provider->on_key_update(key_provider, (WT_SESSION *)session, &crypt));
 
-    if (session->ckpt.key_provider_crash_point == KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION)
+    if (session->ckpt.crash_trigger_point == KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION)
         __wt_debug_crash(session);
 done:
 err:
@@ -1028,20 +1029,18 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     WT_CONFIG_ITEM cval;
     WT_CURSOR *cursor;
     WT_DECL_ITEM(metadata_cfg);
+    WT_DECL_ITEM(old_uri_buf);
     WT_DECL_RET;
-    WT_SESSION_IMPL *shared_metadata_session;
     uint32_t existing_tables, new_tables, new_ingest;
     char *layered_ingest_uri, *cfg_ret;
-    const char *cfg[3], *current_value, *metadata_key, *metadata_value;
+    const char *cfg[3], *checkpoint_name, *checkpoint_name_new, *current_value, *metadata_key,
+      *metadata_value;
 
     cursor = NULL;
-    shared_metadata_session = NULL;
+    checkpoint_name = NULL;
+    checkpoint_name_new = NULL;
     layered_ingest_uri = cfg_ret = NULL;
     existing_tables = new_tables = new_ingest = 0;
-
-    /* We need a separate internal session to pick up the new checkpoint. */
-    WT_ERR(__wt_open_internal_session(
-      S2C(session), "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
 
     /*
      * Throw away any references to the old disaggregated metadata table. This ensures that we are
@@ -1056,9 +1055,10 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
 
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
     cfg[1] = NULL;
-    WT_ERR(__wt_open_cursor(shared_metadata_session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
+    WT_ERR(__wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
 
     WT_ERR(__wt_scr_alloc(session, 0, &metadata_cfg));
+    WT_ERR(__wt_scr_alloc(session, 0, &old_uri_buf));
 
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &metadata_key));
@@ -1079,26 +1079,65 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
             cfg[2] = NULL;
             WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
 
+            int64_t order, order_new;
+            uint64_t time, time_new;
+            /*
+             * Before inserting the new value, get the checkpoint name of the file at the previous
+             * checkpoint.
+             */
+            WT_ERR_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
+                                 session, metadata_key, &checkpoint_name, &order, &time),
+              false);
+
+            /* Retrieve the name of the current unnamed checkpoint. */
+            checkpoint_name_new = NULL;
+            order_new = 0;
+            time_new = 0;
+            WT_ERR_NOTFOUND_OK(__wt_ckpt_last_name(session, metadata_value, &checkpoint_name_new,
+                                 &order_new, &time_new),
+              false);
+            WT_ERR_MSG_CHK(session, ret,
+              "Retrieving the last checkpoint name failed for key \"%s\"", metadata_key);
+
             /* FIXME-WT-14730: check that the other parts of the metadata are identical. */
+            /*
+             * FIXME-WT-16494: how to decide two checkpoints are different if they are written by
+             * different nodes.
+             */
+            bool same_checkpoint = checkpoint_name != NULL && checkpoint_name_new != NULL &&
+              strcmp(checkpoint_name, checkpoint_name_new) == 0 && order == order_new &&
+              time == time_new;
 
             /* Put our new config in */
             md_cursor->set_value(md_cursor, cfg_ret);
             WT_ERR_MSG_CHK(session, md_cursor->insert(md_cursor),
               "Failed to insert metadata for key \"%s\"", metadata_key);
 
-            existing_tables++;
+            ++existing_tables;
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Updated the local metadata for key \"%s\" to include new checkpoint: \"%.*s\"",
               metadata_key, (int)cval.len, cval.str);
 
             /*
-             * Mark any matching data handles to be out of date. Any new opens will get the new
-             * metadata.
+             * Mark any matching data handles associated with the previous checkpoint to be out of
+             * date. Any new opens will get the new metadata.
+             */
+            if (!same_checkpoint) {
+                WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", metadata_key, checkpoint_name));
+                WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, old_uri_buf->data),
+                  "Marking data handles outdated failed: \"%s\"", (const char *)old_uri_buf->data);
+            }
+            /*
+             * Mark all live btrees as outdated. Otherwise, we will not open a new dhandle for live
+             * btrees after step-up.
+             *
+             * TODO: This is better done at step-up or step-down to force close all live btrees.
              */
             WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, metadata_key),
-              "Marking data handles outdated failed: \"%s\"", metadata_key);
+              "Marking data handles outdated failed: \"%s\"", (const char *)metadata_key);
             __wt_free(session, cfg_ret);
-            cfg_ret = NULL;
+            __wt_free(session, checkpoint_name);
+            __wt_free(session, checkpoint_name_new);
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
             /* FIXME-WT-14730: verify that there is no btree ID conflict. */
@@ -1145,13 +1184,14 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
       existing_tables, new_tables, new_ingest);
 
 err:
-    __wt_free(session, layered_ingest_uri);
     __wt_free(session, cfg_ret);
+    __wt_free(session, checkpoint_name);
+    __wt_free(session, checkpoint_name_new);
+    __wt_free(session, layered_ingest_uri);
     __wt_scr_free(session, &metadata_cfg);
+    __wt_scr_free(session, &old_uri_buf);
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
-    if (shared_metadata_session != NULL)
-        WT_TRET(__wt_session_close_internal(shared_metadata_session));
     return (ret);
 }
 
@@ -1206,7 +1246,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_DECL_RET;
     WT_DISAGG_METADATA metadata;
     WT_ITEM metadata_buf;
-    WT_SESSION_IMPL *internal_session;
+    WT_SESSION_IMPL *internal_session, *shared_metadata_session;
     uint64_t current_meta_lsn;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
@@ -1272,10 +1312,15 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_ERR(__disagg_save_checkpoint_meta(session, internal_session, md_cursor, &metadata));
 
     /*
-     * Part 2: Apply the metadata for other tables from the shared metadata table.
+     * Part 2: Apply the metadata for other tables from the shared metadata table. FIXME-WT-16528
+     * Investigate whether we need a separate internal session to pick up the new checkpoint.
      */
-
-    WT_ERR(__disagg_apply_checkpoint_meta(session, internal_session, md_cursor, ckpt_meta));
+    WT_ERR(__wt_open_internal_session(
+      conn, "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
+    ret = __disagg_apply_checkpoint_meta(
+      shared_metadata_session, internal_session, md_cursor, ckpt_meta);
+    WT_TRET(__wt_session_close_internal(shared_metadata_session));
+    WT_ERR(ret);
 
     /*
      * Part 3: Do the bookkeeping.
@@ -1338,14 +1383,17 @@ __disagg_pick_up_checkpoint_meta(
      * treat it as optional, in order to support clusters with an earlier data format.
      */
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "metadata_checksum", &cval), true);
-    if (WT_CHECK_AND_RESET(ret, 0) && cval.len != 0) {
+    if (ret == 0 && cval.len != 0) {
         WT_ERR(__wt_conf_parse_hex(session, "metadata_checksum", &metadata_checksum, &cval));
         if (metadata_checksum > UINT32_MAX)
             WT_ERR_MSG(
               session, EINVAL, "Invalid metadata checksum value: %" PRIx64, metadata_checksum);
         ckpt_meta.has_metadata_checksum = true;
         ckpt_meta.metadata_checksum = (uint32_t)metadata_checksum;
-    }
+    } else
+        /* FIXME-WT-16000: Make the checksum parameter in "checkpoint_meta" required */
+        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE, "%s\"%s\"",
+          "Missing metadata_checksum from metadata: ", meta_str);
 
     /* Now actually pick up the checkpoint. */
     WT_ERR(__disagg_pick_up_checkpoint(session, &ckpt_meta));
@@ -1569,67 +1617,208 @@ __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_disagg_copy_metadata_later --
+ * __disagg_update_metadata_free --
+ *     Free an entry in the update metadata queue.
+ */
+static void
+__disagg_update_metadata_free(WT_SESSION_IMPL *session, WT_DISAGG_UPDATE_METADATA **entry)
+{
+    if (*entry == NULL)
+        return;
+    __wt_free(session, (*entry)->stable_uri);
+    __wt_free(session, (*entry)->table_name);
+    __wt_free(session, (*entry)->colgroup_value);
+    __wt_free(session, (*entry)->layered_value);
+    __wt_free(session, (*entry)->stable_value);
+    __wt_free(session, (*entry)->table_value);
+    __wt_free(session, *entry);
+    *entry = NULL;
+}
+
+/*
+ * __disagg_save_metadata --
+ *     Fetch a metadata key/value pair from the metadata table and save the value.
+ */
+static int
+__disagg_save_metadata(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, const char *prefix,
+  const char *key, char **valuep)
+{
+    WT_DECL_ITEM(md_key);
+    WT_DECL_RET;
+    const char *md_value;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &md_key));
+    WT_ERR(__wt_buf_fmt(session, md_key, "%s%s", prefix, key));
+
+    md_cursor->set_key(md_cursor, md_key->data);
+    WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
+    if (!WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
+        WT_ERR(md_cursor->get_value(md_cursor, &md_value));
+        WT_ERR(__wt_strdup(session, md_value, valuep));
+    }
+
+err:
+    __wt_scr_free(session, &md_key);
+    return (ret);
+}
+
+/*
+ * __wt_disagg_update_metadata_later --
  *     Copy the metadata that belongs to the given URI into the shared metadata table at the next
  *     checkpoint.
  */
 int
-__wt_disagg_copy_metadata_later(
+__wt_disagg_update_metadata_later(
   WT_SESSION_IMPL *session, const char *stable_uri, const char *table_name)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DISAGG_COPY_METADATA *entry;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_DISAGG_UPDATE_METADATA *entry;
 
     conn = S2C(session);
+    cursor = NULL;
+    entry = NULL;
 
-    WT_RET(__wt_calloc_one(session, &entry));
-    WT_RET(__wt_strdup(session, stable_uri, &entry->stable_uri));
-    WT_RET(__wt_strdup(session, table_name, &entry->table_name));
-    entry->retries_left = 1;
+    /*
+     * Ensure that the schema lock is held. We cannot check this via spinlock ownership, because
+     * this function might be called from an internal session, while the lock was acquired by its
+     * parent session.
+     */
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
 
-    __wt_spin_lock(session, &conn->disaggregated_storage.copy_metadata_lock);
-    TAILQ_INSERT_TAIL(&conn->disaggregated_storage.copy_metadata_qh, entry, q);
-    __wt_spin_unlock(session, &conn->disaggregated_storage.copy_metadata_lock);
+    /* Allocate the entry structure. */
+    WT_ERR(__wt_calloc_one(session, &entry));
+    WT_ERR(__wt_strdup(session, stable_uri, &entry->stable_uri));
+    WT_ERR(__wt_strdup(session, table_name, &entry->table_name));
 
-    return (0);
+    /* Get the table metadata. */
+    WT_ERR(__wt_metadata_cursor(session, &cursor));
+
+    /* Fetch the relevant data from the metadata table and save it in the entry. */
+    WT_ERR(
+      __disagg_save_metadata(session, cursor, "colgroup:", table_name, &entry->colgroup_value));
+    WT_ERR(__disagg_save_metadata(session, cursor, "layered:", table_name, &entry->layered_value));
+    WT_ERR(__disagg_save_metadata(session, cursor, "table:", table_name, &entry->table_value));
+    WT_ERR(__disagg_save_metadata(session, cursor, "", stable_uri, &entry->stable_value));
+
+    /* Cannot fail past this point. */
+    __wt_spin_lock(session, &conn->disaggregated_storage.update_metadata_lock);
+    TAILQ_INSERT_TAIL(&conn->disaggregated_storage.update_metadata_qh, entry, q);
+    __wt_spin_unlock(session, &conn->disaggregated_storage.update_metadata_lock);
+
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Scheduled copying disaggregated metadata for table \"%s\" (stable URI \"%s\") to shared "
+      "metadata table at next checkpoint:",
+      table_name, stable_uri);
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  colgroup: %s",
+      entry->colgroup_value == NULL ? "<none>" : entry->colgroup_value);
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  layered: %s",
+      entry->layered_value == NULL ? "<none>" : entry->layered_value);
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  table: %s",
+      entry->table_value == NULL ? "<none>" : entry->table_value);
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  stable: %s",
+      entry->stable_value == NULL ? "<none>" : entry->stable_value);
+
+    /* No need to free the entry structure here as it has been added to the queue. */
+    entry = NULL;
+
+err:
+    __disagg_update_metadata_free(session, &entry);
+
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
 }
 
 /*
- * __disagg_copy_metadata_clear --
- *     Clear the copy metadata list.
+ * __disagg_update_metadata_clear --
+ *     Clear the update metadata list.
  */
 static void
-__disagg_copy_metadata_clear(WT_SESSION_IMPL *session)
+__disagg_update_metadata_clear(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DISAGG_COPY_METADATA *entry, *tmp;
+    WT_DISAGG_UPDATE_METADATA *entry, *tmp;
 
     conn = S2C(session);
 
-    __wt_spin_lock(session, &conn->disaggregated_storage.copy_metadata_lock);
+    __wt_spin_lock(session, &conn->disaggregated_storage.update_metadata_lock);
 
-    WT_TAILQ_SAFE_REMOVE_BEGIN(entry, &conn->disaggregated_storage.copy_metadata_qh, q, tmp)
+    WT_TAILQ_SAFE_REMOVE_BEGIN(entry, &conn->disaggregated_storage.update_metadata_qh, q, tmp)
     {
-        TAILQ_REMOVE(&conn->disaggregated_storage.copy_metadata_qh, entry, q);
-        __wt_free(session, entry->stable_uri);
-        __wt_free(session, entry->table_name);
-        __wt_free(session, entry);
+        TAILQ_REMOVE(&conn->disaggregated_storage.update_metadata_qh, entry, q);
+        __disagg_update_metadata_free(session, &entry);
     }
     WT_TAILQ_SAFE_REMOVE_END
 
-    __wt_spin_unlock(session, &conn->disaggregated_storage.copy_metadata_lock);
+    __wt_spin_unlock(session, &conn->disaggregated_storage.update_metadata_lock);
 }
 
 /*
- * __wt_disagg_copy_metadata_process --
- *     Process the copy metadata list.
+ * __disagg_update_shared_metadata_helper --
+ *     Update the shared metadata.
+ */
+static int
+__disagg_update_shared_metadata_helper(WT_SESSION_IMPL *session, const char *key, const char *value)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL};
+
+    WT_ASSERT(session, S2C(session)->layered_table_manager.leader);
+
+    cursor = NULL;
+
+    WT_ERR(__wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
+    cursor->set_key(cursor, key);
+    cursor->set_value(cursor, value);
+    WT_ERR(cursor->insert(cursor));
+
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Updated disaggregated shared metadata: key=\"%s\" value=\"%s\"", key, value);
+
+err:
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
+    return (ret);
+}
+
+/*
+ * __disagg_update_shared_metadata --
+ *     Update metadata in the shared metadata table.
+ */
+static int
+__disagg_update_shared_metadata(
+  WT_SESSION_IMPL *session, const char *prefix, const char *key, const char *value)
+{
+    WT_DECL_ITEM(md_key);
+    WT_DECL_RET;
+
+    if (value == NULL)
+        return (0);
+
+    WT_ERR(__wt_scr_alloc(session, 0, &md_key));
+    WT_ERR(__wt_buf_fmt(session, md_key, "%s%s", prefix, key));
+
+    WT_SAVE_DHANDLE(
+      session, ret = __disagg_update_shared_metadata_helper(session, md_key->data, value));
+    WT_ERR(ret);
+
+err:
+    __wt_scr_free(session, &md_key);
+    return (ret);
+}
+
+/*
+ * __wt_disagg_update_metadata_process --
+ *     Process the update metadata list.
  */
 int
-__wt_disagg_copy_metadata_process(WT_SESSION_IMPL *session)
+__wt_disagg_update_metadata_process(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_DISAGG_COPY_METADATA *entry, *tmp;
+    WT_DISAGG_UPDATE_METADATA *entry, *tmp;
 
     conn = S2C(session);
 
@@ -1640,39 +1829,25 @@ __wt_disagg_copy_metadata_process(WT_SESSION_IMPL *session)
      */
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
-    __wt_spin_lock(session, &conn->disaggregated_storage.copy_metadata_lock);
+    __wt_spin_lock(session, &conn->disaggregated_storage.update_metadata_lock);
 
-    TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.copy_metadata_qh, q, tmp)
+    TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.update_metadata_qh, q, tmp)
     {
-        WT_ERR_NOTFOUND_OK(__disagg_copy_shared_metadata_one(session, entry->stable_uri), true);
+        WT_ERR(__disagg_update_shared_metadata(
+          session, "colgroup:", entry->table_name, entry->colgroup_value));
+        WT_ERR(__disagg_update_shared_metadata(
+          session, "layered:", entry->table_name, entry->layered_value));
+        WT_ERR(__disagg_update_shared_metadata(
+          session, "table:", entry->table_name, entry->table_value));
+        WT_ERR(
+          __disagg_update_shared_metadata(session, "", entry->stable_uri, entry->stable_value));
 
-        /*
-         * There are two reasons why we might not find the metadata for the table: either the table
-         * has been dropped, or the table has been created concurrently with the checkpoint, in
-         * which case the table would not be included in the checkpoint. There is no way to
-         * distinguish the two cases, so we retry at the following checkpoint, which would see the
-         * table if it still exists.
-         */
-        if (WT_CHECK_AND_RESET(ret, WT_NOTFOUND)) {
-            if (entry->retries_left > 0) {
-                __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-                  "Failed to find metadata for table \"%s\" to copy into shared metadata table, "
-                  "will retry later",
-                  entry->table_name);
-                entry->retries_left--;
-                continue;
-            }
-        } else
-            WT_ERR(__wt_disagg_copy_shared_metadata_layered(session, entry->table_name));
-
-        TAILQ_REMOVE(&conn->disaggregated_storage.copy_metadata_qh, entry, q);
-        __wt_free(session, entry->stable_uri);
-        __wt_free(session, entry->table_name);
-        __wt_free(session, entry);
+        TAILQ_REMOVE(&conn->disaggregated_storage.update_metadata_qh, entry, q);
+        __disagg_update_metadata_free(session, &entry);
     }
 
 err:
-    __wt_spin_unlock(session, &conn->disaggregated_storage.copy_metadata_lock);
+    __wt_spin_unlock(session, &conn->disaggregated_storage.update_metadata_lock);
 
     return (ret);
 }
@@ -1747,9 +1922,15 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
     if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
         WT_RET(EINVAL);
 
-    /* This is an optional operation for testing, so ignore it if it's not supported. */
-    if (disagg->npage_log->page_log->pl_abandon_checkpoint == NULL)
+    /*
+     * FIXME-WT-16524: This function is no longer an optional operation for testing, remove this
+     * check.
+     */
+    if (disagg->npage_log->page_log->pl_abandon_checkpoint == NULL) {
+        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
+          "Abandon checkpoint operation is not supported by the current PALI implementation");
         return (0);
+    }
 
     /*
      * Call the PALI function to abandon the checkpoint. Since we are not specifying the latest
@@ -1758,7 +1939,7 @@ __disagg_abandon_checkpoint(WT_SESSION_IMPL *session)
      * the last complete checkpoint, the function would have no effect.
      */
     WT_RET(disagg->npage_log->page_log->pl_abandon_checkpoint(
-      disagg->npage_log->page_log, &session->iface, WT_PAGE_LOG_LSN_MAX));
+      disagg->npage_log->page_log, &session->iface));
 
     return (0);
 }
@@ -1895,7 +2076,7 @@ __disagg_step_down(WT_SESSION_IMPL *session)
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
 
     /* Do some cleanup as we are abandoning the current checkpoint. */
-    __disagg_copy_metadata_clear(session);
+    __disagg_update_metadata_clear(session);
 }
 
 /*
@@ -2293,8 +2474,8 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
 
-    /* Remove the list of URIs for which we still need to copy metadata entries. */
-    __disagg_copy_metadata_clear(session);
+    /* Remove the list of URIs for which we still need to update metadata entries. */
+    __disagg_update_metadata_clear(session);
 
     /* Close the metadata handles. */
     if (disagg->page_log_meta != NULL) {
@@ -2385,6 +2566,12 @@ __layered_move_updates(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upds)
 {
     WT_DECL_RET;
+
+    /*
+     * Disable bulk load if the btree is empty. Otherwise, checkpoint may skip this btree if it has
+     * never been checkpointed.
+     */
+    __wt_btree_disable_bulk(session);
 
     /* Search the page. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
@@ -2701,10 +2888,7 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     WT_RET(__wt_spin_init(
       session, &conn->layered_drain_data.queue_lock, "layered drain work queue lock"));
 
-    __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
-    /* WiredTiger doesn't have sequentially consistent stores so we lock around this store. */
-    __wt_atomic_store_bool_relaxed(&conn->layered_drain_data.running, true);
-    __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
+    __wt_atomic_store_bool(&conn->layered_drain_data.running, true);
 
     /* Open the internal session early so we can close it on error. */
     bool multithreaded = conn->layered_drain_data.thread_count > 1;
@@ -2770,23 +2954,6 @@ err:
 }
 
 /*
- * __layered_update_prune_timestamps_print_update_logs --
- *     Print logs for the prune timestamp update.
- */
-static WT_INLINE void
-__layered_update_prune_timestamps_print_update_logs(WT_SESSION_IMPL *session,
-  WT_LAYERED_TABLE *layered_table, wt_timestamp_t prune_timestamp, int64_t ckpt_inuse)
-{
-    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-      "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64, layered_table->iface.name,
-      S2BT(session)->prune_timestamp, prune_timestamp);
-
-    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-      "GC %s: update checkpoint in use from %" PRId64 " to %" PRId64, layered_table->iface.name,
-      layered_table->last_ckpt_inuse, ckpt_inuse);
-}
-
-/*
  * __layered_update_ingest_table_prune_timestamp --
  *     Update the prune timestamp of the specified ingest table.
  *
@@ -2811,7 +2978,7 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     WT_LAYERED_TABLE *layered_table;
     wt_timestamp_t prune_timestamp, btree_checkpoint_timestamp;
     int64_t ckpt_inuse, last_ckpt;
-    int32_t dhandle_inuse;
+    int32_t layered_dhandle_inuse, stable_dhandle_inuse;
 
     layered_table = NULL;
     prune_timestamp = WT_TS_NONE;
@@ -2853,7 +3020,7 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     /* Find the last checkpoint which is still in use. */
     while (ckpt_inuse < last_ckpt) {
         btree_checkpoint_timestamp = WT_TS_NONE;
-        dhandle_inuse = 0;
+        stable_dhandle_inuse = 0;
         WT_ERR(__wt_buf_fmt(session, uri_at_checkpoint_buf, "%s/%s.%" PRId64,
           layered_table->stable_uri, WT_CHECKPOINT, ckpt_inuse));
 
@@ -2864,7 +3031,7 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
 
         /* If one exists, read all the required info, then release. */
         if (ret == 0) {
-            dhandle_inuse = session->dhandle->session_inuse;
+            stable_dhandle_inuse = __wt_atomic_load_int32_acquire(&session->dhandle->session_inuse);
             btree_checkpoint_timestamp = S2BT(session)->checkpoint_timestamp;
             WT_DHANDLE_RELEASE(session->dhandle);
         }
@@ -2872,15 +3039,16 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
         WT_ERR_NOTFOUND_OK(ret, false);
 
         /* If it's in use by any session, then we're done. */
-        if (dhandle_inuse > 0) {
-            prune_timestamp = btree_checkpoint_timestamp;
+        if (stable_dhandle_inuse > 0)
             break;
-        }
 
+        prune_timestamp = btree_checkpoint_timestamp;
         ++ckpt_inuse;
     }
 
-    if (ckpt_inuse == last_ckpt)
+    layered_dhandle_inuse =
+      __wt_atomic_load_int32_acquire(&((WT_DATA_HANDLE *)layered_table)->session_inuse);
+    if (ckpt_inuse == last_ckpt && (last_ckpt != 1 || layered_dhandle_inuse == 0))
         prune_timestamp = checkpoint_timestamp;
 
     if (ckpt_inuse == layered_table->last_ckpt_inuse) {
@@ -2908,12 +3076,22 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
 
     btree = (WT_BTREE *)session->dhandle->handle;
 
-    __layered_update_prune_timestamps_print_update_logs(
-      session, layered_table, prune_timestamp, ckpt_inuse);
+    if (prune_timestamp != WT_TS_NONE) {
+        uint64_t btree_prune_timestamp = __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
+        WT_ASSERT(session, prune_timestamp >= btree_prune_timestamp);
+        __wt_atomic_store_uint64_release(&btree->prune_timestamp, prune_timestamp);
 
-    WT_ASSERT(session, prune_timestamp >= btree->prune_timestamp);
-    __wt_atomic_store_uint64_release(&btree->prune_timestamp, prune_timestamp);
-    layered_table->last_ckpt_inuse = ckpt_inuse;
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+          "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64, layered_table->iface.name,
+          btree_prune_timestamp, prune_timestamp);
+    }
+    if (ckpt_inuse > 1 || layered_dhandle_inuse == 0) {
+        layered_table->last_ckpt_inuse = ckpt_inuse;
+
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+          "GC %s: update checkpoint in use from %" PRId64 " to %" PRId64, layered_table->iface.name,
+          layered_table->last_ckpt_inuse, ckpt_inuse);
+    }
 
     WT_ERR(__wt_session_release_dhandle(session));
 
@@ -3015,116 +3193,6 @@ __layered_last_checkpoint_order(
     WT_ASSERT(session, *ckpt_order == order_from_name);
 
     return (0);
-}
-
-/*
- * __wt_disagg_update_shared_metadata --
- *     Update the shared metadata.
- */
-int
-__wt_disagg_update_shared_metadata(WT_SESSION_IMPL *session, const char *key, const char *value)
-{
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL};
-
-    WT_ASSERT(session, S2C(session)->layered_table_manager.leader);
-
-    cursor = NULL;
-
-    WT_ERR(__wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
-    cursor->set_key(cursor, key);
-    cursor->set_value(cursor, value);
-    WT_ERR(cursor->insert(cursor));
-
-    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Updated disaggregated shared metadata: key=\"%s\" value=\"%s\"", key, value);
-
-err:
-    if (cursor != NULL)
-        WT_TRET(cursor->close(cursor));
-    return (ret);
-}
-
-/*
- * __disagg_copy_shared_metadata --
- *     Copy shared metadata from the main metadata table to the shared metadata table.
- */
-static int
-__disagg_copy_shared_metadata(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, const char *key)
-{
-    WT_DECL_RET;
-    const char *md_value;
-
-    md_value = NULL;
-
-    md_cursor->set_key(md_cursor, key);
-    WT_RET(md_cursor->search(md_cursor));
-    WT_RET(md_cursor->get_value(md_cursor, &md_value));
-    WT_SAVE_DHANDLE(session, ret = __wt_disagg_update_shared_metadata(session, key, md_value));
-    WT_RET(ret);
-
-    return (0);
-}
-
-/*
- * __disagg_copy_shared_metadata_one --
- *     Copy the metadata associated with the given URI from the main metadata table to the shared
- *     metadata table.
- */
-static int
-__disagg_copy_shared_metadata_one(WT_SESSION_IMPL *session, const char *uri)
-{
-    WT_CURSOR *md_cursor;
-    WT_DECL_RET;
-
-    md_cursor = NULL;
-
-    WT_ERR(__wt_metadata_cursor(session, &md_cursor));
-    WT_ERR(__disagg_copy_shared_metadata(session, md_cursor, uri));
-
-err:
-    if (md_cursor != NULL)
-        WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
-
-    return (ret);
-}
-
-/*
- * __wt_disagg_copy_shared_metadata_layered --
- *     Copy all metadata relevant to the given base name (without prefix or suffix) from the main
- *     metadata table to the shared metadata table.
- */
-int
-__wt_disagg_copy_shared_metadata_layered(WT_SESSION_IMPL *session, const char *name)
-{
-    WT_CURSOR *md_cursor;
-    WT_DECL_RET;
-    size_t len;
-    char *md_key;
-
-    md_cursor = NULL;
-    md_key = NULL;
-
-    len = strlen(name) + 16;
-    WT_ERR(__wt_calloc_def(session, len, &md_key));
-    WT_ERR(__wt_metadata_cursor(session, &md_cursor));
-
-    WT_ERR(__wt_snprintf(md_key, len, "colgroup:%s", name));
-    WT_ERR_NOTFOUND_OK(__disagg_copy_shared_metadata(session, md_cursor, md_key), false);
-
-    WT_ERR(__wt_snprintf(md_key, len, "layered:%s", name));
-    WT_ERR_NOTFOUND_OK(__disagg_copy_shared_metadata(session, md_cursor, md_key), false);
-
-    WT_ERR(__wt_snprintf(md_key, len, "table:%s", name));
-    WT_ERR_NOTFOUND_OK(__disagg_copy_shared_metadata(session, md_cursor, md_key), false);
-
-err:
-    __wt_free(session, md_key);
-    if (md_cursor != NULL)
-        WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
-
-    return (ret);
 }
 
 #ifdef HAVE_UNITTEST
