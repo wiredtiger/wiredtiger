@@ -196,7 +196,13 @@ __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     size_t size;
-    WT_ERR(__wt_page_inmem_update(session, value, unpack, &upd, &size, false));
+    /*
+     * Special case - since we're restoring the update into ingest table with no tombstone allowed,
+     * pass tombstone_allowed = false to convert a pending prepared tombstone to a standard update
+     * with tombstone value.
+     */
+    WT_ERR(
+      __wt_page_inmem_update(session, value, unpack, &upd, &size, false /* tombstone_allowed */));
 
     /* Search the page and apply the modification. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
