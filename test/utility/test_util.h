@@ -153,13 +153,13 @@ typedef struct {
     bool tiered_begun;             /* Tiered storage ready */
     bool tiered_storage;           /* Configure tiered storage */
     bool verbose;                  /* Run in verbose mode */
+    uint64_t disagg_drain_threads; /* Number of drain threads for disaggregated storage*/
     uint64_t nrecords;             /* Number of records */
     uint64_t nops;                 /* Number of operations */
     uint64_t nthreads;             /* Number of threads */
     uint64_t n_append_threads;     /* Number of append threads */
     uint64_t n_read_threads;       /* Number of read threads */
     uint64_t n_write_threads;      /* Number of write threads */
-    uint64_t disagg_drain_threads; /* Number of drain threads for disaggregated storage*/
 
     uint64_t tiered_flush_interval_us; /* Microseconds between flush_tier calls */
     uint64_t tiered_flush_next_us;     /* Next tiered flush in epoch microseconds */
