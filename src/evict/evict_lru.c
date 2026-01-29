@@ -1563,9 +1563,9 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
         else if (candidates > entries / 2)
             queue->evict_candidates = candidates;
         else {
-            if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) &&
+            if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES_HARD) &&
               evict->evict_empty_score > WT_EVICT_SCORE_CUTOFF) {
-                /* Take all available candidates when in update mode with consistently empty queues
+                /* Take all available candidates when in update eviction with consistently empty queues
                  */
                 queue->evict_candidates = entries;
             } else {

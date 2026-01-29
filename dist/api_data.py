@@ -786,7 +786,7 @@ connection_runtime_config = [
                 Only a part of application threads will participate in cache management
                 when a cache threshold reaches its trigger limit.''',
                 type='boolean'),
-            Config('prefer_scrub_eviction', 'false',
+            Config('prefer_scrub_eviction', 'true',
                 r'''Change the eviction strategy to scrub eviction when the cache usage is under
                 half way between the target limit to the trigger limit.''',
                 type='boolean'),
