@@ -149,12 +149,18 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
      * generally unsafe and can lead to undefined behavior. This is because the sweep server checks
      * for references to dhandles, and closing the cursor may result in the dhandle being swept
      * while still in use. However, history store dhandles are an exception as they are not subject
-     * to sweeping.
+     * to sweeping except for the shared history store dhandles on the standby in disaggregated
+     * storage.
      */
     WT_RET(__curhs_file_cursor_open(session, WT_HS_URI, NULL, NULL, &cursor));
     WT_RET(cursor->close(cursor));
 
-    if (__wt_conn_is_disagg(session)) {
+    /*
+     * No need to cache the shared history store cursor for standby as it doesn't do any
+     * reconciliation for shared tables. It is also unsafe to cache the shared history store on the
+     * standby as the sweep server may close the outdated history store dhandles.
+     */
+    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
         WT_RET(__curhs_file_cursor_open(session, WT_HS_URI_SHARED, NULL, NULL, &cursor));
         WT_RET(cursor->close(cursor));
     }
@@ -1039,6 +1045,10 @@ __curhs_insert(WT_CURSOR *cursor)
     CURSOR_API_CALL_PREPARE_ALLOWED(
       cursor, session, insert, ((WT_CURSOR_BTREE *)file_cursor)->dhandle);
 
+    WT_ASSERT(session,
+      !__wt_conn_is_disagg(session) || !F_ISSET(CUR2BT(file_cursor), WT_BTREE_DISAGGREGATED) ||
+        S2C(session)->layered_table_manager.leader);
+
     /*
      * Disable bulk loads into history store. This would normally occur when updating a record with
      * a cursor however the history store doesn't use cursor update, so we do it here.
@@ -1174,6 +1184,10 @@ __curhs_remove(WT_CURSOR *cursor)
     CURSOR_API_CALL_PREPARE_ALLOWED(
       cursor, session, remove, ((WT_CURSOR_BTREE *)file_cursor)->dhandle);
 
+    WT_ASSERT(session,
+      !__wt_conn_is_disagg(session) || !F_ISSET(CUR2BT(file_cursor), WT_BTREE_DISAGGREGATED) ||
+        S2C(session)->layered_table_manager.leader);
+
     /* Remove must be called with cursor positioned. */
     WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
 
@@ -1215,6 +1229,10 @@ __curhs_update(WT_CURSOR *cursor)
 
     CURSOR_API_CALL_PREPARE_ALLOWED(
       cursor, session, update, ((WT_CURSOR_BTREE *)file_cursor)->dhandle);
+
+    WT_ASSERT(session,
+      !__wt_conn_is_disagg(session) || !F_ISSET(CUR2BT(file_cursor), WT_BTREE_DISAGGREGATED) ||
+        S2C(session)->layered_table_manager.leader);
 
     /* Update must be called with cursor positioned. */
     WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
@@ -1284,6 +1302,11 @@ __curhs_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     session = trunc_info->session;
     start_file_cursor = ((WT_CURSOR_HS *)trunc_info->start)->file_cursor;
     stop_file_cursor = NULL;
+
+    WT_ASSERT(session,
+      !__wt_conn_is_disagg(session) ||
+        !F_ISSET(CUR2BT(start_file_cursor), WT_BTREE_DISAGGREGATED) ||
+        S2C(session)->layered_table_manager.leader);
 
     WT_STAT_DSRC_INCR(session, cursor_truncate);
 
