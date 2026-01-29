@@ -890,8 +890,8 @@ __page_inmem_tombstone(
     total_size = 0;
 
     WT_ASSERT(session, WT_TIME_WINDOW_HAS_STOP(&unpack->tw));
+    
     WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &size));
-
     total_size += size;
     tombstone->upd_durable_ts = unpack->tw.durable_stop_ts;
     tombstone->upd_start_ts = unpack->tw.stop_ts;
