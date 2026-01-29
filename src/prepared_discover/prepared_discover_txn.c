@@ -39,6 +39,77 @@ __wt_prepared_discover_find_item(
 }
 
 /*
+ * __prepare_discover_alloc_upd --
+ *     Create the actual update for a prepared value.
+ */
+static int
+__prepare_discover_alloc_upd(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
+  WT_UPDATE **updp, size_t *sizep)
+{
+    WT_DECL_RET;
+    WT_UPDATE *upd, *tombstone;
+    size_t size, total_size;
+
+    size = 0;
+    *sizep = 0;
+
+    tombstone = upd = NULL;
+    total_size = 0;
+    WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, &size));
+    total_size += size;
+
+    /*
+     * Instantiate both update and tombstone if the prepared update is a tombstone. This is required
+     * to ensure that written prepared delete operation must be removed from the data store, when
+     * the prepared transaction gets rollback.
+     */
+    upd->txnid = unpack->tw.start_txn;
+    if (WT_TIME_WINDOW_HAS_START_PREPARE(&(unpack->tw))) {
+        upd->prepared_id = unpack->tw.start_prepared_id;
+        upd->prepare_ts = unpack->tw.start_prepare_ts;
+        upd->upd_durable_ts = WT_TS_NONE;
+        upd->upd_start_ts = unpack->tw.start_prepare_ts;
+        upd->prepare_state = WT_PREPARE_INPROGRESS;
+        F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
+    } else {
+        upd->upd_durable_ts = unpack->tw.durable_start_ts;
+        upd->upd_start_ts = unpack->tw.start_ts;
+        F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
+        F_SET(upd, WT_UPDATE_DURABLE);
+    }
+    if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&(unpack->tw))) {
+        /*
+         * Usually we would allocate a tombstone update when seeing a stop timestamp. However in
+         * this code flow, we're restoring the update into ingest table with no tombstone allowed,
+         * create a standard update with a special tombstone value instead of a tombstone.
+         */
+        WT_ERR(__wt_upd_alloc(session, &__wt_tombstone, WT_UPDATE_STANDARD, &tombstone, &size));
+        total_size += size;
+        tombstone->upd_durable_ts = WT_TS_NONE;
+        tombstone->txnid = unpack->tw.stop_txn;
+        tombstone->prepare_state = WT_PREPARE_INPROGRESS;
+        tombstone->upd_start_ts = unpack->tw.stop_prepare_ts;
+        tombstone->prepare_ts = unpack->tw.stop_prepare_ts;
+        tombstone->prepared_id = unpack->tw.stop_prepared_id;
+        tombstone->prepare_state = WT_PREPARE_INPROGRESS;
+        F_SET(tombstone, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
+        F_SET(tombstone, WT_UPDATE_PREPARE_DURABLE);
+        tombstone->next = upd;
+        *updp = tombstone;
+    } else
+        *updp = upd;
+
+    *sizep = total_size;
+    return (0);
+
+err:
+    __wt_free(session, upd);
+    __wt_free(session, tombstone);
+
+    return (ret);
+}
+
+/*
  * __pending_prepare_items_init --
  *     Initialize pending prepared txn hash map.
  */
@@ -196,13 +267,7 @@ __wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     size_t size;
-    /*
-     * Special case - since we're restoring the update into ingest table with no tombstone allowed,
-     * pass tombstone_allowed = false to convert a pending prepared tombstone to a standard update
-     * with tombstone value.
-     */
-    WT_ERR(
-      __wt_page_inmem_update(session, value, unpack, &upd, &size, false /* tombstone_allowed */));
+    WT_ERR(__prepare_discover_alloc_upd(session, value, unpack, &upd, &size));
 
     /* Search the page and apply the modification. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
