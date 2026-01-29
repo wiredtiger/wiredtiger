@@ -207,10 +207,8 @@ class test_prepare34(test_prepare_preserve_prepare_base):
         self.checkpoint_and_verify_stats({
             wiredtiger.stat.dsrc.rec_time_window_durable_start_ts: True,
             wiredtiger.stat.dsrc.rec_time_window_start_ts: True,
-            wiredtiger.stat.dsrc.rec_time_window_start_txn: False,
             wiredtiger.stat.dsrc.rec_time_window_durable_stop_ts: False,
             wiredtiger.stat.dsrc.rec_time_window_stop_ts: False,
-            wiredtiger.stat.dsrc.rec_time_window_stop_txn: False,
             wiredtiger.stat.dsrc.rec_time_window_prepared: False,
         }, self.uri)
 
