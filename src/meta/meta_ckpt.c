@@ -1341,13 +1341,12 @@ __wt_meta_ckptlist_set(
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
             ckpt->next_page_id = btree->next_page_id;
             /*
-             * For disaggregated storage, save the current total bytes to ckpt->size and accumulate
-             * the delta. The accumulated delta will be applied to the database-level size after the
-             * checkpoint succeeds.
+             * For disaggregated storage, save the total bytes to the checkpoint size field. Track
+             * the delta between this checkpoint and the previous one, this delta will be applied to
+             * the database level size once the checkpoint succeeds.
              */
             if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
                 ckpt->size = __wt_atomic_load_uint64(&btree->bytes_total);
-
                 /* Accumulate the delta for this btree. */
                 session->ckpt.ckpt_size_delta += (int64_t)ckpt->size - (int64_t)prev_ckpt_size;
             }
