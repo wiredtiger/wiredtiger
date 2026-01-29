@@ -1343,7 +1343,7 @@ palm_trim_table(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t table_id, u
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
 
     PALM_VERBOSE_PRINT(palm, session, "palm_trim_table(lsn=%" PRIu64 ")\n", table_id);
-    PALM_KV_ERR(palm, session, palm_kv_abandon_after(&context, table_id, 0));
+    PALM_KV_ERR(palm, session, palm_kv_abandon_after(&context, 0, table_id));
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
 
     if (0) {

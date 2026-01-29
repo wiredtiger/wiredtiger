@@ -391,10 +391,12 @@ palm_kv_abandon_after(PALM_KV_CONTEXT *context, uint64_t abandon_after_lsn, uint
     MDB_cursor *cursor;
     MDB_val kval;
     MDB_val vval;
+    MDB_cursor_op op;
     PAGE_KEY page_key;
     int ret;
 
     cursor = NULL;
+    op = MDB_FIRST;
     memset(&kval, 0, sizeof(kval));
     memset(&vval, 0, sizeof(vval));
 
@@ -404,11 +406,12 @@ palm_kv_abandon_after(PALM_KV_CONTEXT *context, uint64_t abandon_after_lsn, uint
         swap_page_key(&page_key, &page_key);
         kval.mv_size = sizeof(page_key);
         kval.mv_data = &page_key;
+        op = MDB_SET_RANGE;
     }
 
     if ((ret = mdb_cursor_open(context->lmdb_txn, context->env->lmdb_pages_dbi, &cursor)) != 0)
         goto err;
-    if ((ret = mdb_cursor_get(cursor, &kval, &vval, MDB_FIRST)) != 0 && ret != MDB_NOTFOUND)
+    if ((ret = mdb_cursor_get(cursor, &kval, &vval, op)) != 0 && ret != MDB_NOTFOUND)
         goto err;
     if (ret == MDB_NOTFOUND) {
         ret = 0;
@@ -434,7 +437,7 @@ palm_kv_abandon_after(PALM_KV_CONTEXT *context, uint64_t abandon_after_lsn, uint
         PAGE_KEY decoded_key;
         swap_page_key(key, &decoded_key);
 
-        if (decoded_key.table_id > table_id)
+        if (decoded_key.table_id != table_id)
             break;
 
         if (decoded_key.lsn > abandon_after_lsn) {
