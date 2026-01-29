@@ -3224,33 +3224,29 @@ int
 __wt_disagg_remove_shared_metadata_layered(WT_SESSION_IMPL *session, const char *table_name)
 {
     WT_DECL_RET;
-    size_t len;
-    char *uri_buf;
+    WT_DECL_ITEM(uri_buf);
 
-    uri_buf = NULL;
-
-    len = strlen(table_name) + 20;
-    WT_ERR(__wt_calloc_def(session, len, &uri_buf));
+    WT_RET(__wt_scr_alloc(session, 0, &uri_buf));
 
     /* Remove all relevant metadata entries from shared metadata table (if exists). */
-    WT_ERR(__wt_snprintf(uri_buf, len, "file:%s.wt_stable", table_name));
-    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf));
+    WT_ERR(__wt_buf_fmt(session, uri_buf, "file:%s.wt_stable", table_name));
+    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf->data));
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    WT_ERR(__wt_snprintf(uri_buf, len, "layered:%s", table_name));
-    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf));
+    WT_ERR(__wt_buf_fmt(session, uri_buf, "layered:%s", table_name));
+    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf->data));
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    WT_ERR(__wt_snprintf(uri_buf, len, "colgroup:%s", table_name));
-    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf));
+    WT_ERR(__wt_buf_fmt(session, uri_buf, "colgroup:%s", table_name));
+    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf->data));
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    WT_ERR(__wt_snprintf(uri_buf, len, "table:%s", table_name));
-    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf));
+    WT_ERR(__wt_buf_fmt(session, uri_buf, "table:%s", table_name));
+    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf->data));
     WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
-    __wt_free(session, uri_buf);
+    __wt_scr_free(session, &uri_buf);
     return (ret);
 }
 #ifdef HAVE_UNITTEST

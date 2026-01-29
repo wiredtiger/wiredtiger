@@ -936,7 +936,6 @@ protected:
     std::filesystem::path table_file;
 
     std::once_flag create_table;
-    std::once_flag drop_table;
     std::shared_mutex conn_state; /* protects 'connections' map */
     std::unordered_map<std::thread::id, std::unique_ptr<Connection>> connections;
 
@@ -947,35 +946,6 @@ public:
     Table(Config &cfg, std::shared_mutex &str_access, const std::filesystem::path &file)
         : config(cfg), store_access(str_access), table_file(file)
     {
-    }
-
-    void
-    trim()
-    {
-        /*
-         * Ideally the connection map should be empty() before dropping. However the current PALite
-         * implementation doesn't clear it's connection on handle close.
-         */
-        auto acc = request(AccessMode::WRITE);
-        Connection &drop_conn = acc.conn;
-
-        std::call_once(
-          drop_table,
-          [this](Connection &c) {
-              c.configure(Traits::drop_statements);
-              LOG_DEBUG("SQLite database dropped: {}", c.db_instance());
-          },
-          drop_conn);
-
-        std::string directory = table_file.parent_path().string();
-
-        /* Remove all files associated with the database name. */
-        for (const auto &entry : std::filesystem::directory_iterator(directory)) {
-            std::string filename = entry.path().filename().string();
-            if (filename.starts_with(table_file.filename().string()))
-                std::filesystem::remove(entry);
-        }
-        drop_conn.close();
     }
 
     void
@@ -1076,7 +1046,6 @@ struct Globals : public Table<Globals> {
         MAKE_NEXT_LSN,
         GET_LAST_LSN,
         ADD_TABLE_ID,
-        REMOVE_TABLE_ID,
         GET_TABLE_IDS,
         COUNT /* number of statements */
     };
@@ -1108,11 +1077,6 @@ struct Globals : public Table<Globals> {
           R"(SELECT val
              FROM globals
              WHERE id = 1;)";
-
-        /* Remove an existing table ID. */
-        stmt[REMOVE_TABLE_ID] =
-          R"(DELETE FROM globals
-             WHERE id = 1 and val = ?;)";
 
         return stmt;
     }
@@ -1186,17 +1150,6 @@ struct Globals : public Table<Globals> {
         Connection &conn = acc.conn;
 
         Connection::StatementPtr stmt = conn.db_statement(Statement::ADD_TABLE_ID);
-        SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
-        SQ_CHECK(sqlite3_step, stmt.get());
-    }
-
-    void
-    remove_table_id(uint64_t table_id)
-    {
-        auto acc = request(AccessMode::WRITE);
-        Connection &conn = acc.conn;
-
-        Connection::StatementPtr stmt = conn.db_statement(Statement::REMOVE_TABLE_ID);
         SQ_CHECK(sqlite3_bind_int64, stmt.get(), 1, static_cast<sqlite3_int64>(table_id));
         SQ_CHECK(sqlite3_step, stmt.get());
     }
@@ -1620,8 +1573,6 @@ struct Pages : public Table<Pages> {
          ON pages (table_id, page_id, backlink_lsn)
          WHERE delta = 1 AND discarded = 0;)",
     };
-
-    constexpr static std::string_view drop_statements[] = {R"(DROP TABLE IF EXISTS pages;)"};
 
     /*
      * 'pages' table requires user configuration parameters, therefore SQL config statements created
@@ -2180,17 +2131,7 @@ public:
     }
 
     void
-    trim_table(uint64_t table_id)
-    {
-        Pages &table = get_table(table_id);
-        table.trim();
-
-        /* Remove the table ID from global table. */
-        globals.remove_table_id(table_id);
-    }
-
-    void
-    abandon_checkpoint(uint64_t checkpoint_lsn)
+    abandon_checkpoint()
     {
         uint64_t checkpoint_lsn = WT_PAGE_LOG_LSN_MAX;
 
@@ -2523,9 +2464,19 @@ public:
     }
 
     int
-    trim_table(uint64_t table_id, uint64_t start_lsn /* Not used. */)
+    trim_table(uint64_t table_id, uint64_t start_lsn /* Not used. */, uint64_t *lsnp)
     {
-        storage.trim_table(table_id);
+        const uint64_t lsn = storage.make_next_lsn();
+
+        /* 
+         * Followers must be able to read trimmed tables for a limited time before we issue a drop command on leader mode.
+         * For this reason, we will no-op the trim table. Both leader and follower modes
+         * would have removed the table reference from their metadata tables.
+         */
+        LOG_DEBUG("Trim table for table_id={}, lsn={}", table_id, start_lsn);
+        if (lsnp) {
+            *lsnp = lsn;
+        }
         return 0;
     }
 
@@ -2599,9 +2550,9 @@ palite_set_last_materialized_lsn(WT_PAGE_LOG *page_log, WT_SESSION *sess, uint64
 }
 
 static int
-palite_trim_table(WT_PAGE_LOG *page_log, WT_SESSION *sess, uint64_t table_id, uint64_t start_lsn)
+palite_trim_table(WT_PAGE_LOG *page_log, WT_SESSION *sess, uint64_t table_id, uint64_t start_lsn, uint64_t *lsnp)
 {
-    return safe_call<Palite>(sess, page_log, &Palite::trim_table, table_id, start_lsn);
+    return safe_call<Palite>(sess, page_log, &Palite::trim_table, table_id, start_lsn, lsnp);
 }
 
 static int

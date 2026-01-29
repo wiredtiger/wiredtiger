@@ -5723,7 +5723,7 @@ struct __wt_page_log {
      * @param start_lsn the LSN at which table was created.
      */
     int (*pl_trim_table)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t table_id,
-        uint64_t start_lsn);
+        uint64_t start_lsn, uint64_t* lsnp);
 
     /*!
      * A callback performed when the page log service or reference is closed

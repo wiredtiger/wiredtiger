@@ -62,16 +62,6 @@ class test_layered28(wttest.WiredTigerTestCase):
             self.assertEqual(meta_cursor.search(), wiredtiger.WT_NOTFOUND)
         meta_cursor.close()
 
-    def fetch_table_id_from_metadata(self):
-        # Fetch the metadata for the file.
-        c = self.session.open_cursor('metadata:', None, None)
-        file_uri = 'file:' + self.uri_base + '.wt_stable'
-        original_db_file_config = c[file_uri]
-        match = re.search(r'id=([0-9]+)', original_db_file_config)
-        c.close()
-
-        return match.group(1)
-
     # Ensure that the shared metadata has removed the table.
     def check_shared_metadata(self, expect_exists):
         expected_ret = 0 if expect_exists else wiredtiger.WT_NOTFOUND
@@ -89,18 +79,9 @@ class test_layered28(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.search(), expected_ret)
         cursor.close()
 
-    def validate_drop(self, leader, table_id):
-        database_table = f"pages_{int(table_id):06d}.db"
-        database_home = os.path.join('kv_home', database_table)
-
+    def validate_drop(self):
         # Validate that all metadata entries are removed.
         self.check_metadata_entry()
-
-        # Validate that only leaders issue trim command.
-        if leader:
-            self.assertFalse(os.path.isfile(database_home))
-        else:
-            self.assertTrue(os.path.isfile(database_home))
 
         # Validate that we can't open a cursor on the dropped table.
         uri = self.prefix + self.uri_base
@@ -124,10 +105,8 @@ class test_layered28(wttest.WiredTigerTestCase):
         cursor.close()
 
         self.session.checkpoint()
-
-        table_id = self.fetch_table_id_from_metadata()
         self.session.drop(uri, "")
-        self.validate_drop(leader=True, table_id=table_id)
+        self.validate_drop()
 
         # Persist schema drop operation to shared metadata table.
         self.session.checkpoint()
@@ -153,10 +132,9 @@ class test_layered28(wttest.WiredTigerTestCase):
         cursor.close()
 
         custom_session.checkpoint()
-        table_id = self.fetch_table_id_from_metadata()
         self.session.drop(uri, "")
         custom_session.close()
-        self.validate_drop(leader=True, table_id=table_id)
+        self.validate_drop()
 
         # Persist schema drop operation to shared metadata table.
         self.session.checkpoint()
@@ -188,9 +166,8 @@ class test_layered28(wttest.WiredTigerTestCase):
 
         # Switch to follower mode.
         self.reopen_conn(config=follower_config)
-        table_id = self.fetch_table_id_from_metadata()
         self.session.drop(uri, "")
-        self.validate_drop(leader=False, table_id=table_id)
+        self.validate_drop()
 
         # Persist schema drop operation to shared metadata table.
         self.session.checkpoint()
