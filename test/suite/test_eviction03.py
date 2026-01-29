@@ -43,7 +43,7 @@ class test_eviction03(eviction_util, suite_subprocess):
         return outfilename
 
     def derive_avg_disk_footprint(self, filename):
-        # Filename contains the output from verfify dump_pages which contains the space taken on
+        # Filename contains the output from verify dump_pages which contains the space taken on
         # disk by each internal and leaf pages.
         file = open(filename, 'r')
         res = re.findall(r'dsk_mem_size: (\d+)', file.read(), re.DOTALL)
@@ -75,6 +75,10 @@ class test_eviction03(eviction_util, suite_subprocess):
 
         # Pin oldest timestamp 1.
         self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
+
+        # Pin a transaction to prevent the transaction ids from being cleared.
+        session2 = self.conn.open_session()
+        session2.begin_transaction()
 
         # Populate tables.
         for i in range(ntables):
