@@ -132,7 +132,7 @@ class test_layered28(wttest.WiredTigerTestCase):
         cursor.close()
 
         custom_session.checkpoint()
-        self.session.drop(uri, "")
+        custom_session.drop(uri, "")
         custom_session.close()
         self.validate_drop()
 
