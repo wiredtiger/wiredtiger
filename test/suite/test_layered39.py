@@ -118,19 +118,19 @@ class test_layered39(wttest.WiredTigerTestCase):
         (ret, last_lsn) = page_log.pl_get_last_lsn(self.session)
         self.assertEqual(ret, 0)
 
-        # Finally setting the last materialised lsn
+        # Update the materialised lsn
         self.pr(f'Finalise the last materialised lsn = {last_lsn}')
         page_log.pl_set_last_materialized_lsn(self.session, last_lsn)
         self.conn.set_context_uint(wiredtiger.WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN, last_lsn)
 
-        # manually evict pages to ensure all pages are written including the split parents pages
+        # Evict pages to ensure all pages are written including the dirty parents pages
         self.evict(self.uri, data)
 
         self.session.checkpoint()
         (ret, last_lsn) = page_log.pl_get_last_lsn(self.session)
         self.assertEqual(ret, 0)
 
-        # Finally setting the last materialised lsn
+        # Update the last materialised lsn
         self.pr(f'Finalise the last materialised lsn = {last_lsn}')
         page_log.pl_set_last_materialized_lsn(self.session, last_lsn)
         self.conn.set_context_uint(wiredtiger.WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN, last_lsn)
