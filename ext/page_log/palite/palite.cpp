@@ -2467,9 +2467,9 @@ public:
         const uint64_t lsn = storage.make_next_lsn();
 
         /* 
-         * Followers must be able to read trimmed tables for a limited time before we issue a drop command on leader mode.
-         * For this reason, we will no-op the trim table. Both leader and follower modes
-         * would have removed the table reference from their metadata tables.
+         * Followers can read trimmed tables for a limited time after we issue a drop command on leader mode.
+         * For this reason, we will no-op the trim table. Both leader and follower nodes
+         * should have removed the table reference removed from their metadata tables.
          */
         LOG_DEBUG("Trim table for table_id={}, lsn={}", table_id, start_lsn);
         if (lsnp) {
