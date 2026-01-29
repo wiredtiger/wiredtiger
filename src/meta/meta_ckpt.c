@@ -1323,11 +1323,13 @@ __wt_meta_ckptlist_set(
     WT_CKPT *ckpt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
+    uint64_t prev_ckpt_size;
     const char *fname;
     bool has_lsn;
 
     btree = S2BT(session);
     fname = dhandle->name;
+    prev_ckpt_size = 0;
 
     WT_ERR(__wt_scr_alloc(session, 1024, &buf));
 
@@ -1338,10 +1340,19 @@ __wt_meta_ckptlist_set(
     WT_CKPT_FOREACH (ckptbase, ckpt) {
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
             ckpt->next_page_id = btree->next_page_id;
-            /* For disaggregated storage, save the current total bytes to ckpt->size. */
-            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            /*
+             * For disaggregated storage, save the current total bytes to ckpt->size and accumulate
+             * the delta. The accumulated delta will be applied to the database-level size after the
+             * checkpoint succeeds.
+             */
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
                 ckpt->size = __wt_atomic_load_uint64(&btree->bytes_total);
-        }
+
+                /* Accumulate the delta for this btree. */
+                session->ckpt.ckpt_size_delta += (int64_t)ckpt->size - (int64_t)prev_ckpt_size;
+            }
+        } else
+            prev_ckpt_size = ckpt->size;
     }
 
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
