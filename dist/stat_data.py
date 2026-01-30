@@ -1143,6 +1143,7 @@ conn_dsrc_stats = [
     CacheStat('cache_bytes_inuse', 'bytes currently in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_read', 'bytes read into cache', 'size'),
     CacheStat('cache_bytes_write', 'bytes written from cache', 'size'),
+    CacheStat('cache_cas_btree_max_lsn_race', 'number of times when cas update the btree max_lsn failed'),
     CacheStat('cache_evict_split_failed_lock', 'realizing in-memory split after reconciliation failed due to internal lock busy'),
     CacheStat('cache_eviction_ahead_of_last_materialized_lsn', 'pages evicted ahead of the page materialization frontier'),
     CacheStat('cache_eviction_app_threads_fill_ratio_25_50', 'application threads eviction requested with cache fill ratio >= 25% and < 50%'),
@@ -1313,6 +1314,7 @@ conn_dsrc_stats = [
     # Disaggregated block manager statistics
     ##########################################
     BlockDisaggStat('disagg_block_get', 'Disaggregated block manager get'),
+    BlockDisaggStat('disagg_block_get_cold', 'Disaggregated block manager get cold page'),
     BlockDisaggStat('disagg_block_hs_byte_read', 'Bytes read from the shared history store in SLS', 'size'),
     BlockDisaggStat('disagg_block_hs_byte_write', 'Bytes written to the shared history store in SLS', 'size'),
     BlockDisaggStat('disagg_block_hs_get', 'Disaggregated block manager get from the shared history store in SLS'),

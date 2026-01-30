@@ -474,6 +474,7 @@ struct __wt_connection_stats {
     int64_t disagg_block_hs_byte_read;
     int64_t disagg_block_hs_byte_write;
     int64_t disagg_block_get;
+    int64_t disagg_block_get_cold;
     int64_t disagg_block_hs_get;
     int64_t disagg_block_page_discard;
     int64_t disagg_block_put;
@@ -691,6 +692,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_trigger_dirty_reached;
     int64_t cache_eviction_trigger_reached;
     int64_t cache_eviction_trigger_updates_reached;
+    int64_t cache_cas_btree_max_lsn_race;
     int64_t cache_obsolete_updates_removed;
     int64_t eviction_timed_out_ops;
     int64_t cache_eviction_blocked_overflow_keys;
@@ -1402,6 +1404,7 @@ struct __wt_dsrc_stats {
     int64_t disagg_block_hs_byte_read;
     int64_t disagg_block_hs_byte_write;
     int64_t disagg_block_get;
+    int64_t disagg_block_get_cold;
     int64_t disagg_block_hs_get;
     int64_t disagg_block_page_discard;
     int64_t disagg_block_put;
@@ -1510,6 +1513,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_trigger_dirty_reached;
     int64_t cache_eviction_trigger_reached;
     int64_t cache_eviction_trigger_updates_reached;
+    int64_t cache_cas_btree_max_lsn_race;
     int64_t cache_obsolete_updates_removed;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;

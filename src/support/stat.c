@@ -10,6 +10,7 @@ static const char *const __stats_dsrc_desc[] = {
   "block-disagg: Bytes read from the shared history store in SLS",
   "block-disagg: Bytes written to the shared history store in SLS",
   "block-disagg: Disaggregated block manager get",
+  "block-disagg: Disaggregated block manager get cold page",
   "block-disagg: Disaggregated block manager get from the shared history store in SLS",
   "block-disagg: Disaggregated block manager page discard calls",
   "block-disagg: Disaggregated block manager put ",
@@ -129,6 +130,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: number of times dirty trigger was reached",
   "cache: number of times eviction trigger was reached",
   "cache: number of times updates trigger was reached",
+  "cache: number of times when cas update the btree max_lsn failed",
   "cache: obsolete updates removed",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
@@ -459,6 +461,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->disagg_block_hs_byte_read = 0;
     stats->disagg_block_hs_byte_write = 0;
     stats->disagg_block_get = 0;
+    stats->disagg_block_get_cold = 0;
     stats->disagg_block_hs_get = 0;
     stats->disagg_block_page_discard = 0;
     stats->disagg_block_put = 0;
@@ -567,6 +570,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_trigger_dirty_reached = 0;
     stats->cache_eviction_trigger_reached = 0;
     stats->cache_eviction_trigger_updates_reached = 0;
+    stats->cache_cas_btree_max_lsn_race = 0;
     stats->cache_obsolete_updates_removed = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
@@ -858,6 +862,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->disagg_block_hs_byte_read += from->disagg_block_hs_byte_read;
     to->disagg_block_hs_byte_write += from->disagg_block_hs_byte_write;
     to->disagg_block_get += from->disagg_block_get;
+    to->disagg_block_get_cold += from->disagg_block_get_cold;
     to->disagg_block_hs_get += from->disagg_block_hs_get;
     to->disagg_block_page_discard += from->disagg_block_page_discard;
     to->disagg_block_put += from->disagg_block_put;
@@ -990,6 +995,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_trigger_dirty_reached += from->cache_eviction_trigger_dirty_reached;
     to->cache_eviction_trigger_reached += from->cache_eviction_trigger_reached;
     to->cache_eviction_trigger_updates_reached += from->cache_eviction_trigger_updates_reached;
+    to->cache_cas_btree_max_lsn_race += from->cache_cas_btree_max_lsn_race;
     to->cache_obsolete_updates_removed += from->cache_obsolete_updates_removed;
     to->cache_eviction_blocked_overflow_keys += from->cache_eviction_blocked_overflow_keys;
     to->cache_read_overflow += from->cache_read_overflow;
@@ -1288,6 +1294,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->disagg_block_hs_byte_read += WT_STAT_DSRC_READ(from, disagg_block_hs_byte_read);
     to->disagg_block_hs_byte_write += WT_STAT_DSRC_READ(from, disagg_block_hs_byte_write);
     to->disagg_block_get += WT_STAT_DSRC_READ(from, disagg_block_get);
+    to->disagg_block_get_cold += WT_STAT_DSRC_READ(from, disagg_block_get_cold);
     to->disagg_block_hs_get += WT_STAT_DSRC_READ(from, disagg_block_hs_get);
     to->disagg_block_page_discard += WT_STAT_DSRC_READ(from, disagg_block_page_discard);
     to->disagg_block_put += WT_STAT_DSRC_READ(from, disagg_block_put);
@@ -1443,6 +1450,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_trigger_reached += WT_STAT_DSRC_READ(from, cache_eviction_trigger_reached);
     to->cache_eviction_trigger_updates_reached +=
       WT_STAT_DSRC_READ(from, cache_eviction_trigger_updates_reached);
+    to->cache_cas_btree_max_lsn_race += WT_STAT_DSRC_READ(from, cache_cas_btree_max_lsn_race);
     to->cache_obsolete_updates_removed += WT_STAT_DSRC_READ(from, cache_obsolete_updates_removed);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_overflow_keys);
@@ -1812,6 +1820,7 @@ static const char *const __stats_connection_desc[] = {
   "block-disagg: Bytes read from the shared history store in SLS",
   "block-disagg: Bytes written to the shared history store in SLS",
   "block-disagg: Disaggregated block manager get",
+  "block-disagg: Disaggregated block manager get cold page",
   "block-disagg: Disaggregated block manager get from the shared history store in SLS",
   "block-disagg: Disaggregated block manager page discard calls",
   "block-disagg: Disaggregated block manager put ",
@@ -2064,6 +2073,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: number of times dirty trigger was reached",
   "cache: number of times eviction trigger was reached",
   "cache: number of times updates trigger was reached",
+  "cache: number of times when cas update the btree max_lsn failed",
   "cache: obsolete updates removed",
   "cache: operations timed out waiting for space in cache",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
@@ -2869,6 +2879,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_block_hs_byte_read = 0;
     stats->disagg_block_hs_byte_write = 0;
     stats->disagg_block_get = 0;
+    stats->disagg_block_get_cold = 0;
     stats->disagg_block_hs_get = 0;
     stats->disagg_block_page_discard = 0;
     stats->disagg_block_put = 0;
@@ -3086,6 +3097,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_trigger_dirty_reached = 0;
     stats->cache_eviction_trigger_reached = 0;
     stats->cache_eviction_trigger_updates_reached = 0;
+    stats->cache_cas_btree_max_lsn_race = 0;
     stats->cache_obsolete_updates_removed = 0;
     stats->eviction_timed_out_ops = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
@@ -3862,6 +3874,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_block_hs_byte_read += WT_STAT_CONN_READ(from, disagg_block_hs_byte_read);
     to->disagg_block_hs_byte_write += WT_STAT_CONN_READ(from, disagg_block_hs_byte_write);
     to->disagg_block_get += WT_STAT_CONN_READ(from, disagg_block_get);
+    to->disagg_block_get_cold += WT_STAT_CONN_READ(from, disagg_block_get_cold);
     to->disagg_block_hs_get += WT_STAT_CONN_READ(from, disagg_block_hs_get);
     to->disagg_block_page_discard += WT_STAT_CONN_READ(from, disagg_block_page_discard);
     to->disagg_block_put += WT_STAT_CONN_READ(from, disagg_block_put);
@@ -4167,6 +4180,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_trigger_reached += WT_STAT_CONN_READ(from, cache_eviction_trigger_reached);
     to->cache_eviction_trigger_updates_reached +=
       WT_STAT_CONN_READ(from, cache_eviction_trigger_updates_reached);
+    to->cache_cas_btree_max_lsn_race += WT_STAT_CONN_READ(from, cache_cas_btree_max_lsn_race);
     to->cache_obsolete_updates_removed += WT_STAT_CONN_READ(from, cache_obsolete_updates_removed);
     to->eviction_timed_out_ops += WT_STAT_CONN_READ(from, eviction_timed_out_ops);
     to->cache_eviction_blocked_overflow_keys +=

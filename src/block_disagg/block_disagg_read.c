@@ -110,7 +110,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     uint64_t time_start, time_stop;
     uint32_t retry, tmp_count;
     int32_t last, result;
-    uint8_t compatible_version, expected_magic;
+    uint8_t expected_magic;
     bool is_delta;
 
     time_start = __wt_clock(session);
@@ -118,6 +118,9 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_CLEAR(get_args);
     get_args.lsn = lsn;
     WT_ASSERT(session, block_meta != NULL);
+
+    if (S2BT(session)->storage_tier == WT_BTREE_STORAGE_TIER_COLD)
+        F_SET(&get_args, WT_PAGE_LOG_COLD);
 
     __wt_verbose(session, WT_VERB_READ,
       "page_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64 ", base_lsn %" PRIu64 ", size %" PRIu32
@@ -133,6 +136,8 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         WT_STAT_CONN_INCR(session, disagg_block_hs_get);
         WT_STAT_CONN_INCRV(session, disagg_block_hs_byte_read, size);
     }
+    if (F_ISSET(&get_args, WT_PAGE_LOG_COLD))
+        WT_STAT_CONN_INCR(session, disagg_block_get_cold);
 
     /*
      * If the page server returns no data but doesn't explicitly fail with an error, retry the read
@@ -196,14 +201,12 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                       swap.magic, expected_magic);
                     goto corrupt;
                 }
-                /* TODO: workaround MacOS build failure when passing macro to a string format. */
-                compatible_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
-                if (swap.compatible_version > compatible_version) {
+                if (swap.compatible_version > WT_BLOCK_DISAGG_COMPATIBLE_VERSION) {
                     __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn,
                       is_delta, result,
                       "compatible version error, version %" PRIu8
                       " is greater than compatible version of %" PRIu8,
-                      swap.compatible_version, compatible_version);
+                      swap.compatible_version, WT_BLOCK_DISAGG_COMPATIBLE_VERSION);
                     goto corrupt;
                 }
 
