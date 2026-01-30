@@ -93,6 +93,45 @@ class test_disagg_checkpoint_size02(wttest.WiredTigerTestCase):
         self.assertGreater(even_more, next_size,
             f"Database size should increase after more inserts: {next_size} -> {even_more}")
 
+    # Test that the database size decreases as data is removed and checkpoints are taken.
+    def test_database_size_decreases(self):
+        uri = "layered:test_table"
+        self.session.create(uri, 'key_format=i,value_format=S')
+
+        # Take initial checkpoint.
+        self.session.checkpoint()
+        initial_size = self.get_database_size()
+
+        # Insert data.
+        cursor = self.session.open_cursor(uri)
+        for i in range(1000):
+            cursor[i] = 'a' * 100
+        cursor.close()
+
+        self.session.checkpoint()
+        size_with_data = self.get_database_size()
+
+        # Size should have increased
+        self.assertGreater(size_with_data, initial_size,
+            f"Database size should increase after insert: {initial_size} -> {size_with_data}")
+
+        # Truncate most data
+        self.session.begin_transaction()
+        cursor = self.session.open_cursor(uri)
+        for i in range(100, 1000):
+            cursor.set_key(i)
+            cursor.remove()
+        cursor.close()
+        self.session.commit_transaction()
+
+        # Checkpoint after truncation
+        self.session.checkpoint()
+        size_after_truncate = self.get_database_size()
+
+        # Size should have decreased
+        self.assertLess(size_after_truncate, size_with_data,
+            f"Database size should decrease after truncate: {size_with_data} -> {size_after_truncate}")
+
     def test_database_size_multiple_btrees(self):
         uri1 = "layered:test1"
         uri2 = "layered:test2"
