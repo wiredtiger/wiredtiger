@@ -1612,19 +1612,22 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Apply the accumulated size delta to the in-memory database_size now that the checkpoint has
-     * succeeded.
+     * succeeded. Positive deltas occur when data is added during the checkpoint. Negative deltas
+     * occur when data is removed reducing the total storage footprint. Guard against
+     * overflow/underflow in both cases.
      */
     if (session->ckpt.ckpt_size_delta != 0) {
-        /* Guard against overflow/underflow. */
-        WT_ASSERT(session,
-          (int64_t)conn->disaggregated_storage.database_size + session->ckpt.ckpt_size_delta >= 0);
-        WT_ASSERT(session,
-          (int64_t)conn->disaggregated_storage.database_size <=
-            INT64_MAX - session->ckpt.ckpt_size_delta);
+        uint64_t db;
+        int64_t delta;
 
-        conn->disaggregated_storage.database_size =
-          (uint64_t)((int64_t)conn->disaggregated_storage.database_size +
-            session->ckpt.ckpt_size_delta);
+        db = conn->disaggregated_storage.database_size;
+        delta = session->ckpt.ckpt_size_delta;
+
+        WT_ASSERT(session,
+          (delta >= 0 && db <= (uint64_t)(INT64_MAX - delta)) ||
+            (delta < 0 && db >= (uint64_t)(-delta)));
+
+        conn->disaggregated_storage.database_size = (uint64_t)((int64_t)db + delta);
     }
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 
