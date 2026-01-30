@@ -1230,7 +1230,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_DISAGG_METADATA metadata;
     WT_ITEM metadata_buf;
     WT_SESSION_IMPL *internal_session, *shared_metadata_session;
-    uint64_t current_meta_lsn;
+    uint64_t current_meta_lsn, time_preamble, time_p1, time_p2;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     conn = S2C(session);
@@ -1266,6 +1266,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
       ckpt_meta->metadata_lsn);
 
+    time_preamble = __wt_clock(session);
+
     /*
      * Part 1: Get the metadata of the shared metadata table and insert it into our metadata table.
      */
@@ -1294,6 +1296,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     /* Update our local metadata with the new checkpoint entry. */
     WT_ERR(__disagg_save_checkpoint_meta(session, internal_session, md_cursor, &metadata));
 
+    time_p1 = __wt_clock(session);
+
     /*
      * Part 2: Apply the metadata for other tables from the shared metadata table. FIXME-WT-16528
      * Investigate whether we need a separate internal session to pick up the new checkpoint.
@@ -1304,6 +1308,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       shared_metadata_session, internal_session, md_cursor, ckpt_meta);
     WT_TRET(__wt_session_close_internal(shared_metadata_session));
     WT_ERR(ret);
+    time_p2 = __wt_clock(session);
 
     /*
      * Part 3: Do the bookkeeping.
@@ -1315,6 +1320,10 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Finished picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
       ckpt_meta->metadata_lsn);
+
+    fprintf(stderr, "__disagg_pick_up_checkpoint: spent %" PRIu64 "ms in part 1\n", WT_CLOCKDIFF_MS(time_p1, time_preamble));
+    fprintf(stderr, "__disagg_pick_up_checkpoint: spent %" PRIu64 "ms in part 2\n", WT_CLOCKDIFF_MS(time_p2, time_p1));
+    fprintf(stderr, "__disagg_pick_up_checkpoint: spent %" PRIu64 "ms in part 3\n", WT_CLOCKDIFF_MS(__wt_clock(session), time_p2));
 
 err:
     if (ret == 0)
@@ -1348,11 +1357,12 @@ __disagg_pick_up_checkpoint_meta(
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     WT_DISAGG_CHECKPOINT_META ckpt_meta;
-    uint64_t metadata_checksum;
+    uint64_t metadata_checksum, time_overall_start, time_pickup_start, time_pickup_stop;
     char *meta_str;
 
     WT_CLEAR(ckpt_meta);
     meta_str = NULL;
+    time_overall_start = __wt_clock(session);
 
     /* Extract the item into a string. */
     WT_ERR(__wt_strndup(session, meta_data, meta_data_size, &meta_str));
@@ -1376,8 +1386,12 @@ __disagg_pick_up_checkpoint_meta(
     }
 
     /* Now actually pick up the checkpoint. */
+    time_pickup_start = __wt_clock(session);
     WT_ERR(__disagg_pick_up_checkpoint(session, &ckpt_meta));
+    time_pickup_stop = __wt_clock(session);
 
+    fprintf(stderr, "spent %" PRIu64 "ms in actual pickup\n", WT_CLOCKDIFF_MS(time_pickup_stop, time_pickup_start));
+    fprintf(stderr, "spent %" PRIu64 "ms in __disagg_pick_up_checkpoint_meta\n", WT_CLOCKDIFF_MS(__wt_clock(session), time_overall_start));
 err:
     __wt_free(session, meta_str);
     return (ret);
@@ -1944,13 +1958,15 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_DECL_RET;
     WT_ITEM complete_checkpoint_meta;
     WT_NAMED_PAGE_LOG *npage_log;
-    uint64_t time_start, time_stop;
+    uint64_t time_overall_start, time_pickup_start, time_pickup_stop, time_start, time_stop;
     bool leader, picked_up, was_leader;
 
     conn = S2C(session);
     leader = was_leader = conn->layered_table_manager.leader;
     npage_log = NULL;
     picked_up = false;
+    time_overall_start = __wt_clock(session);
+    time_pickup_start = 0;
 
     WT_CLEAR(complete_checkpoint_meta);
 
@@ -1967,8 +1983,10 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
              * still a follower.
              */
             if (!leader) {
+                time_pickup_start = __wt_clock(session);
                 WT_WITH_CHECKPOINT_LOCK(
                   session, ret = __disagg_pick_up_checkpoint_meta(session, cval.str, cval.len));
+                time_pickup_stop = __wt_clock(session);
                 WT_ERR_MSG_CHK(session, ret, "Failed to pick up a new checkpoint with config: %.*s",
                   (int)cval.len, cval.str);
             }
@@ -2117,6 +2135,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             conn->layered_drain_data.thread_count = (uint32_t)cval.val;
     }
 
+    if (time_pickup_start != 0)
+        fprintf(stderr, "spent %" PRIu64 "ms in pickup\n", WT_CLOCKDIFF_MS(time_pickup_stop, time_pickup_start));
+    fprintf(stderr, "spent %" PRIu64 "ms in __wti_disagg_conn_config\n", WT_CLOCKDIFF_MS(__wt_clock(session), time_overall_start));
 err:
     /* Dump available logged errors into the event handler to ease debugging. */
     if (ret != 0)
