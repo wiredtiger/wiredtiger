@@ -545,7 +545,7 @@ __wt_disagg_put_checkpoint_meta(WT_SESSION_IMPL *session, const char *checkpoint
     /* Format metadata settings. */
     WT_ERR(
       __wt_buf_fmt(session, metadata_buf,
-        "checkpoint=%s,\n"
+        "checkpoint2=%s,\n"
         "timestamp=%" PRIx64 ",\n"
         "oldest_timestamp=%" PRIx64,
         checkpoint_root_copy, checkpoint_timestamp, oldest_timestamp));
@@ -848,7 +848,7 @@ __disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG
           "Disaggregated checkpoint metadata item \"%.*s\"=\"%.*s\"", (int)cfg_key.len, cfg_key.str,
           (int)cfg_value.len, cfg_value.str);
 
-        if (WT_CONFIG_LIT_MATCH("checkpoint", cfg_key)) {
+        if (WT_CONFIG_LIT_MATCH("checkpoint2", cfg_key)) {
             WT_ASSERT_ALWAYS(session, metadata->checkpoint == NULL,
               "Duplicate checkpoint entry in disaggregated storage metadata");
 
@@ -908,16 +908,16 @@ __wti_disagg_parse_meta(
     WT_CLEAR(*metadata);
     metadata->checkpoint_timestamp = WT_TS_MAX; /* Invalid timestamp by default. */
 
-    if (WT_PREFIX_MATCH((const char *)meta_buf->data, "checkpoint=")) {
+    if (WT_PREFIX_MATCH((const char *)meta_buf->data, "checkpoint2=")) {
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "Disaggregated checkpoint metadata starts with \"checkpoint=\";"
+          "Disaggregated checkpoint metadata starts with \"checkpoint2=\";"
           "Parsing regular format. Found \"%.*s\"",
           (int)meta_buf->size, (const char *)meta_buf->data);
         WT_ERR(__disagg_parse_meta(session, meta_buf, metadata));
 
     } else {
         __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "Disaggregated checkpoint metadata does not start with \"checkpoint=\";"
+          "Disaggregated checkpoint metadata does not start with \"checkpoint2=\";"
           "Parsing legacy format. Found \"%.*s\"",
           (int)meta_buf->size, (const char *)meta_buf->data);
         WT_ERR(__disagg_parse_legacy_meta(session, meta_buf, metadata));
