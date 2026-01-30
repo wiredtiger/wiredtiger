@@ -1614,11 +1614,18 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * Apply the accumulated size delta to the in-memory database_size now that the checkpoint has
      * succeeded.
      */
-    if (session->ckpt.ckpt_size_delta != 0)
+    if (session->ckpt.ckpt_size_delta != 0) {
+        /* Guard against overflow/underflow. */
+        WT_ASSERT(session,
+          (int64_t)conn->disaggregated_storage.database_size + session->ckpt.ckpt_size_delta >= 0);
+        WT_ASSERT(session,
+          (int64_t)conn->disaggregated_storage.database_size <=
+            INT64_MAX - session->ckpt.ckpt_size_delta);
+
         conn->disaggregated_storage.database_size =
           (uint64_t)((int64_t)conn->disaggregated_storage.database_size +
             session->ckpt.ckpt_size_delta);
-
+    }
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 
 err:
