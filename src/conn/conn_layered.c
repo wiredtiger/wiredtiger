@@ -1757,39 +1757,6 @@ __disagg_shared_metadata_clear(WT_SESSION_IMPL *session)
 }
 
 /*
- * __layered_last_checkpoint_order --
- *     For a URI, get the order number for the most recent checkpoint.
- */
-static int
-__layered_last_checkpoint_order(
-  WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order)
-{
-    int scanf_ret;
-
-    const char *checkpoint_name;
-    int64_t order_from_name;
-
-    *ckpt_order = 0;
-
-    /* Pull up the last checkpoint for this URI. It could return WT_NOTFOUND. */
-    WT_RET(__wt_meta_checkpoint_last_name(session, shared_uri, &checkpoint_name, ckpt_order, NULL));
-
-    /* Sanity check: we make sure that the name returned matches the order number. */
-    scanf_ret = sscanf(checkpoint_name, WT_CHECKPOINT ".%" PRId64, &order_from_name);
-    __wt_free(session, checkpoint_name);
-
-    if (scanf_ret != 1)
-        WT_RET_MSG(session, EINVAL,
-          "shared metadata checkpoint unknown format: %s, scan returns %d", checkpoint_name,
-          scanf_ret);
-
-    /* These should always be the same. */
-    WT_ASSERT(session, *ckpt_order == order_from_name);
-
-    return (0);
-}
-
-/*
  * __disagg_remove_shared_metadata_helper --
  *     Remove an entry from the shared metadata.
  */
