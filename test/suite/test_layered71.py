@@ -37,8 +37,7 @@ class test_layered71(wttest.WiredTigerTestCase):
     conn_base_config = 'statistics=(all),' \
                      + 'statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'precise_checkpoint=true,' \
-                     + 'file_manager=(close_scan_interval=1,close_idle_time=1,close_handle_minimum=0),' \
-                     + 'timing_stress_for_test=[checkpoint_slow],'
+                     + 'file_manager=(close_scan_interval=1,close_idle_time=1,close_handle_minimum=0),'
     conn_config = conn_base_config + 'disaggregated=(role="follower")'
 
     create_session_config = 'key_format=S,value_format=S,type=layered'
@@ -69,8 +68,21 @@ class test_layered71(wttest.WiredTigerTestCase):
         # Create an empty table
         session2 = self.conn.open_session('')
         session2.create(self.uri, self.create_session_config)
+        session2.checkpoint()
         session2.close()
 
+        # Check that the table exists in the follower and is empty
+        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_config)
+        self.disagg_advance_checkpoint(conn_follow)
+        session_follow = conn_follow.open_session('')
+        cursor = session_follow.open_cursor(self.uri, None, None)
+        item_count = 0
+        while cursor.next() == 0:
+            item_count += 1
+        cursor.close()
+        self.assertEqual(item_count, 0)
+
+        self.conn.reconfigure('timing_stress_for_test=[checkpoint_slow]')
         # Wait until the sweep has closed any idle handles
         while True:
             stat_cursor = self.session.open_cursor('statistics:', None, None)
@@ -107,17 +119,15 @@ class test_layered71(wttest.WiredTigerTestCase):
         # No need for a timing stress after this point
         self.conn.reconfigure('timing_stress_for_test=[]')
 
-        # Check that the table still exists in the follower and is empty
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_config)
+        # Check that the table exists in the follower after checkpoint pick-up and is empty.
         self.disagg_advance_checkpoint(conn_follow)
-        session_follow = conn_follow.open_session('')
         cursor = session_follow.open_cursor(self.uri, None, None)
         item_count = 0
         while cursor.next() == 0:
             item_count += 1
         cursor.close()
         self.assertEqual(item_count, 0)
-
+        
         # Clean up
         session_follow.close()
         conn_follow.close()
