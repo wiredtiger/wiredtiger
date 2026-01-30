@@ -1347,8 +1347,12 @@ __wt_meta_ckptlist_set(
              */
             if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
                 ckpt->size = __wt_atomic_load_uint64(&btree->bytes_total);
-                /* Accumulate the delta for this btree. */
-                session->ckpt.ckpt_size_delta += (int64_t)ckpt->size - (int64_t)prev_ckpt_size;
+                if (prev_ckpt_size == 0)
+                    /* First checkpoint. Set initial database size. */
+                    session->ckpt.ckpt_size_delta += (int64_t)ckpt->size;
+                else
+                    /* Subsequent checkpoint. Accumulate delta for this btree. */
+                    session->ckpt.ckpt_size_delta += (int64_t)ckpt->size - (int64_t)prev_ckpt_size;
             }
         } else
             prev_ckpt_size = ckpt->size;
