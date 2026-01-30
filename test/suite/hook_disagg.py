@@ -320,8 +320,6 @@ def session_open_cursor_replace(orig_session_open_cursor, session_self, uri, dup
 
 # Called to replace Session.salvage
 def session_salvage_replace(orig_session_salvage, session_self, uri, config):
-    # uri = replace_uri(uri)
-    # return orig_session_salvage(session_self, uri, config)
     skip_test("salvage on disagg tables not yet implemented")
 
 # Called to replace Session.truncate.
