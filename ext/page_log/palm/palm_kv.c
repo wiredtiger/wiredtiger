@@ -423,7 +423,6 @@ palm_kv_abandon_after(PALM_KV_CONTEXT *context, uint64_t abandon_after_lsn)
         PAGE_KEY *key = (PAGE_KEY *)kval.mv_data;
         PAGE_KEY decoded_key;
         swap_page_key(key, &decoded_key);
-
         if (decoded_key.lsn > abandon_after_lsn) {
             ret = mdb_cursor_del(cursor, 0);
             if (ret != 0)

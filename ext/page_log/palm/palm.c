@@ -1354,7 +1354,7 @@ palm_trim_table(
      * have removed the table reference removed from their metadata tables.
      */
 
-    /* Update LSN even to fake a trim table request. */
+    /* Update LSN as we are faking a trim table request. */
     PALM_KV_RET(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_LSN, lsn + 1));
     PALM_VERBOSE_PRINT(
       palm, session, "palm_trim_table(table_id=%" PRIu64 ", lsn=%" PRIu64 ")\n", table_id, lsn);
