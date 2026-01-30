@@ -149,10 +149,10 @@ struct __wt_layered_table_manager {
 };
 
 /*
- * WT_DISAGG_UPDATE_METADATA --
+ * WT_DISAGG_METADATA_OP --
  *      Metadata about an object to be updated during the next checkpoint.
  */
-struct __wt_disagg_update_metadata {
+struct __wt_disagg_metadata_op {
     char *stable_uri; /* The full URI of the stable component. */
     char *table_name; /* The table name without prefix or suffix. */
 
@@ -161,7 +161,7 @@ struct __wt_disagg_update_metadata {
     char *stable_value;   /* The value for the stable component. */
     char *table_value;    /* The value for the table component. */
 
-    TAILQ_ENTRY(__wt_disagg_update_metadata) q; /* Linked list of entries. */
+    TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
 
 #define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
@@ -233,8 +233,8 @@ struct __wt_disaggregated_storage {
                                          /* Updates are protected by the checkpoint lock. */
 
     /* To copy at the next checkpoint. */
-    TAILQ_HEAD(__wt_disagg_update_metadata_qh, __wt_disagg_update_metadata) update_metadata_qh;
-    WT_SPINLOCK update_metadata_lock;
+    TAILQ_HEAD(__wt_disagg_shared_metadata_qh, __wt_disagg_metadata_op) shared_metadata_qh;
+    WT_SPINLOCK shared_metadata_lock;
 
     /*
      * Ideally we'd have flags passed to the IO system, which could make it all the way to the
