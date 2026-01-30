@@ -127,7 +127,7 @@ class test_layered71(wttest.WiredTigerTestCase):
             item_count += 1
         cursor.close()
         self.assertEqual(item_count, 0)
-        
+
         # Clean up
         session_follow.close()
         conn_follow.close()
