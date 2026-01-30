@@ -1333,10 +1333,8 @@ static int
 palm_trim_table(
   WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t table_id, uint64_t start_lsn, uint64_t *lsnp)
 {
-    PALM *palm;
-
-    (void)session;
     (void)page_log;
+    (void)session;
     (void)table_id;
     (void)start_lsn;
     (void)lsnp;
