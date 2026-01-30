@@ -90,9 +90,6 @@ class test_layered28(wttest.WiredTigerTestCase):
 
     # Test simple create and drop on leader mode.
     def test_create_drop(self):
-        if (self.ds_name != "palite"):
-            self.skipTest("Must use PALite to verify contents")
-
         base_create = 'key_format=S,value_format=S' + self.table_config
         uri = self.prefix + self.uri_base
 
@@ -114,9 +111,6 @@ class test_layered28(wttest.WiredTigerTestCase):
 
     # Test create and drop with a subsequent checkpoint and enough time for sweep to come through
     def test_create_drop_checkpoint(self):
-        if (self.ds_name != "palite"):
-            self.skipTest("Must use PALite to verify contents")
-
         base_create = 'key_format=S,value_format=S' + self.table_config
         uri = self.prefix + self.uri_base
 
@@ -142,9 +136,6 @@ class test_layered28(wttest.WiredTigerTestCase):
 
     # Test create and drop on follower mode.
     def test_create_drop_follower(self):
-        if (self.ds_name != "palite"):
-            self.skipTest("Must use PALite to verify contents")
-
         base_create = 'key_format=S,value_format=S' + self.table_config
         uri = self.prefix + self.uri_base
 
