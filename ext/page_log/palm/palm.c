@@ -660,7 +660,7 @@ palm_abandon_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session)
     PALM_VERBOSE_PRINT(
       palm, session, "palm_abandon_checkpoint(lsn=%" PRIu64 ")\n", last_checkpoint_lsn);
 
-    PALM_KV_ERR(palm, session, palm_kv_abandon_after(&context, last_checkpoint_lsn, 0));
+    PALM_KV_ERR(palm, session, palm_kv_abandon_after(&context, last_checkpoint_lsn));
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
 
     if (0) {
@@ -1330,28 +1330,36 @@ palm_set_last_materialized_lsn(WT_PAGE_LOG *storage, WT_SESSION *session, uint64
  *     Discard an table for testing purposes.
  */
 static int
-palm_trim_table(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t table_id, uint64_t start_lsn)
+palm_trim_table(
+  WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t table_id, uint64_t start_lsn, uint64_t *lsnp)
 {
     PALM *palm;
-    int ret = 0;
     PALM_KV_CONTEXT context;
+    uint64_t lsn;
+    int ret;
+
+    (void)start_lsn; /* Unused parameter */
 
     palm = (PALM *)page_log;
     palm_init_context(palm, &context);
-    (void)start_lsn; /* Unused parameter */
 
-    PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
-
-    PALM_VERBOSE_PRINT(palm, session, "palm_trim_table(lsn=%" PRIu64 ")\n", table_id);
-    PALM_KV_ERR(palm, session, palm_kv_abandon_after(&context, 0, table_id));
-    PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
-
-    if (0) {
-err:
-        palm_kv_rollback_transaction(&context);
-        PALM_VERBOSE_PRINT(
-          palm, session, "palm_trim_table(lsn=%" PRIu64 ") returned %d\n", table_id, ret);
+    ret = palm_kv_get_global(&context, PALM_KV_GLOBAL_LSN, &lsn);
+    if (ret == MDB_NOTFOUND) {
+        lsn = 1;
+        ret = 0;
     }
+    /*
+     * Followers can read trimmed tables for a limited time after we issue a drop command on leader
+     * mode. For this reason, we will no-op the trim table. Both leader and follower nodes should
+     * have removed the table reference removed from their metadata tables.
+     */
+
+    /* Update LSN even to fake a trim table request. */
+    PALM_KV_RET(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_LSN, lsn + 1));
+    PALM_VERBOSE_PRINT(
+      palm, session, "palm_trim_table(table_id=%" PRIu64 ", lsn=%" PRIu64 ")\n", table_id, lsn);
+    if (lsnp != NULL)
+        *lsnp = lsn;
     return (ret);
 }
 
