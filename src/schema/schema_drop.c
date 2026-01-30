@@ -189,11 +189,7 @@ __drop_layered(
     if (S2C(session)->layered_table_manager.leader) {
         WT_ERR(__drop_issue_trim(session, stable_uri));
 
-        /*
-         * Remove the all associated metadata from shared metadata table.
-         *
-         * FIXME-WT-16565: Refactor to use the shared metadata queue.
-         */
+        /* Remove the all associated metadata from shared metadata table. */
         WT_SAVE_DHANDLE(session,
           ret = __wt_disagg_enqueue_metadata_operation(
             session, stable_uri, tablename, SHARED_METADATA_REMOVE));
