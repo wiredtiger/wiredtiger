@@ -383,7 +383,7 @@ __page_merge_base_internal_deltas(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR 
 
     hdr->write_gen = latest_write_gen;
     hdr->type = WT_PAGE_ROW_INT;
-    hdr->unused = 0;
+    hdr->reserved = 0;
     hdr->version = WT_PAGE_VERSION_TS;
 
     *ref_entriesp = final_entries;
@@ -640,7 +640,7 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
     dsk->mem_size = WT_STORE_SIZE(new_image->size);
 
     dsk->write_gen = ((WT_PAGE_HEADER *)deltas[delta_size - 1].data)->write_gen;
-    dsk->unused = 0;
+    dsk->reserved = 0;
     dsk->version = WT_PAGE_VERSION_TS;
 
     /* Clear the memory owned by the block manager. */
@@ -981,11 +981,11 @@ err:
 }
 
 /*
- * __wt_page_inmem_update --
+ * __page_inmem_update --
  *     Create the actual update.
  */
-int
-__wt_page_inmem_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
+static int
+__page_inmem_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
   WT_UPDATE **updp, size_t *sizep)
 {
     if (WT_TIME_WINDOW_HAS_PREPARE(&unpack->tw))
@@ -1003,7 +1003,7 @@ static int
 __page_inmem_update_col(WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR_BTREE *cbt, uint64_t recno,
   WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp, size_t *sizep)
 {
-    WT_RET(__wt_page_inmem_update(session, value, unpack, updp, sizep));
+    WT_RET(__page_inmem_update(session, value, unpack, updp, sizep));
 
     /* Search the page and apply the modification. */
     WT_RET(__wt_col_search(cbt, recno, ref, true, NULL));
@@ -1099,7 +1099,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
             WT_ASSERT_ALWAYS(session, __wt_cell_type_raw(unpack.cell) != WT_CELL_VALUE_OVFL_RM,
               "Should never read an overflow removed value for a prepared update");
 
-            WT_ERR(__wt_page_inmem_update(session, value, &unpack, &upd, &size));
+            WT_ERR(__page_inmem_update(session, value, &unpack, &upd, &size));
             total_size += size;
 
             /* Search the page and apply the modification. */

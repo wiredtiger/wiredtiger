@@ -453,6 +453,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
+    uint64_t old_rec_lsn_max;
 
     btree = S2BT(session);
     page = r->page;
@@ -474,6 +475,18 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
               mod->mod_multi[mod->mod_multi_entries - 1].block_meta->disagg_lsn;
         else
             page->disagg_info->rec_lsn_max = page->disagg_info->block_meta.disagg_lsn;
+
+        for (;;) {
+            old_rec_lsn_max = __wt_atomic_load_uint64_relaxed(&btree->rec_lsn_max);
+            if (old_rec_lsn_max < page->disagg_info->rec_lsn_max &&
+              !__wt_atomic_cas_uint64(
+                &btree->rec_lsn_max, old_rec_lsn_max, page->disagg_info->rec_lsn_max)) {
+                WT_STAT_CONN_DSRC_INCR(session, cache_cas_btree_max_lsn_race);
+                continue;
+            }
+
+            break;
+        }
     }
 
     /*
@@ -1858,7 +1871,7 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHU
     if ((page->type == WT_PAGE_COL_INT || page->type == WT_PAGE_ROW_INT))
         F_SET(dsk, WT_PAGE_FT_UPDATE);
 
-    dsk->unused = 0;
+    dsk->reserved = 0;
     dsk->version = WT_PAGE_VERSION_TS;
 
     /* Clear the memory owned by the block manager. */
