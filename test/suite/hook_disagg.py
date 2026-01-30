@@ -320,6 +320,7 @@ def session_open_cursor_replace(orig_session_open_cursor, session_self, uri, dup
 
 # Called to replace Session.salvage
 def session_salvage_replace(orig_session_salvage, session_self, uri, config):
+    # FIXME-WT-14740: Re-enable salvage once implemented.
     skip_test("salvage on disagg tables not yet implemented")
 
 # Called to replace Session.truncate.
