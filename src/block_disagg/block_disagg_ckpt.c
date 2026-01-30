@@ -31,7 +31,7 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
      * but the alternative is a call for the btree layer to crack the checkpoint cookie into
      * its components, and that's a fair amount of work.
      */
-    ckpt->size = block_meta->page_id;
+    ckpt->size = __wt_atomic_load_uint64(&S2BT(session)->bytes_total);
 
     /*
      * Write the root page out, and get back the address information for that page which will be
