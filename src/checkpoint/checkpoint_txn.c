@@ -1730,6 +1730,8 @@ err:
     __wt_free(session, session->ckpt.handle);
     WT_ASSERT(session, session->ckpt.crash_trigger_point == 0 && session->ckpt.crash_point == 0);
     session->ckpt.handle_allocated = session->ckpt.handle_next = 0;
+
+    /* Reset accumulated change in database size. Failed checkpoints do not affect database size. */
     session->ckpt.ckpt_size_delta = 0;
 
     session->isolation = txn->isolation = saved_isolation;
