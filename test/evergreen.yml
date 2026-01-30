@@ -3691,7 +3691,7 @@ tasks:
             set -o verbose
             ${PREPARE_TEST_ENV}
             ${python_binary|python3} test/compatibility/suite/compatibility_test.py ${compat_suite_args|-v 2} 2>&1
-  
+
   - name: compatibility-test-against-develop
     depends_on:
     - name: compile
