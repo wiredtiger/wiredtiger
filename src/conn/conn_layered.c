@@ -174,7 +174,7 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
               "Failed to create missing stable table \"%s\" from \"%s\"", stable_uri, layered_cfg);
             /* Ensure that we properly handle empty tables. */
             WT_ERR(__wt_disagg_enqueue_metadata_operation(
-              session, stable_uri, layered_uri + strlen("layered:")));
+              session, stable_uri, layered_uri + strlen("layered:"), SHARED_METADATA_UPDATE));
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Created missing stable table \"%s\" from \"%s\"", stable_uri, layered_uri);
         }
@@ -1659,7 +1659,7 @@ err:
  */
 int
 __wt_disagg_enqueue_metadata_operation(
-  WT_SESSION_IMPL *session, const char *stable_uri, const char *table_name)
+  WT_SESSION_IMPL *session, const char *stable_uri, const char *table_name, u_int metadata_op)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
@@ -1679,6 +1679,7 @@ __wt_disagg_enqueue_metadata_operation(
 
     /* Allocate the entry structure. */
     WT_ERR(__wt_calloc_one(session, &entry));
+    entry->metadata_op = metadata_op;
     WT_ERR(__wt_strdup(session, stable_uri, &entry->stable_uri));
     WT_ERR(__wt_strdup(session, table_name, &entry->table_name));
 
@@ -1698,9 +1699,10 @@ __wt_disagg_enqueue_metadata_operation(
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_lock);
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Scheduled copying disaggregated metadata for table \"%s\" (stable URI \"%s\") to shared "
+      "Scheduled copying disaggregated metadata for table \"%s\" (stable URI \"%s\") with %s "
+      "operation to shared "
       "metadata table at next checkpoint:",
-      table_name, stable_uri);
+      table_name, stable_uri, metadata_op == SHARED_METADATA_UPDATE ? "UPDATE" : "DELETE");
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  colgroup: %s",
       entry->colgroup_value == NULL ? "<none>" : entry->colgroup_value);
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  layered: %s",
@@ -1742,6 +1744,95 @@ __disagg_shared_metadata_clear(WT_SESSION_IMPL *session)
     WT_TAILQ_SAFE_REMOVE_END
 
     __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_lock);
+}
+
+/*
+ * __layered_last_checkpoint_order --
+ *     For a URI, get the order number for the most recent checkpoint.
+ */
+static int
+__layered_last_checkpoint_order(
+  WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order)
+{
+    int scanf_ret;
+
+    const char *checkpoint_name;
+    int64_t order_from_name;
+
+    *ckpt_order = 0;
+
+    /* Pull up the last checkpoint for this URI. It could return WT_NOTFOUND. */
+    WT_RET(__wt_meta_checkpoint_last_name(session, shared_uri, &checkpoint_name, ckpt_order, NULL));
+
+    /* Sanity check: we make sure that the name returned matches the order number. */
+    scanf_ret = sscanf(checkpoint_name, WT_CHECKPOINT ".%" PRId64, &order_from_name);
+    __wt_free(session, checkpoint_name);
+
+    if (scanf_ret != 1)
+        WT_RET_MSG(session, EINVAL,
+          "shared metadata checkpoint unknown format: %s, scan returns %d", checkpoint_name,
+          scanf_ret);
+
+    /* These should always be the same. */
+    WT_ASSERT(session, *ckpt_order == order_from_name);
+
+    return (0);
+}
+
+/*
+ * __disagg_remove_shared_metadata_helper --
+ *     Remove an entry from the shared metadata.
+ */
+static int
+__disagg_remove_shared_metadata_helper(WT_SESSION_IMPL *session, const char *key)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL};
+
+    WT_ASSERT(session, S2C(session)->layered_table_manager.leader);
+
+    cursor = NULL;
+
+    WT_ERR(__wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
+    cursor->set_key(cursor, key);
+    WT_ERR(cursor->remove(cursor));
+
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Removed disaggregated shared metadata: key=\"%s\"", key);
+
+err:
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
+    return (ret);
+}
+
+/*
+ * __disagg_remove_shared_metadata --
+ *     Remove metadata in the shared metadata table.
+ *
+ * Note: If the table was created and dropped before a checkpoint has occurred, it is expected to
+ *     have no metadata entries on the shared metadata table.
+ */
+static int
+__disagg_remove_shared_metadata(
+  WT_SESSION_IMPL *session, const char *prefix, const char *key, const char *value)
+{
+    WT_DECL_ITEM(md_key);
+    WT_DECL_RET;
+
+    if (value == NULL)
+        return (0);
+
+    WT_ERR(__wt_scr_alloc(session, 0, &md_key));
+    WT_ERR(__wt_buf_fmt(session, md_key, "%s%s", prefix, key));
+
+    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata_helper(session, md_key->data));
+    WT_ERR(ret);
+
+err:
+    __wt_scr_free(session, &md_key);
+    return (ret);
 }
 
 /*
@@ -1823,14 +1914,25 @@ __wt_disagg_shared_metadata_process(WT_SESSION_IMPL *session)
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
-        WT_ERR(__disagg_update_shared_metadata(
-          session, "colgroup:", entry->table_name, entry->colgroup_value));
-        WT_ERR(__disagg_update_shared_metadata(
-          session, "layered:", entry->table_name, entry->layered_value));
-        WT_ERR(__disagg_update_shared_metadata(
-          session, "table:", entry->table_name, entry->table_value));
-        WT_ERR(
-          __disagg_update_shared_metadata(session, "", entry->stable_uri, entry->stable_value));
+        if (entry->metadata_op == SHARED_METADATA_UPDATE) {
+            WT_ERR(__disagg_update_shared_metadata(
+              session, "colgroup:", entry->table_name, entry->colgroup_value));
+            WT_ERR(__disagg_update_shared_metadata(
+              session, "layered:", entry->table_name, entry->layered_value));
+            WT_ERR(__disagg_update_shared_metadata(
+              session, "table:", entry->table_name, entry->table_value));
+            WT_ERR(
+              __disagg_update_shared_metadata(session, "", entry->stable_uri, entry->stable_value));
+        } else if (entry->metadata_op == SHARED_METADATA_REMOVE) {
+            WT_ERR(__disagg_remove_shared_metadata(
+              session, "colgroup:", entry->table_name, entry->colgroup_value));
+            WT_ERR(__disagg_remove_shared_metadata(
+              session, "layered:", entry->table_name, entry->layered_value));
+            WT_ERR(__disagg_remove_shared_metadata(
+              session, "table:", entry->table_name, entry->table_value));
+            WT_ERR(
+              __disagg_remove_shared_metadata(session, "", entry->stable_uri, entry->stable_value));
+        }
 
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_free(session, &entry);
@@ -3152,103 +3254,6 @@ err:
     return (ret);
 }
 
-/*
- * __layered_last_checkpoint_order --
- *     For a URI, get the order number for the most recent checkpoint.
- */
-static int
-__layered_last_checkpoint_order(
-  WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order)
-{
-    int scanf_ret;
-
-    const char *checkpoint_name;
-    int64_t order_from_name;
-
-    *ckpt_order = 0;
-
-    /* Pull up the last checkpoint for this URI. It could return WT_NOTFOUND. */
-    WT_RET(__wt_meta_checkpoint_last_name(session, shared_uri, &checkpoint_name, ckpt_order, NULL));
-
-    /* Sanity check: we make sure that the name returned matches the order number. */
-    scanf_ret = sscanf(checkpoint_name, WT_CHECKPOINT ".%" PRId64, &order_from_name);
-    __wt_free(session, checkpoint_name);
-
-    if (scanf_ret != 1)
-        WT_RET_MSG(session, EINVAL,
-          "shared metadata checkpoint unknown format: %s, scan returns %d", checkpoint_name,
-          scanf_ret);
-
-    /* These should always be the same. */
-    WT_ASSERT(session, *ckpt_order == order_from_name);
-
-    return (0);
-}
-
-/*
- * __disagg_remove_shared_metadata --
- *     Remove an entry from the shared metadata.
- */
-static int
-__disagg_remove_shared_metadata(WT_SESSION_IMPL *session, const char *key)
-{
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL};
-
-    WT_ASSERT(session, S2C(session)->layered_table_manager.leader);
-
-    cursor = NULL;
-
-    WT_ERR(__wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
-    cursor->set_key(cursor, key);
-    WT_ERR(cursor->remove(cursor));
-
-    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Removed disaggregated shared metadata: key=\"%s\"", key);
-
-err:
-    if (cursor != NULL)
-        WT_TRET(cursor->close(cursor));
-    return (ret);
-}
-
-/*
- * __wt_disagg_remove_shared_metadata_layered --
- *     Remove all metadata relevant to the table_name from the shared metadata table.
- *
- * Note: If the table was created and dropped before a checkpoint has occurred, it is expected to
- *     have no metadata entries on the shared metadata table.
- */
-int
-__wt_disagg_remove_shared_metadata_layered(WT_SESSION_IMPL *session, const char *table_name)
-{
-    WT_DECL_ITEM(uri_buf);
-    WT_DECL_RET;
-
-    WT_RET(__wt_scr_alloc(session, 0, &uri_buf));
-
-    /* Remove all relevant metadata entries from shared metadata table (if exists). */
-    WT_ERR(__wt_buf_fmt(session, uri_buf, "file:%s.wt_stable", table_name));
-    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf->data));
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-    WT_ERR(__wt_buf_fmt(session, uri_buf, "layered:%s", table_name));
-    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf->data));
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-    WT_ERR(__wt_buf_fmt(session, uri_buf, "colgroup:%s", table_name));
-    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf->data));
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-    WT_ERR(__wt_buf_fmt(session, uri_buf, "table:%s", table_name));
-    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf->data));
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-err:
-    __wt_scr_free(session, &uri_buf);
-    return (ret);
-}
 #ifdef HAVE_UNITTEST
 void
 __ut_disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt)

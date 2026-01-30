@@ -161,8 +161,15 @@ struct __wt_disagg_metadata_op {
     char *stable_value;   /* The value for the stable component. */
     char *table_value;    /* The value for the table component. */
 
+    /* Metadata type operation. */
+    u_int metadata_op;
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
+
+/*
+ * Identify the shared metadata operations inside the shared metadata queue.
+ */
+typedef enum { SHARED_METADATA_UPDATE = 0, SHARED_METADATA_REMOVE } WT_SHARED_METADATA_OPS;
 
 #define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
 

@@ -194,8 +194,9 @@ __drop_layered(
          *
          * FIXME-WT-16565: Refactor to use the shared metadata queue.
          */
-        WT_SAVE_DHANDLE(
-          session, ret = __wt_disagg_remove_shared_metadata_layered(session, tablename));
+        WT_SAVE_DHANDLE(session,
+          ret = __wt_disagg_enqueue_metadata_operation(
+            session, stable_uri, tablename, SHARED_METADATA_REMOVE));
         WT_ERR(ret);
     }
 
