@@ -32,7 +32,6 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
      * its components, and that's a fair amount of work.
      */
     ckpt->size = block_meta->page_id;
-    /* FIXME-WT-14610: What should be the checkpoint size? Do we need it? */
 
     /*
      * Write the root page out, and get back the address information for that page which will be
