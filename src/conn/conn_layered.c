@@ -1392,7 +1392,7 @@ __disagg_pick_up_checkpoint_meta(
         __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE, "%s\"%s\"",
           "Missing metadata_checksum from metadata: ", meta_str);
 
-    /* Extract the database compressed size, if it exists. */
+    /* Extract the database size, if it exists. */
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "database_size", &cval), true);
     if (WT_CHECK_AND_RESET(ret, 0) && cval.len != 0) {
         /*
