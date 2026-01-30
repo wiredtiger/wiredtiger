@@ -1343,6 +1343,7 @@ palm_trim_table(
     palm = (PALM *)page_log;
     palm_init_context(palm, &context);
 
+    PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
     ret = palm_kv_get_global(&context, PALM_KV_GLOBAL_LSN, &lsn);
     if (ret == MDB_NOTFOUND) {
         lsn = 1;
@@ -1358,8 +1359,14 @@ palm_trim_table(
     PALM_KV_RET(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_LSN, lsn + 1));
     PALM_VERBOSE_PRINT(
       palm, session, "palm_trim_table(table_id=%" PRIu64 ", lsn=%" PRIu64 ")\n", table_id, lsn);
+    PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
+
     if (lsnp != NULL)
         *lsnp = lsn;
+    return (0);
+
+err:
+    palm_kv_rollback_transaction(&context);
     return (ret);
 }
 
