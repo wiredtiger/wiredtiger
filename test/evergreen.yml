@@ -1766,7 +1766,7 @@ variables:
         vars:
           format_args: disagg.multi=1 runs.predictable_replay=1 runs.ops=500000:2000000
           times: 5
-          reopen: false # FIXME-WT-16135 Reopen currently causes failures in disagg multi mode.
+          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
   - &format-stress-test-disagg-multi-data-validation
     depends_on:
@@ -1778,7 +1778,7 @@ variables:
           # Validate data with a non-layered table.
           format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.ops=500000:2000000
           times: 5
-          reopen: false # FIXME-WT-16135 Reopen currently causes failures in disagg multi mode.
+          reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
 #######################################
 #               Tasks                 #
@@ -1804,7 +1804,7 @@ tasks:
 
   # production build with --disable-shared
   - name: compile-production-disable-shared
-    tags: ["pull_request"]
+    tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1815,7 +1815,7 @@ tasks:
 
   # production build with --disable-static
   - name: compile-production-disable-static
-    tags: ["pull_request"]
+    tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2051,14 +2051,15 @@ tasks:
         vars:
           directory: test/huge
 
-  - name: manydbs-test
-    tags: ["pull_request"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - func: "make check directory"
-        vars:
-          directory: test/manydbs
+  # FIXME-WT-16548: Re-enable the test.
+  # - name: manydbs-test
+  #   tags: ["pull_request"]
+  #   commands:
+  #     - func: "get project"
+  #     - func: "compile wiredtiger"
+  #     - func: "make check directory"
+  #       vars:
+  #         directory: test/manydbs
 
   - name: packing-test
     tags: ["pull_request"]
@@ -3650,14 +3651,14 @@ tasks:
         vars:
           compat_test_args: -n
 
-  - name: compatibility-test-for-older-releases
+  - name: compatibility-test-for-older-releases-weekly
     commands:
       - func: "get project"
       - func: "compatibility test"
         vars:
           compat_test_args: -o
 
-  - name: compatibility-test-upgrade-to-latest
+  - name: compatibility-test-upgrade-to-latest-daily
     commands:
       - func: "get project"
       - func: "compatibility test"
@@ -3676,7 +3677,7 @@ tasks:
             set -o verbose
             test/compatibility/compatibility_test_for_releases.sh -p
 
-  - name: compatibility-test-suite
+  - name: compatibility-test-suite-daily
     tags: ["python"]
     commands:
       - func: "get project"
@@ -3728,7 +3729,7 @@ tasks:
       # To prevent the default post task re-archiving again.
       - func: "cleanup"
 
-  - name: compatibility-test-for-wt-standalone-releases
+  - name: compatibility-test-for-wt-standalone-releases-weekly
     commands:
       - func: "get project"
       - func: "compatibility test"
@@ -4361,21 +4362,22 @@ tasks:
       # Run the long version of make check, that includes the full csuite tests
       - func: "make check all"
 
-      # Many dbs test - Run with:
-      # 1.  The defaults
-      - func: "many dbs test"
-      # 2.  Set idle flag to turn off operations.
-      - func: "many dbs test"
-        vars:
-          many_db_args: -I
-      # 3.  More dbs.
-      - func: "many dbs test"
-        vars:
-          many_db_args: -D 40
-      # 4.  With idle flag and more dbs.
-      - func: "many dbs test"
-        vars:
-          many_db_args: -I -D 40
+      # FIXME-WT-16548: Re-enable all the scenarios below for many dbs test.
+      # # Many dbs test - Run with:
+      # # 1.  The defaults
+      # - func: "many dbs test"
+      # # 2.  Set idle flag to turn off operations.
+      # - func: "many dbs test"
+      #   vars:
+      #     many_db_args: -I
+      # # 3.  More dbs.
+      # - func: "many dbs test"
+      #   vars:
+      #     many_db_args: -D 40
+      # # 4.  With idle flag and more dbs.
+      # - func: "many dbs test"
+      #   vars:
+      #     many_db_args: -I -D 40
 
       # extended test/thread runs
       - func: "thread test"
@@ -7087,7 +7089,6 @@ buildvariants:
 # Very minimal set without any extensions
 - name: ubuntu2004-minimal
   display_name: "! Ubuntu 20.04 Minimal"
-  batchtime: 480 # 3 times a day
   run_on:
   - ubuntu2004-test
   expansions:
@@ -7103,11 +7104,14 @@ buildvariants:
     - name: fops
     - name: catch2-test
     - name: examples-c-test
+    - name: ".pull_request_compilers"
+      run_on:
+        - ubuntu2004-wt-build
 
 # FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
 # Investigate whether a similar thing could happen for MSAN.
 - name: ubuntu2004-msan
-  display_name: "! Ubuntu 20.04 MSAN"
+  display_name: "Ubuntu 20.04 MSAN"
   run_on:
   - ubuntu2004-test
   expansions:
@@ -7140,7 +7144,7 @@ buildvariants:
 # FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
 # Investigate whether a similar thing could happen for UBSAN.
 - name: ubuntu2004-ubsan
-  display_name: "! Ubuntu 20.04 UBSAN"
+  display_name: "Ubuntu 20.04 UBSAN"
   run_on:
   - ubuntu2004-test
   expansions:
@@ -7165,19 +7169,8 @@ buildvariants:
       distros: ubuntu2004-large
     - name: cppsuite-default-all
 
-- name: ubuntu2004-compilers
-  display_name: "! Ubuntu 20.04 Compilers"
-  run_on:
-  - ubuntu2004-wt-build
-  expansions:
-    ENABLE_TCMALLOC: 1
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-  tags: ["pull_request"]
-  tasks:
-    - name: ".pull_request_compilers"
-
 - name: ubuntu2004-stress-tests
-  display_name: Ubuntu 20.04 Stress tests
+  display_name: "! Ubuntu 20.04 Stress tests"
   run_on:
   - ubuntu2004-small
   expansions:
@@ -7197,9 +7190,12 @@ buildvariants:
     - name: format-predictable-test
     - name: schema-abort-predictable-test
     - name: checkpoint-filetypes-predictable-test
+    - name: ".cppsuite-stress-test"
+      batchtime: 720 # twice a day
+      distros: ubuntu2004-medium
 
 - name: ubuntu2004-stress-tests-arm64
-  display_name: Ubuntu 20.04 Stress tests (ARM64)
+  display_name: "! Ubuntu 20.04 ARM64 Stress tests"
   run_on:
   - ubuntu2004-arm64-large
   expansions:
@@ -7215,31 +7211,8 @@ buildvariants:
     - name: checkpoint-stress-test-tiered
     - name: precise-checkpoint-stress-test-tiered
     - name: format-abort-recovery-stress-test
-
-- name: cppsuite-stress-tests-ubuntu
-  display_name: "Cppsuite Stress Tests Ubuntu 20.04"
-  batchtime: 720 # twice a day
-  run_on:
-  # We run on medium as small has too small a disk.
-  - ubuntu2004-medium
-  expansions:
-    ENABLE_TCMALLOC: 1
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-  tasks:
-    - name: compile
     - name: ".cppsuite-stress-test"
-
-- name: cppsuite-stress-tests-arm64
-  display_name: "Cppsuite Stress Tests ARM64"
-  batchtime: 720 # twice a day
-  run_on:
-  - ubuntu2004-arm64-large
-  expansions:
-    ENABLE_TCMALLOC: 1
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-  tasks:
-    - name: compile
-    - name: ".cppsuite-stress-test"
+      batchtime: 720 # twice a day
 
 - name: package
   display_name: "~ Package"
@@ -7250,7 +7223,8 @@ buildvariants:
     - name: package
 
 - name: rhel80
-  display_name: RHEL 8.0
+  display_name: "~ RHEL 8.0"
+  batchtime: 1440 # once a day
   run_on:
   - rhel80-test
   expansions:
@@ -7378,7 +7352,7 @@ buildvariants:
     - name: ".stress-test-zseries-3"
 
 - name: ubuntu2004-arm64
-  display_name: "~ Ubuntu 20.04 ARM64"
+  display_name: "! Ubuntu 20.04 ARM64"
   run_on:
   - ubuntu2004-arm64-small
   batchtime: 1440 # 24 hours
@@ -7386,11 +7360,11 @@ buildvariants:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
+    - name: compile
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: checkpoint-filetypes-test
     - name: chunkcache-test
-    - name: compile
     - name: configure-combinations
     - name: fops
     - name: format-failure-configs-test
@@ -7424,54 +7398,8 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: unit-test-zstd
     - name: wtperf-test
-
-- name: ubuntu2004-arm64-memory-model
-  display_name: "Ubuntu 20.04 ARM64 Memory model test"
-  run_on:
-  - ubuntu2004-arm64-small
-  batchtime: 40320 # 28 days
-  expansions:
-    ENABLE_TCMALLOC: 0
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
-  tasks:
     - name: memory-model-test
-
-- name: amazon2-arm64
-  display_name: "Amazon Linux 2 ARM64"
-  run_on:
-  - amazon2-arm64-small
-  batchtime: 1440 # 24 hours
-  expansions:
-    ENABLE_TCMALLOC: 1
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
-    cmake_generator: "Unix Makefiles"
-  # Using large distro for a few tests here as more memory is required.
-  tasks:
-    - name: checkpoint-filetypes-test
-    - name: compile
-    - name: fops
-    - name: format-failure-configs-test
-      distros: amazon2-arm64-large
-    - name: format-smoke-test
-    - name: format-stress-pull-request-test
-    - name: format-stress-test-disagg-leader-pull-request
-    - name: format-stress-test-disagg-follower-pull-request
-    - name: long-test
-      distros: amazon2-arm64-large
-    - name: make-check-test
-      distros: amazon2-arm64-large
-    - name: s3-tiered-storage-extensions-test
-    - name: spinlock-gcc-test
-    - name: spinlock-pthread-adaptive-test
-      distros: amazon2-arm64-large
-    - name: unit-test
-    - name: unit-test-extra-long
-      distros: amazon2-arm64-large
-    - name: unit-test-hook-disagg-leader-extra-long
-      distros: amazon2-arm64-large
-    - name: unit-test-hook-timing-stress-log
-    - name: unit-test-zstd
-    - name: wtperf-test
+      batchtime: 40320 # 28 days
 
 # Antithesis build and push
 - name: ubuntu2004-antithesis
@@ -7489,7 +7417,7 @@ buildvariants:
       patchable: false
 
 - name: ubuntu2004-release
-  display_name: "~ Ubuntu 20.04 (Release Build)"
+  display_name: "! Ubuntu 20.04 (Release Build)"
   run_on:
   - ubuntu2004-small
   batchtime: 720 # 12 hours
@@ -7516,7 +7444,7 @@ buildvariants:
     - name: s3-tiered-storage-extensions-test
 
 - name: ubuntu2004-release-arm64
-  display_name: "~ Ubuntu 20.04 (ARM64, Release Build)"
+  display_name: "! Ubuntu 20.04 ARM64 (Release Build)"
   run_on:
   - ubuntu2004-arm64-small
   batchtime: 720 # 12 hours
@@ -7542,7 +7470,7 @@ buildvariants:
     - name: s3-tiered-storage-extensions-test
 
 - name: ubuntu2004-release-stress-tests
-  display_name: Ubuntu 20.04 Stress tests (Release Build)
+  display_name: "! Ubuntu 20.04 Stress tests (Release Build)"
   run_on:
   - ubuntu2004-test
   batchtime: 1440 # 24 hours
@@ -7560,7 +7488,7 @@ buildvariants:
     - name: format-predictable-test
 
 - name: ubuntu2004-release-stress-tests-arm64
-  display_name: Ubuntu 20.04 Stress tests (ARM64, Release Build)
+  display_name: "! Ubuntu 20.04 ARM64 Stress tests (Release Build)"
   run_on:
   - ubuntu2004-arm64-large
   batchtime: 1440 # 24 hours
@@ -7576,7 +7504,7 @@ buildvariants:
     - name: format-abort-recovery-stress-test
 
 - name: ubuntu2004-nonstandalone
-  display_name: "Ubuntu 20.04 (Non-standalone)"
+  display_name: "! Ubuntu 20.04 (Non-standalone)"
   run_on:
   - ubuntu2004-test
   expansions:
@@ -7596,7 +7524,7 @@ buildvariants:
     - name: ".data-validation-stress-test"
 
 - name: ubuntu2004-stress-nonstandalone
-  display_name: "Ubuntu 20.04 Stress tests (Non-standalone)"
+  display_name: " ! Ubuntu 20.04 Stress tests (Non-standalone)"
   run_on:
   - ubuntu2004-small
   expansions:
@@ -7619,7 +7547,7 @@ buildvariants:
       distros: ubuntu2004-medium # Medium is required as a larger disk is required.
 
 - name: ubuntu2004-release-nonstandalone
-  display_name: "Ubuntu 20.04 (Non-standalone, Release Build)"
+  display_name: "Ubuntu 20.04 (Release Build, Non-standalone)"
   run_on:
   - ubuntu2004-small
   expansions:
@@ -7642,7 +7570,7 @@ buildvariants:
     - name: unit-test
 
 - name: ubuntu2004-arm64-nonstandalone
-  display_name: Ubuntu 20.04 (ARM64, Non-standalone)
+  display_name: "! Ubuntu 20.04 ARM64 (Non-standalone)"
   run_on:
   - ubuntu2004-arm64-large
   expansions:
@@ -7671,7 +7599,7 @@ buildvariants:
       batchtime: 720 # 12 hours
 
 - name: ubuntu2004-arm64-release-nonstandalone
-  display_name: Ubuntu 20.04 (ARM64, Release Build, Non-standalone)
+  display_name: "Ubuntu 20.04 ARM64 (Release Build, Non-standalone)"
   run_on:
   - ubuntu2004-arm64-small
   expansions:
@@ -7699,30 +7627,8 @@ buildvariants:
     - name: unit-test-hook-disagg-leader-extra-long
       distros: ubuntu2004-arm64-large
 
-- name: amazon2-arm64-nonstandalone
-  display_name: "Amazon Linux 2 ARM64 Non-standalone"
-  run_on:
-  - amazon2-arm64-small
-  batchtime: 1440 # 24 hours
-  expansions:
-    ENABLE_TCMALLOC: 1
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
-    cmake_generator: "Unix Makefiles"
-    NONSTANDALONE: -DWT_STANDALONE_BUILD=0
-    unit_test_variant_args: "--hook nonstandalone"
-  tasks:
-    - name: compile
-    - name: make-check-test
-      # Using large distro as more memory is required.
-      distros: amazon2-arm64-large
-    - name: unit-test
-    - name: unit-test-extra-long
-      distros: amazon2-arm64-large
-    - name: unit-test-hook-disagg-leader-extra-long
-      distros: amazon2-arm64-large
-
-- name: amazon2023-armv9-release-nonstandalone
-  display_name: (ARMV9) Amazon 2023 (ARM64, Release Build, Non-standalone)
+- name: amazon2023-arm64-release-nonstandalone
+  display_name: "Amazon2023 ARM64 (Release Build, Non-standalone)"
   run_on:
   - amazon2023-arm64-latest-small-m8g
   expansions:
@@ -7751,8 +7657,8 @@ buildvariants:
     - name: unit-test-hook-disagg-leader-extra-long
       distros: amazon2023-arm64-latest-large-m8g
 
-- name: amazon2023-armv9-nonstandalone
-  display_name: (ARMV9) Amazon Linux 2023 (ARM64, Non-standalone)
+- name: amazon2023-arm64-nonstandalone
+  display_name: "! Amazon2023 ARM64 (Non-standalone)"
   run_on:
   - amazon2023-arm64-latest-large-m8g
   expansions:
@@ -7780,8 +7686,8 @@ buildvariants:
     - name: ".cppsuite-stress-test"
       batchtime: 720 # 12 hours
 
-- name: amazon2023-release-armv9
-  display_name: "(ARMV9) Amazon 2023 (ARM64, Release Build)"
+- name: amazon2023-release-arm64
+  display_name: "! Amazon2023 ARM64 (Release Build)"
   run_on:
   - amazon2023-arm64-latest-small-m8g
   batchtime: 720 # 12 hours
@@ -7805,11 +7711,10 @@ buildvariants:
     - name: format-smoke-test
     - name: s3-tiered-storage-extensions-test
 
-- name: amazon2023-armv9
-  display_name: "(ARMV9) Amazon Linux 2023 ARM64"
+- name: amazon2023-arm64
+  display_name: "! Amazon2023 ARM64"
   run_on:
   - amazon2023-arm64-latest-small-m8g
-  batchtime: 1440 # 24 hours
   expansions:
     ENABLE_TCMALLOC: 1
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v5_gcc.cmake
@@ -7860,20 +7765,8 @@ buildvariants:
     - name: format-failure-configs-test
       distros: amazon2023-arm64-latest-large-m8g
 
-- name: cppsuite-stress-tests-armv9
-  display_name: "(ARMV9) Cppsuite Stress Tests ARM64"
-  batchtime: 720 # twice a day
-  run_on:
-  - amazon2023-arm64-latest-large-m8g
-  expansions:
-    ENABLE_TCMALLOC: 1
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-  tasks:
-    - name: compile
-    - name: ".cppsuite-stress-test"
-
-- name: amazon2023-stress-tests-armv9
-  display_name: (ARMV9) Amazon2023 Stress tests ARM64
+- name: amazon2023-stress-tests-arm64
+  display_name: "! Amazon2023 ARM64 Stress tests"
   run_on:
   - amazon2023-arm64-latest-large-m8g
   expansions:
@@ -7891,9 +7784,11 @@ buildvariants:
     - name: format-predictable-test
     - name: schema-abort-predictable-test
     - name: checkpoint-filetypes-predictable-test
+    - name: ".cppsuite-stress-test"
+      batchtime: 720 # twice a day
 
-- name: amazon2023-armv9-asan
-  display_name: "(ARMV9) Amazon Linux 2023 ASAN"
+- name: amazon2023-arm64-asan
+  display_name: "! Amazon2023 ARM64 ASAN"
   run_on:
   - amazon2023-arm64-latest-small-m8g
   expansions:
@@ -7934,8 +7829,8 @@ buildvariants:
 
 # FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
 # Investigate whether a similar thing could happen for TSAN.
-- name: amazon2023-armv9-tsan
-  display_name: "(ARMV9) Amazon Linux 2023 TSAN"
+- name: amazon2023-arm64-tsan
+  display_name: "! Amazon2023 ARM64 TSAN"
   run_on:
   - amazon2023-arm64-latest-small-m8g
   expansions:
@@ -7969,8 +7864,8 @@ buildvariants:
 
 # FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
 # Investigate whether a similar thing could happen for MSAN.
-- name: amazon2023-armv9-msan
-  display_name: "(ARMV9) Amazon Linux 2023 MSAN"
+- name: amazon2023-arm64-msan
+  display_name: "Amazon2023 ARM64 MSAN"
   run_on:
   - amazon2023-arm64-latest-small-m8g
   expansions:
@@ -8005,8 +7900,8 @@ buildvariants:
 
 # FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
 # Investigate whether a similar thing could happen for UBSAN.
-- name: amazon2023-armv9-ubsan
-  display_name: "(ARMV9) Amazon Linux 2023 UBSAN"
+- name: amazon2023-arm64-ubsan
+  display_name: "Amazon2023 ARM64 UBSAN"
   run_on:
   - amazon2023-arm64-latest-small-m8g
   expansions:
@@ -8031,7 +7926,7 @@ buildvariants:
     - name: cppsuite-default-all
 
 - name: amazon2023-stress-nonstandalone
-  display_name: "(ARMV9) Amazon Linux 2023 Stress tests (Non-standalone)"
+  display_name: "Amazon2023 ARM64 Stress tests (Non-standalone)"
   run_on:
   - amazon2023-arm64-latest-large-m8g
   expansions:
@@ -8051,7 +7946,7 @@ buildvariants:
       batchtime: 720 # 12 hours
 
 - name: amazon2023-disagg-stress
-  display_name: "[Failure Expected] (ARMV9) Amazon 2023 Disagg Stress tests"
+  display_name: "[Failure Expected] Amazon2023 ARM64 Disagg Stress tests"
   batchtime: 4320 # once every two days
   run_on:
   - amazon2023-arm64-latest-large-m8g
@@ -8064,7 +7959,7 @@ buildvariants:
     - name: ".stress-test-disagg-fail"
 
 - name: amazon2023-disagg-asan-stress
-  display_name: "[Failure Expected] (ARMV9) Amazon 2023 ASAN Disagg Stress tests"
+  display_name: "[Failure Expected] Amazon2023 ARM64 ASAN Disagg Stress tests"
   batchtime: 4320 # once every three days
   run_on:
   - amazon2023-arm64-latest-large-m8g

@@ -116,6 +116,8 @@ struct __wt_btree {
     WT_CKPT *ckpt;               /* Checkpoint information */
     size_t ckpt_bytes_allocated; /* Checkpoint information array allocation size */
 
+    const char *hs_checkpoint_name; /* History store checkpoint name. */
+
     WT_BTREE_TYPE type; /* Type */
 
     const char *key_format;   /* Key format */
@@ -293,6 +295,8 @@ struct __wt_btree {
 
     /* The next page ID available for allocation in disaggregated storage for this tree. */
     wt_shared uint64_t next_page_id;
+    /* Maximum LSN of the pages assigned to the tree during reconciliation. */
+    wt_shared uint64_t rec_lsn_max;
     WT_BTREE_STORAGE_TIER storage_tier; /* Disaggregated storage tier type */
 
 /*

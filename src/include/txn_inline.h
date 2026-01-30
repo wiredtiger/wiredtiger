@@ -913,7 +913,7 @@ __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinne
      */
     checkpoint_ts = __wt_tsan_suppress_load_uint64(&txn_global->checkpoint_timestamp);
 
-    if (checkpoint_ts != 0 && checkpoint_ts < pinned_stable_ts)
+    if (checkpoint_ts != WT_TS_NONE && checkpoint_ts < pinned_stable_ts)
         *pinned_stable_tsp = checkpoint_ts;
     else
         *pinned_stable_tsp = pinned_stable_ts;
@@ -1736,8 +1736,8 @@ retry:
           __wt_random(&session->rnd_random) % 100 == 0)
             __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
 
-        WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
-          cbt->upd_value, &cbt->upd_value->buf));
+        WT_RET(__wt_hs_find_upd(
+          session, key, cbt->iface.value_format, recno, cbt->upd_value, &cbt->upd_value->buf));
     }
 
     /*
