@@ -1042,6 +1042,8 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     layered_ingest_uri = cfg_ret = NULL;
     existing_tables = new_tables = new_ingest = 0;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
     /*
      * Throw away any references to the old disaggregated metadata table. This ensures that we are
      * on the most recent checkpoint from now on.
@@ -1317,8 +1319,9 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      */
     WT_ERR(__wt_open_internal_session(
       conn, "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
-    ret = __disagg_apply_checkpoint_meta(
-      shared_metadata_session, internal_session, md_cursor, ckpt_meta);
+    WT_WITH_SCHEMA_LOCK(shared_metadata_session,
+      ret = __disagg_apply_checkpoint_meta(
+        shared_metadata_session, internal_session, md_cursor, ckpt_meta));
     WT_TRET(__wt_session_close_internal(shared_metadata_session));
     WT_ERR(ret);
 
