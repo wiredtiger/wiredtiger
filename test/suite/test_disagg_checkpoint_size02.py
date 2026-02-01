@@ -211,7 +211,6 @@ class test_disagg_checkpoint_size02(wttest.WiredTigerTestCase):
         # shutdown and restart, allow for 10% variance.
         self.assertAlmostEqual(size_before_restart, size_after_restart, delta=size_before_restart * 0.1)
 
-
     def test_failed_checkpoint_no_size_change(self):
         uri = "layered:test_table"
         self.session.create(uri, 'key_format=i,value_format=S')
