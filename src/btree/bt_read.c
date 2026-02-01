@@ -150,7 +150,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
  */
 static int
 __page_read_build_full_disk_image(WT_SESSION_IMPL *session, WT_ITEM *deltas, size_t delta_size,
-  WT_ITEM *new_image, const void *base_image_addr, WT_TIME_AGGREGATE *new_ta)
+  WT_ITEM *new_image, const void *base_image_addr, WT_TIME_AGGREGATE *ta)
 {
     WT_DECL_RET;
     WT_PAGE_HEADER *base_dsk;
@@ -165,24 +165,34 @@ __page_read_build_full_disk_image(WT_SESSION_IMPL *session, WT_ITEM *deltas, siz
     WT_ASSERT(session, base_dsk != NULL);
 
 #ifndef HAVE_DIAGNOSTIC
-    WT_UNUSED(new_ta);
+    WT_UNUSED(ta);
 #endif
 
     /*
      * Merge deltas directly with the base image to build the new disk image in a single pass. The
-     * merge helpers will also update new_ta (if non-NULL) as they emit cells.
+     * merge helpers will also update ta (if non-NULL) as they emit cells.
      */
     if (base_dsk->type == WT_PAGE_ROW_LEAF) {
         time_start = __wt_clock(session);
+#ifdef HAVE_DIAGNOSTIC
         WT_ERR(__wti_page_merge_deltas_with_base_image_leaf(
-          session, deltas, delta_size, new_image, base_dsk, new_ta));
+          session, deltas, delta_size, new_image, base_dsk, ta));
+#else
+        WT_ERR(__wti_page_merge_deltas_with_base_image_leaf(
+          session, deltas, delta_size, new_image, base_dsk, NULL));
+#endif
         time_stop = __wt_clock(session);
         __wt_stat_usecs_hist_incr_leaf_reconstruct(session, WT_CLOCKDIFF_US(time_stop, time_start));
         WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf_delta);
     } else {
         time_start = __wt_clock(session);
+#ifdef HAVE_DIAGNOSTIC
         WT_ERR(__wti_page_merge_deltas_with_base_image_int(
-          session, deltas, delta_size, &refs, &refs_entries, new_image, base_image_addr, new_ta));
+          session, deltas, delta_size, &refs, &refs_entries, new_image, base_image_addr, ta));
+#else
+        WT_ERR(__wti_page_merge_deltas_with_base_image_int(
+          session, deltas, delta_size, &refs, &refs_entries, new_image, base_image_addr, NULL));
+#endif
         time_stop = __wt_clock(session);
         __wt_stat_usecs_hist_incr_internal_reconstruct(
           session, WT_CLOCKDIFF_US(time_stop, time_start));
