@@ -28,6 +28,7 @@
 
 import re, unittest, wttest, wiredtiger
 from helper_disagg import disagg_test_class
+from helper import simulate_crash_restart
 
 # test_disagg_checkpoint_size02.py
 #    Test the database-level size stored in the checkpoint completion record.
@@ -209,3 +210,30 @@ class test_disagg_checkpoint_size02(wttest.WiredTigerTestCase):
         # The size should be preserved but isn't guaranteed to be equal due to the checkpoint on
         # shutdown and restart, allow for 10% variance.
         self.assertAlmostEqual(size_before_restart, size_after_restart, delta=size_before_restart * 0.1)
+
+
+    def test_failed_checkpoint_no_size_change(self):
+        uri = "layered:test_table"
+        self.session.create(uri, 'key_format=i,value_format=S')
+
+        # Insert data.
+        cursor = self.session.open_cursor(uri)
+        for i in range(1000):
+            cursor[i] = 'a' * 100
+        cursor.close()
+
+        self.session.checkpoint()
+        size_before_crash = self.get_database_size()
+
+        # Insert more data
+        cursor = self.session.open_cursor(uri)
+        for i in range(100, 200):
+            cursor[i] = 'b' * 100
+        cursor.close()
+
+        with self.expectedStdoutPattern("Removing local file"):
+            simulate_crash_restart(self, ".", "RESTART")
+
+        # Check size after crash. It should be the same since checkpoint didn't complete.
+        size_after_crash = self.get_database_size()
+        self.assertEqual(size_after_crash, size_before_crash)
