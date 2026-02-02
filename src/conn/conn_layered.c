@@ -3078,7 +3078,7 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     if (prune_timestamp != WT_TS_NONE) {
         uint64_t btree_prune_timestamp = __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
         WT_ASSERT(session, prune_timestamp >= btree_prune_timestamp);
-        __wt_atomic_store_uint64_release(&btree->prune_timestamp, prune_timestamp);
+        __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, prune_timestamp);
         layered_table->last_ckpt_inuse = ckpt_inuse;
 
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
