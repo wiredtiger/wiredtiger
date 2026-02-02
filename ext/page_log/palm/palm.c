@@ -1446,6 +1446,7 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     palm->page_log.pl_open_handle = palm_open_handle;
     palm->page_log.pl_trim_table = palm_trim_table;
     palm->page_log.pl_set_last_materialized_lsn = palm_set_last_materialized_lsn;
+    palm->page_log.pl_trim_table = palm_trim_table;
     palm->page_log.terminate = palm_terminate;
 
     /*
