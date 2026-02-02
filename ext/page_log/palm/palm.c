@@ -1349,10 +1349,11 @@ palm_trim_table(
         lsn = 1;
         ret = 0;
     }
+
     /*
      * Followers can read trimmed tables for a limited time after we issue a drop command on leader
      * mode. For this reason, we will no-op the trim table. Both leader and follower nodes should
-     * have removed the table reference removed from their metadata tables.
+     * have removed the table reference from their metadata tables.
      */
 
     /* Update LSN as we are faking a trim table request. */
