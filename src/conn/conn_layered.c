@@ -3031,6 +3031,7 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
         /* If one exists, read all the required info, then release. */
         if (ret == 0) {
             stable_dhandle_inuse = __wt_atomic_load_int32_acquire(&session->dhandle->session_inuse);
+            WT_ASSERT(session, prune_timestamp <= S2BT(session)->checkpoint_timestamp);
             prune_timestamp = S2BT(session)->checkpoint_timestamp;
             WT_DHANDLE_RELEASE(session->dhandle);
         }
