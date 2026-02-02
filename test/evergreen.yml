@@ -280,6 +280,8 @@ functions:
       script: |
         set -o errexit
         ${PREPARE_PATH}
+        # Stash local changes first.
+        git stash save "Stashing local changes before checking out develop"
         echo "Checking out develop branch ..."
         git checkout develop
   "configure wiredtiger": &configure_wiredtiger
