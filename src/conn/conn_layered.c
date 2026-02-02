@@ -3039,10 +3039,11 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
         WT_ERR_NOTFOUND_OK(ret, false);
 
         /* If it's in use by any session, then we're done. */
-        if (stable_dhandle_inuse > 0)
+        if (stable_dhandle_inuse > 0) {
+            prune_timestamp = btree_checkpoint_timestamp;
             break;
+        }
 
-        prune_timestamp = btree_checkpoint_timestamp;
         ++ckpt_inuse;
     }
 
@@ -3080,16 +3081,12 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
         uint64_t btree_prune_timestamp = __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
         WT_ASSERT(session, prune_timestamp >= btree_prune_timestamp);
         __wt_atomic_store_uint64_release(&btree->prune_timestamp, prune_timestamp);
-
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64, layered_table->iface.name,
-          btree_prune_timestamp, prune_timestamp);
-    }
-    if (ckpt_inuse > 1 || layered_dhandle_inuse == 0) {
         layered_table->last_ckpt_inuse = ckpt_inuse;
 
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "GC %s: update checkpoint in use from %" PRId64 " to %" PRId64, layered_table->iface.name,
+          "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64
+          " and checkpoint in use from %" PRId64 " to %" PRId64,
+          layered_table->iface.name, btree_prune_timestamp, prune_timestamp,
           layered_table->last_ckpt_inuse, ckpt_inuse);
     }
 
