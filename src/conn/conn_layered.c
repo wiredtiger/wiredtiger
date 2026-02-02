@@ -197,19 +197,9 @@ err:
 static int
 __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION_IMPL *internal_session;
 
-    conn = S2C(session);
-
-    WT_ERR(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
-    WT_WITH_SCHEMA_LOCK(
-      internal_session, ret = __layered_create_missing_stable_tables_helper(internal_session));
-    WT_ERR(ret);
-
-err:
-    WT_TRET(__wt_session_close_internal(internal_session));
+    WT_WITH_SCHEMA_LOCK(session, ret = __layered_create_missing_stable_tables_helper(session));
     return (ret);
 }
 
@@ -2009,8 +1999,15 @@ __disagg_step_up(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    WT_SESSION_IMPL *internal_session;
 
     conn = S2C(session);
+
+    /*
+     * Some functionality in stepping up needs a session that can open data handles. The default
+     * session used to call this function cannot do that.
+     */
+    WT_RET(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
 
     /*
      * We need to hold the checkpoint lock while stepping up, because if we change the role
@@ -2044,14 +2041,15 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      */
 
     /* Create any missing stable tables. */
-    WT_ERR_MSG_CHK(session, __layered_create_missing_stable_tables(session),
+    WT_ERR_MSG_CHK(session, __layered_create_missing_stable_tables(internal_session),
       "Failed to create missing stable tables");
 
     /* Drain the ingest tables before switching to leader. */
     WT_ERR_MSG_CHK(
-      session, __layered_drain_ingest_tables(session), "Failed to drain ingest tables");
+      session, __layered_drain_ingest_tables(internal_session), "Failed to drain ingest tables");
 
 err:
+    WT_TRET(__wt_session_close_internal(internal_session));
     F_CLR(conn, WT_CONN_RECONFIGURING_STEP_UP);
     return (ret);
 }
@@ -2816,6 +2814,13 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
       work_item->entry->stable_uri);
     WT_ERR_MSG_CHK(session, __layered_clear_ingest_table(session, work_item->entry->ingest_uri),
       "Failed to clear ingest table \"%s\"", work_item->entry->ingest_uri);
+
+    WT_ASSERT(session, work_item->entry->pinned_dhandle != NULL);
+    WT_WITH_DHANDLE(session, work_item->entry->pinned_dhandle, {
+        work_item->entry->pinned_dhandle = NULL;
+        __wt_cursor_dhandle_decr_use(session);
+    });
+
 err:
     __wt_free(session, work_item);
     return (ret);
@@ -2911,6 +2916,19 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     /* FIXME-WT-14735: skip empty ingest tables. */
     for (i = 0; i < table_count; i++) {
         if ((entry = manager->entries[i]) != NULL) {
+            /*
+             * Mark the layered table in use, we don't want it to be closed between now and when the
+             * drain takes place, otherwise this entry would be freed.
+             */
+            WT_WITHOUT_DHANDLE(session, {
+                ret = __wt_session_get_dhandle(session, entry->layered_uri, NULL, NULL, 0);
+                if (ret == 0) {
+                    __wt_cursor_dhandle_incr_use(session);
+                    entry->pinned_dhandle = session->dhandle;
+                }
+            });
+            WT_ERR(ret);
+
             WT_LAYERED_DRAIN_ENTRY *work_item;
             WT_ERR(__wt_calloc_one(session, &work_item));
             work_item->entry = entry;
