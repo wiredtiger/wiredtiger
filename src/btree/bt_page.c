@@ -526,6 +526,30 @@ __page_free_delta_leaf_merge_state(
 }
 
 /*
+ * __time_window_clear_obsolete --
+ *     Where possible modify time window values to avoid writing obsolete values to the cell.
+ */
+static WT_INLINE void
+__time_window_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+{
+    /* Return if the start time window is empty. */
+    if (!WT_TIME_WINDOW_HAS_START(tw))
+        return;
+
+    /*
+     * Check if the start of the time window is globally visible, and if so remove unnecessary
+     * values.
+     */
+    if (__wt_txn_tw_start_visible_all(session, tw)) {
+        /* The durable timestamp should never be less than the start timestamp. */
+        WT_ASSERT(session, tw->start_ts <= tw->durable_start_ts);
+
+        tw->start_ts = tw->durable_start_ts = WT_TS_NONE;
+        tw->start_txn = WT_TXN_NONE;
+    }
+}
+
+/*
  * __page_init_dsk_leaf_merge_state --
  *     Initialize new disk leaf merge state.
  */
@@ -607,6 +631,7 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
 
         /* Build disk image */
         if (cmp < 0) {
+            __time_window_clear_obsolete(session, &base_s.unpack_value->tw);
             /* Pack row-leaf base key/value. */
             WT_ERR(__wt_cell_pack_leaf_kv(session, base_s.empty_value_cell,
               base_s.current_key->data, base_s.current_key->size, base_s.unpack_value->data,
@@ -618,6 +643,7 @@ __wti_page_merge_deltas_with_base_image_leaf(WT_SESSION_IMPL *session, WT_ITEM *
         } else {
             /* Pack row-leaf delta entry. */
             if (!F_ISSET(delta_s[j].unpack, WT_DELTA_LEAF_IS_DELETE)) {
+                __time_window_clear_obsolete(session, &delta_s[j].unpack->delta_value.tw);
                 WT_ERR(__wt_cell_pack_leaf_kv(session,
                   delta_s[j].unpack->delta_value_data.size == 0 &&
                     WT_TIME_WINDOW_IS_EMPTY(&delta_s[j].unpack->delta_value.tw),
