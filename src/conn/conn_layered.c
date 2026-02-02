@@ -2976,7 +2976,7 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table;
-    wt_timestamp_t prune_timestamp, btree_checkpoint_timestamp;
+    wt_timestamp_t prune_timestamp;
     int64_t ckpt_inuse, last_ckpt;
     int32_t layered_dhandle_inuse, stable_dhandle_inuse;
 
@@ -3019,7 +3019,6 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
 
     /* Find the last checkpoint which is still in use. */
     while (ckpt_inuse < last_ckpt) {
-        btree_checkpoint_timestamp = WT_TS_NONE;
         stable_dhandle_inuse = 0;
         WT_ERR(__wt_buf_fmt(session, uri_at_checkpoint_buf, "%s/%s.%" PRId64,
           layered_table->stable_uri, WT_CHECKPOINT, ckpt_inuse));
@@ -3032,17 +3031,15 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
         /* If one exists, read all the required info, then release. */
         if (ret == 0) {
             stable_dhandle_inuse = __wt_atomic_load_int32_acquire(&session->dhandle->session_inuse);
-            btree_checkpoint_timestamp = S2BT(session)->checkpoint_timestamp;
+            prune_timestamp = S2BT(session)->checkpoint_timestamp;
             WT_DHANDLE_RELEASE(session->dhandle);
         }
 
         WT_ERR_NOTFOUND_OK(ret, false);
 
         /* If it's in use by any session, then we're done. */
-        if (stable_dhandle_inuse > 0) {
-            prune_timestamp = btree_checkpoint_timestamp;
+        if (stable_dhandle_inuse > 0)
             break;
-        }
 
         ++ckpt_inuse;
     }
