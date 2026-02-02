@@ -507,11 +507,14 @@ __checkpoint_set_scrub_target(WT_SESSION_IMPL *session, double target)
 static void
 __checkpoint_update_evict_triggers_start(WT_SESSION_IMPL *session)
 {
-    WT_CKPT_CONNECTION *ckpt;
-    WT_EVICT *evict;
+    WT_CONNECTION_IMPL *conn = S2C(session);
 
-    ckpt = &S2C(session)->ckpt;
-    evict = S2C(session)->evict;
+    /* Only update the triggers if we are operating in precise checkpoint mode. */
+    if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
+        return;
+
+    WT_CKPT_CONNECTION *ckpt = &conn->ckpt;
+    WT_EVICT *evict = conn->evict;
 
     /* First save the prior values for later restoration. */
     ckpt->saved_dirty_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger);
@@ -537,11 +540,14 @@ __checkpoint_update_evict_triggers_start(WT_SESSION_IMPL *session)
 static void
 __checkpoint_update_evict_triggers_end(WT_SESSION_IMPL *session)
 {
-    WT_CKPT_CONNECTION *ckpt;
-    WT_EVICT *evict;
+    WT_CONNECTION_IMPL *conn = S2C(session);
 
-    ckpt = &S2C(session)->ckpt;
-    evict = S2C(session)->evict;
+    /* Only update the triggers if we are operating in precise checkpoint mode. */
+    if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
+        return;
+
+    WT_CKPT_CONNECTION *ckpt = &conn->ckpt;
+    WT_EVICT *evict = conn->evict;
 
     __wt_atomic_store_double_relaxed(&evict->eviction_updates_trigger, ckpt->saved_updates_trigger);
     __wt_atomic_store_double_relaxed(&evict->eviction_dirty_trigger, ckpt->saved_dirty_trigger);
@@ -1346,9 +1352,9 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_epoch(session, &conn->ckpt.scrub.timer_end);
 
     /*
-     * Just before checkpoint starts, allow higher updates and eviction triggers, they allow for
-     * work to accumulate while checkpoint is running, and makes it less likely that workloads will
-     * stall while checkpoint is running.
+     * When operating in precise checkpoint mode, allow higher updates and eviction triggers. This
+     * allows work to accumulate while checkpoint is running, making it less likely that workloads
+     * will stall.
      */
     __checkpoint_update_evict_triggers_start(session);
 
