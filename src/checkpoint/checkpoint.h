@@ -68,6 +68,12 @@ struct __wt_ckpt_connection {
 
     /* Last checkpoint connection's base write generation. */
     uint64_t last_base_write_gen;
+
+    /* Saved eviction thresholds */
+    double saved_dirty_target;
+    double saved_dirty_trigger;
+    double saved_updates_target;
+    double saved_updates_trigger;
 };
 
 /*
