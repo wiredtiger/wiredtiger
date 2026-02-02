@@ -500,12 +500,12 @@ __checkpoint_set_scrub_target(WT_SESSION_IMPL *session, double target)
 }
 
 /*
- * __checkpoint_update_evict_thresholds_start --
+ * __checkpoint_update_evict_triggers_start --
  *     During checkpoint, update the eviction triggers to avoid pulling applications threads into
  *     eviction work as the cache gets progressively more full.
  */
 static void
-__checkpoint_update_evict_thresholds_start(WT_SESSION_IMPL *session)
+__checkpoint_update_evict_triggers_start(WT_SESSION_IMPL *session)
 {
     WT_CKPT_CONNECTION *ckpt;
     WT_EVICT *evict;
@@ -530,12 +530,12 @@ __checkpoint_update_evict_thresholds_start(WT_SESSION_IMPL *session)
 }
 
 /*
- * __checkpoint_update_evict_thresholds_end --
+ * __checkpoint_update_evict_triggers_end --
  *     Wind the eviction thresholds back down to their non-checkpoint values. Eventually this should
  *     be gradual, to avoid stalls after checkpoint completes.
  */
 static void
-__checkpoint_update_evict_thresholds_end(WT_SESSION_IMPL *session)
+__checkpoint_update_evict_triggers_end(WT_SESSION_IMPL *session)
 {
     WT_CKPT_CONNECTION *ckpt;
     WT_EVICT *evict;
@@ -1350,7 +1350,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * work to accumulate while checkpoint is running, and makes it less likely that workloads will
      * stall while checkpoint is running.
      */
-    __checkpoint_update_evict_thresholds_start(session);
+    __checkpoint_update_evict_triggers_start(session);
 
     /*
      * Start the checkpoint for real.
@@ -1669,7 +1669,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
 err:
     /* Now that checkpoint is finished, wind the eviction triggers back to their default values. */
-    __checkpoint_update_evict_thresholds_end(session);
+    __checkpoint_update_evict_triggers_end(session);
     /*
      * Reset the timer so that next checkpoint tracks the progress only if configured.
      */
