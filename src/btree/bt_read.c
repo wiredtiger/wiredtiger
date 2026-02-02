@@ -150,7 +150,12 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
  */
 static int
 __page_read_build_full_disk_image(WT_SESSION_IMPL *session, WT_ITEM *deltas, size_t delta_size,
-  WT_ITEM *new_image, const void *base_image_addr, WT_TIME_AGGREGATE *ta)
+  WT_ITEM *new_image, const void *base_image_addr
+#ifdef HAVE_DIAGNOSTIC
+  ,
+  WT_TIME_AGGREGATE *ta
+#endif
+)
 {
     WT_DECL_RET;
     WT_PAGE_HEADER *base_dsk;
@@ -164,35 +169,33 @@ __page_read_build_full_disk_image(WT_SESSION_IMPL *session, WT_ITEM *deltas, siz
     base_dsk = (WT_PAGE_HEADER *)base_image_addr;
     WT_ASSERT(session, base_dsk != NULL);
 
-#ifndef HAVE_DIAGNOSTIC
-    WT_UNUSED(ta);
-#endif
-
     /*
      * Merge deltas directly with the base image to build the new disk image in a single pass. The
      * merge helpers will also update ta (if non-NULL) as they emit cells.
      */
     if (base_dsk->type == WT_PAGE_ROW_LEAF) {
         time_start = __wt_clock(session);
+        ret = __wti_page_merge_deltas_with_base_image_leaf(
+          session, deltas, delta_size, new_image, base_dsk
 #ifdef HAVE_DIAGNOSTIC
-        WT_ERR(__wti_page_merge_deltas_with_base_image_leaf(
-          session, deltas, delta_size, new_image, base_dsk, ta));
-#else
-        WT_ERR(__wti_page_merge_deltas_with_base_image_leaf(
-          session, deltas, delta_size, new_image, base_dsk, NULL));
+          ,
+          ta
 #endif
+        );
+        WT_ERR(ret);
         time_stop = __wt_clock(session);
         __wt_stat_usecs_hist_incr_leaf_reconstruct(session, WT_CLOCKDIFF_US(time_stop, time_start));
         WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf_delta);
     } else {
         time_start = __wt_clock(session);
+        ret = __wti_page_merge_deltas_with_base_image_int(
+          session, deltas, delta_size, &refs, &refs_entries, new_image, base_image_addr
 #ifdef HAVE_DIAGNOSTIC
-        WT_ERR(__wti_page_merge_deltas_with_base_image_int(
-          session, deltas, delta_size, &refs, &refs_entries, new_image, base_image_addr, ta));
-#else
-        WT_ERR(__wti_page_merge_deltas_with_base_image_int(
-          session, deltas, delta_size, &refs, &refs_entries, new_image, base_image_addr, NULL));
+          ,
+          ta
 #endif
+        );
+        WT_ERR(ret);
         time_stop = __wt_clock(session);
         __wt_stat_usecs_hist_incr_internal_reconstruct(
           session, WT_CLOCKDIFF_US(time_stop, time_start));
@@ -347,10 +350,16 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         new_image_buf_size = 2 * WT_ALIGN(WT_MAX(btree->maxleafpage, split_size), btree->allocsize);
 
         WT_ERR(__wt_buf_init(session, &new_image, new_image_buf_size));
+#ifdef HAVE_DIAGNOSTIC
         WT_TIME_AGGREGATE full_image_ta;
-
-        WT_ERR(__page_read_build_full_disk_image(
-          session, deltas, count - 1, &new_image, tmp[0].data, &full_image_ta));
+#endif
+        ret = __page_read_build_full_disk_image(session, deltas, count - 1, &new_image, tmp[0].data
+#ifdef HAVE_DIAGNOSTIC
+          ,
+          &full_image_ta
+#endif
+        );
+        WT_ERR(ret);
 
 #ifdef HAVE_DIAGNOSTIC
         WT_ADDR addr_tmp;
