@@ -335,8 +335,8 @@ __page_merge_base_internal_deltas(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR 
         else if (min_delta == NULL)
             cmp = -1;
         else {
-            base_key_buf.data = base_key->data;
-            base_key_buf.size = base_key->size;
+            base_key_buf.data = base[i].data;
+            base_key_buf.size = base[i].size;
             delta_key_buf.data = min_delta->key.data;
             delta_key_buf.size = min_delta->key.size;
             WT_RET(
