@@ -292,7 +292,6 @@ functions:
           ${HAVE_BUILTIN_EXTENSION_ZSTD|} \
           ${HAVE_UNITTEST} \
           ${CODE_COVERAGE_FLAGS} \
-          ${NON_BARRIER_DIAGNOSTIC_YIELDS|} \
           ${HAVE_DIAGNOSTIC|} \
           ${WORDS_BIGENDIAN|} \
           ${GNU_C_VERSION|} \
@@ -5120,61 +5119,6 @@ tasks:
           format_args: disagg.mode=leader runs.timer=30:45 cache=10000 cache.eviction_dirty_trigger=50 cache.eviction_updates_trigger=50
           times: 1
 
-  - name: format-stress-test-no-barrier
-    tags: ["stress-test-no-barrier"]
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_with_builtins
-          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
-      - func: "format test script"
-        vars:
-          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
-
-  - name: format-stress-asan-test-no-barrier
-    tags: ["stress-test-asan"]
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_asan_mongodb_stable_clang_with_builtins
-          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
-      - func: "format test script"
-        vars:
-          additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -t 360
-
-  - name: race-condition-stress-asan-test-no-barrier
-    tags: ["stress-test-asan"]
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_asan_mongodb_stable_clang_with_builtins
-          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
-      - func: "format test script"
-        vars:
-          additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -R -t 360
-
-  - name: recovery-stress-test-no-barrier
-    tags: ["stress-test-no-barrier"]
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_with_builtins
-          NON_BARRIER_DIAGNOSTIC_YIELDS: -DNON_BARRIER_DIAGNOSTIC_YIELDS=1
-          CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
-      - func: "recovery stress test script"
-        vars:
-          times: 25
-
   - name: format-abort-recovery-stress-test
     commands:
       # Allow 30 minutes beyond test runtime because recovery under load can cause the test to
@@ -7065,8 +7009,6 @@ buildvariants:
     - name: ".stress-test-4"
     - name: ".stress-test-disagg"
       distros: ubuntu2004-large
-    - name: ".stress-test-no-barrier"
-      distros: ubuntu2004-medium
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
     - name: schema-abort-predictable-test
@@ -7420,8 +7362,6 @@ buildvariants:
     - name: ".stress-test-4"
     - name: ".stress-test-disagg"
       distros: ubuntu2004-large
-    - name: ".stress-test-no-barrier"
-      distros: ubuntu2004-medium
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
       batchtime: 720 # 12 hours
@@ -7472,7 +7412,6 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-test-no-barrier"
     - name: ".stress-test-disagg"
     - name: format-stress-disagg-leader-long-running
     - name: format-abort-recovery-stress-test
@@ -7560,7 +7499,6 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".stress-test-no-barrier"
     - name: ".stress-test-disagg"
     - name: format-stress-disagg-leader-long-running
     - name: format-abort-recovery-stress-test
@@ -7660,7 +7598,6 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-disagg"
-    - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
     - name: schema-abort-predictable-test
@@ -7821,7 +7758,6 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-disagg"
-    - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
       batchtime: 720 # 12 hours
