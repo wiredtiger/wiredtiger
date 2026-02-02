@@ -3078,6 +3078,10 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     if (prune_timestamp != WT_TS_NONE) {
         uint64_t btree_prune_timestamp = __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
         WT_ASSERT(session, prune_timestamp >= btree_prune_timestamp);
+        /*
+         * The prune timestamp should be monotonically increasing. It is fine for the user to read
+         * the obsolete value. Therefore, no synchronization is required.
+         */
         __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, prune_timestamp);
         layered_table->last_ckpt_inuse = ckpt_inuse;
 
