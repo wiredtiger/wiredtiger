@@ -135,13 +135,9 @@ __drop_issue_trim(WT_SESSION_IMPL *session, const char *uri)
 
     btree = NULL;
 
-    /* Get the layered data handle. */
-    ret = __wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE);
-    btree = S2BT(session);
-    if (ret == EBUSY)
-        WT_RET_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
-    WT_RET(ret);
+    WT_UNUSED(uri);
 
+    btree = S2BT(session);
     if (btree->page_log == NULL)
         WT_ERR(ENOTSUP);
 
@@ -154,7 +150,6 @@ __drop_issue_trim(WT_SESSION_IMPL *session, const char *uri)
     WT_ERR(btree->page_log->pl_trim_table(btree->page_log, &session->iface, btree->id, 0, NULL));
 
 err:
-    WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
 }
 /*
@@ -178,7 +173,6 @@ __drop_layered(
     WT_RET(__wt_scr_alloc(session, 0, &ingest_uri_buf));
     WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
 
-    table_size = S2BT(session)->bytes_total;
     tablename = uri;
     WT_PREFIX_SKIP_REQUIRED(session, tablename, "layered:");
     WT_ERR(__wt_buf_fmt(session, ingest_uri_buf, "file:%s.wt_ingest", tablename));
@@ -189,7 +183,22 @@ __drop_layered(
     /* Only the leader can remove the metadata from shared metadata table and issue a trim command.
      */
     if (S2C(session)->layered_table_manager.leader) {
+        /* Get the layered data handle. */
+        ret = __wt_session_get_dhandle(session, stable_uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE);
+        if (ret == EBUSY)
+            WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
+        WT_ERR(ret);
+
+        /* Get the total size of the stable table being dropped. */
+        table_size = S2BT(session)->bytes_total;
+
         WT_ERR(__drop_issue_trim(session, stable_uri));
+
+        WT_ERR(__wt_session_release_dhandle(session));
+
+        /* Update the disagg total database size to reflect that we have dropped this table. */
+        (void)__wt_atomic_sub_uint64(
+          &S2C(session)->disaggregated_storage.database_size, table_size);
 
         /*
          * Remove the all associated metadata from shared metadata table.
@@ -214,9 +223,6 @@ __drop_layered(
     /*
      * No need for a meta track drop, since the top-level table has no underlying files to remove.
      */
-
-    /* Update the disagg total database size to reflect that we have dropped this table. */
-    (void)__wt_atomic_sub_uint64(&S2C(session)->disaggregated_storage.database_size, table_size);
 
 err:
     __wt_scr_free(session, &ingest_uri_buf);
