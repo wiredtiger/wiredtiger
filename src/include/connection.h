@@ -232,6 +232,12 @@ struct __wt_disaggregated_storage {
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
                                          /* Updates are protected by the checkpoint lock. */
 
+    /*
+     * Total size of all stable tables in the database, along with other components such as the KEK
+     * table. Saved via the checkpoint completion record and loaded via connection reconfigure.
+     */
+    wt_shared uint64_t database_size;
+
     /* To copy at the next checkpoint. */
     TAILQ_HEAD(__wt_disagg_update_metadata_qh, __wt_disagg_update_metadata) update_metadata_qh;
     WT_SPINLOCK update_metadata_lock;
