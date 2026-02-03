@@ -197,6 +197,8 @@ struct __wt_page_delta_config {
  *      Configuration and the current state for disaggregated storage, which tells the Block Manager
  *      how to find remote object storage. This is a separate configuration from layered tables.
  */
+typedef struct __wt_disagg_victim_cache WT_DISAGG_VICTIM_CACHE;
+
 struct __wt_disaggregated_storage {
     char *page_log;
 
@@ -227,6 +229,10 @@ struct __wt_disaggregated_storage {
     WT_NAMED_PAGE_LOG *npage_log;
     WT_PAGE_LOG_HANDLE *page_log_meta;         /* The page log for the metadata. */
     WT_PAGE_LOG_HANDLE *page_log_key_provider; /* The page log for the key provider. */
+
+    WT_DISAGG_VICTIM_CACHE *victim_cache; /* Victim cache for disaggregated storage. */
+    uint64_t victim_cache_size;
+    uint32_t victim_cache_shards;
 
     wt_shared uint64_t num_meta_put;     /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */

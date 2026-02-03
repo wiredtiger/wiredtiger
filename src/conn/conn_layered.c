@@ -2485,6 +2485,8 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
 
+    __wt_disagg_cache_destroy(conn);
+
     /* Remove the list of URIs for which we still need to update metadata entries. */
     __disagg_update_metadata_clear(session);
 

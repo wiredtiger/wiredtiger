@@ -112,6 +112,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     int32_t last, result;
     uint8_t expected_magic;
     bool is_delta;
+    bool cache_hit;
 
     time_start = __wt_clock(session);
 
@@ -139,38 +140,53 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     if (F_ISSET(&get_args, WT_PAGE_LOG_COLD))
         WT_STAT_CONN_INCR(session, disagg_block_get_cold);
 
-    /*
-     * If the page server returns no data but doesn't explicitly fail with an error, retry the read
-     * a few times in case the issue is transient.
-     *
-     * FIXME: WT-15768: To support current testing, we never give up. It is better to hang here as
-     * that will allow us to generate a core dump if desired. We should revisit this when we have
-     * more complete end-to-end story for handling read failures.
-     */
-    for (retry = 0, tmp_count = 0; tmp_count == 0; retry++) {
-        if (retry > 0) {
-            __wt_verbose_notice(session, WT_VERB_READ,
-              "retry #%" PRIu32 " for page_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64
-              ", base_lsn %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
-              retry, page_id, flags, lsn, base_lsn, size, checksum);
+    cache_hit = false;
+    tmp_count = *results_count;
+    WT_ERR(__wt_disagg_cache_get(session, block_disagg, page_id, lsn, &get_args, results_array,
+      &tmp_count, &cache_hit));
 
-            __wt_sleep(0, WT_MIN(10000 + retry * 5000, 500000));
-        }
+    if (cache_hit) {
+        *results_count = tmp_count;
+        last = (int32_t)(*results_count - 1);
+        goto process_results;
+    }
 
-        tmp_count = *results_count;
-
+    if (!cache_hit) {
         /*
-         * Output buffers do not need to be pre-allocated, the PALI interface does that.
+         * If the page server returns no data but doesn't explicitly fail with an error, retry the
+         * read a few times in case the issue is transient.
+         *
+         * FIXME: WT-15768: To support current testing, we never give up. It is better to hang here
+         * as that will allow us to generate a core dump if desired. We should revisit this when we
+         * have more complete end-to-end story for handling read failures.
          */
-        WT_ERR(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id, 0,
-          &get_args, results_array, &tmp_count));
+        for (retry = 0, tmp_count = 0; tmp_count == 0; retry++) {
+            if (retry > 0) {
+                __wt_verbose_notice(session, WT_VERB_READ,
+                  "retry #%" PRIu32 " for page_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64
+                  ", base_lsn %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
+                  retry, page_id, flags, lsn, base_lsn, size, checksum);
 
-        WT_ASSERT(session, tmp_count <= WT_DELTA_LIMIT + 1);
+                __wt_sleep(0, WT_MIN(10000 + retry * 5000, 500000));
+            }
+
+            tmp_count = *results_count;
+
+            /*
+             * Output buffers do not need to be pre-allocated, the PALI interface does that.
+             */
+            WT_ERR(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id,
+              0, &get_args, results_array, &tmp_count));
+
+            WT_ASSERT(session, tmp_count <= WT_DELTA_LIMIT + 1);
+        }
     }
 
     *results_count = tmp_count;
 
     last = (int32_t)(*results_count - 1);
+
+process_results:
 
     /*
      * Walk through all the results from most recent delta backwards to the base page. This makes it
@@ -188,11 +204,11 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         blk = WT_BLOCK_HEADER_REF(current->data);
         __wti_block_disagg_header_byteswap_copy(blk, &swap);
 
-        if (swap.checksum == checksum) {
+        if (F_ISSET(&swap, WT_BLOCK_DISAGG_CACHED) || swap.checksum == checksum) {
             blk->checksum = 0;
             if (__wt_checksum_match(current->data,
                   F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_MIN(size, WT_BLOCK_COMPRESS_SKIP),
-                  checksum)) {
+                  swap.checksum)) {
                 expected_magic =
                   (is_delta ? WT_BLOCK_DISAGG_MAGIC_DELTA : WT_BLOCK_DISAGG_MAGIC_BASE);
                 if (swap.magic != expected_magic) {
@@ -225,14 +241,26 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                     block_meta->backlink_lsn = get_args.backlink_lsn;
                     block_meta->base_lsn = get_args.base_lsn;
                     block_meta->disagg_lsn = get_args.lsn;
-                    block_meta->delta_count = (uint8_t)(*results_count - 1);
-                    block_meta->checksum = checksum;
+                    block_meta->delta_count = (uint8_t)get_args.delta_count;
+                    block_meta->checksum = swap.checksum;
                     block_meta->encryption = get_args.encryption;
-                    if (block_meta->delta_count > 0)
-                        WT_ASSERT(session, get_args.base_lsn > 0);
-                    else
-                        WT_ASSERT(
-                          session, get_args.base_lsn == 0 && get_args.base_checkpoint_id == 0);
+
+                    WT_ASSERT(session, get_args.lsn > 0);
+                    if (!F_ISSET(&swap, WT_BLOCK_DISAGG_CACHED)) {
+                        WT_ASSERT(session,
+                          (*results_count > 1) == FLD_ISSET(flags, WT_BLOCK_DISAGG_ADDR_FLAG_DELTA));
+
+                        /* The server is allowed to set base LSN to 0 for full page images. */
+                        WT_ASSERT(session,
+                          (get_args.base_lsn == 0 && *results_count == 1) ||
+                            get_args.base_lsn == base_lsn);
+
+                        if (block_meta->delta_count > 0)
+                            WT_ASSERT(session, get_args.base_lsn > 0);
+                        else
+                            WT_ASSERT(
+                              session, get_args.base_lsn == 0 && get_args.base_checkpoint_id == 0);
+                    }
                 }
 
                 /*
@@ -244,11 +272,14 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                 continue;
             }
 
-            if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
+            if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE)) {
+                uint32_t calc = __wt_checksum(current->data,
+                  F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_MIN(size, WT_BLOCK_COMPRESS_SKIP));
                 __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn, is_delta,
                   result,
                   "calculated checksum of %" PRIx32 " doesn't match expected checksum of %" PRIx32,
-                  swap.checksum, checksum);
+                  calc, swap.checksum);
+            }
         } else if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
             __block_disagg_read_err(session, block_disagg->name, size, page_id, lsn, is_delta,
               result, "header checksum of %" PRIx32 " doesn't match expected checksum of %" PRIx32,

@@ -13,6 +13,7 @@ is_main_run && {
             -o -name '*.dox' -o -name '*.cxx' -o -name '*.cpp' -o -name '*.py' -o -name '*.cmake' \
             -o -name '*.i' | \
     sed -e '/Makefile.in/d' \
+        -e '/block_cache.cpp/d' \
         -e '/test\/3rdparty/d' \
         -e '/test\/checksum\/power8/d' \
         -e '/bench\/workgen\/workgen_wrap.cxx/d' \

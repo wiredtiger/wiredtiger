@@ -179,6 +179,29 @@ __wti_conn_remove_collator(WT_SESSION_IMPL *session)
 }
 
 /*
+ * wiredtiger_disagg_cache_configure --
+ *     Configure the disaggregated storage victim cache.
+ */
+int
+wiredtiger_disagg_cache_configure(WT_CONNECTION *wt_conn, uint64_t max_size, uint32_t shards)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    if (conn == NULL)
+        return (EINVAL);
+
+    CONNECTION_API_CALL_NOCONF_NOERRCLEAR(conn, session, disagg_cache_configure);
+
+    WT_ERR(__wt_disagg_cache_configure(conn, max_size, shards));
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
  * __compressor_confchk --
  *     Validate the compressor.
  */

@@ -193,9 +193,12 @@ if(WITH_PIC OR ENABLE_SHARED)
         ${CMAKE_CURRENT_BINARY_DIR}/config
         ${CMAKE_CURRENT_LIST_DIR}/src/include
     )
-    # Append any provided C flags.
+    # Append any provided compiler flags per language.
     if(COMPILER_DIAGNOSTIC_C_FLAGS)
-        target_compile_options(wt_objs PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS})
+        target_compile_options(wt_objs PRIVATE $<$<COMPILE_LANGUAGE:C>:${COMPILER_DIAGNOSTIC_C_FLAGS}>)
+    endif()
+    if(COMPILER_DIAGNOSTIC_CXX_FLAGS)
+        target_compile_options(wt_objs PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${COMPILER_DIAGNOSTIC_CXX_FLAGS}>)
     endif()
     if(ENABLE_MEMKIND)
         target_include_directories(wt_objs PRIVATE ${HAVE_LIBMEMKIND_INCLUDES})

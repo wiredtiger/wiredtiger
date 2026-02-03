@@ -32,9 +32,12 @@ macro(define_wiredtiger_library target type)
     if(DEFINE_WT_PRIVATE_INCLUDES)
         target_include_directories(${target} PRIVATE ${DEFINE_WT_PRIVATE_INCLUDES})
     endif()
-    # Append any provided C flags.
+    # Append any provided compiler flags per language.
     if(COMPILER_DIAGNOSTIC_C_FLAGS)
-        target_compile_options(${target} PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS})
+        target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:C>:${COMPILER_DIAGNOSTIC_C_FLAGS}>)
+    endif()
+    if(COMPILER_DIAGNOSTIC_CXX_FLAGS)
+        target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${COMPILER_DIAGNOSTIC_CXX_FLAGS}>)
     endif()
 
     # We want to set the following target properties:

@@ -3574,6 +3574,17 @@ int wiredtiger_open(const char *home,
     WT_CONNECTION **connectionp) WT_ATTRIBUTE_LIBRARY_VISIBLE;
 
 /*!
+ * Configure the disaggregated storage victim cache for a connection.
+ *
+ * @param connection the connection handle
+ * @param cache_size the cache size in bytes
+ * @param num_shards the number of cache shards
+ * @errors
+ */
+int wiredtiger_disagg_cache_configure(WT_CONNECTION *connection, uint64_t cache_size,
+    uint32_t num_shards) WT_ATTRIBUTE_LIBRARY_VISIBLE;
+
+/*!
  * Return information about a WiredTiger error as a string (see
  * WT_SESSION::strerror for a thread-safe API).
  *
@@ -5866,6 +5877,7 @@ struct __wt_page_log_put_args {
        uint64_t base_lsn;
        uint64_t backlink_checkpoint_id;
        uint64_t base_checkpoint_id;
+       uint64_t delta_count;
        size_t image_size;
 
        WT_PAGE_LOG_ENCRYPTION encryption;
@@ -5899,6 +5911,7 @@ struct __wt_page_log_get_args {
        uint64_t base_lsn;
        uint64_t backlink_checkpoint_id;
        uint64_t base_checkpoint_id;
+       uint64_t delta_count;
 
        WT_PAGE_LOG_ENCRYPTION encryption;
 };
