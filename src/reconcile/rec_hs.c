@@ -1140,6 +1140,24 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
 
             if (upd == newest_hs)
                 break;
+
+            if (insert_cnt >= 1000) {
+                WT_STAT_CONN_DSRC_INCRV(session, cache_hs_insert, insert_cnt);
+                WT_STAT_CONN_DSRC_INCRV(
+                  session, cache_hs_insert_full_update, cache_hs_insert_full_update);
+                WT_STAT_CONN_DSRC_INCRV(
+                  session, cache_hs_insert_reverse_modify, cache_hs_insert_reverse_modify);
+                WT_STAT_CONN_DSRC_INCRV(session, cache_hs_write_squash, cache_hs_write_squash);
+                WT_STAT_CONN_DSRC_INCRV(session, cache_hs_key_processed, cache_hs_key_processed);
+                WT_STAT_CONN_DSRC_INCRV(
+                  session, cache_hs_update_processed, cache_hs_update_processed);
+                insert_cnt = 0;
+                cache_hs_insert_full_update = 0;
+                cache_hs_insert_reverse_modify = 0;
+                cache_hs_write_squash = 0;
+                cache_hs_key_processed = 0;
+                cache_hs_update_processed = 0;
+            }
         }
     }
 
