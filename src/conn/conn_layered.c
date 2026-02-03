@@ -2932,6 +2932,7 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
                 if (ret == 0) {
                     __wt_cursor_dhandle_incr_use(session);
                     entry->pinned_dhandle = session->dhandle;
+                    WT_TRET(__wt_session_release_dhandle(session));
                 }
             });
             WT_ERR(ret);
