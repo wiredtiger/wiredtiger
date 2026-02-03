@@ -595,13 +595,13 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         self.teardown_actions.append(action)
 
     def verifyLayered(self):
-        # The connection must be reopened before we start verify.
-        # The reason is that a test may have just done a "step up", and then
-        # finished. A step up causes data to be moved from the ingest to the stable table
-        # asynchronously. Verify cannot get exclusive access to these tables during this time.
-        if not self.conn is None:
-            self.conn.close()
-        self.conn = self.setUpConnectionOpen(".")
+        if self.conn is None or not self.conn.is_open():
+            # If the connection is closed, reopen it.
+            self.conn = self.setUpConnectionOpen(".")
+        elif self.session is not None or self.session.this is not None:
+            # Need to check ".this" because SWIG proxies don't evaluate to None even after being
+            # freed. Ensure all cursors are closed by closing the session.
+            self.session.close()
 
         sess = self.conn.open_session()
 
