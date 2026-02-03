@@ -664,10 +664,10 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     uint32_t i;
     int nentries;
     bool check_prepared, enable_reverse_modify, error_on_ts_ordering, hs_inserted, squashed,
-      hs_flag_set;
+      hs_flag_set, hs_stats_updated;
 
     conn = S2C(session);
-    hs_flag_set = false;
+    hs_flag_set = hs_stats_updated = false;
     r->cache_write_hs = false;
     btree = S2BT(session);
     ref = r->ref;
@@ -1141,6 +1141,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             if (upd == newest_hs)
                 break;
 
+            /* Periodically flush the hs stats in case there is a long reconciliation to check
+             * progress. */
             if (insert_cnt >= 1000) {
                 WT_STAT_CONN_DSRC_INCRV(session, cache_hs_insert, insert_cnt);
                 WT_STAT_CONN_DSRC_INCRV(
@@ -1157,6 +1159,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                 cache_hs_write_squash = 0;
                 cache_hs_key_processed = 0;
                 cache_hs_update_processed = 0;
+                hs_stats_updated = true;
             }
         }
     }
@@ -1173,11 +1176,11 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     }
 
 err:
-    if (ret == 0 && insert_cnt > 0)
+    if (ret == 0 && (insert_cnt > 0 || hs_stats_updated))
         __rec_hs_verbose_cache_stats(session, btree);
 
     /* cache_write_hs is set to true as there was at least one successful write to history. */
-    if (insert_cnt > 0)
+    if (insert_cnt > 0 || hs_stats_updated)
         r->cache_write_hs = true;
 
     __wt_scr_free(session, &key);
