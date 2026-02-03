@@ -1623,11 +1623,13 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         db = conn->disaggregated_storage.database_size;
         delta = session->ckpt.ckpt_size_delta;
 
-        WT_ASSERT(session,
-          (delta >= 0 && db <= (uint64_t)(INT64_MAX - delta)) ||
-            (delta < 0 && db >= (uint64_t)(-delta)));
-
-        conn->disaggregated_storage.database_size = (uint64_t)((int64_t)db + delta);
+        if (delta > 0) {
+            WT_ASSERT(session, UINT64_MAX - db >= (uint64_t)delta);
+            conn->disaggregated_storage.database_size = db + (uint64_t)delta;
+        } else {
+            WT_ASSERT(session, db >= (uint64_t)(-delta));
+            conn->disaggregated_storage.database_size = db - (uint64_t)(-delta);
+        }
     }
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 
