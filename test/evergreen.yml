@@ -83,11 +83,11 @@ functions:
 
             # Set extensions to load
             EXT="extensions=["
-            EXT+="ext/compressors/snappy/libwiredtiger_snappy.so,"
-            EXT+="ext/collators/reverse/libwiredtiger_reverse_collator.so,"
-            EXT+="ext/encryptors/rotn/libwiredtiger_rotn.so,"
-            EXT+="ext/page_log/palite/libwiredtiger_palite.so,"
-            EXT+="]"
+            EXT="$EXT ext/compressors/snappy/libwiredtiger_snappy.so,"
+            EXT="$EXT ext/collators/reverse/libwiredtiger_reverse_collator.so,"
+            EXT="$EXT ext/encryptors/rotn/libwiredtiger_rotn.so,"
+            EXT="$EXT ext/page_log/palite/libwiredtiger_palite.so,"
+            EXT="$EXT ]"
             export EXT
 
             ${additional_env_vars}
