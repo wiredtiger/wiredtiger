@@ -168,6 +168,7 @@ __drop_layered(
     WT_DECL_ITEM(ingest_uri_buf);
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
+    uint64_t table_size;
     const char *ingest_uri, *stable_uri, *tablename;
 
     WT_UNUSED(force);
@@ -177,6 +178,7 @@ __drop_layered(
     WT_RET(__wt_scr_alloc(session, 0, &ingest_uri_buf));
     WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
 
+    table_size = S2BT(session)->bytes_total;
     tablename = uri;
     WT_PREFIX_SKIP_REQUIRED(session, tablename, "layered:");
     WT_ERR(__wt_buf_fmt(session, ingest_uri_buf, "file:%s.wt_ingest", tablename));
@@ -212,6 +214,9 @@ __drop_layered(
     /*
      * No need for a meta track drop, since the top-level table has no underlying files to remove.
      */
+
+    /* Update the disagg total database size to reflect that we have dropped this table. */
+    (void)__wt_atomic_sub_uint64(&S2C(session)->disaggregated_storage.database_size, table_size);
 
 err:
     __wt_scr_free(session, &ingest_uri_buf);
