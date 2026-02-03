@@ -791,13 +791,6 @@ __disagg_fetch_shared_meta(
 {
     WT_DECL_RET;
 
-    /* Warn if checkpoint metadata requires a newer reader. */
-    if (ckpt_meta->compatible_version > WT_DISAGG_CHECKPOINT_META_VERSION) {
-        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "Checkpoint meta compatible_version=%" PRIu32 " > reader version=%d",
-          ckpt_meta->compatible_version, WT_DISAGG_CHECKPOINT_META_VERSION);
-    }
-
     /* Read the checkpoint metadata of the shared metadata table from the special metadata page. */
     WT_ERR_MSG_CHK(session,
       __disagg_get_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, ckpt_meta->metadata_lsn, item),
@@ -1056,13 +1049,6 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     layered_ingest_uri = cfg_ret = NULL;
     existing_tables = new_tables = new_ingest = 0;
 
-    /* Warn if checkpoint metadata requires a newer reader. */
-    if (ckpt_meta->compatible_version > WT_DISAGG_CHECKPOINT_META_VERSION) {
-        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "Checkpoint meta compatible_version=%" PRIu32 " > reader version=%d",
-          ckpt_meta->compatible_version, WT_DISAGG_CHECKPOINT_META_VERSION);
-    }
-
     /*
      * Throw away any references to the old disaggregated metadata table. This ensures that we are
      * on the most recent checkpoint from now on.
@@ -1226,13 +1212,6 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
 {
     WT_DECL_RET;
     WT_CONNECTION_IMPL *conn = S2C(session);
-
-    /* Warn if checkpoint metadata requires a newer reader. */
-    if (ckpt_meta->compatible_version > WT_DISAGG_CHECKPOINT_META_VERSION) {
-        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE,
-          "Checkpoint meta compatible_version=%" PRIu32 " > reader version=%d",
-          ckpt_meta->compatible_version, WT_DISAGG_CHECKPOINT_META_VERSION);
-    }
 
     /*
      * Update the checkpoint metadata LSN. This doesn't require further synchronization, because the
@@ -1445,6 +1424,12 @@ __disagg_pick_up_checkpoint_meta(
               (uint64_t)cval.val);
         ckpt_meta.compatible_version = (uint32_t)cval.val;
     }
+
+    /* Check if this checkpoint metadata is compatible with the current reader version. */
+    if (ckpt_meta.compatible_version > WT_DISAGG_CHECKPOINT_META_VERSION)
+        WT_ERR_MSG(session, ENOTSUP,
+          "Checkpoint meta compatible_version=%" PRIu32 " requires reader version >= %" PRIu32,
+          ckpt_meta.compatible_version, ckpt_meta.compatible_version);
 
     /* Now actually pick up the checkpoint. */
     WT_ERR(__disagg_pick_up_checkpoint(session, &ckpt_meta));
