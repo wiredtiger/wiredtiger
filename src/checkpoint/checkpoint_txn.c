@@ -1610,6 +1610,29 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     } else
         conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
 
+    /*
+     * Apply the accumulated size delta to the in-memory database_size now that the checkpoint has
+     * succeeded. Positive deltas occur when data is added during the checkpoint. Negative deltas
+     * occur when data is removed reducing the total storage footprint. Guard against
+     * overflow/underflow in both cases.
+     */
+    if (session->ckpt.ckpt_size_delta != 0) {
+        uint64_t db;
+        int64_t delta;
+
+        db = conn->disaggregated_storage.database_size;
+        delta = session->ckpt.ckpt_size_delta;
+
+        if (delta > 0) {
+            WT_ASSERT_ALWAYS(session, UINT64_MAX - db >= (uint64_t)delta,
+              "Disaggregated storage database size too large");
+            conn->disaggregated_storage.database_size = db + (uint64_t)delta;
+        } else {
+            WT_ASSERT_ALWAYS(
+              session, db >= (uint64_t)(-delta), "Disaggregated storage database size too small");
+            conn->disaggregated_storage.database_size = db - (uint64_t)(-delta);
+        }
+    }
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 
 err:
@@ -1721,6 +1744,9 @@ err:
     __wt_free(session, session->ckpt.handle);
     WT_ASSERT(session, session->ckpt.crash_trigger_point == 0 && session->ckpt.crash_point == 0);
     session->ckpt.handle_allocated = session->ckpt.handle_next = 0;
+
+    /* Reset accumulated change in database size. Failed checkpoints do not affect database size. */
+    session->ckpt.ckpt_size_delta = 0;
 
     session->isolation = txn->isolation = saved_isolation;
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);
