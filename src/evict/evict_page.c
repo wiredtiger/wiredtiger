@@ -243,15 +243,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      */
     page_size = __wt_atomic_load_size_relaxed(&page->memory_footprint);
 
-    /* Clean page */
-    if (!is_dirty) {
+    if (!is_dirty)
+        /* Clean page */
         __wt_atomic_stats_max_uint64(
           &conn->evict->evict_max_clean_page_size_per_checkpoint, page_size);
-    } else {
+    else
         /* Dirty page */
         __wt_atomic_stats_max_uint64(
           &conn->evict->evict_max_dirty_page_size_per_checkpoint, page_size);
-    }
 
     /*
      * No need to reconcile the page if it is from a dead tree or it is clean. Stable tables on the
