@@ -1326,6 +1326,52 @@ palm_set_last_materialized_lsn(WT_PAGE_LOG *storage, WT_SESSION *session, uint64
 }
 
 /*
+ * palm_trim_table --
+ *     Discard an table for testing purposes.
+ */
+static int
+palm_trim_table(
+  WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t table_id, uint64_t start_lsn, uint64_t *lsnp)
+{
+    PALM *palm;
+    PALM_KV_CONTEXT context;
+    uint64_t lsn;
+    int ret;
+
+    (void)start_lsn; /* Unused parameter */
+
+    palm = (PALM *)page_log;
+    palm_init_context(palm, &context);
+
+    PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
+    ret = palm_kv_get_global(&context, PALM_KV_GLOBAL_LSN, &lsn);
+    if (ret == MDB_NOTFOUND) {
+        lsn = 1;
+        ret = 0;
+    }
+
+    /*
+     * Followers can read trimmed tables for a limited time after we issue a drop command on leader
+     * mode. For this reason, we will no-op the trim table. Both leader and follower nodes should
+     * have removed the table reference from their metadata tables.
+     */
+
+    /* Update LSN as we are faking a trim table request. */
+    PALM_KV_RET(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_LSN, lsn + 1));
+    PALM_VERBOSE_PRINT(
+      palm, session, "palm_trim_table(table_id=%" PRIu64 ", lsn=%" PRIu64 ")\n", table_id, lsn);
+    PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
+
+    if (lsnp != NULL)
+        *lsnp = lsn;
+    return (0);
+
+err:
+    palm_kv_rollback_transaction(&context);
+    return (ret);
+}
+
+/*
  * palm_terminate --
  *     Discard any resources on termination
  */
@@ -1399,7 +1445,9 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     palm->page_log.pl_get_last_lsn = palm_get_last_lsn;
     palm->page_log.pl_get_open_checkpoint = NULL;
     palm->page_log.pl_open_handle = palm_open_handle;
+    palm->page_log.pl_trim_table = palm_trim_table;
     palm->page_log.pl_set_last_materialized_lsn = palm_set_last_materialized_lsn;
+    palm->page_log.pl_trim_table = palm_trim_table;
     palm->page_log.terminate = palm_terminate;
 
     /*
