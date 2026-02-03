@@ -4277,6 +4277,13 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * wiredtiger_open with the 'salvage=true' configuration setting.
  */
 #define	WT_TRY_SALVAGE	(-31809)
+/*!
+ * Maximum number of sessions created.
+ * This error is generated when the maximum number of sessions has been created
+ * in the system. The application may choose to close some sessions or retry
+ * wiredtiger_open with a higher session limit configuration setting.
+ */
+#define	WT_MAX_SESSIONS	(-31810)
 /*
  * Error return section: END
  * DO NOT EDIT: automatically built by dist/api_err.py.

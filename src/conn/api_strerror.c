@@ -39,6 +39,8 @@ __wt_wiredtiger_error(int error)
         return ("WT_PREPARE_CONFLICT: conflict with a prepared update");
     case WT_TRY_SALVAGE:
         return ("WT_TRY_SALVAGE: database corruption detected");
+    case WT_MAX_SESSIONS:
+        return ("WT_MAX_SESSIONS: maximum number of sessions created");
     }
 
     /* Check for WiredTiger specific sub-level errors. */

@@ -92,6 +92,11 @@ This error is generated when corruption is detected in an on-disk file. During n
 this may occur in rare circumstances as a result of a system crash. The application may choose to
 salvage the file or retry wiredtiger_open with the 'salvage=true' configuration setting.
 
+@par \c WT_MAX_SESSIONS
+This error is generated when the maximum number of sessions has been created in the system. The
+application may choose to close some sessions or retry wiredtiger_open with a higher session limit
+configuration setting.
+
 @if IGNORE_BUILT_BY_API_SUB_ERR_END
 @endif
 
