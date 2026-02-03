@@ -1624,10 +1624,12 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         delta = session->ckpt.ckpt_size_delta;
 
         if (delta > 0) {
-            WT_ASSERT(session, UINT64_MAX - db >= (uint64_t)delta);
+            WT_ASSERT_ALWAYS(session, UINT64_MAX - db >= (uint64_t)delta,
+              "Overflow in disaggregated storage database size");
             conn->disaggregated_storage.database_size = db + (uint64_t)delta;
         } else {
-            WT_ASSERT(session, db >= (uint64_t)(-delta));
+            WT_ASSERT_ALWAYS(session, db >= (uint64_t)(-delta),
+              "Underflow in disaggregated storage database size");
             conn->disaggregated_storage.database_size = db - (uint64_t)(-delta);
         }
     }
