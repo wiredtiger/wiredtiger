@@ -1299,6 +1299,17 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
       metadata.oldest_timestamp, __wt_timestamp_to_string(metadata.oldest_timestamp, ts_string[1]),
       (int)metadata.checkpoint_len, metadata.checkpoint);
 
+    /* Update the pinned timestamp. */
+    __wt_txn_update_pinned_timestamp(session, false);
+    uint64_t pinned_timestamp;
+    __wt_txn_pinned_timestamp(session, &pinned_timestamp);
+    if (pinned_timestamp != WT_TS_NONE && metadata.oldest_timestamp > pinned_timestamp)
+        WT_IGNORE_RET(__wt_panic(session, EINVAL,
+          "Disaggregated storage checkpoint oldest_timestamp %s is greater than the current pinned "
+          "timestamp %s",
+          __wt_timestamp_to_string(metadata.oldest_timestamp, ts_string[0]),
+          __wt_timestamp_to_string(pinned_timestamp, ts_string[1])));
+
     /* Load crypt key data with the key provider extension, if any. */
     WT_ERR(__disagg_load_crypt_key(session, &metadata));
 
@@ -3045,7 +3056,7 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table;
-    wt_timestamp_t prune_timestamp, btree_checkpoint_timestamp;
+    wt_timestamp_t prune_timestamp;
     int64_t ckpt_inuse, last_ckpt;
     int32_t layered_dhandle_inuse, stable_dhandle_inuse;
 
@@ -3088,7 +3099,6 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
 
     /* Find the last checkpoint which is still in use. */
     while (ckpt_inuse < last_ckpt) {
-        btree_checkpoint_timestamp = WT_TS_NONE;
         stable_dhandle_inuse = 0;
         WT_ERR(__wt_buf_fmt(session, uri_at_checkpoint_buf, "%s/%s.%" PRId64,
           layered_table->stable_uri, WT_CHECKPOINT, ckpt_inuse));
@@ -3101,7 +3111,8 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
         /* If one exists, read all the required info, then release. */
         if (ret == 0) {
             stable_dhandle_inuse = __wt_atomic_load_int32_acquire(&session->dhandle->session_inuse);
-            btree_checkpoint_timestamp = S2BT(session)->checkpoint_timestamp;
+            WT_ASSERT(session, prune_timestamp <= S2BT(session)->checkpoint_timestamp);
+            prune_timestamp = S2BT(session)->checkpoint_timestamp;
             WT_DHANDLE_RELEASE(session->dhandle);
         }
 
@@ -3111,7 +3122,6 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
         if (stable_dhandle_inuse > 0)
             break;
 
-        prune_timestamp = btree_checkpoint_timestamp;
         ++ckpt_inuse;
     }
 
@@ -3148,17 +3158,17 @@ __layered_update_ingest_table_prune_timestamp(WT_SESSION_IMPL *session, const ch
     if (prune_timestamp != WT_TS_NONE) {
         uint64_t btree_prune_timestamp = __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
         WT_ASSERT(session, prune_timestamp >= btree_prune_timestamp);
-        __wt_atomic_store_uint64_release(&btree->prune_timestamp, prune_timestamp);
-
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64, layered_table->iface.name,
-          btree_prune_timestamp, prune_timestamp);
-    }
-    if (ckpt_inuse > 1 || layered_dhandle_inuse == 0) {
+        /*
+         * The prune timestamp should be monotonically increasing. It is fine for the user to read
+         * the obsolete value. Therefore, no synchronization is required.
+         */
+        __wt_atomic_store_uint64_relaxed(&btree->prune_timestamp, prune_timestamp);
         layered_table->last_ckpt_inuse = ckpt_inuse;
 
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "GC %s: update checkpoint in use from %" PRId64 " to %" PRId64, layered_table->iface.name,
+          "GC %s: update prune timestamp from %" PRIu64 " to %" PRIu64
+          " and checkpoint in use from %" PRId64 " to %" PRId64,
+          layered_table->iface.name, btree_prune_timestamp, prune_timestamp,
           layered_table->last_ckpt_inuse, ckpt_inuse);
     }
 
