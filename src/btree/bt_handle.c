@@ -1252,7 +1252,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      * items are stored on a different page within the same tree, which cannot be handled by
      * disaggregated storage.
      */
-    if (F_ISSET(btree, WT_BTREE_IN_MEMORY) || F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+    if (F_ISSET(btree, WT_BTREE_IN_MEMORY | WT_BTREE_DISAGGREGATED)) {
         btree->maxleafkey = WT_BTREE_MAX_OBJECT_SIZE;
         btree->maxleafvalue = WT_BTREE_MAX_OBJECT_SIZE;
         return (0);
