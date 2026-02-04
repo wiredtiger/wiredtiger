@@ -1314,7 +1314,6 @@ struct PageInfo {
     uint64_t backlink_lsn;
     uint64_t base_lsn;
     uint32_t flags;
-    WT_PAGE_LOG_ENCRYPTION encryption;
 };
 
 template <> struct std::formatter<PageInfo> {
@@ -1636,11 +1635,9 @@ struct Pages : public Table<Pages> {
               sqlite3_bind_int64, stmt.get(), 4, static_cast<sqlite3_int64>(args->backlink_lsn));
             SQ_CHECK(sqlite3_bind_int64, stmt.get(), 5, static_cast<sqlite3_int64>(args->base_lsn));
             SQ_CHECK(sqlite3_bind_int64, stmt.get(), 6, static_cast<sqlite3_int64>(args->flags));
-            SQ_CHECK(sqlite3_bind_text, stmt.get(), 7, args->encryption.dek,
-              strlen(args->encryption.dek), SQLITE_STATIC);
-            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 8,
+            SQ_CHECK(sqlite3_bind_int64, stmt.get(), 7,
               static_cast<sqlite3_int64>(now_us() + (config.materialization_delay_ms * 1ms / 1us)));
-            SQ_CHECK(sqlite3_bind_blob, stmt.get(), 9, buf->data, buf->size, SQLITE_STATIC);
+            SQ_CHECK(sqlite3_bind_blob, stmt.get(), 8, buf->data, buf->size, SQLITE_STATIC);
             SQ_CHECK(sqlite3_step, stmt.get());
         }
 
@@ -1650,8 +1647,7 @@ struct Pages : public Table<Pages> {
               .lsn = lsn,
               .backlink_lsn = args->backlink_lsn,
               .base_lsn = args->base_lsn,
-              .flags = args->flags,
-              .encryption = args->encryption};
+              .flags = args->flags};
             auto acc_r = request(AccessMode::READ);
             verify_chain(acc_r.conn, start_page);
         }
@@ -1676,11 +1672,7 @@ struct Pages : public Table<Pages> {
               .lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 0)),
               .backlink_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 1)),
               .base_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt, 2)),
-              .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt, 3)),
-              .encryption = WT_PAGE_LOG_ENCRYPTION{}};
-
-            const char *enc = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4));
-            strncpy(page.encryption.dek, enc ? enc : "", sizeof(page.encryption.dek));
+              .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt, 3))};
 
             return std::move(page);
         };
@@ -1738,7 +1730,6 @@ struct Pages : public Table<Pages> {
             const PageInfo &page = pages.front();
             args->backlink_lsn = page.backlink_lsn;
             args->base_lsn = page.base_lsn;
-            args->encryption = page.encryption;
             assert(flags != nullptr);
             *flags = page.flags;
         }
@@ -1930,8 +1921,7 @@ private:
                 .lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 2)),
                 .backlink_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 3)),
                 .base_lsn = static_cast<uint64_t>(sqlite3_column_int64(stmt.get(), 4)),
-                .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt.get(), 5)),
-                .encryption = WT_PAGE_LOG_ENCRYPTION{}});
+                .flags = static_cast<uint32_t>(sqlite3_column_int64(stmt.get(), 5))});
         }
     }
 

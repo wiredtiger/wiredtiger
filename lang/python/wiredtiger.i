@@ -775,7 +775,6 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_page_log_discard_args::backlink_checkpoint_id;
 %ignore __wt_page_log_discard_args::base_checkpoint_id;
 %ignore __wt_page_log_discard_args::lsn_frontier;
-%ignore __wt_page_log_encryption::dek;
 %ignore __wt_page_log_put_args::backlink_lsn;
 %ignore __wt_page_log_put_args::base_lsn;
 %ignore __wt_page_log_put_args::backlink_checkpoint_id;
