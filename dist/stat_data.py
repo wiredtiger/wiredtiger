@@ -356,6 +356,7 @@ conn_stats = [
     EvictStat('eviction_app_time', 'application thread time evicting (usecs)'),
     EvictStat('eviction_clear_ordinary', 'pages removed from the ordinary queue to be queued for urgent eviction'),
     EvictStat('eviction_consider_prefetch', 'pages considered for eviction that were brought in by pre-fetch', 'no_clear,no_scale'),
+    EvictStat('eviction_dhandle_complete_walk', 'eviction server completed walks of all dhandles', 'no_clear,no_scale'),
     EvictStat('eviction_empty_score', 'eviction empty score', 'no_clear,no_scale'),
     EvictStat('eviction_fail', 'pages selected for eviction unable to be evicted'),
     EvictStat('eviction_fail_active_children_on_an_internal_page', 'pages selected for eviction unable to be evicted because of active children on an internal page'),
@@ -1143,6 +1144,7 @@ conn_dsrc_stats = [
     CacheStat('cache_bytes_inuse', 'bytes currently in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_read', 'bytes read into cache', 'size'),
     CacheStat('cache_bytes_write', 'bytes written from cache', 'size'),
+    CacheStat('cache_cas_btree_max_lsn_race', 'number of times when cas update the btree max_lsn failed'),
     CacheStat('cache_evict_split_failed_lock', 'realizing in-memory split after reconciliation failed due to internal lock busy'),
     CacheStat('cache_eviction_ahead_of_last_materialized_lsn', 'pages evicted ahead of the page materialization frontier'),
     CacheStat('cache_eviction_app_threads_fill_ratio_25_50', 'application threads eviction requested with cache fill ratio >= 25% and < 50%'),
@@ -1313,6 +1315,7 @@ conn_dsrc_stats = [
     # Disaggregated block manager statistics
     ##########################################
     BlockDisaggStat('disagg_block_get', 'Disaggregated block manager get'),
+    BlockDisaggStat('disagg_block_get_cold', 'Disaggregated block manager get cold page'),
     BlockDisaggStat('disagg_block_hs_byte_read', 'Bytes read from the shared history store in SLS', 'size'),
     BlockDisaggStat('disagg_block_hs_byte_write', 'Bytes written to the shared history store in SLS', 'size'),
     BlockDisaggStat('disagg_block_hs_get', 'Disaggregated block manager get from the shared history store in SLS'),

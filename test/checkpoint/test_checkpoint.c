@@ -278,7 +278,7 @@ main(int argc, char *argv[])
               stderr, "disaggregated storage feature doesn't supports named checkpoints (-c)");
             return (EXIT_FAILURE);
         }
-        /* FIXME-WT-15051 Disagg is not support prepared operations yet. */
+        /* FIXME-WT-15795 Disagg is not support prepared operations yet. */
         if (g.prepare == true) {
             fprintf(
               stderr, "disaggregated storage feature doesn't supports prepare operations (-p)");
@@ -416,6 +416,7 @@ enable_disagg(const char *mode)
 
     g.opts.palm_map_size_mb = 2048;               /* Set 2GB map size for palm by default. */
     g.opts.disagg_page_log_home = (char *)g.home; /* Set home directory for page log. */
+    g.opts.disagg_drain_threads = 8;              /* Set number of drain threads, 8 by default. */
 
     return 0;
 }

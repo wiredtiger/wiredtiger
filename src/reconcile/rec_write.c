@@ -453,6 +453,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
+    uint64_t old_rec_lsn_max;
 
     btree = S2BT(session);
     page = r->page;
@@ -474,6 +475,18 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
               mod->mod_multi[mod->mod_multi_entries - 1].block_meta->disagg_lsn;
         else
             page->disagg_info->rec_lsn_max = page->disagg_info->block_meta.disagg_lsn;
+
+        for (;;) {
+            old_rec_lsn_max = __wt_atomic_load_uint64_relaxed(&btree->rec_lsn_max);
+            if (old_rec_lsn_max < page->disagg_info->rec_lsn_max &&
+              !__wt_atomic_cas_uint64(
+                &btree->rec_lsn_max, old_rec_lsn_max, page->disagg_info->rec_lsn_max)) {
+                WT_STAT_CONN_DSRC_INCR(session, cache_cas_btree_max_lsn_race);
+                continue;
+            }
+
+            break;
+        }
     }
 
     /*
@@ -690,7 +703,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
         r->rec_start_pinned_stable_ts = WT_TS_NONE;
 
     if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-        r->rec_prune_timestamp = __wt_atomic_load_uint64_acquire(&btree->prune_timestamp);
+        r->rec_prune_timestamp = __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
     else
         r->rec_prune_timestamp = WT_TS_NONE;
 
@@ -974,10 +987,9 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
             (checkpoint && addr == NULL && addr_sizep == NULL),
           "Incorrect arguments passed to rec_write for a checkpoint call");
 
-        /* In-memory databases shouldn't write pages. */
-        WT_ASSERT_ALWAYS(session,
-          !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(btree, WT_BTREE_IN_MEMORY),
-          "Attempted to write page to disk when WiredTiger is configured to be in-memory");
+        /* In-memory btrees shouldn't write pages. */
+        WT_ASSERT_ALWAYS(session, !F_ISSET(btree, WT_BTREE_IN_MEMORY),
+          "Attempted to write page to disk when the btree is configured to be in-memory");
 
         /*
          * We're passed a table's disk image. Decompress if necessary and verify the image. Always
