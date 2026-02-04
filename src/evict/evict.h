@@ -187,6 +187,7 @@ extern void __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session);
 extern void __wt_evict_priority_clear(WT_SESSION_IMPL *session);
 extern void __wt_evict_priority_set(WT_SESSION_IMPL *session, uint64_t v);
 extern void __wt_evict_server_wake(WT_SESSION_IMPL *session);
+extern void __wt_evict_stats_init(WT_SESSION_IMPL *session);
 extern void __wt_evict_stats_update(WT_SESSION_IMPL *session);
 static WT_INLINE bool __wt_evict_aggressive(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
