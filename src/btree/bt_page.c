@@ -728,7 +728,7 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
     WT_CELL_UNPACK_DELTA_INT **unpacked_deltas = NULL;
     WT_DECL_RET;
     size_t *delta_size_each = NULL, *delta_idx = NULL;
-    size_t base_entries, estimated_entries, k;
+    size_t base_entries, k;
     uint32_t d;
     WT_PAGE_HEADER *base_image_header;
     uint64_t latest_write_gen;
@@ -749,9 +749,6 @@ __wti_page_merge_deltas_with_base_image_int(WT_SESSION_IMPL *session, WT_ITEM *d
     }
     WT_CELL_FOREACH_END;
 
-    estimated_entries = (base_entries / 2) + 1;
-    for (d = 0; d < delta_size; ++d)
-        estimated_entries += delta_size_each[d];
     WT_ERR(__wt_calloc_def(session, delta_size, &delta_idx));
 
     ret = __page_merge_base_internal_deltas(session, base, base_entries, unpacked_deltas,
