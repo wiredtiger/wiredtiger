@@ -198,6 +198,27 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
       __wt_atomic_load_uint64_relaxed(&conn->page_delta.max_internal_delta_count));
     WT_STATP_CONN_SET(session, stats, rec_max_leaf_page_deltas,
       __wt_atomic_load_uint64_relaxed(&conn->page_delta.max_leaf_delta_count));
+
+    /*
+     * WiredTiger's cache thresholds are percentages but the stats are integers, so we convert to
+     * integers by multiplying by 100. This gives us 2 decimal places of precision. The expectation
+     * is that tooling will display this as a percentage.
+     */
+    WT_STATP_CONN_SET(session, stats, eviction_threshold_cache_full_target,
+      (int64_t)(WT_HUNDRED * __wt_atomic_load_double_relaxed(&conn->evict->eviction_target)));
+    WT_STATP_CONN_SET(session, stats, eviction_threshold_cache_full_trigger,
+      (int64_t)(WT_HUNDRED * __wt_atomic_load_double_relaxed(&conn->evict->eviction_trigger)));
+    WT_STATP_CONN_SET(session, stats, eviction_threshold_dirty_target,
+      (int64_t)(WT_HUNDRED * __wt_atomic_load_double_relaxed(&conn->evict->eviction_dirty_target)));
+    WT_STATP_CONN_SET(session, stats, eviction_threshold_dirty_trigger,
+      (int64_t)(WT_HUNDRED *
+        __wt_atomic_load_double_relaxed(&conn->evict->eviction_dirty_trigger)));
+    WT_STATP_CONN_SET(session, stats, eviction_threshold_updates_target,
+      (int64_t)(WT_HUNDRED *
+        __wt_atomic_load_double_relaxed(&conn->evict->eviction_updates_target)));
+    WT_STATP_CONN_SET(session, stats, eviction_threshold_updates_trigger,
+      (int64_t)(WT_HUNDRED *
+        __wt_atomic_load_double_relaxed(&conn->evict->eviction_updates_trigger)));
 }
 
 /*
