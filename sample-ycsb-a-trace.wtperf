@@ -1,0 +1,23 @@
+conn_config="cache_size=100MB,log=(enabled=true),checkpoint=(wait=10),statistics=(all),statistics_log=(json,on_close,wait=1)"
+pareto=10
+table_config="type=file"
+key_sz=100
+value_sz=1024
+icount=5000000
+# run_time=200
+run_time=25
+threads=((count=3,reads=1),(count=3,updates=1))
+#threads=((count=1,reads=1,updates=1))
+# warmup=120
+sample_interval=5
+# populate_threads=8
+populate_threads=1
+report_interval=5
+
+# Avoid bulk insert path
+#populate_threads=2
+
+table_count=200
+# close_conn as false allows this test to close/finish faster, but if running
+# as the set, the next test will need to run recovery.
+#close_conn=false
