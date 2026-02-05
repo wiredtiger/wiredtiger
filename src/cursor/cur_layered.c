@@ -1555,6 +1555,78 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
 }
 
 /*
+ * __clayered_remove_ingest --
+ *     Remove an entry from the ingest table.
+ */
+static WT_INLINE int
+__clayered_remove_ingest(
+  WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, bool positioned)
+{
+    WT_CURSOR *const c = clayered->ingest_cursor;
+    WT_ITEM value;
+
+    if (positioned && clayered->current_cursor == c) {
+        WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
+        /*
+         * If we are erasing a record that is already a tombstone, don't write another one: we don't
+         * ever want consecutive tombstones on an update chain.
+         */
+        WT_RET(c->get_value(c, &value));
+        if (__wt_clayered_deleted(&value))
+            return (WT_NOTFOUND);
+    } else {
+        WT_ASSERT(session, F_ISSET(&clayered->iface, WT_CURSTD_KEY_EXT));
+        /* Lookup will return WT_NOTFOUND if a tombstone is present. */
+        WT_RET(__clayered_lookup(session, clayered, &value));
+    }
+
+    /* If we are positioned on the stable table, we need to set the key. */
+    if (clayered->current_cursor != c) {
+        /*
+         * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
+         * anyway. No need to do another search if we are already positioned.
+         */
+        WT_RET(__clayered_reset_cursors(clayered, true));
+        c->set_key(c, key);
+    }
+
+    c->set_value(c, &__wt_tombstone);
+    WT_RET(c->update(c));
+    clayered->current_cursor = c;
+
+    return (0);
+}
+
+/*
+ * __clayered_remove_stable --
+ *     Remove an entry from the stable table.
+ */
+static WT_INLINE int
+__clayered_remove_stable(
+  WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, bool positioned)
+{
+    WT_CURSOR *const c = clayered->stable_cursor;
+
+    /* There is no content on the ingest table. We must be positioned on the stable table. */
+    if (!positioned) {
+        /*
+         * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
+         * anyway. We need the cursor still be positioned after the remove. Don't release the cursor
+         * if that is the case. Remove only retains the cursor position if it is positioned at the
+         * start.
+         */
+        WT_RET(__clayered_reset_cursors(clayered, true));
+        c->set_key(c, key);
+    } else
+        WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
+
+    WT_RET(c->remove(c));
+    clayered->current_cursor = c;
+
+    return (0);
+}
+
+/*
  * __clayered_remove_int --
  *     Remove an entry from the desired tree.
  */
@@ -1562,41 +1634,9 @@ static WT_INLINE int
 __clayered_remove_int(
   WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, bool positioned)
 {
-    WT_CURSOR *c;
-
-    if (S2C(session)->layered_table_manager.leader) {
-        c = clayered->stable_cursor;
-        /* There is no content on the ingest table. We must be positioned on the stable table. */
-        if (!positioned) {
-            /*
-             * Clear the existing cursor position. Don't clear the primary cursor: we're about to
-             * use it anyway. We need the cursor still be positioned after the remove. Don't release
-             * the cursor if that is the case. Remove only retains the cursor position if it is
-             * positioned at the start.
-             */
-            WT_RET(__clayered_reset_cursors(clayered, true));
-            c->set_key(c, key);
-        } else
-            WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
-        WT_RET(c->remove(c));
-    } else {
-        c = clayered->ingest_cursor;
-        /* If we are positioned on the stable table, we need to set the key. */
-        if (!positioned || clayered->current_cursor != c) {
-            /*
-             * Clear the existing cursor position. Don't clear the primary cursor: we're about to
-             * use it anyway. No need to do another search if we are already positioned.
-             */
-            WT_RET(__clayered_reset_cursors(clayered, true));
-            c->set_key(c, key);
-        } else
-            WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
-        c->set_value(c, &__wt_tombstone);
-        WT_RET(c->update(c));
-    }
-
-    clayered->current_cursor = c;
-    return (0);
+    return (S2C(session)->layered_table_manager.leader ?
+        __clayered_remove_stable(session, clayered, key, positioned) :
+        __clayered_remove_ingest(session, clayered, key, positioned));
 }
 
 /*
