@@ -1326,7 +1326,6 @@ template <> struct std::formatter<PageInfo> {
     auto
     format(const PageInfo &page, format_context &ctx) const
     {
-        /* TODO: print encryption if special formatting is given, e.g. {:e} */
         return std::format_to(ctx.out(),
           "{{table_id={}, page_id={}, lsn={}, backlink_lsn={}, base_lsn={}, "
           "flags={:#x}}}",
@@ -1374,10 +1373,9 @@ struct Pages : public Table<Pages> {
                   backlink_lsn,
                   base_lsn,
                   flags,
-                  encryption,
                   timestamp_materialized_us,
                   page_data)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);)";
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?);)";
 
         /*
          * Get all unique page IDs for a given table that have their latest page record with LSN <=
@@ -1475,7 +1473,6 @@ struct Pages : public Table<Pages> {
                   backlink_lsn,
                   base_lsn,
                   flags,
-                  encryption,
                   page_data
              FROM pages
              WHERE table_id = ?
@@ -1511,7 +1508,6 @@ struct Pages : public Table<Pages> {
              flags INTEGER NOT NULL,
              delta INTEGER AS ((flags & 0x2) != 0) VIRTUAL, -- WT_PAGE_LOG_DELTA
              discarded INTEGER AS ((flags & 0x10000) != 0) VIRTUAL, -- WT_PAGE_LOG_DISCARDED
-             encryption STRING NOT NULL,
              timestamp_materialized_us INTEGER NOT NULL,
              page_data BLOB,
          PRIMARY KEY (table_id, page_id, lsn));)",
@@ -2183,8 +2179,6 @@ public:
     put(uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args, const WT_ITEM *buf)
     {
         storage.simulate_unstable_network();
-
-        /* TODO: handle dek encryption */
 
         const uint64_t lsn = storage.make_next_lsn();
         storage.put_page(table_id, page_id, lsn, args, buf);
