@@ -1593,13 +1593,10 @@ __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
 
     /* Close any cursors and free any related memory */
     for (i = 0; i < manager->open_layered_table_count; i++) {
-        if ((entry = manager->entries[i]) != NULL)
-            if (entry->pinned_dhandle != NULL)
-                WT_WITH_DHANDLE(session, entry->pinned_dhandle, {
-                    entry->pinned_dhandle = NULL;
-                    __wt_cursor_dhandle_decr_use(session);
-                });
-        __layered_table_manager_remove_table_inlock(session, i);
+        if ((entry = manager->entries[i]) != NULL) {
+            WT_ASSERT(session, entry->pinned_dhandle == NULL);
+            __layered_table_manager_remove_table_inlock(session, i);
+        }
     }
     __wt_free(session, manager->entries);
     manager->open_layered_table_count = 0;
@@ -2927,15 +2924,7 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
              * Mark the layered table in use, we don't want it to be closed between now and when the
              * drain takes place, otherwise this entry would be freed.
              */
-            WT_WITHOUT_DHANDLE(session, {
-                ret = __wt_session_get_dhandle(session, entry->layered_uri, NULL, NULL, 0);
-                if (ret == 0) {
-                    __wt_cursor_dhandle_incr_use(session);
-                    entry->pinned_dhandle = session->dhandle;
-                    WT_TRET(__wt_session_release_dhandle(session));
-                }
-            });
-            WT_ERR(ret);
+            WT_ERR(__wt_cursor_uri_incr_use(session, entry->layered_uri, &entry->pinned_dhandle));
 
             WT_LAYERED_DRAIN_ENTRY *work_item;
             WT_ERR(__wt_calloc_one(session, &work_item));
