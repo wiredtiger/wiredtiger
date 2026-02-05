@@ -405,7 +405,7 @@ __wt_cursor_dhandle_decr_use(WT_SESSION_IMPL *session)
 
 /*
  * __wt_cursor_uri_incr_use --
- *     An alternate way to mark a URI's data handle to be in use.
+ *     An alternate way to mark a the data handle for a URI to be in use.
  */
 static WT_INLINE int
 __wt_cursor_uri_incr_use(WT_SESSION_IMPL *session, const char *uri, WT_DATA_HANDLE **dhandle)
