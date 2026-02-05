@@ -596,7 +596,6 @@ typedef uint64_t wt_timestamp_t;
 #include "capacity.h"
 #include "cell.h"
 #include "cursor.h" /* required by checkpoint */
-#include "../checkpoint/checkpoint.h"
 #include "compact.h"
 #include "conf_keys.h" /* required by conf.h */
 #include "conf.h"
@@ -618,7 +617,8 @@ typedef uint64_t wt_timestamp_t;
 #include "schema.h"
 #include "tiered.h"
 #include "truncate.h"
-#include "txn.h"
+#include "txn.h" /* required by checkpoint.h */
+#include "../checkpoint/checkpoint.h"
 
 #include "session.h" /* required by connection.h */
 #include "version.h" /* required by connection.h */

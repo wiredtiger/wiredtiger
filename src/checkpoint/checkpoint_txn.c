@@ -2994,6 +2994,7 @@ __wt_checkpoint_reconcile_push_page(
 
     WT_RET(__wt_calloc_one(session, &entry));
     entry->dhandle = session->dhandle;
+    entry->isolation = session->txn->isolation;
     entry->snapshot = &session->txn->snapshot_data;
     entry->ref = ref;
     entry->reconcile_flags = reconcile_flags;
@@ -3151,6 +3152,7 @@ __checkpoint_reconcile_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
         /* Set up the transaction for the given entry. */
         __wt_txn_import_snapshot(session, entry->snapshot);
+        session->isolation = session->txn->isolation = entry->isolation;
 
         /* It's not an error if we make no progress. */
         WT_WITH_DHANDLE(session, entry->dhandle,
