@@ -18,8 +18,6 @@ __wt_semaphore_init(WT_SESSION_IMPL *session, WT_SEMAPHORE *sem, uint32_t count,
     DWORD windows_error;
     HANDLE handle;
 
-    WT_UNUSED(session);
-
     WT_CLEAR(*sem);
 
     handle = CreateSemaphore(NULL, (LONG)count, (LONG)UINT32_MAX, NULL);
@@ -42,9 +40,14 @@ __wt_semaphore_init(WT_SESSION_IMPL *session, WT_SEMAPHORE *sem, uint32_t count,
 int
 __wt_semaphore_destroy(WT_SESSION_IMPL *session, WT_SEMAPHORE *sem)
 {
-    WT_UNUSED(session);
+    DWORD windows_error;
 
-    CloseHandle(sem->sem);
+    if (CloseHandle(sem->sem) == 0) {
+        windows_error = __wt_getlasterror();
+        __wt_errx(
+          session, "%s: CloseHandle: %s", sem->name, __wt_formatmessage(session, windows_error));
+        return (__wt_map_windows_error(windows_error));
+    }
 
     WT_CLEAR(*sem);
     return (0);
@@ -58,7 +61,6 @@ int
 __wt_semaphore_post(WT_SESSION_IMPL *session, WT_SEMAPHORE *sem)
 {
     DWORD wait_result, windows_error;
-    WT_UNUSED(session);
 
     wait_result = WaitForSingleObject(sem->sem, INFINITE);
     if (wait_result == WAIT_FAILED) {
@@ -87,9 +89,7 @@ __wt_semaphore_wait(WT_SESSION_IMPL *session, WT_SEMAPHORE *sem)
 {
     DWORD windows_error;
 
-    WT_UNUSED(session);
-
-    if (!ReleaseSemaphore(sem->sem, 1, NULL)) {
+    if (ReleaseSemaphore(sem->sem, 1, NULL) == 0) {
         windows_error = __wt_getlasterror();
         __wt_errx(session, "%s: ReleaseSemaphore: %s", sem->name,
           __wt_formatmessage(session, windows_error));

@@ -2968,11 +2968,11 @@ __checkpoint_reconcile_thread_chk(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_ckpt_work_free --
+ * __checkpoint_reconcile_free --
  *     Free a work unit.
  */
-void
-__wt_checkpoint_reconcile_free(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_RECONCILE *entry)
+static void
+__checkpoint_reconcile_free(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_RECONCILE *entry)
 {
     __wt_free(session, entry);
 }
@@ -2994,7 +2994,6 @@ __wt_checkpoint_reconcile_push_page(
 
     WT_RET(__wt_calloc_one(session, &entry));
     entry->dhandle = session->dhandle;
-    // entry->isolation = session->txn->isolation;
     entry->snapshot = &session->txn->snapshot_data;
     entry->ref = ref;
     entry->reconcile_flags = reconcile_flags;
@@ -3048,8 +3047,8 @@ __checkpoint_reconcile_pop_page(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_
  * __checkpoint_reconcile_queue_empty --
  *     Check whether the queue for the checkpoint page reconciliation workers is empty.
  */
-bool
-__wt_checkpoint_reconcile_queue_empty(WT_SESSION_IMPL *session)
+static bool
+__checkpoint_reconcile_queue_empty(WT_SESSION_IMPL *session)
 {
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
     bool empty;
@@ -3083,12 +3082,11 @@ __checkpoint_reconcile_push_done(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO
 }
 
 /*
- * __wt_checkpoint_reconcile_pop_done --
+ * __checkpoint_reconcile_pop_done --
  *     Pop a work done unit from the queue. The caller is responsible for freeing it.
  */
-void
-__wt_checkpoint_reconcile_pop_done(
-  WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_RECONCILE **entryp)
+static void
+__checkpoint_reconcile_pop_done(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_RECONCILE **entryp)
 {
     WT_CHECKPOINT_PAGE_TO_RECONCILE *entry;
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
@@ -3149,7 +3147,7 @@ __checkpoint_reconcile_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
             WT_ERR(__wt_txn_begin(session, NULL));
 
         /* Set up the transaction for the given entry. */
-        WT_ERR(__wt_txn_import_snapshot(session, entry->snapshot));
+        __wt_txn_import_snapshot(session, entry->snapshot);
         F_SET(session, WT_SESSION_CHECKPOINT);
         F_SET(session, WT_SESSION_CHECKPOINT_WORKER);
 
@@ -3158,7 +3156,7 @@ __checkpoint_reconcile_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
           ret = __wt_reconcile(session, entry->ref, NULL, entry->reconcile_flags));
         WT_ERR(ret);
 
-        entry->ret = ret;
+        entry->result = ret;
         __checkpoint_reconcile_push_done(session, entry);
 
         F_CLR(session, WT_SESSION_CHECKPOINT);
@@ -3341,17 +3339,17 @@ __wt_checkpoint_reconcile_finish(WT_SESSION_IMPL *session)
     while (work_pushed > done_popped) {
         WT_RET(__wt_semaphore_wait(session, &ckpt_threads->done_sem));
 
-        __wt_checkpoint_reconcile_pop_done(session, &entry);
+        __checkpoint_reconcile_pop_done(session, &entry);
         if (entry == NULL)
             break;
         done_popped++;
 
-        WT_ASSERT(session, entry->ret == 0);
+        WT_TRET(entry->result);
         WT_TRET(__wt_page_release(session, entry->ref, entry->release_flags));
-        __wt_checkpoint_reconcile_free(session, entry);
+        __checkpoint_reconcile_free(session, entry);
     }
 
-    WT_ASSERT(session, __wt_checkpoint_reconcile_queue_empty(session));
+    WT_ASSERT(session, __checkpoint_reconcile_queue_empty(session));
 
     __wt_atomic_store_uint64_release(&ckpt_threads->work_pushed, 0);
     return (ret);
@@ -3384,7 +3382,7 @@ __checkpoint_reconcile_commit(WT_SESSION_IMPL *session)
 {
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
 
-    WT_ASSERT(session, __wt_checkpoint_reconcile_queue_empty(session));
+    WT_ASSERT(session, __checkpoint_reconcile_queue_empty(session));
 
     ckpt_threads = S2C(session)->ckpt_reconcile_threads;
     WT_RET(__wt_thread_group_foreach(

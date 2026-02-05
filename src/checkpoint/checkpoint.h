@@ -174,14 +174,13 @@ struct __wt_checkpoint_page_to_reconcile {
     TAILQ_ENTRY(__wt_checkpoint_page_to_reconcile) q; /* Worker unit queue */
 
     WT_DATA_HANDLE *dhandle;
-    // WT_TXN_ISOLATION isolation;
     WT_TXN_SNAPSHOT *snapshot;
 
     WT_REF *ref;
     uint32_t reconcile_flags;
     uint32_t release_flags;
 
-    int ret; /* Result - will be filled out later. */
+    int result; /* Result - will be filled out later. */
 };
 
 /*
@@ -207,8 +206,6 @@ struct __wt_checkpoint_reconcile_threads {
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
-extern bool __wt_checkpoint_reconcile_queue_empty(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_checkpoint_verbose_timer_started(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
@@ -240,10 +237,6 @@ extern void __wt_checkpoint_handle_stats(
   WT_SESSION_IMPL *session, uint64_t gathering_handles_time_us);
 extern void __wt_checkpoint_handle_stats_clear(WT_SESSION_IMPL *session);
 extern void __wt_checkpoint_progress_stats(WT_SESSION_IMPL *session, uint64_t write_bytes);
-extern void __wt_checkpoint_reconcile_free(
-  WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_RECONCILE *entry);
-extern void __wt_checkpoint_reconcile_pop_done(
-  WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_RECONCILE **entryp);
 extern void __wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize);
 extern void __wt_checkpoint_snapshot_clear(WT_CKPT_SNAPSHOT *snapshot);
 extern void __wt_checkpoint_timer_stats(WT_SESSION_IMPL *session);
