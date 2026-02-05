@@ -527,6 +527,10 @@ __checkpoint_update_evict_triggers_start(
     saved_triggers->updates_trigger =
       __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger);
     saved_triggers->applied = true;
+    /*
+     * FIXME-WT-16613: We should be using compare-and-swap instructions to set these triggers,
+     * alternatively holding a reconfig lock when we are performing these modifications.
+     */
 
     /*
      * Be careful of ordering, update the dirty trigger first. Only update the trigger (upper bound)
@@ -551,31 +555,55 @@ __checkpoint_update_evict_triggers_end(
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
 
-    /* Only update the triggers if they were applied. */
+    /* Only reset the triggers if the new ones were applied. */
     if (!saved_triggers->applied)
         return;
 
     WT_EVICT *evict = conn->evict;
+    double current_dirty_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger);
+    double current_updates_trigger =
+      __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger);
+    bool restore_dirty_trigger =
+      WT_ABS(current_dirty_trigger - saved_triggers->dirty_trigger) < DBL_EPSILON;
+    bool restore_updates_trigger =
+      WT_ABS(current_updates_trigger - saved_triggers->updates_trigger) < DBL_EPSILON;
 
-    /* Only revert the values back if the triggers weren't modified during checkpoint. */
-    if (__wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger) -
-        saved_triggers->dirty_trigger <
-      DBL_EPSILON)
-        __wt_atomic_store_double_relaxed(
-          &evict->eviction_dirty_trigger, saved_triggers->dirty_trigger);
-    else
-        /* We are logging an informational message, so don't return an error if it fails. */
+    if (!restore_dirty_trigger)
         WT_IGNORE_RET(__wt_msg(session,
           "Dirty trigger was modified during checkpoint, not reverting to original value"));
 
-    if (__wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger) -
-        saved_triggers->updates_trigger <
-      DBL_EPSILON)
-        __wt_atomic_store_double_relaxed(
-          &evict->eviction_updates_trigger, saved_triggers->updates_trigger);
-    else
+    if (!restore_updates_trigger)
         WT_IGNORE_RET(__wt_msg(session,
           "Updates trigger was modified during checkpoint, not reverting to original value"));
+
+    /* If we modified the values, return them to their previous states in increments. */
+    if (restore_updates_trigger || restore_dirty_trigger) {
+        double dirty_trigger_delta = (current_dirty_trigger - saved_triggers->dirty_trigger) / 5.0;
+        double updates_trigger_delta =
+          (current_updates_trigger - saved_triggers->updates_trigger) / 5.0;
+        for (int i = 0; i < 4; i++) {
+            /*
+             * FIXME-WT-16613: We should be using compare-and-swap instructions to set these
+             * triggers, alternatively holding a reconfig lock when we are performing these
+             * modifications.
+             */
+            if (restore_dirty_trigger)
+                __wt_atomic_store_double_relaxed(
+                  &evict->eviction_dirty_trigger, current_dirty_trigger + dirty_trigger_delta);
+            if (restore_updates_trigger)
+                __wt_atomic_store_double_relaxed(&evict->eviction_updates_trigger,
+                  current_updates_trigger + updates_trigger_delta);
+            __wt_sleep(0, 200 * WT_THOUSAND);
+        }
+    }
+
+    /*
+     * Be paranoid about math calculations and floating point manipulation, save back exactly the
+     * original values as a final step.
+     */
+    __wt_atomic_store_double_relaxed(&evict->eviction_dirty_trigger, saved_triggers->dirty_trigger);
+    __wt_atomic_store_double_relaxed(
+      &evict->eviction_updates_trigger, saved_triggers->updates_trigger);
 }
 
 /*
