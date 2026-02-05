@@ -20,8 +20,10 @@ static void __checkpoint_timing_stress(WT_SESSION_IMPL *, uint64_t, struct times
 
 typedef struct {
     bool applied;
-    double dirty_trigger;
-    double updates_trigger;
+    double original_dirty_trigger;
+    double original_updates_trigger;
+    double new_dirty_trigger;
+    double new_updates_trigger;
 } WT_PRECISE_CKPT_SAVED_TRIGGERS;
 
 /*
@@ -522,11 +524,11 @@ __checkpoint_update_evict_triggers_start(
 
     WT_EVICT *evict = conn->evict;
 
-    /* First save the prior values for later restoration. */
-    saved_triggers->dirty_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger);
-    saved_triggers->updates_trigger =
+    /* First save the original values for later restoration. */
+    saved_triggers->original_dirty_trigger =
+      __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger);
+    saved_triggers->original_updates_trigger =
       __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger);
-    saved_triggers->applied = true;
     /*
      * FIXME-WT-16613: We should be using compare-and-swap instructions to set these triggers,
      * alternatively holding a reconfig lock when we are performing these modifications.
@@ -537,11 +539,13 @@ __checkpoint_update_evict_triggers_start(
      * for now. Add an upper bound to how high the trigger can go (in terms of percentages, even
      * though these values can be absolute).
      */
+    saved_triggers->new_dirty_trigger = WT_MIN(40.0, evict->eviction_dirty_trigger * 1.3);
+    saved_triggers->new_updates_trigger = WT_MIN(40.0, evict->eviction_updates_trigger * 2.0);
     __wt_atomic_store_double_relaxed(
-      &evict->eviction_dirty_trigger, WT_MIN(40.0, evict->eviction_dirty_trigger * 1.3));
-    /* Double the updates trigger. */
+      &evict->eviction_dirty_trigger, saved_triggers->new_dirty_trigger);
     __wt_atomic_store_double_relaxed(
-      &evict->eviction_updates_trigger, WT_MIN(40.0, evict->eviction_updates_trigger * 2.0));
+      &evict->eviction_updates_trigger, saved_triggers->new_updates_trigger);
+    saved_triggers->applied = true;
 }
 
 /*
@@ -564,23 +568,24 @@ __checkpoint_update_evict_triggers_end(
     double current_updates_trigger =
       __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger);
     bool restore_dirty_trigger =
-      WT_ABS(current_dirty_trigger - saved_triggers->dirty_trigger) < DBL_EPSILON;
+      WT_ABS(current_dirty_trigger - saved_triggers->new_dirty_trigger) < DBL_EPSILON;
     bool restore_updates_trigger =
-      WT_ABS(current_updates_trigger - saved_triggers->updates_trigger) < DBL_EPSILON;
+      WT_ABS(current_updates_trigger - saved_triggers->new_updates_trigger) < DBL_EPSILON;
 
     if (!restore_dirty_trigger)
-        WT_IGNORE_RET(__wt_msg(session,
-          "Dirty trigger was modified during checkpoint, not reverting to original value"));
+        __wt_verbose_warning(session, WT_VERB_CHECKPOINT, "%s",
+          "Dirty trigger was modified during checkpoint, not reverting to original value");
 
     if (!restore_updates_trigger)
-        WT_IGNORE_RET(__wt_msg(session,
-          "Updates trigger was modified during checkpoint, not reverting to original value"));
+        __wt_verbose_warning(session, WT_VERB_CHECKPOINT, "%s",
+          "Updates trigger was modified during checkpoint, not reverting to original value");
 
     /* If we modified the values, return them to their previous states in increments. */
     if (restore_updates_trigger || restore_dirty_trigger) {
-        double dirty_trigger_delta = (current_dirty_trigger - saved_triggers->dirty_trigger) / 5.0;
+        double dirty_trigger_delta =
+          (current_dirty_trigger - saved_triggers->new_dirty_trigger) / 5.0;
         double updates_trigger_delta =
-          (current_updates_trigger - saved_triggers->updates_trigger) / 5.0;
+          (current_updates_trigger - saved_triggers->new_updates_trigger) / 5.0;
         for (int i = 0; i < 4; i++) {
             /*
              * FIXME-WT-16613: We should be using compare-and-swap instructions to set these
@@ -601,9 +606,10 @@ __checkpoint_update_evict_triggers_end(
      * Be paranoid about math calculations and floating point manipulation, save back exactly the
      * original values as a final step.
      */
-    __wt_atomic_store_double_relaxed(&evict->eviction_dirty_trigger, saved_triggers->dirty_trigger);
     __wt_atomic_store_double_relaxed(
-      &evict->eviction_updates_trigger, saved_triggers->updates_trigger);
+      &evict->eviction_dirty_trigger, saved_triggers->original_dirty_trigger);
+    __wt_atomic_store_double_relaxed(
+      &evict->eviction_updates_trigger, saved_triggers->original_updates_trigger);
 }
 
 /*
