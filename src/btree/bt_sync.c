@@ -275,8 +275,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         if (!F_ISSET(txn, WT_READ_VISIBLE_ALL))
             LF_SET(WT_READ_VISIBLE_ALL);
 
-        // XXX
-        __wt_session_gen_enter(session, WT_GEN_SPLIT);
+        /* TODO: Determine if we need to enter the split generation. */
+        /* __wt_session_gen_enter(session, WT_GEN_SPLIT); */
 
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
@@ -399,8 +399,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         if (WT_SESSION_IS_CHECKPOINT(session))
             WT_ERR(__wt_checkpoint_reconcile_finish(session));
 
-        // XXX
-        __wt_session_gen_leave(session, WT_GEN_SPLIT);
+        /* TODO: Determine if we need to leave the split generation. */
+        /* __wt_session_gen_leave(session, WT_GEN_SPLIT); */
 
         /*
          * During normal checkpoints, mark the tree dirty if the btree has modifications that are
