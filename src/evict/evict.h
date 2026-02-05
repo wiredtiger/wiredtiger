@@ -64,7 +64,7 @@ struct __wt_evict {
     double eviction_updates_trigger;         /* Percent of updates to trigger eviction */
 
     double eviction_checkpoint_target; /* Percent to reduce dirty to during checkpoint scrubs */
-    wt_shared double eviction_scrub_target; /* Current scrub target */
+    wt_shared double eviction_scrub_target;                   /* Current scrub target */
 
     uint64_t cache_max_wait_us;      /* Maximum time an operation waits for space in cache */
     uint64_t cache_stuck_timeout_ms; /* Maximum time the cache can be stuck for in diagnostic mode

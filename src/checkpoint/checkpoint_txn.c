@@ -18,6 +18,12 @@ static void __checkpoint_progress(WT_SESSION_IMPL *, bool);
 static void __checkpoint_progress_clear(WT_SESSION_IMPL *);
 static void __checkpoint_timing_stress(WT_SESSION_IMPL *, uint64_t, struct timespec *);
 
+typedef struct {
+    bool applied;
+    double dirty_trigger;
+    double updates_trigger;
+} WT_PRECISE_CKPT_SAVED_TRIGGERS;
+
 /*
  * __checkpoint_flush_tier_wait --
  *     Wait for all previous work units queued to be processed.
@@ -505,7 +511,8 @@ __checkpoint_set_scrub_target(WT_SESSION_IMPL *session, double target)
  *     eviction work as the cache gets progressively more full.
  */
 static void
-__checkpoint_update_evict_triggers_start(WT_SESSION_IMPL *session)
+__checkpoint_update_evict_triggers_start(
+  WT_SESSION_IMPL *session, WT_PRECISE_CKPT_SAVED_TRIGGERS *saved_triggers)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
 
@@ -517,8 +524,10 @@ __checkpoint_update_evict_triggers_start(WT_SESSION_IMPL *session)
     WT_EVICT *evict = conn->evict;
 
     /* First save the prior values for later restoration. */
-    ckpt->saved_dirty_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger);
-    ckpt->saved_updates_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger);
+    saved_triggers->dirty_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger);
+    saved_triggers->updates_trigger =
+      __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger);
+    saved_triggers->applied = true;
 
     /*
      * Be careful of ordering, update the dirty trigger first. Only update the trigger (upper bound)
@@ -538,19 +547,20 @@ __checkpoint_update_evict_triggers_start(WT_SESSION_IMPL *session)
  *     be gradual, to avoid stalls after checkpoint completes.
  */
 static void
-__checkpoint_update_evict_triggers_end(WT_SESSION_IMPL *session)
+__checkpoint_update_evict_triggers_end(
+  WT_SESSION_IMPL *session, WT_PRECISE_CKPT_SAVED_TRIGGERS *saved_triggers)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
 
-    /* Only update the triggers if we are operating in precise checkpoint mode. */
-    if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
+    /* Only update the triggers if they were applied. */
+    if (!saved_triggers->applied)
         return;
 
-    WT_CKPT_CONNECTION *ckpt = &conn->ckpt;
     WT_EVICT *evict = conn->evict;
 
-    __wt_atomic_store_double_relaxed(&evict->eviction_updates_trigger, ckpt->saved_updates_trigger);
-    __wt_atomic_store_double_relaxed(&evict->eviction_dirty_trigger, ckpt->saved_dirty_trigger);
+    __wt_atomic_store_double_relaxed(
+      &evict->eviction_updates_trigger, saved_triggers->updates_trigger);
+    __wt_atomic_store_double_relaxed(&evict->eviction_dirty_trigger, saved_triggers->dirty_trigger);
 }
 
 /*
@@ -1244,6 +1254,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DATA_HANDLE *hs_dhandle, *hs_dhandle_shared;
     WT_DECL_RET;
     WT_EVICT *evict;
+    WT_PRECISE_CKPT_SAVED_TRIGGERS precise_ckpt_saved_triggers;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_ISOLATION saved_isolation;
@@ -1356,7 +1367,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * allows work to accumulate while checkpoint is running, making it less likely that workloads
      * will stall.
      */
-    __checkpoint_update_evict_triggers_start(session);
+    __checkpoint_update_evict_triggers_start(session, &precise_ckpt_saved_triggers);
 
     /*
      * Start the checkpoint for real.
@@ -1675,7 +1686,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
 err:
     /* Now that checkpoint is finished, wind the eviction triggers back to their default values. */
-    __checkpoint_update_evict_triggers_end(session);
+    __checkpoint_update_evict_triggers_end(session, &precise_ckpt_saved_triggers);
     /*
      * Reset the timer so that next checkpoint tracks the progress only if configured.
      */
