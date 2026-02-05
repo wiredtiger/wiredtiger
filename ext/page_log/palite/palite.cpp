@@ -1692,8 +1692,8 @@ struct Pages : public Table<Pages> {
                 LOG_AND_THROW("Got discarded page: {}", page);
             }
 
-            const void *blob = sqlite3_column_blob(stmt.get(), 5);
-            int size = sqlite3_column_bytes(stmt.get(), 5);
+            const void *blob = sqlite3_column_blob(stmt.get(), 4);
+            int size = sqlite3_column_bytes(stmt.get(), 4);
             fill_item(&results_array[count], blob, static_cast<size_t>(size));
 
             /* Continue to next row */
