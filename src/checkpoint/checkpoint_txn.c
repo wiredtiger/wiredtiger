@@ -3143,13 +3143,14 @@ __checkpoint_reconcile_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
             break;
 
         /* Begin a transaction, if we don't already have one. */
-        if (!F_ISSET(session->txn, WT_TXN_RUNNING))
+        if (!F_ISSET(session->txn, WT_TXN_RUNNING)) {
             WT_ERR(__wt_txn_begin(session, NULL));
+            F_SET(session, WT_SESSION_CHECKPOINT);
+            F_SET(session, WT_SESSION_CHECKPOINT_WORKER);
+        }
 
         /* Set up the transaction for the given entry. */
         __wt_txn_import_snapshot(session, entry->snapshot);
-        F_SET(session, WT_SESSION_CHECKPOINT);
-        F_SET(session, WT_SESSION_CHECKPOINT_WORKER);
 
         /* It's not an error if we make no progress. */
         WT_WITH_DHANDLE(session, entry->dhandle,
@@ -3158,9 +3159,6 @@ __checkpoint_reconcile_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
         entry->result = ret;
         __checkpoint_reconcile_push_done(session, entry);
-
-        F_CLR(session, WT_SESSION_CHECKPOINT);
-        F_CLR(session, WT_SESSION_CHECKPOINT_WORKER);
     }
 
     if (0) {
