@@ -534,5 +534,6 @@ __wt_evict_stats_init(WT_SESSION_IMPL *session)
         WT_STATP_CONN_SET(
           session, stats, eviction_walks_active, evict->walk_session->hazards.num_active);
 
-    __evict_set_cache_threshold_stats(session);
+    /* Update eviction threshold stats. */
+    __wt_evict_stats_update(session);
 }

@@ -6643,17 +6643,32 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_EVICTION_WALK_LEAF_NOTFOUND	1169
 /*! cache: eviction state */
 #define	WT_STAT_CONN_EVICTION_STATE			1170
-/*! cache: eviction threshold cache full target */
+/*!
+ * cache: eviction threshold cache full target multiplied by 100 for
+ * precision
+ */
 #define	WT_STAT_CONN_EVICTION_THRESHOLD_CACHE_FULL_TARGET	1171
-/*! cache: eviction threshold cache full trigger */
+/*!
+ * cache: eviction threshold cache full trigger multiplied by 100 for
+ * precision
+ */
 #define	WT_STAT_CONN_EVICTION_THRESHOLD_CACHE_FULL_TRIGGER	1172
-/*! cache: eviction threshold dirty target */
+/*! cache: eviction threshold dirty target multiplied by 100 for precision */
 #define	WT_STAT_CONN_EVICTION_THRESHOLD_DIRTY_TARGET	1173
-/*! cache: eviction threshold dirty trigger */
+/*!
+ * cache: eviction threshold dirty trigger multiplied by 100 for
+ * precision
+ */
 #define	WT_STAT_CONN_EVICTION_THRESHOLD_DIRTY_TRIGGER	1174
-/*! cache: eviction threshold updates target */
+/*!
+ * cache: eviction threshold updates target multiplied by 100 for
+ * precision
+ */
 #define	WT_STAT_CONN_EVICTION_THRESHOLD_UPDATES_TARGET	1175
-/*! cache: eviction threshold updates trigger */
+/*!
+ * cache: eviction threshold updates trigger multiplied by 100 for
+ * precision
+ */
 #define	WT_STAT_CONN_EVICTION_THRESHOLD_UPDATES_TRIGGER	1176
 /*!
  * cache: eviction walk most recent sleeps for checkpoint handle
