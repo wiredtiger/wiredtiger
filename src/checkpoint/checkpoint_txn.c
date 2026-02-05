@@ -520,7 +520,6 @@ __checkpoint_update_evict_triggers_start(
     if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
         return;
 
-    WT_CKPT_CONNECTION *ckpt = &conn->ckpt;
     WT_EVICT *evict = conn->evict;
 
     /* First save the prior values for later restoration. */
@@ -558,9 +557,25 @@ __checkpoint_update_evict_triggers_end(
 
     WT_EVICT *evict = conn->evict;
 
-    __wt_atomic_store_double_relaxed(
-      &evict->eviction_updates_trigger, saved_triggers->updates_trigger);
-    __wt_atomic_store_double_relaxed(&evict->eviction_dirty_trigger, saved_triggers->dirty_trigger);
+    /* Only revert the values back if the triggers weren't modified during checkpoint. */
+    if (__wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger) -
+        saved_triggers->dirty_trigger <
+      DBL_EPSILON)
+        __wt_atomic_store_double_relaxed(
+          &evict->eviction_dirty_trigger, saved_triggers->dirty_trigger);
+    else
+        /* We are logging an informational message, so don't return an error if it fails. */
+        WT_IGNORE_RET(__wt_msg(session,
+          "Dirty trigger was modified during checkpoint, not reverting to original value"));
+
+    if (__wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger) -
+        saved_triggers->updates_trigger <
+      DBL_EPSILON)
+        __wt_atomic_store_double_relaxed(
+          &evict->eviction_updates_trigger, saved_triggers->updates_trigger);
+    else
+        WT_IGNORE_RET(__wt_msg(session,
+          "Updates trigger was modified during checkpoint, not reverting to original value"));
 }
 
 /*
