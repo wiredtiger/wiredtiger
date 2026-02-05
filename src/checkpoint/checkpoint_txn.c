@@ -17,6 +17,7 @@ static void __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final);
 static void __checkpoint_progress(WT_SESSION_IMPL *, bool);
 static void __checkpoint_progress_clear(WT_SESSION_IMPL *);
 static void __checkpoint_timing_stress(WT_SESSION_IMPL *, uint64_t, struct timespec *);
+static int __checkpoint_reconcile_commit(WT_SESSION_IMPL *session);
 
 /*
  * __checkpoint_flush_tier_wait --
@@ -1499,9 +1500,15 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * Commit the transaction now that we are sure that all files in the checkpoint have been
      * flushed to disk. It's OK to commit before checkpointing the metadata since we know that all
      * files in the checkpoint are now in a consistent state.
+     *
+     * With multi-threaded checkpoints, each thread uses a different transaction. We have to commit
+     * either one transaction or all of them together, so panic if we can't actually do that.
      */
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_COMMIT);
-    WT_ERR(__wt_txn_commit(session, NULL));
+    if ((ret = __checkpoint_reconcile_commit(session)) != 0)
+        WT_ERR_PANIC(session, ret, "Checkpoint worker transaction commit failed");
+    if ((ret = __wt_txn_commit(session, NULL)) != 0)
+        WT_ERR_PANIC(session, ret, "Checkpoint transaction commit failed");
 
     /* Clear the checkpoint flag, as it governs the checkpoint transaction above. */
     F_CLR(session, WT_SESSION_CHECKPOINT);
@@ -3127,7 +3134,6 @@ __checkpoint_reconcile_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
     WT_DECL_RET;
     bool signalled;
-    int count;
 
     WT_UNUSED(thread);
 
@@ -3137,7 +3143,6 @@ __checkpoint_reconcile_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     __wt_cond_wait_signal(
       session, ckpt_threads->work_cond, WT_MILLION, __checkpoint_reconcile_thread_chk, &signalled);
 
-    count = 0;
     for (;;) {
         __checkpoint_reconcile_pop_page(session, &entry);
         if (entry == NULL)
@@ -3157,7 +3162,6 @@ __checkpoint_reconcile_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
           ret = __wt_reconcile(session, entry->ref, NULL, entry->reconcile_flags));
         WT_ERR(ret);
 
-        ++count;
         entry->ret = ret;
         __checkpoint_reconcile_push_done(session, entry);
 
@@ -3165,14 +3169,9 @@ __checkpoint_reconcile_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         F_CLR(session, WT_SESSION_CHECKPOINT_WORKER);
     }
 
-    // XXX CKPT This should be committed only at the end of the checkpoint if possible
-    if (count > 0 && F_ISSET(session->txn, WT_TXN_RUNNING))
-        WT_ERR(__wt_txn_commit(session, NULL));
-
     if (0) {
 err:
-        fprintf(stderr, "XXXX FAILED: %d\n", ret);
-        WT_RET_PANIC(session, ret, "checkpoint page reconciliation thread error");
+        WT_RET_PANIC(session, ret, "Checkpoint page reconciliation thread error");
     }
 
     return (0);
@@ -3185,11 +3184,54 @@ err:
 static int
 __checkpoint_reconcile_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
-    if (thread->id != 0)
-        return (0);
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_TXN_GLOBAL *txn_global;
+    bool checkpoint_running;
 
-    __wt_verbose(session, WT_VERB_EVICTION, "%s", "checkpoint page reconciliation thread exiting");
-    return (0);
+    conn = S2C(session);
+    txn_global = &conn->txn_global;
+
+    checkpoint_running = __wt_atomic_load_bool_v_relaxed(&txn_global->checkpoint_running);
+
+    /*
+     * If we are shrinking the thread group during a running checkpoint, commit what we have so far.
+     */
+    if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
+        if (checkpoint_running) {
+            /*
+             * This would commit the changes to the history store. Ideally, we would never take this
+             * code path.
+             *
+             * TODO: We should figure out if there is a way to delay committing the transaction
+             * until the very end of the checkpoint, unless we can establish that this is safe to do
+             * regardless of whether the checkpoint succeeds.
+             */
+            __wt_verbose_warning(session, WT_VERB_CHECKPOINT,
+              "Checkpoint page reconciliation thread %u stopping during checkpoint, committing "
+              "the transaction",
+              thread->id);
+            WT_ERR(__wt_txn_commit(session, NULL));
+        } else {
+            /*
+             * There should not be a transaction running outside of a checkpoint.
+             */
+            WT_ERR_PANIC(session, WT_VERB_CHECKPOINT,
+              "Checkpoint page reconciliation thread %u stopping outside of checkpoint, but "
+              "the transaction is still running",
+              thread->id);
+        }
+    }
+
+    if (0) {
+err:
+        WT_RET_PANIC(
+          session, ret, "Checkpoint page reconciliation thread %u error during stop", thread->id);
+    }
+
+    __wt_verbose(
+      session, WT_VERB_CHECKPOINT, "Checkpoint page reconciliation thread %u exiting", thread->id);
+    return (ret);
 }
 
 /*
@@ -3266,7 +3308,7 @@ __wt_checkpoint_reconcile_thread_destroy(WT_SESSION_IMPL *session)
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS);
     __wt_cond_signal(session, ckpt_threads->work_cond);
 
-    __wt_verbose(session, WT_VERB_CHECKPOINT, "%s", "waiting for helper threads");
+    __wt_verbose(session, WT_VERB_CHECKPOINT, "%s", "Waiting for helper threads");
 
     /*
      * We call the destroy function still holding the write lock. It assumes it is called locked.
@@ -3318,7 +3360,43 @@ __wt_checkpoint_reconcile_finish(WT_SESSION_IMPL *session)
 
     WT_ASSERT(session, __wt_checkpoint_reconcile_queue_empty(session));
 
-    ckpt_threads->work_pushed = 0;
-    ckpt_threads->done_pushed = 0;
+    __wt_atomic_store_uint64(&ckpt_threads->work_pushed, 0);
+    __wt_atomic_store_uint64(&ckpt_threads->done_pushed, 0);
     return (ret);
+}
+
+/*
+ * __checkpoint_reconcile_thread_commit --
+ *     Commit the transaction associated with the thread.
+ */
+static int
+__checkpoint_reconcile_thread_commit(WT_SESSION_IMPL *session, WT_THREAD *thread)
+{
+    WT_UNUSED(thread);
+
+    if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
+        __wt_verbose(session, WT_VERB_CHECKPOINT,
+          "Checkpoint page reconciliation thread %u committing the transaction", thread->id);
+        WT_RET(__wt_txn_commit(session, NULL));
+    }
+
+    return (0);
+}
+
+/*
+ * __checkpoint_reconcile_commit --
+ *     Commit all transactions for the checkpoint page reconciliation workers.
+ */
+static int
+__checkpoint_reconcile_commit(WT_SESSION_IMPL *session)
+{
+    WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
+
+    WT_ASSERT(session, __wt_checkpoint_reconcile_queue_empty(session));
+
+    ckpt_threads = S2C(session)->ckpt_reconcile_threads;
+    WT_RET(__wt_thread_group_foreach(
+      session, &ckpt_threads->thread_group, __checkpoint_reconcile_thread_commit));
+
+    return (0);
 }
