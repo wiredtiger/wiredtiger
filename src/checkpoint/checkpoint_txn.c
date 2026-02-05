@@ -1313,6 +1313,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     char ts_string[WT_TS_INT_STRING_SIZE];
     void *saved_meta_next;
 
+    WT_CLEAR(precise_ckpt_saved_triggers);
     conn = S2C(session);
     ckpt_tmp_ts = WT_TS_NONE;
     evict = conn->evict;
