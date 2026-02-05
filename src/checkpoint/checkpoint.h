@@ -184,9 +184,6 @@ struct __wt_checkpoint_page_to_reconcile {
     int ret; /* Result - will be filled out later. */
 };
 
-// XXX
-#include <semaphore.h>
-
 /*
  * WT_CHECKPOINT_RECONCILE_THREADS --
  *     Information about threads for parallel page reconciliation during a checkpoint.
@@ -195,16 +192,17 @@ struct __wt_checkpoint_reconcile_threads {
     WT_THREAD_GROUP thread_group;
     uint32_t num_threads;
 
+    /* The work queue contains pages to be reconciled. */
     TAILQ_HEAD(__wt_checkpoint_reconcile_work_qh, __wt_checkpoint_page_to_reconcile) work_qh;
-    WT_CONDVAR *work_cond; /* Signal that work is available. */
     WT_SPINLOCK work_lock;
-    wt_shared uint64_t work_pushed;
-    sem_t work_sem;
 
+    WT_CONDVAR *work_cond;          /* Signal that work is available. */
+    wt_shared uint64_t work_pushed; /* The number of outstanding work items. */
+
+    /* The done queue contains pages that have been reconciled. */
     TAILQ_HEAD(__wt_checkpoint_reconcile_done_qh, __wt_checkpoint_page_to_reconcile) done_qh;
-    WT_CONDVAR *done_cond; /* Signal that the work is done (not just that the queue has stuff). */
     WT_SPINLOCK done_lock;
-    wt_shared uint64_t done_pushed;
+    WT_SEMAPHORE done_sem;
 };
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */

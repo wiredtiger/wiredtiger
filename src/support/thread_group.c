@@ -417,6 +417,10 @@ __wt_thread_group_foreach(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group,
         if (thread == NULL)
             continue;
 
+        /*
+         * TODO: Enforce that the threads are not running. This may be hard, as the checkpoint
+         * reconciliation threads do their own locking.
+         */
         WT_TRET(func(thread->session, thread));
     }
 

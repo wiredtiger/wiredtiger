@@ -3076,13 +3076,9 @@ __checkpoint_reconcile_push_done(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO
 
     __wt_spin_lock(session, &ckpt_threads->done_lock);
     TAILQ_INSERT_TAIL(&ckpt_threads->done_qh, entry, q);
-    __wt_atomic_add_uint64(&ckpt_threads->done_pushed, 1);
     __wt_spin_unlock(session, &ckpt_threads->done_lock);
-    //__wt_cond_signal(session, ckpt_threads->done_cond);
 
-    if (sem_post(&ckpt_threads->work_sem) != 0)
-        WT_RET(errno);
-
+    WT_RET(__wt_semaphore_post(session, &ckpt_threads->done_sem));
     return (0);
 }
 
@@ -3263,13 +3259,9 @@ __wt_checkpoint_reconcile_thread_create(WT_SESSION_IMPL *session)
     TAILQ_INIT(&ckpt_threads->done_qh);
     WT_RET(__wt_spin_init(
       session, &ckpt_threads->work_lock, "checkpoint page reconciliation threads - done queue"));
-    WT_RET(
-      __wt_cond_auto_alloc(session, "checkpoint page reconciliation threads - done queue (signal)",
-        10 * WT_THOUSAND, WT_MILLION, &ckpt_threads->done_cond));
 
-    // XXX
-    if (sem_init(&ckpt_threads->work_sem, 0, 0) != 0)
-        WT_RET(errno);
+    WT_RET(__wt_semaphore_init(session, &ckpt_threads->done_sem, 0,
+      "checkpoint page reconciliation threads - done queue (semaphore)"));
 
     /* Create the checkpoint thread group. */
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
@@ -3317,11 +3309,7 @@ __wt_checkpoint_reconcile_thread_destroy(WT_SESSION_IMPL *session)
     __wt_spin_destroy(session, &ckpt_threads->work_lock);
     __wt_cond_destroy(session, &ckpt_threads->work_cond);
     __wt_spin_destroy(session, &ckpt_threads->done_lock);
-    __wt_cond_destroy(session, &ckpt_threads->done_cond);
-
-    // XXX
-    if (sem_destroy(&ckpt_threads->work_sem) != 0)
-        WT_RET(errno);
+    WT_TRET(__wt_semaphore_destroy(session, &ckpt_threads->done_sem));
 
     return (ret);
 }
@@ -3339,14 +3327,19 @@ __wt_checkpoint_reconcile_finish(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     uint64_t done_popped, work_pushed;
 
+    /*
+     * This function is called after all work has been pushed to the queue. Wait for all work to be
+     * done.
+     *
+     * TODO: Enforce this.
+     */
+
     ckpt_threads = S2C(session)->ckpt_reconcile_threads;
-    done_popped = 0;
     work_pushed = __wt_atomic_load_uint64_acquire(&ckpt_threads->work_pushed);
 
+    done_popped = 0;
     while (work_pushed > done_popped) {
-        // XXX
-        if (sem_wait(&ckpt_threads->work_sem) != 0)
-            WT_RET(errno);
+        WT_RET(__wt_semaphore_wait(session, &ckpt_threads->done_sem));
 
         __wt_checkpoint_reconcile_pop_done(session, &entry);
         if (entry == NULL)
@@ -3360,8 +3353,7 @@ __wt_checkpoint_reconcile_finish(WT_SESSION_IMPL *session)
 
     WT_ASSERT(session, __wt_checkpoint_reconcile_queue_empty(session));
 
-    __wt_atomic_store_uint64(&ckpt_threads->work_pushed, 0);
-    __wt_atomic_store_uint64(&ckpt_threads->done_pushed, 0);
+    __wt_atomic_store_uint64_release(&ckpt_threads->work_pushed, 0);
     return (ret);
 }
 
