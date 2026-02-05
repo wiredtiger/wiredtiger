@@ -20,7 +20,7 @@ __wt_semaphore_init(WT_SESSION_IMPL *session, WT_SEMAPHORE *sem, uint32_t count,
 
     WT_CLEAR(*sem);
 
-    handle = CreateSemaphore(NULL, (LONG)count, (LONG)UINT32_MAX, NULL);
+    handle = CreateSemaphore(NULL, (LONG)count, (LONG)INT32_MAX, NULL);
     if (handle == NULL) {
         windows_error = __wt_getlasterror();
         __wt_errx(
