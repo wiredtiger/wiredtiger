@@ -56,8 +56,8 @@ TEST_CASE_METHOD(checkpoint_meta_version_fixture,
           session, meta_str, &version, &compatible_version);
 
         REQUIRE(ret == 0);
-        REQUIRE(version == WT_DISAGG_CHECKPOINT_META_VERSION);
-        REQUIRE(compatible_version == WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION);
+        REQUIRE(version == WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT);
+        REQUIRE(compatible_version == WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT);
     }
 
     SECTION("parse with only version field")
@@ -68,7 +68,7 @@ TEST_CASE_METHOD(checkpoint_meta_version_fixture,
           session, meta_str, &version, &compatible_version);
 
         REQUIRE(ret == 0);
-        REQUIRE(compatible_version == WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION);
+        REQUIRE(compatible_version == WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT);
     }
 
     SECTION("parse with only compatible_version field")
@@ -79,7 +79,7 @@ TEST_CASE_METHOD(checkpoint_meta_version_fixture,
           session, meta_str, &version, &compatible_version);
 
         REQUIRE(ret == 0);
-        REQUIRE(version == WT_DISAGG_CHECKPOINT_META_VERSION);
+        REQUIRE(version == WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT);
     }
 
     SECTION("forward compatibility error - incompatible version")

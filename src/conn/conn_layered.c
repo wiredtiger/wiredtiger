@@ -1371,8 +1371,8 @@ __disagg_check_meta_version(
     WT_DECL_RET;
 
     /* Initialize to defaults for backward compatibility (missing version fields). */
-    ckpt_meta->version = WT_DISAGG_CHECKPOINT_META_VERSION;
-    ckpt_meta->compatible_version = WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION;
+    ckpt_meta->version = WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT;
+    ckpt_meta->compatible_version = WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT;
 
     WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "version", &cval), true);
     if (ret == 0 && cval.len != 0) {
