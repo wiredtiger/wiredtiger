@@ -3382,7 +3382,8 @@ __checkpoint_reconcile_commit(WT_SESSION_IMPL *session)
 {
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
 
-    WT_ASSERT(session, __checkpoint_reconcile_queue_empty(session));
+    WT_ASSERT_ALWAYS(session, __checkpoint_reconcile_queue_empty(session),
+      "Checkpoint page reconciliation workers still have work to do");
 
     ckpt_threads = S2C(session)->ckpt_reconcile_threads;
     WT_RET(__wt_thread_group_foreach(
