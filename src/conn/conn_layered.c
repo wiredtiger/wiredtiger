@@ -23,9 +23,6 @@ typedef struct __wt_disagg_checkpoint_meta {
       compatible_version; /* The minimum version of the reader that can use this checkpoint_meta. */
 } WT_DISAGG_CHECKPOINT_META;
 
-/* Current version for checkpoint_meta. */
-#define WT_DISAGG_CHECKPOINT_META_VERSION 1
-#define WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION 1
 /* Function prototypes for disaggregated storage and layered tables. */
 static void __disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt);
 static void __disagg_get_crypt_header(WT_ITEM *key_item, WT_CRYPT_HEADER **header);
@@ -1362,6 +1359,51 @@ err:
 }
 
 /*
+ * __disagg_check_meta_version --
+ *     Parse and validate version and compatible_version fields from checkpoint metadata config.
+ *     Populates the version and compatible_version fields in ckpt_meta struct.
+ */
+static int
+__disagg_check_meta_version(
+  WT_SESSION_IMPL *session, const char *meta_str, WT_DISAGG_CHECKPOINT_META *ckpt_meta)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+
+    /* Initialize to defaults for backward compatibility (missing version fields). */
+    ckpt_meta->version = WT_DISAGG_CHECKPOINT_META_VERSION;
+    ckpt_meta->compatible_version = WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION;
+
+    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "version", &cval), true);
+    if (ret == 0 && cval.len != 0) {
+        if (cval.val > UINT32_MAX)
+            WT_ERR_MSG(
+              session, EINVAL, "Invalid checkpoint_meta version: %" PRIu64, (uint64_t)cval.val);
+        ckpt_meta->version = (uint32_t)cval.val;
+    }
+
+    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "compatible_version", &cval), true);
+    if (ret == 0 && cval.len != 0) {
+        if (cval.val > UINT32_MAX)
+            WT_ERR_MSG(session, EINVAL, "Invalid checkpoint_meta compatible_version: %" PRIu64,
+              (uint64_t)cval.val);
+        ckpt_meta->compatible_version = (uint32_t)cval.val;
+    }
+
+    /* Clear error status (WT_NOTFOUND is ok for optional fields, means use default). */
+    ret = 0;
+
+    /* Check if this checkpoint metadata is compatible with the current reader version. */
+    if (ckpt_meta->compatible_version > WT_DISAGG_CHECKPOINT_META_VERSION)
+        WT_ERR_MSG(session, ENOTSUP,
+          "Checkpoint meta compatible_version=%" PRIu32 " requires reader version >= %" PRIu32,
+          ckpt_meta->compatible_version, ckpt_meta->compatible_version);
+
+err:
+    return (ret);
+}
+
+/*
  * __disagg_pick_up_checkpoint_meta --
  *     Pick up a new checkpoint from metadata config.
  */
@@ -1376,9 +1418,6 @@ __disagg_pick_up_checkpoint_meta(
     char *meta_str;
 
     WT_CLEAR(ckpt_meta);
-    /* Initialize version fields to current defaults. */
-    ckpt_meta.version = WT_DISAGG_CHECKPOINT_META_VERSION;
-    ckpt_meta.compatible_version = WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION;
     meta_str = NULL;
 
     /* Extract the item into a string. */
@@ -1405,31 +1444,8 @@ __disagg_pick_up_checkpoint_meta(
         __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE, "%s\"%s\"",
           "Missing metadata_checksum from metadata: ", meta_str);
 
-    /*
-     * Parse optional version and compatible_version fields. If they're missing, keep the defaults
-     * initialized above.
-     */
-    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "version", &cval), true);
-    if (ret == 0 && cval.len != 0) {
-        if (cval.val > UINT32_MAX)
-            WT_ERR_MSG(
-              session, EINVAL, "Invalid checkpoint_meta version: %" PRIu64, (uint64_t)cval.val);
-        ckpt_meta.version = (uint32_t)cval.val;
-    }
-
-    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "compatible_version", &cval), true);
-    if (ret == 0 && cval.len != 0) {
-        if (cval.val > UINT32_MAX)
-            WT_ERR_MSG(session, EINVAL, "Invalid checkpoint_meta compatible_version: %" PRIu64,
-              (uint64_t)cval.val);
-        ckpt_meta.compatible_version = (uint32_t)cval.val;
-    }
-
-    /* Check if this checkpoint metadata is compatible with the current reader version. */
-    if (ckpt_meta.compatible_version > WT_DISAGG_CHECKPOINT_META_VERSION)
-        WT_ERR_MSG(session, ENOTSUP,
-          "Checkpoint meta compatible_version=%" PRIu32 " requires reader version >= %" PRIu32,
-          ckpt_meta.compatible_version, ckpt_meta.compatible_version);
+    /* Parse and validate version and compatible_version fields. */
+    WT_ERR(__disagg_check_meta_version(session, meta_str, &ckpt_meta));
 
     /* Now actually pick up the checkpoint. */
     WT_ERR(__disagg_pick_up_checkpoint(session, &ckpt_meta));
@@ -3244,6 +3260,26 @@ int
 __ut_disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_item, WT_CRYPT_HEADER **header)
 {
     return (__disagg_validate_crypt(session, key_item, header));
+}
+
+int
+__ut_disagg_validate_checkpoint_meta_version(WT_SESSION_IMPL *session, const char *meta_str,
+  uint32_t *out_version, uint32_t *out_compatible_version)
+{
+    WT_DISAGG_CHECKPOINT_META ckpt_meta;
+    int ret;
+
+    /* Initialize struct with defaults */
+    memset(&ckpt_meta, 0, sizeof(ckpt_meta));
+
+    /* Call the main version check function */
+    ret = __disagg_check_meta_version(session, meta_str, &ckpt_meta);
+
+    /* Return parsed values */
+    *out_version = ckpt_meta.version;
+    *out_compatible_version = ckpt_meta.compatible_version;
+
+    return (ret);
 }
 
 void

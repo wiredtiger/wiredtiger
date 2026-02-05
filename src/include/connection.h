@@ -149,6 +149,14 @@ struct __wt_layered_table_manager {
 };
 
 /*
+ * Checkpoint metadata version constants:
+ * - VERSION: The version this code writes and the maximum version it can read.
+ * - COMPATIBLE_VERSION: The minimum reader version required to read what this code writes.
+ */
+#define WT_DISAGG_CHECKPOINT_META_VERSION 1
+#define WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION 1
+
+/*
  * WT_DISAGG_UPDATE_METADATA --
  *      Metadata about an object to be updated during the next checkpoint.
  */
