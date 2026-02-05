@@ -2874,14 +2874,13 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_LAYERED_TABLE_MANAGER *manager;
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
-    WT_SESSION_IMPL *internal_session;
+
     size_t i, table_count;
     bool empty, group_created;
 
     conn = S2C(session);
     manager = &conn->layered_table_manager;
     group_created = false;
-    internal_session = NULL;
 
     __wt_spin_lock(session, &manager->layered_table_lock);
 
@@ -2899,10 +2898,7 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 
     __wt_atomic_store_bool(&conn->layered_drain_data.running, true);
 
-    /* Open the internal session early so we can close it on error. */
     bool multithreaded = conn->layered_drain_data.thread_count > 1;
-    WT_ERR(__wt_open_internal_session(
-      conn, "disagg-drain application thread", false, 0, 0, &internal_session));
 
     /*
      * Create the thread group. The application thread is also a drain thread so the configured
@@ -2940,9 +2936,9 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
      * we can kill our thread group.
      */
     while (true) {
-        __wt_spin_lock(internal_session, &conn->layered_drain_data.queue_lock);
+        __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
         empty = TAILQ_EMPTY(&conn->layered_drain_data.work_queue);
-        __wt_spin_unlock(internal_session, &conn->layered_drain_data.queue_lock);
+        __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
         if (empty) {
             /*
              * Notify the other threads to exit. Relaxed is okay here as the worker threads will
@@ -2951,7 +2947,7 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
             __wt_atomic_store_bool_relaxed(&conn->layered_drain_data.running, false);
             break;
         }
-        WT_ERR(__layered_drain_worker_run(internal_session, NULL));
+        WT_ERR(__layered_drain_worker_run(session, NULL));
     }
 
 err:
@@ -2963,8 +2959,6 @@ err:
     }
     /* Cleanup and release resources. */
     __layered_drain_clear_work_queue(session);
-    if (internal_session != NULL)
-        WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }
 
