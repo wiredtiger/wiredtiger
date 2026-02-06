@@ -429,6 +429,9 @@ __verify_checkpoint_reset(WT_VSTUFF *vs)
 
     /* Tree depth. */
     vs->depth = 1;
+
+    /* Accumulated size of all block in the btree. */
+    vs->total_block_size = 0;
 }
 
 /*
