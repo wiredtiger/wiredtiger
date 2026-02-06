@@ -205,6 +205,7 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET_MSG(session, EINVAL,
           "eviction updates target must be lower than the eviction updates trigger");
 
+    /* Store the value back to eviction updates trigger after we have validated it. */
     __wt_atomic_store_double_relaxed(&evict->eviction_updates_trigger, updates_trigger);
     return (0);
 }
