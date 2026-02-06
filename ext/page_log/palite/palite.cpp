@@ -1508,6 +1508,7 @@ struct Pages : public Table<Pages> {
              flags INTEGER NOT NULL,
              delta INTEGER AS ((flags & 0x2) != 0) VIRTUAL, -- WT_PAGE_LOG_DELTA
              discarded INTEGER AS ((flags & 0x10000) != 0) VIRTUAL, -- WT_PAGE_LOG_DISCARDED
+             encryption STRING, -- Deprecated, can be NULL
              timestamp_materialized_us INTEGER NOT NULL,
              page_data BLOB,
          PRIMARY KEY (table_id, page_id, lsn));)",
