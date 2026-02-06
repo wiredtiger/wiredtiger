@@ -778,6 +778,10 @@ celltype_err:
             __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
+            /* TODO write a comment */
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                vs->total_block_size += unpack->size;
+
             /* Verify the subtree. */
             ++vs->depth;
             ret = __wt_page_in(session, child_ref, 0);
@@ -839,6 +843,10 @@ celltype_err:
             /* Unpack the address block and check timestamps */
             __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
+
+            /* TODO write a comment */
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                vs->total_block_size += unpack->size;
 
             /* Verify the subtree. */
             ++vs->depth;
