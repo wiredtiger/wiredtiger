@@ -313,6 +313,13 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             WT_WITH_PAGE_INDEX(
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
 
+            /* Validate the size of the btree */
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                if (ckpt->size != vs->total_block_size)
+                    WT_ERR_MSG(session, WT_ERROR,
+                      "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,
+                      ckpt->size, vs->total_block_size);
+
             /*
              * The checkpoints are in time-order, so the last one in the list is the most recent. If
              * this is the most recent checkpoint, verify the history store against it, also verify
