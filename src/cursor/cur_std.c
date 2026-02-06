@@ -1556,3 +1556,28 @@ err:
     }
     return (ret);
 }
+
+#ifdef HAVE_DIAGNOSTIC
+
+/*
+ * __wt_debug_cursor_page --
+ *     Dump the in-memory information for a cursor-referenced page.
+ */
+int
+__wt_debug_cursor_page(void *cursor_arg, const char *ofile)
+  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+{
+    const WT_CURSOR *cursor = (const WT_CURSOR *)cursor_arg;
+
+    if (WT_STRING_MATCH(cursor->uri, "file:", strlen("file:")))
+        WT_RET(__wt_debug_btree_cursor_page(cursor_arg, ofile));
+    else if (WT_STRING_MATCH(cursor->uri, "table:", strlen("table:")))
+        WT_RET(__wt_debug_layered_cursor_page(cursor_arg, ofile));
+    else
+        __wt_verbose_debug1(CUR2S(cursor), WT_VERB_DEFAULT,
+          "%s: unsupported cursor type for debug dump", cursor->uri);
+
+    return (0);
+}
+
+#endif /* HAVE_DIAGNOSTIC */
