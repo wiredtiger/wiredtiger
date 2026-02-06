@@ -197,19 +197,9 @@ err:
 static int
 __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION_IMPL *internal_session;
 
-    conn = S2C(session);
-
-    WT_ERR(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
-    WT_WITH_SCHEMA_LOCK(
-      internal_session, ret = __layered_create_missing_stable_tables_helper(internal_session));
-    WT_ERR(ret);
-
-err:
-    WT_TRET(__wt_session_close_internal(internal_session));
+    WT_WITH_SCHEMA_LOCK(session, ret = __layered_create_missing_stable_tables_helper(session));
     return (ret);
 }
 
@@ -1518,6 +1508,7 @@ __layered_table_manager_remove_table_inlock(WT_SESSION_IMPL *session, uint32_t i
           "__wt_layered_table_manager_remove_table stable_uri=%s ingest_id=%" PRIu32,
           entry->stable_uri, ingest_id);
 
+        WT_ASSERT(session, entry->pinned_dhandle == NULL);
         __wt_free(session, entry);
         manager->entries[ingest_id] = NULL;
     }
@@ -1586,6 +1577,7 @@ __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_LAYERED_TABLE_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     uint32_t i;
 
     conn = S2C(session);
@@ -1603,8 +1595,10 @@ __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
 
     /* Close any cursors and free any related memory */
     for (i = 0; i < manager->open_layered_table_count; i++) {
-        if (manager->entries[i] != NULL)
+        if ((entry = manager->entries[i]) != NULL) {
+            WT_ASSERT(session, entry->pinned_dhandle == NULL);
             __layered_table_manager_remove_table_inlock(session, i);
+        }
     }
     __wt_free(session, manager->entries);
     manager->open_layered_table_count = 0;
@@ -2011,8 +2005,15 @@ __disagg_step_up(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    WT_SESSION_IMPL *internal_session;
 
     conn = S2C(session);
+
+    /*
+     * Some functionality in stepping up needs a session that can open data handles. The default
+     * session used to call this function cannot do that.
+     */
+    WT_RET(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
 
     /*
      * We need to hold the checkpoint lock while stepping up, because if we change the role
@@ -2046,14 +2047,15 @@ __disagg_step_up(WT_SESSION_IMPL *session)
      */
 
     /* Create any missing stable tables. */
-    WT_ERR_MSG_CHK(session, __layered_create_missing_stable_tables(session),
+    WT_ERR_MSG_CHK(session, __layered_create_missing_stable_tables(internal_session),
       "Failed to create missing stable tables");
 
     /* Drain the ingest tables before switching to leader. */
     WT_ERR_MSG_CHK(
-      session, __layered_drain_ingest_tables(session), "Failed to drain ingest tables");
+      session, __layered_drain_ingest_tables(internal_session), "Failed to drain ingest tables");
 
 err:
+    WT_TRET(__wt_session_close_internal(internal_session));
     F_CLR(conn, WT_CONN_RECONFIGURING_STEP_UP);
     return (ret);
 }
@@ -2818,6 +2820,13 @@ __layered_drain_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
       work_item->entry->stable_uri);
     WT_ERR_MSG_CHK(session, __layered_clear_ingest_table(session, work_item->entry->ingest_uri),
       "Failed to clear ingest table \"%s\"", work_item->entry->ingest_uri);
+
+    WT_ASSERT(session, work_item->entry->pinned_dhandle != NULL);
+    WT_WITH_DHANDLE(session, work_item->entry->pinned_dhandle, {
+        work_item->entry->pinned_dhandle = NULL;
+        __wt_cursor_dhandle_decr_use(session);
+    });
+
 err:
     __wt_free(session, work_item);
     return (ret);
@@ -2867,14 +2876,13 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_LAYERED_TABLE_MANAGER *manager;
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
-    WT_SESSION_IMPL *internal_session;
+
     size_t i, table_count;
     bool empty, group_created;
 
     conn = S2C(session);
     manager = &conn->layered_table_manager;
     group_created = false;
-    internal_session = NULL;
 
     __wt_spin_lock(session, &manager->layered_table_lock);
 
@@ -2892,10 +2900,7 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 
     __wt_atomic_store_bool(&conn->layered_drain_data.running, true);
 
-    /* Open the internal session early so we can close it on error. */
     bool multithreaded = conn->layered_drain_data.thread_count > 1;
-    WT_ERR(__wt_open_internal_session(
-      conn, "disagg-drain application thread", false, 0, 0, &internal_session));
 
     /*
      * Create the thread group. The application thread is also a drain thread so the configured
@@ -2913,6 +2918,12 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     /* FIXME-WT-14735: skip empty ingest tables. */
     for (i = 0; i < table_count; i++) {
         if ((entry = manager->entries[i]) != NULL) {
+            /*
+             * Mark the layered table in use, we don't want it to be closed between now and when the
+             * drain takes place, otherwise this entry would be freed.
+             */
+            WT_ERR(__wt_cursor_uri_incr_use(session, entry->layered_uri, &entry->pinned_dhandle));
+
             WT_LAYERED_DRAIN_ENTRY *work_item;
             WT_ERR(__wt_calloc_one(session, &work_item));
             work_item->entry = entry;
@@ -2927,9 +2938,9 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
      * we can kill our thread group.
      */
     while (true) {
-        __wt_spin_lock(internal_session, &conn->layered_drain_data.queue_lock);
+        __wt_spin_lock(session, &conn->layered_drain_data.queue_lock);
         empty = TAILQ_EMPTY(&conn->layered_drain_data.work_queue);
-        __wt_spin_unlock(internal_session, &conn->layered_drain_data.queue_lock);
+        __wt_spin_unlock(session, &conn->layered_drain_data.queue_lock);
         if (empty) {
             /*
              * Notify the other threads to exit. Relaxed is okay here as the worker threads will
@@ -2938,7 +2949,7 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
             __wt_atomic_store_bool_relaxed(&conn->layered_drain_data.running, false);
             break;
         }
-        WT_ERR(__layered_drain_worker_run(internal_session, NULL));
+        WT_ERR(__layered_drain_worker_run(session, NULL));
     }
 
 err:
@@ -2950,8 +2961,6 @@ err:
     }
     /* Cleanup and release resources. */
     __layered_drain_clear_work_queue(session);
-    if (internal_session != NULL)
-        WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }
 

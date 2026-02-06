@@ -123,6 +123,8 @@ struct __wt_layered_table_manager_entry {
     const char *layered_uri;
     const char *ingest_uri;
     const char *stable_uri;
+
+    WT_DATA_HANDLE *pinned_dhandle; /* data handle held open during drain */
 };
 
 /*
