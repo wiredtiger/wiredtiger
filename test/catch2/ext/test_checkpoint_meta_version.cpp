@@ -102,20 +102,20 @@ TEST_CASE_METHOD(checkpoint_meta_version_fixture,
     SECTION("compatible_version newer than version is illegal")
     {
         /* compatible_version should never be greater than version */
-        const char *meta_str = "version=1,compatible_version=2,metadata_lsn=11111";
+        const char *meta_str = "version=0,compatible_version=1,metadata_lsn=11111";
 
         ret = __ut_disagg_validate_checkpoint_meta_version(
           session, meta_str, &version, &compatible_version);
 
         /* This is an invalid configuration that should fail */
-        REQUIRE(ret == ENOTSUP);
+        REQUIRE(ret == EINVAL);
     }
 
     SECTION("multiple incompatible versions all fail")
     {
         const char *incompatible_configs[] = {
           "version=3,compatible_version=3",
-          "version=2,compatible_version=3",
+          "version=6,compatible_version=3",
           "version=5,compatible_version=10",
         };
 

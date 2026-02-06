@@ -1400,7 +1400,7 @@ __disagg_check_meta_version(
           ckpt_meta->compatible_version, WT_DISAGG_CHECKPOINT_META_VERSION);
 
     if (ckpt_meta->version < ckpt_meta->compatible_version)
-        WT_ERR_MSG(session, ENOTSUP,
+        WT_ERR_MSG(session, EINVAL,
           "Illegal version: Checkpoint meta version=%" PRIu32
           " is older than compatible_version=%" PRIu32,
           ckpt_meta->version, ckpt_meta->compatible_version);
