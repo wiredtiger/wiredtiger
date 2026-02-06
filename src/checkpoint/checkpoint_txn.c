@@ -17,6 +17,7 @@ static void __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final);
 static void __checkpoint_progress(WT_SESSION_IMPL *, bool);
 static void __checkpoint_progress_clear(WT_SESSION_IMPL *);
 static void __checkpoint_timing_stress(WT_SESSION_IMPL *, uint64_t, struct timespec *);
+static int __checkpoint_reconcile_release_snapshot(WT_SESSION_IMPL *session);
 static int __checkpoint_reconcile_commit(WT_SESSION_IMPL *session);
 
 /*
@@ -1454,6 +1455,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_meta_sysinfo_set(session, name, namelen));
 
     /* Release the snapshot so we aren't pinning updates in cache. */
+    __checkpoint_reconcile_release_snapshot(session);
     __wt_txn_release_snapshot(session);
 
     WT_STAT_CONN_SET(session, checkpoint_snapshot_acquired, 0);
@@ -3353,6 +3355,42 @@ __wt_checkpoint_reconcile_finish(WT_SESSION_IMPL *session)
 
     __wt_atomic_store_uint64_release(&ckpt_threads->work_pushed, 0);
     return (ret);
+}
+
+/*
+ * __checkpoint_reconcile_thread_release_snapshot --
+ *     Release the snapshot associated with the thread.
+ */
+static int
+__checkpoint_reconcile_thread_release_snapshot(WT_SESSION_IMPL *session, WT_THREAD *thread)
+{
+    WT_UNUSED(thread);
+
+    if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
+        __wt_verbose(session, WT_VERB_CHECKPOINT,
+          "Checkpoint page reconciliation thread %u releasing the snapshot", thread->id);
+        __wt_txn_release_snapshot(session);
+    }
+
+    return (0);
+}
+
+/*
+ * __checkpoint_reconcile_release_snapshot --
+ *     Release all snapshots for the checkpoint page reconciliation workers.
+ */
+static int
+__checkpoint_reconcile_release_snapshot(WT_SESSION_IMPL *session)
+{
+    WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
+
+    WT_ASSERT_ALWAYS(session, __checkpoint_reconcile_queue_empty(session),
+      "Checkpoint page reconciliation workers still have work to do");
+
+    ckpt_threads = S2C(session)->ckpt_reconcile_threads;
+    WT_RET(__wt_thread_group_foreach(
+      session, &ckpt_threads->thread_group, __checkpoint_reconcile_thread_release_snapshot));
+    return (0);
 }
 
 /*
