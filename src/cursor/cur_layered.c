@@ -1555,25 +1555,27 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
 }
 
 /*
- * __clayered_remove_ingest --
+ * __clayered_remove_follower --
  *     Remove an entry from the ingest table.
  */
 static WT_INLINE int
-__clayered_remove_ingest(
+__clayered_remove_follower(
   WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, bool positioned)
 {
     WT_CURSOR *const c = clayered->ingest_cursor;
     WT_ITEM value;
 
-    if (positioned && clayered->current_cursor == c) {
-        WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
-        /*
-         * If we are erasing a record that is already a tombstone, don't write another one: we don't
-         * ever want consecutive tombstones on an update chain.
-         */
-        WT_RET(c->get_value(c, &value));
-        if (__wt_clayered_deleted(&value))
-            return (WT_NOTFOUND);
+    if (positioned) {
+        if (clayered->current_cursor == c) {
+            WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
+            /*
+             * If we are erasing a record that is already a tombstone, don't write another one: we
+             * don't ever want consecutive tombstones on an update chain.
+             */
+            WT_RET(c->get_value(c, &value));
+            if (__wt_clayered_deleted(&value))
+                return (WT_NOTFOUND);
+        }
     } else {
         WT_ASSERT(session, F_ISSET(&clayered->iface, WT_CURSTD_KEY_EXT));
         /* Lookup will return WT_NOTFOUND if a tombstone is present. */
@@ -1598,11 +1600,11 @@ __clayered_remove_ingest(
 }
 
 /*
- * __clayered_remove_stable --
+ * __clayered_remove_leader --
  *     Remove an entry from the stable table.
  */
 static WT_INLINE int
-__clayered_remove_stable(
+__clayered_remove_leader(
   WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, bool positioned)
 {
     WT_CURSOR *const c = clayered->stable_cursor;
@@ -1635,8 +1637,8 @@ __clayered_remove_int(
   WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, bool positioned)
 {
     return (S2C(session)->layered_table_manager.leader ?
-        __clayered_remove_stable(session, clayered, key, positioned) :
-        __clayered_remove_ingest(session, clayered, key, positioned));
+        __clayered_remove_leader(session, clayered, key, positioned) :
+        __clayered_remove_follower(session, clayered, key, positioned));
 }
 
 /*
