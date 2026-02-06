@@ -319,7 +319,7 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
     }
 
     memset(&opts, 0, sizeof(opts));
-    opts.disagg_storage = true;
+    opts.disagg.is_enabled = true;
 
     /*
      * We need to cast these values. Normally, testutil allocates and fills these strings based on
@@ -327,11 +327,11 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
      * line parser and doesn't rely on testutil to free anything in this struct. We're only using
      * the options struct on a temporary basis to help create the disagg configuration.
      */
-    opts.disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
-    opts.disagg_page_log_home = disagg_is_multi_node() ? g.home_page_log : (char *)home;
-    opts.disagg_mode = (char *)(g.disagg_leader ? "leader" : "follower");
-    opts.disagg_key_provider = GV(DISAGG_KEY_PROVIDER);
-    opts.disagg_drain_threads = GV(DISAGG_DRAIN_THREADS);
+    opts.disagg.page_log = (char *)GVS(DISAGG_PAGE_LOG);
+    opts.disagg.page_log_home = disagg_is_multi_node() ? g.home_page_log : (char *)home;
+    opts.disagg.mode = (char *)(g.disagg_leader ? "leader" : "follower");
+    opts.disagg.key_provider = GV(DISAGG_KEY_PROVIDER);
+    opts.disagg.drain_threads = GV(DISAGG_DRAIN_THREADS);
     opts.home = (char *)home;
     opts.build_dir = (char *)BUILDDIR;
     opts.palm_map_size_mb = 2048; /* 2 Gigabytes for PALM map */
