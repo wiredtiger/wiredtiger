@@ -1396,8 +1396,14 @@ __disagg_check_meta_version(
     /* Check if this checkpoint metadata is compatible with the current reader version. */
     if (ckpt_meta->compatible_version > WT_DISAGG_CHECKPOINT_META_VERSION)
         WT_ERR_MSG(session, ENOTSUP,
-          "Checkpoint meta compatible_version=%" PRIu32 " requires reader version >= %" PRIu32,
-          ckpt_meta->compatible_version, ckpt_meta->compatible_version);
+          "Checkpoint meta compatible_version=%" PRIu32 " requires reader version >= %d",
+          ckpt_meta->compatible_version, WT_DISAGG_CHECKPOINT_META_VERSION);
+
+    if (ckpt_meta->version < ckpt_meta->compatible_version)
+        WT_ERR_MSG(session, ENOTSUP,
+          "Illegal version: Checkpoint meta version=%" PRIu32
+          " is older than compatible_version=%" PRIu32,
+          ckpt_meta->version, ckpt_meta->compatible_version);
 
 err:
     return (ret);

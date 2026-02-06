@@ -45,6 +45,8 @@ TEST_CASE_METHOD(checkpoint_meta_version_fixture,
           session, meta_str, &version, &compatible_version);
 
         REQUIRE(ret == 0);
+        REQUIRE(version == 1);
+        REQUIRE(compatible_version == 1);
     }
 
     SECTION("backward compatibility - missing version fields defaults to 1,1")
@@ -86,7 +88,7 @@ TEST_CASE_METHOD(checkpoint_meta_version_fixture,
     {
         /* Version requires reader version 2 but we only have version 1 */
         const char *meta_str =
-          "metadata_lsn=111111,metadata_checksum=0xCAFEBABE,version=1,compatible_version=2";
+          "metadata_lsn=111111,metadata_checksum=0xCAFEBABE,version=2,compatible_version=2";
 
         ret = __ut_disagg_validate_checkpoint_meta_version(
           session, meta_str, &version, &compatible_version);
@@ -119,5 +121,17 @@ TEST_CASE_METHOD(checkpoint_meta_version_fixture,
           session, meta_str, &version, &compatible_version);
 
         REQUIRE(ret == 0);
+    }
+
+    SECTION("compatible_version newer than version is illegal")
+    {
+        /* compatible_version should never be greater than version */
+        const char *meta_str = "version=1,compatible_version=2,metadata_lsn=11111";
+
+        ret = __ut_disagg_validate_checkpoint_meta_version(
+          session, meta_str, &version, &compatible_version);
+
+        /* This is an invalid configuration that should fail */
+        REQUIRE(ret == ENOTSUP);
     }
 }
