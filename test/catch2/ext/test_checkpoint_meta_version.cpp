@@ -70,6 +70,7 @@ TEST_CASE_METHOD(checkpoint_meta_version_fixture,
           session, meta_str, &version, &compatible_version);
 
         REQUIRE(ret == 0);
+        REQUIRE(version == 1);
         REQUIRE(compatible_version == WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT);
     }
 
@@ -82,6 +83,7 @@ TEST_CASE_METHOD(checkpoint_meta_version_fixture,
 
         REQUIRE(ret == 0);
         REQUIRE(version == WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT);
+        REQUIRE(compatible_version == 1);
     }
 
     SECTION("forward compatibility error - incompatible version")
@@ -97,32 +99,6 @@ TEST_CASE_METHOD(checkpoint_meta_version_fixture,
         REQUIRE(ret == ENOTSUP);
     }
 
-    SECTION("multiple incompatible versions all fail")
-    {
-        const char *incompatible_configs[] = {
-          "version=1,compatible_version=2",
-          "version=2,compatible_version=3",
-          "version=5,compatible_version=10",
-        };
-
-        for (size_t i = 0; i < sizeof(incompatible_configs) / sizeof(incompatible_configs[0]);
-             ++i) {
-            ret = __ut_disagg_validate_checkpoint_meta_version(
-              session, incompatible_configs[i], &version, &compatible_version);
-            REQUIRE(ret == ENOTSUP);
-        }
-    }
-
-    SECTION("compatible version equal to reader version is ok")
-    {
-        const char *meta_str = "version=1,compatible_version=1,metadata_lsn=55555";
-
-        ret = __ut_disagg_validate_checkpoint_meta_version(
-          session, meta_str, &version, &compatible_version);
-
-        REQUIRE(ret == 0);
-    }
-
     SECTION("compatible_version newer than version is illegal")
     {
         /* compatible_version should never be greater than version */
@@ -133,5 +109,21 @@ TEST_CASE_METHOD(checkpoint_meta_version_fixture,
 
         /* This is an invalid configuration that should fail */
         REQUIRE(ret == ENOTSUP);
+    }
+
+    SECTION("multiple incompatible versions all fail")
+    {
+        const char *incompatible_configs[] = {
+          "version=3,compatible_version=3",
+          "version=2,compatible_version=3",
+          "version=5,compatible_version=10",
+        };
+
+        for (size_t i = 0; i < sizeof(incompatible_configs) / sizeof(incompatible_configs[0]);
+             ++i) {
+            ret = __ut_disagg_validate_checkpoint_meta_version(
+              session, incompatible_configs[i], &version, &compatible_version);
+            REQUIRE(ret == ENOTSUP);
+        }
     }
 }
