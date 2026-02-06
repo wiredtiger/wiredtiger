@@ -20,6 +20,9 @@ typedef struct {
 
     uint64_t fcnt; /* Progress counter */
 
+    /* Accumulated size of all blocks in this btree. */
+    uint64_t total_block_size;
+
     /* Configuration options passed in. */
     wt_timestamp_t stable_timestamp; /* Stable timestamp to verify against if desired */
 #define WT_VRFY_DUMP(vs) \
