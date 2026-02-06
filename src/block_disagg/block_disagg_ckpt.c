@@ -63,9 +63,9 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
           block_meta->page_id, block_meta->disagg_lsn, block_meta->base_lsn, size, checksum);
     }
     /*
-     * Set the checkpoint size here after all writes are complete. This violates layering, but we
-     * set it at this point because we don't expect the size to change until it gets written to
-     * metadata, allowing us to validate consistency.
+     * Set the checkpoint size here after all writes are complete. We set it at this point because
+     * we don't expect the size to change until it gets written to metadata, allowing us to validate
+     * consistency.
      */
     ckpt->size = __wt_atomic_load_uint64(&S2BT(session)->bytes_total);
 
