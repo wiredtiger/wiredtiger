@@ -1013,8 +1013,8 @@ err:
  *     Process the metadata entries stored in the shared metadata table for a new checkpoint.
  */
 static int
-__disagg_apply_checkpoint_meta(
-  WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, const WT_DISAGG_CHECKPOINT_META *ckpt_meta)
+__disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *internal_session,
+  WT_CURSOR *md_cursor, const WT_DISAGG_CHECKPOINT_META *ckpt_meta)
 {
     WT_CONFIG_ITEM cval;
     WT_CURSOR *cursor;
@@ -1031,8 +1031,6 @@ __disagg_apply_checkpoint_meta(
     checkpoint_name_new = NULL;
     layered_ingest_uri = cfg_ret = NULL;
     existing_tables = new_tables = new_ingest = 0;
-
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
 
     /*
      * Throw away any references to the old disaggregated metadata table. This ensures that we are
@@ -1146,7 +1144,7 @@ __disagg_apply_checkpoint_meta(
                     if (ret == WT_NOTFOUND) {
                         WT_ERR_MSG_CHK(session,
                           __layered_create_missing_ingest_table(
-                            session, layered_ingest_uri, metadata_value),
+                            internal_session, layered_ingest_uri, metadata_value),
                           "Failed to create missing ingest table \"%s\" from \"%s\"",
                           layered_ingest_uri, metadata_value);
                         new_ingest++;
@@ -1309,8 +1307,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      */
     WT_ERR(__wt_open_internal_session(
       conn, "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
-    WT_WITH_SCHEMA_LOCK(shared_metadata_session,
-      ret = __disagg_apply_checkpoint_meta(shared_metadata_session, md_cursor, ckpt_meta));
+    ret = __disagg_apply_checkpoint_meta(
+      shared_metadata_session, internal_session, md_cursor, ckpt_meta);
     WT_TRET(__wt_session_close_internal(shared_metadata_session));
     WT_ERR(ret);
 
