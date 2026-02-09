@@ -20,7 +20,7 @@ typedef struct __wt_disagg_checkpoint_meta {
 
     uint64_t database_size; /* The total database size. */
     bool has_database_size; /* Whether the database size is present. */
-    uint32_t version; /* The version of the checkpoint_meta. */
+    uint32_t version;       /* The version of the checkpoint_meta. */
     uint32_t
       compatible_version; /* The minimum version of the reader that can use this checkpoint_meta. */
 } WT_DISAGG_CHECKPOINT_META;
@@ -2616,9 +2616,10 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
          * without quotation marks or escape characters.
          */
         WT_ERR(__wt_buf_fmt(session, meta,
-          "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32 ",database_size=%" PRIu64 ",version=%d,compatible_version=%d", meta_lsn,
-          meta_checksum, conn->disaggregated_storage.database_size, WT_DISAGG_CHECKPOINT_META_VERSION,
-          WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION));
+          "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32 ",database_size=%" PRIu64
+          ",version=%d,compatible_version=%d",
+          meta_lsn, meta_checksum, conn->disaggregated_storage.database_size,
+          WT_DISAGG_CHECKPOINT_META_VERSION, WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION));
         WT_ERR(disagg->npage_log->page_log->pl_complete_checkpoint_ext(disagg->npage_log->page_log,
           &session->iface, 0, (uint64_t)checkpoint_timestamp, meta, NULL));
         __wt_atomic_store_uint64_release(
