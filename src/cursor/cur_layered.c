@@ -1780,7 +1780,6 @@ __clayered_remove(WT_CURSOR *cursor)
 {
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
-    WT_ITEM value;
     WT_SESSION_IMPL *session;
     bool positioned;
 
@@ -1792,17 +1791,6 @@ __clayered_remove(WT_CURSOR *cursor)
     CURSOR_REMOVE_API_CALL(cursor, session, ret, clayered->dhandle);
     WT_ERR(__cursor_needkey(cursor));
     __cursor_novalue(cursor);
-
-    /*
-     * Remove fails if the key doesn't exist, do a search first. This requires a second pair of
-     * layered enter/leave calls as we search the full stack, but updates are limited to the
-     * top-level.
-     */
-    if (!positioned) {
-        WT_ERR(__clayered_enter(clayered, false, false, false));
-        WT_ERR(__clayered_lookup(session, clayered, &value));
-        __clayered_leave(clayered);
-    }
 
     WT_ERR(__clayered_enter(clayered, false, true, false));
     /*
