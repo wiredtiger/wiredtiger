@@ -56,12 +56,12 @@ struct __wt_evict {
      * Eviction threshold percentages use double type to allow for specifying percentages less than
      * one.
      */
-    wt_shared double eviction_dirty_target;  /* Percent to allow dirty */
-    wt_shared double eviction_dirty_trigger; /* Percent to trigger dirty eviction */
-    double eviction_trigger;                 /* Percent to trigger eviction */
-    double eviction_target;                  /* Percent to end eviction */
-    double eviction_updates_target;          /* Percent to allow for updates */
-    double eviction_updates_trigger;         /* Percent of updates to trigger eviction */
+    wt_shared double eviction_dirty_target;    /* Percent to allow dirty */
+    wt_shared double eviction_dirty_trigger;   /* Percent to trigger dirty eviction */
+    double eviction_trigger;                   /* Percent to trigger eviction */
+    double eviction_target;                    /* Percent to end eviction */
+    double eviction_updates_target;            /* Percent to allow for updates */
+    wt_shared double eviction_updates_trigger; /* Percent of updates to trigger eviction */
 
     double eviction_checkpoint_target; /* Percent to reduce dirty to during checkpoint scrubs */
     wt_shared double eviction_scrub_target; /* Current scrub target */

@@ -83,7 +83,6 @@ struct __wt_modify;     typedef struct __wt_modify WT_MODIFY;
 struct __wt_page_log; typedef struct __wt_page_log WT_PAGE_LOG;
 struct __wt_page_log_discard_args;
 typedef struct __wt_page_log_discard_args WT_PAGE_LOG_DISCARD_ARGS;
-struct __wt_page_log_encryption; typedef struct __wt_page_log_encryption WT_PAGE_LOG_ENCRYPTION;
 struct __wt_page_log_get_args; typedef struct __wt_page_log_get_args WT_PAGE_LOG_GET_ARGS;
 struct __wt_page_log_put_args; typedef struct __wt_page_log_put_args WT_PAGE_LOG_PUT_ARGS;
 struct __wt_key_provider;    typedef struct __wt_key_provider WT_KEY_PROVIDER;
@@ -5810,13 +5809,6 @@ struct __wt_key_provider {
 #endif
 
 /*!
- * Encryption data used by the WT_PAGE_LOG_HANDLE interfaces.
- */
-struct __wt_page_log_encryption {
-       char dek[32]; /* an encrypted version of the key used to encrypt data */
-};
-
-/*!
  * Btree disaggregated storage tier types
  */
 typedef enum {
@@ -5854,8 +5846,6 @@ struct __wt_page_log_put_args {
        uint64_t base_checkpoint_id;
        size_t image_size;
 
-       WT_PAGE_LOG_ENCRYPTION encryption;
-
        uint32_t flags;
 
        /*
@@ -5885,8 +5875,6 @@ struct __wt_page_log_get_args {
        uint64_t base_lsn;
        uint64_t backlink_checkpoint_id;
        uint64_t base_checkpoint_id;
-
-       WT_PAGE_LOG_ENCRYPTION encryption;
 };
 
 /*!
