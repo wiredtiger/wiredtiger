@@ -183,7 +183,7 @@ class test_layered27(wttest.WiredTigerTestCase):
     # This test ensures there are no consecutive tombstones in the update chain
     # when draining the ingest table.
     # See also: WT-15721, WT-16085.
-    def test_drain_remove_several(self):
+    def test_drain_insert_remove_within_same_transaction(self):
         key = 'key1'
         ts1, ts2, ts3, ts4, ts5 = 10, 20, 30, 40, 50
 
