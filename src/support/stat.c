@@ -1929,6 +1929,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction passes of a file",
   "cache: eviction server candidate queue empty when topping up",
   "cache: eviction server candidate queue not empty when topping up",
+  "cache: eviction server completed walks of all dhandles",
   "cache: eviction server push pages to queue failed because of racing with setting flag",
   "cache: eviction server races with the reconfigure API call in disagg",
   "cache: eviction server skipped the internal pages if eviction is not in aggressive mode",
@@ -1961,6 +1962,12 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server unable to reach eviction goal",
   "cache: eviction server waiting for a leaf page",
   "cache: eviction state",
+  "cache: eviction threshold cache full target multiplied by 100 for precision",
+  "cache: eviction threshold cache full trigger multiplied by 100 for precision",
+  "cache: eviction threshold dirty target multiplied by 100 for precision",
+  "cache: eviction threshold dirty trigger multiplied by 100 for precision",
+  "cache: eviction threshold updates target multiplied by 100 for precision",
+  "cache: eviction threshold updates trigger multiplied by 100 for precision",
   "cache: eviction walk most recent sleeps for checkpoint handle gathering",
   "cache: eviction walk pages queued that had updates",
   "cache: eviction walk pages queued that were clean",
@@ -2969,6 +2976,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_walk_passes = 0;
     stats->eviction_queue_empty = 0;
     stats->eviction_queue_not_empty = 0;
+    /* not clearing eviction_dhandle_complete_walk */
     stats->eviction_server_push_pages_failed_when_flaging = 0;
     stats->eviction_server_race_reconfigure_disagg = 0;
     stats->eviction_server_skip_intl_page_non_aggressive = 0;
@@ -2997,6 +3005,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_slow = 0;
     stats->eviction_walk_leaf_notfound = 0;
     /* not clearing eviction_state */
+    stats->eviction_threshold_cache_full_target = 0;
+    stats->eviction_threshold_cache_full_trigger = 0;
+    stats->eviction_threshold_dirty_target = 0;
+    stats->eviction_threshold_dirty_trigger = 0;
+    stats->eviction_threshold_updates_target = 0;
+    stats->eviction_threshold_updates_trigger = 0;
     stats->eviction_walk_sleeps = 0;
     stats->cache_eviction_pages_queued_updates = 0;
     stats->cache_eviction_pages_queued_clean = 0;
@@ -3993,6 +4007,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_walk_passes += WT_STAT_CONN_READ(from, eviction_walk_passes);
     to->eviction_queue_empty += WT_STAT_CONN_READ(from, eviction_queue_empty);
     to->eviction_queue_not_empty += WT_STAT_CONN_READ(from, eviction_queue_not_empty);
+    to->eviction_dhandle_complete_walk += WT_STAT_CONN_READ(from, eviction_dhandle_complete_walk);
     to->eviction_server_push_pages_failed_when_flaging +=
       WT_STAT_CONN_READ(from, eviction_server_push_pages_failed_when_flaging);
     to->eviction_server_race_reconfigure_disagg +=
@@ -4045,6 +4060,17 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_slow += WT_STAT_CONN_READ(from, eviction_slow);
     to->eviction_walk_leaf_notfound += WT_STAT_CONN_READ(from, eviction_walk_leaf_notfound);
     to->eviction_state += WT_STAT_CONN_READ(from, eviction_state);
+    to->eviction_threshold_cache_full_target +=
+      WT_STAT_CONN_READ(from, eviction_threshold_cache_full_target);
+    to->eviction_threshold_cache_full_trigger +=
+      WT_STAT_CONN_READ(from, eviction_threshold_cache_full_trigger);
+    to->eviction_threshold_dirty_target += WT_STAT_CONN_READ(from, eviction_threshold_dirty_target);
+    to->eviction_threshold_dirty_trigger +=
+      WT_STAT_CONN_READ(from, eviction_threshold_dirty_trigger);
+    to->eviction_threshold_updates_target +=
+      WT_STAT_CONN_READ(from, eviction_threshold_updates_target);
+    to->eviction_threshold_updates_trigger +=
+      WT_STAT_CONN_READ(from, eviction_threshold_updates_trigger);
     to->eviction_walk_sleeps += WT_STAT_CONN_READ(from, eviction_walk_sleeps);
     to->cache_eviction_pages_queued_updates +=
       WT_STAT_CONN_READ(from, cache_eviction_pages_queued_updates);
