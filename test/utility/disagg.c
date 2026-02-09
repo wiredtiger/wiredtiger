@@ -41,8 +41,8 @@ testutil_disagg_storage_configuration(TEST_OPTS *opts, const char *home, char *d
     if (opts->disagg.is_enabled) {
         testutil_snprintf(ext_cfg, ext_cfg_size, TESTUTIL_ENV_CONFIG_DISAGG_EXT, opts->build_dir,
           opts->disagg.page_log, opts->disagg.page_log, opts->disagg.page_log_home, opts->delay_ms,
-          opts->error_ms, opts->force_delay, opts->force_error, opts->palm_map_size_mb,
-          opts->page_log_verbose);
+          opts->error_ms, opts->force_delay, opts->force_error, opts->disagg.page_log_map_size_mb,
+          opts->disagg.page_log_verbose);
 
         if (opts->disagg.key_provider) {
             testutil_snprintf(key_provider_ext_cfg, sizeof(key_provider_ext_cfg),
@@ -53,8 +53,8 @@ testutil_disagg_storage_configuration(TEST_OPTS *opts, const char *home, char *d
 
         testutil_snprintf(disagg_cfg, disagg_cfg_size, TESTUTIL_ENV_CONFIG_DISAGG,
           opts->disagg.mode, opts->disagg.page_log, opts->disagg.drain_threads,
-          (opts->internal_page_delta ? "true" : "false"),
-          (opts->leaf_page_delta ? "true" : "false"));
+          (opts->disagg.internal_page_delta ? "true" : "false"),
+          (opts->disagg.leaf_page_delta ? "true" : "false"));
     } else {
         testutil_snprintf(ext_cfg, ext_cfg_size, "\"\"");
         testutil_assert(disagg_cfg_size > 0);

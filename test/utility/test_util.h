@@ -127,16 +127,11 @@ typedef struct {
     uint64_t data_seed;      /* Random seed for data ops */
     uint64_t extra_seed;     /* Random seed for extra ops */
 
-    uint64_t delay_ms;         /* Average length of delay when simulated */
-    uint64_t error_ms;         /* Average length of delay when simulated */
-    uint64_t force_delay;      /* Force a simulated network delay every N operations */
-    uint64_t force_error;      /* Force a simulated network error every N operations */
-    uint32_t local_retention;  /* Local retention for tiered storage */
-    uint64_t palm_map_size_mb; /* Megabytes of map size for PALM database */
-    uint32_t page_log_verbose; /* Page log verbosity; see WT_VERBOSE_LEVEL */
-
-    bool internal_page_delta; /* Use internal page deltas */
-    bool leaf_page_delta;     /* Use leaf page deltas */
+    uint64_t delay_ms;        /* Average length of delay when simulated */
+    uint64_t error_ms;        /* Average length of delay when simulated */
+    uint64_t force_delay;     /* Force a simulated network delay every N operations */
+    uint64_t force_error;     /* Force a simulated network error every N operations */
+    uint32_t local_retention; /* Local retention for tiered storage */
 
     bool absolute_bucket_dir;  /* Use an absolute bucket path when it is a directory */
     bool compat;               /* Compatibility */
@@ -159,15 +154,19 @@ typedef struct {
 
     /* Fields used for testing disaggregated storage. */
     struct {
-        bool is_enabled;   /* Uses disaggregated storage */
-        bool key_provider; /* Uses key provider testing module for disaggregated storage */
-        bool switch_mode;  /* Switching disaggregated storage mode during the test */
+        bool is_enabled;          /* Uses disaggregated storage */
+        bool key_provider;        /* Uses key provider testing module for disaggregated storage */
+        bool switch_mode;         /* Switching disaggregated storage mode during the test */
+        bool internal_page_delta; /* Use internal page deltas */
+        bool leaf_page_delta;     /* Use leaf page deltas */
 
         const char *mode;          /* Disaggregated storage mode */
         const char *page_log;      /* Page and log service for disaggregated storage */
         const char *page_log_home; /* Page and log service home dir for disaggregated storage */
 
-        uint64_t drain_threads; /* Number of drain threads for disaggregated storage*/
+        uint64_t drain_threads;        /* Number of drain threads for disaggregated storage*/
+        uint64_t page_log_map_size_mb; /* Megabytes of map size for PALM database */
+        uint32_t page_log_verbose;     /* Page log verbosity; see WT_VERBOSE_LEVEL */
     } disagg;
 
     /*
