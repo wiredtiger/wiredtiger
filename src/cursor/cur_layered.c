@@ -1563,10 +1563,11 @@ __clayered_remove_follower(
   WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, bool positioned)
 {
     WT_CURSOR *const c = clayered->ingest_cursor;
-    WT_ITEM value;
 
     if (positioned) {
         if (clayered->current_cursor == c) {
+            WT_ITEM value;
+
             WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
             /*
              * If we are erasing a record that is already a tombstone, don't write another one: we
@@ -1576,11 +1577,8 @@ __clayered_remove_follower(
             if (__wt_clayered_deleted(&value))
                 return (WT_NOTFOUND);
         }
-    } else {
+    } else
         WT_ASSERT(session, F_ISSET(&clayered->iface, WT_CURSTD_KEY_EXT));
-        /* Lookup will return WT_NOTFOUND if a tombstone is present. */
-        WT_RET(__clayered_lookup(session, clayered, &value));
-    }
 
     /* If we are positioned on the stable table, we need to set the key. */
     if (clayered->current_cursor != c) {
