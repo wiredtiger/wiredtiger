@@ -189,24 +189,23 @@ class test_layered27(wttest.WiredTigerTestCase):
 
         # Create the layered table on both leader and follower.
         self.session.create(self.uri, "key_format=S,value_format=S")
-        conn_follow = self.wiredtiger_open('follower', self.conn_follower_config)
-        session_follow = conn_follow.open_session('')
-        session_follow.create(self.uri, "key_format=S,value_format=S")
-        cursor = session_follow.open_cursor(self.uri)
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.session = self.conn.open_session('')
+        cursor = self.session.open_cursor(self.uri)
 
         # 1. Insert the key at T1.
-        session_follow.begin_transaction()
+        self.session.begin_transaction()
         cursor[key] = str(ts1)
-        session_follow.commit_transaction(f'commit_timestamp={self.timestamp_str(ts1)}')
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(ts1)}')
 
         # 2. Delete the key at T2.
-        session_follow.begin_transaction()
+        self.session.begin_transaction()
         cursor.set_key(key)
         cursor.remove()
-        session_follow.commit_transaction(f'commit_timestamp={self.timestamp_str(ts2)}')
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(ts2)}')
 
         # 3. Start inserting the key again.
-        session_follow.begin_transaction()
+        self.session.begin_transaction()
         cursor[key] = str(ts3)
 
         # 4. Delete the key inside the same transaction.
@@ -214,36 +213,32 @@ class test_layered27(wttest.WiredTigerTestCase):
         cursor.remove()
 
         # 5. Commit that transaction at T3.
-        session_follow.commit_transaction(f'commit_timestamp={self.timestamp_str(ts3)}')
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(ts3)}')
 
         # 6. Insert the key at T4.
-        session_follow.begin_transaction()
+        self.session.begin_transaction()
         cursor[key] = str(ts4)
-        session_follow.commit_transaction(f'commit_timestamp={self.timestamp_str(ts4)}')
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(ts4)}')
 
         # 7. Insert the key again at T5.
-        session_follow.begin_transaction()
+        self.session.begin_transaction()
         cursor[key] = str(ts5)
-        session_follow.commit_transaction(f'commit_timestamp={self.timestamp_str(ts5)}')
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(ts5)}')
 
         cursor.close()
 
-        # Prevent the current leader from checkpointing as we prepare to step up the follower.
-        self.conn.reconfigure('disaggregated=(role="follower")')
-        self.conn.close()
-
         # 8. Step up: promote the follower connection to leader so ingest state drains.
-        conn_follow.reconfigure('disaggregated=(role="leader")')
+        self.conn.reconfigure('disaggregated=(role="leader")')
 
         # 9. Make T5 stable on the stepped-up connection.
         ts5_str = self.timestamp_str(ts5)
-        conn_follow.set_timestamp(f'stable_timestamp={ts5_str}')
+        self.conn.set_timestamp(f'stable_timestamp={ts5_str}')
 
         # 10. Checkpoint to drain the ingest table into the base table.
-        session_follow.checkpoint()
+        self.session.checkpoint()
 
         # End of test.
-        conn_follow.close()
+        self.conn.close()
 
     def test_drain_remove_insert(self):
         # Create the oplog
