@@ -1569,9 +1569,9 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
 {
     const WT_CURSOR *cursor = (const WT_CURSOR *)cursor_arg;
 
-    if (WT_STRING_MATCH(cursor->uri, "file:", strlen("file:")))
+    if (WT_PREFIX_MATCH(cursor->uri, "file:"))
         WT_RET(__wt_debug_btree_cursor_page(cursor_arg, ofile));
-    else if (WT_STRING_MATCH(cursor->uri, "table:", strlen("table:")))
+    else if (WT_PREFIX_MATCH(cursor->uri, "table:"))
         WT_RET(__wt_debug_layered_cursor_page(cursor_arg, ofile));
     else
         __wt_verbose_debug1(CUR2S(cursor), WT_VERB_DEFAULT,
