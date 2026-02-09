@@ -3272,7 +3272,6 @@ int
 __ut_disagg_validate_checkpoint_meta_version(WT_SESSION_IMPL *session, const char *meta_str,
   uint32_t *out_version, uint32_t *out_compatible_version)
 {
-    WT_DECL_RET;
     WT_DISAGG_CHECKPOINT_META ckpt_meta;
 
     /* Set default test value */
@@ -3283,13 +3282,13 @@ __ut_disagg_validate_checkpoint_meta_version(WT_SESSION_IMPL *session, const cha
     memset(&ckpt_meta, 0, sizeof(ckpt_meta));
 
     /* Call the main version check function */
-    WT_TRET(__disagg_check_meta_version(session, meta_str, &ckpt_meta));
+    WT_RET(__disagg_check_meta_version(session, meta_str, &ckpt_meta));
 
     /* Return parsed values */
     *out_version = ckpt_meta.version;
     *out_compatible_version = ckpt_meta.compatible_version;
 
-    return (ret);
+    return (0);
 }
 
 void
