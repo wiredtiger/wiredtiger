@@ -194,19 +194,16 @@ class test_layered27(wttest.WiredTigerTestCase):
         session_follow.create(self.uri, "key_format=S,value_format=S")
         cursor = session_follow.open_cursor(self.uri)
 
-        def set_txn_ts(ts):
-            session_follow.commit_transaction(f'commit_timestamp={self.timestamp_str(ts)}')
-
         # 1. Insert the key at T1.
         session_follow.begin_transaction()
         cursor[key] = str(ts1)
-        set_txn_ts(ts1)
+        session_follow.commit_transaction(f'commit_timestamp={self.timestamp_str(ts1)}')
 
         # 2. Delete the key at T2.
         session_follow.begin_transaction()
         cursor.set_key(key)
         cursor.remove()
-        set_txn_ts(ts2)
+        session_follow.commit_transaction(f'commit_timestamp={self.timestamp_str(ts2)}')
 
         # 3. Start inserting the key again.
         session_follow.begin_transaction()
@@ -217,16 +214,17 @@ class test_layered27(wttest.WiredTigerTestCase):
         cursor.remove()
 
         # 5. Commit that transaction at T3.
-        set_txn_ts(ts3)
+        session_follow.commit_transaction(f'commit_timestamp={self.timestamp_str(ts3)}')
 
         # 6. Insert the key at T4.
         session_follow.begin_transaction()
         cursor[key] = str(ts4)
-        set_txn_ts(ts4)
+        session_follow.commit_transaction(f'commit_timestamp={self.timestamp_str(ts4)}')
 
+        # 7. Insert the key again at T5.
         session_follow.begin_transaction()
         cursor[key] = str(ts5)
-        set_txn_ts(ts5)
+        session_follow.commit_transaction(f'commit_timestamp={self.timestamp_str(ts5)}')
 
         cursor.close()
 
@@ -234,14 +232,14 @@ class test_layered27(wttest.WiredTigerTestCase):
         self.conn.reconfigure('disaggregated=(role="follower")')
         self.conn.close()
 
-        # 7. Step up: promote the follower connection to leader so ingest state drains.
+        # 8. Step up: promote the follower connection to leader so ingest state drains.
         conn_follow.reconfigure('disaggregated=(role="leader")')
 
-        # 8. Make T5 stable on the stepped-up connection.
+        # 9. Make T5 stable on the stepped-up connection.
         ts5_str = self.timestamp_str(ts5)
         conn_follow.set_timestamp(f'stable_timestamp={ts5_str}')
 
-        # 9. Checkpoint to drain the ingest table into the base table.
+        # 10. Checkpoint to drain the ingest table into the base table.
         session_follow.checkpoint()
 
         # End of test.
