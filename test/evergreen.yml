@@ -16,7 +16,7 @@ post:
   - func: "upload test/format config"
   - func: "upload test/model workloads"
   - func: "dump stderr/stdout"
-  - func: "upload artifact"
+  - func: "upload stat artifacts"
     vars:
       postfix: -${execution}
   - func: "save wt hang analyzer core/debugger files"
@@ -1216,6 +1216,15 @@ functions:
         content_type: application/tar
         display_name: WT_TEST
         remote_file: wiredtiger/${endian_format}/${revision}/artifacts/${remote_file}
+  "upload stat artifacts":
+    - command: shell.exec
+      params:
+        working_dir: "wiredtiger/cmake_build"
+        shell: bash
+        script: |
+          set -o errexit
+          set -o verbose
+          ${python_binary|python3} ../test/evergreen/pack_and_upload_stat_files.py -s ${aws_secret} -k ${aws_key} -r wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}
   "cleanup":
     command: shell.exec
     type: setup
