@@ -1017,8 +1017,8 @@ err:
  *     Process the metadata entries stored in the shared metadata table for a new checkpoint.
  */
 static int
-__disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *internal_session,
-  WT_CURSOR *md_cursor, const WT_DISAGG_CHECKPOINT_META *ckpt_meta)
+__disagg_apply_checkpoint_meta(
+  WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, const WT_DISAGG_CHECKPOINT_META *ckpt_meta)
 {
     WT_CONFIG_ITEM cval;
     WT_CURSOR *cursor;
@@ -1036,12 +1036,15 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     layered_ingest_uri = cfg_ret = NULL;
     existing_tables = new_tables = new_ingest = 0;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
     /*
      * Throw away any references to the old disaggregated metadata table. This ensures that we are
      * on the most recent checkpoint from now on.
      */
-    WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI),
-      "Removing old references to disagg tables failed: \"%s\"", WT_DISAGG_METADATA_URI);
+    WT_WITHOUT_DHANDLE(session, ret = __wti_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI));
+    WT_ERR_MSG_CHK(session, ret, "Removing old references to disagg tables failed: \"%s\"",
+      WT_DISAGG_METADATA_URI);
 
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Processing new disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
@@ -1118,8 +1121,10 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
              */
             if (!same_checkpoint) {
                 WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", metadata_key, checkpoint_name));
-                WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, old_uri_buf->data),
-                  "Marking data handles outdated failed: \"%s\"", (const char *)old_uri_buf->data);
+                WT_WITHOUT_DHANDLE(
+                  session, ret = __wti_conn_dhandle_outdated(session, old_uri_buf->data));
+                WT_ERR_MSG_CHK(session, ret, "Marking data handles outdated failed: \"%s\"",
+                  (const char *)old_uri_buf->data);
             }
             /*
              * Mark all live btrees as outdated. Otherwise, we will not open a new dhandle for live
@@ -1127,8 +1132,9 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
              *
              * TODO: This is better done at step-up or step-down to force close all live btrees.
              */
-            WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, metadata_key),
-              "Marking data handles outdated failed: \"%s\"", (const char *)metadata_key);
+            WT_WITHOUT_DHANDLE(session, ret = __wti_conn_dhandle_outdated(session, metadata_key));
+            WT_ERR_MSG_CHK(session, ret, "Marking data handles outdated failed: \"%s\"",
+              (const char *)metadata_key);
             __wt_free(session, cfg_ret);
             __wt_free(session, checkpoint_name);
             __wt_free(session, checkpoint_name_new);
@@ -1148,7 +1154,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
                     if (ret == WT_NOTFOUND) {
                         WT_ERR_MSG_CHK(session,
                           __layered_create_missing_ingest_table(
-                            internal_session, layered_ingest_uri, metadata_value),
+                            session, layered_ingest_uri, metadata_value),
                           "Failed to create missing ingest table \"%s\" from \"%s\"",
                           layered_ingest_uri, metadata_value);
                         new_ingest++;
@@ -1240,7 +1246,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_DECL_RET;
     WT_DISAGG_METADATA metadata;
     WT_ITEM metadata_buf;
-    WT_SESSION_IMPL *internal_session, *shared_metadata_session;
+    WT_SESSION_IMPL *internal_session;
     uint64_t current_meta_lsn;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
@@ -1309,11 +1315,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      * Part 2: Apply the metadata for other tables from the shared metadata table. FIXME-WT-16528
      * Investigate whether we need a separate internal session to pick up the new checkpoint.
      */
-    WT_ERR(__wt_open_internal_session(
-      conn, "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
-    ret = __disagg_apply_checkpoint_meta(
-      shared_metadata_session, internal_session, md_cursor, ckpt_meta);
-    WT_TRET(__wt_session_close_internal(shared_metadata_session));
+    WT_WITH_SCHEMA_LOCK(internal_session,
+      ret = __disagg_apply_checkpoint_meta(internal_session, md_cursor, ckpt_meta));
     WT_ERR(ret);
 
     /*
