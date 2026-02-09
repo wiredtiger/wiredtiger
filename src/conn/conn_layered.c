@@ -3272,14 +3272,18 @@ int
 __ut_disagg_validate_checkpoint_meta_version(WT_SESSION_IMPL *session, const char *meta_str,
   uint32_t *out_version, uint32_t *out_compatible_version)
 {
+    WT_DECL_RET;
     WT_DISAGG_CHECKPOINT_META ckpt_meta;
-    int ret;
+
+    /* Set default test value */
+    *out_version = 0;
+    *out_compatible_version = 0;
 
     /* Initialize struct with defaults */
     memset(&ckpt_meta, 0, sizeof(ckpt_meta));
 
     /* Call the main version check function */
-    ret = __disagg_check_meta_version(session, meta_str, &ckpt_meta);
+    WT_RET(__disagg_check_meta_version(session, meta_str, &ckpt_meta));
 
     /* Return parsed values */
     *out_version = ckpt_meta.version;
