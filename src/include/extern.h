@@ -547,7 +547,13 @@ extern int __wt_debug_btree_cursor_tree_hs(void *cursor_arg, const char *ofile)
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_cursor_page(void *cursor_arg, const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE(
   (visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
+    WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_layered_cursor_page(void *cursor_arg, const char *ofile)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
+    WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_debug_layered_cursor_tree_hs(void *cursor_arg, const char *ofile)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_offset(WT_SESSION_IMPL *session, wt_off_t offset, uint32_t size,

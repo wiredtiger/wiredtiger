@@ -2322,3 +2322,20 @@ __wt_debug_layered_cursor_page(void *cursor_arg, const char *ofile)
 
     return (0);
 }
+
+/*
+ * __wt_debug_layered_cursor_tree_hs --
+ *     Dump the in-memory information for a cursor-referenced tree's history store page.
+ */
+int
+__wt_debug_layered_cursor_tree_hs(void *cursor_arg, const char *ofile)
+  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+{
+    const WT_CURSOR *cursor = (const WT_CURSOR *)cursor_arg;
+    WT_UNUSED(ofile);
+
+    __wt_verbose_debug1(
+      CUR2S(cursor), WT_VERB_DEFAULT, "%s: unsupported cursor type for debug dump", cursor->uri);
+
+    return (0);
+}
