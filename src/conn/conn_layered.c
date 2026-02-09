@@ -3283,7 +3283,7 @@ __ut_disagg_validate_checkpoint_meta_version(WT_SESSION_IMPL *session, const cha
     memset(&ckpt_meta, 0, sizeof(ckpt_meta));
 
     /* Call the main version check function */
-    WT_RET(__disagg_check_meta_version(session, meta_str, &ckpt_meta));
+    WT_TRET(__disagg_check_meta_version(session, meta_str, &ckpt_meta));
 
     /* Return parsed values */
     *out_version = ckpt_meta.version;
