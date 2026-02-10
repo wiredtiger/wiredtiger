@@ -32,7 +32,7 @@ import re
 import tarfile
 
 def targz_pack_stat_files(destination_dir, source_dir, regex):
-    target = os.path.join(destination_dir, source_dir[2:].replace("/", ".") + ".tar.gz")
+    target = os.path.join(destination_dir, source_dir[2:].replace("/", "\\") + "\WiredTigerStats.tar.gz")
     with tarfile.open(target, "w:gz") as tar:
         for root, dirs, files in os.walk(source_dir):
             for file in files:

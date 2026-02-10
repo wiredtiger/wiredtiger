@@ -531,7 +531,7 @@ functions:
         permissions: public-read
         content_type: application/tar
         remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}/
-        display_name: "Compressed statistics "
+        display_name: "FTDC - "
 
   "run data validation stress test checkpoint":
     - *fetch_artifacts
