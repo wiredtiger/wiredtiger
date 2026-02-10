@@ -874,12 +874,8 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
 static WT_INLINE wt_timestamp_t
 __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
-    WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t checkpoint_ts, pinned_stable_ts;
-
-    conn = S2C(session);
-    txn_global = &conn->txn_global;
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_TXN_GLOBAL *txn_global = &conn->txn_global;
 
     /*
      * There is no need to go further if no stable timestamp has been set yet.
@@ -894,7 +890,8 @@ __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session)
      * disaggregated_stable_ts. If the checkpoint timestamp is 110 and the second time we read the
      * global stable timestamp as 120, we will return 120 instead of the checkpoint timestamp 110.
      */
-    pinned_stable_ts = __wt_atomic_load_uint64_acquire(&txn_global->stable_timestamp);
+    wt_timestamp_t pinned_stable_ts =
+      __wt_atomic_load_uint64_acquire(&txn_global->stable_timestamp);
     if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
         return (pinned_stable_ts);
 
@@ -904,7 +901,8 @@ __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session)
      * data being pinned. If a checkpoint is starting and we have to use the checkpoint timestamp,
      * we take the minimum of it with the stable timestamp, which is what we want.
      */
-    checkpoint_ts = __wt_tsan_suppress_load_uint64(&txn_global->checkpoint_timestamp);
+    wt_timestamp_t checkpoint_ts =
+      __wt_tsan_suppress_load_uint64(&txn_global->checkpoint_timestamp);
     if (checkpoint_ts != WT_TS_NONE && checkpoint_ts < pinned_stable_ts)
         return (checkpoint_ts);
     return (pinned_stable_ts);
