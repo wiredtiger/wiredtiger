@@ -58,5 +58,8 @@ def main():
 
                 break
 
+    with tarfile.open(destination_dir + ".tar.gz", "w:gz") as tar:
+        tar.add(destination_dir, arcname=os.path.basename(destination_dir))
+
 if __name__ == "__main__":
     main()
