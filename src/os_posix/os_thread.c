@@ -21,21 +21,28 @@ __thread_set_name(WT_SESSION_IMPL *session, uint32_t thread_num, pthread_t threa
 {
     char short_name[WT_THREAD_NAME_MAX_LEN] = {0}, thread_name[WT_THREAD_NAME_MAX_LEN] = {0};
 
-    if (session != NULL && session->name != NULL) {
-        if (thread_num == 0)
-            strncpy(thread_name, session->name, WT_THREAD_NAME_MAX_LEN);
-        else {
-            strncpy(short_name, session->name, WT_THREAD_NAME_MAX_LEN - 4);
+    if (session == NULL)
+        return (0);
 
-            if (thread_num < 100)
-                WT_RET(__wt_snprintf(
-                  thread_name, WT_THREAD_NAME_MAX_LEN, "%s %" PRIu32, short_name, thread_num));
-            else
-                WT_RET(__wt_snprintf(thread_name, WT_THREAD_NAME_MAX_LEN, "%s ++", short_name));
-        }
-        thread_name[WT_THREAD_NAME_MAX_LEN - 1] = '\0';
-        WT_RET(pthread_setname_np(thread_id, thread_name));
+    const char *session_name = __wt_atomic_load_ptr_relaxed(&session->name);
+    if (session_name == NULL)
+        return (0);
+
+    if (thread_num == 0)
+        strncpy(thread_name, session_name, WT_THREAD_NAME_MAX_LEN);
+    else {
+        strncpy(short_name, session_name, WT_THREAD_NAME_MAX_LEN - 4);
+
+        if (thread_num < 100)
+            WT_RET(__wt_snprintf(
+              thread_name, WT_THREAD_NAME_MAX_LEN, "%s %" PRIu32, short_name, thread_num));
+        else
+            WT_RET(__wt_snprintf(thread_name, WT_THREAD_NAME_MAX_LEN, "%s ++", short_name));
     }
+
+    thread_name[WT_THREAD_NAME_MAX_LEN - 1] = '\0';
+    WT_RET(pthread_setname_np(thread_id, thread_name));
+
     return (0);
 }
 #endif
