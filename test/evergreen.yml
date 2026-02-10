@@ -16,9 +16,9 @@ post:
   - func: "upload test/format config"
   - func: "upload test/model workloads"
   - func: "dump stderr/stdout"
-  - func: "upload stat artifacts"
+  - func: "upload stat files"
     vars:
-      postfix: -${execution}
+      destination: packed_stat_files
   - func: "save wt hang analyzer core/debugger files"
   - func: "cleanup"
 timeout:
@@ -509,6 +509,29 @@ functions:
       content_type: text/plain
       remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}/
       preserve_path: true
+  "upload stat files":
+    - command: shell.exec
+      type: setup
+      params:
+        working_dir: "wiredtiger/cmake_build/test"
+        shell: bash
+        script: |
+          set -o errexit
+          set -o verbose
+          mkdir ${destination}
+          ${python_binary|python3} ../../test/evergreen/pack_stat_files.py -d ${destination}
+    - command: s3.put
+      type: setup
+      params:
+        aws_secret: ${aws_secret}
+        aws_key: ${aws_key}
+        local_files_include_filter:
+          - wiredtiger/cmake_build/test/${destination}/*.tar.gz
+        bucket: build_external
+        permissions: public-read
+        content_type: application/tar
+        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}/
+        display_name: "Compressed statistics "
 
   "run data validation stress test checkpoint":
     - *fetch_artifacts
@@ -1215,28 +1238,6 @@ functions:
         permissions: public-read
         content_type: application/tar
         display_name: WT_TEST
-        remote_file: wiredtiger/${endian_format}/${revision}/artifacts/${remote_file}
-  "upload stat artifacts":
-    - command: shell.exec
-      type: setup
-      params:
-        working_dir: "wiredtiger/cmake_build"
-        shell: bash
-        script: |
-          set -o errexit
-          set -o verbose
-          mkdir packed_stat_files
-          ${python_binary|python3} ../test/evergreen/pack_stat_files.py -d packed_stat_files
-    - command: s3.put
-      type: setup
-      params:
-        aws_secret: ${aws_secret}
-        aws_key: ${aws_key}
-        local_file: packed_stat_files.tar.gz
-        bucket: build_external
-        permissions: public-read
-        content_type: application/tar
-        display_name: packed_stat_files
         remote_file: wiredtiger/${endian_format}/${revision}/artifacts/${remote_file}
   "cleanup":
     command: shell.exec

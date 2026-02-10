@@ -31,7 +31,7 @@ import os
 import re
 import tarfile
 
-def targz_pack_stat_files(destination_dir,source_dir, regex):
+def targz_pack_stat_files(destination_dir, source_dir, regex):
     target = os.path.join(destination_dir, source_dir[2:].replace("/", ".") + ".tar.gz")
     with tarfile.open(target, "w:gz") as tar:
         for root, dirs, files in os.walk(source_dir):
@@ -57,9 +57,6 @@ def main():
                 targz_pack_stat_files(destination_dir, root, regex)
 
                 break
-
-    with tarfile.open(destination_dir + ".tar.gz", "w:gz") as tar:
-        tar.add(destination_dir, arcname=os.path.basename(destination_dir))
 
 if __name__ == "__main__":
     main()
