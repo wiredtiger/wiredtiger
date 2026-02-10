@@ -182,6 +182,9 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         size = (uint32_t)current->size;
         is_delta = (result != 0);
 
+        __wt_verbose(session, WT_VERB_VERIFY,
+          "Reading delta chain at position #%" PRId32 " for page_id %" PRIu64, result, page_id);
+
         /*
          * Do little- to big-endian handling early on.
          */
