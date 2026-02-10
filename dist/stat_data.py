@@ -396,6 +396,7 @@ conn_stats = [
     EvictStat('eviction_pages_queued_post_lru', 'pages queued for eviction post lru sorting'),
     EvictStat('eviction_pages_queued_urgent', 'pages queued for urgent eviction'),
     EvictStat('eviction_pages_queued_urgent_hs_dirty', 'pages queued for urgent eviction from history store due to high dirty content'),
+    EvictStat('eviction_pages_remaining_in_queue', 'pages already in queue when topping up'),
     EvictStat('eviction_queue_empty', 'eviction server candidate queue empty when topping up'),
     EvictStat('eviction_queue_not_empty', 'eviction server candidate queue not empty when topping up'),
     EvictStat('eviction_reentry_hs_eviction_milliseconds', 'total milliseconds spent inside reentrant history store evictions in a reconciliation', 'no_clear,no_scale,size'),
