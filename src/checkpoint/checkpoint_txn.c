@@ -1794,9 +1794,9 @@ err:
      * disaggregated storage, even if there were no other changes. Also check for any updated key
      * encryption information.
      */
-    num_meta_put = __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.num_meta_put);
     if (!failed && __wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
-      conn->disaggregated_storage.num_meta_put_at_ckpt_begin == num_meta_put &&
+      conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
+        conn->disaggregated_storage.num_meta_put &&
       ckpt_tmp_ts != conn->disaggregated_storage.last_checkpoint_timestamp) {
         if (conn->key_provider != NULL)
             WT_TRET(__wt_disagg_put_crypt_helper(session));
@@ -1814,8 +1814,8 @@ err:
      *
      * Ensure that turning off meta tracking worked.
      */
-    num_meta_put = __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.num_meta_put);
-    if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin < num_meta_put) {
+    if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin <
+      conn->disaggregated_storage.num_meta_put) {
         WT_ASSERT(session, ckpt_tmp_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
         if (__wt_disagg_advance_checkpoint(session, !failed && ret == 0) != 0)
             return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));
