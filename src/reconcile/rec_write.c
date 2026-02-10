@@ -698,7 +698,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->rec_start_oldest_id = __wt_txn_oldest_id(session);
 
     if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
-        __wt_txn_pinned_stable_timestamp(session, &r->rec_start_pinned_stable_ts);
+        r->rec_start_pinned_stable_ts = __wt_txn_pinned_stable_timestamp(session);
     else
         r->rec_start_pinned_stable_ts = WT_TS_NONE;
 
