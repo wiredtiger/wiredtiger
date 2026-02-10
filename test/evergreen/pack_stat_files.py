@@ -30,35 +30,23 @@ import argparse
 import os
 import re
 import tarfile
-import boto3
 
-def targz_pack_stat_files(source_dir, regex):
-    target = source_dir.replace("/", ".") + ".tar.gz"
+def targz_pack_stat_files(destination_dir,source_dir, regex):
+    target = os.path.join(destination_dir, source_dir[2:].replace("/", ".") + ".tar.gz")
     with tarfile.open(target, "w:gz") as tar:  
         for root, dirs, files in os.walk(source_dir):  
             for file in files:
                 if regex.match(file):
                     file_path = os.path.join(root, file)  
                     tar.add(file_path, arcname=os.path.relpath(file_path, source_dir))
-    return target
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-s', '--aws-secret', required=True, help='AWS secret access key')
-    parser.add_argument('-k', '--aws-key', required=True, help='AWS access key ID')
-    parser.add_argument('-r', '--remote-file-prefix', required=True, help='Path to the file\'s location in S3')
+    parser.add_argument('-d', '--destination-dir', required=True, help='Directory to store the packed stat files')
     args = parser.parse_args()
 
-    aws_secret = args.aws_secret
-    aws_key = args.aws_key
-    remote_file_prefix = args.remote_file_prefix
-
-    s3 = boto3.client(  
-        's3',  
-        aws_access_key_id=aws_key,  
-        aws_secret_access_key=aws_secret  
-    )  
+    destination_dir = args.destination_dir
 
     regex = re.compile(r'WiredTigerStat.*')
     for root, _, files in os.walk("."):
@@ -66,20 +54,12 @@ def main():
             if regex.match(file):
 
                 # If current directory contains any stat files, pack them all into a tar.gz (one archive per directory).
-                target = targz_pack_stat_files(root, regex)
-
-                # Upload the tar.gz to S3.
-                with open(target, "rb") as f:  
-                    s3.put_object(  
-                        Bucket="build_external",  
-                        Key=remote_file_prefix + "_" + target,  
-                        Body=f,  
-                        ACL="public-read",  
-                        ContentType="application/tar",  
-                        Metadata={"DisplayName": "Artifacts"} 
-                    )
+                targz_pack_stat_files(destination_dir, root, regex)
                     
                 break
+    
+    with tarfile.open(destination_dir + ".tar.gz", "w:gz") as tar:
+        tar.add(destination_dir, arcname=os.path.basename(destination_dir))
 
 if __name__ == "__main__":
     main()

@@ -1218,13 +1218,26 @@ functions:
         remote_file: wiredtiger/${endian_format}/${revision}/artifacts/${remote_file}
   "upload stat artifacts":
     - command: shell.exec
+      type: setup
       params:
         working_dir: "wiredtiger/cmake_build"
         shell: bash
         script: |
           set -o errexit
           set -o verbose
-          ${python_binary|python3} ../test/evergreen/pack_and_upload_stat_files.py -s ${aws_secret} -k ${aws_key} -r wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}
+          mkdir packed_stat_files
+          ${python_binary|python3} ../test/evergreen/pack_stat_files.py -d packed_stat_files
+    - command: s3.put
+      type: setup
+      params:
+        aws_secret: ${aws_secret}
+        aws_key: ${aws_key}
+        local_file: packed_stat_files.tar.gz
+        bucket: build_external
+        permissions: public-read
+        content_type: application/tar
+        display_name: packed_stat_files
+        remote_file: wiredtiger/${endian_format}/${revision}/artifacts/${remote_file}
   "cleanup":
     command: shell.exec
     type: setup
