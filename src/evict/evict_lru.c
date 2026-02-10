@@ -2092,6 +2092,45 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     return (target_pages);
 }
 
+
+/*
+ * __evict_skip_dirty_precise_checkpoint --
+ *     Check if a dirty page should be skipped because it would be pointless work in the context of
+ *     precise checkpoints.
+ */
+static WT_INLINE bool
+__evict_skip_dirty_precise_checkpoint(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    if (!F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT))
+        return (false);
+
+    /*
+     * Precise checkpoints mean that reconciliations with new content are just wasted work
+     * regardless of how much cache pressure there is. Always skip that work.
+     */
+    WT_BTREE *btree = S2BT(session);
+    wt_timestamp_t newest_commit_timestamp =
+      __wt_atomic_load_uint64_relaxed(&page->modify->newest_commit_timestamp);
+    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
+        wt_timestamp_t prune_timestamp =
+          __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
+        if (newest_commit_timestamp > prune_timestamp) {
+            WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp);
+            return (true);
+        }
+    } else {
+        wt_timestamp_t pinned_stable_ts = __wt_txn_pinned_stable_timestamp(session);
+        wt_timestamp_t rec_pinned_stable_timestamp =
+          __wt_atomic_load_uint64_relaxed(&page->modify->rec_pinned_stable_timestamp);
+        if (rec_pinned_stable_timestamp >= pinned_stable_ts ||
+                newest_commit_timestamp > pinned_stable_ts) {
+            WT_STAT_CONN_INCR(session, eviction_server_skip_pages_checkpoint_timestamp);
+            return (true);
+        }
+    }
+    return (false);
+}
+
 /*
  * __evict_skip_dirty_candidate --
  *     Check if eviction should skip the dirty page.
@@ -2127,23 +2166,6 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
       __wt_atomic_load_uint64_v_relaxed(&conn->txn_global.last_running)) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_pages_last_running);
         return (true);
-    } else if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
-        WT_BTREE *btree = S2BT(session);
-        wt_timestamp_t newest_commit_timestamp =
-          __wt_atomic_load_uint64_relaxed(&page->modify->newest_commit_timestamp);
-        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
-            wt_timestamp_t prune_timestamp =
-              __wt_atomic_load_uint64_relaxed(&btree->prune_timestamp);
-            if (newest_commit_timestamp > prune_timestamp) {
-                WT_STAT_CONN_INCR(session, eviction_server_skip_pages_prune_timestamp);
-                return (true);
-            }
-        } else {
-            if (newest_commit_timestamp > __wt_txn_pinned_stable_timestamp(session)) {
-                WT_STAT_CONN_INCR(session, eviction_server_skip_pages_checkpoint_timestamp);
-                return (true);
-            }
-        }
     }
 
     /*
@@ -2582,8 +2604,9 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
         }
     }
 
-    /* Evaluate dirty page candidacy, when eviction is not aggressive. */
-    if (!__wt_evict_aggressive(session) && modified && __evict_skip_dirty_candidate(session, page))
+    /* Evaluate dirty page candidacy. */
+    if (modified && (__evict_skip_dirty_precise_checkpoint(session, page) ||
+                (!__wt_evict_aggressive(session) && __evict_skip_dirty_candidate(session, page))))
         return;
 
 fast:

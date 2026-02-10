@@ -387,6 +387,12 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     /* Wrap up the page reconciliation. Panic on failure. */
     WT_ERR(__rec_write_wrapup(session, r));
     __rec_write_page_status(session, r);
+
+    /*
+     * Save the reconciliation's pinned stable timestamp to the page now that the reconciliation has
+     * completed successfully. Do this before releasing the page lock.
+     */
+    page->modify->rec_pinned_stable_timestamp = r->rec_start_pinned_stable_ts;
     WT_ERR(__reconcile_post_wrapup(session, r, page, flags, page_lockedp));
 
     /*
@@ -3036,6 +3042,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             if (r->multi->addr.block_cookie != NULL) {
                 __rec_set_updates_durable(session, r->multi);
                 mod->mod_replace = r->multi->addr;
+                mod->rec_pinned_stable_timestamp = r->rec_start_pinned_stable_ts;
                 r->multi->addr.block_cookie = NULL;
                 mod->mod_disk_image = r->multi->disk_image;
                 r->multi->disk_image = NULL;
@@ -3054,6 +3061,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &r->multi->addr.ta);
         }
 
+        /* Copy across the reconiliation pinned time for any replaced page */
+        if (mod != NULL)
+            mod->rec_pinned_stable_timestamp = r->rec_start_pinned_stable_ts;
         mod->rec_result = WT_PM_REC_REPLACE;
         break;
     default: /* Page split */
