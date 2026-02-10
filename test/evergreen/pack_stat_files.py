@@ -33,11 +33,11 @@ import tarfile
 
 def targz_pack_stat_files(destination_dir,source_dir, regex):
     target = os.path.join(destination_dir, source_dir[2:].replace("/", ".") + ".tar.gz")
-    with tarfile.open(target, "w:gz") as tar:  
-        for root, dirs, files in os.walk(source_dir):  
+    with tarfile.open(target, "w:gz") as tar:
+        for root, dirs, files in os.walk(source_dir):
             for file in files:
                 if regex.match(file):
-                    file_path = os.path.join(root, file)  
+                    file_path = os.path.join(root, file)
                     tar.add(file_path, arcname=os.path.relpath(file_path, source_dir))
 
 
@@ -55,9 +55,9 @@ def main():
 
                 # If current directory contains any stat files, pack them all into a tar.gz (one archive per directory).
                 targz_pack_stat_files(destination_dir, root, regex)
-                    
+
                 break
-    
+
     with tarfile.open(destination_dir + ".tar.gz", "w:gz") as tar:
         tar.add(destination_dir, arcname=os.path.basename(destination_dir))
 
