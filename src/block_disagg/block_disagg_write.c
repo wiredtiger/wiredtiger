@@ -258,11 +258,6 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
     cookie.base_lsn = block_meta->base_lsn;
     cookie.checksum = checksum;
 
-    if (strstr(S2BT(session)->dhandle->name, "file:test_disagg_ckpt_size03.wt_stable") &&
-      block_meta->delta_count == 0) {
-        printf("break here 5\n");
-    }
-
     /* Calculate the cumulative size and store it in cookie.size. */
     if (block_meta->delta_count == 0)
         cookie.size = size;

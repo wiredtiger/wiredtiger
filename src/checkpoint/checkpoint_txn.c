@@ -1745,9 +1745,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         db = conn->disaggregated_storage.database_size;
         delta = session->ckpt.ckpt_size_delta;
 
-        printf("Database size before: %" PRIu64 "\n", db);
-        printf("Delta: %" PRIi64 "\n", delta);
-
         if (delta > 0) {
             WT_ASSERT_ALWAYS(session, UINT64_MAX - db >= (uint64_t)delta,
               "Disaggregated storage database size too large");
@@ -1757,7 +1754,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
               session, db >= (uint64_t)(-delta), "Disaggregated storage database size too small");
             conn->disaggregated_storage.database_size = db - (uint64_t)(-delta);
         }
-        printf("Database size after: %" PRIu64 "\n", conn->disaggregated_storage.database_size);
     }
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 

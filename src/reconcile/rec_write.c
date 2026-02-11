@@ -2135,10 +2135,6 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     multi->block_meta->backlink_lsn = block_meta->disagg_lsn;
     ++multi->block_meta->delta_count;
 
-    if (strstr(S2BT(session)->dhandle->name, "file:test_disagg_ckpt_size03.wt_stable")) {
-        printf("break here 3\n");
-    }
-
     /* Get the checkpoint ID. */
     WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, chunk->image.size, addr,
       addr_sizep, compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
@@ -2964,11 +2960,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                      * the one on the multi->block_meta appears to be from the current block.
                      */
                     if (r->multi->block_meta != NULL && r->multi->block_meta->delta_count == 0) {
-                        if (strstr(btree->dhandle->name,
-                              "file:test_disagg_ckpt_size03.wt_stable")) {
-                            printf("break here 4\n");
-                        }
-                        printf("Not freeing block cookie\n");
+
 #ifdef HAVE_DIAGNOSTIC
                         /*
                          * The previous cookie has the size we want but it should be also the
