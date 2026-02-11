@@ -3207,11 +3207,14 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     session->reconcile_stats.hs_wrapup_next_prev_calls = 0;
 
     /*
-     * Sanity check: Can't insert updates into history store from the history store itself or from
-     * the metadata file.
+     * Sanity check: Can't insert updates into history store from the history store itself, the
+     * metadata file, or the disagg shared metadata file.
      */
-    WT_ASSERT_ALWAYS(session, !WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle),
-      "Attempting to write updates from the history store or metadata file into the history store");
+    WT_ASSERT_ALWAYS(session,
+      !WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle) &&
+        !WT_IS_DISAGG_META(btree->dhandle),
+      "Attempting to write updates from the history store, the metadata file, or the disagg shared "
+      "metadata file into the history store");
 
     /*
      * Delete the updates left in the history store by prepared rollback first before moving updates
