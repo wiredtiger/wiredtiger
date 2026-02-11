@@ -3259,6 +3259,7 @@ err:
     __wt_scr_free(session, &uri_buf);
     return (ret);
 }
+
 #ifdef HAVE_UNITTEST
 void
 __ut_disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt)
