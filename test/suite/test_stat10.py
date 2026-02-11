@@ -105,8 +105,7 @@ class test_stat10(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
     def test_tree_stats(self):
-        # FIXME-WT-16633: not working for both disagg and non-disagg mode.
-        self.skipTest("Need to re-enable after fixing WT-16633")
+        self.skipTest("FIXME-WT-16633: Re-enable the test once fixed")
         format = "key_format={},value_format={}".format(self.key_format, 'u')
         self.session.create(self.uri, format)
 
