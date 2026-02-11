@@ -70,8 +70,8 @@ __wti_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, ui
     WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
-    wt_timestamp_t tmp_read_ts, tmp_ts;
-    uint32_t i, session_cnt;
+    wt_timestamp_t old_ts, tmp_read_ts, tmp_ts;
+    uint32_t i, older_reader_cnt, session_cnt;
     bool include_oldest, txn_has_write_lock;
 
     conn = S2C(session);
@@ -88,7 +88,9 @@ __wti_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, ui
     if (!txn_has_write_lock)
         __wt_readlock(session, &txn_global->rwlock);
 
-    tmp_ts = include_oldest ? txn_global->oldest_timestamp : WT_TS_NONE;
+    older_reader_cnt = 0;
+    old_ts = txn_global->oldest_timestamp;
+    tmp_ts = include_oldest ? old_ts : WT_TS_NONE;
 
     /* Check for a running checkpoint */
     if (LF_ISSET(WT_TXN_TS_INCLUDE_CKPT) && txn_global->checkpoint_timestamp != WT_TS_NONE &&
@@ -104,6 +106,9 @@ __wti_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, ui
          */
         if (tmp_ts == WT_TS_NONE || (tmp_read_ts != WT_TS_NONE && tmp_read_ts < tmp_ts))
             tmp_ts = tmp_read_ts;
+
+        if (tmp_read_ts < old_ts)
+            older_reader_cnt++;
     }
 
     if (!txn_has_write_lock)
@@ -111,6 +116,7 @@ __wti_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, ui
 
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
+    WT_STAT_CONN_SET(session, txn_pinned_readers, older_reader_cnt);
 
     *tsp = tmp_ts;
 }

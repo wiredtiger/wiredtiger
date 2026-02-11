@@ -1337,6 +1337,8 @@ struct __wt_connection_stats {
     int64_t child_modify_blocked_page;
     int64_t page_split_restart;
     int64_t page_read_skip_deleted;
+    int64_t txn_global_checkpoint_timestamp;
+    int64_t txn_global_durable_timestamp;
     int64_t txn_prepared_updates;
     int64_t txn_prepared_updates_committed;
     int64_t txn_prepared_updates_key_repeated;
@@ -1386,6 +1388,13 @@ struct __wt_connection_stats {
     int64_t txn_set_ts_stable_upd;
     int64_t txn_begin;
     int64_t txn_hs_ckpt_duration;
+    int64_t txn_global_last_running_timestamp;
+    int64_t txn_global_newest_timestamp;
+    int64_t txn_global_oldest_timestamp;
+    int64_t txn_global_pinned_timestamp;
+    int64_t txn_global_stable_timestamp;
+    int64_t txn_global_version_timestamp;
+    int64_t txn_pinned_readers;
     int64_t txn_pinned_range;
     int64_t txn_pinned_checkpoint_range;
     int64_t txn_pinned_timestamp;

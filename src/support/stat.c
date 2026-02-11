@@ -2734,6 +2734,8 @@ static const char *const __stats_connection_desc[] = {
   "thread-yield: page reconciliation yielded due to child modification",
   "thread-yield: page split and restart read",
   "thread-yield: pages skipped during read due to deleted state",
+  "transaction:  transaction global checkpoint timestamp",
+  "transaction:  transaction global durable timestamp",
   "transaction: Number of prepared updates",
   "transaction: Number of prepared updates committed",
   "transaction: Number of prepared updates repeated on the same key",
@@ -2789,6 +2791,13 @@ static const char *const __stats_connection_desc[] = {
   "transaction: set timestamp stable updates",
   "transaction: transaction begins",
   "transaction: transaction checkpoint history store file duration (usecs)",
+  "transaction: transaction global last running timestamp",
+  "transaction: transaction global newest timestamp",
+  "transaction: transaction global oldest timestamp",
+  "transaction: transaction global pinned timestamp",
+  "transaction: transaction global stable timestamp",
+  "transaction: transaction global version cursor pinned timestamp",
+  "transaction: transaction number of older readers older than oldest timestamp",
   "transaction: transaction range of IDs currently pinned",
   "transaction: transaction range of IDs currently pinned by a checkpoint",
   "transaction: transaction range of timestamps currently pinned",
@@ -3756,6 +3765,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->child_modify_blocked_page = 0;
     stats->page_split_restart = 0;
     stats->page_read_skip_deleted = 0;
+    /* not clearing txn_global_checkpoint_timestamp */
+    /* not clearing txn_global_durable_timestamp */
     stats->txn_prepared_updates = 0;
     stats->txn_prepared_updates_committed = 0;
     stats->txn_prepared_updates_key_repeated = 0;
@@ -3805,6 +3816,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_set_ts_stable_upd = 0;
     stats->txn_begin = 0;
     stats->txn_hs_ckpt_duration = 0;
+    /* not clearing txn_global_last_running_timestamp */
+    /* not clearing txn_global_newest_timestamp */
+    /* not clearing txn_global_oldest_timestamp */
+    /* not clearing txn_global_pinned_timestamp */
+    /* not clearing txn_global_stable_timestamp */
+    /* not clearing txn_global_version_timestamp */
+    /* not clearing txn_pinned_readers */
     /* not clearing txn_pinned_range */
     /* not clearing txn_pinned_checkpoint_range */
     /* not clearing txn_pinned_timestamp */
@@ -4995,6 +5013,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->child_modify_blocked_page += WT_STAT_CONN_READ(from, child_modify_blocked_page);
     to->page_split_restart += WT_STAT_CONN_READ(from, page_split_restart);
     to->page_read_skip_deleted += WT_STAT_CONN_READ(from, page_read_skip_deleted);
+    to->txn_global_checkpoint_timestamp += WT_STAT_CONN_READ(from, txn_global_checkpoint_timestamp);
+    to->txn_global_durable_timestamp += WT_STAT_CONN_READ(from, txn_global_durable_timestamp);
     to->txn_prepared_updates += WT_STAT_CONN_READ(from, txn_prepared_updates);
     to->txn_prepared_updates_committed += WT_STAT_CONN_READ(from, txn_prepared_updates_committed);
     to->txn_prepared_updates_key_repeated +=
@@ -5048,6 +5068,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_set_ts_stable_upd += WT_STAT_CONN_READ(from, txn_set_ts_stable_upd);
     to->txn_begin += WT_STAT_CONN_READ(from, txn_begin);
     to->txn_hs_ckpt_duration += WT_STAT_CONN_READ(from, txn_hs_ckpt_duration);
+    to->txn_global_last_running_timestamp +=
+      WT_STAT_CONN_READ(from, txn_global_last_running_timestamp);
+    to->txn_global_newest_timestamp += WT_STAT_CONN_READ(from, txn_global_newest_timestamp);
+    to->txn_global_oldest_timestamp += WT_STAT_CONN_READ(from, txn_global_oldest_timestamp);
+    to->txn_global_pinned_timestamp += WT_STAT_CONN_READ(from, txn_global_pinned_timestamp);
+    to->txn_global_stable_timestamp += WT_STAT_CONN_READ(from, txn_global_stable_timestamp);
+    to->txn_global_version_timestamp += WT_STAT_CONN_READ(from, txn_global_version_timestamp);
+    to->txn_pinned_readers += WT_STAT_CONN_READ(from, txn_pinned_readers);
     to->txn_pinned_range += WT_STAT_CONN_READ(from, txn_pinned_range);
     to->txn_pinned_checkpoint_range += WT_STAT_CONN_READ(from, txn_pinned_checkpoint_range);
     to->txn_pinned_timestamp += WT_STAT_CONN_READ(from, txn_pinned_timestamp);

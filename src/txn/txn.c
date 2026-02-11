@@ -2330,9 +2330,12 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     durable_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->durable_timestamp);
     oldest_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp);
     pinned_timestamp = txn_global->pinned_timestamp;
+
     if (checkpoint_timestamp != WT_TS_NONE && checkpoint_timestamp < pinned_timestamp)
         pinned_timestamp = checkpoint_timestamp;
-    WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp, durable_timestamp - pinned_timestamp);
+
+    /* Represent the lag of the pinned timestamp with respect to the oldest timestamp.*/
+    WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp, oldest_timestamp - pinned_timestamp);
     WT_STATP_CONN_SET(
       session, stats, txn_pinned_timestamp_checkpoint, durable_timestamp - checkpoint_timestamp);
     WT_STATP_CONN_SET(
@@ -2345,9 +2348,25 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     } else {
         WT_STATP_CONN_SET(
           session, stats, txn_timestamp_oldest_active_read, oldest_active_read_timestamp);
+        /* Represent the lag of the oldest reader timestamp with respect to the oldest timestamp.*/ 
         WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_reader,
-          durable_timestamp - oldest_active_read_timestamp);
+          oldest_timestamp - oldest_active_read_timestamp);
     }
+
+    /* Fetch the global timestamp values for debugging purposes.*/
+    WT_STAT_CONN_SET(session, txn_global_checkpoint_timestamp, checkpoint_timestamp);
+    WT_STAT_CONN_SET(session, txn_global_durable_timestamp, &txn_global->durable_timestamp);
+    WT_STAT_CONN_SET(session, txn_global_last_running_timestamp, oldest_active_read_timestamp);
+    WT_STAT_CONN_SET(session, txn_global_newest_timestamp, &txn_global->newest_seen_timestamp);
+    WT_STAT_CONN_SET(session, txn_global_oldest_timestamp, oldest_timestamp);
+    WT_STAT_CONN_SET(session, txn_global_pinned_timestamp, pinned_timestamp);
+    WT_STAT_CONN_SET(session, txn_global_stable_timestamp, &txn_global->stable_timestamp);
+
+    if (conn->version_cursor_count == 0)
+        WT_STAT_CONN_SET(session, txn_global_version_timestamp, WT_TS_NONE);
+    else
+        WT_STAT_CONN_SET(
+          session, txn_global_version_timestamp, &txn_global->version_cursor_pinned_timestamp);
 
     WT_STATP_CONN_SET(session, stats, txn_pinned_checkpoint_range,
       checkpoint_pinned == WT_TXN_NONE ?
