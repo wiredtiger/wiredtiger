@@ -2963,17 +2963,27 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                      * the one held on page->disagg_info appears to be from the previous block, and
                      * the one on the multi->block_meta appears to be from the current block.
                      */
-                    if (r->multi->block_meta != NULL &&
-                      r->multi->block_meta->delta_count == 0) {
-                        if (strstr(S2BT(session)->dhandle->name, "file:test_disagg_ckpt_size03.wt_stable")) {
+                    if (r->multi->block_meta != NULL && r->multi->block_meta->delta_count == 0) {
+                        if (strstr(btree->dhandle->name,
+                              "file:test_disagg_ckpt_size03.wt_stable")) {
                             printf("break here 4\n");
                         }
                         printf("Not freeing block cookie\n");
+#ifdef HAVE_DIAGNOSTIC
+                        /*
+                         * The previous cookie has the size we want but it should be also the
+                         * previous cumulative size. Sanity check this is the case in diagnostics
+                         * build.
+                         */
                         WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
                         const uint8_t *buf = mod->mod_replace.block_cookie;
-                        WT_RET(__wti_block_disagg_addr_unpack(
+                        WT_RET(__wt_block_disagg_addr_unpack(
                           session, &buf, mod->mod_replace.block_cookie_size, &cookie));
-                        __wt_btree_decrease_size(session, cookie.size);
+                        WT_ASSERT(
+                          session, cookie.size == page->disagg_info->block_meta.cumulative_size);
+#endif
+                        __wt_btree_decrease_size(
+                          session, page->disagg_info->block_meta.cumulative_size);
                     }
                 }
             }

@@ -258,7 +258,8 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
     cookie.base_lsn = block_meta->base_lsn;
     cookie.checksum = checksum;
 
-    if (strstr(S2BT(session)->dhandle->name, "file:test_disagg_ckpt_size03.wt_stable") && block_meta->delta_count == 0) {
+    if (strstr(S2BT(session)->dhandle->name, "file:test_disagg_ckpt_size03.wt_stable") &&
+      block_meta->delta_count == 0) {
         printf("break here 5\n");
     }
 
@@ -288,7 +289,7 @@ __wti_block_disagg_page_discard(
 {
     /* Crack the cookie. */
     WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
-    WT_RET(__wti_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
+    WT_RET(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
 
     __wt_verbose(session, WT_VERB_BLOCK,
       "block free: page_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64 ", base_lsn %" PRIu64

@@ -53,7 +53,7 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
         mc.close()
         return size
 
-    @unittest.skip("Skipping test_bytes_total_leak")   
+    @unittest.skip("Skipping test_bytes_total_leak")
     def test_bytes_total_leak(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         nrows = 1
@@ -98,17 +98,17 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
         # Report what type of writes occurred
         self.pr(f"Total: {delta_count} deltas, {full_page_count} full pages written")
 
-        # The data volume hasn't changed — same nrows, same val_size.
+        # The data volume hasn't changed  same nrows, same val_size.
         # The checkpoint size should stay near the baseline, not grow to ~3x.
         self.pr(f"Final: {final}, Baseline: {baseline}, multiple of baseline: {final/baseline:.1f}x")
         self.assertLess(final, baseline * 2,
             f"bytes_total is leaking: baseline={baseline}, after 3 rewrite cycles={final} "
             f"({final/baseline:.1f}x). Old disagg page blocks are not being freed during "
-            f"single-page reconciliation — see disagg_page_free_required in rec_write.c "
+            f"single-page reconciliation  see disagg_page_free_required in rec_write.c "
             f"and disagg_free_block in __wt_ref_block_free().")
 
 
-    def test_bytes_total_leak_delta(self):  
+    def test_bytes_total_leak_delta(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
         # Write initial page with multiple keys
@@ -126,7 +126,7 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
         total_full_pages = 0
         sizes = [baseline]
         expected_table_size = 0
-        prev_full_pages = 0 
+        prev_full_pages = 0
         cur_deltas = 0
 
         # Multiple iterations: first create deltas, then force full page writes
@@ -152,7 +152,7 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
             else:
                 cur_deltas += 1
 
-            
+
             expected_table_size = baseline * (cur_deltas + 1)
             total_full_pages = cycle_full_pages
             self.pr(f"Expected delta size: {expected_table_size} & cycle_deltas: {cycle_deltas}")
@@ -160,7 +160,7 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
 
             current_size = self.get_checkpoint_size()
             sizes.append(current_size)
-            
+
             self.pr(f"Cycle {cycle}: deltas={cycle_deltas}, full_pages={cycle_full_pages}, size={current_size}")
             prev_full_pages = cycle_full_pages
 
@@ -182,7 +182,7 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
         self.assertGreater(total_deltas, 0, "No deltas were created during test")
 
 
-    @unittest.skip("Skipping test_bytes_total_leak_delta_normal_ops")   
+    @unittest.skip("Skipping test_bytes_total_leak_delta_normal_ops")
     def test_bytes_total_leak_delta_normal_ops(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
