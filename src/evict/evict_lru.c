@@ -670,7 +670,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_EVICT *evict;
-    double dirty_target, dirty_trigger, target, trigger, updates_target, updates_trigger;
+    double dirty_target, dirty_trigger, target, trigger, updates_target;
     uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, total_dirty, total_inmem,
       total_updates;
     uint32_t flags, hs_id;
@@ -684,7 +684,6 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     target = evict->eviction_target;
     trigger = evict->eviction_trigger;
     updates_target = evict->eviction_updates_target;
-    updates_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger);
 
     /* Build up the new state. */
     flags = 0;
