@@ -307,7 +307,7 @@ __wt_btree_set_size(WT_SESSION_IMPL *session, uint64_t size)
 static WT_INLINE void
 __wt_btree_increase_size(WT_SESSION_IMPL *session, uint64_t size)
 {
-    if (strstr(S2BT(session)->dhandle->name, "file:WiredTigerShared.wt_stable")) {
+    if (strstr(S2BT(session)->dhandle->name, "file:test_disagg_ckpt_size03.wt_stable")) {
         printf("break here 2\n");
     }
     printf("Increasing btree %s by %" PRIu64 "\n", S2BT(session)->dhandle->name, size);
@@ -321,7 +321,7 @@ __wt_btree_increase_size(WT_SESSION_IMPL *session, uint64_t size)
 static WT_INLINE void
 __wt_btree_decrease_size(WT_SESSION_IMPL *session, uint64_t size)
 {
-    if (strstr(S2BT(session)->dhandle->name, "file:WiredTigerShared.wt_stable")) {
+    if (strstr(S2BT(session)->dhandle->name, "file:test_disagg_ckpt_size03.wt_stable")) {
         printf("break here\n");
     }
     printf("Decreasing btree %s by %" PRIu64 "\n", S2BT(session)->dhandle->name, size);

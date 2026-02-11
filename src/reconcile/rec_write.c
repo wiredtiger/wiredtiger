@@ -2135,6 +2135,10 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     multi->block_meta->backlink_lsn = block_meta->disagg_lsn;
     ++multi->block_meta->delta_count;
 
+    if (strstr(S2BT(session)->dhandle->name, "file:test_disagg_ckpt_size03.wt_stable")) {
+        printf("break here 3\n");
+    }
+
     /* Get the checkpoint ID. */
     WT_RET(__wt_blkcache_write(session, &r->delta, multi->block_meta, chunk->image.size, addr,
       addr_sizep, compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
@@ -2950,12 +2954,20 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                       session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                     page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
                 } else {
-                    /* Because we are tracking cookie sizes cumulatively, we only decrease the size
-                     * if the page being written is a full page image.
-                     * This would indicate the delta chain has ended.
+                    /*
+                     * Because we are tracking cookie sizes cumulatively, we only decrease the size
+                     * if the page being written is a full page image. This would indicate the delta
+                     * chain has ended.
+                     *
+                     * Interestingly we need to make sure we utilize the newest block meta structure
+                     * the one held on page->disagg_info appears to be from the previous block, and
+                     * the one on the multi->block_meta appears to be from the current block.
                      */
-                    if (page->disagg_info != NULL &&
-                      page->disagg_info->block_meta.delta_count == 0) {
+                    if (r->multi->block_meta != NULL &&
+                      r->multi->block_meta->delta_count == 0) {
+                        if (strstr(S2BT(session)->dhandle->name, "file:test_disagg_ckpt_size03.wt_stable")) {
+                            printf("break here 4\n");
+                        }
                         printf("Not freeing block cookie\n");
                         WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
                         const uint8_t *buf = mod->mod_replace.block_cookie;

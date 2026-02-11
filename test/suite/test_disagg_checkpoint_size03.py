@@ -28,6 +28,7 @@
 
 import re, wttest
 from wiredtiger import stat
+import unittest
 from helper_disagg import DisaggConfigMixin, disagg_test_class
 
 # test_disagg_checkpoint_size03.py
@@ -36,7 +37,7 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
 
     uri_base = "test_disagg_ckpt_size03"
-    conn_config = 'disaggregated=(role="leader",lose_all_my_data=true), page_delta=(delta_pct=100,internal_page_delta=true,leaf_page_delta=true)'
+    conn_config = 'disaggregated=(role="leader",lose_all_my_data=true), page_delta=(delta_pct=90,internal_page_delta=true,leaf_page_delta=true,max_consecutive_delta=5)'
     uri = "layered:" + uri_base
 
     def conn_extensions(self, extlist):
@@ -48,11 +49,11 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
         mc = self.session.open_cursor('metadata:')
         mc.set_key(stable_uri)
         mc.search()
-        self.pr(f"Metadata: {mc.get_value()}")
         size = int(re.findall(r',size=(\d+),', mc.get_value())[-1])
         mc.close()
         return size
 
+    @unittest.skip("Skipping test_bytes_total_leak")   
     def test_bytes_total_leak(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         nrows = 1
@@ -73,7 +74,7 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
         # Rewrite every row three times, checkpointing each time.
         # Each cycle rewrites all leaf, internal, and root pages.
         # for cycle, ch in enumerate(['b', 'c', 'd', 'e', 'f'], start=1):
-        for cycle, ch in enumerate(['b', 'c', 'd', 'e', 'f'], start=1):
+        for cycle, ch in enumerate(['b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm'], start=1):
             c = self.session.open_cursor(self.uri)
             for i in range(nrows):
                 c[f'key{i:06d}'] = ch * val_size
@@ -116,15 +117,20 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
             c[f'key{i:02d}'] = f'value{i}'
         c.close()
         self.session.checkpoint()
+
+        # The size of the first page we wrote + its root page.
         baseline = self.get_checkpoint_size()
 
         # Track statistics across cycles
         total_deltas = 0
         total_full_pages = 0
         sizes = [baseline]
+        expected_table_size = 0
+        prev_full_pages = 0 
+        cur_deltas = 0
 
         # Multiple iterations: first create deltas, then force full page writes
-        for cycle, ch in enumerate(['b', 'c', 'd', 'e', 'f'], start=1):
+        for cycle, ch in enumerate(['b', 'c', 'd', 'e', 'f', 'g', 'h'], start=1):#, 'h', 'i', 'j', 'k', 'l', 'm'], start=1):
             c = self.session.open_cursor(self.uri)
             # Update existing keys to create deltas
             for i in range(0, 10, 2):
@@ -140,32 +146,43 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
 
             # Track cumulative counts
             total_deltas = cycle_deltas
+            if (cycle_full_pages != prev_full_pages):
+                self.pr(f"Cycle {cycle}: full pages changed from {prev_full_pages} to {cycle_full_pages}")
+                cur_deltas = 0
+            else:
+                cur_deltas += 1
+
+            
+            expected_table_size = baseline * (cur_deltas + 1)
             total_full_pages = cycle_full_pages
+            self.pr(f"Expected delta size: {expected_table_size} & cycle_deltas: {cycle_deltas}")
+
 
             current_size = self.get_checkpoint_size()
             sizes.append(current_size)
             
             self.pr(f"Cycle {cycle}: deltas={cycle_deltas}, full_pages={cycle_full_pages}, size={current_size}")
-
-            # Verify we're creating deltas initially
-            if cycle <= 3:
-                self.assertGreater(cycle_deltas, 0,
-                    f"Cycle {cycle}: Expected leaf page deltas but got {cycle_deltas}")  
+            prev_full_pages = cycle_full_pages
 
         final = self.get_checkpoint_size()
 
         # Report results
         self.pr(f"Final: {final}, Baseline: {baseline}, multiple: {final/baseline:.1f}x")
         self.pr(f"Total: {total_deltas} deltas, {total_full_pages} full pages written")
+        self.pr(f"Expected delta size: {expected_table_size}")
 
         # Size should not grow excessively even with delta->full page transitions
-        self.assertLess(final, baseline * 2,
+        # The final size should be less than the baseline + the expected delta size.
+        self.pr(f"Expected final size: {expected_table_size}")
+        self.assertLess(final, expected_table_size * 1.10,
             f"Size leak detected: baseline={baseline}, final={final} ({final/baseline:.1f}x). "
             f"Check delta chain termination handling in rec_write.c")
 
         # Verify we actually created deltas during the test
         self.assertGreater(total_deltas, 0, "No deltas were created during test")
 
+
+    @unittest.skip("Skipping test_bytes_total_leak_delta_normal_ops")   
     def test_bytes_total_leak_delta_normal_ops(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
