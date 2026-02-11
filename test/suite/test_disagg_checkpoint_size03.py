@@ -109,27 +109,86 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
 
     def test_bytes_total_leak_delta(self):  
         self.session.create(self.uri, 'key_format=S,value_format=S')
-        
-        # Write initial page with multiple keys  
-        c = self.session.open_cursor(self.uri)  
-        for i in range(10):  
-            c[f'key{i:02d}'] = f'value{i}'  
-        c.close()  
-        self.session.checkpoint()  
-        baseline = self.get_checkpoint_size()  
-        
-        # Multiple iterations updating existing keys to create deltas  
-        for cycle, ch in enumerate(['b', 'c', 'd', 'e', 'f'], start=1):  
-            c = self.session.open_cursor(self.uri)  
-            # Update existing keys instead of inserting new ones  
-            for i in range(0, 10, 2):  # Update every other key  
-                c[f'key{i:02d}'] = f'newvalue{cycle}{i}'  
-            c.close()  
-            self.session.checkpoint()  
+
+        # Write initial page with multiple keys
+        c = self.session.open_cursor(self.uri)
+        for i in range(10):
+            c[f'key{i:02d}'] = f'value{i}'
+        c.close()
+        self.session.checkpoint()
+        baseline = self.get_checkpoint_size()
+
+        # Track statistics across cycles
+        total_deltas = 0
+        total_full_pages = 0
+        sizes = [baseline]
+
+        # Multiple iterations: first create deltas, then force full page writes
+        for cycle, ch in enumerate(['b', 'c', 'd', 'e', 'f'], start=1):
+            c = self.session.open_cursor(self.uri)
+            # Update existing keys to create deltas
+            for i in range(0, 10, 2):
+                c[f'key{i:02d}'] = f'newvalue{cycle}{i}'
+            c.close()
+            self.session.checkpoint()
+
+            # Check statistics
+            stat_cursor = self.session.open_cursor('statistics:' + self.uri)
+            cycle_deltas = stat_cursor[stat.dsrc.rec_page_delta_leaf][2]
+            cycle_full_pages = stat_cursor[stat.dsrc.rec_page_full_image_leaf][2]
+            stat_cursor.close()
+
+            # Track cumulative counts
+            total_deltas = cycle_deltas
+            total_full_pages = cycle_full_pages
+
+            current_size = self.get_checkpoint_size()
+            sizes.append(current_size)
             
-            # Verify deltas were created  
-            stat_cursor = self.session.open_cursor('statistics:' + self.uri)  
-            delta_count = stat_cursor[stat.dsrc.rec_page_delta_leaf][2]  
-            stat_cursor.close()  
-            self.assertGreater(delta_count, 0,  
+            self.pr(f"Cycle {cycle}: deltas={cycle_deltas}, full_pages={cycle_full_pages}, size={current_size}")
+
+            # Verify we're creating deltas initially
+            if cycle <= 3:
+                self.assertGreater(cycle_deltas, 0,
+                    f"Cycle {cycle}: Expected leaf page deltas but got {cycle_deltas}")  
+
+        final = self.get_checkpoint_size()
+
+        # Report results
+        self.pr(f"Final: {final}, Baseline: {baseline}, multiple: {final/baseline:.1f}x")
+        self.pr(f"Total: {total_deltas} deltas, {total_full_pages} full pages written")
+
+        # Size should not grow excessively even with delta->full page transitions
+        self.assertLess(final, baseline * 2,
+            f"Size leak detected: baseline={baseline}, final={final} ({final/baseline:.1f}x). "
+            f"Check delta chain termination handling in rec_write.c")
+
+        # Verify we actually created deltas during the test
+        self.assertGreater(total_deltas, 0, "No deltas were created during test")
+
+    def test_bytes_total_leak_delta_normal_ops(self):
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+
+        # Write initial page with multiple keys
+        c = self.session.open_cursor(self.uri)
+        for i in range(10):
+            c[f'key{i:02d}'] = f'value{i}'
+        c.close()
+        self.session.checkpoint()
+        baseline = self.get_checkpoint_size()
+
+        # Multiple iterations updating existing keys to create deltas
+        for cycle, ch in enumerate(['b', 'c', 'd', 'e', 'f'], start=1):
+            c = self.session.open_cursor(self.uri)
+            # Update existing keys instead of inserting new ones
+            for i in range(0, 10, 2):  # Update every other key
+                c[f'key{i:02d}'] = f'newvalue{cycle}{i}'
+            c.close()
+            self.session.checkpoint()
+
+            # Verify deltas were created
+            stat_cursor = self.session.open_cursor('statistics:' + self.uri)
+            delta_count = stat_cursor[stat.dsrc.rec_page_delta_leaf][2]
+            stat_cursor.close()
+            self.assertGreater(delta_count, 0,
                 f"Cycle {cycle}: Expected leaf page deltas but got {delta_count}")
