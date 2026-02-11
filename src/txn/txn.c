@@ -2309,14 +2309,15 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_CONNECTION_STATS **stats;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t checkpoint_timestamp, checkpoint_pinned_ts_lag = WT_TS_NONE;
+    wt_timestamp_t checkpoint_timestamp, checkpoint_pinned_ts_lag;
     wt_timestamp_t durable_timestamp;
-    wt_timestamp_t oldest_active_read_timestamp;
+    wt_timestamp_t oldest_active_read_timestamp, oldest_reader_lag;
     wt_timestamp_t oldest_timestamp;
     wt_timestamp_t pinned_timestamp;
     uint64_t checkpoint_pinned;
 
     conn = S2C(session);
+    checkpoint_pinned_ts_lag = oldest_reader_lag = WT_TS_NONE;
     txn_global = &conn->txn_global;
     stats = conn->stats;
     checkpoint_pinned =
@@ -2348,16 +2349,15 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
       session, stats, txn_pinned_timestamp_oldest, durable_timestamp - oldest_timestamp);
 
     __wti_txn_get_pinned_timestamp(session, &oldest_active_read_timestamp, 0);
-    if (oldest_active_read_timestamp == 0) {
-        WT_STATP_CONN_SET(session, stats, txn_timestamp_oldest_active_read, WT_TS_NONE);
-        WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_reader_lag, WT_TS_NONE);
-    } else {
-        WT_STATP_CONN_SET(
-          session, stats, txn_timestamp_oldest_active_read, oldest_active_read_timestamp);
-        /* Represents the lag of the oldest reader  with respect to the oldest timestamp.*/
-        WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_reader_lag,
-          oldest_timestamp - oldest_active_read_timestamp);
-    }
+    if (oldest_active_read_timestamp != WT_TS_NONE &&
+      oldest_active_read_timestamp < oldest_timestamp)
+        oldest_reader_lag = oldest_timestamp - oldest_active_read_timestamp;
+
+    /* Represents the read timestamp of the oldest active reader.*/
+    WT_STATP_CONN_SET(
+      session, stats, txn_timestamp_oldest_active_read, oldest_active_read_timestamp);
+    /* Represents the lag of the oldest reader  with respect to the oldest timestamp, if any. */
+    WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_reader_lag, oldest_reader_lag);
 
     /* Fetch the global timestamp values for debugging purposes.*/
     WT_STAT_CONN_SET(session, txn_global_checkpoint_timestamp, checkpoint_timestamp);

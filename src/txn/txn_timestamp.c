@@ -75,8 +75,10 @@ __wti_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, ui
     bool include_oldest, txn_has_write_lock;
 
     conn = S2C(session);
-    txn_global = &conn->txn_global;
+    older_reader_cnt = 0;
+    old_ts = WT_TS_NONE;
     include_oldest = LF_ISSET(WT_TXN_TS_INCLUDE_OLDEST);
+    txn_global = &conn->txn_global;
     txn_has_write_lock = LF_ISSET(WT_TXN_TS_ALREADY_LOCKED);
 
     /* If including oldest and there's none set, we're done, nothing else matters. */
@@ -88,8 +90,9 @@ __wti_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, ui
     if (!txn_has_write_lock)
         __wt_readlock(session, &txn_global->rwlock);
 
-    older_reader_cnt = 0;
-    old_ts = txn_global->oldest_timestamp;
+    if (__wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp))
+        old_ts = txn_global->oldest_timestamp;
+
     tmp_ts = include_oldest ? old_ts : WT_TS_NONE;
 
     /* Check for a running checkpoint */
