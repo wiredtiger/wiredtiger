@@ -811,8 +811,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
         if (F_ISSET_ATOMIC_32(
               &(conn->cache->cache_eviction_controls), WT_CACHE_PREFER_SCRUB_EVICTION)) {
             LF_SET(WT_EVICT_CACHE_SCRUB);
-        } else if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200 &&
-          bytes_updates < (uint64_t)((updates_target + updates_trigger) * bytes_max) / 200) {
+        } else if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200) {
             LF_SET(WT_EVICT_CACHE_SCRUB);
         }
 
@@ -1563,10 +1562,12 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
         else if (candidates > entries / 2)
             queue->evict_candidates = candidates;
         else {
-            if (F_ISSET(evict, WT_EVICT_CACHE_HARD) &&
-              evict->evict_empty_score > WT_EVICT_SCORE_CUTOFF) {
+            if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES_HARD) &&
+              evict->evict_empty_score > WT_EVICT_SCORE_CUTOFF &&
+              F_ISSET(evict, WT_EVICT_CACHE_SCRUB)) {
                 /* Take all available candidates when cache is filled with consistently empty
-                 * eviction queues
+                 * eviction queues and we are in scrub mode, otherwise we might empty the cache of
+                 * clean pages.
                  */
                 queue->evict_candidates = entries;
             } else {
