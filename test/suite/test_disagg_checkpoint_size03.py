@@ -53,8 +53,11 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
         mc.close()
         return size
 
-    @unittest.skip("Skipping test_bytes_total_leak")
+
+    # Reconfigure to the default delta_pct (20%) for this test. The class-level
+    # conn_config uses delta_pct=90 for the delta tests.
     def test_bytes_total_leak(self):
+        self.conn.reconfigure('page_delta=(delta_pct=20)')
         self.session.create(self.uri, 'key_format=S,value_format=S')
         nrows = 1
         val_size = 10
@@ -98,6 +101,11 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
         # Report what type of writes occurred
         self.pr(f"Total: {delta_count} deltas, {full_page_count} full pages written")
 
+        # With delta_pct=20 and this workload (rewriting every row each cycle),
+        # no deltas should ever be emitted -- only full page images.
+        self.assertEqual(delta_count, 0,
+            f"Expected no deltas with delta_pct=20, but got {delta_count}")
+
         # The data volume hasn't changed  same nrows, same val_size.
         # The checkpoint size should stay near the baseline, not grow to ~3x.
         self.pr(f"Final: {final}, Baseline: {baseline}, multiple of baseline: {final/baseline:.1f}x")
@@ -108,6 +116,7 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
             f"and disagg_free_block in __wt_ref_block_free().")
 
 
+    # Uses the class-level delta_pct=90 -- no reconfigure needed.
     def test_bytes_total_leak_delta(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
@@ -182,7 +191,7 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
         self.assertGreater(total_deltas, 0, "No deltas were created during test")
 
 
-    @unittest.skip("Skipping test_bytes_total_leak_delta_normal_ops")
+    # Uses the class-level delta_pct=90 -- no reconfigure needed.
     def test_bytes_total_leak_delta_normal_ops(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
