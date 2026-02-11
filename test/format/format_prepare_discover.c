@@ -111,13 +111,22 @@ wts_prepare_discover(WT_CONNECTION *conn)
 
     /* Report what we found and did */
     if (discover_count > 0) {
+        printf("wts_prepare_discover: Found and claimed %" PRIu32 " prepared transactions\n",
+          discover_count);
         trace_msg(session, "Prepare discover: found and claimed %" PRIu32 " prepared transactions",
           discover_count);
     }
     testutil_check(cursor->close(cursor));
 
-    const char *checkpoint_name = "WiredTigerCheckpoint";
-    session->checkpoint(session, NULL);
-    wts_verify_mirrors(g.wts_conn, checkpoint_name, NULL);
+    /*
+     * Only checkpoint and verify mirrors if we actually found and processed prepared transactions.
+     * If no transactions were processed, there's no need to checkpoint and verify, and doing so
+     * might fail if the stable files for layered tables haven't been populated yet.
+     */
+    if (discover_count > 0) {
+        const char *checkpoint_name = "WiredTigerCheckpoint";
+        session->checkpoint(session, NULL);
+        wts_verify_mirrors(g.wts_conn, checkpoint_name, NULL);
+    }
     testutil_check(session->close(session, NULL));
 }

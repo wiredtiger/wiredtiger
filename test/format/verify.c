@@ -160,6 +160,27 @@ position_cursor_before(TABLE *table, WT_CURSOR *cursor, uint64_t target_keyno)
 }
 
 /*
+ * table_checkpoint_uri --
+ *     Get the appropriate URI for opening a checkpoint cursor. For layered tables, we need to use
+ *     the stable table URI instead of the layered table URI, as layered tables don't support
+ *     checkpoint cursors directly.
+ */
+static void
+table_checkpoint_uri(TABLE *table, char *uri_buf, size_t uri_buf_len)
+{
+    const char *tablename;
+
+    if (DATASOURCE(table, "layered")) {
+        /* For layered tables, use the stable table: */
+        tablename = table->uri;
+        WT_PREFIX_SKIP(tablename, "table:");
+        testutil_snprintf(uri_buf, uri_buf_len, "file:%s.wt_stable", tablename);
+    } else {
+        testutil_snprintf(uri_buf, uri_buf_len, "%s", table->uri);
+    }
+}
+
+/*
  * table_verify_mirror --
  *     Verify that a mirrored pair of tables contain the same mirrored entries. If a checkpoint is
  *     provided compare the tables using checkpoint cursors. If thread info is provided validate
@@ -178,6 +199,8 @@ table_verify_mirror(
     int base_ret, pinned_ret, table_ret;
     uint64_t range_begin, range_end;
     char buf[256], tagbuf[128];
+    char base_checkpoint_uri[128], table_checkpoint_uri_buf[128];
+    const char *base_uri, *table_uri;
 
     base_id = base_keyno = table_id = table_keyno = 0; /* -Wconditional-uninitialized */
     base_ret = table_ret = 0;
@@ -189,16 +212,24 @@ table_verify_mirror(
       conn, &sap, NULL, enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
 
     /* Optionally open a checkpoint to verify. */
-    if (checkpoint != NULL)
+    if (checkpoint != NULL) {
+        table_checkpoint_uri(base, base_checkpoint_uri, sizeof(base_checkpoint_uri));
+        table_checkpoint_uri(table, table_checkpoint_uri_buf, sizeof(table_checkpoint_uri_buf));
+        base_uri = base_checkpoint_uri;
+        table_uri = table_checkpoint_uri_buf;
         testutil_snprintf(buf, sizeof(buf), "checkpoint=%s", checkpoint);
+    } else {
+        base_uri = base->uri;
+        table_uri = table->uri;
+    }
 
     /*
      * If opening a checkpoint, retry if the cursor checkpoint IDs don't match, it just means that a
      * checkpoint happened between the two open calls.
      */
     for (;;) {
-        wt_wrap_open_cursor(session, base->uri, checkpoint == NULL ? NULL : buf, &base_cursor);
-        wt_wrap_open_cursor(session, table->uri, checkpoint == NULL ? NULL : buf, &table_cursor);
+        wt_wrap_open_cursor(session, base_uri, checkpoint == NULL ? NULL : buf, &base_cursor);
+        wt_wrap_open_cursor(session, table_uri, checkpoint == NULL ? NULL : buf, &table_cursor);
 
         if (checkpoint != NULL) {
             base_id = base_cursor->checkpoint_id(base_cursor);
