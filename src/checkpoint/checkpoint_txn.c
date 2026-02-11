@@ -18,6 +18,14 @@ static void __checkpoint_progress(WT_SESSION_IMPL *, bool);
 static void __checkpoint_progress_clear(WT_SESSION_IMPL *);
 static void __checkpoint_timing_stress(WT_SESSION_IMPL *, uint64_t, struct timespec *);
 
+typedef struct {
+    bool applied;
+    double original_dirty_trigger;
+    double original_updates_trigger;
+    double new_dirty_trigger;
+    double new_updates_trigger;
+} WT_PRECISE_CKPT_SAVED_TRIGGERS;
+
 /*
  * __checkpoint_flush_tier_wait --
  *     Wait for all previous work units queued to be processed.
@@ -497,6 +505,111 @@ __checkpoint_set_scrub_target(WT_SESSION_IMPL *session, double target)
 {
     __wt_atomic_store_double_relaxed(&S2C(session)->evict->eviction_scrub_target, target);
     WT_STAT_CONN_SET(session, checkpoint_scrub_target, (int64_t)target);
+}
+
+/*
+ * __checkpoint_update_evict_triggers_start --
+ *     During checkpoint, update the eviction triggers to avoid pulling applications threads into
+ *     eviction work as the cache gets progressively more full.
+ */
+static void
+__checkpoint_update_evict_triggers_start(
+  WT_SESSION_IMPL *session, WT_PRECISE_CKPT_SAVED_TRIGGERS *saved_triggers)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+
+    /* Only update the triggers if we are operating in precise checkpoint mode. */
+    if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
+        return;
+
+    WT_EVICT *evict = conn->evict;
+
+    /* First save the original values for later restoration. */
+    saved_triggers->original_dirty_trigger =
+      __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger);
+    saved_triggers->original_updates_trigger =
+      __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger);
+    /*
+     * FIXME-WT-16613: We should be using compare-and-swap instructions to set these triggers,
+     * alternatively holding a reconfig lock when we are performing these modifications.
+     */
+
+    /*
+     * Be careful of ordering, update the dirty trigger first. Only update the trigger (upper bound)
+     * for now. Add an upper bound to how high the trigger can go (in terms of percentages, even
+     * though these values can be absolute).
+     */
+    saved_triggers->new_dirty_trigger = WT_MIN(40.0, evict->eviction_dirty_trigger * 1.3);
+    saved_triggers->new_updates_trigger = WT_MIN(40.0, evict->eviction_updates_trigger * 2.0);
+    __wt_atomic_store_double_relaxed(
+      &evict->eviction_dirty_trigger, saved_triggers->new_dirty_trigger);
+    __wt_atomic_store_double_relaxed(
+      &evict->eviction_updates_trigger, saved_triggers->new_updates_trigger);
+    saved_triggers->applied = true;
+}
+
+/*
+ * __checkpoint_update_evict_triggers_end --
+ *     Wind the eviction thresholds back down to their non-checkpoint values. Eventually this should
+ *     be gradual, to avoid stalls after checkpoint completes.
+ */
+static void
+__checkpoint_update_evict_triggers_end(
+  WT_SESSION_IMPL *session, WT_PRECISE_CKPT_SAVED_TRIGGERS *saved_triggers)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+
+    /* Only reset the triggers if the new ones were applied. */
+    if (!saved_triggers->applied)
+        return;
+
+    WT_EVICT *evict = conn->evict;
+    double current_dirty_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger);
+    double current_updates_trigger =
+      __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger);
+    bool restore_dirty_trigger =
+      WT_ABS(current_dirty_trigger - saved_triggers->new_dirty_trigger) < DBL_EPSILON;
+    bool restore_updates_trigger =
+      WT_ABS(current_updates_trigger - saved_triggers->new_updates_trigger) < DBL_EPSILON;
+
+    if (!restore_dirty_trigger)
+        __wt_verbose_warning(session, WT_VERB_CHECKPOINT, "%s",
+          "Dirty trigger was modified during checkpoint, not reverting to original value");
+
+    if (!restore_updates_trigger)
+        __wt_verbose_warning(session, WT_VERB_CHECKPOINT, "%s",
+          "Updates trigger was modified during checkpoint, not reverting to original value");
+
+    /* If we modified the values, return them to their previous states in increments. */
+    if (restore_updates_trigger || restore_dirty_trigger) {
+        double dirty_trigger_delta =
+          (current_dirty_trigger - saved_triggers->new_dirty_trigger) / 5.0;
+        double updates_trigger_delta =
+          (current_updates_trigger - saved_triggers->new_updates_trigger) / 5.0;
+        for (int i = 0; i < 4; i++) {
+            /*
+             * FIXME-WT-16613: We should be using compare-and-swap instructions to set these
+             * triggers, alternatively holding a reconfig lock when we are performing these
+             * modifications.
+             */
+            if (restore_dirty_trigger)
+                __wt_atomic_store_double_relaxed(
+                  &evict->eviction_dirty_trigger, current_dirty_trigger + dirty_trigger_delta);
+            if (restore_updates_trigger)
+                __wt_atomic_store_double_relaxed(&evict->eviction_updates_trigger,
+                  current_updates_trigger + updates_trigger_delta);
+            __wt_sleep(0, 200 * WT_THOUSAND);
+        }
+    }
+
+    /*
+     * Be paranoid about math calculations and floating point manipulation, save back exactly the
+     * original values as a final step.
+     */
+    __wt_atomic_store_double_relaxed(
+      &evict->eviction_dirty_trigger, saved_triggers->original_dirty_trigger);
+    __wt_atomic_store_double_relaxed(
+      &evict->eviction_updates_trigger, saved_triggers->original_updates_trigger);
 }
 
 /*
@@ -1190,6 +1303,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DATA_HANDLE *hs_dhandle, *hs_dhandle_shared;
     WT_DECL_RET;
     WT_EVICT *evict;
+    WT_PRECISE_CKPT_SAVED_TRIGGERS precise_ckpt_saved_triggers;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_ISOLATION saved_isolation;
@@ -1197,14 +1311,15 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     wt_timestamp_t ckpt_tmp_ts;
     size_t namelen;
     uint64_t ckpt_tree_duration_usecs, fsync_duration_usecs, generation, hs_ckpt_duration_usecs;
-    uint64_t num_meta_put, time_start_ckpt_tree, time_start_fsync, time_start_hs,
-      time_stop_ckpt_tree, time_stop_fsync, time_stop_hs;
+    uint64_t time_start_ckpt_tree, time_start_fsync, time_start_hs, time_stop_ckpt_tree,
+      time_stop_fsync, time_stop_hs;
     u_int i;
     const char *name;
     bool can_skip, failed, idle, logging, tracking, use_timestamp;
     char ts_string[WT_TS_INT_STRING_SIZE];
     void *saved_meta_next;
 
+    WT_CLEAR(precise_ckpt_saved_triggers);
     conn = S2C(session);
     ckpt_tmp_ts = WT_TS_NONE;
     evict = conn->evict;
@@ -1298,6 +1413,13 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_epoch(session, &conn->ckpt.scrub.timer_end);
 
     /*
+     * When operating in precise checkpoint mode, allow higher updates and eviction triggers. This
+     * allows work to accumulate while checkpoint is running, making it less likely that workloads
+     * will stall.
+     */
+    __checkpoint_update_evict_triggers_start(session, &precise_ckpt_saved_triggers);
+
+    /*
      * Start the checkpoint for real.
      *
      * Bump the global checkpoint generation, used to figure out whether checkpoint has visited a
@@ -1377,23 +1499,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     ckpt_tree_duration_usecs = WT_CLOCKDIFF_US(time_stop_ckpt_tree, time_start_ckpt_tree);
     WT_STAT_CONN_SET(session, checkpoint_tree_duration, ckpt_tree_duration_usecs);
 
-    /*
-     * Copy any additional metadata to the shared metadata table, especially to ensure that the
-     * shared metadata table contains entries even for empty tables that would not otherwise
-     * participate in the checkpoint. This could include metadata that we already copied as a part
-     * of the checkpointing process above, but that's ok, as we would just overwrite the new
-     * metadata with exactly the same value. It is also possible that the table has already been
-     * dropped, in which case those entries would be silently ignored.
-     *
-     * FIXME-WT-14725: We should make this more efficient in the future, and we should also include
-     * a protection against someone creating a layered table, dropping the table, and then
-     * recreating a local table with the same name.
-     */
-    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
-        WT_WITH_SCHEMA_LOCK(session, ret = __wt_disagg_copy_metadata_process(session));
-        WT_ERR(ret);
-    }
-
     /* Wait prior to checkpointing the history store to simulate checkpoint slowness. */
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, &tsp);
 
@@ -1432,6 +1537,14 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         time_stop_hs = __wt_clock(session);
         hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
         WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
+    }
+
+    /*
+     * Copy any updated metadata to the shared metadata table.
+     */
+    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
+        WT_WITH_SCHEMA_LOCK(session, ret = __wt_disagg_update_metadata_process(session));
+        WT_ERR(ret);
     }
 
     /*
@@ -1622,6 +1735,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 
 err:
+    /* Now that checkpoint is finished, wind the eviction triggers back to their default values. */
+    __checkpoint_update_evict_triggers_end(session, &precise_ckpt_saved_triggers);
     /*
      * Reset the timer so that next checkpoint tracks the progress only if configured.
      */
@@ -1679,9 +1794,9 @@ err:
      * disaggregated storage, even if there were no other changes. Also check for any updated key
      * encryption information.
      */
-    num_meta_put = __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.num_meta_put);
     if (!failed && __wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
-      conn->disaggregated_storage.num_meta_put_at_ckpt_begin == num_meta_put &&
+      conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
+        conn->disaggregated_storage.num_meta_put &&
       ckpt_tmp_ts != conn->disaggregated_storage.last_checkpoint_timestamp) {
         if (conn->key_provider != NULL)
             WT_TRET(__wt_disagg_put_crypt_helper(session));
@@ -1699,8 +1814,8 @@ err:
      *
      * Ensure that turning off meta tracking worked.
      */
-    num_meta_put = __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.num_meta_put);
-    if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin < num_meta_put) {
+    if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin <
+      conn->disaggregated_storage.num_meta_put) {
         WT_ASSERT(session, ckpt_tmp_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
         if (__wt_disagg_advance_checkpoint(session, !failed && ret == 0) != 0)
             return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));

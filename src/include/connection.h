@@ -123,6 +123,8 @@ struct __wt_layered_table_manager_entry {
     const char *layered_uri;
     const char *ingest_uri;
     const char *stable_uri;
+
+    WT_DATA_HANDLE *pinned_dhandle; /* data handle held open during drain */
 };
 
 /*
@@ -148,11 +150,30 @@ struct __wt_layered_table_manager {
     bool leader;
 };
 
-struct __wt_disagg_copy_metadata {
-    char *stable_uri;                         /* The full URI of the stable component. */
-    char *table_name;                         /* The table name without prefix or suffix. */
-    int retries_left;                         /* The number of retries left. */
-    TAILQ_ENTRY(__wt_disagg_copy_metadata) q; /* Linked list of entries. */
+/*
+ * Checkpoint metadata version constants:
+ * - DEFAULT: Version defaulted to for old checkpoints without version fields (backward compatible).
+ * - VERSION: The version this code writes and the maximum version it can read.
+ * - COMPATIBLE_VERSION: The minimum reader version required to read what this code writes.
+ */
+#define WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT 1
+#define WT_DISAGG_CHECKPOINT_META_VERSION 1
+#define WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION 1
+
+/*
+ * WT_DISAGG_UPDATE_METADATA --
+ *      Metadata about an object to be updated during the next checkpoint.
+ */
+struct __wt_disagg_update_metadata {
+    char *stable_uri; /* The full URI of the stable component. */
+    char *table_name; /* The table name without prefix or suffix. */
+
+    char *colgroup_value; /* The value for the colgroup component. */
+    char *layered_value;  /* The value for the layered component. */
+    char *stable_value;   /* The value for the stable component. */
+    char *table_value;    /* The value for the table component. */
+
+    TAILQ_ENTRY(__wt_disagg_update_metadata) q; /* Linked list of entries. */
 };
 
 #define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
@@ -219,13 +240,13 @@ struct __wt_disaggregated_storage {
     WT_PAGE_LOG_HANDLE *page_log_meta;         /* The page log for the metadata. */
     WT_PAGE_LOG_HANDLE *page_log_key_provider; /* The page log for the key provider. */
 
-    wt_shared uint64_t num_meta_put;     /* The number metadata puts since connection open. */
+    uint64_t num_meta_put;               /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
                                          /* Updates are protected by the checkpoint lock. */
 
     /* To copy at the next checkpoint. */
-    TAILQ_HEAD(__wt_disagg_copy_metadata_qh, __wt_disagg_copy_metadata) copy_metadata_qh;
-    WT_SPINLOCK copy_metadata_lock;
+    TAILQ_HEAD(__wt_disagg_update_metadata_qh, __wt_disagg_update_metadata) update_metadata_qh;
+    WT_SPINLOCK update_metadata_lock;
 
     /*
      * Ideally we'd have flags passed to the IO system, which could make it all the way to the
