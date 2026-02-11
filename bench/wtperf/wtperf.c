@@ -999,8 +999,8 @@ populate_thread(void *arg)
 
     /* Do bulk loads if populate is single-threaded. */
     cursor_config = NULL;
-    if (opts->populate_threads == 1 && !opts->index && opts->tiered_flush_interval == 0)
-        cursor_config = "bulk";
+    // if (opts->populate_threads == 1 && !opts->index && opts->tiered_flush_interval == 0)
+    //     cursor_config = "bulk";
 
     /* Create the cursors. */
     cursors = dcalloc(total_table_count, sizeof(WT_CURSOR *));
