@@ -29,21 +29,26 @@
 import argparse
 import os
 import re
+import shutil
 import tarfile
 
-def targz_pack_stat_files(destination_dir, source_dir, regex):
-    target = os.path.join(destination_dir, source_dir[2:].replace("/", "\\") + "\WiredTigerStats.tar.gz")
-    with tarfile.open(target, "w:gz") as tar:
-        for root, dirs, files in os.walk(source_dir):
-            for file in files:
-                if regex.match(file):
-                    file_path = os.path.join(root, file)
-                    tar.add(file_path, arcname=os.path.relpath(file_path, source_dir))
+def collect_stat_files(destination_dir, source_dir, regex):
+
+    target_dir = os.path.join(destination_dir, source_dir[2:]) # Remove the leading "./" from source_dir
+
+    if not os.path.exists(target_dir):
+        os.makedirs(target_dir)
+
+    for root, dirs, files in os.walk(source_dir):
+        for file in files:
+            if regex.match(file):
+                file_path = os.path.join(root, file)
+                shutil.copy(file_path, target_dir)
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--destination-dir', required=True, help='Directory to store the packed stat files')
+    parser.add_argument('-d', '--destination-dir', required=True, help='Directory to collect stat files into for packing.')
     args = parser.parse_args()
 
     destination_dir = args.destination_dir
@@ -53,11 +58,12 @@ def main():
         for file in files:
             if regex.match(file):
 
-                # If current directory contains any stat files, pack them all into a tar.gz (one archive per directory).
-                targz_pack_stat_files(destination_dir, root, regex)
+                # If current directory contains any stat files, collect them all into a single location for packing.
+                collect_stat_files(destination_dir, root, regex)
 
-                break
+                break   # Finished searching in this directory, move on to the next one.
 
+    # Pack the collected stat files into a tarball for uploading to S3.
     with tarfile.open(destination_dir + ".tar.gz", "w:gz") as tar:
         tar.add(destination_dir, arcname=os.path.basename(destination_dir))
 
