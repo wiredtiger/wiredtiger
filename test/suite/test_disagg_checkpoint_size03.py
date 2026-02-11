@@ -66,19 +66,36 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         baseline = self.get_checkpoint_size()
 
+        # Track delta vs full page statistics
+        delta_count = 0
+        full_page_count = 0
+
         # Rewrite every row three times, checkpointing each time.
         # Each cycle rewrites all leaf, internal, and root pages.
         # for cycle, ch in enumerate(['b', 'c', 'd', 'e', 'f'], start=1):
-
-        for cycle, ch in enumerate(['b', 'c'], start=1):
-            # self.pr(f"Before checkpoint {cycle}: Metadata: {self.get_checkpoint_size()}")
+        for cycle, ch in enumerate(['b', 'c', 'd', 'e', 'f'], start=1):
             c = self.session.open_cursor(self.uri)
             for i in range(nrows):
                 c[f'key{i:06d}'] = ch * val_size
             c.close()
             self.session.checkpoint()
 
+            # Check if this rewrite created a delta or full page
+            stat_cursor = self.session.open_cursor('statistics:' + self.uri)
+            cycle_deltas = stat_cursor[stat.dsrc.rec_page_delta_leaf][2]
+            cycle_full_pages = stat_cursor[stat.dsrc.rec_page_full_image_leaf][2]
+            stat_cursor.close()
+
+            # Track cumulative counts
+            delta_count = cycle_deltas
+            full_page_count = cycle_full_pages
+
+            self.pr(f"Cycle {cycle}: deltas={cycle_deltas}, full_pages={cycle_full_pages}")
+
         final = self.get_checkpoint_size()
+
+        # Report what type of writes occurred
+        self.pr(f"Total: {delta_count} deltas, {full_page_count} full pages written")
 
         # The data volume hasn't changed — same nrows, same val_size.
         # The checkpoint size should stay near the baseline, not grow to ~3x.
