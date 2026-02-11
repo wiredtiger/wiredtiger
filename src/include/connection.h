@@ -151,6 +151,16 @@ struct __wt_layered_table_manager {
 };
 
 /*
+ * Checkpoint metadata version constants:
+ * - DEFAULT: Version defaulted to for old checkpoints without version fields (backward compatible).
+ * - VERSION: The version this code writes and the maximum version it can read.
+ * - COMPATIBLE_VERSION: The minimum reader version required to read what this code writes.
+ */
+#define WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT 1
+#define WT_DISAGG_CHECKPOINT_META_VERSION 1
+#define WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION 1
+
+/*
  * WT_DISAGG_UPDATE_METADATA --
  *      Metadata about an object to be updated during the next checkpoint.
  */
@@ -230,7 +240,7 @@ struct __wt_disaggregated_storage {
     WT_PAGE_LOG_HANDLE *page_log_meta;         /* The page log for the metadata. */
     WT_PAGE_LOG_HANDLE *page_log_key_provider; /* The page log for the key provider. */
 
-    wt_shared uint64_t num_meta_put;     /* The number metadata puts since connection open. */
+    uint64_t num_meta_put;               /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
                                          /* Updates are protected by the checkpoint lock. */
 

@@ -17,6 +17,10 @@ typedef struct __wt_disagg_checkpoint_meta {
 
     bool has_metadata_checksum; /* Whether the metadata page checksum is present. */
     uint32_t metadata_checksum; /* The checksum of the metadata page. */
+
+    uint32_t version; /* The version of the checkpoint_meta. */
+    uint32_t
+      compatible_version; /* The minimum version of the reader that can use this checkpoint_meta. */
 } WT_DISAGG_CHECKPOINT_META;
 
 /* Function prototypes for disaggregated storage and layered tables. */
@@ -429,7 +433,7 @@ __disagg_put_meta(WT_SESSION_IMPL *session, uint64_t page_id, const WT_ITEM *ite
 
     WT_RET(__disagg_put_page(
       session, disagg->page_log_meta, page_id, item, disagg->last_metadata_page_lsn, lsnp));
-    __wt_atomic_add_uint64_v(&disagg->num_meta_put, 1);
+    ++disagg->num_meta_put;
 
     return (0);
 }
@@ -1013,8 +1017,8 @@ err:
  *     Process the metadata entries stored in the shared metadata table for a new checkpoint.
  */
 static int
-__disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *internal_session,
-  WT_CURSOR *md_cursor, const WT_DISAGG_CHECKPOINT_META *ckpt_meta)
+__disagg_apply_checkpoint_meta(
+  WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, const WT_DISAGG_CHECKPOINT_META *ckpt_meta)
 {
     WT_CONFIG_ITEM cval;
     WT_CURSOR *cursor;
@@ -1032,12 +1036,15 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
     layered_ingest_uri = cfg_ret = NULL;
     existing_tables = new_tables = new_ingest = 0;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
     /*
      * Throw away any references to the old disaggregated metadata table. This ensures that we are
      * on the most recent checkpoint from now on.
      */
-    WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI),
-      "Removing old references to disagg tables failed: \"%s\"", WT_DISAGG_METADATA_URI);
+    WT_WITHOUT_DHANDLE(session, ret = __wti_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI));
+    WT_ERR_MSG_CHK(session, ret, "Removing old references to disagg tables failed: \"%s\"",
+      WT_DISAGG_METADATA_URI);
 
     __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Processing new disaggregated storage checkpoint: metadata_lsn=%" PRIu64,
@@ -1114,8 +1121,10 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
              */
             if (!same_checkpoint) {
                 WT_ERR(__wt_buf_fmt(session, old_uri_buf, "%s/%s", metadata_key, checkpoint_name));
-                WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, old_uri_buf->data),
-                  "Marking data handles outdated failed: \"%s\"", (const char *)old_uri_buf->data);
+                WT_WITHOUT_DHANDLE(
+                  session, ret = __wti_conn_dhandle_outdated(session, old_uri_buf->data));
+                WT_ERR_MSG_CHK(session, ret, "Marking data handles outdated failed: \"%s\"",
+                  (const char *)old_uri_buf->data);
             }
             /*
              * Mark all live btrees as outdated. Otherwise, we will not open a new dhandle for live
@@ -1123,8 +1132,9 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
              *
              * TODO: This is better done at step-up or step-down to force close all live btrees.
              */
-            WT_ERR_MSG_CHK(session, __wti_conn_dhandle_outdated(session, metadata_key),
-              "Marking data handles outdated failed: \"%s\"", (const char *)metadata_key);
+            WT_WITHOUT_DHANDLE(session, ret = __wti_conn_dhandle_outdated(session, metadata_key));
+            WT_ERR_MSG_CHK(session, ret, "Marking data handles outdated failed: \"%s\"",
+              (const char *)metadata_key);
             __wt_free(session, cfg_ret);
             __wt_free(session, checkpoint_name);
             __wt_free(session, checkpoint_name_new);
@@ -1144,7 +1154,7 @@ __disagg_apply_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *intern
                     if (ret == WT_NOTFOUND) {
                         WT_ERR_MSG_CHK(session,
                           __layered_create_missing_ingest_table(
-                            internal_session, layered_ingest_uri, metadata_value),
+                            session, layered_ingest_uri, metadata_value),
                           "Failed to create missing ingest table \"%s\" from \"%s\"",
                           layered_ingest_uri, metadata_value);
                         new_ingest++;
@@ -1236,7 +1246,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
     WT_DECL_RET;
     WT_DISAGG_METADATA metadata;
     WT_ITEM metadata_buf;
-    WT_SESSION_IMPL *internal_session, *shared_metadata_session;
+    WT_SESSION_IMPL *internal_session;
     uint64_t current_meta_lsn;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
@@ -1305,11 +1315,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      * Part 2: Apply the metadata for other tables from the shared metadata table. FIXME-WT-16528
      * Investigate whether we need a separate internal session to pick up the new checkpoint.
      */
-    WT_ERR(__wt_open_internal_session(
-      conn, "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
-    ret = __disagg_apply_checkpoint_meta(
-      shared_metadata_session, internal_session, md_cursor, ckpt_meta);
-    WT_TRET(__wt_session_close_internal(shared_metadata_session));
+    WT_WITH_SCHEMA_LOCK(internal_session,
+      ret = __disagg_apply_checkpoint_meta(internal_session, md_cursor, ckpt_meta));
     WT_ERR(ret);
 
     /*
@@ -1341,6 +1348,57 @@ err:
 
     __wt_buf_free(session, &metadata_buf);
 
+    return (ret);
+}
+
+/*
+ * __disagg_check_meta_version --
+ *     Parse and validate version and compatible_version fields from checkpoint metadata config.
+ *     Populates the version and compatible_version fields in ckpt_meta struct.
+ */
+static int
+__disagg_check_meta_version(
+  WT_SESSION_IMPL *session, const char *meta_str, WT_DISAGG_CHECKPOINT_META *ckpt_meta)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+
+    /* Initialize to defaults for backward compatibility (missing version fields). */
+    ckpt_meta->version = WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT;
+    ckpt_meta->compatible_version = WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT;
+
+    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "version", &cval), true);
+    if (ret == 0 && cval.len != 0) {
+        if (cval.val > UINT32_MAX)
+            WT_ERR_MSG(
+              session, EINVAL, "Invalid checkpoint_meta version: %" PRIu64, (uint64_t)cval.val);
+        ckpt_meta->version = (uint32_t)cval.val;
+    }
+
+    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "compatible_version", &cval), true);
+    if (ret == 0 && cval.len != 0) {
+        if (cval.val > UINT32_MAX)
+            WT_ERR_MSG(session, EINVAL, "Invalid checkpoint_meta compatible_version: %" PRIu64,
+              (uint64_t)cval.val);
+        ckpt_meta->compatible_version = (uint32_t)cval.val;
+    }
+
+    /* Clear error status (WT_NOTFOUND is ok for optional fields, means use default). */
+    ret = 0;
+
+    /* Check if this checkpoint metadata is compatible with the current reader version. */
+    if (ckpt_meta->compatible_version > WT_DISAGG_CHECKPOINT_META_VERSION)
+        WT_ERR_MSG(session, ENOTSUP,
+          "Checkpoint meta compatible_version=%" PRIu32 " requires reader version >= %d",
+          ckpt_meta->compatible_version, WT_DISAGG_CHECKPOINT_META_VERSION);
+
+    if (ckpt_meta->version < ckpt_meta->compatible_version)
+        WT_ERR_MSG(session, EINVAL,
+          "Illegal version: Checkpoint meta version=%" PRIu32
+          " is older than compatible_version=%" PRIu32,
+          ckpt_meta->version, ckpt_meta->compatible_version);
+
+err:
     return (ret);
 }
 
@@ -1384,6 +1442,9 @@ __disagg_pick_up_checkpoint_meta(
         /* FIXME-WT-16000: Make the checksum parameter in "checkpoint_meta" required */
         __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE, "%s\"%s\"",
           "Missing metadata_checksum from metadata: ", meta_str);
+
+    /* Parse and validate version and compatible_version fields. */
+    WT_ERR(__disagg_check_meta_version(session, meta_str, &ckpt_meta));
 
     /* Now actually pick up the checkpoint. */
     WT_ERR(__disagg_pick_up_checkpoint(session, &ckpt_meta));
@@ -2539,8 +2600,10 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
          * Important: To keep testing simple, keep the metadata to be a valid configuration string
          * without quotation marks or escape characters.
          */
-        WT_ERR(__wt_buf_fmt(session, meta, "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32,
-          meta_lsn, meta_checksum));
+        WT_ERR(__wt_buf_fmt(session, meta,
+          "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32 ",version=%d,compatible_version=%d",
+          meta_lsn, meta_checksum, WT_DISAGG_CHECKPOINT_META_VERSION,
+          WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION));
         WT_ERR(disagg->npage_log->page_log->pl_complete_checkpoint_ext(disagg->npage_log->page_log,
           &session->iface, 0, (uint64_t)checkpoint_timestamp, meta, NULL));
         __wt_atomic_store_uint64_release(
@@ -3214,6 +3277,29 @@ int
 __ut_disagg_validate_crypt(WT_SESSION_IMPL *session, WT_ITEM *key_item, WT_CRYPT_HEADER **header)
 {
     return (__disagg_validate_crypt(session, key_item, header));
+}
+
+int
+__ut_disagg_validate_checkpoint_meta_version(WT_SESSION_IMPL *session, const char *meta_str,
+  uint32_t *out_version, uint32_t *out_compatible_version)
+{
+    WT_DISAGG_CHECKPOINT_META ckpt_meta;
+
+    /* Set default test value */
+    *out_version = 0;
+    *out_compatible_version = 0;
+
+    /* Initialize struct with defaults */
+    memset(&ckpt_meta, 0, sizeof(ckpt_meta));
+
+    /* Call the main version check function */
+    WT_RET(__disagg_check_meta_version(session, meta_str, &ckpt_meta));
+
+    /* Return parsed values */
+    *out_version = ckpt_meta.version;
+    *out_compatible_version = ckpt_meta.compatible_version;
+
+    return (0);
 }
 
 void
