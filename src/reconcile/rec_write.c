@@ -2949,6 +2949,23 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                     WT_RET(__wt_btree_block_free(
                       session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                     page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+                } else {
+                    // Crack the cookie here and decrement the checkpoint size with the cookie size  
+                    /* Because we are tracking cookie sizes cumulatively, we only decrease the size
+                     * if the page being written is a full page image. 
+                     * This would indicate the delta chain has ended.
+                     */
+                    if (page->disagg_info != NULL && page->disagg_info->block_meta.delta_count == 0) {
+                        printf("Not freeing block cookie\n");
+                        WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
+                        const uint8_t *buf = mod->mod_replace.block_cookie;
+                        WT_RET(__wti_block_disagg_addr_unpack(session,
+                            &buf,
+                            mod->mod_replace.block_cookie_size,
+                            &cookie));
+                        __wt_btree_decrease_size(session, cookie.size);
+                    }
+
                 }
             }
         }
