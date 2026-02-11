@@ -1393,13 +1393,13 @@ struct __wt_connection_stats {
     int64_t txn_global_oldest_timestamp;
     int64_t txn_global_pinned_timestamp;
     int64_t txn_global_stable_timestamp;
-    int64_t txn_global_version_timestamp;
+    int64_t txn_global_version_cursor_timestamp;
     int64_t txn_pinned_readers;
     int64_t txn_pinned_range;
     int64_t txn_pinned_checkpoint_range;
-    int64_t txn_pinned_timestamp;
-    int64_t txn_pinned_timestamp_checkpoint;
-    int64_t txn_pinned_timestamp_reader;
+    int64_t txn_pinned_timestamp_lag;
+    int64_t txn_pinned_timestamp_checkpoint_lag;
+    int64_t txn_pinned_timestamp_reader_lag;
     int64_t txn_pinned_timestamp_oldest;
     int64_t txn_timestamp_oldest_active_read;
     int64_t txn_rollback_to_stable_running;

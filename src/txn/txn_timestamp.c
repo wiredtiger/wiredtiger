@@ -108,7 +108,7 @@ __wti_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, ui
             tmp_ts = tmp_read_ts;
 
         if (tmp_read_ts < old_ts)
-            older_reader_cnt++;
+            ++older_reader_cnt;
     }
 
     if (!txn_has_write_lock)

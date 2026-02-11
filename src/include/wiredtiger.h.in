@@ -8720,8 +8720,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_GLOBAL_PINNED_TIMESTAMP	1969
 /*! transaction: transaction global stable timestamp */
 #define	WT_STAT_CONN_TXN_GLOBAL_STABLE_TIMESTAMP	1970
-/*! transaction: transaction global version cursor pinned timestamp */
-#define	WT_STAT_CONN_TXN_GLOBAL_VERSION_TIMESTAMP	1971
+/*! transaction: transaction global version cursor timestamp */
+#define	WT_STAT_CONN_TXN_GLOBAL_VERSION_CURSOR_TIMESTAMP	1971
 /*!
  * transaction: transaction number of older readers older than oldest
  * timestamp
@@ -8732,14 +8732,14 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! transaction: transaction range of IDs currently pinned by a checkpoint */
 #define	WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE	1974
 /*! transaction: transaction range of timestamps currently pinned */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP		1975
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_LAG		1975
 /*! transaction: transaction range of timestamps pinned by a checkpoint */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT	1976
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT_LAG	1976
 /*!
  * transaction: transaction range of timestamps pinned by the oldest
  * active read timestamp
  */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_READER	1977
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_READER_LAG	1977
 /*!
  * transaction: transaction range of timestamps pinned by the oldest
  * timestamp

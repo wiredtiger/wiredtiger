@@ -2796,7 +2796,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transaction global oldest timestamp",
   "transaction: transaction global pinned timestamp",
   "transaction: transaction global stable timestamp",
-  "transaction: transaction global version cursor pinned timestamp",
+  "transaction: transaction global version cursor timestamp",
   "transaction: transaction number of older readers older than oldest timestamp",
   "transaction: transaction range of IDs currently pinned",
   "transaction: transaction range of IDs currently pinned by a checkpoint",
@@ -3821,13 +3821,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing txn_global_oldest_timestamp */
     /* not clearing txn_global_pinned_timestamp */
     /* not clearing txn_global_stable_timestamp */
-    /* not clearing txn_global_version_timestamp */
+    /* not clearing txn_global_version_cursor_timestamp */
     /* not clearing txn_pinned_readers */
     /* not clearing txn_pinned_range */
     /* not clearing txn_pinned_checkpoint_range */
-    /* not clearing txn_pinned_timestamp */
-    /* not clearing txn_pinned_timestamp_checkpoint */
-    /* not clearing txn_pinned_timestamp_reader */
+    /* not clearing txn_pinned_timestamp_lag */
+    /* not clearing txn_pinned_timestamp_checkpoint_lag */
+    /* not clearing txn_pinned_timestamp_reader_lag */
     /* not clearing txn_pinned_timestamp_oldest */
     /* not clearing txn_timestamp_oldest_active_read */
     /* not clearing txn_rollback_to_stable_running */
@@ -5074,13 +5074,15 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_global_oldest_timestamp += WT_STAT_CONN_READ(from, txn_global_oldest_timestamp);
     to->txn_global_pinned_timestamp += WT_STAT_CONN_READ(from, txn_global_pinned_timestamp);
     to->txn_global_stable_timestamp += WT_STAT_CONN_READ(from, txn_global_stable_timestamp);
-    to->txn_global_version_timestamp += WT_STAT_CONN_READ(from, txn_global_version_timestamp);
+    to->txn_global_version_cursor_timestamp +=
+      WT_STAT_CONN_READ(from, txn_global_version_cursor_timestamp);
     to->txn_pinned_readers += WT_STAT_CONN_READ(from, txn_pinned_readers);
     to->txn_pinned_range += WT_STAT_CONN_READ(from, txn_pinned_range);
     to->txn_pinned_checkpoint_range += WT_STAT_CONN_READ(from, txn_pinned_checkpoint_range);
-    to->txn_pinned_timestamp += WT_STAT_CONN_READ(from, txn_pinned_timestamp);
-    to->txn_pinned_timestamp_checkpoint += WT_STAT_CONN_READ(from, txn_pinned_timestamp_checkpoint);
-    to->txn_pinned_timestamp_reader += WT_STAT_CONN_READ(from, txn_pinned_timestamp_reader);
+    to->txn_pinned_timestamp_lag += WT_STAT_CONN_READ(from, txn_pinned_timestamp_lag);
+    to->txn_pinned_timestamp_checkpoint_lag +=
+      WT_STAT_CONN_READ(from, txn_pinned_timestamp_checkpoint_lag);
+    to->txn_pinned_timestamp_reader_lag += WT_STAT_CONN_READ(from, txn_pinned_timestamp_reader_lag);
     to->txn_pinned_timestamp_oldest += WT_STAT_CONN_READ(from, txn_pinned_timestamp_oldest);
     to->txn_timestamp_oldest_active_read +=
       WT_STAT_CONN_READ(from, txn_timestamp_oldest_active_read);
