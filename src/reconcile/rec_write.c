@@ -3176,8 +3176,10 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      */
     if (page->disagg_info != NULL && r->multi_next == 1 &&
       !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
-      r->multi->block_meta->page_id == page->disagg_info->block_meta.page_id)
+      r->multi->block_meta->page_id == page->disagg_info->block_meta.page_id) {
         page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+        WT_STAT_CONN_DSRC_INCR(session, rec_free_page_id_due_to_failed_replacement_reconciliation);
+    }
 
     WT_TRET(__wti_ovfl_track_wrapup_err(session, page));
 

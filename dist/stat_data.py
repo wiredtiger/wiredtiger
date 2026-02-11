@@ -1365,6 +1365,7 @@ conn_dsrc_stats = [
     ##########################################
     RecStat('rec_average_internal_page_delta_chain_length', 'average length of delta chain on internal page with deltas'),
     RecStat('rec_average_leaf_page_delta_chain_length', 'average length of delta chain on leaf page with deltas'),
+    RecStat('rec_free_page_id_due_to_failed_replacement_reconciliation', 'free page ID due to failed page replacement reconciliation in disagg'),
     RecStat('rec_hs_wrapup_next_prev_calls', 'cursor next/prev calls during HS wrapup search_near'),
     RecStat('rec_ingest_garbage_collection_keys_disk_image', 'number of keys that are garbage collected form the disk images in the ingest btrees for disaggregated storage'),
     RecStat('rec_ingest_garbage_collection_keys_update_chain', 'number of keys that are garbage collected form the update chains in the ingest btrees for disaggregated storage'),
