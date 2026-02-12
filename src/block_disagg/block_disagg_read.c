@@ -26,7 +26,7 @@ __wti_block_disagg_corrupt(
     WT_ERR(__wti_block_disagg_read(bm, session, tmp, &block_meta, addr, addr_size));
 
     /* Crack the cookie, dump the block. */
-    WT_ERR(__wti_block_disagg_addr_unpack(session, &addr, addr_size, &root_cookie));
+    WT_ERR(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &root_cookie));
     WT_ERR(__wt_bm_corrupt_dump(
       session, tmp, 0, (wt_off_t)root_cookie.page_id, root_cookie.size, root_cookie.checksum));
 
@@ -306,7 +306,7 @@ __wti_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session,
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
 
     /* Crack the cookie. */
-    WT_RET(__wti_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
+    WT_RET(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
 
     /* Read the block. */
     WT_RET(
