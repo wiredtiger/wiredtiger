@@ -19,6 +19,9 @@ post:
   - func: "upload stat files"
     vars:
       destination: FTDC
+  - func: "upload artifact"
+    vars:
+      postfix: -${execution}
   - func: "save wt hang analyzer core/debugger files"
   - func: "cleanup"
 timeout:
@@ -520,6 +523,13 @@ functions:
           set -o verbose
           mkdir ${destination}
           ${python_binary|python3} ../../test/evergreen/pack_stat_files.py -d ${destination}
+    - command: archive.targz_pack
+      type: setup
+      params:
+        target: wiredtiger/cmake_build/test/${destination}.tar.gz
+        source_dir: wiredtiger/cmake_build/test/${destination}
+        include:
+          - "./**"
     - command: s3.put
       type: setup
       params:
@@ -529,8 +539,8 @@ functions:
         bucket: build_external
         permissions: public-read
         content_type: application/tar
-        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}/
-        display_name: ${destination}
+        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}/${destination}.tar.gz
+        display_name: "FTDC"
 
   "run data validation stress test checkpoint":
     - *fetch_artifacts

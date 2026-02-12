@@ -34,16 +34,14 @@ import tarfile
 
 def collect_stat_files(destination_dir, source_dir, regex):
 
-    target_dir = os.path.join(destination_dir, source_dir[2:]) # Remove the leading "./" from source_dir
+    dir_prefix = os.path.join(destination_dir, source_dir[2:].replace("/", "-"))
 
-    if not os.path.exists(target_dir):
-        os.makedirs(target_dir)
-
-    for root, dirs, files in os.walk(source_dir):
-        for file in files:
-            if regex.match(file):
-                file_path = os.path.join(root, file)
-                shutil.copy(file_path, target_dir)
+    for item in os.listdir(source_dir):
+        path = os.path.join(source_dir, item)
+        if os.path.isfile(path) and regex.match(item):
+            file_path = os.path.join(source_dir, item)
+            shutil.copy(file_path, destination_dir)
+            shutil.move(os.path.join(destination_dir, item), dir_prefix + '-' + item)
 
 
 def main():
@@ -55,6 +53,7 @@ def main():
 
     regex = re.compile(r'WiredTigerStat.*')
     for root, _, files in os.walk("."):
+        if root == "./" + destination_dir: continue
         for file in files:
             if regex.match(file):
 
@@ -62,10 +61,6 @@ def main():
                 collect_stat_files(destination_dir, root, regex)
 
                 break   # Finished searching in this directory, move on to the next one.
-
-    # Pack the collected stat files into a tarball for uploading to S3.
-    with tarfile.open(destination_dir + ".tar.gz", "w:gz") as tar:
-        tar.add(destination_dir, arcname=os.path.basename(destination_dir))
 
 if __name__ == "__main__":
     main()
