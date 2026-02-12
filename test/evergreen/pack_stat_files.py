@@ -56,7 +56,7 @@ def main():
 
     regex = re.compile(r'WiredTigerStat.*')
     for root, _, files in os.walk("."):
-        if root == "./" + destination_dir: continue
+        if destination_dir in root: continue
         for file in files:
             if regex.match(file):
 
