@@ -28,11 +28,11 @@
 
 import re, wttest
 from wiredtiger import stat
-import unittest
 from helper_disagg import DisaggConfigMixin, disagg_test_class
 
 # test_disagg_checkpoint_size03.py
-
+#   Test that the checkpoint size does not grow excessively due to a bytes_total
+#   leak in the disaggregated checkpoint code.
 @disagg_test_class
 class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
 
@@ -53,7 +53,6 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
         mc.close()
         return size
 
-
     # Reconfigure to the default delta_pct (20%) for this test. The class-level
     # conn_config uses delta_pct=90 for the delta tests.
     def test_bytes_total_leak(self):
@@ -70,13 +69,8 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         baseline = self.get_checkpoint_size()
 
-        # Track delta vs full page statistics
-        delta_count = 0
-        full_page_count = 0
-
         # Rewrite every row three times, checkpointing each time.
         # Each cycle rewrites all leaf, internal, and root pages.
-        # for cycle, ch in enumerate(['b', 'c', 'd', 'e', 'f'], start=1):
         for cycle, ch in enumerate(['b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm'], start=1):
             c = self.session.open_cursor(self.uri)
             for i in range(nrows):
@@ -84,25 +78,13 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
             c.close()
             self.session.checkpoint()
 
-            # Check if this rewrite created a delta or full page
-            stat_cursor = self.session.open_cursor('statistics:' + self.uri)
-            cycle_deltas = stat_cursor[stat.dsrc.rec_page_delta_leaf][2]
-            cycle_full_pages = stat_cursor[stat.dsrc.rec_page_full_image_leaf][2]
-            stat_cursor.close()
-
-            # Track cumulative counts
-            delta_count = cycle_deltas
-            full_page_count = cycle_full_pages
-
-            self.pr(f"Cycle {cycle}: deltas={cycle_deltas}, full_pages={cycle_full_pages}")
-
         final = self.get_checkpoint_size()
 
-        # Report what type of writes occurred
-        self.pr(f"Total: {delta_count} deltas, {full_page_count} full pages written")
-
         # With delta_pct=20 and this workload (rewriting every row each cycle),
-        # no deltas should ever be emitted -- only full page images.
+        # no deltas should ever be emitted, only full page images.
+        stat_cursor = self.session.open_cursor('statistics:' + self.uri)
+        delta_count = stat_cursor[stat.dsrc.rec_page_delta_leaf][2]
+        stat_cursor.close()
         self.assertEqual(delta_count, 0,
             f"Expected no deltas with delta_pct=20, but got {delta_count}")
 
@@ -130,14 +112,6 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
         # The size of the first page we wrote + its root page.
         baseline = self.get_checkpoint_size()
 
-        # Track statistics across cycles
-        total_deltas = 0
-        total_full_pages = 0
-        sizes = [baseline]
-        expected_table_size = 0
-        prev_full_pages = 0
-        cur_deltas = 0
-
         # Multiple iterations: first create deltas, then force full page writes
         for cycle, ch in enumerate(['b', 'c', 'd', 'e', 'f', 'g', 'h'], start=1):#, 'h', 'i', 'j', 'k', 'l', 'm'], start=1):
             c = self.session.open_cursor(self.uri)
@@ -147,49 +121,18 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
             c.close()
             self.session.checkpoint()
 
-            # Check statistics
-            stat_cursor = self.session.open_cursor('statistics:' + self.uri)
-            cycle_deltas = stat_cursor[stat.dsrc.rec_page_delta_leaf][2]
-            cycle_full_pages = stat_cursor[stat.dsrc.rec_page_full_image_leaf][2]
-            stat_cursor.close()
-
-            # Track cumulative counts
-            total_deltas = cycle_deltas
-            if (cycle_full_pages != prev_full_pages):
-                self.pr(f"Cycle {cycle}: full pages changed from {prev_full_pages} to {cycle_full_pages}")
-                cur_deltas = 0
-            else:
-                cur_deltas += 1
-
-
-            expected_table_size = baseline * (cur_deltas + 1)
-            total_full_pages = cycle_full_pages
-            self.pr(f"Expected delta size: {expected_table_size} & cycle_deltas: {cycle_deltas}")
-
-
-            current_size = self.get_checkpoint_size()
-            sizes.append(current_size)
-
-            self.pr(f"Cycle {cycle}: deltas={cycle_deltas}, full_pages={cycle_full_pages}, size={current_size}")
-            prev_full_pages = cycle_full_pages
-
         final = self.get_checkpoint_size()
 
-        # Report results
-        self.pr(f"Final: {final}, Baseline: {baseline}, multiple: {final/baseline:.1f}x")
-        self.pr(f"Total: {total_deltas} deltas, {total_full_pages} full pages written")
-        self.pr(f"Expected delta size: {expected_table_size}")
-
-        # Size should not grow excessively even with delta->full page transitions
-        # The final size should be less than the baseline + the expected delta size.
-        self.pr(f"Expected final size: {expected_table_size}")
-        self.assertLess(final, expected_table_size * 1.10,
+        # Size should not grow excessively even with delta operations
+        self.assertLess(final, baseline * 2,
             f"Size leak detected: baseline={baseline}, final={final} ({final/baseline:.1f}x). "
             f"Check delta chain termination handling in rec_write.c")
 
         # Verify we actually created deltas during the test
+        stat_cursor = self.session.open_cursor('statistics:' + self.uri)
+        total_deltas = stat_cursor[stat.dsrc.rec_page_delta_leaf][2]
+        stat_cursor.close()
         self.assertGreater(total_deltas, 0, "No deltas were created during test")
-
 
     # Uses the class-level delta_pct=90 -- no reconfigure needed.
     def test_bytes_total_leak_delta_normal_ops(self):
