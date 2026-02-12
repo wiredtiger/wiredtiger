@@ -520,14 +520,6 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
 
     /* Callback to update key provider on the result of new encryption key data . */
     if (ret == 0) {
-        /*
-         * Add the new encryption key size to the accumulated checkpoint size delta. This size is
-         * essential for restoring checkpoints and must be included in the total database size
-         * calculations for backup/restore. The earlier crypt.keys.size == 0 check ensures that we
-         * only add to the checkpoint size delta when there is new encryption key data.
-         */
-        session->ckpt.ckpt_size_delta += (int64_t)crypt.keys.size;
-
         /* Point to the same encryption data on callback. */
         crypt.keys.data = (uint8_t *)crypt.keys.mem + sizeof(WT_CRYPT_HEADER);
         crypt.keys.size -= sizeof(WT_CRYPT_HEADER);
