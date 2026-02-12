@@ -1311,8 +1311,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     wt_timestamp_t ckpt_tmp_ts;
     size_t namelen;
     uint64_t ckpt_tree_duration_usecs, fsync_duration_usecs, generation, hs_ckpt_duration_usecs;
-    uint64_t num_meta_put, time_start_ckpt_tree, time_start_fsync, time_start_hs,
-      time_stop_ckpt_tree, time_stop_fsync, time_stop_hs;
+    uint64_t time_start_ckpt_tree, time_start_fsync, time_start_hs, time_stop_ckpt_tree,
+      time_stop_fsync, time_stop_hs;
     u_int i;
     const char *name;
     bool can_skip, failed, idle, logging, tracking, use_timestamp;
@@ -1746,12 +1746,10 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         delta = session->ckpt.ckpt_size_delta;
 
         if (delta > 0) {
-            WT_ASSERT_ALWAYS(session, UINT64_MAX - db >= (uint64_t)delta,
-              "Disaggregated storage database size too large");
+            WT_ASSERT(session, UINT64_MAX - db >= (uint64_t)delta);
             conn->disaggregated_storage.database_size = db + (uint64_t)delta;
         } else {
-            WT_ASSERT_ALWAYS(
-              session, db >= (uint64_t)(-delta), "Disaggregated storage database size too small");
+            WT_ASSERT(session, db >= (uint64_t)(-delta));
             conn->disaggregated_storage.database_size = db - (uint64_t)(-delta);
         }
     }
@@ -1825,9 +1823,9 @@ err:
      * disaggregated storage, even if there were no other changes. Also check for any updated key
      * encryption information.
      */
-    num_meta_put = __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.num_meta_put);
     if (!failed && __wt_conn_is_disagg(session) && conn->layered_table_manager.leader &&
-      conn->disaggregated_storage.num_meta_put_at_ckpt_begin == num_meta_put &&
+      conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
+        conn->disaggregated_storage.num_meta_put &&
       ckpt_tmp_ts != conn->disaggregated_storage.last_checkpoint_timestamp) {
         if (conn->key_provider != NULL)
             WT_TRET(__wt_disagg_put_crypt_helper(session));
@@ -1845,8 +1843,8 @@ err:
      *
      * Ensure that turning off meta tracking worked.
      */
-    num_meta_put = __wt_atomic_load_uint64_acquire(&conn->disaggregated_storage.num_meta_put);
-    if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin < num_meta_put) {
+    if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin <
+      conn->disaggregated_storage.num_meta_put) {
         WT_ASSERT(session, ckpt_tmp_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
         if (__wt_disagg_advance_checkpoint(session, !failed && ret == 0) != 0)
             return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));

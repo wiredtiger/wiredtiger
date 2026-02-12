@@ -128,12 +128,12 @@ __wti_block_disagg_addr_pack(
 }
 
 /*
- * __wti_block_disagg_addr_unpack --
+ * __wt_block_disagg_addr_unpack --
  *     Convert a disaggregated address cookie into its components UPDATING the caller's buffer
  *     reference.
  */
 int
-__wti_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, size_t buf_size,
+__wt_block_disagg_addr_unpack(WT_SESSION_IMPL *session, const uint8_t **buf, size_t buf_size,
   WT_BLOCK_DISAGG_ADDRESS_COOKIE *cookie)
 {
     uint64_t base_lsn, base_lsn_delta, debug_field, flags, lsn, page_id, size, unsupported_flags;
@@ -247,7 +247,7 @@ __wti_block_disagg_addr_invalid(WT_SESSION_IMPL *session, const uint8_t *addr, s
     WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
 
     /* Crack the cookie - there aren't further checks for object blocks. */
-    WT_RET(__wti_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
+    WT_RET(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
 
     return (0);
 }
@@ -265,7 +265,7 @@ __wti_block_disagg_addr_string(
     WT_UNUSED(bm);
 
     /* Crack the cookie. */
-    WT_RET(__wti_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
+    WT_RET(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
 
     /* Printable representation. */
     WT_RET(__wt_buf_fmt(session, buf,
@@ -304,7 +304,7 @@ __wti_block_disagg_ckpt_unpack(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_
     WT_UNUSED(block_disagg);
 
     /* Retrieve the root page information */
-    WT_RET(__wti_block_disagg_addr_unpack(session, &buf, buf_size, root_cookie));
+    WT_RET(__wt_block_disagg_addr_unpack(session, &buf, buf_size, root_cookie));
 
     return (0);
 }
