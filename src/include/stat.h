@@ -710,6 +710,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_disagg_next_checkpoint;
     int64_t cache_eviction_deepen;
     int64_t cache_write_hs;
+    int64_t eviction_pages_remaining_in_queue;
     int64_t eviction_consider_prefetch;
     int64_t cache_pages_inuse;
     int64_t cache_pages_inuse_ingest;

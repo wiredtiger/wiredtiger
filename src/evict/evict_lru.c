@@ -1475,8 +1475,10 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
             evict->evict_empty_score =
               WT_MIN(evict->evict_empty_score + WT_EVICT_SCORE_BUMP, WT_EVICT_SCORE_MAX);
         WT_STAT_CONN_INCR(session, eviction_queue_empty);
-    } else
+    } else {
         WT_STAT_CONN_INCR(session, eviction_queue_not_empty);
+        WT_STAT_CONN_INCRV(session, eviction_pages_remaining_in_queue, queue->evict_candidates);
+    }
 
     /*
      * Get some more pages to consider for eviction.
