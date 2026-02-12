@@ -1746,12 +1746,10 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         delta = session->ckpt.ckpt_size_delta;
 
         if (delta > 0) {
-            WT_ASSERT_ALWAYS(session, UINT64_MAX - db >= (uint64_t)delta,
-              "Disaggregated storage database size too large");
+            WT_ASSERT(session, UINT64_MAX - db >= (uint64_t)delta);
             conn->disaggregated_storage.database_size = db + (uint64_t)delta;
         } else {
-            WT_ASSERT_ALWAYS(
-              session, db >= (uint64_t)(-delta), "Disaggregated storage database size too small");
+            WT_ASSERT(session, db >= (uint64_t)(-delta));
             conn->disaggregated_storage.database_size = db - (uint64_t)(-delta);
         }
     }
