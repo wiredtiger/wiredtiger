@@ -31,6 +31,7 @@ from run import wt_builddir
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
+from key_provider_helper import sqlite_fetch_information
 
 # test_disagg_checkpoint_size04.py
 #       Test that KEK table size is included in database size tracking.
@@ -55,23 +56,9 @@ class test_disagg_checkpoint_size04(wttest.WiredTigerTestCase):
         extlist.extension('test', "key_provider" + config)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    # Use sqlite to grab information for read/write validation. Use the builtin sqlite3 to
-    # match Palites SQLite version; some system SQLite builds are too old and may fail.
-    def sqlite_fetch_information(self, home, database, sql_query):
-        sqlite_exe = os.path.join(wt_builddir, "sqlite3")
-        database_home = os.path.join(home, 'kv_home', database)
-        result = subprocess.run(
-            [sqlite_exe, "-json", database_home, sql_query],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        result_data = json.loads(result.stdout)
-        return result_data[0]
-
     # Verify KEK rotation occurred
     def validate_meta_file(self, home="."):
-        result = self.sqlite_fetch_information(home, "pages_000001.db", "SELECT * FROM pages ORDER BY lsn DESC LIMIT 1;")
+        result = sqlite_fetch_information(home, "pages_000001.db", "SELECT * FROM pages ORDER BY lsn DESC LIMIT 1;")
         m = re.search(".*page_id=(\d+),lsn=(\d+).*version=(\d+)", result['page_data'])
 
         self.assertTrue(m)
