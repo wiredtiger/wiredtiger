@@ -148,7 +148,8 @@ __drop_issue_trim(WT_SESSION_IMPL *session, const char *uri)
     if (btree->page_log->pl_trim_table == NULL) {
         __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
           "Trim table is not supported by the current PALI implementation");
-        return (0);
+        ret = 0;
+        goto err;
     }
 
     /*
