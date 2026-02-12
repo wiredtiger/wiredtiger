@@ -82,6 +82,19 @@ class test_layered73(wttest.WiredTigerTestCase):
 
         return prepare_session, prepare_cursor
 
+    def prepare_delete_in_separate_session(self, key, prepare_ts=50):
+        prepare_session = self.conn.open_session()
+        prepare_cursor = prepare_session.open_cursor(self.uri)
+
+        prepare_session.begin_transaction()
+        prepare_cursor.set_key(key)
+        prepare_cursor.remove()
+        prepare_session.prepare_transaction(
+            'prepare_timestamp=' + self.timestamp_str(prepare_ts) +
+            ',prepared_id=' + self.prepared_id_str(1))
+
+        return prepare_session, prepare_cursor
+
     def test_search_near_key_preserved_on_prepare_conflict(self):
         # Setup: keys 1, 3, 5 committed
         self.setup_table_with_data([1, 3, 5])
@@ -109,6 +122,42 @@ class test_layered73(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.get_value(), "prepared_value")
         else:
             prepare_session.rollback_transaction()
+            self.assertEqual(cursor.search_near(), 1)
+            self.assertEqual(cursor.get_key(), 3)
+            self.assertEqual(cursor.get_value(), "value_3")
+        prepare_cursor.close()
+
+    def test_search_near_key_preserved_on_prepare_delete_conflict(self):
+        # Setup: keys 1, 3, 5 committed
+        self.setup_table_with_data([1, 3, 5])
+
+        # Prepare a delete on key 3 (existing key)
+        prepare_session, prepare_cursor = self.prepare_delete_in_separate_session(3)
+
+        # Open cursor and set key to search for the deleted key
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(60))
+
+        cursor.set_key(3)
+        # Assert that search_near should return a prepare conflict and the cursor position doesn't reset
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.search_near())
+        retrieved_key = cursor.get_key()
+        self.assertEqual(retrieved_key, 3,
+                "Key should be preserved after WT_PREPARE_CONFLICT on delete")
+
+        if self.commit:
+            prepare_session.breakpoint()
+            prepare_session.commit_transaction('commit_timestamp=' + self.timestamp_str(60)+',durable_timestamp='+self.timestamp_str(60))
+            # Key 3 is now deleted so calling search_near() again should return a neighbor
+            self.assertIn(cursor.search_near(), (-1, 1))
+            returned_key = cursor.get_key()
+            self.assertIn(returned_key, (1, 5))
+            self.assertEqual(cursor.get_value(), "value_" + str(returned_key))
+        else:
+            prepare_session.rollback_transaction()
+            self.assertEqual(cursor.search_near(), 0)
+            self.assertEqual(cursor.get_key(), 3)
+            self.assertEqual(cursor.get_value(), "value_3")
         prepare_cursor.close()
 
     def test_next_key_preserved_on_prepare_conflict(self):
