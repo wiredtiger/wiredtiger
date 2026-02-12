@@ -1564,9 +1564,9 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
             if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES_HARD) &&
               evict->evict_empty_score > WT_EVICT_SCORE_CUTOFF &&
               F_ISSET(evict, WT_EVICT_CACHE_SCRUB)) {
-                /* Take all available candidates when cache is filled with consistently empty
-                 * eviction queues and we are in scrub mode, otherwise we might empty the cache of
-                 * clean pages.
+                /* To help with evicting pages with updates, take all available entries as
+                 * candidates when cache is filled with consistently empty eviction queues and we
+                 * are in scrub mode, otherwise we might empty the cache of clean pages.
                  */
                 queue->evict_candidates = entries;
             } else {
