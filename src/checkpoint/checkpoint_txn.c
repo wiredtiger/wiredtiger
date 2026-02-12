@@ -1733,6 +1733,13 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
 
     /*
+     * If this is a newly created database, add a 1MB buffer onto the database's size. This is done
+     * to account for the KEK table and shared metadata file size.
+     */
+    if (conn->disaggregated_storage.database_size == 0 && conn->is_new)
+        conn->disaggregated_storage.database_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
+
+    /*
      * Apply the accumulated size delta to the in-memory database_size now that the checkpoint has
      * succeeded. Positive deltas occur when data is added during the checkpoint. Negative deltas
      * occur when data is removed reducing the total storage footprint. Guard against
@@ -1753,13 +1760,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
             conn->disaggregated_storage.database_size = db - (uint64_t)(-delta);
         }
     }
-
-    if (conn->disaggregated_storage.database_size == 0 && conn->is_new)
-        /*
-         * Add a 1MB buffer on a newly created database's size. This is done to account for the KEK
-         * table and shared metadata file size.
-         */
-        conn->disaggregated_storage.database_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
 
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 
