@@ -1761,7 +1761,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
          * Add a 1MB buffer on a newly created database's size. This is done to account for the KEK
          * table and shared metadata file size.
          */
-        conn->disaggregated_storage.database_size += WT_MEGABYTE;
+        conn->disaggregated_storage.database_size += WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
 
     WT_STAT_CONN_INCR(session, checkpoints_total_succeed);
 

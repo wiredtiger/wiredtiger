@@ -204,6 +204,8 @@ struct __wt_page_delta_config {
     uint8_t flags;
 };
 
+#define WT_DISAGG_CHECKPOINT_SIZE_BUFFER WT_MEGABYTE
+
 /*
  * WT_DISAGGREGATED_STORAGE --
  *      Configuration and the current state for disaggregated storage, which tells the Block Manager
