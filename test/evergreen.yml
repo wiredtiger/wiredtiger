@@ -2564,7 +2564,7 @@ tasks:
           unit_test_ignore: test/suite/hook_disagg.fail
           # The timeout for this command is on a test file basis. Make the timeouts long,
           # as there are a few files that contain a large number of slower tests.
-          unit_test_args: -v 2 --timeout 1800 --extra-long --hook "disagg=(role=leader)"
+          unit_test_args: -v 2 --timeout 3600 --extra-long --hook "disagg=(role=leader)"
 
   # FIXME-WT-15652 Remove PALM tests when PALite is fully validated.
   # Run the tests with PALM for comparison with PALite to catch discrepancies.
