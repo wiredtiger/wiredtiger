@@ -2340,8 +2340,10 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
       session, stats, txn_pinned_timestamp_lag, oldest_timestamp - pinned_timestamp);
 
     /* Represents the lag of the checkpoint timestamp with respect to the oldest timestamp.*/
-    if (oldest_timestamp > checkpoint_timestamp)
+    if (txn_global->checkpoint_running && checkpoint_timestamp != WT_TS_NONE &&
+      checkpoint_timestamp < oldest_timestamp)
         checkpoint_pinned_ts_lag = oldest_timestamp - checkpoint_timestamp;
+
     WT_STATP_CONN_SET(
       session, stats, txn_pinned_timestamp_checkpoint_lag, checkpoint_pinned_ts_lag);
 
