@@ -800,7 +800,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
 
     /* Load the total bytes for disaggregated storage. */
     if (__wt_conn_is_disagg(session))
-        btree->bytes_total = ckpt->size;
+        __wt_btree_set_size(session, ckpt->size);
 
     /*
      * We've just overwritten the runtime write generation based off the fact that know that we're
