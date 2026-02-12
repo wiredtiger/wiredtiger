@@ -36,12 +36,15 @@ def collect_stat_files(destination_dir, source_dir, regex):
 
     dir_prefix = os.path.join(destination_dir, source_dir[2:].replace("/", "-"))
 
+    if not os.path.exists(dir_prefix):
+        os.makedirs(dir_prefix)
+
     for item in os.listdir(source_dir):
         path = os.path.join(source_dir, item)
         if os.path.isfile(path) and regex.match(item):
             file_path = os.path.join(source_dir, item)
             shutil.copy(file_path, destination_dir)
-            shutil.move(os.path.join(destination_dir, item), dir_prefix + '-' + item)
+            shutil.move(os.path.join(destination_dir, item), dir_prefix + '/' + item)
 
 
 def main():
