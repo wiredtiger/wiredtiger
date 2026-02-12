@@ -2328,8 +2328,7 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
         __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id));
 
     if (__wt_atomic_load_bool_v_relaxed(&txn_global->checkpoint_running)) {
-        checkpoint_timestamp =
-          __wt_atomic_load_uint64_relaxed(&txn_global->checkpoint_timestamp);
+        checkpoint_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->checkpoint_timestamp);
         checkpoint_pinned =
           __wt_atomic_load_uint64_v_relaxed(&txn_global->checkpoint_txn_shared.pinned_id);
     }
@@ -2346,7 +2345,7 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
       session, stats, txn_pinned_timestamp_lag, oldest_timestamp - pinned_timestamp);
 
     /* Represents the lag of the checkpoint timestamp with respect to the oldest timestamp.*/
-    if ( checkpoint_timestamp != WT_TS_NONE && checkpoint_timestamp < oldest_timestamp)
+    if (checkpoint_timestamp != WT_TS_NONE && checkpoint_timestamp < oldest_timestamp)
         checkpoint_pinned_ts_lag = oldest_timestamp - checkpoint_timestamp;
 
     WT_STATP_CONN_SET(
