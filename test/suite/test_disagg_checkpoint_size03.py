@@ -161,3 +161,125 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
             stat_cursor.close()
             self.assertGreater(delta_count, 0,
                 f"Cycle {cycle}: Expected leaf page deltas but got {delta_count}")
+
+    # Regression test for the size leak after rec_result is set to WT_PAGE_CLEAN.
+    def test_size_leak_after_rec_result_page_clean(self):
+        nrows = 20
+        val_size = 200
+        ncycles = 1
+
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+
+        c = self.session.open_cursor(self.uri)
+        # Insert 20 keys, roughly 4KB.
+        self.session.begin_transaction()
+        for i in range(nrows):
+            c['key' + str(i)] = 'A' * val_size
+        c.close()
+        self.session.commit_transaction()
+        self.session.checkpoint()
+        baseline = self.get_checkpoint_size()
+        self.pr(f"Baseline checkpoint size: {baseline}")
+
+        # Generate a delta.
+        c = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        for i in range(0, nrows, 5):
+            c['key' + str(i)] = 'x' * val_size
+        c.close()
+        self.session.commit_transaction()
+        self.session.checkpoint()
+
+        size_after_delta = self.get_checkpoint_size()
+
+        # Evict the leaf page.
+        self.session.breakpoint()
+        evict_cursor = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
+        self.session.begin_transaction()
+        evict_cursor.set_key(f'key{0:04d}')
+        evict_cursor.search()
+        evict_cursor.reset()
+        evict_cursor.close()
+        self.session.rollback_transaction()
+
+        # Step 3: Read in the evicted page and force a full page rewrite, this triggers our previous
+        # leak.
+        self.conn.reconfigure('page_delta=(delta_pct=1)')
+        c = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        for i in range(nrows):
+            c['key' + str(i)] = 'y' * val_size
+        c.close()
+        self.session.commit_transaction()
+        self.session.checkpoint()
+
+        final = self.get_checkpoint_size()
+        self.pr(f"Final: {final}, Baseline: {baseline}, ratio: {final/baseline:.2f}x")
+
+        # If we leak the full page size then final is around 8K, in this case we expect it to be
+        # less than 4.8K
+        self.assertLess(final, baseline * 1.2)
+
+    # Regression test for a bug in block_disagg_read.c where cumulative_size was set to only the
+    # most recent block's raw size instead of the true cumulative total of base + all deltas.
+    def test_cumulative_size_leak_after_eviction(self):
+        nrows = 20
+        val_size = 200
+        ncycles = 10
+
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+
+        # Write initial data. Small enough for a single leaf page 4K.
+        c = self.session.open_cursor(self.uri)
+        for i in range(nrows):
+            c['key' + str(i)] = 'A' * val_size
+        c.close()
+        self.session.checkpoint()
+        baseline = self.get_checkpoint_size()
+        self.pr(f"Baseline checkpoint size: {baseline}")
+
+        prev_delta_count = 0
+        for cycle in range(ncycles):
+            # Step 1: Create a delta on top of the current page.
+            c = self.session.open_cursor(self.uri)
+            for i in range(0, nrows, 5):
+                c['key' + str(i)] = 'x' * val_size
+            c.close()
+            self.session.checkpoint()
+
+            size_after_delta = self.get_checkpoint_size()
+
+            # Verify a new delta was actually created this cycle.
+            stat_cursor = self.session.open_cursor('statistics:' + self.uri)
+            delta_count = stat_cursor[stat.dsrc.rec_page_delta_leaf][2]
+            stat_cursor.close()
+            new_deltas = delta_count - prev_delta_count
+            prev_delta_count = delta_count
+            self.assertGreater(new_deltas, 0,
+                f"Cycle {cycle}: expected new deltas but got {new_deltas}")
+
+            # Step 2: Evict the leaf page. On next access it will be read from the page service,
+            # prior to the fix this would set cumulative_size to the last delta's raw size instead
+            # the true cumulative total.
+            evict_cursor = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
+            self.session.begin_transaction()
+            evict_cursor.set_key(f'key{0:04d}')
+            evict_cursor.search()
+            evict_cursor.reset()
+            evict_cursor.close()
+            self.session.rollback_transaction()
+
+            # Step 3: Force a full page rewrite to terminate the delta chain.
+            self.conn.reconfigure('page_delta=(delta_pct=1)')
+            c = self.session.open_cursor(self.uri)
+            for i in range(nrows):
+                c['key' + str(i)] = 'y' * val_size
+            c.close()
+            self.session.checkpoint()
+
+        final = self.get_checkpoint_size()
+        self.pr(f"Final: {final}, Baseline: {baseline}, ratio: {final/baseline:.2f}x")
+
+        # The data volume is constant across cycles (same nrows, same val_size).
+        # Without the bug, the size stays near baseline.
+        self.assertLess(final, baseline * 2)

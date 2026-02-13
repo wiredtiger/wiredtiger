@@ -2881,6 +2881,13 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             disagg_page_free_required =
               (r->multi_next != 1 || r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID);
         WT_RET(__wt_ref_block_free(session, ref, disagg_page_free_required));
+        /*
+         * Update the tree size accounting if we don't free the page id and we terminate the delta
+         * chain.
+         */
+        if (disagg_page_is_valid && !disagg_page_free_required &&
+          !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->block_meta->delta_count == 0)
+            __wt_btree_decrease_size(session, ref->page->disagg_info->block_meta.cumulative_size);
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -2933,9 +2940,19 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                          * the page id.
                          */
                         WT_RET(__wt_ref_block_free(session, ref, true));
-                    else if (r->multi_next != 1 || !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE))
+                    else if (r->multi_next != 1 || !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE)) {
                         /* Only free a disagg page if we don't skip writing the page. */
                         WT_RET(__wt_ref_block_free(session, ref, disagg_page_free_required));
+                        /*
+                         * Update the tree size accounting if we don't free the page id and we
+                         * terminate the delta chain.
+                         */
+                        if (disagg_page_is_valid && !disagg_page_free_required &&
+                          !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
+                          r->multi->block_meta->delta_count == 0)
+                            __wt_btree_decrease_size(
+                              session, ref->page->disagg_info->block_meta.cumulative_size);
+                    }
                 }
             } else {
                 /*
