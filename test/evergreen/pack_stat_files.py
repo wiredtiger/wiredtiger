@@ -30,21 +30,28 @@ import argparse
 import os
 import re
 import shutil
-import tarfile
 
 def collect_stat_files(destination_dir, source_dir, regex):
+    """
+    Collect all stat files from a source directory and copy them into a specified destination directory.
 
-    dir_prefix = os.path.join(destination_dir, source_dir[2:].replace("/", "-"))
+    :param destination_dir: The destination directory where stat files are copied to.
+    :param source_dir: The source directory to search for stat files.
+    :param regex: A compiled regular expression to match stat file names.
+    """
 
-    if not os.path.exists(dir_prefix):
-        os.makedirs(dir_prefix)
+    # Remove the leading "./" from the source directory name and replace all "/" with "-" to create a unique directory name for the stat files being collected from this location.
+    destination_sub_dir = os.path.join(destination_dir, source_dir[2:].replace("/", "-"))
+
+    # Create the subdirectory that the files from this location will be copied to.
+    if not os.path.exists(destination_sub_dir):
+        os.makedirs(destination_sub_dir)
 
     for item in os.listdir(source_dir):
         path = os.path.join(source_dir, item)
         if os.path.isfile(path) and regex.match(item):
             file_path = os.path.join(source_dir, item)
-            shutil.copy(file_path, destination_dir)
-            shutil.move(os.path.join(destination_dir, item), dir_prefix + '/' + item)
+            shutil.copy(file_path, destination_sub_dir)
 
 
 def main():
@@ -56,10 +63,11 @@ def main():
 
     regex = re.compile(r'WiredTigerStat.*')
     for root, _, files in os.walk("."):
-        if destination_dir in root: continue
+        if destination_dir in root:
+            # Skip searching for stat files in the destination directory, since that's where we're collecting them and we don't want to copy files that we've already collected.
+            continue
         for file in files:
             if regex.match(file):
-
                 # If current directory contains any stat files, collect them all into a single location for packing.
                 collect_stat_files(destination_dir, root, regex)
 

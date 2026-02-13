@@ -17,8 +17,6 @@ post:
   - func: "upload test/model workloads"
   - func: "dump stderr/stdout"
   - func: "upload stat files"
-    vars:
-      destination: FTDC
   - func: "upload artifact"
     vars:
       postfix: -${execution}
@@ -516,18 +514,18 @@ functions:
     - command: shell.exec
       type: setup
       params:
-        working_dir: "wiredtiger/cmake_build/test"
+        working_dir: "wiredtiger/cmake_build"
         shell: bash
         script: |
           set -o errexit
           set -o verbose
-          mkdir ${destination}
-          ${python_binary|python3} ../../test/evergreen/pack_stat_files.py -d ${destination}
+          mkdir stat_files
+          ${python_binary|python3} ../test/evergreen/pack_stat_files.py -d stat_files
     - command: archive.targz_pack
       type: setup
       params:
-        target: wiredtiger/cmake_build/test/${destination}.tar.gz
-        source_dir: wiredtiger/cmake_build/test/${destination}
+        target: wiredtiger/cmake_build/stat_files.tar.gz
+        source_dir: wiredtiger/cmake_build/stat_files
         include:
           - "./**"
     - command: s3.put
@@ -535,12 +533,12 @@ functions:
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
-        local_file: wiredtiger/cmake_build/test/${destination}.tar.gz
+        local_file: wiredtiger/cmake_build/stat_files.tar.gz
         bucket: build_external
         permissions: public-read
         content_type: application/tar
-        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}/${destination}.tar.gz
-        display_name: "FTDC"
+        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}/stat_files.tar.gz
+        display_name: "Statistics"
 
   "run data validation stress test checkpoint":
     - *fetch_artifacts
