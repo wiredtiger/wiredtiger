@@ -520,7 +520,7 @@ functions:
           set -o errexit
           set -o verbose
           mkdir stat_files
-          ${python_binary|python3} ../test/evergreen/pack_stat_files.py -d stat_files
+          ${python_binary|python3} ../test/evergreen/collect_stat_files.py -d stat_files
     - command: archive.targz_pack
       type: setup
       params:
