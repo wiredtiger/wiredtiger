@@ -130,11 +130,6 @@ errors = [
         result of a system crash. The application may choose to salvage the
         file or retry wiredtiger_open with the 'salvage=true' configuration
         setting.'''),
-    Error('WT_MAX_SESSIONS', -31810,
-        'maximum number of sessions created', '''
-        This error is generated when the maximum number of sessions has been
-        created in the system. The application may choose to close some sessions
-        or retry wiredtiger_open with a higher session limit configuration setting.'''),
 ]
 
 # To ensure our sub-level error returns do not conflict with any other
