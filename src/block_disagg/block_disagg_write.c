@@ -173,7 +173,6 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
 
     put_args.backlink_lsn = block_meta->backlink_lsn;
     put_args.base_lsn = block_meta->base_lsn;
-    put_args.encryption = block_meta->encryption;
     put_args.image_size = page_image_size;
 
     if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED))
@@ -214,7 +213,7 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     *checksump = checksum;
 
     /* Update the btree's running total of bytes. */
-    (void)__wt_atomic_add_uint64(&btree->bytes_total, *sizep);
+    __wt_btree_increase_size(session, *sizep);
 
     return (0);
 }
@@ -285,7 +284,7 @@ __wti_block_disagg_page_discard(
 {
     /* Crack the cookie. */
     WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
-    WT_RET(__wti_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
+    WT_RET(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
 
     __wt_verbose(session, WT_VERB_BLOCK,
       "block free: page_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64 ", base_lsn %" PRIu64
@@ -299,7 +298,7 @@ __wti_block_disagg_page_discard(
      * Decrement the btree's running total of bytes. The cookie.size field represents the cumulative
      * size of the block chain (base + deltas).
      */
-    (void)__wt_atomic_sub_uint64(&S2BT(session)->bytes_total, cookie.size);
+    __wt_btree_decrease_size(session, cookie.size);
 
     /* Ignore the call if the function is not implemented. */
     if (plhandle->plh_discard == NULL) {
