@@ -877,9 +877,9 @@ __checkpoint_update_disagg_database_size(WT_SESSION_IMPL *session)
 
     /*
      * If this is a newly created database, add a 1MB buffer onto the database's size. This is done
-     * to account for the KEK table and shared metadata file size. Correctness here is provided by
-     * the fact that we pickup a new checkpoint on startup. Thus subsequent starts of the database
-     * will already have a checkpoint size set.
+     * to account for the KEK table and shared turtle page size. Correctness here is provided by the
+     * fact that we pickup a new checkpoint on startup. Thus subsequent starts of the database will
+     * already have a checkpoint size set.
      */
     if (conn->disaggregated_storage.database_size == 0)
         conn->disaggregated_storage.database_size = WT_DISAGG_CHECKPOINT_SIZE_BUFFER;
