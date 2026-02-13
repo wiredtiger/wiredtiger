@@ -108,12 +108,11 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_ITEM *current;
     WT_PAGE_LOG_GET_ARGS get_args;
     uint64_t time_start, time_stop;
-    uint32_t retry, tmp_count, block_size_sum;
+    uint32_t retry, tmp_count;
     int32_t last, result;
     uint8_t expected_magic;
     bool is_delta;
 
-    block_size_sum = 0;
     time_start = __wt_clock(session);
 
     WT_CLEAR(get_args);
@@ -173,9 +172,6 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
 
     last = (int32_t)(*results_count - 1);
 
-    /* Set the cumulative size from the cookie before the loop overwrites the size variable. */
-    block_meta->cumulative_size = size;
-
     /*
      * Walk through all the results from most recent delta backwards to the base page. This makes it
      * easier to do checks.
@@ -184,7 +180,6 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         current = &results_array[result];
         WT_ASSERT(session, current->size < UINT32_MAX);
         size = (uint32_t)current->size;
-        block_size_sum += size;
         is_delta = (result != 0);
 
         /*
@@ -269,10 +264,6 @@ corrupt:
             WT_ERR(WT_ERROR);
         WT_ERR_PANIC(session, WT_ERROR, "%s: fatal read error", block_disagg->name);
     }
-
-    /* The cumulative size from the cookie must match the sum of all individual block sizes. */
-    WT_ASSERT(session, block_meta->cumulative_size == block_size_sum);
-
 err:
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_disaggbmread(session, WT_CLOCKDIFF_US(time_stop, time_start));
