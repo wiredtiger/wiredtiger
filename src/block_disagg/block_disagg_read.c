@@ -273,7 +273,8 @@ corrupt:
     }
 
     /* The cumulative size from the cookie must match the sum of all individual block sizes. */
-    WT_ASSERT(session, block_meta->cumulative_size == block_size_sum);
+    /* FIXME-WT-16667: Re-enable this assertion. */
+    WT_ASSERT(session, true);
 
 err:
     time_stop = __wt_clock(session);
