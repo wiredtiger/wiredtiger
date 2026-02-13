@@ -62,14 +62,14 @@ def main():
     destination_dir = args.destination_dir
 
     regex = re.compile(r'WiredTigerStat.*')
-    for root, _, files in os.walk("."):
-        if destination_dir in root:
+    for walk_dir, _, files in os.walk("."):
+        if destination_dir in walk_dir:
             # Skip searching for stat files in the destination directory, since that's where we're collecting them and we don't want to copy files that we've already collected.
             continue
         for file in files:
             if regex.match(file):
                 # If current directory contains any stat files, collect them all into a single location for packing.
-                collect_stat_files(destination_dir, root, regex)
+                collect_stat_files(destination_dir, walk_dir, regex)
 
                 break   # Finished searching in this directory, move on to the next one.
 
