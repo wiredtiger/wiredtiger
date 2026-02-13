@@ -469,6 +469,18 @@ __disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt)
     crypt_header->checksum = __wt_bswap32(crypt_header->checksum);
 #endif
 }
+
+/*
+ * __wt_disagg_set_database_size --
+ *     Set the database size in disaggregated storage.
+ */
+void
+__wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size)
+{
+    S2C(session)->disaggregated_storage.database_size = database_size;
+    WT_STAT_CONN_SET(session, disagg_database_size, database_size);
+}
+
 /*
  * __wt_disagg_put_crypt_helper --
  *     If new encryption key data information is detected, update the metadata page log and callback
@@ -1223,7 +1235,7 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
 
     /* Set the database size. */
     if (ckpt_meta->has_database_size)
-        conn->disaggregated_storage.database_size = ckpt_meta->database_size;
+        __wt_disagg_set_database_size(session, ckpt_meta->database_size);
 
     /* Remember the root config of the last checkpoint. */
     __wt_free(session, conn->disaggregated_storage.last_checkpoint_root);

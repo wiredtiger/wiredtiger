@@ -599,6 +599,7 @@ conn_stats = [
     ##########################################
     # Disagg statistics
     ##########################################
+    DisaggStat('disagg_database_size', 'database size', 'size'),
     DisaggStat('disagg_role_leader', 'role leader'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
     DisaggStat('disagg_step_up_time', 'step up most recent time (msecs)'),
