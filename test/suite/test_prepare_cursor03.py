@@ -26,32 +26,25 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_layered74.py
-#   Cover delete->prepare-conflict paths for search_near, next and prev.
+# test_prepare_cursor03.py
+#   Non-layered equivalent of test_layered74 for delete->prepare-conflict paths.
 
 import wiredtiger
 import wttest
-from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 
-@disagg_test_class
-class test_layered74(wttest.WiredTigerTestCase):
-    tablename = 'test_layered74'
-    uri = 'layered:' + tablename
+class test_prepare_cursor03(wttest.WiredTigerTestCase):
+    tablename = 'test_prepare_cursor03'
+    uri = 'table:' + tablename
 
     resolve_scenarios = [
         ('commit', dict(commit=True)),
         ('rollback', dict(commit=False)),
     ]
+    scenarios = make_scenarios(resolve_scenarios)
 
-    disagg_storages = gen_disagg_storages('test_layered74', disagg_only=True)
-    scenarios = make_scenarios(disagg_storages, resolve_scenarios)
-
-    conn_base_config = 'cache_size=10MB,statistics=(all),precise_checkpoint=true,preserve_prepared=true,'
-
-    def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="follower")'
+    conn_config = 'cache_size=10MB,statistics=(all)'
 
     def setup_table_with_data(self, keys):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
@@ -83,9 +76,7 @@ class test_layered74(wttest.WiredTigerTestCase):
 
         prepare_session.begin_transaction()
         prepare_cursor[key] = value
-        prepare_session.prepare_transaction(
-            'prepare_timestamp=' + self.timestamp_str(prepare_ts) +
-            ',prepared_id=' + self.prepared_id_str(1))
+        prepare_session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(prepare_ts))
 
         return prepare_session, prepare_cursor
 
@@ -119,8 +110,7 @@ class test_layered74(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.get_key(), 1, 'Search key should stay set across retries')
 
         self.resolve_prepare(prepare_session)
-        prepare_cursor.close()
-        prepare_session.close()
+
         # Insert key 1 back and verify search_near now returns that exact key.
         insert_session = self.conn.open_session()
         insert_cursor = insert_session.open_cursor(self.uri)
@@ -137,6 +127,8 @@ class test_layered74(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.get_key(), 1)
         self.assertEqual(cursor.get_value(), 'reinserted_value_1')
 
+        prepare_cursor.close()
+        prepare_session.close()
         cursor.close()
         self.session.rollback_transaction()
 

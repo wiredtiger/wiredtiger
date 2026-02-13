@@ -1512,8 +1512,16 @@ err:
     } else if (ret != WT_PREPARE_CONFLICT) {
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         clayered->current_cursor = NULL;
+    } else {
+        /*
+         * On prepare conflict, preserve the external key state so retry loops can call search_near
+         * again without needing to re-set the key.
+         */
+        if (cursor->key.data != NULL && cursor->key.size != 0) {
+            F_CLR(cursor, WT_CURSTD_KEY_INT);
+            F_SET(cursor, WT_CURSTD_KEY_EXT);
+        }
     }
-
     API_END_RET(session, ret);
 }
 
