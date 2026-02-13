@@ -2881,6 +2881,13 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             disagg_page_free_required =
               (r->multi_next != 1 || r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID);
         WT_RET(__wt_ref_block_free(session, ref, disagg_page_free_required));
+        /*
+         * Update the tree size accounting if we don't free the page id and we terminate the delta
+         * chain.
+         */
+        if (disagg_page_is_valid && !disagg_page_free_required &&
+          !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->block_meta->delta_count == 0)
+            __wt_btree_decrease_size(session, ref->page->disagg_info->block_meta.cumulative_size);
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -2933,9 +2940,19 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                          * the page id.
                          */
                         WT_RET(__wt_ref_block_free(session, ref, true));
-                    else if (r->multi_next != 1 || !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE))
+                    else if (r->multi_next != 1 || !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE)) {
                         /* Only free a disagg page if we don't skip writing the page. */
                         WT_RET(__wt_ref_block_free(session, ref, disagg_page_free_required));
+                        /*
+                         * Update the tree size accounting if we don't free the page id and we
+                         * terminate the delta chain.
+                         */
+                        if (disagg_page_is_valid && !disagg_page_free_required &&
+                          !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) &&
+                          r->multi->block_meta->delta_count == 0)
+                            __wt_btree_decrease_size(
+                              session, ref->page->disagg_info->block_meta.cumulative_size);
+                    }
                 }
             } else {
                 /*
@@ -2949,6 +2966,35 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
                     WT_RET(__wt_btree_block_free(
                       session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
                     page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
+                } else {
+                    /*
+                     * Because we are tracking cookie sizes cumulatively, we only decrease the size
+                     * if the page being written is a full page image. This would indicate the delta
+                     * chain has ended.
+                     *
+                     * Interestingly we need to make sure we utilize the newest block meta structure
+                     * the one held on page->disagg_info appears to be from the previous block, and
+                     * the one on the multi->block_meta appears to be from the current block.
+                     */
+                    if (r->multi->block_meta != NULL && r->multi->block_meta->delta_count == 0 &&
+                      !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE)) {
+
+#ifdef HAVE_DIAGNOSTIC
+                        /*
+                         * The previous cookie has the size we want but it should be also the
+                         * previous cumulative size. Sanity check this is the case in diagnostics
+                         * build.
+                         */
+                        WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
+                        const uint8_t *buf = mod->mod_replace.block_cookie;
+                        WT_RET(__wt_block_disagg_addr_unpack(
+                          session, &buf, mod->mod_replace.block_cookie_size, &cookie));
+                        WT_ASSERT(
+                          session, cookie.size == page->disagg_info->block_meta.cumulative_size);
+#endif
+                        __wt_btree_decrease_size(
+                          session, page->disagg_info->block_meta.cumulative_size);
+                    }
                 }
             }
         }

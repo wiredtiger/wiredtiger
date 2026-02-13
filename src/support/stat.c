@@ -2379,6 +2379,7 @@ static const char *const __stats_connection_desc[] = {
   "data-handle: connection sweeps skipped due to checkpoint gathering handles",
   "data-handle: session dhandles swept",
   "data-handle: session sweep attempts",
+  "disagg: database size",
   "disagg: role leader",
   "disagg: step down most recent time (msecs)",
   "disagg: step up most recent time (msecs)",
@@ -3415,6 +3416,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->dh_sweep_skip_ckpt = 0;
     stats->dh_session_handles = 0;
     stats->dh_session_sweeps = 0;
+    stats->disagg_database_size = 0;
     stats->disagg_role_leader = 0;
     stats->disagg_step_down_time = 0;
     stats->disagg_step_up_time = 0;
@@ -4564,6 +4566,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->dh_sweep_skip_ckpt += WT_STAT_CONN_READ(from, dh_sweep_skip_ckpt);
     to->dh_session_handles += WT_STAT_CONN_READ(from, dh_session_handles);
     to->dh_session_sweeps += WT_STAT_CONN_READ(from, dh_session_sweeps);
+    to->disagg_database_size += WT_STAT_CONN_READ(from, disagg_database_size);
     to->disagg_role_leader += WT_STAT_CONN_READ(from, disagg_role_leader);
     to->disagg_step_down_time += WT_STAT_CONN_READ(from, disagg_step_down_time);
     to->disagg_step_up_time += WT_STAT_CONN_READ(from, disagg_step_up_time);
