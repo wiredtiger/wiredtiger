@@ -188,6 +188,21 @@ struct __wt_disaggregated_checkpoint_track {
 };
 
 /*
+ * WT_DISAGG_CHECKPOINT_META --
+ *     Checkpoint metadata structure for disaggregated storage.
+ */
+typedef struct __wt_disagg_checkpoint_meta {
+    uint64_t metadata_lsn; /* The LSN of the metadata page. */
+
+    bool has_metadata_checksum; /* Whether the metadata page checksum is present. */
+    uint32_t metadata_checksum; /* The checksum of the metadata page. */
+
+    uint32_t version; /* The version of the checkpoint_meta. */
+    uint32_t
+      compatible_version; /* The minimum version of the reader that can use this checkpoint_meta. */
+} WT_DISAGG_CHECKPOINT_META;
+
+/*
  * WT_PAGE_DELTA_CONFIG --
  *      Metadata for tracking page deltas
  */

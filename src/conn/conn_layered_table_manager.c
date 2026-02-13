@@ -8,13 +8,12 @@
 
 #include "wt_internal.h"
 
-
 /*
- * __layered_table_manager_init --
+ * __wti_layered_table_manager_init --
  *     Start the layered table manager thread
  */
-static int
-__layered_table_manager_init(WT_SESSION_IMPL *session)
+int
+__wti_layered_table_manager_init(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
