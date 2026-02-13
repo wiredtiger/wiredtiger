@@ -161,3 +161,61 @@ class test_disagg_checkpoint_size03(wttest.WiredTigerTestCase):
             stat_cursor.close()
             self.assertGreater(delta_count, 0,
                 f"Cycle {cycle}: Expected leaf page deltas but got {delta_count}")
+
+    # Regression test for the size leak after rec_result is set to WT_PAGE_CLEAN.
+    def test_size_leak_after_rec_result_page_clean(self):
+        nrows = 20
+        val_size = 200
+        ncycles = 1
+
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+
+        c = self.session.open_cursor(self.uri)
+        # Insert 20 keys, roughly 4KB.
+        self.session.begin_transaction()
+        for i in range(nrows):
+            c['key' + str(i)] = 'A' * val_size
+        c.close()
+        self.session.commit_transaction()
+        self.session.checkpoint()
+        baseline = self.get_checkpoint_size()
+        self.pr(f"Baseline checkpoint size: {baseline}")
+
+        # Generate a delta.
+        c = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        for i in range(0, nrows, 5):
+            c['key' + str(i)] = 'x' * val_size
+        c.close()
+        self.session.commit_transaction()
+        self.session.checkpoint()
+
+        size_after_delta = self.get_checkpoint_size()
+
+        # Evict the leaf page.
+        self.session.breakpoint()
+        evict_cursor = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
+        self.session.begin_transaction()
+        evict_cursor.set_key(f'key{0:04d}')
+        evict_cursor.search()
+        evict_cursor.reset()
+        evict_cursor.close()
+        self.session.rollback_transaction()
+
+        # Step 3: Read in the evicted page and force a full page rewrite, this triggers our previous
+        # leak.
+        self.conn.reconfigure('page_delta=(delta_pct=1)')
+        c = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        for i in range(nrows):
+            c['key' + str(i)] = 'y' * val_size
+        c.close()
+        self.session.commit_transaction()
+        self.session.checkpoint()
+
+        final = self.get_checkpoint_size()
+        self.pr(f"Final: {final}, Baseline: {baseline}, ratio: {final/baseline:.2f}x")
+
+        # If we leak the full page size then final is around 8K, in this case we expect it to be
+        # less than 4.8K
+        self.assertLess(final, baseline * 1.2)

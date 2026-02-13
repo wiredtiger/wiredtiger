@@ -316,6 +316,7 @@ __wt_btree_increase_size(WT_SESSION_IMPL *session, uint64_t size)
 static WT_INLINE void
 __wt_btree_decrease_size(WT_SESSION_IMPL *session, uint64_t size)
 {
+    WT_ASSERT(session, __wt_atomic_load_uint64(&S2BT(session)->bytes_total) >= size);
     (void)__wt_atomic_sub_uint64(&S2BT(session)->bytes_total, size);
 }
 
@@ -1925,7 +1926,8 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool disagg_free_bloc
         WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
         if (ref->page != NULL)
             ref->page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
-    }
+    } else
+        __wt_btree_decrease_size(session, ref->page->disagg_info->block_meta.cumulative_size);
 
     /* Clear the address (so we don't free it twice). */
     __wt_ref_addr_free(session, ref);
