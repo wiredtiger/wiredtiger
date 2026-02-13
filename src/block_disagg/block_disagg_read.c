@@ -113,6 +113,9 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     uint8_t expected_magic;
     bool is_delta;
 
+    /* This variable is only used in an assertion, diagnostic builders don't like this. */
+    WT_UNUSED(block_size_sum);
+    block_size_sum = 0;
     time_start = __wt_clock(session);
 
     WT_CLEAR(get_args);
@@ -179,7 +182,6 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
      * Walk through all the results from most recent delta backwards to the base page. This makes it
      * easier to do checks.
      */
-    block_size_sum = 0;
     for (result = last; result >= 0; result--) {
         current = &results_array[result];
         WT_ASSERT(session, current->size < UINT32_MAX);
