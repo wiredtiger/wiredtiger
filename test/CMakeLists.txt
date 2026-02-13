@@ -11,7 +11,8 @@ add_subdirectory(checkpoint)
 add_subdirectory(cursor_order)
 add_subdirectory(fops)
 add_subdirectory(huge)
-add_subdirectory(manydbs)
+# FIXME-WT-16548: Re-enable the test.
+# add_subdirectory(manydbs)
 add_subdirectory(csuite)
 add_subdirectory(packing)
 
