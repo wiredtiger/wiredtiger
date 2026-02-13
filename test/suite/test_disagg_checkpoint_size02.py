@@ -35,6 +35,7 @@ from helper import simulate_crash_restart
 @disagg_test_class
 class test_disagg_checkpoint_size02(wttest.WiredTigerTestCase):
     conn_config = 'disaggregated=(role="leader",lose_all_my_data=true)'
+    disagg_size_buffer = 1024 * 1024
 
     def get_database_size(self):
         match = re.search(r'database_size=(\d+)', self.disagg_get_complete_checkpoint_meta())
@@ -56,7 +57,8 @@ class test_disagg_checkpoint_size02(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         # With no actual data, the size should be minimal. The only data that has actually been
         # written to SLS at this stage is the root page, and leaf page of the shared metadata file.
-        self.assertGreater(self.get_database_size(), 0, "Database size should be non-zero")
+        # It should also include the size of the 1MB buffer for new databases.
+        self.assertGreater(self.get_database_size(), self.disagg_size_buffer, "Database size should be non-zero")
 
     # Test that the database size increases as data is added and checkpoints are taken.
     def test_database_size_increases(self):
@@ -129,9 +131,11 @@ class test_disagg_checkpoint_size02(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         size_after_truncate = self.get_database_size()
 
-        # Size should have decreased
+        # Size should have decreased but still include buffer
         self.assertLess(size_after_truncate, size_with_data,
             f"Database size should decrease after truncate: {size_with_data} -> {size_after_truncate}")
+        self.assertGreaterEqual(size_after_truncate, self.disagg_size_buffer,
+            f"Size should still include buffer: {size_after_truncate} >= {self.disagg_size_buffer}")
 
     def test_database_size_multiple_btrees(self):
         uri1 = "layered:test1"
