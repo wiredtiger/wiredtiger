@@ -2882,7 +2882,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
               (r->multi_next != 1 || r->multi->block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID);
         WT_RET(__wt_ref_block_free(session, ref, disagg_page_free_required));
         /* Update the tree size accounting. */
-        if (disagg_page_is_valid && !disagg_page_free_required && r->multi->block_meta->delta_count == 0)
+        if (disagg_page_is_valid && !disagg_page_free_required &&
+          !F_ISSET(r->multi, WT_MULTI_SKIP_WRITE) && r->multi->block_meta->delta_count == 0)
             __wt_btree_decrease_size(session, ref->page->disagg_info->block_meta.cumulative_size);
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
