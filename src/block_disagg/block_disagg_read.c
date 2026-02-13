@@ -122,8 +122,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     if (S2BT(session)->storage_tier == WT_BTREE_STORAGE_TIER_COLD)
         F_SET(&get_args, WT_PAGE_LOG_COLD);
 
-    __wt_verbose_multi(session,
-      WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_READ, WT_VERB_VERIFY})),
+    __wt_verbose(session, WT_VERB_READ,
       "page_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64 ", base_lsn %" PRIu64 ", size %" PRIu32
       ", checksum %" PRIx32,
       page_id, flags, lsn, base_lsn, size, checksum);
@@ -183,9 +182,11 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         size = (uint32_t)current->size;
         is_delta = (result != 0);
 
-        __wt_verbose_multi(session,
-          WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_READ, WT_VERB_VERIFY})),
-          "Reading delta chain at position #%" PRId32 " for page_id %" PRIu64, result, page_id);
+        if (is_delta)
+            __wt_verbose_multi(session,
+              WT_DECL_VERBOSE_MULTI_CATEGORY(
+                ((WT_VERBOSE_CATEGORY[]){WT_VERB_READ, WT_VERB_VERIFY})),
+              "Reading delta page at position #%" PRId32 " for page_id %" PRIu64, result, page_id);
 
         /*
          * Do little- to big-endian handling early on.
