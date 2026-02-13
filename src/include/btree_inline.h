@@ -1926,8 +1926,7 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool disagg_free_bloc
         WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size));
         if (ref->page != NULL)
             ref->page->disagg_info->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
-    } else
-        __wt_btree_decrease_size(session, ref->page->disagg_info->block_meta.cumulative_size);
+    }
 
     /* Clear the address (so we don't free it twice). */
     __wt_ref_addr_free(session, ref);
