@@ -2111,7 +2111,7 @@ static WT_INLINE bool
 __evict_skip_dirty_precise_checkpoint(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     if (!F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT) ||
-      !__wt_atomic_load_bool_v_relaxed(&conn->txn_global.checkpoint_running))
+      !__wt_atomic_load_bool_v_relaxed(&S2C(session)->txn_global.checkpoint_running))
         return (false);
 
     /*
