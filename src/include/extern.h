@@ -133,9 +133,8 @@ extern int __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
   WT_PAGE_BLOCK_META *block_meta, size_t page_image_size, uint8_t *addr, size_t *addr_sizep,
   size_t *compressed_sizep, bool checkpoint, bool checkpoint_io, bool compressed)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int
-__blkcache_write_compress(WT_SESSION_IMPL *session, WT_ITEM *buf, bool already_compressed,
-  WT_ITEM **compressed_bufp, size_t *compressed_sizep, bool *compressedp)
+extern int __wt_blkcache_write_compress(WT_SESSION_IMPL *session, WT_ITEM *buf,
+  bool already_compressed, WT_ITEM **compressed_bufp, size_t *compressed_sizep, bool *compressedp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_addr_invalid(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr,
   size_t addr_size, bool live) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

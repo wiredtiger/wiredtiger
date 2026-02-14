@@ -99,7 +99,8 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     if (plh == NULL)
         return;
 
-    if (!plh->plh_cache_available(plh, &session->iface))
+    if (!plh->plh_cache_put || !plh->plh_cache_available ||
+      !plh->plh_cache_available(plh, &session->iface))
         return;
 
     WT_PAGE *page = ref->page;
@@ -112,29 +113,16 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     if (!F_ISSET(ref, WT_REF_FLAG_LEAF) || !page->disagg_info || !page->dsk)
         return;
 
-    if (page->disagg_info->block_meta.page_id == 0)  // the page hasn't been written yet
+    if (page->disagg_info->block_meta.page_id == 0)
         return;
 
     /* Cannot cache root pages. */
     if (__wt_ref_is_root(ref))
         return;
 
-    // if (page->disagg_info->block_meta.delta_count != 0) // TODO:: block_meta->delta_count is treated specially - need to use a fake one.
-    //     return;
-
-    // WT_ADDR_COPY addr_copy;
-    // if (!__wt_ref_addr_copy(session, ref, &addr_copy))
-    //     return;
-
-    // WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
-    // const uint8_t *buf = addr_copy.addr;
-    // if (!addr_copy.size || __wti_block_disagg_addr_unpack(session, &buf, addr_copy.size, &cookie))
-    //     return;
-
     /*
-     * Victim cache: store evicted pages in disagg cache.
-     * The format must match what __block_disagg_read_multiple expects:
-     * WT_PAGE_HEADER + WT_BLOCK_DISAGG_HEADER + data
+     * Victim cache: store evicted pages in disagg cache. The format must match what
+     * __block_disagg_read_multiple expects: WT_PAGE_HEADER + WT_BLOCK_DISAGG_HEADER + data
      */
     WT_ITEM buf_orig = {
       .data = page->dsk,
@@ -151,7 +139,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Optionally compress the data before caching. */
     WT_IGNORE_RET(
-      __blkcache_write_compress(session, &buf_orig, false, &compressed_buf, NULL, &compressed));
+      __wt_blkcache_write_compress(session, &buf_orig, false, &compressed_buf, NULL, &compressed));
     if (compressed_buf != NULL)
         cache_buf = compressed_buf;
 
@@ -159,8 +147,8 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     dsk = (WT_PAGE_HEADER *)cache_buf->mem;
 
     /*
-     * Determine if full data checksum is needed based on btree config.
-     * This follows the same logic as __wt_blkcache_write.
+     * Determine if full data checksum is needed based on btree config. This follows the same logic
+     * as __wt_blkcache_write.
      */
     switch (S2BT(session)->checksum) {
     case CKSUM_ON:
@@ -201,31 +189,28 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Calculate checksum following __wti_block_disagg_write_internal. */
     blk->checksum = 0;
-    blk->checksum = __wt_checksum(
-      cache_buf->data, data_checksum ? cache_buf->size : WT_MIN(cache_buf->size, WT_BLOCK_COMPRESS_SKIP));
+    blk->checksum = __wt_checksum(cache_buf->data,
+      data_checksum ? cache_buf->size : WT_MIN(cache_buf->size, WT_BLOCK_COMPRESS_SKIP));
 
     /*
-     * Swap page header to little-endian for on-disk format.
-     * This matches what __wti_block_disagg_write does.
+     * Swap page header to little-endian for on-disk format. This matches what
+     * __wti_block_disagg_write does.
      */
     __wt_page_header_byteswap(dsk);
 
     WT_PAGE_LOG_PUT_ARGS args = {
       .backlink_lsn = page->disagg_info->block_meta.backlink_lsn,
-      .base_lsn = page->disagg_info->block_meta.base_lsn, // cookie.base_lsn
+      .base_lsn = page->disagg_info->block_meta.base_lsn,
       .backlink_checkpoint_id = 0,
       .base_checkpoint_id = 0,
       .delta_count = page->disagg_info->block_meta.delta_count,
       .image_size = page->dsk->mem_size,
       .flags = compressed ? WT_PAGE_LOG_COMPRESSED : 0,
-      .lsn = page->disagg_info->block_meta.disagg_lsn, // cookie.lsn,
+      .lsn = page->disagg_info->block_meta.disagg_lsn,
     };
 
-    WT_IGNORE_RET(plh->plh_cache_put(plh, &session->iface,
-        page->disagg_info->block_meta.page_id,  // cookie.page_id,
-        0,
-        &args,
-        cache_buf));
+    WT_IGNORE_RET(plh->plh_cache_put(
+      plh, &session->iface, page->disagg_info->block_meta.page_id, 0, &args, cache_buf));
 
     if (compressed_buf != NULL)
         __wt_scr_free(session, &compressed_buf);
@@ -599,8 +584,7 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         instantiated = false;
     }
 
-    if (!instantiated && !tree_dead &&
-      !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
+    if (!instantiated && !tree_dead && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
       !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) && !closing)
         __evict_page_victim_cache(session, ref);
 

@@ -223,25 +223,27 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                     block_meta->backlink_lsn = get_args.backlink_lsn;
                     block_meta->base_lsn = get_args.base_lsn;
                     block_meta->disagg_lsn = get_args.lsn;
-                    // block_meta->delta_count = (uint8_t)(*results_count - 1);
-                    block_meta->delta_count = (uint8_t)get_args.delta_count;  ///////////
-                    block_meta->checksum = checksum;  // ?swap.checksum?
+                    block_meta->delta_count = F_ISSET(&swap, WT_BLOCK_DISAGG_CACHED) ?
+                      (uint8_t)get_args.delta_count :
+                      (uint8_t)(*results_count - 1);
+                    block_meta->checksum = checksum;
 
                     WT_ASSERT(session, get_args.lsn > 0);
                     if (!F_ISSET(&swap, WT_BLOCK_DISAGG_CACHED)) {
                         WT_ASSERT(session,
-                            (*results_count > 1) == FLD_ISSET(flags, WT_BLOCK_DISAGG_ADDR_FLAG_DELTA));
+                          (*results_count > 1) ==
+                            FLD_ISSET(flags, WT_BLOCK_DISAGG_ADDR_FLAG_DELTA));
 
                         /* The server is allowed to set base LSN to 0 for full page images. */
                         WT_ASSERT(session,
-                            (get_args.base_lsn == 0 && *results_count == 1) ||
-                                get_args.base_lsn == base_lsn);
+                          (get_args.base_lsn == 0 && *results_count == 1) ||
+                            get_args.base_lsn == base_lsn);
 
                         if (block_meta->delta_count > 0)
                             WT_ASSERT(session, get_args.base_lsn > 0);
                         else
                             WT_ASSERT(
-                                session, get_args.base_lsn == 0 && get_args.base_checkpoint_id == 0);
+                              session, get_args.base_lsn == 0 && get_args.base_checkpoint_id == 0);
                     }
                 }
 

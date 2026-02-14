@@ -644,7 +644,7 @@ err:
 }
 
 /*
- * __blkcache_write_compress --
+ * __wt_blkcache_write_compress --
  *     Optionally compress a buffer for writing.
  *
  * If compression is performed, the compressed buffer is returned via the output parameter. If
@@ -652,7 +652,7 @@ err:
  *     the output parameter is set to NULL. The caller is responsible for freeing the output buffer.
  */
 int
-__blkcache_write_compress(WT_SESSION_IMPL *session, WT_ITEM *buf, bool already_compressed,
+__wt_blkcache_write_compress(WT_SESSION_IMPL *session, WT_ITEM *buf, bool already_compressed,
   WT_ITEM **compressed_bufp, size_t *compressed_sizep, bool *compressedp)
 {
     WT_BM *bm;
@@ -689,11 +689,10 @@ __blkcache_write_compress(WT_SESSION_IMPL *session, WT_ITEM *buf, bool already_c
     src_len = buf->size - WT_BLOCK_COMPRESS_SKIP;
 
     /*
-     * Compute the size needed for the destination buffer. We only allocate enough memory for a
-     * copy of the original by default, if any compressed version is bigger than the original,
-     * we won't use it. However, some compression engines (snappy is one example), may need more
-     * memory because they don't stop just because there's no more memory into which to
-     * compress.
+     * Compute the size needed for the destination buffer. We only allocate enough memory for a copy
+     * of the original by default, if any compressed version is bigger than the original, we won't
+     * use it. However, some compression engines (snappy is one example), may need more memory
+     * because they don't stop just because there's no more memory into which to compress.
      */
     if (btree->compressor->pre_size == NULL)
         len = src_len;
@@ -715,10 +714,10 @@ __blkcache_write_compress(WT_SESSION_IMPL *session, WT_ITEM *buf, bool already_c
 
     /*
      * If compression fails, or doesn't gain us at least one unit of allocation, fallback to the
-     * original version. This isn't unexpected: if compression doesn't work for some chunk of
-     * data for some reason (noting likely additional format/header information which compressed
-     * output requires), it just means the uncompressed version is as good as it gets, and
-     * that's what we use.
+     * original version. This isn't unexpected: if compression doesn't work for some chunk of data
+     * for some reason (noting likely additional format/header information which compressed output
+     * requires), it just means the uncompressed version is as good as it gets, and that's what we
+     * use.
      */
     if (compression_failed || buf->size / btree->allocsize <= result_len / btree->allocsize) {
         __wt_scr_free(session, &ctmp);
@@ -784,7 +783,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
 
     /* Optionally compress the data. */
     WT_ERR(
-      __blkcache_write_compress(session, buf, compressed, &ctmp, compressed_sizep, &compressed));
+      __wt_blkcache_write_compress(session, buf, compressed, &ctmp, compressed_sizep, &compressed));
     ip = (ctmp != NULL) ? ctmp : buf;
 
     /*
