@@ -3061,7 +3061,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &r->multi->addr.ta);
         }
 
-        /* Copy across the reconiliation pinned time for any replaced page */
+        /* Copy across the reconciliation pinned time for any replaced page */
         if (mod != NULL)
             mod->rec_pinned_stable_timestamp = r->rec_start_pinned_stable_ts;
         mod->rec_result = WT_PM_REC_REPLACE;
