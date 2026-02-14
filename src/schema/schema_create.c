@@ -618,7 +618,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
 
             /*
              * FIXME-WT-16164: __wt_config_merge expects that the config array passed to it is not
-             * sparsely populate. If the first element is NULL the config merge will not return
+             * sparsely populated. If the first element is NULL the config merge will not return
              * anything useful. This ternary achieves that semantic. However there is likely a
              * better, holistic fix here.
              */
@@ -1098,23 +1098,18 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "file:%s.wt_stable", tablename));
     stable_uri = stable_uri_buf->data;
 
-    /*
-     * We're creating a layered table. Set the initial tiers list to empty. Opening the table will
-     * cause us to create our first file or tiered object.
-     */
     WT_ASSERT_ALWAYS(session, !F_ISSET(conn, WT_CONN_READONLY),
       "Can't create a layered table on a read only connection");
 
-    /* Remember the relevant configuration. */
+    /* Include the disaggregated storage configuration. */
     WT_ERR(__wt_buf_fmt(session, disagg_config, "disaggregated=(page_log=%s)",
       conn->disaggregated_storage.page_log ? conn->disaggregated_storage.page_log : ""));
     layered_cfg[1] = disagg_config->data;
 
     /*
-     * By default use the connection level bucket and prefix. Then we add in any user configuration
-     * that may override the system one.
-     *
-     * Disable logging for layered table so we have timestamps.
+     * These settings are required. We add them after the user configuration to override any values
+     * the user might provide. Disabling logging ensures that we have timestamps on the layered
+     * table.
      */
     WT_ERR(__wt_buf_fmt(
       session, tmp, "ingest=\"%s\",stable=\"%s\",log=(enabled=false)", ingest_uri, stable_uri));
@@ -1123,13 +1118,12 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_config_collapse(session, layered_cfg, &tablecfg));
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
-    /* Disable logging on the ingest table so we have timestamps. */
+    /* Disable logging on the ingest table to ensure we have timestamps. */
     ingest_cfg[2] = "in_memory=true,log=(enabled=false),disaggregated=(page_log=none)";
 
     /*
-     * Since layered table constituents use table URIs, pass the full merged configuration string
-     * through
-     * - otherwise file-specific metadata will be stripped out.
+     * Pass the full merged configuration string through. Otherwise file-specific metadata will be
+     * stripped out.
      */
     WT_ERR(__wt_config_merge(session, ingest_cfg, NULL, &constituent_cfg));
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
@@ -1138,7 +1132,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     if (conn->layered_table_manager.leader) {
         stable_cfg[1] = disagg_config->data;
 
-        /* Disable logging on the stable table so we have timestamps. */
+        /* Disable logging on the stable table to ensure we have timestamps. */
         stable_cfg[3] = "log=(enabled=false)";
         WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
         WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
