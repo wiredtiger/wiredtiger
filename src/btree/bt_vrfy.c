@@ -1319,15 +1319,10 @@ __verify_page_content_leaf(
 static int
 __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
 {
-    WT_DECL_ITEM(msg);
     WT_REF *ref = NULL;
-    uint64_t btree_ids_idx = 0;
-    uint64_t pali_ids_idx = 0;
     uint64_t num_pages_found_in_btree = 0;
     size_t capacity_in_bytes = 0;
-    uint64_t *btree_ids_still_in_use = NULL;
     uint64_t *page_ids = NULL;
-    uint64_t *pali_ids_undiscarded = NULL;
     int ret = 0;
 
     /*
@@ -1374,15 +1369,19 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
     /* Get page IDs from PALI. */
     WT_ERR(bm->get_page_ids(bm, session, item, &num_pages_found_in_pali, checkpoint_lsn));
 
+    if ((uint64_t)num_pages_found_in_pali != num_pages_found_in_btree) {
+        __wt_verbose_error(session, WT_VERB_VERIFY,
+          "Mismatch in the number of page IDs found from PALI and btree walk: PALI %" PRIu64
+          " Btree walk %" PRIu64,
+          (uint64_t)num_pages_found_in_pali, num_pages_found_in_btree);
+        ret = EINVAL;
+    }
+
     /*
      * Sort the btree walk array by page ID in ascending order to match the order used in the PALI
      * walk.
      */
     __wt_qsort(page_ids, num_pages_found_in_btree, sizeof(uint64_t), __verify_compare_page_id);
-
-    /* Allocate arrays to track mismatched page IDs in the btree and PALI walks. */
-    WT_ERR(__wt_calloc_def(session, num_pages_found_in_pali, &pali_ids_undiscarded));
-    WT_ERR(__wt_calloc_def(session, num_pages_found_in_btree, &btree_ids_still_in_use));
 
     for (uint32_t index_in_pali = 0, index_in_btree = 0;
          index_in_pali <= num_pages_found_in_pali && index_in_btree <= num_pages_found_in_btree;) {
@@ -1394,10 +1393,16 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
           index_in_btree < num_pages_found_in_btree ? page_ids[index_in_btree] : 0;
 
         if (index_in_btree == num_pages_found_in_btree || id_in_pali < id_in_btree) {
-            pali_ids_undiscarded[pali_ids_idx++] = id_in_pali;
+            __wt_verbose_error(session, WT_VERB_VERIFY,
+              "Unreferenced page was not discarded: PALI[%" PRIu32 "] %" PRIu64, index_in_pali,
+              id_in_pali);
+            ret = EINVAL;
             index_in_pali++;
         } else if (index_in_pali == num_pages_found_in_pali || id_in_pali > id_in_btree) {
-            btree_ids_still_in_use[btree_ids_idx++] = id_in_btree;
+            __wt_verbose_error(session, WT_VERB_VERIFY,
+              "Discarded page is still in use: BTREE[%" PRIu32 "] %" PRIu64, index_in_btree,
+              id_in_btree);
+            ret = EINVAL;
             index_in_btree++;
         } else {
             index_in_pali++;
@@ -1405,48 +1410,14 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
         }
     }
 
-    /* Construct mismatch message if there are any mismatched page IDs. */
-    WT_ERR(__wt_scr_alloc(session, 0, &msg));
-
-    if (pali_ids_idx > 0 || btree_ids_idx > 0 ||
-      (uint64_t)num_pages_found_in_pali != num_pages_found_in_btree) {
-        WT_ERR(__wt_buf_fmt(session, msg, "Mismatch in page IDs -"));
-
-        if (pali_ids_idx > 0) {
-            WT_ERR(__wt_buf_catfmt(session, msg, " Unreferenced pages not discarded: PALI["));
-            for (uint64_t i = 0; i < pali_ids_idx - 1; i++) {
-                WT_ERR(__wt_buf_catfmt(session, msg, "%" PRIu64 ", ", pali_ids_undiscarded[i]));
-            }
-            WT_ERR(__wt_buf_catfmt(
-              session, msg, "%" PRIu64 "]", pali_ids_undiscarded[pali_ids_idx - 1]));
-        }
-
-        if (btree_ids_idx > 0) {
-            WT_ERR(__wt_buf_catfmt(session, msg, " Discarded pages still in use: BTREE["));
-            for (uint64_t i = 0; i < btree_ids_idx - 1; i++) {
-                WT_ERR(__wt_buf_catfmt(session, msg, "%" PRIu64 ", ", btree_ids_still_in_use[i]));
-            }
-            WT_ERR(__wt_buf_catfmt(
-              session, msg, "%" PRIu64 "]", btree_ids_still_in_use[btree_ids_idx - 1]));
-        }
-
-        if ((uint64_t)num_pages_found_in_pali != num_pages_found_in_btree) {
-            WT_ERR(__wt_buf_catfmt(session, msg,
-              " Mismatch in the number of page IDs found from PALI and btree walk: PALI %" PRIu64
-              " Btree walk %" PRIu64,
-              (uint64_t)num_pages_found_in_pali, num_pages_found_in_btree));
-        }
-
-        WT_ERR_MSG(session, EINVAL, "%s", (char *)msg->data);
+    if (ret != 0) {
+        WT_ERR_MSG(session, ret, "Page discard verification failed");
     }
 
 err:
 
-    __wt_free(session, pali_ids_undiscarded);
-    __wt_free(session, btree_ids_still_in_use);
     __wt_free(session, page_ids);
     __wt_scr_free(session, &item);
-    __wt_scr_free(session, &msg);
 
     return (ret);
 }
