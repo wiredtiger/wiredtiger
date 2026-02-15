@@ -1601,11 +1601,13 @@ static WT_INLINE int
 __wt_txn_read(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE *upd)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd, *restored_upd;
     bool have_stop_tw, prepare_retry, read_onpage;
 
+    conn = S2C(session);
     prepare_upd = restored_upd = NULL;
     read_onpage = prepare_retry = true;
 
@@ -1714,8 +1716,7 @@ retry:
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
-    if (!F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) &&
-      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_HS_OPEN) &&
+    if (!WT_IS_BTREE_IN_MEMORY(conn, S2BT(session)) && F_ISSET_ATOMIC_32(conn, WT_CONN_HS_OPEN) &&
       !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
         /*
          * Stressing this code path may slow down the system too much. To minimize the impact, sleep

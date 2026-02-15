@@ -57,6 +57,13 @@
 #define WT_BTREE_MIN_SPLIT_PCT 50
 
 /*
+ * Check both flags, as WT_CONN_IN_MEMORY enhances CPU branch prediction, leading to improved
+ * performance.
+ */
+#define WT_IS_BTREE_IN_MEMORY(conn, btree) \
+    (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY))
+
+/*
  * Normalized position constants for "start" when calculating the page's position.
  */
 #define WT_NPOS_MID 0.5           /* Middle of the current page */
