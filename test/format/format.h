@@ -286,6 +286,14 @@ typedef struct {
     RWLOCK prepare_commit_lock;
 
     /*
+     * Lock to synchronize follower checkpoint pickup with worker transactions. Workers hold a read
+     * lock for the duration of each transaction; the follower checkpoint pickup thread acquires a
+     * write lock before picking up a new checkpoint, ensuring no in-flight transactions pin the
+     * pinned timestamp below the checkpoint's oldest_timestamp.
+     */
+    RWLOCK disagg_pickup_lock;
+
+    /*
      * Single-thread failure. Not a WiredTiger library lock because it's set up before configuring
      * anything.
      */
