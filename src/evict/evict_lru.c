@@ -670,7 +670,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_EVICT *evict;
-    double dirty_target, dirty_trigger, target, trigger, updates_target, updates_trigger;
+    double dirty_target, dirty_trigger, target, trigger, updates_target;
     uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, total_dirty, total_inmem,
       total_updates;
     uint32_t flags, hs_id;
@@ -684,7 +684,6 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     target = evict->eviction_target;
     trigger = evict->eviction_trigger;
     updates_target = evict->eviction_updates_target;
-    updates_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger);
 
     /* Build up the new state. */
     flags = 0;
@@ -811,8 +810,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
         if (F_ISSET_ATOMIC_32(
               &(conn->cache->cache_eviction_controls), WT_CACHE_PREFER_SCRUB_EVICTION)) {
             LF_SET(WT_EVICT_CACHE_SCRUB);
-        } else if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200 &&
-          bytes_updates < (uint64_t)((updates_target + updates_trigger) * bytes_max) / 200) {
+        } else if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200) {
             LF_SET(WT_EVICT_CACHE_SCRUB);
         }
 
@@ -1565,17 +1563,27 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
         else if (candidates > entries / 2)
             queue->evict_candidates = candidates;
         else {
-            /*
-             * Take all of the urgent pages plus a third of ordinary candidates (which could be
-             * expressed as WTI_EVICT_WALK_INCR / WTI_EVICT_WALK_BASE). In the steady state, we want
-             * to get as many candidates as the eviction walk adds to the queue.
-             *
-             * That said, if there is only one entry, which is normal when populating an empty file,
-             * don't exclude it.
-             */
-            queue->evict_candidates = 1 + candidates + ((entries - candidates) - 1) / 3;
-            if (queue->evict_candidates > entries / 2)
-                queue->evict_candidates = entries / 2;
+            if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES_HARD) &&
+              evict->evict_empty_score > WT_EVICT_SCORE_CUTOFF &&
+              F_ISSET(evict, WT_EVICT_CACHE_SCRUB)) {
+                /* To help with evicting pages with updates, take all available entries as
+                 * candidates when cache is filled with consistently empty eviction queues and we
+                 * are in scrub mode, otherwise we might empty the cache of clean pages.
+                 */
+                queue->evict_candidates = entries;
+            } else {
+                /*
+                 * Take all of the urgent pages plus a third of ordinary candidates (which could be
+                 * expressed as WTI_EVICT_WALK_INCR / WTI_EVICT_WALK_BASE). In the steady state, we
+                 * want to get as many candidates as the eviction walk adds to the queue.
+                 *
+                 * That said, if there is only one entry, which is normal when populating an empty
+                 * file, don't exclude it.
+                 */
+                queue->evict_candidates = 1 + candidates + ((entries - candidates) - 1) / 3;
+                if (queue->evict_candidates > entries / 2)
+                    queue->evict_candidates = entries / 2;
+            }
 
             evict->read_gen_oldest = read_gen_oldest;
         }

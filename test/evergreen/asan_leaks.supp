@@ -22,3 +22,7 @@ leak:__tiered_name_str
 leak:_PyBytes_FromSize
 leak:_wrap__wiredtiger_calc_modify
 leak:__cursor_prepared_discover_setup
+
+# FIXME-WT-16668: This leak seems to have occurred as a result of checkpoint size but that project
+# does not directly allocate memory.
+leak:palite_

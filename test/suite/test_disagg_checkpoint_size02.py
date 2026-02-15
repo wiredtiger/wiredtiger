@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import re, unittest, wttest, wiredtiger
+import re, wttest, wiredtiger
 from helper_disagg import disagg_test_class
 from helper import simulate_crash_restart
 
