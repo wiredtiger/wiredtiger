@@ -178,7 +178,6 @@ typedef struct {
          */
         bool is_enabled;          /* Uses disaggregated storage */
         bool key_provider;        /* Uses key provider testing module for disaggregated storage */
-        bool switch_mode;         /* Switching disaggregated storage mode during the test */
         bool internal_page_delta; /* Use internal page deltas */
         bool leaf_page_delta;     /* Use leaf page deltas */
 
