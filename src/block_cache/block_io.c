@@ -644,7 +644,7 @@ err:
 }
 
 /*
- * __wt_blkcache_write_compress --
+ * __wt_blkcache_compress --
  *     Optionally compress a buffer for writing.
  *
  * If compression is performed, the compressed buffer is returned via the output parameter. If
@@ -652,7 +652,7 @@ err:
  *     the output parameter is set to NULL. The caller is responsible for freeing the output buffer.
  */
 int
-__wt_blkcache_write_compress(WT_SESSION_IMPL *session, WT_ITEM *buf, bool already_compressed,
+__wt_blkcache_compress(WT_SESSION_IMPL *session, WT_ITEM *buf, bool already_compressed,
   WT_ITEM **compressed_bufp, size_t *compressed_sizep, bool *compressedp)
 {
     WT_BM *bm;
@@ -782,8 +782,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     encrypted = false;
 
     /* Optionally compress the data. */
-    WT_ERR(
-      __wt_blkcache_write_compress(session, buf, compressed, &ctmp, compressed_sizep, &compressed));
+    WT_ERR(__wt_blkcache_compress(session, buf, compressed, &ctmp, compressed_sizep, &compressed));
     ip = (ctmp != NULL) ? ctmp : buf;
 
     /*

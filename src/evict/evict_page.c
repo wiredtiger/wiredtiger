@@ -99,21 +99,21 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     if (plh == NULL)
         return;
 
-    if (!plh->plh_cache_put || !plh->plh_cache_available ||
+    if (plh->plh_cache_put == NULL || plh->plh_cache_available == NULL ||
       !plh->plh_cache_available(plh, &session->iface))
         return;
 
     WT_PAGE *page = ref->page;
 
     /* Only cache clean pages without modify. */
-    if (page->modify && page->modify->rec_result != WT_PAGE_CLEAN)
+    if (__wt_page_is_modified(page))
         return;
 
     /* Must be a leaf page with disagg info and disk image. */
-    if (!F_ISSET(ref, WT_REF_FLAG_LEAF) || !page->disagg_info || !page->dsk)
+    if (!F_ISSET(ref, WT_REF_FLAG_LEAF) || page->disagg_info == NULL || !page->dsk)
         return;
 
-    if (page->disagg_info->block_meta.page_id == 0)
+    if (page->disagg_info->block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID)
         return;
 
     /* Cannot cache root pages. */
@@ -139,7 +139,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Optionally compress the data before caching. */
     WT_IGNORE_RET(
-      __wt_blkcache_write_compress(session, &buf_orig, false, &compressed_buf, NULL, &compressed));
+      __wt_blkcache_compress(session, &buf_orig, false, &compressed_buf, NULL, &compressed));
     if (compressed_buf != NULL)
         cache_buf = compressed_buf;
 
