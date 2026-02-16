@@ -2052,15 +2052,14 @@ tasks:
         vars:
           directory: test/huge
 
-  # FIXME-WT-16548: Re-enable the test.
-  # - name: manydbs-test
-  #   tags: ["pull_request"]
-  #   commands:
-  #     - func: "get project"
-  #     - func: "compile wiredtiger"
-  #     - func: "make check directory"
-  #       vars:
-  #         directory: test/manydbs
+  - name: manydbs-test
+    tags: ["pull_request"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: test/manydbs
 
   - name: packing-test
     tags: ["pull_request"]
@@ -4364,22 +4363,21 @@ tasks:
       # Run the long version of make check, that includes the full csuite tests
       - func: "make check all"
 
-      # FIXME-WT-16548: Re-enable all the scenarios below for many dbs test.
-      # # Many dbs test - Run with:
-      # # 1.  The defaults
-      # - func: "many dbs test"
-      # # 2.  Set idle flag to turn off operations.
-      # - func: "many dbs test"
-      #   vars:
-      #     many_db_args: -I
-      # # 3.  More dbs.
-      # - func: "many dbs test"
-      #   vars:
-      #     many_db_args: -D 40
-      # # 4.  With idle flag and more dbs.
-      # - func: "many dbs test"
-      #   vars:
-      #     many_db_args: -I -D 40
+      # Many dbs test - Run with:
+      # 1.  The defaults
+      - func: "many dbs test"
+      # 2.  Set idle flag to turn off operations.
+      - func: "many dbs test"
+        vars:
+          many_db_args: -I
+      # 3.  More dbs.
+      - func: "many dbs test"
+        vars:
+          many_db_args: -D 40
+      # 4.  With idle flag and more dbs.
+      - func: "many dbs test"
+        vars:
+          many_db_args: -I -D 40
 
       # extended test/thread runs
       - func: "thread test"
@@ -7572,7 +7570,7 @@ buildvariants:
 - name: amazon2023-arm64-release-nonstandalone
   display_name: "Amazon2023 ARM64 (Release Build, Non-standalone)"
   run_on:
-  - amazon2023-arm64-latest-small-m8g
+  - amazon2023.3-arm64-small
   expansions:
     ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
@@ -7582,27 +7580,27 @@ buildvariants:
   tasks:
     - name: compile
     - name: ".stress-test-1"
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: ".stress-test-2"
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: format-abort-recovery-stress-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: ".stress-test-disagg"
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: format-stress-disagg-leader-long-running
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: make-check-test
     - name: unit-test
     - name: unit-test-palm
     - name: unit-test-extra-long
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: unit-test-hook-disagg-leader-extra-long
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
 
 - name: amazon2023-arm64-nonstandalone
   display_name: "! Amazon2023 ARM64 (Non-standalone)"
   run_on:
-  - amazon2023-arm64-latest-large-m8g
+  - amazon2023.3-arm64-large
   expansions:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7610,11 +7608,11 @@ buildvariants:
     unit_test_variant_args: "--hook nonstandalone"
   tasks:
     - name: compile
-      distros: amazon2023-arm64-latest-small-m8g
+      distros: amazon2023.3-arm64-small
     - name: make-check-test
-      distros: amazon2023-arm64-latest-small-m8g
+      distros: amazon2023.3-arm64-small
     - name: unit-test
-      distros: amazon2023-arm64-latest-small-m8g
+      distros: amazon2023.3-arm64-small
     - name: unit-test-extra-long
     - name: unit-test-hook-disagg-leader-extra-long
     - name: ".stress-test-1"
@@ -7630,7 +7628,7 @@ buildvariants:
 - name: amazon2023-release-arm64
   display_name: "! Amazon2023 ARM64 (Release Build)"
   run_on:
-  - amazon2023-arm64-latest-small-m8g
+  - amazon2023.3-arm64-small
   batchtime: 720 # 12 hours
   expansions:
     ENABLE_TCMALLOC: 1
@@ -7646,16 +7644,16 @@ buildvariants:
     - name: unit-test-zstd
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: long-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: format-smoke-test
     - name: s3-tiered-storage-extensions-test
 
 - name: amazon2023-arm64
   display_name: "! Amazon2023 ARM64"
   run_on:
-  - amazon2023-arm64-latest-small-m8g
+  - amazon2023.3-arm64-small
   expansions:
     ENABLE_TCMALLOC: 1
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v5_gcc.cmake
@@ -7668,13 +7666,13 @@ buildvariants:
     - name: compile
     - name: fops
     - name: format-failure-configs-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: format-smoke-test
     - name: format-stress-pull-request-test
     - name: format-stress-test-disagg-leader-pull-request
     - name: format-stress-test-disagg-follower-pull-request
     - name: long-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: make-check-test
     - name: model-test-failure-workloads
       batchtime: 1440 # 24 hours
@@ -7692,24 +7690,24 @@ buildvariants:
     - name: s3-tiered-storage-extensions-test
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: unit-test
     - name: unit-test-extra-long
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: unit-test-hook-disagg-leader-extra-long
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: unit-test-zstd
     - name: wtperf-test
     - name: checkpoint-filetypes-test
     - name: compile
     - name: fops
     - name: format-failure-configs-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
 
 - name: amazon2023-stress-tests-arm64
   display_name: "! Amazon2023 ARM64 Stress tests"
   run_on:
-  - amazon2023-arm64-latest-large-m8g
+  - amazon2023.3-arm64-large
   expansions:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7730,7 +7728,7 @@ buildvariants:
 - name: amazon2023-arm64-asan
   display_name: "! Amazon2023 ARM64 ASAN"
   run_on:
-  - amazon2023-arm64-latest-small-m8g
+  - amazon2023.3-arm64-small
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
@@ -7762,7 +7760,7 @@ buildvariants:
     - name: live-restore-long
     - name: ".stress-test-asan"
     - name: ".stress-test-disagg"
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: ".unit_test"
     - name: ".unit_test_disagg"
     - name: ".unit_test_long"
@@ -7772,7 +7770,7 @@ buildvariants:
 - name: amazon2023-arm64-tsan
   display_name: "! Amazon2023 ARM64 TSAN"
   run_on:
-  - amazon2023-arm64-latest-small-m8g
+  - amazon2023.3-arm64-small
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
@@ -7786,17 +7784,17 @@ buildvariants:
     - name: .unit_test_tsan
     # FIXME-WT-16066 Remove unit test tsan once we incorporate TSAN environment variable setting into run.py
     - name: unit-test-tsan
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: unit-test-hook-disagg-leader-tsan
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     # FIXME-WT-16309: Remove TSAN-specific jobs once the common tag works
     - name: format-stress-test-disagg-leader-tsan
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: format-stress-test-tsan
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     # FIXME-WT-16309: Enable the common test format tag for TSAN
     # - name: ".stress-test-disagg"
-    #   distros: amazon2023-arm64-latest-large-m8g
+    #   distros: amazon2023.3-arm64-large
     - name: generate-tsan-metric
     - name: generate-tsan-metric-disagg
     - name: generate-tsan-metric-timestamp
@@ -7807,7 +7805,7 @@ buildvariants:
 - name: amazon2023-arm64-msan
   display_name: "Amazon2023 ARM64 MSAN"
   run_on:
-  - amazon2023-arm64-latest-small-m8g
+  - amazon2023.3-arm64-small
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=MSan
@@ -7832,10 +7830,10 @@ buildvariants:
     - name: format-stress-test-disagg-leader-msan-palm
     - name: format-stress-test-disagg-follower-msan-palm
     - name: make-check-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: csuite-long-running
       # Some of the long-running tests require a large instance to run successfully.
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
       batchtime: 1440 # once a day
 
 # FIXME-WT-16067: ASAN could hide warnings when tests are executed by many processes simultaneously.
@@ -7843,7 +7841,7 @@ buildvariants:
 - name: amazon2023-arm64-ubsan
   display_name: "Amazon2023 ARM64 UBSAN"
   run_on:
-  - amazon2023-arm64-latest-small-m8g
+  - amazon2023.3-arm64-small
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=UBSan
@@ -7862,13 +7860,13 @@ buildvariants:
     - name: format-stress-test-disagg-leader-pull-request
     - name: format-stress-test-disagg-follower-pull-request
     - name: make-check-test
-      distros: amazon2023-arm64-latest-large-m8g
+      distros: amazon2023.3-arm64-large
     - name: cppsuite-default-all
 
 - name: amazon2023-stress-nonstandalone
   display_name: "Amazon2023 ARM64 Stress tests (Non-standalone)"
   run_on:
-  - amazon2023-arm64-latest-large-m8g
+  - amazon2023.3-arm64-large
   expansions:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7888,7 +7886,7 @@ buildvariants:
   display_name: "[Failure Expected] Amazon2023 ARM64 Disagg Stress tests"
   batchtime: 4320 # once every two days
   run_on:
-  - amazon2023-arm64-latest-large-m8g
+  - amazon2023.3-arm64-large
   expansions:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
@@ -7901,7 +7899,7 @@ buildvariants:
   display_name: "[Failure Expected] Amazon2023 ARM64 ASAN Disagg Stress tests"
   batchtime: 4320 # once every three days
   run_on:
-  - amazon2023-arm64-latest-large-m8g
+  - amazon2023.3-arm64-large
   expansions:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
