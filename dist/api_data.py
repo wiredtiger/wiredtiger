@@ -1435,7 +1435,9 @@ wiredtiger_open_common =\
         content into the cache''',
         type='category', subconfig=[
         Config('available', 'true', r'''
-            whether the thread pool for the pre-fetch functionality is started''',
+            whether the thread pool for the pre-fetch functionality is started, this does not mean
+            that pre-fetch is enabled for sessions by default, see the \c default setting at the
+            connection level and the \c prefetch setting at the session level.''',
             type='boolean'),
         Config('default', 'false', r'''
             whether pre-fetch is enabled for all sessions by default''',
