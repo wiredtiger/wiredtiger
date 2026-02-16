@@ -942,7 +942,10 @@ protected:
 public:
     std::shared_mutex access; /* readers-writer mutex for table */
 
-    ~Table() = default;
+    ~Table()
+    {
+        close();
+    }
     Table(Config &cfg, std::shared_mutex &str_access, const std::filesystem::path &file)
         : config(cfg), store_access(str_access), table_file(file)
     {
@@ -1971,7 +1974,10 @@ class Storage {
     std::atomic_ullong object_gets; /* (What would be) network requests for data */
 
 public:
-    ~Storage() = default;
+    ~Storage()
+    {
+        close();
+    }
     Storage(Config &cfg, const std::filesystem::path &dbp)
         : config(cfg), db_home(dbp), globals(cfg, store_access, db_home),
           checkpoints(cfg, store_access, db_home)
