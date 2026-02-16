@@ -989,7 +989,7 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
 
         /* In-memory btrees shouldn't write pages. */
         WT_ASSERT_ALWAYS(session, !WT_IS_BTREE_IN_MEMORY(S2C(session), btree),
-          "Attempted to write page to disk when WiredTiger is configured to be in-memory");
+          "Attempted to write page to disk when the btree is configured to be in-memory");
 
         /*
          * We're passed a table's disk image. Decompress if necessary and verify the image. Always
