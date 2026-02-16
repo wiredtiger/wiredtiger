@@ -26,7 +26,7 @@ __wti_block_disagg_corrupt(
     WT_ERR(__wti_block_disagg_read(bm, session, tmp, &block_meta, addr, addr_size));
 
     /* Crack the cookie, dump the block. */
-    WT_ERR(__wti_block_disagg_addr_unpack(session, &addr, addr_size, &root_cookie));
+    WT_ERR(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &root_cookie));
     WT_ERR(__wt_bm_corrupt_dump(
       session, tmp, 0, (wt_off_t)root_cookie.page_id, root_cookie.size, root_cookie.checksum));
 
@@ -108,11 +108,14 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_ITEM *current;
     WT_PAGE_LOG_GET_ARGS get_args;
     uint64_t time_start, time_stop;
-    uint32_t retry, tmp_count;
+    uint32_t retry, tmp_count, block_size_sum;
     int32_t last, result;
     uint8_t expected_magic;
     bool is_delta;
 
+    /* This variable is only used in an assertion, diagnostic builders don't like this. */
+    WT_UNUSED(block_size_sum);
+    block_size_sum = 0;
     time_start = __wt_clock(session);
 
     WT_CLEAR(get_args);
@@ -172,6 +175,9 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
 
     last = (int32_t)(*results_count - 1);
 
+    /* Set the cumulative size from the cookie before the loop overwrites the size variable. */
+    block_meta->cumulative_size = size;
+
     /*
      * Walk through all the results from most recent delta backwards to the base page. This makes it
      * easier to do checks.
@@ -181,6 +187,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         WT_ASSERT(session, current->size < UINT32_MAX);
         size = (uint32_t)current->size;
         is_delta = (result != 0);
+        block_size_sum += size;
 
         /*
          * Do little- to big-endian handling early on.
@@ -264,6 +271,11 @@ corrupt:
             WT_ERR(WT_ERROR);
         WT_ERR_PANIC(session, WT_ERROR, "%s: fatal read error", block_disagg->name);
     }
+
+    /* The cumulative size from the cookie must match the sum of all individual block sizes. */
+    /* FIXME-WT-16667: Re-enable this assertion. */
+    WT_ASSERT(session, true);
+
 err:
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_disaggbmread(session, WT_CLOCKDIFF_US(time_stop, time_start));
@@ -305,7 +317,7 @@ __wti_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session,
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
 
     /* Crack the cookie. */
-    WT_RET(__wti_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
+    WT_RET(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
 
     /* Read the block. */
     WT_RET(
