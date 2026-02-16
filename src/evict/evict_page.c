@@ -110,7 +110,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
         return;
 
     /* Must be a leaf page with disagg info and disk image. */
-    if (!F_ISSET(ref, WT_REF_FLAG_LEAF) || page->disagg_info == NULL || !page->dsk)
+    if (!F_ISSET(ref, WT_REF_FLAG_LEAF) || page->disagg_info == NULL || page->dsk == NULL)
         return;
 
     if (page->disagg_info->block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID)
