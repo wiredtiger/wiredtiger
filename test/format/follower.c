@@ -43,7 +43,7 @@ follower_read_latest_checkpoint(void)
     const char *disagg_page_log;
     WT_ITEM checkpoint_metadata;
     uint64_t checkpoint_ts;
-    char config[128];
+    char config[1024];
 
     conn = g.wts_conn;
     disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
@@ -84,7 +84,7 @@ follower(void *arg)
     WT_PAGE_LOG *page_log;
     WT_SESSION *session;
     const char *disagg_page_log;
-    char config[128];
+    char config[1024];
     u_int period;
     uint64_t checkpoint_ts;
 
