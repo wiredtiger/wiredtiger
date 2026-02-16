@@ -44,7 +44,6 @@ def process_logs(f, opts):
     if is_mongo_log(first_line):
         return process_mongod_log(f, opts)
     else:
-        print('Non MongoDB log format, treating as WiredTiger log')
         return process_wiredtiger_log(f, opts)
 
 def is_mongo_log(line):
