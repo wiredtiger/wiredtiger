@@ -173,11 +173,11 @@ parse_tiered_random_seeds(TEST_OPTS *opts, const char *seed_str)
 }
 
 /*
- * parse_disagg_opt --
- *     Parse a command line option for the disaggregated storage configurations.
+ * parse_and_set_disagg_opt --
+ *     Parse and set opts for the disaggregated storage configurations.
  */
 static void
-parse_disagg_opt(TEST_OPTS *opts)
+parse_and_set_disagg_opt(TEST_OPTS *opts)
 {
     TESTUTIL_DISAGG_INIT(opts,
       /* is_enabled           */ true,
@@ -346,7 +346,7 @@ testutil_parse_single_opt(TEST_OPTS *opts, int ch)
         opts->do_data_ops = true;
         break;
     case 'G': /* Disaggregated storage options */
-        parse_disagg_opt(opts);
+        parse_and_set_disagg_opt(opts);
         break;
     case 'h': /* Home directory */
         opts->home = dstrdup(__wt_optarg);
