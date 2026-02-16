@@ -1411,7 +1411,7 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
     }
 
     if (ret != 0)
-        WT_ERR_MSG(session, ret, "Page discard verification failed");
+        WT_ERR_MSG(session, ret, "Page discard verification found mismatches");
 
 err:
 
