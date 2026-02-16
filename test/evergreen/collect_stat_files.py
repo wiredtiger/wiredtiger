@@ -40,7 +40,8 @@ def collect_stat_files(destination_dir, source_dir, regex):
     :param regex: A compiled regular expression to match stat file names.
     """
 
-    # Remove the leading "./" from the source directory name and replace all "/" with "-" to create a unique directory name for the stat files being collected from this location.
+    # Remove the leading "./" from the source directory name and replace all "/" with "-".
+    # This creates a unique directory name for the stat files being collected from this location.
     destination_sub_dir = os.path.join(destination_dir, source_dir[2:].replace("/", "-"))
 
     # Create the subdirectory that the files from this location will be copied to.
@@ -71,7 +72,8 @@ def main():
                 # If current directory contains any stat files, collect them all into a single location for packing.
                 collect_stat_files(destination_dir, walk_dir, regex)
 
-                break   # Finished searching in this directory, move on to the next one.
+                # Finished searching in this directory, move on to the next one.
+                break
 
 if __name__ == "__main__":
     main()
