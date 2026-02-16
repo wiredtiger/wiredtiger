@@ -1374,7 +1374,7 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
           "Mismatch in the number of page IDs found from PALI and btree walk: PALI %" PRIu64
           " Btree walk %" PRIu64,
           (uint64_t)num_pages_found_in_pali, num_pages_found_in_btree);
-        ret = EINVAL;
+        WT_TRET(EINVAL);
     }
 
     /*
@@ -1396,13 +1396,13 @@ __verify_page_discard(WT_SESSION_IMPL *session, WT_BM *bm)
             __wt_verbose_error(session, WT_VERB_VERIFY,
               "Unreferenced page was not discarded: PALI[%" PRIu32 "] %" PRIu64, index_in_pali,
               id_in_pali);
-            ret = EINVAL;
+            WT_TRET(EINVAL);
             index_in_pali++;
         } else if (index_in_pali == num_pages_found_in_pali || id_in_pali > id_in_btree) {
             __wt_verbose_error(session, WT_VERB_VERIFY,
               "Discarded page is still in use: BTREE[%" PRIu32 "] %" PRIu64, index_in_btree,
               id_in_btree);
-            ret = EINVAL;
+            WT_TRET(EINVAL);
             index_in_btree++;
         } else {
             index_in_pali++;
