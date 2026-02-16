@@ -3352,6 +3352,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     if (F_ISSET(conn, WT_CONN_IN_MEMORY) && (conn->prefetch_available || conn->prefetch_auto_on)) {
         __wt_verbose(session, WT_VERB_PREFETCH, "%s",
           "prefetch configuration is incompatible with in-memory configuration");
+        WT_CONFIG_DEBUG(session, "%s", "setting prefetch.available and prefetch.default to false");
         conn->prefetch_auto_on = false;
         conn->prefetch_available = false;
     }
