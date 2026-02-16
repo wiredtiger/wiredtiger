@@ -2309,45 +2309,78 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_CONNECTION_STATS **stats;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t checkpoint_timestamp;
+    wt_timestamp_t checkpoint_timestamp, checkpoint_pinned_ts_lag;
     wt_timestamp_t durable_timestamp;
-    wt_timestamp_t oldest_active_read_timestamp;
+    wt_timestamp_t oldest_active_read_timestamp, oldest_reader_lag;
     wt_timestamp_t oldest_timestamp;
     wt_timestamp_t pinned_timestamp;
     uint64_t checkpoint_pinned;
 
     conn = S2C(session);
+    checkpoint_pinned = WT_TXN_NONE;
+    checkpoint_pinned_ts_lag = oldest_reader_lag = WT_TS_NONE;
+    checkpoint_timestamp = WT_TS_NONE;
     txn_global = &conn->txn_global;
     stats = conn->stats;
-    checkpoint_pinned =
-      __wt_atomic_load_uint64_v_relaxed(&txn_global->checkpoint_txn_shared.pinned_id);
 
     WT_STATP_CONN_SET(session, stats, txn_pinned_range,
       __wt_atomic_load_uint64_v_relaxed(&txn_global->current) -
         __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id));
 
-    checkpoint_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->checkpoint_timestamp);
+    if (__wt_atomic_load_bool_v_relaxed(&txn_global->checkpoint_running)) {
+        checkpoint_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->checkpoint_timestamp);
+        checkpoint_pinned =
+          __wt_atomic_load_uint64_v_relaxed(&txn_global->checkpoint_txn_shared.pinned_id);
+    }
+
     durable_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->durable_timestamp);
     oldest_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp);
-    pinned_timestamp = txn_global->pinned_timestamp;
+    pinned_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->pinned_timestamp);
+
     if (checkpoint_timestamp != WT_TS_NONE && checkpoint_timestamp < pinned_timestamp)
         pinned_timestamp = checkpoint_timestamp;
-    WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp, durable_timestamp - pinned_timestamp);
+
+    /* Represents the lag of the pinned timestamp with respect to the oldest timestamp.*/
     WT_STATP_CONN_SET(
-      session, stats, txn_pinned_timestamp_checkpoint, durable_timestamp - checkpoint_timestamp);
+      session, stats, txn_pinned_timestamp_lag, oldest_timestamp - pinned_timestamp);
+
+    /* Represents the lag of the checkpoint timestamp with respect to the oldest timestamp.*/
+    if (checkpoint_timestamp != WT_TS_NONE && checkpoint_timestamp < oldest_timestamp)
+        checkpoint_pinned_ts_lag = oldest_timestamp - checkpoint_timestamp;
+
+    WT_STATP_CONN_SET(
+      session, stats, txn_pinned_timestamp_checkpoint_lag, checkpoint_pinned_ts_lag);
+
     WT_STATP_CONN_SET(
       session, stats, txn_pinned_timestamp_oldest, durable_timestamp - oldest_timestamp);
 
     __wti_txn_get_pinned_timestamp(session, &oldest_active_read_timestamp, 0);
-    if (oldest_active_read_timestamp == 0) {
-        WT_STATP_CONN_SET(session, stats, txn_timestamp_oldest_active_read, 0);
-        WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_reader, 0);
-    } else {
-        WT_STATP_CONN_SET(
-          session, stats, txn_timestamp_oldest_active_read, oldest_active_read_timestamp);
-        WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_reader,
-          durable_timestamp - oldest_active_read_timestamp);
-    }
+    if (oldest_active_read_timestamp != WT_TS_NONE &&
+      oldest_active_read_timestamp < oldest_timestamp)
+        oldest_reader_lag = oldest_timestamp - oldest_active_read_timestamp;
+
+    /* Represents the read timestamp of the oldest active reader.*/
+    WT_STATP_CONN_SET(
+      session, stats, txn_timestamp_oldest_active_read, oldest_active_read_timestamp);
+    /* Represents the lag of the oldest reader  with respect to the oldest timestamp, if any. */
+    WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_reader_lag, oldest_reader_lag);
+
+    /* Fetch the global timestamp values for debugging purposes.*/
+    WT_STAT_CONN_SET(session, txn_global_checkpoint_timestamp, checkpoint_timestamp);
+    WT_STAT_CONN_SET(session, txn_global_durable_timestamp, durable_timestamp);
+    WT_STAT_CONN_SET(session, txn_global_last_running_timestamp, oldest_active_read_timestamp);
+    WT_STAT_CONN_SET(session, txn_global_newest_timestamp,
+      __wt_atomic_load_uint64_relaxed(&txn_global->newest_seen_timestamp));
+    WT_STAT_CONN_SET(session, txn_global_oldest_timestamp, oldest_timestamp);
+    WT_STAT_CONN_SET(session, txn_global_pinned_timestamp, pinned_timestamp);
+    WT_STAT_CONN_SET(session, txn_global_stable_timestamp,
+      __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp));
+
+    if (conn->version_cursor_count == 0)
+        WT_STAT_CONN_SET(session, txn_global_version_cursor_timestamp, WT_TS_NONE);
+    else
+        WT_STAT_CONN_SET(session, txn_global_version_cursor_timestamp,
+          __wt_atomic_load_uint64_relaxed(&txn_global->version_cursor_pinned_timestamp));
 
     WT_STATP_CONN_SET(session, stats, txn_pinned_checkpoint_range,
       checkpoint_pinned == WT_TXN_NONE ?

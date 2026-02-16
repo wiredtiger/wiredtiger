@@ -775,12 +775,10 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_page_log_discard_args::backlink_checkpoint_id;
 %ignore __wt_page_log_discard_args::base_checkpoint_id;
 %ignore __wt_page_log_discard_args::lsn_frontier;
-%ignore __wt_page_log_encryption::dek;
 %ignore __wt_page_log_put_args::backlink_lsn;
 %ignore __wt_page_log_put_args::base_lsn;
 %ignore __wt_page_log_put_args::backlink_checkpoint_id;
 %ignore __wt_page_log_put_args::base_checkpoint_id;
-%ignore __wt_page_log_put_args::encryption;
 %ignore __wt_page_log_put_args::flags;
 %ignore __wt_page_log_put_args::lsn;
 %ignore __wt_page_log_get_args::lsn;
@@ -788,7 +786,6 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_page_log_get_args::base_lsn;
 %ignore __wt_page_log_get_args::backlink_checkpoint_id;
 %ignore __wt_page_log_get_args::base_checkpoint_id;
-%ignore __wt_page_log_get_args::encryption;
 %ignore __wt_page_log_get_args::lsn_frontier;
 
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, compare, (self, other))
@@ -1265,6 +1262,10 @@ SIDESTEP_METHOD(__wt_page_log, pl_open_handle,
 SIDESTEP_METHOD(__wt_page_log, pl_set_last_materialized_lsn,
   (WT_SESSION *session, uint64_t lsn),
   (self, session, lsn))
+
+SIDESTEP_METHOD(__wt_page_log, pl_trim_table,
+  (WT_SESSION *session, uint64_t table_id, uint64_t start_lsn, uint64_t *lsnp),
+  (self, session, table_id, start_lsn, lsnp))
 
 SIDESTEP_METHOD(__wt_page_log, terminate,
   (WT_SESSION *session),
