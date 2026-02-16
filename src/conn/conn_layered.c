@@ -1675,8 +1675,8 @@ err:
 
 /*
  * __wt_disagg_enqueue_metadata_operation --
- *     Copy the metadata that belongs to the given URI into the shared metadata table at the next
- *     checkpoint.
+ *     Enqueue a metadata operation for a given URI into the shared metadata table to be done at the
+ *     next checkpoint.
  */
 int
 __wt_disagg_enqueue_metadata_operation(
@@ -1769,7 +1769,7 @@ __disagg_shared_metadata_clear(WT_SESSION_IMPL *session)
 
 /*
  * __disagg_shared_metadata_op_helper --
- *     Perform the remove/update operation in the shared metadata.
+ *     Perform the remove/update operation in the shared metadata table.
  */
 static int
 __disagg_shared_metadata_op_helper(
