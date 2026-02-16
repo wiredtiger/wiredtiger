@@ -35,8 +35,10 @@
 #define WT_HS_FILE_SHARED "WiredTigerSharedHS.wt_stable"     /* Shared history store */
 #define WT_HS_URI "file:WiredTigerHS.wt"                     /* History store table URI */
 #define WT_HS_URI_SHARED "file:WiredTigerSharedHS.wt_stable" /* Shared history store URI */
-#define WT_HS_ID 1                                           /* ID for HS */
-#define WT_HS_ID_SHARED 2                                    /* ID for shared HS */
+
+/* TODO: (Replace with FIXME) Check whether we can use IDS from WT_PREDEFINED_FILE_IDS instead. */
+#define WT_HS_ID 1        /* ID for HS */
+#define WT_HS_ID_SHARED 2 /* ID for shared HS */
 
 #define WT_CC_METAFILE "WiredTigerCC.wt"          /* Chunk cache metadata table */
 #define WT_CC_METAFILE_URI "file:WiredTigerCC.wt" /* Chunk cache metadata table URI */
@@ -75,12 +77,31 @@
  * Optimize comparisons against the metafile URI, flag handles that reference the metadata file.
  */
 #define WT_IS_METADATA(dh) F_ISSET((dh), WT_DHANDLE_IS_METADATA)
-#define WT_METAFILE_ID 0 /* Metadata file ID */
 
 #define WT_METADATA_COMPAT "Compatibility version"
 #define WT_METADATA_LIVE_RESTORE "Live Restore"
 #define WT_METADATA_VERSION "WiredTiger version" /* Version keys */
 #define WT_METADATA_VERSION_STR "WiredTiger version string"
+
+typedef enum {
+    WT_METADATA_FILE_ID = 0,
+
+    /*
+     * The list of predefined file IDs starts from the field after WT_METADATA_FILE_ID because local
+     * metadata is a special case that doesn't have an entry in the metadata table (only in the
+     * turtle file). Moreover, its ID was historically predefined as 0, without any namespace.
+     *
+     * Since changing it could potentially cause unexpected backward-compatibility issues, it was
+     * decided to leave WT_METADATA_FILE_ID untouched but still mention it here, since from a formal
+     * point of view it is still a predefined ID.
+     */
+
+    WT_SPECIAL_FILE_IDS_START,
+    WT_SHARED_METADATA_FILE_ID = WT_SPECIAL_FILE_IDS_START,
+    WT_HS_FILE_ID,
+    WT_SHARED_HS_FILE_ID,
+    WT_SPECIAL_FILE_IDS_END
+} WT_PREDEFINED_FILE_IDS;
 
 /*
  * Other useful comparisons.

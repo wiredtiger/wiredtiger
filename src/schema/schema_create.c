@@ -119,6 +119,51 @@ __create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const cha
 }
 
 /*
+ * __wt_generate_file_id --
+ *     Generate a unique file ID for the provided URI and assign it to all required namespaces.
+ */
+uint32_t
+__wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
+{
+    /*
+     * We do not mention WT_METADATA_FILE_ID here since it doesn't have an entry in the metadata
+     * table, only in the turtle file. WT_METADATA_FILE_ID is also not part of the special namespace
+     * for backward compatibility reasons.
+     */
+    static const char *wt_predefined_file_ids[] = {
+      [WT_SHARED_METADATA_FILE_ID] = WT_DISAGG_METADATA_URI,
+      [WT_HS_FILE_ID] = WT_HS_URI,
+      [WT_SHARED_HS_FILE_ID] = WT_HS_URI_SHARED,
+      [WT_SPECIAL_FILE_IDS_END] = NULL};
+    uint32_t fileid;
+
+    /* Metadata ID is always 0 and should be defined in a different place. */
+    WT_ASSERT(session, 0 != strncmp((uri), WT_METAFILE_URI, strlen(WT_METAFILE_URI)));
+
+    /* Check whether we should use a predefined ID for the provided URI. */
+    uint32_t special_id = WT_SPECIAL_FILE_IDS_START;
+    for (; special_id != WT_SPECIAL_FILE_IDS_END; ++special_id) {
+        const char *special_uri = wt_predefined_file_ids[special_id];
+        if (strncmp((uri), special_uri, strlen(special_uri)) == 0) {
+            break;
+        }
+    }
+
+    /* Use the predefined ID if the URI matches; otherwise, use the counter. */
+    if (special_id != WT_SPECIAL_FILE_IDS_END) {
+        fileid = WT_BTREE_ID_NAMESPACED(special_id);
+        FLD_SET(fileid, WT_BTREE_ID_NAMESPACE_SPECIAL);
+    } else {
+        fileid = WT_BTREE_ID_NAMESPACED(++S2C(session)->next_file_id);
+    }
+
+    if (is_shared)
+        FLD_SET(fileid, WT_BTREE_ID_NAMESPACE_SHARED);
+
+    return (fileid);
+}
+
+/*
  * __create_file --
  *     Create a new 'file:' object.
  */
@@ -149,8 +194,6 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
 
     /* Check for unsupported storage formats. */
     WT_ERR(__wt_schema_unsupported_format(session, config, true));
-
-    WT_ERR(__wt_btree_shared(session, uri, filecfg, &is_shared));
 
     /* Check if the file already exists. */
     if (!is_metadata && (ret = __wt_metadata_search(session, uri, &fileconf)) != WT_NOTFOUND) {
@@ -265,13 +308,14 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
      */
     if (!is_metadata) {
         if (!import_repair) {
-            fileid = WT_BTREE_ID_NAMESPACED(++S2C(session)->next_file_id);
-            if (is_shared)
-                FLD_SET(fileid, WT_BTREE_ID_NAMESPACE_SHARED);
+            WT_ERR(__wt_btree_shared(session, uri, filecfg, &is_shared));
+            fileid = __wt_generate_file_id(session, uri, is_shared);
+
             WT_ERR(__wt_scr_alloc(session, 0, &val));
             WT_ERR(__wt_buf_fmt(session, val,
               "id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=",
               fileid, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
+
             for (p = filecfg; *p != NULL; ++p)
                 ;
             *p = val->data;
@@ -1420,6 +1464,10 @@ __create_fix_file_ids(WT_SESSION_IMPL *session, WT_IMPORT_LIST *import_list)
     for (i = 0; i < import_list->entries_next; ++i) {
         /* Skip entries without file id. */
         if (import_list->entries[i].file_id == WT_IMPORT_INVALID_FILE_ID)
+            continue;
+
+        /* Entries from the special IDs namespace have predefined values, no need to fix them. */
+        if (WT_BTREE_ID_SPECIAL(import_list->entries[i].file_id))
             continue;
 
         /* Generate a new file ID. */

@@ -38,7 +38,7 @@ __metadata_config(WT_SESSION_IMPL *session, char **metaconfp)
     WT_RET(__wt_scr_alloc(session, 0, &buf));
     WT_ERR(__wt_buf_fmt(session, buf,
       "key_format=S,value_format=S,id=%d,version=(major=%" PRIu16 ",minor=%" PRIu16 ")",
-      WT_METAFILE_ID, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
+      WT_METADATA_FILE_ID, WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
     cfg[1] = buf->data;
     ret = __wt_config_tiered_strip(session, cfg, (const char **)metaconfp);
 
