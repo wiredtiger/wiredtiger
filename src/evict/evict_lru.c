@@ -1012,7 +1012,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
      * Clear evict_ref before releasing it in case that forces eviction (we assert that we never try
      * to evict the current eviction walk point).
      */
-    btree->evict_ref = NULL;
+    __wt_atomic_store_ptr_relaxed(&btree->evict_ref, NULL);
 
     if (evict->use_npos_in_pass) {
         /* If soft pointers are in use, remember the page's position unless clear_pos is set. */
