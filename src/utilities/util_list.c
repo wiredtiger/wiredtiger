@@ -160,7 +160,7 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
         return (util_err(session, ret, "%s: WT_SESSION.open_cursor", WT_METADATA_URI));
     }
 
-    found = uri == NULL;
+    found = (uri == NULL);
     while ((ret = cursor->next(cursor)) == 0) {
         /* Get the key. */
         if ((ret = cursor->get_key(cursor, &key)) != 0)

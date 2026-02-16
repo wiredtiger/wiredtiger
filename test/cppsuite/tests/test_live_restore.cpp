@@ -254,7 +254,7 @@ do_random_crud(scoped_session &session, const int64_t collection_count, const in
   const bool fresh_start, const std::string &conn_config, const std::string &home,
   const bool allow_reopen = true, bool subdirectory = false)
 {
-    bool file_created = fresh_start == false;
+    bool file_created = (fresh_start == false);
 
     /* Insert random data. */
     std::string key, value;

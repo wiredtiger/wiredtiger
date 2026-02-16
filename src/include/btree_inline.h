@@ -2625,7 +2625,7 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
         return (WT_RESTART);
 
     /* Discard the original held page on either success or error. */
-    acquired = ret == 0;
+    acquired = (ret == 0);
     WT_TRET(__wt_page_release(session, held, flags));
 
     /* Fast-path expected success. */

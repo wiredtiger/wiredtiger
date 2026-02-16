@@ -68,7 +68,7 @@ __recovery_cursor(
      * last checkpoint. If there is no entry for a file, assume it was dropped or missing after a
      * hot backup.
      */
-    metadata_op = id == WT_METAFILE_ID;
+    metadata_op = (id == WT_METAFILE_ID);
     if (r->metadata_only != metadata_op)
         ;
     else if (id >= r->nfiles || r->files[id].uri == NULL) {

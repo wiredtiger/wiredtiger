@@ -289,7 +289,7 @@ __compact_worker(WT_SESSION_IMPL *session)
     u_int i, loop;
     bool another_pass, background_compaction;
 
-    background_compaction = session == S2C(session)->background_compact.session;
+    background_compaction = (session == S2C(session)->background_compact.session);
 
     /*
      * Reset the handles' compaction skip flag (we don't bother setting or resetting it when we

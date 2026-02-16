@@ -313,7 +313,7 @@ __wt_struct_reformat(WT_SESSION_IMPL *session, WT_TABLE *table, const char *colu
         ret = __wt_config_next(&config, &next_k, &next_v);
         if (ret != 0 && ret != WT_NOTFOUND)
             return (ret);
-        have_next = ret == 0;
+        have_next = (ret == 0);
 
         if (!have_next && extra_cols != NULL) {
             __wt_config_init(session, &config, extra_cols);

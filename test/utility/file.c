@@ -508,7 +508,7 @@ testutil_copy_ext(const char *source, const char *dest, const WT_FILE_COPY_OPTS 
         /* Check the destination. */
         ret = stat(dest, &dest_stat);
         testutil_assert_errno(ret == 0 || errno == ENOENT);
-        dest_exists = ret == 0;
+        dest_exists = (ret == 0);
         is_dest_dir = dest_exists ? S_ISDIR(dest_stat.st_mode) : false;
         data.dest_is_dir = is_dest_dir;
 
