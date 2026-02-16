@@ -1768,11 +1768,12 @@ __disagg_shared_metadata_clear(WT_SESSION_IMPL *session)
 }
 
 /*
- * __disagg_remove_shared_metadata_helper --
- *     Remove an entry from the shared metadata.
+ * __disagg_shared_metadata_op_helper --
+ *     Perform the remove/update operation in the shared metadata.
  */
 static int
-__disagg_remove_shared_metadata_helper(WT_SESSION_IMPL *session, const char *key)
+__disagg_shared_metadata_op_helper(
+  WT_SESSION_IMPL *session, const char *key, const char *value, u_int metadata_op)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -1784,10 +1785,26 @@ __disagg_remove_shared_metadata_helper(WT_SESSION_IMPL *session, const char *key
 
     WT_ERR(__wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
     cursor->set_key(cursor, key);
-    WT_ERR(cursor->remove(cursor));
+
+    if (metadata_op == SHARED_METADATA_REMOVE) {
+        /*
+         * If the table was created and dropped before a checkpoint has occurred, it is expected to
+         * have no metadata entries on the shared metadata table.
+         */
+        WT_ERR_NOTFOUND_OK(cursor->remove(cursor), false);
+    } else if (metadata_op == SHARED_METADATA_UPDATE) {
+        if (value == NULL) {
+            ret = 0;
+            goto err;
+        }
+
+        cursor->set_value(cursor, value);
+        WT_ERR(cursor->insert(cursor));
+    }
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Removed disaggregated shared metadata: key=\"%s\"", key);
+      "%s disaggregated shared metadata: key=\"%s\" value=\"%s\"",
+      metadata_op == SHARED_METADATA_REMOVE ? "Removed" : "Updated", key, value);
 
 err:
     if (cursor != NULL)
@@ -1796,83 +1813,30 @@ err:
 }
 
 /*
- * __disagg_remove_shared_metadata --
- *     Remove metadata in the shared metadata table.
- *
- * Note: If the table was created and dropped before a checkpoint has occurred, it is expected to
- *     have no metadata entries on the shared metadata table.
+ * __disagg_shared_metadata_op --
+ *     Remove/update all relevant metadata entries of a table in the shared metadata table.
  */
 static int
-__disagg_remove_shared_metadata(
-  WT_SESSION_IMPL *session, const char *prefix, const char *key, const char *value)
+__disagg_shared_metadata_op(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP *entry)
 {
     WT_DECL_ITEM(md_key);
     WT_DECL_RET;
 
-    if (value == NULL)
-        return (0);
-
     WT_ERR(__wt_scr_alloc(session, 0, &md_key));
-    WT_ERR(__wt_buf_fmt(session, md_key, "%s%s", prefix, key));
+    WT_ERR(__wt_buf_fmt(session, md_key, "colgroup:%s", entry->table_name));
+    WT_ERR(__disagg_shared_metadata_op_helper(
+      session, md_key->data, entry->colgroup_value, entry->metadata_op));
 
-    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata_helper(session, md_key->data));
-    WT_ERR(ret);
+    WT_ERR(__wt_buf_fmt(session, md_key, "layered:%s", entry->table_name));
+    WT_ERR(__disagg_shared_metadata_op_helper(
+      session, md_key->data, entry->layered_value, entry->metadata_op));
 
-err:
-    __wt_scr_free(session, &md_key);
-    return (ret);
-}
+    WT_ERR(__wt_buf_fmt(session, md_key, "table:%s", entry->table_name));
+    WT_ERR(__disagg_shared_metadata_op_helper(
+      session, md_key->data, entry->table_value, entry->metadata_op));
 
-/*
- * __disagg_update_shared_metadata_helper --
- *     Update the shared metadata.
- */
-static int
-__disagg_update_shared_metadata_helper(WT_SESSION_IMPL *session, const char *key, const char *value)
-{
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL};
-
-    WT_ASSERT(session, S2C(session)->layered_table_manager.leader);
-
-    cursor = NULL;
-
-    WT_ERR(__wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
-    cursor->set_key(cursor, key);
-    cursor->set_value(cursor, value);
-    WT_ERR(cursor->insert(cursor));
-
-    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-      "Updated disaggregated shared metadata: key=\"%s\" value=\"%s\"", key, value);
-
-err:
-    if (cursor != NULL)
-        WT_TRET(cursor->close(cursor));
-    return (ret);
-}
-
-/*
- * __disagg_update_shared_metadata --
- *     Update metadata in the shared metadata table.
- */
-static int
-__disagg_update_shared_metadata(
-  WT_SESSION_IMPL *session, const char *prefix, const char *key, const char *value)
-{
-    WT_DECL_ITEM(md_key);
-    WT_DECL_RET;
-
-    if (value == NULL)
-        return (0);
-
-    WT_ERR(__wt_scr_alloc(session, 0, &md_key));
-    WT_ERR(__wt_buf_fmt(session, md_key, "%s%s", prefix, key));
-
-    WT_SAVE_DHANDLE(
-      session, ret = __disagg_update_shared_metadata_helper(session, md_key->data, value));
-    WT_ERR(ret);
-
+    WT_ERR(__disagg_shared_metadata_op_helper(
+      session, entry->stable_uri, entry->stable_value, entry->metadata_op));
 err:
     __wt_scr_free(session, &md_key);
     return (ret);
@@ -1902,25 +1866,7 @@ __wt_disagg_shared_metadata_process(WT_SESSION_IMPL *session)
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
-        if (entry->metadata_op == SHARED_METADATA_UPDATE) {
-            WT_ERR(__disagg_update_shared_metadata(
-              session, "colgroup:", entry->table_name, entry->colgroup_value));
-            WT_ERR(__disagg_update_shared_metadata(
-              session, "layered:", entry->table_name, entry->layered_value));
-            WT_ERR(__disagg_update_shared_metadata(
-              session, "table:", entry->table_name, entry->table_value));
-            WT_ERR(
-              __disagg_update_shared_metadata(session, "", entry->stable_uri, entry->stable_value));
-        } else if (entry->metadata_op == SHARED_METADATA_REMOVE) {
-            WT_ERR(__disagg_remove_shared_metadata(
-              session, "colgroup:", entry->table_name, entry->colgroup_value));
-            WT_ERR(__disagg_remove_shared_metadata(
-              session, "layered:", entry->table_name, entry->layered_value));
-            WT_ERR(__disagg_remove_shared_metadata(
-              session, "table:", entry->table_name, entry->table_value));
-            WT_ERR(
-              __disagg_remove_shared_metadata(session, "", entry->stable_uri, entry->stable_value));
-        }
+        WT_ERR(__disagg_shared_metadata_op(session, entry));
 
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
         __disagg_shared_metadata_free(session, &entry);
