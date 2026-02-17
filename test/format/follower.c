@@ -125,9 +125,9 @@ follower(void *arg)
                   (const char *)checkpoint_metadata.data);
                 /*
                  * Acquire the write lock to ensure no worker threads have in-flight transactions
-                 * that could pin the pinned timestamp below the checkpoint's oldest_timestamp. Once
-                 * the lock is held, advance timestamps so the follower's oldest catches up, then
-                 * pick up the checkpoint.
+                 * that could pin the pinned timestamp below the checkpoint's oldest_timestamp.
+                 * Once the lock is held, advance timestamps so the follower's oldest catches up,
+                 * then pick up the checkpoint.
                  */
                 lock_writelock(session, &g.disagg_pickup_lock);
                 if (g.transaction_timestamps_config)
