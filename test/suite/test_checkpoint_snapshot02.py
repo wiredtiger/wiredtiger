@@ -55,12 +55,12 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         ("backup", dict(restart=False)),
     ]
 
-    precise_values = [
+    checkpoint_config_values = [
         ("precise", dict(is_precise=True, ckpt_config=',precise_checkpoint=true')),
-        ("not_precise", dict(is_precise=False, ckpt_config='')),
+        ("fuzzy_checkpoint", dict(is_precise=False, ckpt_config=',precise_checkpoint=false')),
     ]
 
-    scenarios = make_scenarios(format_values, restart_values, precise_values)
+    scenarios = make_scenarios(format_values, restart_values, checkpoint_config_values)
 
     def conn_config(self):
         config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=false),timing_stress_for_test=[checkpoint_slow]'
