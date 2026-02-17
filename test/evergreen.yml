@@ -1133,6 +1133,20 @@ functions:
             ./t -R $format_args ${extra_args|} || fail
           fi
         done
+  "timestamp abort disagg":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build/test/csuite/timestamp_abort"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        ${additional_san_vars}
+        for i in $(seq ${times|1}); do
+          echo Iteration $i/${times}
+          ./test_timestamp_abort -G -s
+        done
   "many dbs test":
     command: shell.exec
     params:
@@ -1810,6 +1824,15 @@ variables:
           format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.ops=500000:2000000
           times: 5
           reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
+
+  - &timestamp-abort-test-disagg
+    depends_on:
+        - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "timestamp abort disagg"
+        vars:
+          times: 50
 
 #######################################
 #               Tasks                 #
@@ -5190,6 +5213,13 @@ tasks:
     tags: ["stress-test-disagg-fail"]
   - <<: *format-stress-test-disagg-multi-data-validation
     name: format-stress-test-disagg-multi-validation-2
+    tags: ["stress-test-disagg-fail"]
+
+  - <<: *timestamp-abort-test-disagg
+    name: timestamp-abort-test-disagg-1
+    tags: ["stress-test-disagg-fail"]
+  - <<: *timestamp-abort-test-disagg
+    name: timestamp-abort-test-disagg-2
     tags: ["stress-test-disagg-fail"]
 
   - name: format-stress-test-disagg-leader-pull-request
