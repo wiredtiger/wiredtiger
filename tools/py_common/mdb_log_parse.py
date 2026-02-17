@@ -44,6 +44,7 @@ def process_logs(f, opts):
     if is_mongo_log(first_line):
         return process_mongod_log(f, opts)
     else:
+        print('Non MongoDB log format detected, defaulting to WiredTiger log parsing')
         return process_wiredtiger_log(f, opts)
 
 def is_mongo_log(line):
@@ -51,7 +52,9 @@ def is_mongo_log(line):
 
 def process_mongod_log(f, opts):
     byte_dump = extract_mongodb_log_hex(f, opts)
-    
+    if not byte_dump:
+        print('Empty or invalid MongoDB log file')
+        return
     b = binary_data.BinaryFile(io.BytesIO(byte_dump))
     wtdecode_file_object(b, opts, len(byte_dump))
     
@@ -73,6 +76,7 @@ def extract_mongodb_log_hex(f, opts):
 
     lines = f.readlines()
     current_chunks = []
+    current_chunks_size = 0
     block_info = None
 
     for line_num, line in enumerate(lines):
@@ -81,20 +85,24 @@ def extract_mongodb_log_hex(f, opts):
             msg = log_entry.get('attr', {}).get('message', {})
 
             # Check if this is a corrupt dump message
-            if isinstance(msg, dict) and '__bm_corrupt_dump' in msg.get('msg', ''):
+            if isinstance(msg, dict) and '__wt_bm_corrupt_dump' in msg.get('msg', ''):
                 # Extract block info and hex data
                 msg_text = msg.get('msg', '')
 
                 # Parse the block info: {offset, size, checksum}: (chunk N of M): hexdata
-                match = re.search(r'\{0:\s*(\d+),\s*(\d+),\s*(0x[0-9a-f]+)\}:\s*\(chunk\s+(\d+)\s+of\s+(\d+)\):\s*([0-9a-f\s]+)', msg_text)
+                match = re.search(r'\{0:\s*(\d+),\s*(\d+),\s*(0x[0-9a-f]+)\}:\s*\(chunk\s+(\d+)\s+of\s+(\d+)\):\s*(.+$)', msg_text)
                 if match:
                     offset, size, checksum, chunk_num, total_chunks, hexdata = match.groups()
+                    size = int(size)
                     chunk_num = int(chunk_num)
                     total_chunks = int(total_chunks)
 
                     if chunk_num == 1:
                         # Start of a new block
                         if current_chunks and len(current_chunks) == block_info[4]:
+                            # Validate hex dump size against expected block size
+                            if block_info[1] != current_chunks_size:
+                                raise Exception(f'Hex dump is corrupt - size {current_chunks_size} does not match expected block size {block_info[1]} for block at offset {block_info[0]}')
                             # We have a complete previous block, return it
                             if (opts.debug):
                                 print(f'Found complete checksum mismatch block: offset={block_info[0]}, size={block_info[1]}, checksum={block_info[2]}')
@@ -102,17 +110,28 @@ def extract_mongodb_log_hex(f, opts):
 
                         # Reset for new block
                         current_chunks = []
+                        current_chunks_size = 0
                         block_info = (offset, size, checksum, chunk_num, total_chunks)
                         if (opts.debug):
                             print(f'Found checksum mismatch at line: {line_num} for block with address: offset {offset}, size {size}, checksum {checksum} ({total_chunks} chunks)')
 
+                    # Validate hex data
+                    if re.match(r'^[0-9a-fA-F\s]+$', hexdata) is None:
+                        raise Exception('Hex dump is corrupt - contains non-hex characters')
+
                     # Add this chunk
                     hexdata_clean = re.sub(r'[^0-9a-f]', '', hexdata.lower())
                     if hexdata_clean:
+                        if len(hexdata_clean) % 2 != 0:
+                            raise Exception('Hex dump is corrupt - odd number of hex characters')
                         current_chunks.append(codecs.decode(hexdata_clean, 'hex'))
+                        current_chunks_size += len(hexdata_clean) // 2
 
                     # Check if block is complete
                     if len(current_chunks) == total_chunks:
+                        # Validate hex dump size against expected block size
+                        if block_info[1] != current_chunks_size:
+                            raise Exception(f'Hex dump is corrupt - complete block size {current_chunks_size} does not match expected block size {block_info[1]} for block at offset {block_info[0]}')
                         if (opts.debug):
                             print(f'Complete block collected: {len(current_chunks)} chunks')
                         return b''.join(current_chunks)
@@ -124,6 +143,9 @@ def extract_mongodb_log_hex(f, opts):
         except Exception as e:
             if opts.debug:
                 print(f'Error parsing line {line_num}: {e}')
+                if 'Hex dump is corrupt' in str(e):
+                    print("Stop processing on corrupt hex dump")
+                    return bytearray()
 
     # Return any incomplete block we collected
     if current_chunks:
