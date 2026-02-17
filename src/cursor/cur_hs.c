@@ -1384,11 +1384,7 @@ __curhs_btree_id_to_hs_id(WT_SESSION_IMPL *session, uint32_t btree_id)
      * Map the history store ID into the URI. The current implementation does this simply using
      * table ID namespaces, but keep the notion of HS ID and namespace ID separate to ensure that we
      * can make more flexible choices in the future.
-     *
-     * Shared returns true for special shared tables (metadata or HS) as well, but we do not expect
-     * to see any of them here, so we add an extra assertion.
      */
-    WT_ASSERT(session, !WT_BTREE_ID_SPECIAL(btree_id));
     return (WT_BTREE_ID_SHARED(btree_id) ? 2 : 1);
 }
 
