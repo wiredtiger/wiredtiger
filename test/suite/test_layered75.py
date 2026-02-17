@@ -52,15 +52,12 @@ class test_layered75(wttest.WiredTigerTestCase):
         """
         Checks file IDs for files that should have predefined IDs.
         """
-        TEST_WT_BTREE_ID_NAMESPACE_SHARED = 1
         TEST_WT_BTREE_ID_NAMESPACE_SPECIAL = 2
 
         # Calculate namespaced IDs: (index << 3) | namespaces
         expected_ids = {
-            # 'file:WiredTiger.wt': 0, # Metadata file does not have an entry, so it shouldn't be checked.
-            'file:WiredTigerShared.wt_stable': (1 << 3) | TEST_WT_BTREE_ID_NAMESPACE_SPECIAL | TEST_WT_BTREE_ID_NAMESPACE_SHARED, # 11
-            'file:WiredTigerHS.wt': (2 << 3) | TEST_WT_BTREE_ID_NAMESPACE_SPECIAL, # 18
-            'file:WiredTigerSharedHS.wt_stable': (3 << 3) | TEST_WT_BTREE_ID_NAMESPACE_SPECIAL | TEST_WT_BTREE_ID_NAMESPACE_SHARED, # 27
+            'file:WiredTigerShared.wt_stable': (0 << 3) | TEST_WT_BTREE_ID_NAMESPACE_SPECIAL, # 2
+            'file:WiredTigerSharedHS.wt_stable': (1 << 3) | TEST_WT_BTREE_ID_NAMESPACE_SPECIAL # 10
         }
 
         cursor = session.open_cursor('metadata:', None, None)
@@ -97,7 +94,7 @@ class test_layered75(wttest.WiredTigerTestCase):
         self.check_predefined_ids(self.session_follow)
 
     def test_populate_table_on_leader(self):
-        self.session.create("layered:test_layered50", 'key_format=S,value_format=S')
+        self.session.create("layered:test_layered75", 'key_format=S,value_format=S')
 
         # Check the leader
         self.check_predefined_ids(self.session)
@@ -107,7 +104,7 @@ class test_layered75(wttest.WiredTigerTestCase):
         self.check_predefined_ids(self.session_follow)
 
     def test_populate_table_on_leader_pick_up_on_follower(self):
-        self.session.create("layered:test_layered50", 'key_format=S,value_format=S')
+        self.session.create("layered:test_layered75", 'key_format=S,value_format=S')
         # Check the leader
         self.check_predefined_ids(self.session)
 

@@ -167,7 +167,7 @@ def check_redact(optype):
     for f in optype.fields:
         if f.typename == 'uint32_id':
             redact_str = '    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && '
-            redact_str += '%s != WT_METADATA_FILE_ID)\n' % (f.fieldname)
+            redact_str += '%s != WT_METAFILE_ID)\n' % (f.fieldname)
             redact_str += '        return(__wt_fprintf(session, args->fs, " REDACTED"));\n'
             return redact_str
     return ''

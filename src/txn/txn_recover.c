@@ -68,7 +68,7 @@ __recovery_cursor(
      * last checkpoint. If there is no entry for a file, assume it was dropped or missing after a
      * hot backup.
      */
-    metadata_op = id == WT_METADATA_FILE_ID;
+    metadata_op = id == WT_METAFILE_ID;
     if (r->metadata_only != metadata_op)
         ;
     else if (id >= r->nfiles || r->files[id].uri == NULL) {
@@ -1042,7 +1042,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
     WT_ERR(__recovery_setup_file(&r, WT_METAFILE_URI, config));
     WT_ERR(__wt_metadata_cursor_open(session, NULL, &metac));
-    metafile = &r.files[WT_METADATA_FILE_ID];
+    metafile = &r.files[WT_METAFILE_ID];
     metafile->c = metac;
 
     WT_ERR(__recovery_set_ckpt_base_write_gen(&r));
@@ -1065,7 +1065,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
          * The array can be re-allocated in recovery_file_scan. Reset our pointer after scanning all
          * the files.
          */
-        metafile = &r.files[WT_METADATA_FILE_ID];
+        metafile = &r.files[WT_METAFILE_ID];
 
         if (F_ISSET(&conn->log_mgr, WT_LOG_ENABLED) && WT_IS_MAX_LSN(&metafile->ckpt_lsn) &&
           !WT_IS_MAX_LSN(&r.max_ckpt_lsn))

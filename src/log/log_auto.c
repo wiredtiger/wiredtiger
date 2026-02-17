@@ -363,7 +363,7 @@ __wt_logop_col_modify_print(
 
     WT_RET(__wt_logop_col_modify_unpack(session, pp, end, &fileid, &recno, &value));
 
-    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METADATA_FILE_ID)
+    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"col_modify\",\n"));
@@ -502,7 +502,7 @@ __wt_logop_col_put_print(
 
     WT_RET(__wt_logop_col_put_unpack(session, pp, end, &fileid, &recno, &value));
 
-    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METADATA_FILE_ID)
+    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"col_put\",\n"));
@@ -635,7 +635,7 @@ __wt_logop_col_remove_print(
 
     WT_RET(__wt_logop_col_remove_unpack(session, pp, end, &fileid, &recno));
 
-    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METADATA_FILE_ID)
+    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"col_remove\",\n"));
@@ -762,7 +762,7 @@ __wt_logop_col_truncate_print(
 
     WT_RET(__wt_logop_col_truncate_unpack(session, pp, end, &fileid, &start, &stop));
 
-    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METADATA_FILE_ID)
+    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"col_truncate\",\n"));
@@ -892,7 +892,7 @@ __wt_logop_row_modify_print(
 
     WT_RET(__wt_logop_row_modify_unpack(session, pp, end, &fileid, &key, &value));
 
-    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METADATA_FILE_ID)
+    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_modify\",\n"));
@@ -1036,7 +1036,7 @@ __wt_logop_row_put_print(
 
     WT_RET(__wt_logop_row_put_unpack(session, pp, end, &fileid, &key, &value));
 
-    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METADATA_FILE_ID)
+    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_put\",\n"));
@@ -1176,7 +1176,7 @@ __wt_logop_row_remove_print(
 
     WT_RET(__wt_logop_row_remove_unpack(session, pp, end, &fileid, &key));
 
-    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METADATA_FILE_ID)
+    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_remove\",\n"));
@@ -1318,7 +1318,7 @@ __wt_logop_row_truncate_print(
 
     WT_RET(__wt_logop_row_truncate_unpack(session, pp, end, &fileid, &start, &stop, &mode));
 
-    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METADATA_FILE_ID)
+    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID)
         return (__wt_fprintf(session, args->fs, " REDACTED"));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_truncate\",\n"));

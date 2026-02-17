@@ -77,31 +77,23 @@
  * Optimize comparisons against the metafile URI, flag handles that reference the metadata file.
  */
 #define WT_IS_METADATA(dh) F_ISSET((dh), WT_DHANDLE_IS_METADATA)
+#define WT_METAFILE_ID 0 /* Metadata file ID */
 
 #define WT_METADATA_COMPAT "Compatibility version"
 #define WT_METADATA_LIVE_RESTORE "Live Restore"
 #define WT_METADATA_VERSION "WiredTiger version" /* Version keys */
 #define WT_METADATA_VERSION_STR "WiredTiger version string"
 
+/*
+ * Predefined IDs for shared tables that must use fixed IDs. These tables are created independently
+ * on every node and should have identical IDs to avoid conflicts at the storage layer.
+ */
 typedef enum {
-    WT_METADATA_FILE_ID = 0,
-
-    /*
-     * The list of predefined file IDs starts from the field after WT_METADATA_FILE_ID because local
-     * metadata is a special case that doesn't have an entry in the metadata table (only in the
-     * turtle file). Moreover, its ID was historically predefined as 0, without any namespace.
-     *
-     * Since changing it could potentially cause unexpected backward-compatibility issues, it was
-     * decided to leave WT_METADATA_FILE_ID untouched but still mention it here, since from a formal
-     * point of view it is still a predefined ID.
-     */
-
     WT_SPECIAL_FILE_IDS_START,
     WT_SHARED_METADATA_FILE_ID = WT_SPECIAL_FILE_IDS_START,
-    WT_HS_FILE_ID,
     WT_SHARED_HS_FILE_ID,
     WT_SPECIAL_FILE_IDS_END
-} WT_PREDEFINED_FILE_IDS;
+} WT_SPECIAL_FILE_IDS;
 
 /*
  * Other useful comparisons.
