@@ -343,6 +343,9 @@ main(int argc, char *argv[])
         if (access(g.home_backup, F_OK) == 0)
             is_backup = true;
         wts_open(g.home, &g.wts_conn, !is_backup);
+        /* For disagg follower node pick up the latest checkpoint. */
+        if (g.disagg_storage_config && !g.disagg_leader)
+            follower_read_latest_checkpoint();
         timestamp_init();
         /* Update the oldest and stable timestamps if they have been previously set. */
         ret = timestamp_query("get=oldest_timestamp", &g.oldest_timestamp);
