@@ -60,16 +60,7 @@ follower_read_latest_checkpoint(void)
     if (ret != WT_NOTFOUND) {
         testutil_snprintf(config, sizeof(config), "disaggregated=(checkpoint_meta=\"%.*s\")",
           (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data);
-        /*
-         * Acquire the write lock to ensure no worker threads have in-flight transactions that could
-         * pin the pinned timestamp below the checkpoint's oldest_timestamp. Once the lock is held,
-         * advance timestamps so the follower's oldest catches up, then pick up the checkpoint.
-         */
-        lock_writelock(session, &g.disagg_pickup_lock);
-        if (g.transaction_timestamps_config)
-            timestamp_once(session, false, false);
         testutil_check(conn->reconfigure(conn, config));
-        lock_writeunlock(session, &g.disagg_pickup_lock);
         printf("--- [Follower] Picked up checkpoint (metadata=[%.*s],timestamp(hex)=%" PRIx64
                ") ---\n",
           (int)checkpoint_metadata.size, (const char *)checkpoint_metadata.data, checkpoint_ts);
@@ -123,17 +114,7 @@ follower(void *arg)
                 testutil_snprintf(config, sizeof(config),
                   "disaggregated=(checkpoint_meta=\"%.*s\")", (int)checkpoint_metadata.size,
                   (const char *)checkpoint_metadata.data);
-                /*
-                 * Acquire the write lock to ensure no worker threads have in-flight transactions
-                 * that could pin the pinned timestamp below the checkpoint's oldest_timestamp.
-                 * Once the lock is held, advance timestamps so the follower's oldest catches up,
-                 * then pick up the checkpoint.
-                 */
-                lock_writelock(session, &g.disagg_pickup_lock);
-                if (g.transaction_timestamps_config)
-                    timestamp_once(session, false, false);
                 testutil_check(conn->reconfigure(conn, config));
-                lock_writeunlock(session, &g.disagg_pickup_lock);
                 printf(
                   "--- [Follower] Picked up checkpoint (metadata=[%.*s],timestamp(hex)=%" PRIx64
                   ") ---\n",

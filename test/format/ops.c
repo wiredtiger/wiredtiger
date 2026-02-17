@@ -1000,13 +1000,10 @@ ops(void *arg)
     uint32_t max_rows, ntries, range, rnd;
     u_int i, throttle_delay_max;
     const char *iso_config;
-    bool disagg_follower, greater_than, intxn, prepared, mirrored_truncate;
+    bool greater_than, intxn, prepared, mirrored_truncate;
 
     tinfo = arg;
     mirrored_truncate = false;
-
-    /* Track whether we're a disagg follower to gate the pickup lock. */
-    disagg_follower = (disagg_is_multi_node() && !g.disagg_leader);
 
     /*
      * Characterize the per-thread random number generator. Normally we want independent behavior so
@@ -1075,8 +1072,6 @@ rollback_retry:
          */
         if (intxn && GV(RUNS_PREDICTABLE_REPLAY)) {
             commit_transaction(tinfo, false);
-            if (disagg_follower)
-                lock_readunlock(session, &g.disagg_pickup_lock);
             intxn = false;
         }
 
@@ -1089,8 +1084,6 @@ rollback_retry:
             /* Resolve any running transaction. */
             if (intxn) {
                 commit_transaction(tinfo, false);
-                if (disagg_follower)
-                    lock_readunlock(session, &g.disagg_pickup_lock);
                 intxn = false;
             }
 
@@ -1131,13 +1124,6 @@ rollback_retry:
          */
         if (!intxn && g.transaction_timestamps_config) {
             iso_level = ISOLATION_SNAPSHOT;
-            /*
-             * On a disagg follower, hold the pickup lock for the duration of the transaction so the
-             * follower checkpoint pickup thread cannot pick up a new checkpoint while we have an
-             * in-flight transaction with a read timestamp that could pin the pinned timestamp.
-             */
-            if (disagg_follower)
-                lock_readlock(session, &g.disagg_pickup_lock);
             begin_transaction_ts(tinfo);
             intxn = true;
         }
@@ -1161,8 +1147,6 @@ rollback_retry:
                     break;
                 }
 
-                if (disagg_follower)
-                    lock_readlock(session, &g.disagg_pickup_lock);
                 begin_transaction(tinfo, iso_config);
                 intxn = true;
             }
@@ -1418,8 +1402,6 @@ rollback:
                 /* Force a rollback */
                 testutil_assert(intxn);
                 rollback_transaction(tinfo, prepared);
-                if (disagg_follower)
-                    lock_readunlock(session, &g.disagg_pickup_lock);
                 intxn = false;
                 ++ntries;
                 replay_pause_after_rollback(tinfo, ntries);
@@ -1435,15 +1417,10 @@ rollback:
         if (mirrored_truncate)
             wts_verify_mirrored_truncate(tinfo);
 
-        if (disagg_follower)
-            lock_readunlock(session, &g.disagg_pickup_lock);
         intxn = false;
     }
 
 loop_exit:
-    /* Release the disagg pickup lock if we're exiting with a transaction still in-flight. */
-    if (disagg_follower && intxn)
-        lock_readunlock(session, &g.disagg_pickup_lock);
     if (session != NULL)
         testutil_check(session->close(session, NULL));
     tinfo->session = NULL;
