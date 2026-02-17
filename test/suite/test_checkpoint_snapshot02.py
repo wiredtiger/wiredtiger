@@ -70,6 +70,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         self.extraconfig = ''
         self.nrows = 1000
         self.valuea = "aaaaa" * 100
+        # Precise checkpoint requires the stable timestamp to be set.
         if self.is_precise:
             self.conn.set_timestamp('stable_timestamp=1')
 
@@ -171,7 +172,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         if self.is_precise:
             self.skipTest("Precise checkpoints require timestamps.")
         elif self.runningHook('disagg'):
-            self.skipTest("FIXME-15370 Disagg requires precise checkpoints.")
+            self.skipTest("FIXME-WT-15370 Disagg requires precise checkpoints.")
 
         ds = SimpleDataSet(self, self.uri, 0, \
                 key_format=self.key_format, value_format=self.value_format, \
