@@ -40,7 +40,7 @@ def flag_declare(name):
                         print("Flag stop value of " + str(max_flags) \
                                 + " is larger than field size " + str(fld_size))
                         sys.exit(1)
-            if line.find('AUTOMATIC FLAG VALUE GENERATION START') != -1:
+            if re.search(r"AUTOMATIC.*FLAG.*GENERATION START", line) != None:
                 m = re.search(r"\d+", line)
                 if m == None:
                     print(name + ": automatic flag generation start at line " +
@@ -51,7 +51,7 @@ def flag_declare(name):
                 header = line
                 defines = []
                 parsing = True
-            elif line.find('AUTOMATIC FLAG VALUE GENERATION STOP') != -1:
+            elif re.search(r"AUTOMATIC.*FLAG.*GENERATION STOP", line) != None:
                 m = re.search(r"\d+", line)
                 if m == None:
                     print(name + ": automatic flag generation stop at line " +
