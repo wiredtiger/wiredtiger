@@ -445,7 +445,12 @@ __wti_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WTI_UPDATE_SELECT
     if (!WT_TIME_WINDOW_HAS_START(tw))
         return;
 
-    if (!WT_TIME_WINDOW_HAS_PREPARE(tw)) {
+    /*
+     * For in-memory btrees that don't use timestamps, clearing time points is unnecessary as it
+     * leads to wasted effort with little to no benefit.
+     */
+    if (!WT_TIME_WINDOW_HAS_PREPARE(tw) &&
+      (!F_ISSET(btree, WT_BTREE_IN_MEMORY) || !F_ISSET(btree, WT_BTREE_LOGGED))) {
         /*
          * Check if the start of the time window is globally visible, and if so remove unnecessary
          * values.
