@@ -28,7 +28,7 @@
 
 import os, shutil, threading, time
 from wtthread import checkpoint_thread
-from helper import simulate_crash_restart
+from helper import simulate_crash_restart, WiredTigerStat
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
@@ -55,16 +55,23 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         ("backup", dict(restart=False)),
     ]
 
-    scenarios = make_scenarios(format_values, restart_values)
+    precise_values = [
+        ("precise", dict(is_precise=True, ckpt_config=',precise_checkpoint=true')),
+        ("not_precise", dict(is_precise=False, ckpt_config='')),
+    ]
+
+    scenarios = make_scenarios(format_values, restart_values, precise_values)
 
     def conn_config(self):
         config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=false),timing_stress_for_test=[checkpoint_slow]'
-        return config
+        return config + self.ckpt_config
 
     def moresetup(self):
         self.extraconfig = ''
         self.nrows = 1000
         self.valuea = "aaaaa" * 100
+        if self.is_precise:
+            self.conn.set_timestamp('stable_timestamp=1')
 
     def take_full_backup(self, fromdir, todir):
         # Open up the backup cursor, and copy the files.  Do a full backup.
@@ -116,12 +123,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         session.commit_transaction()
         targetCount = nrows
         if count != targetCount and count != 2*targetCount: print(f"Counted {count} out of {nrows} rows. Last key: {k}.")
-        if not self.runningHook('disagg'):
-            self.assertEqual(count, targetCount)
-        else:
-            # If Disag, it's ok to get the double count since transaction could make it through.
-            # TODO: Make sure it's ok as part of FIXME-WT-15429.
-            self.assertTrue(count == targetCount or count == targetCount * 2)
+        self.assertEqual(count, targetCount)
 
     def perform_backup_or_crash_restart(self, fromdir, todir):
         if self.restart == True:
@@ -153,10 +155,23 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
             done.set()
             ckpt.join()
 
+    def verify_rts(self):
+        if not self.is_precise:
+            # In precise mode, we won't have any inconsistent checkpoints and rts removals.
+            with WiredTigerStat(self.conn) as stat_cursor:
+                inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
+                keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
 
-    @wttest.skip_for_hook("disagg", "Fails in Disagg with error: Gap in keys. FIXME-WT-15429.")
+            self.assertGreater(inconsistent_ckpt, 0)
+            self.assertGreaterEqual(keys_removed, 0)
+
     def test_checkpoint_snapshot(self):
         self.moresetup()
+
+        if self.is_precise:
+            self.skipTest("Precise checkpoints require timestamps.")
+        elif self.runningHook('disagg'):
+            self.skipTest("FIXME-15370 Disagg requires precise checkpoints.")
 
         ds = SimpleDataSet(self, self.uri, 0, \
                 key_format=self.key_format, value_format=self.value_format, \
@@ -181,19 +196,14 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
         # Check the table contains the last checkpointed value.
         self.check(self.valuea, self.uri, self.nrows, 0)
+        self.verify_rts()
 
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
-        keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
-        stat_cursor.close()
-
-        self.assertGreaterEqual(keys_removed, 0)
-        if not self.runningHook('disagg'): # Disagg doesn't have inconsistent checkpoints or RTS.
-            self.assertGreater(inconsistent_ckpt, 0)
-
-    @wttest.skip_for_hook("disagg", "Fails in Disagg with error: Gap in keys. FIXME-WT-15429.")
     def test_checkpoint_snapshot_with_timestamp(self):
         self.moresetup()
+
+        if self.runningHook('disagg'):
+            if not self.is_precise:
+                self.skipTest("FIXME-15370 Disagg requires precise checkpoints.")
 
         ds = SimpleDataSet(self, self.uri, 0, \
                 key_format=self.key_format, value_format=self.value_format, \
@@ -226,19 +236,15 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
         # Check the table contains the last checkpointed value.
         self.check(self.valuea, self.uri, self.nrows, 30)
-
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
-        keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
-        stat_cursor.close()
-
-        self.assertGreater(inconsistent_ckpt, 0)
-        self.assertGreaterEqual(keys_removed, 0)
+        self.verify_rts()
 
     @wttest.skip_for_hook("tiered", "Fails with tiered storage")
-    @wttest.skip_for_hook("disagg", "Fails in Disagg with error: Gap in keys. FIXME-WT-15429.")
     def test_checkpoint_snapshot_with_txnid_and_timestamp(self):
         self.moresetup()
+
+        if self.runningHook('disagg'):
+            if not self.is_precise:
+                self.skipTest("FIXME-15370 Disagg requires precise checkpoints.")
 
         ds = SimpleDataSet(self, self.uri, 0, \
                 key_format=self.key_format, value_format=self.value_format, \
@@ -290,12 +296,4 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
         # Check the table contains the last checkpointed value.
         self.check(self.valuea, self.uri, self.nrows, 30)
-
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
-        keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
-        stat_cursor.close()
-
-        if not self.runningHook('disagg'): # Disagg doesn't have inconsistent checkpoints or RTS.
-            self.assertGreaterEqual(inconsistent_ckpt, 0)
-        self.assertEqual(keys_removed, 0)
+        self.verify_rts()
