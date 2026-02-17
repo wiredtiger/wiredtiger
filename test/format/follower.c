@@ -115,13 +115,10 @@ follower_try_pickup_checkpoint(WT_SESSION *session, WT_CONNECTION *conn, WT_PAGE
      */
     if (g.transaction_timestamps_config) {
         ret = follower_fetch_full_metadata(session, page_log, checkpoint_metadata, &full_metadata);
-        if (ret == 0 && strstr((const char *)full_metadata.data, "oldest_timestamp=") != NULL &&
-          __wti_disagg_parse_meta((WT_SESSION_IMPL *)session, &full_metadata, &metadata) == 0 &&
+        if (ret == 0 &&
+          __wt_disagg_parse_meta((WT_SESSION_IMPL *)session, &full_metadata, &metadata) == 0 &&
           metadata.oldest_timestamp != WT_TS_NONE) {
             ret = timestamp_query("get=pinned", &pinned_ts);
-            printf("--- [Follower] pinned_ts=%" PRIx64 ", metadata.oldest_timestamp=%" PRIx64
-                   " ---\n",
-              pinned_ts, metadata.oldest_timestamp);
             if (ret == 0 && pinned_ts != 0 && metadata.oldest_timestamp > pinned_ts) {
                 printf("--- [Follower] Skipping checkpoint pickup: oldest_timestamp(hex)=%" PRIx64
                        " > pinned_timestamp(hex)=%" PRIx64 " ---\n",
