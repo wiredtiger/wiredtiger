@@ -43,6 +43,7 @@ else()
         cursors/unit/test_cursor_get_raw_key_value.cpp
         ext/test_key_provider.cpp
         ext/test_key_provider_header.cpp
+        ext/test_checkpoint_meta_version.cpp
         sub_level_error/api/test_sub_level_error_session_get_last_error.cpp
         sub_level_error/api/test_sub_level_error_strerror.cpp
         sub_level_error/unit/test_sub_level_error_api_end.cpp
