@@ -18,7 +18,9 @@ typedef struct __wt_disagg_checkpoint_meta {
     bool has_metadata_checksum; /* Whether the metadata page checksum is present. */
     uint32_t metadata_checksum; /* The checksum of the metadata page. */
 
-    uint32_t version; /* The version of the checkpoint_meta. */
+    uint64_t database_size; /* The total database size. */
+    bool has_database_size; /* Whether the database size is present. */
+    uint32_t version;       /* The version of the checkpoint_meta. */
     uint32_t
       compatible_version; /* The minimum version of the reader that can use this checkpoint_meta. */
 } WT_DISAGG_CHECKPOINT_META;
@@ -467,6 +469,18 @@ __disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt)
     crypt_header->checksum = __wt_bswap32(crypt_header->checksum);
 #endif
 }
+
+/*
+ * __wt_disagg_set_database_size --
+ *     Set the database size in disaggregated storage.
+ */
+void
+__wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size)
+{
+    S2C(session)->disaggregated_storage.database_size = database_size;
+    WT_STAT_CONN_SET(session, disagg_database_size, database_size);
+}
+
 /*
  * __wt_disagg_put_crypt_helper --
  *     If new encryption key data information is detected, update the metadata page log and callback
@@ -1219,6 +1233,10 @@ __disagg_update_checkpoint_meta(WT_SESSION_IMPL *session, WT_SESSION_IMPL *inter
     __wt_atomic_store_uint64_release(
       &conn->disaggregated_storage.last_checkpoint_oldest_timestamp, metadata->oldest_timestamp);
 
+    /* Set the database size. */
+    if (ckpt_meta->has_database_size)
+        __wt_disagg_set_database_size(session, ckpt_meta->database_size);
+
     /* Remember the root config of the last checkpoint. */
     __wt_free(session, conn->disaggregated_storage.last_checkpoint_root);
     WT_ERR(__wt_strndup(session, metadata->checkpoint, metadata->checkpoint_len,
@@ -1443,6 +1461,18 @@ __disagg_pick_up_checkpoint_meta(
         __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE, "%s\"%s\"",
           "Missing metadata_checksum from metadata: ", meta_str);
 
+    /* Extract the database size, if it exists. */
+    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_str, "database_size", &cval), true);
+    if (WT_CHECK_AND_RESET(ret, 0) && cval.len != 0) {
+        /*
+         * FIXME-WT-16562 Checkpoint size tech debt cleanup. Disagg checkpoint metadata may be
+         * received without database_size. For now we treat this field as optional to avoid crashing
+         * when size information is missing. Once checkpoint size support is fully established, this
+         * fallback path should be removed and database_size made mandatory.
+         */
+        ckpt_meta.has_database_size = true;
+        ckpt_meta.database_size = (uint64_t)cval.val;
+    }
     /* Parse and validate version and compatible_version fields. */
     WT_ERR(__disagg_check_meta_version(session, meta_str, &ckpt_meta));
 
@@ -2601,9 +2631,10 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
          * without quotation marks or escape characters.
          */
         WT_ERR(__wt_buf_fmt(session, meta,
-          "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32 ",version=%d,compatible_version=%d",
-          meta_lsn, meta_checksum, WT_DISAGG_CHECKPOINT_META_VERSION,
-          WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION));
+          "metadata_lsn=%" PRIu64 ",metadata_checksum=%" PRIx32 ",database_size=%" PRIu64
+          ",version=%d,compatible_version=%d",
+          meta_lsn, meta_checksum, conn->disaggregated_storage.database_size,
+          WT_DISAGG_CHECKPOINT_META_VERSION, WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION));
         WT_ERR(disagg->npage_log->page_log->pl_complete_checkpoint_ext(disagg->npage_log->page_log,
           &session->iface, 0, (uint64_t)checkpoint_timestamp, meta, NULL));
         __wt_atomic_store_uint64_release(
@@ -3264,6 +3295,71 @@ __layered_last_checkpoint_order(
     WT_ASSERT(session, *ckpt_order == order_from_name);
 
     return (0);
+}
+
+/*
+ * __disagg_remove_shared_metadata --
+ *     Remove an entry from the shared metadata.
+ */
+static int
+__disagg_remove_shared_metadata(WT_SESSION_IMPL *session, const char *key)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL};
+
+    WT_ASSERT(session, S2C(session)->layered_table_manager.leader);
+
+    cursor = NULL;
+
+    WT_ERR(__wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
+    cursor->set_key(cursor, key);
+    WT_ERR(cursor->remove(cursor));
+
+    __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Removed disaggregated shared metadata: key=\"%s\"", key);
+
+err:
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
+    return (ret);
+}
+
+/*
+ * __wt_disagg_remove_shared_metadata_layered --
+ *     Remove all metadata relevant to the table_name from the shared metadata table.
+ *
+ * Note: If the table was created and dropped before a checkpoint has occurred, it is expected to
+ *     have no metadata entries on the shared metadata table.
+ */
+int
+__wt_disagg_remove_shared_metadata_layered(WT_SESSION_IMPL *session, const char *table_name)
+{
+    WT_DECL_ITEM(uri_buf);
+    WT_DECL_RET;
+
+    WT_RET(__wt_scr_alloc(session, 0, &uri_buf));
+
+    /* Remove all relevant metadata entries from shared metadata table (if exists). */
+    WT_ERR(__wt_buf_fmt(session, uri_buf, "file:%s.wt_stable", table_name));
+    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf->data));
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    WT_ERR(__wt_buf_fmt(session, uri_buf, "layered:%s", table_name));
+    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf->data));
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    WT_ERR(__wt_buf_fmt(session, uri_buf, "colgroup:%s", table_name));
+    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf->data));
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+    WT_ERR(__wt_buf_fmt(session, uri_buf, "table:%s", table_name));
+    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf->data));
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+err:
+    __wt_scr_free(session, &uri_buf);
+    return (ret);
 }
 
 #ifdef HAVE_UNITTEST

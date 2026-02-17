@@ -557,6 +557,6 @@ struct __wt_block_disagg_address_cookie {
     uint64_t lsn;      /* Log sequence number */
     uint64_t base_lsn; /* Base log sequence number */
 
-    uint32_t size;     /* Size of the data */
+    uint32_t size;     /* Cumulative size (base + deltas) */
     uint32_t checksum; /* Checksum of the data */
 };
