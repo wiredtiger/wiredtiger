@@ -88,8 +88,5 @@ class test_layered36(wttest.WiredTigerTestCase):
         self.assertEqual(item_count, 0)
 
         cursor = self.session.open_cursor(uri_filled, None, None)
-        # FIXME-SLS-1824: This test triggers a KeyError,
-        #  i.e. search for cursor['a'] returns WT_NOTFOUND?
-        if False:
-            self.assertEqual(cursor['a'], 'b')
+        self.assertEqual(cursor['a'], 'b')
         cursor.close()
