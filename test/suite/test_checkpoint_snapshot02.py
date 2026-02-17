@@ -47,17 +47,17 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
-        # ('row_integer', dict(key_format='i', value_format='S')),
+        ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
     restart_values = [
-        # ("crash_restart", dict(restart=True)),
+        ("crash_restart", dict(restart=True)),
         ("backup", dict(restart=False)),
     ]
 
     checkpoint_config_values = [
         ("precise", dict(is_precise=True, ckpt_config=',precise_checkpoint=true')),
-        # ("fuzzy_checkpoint", dict(is_precise=False, ckpt_config=',precise_checkpoint=false')),
+        ("fuzzy_checkpoint", dict(is_precise=False, ckpt_config=',precise_checkpoint=false')),
     ]
 
     scenarios = make_scenarios(format_values, restart_values, checkpoint_config_values)
