@@ -29,17 +29,17 @@
 import wttest
 import wiredtiger
 
-# test_bug036.py
+# test_prepare44.py
 # Test to reproduce and validate the fix for a bug in in-memory page eviction with aborted prepared updates.
 # The bug occurred when an aborted prepared update at the tail of an update chain was incorrectly
 # causing has_newer_updates to be set in __rec_upd_select_inmem, which then triggered an assertion
 # failure in __split_multi_inmem.
-class test_bug036(wttest.WiredTigerTestCase):
+class test_prepare44(wttest.WiredTigerTestCase):
     """Test that eviction of in-memory pages with aborted prepared updates
     does not trigger an assertion failure when preserve_prepared is enabled."""
 
     conn_config = 'precise_checkpoint=true,preserve_prepared=true'
-    uri = 'table:test_bug036'
+    uri = 'table:test_prepare44'
 
     def test_evict_aborted_prepared_tail(self):
         create_config = 'key_format=i,value_format=S,in_memory=true,log=(enabled=false)'
@@ -82,7 +82,7 @@ class test_bug036(wttest.WiredTigerTestCase):
         # Do NOT advance oldest_timestamp past the committed updates' durable
         # timestamp. This keeps the committed updates not globally visible.
 
-        # Step 3: Force eviction of the page containing key 1. This should not trigger an assertion failure and the aborted prepared update should be saved to disk.
+        # Step 3: Force eviction of the page containing key 1. This should not trigger an assertion failure and the aborted prepared update should be saved to disk image.
         session_evict = self.conn.open_session()
         session_evict.begin_transaction('ignore_prepare=true')
         evict_cursor = session_evict.open_cursor(self.uri, None, 'debug=(release_evict)')
