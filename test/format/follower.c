@@ -30,12 +30,7 @@
 
 /*
  * follower_fetch_full_metadata --
- *     Fetch the full checkpoint metadata from the page log. The checkpoint_metadata from
- *     pl_get_complete_checkpoint_ext() only contains pointer information (metadata_lsn, etc.). This
- *     function reads the actual metadata page from the page log to get the full checkpoint config
- *     with checkpoint=(WiredTigerCheckpoint...).
- *
- * Returns 0 on success, non-zero on error. The caller owns the returned full_metadata item.
+ *     Fetch the full checkpoint metadata from the page log.
  */
 static int
 follower_fetch_full_metadata(WT_SESSION *session, WT_PAGE_LOG *page_log,
