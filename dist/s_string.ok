@@ -264,6 +264,7 @@ Multithreaded
 Mutex
 Mutexes
 MySecret
+NAMESPACE
 NNN
 NOLINT
 NOLINTNEXTLINE
@@ -277,6 +278,7 @@ NUL
 NUM
 NVRAM
 NZD
+Namespace
 NetBSD
 NoAddr
 Nul

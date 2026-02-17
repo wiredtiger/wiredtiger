@@ -125,31 +125,33 @@ __create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const cha
 uint32_t
 __wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
 {
-    static const char *special_file_ids[] = {[WT_SHARED_METADATA_FILE_ID] = WT_DISAGG_METADATA_URI,
-      [WT_SHARED_HS_FILE_ID] = WT_HS_URI_SHARED,
-      [WT_SPECIAL_FILE_IDS_END] = NULL};
-    uint32_t fileid;
+    typedef struct {
+        uint32_t id;
+        const char *uri;
+    } FILE_ID_TO_URI;
+
+    static const FILE_ID_TO_URI special_file_map[] = {
+      {WT_SHARED_METADATA_FILE_ID, WT_DISAGG_METADATA_URI},
+      {WT_SHARED_HS_FILE_ID, WT_HS_URI_SHARED}, {0, NULL} /* sentinel */
+    };
 
     /* Metadata ID is predefined but should be defined in a different place. */
-    WT_ASSERT(session, 0 != strncmp((uri), WT_METAFILE_URI, strlen(WT_METAFILE_URI)));
+    WT_ASSERT(session, uri != NULL);
+    WT_ASSERT(session, 0 != strcmp((uri), WT_METAFILE_URI));
 
     /* Check whether we should use a predefined ID for the provided URI. */
-    uint32_t fixed_id = WT_SPECIAL_FILE_IDS_START;
-    for (; fixed_id != WT_SPECIAL_FILE_IDS_END; ++fixed_id) {
-        if (strncmp((uri), special_file_ids[fixed_id], strlen(special_file_ids[fixed_id])) == 0) {
-            fileid = WT_BTREE_ID_NAMESPACED(fixed_id);
-            FLD_SET(fileid, WT_BTREE_ID_NAMESPACE_SPECIAL);
-            return (fileid);
+    for (const FILE_ID_TO_URI *entry = special_file_map; entry->uri != NULL; ++entry) {
+        if (strcmp(uri, entry->uri) == 0) {
+            return (WT_BTREE_ID_NAMESPACED(entry->id, WT_BTREE_ID_NAMESPACE_SPECIAL));
         }
     }
 
     /* Use the predefined ID if the URI matches; otherwise, use the counter. */
-    fileid = WT_BTREE_ID_NAMESPACED(++S2C(session)->next_file_id);
-
+    uint32_t fileid = ++S2C(session)->next_file_id;
     if (is_shared)
-        FLD_SET(fileid, WT_BTREE_ID_NAMESPACE_SHARED);
+        return (WT_BTREE_ID_NAMESPACED(fileid, WT_BTREE_ID_NAMESPACE_SHARED));
 
-    return (fileid);
+    return (WT_BTREE_ID_NAMESPACED(fileid, WT_BTREE_ID_NAMESPACE_LOCAL));
 }
 
 /*
@@ -1311,8 +1313,8 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
               ",tiered_storage=(bucket=%s,bucket_prefix=%s)"
               ",id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=",
               conn->bstorage->bucket, conn->bstorage->bucket_prefix,
-              WT_BTREE_ID_NAMESPACED(++conn->next_file_id), WT_BTREE_VERSION_MAX.major,
-              WT_BTREE_VERSION_MAX.minor));
+              WT_BTREE_ID_NAMESPACED(++conn->next_file_id, WT_BTREE_ID_NAMESPACE_LOCAL),
+              WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
             cfg[1] = tmp->data;
             cfg[2] = config;
             cfg[3] = "tiers=()";
@@ -1458,9 +1460,10 @@ __create_fix_file_ids(WT_SESSION_IMPL *session, WT_IMPORT_LIST *import_list)
         /* Generate a new file ID. */
         if (import_list->entries[i].file_id != prev_file_id) {
             prev_file_id = import_list->entries[i].file_id;
-            new_file_id = WT_BTREE_ID_NAMESPACED(++conn->next_file_id);
             if (WT_BTREE_ID_SHARED(prev_file_id))
                 WT_RET_MSG(session, EINVAL, "TODO cannot import a shared table");
+
+            new_file_id = WT_BTREE_ID_NAMESPACED(++conn->next_file_id, WT_BTREE_ID_NAMESPACE_LOCAL);
         }
 
         /* Update config with the new file ID. */

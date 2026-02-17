@@ -36,7 +36,6 @@
 #define WT_HS_URI "file:WiredTigerHS.wt"                     /* History store table URI */
 #define WT_HS_URI_SHARED "file:WiredTigerSharedHS.wt_stable" /* Shared history store URI */
 
-/* TODO: (Replace with FIXME) Check whether we can use IDS from WT_PREDEFINED_FILE_IDS instead. */
 #define WT_HS_ID 1        /* ID for HS */
 #define WT_HS_ID_SHARED 2 /* ID for shared HS */
 
@@ -83,17 +82,6 @@
 #define WT_METADATA_LIVE_RESTORE "Live Restore"
 #define WT_METADATA_VERSION "WiredTiger version" /* Version keys */
 #define WT_METADATA_VERSION_STR "WiredTiger version string"
-
-/*
- * Predefined IDs for shared tables that must use fixed IDs. These tables are created independently
- * on every node and should have identical IDs to avoid conflicts at the storage layer.
- */
-typedef enum {
-    WT_SPECIAL_FILE_IDS_START,
-    WT_SHARED_METADATA_FILE_ID = WT_SPECIAL_FILE_IDS_START,
-    WT_SHARED_HS_FILE_ID,
-    WT_SPECIAL_FILE_IDS_END
-} WT_SPECIAL_FILE_IDS;
 
 /*
  * Other useful comparisons.

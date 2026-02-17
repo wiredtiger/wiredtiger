@@ -82,16 +82,6 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
     }
 
     /*
-     * FIXME-WT-14723: import needs a little thought for shared tables once we've decided how to
-     * allocate shared file IDs. It's not enough (even temporarily) to just share the allocated file
-     * ID, since if we do that it may clash with another imported shared ID.
-     */
-    WT_ERR(__wt_btree_shared(session, uri, cfg, &shared));
-    if (shared)
-        WT_ERR_MSG(session, EINVAL, "TODO import of shared tree unsupported");
-    WT_WITH_SCHEMA_LOCK(session, fileid = __wt_generate_file_id(session, uri, shared));
-
-    /*
      * OK, we've now got three chunks of data: the file's metadata from when the last checkpoint
      * started, the array of checkpoints as of when the last checkpoint was almost complete
      * (everything written but the avail list), and fixed-up checkpoint information from the last
@@ -109,10 +99,21 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
     WT_ERR(__wt_reset_blkmod(session, a->data, buf));
     cfg[3] = buf->mem;
     cfg[4] = "checkpoint_lsn=";
+    /* We don't support imports for shared tables, so always set `is_shared` to false. */
+    WT_WITH_SCHEMA_LOCK(session, fileid = __wt_generate_file_id(session, uri, false));
     WT_ERR(__wt_snprintf(fileid_cfg, sizeof(fileid_cfg), "id=%" PRIu32, fileid));
     WT_ERR(ret);
     cfg[5] = fileid_cfg;
     WT_ERR(__wt_config_collapse(session, cfg, &config_tmp));
+
+    /*
+     * FIXME-WT-14723: import needs a little thought for shared tables once we've decided how to
+     * allocate shared file IDs. It's not enough (even temporarily) to just share the allocated file
+     * ID, since if we do that it may clash with another imported shared ID.
+     */
+    WT_ERR(__wt_btree_shared(session, uri, cfg, &shared));
+    if (shared)
+        WT_ERR_MSG(session, EINVAL, "TODO import of shared tree unsupported");
 
     /*
      * Now we need to retrieve the last checkpoint again but this time, with the correct allocation
