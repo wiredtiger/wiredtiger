@@ -1767,8 +1767,7 @@ variables:
       - func: "fetch artifacts"
       - func: "format test disagg"
         vars:
-          # FIXME-WT-16695 Enable truncate on mode = multi when test failure is resolved.
-          format_args: disagg.multi=1 ops.truncate=0 runs.predictable_replay=1 runs.ops=500000:2000000
+          format_args: disagg.multi=1 runs.predictable_replay=1 runs.ops=500000:2000000
           times: 5
           reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
@@ -1780,8 +1779,7 @@ variables:
       - func: "format test disagg"
         vars:
           # Validate data with a non-layered table.
-          # FIXME-WT-16695 Enable truncate on mode = multi when test failure is resolved.
-          format_args: disagg.multi=1 runs.predictable_replay=1 ops.truncate=0 ops.verify=1 disagg.multi_validation=1 runs.ops=500000:2000000
+          format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.ops=500000:2000000
           times: 5
           reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
 
