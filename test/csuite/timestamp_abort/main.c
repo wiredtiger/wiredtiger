@@ -1648,13 +1648,13 @@ main(int argc, char *argv[])
                ", force stop interval: %" PRIu32 "\n",
           use_backups ? "true" : "false", backup_full_interval, backup_force_stop_interval);
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s%s%s%s%s%s%s -F %" PRIu32 " -h %s -I %" PRIu32 " -T %" PRIu32
+        printf("CONFIG: %s%s%s%s%s%s%s%s%s%s%s -F %" PRIu32 " -h %s -I %" PRIu32 " -T %" PRIu32
                " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT "\n",
           progname, use_backups ? " -B" : "", opts->compat ? " -C" : "", columns ? " -c" : "",
-          use_lazyfs ? " -l" : "", verify_model ? " -M" : "", opts->inmem ? " -m" : "",
-          opts->tiered_storage ? " -PT" : "", stress ? " -s" : "", !use_ts ? " -z" : "",
-          backup_full_interval, opts->home, num_iterations, nth, timeout, opts->data_seed,
-          opts->extra_seed);
+          opts->disagg.is_enabled ? " -G" : "", use_lazyfs ? " -l" : "", verify_model ? " -M" : "",
+          opts->inmem ? " -m" : "", opts->tiered_storage ? " -PT" : "", stress ? " -s" : "",
+          !use_ts ? " -z" : "", backup_full_interval, opts->home, num_iterations, nth, timeout,
+          opts->data_seed, opts->extra_seed);
 
         /*
          * Go inside the home directory (typically WT_TEST), but not all the way into the database's
