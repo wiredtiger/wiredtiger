@@ -5716,7 +5716,7 @@ struct __wt_page_log {
      *
      * @errors
      *
-     * @param plh the WT_PAGE_LOG_HANDLE
+     * @param page_log the WT_PAGE_LOG
      * @param session the current WiredTiger session
      * @param table_id the table to be discarded
      * @param start_lsn the LSN at which table was created.

@@ -5,6 +5,8 @@
 backup=0
 background_compact=0
 block_cache=0
+# FIXME-WT-14738: Enable reverse collator once it is available for layered tables.
+btree.reverse=0
 checkpoint=on
 precise_checkpoint=1
 disagg.page_log=palite
@@ -20,7 +22,6 @@ ops.pct.modify=0
 ops.compaction=0
 ops.salvage=0
 ops.throttle=0
-ops.truncate=0
 # FIXME-WT-15795 should allow prepared operations for layered tables.
 ops.prepare=0
 quiet=0
