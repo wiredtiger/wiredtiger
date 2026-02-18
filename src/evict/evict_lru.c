@@ -2303,8 +2303,8 @@ __evict_get_min_pages(WT_SESSION_IMPL *session, uint32_t target_pages)
 
 /*
  * __evict_try_restore_walk_position --
- *     Try to restore the walk position from saved soft pos. Returns true if the walk position is
- *     restored.
+ *     Try to restore the eviction walk position from saved soft pos. If we can't restore a saved
+ *     position, clear the eviction walk position instead.
  */
 static WT_INLINE int
 __evict_try_restore_walk_position(WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t walk_flags)
