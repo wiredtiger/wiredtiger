@@ -955,7 +955,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      */
     else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree->dhandle))
         ;
-    /* Always do update restore for in-memory database. */
+    /* Always do update restore for in-memory btrees. */
     else if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
         LF_SET(WT_REC_IN_MEMORY | WT_REC_SCRUB);
     /* For data store leaf pages, write the history to history store except for metadata. */
