@@ -1000,7 +1000,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_PASS));
 
-    if ((ref = btree->evict_ref) == NULL)
+    if ((ref = __wt_atomic_load_ptr_relaxed(&btree->evict_ref)) == NULL)
         return (0);
 
     if (!evict->use_npos_in_pass || clear_pos)
@@ -1010,7 +1010,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
      * Clear evict_ref before releasing it in case that forces eviction (we assert that we never try
      * to evict the current eviction walk point).
      */
-    btree->evict_ref = NULL;
+    __wt_atomic_store_ptr_relaxed(&btree->evict_ref, NULL);
 
     if (evict->use_npos_in_pass) {
         /* If soft pointers are in use, remember the page's position unless clear_pos is set. */
@@ -1213,7 +1213,7 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
     {
         int32_t v;
 
-        WT_ASSERT(session, btree->evict_ref == NULL);
+        WT_ASSERT(session, __wt_atomic_load_ptr_relaxed(&btree->evict_ref) == NULL);
         v = __wt_atomic_sub_int32(&btree->evict_disabled, 1);
         WT_ASSERT(session, v >= 0);
     }
@@ -1874,7 +1874,8 @@ retry:
              * huge numbers of active trees before allowing larger numbers of hazard pointers in the
              * walk session.
              */
-            if (btree->evict_ref == NULL && session->hazards.num_active > WTI_EVICT_MAX_TREES) {
+            if (__wt_atomic_load_ptr_relaxed(&btree->evict_ref) == NULL &&
+              session->hazards.num_active > WTI_EVICT_MAX_TREES) {
                 WT_STAT_CONN_INCR(session, eviction_server_skip_trees_too_many_active_walks);
                 __evict_disagg_btree_skip_count(session, btree);
                 continue;
@@ -2309,31 +2310,32 @@ static WT_INLINE int
 __evict_try_restore_walk_position(WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t walk_flags)
 {
 #define PATH_STR_MAX 1024
+    WT_REF *evict_ref;
     char path_str[PATH_STR_MAX];
     size_t path_str_offset;
     double unused; /* GCC fails to WT_UNUSED() :( */
 
-    if (btree->evict_ref != NULL)
+    if ((evict_ref = __wt_atomic_load_ptr_relaxed(&btree->evict_ref)) != NULL)
         return (0); /* We've got a pointer already */
     if (WT_NPOS_IS_INVALID(btree->evict_pos))
         return (0); /* No restore point */
     WT_RET_ONLY(
-      __wt_page_from_npos_for_eviction(session, &btree->evict_ref, btree->evict_pos, 0, walk_flags),
+      __wt_page_from_npos_for_eviction(session, &evict_ref, btree->evict_pos, 0, walk_flags),
       WT_PANIC);
+    __wt_atomic_store_ptr_relaxed(&btree->evict_ref, evict_ref);
 
-    if (btree->evict_ref != NULL &&
+    if (evict_ref != NULL &&
       WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_1)) {
-        WT_UNUSED(unused = __wt_page_npos(session, btree->evict_ref, WT_NPOS_MID, path_str,
-                    &path_str_offset, PATH_STR_MAX));
+        WT_UNUSED(unused = __wt_page_npos(
+                    session, evict_ref, WT_NPOS_MID, path_str, &path_str_offset, PATH_STR_MAX));
         __wt_verbose_debug1(session, WT_VERB_EVICTION,
           "Evict walk point recalled from position %lf %s page %s ref %p", btree->evict_pos,
-          F_ISSET(btree->evict_ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF", path_str,
-          (void *)btree->evict_ref);
+          F_ISSET(evict_ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF", path_str,
+          (void *)evict_ref);
     }
 
     WT_STAT_CONN_INCR(session, eviction_restored_pos);
-    if (btree->evict_saved_ref_check != 0 &&
-      btree->evict_saved_ref_check != (uint64_t)btree->evict_ref)
+    if (btree->evict_saved_ref_check != 0 && btree->evict_saved_ref_check != (uint64_t)evict_ref)
         WT_STAT_CONN_INCR(session, eviction_restored_pos_differ);
 
     return (0);
@@ -2349,6 +2351,7 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
+    WT_REF *evict_ref;
 
     btree = S2BT(session);
 
@@ -2358,7 +2361,8 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
 
     WT_RET(__evict_try_restore_walk_position(session, btree, *walk_flagsp));
 
-    if (btree->evict_ref != NULL)
+    evict_ref = __wt_atomic_load_ptr_relaxed(&btree->evict_ref);
+    if (evict_ref != NULL)
         WT_STAT_CONN_INCR(session, eviction_walk_saved_pos);
     else
         WT_STAT_CONN_INCR(session, eviction_walk_from_root);
@@ -2371,7 +2375,7 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
     switch (btree->evict_start_type) {
     case WT_EVICT_WALK_NEXT:
         /* Each time when evict_ref is null, alternate between linear and random walk */
-        if (!S2C(session)->evict_legacy_page_visit_strategy && btree->evict_ref == NULL &&
+        if (!S2C(session)->evict_legacy_page_visit_strategy && evict_ref == NULL &&
           (++btree->linear_walk_restarts) & 1) {
             if (S2C(session)->evict->use_npos_in_pass)
                 /* Alternate with rand_prev so that the start of the tree is visited more often */
@@ -2382,7 +2386,7 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
         break;
     case WT_EVICT_WALK_PREV:
         /* Each time when evict_ref is null, alternate between linear and random walk */
-        if (!S2C(session)->evict_legacy_page_visit_strategy && btree->evict_ref == NULL &&
+        if (!S2C(session)->evict_legacy_page_visit_strategy && evict_ref == NULL &&
           (++btree->linear_walk_restarts) & 1) {
             if (S2C(session)->evict->use_npos_in_pass)
                 /* Alternate with rand_next so that the end of the tree is visited more often */
@@ -2398,19 +2402,20 @@ rand_prev:
     /* FALLTHROUGH */
     case WT_EVICT_WALK_RAND_NEXT:
 rand_next:
-        if (btree->evict_ref == NULL) {
+        if (evict_ref == NULL) {
             for (;;) {
                 /* Ensure internal pages indexes remain valid */
                 WT_WITH_PAGE_INDEX(session,
                   ret = __wt_random_descent(
-                    session, &btree->evict_ref, WT_READ_EVICT_READ_FLAGS, &session->rnd_random));
+                    session, &evict_ref, WT_READ_EVICT_READ_FLAGS, &session->rnd_random));
                 if (ret != WT_RESTART)
                     break;
                 WT_STAT_CONN_INCR(session, eviction_walk_restart);
             }
             WT_RET_NOTFOUND_OK(ret);
+            __wt_atomic_store_ptr_relaxed(&btree->evict_ref, evict_ref);
 
-            if (btree->evict_ref == NULL)
+            if (evict_ref == NULL)
                 WT_STAT_CONN_INCR(session, eviction_walk_random_returns_null_position);
         }
         break;
@@ -2663,8 +2668,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
      * point immediately, we assert when discarding pages we're not discarding an eviction point, so
      * this clear must be complete before the page is released.
      */
-    ref = btree->evict_ref;
-    btree->evict_ref = NULL;
+    ref = __wt_atomic_load_ptr_relaxed(&btree->evict_ref);
+    __wt_atomic_store_ptr_relaxed(&btree->evict_ref, NULL);
     /* Clear the saved position just in case we never put it back. */
     __wt_evict_clear_npos(btree);
 
@@ -2829,7 +2834,12 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
                 __wti_evict_readgen_is_soon_or_wont_need(&ref->page->read_gen)))
                 WT_RET_NOTFOUND_OK(__wt_tree_walk_count(session, &ref, &refs_walked, walk_flags));
         }
-        btree->evict_ref = ref;
+        /*
+         * The current ref is obtained from tree walk and is protected by a hazard pointer, so there
+         * is no concurrency conflict with __wt_ref_out reading evict_ref in the eviction process.
+         * Using atomic store here is for code consistency with other accesses to btree->evict_ref.
+         */
+        __wt_atomic_store_ptr_relaxed(&btree->evict_ref, ref);
         if (evict->use_npos_in_pass)
             __evict_clear_walk(session, false);
     }

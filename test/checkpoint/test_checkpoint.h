@@ -122,7 +122,6 @@ extern GLOBAL g;
 #define WARN(fmt, ...) fprintf(stderr, "%s: WARNING: " fmt "\n", progname, __VA_ARGS__)
 
 void end_threads(void);
-int disagg_switch_roles(void);
 int log_print_err_worker(const char *, int, const char *, int, int);
 void set_flush_tier_delay(WT_RAND_STATE *);
 void start_threads(void);
