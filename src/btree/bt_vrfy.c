@@ -452,7 +452,7 @@ err:
 
 /*
  * __verify_disagg_string --
- *     Format a page's disaggregation metadata into a printable, nul-terminated string.
+ *     Format a page's disagg metadata into a printable, nul-terminated string.
  */
 static const char *
 __verify_disagg_string(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ITEM *buf)
@@ -461,7 +461,7 @@ __verify_disagg_string(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ITEM *buf)
     WT_PAGE_BLOCK_META *block_meta;
 
     if (page == NULL || page->disagg_info == NULL) {
-        WT_ERR(__wt_buf_fmt(session, buf, "[NoDisaggMeta]"));
+        WT_ERR(__wt_buf_fmt(session, buf, "Disagg metadata not available"));
         return (buf->data);
     }
 
