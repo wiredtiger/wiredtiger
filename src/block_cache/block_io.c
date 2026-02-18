@@ -896,8 +896,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     }
 
 err:
-    if (ctmp != NULL)
-        __wt_scr_free(session, &ctmp);
+    __wt_scr_free(session, &ctmp);
     __wt_scr_free(session, &etmp);
     return (ret);
 }

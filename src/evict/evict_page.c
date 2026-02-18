@@ -121,8 +121,8 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
         return;
 
     /*
-     * Victim cache: store evicted pages in disagg cache. The format must match what
-     * __block_disagg_read_multiple expects: WT_PAGE_HEADER + WT_BLOCK_DISAGG_HEADER + data
+     * Victim cache: store evicted pages in disagg cache. The format must match what disagg read
+     * path expects: WT_PAGE_HEADER + WT_BLOCK_DISAGG_HEADER + data
      */
     WT_ITEM buf_orig = {
       .data = page->dsk,
@@ -184,7 +184,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
     if (compressed)
         F_SET(blk, WT_BLOCK_DISAGG_COMPRESSED);
     /* Mark as cached so read path skips address cookie checksum match. */
-    F_SET(blk, WT_BLOCK_DISAGG_CACHED);
+    F_SET(blk, WT_BLOCK_DISAGG_MODIFIED);
     /* Not encrypted in this path. */
 
     /* Calculate checksum following __wti_block_disagg_write_internal. */
@@ -193,8 +193,7 @@ __evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
       data_checksum ? cache_buf->size : WT_MIN(cache_buf->size, WT_BLOCK_COMPRESS_SKIP));
 
     /*
-     * Swap page header to little-endian for on-disk format. This matches what
-     * __wti_block_disagg_write does.
+     * Swap page header to little-endian for on-disk format.
      */
     __wt_page_header_byteswap(dsk);
 

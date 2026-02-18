@@ -5858,7 +5858,6 @@ struct __wt_page_log_put_args {
        uint64_t base_lsn;
        uint64_t backlink_checkpoint_id;
        uint64_t base_checkpoint_id;
-       uint64_t delta_count;
        size_t image_size;
 
        uint32_t flags;
@@ -5867,6 +5866,11 @@ struct __wt_page_log_put_args {
         * Output arguments, returned by the call
         */
        uint64_t lsn;
+
+       /*
+        * Arguments used by the block cache
+        */
+       uint64_t delta_count;
 };
 
 /*!
@@ -5890,6 +5894,10 @@ struct __wt_page_log_get_args {
        uint64_t base_lsn;
        uint64_t backlink_checkpoint_id;
        uint64_t base_checkpoint_id;
+
+       /*
+        * Arguments used by the block cache
+        */
        uint64_t delta_count;
 };
 
@@ -6030,7 +6038,7 @@ struct __wt_page_log_handle {
         uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args);
 
     /*!
-     * Delete object from cache.
+     * Query if block cache is available.
      */
     bool (*plh_cache_available)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session);
 };

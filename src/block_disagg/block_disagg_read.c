@@ -195,7 +195,11 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         blk = WT_BLOCK_HEADER_REF(current->data);
         __wti_block_disagg_header_byteswap_copy(blk, &swap);
 
-        if (F_ISSET(&swap, WT_BLOCK_DISAGG_CACHED) || swap.checksum == checksum) {
+        /*
+         * TODO(WT-16511): When we have the original checksum stored in the page, we should check
+         * that instead of skipping the check entirely for cached pages.
+         */
+        if (F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED) || swap.checksum == checksum) {
             blk->checksum = 0;
             if (__wt_checksum_match(current->data,
                   F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_MIN(size, WT_BLOCK_COMPRESS_SKIP),
@@ -223,13 +227,13 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                     block_meta->backlink_lsn = get_args.backlink_lsn;
                     block_meta->base_lsn = get_args.base_lsn;
                     block_meta->disagg_lsn = get_args.lsn;
-                    block_meta->delta_count = F_ISSET(&swap, WT_BLOCK_DISAGG_CACHED) ?
+                    block_meta->delta_count = F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED) ?
                       (uint8_t)get_args.delta_count :
                       (uint8_t)(*results_count - 1);
                     block_meta->checksum = checksum;
 
                     WT_ASSERT(session, get_args.lsn > 0);
-                    if (!F_ISSET(&swap, WT_BLOCK_DISAGG_CACHED)) {
+                    if (!F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED)) {
                         WT_ASSERT(session,
                           (*results_count > 1) ==
                             FLD_ISSET(flags, WT_BLOCK_DISAGG_ADDR_FLAG_DELTA));
