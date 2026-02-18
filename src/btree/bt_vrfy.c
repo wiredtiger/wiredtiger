@@ -745,6 +745,10 @@ celltype_err:
     if (vs->dump_tree_shape)
         printf("\n");
 
+    /* Account for the root page size in the accumulated btree size. */
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && __wt_ref_is_root(ref))
+    vs->total_block_size += ref->page->dsk->mem_size;
+
     /* Check tree connections and recursively descend the tree. */
     switch (page->type) {
     case WT_PAGE_COL_INT:
