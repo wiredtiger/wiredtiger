@@ -279,7 +279,7 @@ struct __wt_btree {
      * Eviction information is maintained in the btree handle, but owned by eviction, not the btree
      * code.
      */
-    WT_REF *evict_ref;                         /* Eviction thread's location */
+    wt_shared WT_REF *evict_ref;               /* Eviction thread's location */
     uint64_t evict_saved_ref_check;            /* Eviction saved thread's location as an ID */
     double evict_pos;                          /* Eviction thread's soft location */
     uint32_t linear_walk_restarts;             /* next/prev walk restarts */
