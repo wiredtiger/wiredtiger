@@ -53,8 +53,8 @@ def is_mongo_log(line):
 def process_mongod_log(f, opts):
     byte_dump = extract_mongodb_log_hex(f, opts)
     if not byte_dump:
-        print('Empty or invalid MongoDB log file')
         return
+
     b = binary_data.BinaryFile(io.BytesIO(byte_dump))
     wtdecode_file_object(b, opts, len(byte_dump))
     
@@ -143,9 +143,9 @@ def extract_mongodb_log_hex(f, opts):
         except Exception as e:
             if opts.debug:
                 print(f'Error parsing line {line_num}: {e}')
-                if 'Hex dump is corrupt' in str(e):
-                    print("Stop processing on corrupt hex dump")
-                    return bytearray()
+            if 'Hex dump is corrupt' in str(e):
+                print("Hex dump is corrupt, stopping parsing")
+                return bytearray()
 
     # Return any incomplete block we collected
     if current_chunks:
