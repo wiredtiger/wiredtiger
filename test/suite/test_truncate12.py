@@ -39,7 +39,7 @@ from wtscenario import make_scenarios
 #
 # This version uses timestamps and no logging.
 # FIXME-WT-15430: Re-enable once disaggregated storage works with fast truncate tests.
-@wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
+
 class test_truncate12(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
     session_config = 'isolation=snapshot'
