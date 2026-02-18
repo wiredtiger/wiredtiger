@@ -88,6 +88,11 @@ struct __wt_layered_table {
 
     const char *key_format, *value_format;
     const char *ingest_uri, *stable_uri;
+
+    /* Queue head for use with the Truncate Logic */
+    TAILQ_HEAD(__truncate_table_list_qh, __wt_truncate) truncateqh;
+
+    WT_SPINLOCK truncate_lock; /* Lock used for managing changes to truncate list.*/
 };
 
 /* Holds metadata entry name and the associated config string. */

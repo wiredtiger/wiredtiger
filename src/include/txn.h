@@ -324,6 +324,23 @@ struct __wt_txn_log {
 };
 
 /*
+ * WT_TRUNCATE --
+ *	Per-session truncate context.
+ */
+struct __wt_truncate {
+    const char *uri;
+    uint64_t txn_id;
+    wt_timestamp_t start_ts;
+    wt_timestamp_t durable_ts;
+    wt_timestamp_t prepare_ts;
+    uint64_t prepare_id;
+
+    WT_ITEM start_key;
+    WT_ITEM stop_key;
+    TAILQ_ENTRY(__wt_truncate) q;
+};
+
+/*
  * WT_TXN --
  *	Per-session transaction context.
  */
@@ -337,6 +354,9 @@ struct __wt_txn {
     uint32_t forced_iso; /* Isolation is currently forced. */
 
     WT_TXN_LOG txn_log;
+
+    /* Queue head for use with the Truncate Logic */
+    TAILQ_HEAD(__truncate_list_qh, __wt_truncate) truncateqh;
 
     /* Snapshot data. */
     WT_TXN_SNAPSHOT snapshot_data;

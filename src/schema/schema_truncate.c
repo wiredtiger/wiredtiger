@@ -79,7 +79,12 @@ __truncate_layered(WT_SESSION_IMPL *session, const char *uri)
         ret = 0;
         goto done;
     }
-    WT_WITHOUT_DHANDLE(session, ret = __wt_session_range_truncate(session, NULL, start, NULL));
+
+    if (S2C(session)->layered_table_manager.leader)
+        WT_WITHOUT_DHANDLE(session, ret = __wt_session_range_truncate(session, NULL, start, NULL));
+    else {
+        
+    }
     WT_ERR(ret);
 
 done:
