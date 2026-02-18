@@ -7620,6 +7620,7 @@ buildvariants:
     additional_env_vars: |
       export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
     num_jobs: 2
+  tags: ["sanitizer", "pull_request"]
   tasks:
     - name: compile
     - name: examples-c-test
