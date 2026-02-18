@@ -745,9 +745,12 @@ celltype_err:
     if (vs->dump_tree_shape)
         printf("\n");
 
-    /* Account for the root page size in the accumulated btree size. */
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && __wt_ref_is_root(ref))
-        vs->total_block_size += ref->page->dsk->mem_size;
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+        if (__wt_ref_is_root(ref))
+            vs->total_block_size += ref->page->dsk->mem_size;
+        else if (WT_PAGE_IS_INTERNAL(page) || WT_PAGE_IS_LEAF(page) || page->type == WT_PAGE_OVFL)
+            vs->total_block_size += page->dsk->mem_size;
+    }
 
     /* Check tree connections and recursively descend the tree. */
     switch (page->type) {
@@ -792,9 +795,8 @@ celltype_err:
             __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
-            /* TODO write a comment */
-            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                vs->total_block_size += unpack->size;
+            // if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            //     vs->total_block_size += unpack->size;
 
             /* Verify the subtree. */
             ++vs->depth;
@@ -858,9 +860,8 @@ celltype_err:
             __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
-            /* TODO write a comment */
-            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                vs->total_block_size += unpack->size;
+            // if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            //     vs->total_block_size += unpack->size;
 
             /* Verify the subtree. */
             ++vs->depth;

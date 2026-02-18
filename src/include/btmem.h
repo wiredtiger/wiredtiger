@@ -745,6 +745,7 @@ struct __wt_page {
 
 #define WT_PAGE_IS_INTERNAL(page) \
     ((page)->type == WT_PAGE_COL_INT || (page)->type == WT_PAGE_ROW_INT)
+#define WT_PAGE_IS_LEAF(page) ((page)->type == WT_PAGE_COL_VAR || (page)->type == WT_PAGE_ROW_LEAF)
 #define WT_PAGE_INVALID 0            /* Invalid page */
 #define WT_PAGE_BLOCK_MANAGER 1      /* Block-manager page */
 #define WT_PAGE_COL_FIX_DEPRECATED 2 /* Col-store fixed-len leaf */
