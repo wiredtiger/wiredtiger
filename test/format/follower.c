@@ -81,7 +81,7 @@ err:
 /*
  * follower_try_pickup_checkpoint --
  *     Attempt to pick up a checkpoint. Returns true if the checkpoint was picked up, false if
- *     skipped due to timestamp constraints (checkpoint's oldest_timestamp > follower's
+ *     skipped due to timestamp constraints (checkpoint's oldest timestamp > follower's
  *     pinned_timestamp).
  */
 static bool
@@ -99,8 +99,8 @@ follower_try_pickup_checkpoint(WT_SESSION *session, WT_CONNECTION *conn, WT_PAGE
     memset(&full_metadata, 0, sizeof(full_metadata));
 
     /*
-     * Before picking up the checkpoint, compare the checkpoint's oldest_timestamp with the
-     * follower's current pinned timestamp. If the checkpoint's oldest_timestamp is greater than the
+     * Before picking up the checkpoint, compare the checkpoint's oldest timestamp with the
+     * follower's current pinned timestamp. If the checkpoint's oldest timestamp is greater than the
      * pinned timestamp, we cannot safely pick up this checkpoint yet - skip it and wait for the
      * next attempt when timestamps have caught up.
      *
