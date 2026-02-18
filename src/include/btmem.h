@@ -265,6 +265,9 @@ struct __wt_page_block_meta {
 
     uint32_t checksum;
 
+    /* The cumulative size of the page + delta chain. */
+    uint32_t cumulative_size;
+
     uint8_t delta_count;
 };
 

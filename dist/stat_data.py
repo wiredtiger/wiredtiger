@@ -599,6 +599,7 @@ conn_stats = [
     ##########################################
     # Disagg statistics
     ##########################################
+    DisaggStat('disagg_database_size', 'database size', 'size'),
     DisaggStat('disagg_role_leader', 'role leader'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
     DisaggStat('disagg_step_up_time', 'step up most recent time (msecs)'),
@@ -916,13 +917,22 @@ conn_stats = [
     ##########################################
     TxnStat('txn_begin', 'transaction begins'),
     TxnStat('txn_commit', 'transactions committed'),
+    TxnStat('txn_global_checkpoint_timestamp', ' transaction global checkpoint timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_durable_timestamp', ' transaction global durable timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_last_running_timestamp', 'transaction global last running timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_newest_timestamp', 'transaction global newest timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_oldest_timestamp', 'transaction global oldest timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_pinned_timestamp', 'transaction global pinned timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_stable_timestamp', 'transaction global stable timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_version_cursor_timestamp', 'transaction global version cursor timestamp', 'no_clear,no_scale'),
     TxnStat('txn_hs_ckpt_duration', 'transaction checkpoint history store file duration (usecs)'),
     TxnStat('txn_pinned_checkpoint_range', 'transaction range of IDs currently pinned by a checkpoint', 'no_clear,no_scale'),
     TxnStat('txn_pinned_range', 'transaction range of IDs currently pinned', 'no_clear,no_scale'),
-    TxnStat('txn_pinned_timestamp', 'transaction range of timestamps currently pinned', 'no_clear,no_scale'),
-    TxnStat('txn_pinned_timestamp_checkpoint', 'transaction range of timestamps pinned by a checkpoint', 'no_clear,no_scale'),
+    TxnStat('txn_pinned_readers', 'transaction number of older readers older than oldest timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_pinned_timestamp_checkpoint_lag', 'transaction range of timestamps pinned by a checkpoint', 'no_clear,no_scale'),
+    TxnStat('txn_pinned_timestamp_lag', 'transaction range of timestamps currently pinned', 'no_clear,no_scale'),
     TxnStat('txn_pinned_timestamp_oldest', 'transaction range of timestamps pinned by the oldest timestamp', 'no_clear,no_scale'),
-    TxnStat('txn_pinned_timestamp_reader', 'transaction range of timestamps pinned by the oldest active read timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_pinned_timestamp_reader_lag', 'transaction range of timestamps pinned by the oldest active read timestamp', 'no_clear,no_scale'),
     TxnStat('txn_prepare', 'prepared transactions'),
     TxnStat('txn_prepare_active', 'prepared transactions currently active'),
     TxnStat('txn_prepare_commit', 'prepared transactions committed'),

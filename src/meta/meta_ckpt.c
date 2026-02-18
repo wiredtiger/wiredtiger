@@ -1319,20 +1319,39 @@ int
 __wt_meta_ckptlist_set(
   WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_CKPT *ckptbase, const char *ckptlsn_str)
 {
+    WT_BTREE *btree;
     WT_CKPT *ckpt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
+    uint64_t prev_ckpt_size;
     const char *fname;
     bool has_lsn;
 
+    btree = S2BT(session);
     fname = dhandle->name;
+    prev_ckpt_size = 0;
 
     WT_ERR(__wt_scr_alloc(session, 1024, &buf));
 
-    /* Add B-tree metadata to any added checkpoint. */
-    WT_CKPT_FOREACH (ckptbase, ckpt)
-        if (F_ISSET(ckpt, WT_CKPT_ADD))
-            ckpt->next_page_id = S2BT(session)->next_page_id;
+    /*
+     * Add B-tree metadata to any added checkpoint. Track the previous checkpoint's size as we
+     * iterate so we can compute the delta for disaggregated storage.
+     */
+    WT_CKPT_FOREACH (ckptbase, ckpt) {
+        if (F_ISSET(ckpt, WT_CKPT_ADD)) {
+            ckpt->next_page_id = btree->next_page_id;
+            /*
+             * For disaggregated storage, save the total bytes to the checkpoint size field. Track
+             * the delta between this checkpoint and the previous one, this delta will be applied to
+             * the database level size once the checkpoint succeeds.
+             */
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+                WT_ASSERT(session, ckpt->size == __wt_atomic_load_uint64(&btree->bytes_total));
+                session->ckpt.ckpt_size_delta += (int64_t)ckpt->size - (int64_t)prev_ckpt_size;
+            }
+        } else
+            prev_ckpt_size = ckpt->size;
+    }
 
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
 

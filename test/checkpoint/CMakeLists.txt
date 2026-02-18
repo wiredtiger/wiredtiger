@@ -62,22 +62,22 @@ define_test_variants(test_checkpoint
 # Define test variants for the disagg test
 define_test_variants(test_checkpoint
     VARIANTS
-        "disagg_leader_6_row|-d leader -e -t r -T 6 -x"
+        "disagg_leader_6_row|-G -e -t r -T 6 -x"
         # FIXME-WT-16228: Re-evaluate whether setting large cache size is needed after PALI.
-        "disagg_leader_6_row_long_running|-d leader -e -t r -W 3 -x -n 1000000 -k 1000000 -C cache_size=4000MB"
+        "disagg_leader_6_row_long_running|-G -e -t r -W 3 -x -n 1000000 -k 1000000 -C cache_size=4000MB"
         # Prepare operations is not supported on Disagg yet.
-        #"disagg_6_row_prepare|-d leader -e -t r -T 6 -p -x"
-        "disagg_leader_row_stress_sweep|-d leader -e -t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000 -D"
-        "disagg_leader_row_sweep|-d leader -e -t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000"
-        "disagg_leader_row_failpoint_hs_delete_key_from_ts|-d leader -e -t r -W 3 -r 2 -s 2 -x -n 100000 -k 100000"
-        "disagg_leader_row_hs_checkpoint_timing_stress|-d leader -e -t r -W 3 -r 2 -s 3 -x -n 100000 -k 100000"
-        "disagg_leader_row_checkpoint_slow_timing_stress|-d leader -e -t r -W 3 -r 2 -s 5 -x -n 100000 -k 100000"
-        "disagg_leader_row_evict_reposition_timing_stress|-d leader -e -t r -W 3 -r 2 -s 6 -x -n 100000 -k 100000"
-        "disagg_leader_row_failpoint_eviction_split|-d leader -e -t r -W 3 -r 2 -s 7 -x -n 100000 -k 100000"
-        "disagg_leader_row_failpoint_rec_before_wrapup|-d leader -e -t r -W 3 -r 2 -s 8 -x -n 100000 -k 100000"
+        #"disagg_6_row_prepare|-G -e -t r -T 6 -p -x"
+        "disagg_leader_row_stress_sweep|-G -e -t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000 -D"
+        "disagg_leader_row_sweep|-G -e -t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000"
+        "disagg_leader_row_failpoint_hs_delete_key_from_ts|-G -e -t r -W 3 -r 2 -s 2 -x -n 100000 -k 100000"
+        "disagg_leader_row_hs_checkpoint_timing_stress|-G -e -t r -W 3 -r 2 -s 3 -x -n 100000 -k 100000"
+        "disagg_leader_row_checkpoint_slow_timing_stress|-G -e -t r -W 3 -r 2 -s 5 -x -n 100000 -k 100000"
+        "disagg_leader_row_evict_reposition_timing_stress|-G -e -t r -W 3 -r 2 -s 6 -x -n 100000 -k 100000"
+        "disagg_leader_row_failpoint_eviction_split|-G -e -t r -W 3 -r 2 -s 7 -x -n 100000 -k 100000"
+        "disagg_leader_row_failpoint_rec_before_wrapup|-G -e -t r -W 3 -r 2 -s 8 -x -n 100000 -k 100000"
 
         # FIXME-WT-16228: Re-evaluate whether setting large cache size is needed after PALI.
-        "disagg_leader_row_server_93028|-d leader -e -t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=1500MB"
+        "disagg_leader_row_server_93028|-G -e -t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=1500MB"
     LABELS
         check_disagg
         test_checkpoint

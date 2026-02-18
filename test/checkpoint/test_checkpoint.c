@@ -28,14 +28,13 @@
 
 #include "test_checkpoint.h"
 
-#define SHARED_PARSE_OPTIONS "b:P:h:"
+#define SHARED_PARSE_OPTIONS "b:GP:h:"
 
 GLOBAL g;
 
 static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
 static int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
 static void onint(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
-static int enable_disagg(const char *);
 static void cleanup(bool);
 static int usage(void);
 static void wt_connect(const char *);
@@ -115,18 +114,14 @@ main(int argc, char *argv[])
 
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, &g.opts);
 
-    while ((ch = __wt_getopt(progname, argc, argv,
-              "C:c:d:Dk:l:mn:per:Rs:S:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
+    while ((ch = __wt_getopt(
+              progname, argc, argv, "C:c:Dk:l:mn:per:Rs:S:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
         case 'c':
             g.checkpoint_name = __wt_optarg;
             break;
         case 'C': /* wiredtiger_open config */
             strncpy(config_open, __wt_optarg, sizeof(config_open) - 1);
-            break;
-        case 'd': /* disaggregated storage options */
-            g.opts.disagg.is_enabled = true;
-            g.opts.disagg.mode = __wt_optarg;
             break;
         case 'D':
             g.debug_mode = true;
@@ -255,9 +250,6 @@ main(int argc, char *argv[])
     testutil_work_dir_from_path(g.home, 512, (&g.opts)->home);
 
     if (g.opts.disagg.is_enabled) {
-        if (enable_disagg(g.opts.disagg.mode) != 0)
-            return (usage());
-
         if (!g.use_timestamps) {
             WARN("%s", "Timestamps automatically enabled for disaggregated storage (-x/-X).");
             g.use_timestamps = true;
@@ -267,7 +259,6 @@ main(int argc, char *argv[])
             WARN("%s", "Precise checkpoint automatically enabled for disaggregated storage (-e).");
             g.precise_checkpoint = true;
         }
-
         if (ttype != ROW) {
             fprintf(
               stderr, "disaggregated storage feature only supports row store table types (-r)");
@@ -284,6 +275,7 @@ main(int argc, char *argv[])
               stderr, "disaggregated storage feature doesn't supports prepare operations (-p)");
             return (EXIT_FAILURE);
         }
+        g.opts.disagg.page_log_home = g.home;
     }
 
     /*
@@ -385,40 +377,6 @@ run_complete:
     testutil_cleanup(&g.opts);
 
     return (g.status);
-}
-
-/*
- * enable_disagg --
- *     Enable disaggregated storage with given mode.
- */
-static int
-enable_disagg(const char *mode)
-{
-    if (strcmp(mode, "leader") == 0) {
-        g.opts.disagg.switch_mode = false;
-        g.opts.disagg.mode = "leader";
-        g.opts.disagg.page_log = "palite";
-    } else if (strcmp(mode, "follower") == 0) {
-        g.opts.disagg.mode = "follower";
-        g.opts.disagg.switch_mode = false;
-        g.opts.disagg.page_log = "palite";
-    } else if (strcmp(mode, "switch") == 0) {
-        g.opts.disagg.switch_mode = true;
-        /* For switch mode, randomly pick initial role */
-        bool disagg_leader = (__wt_random(&g.opts.extra_rnd) % 2) == 0;
-        g.opts.disagg.mode = disagg_leader ? "leader" : "follower";
-        g.opts.disagg.page_log = "palite";
-        printf("Switch mode: starting as %s\n", g.opts.disagg.mode);
-    } else {
-        fprintf(stderr, "Invalid disaggregated mode: %s\n", mode);
-        return EINVAL;
-    }
-
-    g.opts.disagg.page_log_map_size_mb = 2048;    /* Set 2GB map size for palm by default. */
-    g.opts.disagg.page_log_home = (char *)g.home; /* Set home directory for page log. */
-    g.opts.disagg.drain_threads = 8;              /* Set number of drain threads, 8 by default. */
-
-    return 0;
 }
 
 #define DEBUG_MODE_CFG ",debug_mode=(eviction=true,table_logging=true),verbose=(recovery)"
@@ -610,23 +568,6 @@ log_print_err_worker(const char *func, int line, const char *m, int e, int fatal
 }
 
 /*
- * disagg_switch_roles --
- *     Toggle the current disagg role between "leader" and "follower".
- */
-int
-disagg_switch_roles(void)
-{
-    testutil_assert(g.opts.disagg.is_enabled);
-    testutil_assert(g.opts.disagg.switch_mode);
-
-    const char *disagg_role = strcmp(g.opts.disagg.mode, "leader") == 0 ? "follower" : "leader";
-    char disagg_cfg[64];
-    testutil_snprintf(disagg_cfg, sizeof(disagg_cfg), "disaggregated=(role=\"%s\")", disagg_role);
-
-    return (g.conn->reconfigure(g.conn, disagg_cfg));
-}
-
-/*
  * type_to_string --
  *     Return the string name of a table type.
  */
@@ -650,17 +591,16 @@ static int
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s\n"
-      "    [-DmpeRkvXx] [-C wiredtiger-config] [-c checkpoint] [-d disagg-mode] [-h home] [-k "
+      "usage: %s%s\n"
+      "    [-DmpeRkvXx] [-C wiredtiger-config] [-c checkpoint] [-h home] [-k "
       "keys] "
       "[-l log]\n"
       "    [-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t r|v]\n"
       "    [-W workers]\n",
-      progname);
+      progname, g.opts.usage);
     fprintf(stderr, "%s",
       "\t-C specify wiredtiger_open configuration arguments\n"
       "\t-c checkpoint name to used named checkpoints\n"
-      "\t-d disaggregated storage mode (leader | follower | switch)\n"
       "\t-D debug mode\n"
       "\t-h set a database home directory\n"
       "\t-k set number of keys to load\n"
