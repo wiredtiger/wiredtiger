@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -189,10 +189,7 @@ __find_closest_leaf(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
 
     ret = __wt_tree_walk_count(session, refp, &walkcnt, flags);
 
-    if (LF_ISSET(WT_READ_EVICT_WALK_FLAGS))
-        WT_STAT_CONN_INCR(session, npos_evict_walk_max);
-    else
-        WT_STAT_CONN_INCR(session, npos_read_walk_max);
+    WT_STAT_CONN_INCR(session, npos_read_walk_max);
 
     return (ret);
 }

@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -864,7 +864,6 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
         WT_RET(__wt_calloc(session, 1, size, &page));
 
     page->type = type;
-    __wt_evict_page_init(page);
 
     switch (type) {
     case WT_PAGE_COL_INT:
@@ -913,7 +912,7 @@ err:
         else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
             (void)__wt_atomic_add_uint64_relaxed(&cache->pages_inmem_stable, 1);
     }
-    page->cache_create_gen = __wt_atomic_load_uint64_relaxed(&conn->evict->evict_pass_gen);
+    __wt_evict_page_init(page, __wt_atomic_load64(&S2C(session)->evict->evict_pass_gen));
 
     *pagep = page;
     return (0);
@@ -1297,14 +1296,17 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
             page->pg_intl_parent_ref = ref;
             break;
         }
-        ref->page = page;
+        __wt_ref_assign_page(ref, page);
     }
 
     *pagep = page;
     return (0);
 
 err:
-    __wt_page_out(session, &page);
+    if (ref != NULL && ref->page == page)
+        __wt_ref_out(session, ref);
+    else
+        __wt_page_out(session, &page);
     return (ret);
 }
 

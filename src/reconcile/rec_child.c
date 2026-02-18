@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -348,13 +348,13 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
 
                 /* This is a very small race window, but check just in case. */
                 if (!mod->instantiated) {
-                    WT_REF_SET_STATE(ref, WT_REF_MEM);
+                    WT_REF_UNLOCK(ref, WT_REF_MEM);
                     /* Retry from the top; we may now have a rec_result. */
                     break;
                 }
 
                 ret = __rec_child_deleted(session, r, ref, cmsp);
-                WT_REF_SET_STATE(ref, WT_REF_MEM);
+                WT_REF_UNLOCK(ref, WT_REF_MEM);
                 WT_RET(ret);
                 goto done;
             }

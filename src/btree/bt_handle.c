@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -188,7 +188,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      */
     WT_RET(__btree_clear(session));
     memset(btree, 0, WT_BTREE_CLEAR_SIZE);
-    __wt_evict_clear_npos(btree);
     F_CLR(btree, ~WT_BTREE_SPECIAL_FLAGS);
 
     /* Set the data handle first, our called functions reasonably use it. */
@@ -307,7 +306,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      */
     if (btree->original || F_ISSET(btree, WT_BTREE_NO_EVICT | WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
         WT_ERR(__wt_evict_file_exclusive_on(session));
-        btree->evict_disabled_open = true;
+        btree->evict_data.evict_disabled_open = true;
     }
 
     /* A btree cannot be both an ingest btree and a stable btree. */
@@ -374,7 +373,7 @@ __wt_btree_close(WT_SESSION_IMPL *session)
      * will be off.
      */
     if (btree->evict_disabled_open) {
-        btree->evict_disabled_open = false;
+        btree->evict_data.evict_disabled_open = false;
         __wt_evict_file_exclusive_off(session);
     }
 
@@ -668,11 +667,11 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
 
     /*
      * Reconciliation configuration:
-     *	Block compression (all)
-     *	Dictionary compression (variable-length column-store, row-store)
-     *	Page-split percentage
-     *	Prefix compression (row-store)
-     *	Suffix compression (row-store)
+     *  Block compression (all)
+     *  Dictionary compression (variable-length column-store, row-store)
+     *  Page-split percentage
+     *  Prefix compression (row-store)
+     *  Suffix compression (row-store)
      */
     switch (btree->type) {
     case BTREE_ROW:
@@ -999,7 +998,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
 
 err:
     if (ref != NULL && ref->page != NULL)
-        __wt_page_out(session, &ref->page);
+        __wt_ref_out(session, ref);
     if (root != NULL)
         __wt_page_out(session, &root);
     return (ret);
@@ -1025,6 +1024,7 @@ __wti_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
         break;
     }
 
+    __wt_ref_assign_page(ref, ref->page);
     /*
      * When deleting a chunk of the name-space, we can delete internal pages. However, if we are
      * ever forced to re-instantiate that piece of the namespace, it comes back as a leaf page.

@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -96,7 +96,7 @@ __ref_get_state(WT_REF *ref)
 }
 
 #define WT_REF_GET_STATE(ref) __ref_get_state((ref))
-
+#define WT_REF_OWNER(ref) (__atomic_load_n(&ref->owner, __ATOMIC_ACQUIRE))
 /*
  * __ref_cas_state --
  *     Try to do a compare and swap, if successful update the ref history in diagnostic mode.
@@ -114,6 +114,11 @@ __ref_cas_state(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE old_state,
 
     WT_ASSERT(session, old_state != new_state);
 
+    /* If we have the reference locked and we are about to unlock it, reset the owner first */
+    if (old_state == WT_REF_LOCKED && new_state != WT_REF_LOCKED &&
+        WT_REF_OWNER(ref) == session)
+        __atomic_store_n(&ref->owner, 0,  __ATOMIC_SEQ_CST);
+
     cas_result = __wt_atomic_cas_uint8_v(&ref->__state, old_state, new_state);
 
 #ifdef HAVE_REF_TRACK
@@ -124,6 +129,10 @@ __ref_cas_state(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE old_state,
     if (cas_result)
         __ref_track_state(session, ref, new_state, func, line);
 #endif
+
+    if (cas_result && new_state == WT_REF_LOCKED)
+        __atomic_store_n(&ref->owner, session,  __ATOMIC_SEQ_CST);
+
     return (cas_result);
 }
 
@@ -150,4 +159,35 @@ __ref_lock(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE *previous_statep)
 
 #define WT_REF_LOCK(session, ref, previous_statep) __ref_lock((session), (ref), (previous_statep))
 
-#define WT_REF_UNLOCK(ref, state) WT_REF_SET_STATE(ref, state)
+#define WT_REF_UNLOCK(ref, state) \
+    do {                                                     \
+        __atomic_store_n(&ref->owner, 0, __ATOMIC_SEQ_CST);  \
+        WT_REF_SET_STATE(ref, state);                        \
+    }  while(0)
+
+
+static WT_INLINE void
+__wt_ref_make_visible(WT_SESSION_IMPL *session, WT_REF *ref, bool wont_need) {
+
+    WT_REF_STATE current_state, previous_state;
+
+    WT_ASSERT(session, ref->page != NULL);
+    WT_ASSERT(session, ref->page->ref == ref);
+
+    if ((current_state = WT_REF_GET_STATE(ref)) != WT_REF_LOCKED) {
+        WT_REF_LOCK(session, ref, &previous_state);
+    }
+    else
+        WT_ASSERT(session, session==ref->owner);
+
+    /* Insert into eviction data structures */
+    __wt_evict_touch_page(session, ref, false, wont_need);
+    WT_ASSERT(session, __wt_ref_is_root(ref) || ref->page->evict_data.bucket != NULL);
+    /*
+     * It is absolutely essential that we properly unlock the page here
+     * as opposed to just setting its state to memory. Unlocking resets the
+     * page owner, whereas a simple state change does not. If we do not reset
+     * the owner, we will get subtle race conditions.
+     */
+    WT_REF_UNLOCK(ref, WT_REF_MEM);
+}

@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -926,7 +926,6 @@ __conn_dhandle_remove(WT_SESSION_IMPL *session, bool final)
     bucket = dhandle->name_hash & (conn->dh_hash_size - 1);
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST_WRITE));
-    WT_ASSERT(session, dhandle != conn->evict->walk_tree);
 
     /* Check if the handle was reacquired by a session while we waited. */
     if (!final &&
@@ -948,7 +947,6 @@ __wti_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mar
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     int tret;
-    bool set_pass_intr;
 
     dhandle = session->dhandle;
 
@@ -961,20 +959,8 @@ __wti_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mar
             WT_RET(tret);
     }
 
-    /*
-     * Kludge: interrupt the eviction server in case it is holding the handle list lock.
-     */
-    set_pass_intr = false;
-    if (!FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST)) {
-        set_pass_intr = true;
-        (void)__wt_atomic_add_uint32_v(&S2C(session)->evict->pass_intr, 1);
-    }
-
     /* Try to remove the handle, protected by the data handle lock. */
-    WT_WITH_HANDLE_LIST_WRITE_LOCK(session, tret = __conn_dhandle_remove(session, final));
-    if (set_pass_intr)
-        (void)__wt_atomic_sub_uint32_v(&S2C(session)->evict->pass_intr, 1);
-    WT_TRET(tret);
+    WT_WITH_HANDLE_LIST_WRITE_LOCK(session, tret = __conn_dhandle_remove(session, final));s    WT_TRET(tret);
 
     /*
      * After successfully removing the handle, clean it up.

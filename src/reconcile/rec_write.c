@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -328,7 +328,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * Do not return an error if we are syncing the file with eviction disabled or as part of a
      * checkpoint.
      */
-    if (ret == 0 && !(btree->evict_disabled > 0 || !F_ISSET(btree->dhandle, WT_DHANDLE_OPEN)) &&
+    if (ret == 0 && !( WT_EVICT_DISABLED(btree) > 0 || !F_ISSET(btree->dhandle, WT_DHANDLE_OPEN)) &&
       F_ISSET(r, WT_REC_EVICT) && !WT_PAGE_IS_INTERNAL(page) && r->multi_next == 1 &&
       !F_ISSET_ATOMIC_16(page, WT_PAGE_INMEM_SPLIT) && F_ISSET(r, WT_REC_CALL_URGENT) &&
       !r->update_used && r->cache_write_restore_invisible && !r->has_upd_chain_all_aborted &&
@@ -1901,7 +1901,7 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
      * Once we get under the target size, try and stay there to minimize
      * shared memory updates, but don't go over the target size, that means
      * we're writing bad page sizes.
-     *	Writing a shared memory location without a lock and letting it
+     *  Writing a shared memory location without a lock and letting it
      * race, minor trickiness so we only read and write the value once.
      */
     WT_ACQUIRE_READ_WITH_BARRIER(current, *adjustp);

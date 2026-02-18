@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -24,13 +24,6 @@ void
 __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     /*
-     * A version of the page-out function that allows us to make additional diagnostic checks.
-     *
-     * The WT_REF cannot be the eviction thread's location.
-     */
-    WT_ASSERT(session, __wt_atomic_load_ptr_relaxed(&S2BT(session)->evict_ref) != ref);
-
-    /*
      * Make sure no other thread has a hazard pointer on the page we are about to discard. This is
      * complicated by the fact that readers publish their hazard pointer before re-checking the page
      * state, so our check can race with readers without indicating a real problem. If we find a
@@ -39,7 +32,7 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK,
       __wt_hazard_check_assert(session, ref, true),
       "Attempted to free a page with active hazard pointers");
-
+    __wt_evict_remove(session, ref, true /* destroying the page */);
     __wt_page_out(session, &ref->page);
 }
 
@@ -94,8 +87,9 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     WT_ASSERT_ALWAYS(session, !__wt_page_is_modified(page), "Attempting to discard dirty page");
     WT_ASSERT_ALWAYS(
       session, !__wt_page_is_reconciling(page), "Attempting to discard page being reconciled");
-    WT_ASSERT_ALWAYS(session, !F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU),
-      "Attempting to discard page queued for eviction");
+    WT_ASSERT_ALWAYS(session, WT_EVICT_PAGE_CLEARED(page),
+                     "Attempting to discard a page that is still in eviction data structures");
+    page->evict_data.destroying = true;
 
     /*
      * If a root page split, there may be one or more pages linked from the page; walk the list,
@@ -355,7 +349,7 @@ __wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_p
         WT_ASSERT_ALWAYS(session, !__wt_page_is_reconciling(ref->page),
           "Attempting to discard ref to a page being reconciled");
         __wt_page_modify_clear(session, ref->page);
-        __wt_page_out(session, &ref->page);
+        __wt_ref_out(session, ref);
     }
 
     /*

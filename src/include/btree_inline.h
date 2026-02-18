@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -31,7 +31,7 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
      * is disabled when an empty tree is opened, and it must only be enabled once.
      */
     if (__wt_atomic_cas_uint8(&btree->original, 1, 0)) {
-        btree->evict_disabled_open = false;
+        btree->evict_data.evict_disabled_open = false;
         __wt_evict_file_exclusive_off(session);
     }
 }
@@ -74,7 +74,7 @@ __wt_evict_page_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_sp
      * checkpointed, and no other thread can help with that. Checkpoints don't rely on this code for
      * dirty eviction: that is handled explicitly in __wt_sync_file.
      */
-    if (__wt_evict_page_is_soon_or_wont_need(page) && btree->evict_disabled == 0 &&
+    if (__wt_evict_page_is_soon_or_wont_need(page) && WT_EVICT_DISABLED(btree) == 0 &&
       __wt_page_can_evict(session, ref, inmem_split) &&
       (!WT_SESSION_IS_CHECKPOINT(session) || __wt_page_evict_clean(page)))
         return (true);
@@ -504,11 +504,11 @@ __wt_cache_page_byte_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t 
     /*
      * We don't have exclusive access and there are ways of decrementing the
      * page's dirty byte count by a too-large value. For example:
-     *	T1: __wt_cache_page_inmem_incr(page, size)
-     *		page is clean, don't increment dirty byte count
-     *	T2: mark page dirty
-     *	T1: __wt_cache_page_inmem_decr(page, size)
-     *		page is dirty, decrement dirty byte count
+     *  T1: __wt_cache_page_inmem_incr(page, size)
+     *      page is clean, don't increment dirty byte count
+     *  T2: mark page dirty
+     *  T1: __wt_cache_page_inmem_decr(page, size)
+     *      page is dirty, decrement dirty byte count
      * and, of course, the reverse where the page is dirty at the increment
      * and clean at the decrement.
      *
@@ -794,6 +794,8 @@ __wt_cache_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
     modify = page->modify;
     if (modify != NULL && modify->bytes_dirty != 0)
         __wt_cache_page_byte_dirty_decr(session, page, modify->bytes_dirty);
+
+     __wt_evict_page_set_clean(session, page);
 }
 
 /*
@@ -988,7 +990,6 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
          */
         (void)__wt_atomic_add_uint64_relaxed(&page->modify->bytes_dirty, page_memory_footprint);
 
-        __wt_evict_page_first_dirty(session, page);
 
         /*
          * We won the race to dirty the page, but another thread could have committed in the
@@ -1012,6 +1013,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      */
     if (__wt_atomic_load_uint64_relaxed(&page->modify->update_txn) < session->txn->id)
         __wt_atomic_store_uint64_relaxed(&page->modify->update_txn, session->txn->id);
+
+    __wt_evict_page_first_dirty(session, page);
 }
 
 /*
@@ -1233,9 +1236,9 @@ __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
  * In this specific case, we use bit 0x01 to mark an on-page key, else
  * it's a WT_IKEY reference.  The bit pattern for internal row-store
  * on-page keys is:
- *	32 bits		key length
- *	31 bits		page offset of the key's bytes,
- *	 1 bits		flags
+ *  32 bits     key length
+ *  31 bits     page offset of the key's bytes,
+ *   1 bits     flags
  */
 #define WT_IK_FLAG 0x01
 #define WT_IK_ENCODE_KEY_LEN(v) ((uintptr_t)(v) << 32)
@@ -1295,8 +1298,8 @@ __wt_ref_key_clear(WT_REF *ref)
     /*
      * The key union has 2 8B fields; this is equivalent to:
      *
-     *	ref->ref_recno = WT_RECNO_OOB;
-     *	ref->ref_ikey = NULL;
+     *  ref->ref_recno = WT_RECNO_OOB;
+     *  ref->ref_ikey = NULL;
      */
     ref->ref_recno = 0;
 }
@@ -1340,8 +1343,8 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
      * key, 0x03 to mark an on-page key/value pair, otherwise it's a WT_IKEY reference. The bit
      * pattern for on-page cells is:
      *
-     *  29 bits		offset of the key's cell (512MB)
-     *   2 bits		0x01 flag
+     *  29 bits     offset of the key's cell (512MB)
+     *   2 bits     0x01 flag
      *
      * The on-page cell is our fallback: if a key or value won't fit into our encoding (unlikely,
      * but possible), we fall back to using a cell reference, which obviously has enough room for
@@ -1349,23 +1352,23 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
      *
      * The next encoding is for on-page keys:
      *
-     *  19 bits		key's length (512KB)
-     *   6 bits		offset of the key's bytes from the key's cell (32B)
-     *   8 bits		key's prefix length (256B, the maximum possible value)
-     *  29 bits		offset of the key's cell (512MB)
-     *   2 bits		0x02 flag
+     *  19 bits     key's length (512KB)
+     *   6 bits     offset of the key's bytes from the key's cell (32B)
+     *   8 bits     key's prefix length (256B, the maximum possible value)
+     *  29 bits     offset of the key's cell (512MB)
+     *   2 bits     0x02 flag
      *
      * But, while that allows us to skip decoding simple key cells, we also want to skip decoding
      * value cells in the case where the value cell is also simple/short. We use bit 0x03 to mark
      * an encoded on-page key and value pair. The encoding for on-page key/value pairs is:
      *
-     *  13 bits		value's length (8KB)
-     *   6 bits		offset of the value's bytes from the end of the key's cell (32B)
-     *  12 bits		key's length (4KB)
-     *   6 bits		offset of the key's bytes from the key's cell (32B)
-     *   8 bits		key's prefix length (256B, the maximum possible value)
-     *  17 bits		offset of the key's cell (128KB)
-     *   2 bits		0x03 flag
+     *  13 bits     value's length (8KB)
+     *   6 bits     offset of the value's bytes from the end of the key's cell (32B)
+     *  12 bits     key's length (4KB)
+     *   6 bits     offset of the key's bytes from the key's cell (32B)
+     *   8 bits     key's prefix length (256B, the maximum possible value)
+     *  17 bits     offset of the key's cell (128KB)
+     *   2 bits     0x03 flag
      *
      * A reason for the complexity here is we need to be able to find the key and value cells from
      * the encoded form: for that reason we store an offset to the key cell plus a second offset to
@@ -2467,7 +2470,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
          */
         if (LF_ISSET(WT_READ_NO_EVICT) ||
           (inmem_split ? LF_ISSET(WT_READ_NO_SPLIT) : F_ISSET(session, WT_SESSION_NO_RECONCILE)))
-            WT_IGNORE_RET(__wt_evict_page_urgent(session, ref));
+            __wt_evict_page_urgent(session, ref);
         else {
             WT_RET_BUSY_OK(__wt_page_release_evict(session, ref, flags));
             return (0);
@@ -2535,19 +2538,19 @@ __wt_split_descent_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX *sa
      * namespaces a-f, g-h and i-j; the first child page splits. The parent
      * starts out with the following page-index:
      *
-     *	| ... | a | g | i | ... |
+     *  | ... | a | g | i | ... |
      *
      * which changes to this:
      *
-     *	| ... | a | c | e | g | i | ... |
+     *  | ... | a | c | e | g | i | ... |
      *
      * The child starts out with the following page-index:
      *
-     *	| a | b | c | d | e | f |
+     *  | a | b | c | d | e | f |
      *
      * which changes to this:
      *
-     *	| a | b |
+     *  | a | b |
      *
      * The thread searches the original parent page index for the key "cat",
      * it couples to the "a" child page; if it uses the replacement child
@@ -2888,15 +2891,15 @@ __wt_ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp
          * with the namespaces a-f, g-h and i-j; the first child page
          * splits. The parent starts out with the following page-index:
          *
-         *	| ... | a | g | i | ... |
+         *  | ... | a | g | i | ... |
          *
          * which changes to this:
          *
-         *	| ... | a | c | e | g | i | ... |
+         *  | ... | a | c | e | g | i | ... |
          *
          * The split page starts out with the following page-index:
          *
-         *	| a | b | c | d | e | f |
+         *  | a | b | c | d | e | f |
          *
          * Imagine a cursor finishing the 'f' part of the namespace that
          * starts its ascent to the parent's 'a' slot. Then the page

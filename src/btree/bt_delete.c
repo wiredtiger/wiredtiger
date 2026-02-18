@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -108,9 +108,9 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
             WT_REF_SET_STATE(ref, previous_state);
             return (ret);
         }
-        (void)__wt_atomic_add_uint32_v(&btree->evict_busy, 1);
+        (void)__wt_atomic_add_uint32_v(&btree->evict_data.evict_busy, 1);
         ret = __wt_evict(session, ref, previous_state, 0);
-        (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
+        (void)__wt_atomic_sub_uint32_v(&btree->evict_data.evict_busy, 1);
         WT_RET_BUSY_OK(ret);
         ret = 0;
     }

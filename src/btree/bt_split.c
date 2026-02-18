@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -463,7 +463,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
          */
         ref = *alloc_refp++;
         ref->home = root;
-        ref->page = child;
+        __wt_ref_assign_page(ref, child);
         ref->addr = NULL;
         if (root->type == WT_PAGE_ROW_INT) {
             __wt_ref_key(root, *root_refp, &p, &size);
@@ -472,7 +472,8 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
         } else
             ref->ref_recno = (*root_refp)->ref_recno;
         F_SET(ref, WT_REF_FLAG_INTERNAL);
-        WT_REF_SET_STATE(ref, WT_REF_MEM);
+        /* Make the ref visible in cache */
+        __wt_ref_make_visible(session, ref, false);
 
         /*
          * Initialize the child page. Block eviction in newly created pages and mark them dirty.
@@ -1026,7 +1027,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
          */
         ref = *alloc_refp++;
         ref->home = parent;
-        ref->page = child;
+        __wt_ref_assign_page(ref, child);
         ref->addr = NULL;
         if (page->type == WT_PAGE_ROW_INT) {
             __wt_ref_key(page, *page_refp, &p, &size);
@@ -1039,7 +1040,8 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
         if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
             __wt_atomic_store_uint8_v_relaxed(&ref->rec_state, WT_REF_REC_DIRTY);
 
-        WT_REF_SET_STATE(ref, WT_REF_MEM);
+        /* Make the page visible */
+        __wt_ref_make_visible(session, ref, false);
 
         /*
          * Initialize the child page. Block eviction in newly created pages and mark them dirty.
@@ -1939,7 +1941,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
      */
     if (multi->disk_image != NULL && !closing) {
         WT_RET(__split_multi_inmem(session, page, multi, ref));
-        WT_REF_SET_STATE(ref, WT_REF_MEM);
+        __wt_ref_make_visible(session, ref, false);
     }
     __wt_free(session, multi->disk_image);
 
@@ -1994,11 +1996,12 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ERR(__wt_calloc_one(session, &split_ref[0]));
     parent_incr += sizeof(WT_REF);
     child = split_ref[0];
-    child->page = ref->page;
+    __wt_ref_assign_page(child, ref->page);
     child->home = ref->home;
     child->pindex_hint = ref->pindex_hint;
     F_SET(child, WT_REF_FLAG_LEAF);
-    WT_REF_SET_STATE(child, WT_REF_MEM); /* Visible as soon as the split completes. */
+    /* Visible as soon as the split completes. */
+    __wt_ref_make_visible(session, child, false);
     child->addr = ref->addr;
     if (type == WT_PAGE_ROW_LEAF) {
         __wt_ref_key(ref->home, ref, &key, &key_size);
@@ -2036,13 +2039,14 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ERR(__wt_calloc_one(session, &split_ref[1]));
     parent_incr += sizeof(WT_REF);
     child = split_ref[1];
-    child->page = right;
+    __wt_ref_assign_page(child, right);
     F_SET(child, WT_REF_FLAG_LEAF);
 
     if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
         __wt_atomic_store_uint8_v_relaxed(&child->rec_state, WT_REF_REC_DIRTY);
 
-    WT_REF_SET_STATE(child, WT_REF_MEM); /* Visible as soon as the split completes. */
+    /* Visible as soon as the split completes. */
+    __wt_ref_make_visible(session, child, false);
     if (type == WT_PAGE_ROW_LEAF) {
         WT_ERR(__wti_row_ikey(
           session, 0, WT_INSERT_KEY(moved_ins), WT_INSERT_KEY_SIZE(moved_ins), child));
@@ -2078,12 +2082,12 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      *               __
      *              |c3|
      *               |
-     *   __		 __    __
+     *   __      __    __
      *  |a2|--------|c2|--|d2|
-     *   |		 |	|
-     *   __		 __    __	   __
+     *   |       |  |
+     *   __      __    __      __
      *  |a1|--------|c1|--|d1|--------|f1|
-     *   |		 |	|	   |
+     *   |       |  |      |
      *   __    __    __    __    __    __
      *  |a0|--|b0|--|c0|--|d0|--|e0|--|f0|
      *
@@ -2296,6 +2300,12 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
           &parent_incr, i == 0, closing));
 
     /*
+     * The reference is about to be discarded. Remove the page from eviction data structures now,
+     * because we will lose this reference. The page will be freed later.
+     */
+    __wt_evict_remove(session, ref, false);
+
+    /*
      * Split into the parent; if we're closing the file, we hold it exclusively.
      */
     WT_ERR(__split_parent(session, ref, ref_new, new_entries, parent_incr, closing, true));
@@ -2494,10 +2504,11 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool 
     /* Swap the new page into place. */
     if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
         __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
-    ref->page = new->page;
+
+    __wt_ref_assign_page(ref, new->page);
 
     if (change_ref_state)
-        WT_REF_SET_STATE(ref, WT_REF_MEM);
+        __wt_ref_make_visible(session, ref, false);
 
     __wt_free(session, new);
     return (0);

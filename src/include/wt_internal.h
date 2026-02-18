@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- * 	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -571,6 +571,7 @@ typedef uint64_t wt_timestamp_t;
 #include "tsan_suppress.h"
 #include "mutex.h"
 
+#include "../evict/evict_struct.h"        /* required by dhandle.h, btree.h and btmem.h */
 #include "stat.h"         /* required by dhandle.h */
 #include "dhandle.h"      /* required by btree.h, connection.h */
 #include "timestamp.h"    /* required by reconcile.h */

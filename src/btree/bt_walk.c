@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -53,11 +53,11 @@ __split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp
      * g-h and i-j; the first child page splits. The parent starts out with
      * the following page-index:
      *
-     *	| ... | a | g | i | ... |
+     *  | ... | a | g | i | ... |
      *
      * The split page starts out with the following page-index:
      *
-     *	| a | b | c | d | e | f |
+     *  | a | b | c | d | e | f |
      *
      * The first step is to move the c-f ranges into a new subtree, so, for
      * example we might have two new internal pages 'c' and 'e', where the
@@ -67,7 +67,7 @@ __split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp
      * the subtree won't be able to ascend out of the subtree. However, once
      * the parent page's page index is updated to this:
      *
-     *	| ... | a | c | e | g | i | ... |
+     *  | ... | a | c | e | g | i | ... |
      *
      * threads in the subtree can ascend into the parent. Imagine a cursor
      * in the c-d part of the namespace that ascends to the parent's 'c'
@@ -79,7 +79,7 @@ __split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp
      * the 'f' slot, which is incorrect. Once the split page's page index is
      * updated to this:
      *
-     *	| a | b |
+     *  | a | b |
      *
      * the previous-cursor movement will select the 'b' slot, which is
      * correct.
@@ -366,7 +366,6 @@ descend:
              * An expected error, so "couple" is unchanged.
              */
             if (ret == WT_NOTFOUND) {
-                WT_STAT_CONN_INCR(session, eviction_walk_leaf_notfound);
                 WT_NOT_READ(ret, 0);
                 break;
             }

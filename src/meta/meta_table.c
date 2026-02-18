@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -91,7 +91,7 @@ __wt_metadata_cursor_open(WT_SESSION_IMPL *session, const char *config, WT_CURSO
      * Test before setting so updates can't race in subsequent opens (the first update is safe
      * because it's single-threaded from wiredtiger_open).
      */
-    if (btree->evict_priority == 0)
+    if (btree->evict_data.evict_priority == 0)
         WT_WITH_BTREE(session, btree, __wt_evict_priority_set(session, WT_EVICT_META_SKEW));
 
     return (0);

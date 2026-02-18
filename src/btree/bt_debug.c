@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -852,7 +852,7 @@ __debug_tree_shape_info(WT_REF *ref, char *buf, size_t len)
 
     WT_IGNORE_RET(
       __wt_snprintf(buf, len, "(%p, %" PRIu64 "%s, evict gen %" PRIu64 ", create gen %" PRIu64 ")",
-        (void *)ref, v, unit, page->evict_pass_gen, page->cache_create_gen));
+        (void *)ref, v, unit, page->evict_data.evict_pass_gen, page->evict_data.cache_create_gen));
     return (buf);
 }
 
@@ -1197,10 +1197,6 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
         }
         if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_MAPPED)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "disk-mapped") : ds->f(ds, ", disk-mapped"));
-            flag_num++;
-        }
-        if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU)) {
-            WT_RET(flag_num == 0 ? ds->f(ds, "evict-lru") : ds->f(ds, ", evict-lru"));
             flag_num++;
         }
         if (F_ISSET_ATOMIC_16(page, WT_PAGE_INTL_OVERFLOW_KEYS)) {

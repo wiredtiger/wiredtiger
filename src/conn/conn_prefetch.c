@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -183,7 +183,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
 
     __wt_spin_lock(session, &conn->prefetch_lock);
     /* Don't queue pages for trees that have eviction disabled. */
-    if (S2BT(session)->evict_disabled > 0)
+    if (WT_EVICT_DISABLED(S2BT(session))) {
         WT_ERR(EBUSY);
 
     /* In a rare case, we may race with another thread trying to push the same page to the queue. */
