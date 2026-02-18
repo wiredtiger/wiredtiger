@@ -173,6 +173,26 @@ parse_tiered_random_seeds(TEST_OPTS *opts, const char *seed_str)
 }
 
 /*
+ * parse_and_set_disagg_opt --
+ *     Parse and set opts for the disaggregated storage configurations.
+ */
+static void
+parse_and_set_disagg_opt(TEST_OPTS *opts)
+{
+    TESTUTIL_DISAGG_INIT(opts,
+      /* is_enabled           */ true,
+      /* key_provider         */ true,
+      /* internal_page_delta  */ true,
+      /* leaf_page_delta      */ true,
+      /* mode                 */ "leader",
+      /* page_log             */ "palite",
+      /* page_log_home        */ ".",
+      /* drain_threads        */ 8,
+      /* page_log_map_size_mb */ 2048,
+      /* page_log_verbose     */ 0);
+}
+
+/*
  * parse_tiered_opt --
  *     Parse a command line option for the tiered storage configurations.
  */
@@ -243,11 +263,11 @@ testutil_parse_begin_opt(int argc, char *const *argv, const char *getopts_string
 
 #define USAGE_STR(ch, usage) ((strchr(getopts_string, (ch)) == NULL) ? "" : (usage))
 
-    testutil_snprintf(opts->usage, sizeof(opts->usage), "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+    testutil_snprintf(opts->usage, sizeof(opts->usage), "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
       USAGE_STR('A', " [-A append thread count]"), USAGE_STR('b', " [-b build directory]"),
       USAGE_STR('C', " [-C]"), USAGE_STR('d', " [-d add data]"), USAGE_STR('h', " [-h home]"),
-      USAGE_STR('m', " [-m]"), USAGE_STR('n', " [-n record count]"),
-      USAGE_STR('o', " [-o op count]"),
+      USAGE_STR('G', " [-G Enable disaggregated storage]"), USAGE_STR('m', " [-m]"),
+      USAGE_STR('n', " [-n record count]"), USAGE_STR('o', " [-o op count]"),
       USAGE_STR('P',
         " [-PT] [-PSD<data_seed>,E<extra_seed>] [-Pd <force_delay>,<delay_ms>]"
         " [-Pe <force_error>,<error_ms>] [-Po storage source]"),
@@ -324,6 +344,9 @@ testutil_parse_single_opt(TEST_OPTS *opts, int ch)
         break;
     case 'd': /* Use data in multi-threaded test programs */
         opts->do_data_ops = true;
+        break;
+    case 'G': /* Disaggregated storage options */
+        parse_and_set_disagg_opt(opts);
         break;
     case 'h': /* Home directory */
         opts->home = dstrdup(__wt_optarg);

@@ -103,6 +103,22 @@ extern "C" {
 
 #define TESTUTIL_SEED_FORMAT "-PSD%" PRIu64 ",E%" PRIu64
 
+#define TESTUTIL_DISAGG_INIT(_opts, _is_enabled, _key_provider, _internal_page_delta,        \
+  _leaf_page_delta, _mode, _page_log, _page_log_home, _drain_threads, _page_log_map_size_mb, \
+  _page_log_verbose)                                                                         \
+    do {                                                                                     \
+        (_opts)->disagg.is_enabled = (_is_enabled);                                          \
+        (_opts)->disagg.key_provider = (_key_provider);                                      \
+        (_opts)->disagg.internal_page_delta = (_internal_page_delta);                        \
+        (_opts)->disagg.leaf_page_delta = (_leaf_page_delta);                                \
+        (_opts)->disagg.mode = (_mode);                                                      \
+        (_opts)->disagg.page_log = (_page_log);                                              \
+        (_opts)->disagg.page_log_home = (_page_log_home);                                    \
+        (_opts)->disagg.drain_threads = (_drain_threads);                                    \
+        (_opts)->disagg.page_log_map_size_mb = (_page_log_map_size_mb);                      \
+        (_opts)->disagg.page_log_verbose = (_page_log_verbose);                              \
+    } while (0)
+
 /* Generic option parsing structure shared by all test cases. */
 typedef struct {
     char *home;
@@ -154,9 +170,14 @@ typedef struct {
 
     /* Fields used for testing disaggregated storage. */
     struct {
+        /*
+         * These fields must be explicitly initialized in `TESTUTIL_DISAGG_INIT()`.
+         *
+         * If you add a new field, update the constructor and all relevant tests to avoid incomplete
+         * setup.
+         */
         bool is_enabled;          /* Uses disaggregated storage */
         bool key_provider;        /* Uses key provider testing module for disaggregated storage */
-        bool switch_mode;         /* Switching disaggregated storage mode during the test */
         bool internal_page_delta; /* Use internal page deltas */
         bool leaf_page_delta;     /* Use leaf page deltas */
 
