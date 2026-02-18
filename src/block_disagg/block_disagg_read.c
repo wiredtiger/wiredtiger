@@ -195,11 +195,15 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         blk = WT_BLOCK_HEADER_REF(current->data);
         __wti_block_disagg_header_byteswap_copy(blk, &swap);
 
-        if (swap.checksum == checksum) {
+        /*
+         * TODO(WT-16511): When we have the original checksum stored in the page, we should check
+         * that instead of skipping the check entirely for cached pages.
+         */
+        if (F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED) || swap.checksum == checksum) {
             blk->checksum = 0;
             if (__wt_checksum_match(current->data,
                   F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_MIN(size, WT_BLOCK_COMPRESS_SKIP),
-                  checksum)) {
+                  swap.checksum)) {
                 expected_magic =
                   (is_delta ? WT_BLOCK_DISAGG_MAGIC_DELTA : WT_BLOCK_DISAGG_MAGIC_BASE);
                 if (swap.magic != expected_magic) {
@@ -218,27 +222,33 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
                 }
 
                 if (result == last) {
-                    WT_ASSERT(session, get_args.lsn > 0);
-                    WT_ASSERT(session,
-                      (*results_count > 1) == FLD_ISSET(flags, WT_BLOCK_DISAGG_ADDR_FLAG_DELTA));
-
-                    /* The server is allowed to set base LSN to 0 for full page images. */
-                    WT_ASSERT(session,
-                      (get_args.base_lsn == 0 && *results_count == 1) ||
-                        get_args.base_lsn == base_lsn);
-
                     /* Set the other metadata returned by the Page Service. */
                     block_meta->page_id = page_id;
                     block_meta->backlink_lsn = get_args.backlink_lsn;
                     block_meta->base_lsn = get_args.base_lsn;
                     block_meta->disagg_lsn = get_args.lsn;
-                    block_meta->delta_count = (uint8_t)(*results_count - 1);
+                    block_meta->delta_count = F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED) ?
+                      (uint8_t)get_args.delta_count :
+                      (uint8_t)(*results_count - 1);
                     block_meta->checksum = checksum;
-                    if (block_meta->delta_count > 0)
-                        WT_ASSERT(session, get_args.base_lsn > 0);
-                    else
-                        WT_ASSERT(
-                          session, get_args.base_lsn == 0 && get_args.base_checkpoint_id == 0);
+
+                    WT_ASSERT(session, get_args.lsn > 0);
+                    if (!F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED)) {
+                        WT_ASSERT(session,
+                          (*results_count > 1) ==
+                            FLD_ISSET(flags, WT_BLOCK_DISAGG_ADDR_FLAG_DELTA));
+
+                        /* The server is allowed to set base LSN to 0 for full page images. */
+                        WT_ASSERT(session,
+                          (get_args.base_lsn == 0 && *results_count == 1) ||
+                            get_args.base_lsn == base_lsn);
+
+                        if (block_meta->delta_count > 0)
+                            WT_ASSERT(session, get_args.base_lsn > 0);
+                        else
+                            WT_ASSERT(
+                              session, get_args.base_lsn == 0 && get_args.base_checkpoint_id == 0);
+                    }
                 }
 
                 /*

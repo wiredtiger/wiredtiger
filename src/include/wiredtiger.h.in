@@ -5866,6 +5866,11 @@ struct __wt_page_log_put_args {
         * Output arguments, returned by the call
         */
        uint64_t lsn;
+
+       /*
+        * Arguments used by the block cache
+        */
+       uint64_t delta_count;
 };
 
 /*!
@@ -5889,6 +5894,11 @@ struct __wt_page_log_get_args {
        uint64_t base_lsn;
        uint64_t backlink_checkpoint_id;
        uint64_t base_checkpoint_id;
+
+       /*
+        * Arguments used by the block cache
+        */
+       uint64_t delta_count;
 };
 
 /*!
@@ -6007,6 +6017,30 @@ struct __wt_page_log_handle {
      * @param session the current WiredTiger session
      */
     int (*plh_close)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session);
+
+    /*!
+     * Put an object into cache.
+     */
+    int (*plh_cache_put)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
+        uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args,
+        const WT_ITEM *buf);
+
+    /*!
+     * Query object in cache.
+     */
+    int (*plh_cache_has)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
+        uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args);
+
+    /*!
+     * Delete object from cache.
+     */
+    int (*plh_cache_del)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
+        uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args);
+
+    /*!
+     * Query if block cache is available.
+     */
+    bool (*plh_cache_available)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session);
 };
 
 #endif
