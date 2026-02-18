@@ -1905,7 +1905,8 @@ retry:
             continue;
         }
 
-        if (F_ISSET(btree, WT_BTREE_IN_MEMORY) && !F_ISSET(evict, WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES)) {
+        if (F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
+          !F_ISSET(evict, WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES)) {
             __evict_disagg_btree_skip_count(session, btree);
             continue;
         }
