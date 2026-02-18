@@ -156,15 +156,18 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
             done.set()
             ckpt.join()
 
-    def verify_rts(self):
+    def verify_rts(self, with_uncommitted_transactions=False):
         if not self.is_precise:
             # In precise mode, we won't have any inconsistent checkpoints and rts removals.
             with WiredTigerStat(self.session) as stat_cursor:
                 inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
                 keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
-
-            self.assertGreater(inconsistent_ckpt, 0)
-            self.assertGreaterEqual(keys_removed, 0)
+            if with_uncommitted_transactions:
+                self.assertGreaterEqual(inconsistent_ckpt, 0)
+                self.assertEqual(keys_removed, 0)
+            else:
+                self.assertGreater(inconsistent_ckpt, 0)
+                self.assertGreaterEqual(keys_removed, 0)
 
     def test_checkpoint_snapshot(self):
         self.moresetup()
@@ -289,4 +292,6 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
         # Check the table contains the last checkpointed value.
         self.check(self.valuea, self.uri, self.nrows, 30)
-        self.verify_rts()
+        # The home folder has been switched to backup_dir, so
+        # no uncommited transactions any more.
+        self.verify_rts(True)
