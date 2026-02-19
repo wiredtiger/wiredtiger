@@ -183,15 +183,10 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         is_delta = (result != 0);
 
         if (is_delta)
-            __wt_verbose_multi(session,
-              WT_DECL_VERBOSE_MULTI_CATEGORY(
-                ((WT_VERBOSE_CATEGORY[]){WT_VERB_READ, WT_VERB_VERIFY})),
+            __wt_verbose(session, WT_VERB_READ,
               "Reading delta page at position #%" PRId32 " for page_id %" PRIu64, result, page_id);
         else
-            __wt_verbose_multi(session,
-              WT_DECL_VERBOSE_MULTI_CATEGORY(
-                ((WT_VERBOSE_CATEGORY[]){WT_VERB_READ, WT_VERB_VERIFY})),
-              "Reading base page for page_id %" PRIu64, page_id);
+            __wt_verbose(session, WT_VERB_READ, "Reading base page for page_id %" PRIu64, page_id);
 
         /*
          * Do little- to big-endian handling early on.
