@@ -314,11 +314,24 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
 
             /* Validate the size of the btree */
-            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-                if (ckpt->size != vs->total_block_size)
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+
+                WT_BLOCK_DISAGG_ADDRESS_COOKIE root_cookie;
+                WT_RET(__wti_block_disagg_ckpt_unpack(session, (WT_BLOCK_DISAGG *)bm->block,
+                  ckpt->raw.data, ckpt->raw.size, &root_cookie));
+                printf("WT_VERIFY adding root page size %" PRIu32 "\n", root_cookie.size);
+                vs->total_block_size += root_cookie.size;
+
+                if (ckpt->size != vs->total_block_size) {
+                    printf("checkpoint size %" PRIu64
+                           " does not match accumulated block size %" PRIu64 "\n",
+                      ckpt->size, vs->total_block_size);
+
                     WT_ERR_MSG(session, WT_ERROR,
                       "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,
                       ckpt->size, vs->total_block_size);
+                }
+            }
 
             /*
              * The checkpoints are in time-order, so the last one in the list is the most recent. If
@@ -745,12 +758,6 @@ celltype_err:
     if (vs->dump_tree_shape)
         printf("\n");
 
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
-        if (__wt_ref_is_root(ref))
-            vs->total_block_size += ref->page->dsk->mem_size;
-        else if (WT_PAGE_IS_INTERNAL(page) || WT_PAGE_IS_LEAF(page) || page->type == WT_PAGE_OVFL)
-            vs->total_block_size += page->dsk->mem_size;
-    }
 
     /* Check tree connections and recursively descend the tree. */
     switch (page->type) {
@@ -795,8 +802,15 @@ celltype_err:
             __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
-            // if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-            //     vs->total_block_size += unpack->size;
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+                WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
+                const uint8_t *buf = unpack->data;
+                WT_RET(__wt_block_disagg_addr_unpack(session, &buf, unpack->size, &cookie));
+                printf("COOKIE1 size for page of type %s with mem size %" PRIu32 ": %" PRIu32 "\n",
+                  __wt_page_type_string(page->type), page->dsk->mem_size, cookie.size);
+                // this size represents  cumulative size of the actual page data (base+Delta)
+                vs->total_block_size += cookie.size;
+            }
 
             /* Verify the subtree. */
             ++vs->depth;
@@ -860,8 +874,14 @@ celltype_err:
             __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
-            // if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-            //     vs->total_block_size += unpack->size;
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+                WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
+                const uint8_t *buf = unpack->data;
+                WT_RET(__wt_block_disagg_addr_unpack(session, &buf, unpack->size, &cookie));
+                printf("COOKIE2 size for page of type %s with mem size %" PRIu32 ": %" PRIu32 "\n",
+                  __wt_page_type_string(page->type), page->dsk->mem_size, cookie.size);
+                vs->total_block_size += cookie.size;
+            }
 
             /* Verify the subtree. */
             ++vs->depth;
