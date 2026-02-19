@@ -41,16 +41,16 @@ class TestDecodeMongoDBLog(unittest.TestCase):
     """Unit tests for decoding hex dumps from MongoDB logs."""
 
     def test_decode_log_mongodb_valid(self):
-        self.skipTest("TODO")
+        self.skipTest("FIXME-WT-16726 Test for valid MongoDB log")
 
     def test_decode_log_mongodb_multi_chunk_valid(self):
-        self.skipTest("TODO")
+        self.skipTest("FIXME-WT-16726 Test for valid multi-chunk MongoDB log")
 
     def test_decode_log_mongodb_incomplete_chunks(self):
-        self.skipTest("TODO")
+        self.skipTest("FIXME-WT-16726 Test for incomplete chunks in MongoDB log")
 
     def test_decode_log_mongodb_no_checksum_mismatch(self):
-        self.skipTest("TODO")
+        self.skipTest("FIXME-WT-16726 Test for no checksum mismatch in MongoDB log")
 
     def test_decode_log_mongodb_non_hex_characters(self):
         cur_dir = os.path.dirname(os.path.abspath(__file__))    
