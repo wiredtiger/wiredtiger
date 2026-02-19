@@ -1375,7 +1375,7 @@ static uint32_t
 __curhs_btree_id_to_hs_id(WT_SESSION_IMPL *session, uint32_t btree_id)
 {
     WT_ASSERT(session, btree_id != 0);
-    /* Neither shared metadata nor the shared HS tables should have entries in HS. */
+    /* Shared metadata and history store should not have history store entries. */
     WT_ASSERT(session, WT_BTREE_ID_NAMESPACE_ID(btree_id) != WT_BTREE_ID_NAMESPACE_SPECIAL);
 
     /* No table ID namespaces. */
