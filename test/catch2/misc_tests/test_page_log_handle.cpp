@@ -79,7 +79,7 @@ TEST_CASE("Test disaggregated configuration logic", "[disagg_config]")
 
     SECTION("Test page log handle is constructed")
     {
-        REQUIRE(__wti_disagg_conn_config(session, disagg_cfg, false) == WT_ERROR);
+        REQUIRE(__wti_disagg_conn_config(session, disagg_cfg, false) == EINVAL);
         REQUIRE(conn_impl->disaggregated_storage.page_log != nullptr);
         REQUIRE(conn_impl->disaggregated_storage.npage_log != nullptr);
         REQUIRE(conn_impl->disaggregated_storage.page_log_meta != nullptr);
@@ -99,7 +99,7 @@ TEST_CASE("Test disaggregated configuration logic", "[disagg_config]")
         WT_KEY_PROVIDER kp;
         conn_impl->key_provider = &kp; /* Dummy non-nullptr value. */
 
-        REQUIRE(__wti_disagg_conn_config(session, disagg_cfg, false) == WT_ERROR);
+        REQUIRE(__wti_disagg_conn_config(session, disagg_cfg, false) == EINVAL);
         REQUIRE(conn_impl->disaggregated_storage.page_log != nullptr);
         REQUIRE(conn_impl->disaggregated_storage.npage_log != nullptr);
         REQUIRE(conn_impl->disaggregated_storage.page_log_meta != nullptr);

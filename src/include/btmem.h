@@ -263,9 +263,10 @@ struct __wt_page_block_meta {
     uint64_t backlink_lsn;
     uint64_t base_lsn;
 
-    WT_PAGE_LOG_ENCRYPTION encryption;
-
     uint32_t checksum;
+
+    /* The cumulative size of the page + delta chain. */
+    uint32_t cumulative_size;
 
     uint8_t delta_count;
 };

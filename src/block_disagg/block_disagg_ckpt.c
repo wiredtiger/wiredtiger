@@ -26,15 +26,6 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
     WT_ASSERT(session, block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID);
 
     /*
-     * !!!
-     * Our caller wants the final checkpoint size. Setting the size here violates layering,
-     * but the alternative is a call for the btree layer to crack the checkpoint cookie into
-     * its components, and that's a fair amount of work.
-     */
-    ckpt->size = block_meta->page_id;
-    /* FIXME-WT-14610: What should be the checkpoint size? Do we need it? */
-
-    /*
      * Write the root page out, and get back the address information for that page which will be
      * written into the block manager checkpoint cookie.
      */
@@ -71,6 +62,12 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
           " root_size=%" PRIu32 " root_checksum=%" PRIx32,
           block_meta->page_id, block_meta->disagg_lsn, block_meta->base_lsn, size, checksum);
     }
+    /*
+     * Set the checkpoint size here after all writes are complete. We set it at this point because
+     * we don't expect the size to change until it gets written to metadata, allowing us to validate
+     * consistency.
+     */
+    ckpt->size = __wt_atomic_load_uint64(&S2BT(session)->bytes_total);
 
     return (0);
 }

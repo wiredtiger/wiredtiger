@@ -38,6 +38,7 @@ class test_layered29(wttest.WiredTigerTestCase):
 
     scenarios = gen_disagg_storages('test_layered29', disagg_only = True)
 
+    @wttest.longtest('lots of tables')
     def test_create_tables(self):
-        for i in (0, 10000):
+        for i in range(0, 10000):
             self.assertEqual(self.session.create("layered:test_table" + str(i), "key_format=S,value_format=S"), 0)

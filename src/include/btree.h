@@ -99,12 +99,28 @@ typedef enum { /* Start position for eviction walk */
 #define WT_BTREE_ID_INVALID UINT32_MAX
 
 #define WT_BTREE_ID_NAMESPACE_BITS 3
-#define WT_BTREE_ID_NAMESPACE_SHARED 1
+#define WT_BTREE_ID_NAMESPACE_LOCAL 0   /* Namespace for regular local files */
+#define WT_BTREE_ID_NAMESPACE_SHARED 1  /* Namespace for regular shared files */
+#define WT_BTREE_ID_NAMESPACE_SPECIAL 2 /* Namespace for special shared files with fixed IDs */
 
-#define WT_BTREE_ID_NAMESPACED(x) ((x) << WT_BTREE_ID_NAMESPACE_BITS)
+#define WT_BTREE_ID_NAMESPACED(base_id, namespace_id) \
+    ((base_id) << WT_BTREE_ID_NAMESPACE_BITS | (namespace_id))
 #define WT_BTREE_ID_UNNAMESPACED(x) ((x) >> WT_BTREE_ID_NAMESPACE_BITS)
 #define WT_BTREE_ID_NAMESPACE_ID(x) ((x) & ((1 << WT_BTREE_ID_NAMESPACE_BITS) - 1))
-#define WT_BTREE_ID_SHARED(x) (WT_BTREE_ID_NAMESPACE_ID(x) == WT_BTREE_ID_NAMESPACE_SHARED)
+
+/* Special tables are currently always shared, so we check for both. */
+#define WT_BTREE_ID_SHARED(x)                                         \
+    ((WT_BTREE_ID_NAMESPACE_ID(x) == WT_BTREE_ID_NAMESPACE_SHARED) || \
+      (WT_BTREE_ID_NAMESPACE_ID(x) == WT_BTREE_ID_NAMESPACE_SPECIAL))
+
+/*
+ * Predefined IDs for shared tables that must use fixed IDs. These tables are created independently
+ * on every node and should have identical IDs to avoid conflicts at the storage layer.
+ *
+ * Should always belong to the special namespace to avoid conflicts with the local metadata ID.
+ */
+#define WT_SHARED_METADATA_FILE_ID 0
+#define WT_SHARED_HS_FILE_ID 1
 
 /*
  * WT_BTREE --
@@ -139,6 +155,9 @@ struct __wt_btree {
     uint64_t splitmempage;          /* In-memory split trigger size */
 
     WT_BTREE_CHECKSUM checksum; /* Checksum configuration */
+
+    /* Total size of all blocks in this btree. Tracked for disaggregated storage. */
+    wt_shared uint64_t bytes_total;
 
     /*
      * Reconciliation...
@@ -276,7 +295,7 @@ struct __wt_btree {
      * Eviction information is maintained in the btree handle, but owned by eviction, not the btree
      * code.
      */
-    WT_REF *evict_ref;                         /* Eviction thread's location */
+    wt_shared WT_REF *evict_ref;               /* Eviction thread's location */
     uint64_t evict_saved_ref_check;            /* Eviction saved thread's location as an ID */
     double evict_pos;                          /* Eviction thread's soft location */
     uint32_t linear_walk_restarts;             /* next/prev walk restarts */

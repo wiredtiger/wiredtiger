@@ -372,11 +372,11 @@ __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAV
 
     /* Pack the flags and delta value into a custom value. */
     WT_ERR(
-      __wt_struct_size(session, &custom_value_size, WT_DELTA_LEAF_VALUE_FORMAT, &value, flags));
+      __wt_struct_size(session, &custom_value_size, WT_DELTA_LEAF_VALUE_FORMAT, flags, &value));
     WT_ERR(__wt_scr_alloc(session, custom_value_size, &custom_value));
     custom_value->size = custom_value_size;
     WT_ERR(__wt_struct_pack(session, (void *)custom_value->data, custom_value_size,
-      WT_DELTA_LEAF_VALUE_FORMAT, &value, flags));
+      WT_DELTA_LEAF_VALUE_FORMAT, flags, &value));
 
     /* Pack the custom value into a standard cell structure. */
     WT_ERR(
@@ -1139,8 +1139,8 @@ __wti_rec_row_leaf(
              * onpage prepared update. Otherwise, we leak the prepared update.
              */
             WT_ASSERT_ALWAYS(session,
-              !F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || F_ISSET(conn, WT_CONN_IN_MEMORY) ||
-                F_ISSET(btree, WT_BTREE_IN_MEMORY) || !WT_TIME_WINDOW_HAS_PREPARE(twp),
+              !F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || F_ISSET(btree, WT_BTREE_IN_MEMORY) ||
+                !WT_TIME_WINDOW_HAS_PREPARE(twp),
               "leaked prepared update.");
         } else
             twp = &upd_select.tw;
