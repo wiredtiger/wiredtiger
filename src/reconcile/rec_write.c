@@ -2036,6 +2036,7 @@ __rec_build_delta(
         if (WT_BUILD_DELTA_LEAF(session, r)) {
             WT_RET(__rec_build_delta_leaf(session, full_image, r));
             *build_deltap = true;
+            WT_STAT_CONN_INCR(session, rec_delta_success_leaf);
         }
     } else if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
         /* The internal page delta would have already been built at this point if one exists. */
@@ -2043,6 +2044,7 @@ __rec_build_delta(
             *build_deltap = true;
             header = (WT_PAGE_HEADER *)r->delta.data;
             header->write_gen = full_image->write_gen;
+            WT_STAT_CONN_INCR(session, rec_delta_success_internal);
         }
     }
 
@@ -2500,9 +2502,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                         WT_ASSERT_ALWAYS(session,
                           header->u.entries > 0 || WT_PAGE_IS_INTERNAL(page),
                           "build empty leaf page delta");
-                        if (header->u.entries == 0)
+                        if (header->u.entries == 0) {
+                            WT_STAT_CONN_INCR(session, rec_delta_rejected_zero_entries);
                             skip_write = true;
-                        else if (r->delta.size * 100 / chunk->image.size >
+                        } else if (r->delta.size * 100 / chunk->image.size >
                           conn->page_delta.delta_pct) {
                             WT_STAT_CONN_INCR(session, rec_delta_rejected_size_threshold);
                             build_delta = false;

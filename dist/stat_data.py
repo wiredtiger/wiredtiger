@@ -852,9 +852,6 @@ conn_stats = [
     ##########################################
     # Reconciliation statistics
     ##########################################
-    RecStat('rec_delta_eligible', 'pages eligible for delta generation'),
-    RecStat('rec_delta_max_consecutive_exceeded', 'delta generation skipped due to max consecutive limit'),
-    RecStat('rec_delta_rejected_size_threshold', 'delta generation rejected due to size threshold'),
     RecStat('rec_maximum_hs_wrapup_milliseconds', 'maximum milliseconds spent in moving updates to the history store in a reconciliation', 'no_clear,no_scale,size'),
     RecStat('rec_maximum_image_build_milliseconds', 'maximum milliseconds spent in building a disk image in a reconciliation', 'no_clear,no_scale,size'),
     RecStat('rec_maximum_milliseconds', 'maximum milliseconds spent in a reconciliation call', 'no_clear,no_scale,size'),
@@ -1395,10 +1392,14 @@ conn_dsrc_stats = [
     RecStat('rec_overflow_value', 'overflow values written'),
     RecStat('rec_page_delete', 'pages deleted'),
     RecStat('rec_page_delete_fast', 'fast-path pages deleted'),
+    RecStat('rec_page_delta_eligible', 'pages eligible for delta generation'),
     RecStat('rec_page_delta_internal', 'internal page deltas written'),
     RecStat('rec_page_delta_internal_key_deleted', 'internal page delta keys deleted'),
     RecStat('rec_page_delta_internal_key_updated', 'internal page delta keys updated/inserted'),
     RecStat('rec_page_delta_leaf', 'leaf page deltas written'),
+    RecStat('rec_page_delta_max_consecutive_exceeded', 'delta generation skipped due to max consecutive limit'),
+    RecStat('rec_page_delta_rejected_zero_entries', 'delta generation rejected due to zero entries'),
+    RecStat('rec_page_delta_rejected_size_threshold', 'delta generation rejected due to size threshold'),
     RecStat('rec_page_full_image_internal', 'full internal pages written instead of a page delta'),
     RecStat('rec_page_full_image_leaf', 'full leaf pages written instead of a page delta'),
     RecStat('rec_page_mods_gt500', 'changes since prior reconciliation (bucket 8) greater than 500'),

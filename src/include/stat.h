@@ -1225,8 +1225,9 @@ struct __wt_connection_stats {
     int64_t rec_page_mods_le500;
     int64_t rec_page_mods_gt500;
     int64_t rec_hs_wrapup_next_prev_calls;
-    int64_t rec_delta_rejected_size_threshold;
-    int64_t rec_delta_max_consecutive_exceeded;
+    int64_t rec_page_delta_rejected_size_threshold;
+    int64_t rec_page_delta_rejected_zero_entries;
+    int64_t rec_page_delta_max_consecutive_exceeded;
     int64_t rec_page_delete_fast;
     int64_t rec_free_page_id_due_to_failed_replacement_reconciliation;
     int64_t rec_page_full_image_internal;
@@ -1257,7 +1258,7 @@ struct __wt_connection_stats {
     int64_t rec_pages_with_ts;
     int64_t rec_pages_with_txn;
     int64_t rec_page_delete;
-    int64_t rec_delta_eligible;
+    int64_t rec_page_delta_eligible;
     int64_t rec_time_aggr_newest_start_durable_ts;
     int64_t rec_time_aggr_newest_stop_durable_ts;
     int64_t rec_time_aggr_newest_stop_ts;
@@ -1736,6 +1737,9 @@ struct __wt_dsrc_stats {
     int64_t rec_page_mods_le500;
     int64_t rec_page_mods_gt500;
     int64_t rec_hs_wrapup_next_prev_calls;
+    int64_t rec_page_delta_rejected_size_threshold;
+    int64_t rec_page_delta_rejected_zero_entries;
+    int64_t rec_page_delta_max_consecutive_exceeded;
     int64_t rec_dictionary;
     int64_t rec_page_delete_fast;
     int64_t rec_free_page_id_due_to_failed_replacement_reconciliation;
@@ -1765,6 +1769,7 @@ struct __wt_dsrc_stats {
     int64_t rec_pages_size_100MB_to_1GB;
     int64_t rec_pages_size_1GB_plus;
     int64_t rec_page_delete;
+    int64_t rec_page_delta_eligible;
     int64_t rec_time_aggr_newest_start_durable_ts;
     int64_t rec_time_aggr_newest_stop_durable_ts;
     int64_t rec_time_aggr_newest_stop_ts;
