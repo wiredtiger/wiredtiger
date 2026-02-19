@@ -150,7 +150,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
             ckpt.join()
 
 
-    
+
     def test_checkpoint_snapshot(self):
         self.moresetup()
 
