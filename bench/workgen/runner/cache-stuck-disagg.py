@@ -38,7 +38,7 @@ context = Context()
 
 # Connection: disagg + small cache
 conn_config = (
-    "cache_size=1GB,"
+    "cache_size=1GB,precise_checkpoint=true,"
     "disaggregated=(drain_threads=2,page_log=palite,role=leader),"
     "extensions=(\"../../ext/page_log/palite/libwiredtiger_palite.so\"=),"
     "cache_stuck_timeout_ms=60000"
@@ -86,21 +86,28 @@ end_time = time.time()
 print("Populate took %d minutes" % ((end_time - start_time) // 60))
 assert ret == 0, ret
 
-# --- Run phase: simple, non-txnal operations ---
+# --- Run phase: transactional operations ---
 
-# Heavy updates
+# Heavy updates in snapshot transactions with commit timestamps
 op_update = Operation(Operation.OP_UPDATE, table)
-tupdate = Thread(op_update)          # run repeatedly, driven by run_time
+update_txn = txn(op_update, 'isolation=snapshot')
+update_txn.transaction.use_commit_timestamp = True
+tupdate = Thread(update_txn)
 tupdate.options.session_config = "isolation=snapshot"
 
-# Inserts growing the working set
+# Inserts growing the working set, also transactional
 op_insert = Operation(Operation.OP_INSERT, table)
-tinsert = Thread(op_insert)
+insert_txn = txn(op_insert, 'isolation=snapshot')
+insert_txn.transaction.use_commit_timestamp = True
+tinsert = Thread(insert_txn)
 tinsert.options.session_config = "isolation=snapshot"
 
-# Readers using search
+# Readers using read-timestamp transactions that lag behind
 op_read = Operation(Operation.OP_SEARCH, table)
-tread = Thread(op_read)
+read_txn = txn(op_read, 'read_timestamp')
+read_txn.transaction.read_timestamp_lag = 30
+tread = Thread(read_txn)
+tread.options.session_config = "isolation=snapshot"
 
 # Checkpoint every 30 seconds
 ops_ckpt = Operation(Operation.OP_SLEEP, "30") + Operation(Operation.OP_CHECKPOINT, "")
@@ -117,7 +124,6 @@ workload = Workload(
 workload.options.run_time = 900
 workload.options.report_interval = 5
 
-# If you still want automatic oldest/stable movement, you can leave this on:
 workload.options.oldest_timestamp_lag = 20
 workload.options.stable_timestamp_lag = 10
 workload.options.timestamp_advance = 1
