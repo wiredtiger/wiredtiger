@@ -4558,6 +4558,7 @@ tasks:
           test_format_extra_args: -C "verbose=(checkpoint_cleanup:1)"
 
   - name: format-stress-test-tsan
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
@@ -5271,6 +5272,7 @@ tasks:
           num_jobs: 1  # MSAN builds (with PALM) can cause OOM issues if multiple jobs are run in parallel.
 
   - name: format-stress-test-disagg-leader-tsan
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
