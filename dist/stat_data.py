@@ -852,6 +852,9 @@ conn_stats = [
     ##########################################
     # Reconciliation statistics
     ##########################################
+    RecStat('rec_delta_eligible', 'pages eligible for delta generation'),
+    RecStat('rec_delta_max_consecutive_exceeded', 'delta generation skipped due to max consecutive limit'),
+    RecStat('rec_delta_rejected_size_threshold', 'delta generation rejected due to size threshold'),
     RecStat('rec_maximum_hs_wrapup_milliseconds', 'maximum milliseconds spent in moving updates to the history store in a reconciliation', 'no_clear,no_scale,size'),
     RecStat('rec_maximum_image_build_milliseconds', 'maximum milliseconds spent in building a disk image in a reconciliation', 'no_clear,no_scale,size'),
     RecStat('rec_maximum_milliseconds', 'maximum milliseconds spent in a reconciliation call', 'no_clear,no_scale,size'),

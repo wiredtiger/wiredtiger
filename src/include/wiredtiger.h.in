@@ -8322,16 +8322,20 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_CONN_REC_PAGE_MODS_GT500		1801
 /*! reconciliation: cursor next/prev calls during HS wrapup search_near */
-#define	WT_STAT_CONN_REC_HS_WRAPUP_NEXT_PREV_CALLS	1802
+#define	WT_STAT_CONN_REC_HS_WRAPUP_NEXT_PREV_CALLS	1799
+/*! reconciliation: delta generation rejected due to size threshold */
+#define	WT_STAT_CONN_REC_DELTA_REJECTED_SIZE_THRESHOLD	1800
+/*! reconciliation: delta generation skipped due to max consecutive limit */
+#define	WT_STAT_CONN_REC_DELTA_MAX_CONSECUTIVE_EXCEEDED	1801
 /*! reconciliation: fast-path pages deleted */
-#define	WT_STAT_CONN_REC_PAGE_DELETE_FAST		1803
+#define	WT_STAT_CONN_REC_PAGE_DELETE_FAST		1802
 /*!
  * reconciliation: free page ID due to failed page replacement
  * reconciliation in disagg
  */
-#define	WT_STAT_CONN_REC_FREE_PAGE_ID_DUE_TO_FAILED_REPLACEMENT_RECONCILIATION	1804
+#define	WT_STAT_CONN_REC_FREE_PAGE_ID_DUE_TO_FAILED_REPLACEMENT_RECONCILIATION	1803
 /*! reconciliation: full internal pages written instead of a page delta */
-#define	WT_STAT_CONN_REC_PAGE_FULL_IMAGE_INTERNAL	1805
+#define	WT_STAT_CONN_REC_PAGE_FULL_IMAGE_INTERNAL	1804
 /*! reconciliation: full leaf pages written instead of a page delta */
 #define	WT_STAT_CONN_REC_PAGE_FULL_IMAGE_LEAF		1806
 /*!
