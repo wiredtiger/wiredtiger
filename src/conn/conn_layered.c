@@ -1760,6 +1760,7 @@ __wt_disagg_enqueue_metadata_operation(
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_DISAGG_METADATA_OP *entry;
+    bool ckpt_running;
 
     conn = S2C(session);
     cursor = NULL;
@@ -1793,8 +1794,9 @@ __wt_disagg_enqueue_metadata_operation(
      * metadata table for that checkpoint. We defer these metadata operations to the next checkpoint
      * to keep the checkpoints metadata and table state consistent.
      */
-    if (__wt_atomic_load_bool_v_relaxed(&conn->txn_global.checkpoint_running))
-        entry->deferred = true;
+    WT_ACQUIRE_READ_WITH_BARRIER(ckpt_running, conn->txn_global.checkpoint_running);
+    if (ckpt_running && metadata_op == SHARED_METADATA_REMOVE)
+        entry->defer_drop = true;
 
     /* Cannot fail past this point. */
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_lock);
@@ -1944,13 +1946,10 @@ __wt_disagg_shared_metadata_process(WT_SESSION_IMPL *session)
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
-        if (entry->deferred) {
+        if (entry->defer_drop) {
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "Skipping deferred metadata operation for table \"%s\" (stable URI \"%s\") with %s "
-              "operation for this checkpoint:",
-              entry->table_name, entry->stable_uri,
-              entry->metadata_op == SHARED_METADATA_UPDATE ? "UPDATE" : "DELETE");
-            entry->deferred = false;
+              "Defer metadata drop operation for table \"%s\"", entry->table_name);
+            entry->defer_drop = false;
             continue;
         }
 
