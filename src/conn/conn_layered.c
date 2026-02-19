@@ -1714,6 +1714,14 @@ __wt_disagg_enqueue_metadata_operation(
     WT_ERR(__disagg_save_metadata(session, cursor, "table:", table_name, &entry->table_value));
     WT_ERR(__disagg_save_metadata(session, cursor, "", stable_uri, &entry->stable_value));
 
+    /*
+     * When WiredTiger is running a checkpoint, prevent create/drop updates from entering the shared
+     * metadata table for that checkpoint. We defer these metadata operations to the next checkpoint
+     * to keep the checkpoints metadata and table state consistent.
+     */
+    if (__wt_atomic_load_bool_v_relaxed(&conn->txn_global.checkpoint_running))
+        entry->deferred = true;
+
     /* Cannot fail past this point. */
     __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_lock);
     TAILQ_INSERT_TAIL(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
@@ -1787,11 +1795,7 @@ __disagg_shared_metadata_op_helper(
     cursor->set_key(cursor, key);
 
     if (metadata_op == SHARED_METADATA_REMOVE) {
-        /*
-         * If the table was created and dropped before a checkpoint has occurred, it is expected to
-         * have no metadata entries on the shared metadata table.
-         */
-        WT_ERR_NOTFOUND_OK(cursor->remove(cursor), false);
+        WT_ERR(cursor->remove(cursor));
     } else if (metadata_op == SHARED_METADATA_UPDATE) {
         if (value == NULL) {
             ret = 0;
@@ -1866,6 +1870,16 @@ __wt_disagg_shared_metadata_process(WT_SESSION_IMPL *session)
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
+        if (entry->deferred) {
+            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+              "Skipping deferred metadata operation for table \"%s\" (stable URI \"%s\") with %s "
+              "operation for this checkpoint:",
+              entry->table_name, entry->stable_uri,
+              entry->metadata_op == SHARED_METADATA_UPDATE ? "UPDATE" : "DELETE");
+            entry->deferred = false;
+            continue;
+        }
+
         WT_ERR(__disagg_shared_metadata_op(session, entry));
 
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);

@@ -163,6 +163,8 @@ struct __wt_disagg_metadata_op {
 
     /* Metadata type operation. */
     u_int metadata_op;
+    /* Decide on skipping the operation in the next checkpoint and defer it to the one after. */
+    bool deferred;
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
 
