@@ -992,7 +992,8 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
     __txn_assert_after_reads(session, "rollback", rollback_ts);
 
     /* Check whether the rollback timestamp is less than the stable timestamp. */
-    stable_ts = txn_global->stable_timestamp;
+    /* FIXME-WT-16717: Fix the race. */
+    stable_ts = __wt_tsan_suppress_load_uint64(&txn_global->stable_timestamp);
     if (rollback_ts <= stable_ts) {
         WT_RET_MSG(session, EINVAL,
           "rollback timestamp %s is not newer than the stable timestamp %s",
