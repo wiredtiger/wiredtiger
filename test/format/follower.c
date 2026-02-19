@@ -88,7 +88,6 @@ static bool
 follower_try_pickup_checkpoint(WT_SESSION *session, WT_CONNECTION *conn, WT_PAGE_LOG *page_log,
   WT_ITEM *checkpoint_metadata, uint64_t checkpoint_ts)
 {
-    WT_DECL_RET;
     WT_DISAGG_METADATA metadata;
     WT_ITEM full_metadata;
     uint64_t pinned_ts;
@@ -108,19 +107,17 @@ follower_try_pickup_checkpoint(WT_SESSION *session, WT_CONNECTION *conn, WT_PAGE
      * information (metadata_lsn, etc.). We need to fetch the actual metadata page from the page log
      * to get the full checkpoint config with oldest_timestamp.
      */
-    if (g.transaction_timestamps_config) {
-        ret = follower_fetch_full_metadata(session, page_log, checkpoint_metadata, &full_metadata);
-        if (ret == 0 &&
-          __wt_disagg_parse_meta((WT_SESSION_IMPL *)session, &full_metadata, &metadata) == 0 &&
-          metadata.oldest_timestamp != WT_TS_NONE) {
-            ret = timestamp_query("get=pinned", &pinned_ts);
-            if (ret == 0 && pinned_ts != 0 && metadata.oldest_timestamp > pinned_ts) {
-                printf("--- [Follower] Skipping checkpoint pickup: oldest_timestamp(hex)=%" PRIx64
-                       " > pinned_timestamp(hex)=%" PRIx64 " ---\n",
-                  metadata.oldest_timestamp, pinned_ts);
-                goto done;
-            }
-        }
+    testutil_assert(g.transaction_timestamps_config);
+    testutil_check(
+      follower_fetch_full_metadata(session, page_log, checkpoint_metadata, &full_metadata));
+    testutil_check(__wt_disagg_parse_meta((WT_SESSION_IMPL *)session, &full_metadata, &metadata));
+    testutil_assert(metadata.oldest_timestamp != WT_TS_NONE);
+    testutil_check(timestamp_query("get=pinned", &pinned_ts));
+    if (pinned_ts != 0 && metadata.oldest_timestamp > pinned_ts) {
+        printf("--- [Follower] Skipping checkpoint pickup: oldest_timestamp(hex)=%" PRIx64
+               " > pinned_timestamp(hex)=%" PRIx64 " ---\n",
+          metadata.oldest_timestamp, pinned_ts);
+        goto done;
     }
 
     testutil_snprintf(config, sizeof(config), "disaggregated=(checkpoint_meta=\"%.*s\")",
