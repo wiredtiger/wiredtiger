@@ -38,7 +38,7 @@ from wiredtiger import stat
 #   This test is to run checkpoint and eviction in parallel with timing
 #   stress for checkpoint and let eviction write more data than checkpoint.
 #
-@wttest.skip_for_hook("disagg", "Disagg checkpoint require precise, it not works with small cache size.")
+@wttest.skip_for_hook("disagg", "Disagg requires precise checkpoint which does not work well with small cache size.")
 class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
     # Create a table.
