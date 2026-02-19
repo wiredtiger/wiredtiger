@@ -53,6 +53,7 @@ def is_mongo_log(line):
 def process_mongod_log(f, opts):
     byte_dump = extract_mongodb_log_hex(f, opts)
     if not byte_dump:
+        print("No valid byte dump found in MongoDB log")
         return
 
     b = binary_data.BinaryFile(io.BytesIO(byte_dump))
@@ -62,11 +63,14 @@ def process_wiredtiger_log(f, opts):
     while True:
         byte_dump = encode_bytes(f, opts)
         if not byte_dump:
+            print("No (more) byte dumps found in WiredTiger log")
             break
 
         b = binary_data.BinaryFile(io.BytesIO(byte_dump))
         wtdecode_file_object(b, opts, len(byte_dump))
 
+# Specific exceptions for hex dump validation errors, to distinguish from other parsing errors
+# and to provide more specific error messages about what is wrong with the hex dump.
 class HexDumpCorruptError(ValueError):
     """Raised when hex dump validation fails."""
     pass
