@@ -2485,10 +2485,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
               !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT))
                 skip_write = true;
             else if (WT_DELTA_ENABLED_FOR_PAGE(session, r->page->type)) {
-                WT_STAT_CONN_INCR(session, rec_delta_eligible);
+                WT_STAT_CONN_INCR(session, rec_page_delta_eligible);
 
                 if (block_meta->delta_count >= conn->page_delta.max_consecutive_delta)
-                    WT_STAT_CONN_INCR(session, rec_delta_max_consecutive_exceeded);
+                    WT_STAT_CONN_INCR(session, rec_page_delta_max_consecutive_exceeded);
                 else {
                     WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
                     /*
@@ -2501,11 +2501,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                           header->u.entries > 0 || WT_PAGE_IS_INTERNAL(page),
                           "build empty leaf page delta");
                         if (header->u.entries == 0) {
-                            WT_STAT_CONN_INCR(session, rec_delta_rejected_zero_entries);
+                            WT_STAT_CONN_INCR(session, rec_page_delta_rejected_zero_entries);
                             skip_write = true;
                         } else if (r->delta.size * 100 / chunk->image.size >
                           conn->page_delta.delta_pct) {
-                            WT_STAT_CONN_INCR(session, rec_delta_rejected_size_threshold);
+                            WT_STAT_CONN_INCR(session, rec_page_delta_rejected_size_threshold);
                             build_delta = false;
                         }
                     } else
