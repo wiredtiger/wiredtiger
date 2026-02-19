@@ -65,3 +65,33 @@ class test_layered75(wttest.WiredTigerTestCase):
 
         # Do a checkpoint.
         self.session.checkpoint()
+
+    def test_layered75_many_ckpt(self):
+        session_config = 'key_format=S,value_format=S'
+        # nitems = 10_000
+        nitems = 10
+
+        self.session.create(self.uri, session_config)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        for i in range(nitems):
+            cursor["Key " + str(i)] = str(i)
+        cursor.close()
+
+        self.session.checkpoint()
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        for i in range(nitems):
+            if i % 2 == 0:
+                cursor["Key " + str(i)] = str(i) + "_even"
+        cursor.close()
+
+        self.session.checkpoint()
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        for i in range(nitems):
+            if i % 100 == 0:
+                cursor["Key " + str(i)] = str(i) + "_hundred"
+        cursor.close()
+
+        self.session.checkpoint()
