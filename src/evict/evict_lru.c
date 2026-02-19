@@ -1905,6 +1905,11 @@ retry:
             continue;
         }
 
+        /*
+         * For in-memory btrees, if we are not evicting dirty pages or pages with active updates,
+         * walking them serves no purpose. Such pages are not eligible for clean eviction, making
+         * the operation unnecessary.
+         */
         if (F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
           !F_ISSET(evict, WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES)) {
             __evict_disagg_btree_skip_count(session, btree);
