@@ -333,6 +333,7 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: changes since prior reconciliation (bucket 7) between 201 and 500",
   "reconciliation: changes since prior reconciliation (bucket 8) greater than 500",
   "reconciliation: cursor next/prev calls during HS wrapup search_near",
+  "reconciliation: delta generation rejected by build_delta",
   "reconciliation: delta generation rejected due to size threshold",
   "reconciliation: delta generation rejected due to zero entries",
   "reconciliation: delta generation skipped due to max consecutive limit",
@@ -776,6 +777,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_page_mods_le500 = 0;
     stats->rec_page_mods_gt500 = 0;
     stats->rec_hs_wrapup_next_prev_calls = 0;
+    stats->rec_page_delta_rejected = 0;
     stats->rec_page_delta_rejected_size_threshold = 0;
     stats->rec_page_delta_rejected_zero_entries = 0;
     stats->rec_page_delta_max_consecutive_exceeded = 0;
@@ -1218,6 +1220,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_page_mods_le500 += from->rec_page_mods_le500;
     to->rec_page_mods_gt500 += from->rec_page_mods_gt500;
     to->rec_hs_wrapup_next_prev_calls += from->rec_hs_wrapup_next_prev_calls;
+    to->rec_page_delta_rejected += from->rec_page_delta_rejected;
     to->rec_page_delta_rejected_size_threshold += from->rec_page_delta_rejected_size_threshold;
     to->rec_page_delta_rejected_zero_entries += from->rec_page_delta_rejected_zero_entries;
     to->rec_page_delta_max_consecutive_exceeded += from->rec_page_delta_max_consecutive_exceeded;
@@ -1699,6 +1702,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_page_mods_le500 += WT_STAT_DSRC_READ(from, rec_page_mods_le500);
     to->rec_page_mods_gt500 += WT_STAT_DSRC_READ(from, rec_page_mods_gt500);
     to->rec_hs_wrapup_next_prev_calls += WT_STAT_DSRC_READ(from, rec_hs_wrapup_next_prev_calls);
+    to->rec_page_delta_rejected += WT_STAT_DSRC_READ(from, rec_page_delta_rejected);
     to->rec_page_delta_rejected_size_threshold +=
       WT_STAT_DSRC_READ(from, rec_page_delta_rejected_size_threshold);
     to->rec_page_delta_rejected_zero_entries +=
@@ -2645,6 +2649,7 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: changes since prior reconciliation (bucket 7) between 201 and 500",
   "reconciliation: changes since prior reconciliation (bucket 8) greater than 500",
   "reconciliation: cursor next/prev calls during HS wrapup search_near",
+  "reconciliation: delta generation rejected by build_delta",
   "reconciliation: delta generation rejected due to size threshold",
   "reconciliation: delta generation rejected due to zero entries",
   "reconciliation: delta generation skipped due to max consecutive limit",
@@ -3693,6 +3698,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_page_mods_le500 = 0;
     stats->rec_page_mods_gt500 = 0;
     stats->rec_hs_wrapup_next_prev_calls = 0;
+    stats->rec_page_delta_rejected = 0;
     stats->rec_page_delta_rejected_size_threshold = 0;
     stats->rec_page_delta_rejected_zero_entries = 0;
     stats->rec_page_delta_max_consecutive_exceeded = 0;
@@ -4929,6 +4935,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_page_mods_le500 += WT_STAT_CONN_READ(from, rec_page_mods_le500);
     to->rec_page_mods_gt500 += WT_STAT_CONN_READ(from, rec_page_mods_gt500);
     to->rec_hs_wrapup_next_prev_calls += WT_STAT_CONN_READ(from, rec_hs_wrapup_next_prev_calls);
+    to->rec_page_delta_rejected += WT_STAT_CONN_READ(from, rec_page_delta_rejected);
     to->rec_page_delta_rejected_size_threshold +=
       WT_STAT_CONN_READ(from, rec_page_delta_rejected_size_threshold);
     to->rec_page_delta_rejected_zero_entries +=

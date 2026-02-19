@@ -1225,6 +1225,7 @@ struct __wt_connection_stats {
     int64_t rec_page_mods_le500;
     int64_t rec_page_mods_gt500;
     int64_t rec_hs_wrapup_next_prev_calls;
+    int64_t rec_page_delta_rejected;
     int64_t rec_page_delta_rejected_size_threshold;
     int64_t rec_page_delta_rejected_zero_entries;
     int64_t rec_page_delta_max_consecutive_exceeded;
@@ -1737,6 +1738,7 @@ struct __wt_dsrc_stats {
     int64_t rec_page_mods_le500;
     int64_t rec_page_mods_gt500;
     int64_t rec_hs_wrapup_next_prev_calls;
+    int64_t rec_page_delta_rejected;
     int64_t rec_page_delta_rejected_size_threshold;
     int64_t rec_page_delta_rejected_zero_entries;
     int64_t rec_page_delta_max_consecutive_exceeded;

@@ -2036,7 +2036,6 @@ __rec_build_delta(
         if (WT_BUILD_DELTA_LEAF(session, r)) {
             WT_RET(__rec_build_delta_leaf(session, full_image, r));
             *build_deltap = true;
-            WT_STAT_CONN_INCR(session, rec_delta_success_leaf);
         }
     } else if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
         /* The internal page delta would have already been built at this point if one exists. */
@@ -2044,7 +2043,6 @@ __rec_build_delta(
             *build_deltap = true;
             header = (WT_PAGE_HEADER *)r->delta.data;
             header->write_gen = full_image->write_gen;
-            WT_STAT_CONN_INCR(session, rec_delta_success_internal);
         }
     }
 
@@ -2510,7 +2508,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                             WT_STAT_CONN_INCR(session, rec_delta_rejected_size_threshold);
                             build_delta = false;
                         }
-                    }
+                    } else
+                        WT_STAT_CONN_INCR(session, rec_page_delta_rejected);
                 }
             }
         }
