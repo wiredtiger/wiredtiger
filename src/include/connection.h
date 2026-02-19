@@ -151,9 +151,6 @@ struct __wt_layered_table_manager {
 };
 
 /*
-<<<<<<< HEAD
- *
-=======
  * Checkpoint metadata version constants:
  * - DEFAULT: Version defaulted to for old checkpoints without version fields (backward compatible).
  * - VERSION: The version this code writes and the maximum version it can read.
@@ -165,7 +162,6 @@ struct __wt_layered_table_manager {
 
 /*
  * WT_DISAGG_METADATA_OP --
->>>>>>> develop
  *      Metadata about an object to be updated during the next checkpoint.
  */
 struct __wt_disagg_metadata_op {
