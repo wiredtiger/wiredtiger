@@ -82,7 +82,6 @@ __wt_session_dump(WT_SESSION_IMPL *session, WT_SESSION_IMPL *dump_session, bool 
       session, "Session: ID: %" PRIu32 " @: 0x%p", dump_session->id, (void *)dump_session));
     WT_ERR(
       __wt_msg(session, "  Name: %s", dump_session->name == NULL ? "EMPTY" : dump_session->name));
-
     WT_ERR(__wt_msg(session, "  Last operation: %s",
       dump_session->lastop == NULL ? "NONE" : dump_session->lastop));
     WT_ERR(__wt_msg(session, "  Current dhandle: %s",
