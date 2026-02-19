@@ -446,12 +446,12 @@ __wti_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WTI_UPDATE_SELECT
         return;
 
     /*
-     * Previously, we didnt clear the time points for in-memory btrees because doing so could risk
+     * Previously, we didn't clear the time points for in-memory btrees because doing so could risk
      * adding an extra update to the end of the update chain during reconciliation. This happened
      * when the disk image value was re-appended to the update chain. However, with the new
      * algorithm that selects the final update required for writing to the disk image, this issue is
      * resolved. As a result, we can now safely clear the time points for in-memory btrees to avoid
-     * including unnecessary time points in the cell. That said, for in-memory btrees that dont use
+     * including unnecessary time points in the cell. That said, for in-memory btrees that don't use
      * timestamps, clearing time points is unnecessary. It would lead to wasted effort with minimal
      * or no benefit.
      */
