@@ -1452,7 +1452,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
     }
 
     if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) {
-        /* Never write prepared updates for in-memory btree */
+        /* Never write prepared updates for in-memory btrees. */
         write_prepare = false;
         WT_RET(__rec_upd_select_inmem(session, r, vpack, first_upd, upd_select, &first_txn_upd,
           &has_newer_updates, &upd_memsize));
