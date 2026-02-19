@@ -901,6 +901,29 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     }
 
     /*
+     * During precise checkpoint, eviction reconciliation uses checkpoint_txn_shared.pinned_id as
+     * its visibility boundary. Pages modified by transactions at or beyond that boundary will have
+     * invisible updates, and reconciliation will restore them in memory rather than freeing the
+     * page.
+     *
+     * Only skip small pages (likely single-block) where update-restore is pure waste — the page
+     * just gets rewritten in place. Large pages benefit from multi-block reconciliation and
+     * splitting even with some invisible updates, as the split frees cache through clean children.
+     */
+    // if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+    //   __wt_atomic_load_bool_v_relaxed(&conn->txn_global.checkpoint_running) &&
+    //   page->modify != NULL) {
+    //     uint64_t ckpt_pinned =
+    //       __wt_atomic_load_uint64_v_relaxed(&conn->txn_global.checkpoint_txn_shared.pinned_id);
+    //     if (ckpt_pinned != WT_TXN_NONE &&
+    //       __wt_atomic_load_uint64_relaxed(&page->modify->update_txn) >= ckpt_pinned &&
+    //       __wt_atomic_load_size_relaxed(&page->memory_footprint) <= btree->maxleafpage) {
+    //         WT_STAT_CONN_INCR(session, cache_eviction_blocked_precise_checkpoint);
+    //         return (__wt_set_return(session, EBUSY));
+    //     }
+    // }
+
+    /*
      * If reconciliation is disabled for this thread (e.g., during an eviction that writes to the
      * history store or reading a checkpoint), give up.
      */

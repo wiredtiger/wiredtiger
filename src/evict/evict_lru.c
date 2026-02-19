@@ -2112,7 +2112,8 @@ static WT_INLINE bool
 __evict_skip_dirty_precise_checkpoint(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     if (!F_ISSET(S2C(session), WT_CONN_PRECISE_CHECKPOINT) ||
-      !__wt_atomic_load_bool_v_relaxed(&S2C(session)->txn_global.checkpoint_running))
+      !__wt_atomic_load_bool_v_relaxed(&S2C(session)->txn_global.checkpoint_running) ||
+      F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT))
         return (false);
 
     /*
@@ -2129,6 +2130,15 @@ __evict_skip_dirty_precise_checkpoint(WT_SESSION_IMPL *session, WT_PAGE *page)
         WT_STAT_CONN_INCR(session, eviction_server_skip_pages_checkpoint_timestamp);
         return (true);
     }
+
+    uint64_t ckpt_pinned =
+      __wt_atomic_load_uint64_v_relaxed(&S2C(session)->txn_global.checkpoint_txn_shared.pinned_id);
+    if (ckpt_pinned != WT_TXN_NONE &&
+      __wt_atomic_load_uint64_relaxed(&page->modify->update_txn) >= ckpt_pinned) {
+        WT_STAT_CONN_INCR(session, eviction_server_skip_pages_checkpoint_pinned_id);
+        return (true);
+    }
+
     return (false);
 }
 
