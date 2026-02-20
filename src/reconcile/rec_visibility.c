@@ -1045,11 +1045,13 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
   WT_UPDATE *first_upd, WTI_UPDATE_SELECT *upd_select, WT_UPDATE **first_txn_updp,
   bool *has_newer_updatesp, size_t *upd_memsizep)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_UPDATE *upd, *first_pruned_update;
     wt_timestamp_t max_ts;
     uint64_t max_txn, session_txnid;
     bool found_last_upd_to_keep;
 
+    conn = S2C(session);
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
     /* Assert that we can only call reconciliation for in memory btree in eviction */
@@ -1061,6 +1063,26 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
 
     for (upd = first_upd; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED) {
+            if (!F_ISSET(conn, WT_CONN_PRESERVE_PREPARED))
+                continue;
+
+            if (upd->prepare_state != WT_PREPARE_INPROGRESS)
+                continue;
+
+            if (r->rec_prune_timestamp == WT_TS_NONE ||
+              upd->upd_rollback_ts > r->rec_prune_timestamp) {
+                *has_newer_updatesp = true;
+                /*
+                 * If we have already selected an update to write to the disk image, the aborted
+                 * prepared update is older than the selected update. Clear the selected update so
+                 * the entire update chain is restored without an on-page value. This avoids an
+                 * inconsistency where has_newer_updates is true but the selected on-page value is
+                 * the head of the update chain.
+                 */
+                if (upd_select->upd != NULL)
+                    upd_select->upd = NULL;
+            }
+
             continue;
         }
         /* Give up if the update is from this transaction and on the metadata file. */
