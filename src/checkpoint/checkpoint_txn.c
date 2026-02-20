@@ -3027,7 +3027,7 @@ __checkpoint_reconcile_pop_page(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_
     conn = S2C(session);
     ckpt_threads = conn->ckpt_reconcile_threads;
 
-    if (TAILQ_EMPTY(&ckpt_threads->work_qh))
+    if (WT_TAILQ_EMPTY_TSAN_SUPPRESS(&ckpt_threads->work_qh))
         return;
 
     __wt_spin_lock(session, &ckpt_threads->work_lock);
