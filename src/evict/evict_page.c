@@ -270,14 +270,22 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     ebusy_only = true;
 
     /*
-     * Check we are not evicting an accessible internal page with an active split generation. We
-     * should be able to evict anything if we are closing the dhandle and when the dhandle is
-     * already dead.
+     * Check we are not evicting an accessible internal page with an active split generation.
+     *
+     * The page state may have changed since it was added to the eviction queue in
+     * __wt_page_can_evict(). Between the time the page was queued and now, another session may have
+     * entered a split generation for this page. If so, we cannot evict the page because that
+     * session may be traversing an old page index that references this page.
+     *
+     * We should be able to evict anything if we are closing the dhandle or when the dhandle is
+     * already dead, as no other sessions can be accessing the page in those cases.
      */
-    WT_ASSERT(session,
-      closing || !F_ISSET(ref, WT_REF_FLAG_INTERNAL) ||
-        F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-        !__wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen));
+    if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL) &&
+      !F_ISSET(session->dhandle, WT_DHANDLE_DEAD) &&
+      __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen)) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_internal_page_split);
+        WT_ERR(EBUSY);
+    }
 
     /* Count evictions of internal pages during normal operation. */
     if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL))

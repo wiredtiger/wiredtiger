@@ -287,11 +287,14 @@ __gen_active_callback(
      * NULL check and the comparison.
      */
     WT_ACQUIRE_READ_WITH_BARRIER(session_dhandle, session->dhandle);
-    if (session_dhandle != NULL) {
-        WT_ACQUIRE_READ_WITH_BARRIER(dhandle, array_session->dhandle);
-        if (dhandle != session_dhandle)
-            return (0);
-    }
+    WT_ACQUIRE_READ_WITH_BARRIER(dhandle, array_session->dhandle);
+
+    /*
+     * If the caller has a dhandle, only check sessions operating on the same dhandle.
+     * If the caller has no dhandle, only check sessions that also have no dhandle.
+     */
+    if (session_dhandle != dhandle)
+        return (0);
 
     WT_ACQUIRE_READ_WITH_BARRIER(v, array_session->generations[cookie->which]);
     if (v != 0 && cookie->target_generation >= v) {
