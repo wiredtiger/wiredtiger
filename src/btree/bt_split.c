@@ -1774,31 +1774,30 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mult
     WT_UPDATE *upd;
     uint32_t i, slot;
 
-    if (!F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
-        /* Append the onpage values back to the original update chains. */
-        for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
-            /*
-             * We don't need to do anything for update chains that are not restored, or restored
-             * without an onpage value.
-             */
-            if (!supd->restore || supd->onpage_upd == NULL)
-                continue;
+    /* Append the onpage values back to the original update chains. */
+    for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
+        /*
+         * We don't need to do anything for update chains that are not restored, or restored without
+         * an onpage value.
+         */
+        if (!supd->restore || supd->onpage_upd == NULL)
+            continue;
 
-            if (supd->free_upds == NULL)
-                continue;
+        if (supd->free_upds == NULL)
+            continue;
 
-            if (supd->ins == NULL) {
-                /* Note: supd->ins is never null for column-store. */
-                slot = WT_ROW_SLOT(orig, supd->rip);
-                upd = orig->modify->mod_row_update[slot];
-            } else
-                upd = supd->ins->upd;
+        if (supd->ins == NULL) {
+            /* Note: supd->ins is never null for column-store. */
+            slot = WT_ROW_SLOT(orig, supd->rip);
+            upd = orig->modify->mod_row_update[slot];
+        } else
+            upd = supd->ins->upd;
 
-            WT_ASSERT(session, upd != NULL);
-            for (; upd->next != NULL; upd = upd->next)
-                ;
-            upd->next = supd->free_upds;
-        }
+        WT_ASSERT(session, upd != NULL);
+        for (; upd->next != NULL; upd = upd->next)
+            ;
+        upd->next = supd->free_upds;
+    }
 
     /*
      * We failed creating new in-memory pages. For error-handling reasons, we've left the update
