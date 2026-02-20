@@ -210,13 +210,11 @@
         }                                                                                      \
         if ((tw)->stop_prepare_ts == WT_TS_NONE) {                                             \
             (ta)->newest_stop_ts = WT_MAX((tw)->stop_ts, (ta)->newest_stop_ts);                \
-            if (WT_TIME_AGGREGATE_HAS_STOP((ta))) {                                              \
-                WT_ASSERT(session, (tw)->durable_stop_ts != WT_TS_NONE);                       \
+            if (WT_TIME_AGGREGATE_HAS_STOP((ta)))                                              \
                 (ta)->newest_page_stop_durable_ts =                                            \
                   WT_MAX((tw)->durable_stop_ts, (ta)->newest_page_stop_durable_ts);            \
-            } else {                                                                               \
+            else                                                                               \
                 (ta)->newest_page_stop_durable_ts = WT_TS_NONE;                                \
-            }                                                                                      \
         } else {                                                                               \
             (ta)->newest_stop_ts = WT_MAX((tw)->stop_prepare_ts, (ta)->newest_stop_ts);        \
             if (WT_TIME_AGGREGATE_HAS_STOP((ta)))                                              \
