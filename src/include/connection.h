@@ -176,14 +176,18 @@ struct __wt_disagg_metadata_op {
     /* Metadata type operation. */
     u_int metadata_op;
     /* Skip the drop operation in the next checkpoint and defer it to the one after. */
-    bool defer_drop;
+    bool deferred;
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
 
 /*
  * Identify the shared metadata operations inside the shared metadata queue.
  */
-typedef enum { SHARED_METADATA_UPDATE = 0, SHARED_METADATA_REMOVE } WT_SHARED_METADATA_OPS;
+typedef enum {
+    SHARED_METADATA_UPDATE = 0,
+    SHARED_METADATA_CREATE,
+    SHARED_METADATA_REMOVE
+} WT_SHARED_METADATA_OPS;
 
 #define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
 
