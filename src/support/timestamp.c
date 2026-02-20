@@ -140,8 +140,9 @@ __time_stable(WT_SESSION_IMPL *session)
 
     txn_global = &S2C(session)->txn_global;
 
-    return (txn_global->has_stable_timestamp ? txn_global->stable_timestamp :
-                                               txn_global->recovery_timestamp);
+    return (__wt_atomic_load_bool_acquire(&txn_global->has_stable_timestamp) ?
+        __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp) :
+        txn_global->recovery_timestamp);
 }
 
 #undef WT_TIME_ERROR

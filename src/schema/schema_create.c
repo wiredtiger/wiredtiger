@@ -30,8 +30,17 @@ __check_imported_ts(
 
     ckptbase = NULL;
     txn_global = &S2C(session)->txn_global;
-    ts = against_stable ? txn_global->stable_timestamp : txn_global->oldest_timestamp;
-    ts_name = against_stable ? "stable" : "oldest";
+
+    if (against_stable) {
+        ts_name = "stable";
+        if (__wt_atomic_load_bool_acquire(&txn_global->has_stable_timestamp))
+            ts = __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp);
+        else
+            ts = WT_TS_NONE;
+    } else {
+        ts_name = "oldest";
+        ts = txn_global->oldest_timestamp;
+    }
 
     WT_ERR_NOTFOUND_OK(
       __wt_meta_ckptlist_get_from_config(session, false, &ckptbase, NULL, config), true);
