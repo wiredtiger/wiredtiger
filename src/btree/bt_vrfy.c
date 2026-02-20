@@ -46,6 +46,7 @@ typedef struct {
 
 static void __verify_checkpoint_reset(WT_VSTUFF *);
 static int __verify_compare_page_id(const void *, const void *);
+static int __verify_disagg_accumulate_size(WT_SESSION_IMPL *, WT_VSTUFF *, const void *, size_t);
 static int __verify_page_content_int(
   WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
 static int __verify_page_content_leaf(
@@ -193,6 +194,30 @@ __dump_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
 }
 
 /*
+ * __verify_disagg_accumulate_size --
+ *     Accumulate the block size from the disagg cookie.
+ */
+static int
+__verify_disagg_accumulate_size(
+  WT_SESSION_IMPL *session, WT_VSTUFF *vs, const void *cookie_data, size_t cookie_size)
+{
+    WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
+    WT_BTREE *btree;
+    const uint8_t *buf;
+
+    btree = S2BT(session);
+
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        return (0);
+
+    buf = cookie_data;
+    WT_RET(__wt_block_disagg_addr_unpack(session, &buf, cookie_size, &cookie));
+
+    vs->total_block_size += cookie.size;
+    return (0);
+}
+
+/*
  * __wt_verify --
  *     Verify a file.
  */
@@ -313,24 +338,14 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             WT_WITH_PAGE_INDEX(
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
 
+            /* Account for the root page in the accumulated total block size. */
+            WT_ERR(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
+
             /* Validate the size of the btree */
-            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
-
-                WT_BLOCK_DISAGG_ADDRESS_COOKIE root_cookie;
-                WT_RET(__wti_block_disagg_ckpt_unpack(session, (WT_BLOCK_DISAGG *)bm->block,
-                  ckpt->raw.data, ckpt->raw.size, &root_cookie));
-                printf("WT_VERIFY adding root page size %" PRIu32 "\n", root_cookie.size);
-                vs->total_block_size += root_cookie.size;
-
-                if (ckpt->size != vs->total_block_size) {
-                    printf("checkpoint size %" PRIu64
-                           " does not match accumulated block size %" PRIu64 "\n",
-                      ckpt->size, vs->total_block_size);
-
-                    WT_ERR_MSG(session, WT_ERROR,
-                      "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,
-                      ckpt->size, vs->total_block_size);
-                }
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
+                WT_ERR_MSG(session, WT_ERROR,
+                  "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,
+                  ckpt->size, vs->total_block_size);
             }
 
             /*
@@ -758,7 +773,6 @@ celltype_err:
     if (vs->dump_tree_shape)
         printf("\n");
 
-
     /* Check tree connections and recursively descend the tree. */
     switch (page->type) {
     case WT_PAGE_COL_INT:
@@ -802,15 +816,11 @@ celltype_err:
             __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
-            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
-                WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
-                const uint8_t *buf = unpack->data;
-                WT_RET(__wt_block_disagg_addr_unpack(session, &buf, unpack->size, &cookie));
-                printf("COOKIE1 size for page of type %s with mem size %" PRIu32 ": %" PRIu32 "\n",
-                  __wt_page_type_string(page->type), page->dsk->mem_size, cookie.size);
-                // this size represents  cumulative size of the actual page data (base+Delta)
-                vs->total_block_size += cookie.size;
-            }
+            /*
+             * Accumulate the block size from the disagg cookie. This is used to validate the
+             * checkpoint size at the end of the checkpoint verification.
+             */
+            WT_RET(__verify_disagg_accumulate_size(session, vs, unpack->data, unpack->size));
 
             /* Verify the subtree. */
             ++vs->depth;
@@ -874,14 +884,11 @@ celltype_err:
             __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
-            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
-                WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
-                const uint8_t *buf = unpack->data;
-                WT_RET(__wt_block_disagg_addr_unpack(session, &buf, unpack->size, &cookie));
-                printf("COOKIE2 size for page of type %s with mem size %" PRIu32 ": %" PRIu32 "\n",
-                  __wt_page_type_string(page->type), page->dsk->mem_size, cookie.size);
-                vs->total_block_size += cookie.size;
-            }
+            /*
+             * Accumulate the block size from the disagg cookie. This is used to validate the
+             * checkpoint size at the end of the checkpoint verification.
+             */
+            WT_RET(__verify_disagg_accumulate_size(session, vs, unpack->data, unpack->size));
 
             /* Verify the subtree. */
             ++vs->depth;
