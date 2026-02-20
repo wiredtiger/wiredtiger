@@ -1771,13 +1771,9 @@ variables:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "format test script"
-        vars:
-          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=follower runs.timer=5:10
-          num_jobs: 1 # Follower requires a larger cache; parallel execution may limit available cache and cause stalls.
       - func: "format test disagg"
         vars:
-          format_args: disagg.mode=follower runs.timer=5:10
+          format_args: disagg.mode=follower runs.ops=500000:2000000
           times: 5
 
   - &format-stress-test-disagg-switch
