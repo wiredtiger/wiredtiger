@@ -644,6 +644,114 @@ err:
 }
 
 /*
+ * __wt_blkcache_compress --
+ *     Optionally compress a buffer for writing.
+ *
+ * If compression is performed, the compressed buffer is returned via the output parameter. If
+ *     compression is not performed (not configured, block too small, or compression didn't help),
+ *     the output parameter is set to NULL. The caller is responsible for freeing the output buffer.
+ */
+int
+__wt_blkcache_compress(WT_SESSION_IMPL *session, WT_ITEM *buf, bool already_compressed,
+  WT_ITEM **compressed_bufp, size_t *compressed_sizep, bool *compressedp)
+{
+    WT_BM *bm;
+    WT_BTREE *btree;
+    WT_DECL_ITEM(ctmp);
+    WT_DECL_RET;
+    WT_PAGE_HEADER *dsk;
+    size_t compression_ratio, dst_len, len, result_len, size, src_len;
+    uint8_t *dst, *src;
+    int compression_failed; /* Extension API, so not a bool. */
+
+    btree = S2BT(session);
+    bm = btree->bm;
+
+    *compressed_bufp = NULL;
+    if (compressed_sizep != NULL)
+        *compressed_sizep = 0;
+    *compressedp = already_compressed;
+
+    /*
+     * Optionally stream-compress the data, but don't compress blocks that are already as small as
+     * they're going to get.
+     */
+    if (btree->compressor == NULL || btree->compressor->compress == NULL || already_compressed)
+        return (0);
+
+    if (buf->size <= btree->allocsize) {
+        WT_STAT_DSRC_INCR(session, compress_write_too_small);
+        return (0);
+    }
+
+    /* Skip the header bytes of the source data. */
+    src = (uint8_t *)buf->mem + WT_BLOCK_COMPRESS_SKIP;
+    src_len = buf->size - WT_BLOCK_COMPRESS_SKIP;
+
+    /*
+     * Compute the size needed for the destination buffer. We only allocate enough memory for a copy
+     * of the original by default, if any compressed version is bigger than the original, we won't
+     * use it. However, some compression engines (snappy is one example), may need more memory
+     * because they don't stop just because there's no more memory into which to compress.
+     */
+    if (btree->compressor->pre_size == NULL)
+        len = src_len;
+    else
+        WT_RET(btree->compressor->pre_size(btree->compressor, &session->iface, src, src_len, &len));
+
+    size = len + WT_BLOCK_COMPRESS_SKIP;
+    WT_RET(bm->write_size(bm, session, &size));
+    WT_RET(__wt_scr_alloc(session, size, &ctmp));
+
+    /* Skip the header bytes of the destination data. */
+    dst = (uint8_t *)ctmp->mem + WT_BLOCK_COMPRESS_SKIP;
+    dst_len = len;
+
+    compression_failed = 0;
+    WT_ERR(btree->compressor->compress(btree->compressor, &session->iface, src, src_len, dst,
+      dst_len, &result_len, &compression_failed));
+    result_len += WT_BLOCK_COMPRESS_SKIP;
+
+    /*
+     * If compression fails, or doesn't gain us at least one unit of allocation, fallback to the
+     * original version. This isn't unexpected: if compression doesn't work for some chunk of data
+     * for some reason (noting likely additional format/header information which compressed output
+     * requires), it just means the uncompressed version is as good as it gets, and that's what we
+     * use.
+     */
+    if (compression_failed || buf->size / btree->allocsize <= result_len / btree->allocsize) {
+        __wt_scr_free(session, &ctmp);
+        WT_STAT_DSRC_INCR(session, compress_write_fail);
+        return (0);
+    }
+
+    *compressedp = true;
+    WT_STAT_DSRC_INCR(session, compress_write);
+
+    compression_ratio = src_len / (result_len - WT_BLOCK_COMPRESS_SKIP);
+    __wt_stat_compr_ratio_write_hist_incr(session, compression_ratio);
+
+    /* Copy in the skipped header bytes and set the final data size. */
+    memcpy(ctmp->mem, buf->mem, WT_BLOCK_COMPRESS_SKIP);
+    ctmp->size = result_len;
+
+    /* Set the disk header flags. */
+    dsk = ctmp->mem;
+    F_SET(dsk, WT_PAGE_COMPRESSED);
+
+    /* Return the compressed buffer and optionally the compressed size. */
+    *compressed_bufp = ctmp;
+    if (compressed_sizep != NULL)
+        *compressed_sizep = result_len;
+
+    return (0);
+
+err:
+    __wt_scr_free(session, &ctmp);
+    return (ret);
+}
+
+/*
  * __wt_blkcache_write --
  *     Write a buffer into a block, returning the block's address cookie.
  */
@@ -655,100 +763,27 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     WT_BLKCACHE *blkcache;
     WT_BM *bm;
     WT_BTREE *btree;
-    WT_DECL_ITEM(ctmp);
     WT_DECL_ITEM(etmp);
     WT_DECL_RET;
-    WT_ITEM *ip;
+    WT_ITEM *ctmp, *ip;
     WT_KEYED_ENCRYPTOR *kencryptor;
     WT_PAGE_HEADER *dsk;
-    size_t compression_ratio, dst_len, len, result_len, size, src_len;
+    size_t size;
     uint64_t time_diff, time_start, time_stop;
     uint32_t delta_count, mem_size;
-    uint8_t *dst, *src;
-    int compression_failed; /* Extension API, so not a bool. */
     bool data_checksum, encrypted, timer;
-
-    if (compressed_sizep != NULL)
-        *compressed_sizep = 0;
 
     blkcache = &S2C(session)->blkcache;
     btree = S2BT(session);
     bm = btree->bm;
+    ctmp = NULL;
     delta_count = (block_meta == NULL) ? 0 : block_meta->delta_count;
     dsk = NULL;
     encrypted = false;
 
-    /*
-     * Optionally stream-compress the data, but don't compress blocks that are already as small as
-     * they're going to get.
-     */
-    if (btree->compressor == NULL || btree->compressor->compress == NULL || compressed)
-        ip = buf;
-    else if (buf->size <= btree->allocsize) {
-        ip = buf;
-        WT_STAT_DSRC_INCR(session, compress_write_too_small);
-    } else {
-        /* Skip the header bytes of the source data. */
-        src = (uint8_t *)buf->mem + WT_BLOCK_COMPRESS_SKIP;
-        src_len = buf->size - WT_BLOCK_COMPRESS_SKIP;
-
-        /*
-         * Compute the size needed for the destination buffer. We only allocate enough memory for a
-         * copy of the original by default, if any compressed version is bigger than the original,
-         * we won't use it. However, some compression engines (snappy is one example), may need more
-         * memory because they don't stop just because there's no more memory into which to
-         * compress.
-         */
-        if (btree->compressor->pre_size == NULL)
-            len = src_len;
-        else
-            WT_ERR(
-              btree->compressor->pre_size(btree->compressor, &session->iface, src, src_len, &len));
-
-        size = len + WT_BLOCK_COMPRESS_SKIP;
-        WT_ERR(bm->write_size(bm, session, &size));
-        WT_ERR(__wt_scr_alloc(session, size, &ctmp));
-
-        /* Skip the header bytes of the destination data. */
-        dst = (uint8_t *)ctmp->mem + WT_BLOCK_COMPRESS_SKIP;
-        dst_len = len;
-
-        compression_failed = 0;
-        WT_ERR(btree->compressor->compress(btree->compressor, &session->iface, src, src_len, dst,
-          dst_len, &result_len, &compression_failed));
-        result_len += WT_BLOCK_COMPRESS_SKIP;
-
-        /*
-         * If compression fails, or doesn't gain us at least one unit of allocation, fallback to the
-         * original version. This isn't unexpected: if compression doesn't work for some chunk of
-         * data for some reason (noting likely additional format/header information which compressed
-         * output requires), it just means the uncompressed version is as good as it gets, and
-         * that's what we use.
-         */
-        if (compression_failed || buf->size / btree->allocsize <= result_len / btree->allocsize) {
-            ip = buf;
-            WT_STAT_DSRC_INCR(session, compress_write_fail);
-        } else {
-            compressed = true;
-            WT_STAT_DSRC_INCR(session, compress_write);
-
-            compression_ratio = src_len / (result_len - WT_BLOCK_COMPRESS_SKIP);
-            __wt_stat_compr_ratio_write_hist_incr(session, compression_ratio);
-
-            /* Copy in the skipped header bytes and set the final data size. */
-            memcpy(ctmp->mem, buf->mem, WT_BLOCK_COMPRESS_SKIP);
-            ctmp->size = result_len;
-            ip = ctmp;
-
-            /* Set the disk header flags. */
-            dsk = ip->mem;
-            F_SET(dsk, WT_PAGE_COMPRESSED);
-
-            /* Optionally return the compressed size. */
-            if (compressed_sizep != NULL)
-                *compressed_sizep = result_len;
-        }
-    }
+    /* Optionally compress the data. */
+    WT_ERR(__wt_blkcache_compress(session, buf, compressed, &ctmp, compressed_sizep, &compressed));
+    ip = (ctmp != NULL) ? ctmp : buf;
 
     /*
      * Optionally encrypt the data. We need to add in the original length, in case both compression

@@ -99,7 +99,8 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
     WT_ERR(__wt_reset_blkmod(session, a->data, buf));
     cfg[3] = buf->mem;
     cfg[4] = "checkpoint_lsn=";
-    WT_WITH_SCHEMA_LOCK(session, fileid = WT_BTREE_ID_NAMESPACED(++S2C(session)->next_file_id));
+    /* We don't support imports for shared tables, so always set `is_shared` to false. */
+    WT_WITH_SCHEMA_LOCK(session, fileid = __wt_generate_file_id(session, uri, false));
     WT_ERR(__wt_snprintf(fileid_cfg, sizeof(fileid_cfg), "id=%" PRIu32, fileid));
     WT_ERR(ret);
     cfg[5] = fileid_cfg;
