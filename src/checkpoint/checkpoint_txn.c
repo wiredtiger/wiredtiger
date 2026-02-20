@@ -1574,7 +1574,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS);
 
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_file(session, cfg));
-        if(ret != 0)
+        if (ret != 0)
             __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
         WT_ERR(ret);
 
