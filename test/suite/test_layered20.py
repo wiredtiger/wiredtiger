@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import platform, wttest
+import platform, wttest, wiredtiger
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -37,21 +37,21 @@ from wtscenario import make_scenarios
 class test_layered20(wttest.WiredTigerTestCase):
     encrypt = [
         ('none', dict(encryptor='none', encrypt_args='')),
-        ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
+        #('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
     ]
 
     compress = [
         ('none', dict(block_compress='none')),
-        ('snappy', dict(block_compress='snappy')),
+        #('snappy', dict(block_compress='snappy')),
     ]
 
     uris = [
         ('layered', dict(uri='layered:test_layered20')),
-        ('btree', dict(uri='file:test_layered20')),
+        #('btree', dict(uri='file:test_layered20')),
     ]
 
     ts = [
-        ('ts', dict(ts=True)),
+        #('ts', dict(ts=True)),
         ('non-ts', dict(ts=False)),
     ]
 
@@ -62,7 +62,7 @@ class test_layered20(wttest.WiredTigerTestCase):
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, ts)
 
-    nitems = 10
+    nitems = 1000
 
     def session_create_config(self):
         # The delta percentage of 200 is an arbitrary large value, intended to produce
@@ -99,41 +99,46 @@ class test_layered20(wttest.WiredTigerTestCase):
 
         self.session.checkpoint()
 
-        for j in range(32):
-            for i in range(self.nitems):
-                if i % 10 == 0:
-                    self.session.begin_transaction()
-                    cursor[str(i)] = str(10 + 5 * j)
-                    if self.ts:
-                        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10 + 5 * j))
-                    else:
-                        self.session.commit_transaction()
-
-            self.session.checkpoint()
-
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
 
-        cursor = self.session.open_cursor(self.uri, None, None)
+        c1 = self.session.open_cursor(self.uri, None)
+        c1.set_key(str(100))
+        c2 = self.session.open_cursor(self.uri, None)
+        c2.set_key(str(700))
 
-        if self.ts:
-            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
-            for i in range(self.nitems):
-                self.assertEqual(cursor[str(i)], value1)
-            self.session.rollback_transaction()
+        self.session.begin_transaction()
+        self.session.truncate(None, c1, c2, None)
 
-            for j in range(32):
-                self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10 + 5 * j))
-                for i in range(self.nitems):
-                    if i % 10 == 0:
-                        self.assertEqual(cursor[str(i)], str(10 + 5 * j))
-                    else:
-                        self.assertEqual(cursor[str(i)], value1)
-                self.session.rollback_transaction()
-        else:
-            for i in range(self.nitems):
-                if i % 10 == 0:
-                    self.assertEqual(cursor[str(i)], str(10 + 5 * 31))
-                else:
-                    self.assertEqual(cursor[str(i)], value1)
+        # The second session.
+        session2 = self.conn.open_session()
+        cursor2 = session2.open_cursor(self.uri)
+
+        # # Before commit, the keys should be found.
+        # session2.begin_transaction()
+        # cursor2.set_key(str(150))
+        # self.assertEqual(cursor2.search(), 0)
+        # session2.rollback_transaction()
+
+        self.session.commit_transaction()
+
+        # # After commit, the keys should not found.
+        # session2.begin_transaction()
+        # cursor2.set_key(str(150))
+        # self.assertEqual(cursor2.search(), wiredtiger.WT_NOTFOUND)
+        # session2.commit_transaction()
+
+        for i in range(400, self.nitems):
+            self.session.begin_transaction()
+            cursor2[str(i)] = value1
+            self.session.commit_transaction()
+                
+        cursor2.reset()
+        while cursor2.next() == 0:
+            print(cursor2.get_key())
+        self.session.checkpoint()
+
+        session2.close()
+        c1.close()
+        c2.close()

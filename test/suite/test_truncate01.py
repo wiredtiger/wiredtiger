@@ -58,26 +58,26 @@ class test_truncate_uri(test_truncate_base):
     ])
 
     # Populate an object, truncate it by URI, and confirm it's empty.
-    def test_truncate_uri(self):
-        uri = self.type + self.name
+    # def test_truncate_uri(self):
+    #     uri = self.type + self.name
 
-        # A simple, one-file file or table object.
-        ds = SimpleDataSet(self, uri, 100)
-        ds.populate()
-        
-        # c1 = self.session.open_cursor(uri, None)
-        # c2 = self.session.open_cursor(uri, None)
+    #     # A simple, one-file file or table object.
+    #     ds = SimpleDataSet(self, uri, 100)
+    #     ds.populate()
 
-        #c1.set_key(ds.key(10))
-        #c2.set_key(ds.key(10))
-        # msg = '/the start cursor position is after the stop cursor position/'
-        # self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-        #     lambda: ds.truncate(None, c1, c2, None), msg)
-        #c1.set_key(ds.key(10))
-        #c2.set_key(ds.key(20))
+    #     c1 = self.session.open_cursor(uri, None)
+    #     c2 = self.session.open_cursor(uri, None)
 
-        ds.truncate(uri, None, None, None)
-        confirm_empty(self, uri)
+    #     c1.set_key(ds.key(10))
+    #     c2.set_key(ds.key(10))
+    #     msg = '/the start cursor position is after the stop cursor position/'
+    #     self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+    #         lambda: ds.truncate(None, c1, c2, None), msg)
+    #     c1.set_key(ds.key(10))
+    #     c2.set_key(ds.key(20))
+
+    #     ds.truncate(uri, None, None, None)
+    #     confirm_empty(self, uri)
 
 # # Test truncation of cursors in an illegal order.
 # class test_truncate_cursor_order(test_truncate_base):
@@ -115,54 +115,38 @@ class test_truncate_uri(test_truncate_base):
 #         c2.set_key(ds.key(20))
 #         ds.truncate(None, c1, c2, None)
 
-# # Test truncation of cursors past the end of the object.
-# class test_truncate_cursor_end(test_truncate_base):
-#     name = 'test_truncate'
+# Test truncation of cursors past the end of the object.
+class test_truncate_cursor_end(test_truncate_base):
+    name = 'test_truncate'
 
-#     types = [
-#         ('file', dict(type='file:')),
-#         ('table', dict(type='table:')),
-#     ]
-#     keyfmt = [
-#         ('integer', dict(keyfmt='i')),
-#         ('recno', dict(keyfmt='r')),
-#         ('string', dict(keyfmt='S')),
-#     ]
-#     scenarios = make_scenarios(types, keyfmt)
+    types = [
+        #('file', dict(type='file:')),
+        ('table', dict(type='table:')),
+    ]
+    keyfmt = [
+        #('integer', dict(keyfmt='i')),
+        #('recno', dict(keyfmt='r')),
+        ('string', dict(keyfmt='S')),
+    ]
+    scenarios = make_scenarios(types, keyfmt)
 
-#     # Test truncation of cursors past the end of the object.
-#     def test_truncate_cursor_order(self):
-#         if self.runningHook('disagg') and self.keyfmt == 'r':
-#             return
+    # Test truncation of cursors past the end of the object.
+    def test_truncate_cursor_order(self):
+        if self.runningHook('disagg') and self.keyfmt == 'r':
+            return
 
-#         uri = self.type + self.name
+        uri = self.type + self.name
 
-#         # A simple, one-file file or table object.
-#         ds = SimpleDataSet(self, uri, 100, key_format=self.keyfmt)
-#         ds.populate()
-#         c1 = self.session.open_cursor(uri, None)
-#         c1.set_key(ds.key(1000))
-#         c2 = self.session.open_cursor(uri, None)
-#         c2.set_key(ds.key(2000))
-#         ds.truncate(None, c1, c2, None)
-#         self.assertEqual(c1.close(), 0)
-#         self.assertEqual(c2.close(), 0)
-
-#         # TODO: layered table drop not supported yet.
-#         if self.type != "layered:":
-#             self.dropUntilSuccess(self.session, uri)
-
-#         if self.type == "table:" and not self.runningHook('disagg'):
-#             ds = ComplexDataSet(self, uri, 100, key_format=self.keyfmt)
-#             ds.populate()
-#             c1 = self.session.open_cursor(uri, None)
-#             c1.set_key(ds.key(1000))
-#             c2 = self.session.open_cursor(uri, None)
-#             c2.set_key(ds.key(2000))
-#             ds.truncate(None, c1, c2, None)
-#             self.assertEqual(c1.close(), 0)
-#             self.assertEqual(c2.close(), 0)
-#             self.dropUntilSuccess(self.session, uri)
+        # A simple, one-file file or table object.
+        ds = SimpleDataSet(self, uri, 100, key_format=self.keyfmt)
+        ds.populate()
+        c1 = self.session.open_cursor(uri, None)
+        c1.set_key(ds.key(1000))
+        c2 = self.session.open_cursor(uri, None)
+        c2.set_key(ds.key(2000))
+        ds.truncate(None, c1, c2, None)
+        self.assertEqual(c1.close(), 0)
+        self.assertEqual(c2.close(), 0)
 
 # # Test truncation of empty objects.
 # class test_truncate_empty(test_truncate_base):

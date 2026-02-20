@@ -710,6 +710,50 @@ err:
 }
 
 /*
+ * __clayered_position_stable --
+ *     Position an cursor to the right position according to the current one.
+ */
+static int
+__clayered_position_stable(WT_CURSOR_LAYERED *clayered, WT_CURSOR *stable, bool forward)
+{
+    WT_COLLATOR *collator;
+    WT_DECL_RET;
+    int cmp;
+
+    WT_SESSION_IMPL *session = CUR2S(clayered);
+    WT_TRUNCATE *t;
+    __clayered_get_collator(clayered, &collator);
+
+    ret = __wt_truncate_delete_visible_check(
+      session, (WT_LAYERED_TABLE *)clayered->dhandle, &stable->key, &t);
+    if (ret == WT_NOTFOUND)
+        return (0);
+
+    stable->set_key(stable, forward ? &t->stop_key : &t->start_key);
+    WT_RET(stable->search_near(stable, &cmp));
+
+    while (forward ? cmp < 0 : cmp > 0) {
+        WT_RET(forward ? stable->next(stable) : stable->prev(stable));
+
+        /*
+         * With higher isolation levels, where we have stable reads, we're done: the cursor is now
+         * positioned as expected.
+         *
+         * With read-uncommitted isolation, a new record could have appeared in between the search
+         * and stepping forward / back. In that case, keep going until we see a key in the expected
+         * range.
+         */
+        if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED)
+            return (0);
+
+        WT_RET(__wt_compare(
+          session, collator, &stable->key, forward ? &t->stop_key : &t->start_key, &cmp));
+    }
+
+    return (0);
+}
+
+/*
  * __clayered_position_alternate --
  *     Position an alternate cursor to the right position according to the current one.
  */
@@ -813,6 +857,8 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
      */
     if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) && !deleted) {
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_stable, forward));
+        WT_RET_NOTFOUND_OK(__clayered_position_stable(clayered, c_stable, forward));
+
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_ingest, forward));
         goto done;
     }
@@ -836,12 +882,17 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
     /* If the alternate cursor's key is equal to the current one, we should move it as well. */
     if (F_ISSET(c_alternate, WT_CURSTD_KEY_INT)) {
         WT_RET(__clayered_cursor_compare(clayered, c_alternate, c_current, &cmp));
-        if (cmp == 0)
+        if (cmp == 0) {
             WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_alternate, forward));
+            if (c_alternate == c_stable)
+                WT_RET_NOTFOUND_OK(__clayered_position_stable(clayered, c_stable, forward));
+        }
     }
 
     /* Move the current cursor. */
     WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_current, forward));
+    if (c_current == c_stable)
+        WT_RET_NOTFOUND_OK(__clayered_position_stable(clayered, c_stable, forward));
 
 done:
     if (!F_ISSET(clayered, iter_flag)) {
@@ -1281,6 +1332,13 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
             found = true;
             if (__clayered_deleted(clayered, value))
                 ret = WT_NOTFOUND;
+        } else {
+            ret = __wt_truncate_delete_visible_check(
+              session, (WT_LAYERED_TABLE *)clayered->dhandle, &cursor->key, NULL);
+            if (ret == 0) {
+                found = true;
+                ret = WT_NOTFOUND;
+            }
         }
     } else {
         /* Be sure we'll make a search attempt further down.  */

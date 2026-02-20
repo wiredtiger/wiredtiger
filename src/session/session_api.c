@@ -1647,9 +1647,6 @@ __wt_session_range_truncate(
         }
     }
 
-    if () {
-
-    }
     WT_ERR(__wt_schema_range_truncate(trunc_info));
 
 done:

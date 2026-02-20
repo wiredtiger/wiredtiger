@@ -217,12 +217,17 @@ __wt_schema_range_truncate(WT_TRUNCATE_INFO *trunc_info)
         WT_CURSOR_LAYERED *clayered_start = (WT_CURSOR_LAYERED *)trunc_info->start;
         WT_CURSOR_LAYERED *clayered_stop = (WT_CURSOR_LAYERED *)trunc_info->stop;
 
-        trunc_info->start = clayered_start->stable_cursor;
-        if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP))
-            trunc_info->stop = clayered_stop->stable_cursor;
-        WT_WITH_BTREE(
-          session, CUR2BT(trunc_info->start), ret = __wt_btcur_range_truncate(trunc_info));
-    } else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL && dsrc->range_truncate != NULL)
+        if (S2C(session)->layered_table_manager.leader) {
+            trunc_info->start = clayered_start->stable_cursor;
+            if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP))
+                trunc_info->stop = clayered_stop->stable_cursor;
+            WT_WITH_BTREE(
+              session, CUR2BT(trunc_info->start), ret = __wt_btcur_range_truncate(trunc_info));
+        } else
+            ret = __wt_insert_truncate_entry(
+              session, uri, &trunc_info->start->key, &trunc_info->stop->key);
+    } else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL &&
+      dsrc->range_truncate != NULL)
         ret = dsrc->range_truncate(dsrc, &session->iface, trunc_info->start, trunc_info->stop);
     else {
         ret = __wt_range_truncate(trunc_info->start, trunc_info->stop);

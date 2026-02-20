@@ -995,6 +995,7 @@ __txn_search_prepared_op(
     case WT_TXN_OP_REF_DELETE:
     case WT_TXN_OP_TRUNCATE_COL:
     case WT_TXN_OP_TRUNCATE_ROW:
+    case WT_TXN_OP_FOLLOWER_TRUNCATE:
         WT_RET_PANIC_ASSERT(session, WT_DIAGNOSTIC_PREPARED, false, WT_PANIC,
           "invalid prepared operation update type");
         break;
@@ -1374,6 +1375,7 @@ __txn_mod_sortable_key(WT_TXN_OP *opt)
     case (WT_TXN_OP_REF_DELETE):
     case (WT_TXN_OP_TRUNCATE_COL):
     case (WT_TXN_OP_TRUNCATE_ROW):
+    case (WT_TXN_OP_FOLLOWER_TRUNCATE):
         return (false);
     case (WT_TXN_OP_BASIC_COL):
     case (WT_TXN_OP_BASIC_ROW):
@@ -1625,6 +1627,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
             /* Other operations don't need timestamps. */
+            break;
+        case WT_TXN_OP_FOLLOWER_TRUNCATE:
+            WT_ERR(__wt_mark_committed_truncate_table(session, op));
             break;
         }
 
@@ -1995,6 +2000,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
             break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
+        case WT_TXN_OP_FOLLOWER_TRUNCATE:
             /* Other operations don't need timestamps. */
             break;
         }
@@ -2112,6 +2118,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
         case WT_TXN_OP_REF_DELETE:
             WT_TRET(__wt_delete_page_rollback(session, op));
             break;
+        case WT_TXN_OP_FOLLOWER_TRUNCATE:
+            WT_ASSERT(session, false);
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
             /*

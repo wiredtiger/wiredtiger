@@ -755,6 +755,34 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 }
 
 /*
+ * __wt_txn_truncate --
+ *     Mark a WT_TRUNCATE object modified by the current transaction.
+ */
+static WT_INLINE int
+__wt_txn_truncate(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
+{
+    WT_TXN *txn;
+    WT_TXN_OP *op;
+
+    txn = session->txn;
+
+    if (F_ISSET(txn, WT_TXN_READONLY)) {
+        if (F_ISSET(txn, WT_TXN_IGNORE_PREPARE))
+            WT_RET_MSG(
+              session, ENOTSUP, "Transactions with ignore_prepare=true cannot perform updates");
+        WT_RET_MSG(session, WT_ROLLBACK, "Attempt to update in a read-only transaction");
+    }
+    WT_RET(__txn_next_op(session, &op));
+    op->type = WT_TXN_OP_FOLLOWER_TRUNCATE;
+    t->txn_id = session->txn->id;
+    t->start_ts = txn->commit_timestamp;
+    t->durable_ts = txn->durable_timestamp;
+
+    op->u.follower_truncate.t = t;
+    return (0);
+}
+
+/*
  * __wt_op_modify --
  *     Initialize a transaction operation for a prepared update.
  */
