@@ -30,20 +30,20 @@ import wiredtiger, wttest
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered75.py
+# test_layered76.py
 
 @disagg_test_class
-class test_layered75(wttest.WiredTigerTestCase):
+class test_layered76(wttest.WiredTigerTestCase):
     conn_config = 'disaggregated=(role="leader")'
 
     create_session_config = 'key_format=i,value_format=S'
 
-    uri = "layered:test_layered75"
+    uri = "layered:test_layered76"
 
     disagg_storages = gen_disagg_storages('test_layered66', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
-    def test_layered75_simple(self):
+    def test_ckpt_size_verify_simple(self):
         self.session.create(self.uri, self.create_session_config)
 
         # Insert a key.
@@ -56,7 +56,7 @@ class test_layered75(wttest.WiredTigerTestCase):
 
         self.verifyUntilSuccess()
 
-    def test_layered75_multi(self):
+    def test_ckpt_size_verify_multi(self):
         self.session.create(self.uri, self.create_session_config)
 
         # Insert data.
@@ -70,7 +70,7 @@ class test_layered75(wttest.WiredTigerTestCase):
 
         self.verifyUntilSuccess()
 
-    def test_layered75_many_ckpt(self):
+    def test_ckpt_size_verify_many_ckpt(self):
         session_config = 'key_format=S,value_format=S'
         nitems = 10
 
