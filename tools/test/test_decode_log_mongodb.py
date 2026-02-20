@@ -40,6 +40,25 @@ import wt_binary_decode
 class TestDecodeMongoDBLog(unittest.TestCase):
     """Unit tests for decoding hex dumps from MongoDB logs."""
 
+    def setUp(self):
+        self.cur_dir = os.path.dirname(os.path.abspath(__file__))
+        self.binary_files_dir = os.path.join(self.cur_dir, "binary_files")
+        self.parser = wt_binary_decode.get_arg_parser()
+
+    def run_decode(self, filename):
+        log_path = os.path.join(self.binary_files_dir, filename)
+        self.assertTrue(os.path.exists(log_path), f"Missing log file at {log_path}")
+
+        opts = self.parser.parse_args([
+            "--dumpin",
+            log_path,
+        ])
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            wt_binary_decode.wtdecode(opts)
+        return buffer.getvalue()
+
     def test_decode_log_mongodb_valid(self):
         self.skipTest("FIXME-WT-16726 Test for valid MongoDB log")
 
@@ -53,20 +72,7 @@ class TestDecodeMongoDBLog(unittest.TestCase):
         self.skipTest("FIXME-WT-16726 Test for no checksum mismatch in MongoDB log")
 
     def test_decode_log_mongodb_non_hex_characters(self):
-        cur_dir = os.path.dirname(os.path.abspath(__file__))    
-        log_path = os.path.join(cur_dir, "binary_files", "mongodb_non_hex.log")
-        self.assertTrue(os.path.exists(log_path), f"Missing log file at {log_path}")
-
-        parser = wt_binary_decode.get_arg_parser()
-        opts = parser.parse_args([
-            "--dumpin",
-            log_path,
-        ])
-
-        buffer = io.StringIO()
-        with contextlib.redirect_stdout(buffer):
-            wt_binary_decode.wtdecode(opts)
-        output = buffer.getvalue()
+        output = self.run_decode("mongodb_non_hex.log")
 
         # Should print error message about corrupt hex dump
         self.assertIn("Hex dump is corrupt", output)
@@ -74,20 +80,7 @@ class TestDecodeMongoDBLog(unittest.TestCase):
         self.assertIn("No valid byte dump found in MongoDB log", output)
 
     def test_decode_log_mongodb_odd_length_hex(self):
-        cur_dir = os.path.dirname(os.path.abspath(__file__))
-        log_path = os.path.join(cur_dir, "binary_files", "mongodb_odd_length.log")
-        self.assertTrue(os.path.exists(log_path), f"Missing log file at {log_path}")
-
-        parser = wt_binary_decode.get_arg_parser()
-        opts = parser.parse_args([
-            "--dumpin",
-            log_path,
-        ])
-
-        buffer = io.StringIO()
-        with contextlib.redirect_stdout(buffer):
-            wt_binary_decode.wtdecode(opts)
-        output = buffer.getvalue()
+        output = self.run_decode("mongodb_odd_length.log")
 
         # Should print error message about odd length
         self.assertIn("Hex dump is corrupt", output)
@@ -95,21 +88,7 @@ class TestDecodeMongoDBLog(unittest.TestCase):
         self.assertIn("No valid byte dump found in MongoDB log", output)
 
     def test_decode_log_mongodb_block_size_mismatch(self):
-        """Decode MongoDB log where block size doesn't match expected."""
-        cur_dir = os.path.dirname(os.path.abspath(__file__))
-        log_path = os.path.join(cur_dir, "binary_files", "mongodb_size_mismatch.log")
-        self.assertTrue(os.path.exists(log_path), f"Missing log file at {log_path}")
-
-        parser = wt_binary_decode.get_arg_parser()
-        opts = parser.parse_args([
-            "--dumpin",
-            log_path,
-        ])
-
-        buffer = io.StringIO()
-        with contextlib.redirect_stdout(buffer):
-            wt_binary_decode.wtdecode(opts)
-        output = buffer.getvalue()
+        output = self.run_decode("mongodb_size_mismatch.log")
 
         # Should print error message about size mismatch
         self.assertIn("Hex dump is corrupt", output)
