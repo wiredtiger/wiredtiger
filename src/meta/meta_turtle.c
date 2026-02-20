@@ -9,6 +9,16 @@
 #include "wt_internal.h"
 
 /*
+ * WT_TURTLE_VERSION -- Current version of the turtle file format.
+ */
+#define WT_TURTLE_VERSION 1
+
+/*
+ * WT_TURTLE_COMPATIBLE_VERSION -- Minimum compatible version for the turtle file format.
+ */
+#define WT_TURTLE_COMPATIBLE_VERSION 1
+
+/*
  * Structure to hold state for metadata entry worker procedure. It is only used during restore after
  * partial backup.
  */
@@ -332,10 +342,31 @@ __wt_turtle_validate_version(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     WT_VERSION version;
-    char *version_string;
+    int turtle_version;
+    char *turtle_version_str, *version_string;
 
+    turtle_version_str = version_string = NULL;
     version = WT_NO_VERSION;
 
+    /*
+     * Read and validate the turtle file format version. This must be checked first to ensure we can
+     * properly interpret the rest of the file.
+     */
+    WT_WITH_TURTLE_LOCK(
+      session, ret = __wt_turtle_read(session, "WT_TURTLE_VERSION", &turtle_version_str));
+    WT_ERR(ret);
+
+    turtle_version = atoi(turtle_version_str);
+    __wt_free(session, turtle_version_str);
+
+    /* Check compatibility with the turtle file format version. */
+    if (turtle_version < WT_TURTLE_COMPATIBLE_VERSION)
+        WT_ERR_MSG(session, WT_ERROR,
+          "Turtle file format version %d is not compatible with this WiredTiger binary "
+          "(requires version %d or later)",
+          turtle_version, WT_TURTLE_COMPATIBLE_VERSION);
+
+    /* Continue with WiredTiger version check. */
     if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         ret = __wt_live_restore_turtle_read(session, WT_METADATA_VERSION, &version_string);
     else
@@ -713,6 +744,17 @@ __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
      */
     WT_RET(__wt_fopen(session, WT_METADATA_TURTLE_SET, WT_FS_OPEN_CREATE | WT_FS_OPEN_EXCLUSIVE,
       WT_STREAM_WRITE, &fs));
+
+    /*
+     * Write the turtle file format version headers first. These must always be the first entries to
+     * allow for format evolution.
+     */
+    WT_ERR(__wt_fprintf(session, fs,
+      "WT_TURTLE_VERSION\n"
+      "%d\n"
+      "WT_TURTLE_COMPATIBLE_VERSION\n"
+      "%d\n",
+      WT_TURTLE_VERSION, WT_TURTLE_COMPATIBLE_VERSION));
 
     /*
      * If a compatibility setting has been explicitly set, save it out to the turtle file.
