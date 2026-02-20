@@ -813,11 +813,7 @@ __txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
 
     __txn_assert_after_reads(session, "prepare", prepare_ts);
 
-    /*
-     * Check whether the prepare timestamp is less than the stable timestamp.
-     *
-     * FIXME-WT-16306: Ensure correct synchronization around `stable_timestamp`.
-     */
+    /* Check whether the prepare timestamp is less than the stable timestamp. */
     if (__wt_atomic_load_bool_acquire(&txn_global->has_stable_timestamp))
         stable_ts = __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp);
     else
