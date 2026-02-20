@@ -1629,7 +1629,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             /* Other operations don't need timestamps. */
             break;
         case WT_TXN_OP_FOLLOWER_TRUNCATE:
-            WT_ERR(__wt_mark_committed_truncate_table(session, op));
+            WT_ERR(__wti_mark_committed_truncate_table(session, op));
             break;
         }
 
@@ -1998,9 +1998,10 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_REF_DELETE:
             __wt_txn_op_delete_apply_prepare_state(session, op, false);
             break;
+
+        case WT_TXN_OP_FOLLOWER_TRUNCATE:
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
-        case WT_TXN_OP_FOLLOWER_TRUNCATE:
             /* Other operations don't need timestamps. */
             break;
         }
@@ -2119,7 +2120,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
             WT_TRET(__wt_delete_page_rollback(session, op));
             break;
         case WT_TXN_OP_FOLLOWER_TRUNCATE:
-            WT_ASSERT(session, false);
+            WT_RET(__wti_layered_table_truncate_rollback(session, op));
+            break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
             /*

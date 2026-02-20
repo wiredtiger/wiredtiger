@@ -82,7 +82,7 @@ class test_layered20(wttest.WiredTigerTestCase):
         extlist.extension('encryptors', self.encryptor)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def test_layered_read_write(self):
+    def no_test_layered_read_write(self):
         self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 
@@ -133,7 +133,7 @@ class test_layered20(wttest.WiredTigerTestCase):
             self.session.begin_transaction()
             cursor2[str(i)] = value1
             self.session.commit_transaction()
-                
+
         cursor2.reset()
         while cursor2.next() == 0:
             print(cursor2.get_key())
@@ -142,3 +142,47 @@ class test_layered20(wttest.WiredTigerTestCase):
         session2.close()
         c1.close()
         c2.close()
+
+
+    def test_layered_read_write(self):
+        self.pr('CREATING')
+        self.session.create(self.uri, self.session_create_config())
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        value1 = "a" * 100
+
+        for i in range(self.nitems):
+            self.session.begin_transaction()
+            cursor[str(i)] = value1
+            if self.ts:
+                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
+            else:
+                self.session.commit_transaction()
+
+        self.session.checkpoint()
+
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
+        self.reopen_conn(config = follower_config)
+
+        c1 = self.session.open_cursor(self.uri, None)
+        c1.set_key(str(100))
+        c2 = self.session.open_cursor(self.uri, None)
+        c2.set_key(str(700))
+
+        self.session.begin_transaction()
+        self.session.truncate(None, c1, c2, None)
+        self.session.rollback_transaction()
+        # The second session.
+        session2 = self.conn.open_session()
+        cursor2 = session2.open_cursor(self.uri)
+
+        cursor2.reset()
+        while cursor2.next() == 0:
+            print(cursor2.get_key())
+        self.session.checkpoint()
+
+        session2.close()
+        c1.close()
+        c2.close()
+

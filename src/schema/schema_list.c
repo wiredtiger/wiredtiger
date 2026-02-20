@@ -237,6 +237,9 @@ __wt_schema_close_layered(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered)
     /* Remove the ingest handle from layered table manager list */
     __wt_layered_table_manager_remove_table(session, layered->ingest_btree_id);
 
+    /* Clear truncate list. */
+    __wt_layered_table_truncate_clear(session, layered);
+
     /* Free copies of copied configuration items. */
     __wt_free(session, layered->key_format);
     __wt_free(session, layered->value_format);
