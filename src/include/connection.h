@@ -183,7 +183,7 @@ struct __wt_disagg_metadata_op {
 /*
  * Identify the shared metadata operations inside the shared metadata queue.
  */
-typedef enum { SHARED_METADATA_UPDATE = 0, SHARED_METADATA_REMOVE } WT_SHARED_METADATA_OPS;
+typedef enum { SHARED_METADATA_UPDATE = 0, SHARED_METADATA_CREATE, SHARED_METADATA_REMOVE } WT_SHARED_METADATA_OPS;
 
 #define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
 

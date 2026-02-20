@@ -1062,7 +1062,7 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
             WT_ERR(__wt_buf_fmt(session, tmp, "file:%s.wt_stable", tablename));
             WT_ERR(__wt_disagg_enqueue_metadata_operation(
-              session, tmp->data, tablename, SHARED_METADATA_UPDATE));
+              session, tmp->data, tablename, SHARED_METADATA_CREATE));
         }
 
 err:
@@ -1181,7 +1181,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
          * part of a table creation, it would result in doing extra work.
          */
         WT_ERR(__wt_disagg_enqueue_metadata_operation(
-          session, stable_uri, tablename, SHARED_METADATA_UPDATE));
+          session, stable_uri, tablename, SHARED_METADATA_CREATE));
     }
 
 err:

@@ -1795,7 +1795,7 @@ __wt_disagg_enqueue_metadata_operation(
      * to keep the checkpoints metadata and table state consistent.
      */
     WT_ACQUIRE_READ_WITH_BARRIER(ckpt_running, conn->txn_global.checkpoint_running);
-    if (ckpt_running && metadata_op == SHARED_METADATA_REMOVE)
+    if (ckpt_running && (metadata_op == SHARED_METADATA_REMOVE || metadata_op == SHARED_METADATA_CREATE))
         entry->defer_drop = true;
 
     /* Cannot fail past this point. */
@@ -1871,7 +1871,7 @@ __disagg_shared_metadata_op_helper(
     cursor->set_key(cursor, key);
 
     if (metadata_op == SHARED_METADATA_REMOVE) {
-        WT_ERR(cursor->remove(cursor));
+        WT_ERR_NOTFOUND_OK(cursor->remove(cursor), false);
     } else if (metadata_op == SHARED_METADATA_UPDATE) {
         if (value == NULL) {
             ret = 0;
@@ -1947,10 +1947,12 @@ __wt_disagg_shared_metadata_process(WT_SESSION_IMPL *session)
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
         if (entry->defer_drop) {
-            __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
-              "Defer metadata drop operation for table \"%s\"", entry->table_name);
+            fprintf(stderr, "Defer metadata drop operation for table \"%s\", ty=%s\n", entry->table_name, entry->metadata_op == SHARED_METADATA_REMOVE ? "remove" : "update");
+            WT_ASSERT(session, entry->metadata_op == SHARED_METADATA_REMOVE);
             entry->defer_drop = false;
             continue;
+        } else {
+            fprintf(stderr, "Perform metadata operation for table \"%s\", ty=%s\n", entry->table_name, entry->metadata_op == SHARED_METADATA_REMOVE ? "remove" : "update");
         }
 
         WT_ERR(__disagg_shared_metadata_op(session, entry));

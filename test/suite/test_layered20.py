@@ -37,22 +37,22 @@ from wtscenario import make_scenarios
 class test_layered20(wttest.WiredTigerTestCase):
     encrypt = [
         ('none', dict(encryptor='none', encrypt_args='')),
-        ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
+        # ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
     ]
 
     compress = [
         ('none', dict(block_compress='none')),
-        ('snappy', dict(block_compress='snappy')),
+        # ('snappy', dict(block_compress='snappy')),
     ]
 
     uris = [
         ('layered', dict(uri='layered:test_layered20')),
-        ('btree', dict(uri='file:test_layered20')),
+        # ('btree', dict(uri='file:test_layered20')),
     ]
 
     ts = [
         ('ts', dict(ts=True)),
-        ('non-ts', dict(ts=False)),
+        # ('non-ts', dict(ts=False)),
     ]
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \

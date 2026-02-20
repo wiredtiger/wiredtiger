@@ -534,6 +534,7 @@ __curfile_remove(WT_CURSOR *cursor)
     WT_ERR(__cursor_checkkey(cursor));
 
     time_start = __wt_clock(session);
+    fprintf(stderr, "__curfile_remove: removing %.*s\n", (int)cbt->iface.key.size, (char *)cbt->iface.key.data);
     WT_ERR(__wt_btcur_remove(cbt, positioned));
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
