@@ -1070,8 +1070,18 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
                 continue;
 
             if (r->rec_prune_timestamp == WT_TS_NONE ||
-              upd->upd_rollback_ts > r->rec_prune_timestamp)
+              upd->upd_rollback_ts > r->rec_prune_timestamp) {
                 *has_newer_updatesp = true;
+                /*
+                 * If we have already selected an update to write to the disk image, the aborted
+                 * prepared update is older than the selected update. Clear the selected update so
+                 * the entire update chain is restored without an on-page value. This avoids an
+                 * inconsistency where has_newer_updates is true but the selected on-page value is
+                 * the head of the update chain.
+                 */
+                if (upd_select->upd != NULL)
+                    upd_select->upd = NULL;
+            }
 
             continue;
         }
