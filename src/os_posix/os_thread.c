@@ -17,14 +17,10 @@
  *     between multiple threads of the same type/name.
  */
 static int
-__thread_set_name(WT_SESSION_IMPL *session, uint32_t thread_num, pthread_t thread_id)
+__thread_set_name(uint32_t thread_num, pthread_t thread_id, const char *session_name)
 {
     char short_name[WT_THREAD_NAME_MAX_LEN] = {0}, thread_name[WT_THREAD_NAME_MAX_LEN] = {0};
 
-    if (session == NULL)
-        return (0);
-
-    const char *session_name = __wt_atomic_load_ptr_relaxed(&session->name);
     if (session_name == NULL)
         return (0);
 
@@ -56,6 +52,12 @@ __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret,
   WT_THREAD_CALLBACK (*func)(void *), void *arg) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     WT_DECL_RET;
+    /*
+     * The created thread may change the session name, and we call __thread_set_name
+     * after the thread has started, so we must capture the session name before
+     * creating the thread.
+     */
+    const char *session_name = (session != NULL) ? session->name : NULL;
 
     /*
      * Creating a thread isn't a memory barrier, but WiredTiger commonly sets flags and or state and
@@ -68,7 +70,7 @@ __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret,
     if (ret == 0) {
         tidret->created = true;
 #ifdef __linux__
-        WT_IGNORE_RET(__thread_set_name(session, tidret->name_index, tidret->id));
+        WT_IGNORE_RET(__thread_set_name(tidret->name_index, tidret->id, session_name));
 #endif
         return (0);
     }

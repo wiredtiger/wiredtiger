@@ -388,8 +388,14 @@ __sweep_check_session_callback(
         if (!array_session->sweep_warning_60min) {
             array_session->sweep_warning_60min = 1;
             WT_STAT_CONN_INCR(session, no_session_sweep_60min);
+            /*
+             * The name in this comment is marked as "possible" because it is obtained using a
+             * relaxed read. This means the name may be outdated with a very small probability;
+             * therefore, it should not be treated as an authoritative source.
+             * Please use session id output instead, as it is more reliable.
+             */
             __wt_verbose_warning(session, WT_VERB_SWEEP,
-              "Session %" PRIu32 " (@: 0x%p name: %s) did not run a sweep for 60 minutes.",
+              "Session %" PRIu32 " (@: 0x%p possible name: %s) did not run a sweep for 60 minutes.",
               array_session->id, (void *)array_session,
               session_name == NULL ? "EMPTY" : session_name);
         }
