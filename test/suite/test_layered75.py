@@ -54,6 +54,8 @@ class test_layered75(wttest.WiredTigerTestCase):
         # Do a checkpoint.
         self.session.checkpoint()
 
+        self.verifyUntilSuccess()
+
     def test_layered75_multi(self):
         self.session.create(self.uri, self.create_session_config)
 
@@ -66,9 +68,10 @@ class test_layered75(wttest.WiredTigerTestCase):
         # Do a checkpoint.
         self.session.checkpoint()
 
+        self.verifyUntilSuccess()
+
     def test_layered75_many_ckpt(self):
         session_config = 'key_format=S,value_format=S'
-        # nitems = 10_000
         nitems = 10
 
         self.session.create(self.uri, session_config)
@@ -95,3 +98,5 @@ class test_layered75(wttest.WiredTigerTestCase):
         cursor.close()
 
         self.session.checkpoint()
+
+        self.verifyUntilSuccess()
