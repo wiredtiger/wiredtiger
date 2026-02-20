@@ -239,15 +239,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * consistent view of that namespace. Set the checkpointing flag to block such actions and
          * wait for any problematic eviction or page splits to complete.
          */
-        WT_ASSERT(session,
-          __wt_atomic_load_enum_relaxed(&btree->syncing) == WT_BTREE_SYNC_OFF &&
-            __wt_atomic_load_ptr_relaxed(&btree->sync_session) == NULL);
+        WT_ASSERT(session, __wt_atomic_load_enum_relaxed(&btree->syncing) == WT_BTREE_SYNC_OFF);
 
-        /*
-         * FIXME-WT-16110: Investigate what should be the correct memory ordering for these
-         * variables.
-         */
-        __wt_atomic_store_ptr_release(&btree->sync_session, session);
+        session->syncing = true;
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_WAIT);
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_RUNNING);
@@ -457,12 +451,8 @@ err:
         __wt_checkpoint_update_generation(session, btree);
 
         /* Clear the checkpoint flag. */
-        /*
-         * FIXME-WT-16110: Investigate what should be the correct memory ordering for these
-         * variables.
-         */
         __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_OFF);
-        __wt_atomic_store_ptr_release(&btree->sync_session, NULL);
+        session->syncing = false;
     }
 
     __wt_spin_unlock(session, &btree->flush_lock);
