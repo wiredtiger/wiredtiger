@@ -2478,7 +2478,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     if (page->disagg_info != NULL) {
         block_meta = &page->disagg_info->block_meta;
-
+        // stat for multi_next => rejected due to multiblock reconciliation. 
         if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
           WT_REC_RESULT_SINGLE_PAGE((session), (r))) {
             if (!r->newer_updates_than_last_rec_used && !WT_PAGE_IS_INTERNAL(page) &&
