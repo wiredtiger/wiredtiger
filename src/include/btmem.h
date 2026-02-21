@@ -351,10 +351,15 @@ struct __wt_page_modify {
     /* The first unwritten transaction ID (approximate). */
     wt_shared uint64_t first_dirty_txn;
 
-    /* The transaction state last time eviction was attempted. */
-    uint64_t last_evict_pass_gen;
-    uint64_t last_eviction_id;
-    wt_timestamp_t last_eviction_timestamp;
+    /* Eviction implementation-specific per-page-modify data. */
+    union {
+        struct {
+            /* The transaction state last time eviction was attempted. */
+            uint64_t last_evict_pass_gen;
+            uint64_t last_eviction_id;
+            wt_timestamp_t last_eviction_timestamp;
+        } randlru;
+    } evict_impl;
 
 #ifdef HAVE_DIAGNOSTIC
     /* Check that transaction time moves forward. */
@@ -798,8 +803,13 @@ struct __wt_page {
 #define WT_READGEN_STEP 100
     uint64_t read_gen;
 
-    uint64_t cache_create_gen; /* Page create timestamp */
-    uint64_t evict_pass_gen;   /* Eviction pass generation */
+    /* Eviction implementation-specific per-page data. */
+    union {
+        struct {
+            uint64_t cache_create_gen; /* Page create timestamp */
+            uint64_t evict_pass_gen;   /* Eviction pass generation */
+        } randlru;
+    } evict_impl;
 
     uint16_t evict_queue_attempts; /* Number of times eviction tries to queue a page for eviction
                                       but fails */

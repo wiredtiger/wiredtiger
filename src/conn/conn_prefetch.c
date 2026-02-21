@@ -77,7 +77,7 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          * We increment this while in the prefetch lock as the thread reading from the queue expects
          * that behavior.
          */
-        (void)__wt_atomic_add_uint32_v(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
+        __wt_evict_btree_prefetch_busy_inc(session, (WT_BTREE *)pe->dhandle->handle);
 
         WT_PREFETCH_ASSERT(
           session, F_ISSET_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH), prefetch_skipped_no_flag_set);
@@ -100,7 +100,7 @@ __prefetch_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          * and the associated internal page can be safely evicted from now on.
          */
         F_CLR_ATOMIC_8(pe->ref, WT_REF_FLAG_PREFETCH);
-        (void)__wt_atomic_sub_uint32_v(&((WT_BTREE *)pe->dhandle->handle)->prefetch_busy, 1);
+        __wt_evict_btree_prefetch_busy_dec(session, (WT_BTREE *)pe->dhandle->handle);
 
         __wt_free(session, pe);
 
@@ -183,7 +183,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
 
     __wt_spin_lock(session, &conn->prefetch_lock);
     /* Don't queue pages for trees that have eviction disabled. */
-    if (S2BT(session)->evict_disabled > 0)
+    if (__wt_evict_btree_is_eviction_disabled(session))
         WT_ERR(EBUSY);
 
     /* In a rare case, we may race with another thread trying to push the same page to the queue. */
@@ -278,8 +278,7 @@ __wt_conn_prefetch_clear_tree(WT_SESSION_IMPL *session, bool all)
      * activity to drain to prevent any invalid ref uses.
      */
     if (!all) {
-        while (__wt_tsan_suppress_load_uint32_v(&((WT_BTREE *)dhandle->handle)->prefetch_busy) > 0)
-            __wt_yield();
+        __wt_evict_btree_prefetch_busy_wait(session, (WT_BTREE *)dhandle->handle);
     }
 
     return (0);

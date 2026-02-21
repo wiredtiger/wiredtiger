@@ -42,9 +42,10 @@ struct __wti_evict_queue {
     wt_shared volatile uint32_t evict_max; /* LRU maximum eviction slot used */
 };
 
-#define WTI_WITH_PASS_LOCK(session, op)                                                  \
-    do {                                                                                 \
-        WT_WITH_LOCK_WAIT(session, &evict->evict_pass_lock, WT_SESSION_LOCKED_PASS, op); \
+#define WTI_WITH_PASS_LOCK(session, op)                                               \
+    do {                                                                              \
+        WT_WITH_LOCK_WAIT(                                                            \
+          session, &evict->impl.randlru.evict_pass_lock, WT_SESSION_LOCKED_PASS, op); \
     } while (0)
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */

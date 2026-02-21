@@ -1482,7 +1482,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
       !WT_IS_HS(session->dhandle))
         WT_RET(__wti_page_inmem_updates(session, ref));
 
-    __wt_evict_inherit_page_state(orig, page);
+    __wt_evict_inherit_page_state(session, orig, page);
 
     /*
      * Mark the page as dirty for future garbage collection through reconciliation. We only end here
@@ -1698,9 +1698,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * Restore the previous page's modify state to avoid repeatedly attempting eviction on the same
      * page.
      */
-    mod->last_evict_pass_gen = orig->modify->last_evict_pass_gen;
-    mod->last_eviction_id = orig->modify->last_eviction_id;
-    mod->last_eviction_timestamp = orig->modify->last_eviction_timestamp;
+    __wt_evict_copy_evict_state_to_mod(session, mod, orig->modify);
     mod->rec_max_txn = orig->modify->rec_max_txn;
     mod->rec_max_timestamp = orig->modify->rec_max_timestamp;
 
