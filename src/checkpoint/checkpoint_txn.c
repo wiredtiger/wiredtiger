@@ -3519,6 +3519,9 @@ __wt_checkpoint_reconcile_finish(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     uint64_t done_popped, work_pushed;
 
+    if (!WT_PARALLEL_CHECKPOINTS_ENABLED(session))
+        return (0);
+
     /*
      * This function is called after all work has been pushed to the queue. Wait for all work to be
      * done.
@@ -3576,6 +3579,9 @@ __checkpoint_reconcile_release_snapshot(WT_SESSION_IMPL *session)
 {
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
 
+    if (!WT_PARALLEL_CHECKPOINTS_ENABLED(session))
+        return (0);
+
     WT_ASSERT_ALWAYS(session, __checkpoint_reconcile_queue_empty(session),
       "Checkpoint page reconciliation workers still have work to do");
 
@@ -3611,6 +3617,9 @@ static int
 __checkpoint_reconcile_commit(WT_SESSION_IMPL *session)
 {
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
+
+    if (!WT_PARALLEL_CHECKPOINTS_ENABLED(session))
+        return (0);
 
     WT_ASSERT_ALWAYS(session, __checkpoint_reconcile_queue_empty(session),
       "Checkpoint page reconciliation workers still have work to do");
