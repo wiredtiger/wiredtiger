@@ -217,7 +217,7 @@ struct __wt_checkpoint_reconcile_threads {
  */
 #define WT_PARALLEL_CHECKPOINTS_ENABLED(session)                             \
     (F_ISSET((S2C(session)), WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS) && \
-      (S2C(session))->ckpt_reconcile_threads->num_threads > 0)
+      (S2C(session))->ckpt_reconcile_threads->num_threads > 1)
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
