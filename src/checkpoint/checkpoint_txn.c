@@ -3426,13 +3426,15 @@ __wt_checkpoint_reconcile_thread_create(WT_SESSION_IMPL *session, const char *cf
     /* Get the number of checkpoint threads from the configuration. */
     /* TODO: We don't currently support reconfiguration of checkpoint threads. */
     WT_RET(__wt_config_gets(session, cfg, "checkpoint_threads", &cval));
-    checkpoint_threads = WT_MIN((int)cval.val, 1);
+    checkpoint_threads = (int)cval.val;
+    if (checkpoint_threads < 1)
+        checkpoint_threads = 1;
+
+    ckpt_threads->num_threads = (uint32_t)checkpoint_threads;
 
     /* If the number of checkpoint threads is 1, parallel checkpoints are disabled. */
     if (checkpoint_threads == 1)
         return (0);
-
-    ckpt_threads->num_threads = (uint32_t)checkpoint_threads;
 
     /* Set first, the thread might run before we finish up. */
     FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS);
