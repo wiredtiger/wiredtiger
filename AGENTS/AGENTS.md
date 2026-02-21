@@ -15,5 +15,9 @@
   * For generating stat counters: `cd dist; python stat.py`
   * etc.
 
+* For code dependencies, use the `dist/modstat` tool.
+  * For instance, checking what members of eviction submodule are used by others, use the command: `dist/modstat -t evict -d full -r --color`.
+  * Check `dist/modstat --help` for available options.
+
 * Do not delete any config options that are no longer used - just mark them obsolete in the doc string.
 
