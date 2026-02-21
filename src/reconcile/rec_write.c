@@ -163,12 +163,8 @@ __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
      * whether reconciliation succeeds or fails. There is usually no point retrying eviction until
      * this state changes.
      */
-    if (LF_ISSET(WT_REC_EVICT)) {
-        mod->last_eviction_id = oldest_id;
-        __wt_txn_pinned_timestamp(session, &mod->last_eviction_timestamp);
-        mod->last_evict_pass_gen =
-          __wt_atomic_load_uint64_relaxed(&S2C(session)->evict->evict_pass_gen);
-    }
+    if (LF_ISSET(WT_REC_EVICT))
+        __wt_evict_save_evict_state(session, mod);
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -328,7 +324,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * Do not return an error if we are syncing the file with eviction disabled or as part of a
      * checkpoint.
      */
-    if (ret == 0 && !(btree->evict_disabled > 0 || !F_ISSET(btree->dhandle, WT_DHANDLE_OPEN)) &&
+    if (ret == 0 &&
+      !(__wt_evict_btree_is_eviction_disabled(session) || !F_ISSET(btree->dhandle, WT_DHANDLE_OPEN)) &&
       F_ISSET(r, WT_REC_EVICT) && !WT_PAGE_IS_INTERNAL(page) && r->multi_next == 1 &&
       !F_ISSET_ATOMIC_16(page, WT_PAGE_INMEM_SPLIT) && F_ISSET(r, WT_REC_CALL_URGENT) &&
       !r->update_used && r->cache_write_restore_invisible && !r->has_upd_chain_all_aborted &&

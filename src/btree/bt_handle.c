@@ -188,7 +188,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      */
     WT_RET(__btree_clear(session));
     memset(btree, 0, WT_BTREE_CLEAR_SIZE);
-    __wt_evict_clear_npos(btree);
+    __wt_evict_clear_npos(session, btree);
     F_CLR(btree, ~WT_BTREE_SPECIAL_FLAGS);
 
     /* Set the data handle first, our called functions reasonably use it. */
@@ -307,7 +307,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      */
     if (btree->original || F_ISSET(btree, WT_BTREE_NO_EVICT | WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
         WT_ERR(__wt_evict_file_exclusive_on(session));
-        btree->evict_disabled_open = true;
+        __wt_evict_btree_set_disabled_open(session);
     }
 
     /* A btree cannot be both an ingest btree and a stable btree. */
@@ -373,8 +373,8 @@ __wt_btree_close(WT_SESSION_IMPL *session)
      * If we turned eviction off and never turned it back on, do that now, otherwise the counter
      * will be off.
      */
-    if (btree->evict_disabled_open) {
-        btree->evict_disabled_open = false;
+    if (__wt_evict_btree_is_disabled_open(session)) {
+        __wt_evict_btree_clear_disabled_open(session);
         __wt_evict_file_exclusive_off(session);
     }
 

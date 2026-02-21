@@ -828,7 +828,7 @@ err:
  *     Pretty-print information about a page.
  */
 static char *
-__debug_tree_shape_info(WT_REF *ref, char *buf, size_t len)
+__debug_tree_shape_info(WT_SESSION_IMPL *session, WT_REF *ref, char *buf, size_t len)
 {
     WT_PAGE *page;
     uint64_t v;
@@ -852,7 +852,8 @@ __debug_tree_shape_info(WT_REF *ref, char *buf, size_t len)
 
     WT_IGNORE_RET(
       __wt_snprintf(buf, len, "(%p, %" PRIu64 "%s, evict gen %" PRIu64 ", create gen %" PRIu64 ")",
-        (void *)ref, v, unit, page->evict_pass_gen, page->cache_create_gen));
+        (void *)ref, v, unit, __wt_evict_get_page_pass_gen(session, page),
+        __wt_evict_page_get_cache_create_gen(session, page)));
     return (buf);
 }
 
@@ -874,7 +875,7 @@ __debug_tree_shape_worker(WT_DBG *ds, WT_REF *ref, int level)
           "%*s"
           "I"
           "%d %s\n",
-          level * 3, " ", level, __debug_tree_shape_info(ref, buf, sizeof(buf))));
+          level * 3, " ", level, __debug_tree_shape_info(session, ref, buf, sizeof(buf))));
         WT_INTL_FOREACH_BEGIN (session, ref->page, walk) {
             if (WT_REF_GET_STATE(walk) == WT_REF_MEM)
                 WT_RET(__debug_tree_shape_worker(ds, walk, level + 1));
@@ -885,7 +886,7 @@ __debug_tree_shape_worker(WT_DBG *ds, WT_REF *ref, int level)
           "%*s"
           "L"
           " %s\n",
-          level * 3, " ", __debug_tree_shape_info(ref, buf, sizeof(buf))));
+          level * 3, " ", __debug_tree_shape_info(session, ref, buf, sizeof(buf))));
     return (0);
 }
 

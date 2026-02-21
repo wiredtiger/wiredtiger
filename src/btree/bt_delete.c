@@ -108,9 +108,9 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
             WT_REF_SET_STATE(ref, previous_state);
             return (ret);
         }
-        (void)__wt_atomic_add_uint32_v(&btree->evict_busy, 1);
-        ret = __wt_evict(session, ref, previous_state, 0);
-        (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
+        __wt_evict_btree_busy_inc(session, btree);
+        ret = __wt_evict_page(session, ref, previous_state, 0);
+        __wt_evict_btree_busy_dec(session, btree);
         WT_RET_BUSY_OK(ret);
         ret = 0;
     }
