@@ -205,6 +205,14 @@ struct __wt_checkpoint_reconcile_threads {
     WT_SEMAPHORE done_sem;
 };
 
+/*
+ * WT_PARALLEL_CHECKPOINTS_ENABLED --
+ *     Check whether parallel checkpoints are enabled.
+ */
+#define WT_PARALLEL_CHECKPOINTS_ENABLED(session)                             \
+    (F_ISSET((S2C(session)), WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS) && \
+      (S2C(session))->ckpt_reconcile_threads->num_threads > 0)
+
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern bool __wt_checkpoint_verbose_timer_started(WT_SESSION_IMPL *session)
@@ -222,7 +230,7 @@ extern int __wt_checkpoint_reconcile_finish(WT_SESSION_IMPL *session)
 extern int __wt_checkpoint_reconcile_push_page(
   WT_SESSION_IMPL *session, WT_REF *ref, uint32_t reconcile_flags, uint32_t release_flags)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_checkpoint_reconcile_thread_create(WT_SESSION_IMPL *session)
+extern int __wt_checkpoint_reconcile_thread_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_reconcile_thread_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

@@ -3235,16 +3235,28 @@ err:
  *     Start the checkpoint page reconciliation threads.
  */
 int
-__wt_checkpoint_reconcile_thread_create(WT_SESSION_IMPL *session)
+__wt_checkpoint_reconcile_thread_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
+    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     uint32_t session_flags;
+    int checkpoint_threads;
 
     conn = S2C(session);
 
     conn->ckpt_reconcile_threads = ckpt_threads = &conn->_ckpt_reconcile_threads;
-    conn->ckpt_reconcile_threads->num_threads = 4;
+
+    /* Get the number of checkpoint threads from the configuration. */
+    /* TODO: We don't currently support reconfiguration of checkpoint threads. */
+    WT_RET(__wt_config_gets(session, cfg, "checkpoint_threads", &cval));
+    checkpoint_threads = WT_MIN((int)cval.val, 1);
+
+    /* If the number of checkpoint threads is 1, parallel checkpoints are disabled. */
+    if (checkpoint_threads == 1)
+        return (0);
+
+    ckpt_threads->num_threads = (uint32_t)checkpoint_threads;
 
     /* Set first, the thread might run before we finish up. */
     FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS);
@@ -3258,7 +3270,7 @@ __wt_checkpoint_reconcile_thread_create(WT_SESSION_IMPL *session)
 
     TAILQ_INIT(&ckpt_threads->done_qh);
     WT_RET(__wt_spin_init(
-      session, &ckpt_threads->work_lock, "checkpoint page reconciliation threads - done queue"));
+      session, &ckpt_threads->done_lock, "checkpoint page reconciliation threads - done queue"));
 
     WT_RET(__wt_semaphore_init(session, &ckpt_threads->done_sem, 0,
       "checkpoint page reconciliation threads - done queue (semaphore)"));
@@ -3289,6 +3301,8 @@ __wt_checkpoint_reconcile_thread_destroy(WT_SESSION_IMPL *session)
 
     /* Check whether we have initialized the threads to begin with. */
     if (ckpt_threads == NULL)
+        return (0);
+    if (!FLD_ISSET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS))
         return (0);
 
     /* Wait for any checkpoint thread group changes to stabilize. */

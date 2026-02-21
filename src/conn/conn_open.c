@@ -239,7 +239,7 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      * Start the checkpoint page reconciliation threads. This must be done before any metadata
      * operations, because they often require checkpoints.
      */
-    WT_RET(__wt_checkpoint_reconcile_thread_create(session));
+    WT_RET(__wt_checkpoint_reconcile_thread_create(session, cfg));
 
     /*
      * Start the optional statistics thread. Start statistics first so that other optional threads

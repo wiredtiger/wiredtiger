@@ -651,7 +651,7 @@ connection_runtime_config = [
                type='boolean'),
         Config('crash_point_colgroup', 'false', r'''
             if true, force crash in table creation while creating colgroup metadata entry. This is
-            intended for testing purposes only.''', 
+            intended for testing purposes only.''',
             type='boolean'),
         Config('corruption_abort', 'true', r'''
             if true and built in diagnostic mode, dump core in the case of data corruption''',
@@ -1368,6 +1368,9 @@ wiredtiger_open_common =\
     Config('checkpoint_sync', 'true', r'''
         flush files to stable storage when closing or writing checkpoints''',
         type='boolean'),
+    Config('checkpoint_threads', '4', r'''
+        the number of checkpoint threads for syncing tables in parallel during checkpoints''',
+        min='1'),
     Config('compile_configuration_count', '1000', r'''
         the number of configuration strings that can be precompiled. Some configuration strings
         are compiled internally when the connection is opened.''',
