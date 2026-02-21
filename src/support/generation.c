@@ -273,25 +273,11 @@ static int
 __gen_active_callback(
   WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
 {
-    WT_DATA_HANDLE *dhandle, *session_dhandle;
     WT_GENERATION_COOKIE *cookie;
     uint64_t v;
 
+    WT_UNUSED(session);
     cookie = (WT_GENERATION_COOKIE *)cookiep;
-
-    /*
-     * Only check sessions that are operating on the same dhandle. This prevents split generations
-     * from one dhandle blocking eviction of internal pages in a different dhandle.
-     *
-     * Read the dhandle pointers once to avoid race conditions where they might be freed between the
-     * NULL check and the comparison.
-     */
-    WT_ACQUIRE_READ_WITH_BARRIER(session_dhandle, session->dhandle);
-    if (session_dhandle != NULL) {
-        WT_ACQUIRE_READ_WITH_BARRIER(dhandle, array_session->dhandle);
-        if (dhandle != session_dhandle)
-            return (0);
-    }
 
     WT_ACQUIRE_READ_WITH_BARRIER(v, array_session->generations[cookie->which]);
     if (v != 0 && cookie->target_generation >= v) {
