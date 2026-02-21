@@ -37,16 +37,16 @@ class test_stat09(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
 
     # Check the oldest active read statistic to be at the expected values
-    def check_stat_oldest_read(self, statcursor, expected_oldest, all_committed):
+    def check_stat_oldest_read(self, statcursor, expected_oldest, all_committed, oldest_ts):
         self.check_stats(statcursor, expected_oldest,
             'transaction: transaction read timestamp of the oldest active reader')
 
         # If the active oldest timestamp is 0, it implies there are no active readers,
         # the pinned range because of them is expected to be 0 in that case
-        if expected_oldest == 0:
+        if expected_oldest == 0 or oldest_ts < expected_oldest:
             expected_pinned = 0
         else:
-            expected_pinned = all_committed - expected_oldest
+            expected_pinned = oldest_ts - expected_oldest
         self.check_stats(statcursor, expected_pinned,
             'transaction: transaction range of timestamps pinned by the oldest '
             'active read timestamp')
@@ -79,6 +79,7 @@ class test_stat09(wttest.WiredTigerTestCase):
         orig_keys = list(range(1, commit_range + 1))
         keys = orig_keys[:]
         random.shuffle(keys)
+        old_ts = 0
 
         for k in keys:
             self.session.begin_transaction()
@@ -89,7 +90,7 @@ class test_stat09(wttest.WiredTigerTestCase):
         allstat_cursor = self.session.open_cursor('statistics:', None, None)
 
         # There being no active reader, the corresponding statistic should be 0
-        self.check_stat_oldest_read(allstat_cursor, 0, commit_range)
+        self.check_stat_oldest_read(allstat_cursor, 0, commit_range, old_ts)
 
         # Introduce multiple transactions with varying read_timestamp
         s1 = self.conn.open_session()
@@ -104,30 +105,33 @@ class test_stat09(wttest.WiredTigerTestCase):
         s5.begin_transaction('read_timestamp=' + self.timestamp_str(50))
 
         # Check oldest reader
-        self.check_stat_oldest_read(allstat_cursor, 10, commit_range)
+        self.check_stat_oldest_read(allstat_cursor, 10, commit_range, old_ts)
 
         # Close the oldest reader and check again
         s1.commit_transaction()
-        self.check_stat_oldest_read(allstat_cursor, 20, commit_range)
+        self.check_stat_oldest_read(allstat_cursor, 20, commit_range, old_ts)
 
         # Set and advance the oldest timestamp, it should be ignored for
         # determining the oldest active read.
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5))
-        self.check_stat_oldest_read(allstat_cursor, 20, commit_range)
+        old_ts = 5
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(old_ts))
+        self.check_stat_oldest_read(allstat_cursor, 20, commit_range, old_ts)
 
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(30))
-        self.check_stat_oldest_read(allstat_cursor, 20, commit_range)
+        old_ts = 30
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(old_ts))
+        self.check_stat_oldest_read(allstat_cursor, 20, commit_range, old_ts)
 
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(150))
-        self.check_stat_oldest_read(allstat_cursor, 20, commit_range)
+        old_ts = 150
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(old_ts))
+        self.check_stat_oldest_read(allstat_cursor, 20, commit_range, old_ts)
 
         # Move the commit timestamp and check again
         commit_range = 200
         s2.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_range))
-        self.check_stat_oldest_read(allstat_cursor, 30, commit_range)
+        self.check_stat_oldest_read(allstat_cursor, 30, commit_range, old_ts)
 
         # Close all the readers and check the oldest reader, it should be back to 0
         s3.commit_transaction()
         s4.commit_transaction()
         s5.commit_transaction()
-        self.check_stat_oldest_read(allstat_cursor, 0, commit_range)
+        self.check_stat_oldest_read(allstat_cursor, 0, commit_range, old_ts)

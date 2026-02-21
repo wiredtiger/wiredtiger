@@ -1746,7 +1746,7 @@ __wt_cell_unpack_delta_leaf_value(WT_SESSION_IMPL *session, const WT_PAGE_HEADER
 
     /* Extract the delta metadata and then the actual delta value from the custom value format. */
     ret = __wt_struct_unpack(session, unpack->delta_value.data, unpack->delta_value.size,
-      WT_DELTA_LEAF_VALUE_FORMAT, &unpack->delta_value_data, &unpack->flags);
+      WT_DELTA_LEAF_VALUE_FORMAT, &unpack->flags, &unpack->delta_value_data);
 
     WT_ASSERT_ALWAYS(session, ret == 0, "Failed to decode the delta leaf value.");
 }

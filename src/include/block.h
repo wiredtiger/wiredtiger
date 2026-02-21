@@ -518,6 +518,7 @@ struct __wt_block_disagg_header {
 #define WT_BLOCK_DISAGG_DATA_CKSUM 0x1u /* Block data is part of the checksum */
 #define WT_BLOCK_DISAGG_ENCRYPTED 0x2u  /* Data following header is encrypted */
 #define WT_BLOCK_DISAGG_COMPRESSED 0x4u /* Data following header is compressed */
+#define WT_BLOCK_DISAGG_MODIFIED 0x08u  /* The page is modified "offline" */
     uint8_t flags;                      /* 12: flags */
 
     /*
@@ -557,6 +558,6 @@ struct __wt_block_disagg_address_cookie {
     uint64_t lsn;      /* Log sequence number */
     uint64_t base_lsn; /* Base log sequence number */
 
-    uint32_t size;     /* Size of the data */
+    uint32_t size;     /* Cumulative size (base + deltas) */
     uint32_t checksum; /* Checksum of the data */
 };

@@ -123,6 +123,8 @@ struct __wt_layered_table_manager_entry {
     const char *layered_uri;
     const char *ingest_uri;
     const char *stable_uri;
+
+    WT_DATA_HANDLE *pinned_dhandle; /* data handle held open during drain */
 };
 
 /*
@@ -147,6 +149,16 @@ struct __wt_layered_table_manager {
 
     bool leader;
 };
+
+/*
+ * Checkpoint metadata version constants:
+ * - DEFAULT: Version defaulted to for old checkpoints without version fields (backward compatible).
+ * - VERSION: The version this code writes and the maximum version it can read.
+ * - COMPATIBLE_VERSION: The minimum reader version required to read what this code writes.
+ */
+#define WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT 1
+#define WT_DISAGG_CHECKPOINT_META_VERSION 1
+#define WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION 1
 
 /*
  * WT_DISAGG_UPDATE_METADATA --
@@ -192,6 +204,8 @@ struct __wt_page_delta_config {
     uint8_t flags;
 };
 
+#define WT_DISAGG_CHECKPOINT_SIZE_BUFFER WT_MEGABYTE
+
 /*
  * WT_DISAGGREGATED_STORAGE --
  *      Configuration and the current state for disaggregated storage, which tells the Block Manager
@@ -228,9 +242,15 @@ struct __wt_disaggregated_storage {
     WT_PAGE_LOG_HANDLE *page_log_meta;         /* The page log for the metadata. */
     WT_PAGE_LOG_HANDLE *page_log_key_provider; /* The page log for the key provider. */
 
-    wt_shared uint64_t num_meta_put;     /* The number metadata puts since connection open. */
+    uint64_t num_meta_put;               /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
                                          /* Updates are protected by the checkpoint lock. */
+
+    /*
+     * Total size of all stable tables in the database, along with other components such as the KEK
+     * table. Saved via the checkpoint completion record and loaded via connection reconfigure.
+     */
+    wt_shared uint64_t database_size;
 
     /* To copy at the next checkpoint. */
     TAILQ_HEAD(__wt_disagg_update_metadata_qh, __wt_disagg_update_metadata) update_metadata_qh;

@@ -2569,7 +2569,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
             break;
     if (i == conn->session_array.size) {
         out_of_sessions = true;
-        WT_ERR_MSG(session, WT_ERROR,
+        WT_ERR_MSG(session, EINVAL,
           "out of sessions, configured for %" PRIu32 " (including internal sessions)",
           conn->session_array.size);
     }
