@@ -199,7 +199,7 @@ __slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
         WT_ASSERT(session, btree->ckpt == NULL);
 
         btree->ckpt = ckptbase;
-        ret = __wt_evict(session, root, WT_REF_MEM, WT_EVICT_CALL_CLOSING);
+        ret = __wt_evict_page(session, root, WT_REF_MEM, WT_EVICT_CALL_CLOSING);
         root->page = NULL;
         btree->ckpt = NULL;
         WT_ERR(ret);
@@ -1283,7 +1283,7 @@ __slvg_col_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref)
     /* Discard our hazard pointer and evict the page, updating the parent's reference. */
     ret = __wt_page_release(session, ref, 0);
     if (ret == 0)
-        ret = __wt_evict(session, ref, WT_REF_MEM, WT_EVICT_CALL_CLOSING);
+        ret = __wt_evict_page(session, ref, WT_REF_MEM, WT_EVICT_CALL_CLOSING);
 
     if (0) {
 err:
@@ -1938,7 +1938,7 @@ __slvg_row_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref, WT_S
     /* Discard our hazard pointer and evict the page, updating the parent's reference. */
     ret = __wt_page_release(session, ref, 0);
     if (ret == 0)
-        ret = __wt_evict(session, ref, WT_REF_MEM, WT_EVICT_CALL_CLOSING);
+        ret = __wt_evict_page(session, ref, WT_REF_MEM, WT_EVICT_CALL_CLOSING);
 
     if (0) {
 err:

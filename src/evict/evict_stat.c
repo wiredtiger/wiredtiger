@@ -77,15 +77,15 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
         if (__wt_ref_is_root(next_walk))
             continue;
 
-        if (page->evict_pass_gen == 0) {
+        if (page->evict_impl.randlru.evict_pass_gen == 0) {
             unvisited_age_gap_sum +=
-              (__wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen) - page->cache_create_gen);
+              (__wt_atomic_load_uint64_relaxed(&evict->impl.randlru.evict_pass_gen) - page->evict_impl.randlru.cache_create_gen);
             ++unvisited_count;
         } else {
             visited_age_gap_sum +=
-              (__wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen) - page->cache_create_gen);
+              (__wt_atomic_load_uint64_relaxed(&evict->impl.randlru.evict_pass_gen) - page->evict_impl.randlru.cache_create_gen);
             gen_gap =
-              __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen) - page->evict_pass_gen;
+              __wt_atomic_load_uint64_relaxed(&evict->impl.randlru.evict_pass_gen) - page->evict_impl.randlru.evict_pass_gen;
             if (gen_gap > gen_gap_max)
                 gen_gap_max = gen_gap;
             gen_gap_sum += gen_gap;
@@ -118,7 +118,7 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
 }
 
 /* !!!
- * __wt_evict_cache_stat_walk --
+ * __wt_evict_randlru_cache_stat_walk --
  *     Gather tree-level eviction statistics.
  *
  *     It helps in understanding how eviction is functioning for a specific tree, providing insights
@@ -127,18 +127,16 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
  *     `api_data.py` to enable eviction statistics for a specific tree.
  */
 void
-__wt_evict_cache_stat_walk(WT_SESSION_IMPL *session)
+__wt_evict_randlru_cache_stat_walk(WT_EVICT *evict, WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
-    WT_CONNECTION_IMPL *conn;
     WT_PAGE_INDEX *root_idx;
 
     btree = S2BT(session);
-    conn = S2C(session);
 
     /* Set statistics that don't require walking the cache. */
     WT_STAT_DSRC_SET(session, cache_state_gen_current,
-      __wt_atomic_load_uint64_relaxed(&conn->evict->evict_pass_gen));
+      __wt_atomic_load_uint64_relaxed(&evict->impl.randlru.evict_pass_gen));
 
     /* Root page statistics */
     WT_INTL_INDEX_GET_SAFE(btree->root.page, root_idx);

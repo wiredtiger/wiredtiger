@@ -31,7 +31,7 @@ __wt_btree_disable_bulk(WT_SESSION_IMPL *session)
      * is disabled when an empty tree is opened, and it must only be enabled once.
      */
     if (__wt_atomic_cas_uint8(&btree->original, 1, 0)) {
-        btree->evict_disabled_open = false;
+        __wt_evict_btree_clear_disabled_open(session);
         __wt_evict_file_exclusive_off(session);
     }
 }
@@ -58,10 +58,8 @@ __wt_page_is_empty(WT_PAGE *page)
 static WT_INLINE bool
 __wt_evict_page_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_split)
 {
-    WT_BTREE *btree;
     WT_PAGE *page;
 
-    btree = S2BT(session);
     page = ref->page;
 
     /*
@@ -74,7 +72,8 @@ __wt_evict_page_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_sp
      * checkpointed, and no other thread can help with that. Checkpoints don't rely on this code for
      * dirty eviction: that is handled explicitly in __wt_sync_file.
      */
-    if (__wt_evict_page_is_soon_or_wont_need(page) && btree->evict_disabled == 0 &&
+    if (__wt_evict_page_is_soon_or_wont_need(session, page) &&
+      !__wt_evict_btree_is_eviction_disabled(session) &&
       __wt_page_can_evict(session, ref, inmem_split) &&
       (!WT_SESSION_IS_CHECKPOINT(session) || __wt_page_evict_clean(page)))
         return (true);
@@ -2156,44 +2155,7 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 static WT_INLINE bool
 __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-    WT_PAGE_MODIFY *mod;
-    WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t pinned_ts;
-
-    txn_global = &S2C(session)->txn_global;
-
-    /*
-     * If the page hasn't been through one round of update/restore, give it a try.
-     */
-    if ((mod = page->modify) == NULL || !FLD_ISSET(mod->restore_state, WT_PAGE_RS_RESTORED))
-        return (true);
-
-    /*
-     * Retry if a reasonable amount of eviction time has passed, the choice of 5 eviction passes as
-     * a reasonable amount of time is currently pretty arbitrary.
-     */
-    if (__wt_evict_aggressive(session) ||
-      mod->last_evict_pass_gen + 5 <
-        __wt_atomic_load_uint64_relaxed(&S2C(session)->evict->evict_pass_gen))
-        return (true);
-
-    /* Retry if the global transaction state has moved forward. */
-    if (__wt_atomic_load_uint64_v_relaxed(&txn_global->current) ==
-        __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id) ||
-      mod->last_eviction_id != __wt_txn_oldest_id(session))
-        return (true);
-
-    /*
-     * It is possible that we have not started using the timestamps just yet. So, check for the last
-     * time we evicted only if there is a timestamp set.
-     */
-    if (mod->last_eviction_timestamp != WT_TS_NONE) {
-        __wt_txn_pinned_timestamp(session, &pinned_ts);
-        if (pinned_ts > mod->last_eviction_timestamp)
-            return (true);
-    }
-
-    return (false);
+    return (__wt_evict_page_evict_retry(session, page));
 }
 
 /*
