@@ -492,9 +492,13 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     WT_DECL_RET;
     WT_REF *ref;
     uint32_t flags;
+    uint64_t start_time, end_time, elapsed_us;
+    uint32_t pages_visited;
 
     ref = NULL;
     flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL;
+    pages_visited = 0;
+    start_time = __wt_clock(session);
 
     /* Open a handle for processing. */
     ret = __wt_session_get_dhandle(session, uri->data, NULL, NULL, 0);
@@ -523,6 +527,7 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     while ((ret = __wt_tree_walk_custom_skip(
               session, &ref, __checkpoint_cleanup_page_skip, NULL, flags)) == 0 &&
       ref != NULL) {
+        ++pages_visited;
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
             WT_WITH_PAGE_INDEX(session, ret = __checkpoint_cleanup_obsolete_cleanup(session, ref));
         } else {
@@ -536,6 +541,12 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
         if (!__checkpoint_cleanup_run_chk(session))
             break;
     }
+
+    end_time = __wt_clock(session);
+    elapsed_us = WT_CLOCKDIFF_US(end_time, start_time);
+    __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
+      "%s: checkpoint cleanup completed, pages_visited=%" PRIu32 ", elapsed=%" PRIu64 " us",
+      (char *)uri->data, pages_visited, elapsed_us);
 
 err:
     /* On error, clear any left-over tree walk. */
