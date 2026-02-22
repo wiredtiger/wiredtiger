@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wttest
 from wtscenario import make_scenarios
 
 # test_prefetch03.py
@@ -34,17 +34,21 @@ from wtscenario import make_scenarios
 class test_prefetch03(wttest.WiredTigerTestCase):
     uri = 'file:test_prefetch03'
 
+    prefetch_config = 'prefetch=(available=true,default=true)'
+    verbose_config = 'verbose=(prefetch:1)'
+
     config_options = [
-        ('default', dict(conn_cfg='prefetch=(available=true,default=true)')),
-        ('inmem', dict(conn_cfg='in_memory=true,prefetch=(available=true,default=true)')),
+        ('default', dict(conn_cfg=f'{prefetch_config},{verbose_config}')),
+        ('inmem', dict(conn_cfg=f'in_memory=true,{prefetch_config},{verbose_config}')),
     ]
 
     scenarios = make_scenarios(config_options)
 
     def test_prefetch03(self):
+        # The in-memory configuration is incompatible with prefetch, so prefetch should be disabled
+        # and a message should be logged if the in-memory configuration is set.
         if 'in_memory=true' not in self.conn_cfg:
             self.reopen_conn(".", self.conn_cfg)
         else:
-            with self.expectedStderrPattern('prefetch configuration is incompatible with in-memory configuration'):
-                self.assertRaisesException(wiredtiger.WiredTigerError,
-                    lambda: self.reopen_conn(".", self.conn_cfg))
+            with self.expectedStdoutPattern('prefetch configuration is incompatible with in-memory configuration'):
+                self.reopen_conn(".", self.conn_cfg)
