@@ -804,13 +804,14 @@ struct __wt_connection_stats {
     int64_t checkpoint_generation;
     int64_t checkpoint_time_max;
     int64_t checkpoint_time_min;
+    int64_t checkpoint_cleanup_duration;
+    int64_t checkpoint_cleanup_handle_processed;
     int64_t checkpoint_handle_drop_duration;
     int64_t checkpoint_handle_duration;
     int64_t checkpoint_handle_apply_duration;
     int64_t checkpoint_handle_skip_duration;
     int64_t checkpoint_handle_meta_check_duration;
     int64_t checkpoint_handle_lock_duration;
-    int64_t checkpoint_cleanup_duration;
     int64_t checkpoint_handle_applied;
     int64_t checkpoint_handle_dropped;
     int64_t checkpoint_handle_meta_checked;
