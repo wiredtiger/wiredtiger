@@ -770,6 +770,7 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
       " tables, elapsed=%" PRIu64 " us (%.2f ms)",
       tables_processed, tables_skipped, elapsed_us, (double)elapsed_us / WT_THOUSAND);
     WT_STAT_CONN_SET(session, checkpoint_cleanup_duration, elapsed_us);
+    WT_STAT_CONN_SET(session, checkpoint_cleanup_handle_processed, tables_processed);
 
 err:
     __wt_scr_free(session, &uri);
