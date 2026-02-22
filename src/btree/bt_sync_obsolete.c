@@ -760,8 +760,8 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
     uint64_t elapsed_us = WT_CLOCKDIFF_US(end_time, start_time);
     __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
       "checkpoint cleanup pass completed: processed=%" PRIu32 " tables, skipped=%" PRIu32
-      " tables, elapsed=%" PRIu64 " us (%.2f ms)",
-      tables_processed, tables_skipped, elapsed_us, (double)elapsed_us / WT_THOUSAND);
+      " tables, elapsed=%" PRIu64 " us",
+      tables_processed, tables_skipped, elapsed_us);
     WT_STAT_CONN_SET(session, checkpoint_cleanup_duration, elapsed_us);
     WT_STAT_CONN_SET(session, checkpoint_cleanup_handle_processed, tables_processed);
 
