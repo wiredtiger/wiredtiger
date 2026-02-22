@@ -100,9 +100,13 @@ class test_cc02(test_cc_base):
         visited = c[stat.conn.checkpoint_cleanup_pages_visited][2]
         obsolete_evicted = c[stat.conn.checkpoint_cleanup_pages_evict][2]
         obsolete_on_disk = c[stat.conn.checkpoint_cleanup_pages_removed][2]
+        ckpt_cleanup_duration = c[stat.conn.checkpoint_cleanup_duration][2]
+        ckpt_cleanup_handle_processed = c[stat.conn.checkpoint_cleanup_handle_processed][2]
         c.close()
 
         # We should always visit pages for cleanup.
+        self.assertGreater(ckpt_cleanup_handle_processed, 0)
+        self.assertGreater(ckpt_cleanup_duration, 0)
         self.assertGreater(visited, 0)
 
         # Depending on the scenario, cleanup will be triggered differently.
