@@ -493,7 +493,7 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     WT_REF *ref = NULL;
     uint32_t flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL;
     uint32_t pages_visited = 0;
-    uint64_t start_time = __wt_clock(session);
+    uint64_t start_time = __wt_clock(session), end_time = start_time, elapsed_us = 0;
 
     /* Open a handle for processing. */
     ret = __wt_session_get_dhandle(session, uri->data, NULL, NULL, 0);
@@ -538,8 +538,8 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     }
 
 err:
-    uint64_t end_time = __wt_clock(session);
-    uint64_t elapsed_us = WT_CLOCKDIFF_US(end_time, start_time);
+    end_time = __wt_clock(session);
+    elapsed_us = WT_CLOCKDIFF_US(end_time, start_time);
     __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
       "%s: checkpoint cleanup completed, pages_visited=%" PRIu32 ", elapsed=%" PRIu64 " us",
       (char *)uri->data, pages_visited, elapsed_us);
@@ -722,7 +722,7 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
     WT_DECL_RET;
 
     uint32_t tables_processed = 0, tables_skipped = 0;
-    uint64_t start_time = __wt_clock(session);
+    uint64_t start_time = __wt_clock(session), end_time = start_time, elapsed_us = 0;
 
     WT_RET(__wt_scr_alloc(session, 1024, &uri));
     WT_ERR(__wt_buf_set(session, uri, WT_URI_FILE_PREFIX, strlen(WT_URI_FILE_PREFIX) + 1));
@@ -757,8 +757,8 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
     WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
-    uint64_t end_time = __wt_clock(session);
-    uint64_t elapsed_us = WT_CLOCKDIFF_US(end_time, start_time);
+    end_time = __wt_clock(session);
+    elapsed_us = WT_CLOCKDIFF_US(end_time, start_time);
     __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
       "checkpoint cleanup pass completed: processed=%" PRIu32 " tables, skipped=%" PRIu32
       " tables, elapsed=%" PRIu64 " us",
