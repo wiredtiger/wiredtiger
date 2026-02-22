@@ -941,13 +941,9 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         return self.retryEBUSY(session, lambda: session.drop(uri, config), **kwargs)
 
     def verifyUntilSuccess(self, session=None, uri=None, config=None, **kwargs):
-        # FIXME-WT-16738: verify currently encounters checkpoint size mismatches.
-        # Remove this pass and uncomment code one resolved.
-        self.pr("verifyUntilSuccess is currently a no-op due to checkpoint size mismatches, see WT-16738")
-        pass
-        # session = self.session if session is None else session
-        # uri = self.uri if uri is None else uri
-        # return self.retryEBUSY(session, lambda: session.verify(uri, config), **kwargs)
+        session = self.session if session is None else session
+        uri = self.uri if uri is None else uri
+        return self.retryEBUSY(session, lambda: session.verify(uri, config), **kwargs)
 
     # FIXME-WT-15791 review instances of "session.salvage(...)" and replace with "self.salvageUntilSuccess" where appropriate.
     def salvageUntilSuccess(self, session=None, uri=None, config=None, **kwargs):
