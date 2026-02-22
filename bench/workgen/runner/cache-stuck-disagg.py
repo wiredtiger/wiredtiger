@@ -32,36 +32,31 @@ from wiredtiger import *
 from workgen import *
 import os
 import time
-import sys
 
 context = Context()
-
+wt_builddir = os.getenv('WT_BUILDDIR')
 # Connection: disagg + small cache
 conn_config = (
     "cache_size=1GB,precise_checkpoint=true,"
     "disaggregated=(drain_threads=2,page_log=palite,role=leader),"
-    "extensions=(\"../../ext/page_log/palite/libwiredtiger_palite.so\"=),"
+    "extensions=(\"{wt_builddir}/ext/page_log/palite/libwiredtiger_palite.so\"=),"
     "cache_stuck_timeout_ms=60000"
 )
 conn = context.wiredtiger_open("create," + conn_config)
 s = conn.open_session("")
 
 # Table: small pages + layered/disagg
-wtperf_table_config = (
+table_config = (
     "key_format=S,value_format=S,"
     "exclusive=true,allocation_size=4kb,"
     "internal_page_max=4kb,leaf_page_max=4kb,split_pct=100,"
-)
-compress_table_config = ""
-table_config = (
-    "key_format=S,value_format=S,leaf_page_max=4k,internal_page_max=4k,"
     "type=layered,block_manager=disagg"
 )
 
 tables = []
 tname = "table:test"
 table = Table(tname)
-s.create(tname, wtperf_table_config + compress_table_config + table_config)
+s.create(tname, table_config)
 table.options.key_size = 20
 table.options.value_size = 1024
 tables.append(table)
@@ -71,7 +66,7 @@ ops_ckpt_1 = Operation(Operation.OP_SLEEP, "30") + Operation(Operation.OP_CHECKP
 checkpoint_thread_1 = Thread(ops_ckpt_1)
 ckpt_threads = 2
 
-# Populate large dataset (20M rows * 1KB ~ 20GB logical)
+# Populate large dataset (10M rows * 1KB ~ 20GB logical)
 populate_threads = 8
 icount = 10000000
 pop_ops = Operation(Operation.OP_INSERT, table)
