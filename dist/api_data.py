@@ -740,6 +740,10 @@ connection_runtime_config = [
     Config('eviction', '', r'''
         eviction configuration options''',
         type='category', subconfig=[
+            Config('type', 'randlru', r'''
+                eviction implementation to use. "randlru" is the default randomized LRU
+                eviction. "none" disables eviction entirely (for testing purposes only).''',
+                choices=['randlru', 'none']),
             Config('threads_max', '8', r'''
                 maximum number of threads WiredTiger will start to help evict pages from cache. The
                 number of threads started will vary depending on the current eviction load. Each

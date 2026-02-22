@@ -336,6 +336,73 @@ __wt_evict_randlru_reset_checkpoint_stats(WT_EVICT *evict, WT_SESSION_IMPL *sess
 }
 
 /*
+ * __evict_noop_method_set --
+ *     Wire up the vtable entries for noop eviction.
+ */
+static void
+__evict_noop_method_set(WT_EVICT *evict)
+{
+    evict->algo_id = WT_EVICT_ALGO_NOOP;
+    evict->evict_page = __wt_evict_noop_page;
+    evict->evict_file = __wt_evict_noop_file;
+    evict->config = __wt_evict_noop_config;
+    evict->destroy = __wt_evict_noop_destroy;
+    evict->stats_update = __wt_evict_noop_stats_update;
+    evict->stats_init = __wt_evict_noop_stats_init;
+    evict->server_wake = __wt_evict_noop_server_wake;
+    evict->threads_create = __wt_evict_noop_threads_create;
+    evict->threads_destroy = __wt_evict_noop_threads_destroy;
+    evict->file_exclusive_on = __wt_evict_noop_file_exclusive_on;
+    evict->file_exclusive_off = __wt_evict_noop_file_exclusive_off;
+    evict->page_urgent = __wt_evict_noop_page_urgent;
+    evict->priority_set = __wt_evict_noop_priority_set;
+    evict->priority_clear = __wt_evict_noop_priority_clear;
+    evict->verbose_dump_cache = __wt_evict_noop_verbose_dump_cache;
+    evict->cache_stat_walk = __wt_evict_noop_cache_stat_walk;
+    evict->aggressive = __wt_evict_noop_aggressive;
+    evict->cache_stuck = __wt_evict_noop_cache_stuck;
+    evict->clean_needed = __wt_evict_noop_clean_needed;
+    evict->clean_pressure = __wt_evict_noop_clean_pressure;
+    evict->dirty_needed = __wt_evict_noop_dirty_needed;
+    evict->needed = __wt_evict_noop_needed;
+    evict->favor_clearing_dirty = __wt_evict_noop_favor_clearing_dirty;
+    evict->app_assist_worker_check = __wt_evict_noop_app_assist_worker_check;
+    evict->page_init = __wt_evict_noop_page_init;
+    evict->touch_page = __wt_evict_noop_touch_page;
+    evict->page_soon = __wt_evict_noop_page_soon;
+    evict->page_is_soon = __wt_evict_noop_page_is_soon;
+    evict->page_is_soon_or_wont_need = __wt_evict_noop_page_is_soon_or_wont_need;
+    evict->page_first_dirty = __wt_evict_noop_page_first_dirty;
+    evict->inherit_page_state = __wt_evict_noop_inherit_page_state;
+    evict->page_cache_bytes_decr = __wt_evict_noop_page_cache_bytes_decr;
+    evict->clear_npos = __wt_evict_noop_clear_npos;
+    evict->reset_checkpoint_stats = __wt_evict_noop_reset_checkpoint_stats;
+    evict->get_walk_tree = __wt_evict_noop_get_walk_tree;
+    evict->pass_interrupt_inc = __wt_evict_noop_pass_interrupt_inc;
+    evict->pass_interrupt_dec = __wt_evict_noop_pass_interrupt_dec;
+    evict->get_evict_pass_gen = __wt_evict_noop_get_evict_pass_gen;
+    evict->get_page_evict_pass_gen = __wt_evict_noop_get_page_evict_pass_gen;
+    evict->save_evict_state = __wt_evict_noop_save_evict_state;
+    evict->copy_evict_state_to_mod = __wt_evict_noop_copy_evict_state;
+    evict->page_evict_retry = __wt_evict_noop_page_evict_retry;
+    evict->page_set_cache_create_gen = __wt_evict_noop_page_set_cache_create_gen;
+    evict->page_get_cache_create_gen = __wt_evict_noop_page_get_cache_create_gen;
+    evict->btree_get_priority = __wt_evict_noop_btree_get_priority;
+    evict->btree_save_walk_period = __wt_evict_noop_btree_save_walk_period;
+    evict->btree_restore_walk_period = __wt_evict_noop_btree_restore_walk_period;
+    evict->btree_is_eviction_disabled = __wt_evict_noop_btree_is_eviction_disabled;
+    evict->btree_set_disabled_open = __wt_evict_noop_btree_set_disabled_open;
+    evict->btree_is_disabled_open = __wt_evict_noop_btree_is_disabled_open;
+    evict->btree_clear_disabled_open = __wt_evict_noop_btree_clear_disabled_open;
+    evict->btree_evict_busy_inc = __wt_evict_noop_btree_busy_inc;
+    evict->btree_evict_busy_dec = __wt_evict_noop_btree_busy_dec;
+    evict->btree_prefetch_busy_inc = __wt_evict_noop_btree_prefetch_busy_inc;
+    evict->btree_prefetch_busy_dec = __wt_evict_noop_btree_prefetch_busy_dec;
+    evict->btree_prefetch_busy_wait = __wt_evict_noop_btree_prefetch_busy_wait;
+    evict->btree_get_evict_ref = __wt_evict_noop_btree_get_evict_ref;
+}
+
+/*
  * __evict_randlru_method_set --
  *     Wire up the vtable entries for LRU eviction.
  */
@@ -416,20 +483,19 @@ __evict_randlru_method_set(WT_EVICT *evict)
  *     Return an error code for invalid configurations, memory allocation, or spinlock
  *     initialization failures.
  */
-int
-__wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
+/*
+ * __evict_create_randlru --
+ *     Initialize randlru-specific eviction state.
+ */
+static int
+__evict_create_randlru(WT_SESSION_IMPL *session, WT_EVICT *evict, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_EVICT *evict;
     int i;
 
     conn = S2C(session);
 
-    WT_ASSERT(session, conn->evict == NULL);
-    WT_RET(__wt_calloc_one(session, &conn->evict));
-
-    evict = conn->evict;
     __evict_randlru_method_set(evict);
 
     /* Use a common routine for run-time configuration options. */
@@ -471,6 +537,44 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
      * We get/set some values in the evict statistics (rather than have two copies), configure them.
      */
     __wt_evict_randlru_stats_init(evict, session);
+    return (0);
+}
+
+/*
+ * __evict_create_noop --
+ *     Initialize noop eviction state.
+ */
+static int
+__evict_create_noop(WT_EVICT *evict)
+{
+    __evict_noop_method_set(evict);
+    return (0);
+}
+
+int
+__wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_EVICT *evict;
+
+    conn = S2C(session);
+
+    WT_ASSERT(session, conn->evict == NULL);
+    WT_RET(__wt_calloc_one(session, &conn->evict));
+
+    evict = conn->evict;
+
+    /* Read the eviction type from config. */
+    WT_RET(__wt_config_gets(session, cfg, "eviction.type", &cval));
+
+    if (WT_CONFIG_LIT_MATCH("none", cval)) {
+        WT_RET(__evict_create_noop(evict));
+    } else {
+        /* Default: randlru. */
+        WT_RET(__evict_create_randlru(session, evict, cfg));
+    }
+
     return (0);
 }
 

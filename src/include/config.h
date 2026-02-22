@@ -285,6 +285,7 @@ extern const char __WT_CONFIG_CHOICE_prepared[];
 extern const char __WT_CONFIG_CHOICE_pretty[];
 extern const char __WT_CONFIG_CHOICE_pretty_hex[];
 extern const char __WT_CONFIG_CHOICE_print[];
+extern const char __WT_CONFIG_CHOICE_randlru[];
 extern const char __WT_CONFIG_CHOICE_random[];
 extern const char __WT_CONFIG_CHOICE_read[];
 extern const char __WT_CONFIG_CHOICE_read_committed[];

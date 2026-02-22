@@ -52,7 +52,8 @@ struct __wt_evict {
     uint64_t (*get_evict_pass_gen)(WT_EVICT *, WT_SESSION_IMPL *);
     uint64_t (*get_page_evict_pass_gen)(WT_EVICT *, WT_SESSION_IMPL *, WT_PAGE *);
     void (*save_evict_state)(WT_EVICT *, WT_SESSION_IMPL *, WT_PAGE_MODIFY *);
-    void (*copy_evict_state_to_mod)(WT_EVICT *, WT_SESSION_IMPL *, WT_PAGE_MODIFY *, WT_PAGE_MODIFY *);
+    void (*copy_evict_state_to_mod)(
+      WT_EVICT *, WT_SESSION_IMPL *, WT_PAGE_MODIFY *, WT_PAGE_MODIFY *);
     bool (*page_evict_retry)(WT_EVICT *, WT_SESSION_IMPL *, WT_PAGE *);
     void (*page_set_cache_create_gen)(WT_EVICT *, WT_SESSION_IMPL *, WT_PAGE *);
     uint64_t (*page_get_cache_create_gen)(WT_EVICT *, WT_SESSION_IMPL *, WT_PAGE *);
@@ -127,6 +128,7 @@ struct __wt_evict {
 
     /* Algorithm identifier for the active eviction implementation. */
 #define WT_EVICT_ALGO_RANDLRU 1
+#define WT_EVICT_ALGO_NOOP 2
     uint32_t algo_id;
 
     /* Implementation-specific data. */
@@ -361,9 +363,38 @@ struct __wt_evict {
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
+extern WT_DATA_HANDLE *__wt_evict_noop_get_walk_tree(WT_EVICT *evict, WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_DATA_HANDLE *__wt_evict_randlru_get_walk_tree(WT_EVICT *evict, WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern WT_REF *__wt_evict_noop_btree_get_evict_ref(WT_EVICT *evict, WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern WT_REF *__wt_evict_randlru_btree_get_evict_ref(WT_EVICT *evict, WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_evict_noop_aggressive(WT_EVICT *evict, WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_evict_noop_btree_is_disabled_open(WT_EVICT *evict, WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_evict_noop_btree_is_eviction_disabled(WT_EVICT *evict, WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_evict_noop_cache_stuck(WT_EVICT *evict, WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_evict_noop_clean_needed(WT_EVICT *evict, WT_SESSION_IMPL *session,
+  double *pct_fullp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_evict_noop_clean_pressure(WT_EVICT *evict, WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_evict_noop_dirty_needed(WT_EVICT *evict, WT_SESSION_IMPL *session,
+  double *pct_fullp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_evict_noop_needed(WT_EVICT *evict, WT_SESSION_IMPL *session, bool busy,
+  bool readonly, bool ignore_updates_dirty, double *pct_fullp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_evict_noop_page_evict_retry(WT_EVICT *evict, WT_SESSION_IMPL *session,
+  WT_PAGE *page) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_evict_noop_page_is_soon(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *page)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_evict_noop_page_is_soon_or_wont_need(WT_EVICT *evict, WT_SESSION_IMPL *session,
+  WT_PAGE *page) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_evict_noop_page_urgent(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_evict_randlru_aggressive(WT_EVICT *evict, WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -392,6 +423,25 @@ extern bool __wt_evict_randlru_page_urgent(WT_EVICT *evict, WT_SESSION_IMPL *ses
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_evict_noop_app_assist_worker_check(WT_EVICT *evict, WT_SESSION_IMPL *session,
+  bool busy, bool readonly, bool interruptible, bool *didworkp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_evict_noop_config(WT_EVICT *evict, WT_SESSION_IMPL *session, const char *cfg[],
+  bool reconfig) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_evict_noop_destroy(WT_EVICT *evict, WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_evict_noop_file(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_evict_noop_file_exclusive_on(WT_EVICT *evict, WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_evict_noop_page(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_REF *ref,
+  WT_REF_STATE previous_state, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_evict_noop_threads_create(WT_EVICT *evict, WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_evict_noop_threads_destroy(WT_EVICT *evict, WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_evict_noop_verbose_dump_cache(WT_EVICT *evict, WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_evict_randlru_app_assist_worker_check(WT_EVICT *evict, WT_SESSION_IMPL *session,
   bool busy, bool readonly, bool interruptible, bool *didworkp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -411,6 +461,14 @@ extern int __wt_evict_randlru_threads_destroy(WT_EVICT *evict, WT_SESSION_IMPL *
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_evict_randlru_verbose_dump_cache(WT_EVICT *evict, WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern uint64_t __wt_evict_noop_btree_get_priority(WT_EVICT *evict, WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern uint64_t __wt_evict_noop_get_evict_pass_gen(WT_EVICT *evict, WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern uint64_t __wt_evict_noop_get_page_evict_pass_gen(WT_EVICT *evict, WT_SESSION_IMPL *session,
+  WT_PAGE *page) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern uint64_t __wt_evict_noop_page_get_cache_create_gen(WT_EVICT *evict, WT_SESSION_IMPL *session,
+  WT_PAGE *page) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint64_t __wt_evict_randlru_btree_get_priority(WT_EVICT *evict, WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint64_t __wt_evict_randlru_get_evict_pass_gen(WT_EVICT *evict, WT_SESSION_IMPL *session)
@@ -419,6 +477,48 @@ extern uint64_t __wt_evict_randlru_get_page_evict_pass_gen(WT_EVICT *evict,
   WT_SESSION_IMPL *session, WT_PAGE *page) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint64_t __wt_evict_randlru_page_get_cache_create_gen(WT_EVICT *evict,
   WT_SESSION_IMPL *session, WT_PAGE *page) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wt_evict_noop_btree_busy_dec(
+  WT_EVICT *evict, WT_SESSION_IMPL *session, WT_BTREE *btree);
+extern void __wt_evict_noop_btree_busy_inc(
+  WT_EVICT *evict, WT_SESSION_IMPL *session, WT_BTREE *btree);
+extern void __wt_evict_noop_btree_clear_disabled_open(WT_EVICT *evict, WT_SESSION_IMPL *session);
+extern void __wt_evict_noop_btree_prefetch_busy_dec(
+  WT_EVICT *evict, WT_SESSION_IMPL *session, WT_BTREE *btree);
+extern void __wt_evict_noop_btree_prefetch_busy_inc(
+  WT_EVICT *evict, WT_SESSION_IMPL *session, WT_BTREE *btree);
+extern void __wt_evict_noop_btree_prefetch_busy_wait(
+  WT_EVICT *evict, WT_SESSION_IMPL *session, WT_BTREE *btree);
+extern void __wt_evict_noop_btree_restore_walk_period(WT_EVICT *evict, WT_SESSION_IMPL *session);
+extern void __wt_evict_noop_btree_save_walk_period(WT_EVICT *evict, WT_SESSION_IMPL *session);
+extern void __wt_evict_noop_btree_set_disabled_open(WT_EVICT *evict, WT_SESSION_IMPL *session);
+extern void __wt_evict_noop_cache_stat_walk(WT_EVICT *evict, WT_SESSION_IMPL *session);
+extern void __wt_evict_noop_clear_npos(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_BTREE *btree);
+extern void __wt_evict_noop_copy_evict_state(
+  WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE_MODIFY *dst, WT_PAGE_MODIFY *src);
+extern void __wt_evict_noop_favor_clearing_dirty(WT_EVICT *evict, WT_SESSION_IMPL *session);
+extern void __wt_evict_noop_file_exclusive_off(WT_EVICT *evict, WT_SESSION_IMPL *session);
+extern void __wt_evict_noop_inherit_page_state(
+  WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *orig_page, WT_PAGE *new_page);
+extern void __wt_evict_noop_page_cache_bytes_decr(
+  WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *page);
+extern void __wt_evict_noop_page_first_dirty(
+  WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *page);
+extern void __wt_evict_noop_page_init(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *page);
+extern void __wt_evict_noop_page_set_cache_create_gen(
+  WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *page);
+extern void __wt_evict_noop_page_soon(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_REF *ref);
+extern void __wt_evict_noop_pass_interrupt_dec(WT_EVICT *evict, WT_SESSION_IMPL *session);
+extern void __wt_evict_noop_pass_interrupt_inc(WT_EVICT *evict, WT_SESSION_IMPL *session);
+extern void __wt_evict_noop_priority_clear(WT_EVICT *evict, WT_SESSION_IMPL *session);
+extern void __wt_evict_noop_priority_set(WT_EVICT *evict, WT_SESSION_IMPL *session, uint64_t v);
+extern void __wt_evict_noop_reset_checkpoint_stats(WT_EVICT *evict, WT_SESSION_IMPL *session);
+extern void __wt_evict_noop_save_evict_state(
+  WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE_MODIFY *mod);
+extern void __wt_evict_noop_server_wake(WT_EVICT *evict, WT_SESSION_IMPL *session);
+extern void __wt_evict_noop_stats_init(WT_EVICT *evict, WT_SESSION_IMPL *session);
+extern void __wt_evict_noop_stats_update(WT_EVICT *evict, WT_SESSION_IMPL *session);
+extern void __wt_evict_noop_touch_page(
+  WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_only, bool wont_need);
 extern void __wt_evict_randlru_btree_busy_dec(
   WT_EVICT *evict, WT_SESSION_IMPL *session, WT_BTREE *btree);
 extern void __wt_evict_randlru_btree_busy_inc(
