@@ -1584,6 +1584,7 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
   const WT_ITEM *value, bool position, bool reserve)
 {
     WT_CURSOR *c;
+    WT_DECL_RET;
     int (*func)(WT_CURSOR *);
 
     /*
@@ -1594,8 +1595,11 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
 
     if (S2C(session)->layered_table_manager.leader)
         c = clayered->stable_cursor;
-    else
+    else {
+        WT_RET(
+          __layered_table_truncate_detect_write_conflict(session, clayered->dhandle, key, NULL));
         c = clayered->ingest_cursor;
+    }
 
     c->set_key(c, key);
     func = c->insert;
