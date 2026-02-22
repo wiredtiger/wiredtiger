@@ -2201,6 +2201,7 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: most recent duration for gathering skipped handles (usecs)",
   "checkpoint: most recent duration for handles metadata checked (usecs)",
   "checkpoint: most recent duration for locking the handles (usecs)",
+  "checkpoint: most recent duration of checkpoint cleanup on all eligible files (usecs)",
   "checkpoint: most recent handles applied",
   "checkpoint: most recent handles checkpoint dropped",
   "checkpoint: most recent handles metadata checked",
@@ -3240,6 +3241,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing checkpoint_handle_skip_duration */
     /* not clearing checkpoint_handle_meta_check_duration */
     /* not clearing checkpoint_handle_lock_duration */
+    /* not clearing checkpoint_cleanup_duration */
     stats->checkpoint_handle_applied = 0;
     stats->checkpoint_handle_dropped = 0;
     stats->checkpoint_handle_meta_checked = 0;
@@ -4369,6 +4371,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_handle_meta_check_duration +=
       WT_STAT_CONN_READ(from, checkpoint_handle_meta_check_duration);
     to->checkpoint_handle_lock_duration += WT_STAT_CONN_READ(from, checkpoint_handle_lock_duration);
+    to->checkpoint_cleanup_duration += WT_STAT_CONN_READ(from, checkpoint_cleanup_duration);
     to->checkpoint_handle_applied += WT_STAT_CONN_READ(from, checkpoint_handle_applied);
     to->checkpoint_handle_dropped += WT_STAT_CONN_READ(from, checkpoint_handle_dropped);
     to->checkpoint_handle_meta_checked += WT_STAT_CONN_READ(from, checkpoint_handle_meta_checked);
