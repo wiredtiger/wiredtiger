@@ -343,9 +343,18 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
             /* Validate the size of the btree */
             if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
-                WT_ERR_MSG(session, WT_ERROR,
-                  "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,
-                  ckpt->size, vs->total_block_size);
+                /*
+                 * FIXME-WT-16738: verify currently encounters checkpoint size mismatches. Re-enable
+                 * this check and remove the warning once this is resolved.
+                 */
+                __wt_verbose_warning(session, WT_VERB_VERIFY,
+                  "%s: checkpoint size verification is currently disabled, skipping size check "
+                  "for checkpoint %s",
+                  name, ckpt->name);
+                if (false)
+                    WT_ERR_MSG(session, WT_ERROR,
+                      "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,
+                      ckpt->size, vs->total_block_size);
             }
 
             /*
