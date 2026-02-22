@@ -1881,7 +1881,7 @@ __disagg_shared_metadata_op_helper(
          * some lookups to return WT_NOTFOUND.
          */
         WT_ERR_NOTFOUND_OK(cursor->remove(cursor), false);
-    } else if (metadata_op == SHARED_METADATA_UPDATE) {
+    } else if (metadata_op == SHARED_METADATA_CREATE || metadata_op == SHARED_METADATA_UPDATE) {
         if (value == NULL) {
             ret = 0;
             goto err;
