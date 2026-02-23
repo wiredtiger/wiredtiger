@@ -39,7 +39,7 @@ namespace model {
  */
 kv_workload_generator_spec::kv_workload_generator_spec()
 {
-    disaggregated = 0;  
+    disaggregated = 0;
 
     min_tables = 3;
     max_tables = 10;
