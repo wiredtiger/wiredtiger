@@ -401,9 +401,10 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Skip files that are never involved in a checkpoint. Skip the history store file as it is,
-     * checkpointed manually later.
+     * checkpointed manually later. Skip readonly btrees as checkpoint is not applicable on it.
      */
-    if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY) || WT_IS_HS(btree->dhandle))
+    if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY | WT_BTREE_READONLY) ||
+      WT_IS_HS(btree->dhandle))
         return (0);
 
     if (__wt_conn_is_disagg(session)) {
