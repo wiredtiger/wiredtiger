@@ -941,12 +941,12 @@ err:
 }
 
 /*
- * __wti_disagg_parse_meta --
+ * __wt_disagg_parse_meta --
  *     Parse metadata pulled from the shared metadata buffer. Note: No allocations performed during
  *     the parsing. Resulting WT_DISAGG_METADATA fields will point into meta_buf.
  */
 int
-__wti_disagg_parse_meta(
+__wt_disagg_parse_meta(
   WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG_METADATA *metadata)
 {
     WT_DECL_RET;
@@ -1306,7 +1306,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT
      */
 
     WT_ERR(__disagg_fetch_shared_meta(session, ckpt_meta, &metadata_buf));
-    WT_ERR(__wti_disagg_parse_meta(session, &metadata_buf, &metadata));
+    WT_ERR(__wt_disagg_parse_meta(session, &metadata_buf, &metadata));
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Picking up disaggregated storage checkpoint: metadata_lsn=%" PRIu64 ", timestamp=%" PRIu64

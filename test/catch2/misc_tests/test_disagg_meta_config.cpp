@@ -83,7 +83,7 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
         metadata_buf.size = metadata_str.length();
         WT_DISAGG_METADATA metadata{};
 
-        const auto ret = __wti_disagg_parse_meta(session, &metadata_buf, &metadata);
+        const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
         REQUIRE(ret == 0);
 
         REQUIRE(config[CHECKPOINT].second ==
@@ -105,7 +105,7 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
         metadata_buf.size = metadata_str.length();
         WT_DISAGG_METADATA metadata{};
 
-        const auto ret = __wti_disagg_parse_meta(session, &metadata_buf, &metadata);
+        const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
         REQUIRE(ret == 0);
 
         REQUIRE(config[CHECKPOINT].second ==
@@ -127,7 +127,7 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
         metadata_buf.size = metadata_str.length();
         WT_DISAGG_METADATA metadata{};
 
-        const auto ret = __wti_disagg_parse_meta(session, &metadata_buf, &metadata);
+        const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
         REQUIRE(ret == EINVAL);
     }
 
@@ -136,7 +136,7 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
         WT_ITEM metadata_buf{};
         WT_DISAGG_METADATA metadata{};
 
-        const auto ret = __wti_disagg_parse_meta(session, &metadata_buf, &metadata);
+        const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
         REQUIRE(ret == EINVAL);
     }
 
@@ -147,7 +147,7 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
         metadata_buf.size = 0;
         WT_DISAGG_METADATA metadata{};
 
-        const auto ret = __wti_disagg_parse_meta(session, &metadata_buf, &metadata);
+        const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
         REQUIRE(ret == EINVAL);
     }
 
@@ -160,7 +160,7 @@ TEST_CASE_METHOD(disagg_fixture, "Parse metadata", "[disagg]")
         metadata_buf.size = metadata_str.length() - 2; /* truncate the last 2 bytes */
         WT_DISAGG_METADATA metadata{};
 
-        const auto ret = __wti_disagg_parse_meta(session, &metadata_buf, &metadata);
+        const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
         REQUIRE(ret == 0);
         REQUIRE(std::string_view("()", 2) ==
           std::string_view(metadata.checkpoint, metadata.checkpoint_len));
@@ -232,7 +232,7 @@ TEST_CASE_METHOD(disagg_fixture, "Legacy metadata format", "[disagg]")
         metadata_buf.size = legacy_metadata.length();
         WT_DISAGG_METADATA metadata{};
 
-        const auto ret = __wti_disagg_parse_meta(session, &metadata_buf, &metadata);
+        const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
         REQUIRE(ret == 0);
         REQUIRE(checkpoint == std::string_view(metadata.checkpoint, metadata.checkpoint_len));
         const uint64_t expected_timestamp = std::stoull("c0ffee12", nullptr, 16);
@@ -249,7 +249,7 @@ TEST_CASE_METHOD(disagg_fixture, "Legacy metadata format", "[disagg]")
         metadata_buf.size = legacy_metadata.length() - 2;
         WT_DISAGG_METADATA metadata{};
 
-        const auto ret = __wti_disagg_parse_meta(session, &metadata_buf, &metadata);
+        const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
         REQUIRE(ret == 0);
         REQUIRE(checkpoint == std::string_view(metadata.checkpoint, metadata.checkpoint_len));
         const uint64_t expected_timestamp = std::stoull("c0ffee", nullptr, 16);
@@ -267,7 +267,7 @@ TEST_CASE_METHOD(disagg_fixture, "Legacy metadata format", "[disagg]")
         metadata_buf.size = incomplete_metadata.length();
         WT_DISAGG_METADATA metadata{};
 
-        const auto ret = __wti_disagg_parse_meta(session, &metadata_buf, &metadata);
+        const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
         REQUIRE(ret == EINVAL);
     }
 
@@ -280,7 +280,7 @@ TEST_CASE_METHOD(disagg_fixture, "Legacy metadata format", "[disagg]")
         metadata_buf.size = incomplete_metadata.length();
         WT_DISAGG_METADATA metadata{};
 
-        const auto ret = __wti_disagg_parse_meta(session, &metadata_buf, &metadata);
+        const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
         REQUIRE(ret == EINVAL);
     }
 
@@ -302,7 +302,7 @@ TEST_CASE_METHOD(disagg_fixture, "Legacy metadata format", "[disagg]")
             metadata_buf.size = incomplete_metadata.length();
             WT_DISAGG_METADATA metadata{};
 
-            const auto ret = __wti_disagg_parse_meta(session, &metadata_buf, &metadata);
+            const auto ret = __wt_disagg_parse_meta(session, &metadata_buf, &metadata);
             REQUIRE(ret == EINVAL);
         }
     }
