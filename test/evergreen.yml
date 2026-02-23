@@ -1133,6 +1133,20 @@ functions:
             ./t -R $format_args ${extra_args|} || fail
           fi
         done
+  "timestamp abort disagg":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build/test/csuite/timestamp_abort"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        ${additional_san_vars}
+        for i in $(seq ${times|1}); do
+          echo Iteration $i/${times}
+          ./test_timestamp_abort -G -s
+        done
   "many dbs test":
     command: shell.exec
     params:
@@ -1757,13 +1771,9 @@ variables:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "format test script"
-        vars:
-          format_test_script_args: -t 180 -c ../../../test/format/CONFIG.disagg -- disagg.mode=follower runs.timer=5:10
-          num_jobs: 1 # Follower requires a larger cache; parallel execution may limit available cache and cause stalls.
       - func: "format test disagg"
         vars:
-          format_args: disagg.mode=follower runs.timer=5:10
+          format_args: disagg.mode=follower runs.ops=500000:2000000
           times: 5
 
   - &format-stress-test-disagg-switch
@@ -1812,6 +1822,15 @@ variables:
           format_args: disagg.multi=1 runs.predictable_replay=1 ops.verify=1 disagg.multi_validation=1 runs.ops=500000:2000000
           times: 5
           reopen: false # FIXME-WT-16481 Reopen currently causes failures in disagg multi mode.
+
+  - &timestamp-abort-test-disagg
+    depends_on:
+        - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "timestamp abort disagg"
+        vars:
+          times: 50
 
 #######################################
 #               Tasks                 #
@@ -4535,6 +4554,7 @@ tasks:
           test_format_extra_args: -C "verbose=(checkpoint_cleanup:1)"
 
   - name: format-stress-test-tsan
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
@@ -5194,6 +5214,13 @@ tasks:
     name: format-stress-test-disagg-multi-validation-2
     tags: ["stress-test-disagg-fail"]
 
+  - <<: *timestamp-abort-test-disagg
+    name: timestamp-abort-test-disagg-1
+    tags: ["stress-test-disagg-fail"]
+  - <<: *timestamp-abort-test-disagg
+    name: timestamp-abort-test-disagg-2
+    tags: ["stress-test-disagg-fail"]
+
   - name: format-stress-test-disagg-leader-pull-request
     tags: ["pull_request"]
     depends_on:
@@ -5241,6 +5268,7 @@ tasks:
           num_jobs: 1  # MSAN builds (with PALM) can cause OOM issues if multiple jobs are run in parallel.
 
   - name: format-stress-test-disagg-leader-tsan
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:

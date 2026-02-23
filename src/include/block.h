@@ -518,6 +518,7 @@ struct __wt_block_disagg_header {
 #define WT_BLOCK_DISAGG_DATA_CKSUM 0x1u /* Block data is part of the checksum */
 #define WT_BLOCK_DISAGG_ENCRYPTED 0x2u  /* Data following header is encrypted */
 #define WT_BLOCK_DISAGG_COMPRESSED 0x4u /* Data following header is compressed */
+#define WT_BLOCK_DISAGG_MODIFIED 0x08u  /* The page is modified "offline" */
     uint8_t flags;                      /* 12: flags */
 
     /*

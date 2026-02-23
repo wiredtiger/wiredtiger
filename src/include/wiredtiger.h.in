@@ -3443,11 +3443,13 @@ struct __wt_connection {
  * pre-fetch future content into the cache., a set of related configuration options defined as
  * follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;available, whether the thread pool for the pre-fetch
- * functionality is started., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * default, whether pre-fetch is enabled for all sessions by default., a boolean flag; default \c
- * false.}
- * @config{ ),,}
+ * functionality is started\, this does not mean that pre-fetch is enabled for sessions by default\,
+ * see the \c default setting at the connection level and the \c prefetch setting at the session
+ * level., a boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;default, whether
+ * pre-fetch is enabled for all sessions by default., a boolean flag; default \c false.}
+ * @config{
+ * ),,}
  * @config{preserve_prepared, open connection in preserve prepare mode.  All the prepared
  * transactions that are not yet committed or rolled back will be preserved in the database.  This
  * is useful for applications that want to preserve prepared transactions across restarts., a
@@ -5866,6 +5868,11 @@ struct __wt_page_log_put_args {
         * Output arguments, returned by the call
         */
        uint64_t lsn;
+
+       /*
+        * Arguments used by the block cache
+        */
+       uint64_t delta_count;
 };
 
 /*!
@@ -5889,6 +5896,11 @@ struct __wt_page_log_get_args {
        uint64_t base_lsn;
        uint64_t backlink_checkpoint_id;
        uint64_t base_checkpoint_id;
+
+       /*
+        * Arguments used by the block cache
+        */
+       uint64_t delta_count;
 };
 
 /*!
@@ -6007,6 +6019,30 @@ struct __wt_page_log_handle {
      * @param session the current WiredTiger session
      */
     int (*plh_close)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session);
+
+    /*!
+     * Put an object into cache.
+     */
+    int (*plh_cache_put)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
+        uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args,
+        const WT_ITEM *buf);
+
+    /*!
+     * Query object in cache.
+     */
+    int (*plh_cache_has)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
+        uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args);
+
+    /*!
+     * Delete object from cache.
+     */
+    int (*plh_cache_del)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
+        uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_PUT_ARGS *args);
+
+    /*!
+     * Query if block cache is available.
+     */
+    bool (*plh_cache_available)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session);
 };
 
 #endif

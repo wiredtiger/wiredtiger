@@ -104,10 +104,15 @@ __wti_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, ui
     WT_ACQUIRE_READ_WITH_BARRIER(session_cnt, conn->session_array.cnt);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         __txn_get_read_timestamp(s, &tmp_read_ts);
+
+        /* Don't consider the sessions without a read timestamp. */
+        if (tmp_read_ts == WT_TS_NONE)
+            continue;
+
         /*
          * A zero timestamp is possible here only when the oldest timestamp is not accounted for.
          */
-        if (tmp_ts == WT_TS_NONE || (tmp_read_ts != WT_TS_NONE && tmp_read_ts < tmp_ts))
+        if (tmp_ts == WT_TS_NONE || tmp_read_ts < tmp_ts)
             tmp_ts = tmp_read_ts;
 
         if (tmp_read_ts < old_ts)
@@ -992,7 +997,8 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
     __txn_assert_after_reads(session, "rollback", rollback_ts);
 
     /* Check whether the rollback timestamp is less than the stable timestamp. */
-    stable_ts = txn_global->stable_timestamp;
+    /* FIXME-WT-16717: Fix the race. */
+    stable_ts = __wt_tsan_suppress_load_uint64(&txn_global->stable_timestamp);
     if (rollback_ts <= stable_ts) {
         WT_RET_MSG(session, EINVAL,
           "rollback timestamp %s is not newer than the stable timestamp %s",

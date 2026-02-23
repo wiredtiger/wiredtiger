@@ -99,12 +99,28 @@ typedef enum { /* Start position for eviction walk */
 #define WT_BTREE_ID_INVALID UINT32_MAX
 
 #define WT_BTREE_ID_NAMESPACE_BITS 3
-#define WT_BTREE_ID_NAMESPACE_SHARED 1
+#define WT_BTREE_ID_NAMESPACE_LOCAL 0   /* Namespace for regular local files */
+#define WT_BTREE_ID_NAMESPACE_SHARED 1  /* Namespace for regular shared files */
+#define WT_BTREE_ID_NAMESPACE_SPECIAL 2 /* Namespace for special shared files with fixed IDs */
 
-#define WT_BTREE_ID_NAMESPACED(x) ((x) << WT_BTREE_ID_NAMESPACE_BITS)
+#define WT_BTREE_ID_NAMESPACED(base_id, namespace_id) \
+    ((base_id) << WT_BTREE_ID_NAMESPACE_BITS | (namespace_id))
 #define WT_BTREE_ID_UNNAMESPACED(x) ((x) >> WT_BTREE_ID_NAMESPACE_BITS)
 #define WT_BTREE_ID_NAMESPACE_ID(x) ((x) & ((1 << WT_BTREE_ID_NAMESPACE_BITS) - 1))
-#define WT_BTREE_ID_SHARED(x) (WT_BTREE_ID_NAMESPACE_ID(x) == WT_BTREE_ID_NAMESPACE_SHARED)
+
+/* Special tables are currently always shared, so we check for both. */
+#define WT_BTREE_ID_SHARED(x)                                         \
+    ((WT_BTREE_ID_NAMESPACE_ID(x) == WT_BTREE_ID_NAMESPACE_SHARED) || \
+      (WT_BTREE_ID_NAMESPACE_ID(x) == WT_BTREE_ID_NAMESPACE_SPECIAL))
+
+/*
+ * Predefined IDs for shared tables that must use fixed IDs. These tables are created independently
+ * on every node and should have identical IDs to avoid conflicts at the storage layer.
+ *
+ * Should always belong to the special namespace to avoid conflicts with the local metadata ID.
+ */
+#define WT_SHARED_METADATA_FILE_ID 0
+#define WT_SHARED_HS_FILE_ID 1
 
 /*
  * WT_BTREE --
