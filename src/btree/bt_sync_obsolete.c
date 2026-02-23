@@ -541,8 +541,9 @@ err : {
     uint64_t end_time = __wt_clock(session);
     uint64_t elapsed_us = WT_CLOCKDIFF_US(end_time, start_time);
     __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
-      "%s: checkpoint cleanup completed, pages_visited=%" PRIu32 ", elapsed=%" PRIu64 " us",
-      (char *)uri->data, pages_visited, elapsed_us);
+      "%s: checkpoint cleanup completed (ret: %d), pages_visited=%" PRIu32 ", elapsed=%" PRIu64
+      " us",
+      (char *)uri->data, ret, pages_visited, elapsed_us);
 }
 
     /* On error, clear any left-over tree walk. */
@@ -761,9 +762,9 @@ err : {
     uint64_t end_time = __wt_clock(session);
     uint64_t elapsed_us = WT_CLOCKDIFF_US(end_time, start_time);
     __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
-      "checkpoint cleanup pass completed: processed=%" PRIu32 " tables, skipped=%" PRIu32
+      "checkpoint cleanup pass completed (ret: %d): processed=%" PRIu32 " tables, skipped=%" PRIu32
       " tables, elapsed=%" PRIu64 " us",
-      tables_processed, tables_skipped, elapsed_us);
+      ret, tables_processed, tables_skipped, elapsed_us);
     WT_STAT_CONN_SET(session, checkpoint_cleanup_duration, elapsed_us);
     WT_STAT_CONN_SET(session, checkpoint_cleanup_handle_processed, tables_processed);
 }
