@@ -105,9 +105,7 @@ __wti_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, ui
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         __txn_get_read_timestamp(s, &tmp_read_ts);
 
-        /*
-         * Don't consider the sessions without a read timestamp.
-         */
+        /* Don't consider the sessions without a read timestamp. */
         if (tmp_read_ts == WT_TS_NONE)
             continue;
 
