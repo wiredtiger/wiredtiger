@@ -339,7 +339,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
 
             /* Account for the root page in the accumulated total block size. */
-            WT_ERR(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
+            WT_TRET(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
 
             /* Validate the size of the btree */
             if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
