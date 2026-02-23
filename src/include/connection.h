@@ -161,6 +161,15 @@ struct __wt_layered_table_manager {
 #define WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION 1
 
 /*
+ * Identify the shared metadata operations inside the shared metadata queue.
+ */
+typedef enum {
+    WT_SHARED_METADATA_UPDATE = 0,
+    WT_SHARED_METADATA_CREATE,
+    WT_SHARED_METADATA_REMOVE
+} WT_SHARED_METADATA_OP;
+
+/*
  * WT_DISAGG_METADATA_OP --
  *      Metadata about an object to be updated during the next checkpoint.
  */
@@ -174,20 +183,11 @@ struct __wt_disagg_metadata_op {
     char *table_value;    /* The value for the table component. */
 
     /* Metadata type operation. */
-    u_int metadata_op;
+    WT_SHARED_METADATA_OP metadata_op;
     /* Skip the drop operation in the next checkpoint and defer it to the one after. */
     bool deferred;
     TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
-
-/*
- * Identify the shared metadata operations inside the shared metadata queue.
- */
-typedef enum {
-    SHARED_METADATA_UPDATE = 0,
-    SHARED_METADATA_CREATE,
-    SHARED_METADATA_REMOVE
-} WT_SHARED_METADATA_OPS;
 
 #define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
 
@@ -267,7 +267,7 @@ struct __wt_disaggregated_storage {
 
     /* To copy at the next checkpoint. */
     TAILQ_HEAD(__wt_disagg_shared_metadata_qh, __wt_disagg_metadata_op) shared_metadata_qh;
-    WT_SPINLOCK shared_metadata_lock;
+    WT_SPINLOCK shared_metadata_queue_lock;
 
     /*
      * Ideally we'd have flags passed to the IO system, which could make it all the way to the

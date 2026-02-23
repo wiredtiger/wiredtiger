@@ -180,7 +180,7 @@ __layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
               "Failed to create missing stable table \"%s\" from \"%s\"", stable_uri, layered_cfg);
             /* Ensure that we properly handle empty tables. */
             WT_ERR(__wt_disagg_enqueue_metadata_operation(
-              session, stable_uri, layered_uri + strlen("layered:"), SHARED_METADATA_UPDATE));
+              session, stable_uri, layered_uri + strlen("layered:"), WT_SHARED_METADATA_UPDATE));
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Created missing stable table \"%s\" from \"%s\"", stable_uri, layered_uri);
         }
@@ -1702,11 +1702,11 @@ __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
 }
 
 /*
- * __disagg_shared_metadata_free --
+ * __disagg_shared_metadata_queue_free --
  *     Free an entry in the update metadata queue.
  */
 static void
-__disagg_shared_metadata_free(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP **entry)
+__disagg_shared_metadata_queue_free(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP **entry)
 {
     if (*entry == NULL)
         return;
@@ -1718,6 +1718,24 @@ __disagg_shared_metadata_free(WT_SESSION_IMPL *session, WT_DISAGG_METADATA_OP **
     __wt_free(session, (*entry)->table_value);
     __wt_free(session, *entry);
     *entry = NULL;
+}
+
+/*
+ * __shared_metadata_op_to_string --
+ *     Convert a metadata operation to string representation.
+ */
+static inline const char *
+__shared_metadata_op_to_string(WT_SHARED_METADATA_OP op)
+{
+    switch (op) {
+    case WT_SHARED_METADATA_UPDATE:
+        return ("UPDATE");
+    case WT_SHARED_METADATA_CREATE:
+        return ("CREATE");
+    case WT_SHARED_METADATA_REMOVE:
+        return ("REMOVE");
+    }
+    return ("");
 }
 
 /*
@@ -1753,8 +1771,8 @@ err:
  *     next checkpoint.
  */
 int
-__wt_disagg_enqueue_metadata_operation(
-  WT_SESSION_IMPL *session, const char *stable_uri, const char *table_name, u_int metadata_op)
+__wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *stable_uri,
+  const char *table_name, WT_SHARED_METADATA_OP metadata_op)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
@@ -1796,19 +1814,19 @@ __wt_disagg_enqueue_metadata_operation(
      */
     WT_ACQUIRE_READ_WITH_BARRIER(ckpt_running, conn->txn_global.checkpoint_running);
     if (ckpt_running &&
-      (metadata_op == SHARED_METADATA_REMOVE || metadata_op == SHARED_METADATA_CREATE))
+      (metadata_op == WT_SHARED_METADATA_REMOVE || metadata_op == WT_SHARED_METADATA_CREATE))
         entry->deferred = true;
 
     /* Cannot fail past this point. */
-    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_lock);
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
     TAILQ_INSERT_TAIL(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
-    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_lock);
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "Scheduled copying disaggregated metadata for table \"%s\" (stable URI \"%s\") with %s "
       "operation to shared "
       "metadata table at next checkpoint:",
-      table_name, stable_uri, metadata_op == SHARED_METADATA_UPDATE ? "UPDATE" : "DELETE");
+      table_name, stable_uri, __shared_metadata_op_to_string(metadata_op));
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  colgroup: %s",
       entry->colgroup_value == NULL ? "<none>" : entry->colgroup_value);
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE, "  layered: %s",
@@ -1822,34 +1840,34 @@ __wt_disagg_enqueue_metadata_operation(
     entry = NULL;
 
 err:
-    __disagg_shared_metadata_free(session, &entry);
+    __disagg_shared_metadata_queue_free(session, &entry);
 
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
 }
 
 /*
- * __disagg_shared_metadata_clear --
+ * __disagg_shared_metadata_queue_clear --
  *     Clear the update metadata list.
  */
 static void
-__disagg_shared_metadata_clear(WT_SESSION_IMPL *session)
+__disagg_shared_metadata_queue_clear(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGG_METADATA_OP *entry, *tmp;
 
     conn = S2C(session);
 
-    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_lock);
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     WT_TAILQ_SAFE_REMOVE_BEGIN(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
-        __disagg_shared_metadata_free(session, &entry);
+        __disagg_shared_metadata_queue_free(session, &entry);
     }
     WT_TAILQ_SAFE_REMOVE_END
 
-    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_lock);
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 }
 
 /*
@@ -1858,7 +1876,7 @@ __disagg_shared_metadata_clear(WT_SESSION_IMPL *session)
  */
 static int
 __disagg_shared_metadata_op_helper(
-  WT_SESSION_IMPL *session, const char *key, const char *value, u_int metadata_op)
+  WT_SESSION_IMPL *session, const char *key, const char *value, WT_SHARED_METADATA_OP metadata_op)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -1871,7 +1889,8 @@ __disagg_shared_metadata_op_helper(
     WT_ERR(__wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
     cursor->set_key(cursor, key);
 
-    if (metadata_op == SHARED_METADATA_REMOVE) {
+    switch (metadata_op) {
+    case WT_SHARED_METADATA_REMOVE:
         /*
          * Layered tables can be created via two methods. When created with the "table:" prefix, we
          * expect metadata entries for layered, colgroup, table, and file. When created with the
@@ -1881,7 +1900,9 @@ __disagg_shared_metadata_op_helper(
          * some lookups to return WT_NOTFOUND.
          */
         WT_ERR_NOTFOUND_OK(cursor->remove(cursor), false);
-    } else if (metadata_op == SHARED_METADATA_CREATE || metadata_op == SHARED_METADATA_UPDATE) {
+        break;
+    case WT_SHARED_METADATA_CREATE:
+    case WT_SHARED_METADATA_UPDATE:
         if (value == NULL) {
             ret = 0;
             goto err;
@@ -1889,11 +1910,12 @@ __disagg_shared_metadata_op_helper(
 
         cursor->set_value(cursor, value);
         WT_ERR(cursor->insert(cursor));
+        break;
     }
 
     __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
       "%s disaggregated shared metadata: key=\"%s\" value=\"%s\"",
-      metadata_op == SHARED_METADATA_REMOVE ? "Removed" : "Updated", key, value);
+      __shared_metadata_op_to_string(metadata_op), key, value);
 
 err:
     if (cursor != NULL)
@@ -1932,11 +1954,11 @@ err:
 }
 
 /*
- * __wt_disagg_shared_metadata_process --
+ * __wt_disagg_shared_metadata_queue_process --
  *     Process the update metadata list.
  */
 int
-__wt_disagg_shared_metadata_process(WT_SESSION_IMPL *session)
+__wt_disagg_shared_metadata_queue_process(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -1951,14 +1973,14 @@ __wt_disagg_shared_metadata_process(WT_SESSION_IMPL *session)
      */
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
-    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_lock);
+    __wt_spin_lock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     TAILQ_FOREACH_SAFE(entry, &conn->disaggregated_storage.shared_metadata_qh, q, tmp)
     {
         if (entry->deferred) {
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Defer metadata %s operation for table \"%s\"", entry->table_name,
-              entry->metadata_op == SHARED_METADATA_REMOVE ? "create" : "update");
+              __shared_metadata_op_to_string(entry->metadata_op));
             entry->deferred = false;
             continue;
         }
@@ -1966,11 +1988,11 @@ __wt_disagg_shared_metadata_process(WT_SESSION_IMPL *session)
         WT_ERR(__disagg_shared_metadata_op(session, entry));
 
         TAILQ_REMOVE(&conn->disaggregated_storage.shared_metadata_qh, entry, q);
-        __disagg_shared_metadata_free(session, &entry);
+        __disagg_shared_metadata_queue_free(session, &entry);
     }
 
 err:
-    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_lock);
+    __wt_spin_unlock(session, &conn->disaggregated_storage.shared_metadata_queue_lock);
 
     return (ret);
 }
@@ -2207,7 +2229,7 @@ __disagg_step_down(WT_SESSION_IMPL *session)
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
 
     /* Do some cleanup as we are abandoning the current checkpoint. */
-    __disagg_shared_metadata_clear(session);
+    __disagg_shared_metadata_queue_clear(session);
 }
 
 /*
@@ -2606,7 +2628,7 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     disagg = &conn->disaggregated_storage;
 
     /* Remove the list of URIs for which we still need to update metadata entries. */
-    __disagg_shared_metadata_clear(session);
+    __disagg_shared_metadata_queue_clear(session);
 
     /* Close the metadata handles. */
     if (disagg->page_log_meta != NULL) {

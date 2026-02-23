@@ -181,7 +181,7 @@ __block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool fail
         /* Remember the metadata of the stable/shared table. */
         WT_SAVE_DHANDLE(session,
           ret = __wt_disagg_enqueue_metadata_operation(
-            session, stable_uri, table_name, SHARED_METADATA_UPDATE));
+            session, stable_uri, table_name, WT_SHARED_METADATA_UPDATE));
         WT_ERR(ret);
     }
 

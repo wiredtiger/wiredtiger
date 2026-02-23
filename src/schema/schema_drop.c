@@ -199,7 +199,7 @@ __drop_layered(
         /* Remove the all associated metadata from shared metadata table. */
         WT_SAVE_DHANDLE(session,
           ret = __wt_disagg_enqueue_metadata_operation(
-            session, stable_uri, tablename, SHARED_METADATA_REMOVE));
+            session, stable_uri, tablename, WT_SHARED_METADATA_REMOVE));
         WT_ERR(ret);
     }
 
