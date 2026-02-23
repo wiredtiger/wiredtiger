@@ -30,7 +30,6 @@ from stat_data import dsrc_stats, conn_stats, conn_dsrc_stats, session_stats
 def check_unique_description(sorted_list):
     temp = ""
     for i in sorted_list:
-        # print("Checking description: '%s'" % (i.desc))
         if temp == i.desc:
             print("ERROR: repeated stat description in - '%s'" % (i.desc))
         temp = i.desc
