@@ -1216,10 +1216,10 @@ __wti_rec_row_leaf(
             }
         } else {
             /*
-             * If we've selected an update, it should be flagged as being destined for the disk
-             * image.
+             * If an update has been selected, it must be marked as intended for the disk image.
+             * Otherwise, it must be a tombstone that is intended for deleting the key entirely.
              */
-            WT_ASSERT(session, F_ISSET(upd, WT_UPDATE_DS));
+            WT_ASSERT(session, F_ISSET(upd, WT_UPDATE_DS) || upd == &upd_tombstone);
 
             /* The first time we find an overflow record, discard the underlying blocks. */
             if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)
