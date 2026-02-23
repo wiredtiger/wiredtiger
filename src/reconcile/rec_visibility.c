@@ -1081,6 +1081,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
                 if (upd_select->upd != NULL) {
                     upd_select->upd = NULL;
                     found_last_upd_to_keep = false;
+                    WT_STAT_CONN_DSRC_INCR(session, rec_ingest_keep_prepare_rollback);
                 }
             }
 
