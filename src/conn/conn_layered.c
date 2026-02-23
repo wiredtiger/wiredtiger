@@ -642,6 +642,59 @@ err:
 }
 
 /*
+ * __wt_disagg_set_database_size --
+ *     Set the database size in disaggregated storage.
+ */
+void
+__wt_disagg_set_database_size(WT_SESSION_IMPL *session, uint64_t database_size)
+{
+    S2C(session)->disaggregated_storage.database_size = database_size;
+    WT_STAT_CONN_SET(session, disagg_database_size, database_size);
+}
+
+/*
+ * __wt_disagg_parse_meta --
+ *     Parse metadata pulled from the shared metadata buffer. Note: No allocations performed during
+ *     the parsing. Resulting WT_DISAGG_METADATA fields will point into meta_buf.
+ */
+int
+__wt_disagg_parse_meta(
+  WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG_METADATA *metadata)
+{
+    WT_DECL_RET;
+
+    if (meta_buf->size == 0)
+        WT_ERR_MSG(session, EINVAL, "Disaggregated checkpoint metadata is empty");
+
+    WT_CLEAR(*metadata);
+    metadata->checkpoint_timestamp = WT_TS_MAX; /* Invalid timestamp by default. */
+
+    if (WT_PREFIX_MATCH((const char *)meta_buf->data, "checkpoint=")) {
+        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Disaggregated checkpoint metadata starts with \"checkpoint=\";"
+          "Parsing regular format. Found \"%.*s\"",
+          (int)meta_buf->size, (const char *)meta_buf->data);
+        WT_ERR(__disagg_parse_meta(session, meta_buf, metadata));
+
+    } else {
+        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Disaggregated checkpoint metadata does not start with \"checkpoint=\";"
+          "Parsing legacy format. Found \"%.*s\"",
+          (int)meta_buf->size, (const char *)meta_buf->data);
+        WT_ERR(__disagg_parse_legacy_meta(session, meta_buf, metadata));
+    }
+
+    if (metadata->checkpoint == NULL)
+        WT_ERR_MSG(session, EINVAL, "Missing checkpoint entry in disaggregated storage metadata");
+    if (metadata->checkpoint_timestamp == WT_TS_MAX)
+        WT_ERR_MSG(session, EINVAL, "Missing timestamp entry in disaggregated storage metadata");
+    /* Key provider entry is optional. */
+
+err:
+    return (ret);
+}
+
+/*
  * __wti_disagg_set_last_materialized_lsn --
  *     Set the latest materialized LSN.
  */
