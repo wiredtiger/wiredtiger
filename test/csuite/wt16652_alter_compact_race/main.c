@@ -43,7 +43,7 @@
  * The bug occurs when:
  * 1. Compact session traverses btree A with split generation
  * 2. An internal page in btree B has a newer split generation
- * 3. DROP calls __wt_evict_file(..., WT_SYNC_DISCARD) on btree B
+ * 3. Alter calls __wt_evict_file(..., WT_SYNC_DISCARD) on btree B
  * 4. __wt_page_can_evict finds Compact session (operating on btree A) with older generation
  * 5. Returns true (cannot evict) even though Compact is on a different btree
  * 6. Assertion fails: "Page should be evictable during discard"
@@ -59,9 +59,9 @@
 #define TABLE1_URI "table:table1"
 #define TABLE2_URI "table:table2"
 
-static pthread_t thread_compact, thread_alter;
-static volatile bool compact_running = false;
-static volatile bool compact_holding_gen = false;
+static pthread_t thread_enter_split_gen, thread_alter;
+static volatile bool split_gen_running = false;
+static volatile bool split_gen_holding = false;
 static volatile bool stop_threads = false;
 
 /* Thread data structure */
@@ -71,7 +71,7 @@ struct thread_data {
 };
 
 /* Forward declarations */
-static void *thread_func_compact(void *);
+static void *thread_func_enter_split_gen(void *);
 static void *thread_func_alter(void *);
 static void populate_table(WT_SESSION *, const char *);
 static void create_internal_pages(WT_SESSION *, const char *);
@@ -142,11 +142,15 @@ main(int argc, char *argv[])
     alter_data.conn = opts->conn;
     alter_data.uri = TABLE2_URI;
 
-    /* Start compact thread on table1 */
-    testutil_check(pthread_create(&thread_compact, NULL, thread_func_compact, &compact_data));
-
-    /* Wait for compact to start */
-    while (!compact_running)
+    /*
+     * Start split gen thread on table1. In the original bug ticket, it was a compact session that
+     * entered split generation while traversing table1's btree. In theory, any session holding
+     * split generation is sufficient to trigger the issue.
+     */
+    testutil_check(
+      pthread_create(&thread_enter_split_gen, NULL, thread_func_enter_split_gen, &compact_data));
+    /* Wait for split gen thread to start */
+    while (!split_gen_running)
         __wt_sleep(0, 100000); /* 100ms */
 
     /* Start alter thread on table2 */
@@ -155,10 +159,9 @@ main(int argc, char *argv[])
     /* Wait for alter thread to complete */
     testutil_check(pthread_join(thread_alter, NULL));
 
-    /* Stop compact thread */
+    /* Stop entering split gen thread */
     stop_threads = true;
-    testutil_check(pthread_join(thread_compact, NULL));
-
+    testutil_check(pthread_join(thread_enter_split_gen, NULL));
     /* Cleanup */
     testutil_cleanup(opts);
 
@@ -222,15 +225,15 @@ create_internal_pages(WT_SESSION *session, const char *uri)
 }
 
 /*
- * thread_func_compact --
+ * thread_func_enter_split_gen --
  *     Thread function that holds split generation on table1 for a long time.
  *
  * Simple strategy: 1. Manually enter WT_ENTER_PAGE_INDEX (split generation) 2. Sleep for a long
- *     time while holding it 3. This simulates a slow compact operation traversing table1 btree 4.
- *     The split generation on table1 should NOT block ALTER eviction on table2
+ *     time while holding it 3. Any session holding split generation on table1 btree should NOT
+ *     block ALTER eviction on table2
  */
 static void *
-thread_func_compact(void *arg)
+thread_func_enter_split_gen(void *arg)
 {
     struct thread_data *data;
     WT_CURSOR *cursor;
@@ -242,7 +245,7 @@ thread_func_compact(void *arg)
     testutil_check(data->conn->open_session(data->conn, NULL, NULL, &session));
     session_impl = (WT_SESSION_IMPL *)session;
 
-    compact_running = true;
+    split_gen_running = true;
 
     /*
      * Open cursor to access the btree and get a dhandle. Keep the cursor open to ensure session
@@ -251,14 +254,15 @@ thread_func_compact(void *arg)
     testutil_check(session->open_cursor(session, data->uri, NULL, NULL, &cursor));
 
     /*
-     * Manually enter split generation. This simulates a compact operation traversing table1 btree.
-     * We use the low-level functions directly.
+     * Manually enter split generation. Any session holding split generation on table1 should NOT
+     * block ALTER eviction on table2. We use the low-level functions directly.
      */
     __wt_session_gen_enter(session_impl, WT_GEN_SPLIT);
-    compact_holding_gen = true;
+    split_gen_holding = true;
 
-    /* Sleep for 60 seconds while holding split generation */
-    __wt_sleep(60, 0);
+    /* Hold split generation until the main thread signals us to stop (after alter completes). */
+    while (!stop_threads)
+        __wt_sleep(0, 100000); /* 100ms */
 
     __wt_session_gen_leave(session_impl, WT_GEN_SPLIT);
 
@@ -272,11 +276,11 @@ thread_func_compact(void *arg)
  * thread_func_alter --
  *     Thread function that runs ALTER on table2.
  *
- * Simple strategy: 1. Wait for Compact thread to enter split generation 2. Insert data to trigger
- *     page splits on table2 3. Checkpoint to make btree->modified = false 4. Call ALTER which will
- *     trigger __wt_evict_file(WT_SYNC_DISCARD) 5. WITHOUT FIX: Compact's split generation on table1
- *     will block eviction on table2 6. WITHOUT FIX: Hit assertion "Page should be evictable during
- *     discard"
+ * Simple strategy: 1. Wait for entering-split-gen thread to enter split generation 2. Insert data
+ *     to trigger page splits on table2 3. Checkpoint to make btree->modified = false 4. Call ALTER
+ *     which will trigger __wt_evict_file(WT_SYNC_DISCARD) 5. WITHOUT FIX: entering-split-gen
+ *     session on table1 will block eviction on table2 6. WITHOUT FIX: Hit assertion "Page should be
+ *     evictable during discard"
  */
 static void *
 thread_func_alter(void *arg)
@@ -291,8 +295,8 @@ thread_func_alter(void *arg)
 
     testutil_check(data->conn->open_session(data->conn, NULL, NULL, &session));
 
-    /* Wait for Compact thread to enter split generation */
-    while (!compact_holding_gen)
+    /* Wait for entering-split-gen thread to enter split generation */
+    while (!split_gen_holding)
         __wt_sleep(0, 100000); /* 100ms */
 
     memset(value_buf, 'c', sizeof(value_buf) - 1);
@@ -324,7 +328,7 @@ thread_func_alter(void *arg)
      * 3. Since btree->modified is false, call __wt_evict_file(WT_SYNC_DISCARD)
      * 4. Try to evict all pages including internal pages
      * 5. Check __wt_page_can_evict for each internal page
-     * 6. WITHOUT FIX: Find the Compact session on table1 blocking eviction
+     * 6. WITHOUT FIX: Find the entering-split-gen session on table1 blocking eviction
      * 7. WITHOUT FIX: Hit assertion "Page should be evictable during discard"
      */
     testutil_check(session->alter(session, data->uri, "access_pattern_hint=random"));
