@@ -1808,13 +1808,12 @@ __wt_disagg_enqueue_metadata_operation(WT_SESSION_IMPL *session, const char *sta
     WT_ERR(__disagg_save_metadata(session, cursor, "", stable_uri, &entry->stable_value));
 
     /*
-     * When WiredTiger is running a checkpoint, prevent create/drop updates from entering the shared
+     * When WiredTiger is running a checkpoint, prevent drop updates from entering the shared
      * metadata table for that checkpoint. We defer these metadata operations to the next checkpoint
      * to keep the checkpoints metadata and table state consistent.
      */
     WT_ACQUIRE_READ_WITH_BARRIER(ckpt_running, conn->txn_global.checkpoint_running);
-    if (ckpt_running &&
-      (metadata_op == WT_SHARED_METADATA_REMOVE || metadata_op == WT_SHARED_METADATA_CREATE))
+    if (ckpt_running && (metadata_op == WT_SHARED_METADATA_REMOVE))
         entry->deferred = true;
 
     /* Cannot fail past this point. */
