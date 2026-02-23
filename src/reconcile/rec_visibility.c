@@ -1074,7 +1074,7 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
                 *has_newer_updatesp = true;
                 /*
                  * If an update has already been selected for writing to the disk image, and the
-                 * rollback timestamp of an aborted prepared update is not part of the oldest
+                 * rollback timestamp of the aborted prepared update is not part of the oldest
                  * checkpoint currently in use, we cannot prune this update. It may still be
                  * required during a step-up to resolve the prepared update on the stable btree.
                  */

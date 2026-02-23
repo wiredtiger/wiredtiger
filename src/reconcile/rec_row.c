@@ -1152,7 +1152,7 @@ __wti_rec_row_leaf(
          */
         if (upd == NULL) {
             /*
-             * Prepared updates are never written to the disk image for the ingest table. Therefore,
+             * Prepared updates are never written to the disk image for the ingest btree. Therefore,
              * we can safely discard the key if the delete operation is globally visible, even if it
              * hasn't been included in the oldest checkpoint currently in use.
              */
