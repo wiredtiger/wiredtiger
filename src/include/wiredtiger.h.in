@@ -6304,7 +6304,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_DISAGG_BLOCK_HS_GET		1053
 /*! block-disagg: Disaggregated block manager page discard calls */
 #define	WT_STAT_CONN_DISAGG_BLOCK_PAGE_DISCARD		1054
-/*! block-disagg: Disaggregated block manager put  */
+/*! block-disagg: Disaggregated block manager put */
 #define	WT_STAT_CONN_DISAGG_BLOCK_PUT			1055
 /*! block-disagg: Disaggregated block manager put cold page */
 #define	WT_STAT_CONN_DISAGG_BLOCK_PUT_COLD		1056
@@ -8841,7 +8841,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_DISAGG_BLOCK_HS_GET		2008
 /*! block-disagg: Disaggregated block manager page discard calls */
 #define	WT_STAT_DSRC_DISAGG_BLOCK_PAGE_DISCARD		2009
-/*! block-disagg: Disaggregated block manager put  */
+/*! block-disagg: Disaggregated block manager put */
 #define	WT_STAT_DSRC_DISAGG_BLOCK_PUT			2010
 /*! block-disagg: Disaggregated block manager put cold page */
 #define	WT_STAT_DSRC_DISAGG_BLOCK_PUT_COLD		2011

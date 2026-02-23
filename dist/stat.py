@@ -30,9 +30,19 @@ from stat_data import dsrc_stats, conn_stats, conn_dsrc_stats, session_stats
 def check_unique_description(sorted_list):
     temp = ""
     for i in sorted_list:
+        # print("Checking description: '%s'" % (i.desc))
         if temp == i.desc:
             print("ERROR: repeated stat description in - '%s'" % (i.desc))
         temp = i.desc
+
+##########################################
+# Format the description of stats.
+##########################################
+def sanitize_description(desc):
+    desc = desc.strip()
+    desc = re.sub(r'[.,;:!?]+$', '', desc)
+
+    return desc
 
 ##########################################
 # Remove trailing digits for a string.
@@ -60,6 +70,8 @@ def check_name_sorted(stat_list):
 
 all_stat_list = [conn_dsrc_stats, conn_stats, dsrc_stats, session_stats]
 for stat_list in all_stat_list:
+    for stat in stat_list:
+        stat.desc = sanitize_description(stat.desc)
     check_name_sorted(stat_list)
 
 conn_dsrc_stats.sort(key=attrgetter('desc'))
