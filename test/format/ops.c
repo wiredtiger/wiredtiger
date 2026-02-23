@@ -245,10 +245,7 @@ rollback_to_stable(WT_SESSION *session)
     if (GV(PRECISE_CHECKPOINT))
         return;
 
-    /*
-     * Rollback the system using up to 10 threads. Extend to 11 values to cover the NULL config
-     * case.
-     */
+    /* Rollback the system using the RTS threads config. */
     num_threads = GV(ROLLBACK_TO_STABLE_THREADS);
     testutil_snprintf(cfg, sizeof(cfg), "threads=%" PRIu32, num_threads);
     testutil_check(g.wts_conn->rollback_to_stable(g.wts_conn, num_threads == 11 ? NULL : cfg));

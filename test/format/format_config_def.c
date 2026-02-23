@@ -328,8 +328,10 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"random.extra_seed", "set random seed for extra operations", 0x0, 0, 0, UINT_MAX,
     V_GLOBAL_RANDOM_EXTRA_SEED},
 
-  {"rollback_to_stable_threads", "maximum number of threads WiredTiger will start to help RTS", 0x0,
-    0, 11, 11, V_GLOBAL_ROLLBACK_TO_STABLE_THREADS},
+  {"rollback_to_stable_threads",
+    "maximum number of threads to use for RTS (0-10). A value of 11 passes a NULL config to "
+    "rollback_to_stable and uses the WiredTiger default (4 threads)",
+    0x0, 0, 11, 11, V_GLOBAL_ROLLBACK_TO_STABLE_THREADS},
 
   {"runs.in_memory", "configure in-memory", C_BOOL | C_IGNORE, 0, 0, 1, V_GLOBAL_RUNS_IN_MEMORY},
 

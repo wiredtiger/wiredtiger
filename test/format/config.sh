@@ -301,7 +301,7 @@ CONFIG configuration_list[] = {
 
 {"random.extra_seed", "set random seed for extra operations", 0x0, 0, 0, UINT_MAX}
 
-{"rollback_to_stable_threads", "maximum number of threads WiredTiger will start to help RTS", 0x0, 0, 11, 11}
+{"rollback_to_stable_threads", "maximum number of threads to use for RTS (0-10). A value of 11 passes a NULL config to rollback_to_stable and uses the WiredTiger default (4 threads)", 0x0, 0, 11, 11}
 
 {"runs.in_memory", "configure in-memory", C_BOOL | C_IGNORE, 0, 0, 1}
 
