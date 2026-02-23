@@ -30,6 +30,7 @@
 # checkpoint:checkpoint_cleanup
 # [END_TAGS]
 
+import os
 from test_cc01 import test_cc_base
 from wiredtiger import stat
 from wtscenario import make_scenarios
@@ -106,7 +107,10 @@ class test_cc02(test_cc_base):
 
         # We should always visit pages for cleanup.
         self.assertGreater(ckpt_cleanup_handle_processed, 0)
-        self.assertGreater(ckpt_cleanup_duration, 0)
+        # Some Windows machines lack the time granularity to detect microseconds.
+        # Skip the time check on Windows.
+        if not os.name == "nt":
+            self.assertGreater(ckpt_cleanup_duration, 0)
         self.assertGreater(visited, 0)
 
         # Depending on the scenario, cleanup will be triggered differently.
