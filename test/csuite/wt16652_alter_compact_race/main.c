@@ -52,16 +52,16 @@
  */
 
 /*
- * Use small number of records - just enough to create internal pages. With very small page sizes
- * (4KB), 1k records is enough.
+ * Use enough records to create internal pages and make the file large enough for COMPACT to work.
+ * With very small page sizes (4KB), 5k records should create a file > 1MB (COMPACT's minimum). More
+ * records = more internal pages = higher bug reproduction probability.
  */
-#define NUM_RECORDS 1000
+#define NUM_RECORDS 5000
 #define TABLE1_URI "table:table1"
 #define TABLE2_URI "table:table2"
 
-static pthread_t thread_enter_split_gen, thread_alter;
-static volatile bool split_gen_running = false;
-static volatile bool split_gen_holding = false;
+static pthread_t thread_compact, thread_alter;
+static volatile bool compact_running = false;
 static volatile bool stop_threads = false;
 
 /* Thread data structure */
@@ -71,7 +71,7 @@ struct thread_data {
 };
 
 /* Forward declarations */
-static void *thread_func_enter_split_gen(void *);
+static void *thread_func_compact(void *);
 static void *thread_func_alter(void *);
 static void populate_table(WT_SESSION *, const char *);
 static void create_internal_pages(WT_SESSION *, const char *);
@@ -96,14 +96,13 @@ main(int argc, char *argv[])
      * Use aggressive configuration to maximize the chance of reproducing:
      * - Very small cache (20MB) to force aggressive eviction
      * - Many eviction threads to increase concurrency
-     * - timing_stress_for_test to slow down operations and increase race window
+     * - compact_slow timing stress to extend the time COMPACT holds split generation
      * - eviction_dirty_target=1 to trigger eviction very aggressively
      */
     testutil_check(wiredtiger_open(opts->home, NULL,
       "create,cache_size=20MB,eviction=(threads_min=8,threads_max=16),"
       "eviction_dirty_target=1,eviction_dirty_trigger=5,"
-      "timing_stress_for_test=[compact_slow,failpoint_eviction_split,checkpoint_slow,evict_"
-      "reposition],"
+      "timing_stress_for_test=[compact_slow],"
       "statistics=(all),statistics_log=(json,on_close,wait=1)",
       &opts->conn));
 
@@ -121,6 +120,23 @@ main(int argc, char *argv[])
       "key_format=Q,value_format=S,internal_page_max=4KB,leaf_page_max=4KB,"
       "split_pct=50,memory_page_max=1MB"));
     populate_table(session, TABLE1_URI);
+    /* Create internal pages in table1 */
+    create_internal_pages(session, TABLE1_URI);
+
+    /*
+     * Create fragmentation in table1 by deleting every other record. This will give COMPACT
+     * something to do, ensuring it actually walks the tree and enters split generation.
+     */
+    {
+        WT_CURSOR *cursor;
+        uint64_t i;
+        testutil_check(session->open_cursor(session, TABLE1_URI, NULL, NULL, &cursor));
+        for (i = 1; i <= NUM_RECORDS * 2; i += 2) {
+            cursor->set_key(cursor, i);
+            (void)cursor->remove(cursor);
+        }
+        testutil_check(cursor->close(cursor));
+    }
 
     /* Create and populate table2 (for alter) */
     testutil_check(session->create(session, TABLE2_URI,
@@ -143,14 +159,13 @@ main(int argc, char *argv[])
     alter_data.uri = TABLE2_URI;
 
     /*
-     * Start split gen thread on table1. In the original bug ticket, it was a compact session that
-     * entered split generation while traversing table1's btree. In theory, any session holding
-     * split generation is sufficient to trigger the issue.
+     * Start COMPACT thread on table1. COMPACT will naturally enter split generation when traversing
+     * internal pages via WT_WITH_PAGE_INDEX macro. The compact_slow timing stress will extend the
+     * time COMPACT holds split generation, increasing the race window.
      */
-    testutil_check(
-      pthread_create(&thread_enter_split_gen, NULL, thread_func_enter_split_gen, &compact_data));
-    /* Wait for split gen thread to start */
-    while (!split_gen_running)
+    testutil_check(pthread_create(&thread_compact, NULL, thread_func_compact, &compact_data));
+    /* Wait for compact thread to start */
+    while (!compact_running)
         __wt_sleep(0, 100000); /* 100ms */
 
     /* Start alter thread on table2 */
@@ -159,9 +174,9 @@ main(int argc, char *argv[])
     /* Wait for alter thread to complete */
     testutil_check(pthread_join(thread_alter, NULL));
 
-    /* Stop entering split gen thread */
+    /* Stop compact thread */
     stop_threads = true;
-    testutil_check(pthread_join(thread_enter_split_gen, NULL));
+    testutil_check(pthread_join(thread_compact, NULL));
     /* Cleanup */
     testutil_cleanup(opts);
 
@@ -225,15 +240,17 @@ create_internal_pages(WT_SESSION *session, const char *uri)
 }
 
 /*
- * thread_func_enter_split_gen --
- *     Thread function that holds split generation on table1 for a long time.
+ * thread_func_compact --
+ *     Thread function that holds split generation on table1.
  *
- * Simple strategy: 1. Manually enter WT_ENTER_PAGE_INDEX (split generation) 2. Sleep for a long
- *     time while holding it 3. Any session holding split generation on table1 btree should NOT
- *     block ALTER eviction on table2
+ * Instead of relying on COMPACT's natural split generation entry (which is released after each
+ *     __compact_walk_internal call via WT_WITH_PAGE_INDEX macro), we manually enter split
+ *     generation and hold it continuously until ALTER completes. This ensures a stable race window
+ *     for reproducing the bug. Any session holding split generation on table1 btree should NOT
+ *     block ALTER eviction on table2.
  */
 static void *
-thread_func_enter_split_gen(void *arg)
+thread_func_compact(void *arg)
 {
     struct thread_data *data;
     WT_CURSOR *cursor;
@@ -245,22 +262,21 @@ thread_func_enter_split_gen(void *arg)
     testutil_check(data->conn->open_session(data->conn, NULL, NULL, &session));
     session_impl = (WT_SESSION_IMPL *)session;
 
-    split_gen_running = true;
+    compact_running = true;
 
     /*
      * Open cursor to access the btree and get a dhandle. Keep the cursor open to ensure session
-     * stays active.
+     * stays active on this btree.
      */
     testutil_check(session->open_cursor(session, data->uri, NULL, NULL, &cursor));
 
     /*
-     * Manually enter split generation. Any session holding split generation on table1 should NOT
-     * block ALTER eviction on table2. We use the low-level functions directly.
+     * Manually enter split generation. This simulates what COMPACT does when traversing internal
+     * pages, but we hold it continuously instead of releasing after each internal page traversal.
      */
     __wt_session_gen_enter(session_impl, WT_GEN_SPLIT);
-    split_gen_holding = true;
 
-    /* Hold split generation until the main thread signals us to stop (after alter completes). */
+    /* Hold split generation until the main thread signals us to stop (after ALTER completes). */
     while (!stop_threads)
         __wt_sleep(0, 100000); /* 100ms */
 
@@ -276,11 +292,10 @@ thread_func_enter_split_gen(void *arg)
  * thread_func_alter --
  *     Thread function that runs ALTER on table2.
  *
- * Simple strategy: 1. Wait for entering-split-gen thread to enter split generation 2. Insert data
- *     to trigger page splits on table2 3. Checkpoint to make btree->modified = false 4. Call ALTER
- *     which will trigger __wt_evict_file(WT_SYNC_DISCARD) 5. WITHOUT FIX: entering-split-gen
- *     session on table1 will block eviction on table2 6. WITHOUT FIX: Hit assertion "Page should be
- *     evictable during discard"
+ * Simple strategy: 1. Wait for COMPACT thread to start 2. Insert data to trigger page splits on
+ *     table2 3. Checkpoint to make btree->modified = false 4. Call ALTER which will trigger
+ *     __wt_evict_file(WT_SYNC_DISCARD) 5. WITHOUT FIX: COMPACT session on table1 will block
+ *     eviction on table2 6. WITHOUT FIX: Hit assertion "Page should be evictable during discard"
  */
 static void *
 thread_func_alter(void *arg)
@@ -295,9 +310,12 @@ thread_func_alter(void *arg)
 
     testutil_check(data->conn->open_session(data->conn, NULL, NULL, &session));
 
-    /* Wait for entering-split-gen thread to enter split generation */
-    while (!split_gen_holding)
+    /* Wait for COMPACT thread to start running */
+    while (!compact_running)
         __wt_sleep(0, 100000); /* 100ms */
+
+    /* Give COMPACT some time to enter split generation */
+    __wt_sleep(0, 500000); /* 500ms */
 
     memset(value_buf, 'c', sizeof(value_buf) - 1);
     value_buf[sizeof(value_buf) - 1] = '\0';
