@@ -384,6 +384,11 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     __wt_verbose_debug1(
       session, WT_VERB_RECONCILE, "finished building disk image for %p", (void *)ref);
 
+    /* Apply accumulated bytes_total increment for disaggregated storage */
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        if (r->disagg_bytes_written > 0)
+            __wt_btree_increase_size(session, r->disagg_bytes_written);
+
     /* Wrap up the page reconciliation. Panic on failure. */
     WT_ERR(__rec_write_wrapup(session, r));
     __rec_write_page_status(session, r);
@@ -786,6 +791,9 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->wrapup_checkpoint = NULL;
     r->wrapup_checkpoint_compressed = false;
     WT_CLEAR(r->wrapup_checkpoint_block_meta);
+
+    /* Track bytes written for disaggregated storage during reconciliation. */
+    r->disagg_bytes_written = 0;
 
     /*
      * Dictionary compression only writes repeated values once. We grow the dictionary as necessary,
@@ -2523,6 +2531,16 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         verify_image = true;
 #endif
     }
+
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !skip_write) {
+
+        /* Accumulate bytes written for disaggregated storage */
+        if (build_delta)
+            r->disagg_bytes_written += r->delta.size;
+        else
+            r->disagg_bytes_written += chunk->image.size;
+    }
+
     WT_RET(__wt_memdup(session, addr, addr_size, &multi->addr.block_cookie));
     multi->addr.block_cookie_size = (uint8_t)addr_size;
 

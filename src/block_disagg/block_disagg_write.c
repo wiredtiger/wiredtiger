@@ -213,7 +213,7 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     *checksump = checksum;
 
     /* Update the btree's running total of bytes. */
-    __wt_btree_increase_size(session, *sizep);
+    // __wt_btree_increase_size(session, *sizep);
 
     return (0);
 }
