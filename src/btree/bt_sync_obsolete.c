@@ -723,7 +723,7 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
     WT_DECL_ITEM(uri);
     WT_DECL_RET;
 
-    uint32_t tables_processed = 0, tables_skipped = 0;
+    uint32_t tables_processed = 0;
     uint64_t start_time = __wt_clock(session);
 
     WT_RET(__wt_scr_alloc(session, 1024, &uri));
@@ -735,7 +735,6 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
             __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
               "%s: skipped performing checkpoint cleanup because the file %s", (char *)uri->data,
               ret == ENOENT ? "does not exist" : "is busy");
-            ++tables_skipped;
             continue;
         }
         WT_ERR(ret);
@@ -762,9 +761,9 @@ err : {
     uint64_t end_time = __wt_clock(session);
     uint64_t elapsed_us = WT_CLOCKDIFF_US(end_time, start_time);
     __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
-      "checkpoint cleanup pass completed (ret: %d): processed=%" PRIu32 " tables, skipped=%" PRIu32
-      " tables, elapsed=%" PRIu64 " us",
-      ret, tables_processed, tables_skipped, elapsed_us);
+      "checkpoint cleanup pass completed (ret: %d): processed=%" PRIu32 " tables, elapsed=%" PRIu64
+      " us",
+      ret, tables_processed, elapsed_us);
     WT_STAT_CONN_SET(session, checkpoint_cleanup_duration, elapsed_us);
     WT_STAT_CONN_SET(session, checkpoint_cleanup_handle_processed, tables_processed);
 }
