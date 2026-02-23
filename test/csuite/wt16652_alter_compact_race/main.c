@@ -53,7 +53,7 @@
 
 /*
  * Use enough records to create internal pages and make the file large enough for COMPACT to work.
- * With very small page sizes (4KB), 5k records should create a file > 1MB (COMPACT's minimum). More
+ * With very small page sizes (4KB), 5k records should create a file > 1MB (COMPACT minimum). More
  * records = more internal pages = higher bug reproduction probability.
  */
 #define NUM_RECORDS 5000
@@ -243,7 +243,7 @@ create_internal_pages(WT_SESSION *session, const char *uri)
  * thread_func_compact --
  *     Thread function that holds split generation on table1.
  *
- * Instead of relying on COMPACT's natural split generation entry (which is released after each
+ * Instead of relying on COMPACT natural split generation entry (which is released after each
  *     __compact_walk_internal call via WT_WITH_PAGE_INDEX macro), we manually enter split
  *     generation and hold it continuously until ALTER completes. This ensures a stable race window
  *     for reproducing the bug. Any session holding split generation on table1 btree should NOT
