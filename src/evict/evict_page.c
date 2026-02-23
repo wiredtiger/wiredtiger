@@ -1022,8 +1022,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     modified = __wt_page_is_modified(page);
 
     /*
-     * Clean pages can't be evicted when running in memory only. This should be uncommon - we don't
-     * add clean pages to the queue.
+     * Clean pages can't be evicted from in memory btrees. This should be uncommon - we don't add
+     * clean pages to the queue.
      */
     if (F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified && !closing)
         return (__wt_set_return(session, EBUSY));
@@ -1130,7 +1130,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      */
     else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree->dhandle))
         ;
-    /* Always do update restore for in-memory database. */
+    /* Always do update restore for in-memory btrees. */
     else if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
         LF_SET(WT_REC_IN_MEMORY | WT_REC_SCRUB);
     /* For data store leaf pages, write the history to history store except for metadata. */
