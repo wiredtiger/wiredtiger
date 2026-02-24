@@ -228,8 +228,8 @@ __wt_schema_range_truncate(WT_TRUNCATE_INFO *trunc_info)
             trunc_info->stop = clayered_stop->ingest_cursor;
 
             /* Perform truncate on ingest table. */
-            // ret = __wt_range_truncate(trunc_info->start, trunc_info->start);
-            // WT_ERR_NOTFOUND_OK(ret, false);
+            ret = __wt_range_truncate(trunc_info->start, trunc_info->stop);
+            WT_ERR_NOTFOUND_OK(ret, false);
 
             /* Add entry inside truncate list. */
             ret = __wt_insert_truncate_entry(

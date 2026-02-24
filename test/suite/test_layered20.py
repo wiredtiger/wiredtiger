@@ -82,7 +82,7 @@ class test_layered20(wttest.WiredTigerTestCase):
         extlist.extension('encryptors', self.encryptor)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def no_test_layered_read_write(self):
+    def test_truncate_case(self):
         self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 
@@ -115,28 +115,20 @@ class test_layered20(wttest.WiredTigerTestCase):
         session2 = self.conn.open_session()
         cursor2 = session2.open_cursor(self.uri)
 
-        # # Before commit, the keys should be found.
-        # session2.begin_transaction()
-        # cursor2.set_key(str(150))
-        # self.assertEqual(cursor2.search(), 0)
-        # session2.rollback_transaction()
+        # Before commit, the keys should be found.
+        session2.begin_transaction()
+        cursor2.set_key(str(150))
+        self.assertEqual(cursor2.search(), 0)
+        session2.rollback_transaction()
 
         self.session.commit_transaction()
 
-        # # After commit, the keys should not found.
-        # session2.begin_transaction()
-        # cursor2.set_key(str(150))
-        # self.assertEqual(cursor2.search(), wiredtiger.WT_NOTFOUND)
-        # session2.commit_transaction()
-
-        for i in range(400, self.nitems):
-            self.session.begin_transaction()
-            cursor2[str(i)] = value1
-            self.session.commit_transaction()
-
+        # After commit, the keys should not found.
+        session2.begin_transaction()
+        cursor2.set_key(str(150))
+        self.assertEqual(cursor2.search(), wiredtiger.WT_NOTFOUND)
+        session2.commit_transaction()
         cursor2.reset()
-        while cursor2.next() == 0:
-            print(cursor2.get_key())
         self.session.checkpoint()
 
         session2.close()
@@ -144,7 +136,7 @@ class test_layered20(wttest.WiredTigerTestCase):
         c2.close()
 
 
-    def test_layered_read_write(self):
+    def test_truncate_rollback(self):
         self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 
@@ -177,12 +169,105 @@ class test_layered20(wttest.WiredTigerTestCase):
         session2 = self.conn.open_session()
         cursor2 = session2.open_cursor(self.uri)
 
+        # Cursor should be found.
+        session2.begin_transaction()
+        cursor2.set_key(str(150))
+        self.assertEqual(cursor2.search(), 0)
+        session2.commit_transaction()
         cursor2.reset()
-        while cursor2.next() == 0:
-            print(cursor2.get_key())
         self.session.checkpoint()
 
         session2.close()
         c1.close()
         c2.close()
 
+    # Truncate -> insert
+    def test_truncate_write_conflict_1(self):
+        self.pr('CREATING')
+        self.session.create(self.uri, self.session_create_config())
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        value1 = "a" * 100
+
+        for i in range(self.nitems):
+            self.session.begin_transaction()
+            cursor[str(i)] = value1
+            if self.ts:
+                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
+            else:
+                self.session.commit_transaction()
+
+        self.session.checkpoint()
+
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
+        self.reopen_conn(config = follower_config)
+
+        c1 = self.session.open_cursor(self.uri, None)
+        c1.set_key(str(100))
+        c2 = self.session.open_cursor(self.uri, None)
+        c2.set_key(str(700))
+
+        self.session.begin_transaction()
+        self.session.truncate(None, c1, c2, None)
+        # The second session.
+        session2 = self.conn.open_session()
+        
+        session2.begin_transaction()
+        cursor2 = session2.open_cursor(self.uri)
+        cursor2.set_key(str(150))
+        cursor2.set_value("hi")
+        
+        msg1 = '/conflict between concurrent operations/'
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor2.update(), msg1)
+        session2.commit_transaction()
+        session2.close()
+        c1.close()
+        c2.close()
+
+    # Insert -> truncate
+    def test_truncate_write_conflict_2(self):
+        self.pr('CREATING')
+        self.session.create(self.uri, self.session_create_config())
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        value1 = "a" * 100
+
+        for i in range(self.nitems):
+            self.session.begin_transaction()
+            cursor[str(i)] = value1
+            if self.ts:
+                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
+            else:
+                self.session.commit_transaction()
+
+        self.session.checkpoint()
+
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
+        self.reopen_conn(config = follower_config)
+
+        # The second session.
+        session2 = self.conn.open_session()
+        session2.begin_transaction()
+        
+        cursor2 = session2.open_cursor(self.uri)
+        cursor2.set_key(str(100))
+        cursor2.set_value("hi")
+        cursor2.update()
+
+        c1 = self.session.open_cursor(self.uri, None)
+        c1.set_key(str(100))
+        c2 = self.session.open_cursor(self.uri, None)
+        c2.set_key(str(700))
+
+        self.session.begin_transaction()
+
+        msg1 = '/conflict between concurrent operations/'
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.truncate(None, c1, c2, None), msg1)
+
+        self.session.rollback_transaction()
+        session2.commit_transaction()
+        session2.close()
+        c1.close()
+        c2.close()
