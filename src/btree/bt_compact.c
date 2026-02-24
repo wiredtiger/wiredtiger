@@ -236,6 +236,7 @@ __compact_walk_internal(WT_SESSION_IMPL *session, WT_REF *parent)
     WT_DECL_RET;
     WT_REF *ref;
     bool overall_progress, skipp;
+    static bool timing_stress_applied = false;
 
     WT_ASSERT(session, F_ISSET(parent, WT_REF_FLAG_INTERNAL));
 
@@ -246,10 +247,17 @@ __compact_walk_internal(WT_SESSION_IMPL *session, WT_REF *parent)
      * WT_WITH_PAGE_INDEX, so we are already holding split generation. Use a very long delay (10
      * seconds) to ensure we hold split generation for the entire duration of ALTER operations on
      * other btrees, guaranteeing reliable reproduction of the race condition.
+     *
+     * Only apply the timing stress once per process to avoid excessive delays when walking multiple
+     * internal pages. The static variable ensures this delay is applied only on the first call to
+     * this function in the process lifetime, which is sufficient for testing the race condition.
      */
-    sleep_time.tv_sec = 10; /* 10 seconds */
-    sleep_time.tv_nsec = 0;
-    __wt_timing_stress(session, WT_TIMING_STRESS_COMPACT_SLOW, &sleep_time);
+    if (!timing_stress_applied) {
+        timing_stress_applied = true;
+        sleep_time.tv_sec = 10; /* 10 seconds */
+        sleep_time.tv_nsec = 0;
+        __wt_timing_stress(session, WT_TIMING_STRESS_COMPACT_SLOW, &sleep_time);
+    }
 
     /*
      * We could corrupt a checkpoint if we moved a block that's part of the checkpoint, that is, if
