@@ -241,48 +241,37 @@ create_internal_pages(WT_SESSION *session, const char *uri)
 
 /*
  * thread_func_compact --
- *     Thread function that holds split generation on table1.
+ *     Thread function that runs COMPACT on table1.
  *
- * Instead of relying on COMPACT natural split generation entry (which is released after each
- *     __compact_walk_internal call via WT_WITH_PAGE_INDEX macro), we manually enter split
- *     generation and hold it continuously until ALTER completes. This ensures a stable race window
- *     for reproducing the bug. Any session holding split generation on table1 btree should NOT
- *     block ALTER eviction on table2.
+ * COMPACT will naturally enter split generation when traversing internal pages via the
+ *     WT_WITH_PAGE_INDEX macro in __compact_walk_internal. The compact_slow timing stress extends
+ *     the time COMPACT holds split generation, increasing the race window. Any session holding
+ *     split generation on table1 btree should NOT block ALTER eviction on table2.
  */
 static void *
 thread_func_compact(void *arg)
 {
     struct thread_data *data;
-    WT_CURSOR *cursor;
     WT_SESSION *session;
-    WT_SESSION_IMPL *session_impl;
 
     data = (struct thread_data *)arg;
 
     testutil_check(data->conn->open_session(data->conn, NULL, NULL, &session));
-    session_impl = (WT_SESSION_IMPL *)session;
 
     compact_running = true;
 
     /*
-     * Open cursor to access the btree and get a dhandle. Keep the cursor open to ensure session
-     * stays active on this btree.
+     * Run COMPACT continuously which will naturally enter split generation via WT_WITH_PAGE_INDEX
+     * when traversing internal pages. The compact_slow timing stress (10 seconds) in
+     * __compact_walk_internal ensures we hold split generation for the entire duration of ALTER
+     * operations on other btrees, guaranteeing reliable reproduction of the race condition.
+     * Keep running COMPACT until the main thread signals us to stop (after ALTER completes).
      */
-    testutil_check(session->open_cursor(session, data->uri, NULL, NULL, &cursor));
+    while (!stop_threads) {
+        /* COMPACT may return EBUSY if eviction is under pressure, which is fine for this test. */
+        (void)session->compact(session, data->uri, NULL);
+    }
 
-    /*
-     * Manually enter split generation. This simulates what COMPACT does when traversing internal
-     * pages, but we hold it continuously instead of releasing after each internal page traversal.
-     */
-    __wt_session_gen_enter(session_impl, WT_GEN_SPLIT);
-
-    /* Hold split generation until the main thread signals us to stop (after ALTER completes). */
-    while (!stop_threads)
-        __wt_sleep(0, 100000); /* 100ms */
-
-    __wt_session_gen_leave(session_impl, WT_GEN_SPLIT);
-
-    testutil_check(cursor->close(cursor));
     testutil_check(session->close(session, NULL));
 
     return (NULL);
