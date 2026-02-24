@@ -60,6 +60,15 @@ __drop_file(
          */
         WT_TRET(__wt_meta_track_drop(session, filename));
 
+    /* FIXME-WT-12021 Replace this with a proper failpoint once the framework is available. */
+    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CRASH_POINT_COLGROUP)) {
+        __wt_verbose_warning(session, WT_VERB_DEFAULT,
+          "Simulating a crash before inserting column group metadata entry '%s'", "he");
+        /* Wait for the file metadata entry to be persisted. */
+        __wt_sleep(2, 0);
+        __wt_abort(session);
+    }
+
     /*
      * Truncate history store for the dropped file if we can find its id from the metadata, this is
      * a best-effort operation, as we don't fail drop if truncate returns an error. There is no
