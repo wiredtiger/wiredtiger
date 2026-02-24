@@ -111,11 +111,12 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     uint32_t retry, tmp_count, block_size_sum;
     int32_t last, result;
     uint8_t expected_magic;
-    bool is_delta;
+    bool from_cache, is_delta;
 
     /* This variable is only used in an assertion, diagnostic builders don't like this. */
     WT_UNUSED(block_size_sum);
     block_size_sum = 0;
+    from_cache = false;
     time_start = __wt_clock(session);
 
     WT_CLEAR(get_args);
@@ -199,6 +200,8 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
          * TODO(WT-16511): When we have the original checksum stored in the page, we should check
          * that instead of skipping the check entirely for cached pages.
          */
+        if (F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED))
+            from_cache = true;
         if (F_ISSET(&swap, WT_BLOCK_DISAGG_MODIFIED) || swap.checksum == checksum) {
             blk->checksum = 0;
             if (__wt_checksum_match(current->data,
@@ -283,7 +286,8 @@ corrupt:
     }
 
     /* The cumulative size from the cookie must match the sum of all individual block sizes. */
-    WT_ASSERT(session, block_meta->cumulative_size == block_size_sum);
+    if (!from_cache)
+        WT_ASSERT(session, block_meta->cumulative_size == block_size_sum);
 
 err:
     time_stop = __wt_clock(session);
