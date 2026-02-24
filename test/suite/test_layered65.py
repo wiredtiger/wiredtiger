@@ -512,10 +512,10 @@ class test_layered65(wttest.WiredTigerTestCase):
         evict_cursor.close()
 
         stat_cursor = self.session_follow.open_cursor('statistics:' + uri)
-        garbage_collected = stat_cursor[stat.dsrc.rec_ingest_garbage_collection_keys_update_chain][2]
+        garbage_collected = stat_cursor[stat.dsrc.rec_ingest_garbage_collection_keys_disk_image][2]
         aborted_prepare_kept = stat_cursor[stat.dsrc.rec_ingest_keep_prepare_rollback][2]
         # The key is garbage collected because the committed update is stable.
-        self.assertEqual(garbage_collected, 0)
+        self.assertEqual(garbage_collected, 1)
         # No need to keep the aborted prepare update.
         self.assertEqual(aborted_prepare_kept, 1)
         stat_cursor.close()
