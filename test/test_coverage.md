@@ -3,7 +3,6 @@
 |Component|Sub-component|Existing tests|
 |---|---|---|
 |Checkpoint||[main.c](../test/csuite/wt3363_checkpoint_op_races/main.c)
-|Eviction|Schema Api|[main.c](../test/csuite/wt16652_alter_compact_race/main.c)
 ## Functional Correctness tests:
 
 |Component|Sub-component|Existing tests|

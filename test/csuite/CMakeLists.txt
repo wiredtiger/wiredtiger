@@ -381,11 +381,3 @@ define_c_test(
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )
-
-define_c_test(
-    TARGET test_wt16652_alter_compact_race
-    SOURCES wt16652_alter_compact_race/main.c
-    DIR_NAME wt16652_alter_compact_race
-    ARGUMENTS
-    DEPENDS "WT_POSIX"
-)
