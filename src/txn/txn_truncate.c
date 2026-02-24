@@ -74,48 +74,13 @@ err:
 }
 
 /*
- * __layered_table_truncate_detect_write_conflict --
+ * __wt_layered_table_truncate_detect_write_conflict --
  *     Search for a truncate entry in the session's truncate list. Must use WT_SAVE_DHANDLE to get
  *     the layered table handle before calling this function, and hold the layered table lock.
  */
 int
-__layered_table_truncate_detect_write_conflict_v2(
-  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_ITEM *key, WT_TRUNCATE **tp)
-{
-    WT_TRUNCATE *entry;
-    int start_cmp, stop_cmp;
-
-    WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
-    WT_COLLATOR *collator = ((WT_LAYERED_TABLE *)layered_table)->collator;
-
-    __wt_spin_lock(session, &layered_table->truncate_lock);
-    TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
-        if (__wt_txn_visible(session, entry->txn_id, entry->start_ts, entry->durable_ts))
-            continue;
-
-        WT_RET(__wt_compare(session, collator, key, &entry->start_key, &start_cmp));
-        WT_RET(__wt_compare(session, collator, key, &entry->stop_key, &stop_cmp));
-
-        if (start_cmp >= 0 && stop_cmp <= 0) {
-            if (tp != NULL)
-                *tp = entry;
-            __wt_spin_unlock(session, &layered_table->truncate_lock);
-            return (WT_WRITE_CONFLICT);
-        }
-    }
-
-    __wt_spin_unlock(session, &layered_table->truncate_lock);
-    return (0);
-}
-
-/*
- * __layered_table_truncate_detect_write_conflict --
- *     Search for a truncate entry in the session's truncate list. Must use WT_SAVE_DHANDLE to get
- *     the layered table handle before calling this function, and hold the layered table lock.
- */
-int
-__layered_table_truncate_detect_write_conflict(
-  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_ITEM *key, WT_TRUNCATE **tp)
+__wt_layered_table_truncate_detect_write_conflict(
+  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, const WT_ITEM *key, WT_TRUNCATE **tp)
 {
     WT_TRUNCATE *entry;
     int start_cmp, stop_cmp;
@@ -148,7 +113,7 @@ __layered_table_truncate_detect_write_conflict(
  *     Search for a truncate entry in the session's truncate list. Must use WT_SAVE_DHANDLE to get
  *     the layered table handle before calling this function, and hold the layered table lock.
  */
-int
+static int
 __search_layered_table_truncate_list(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_ITEM *key, WT_TRUNCATE **tp)
 {
@@ -236,11 +201,10 @@ __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *la
     entry = NULL;
 
     __wt_spin_lock(session, &layered_table->truncate_lock);
-    TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
+    while ((entry = TAILQ_FIRST(&layered_table->truncateqh)) != NULL) {
         TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
         __disagg_truncate_free(session, &entry);
     }
-
     __wt_spin_unlock(session, &layered_table->truncate_lock);
 }
 
