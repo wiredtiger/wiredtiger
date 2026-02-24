@@ -1584,7 +1584,6 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
   const WT_ITEM *value, bool position, bool reserve)
 {
     WT_CURSOR *c;
-    WT_DECL_RET;
     int (*func)(WT_CURSOR *);
 
     /*
@@ -1651,7 +1650,7 @@ __clayered_remove_follower(
         WT_RET(__clayered_reset_cursors(clayered, true));
         c->set_key(c, key);
     }
-
+    WT_RET(__layered_table_truncate_detect_write_conflict(session, clayered->dhandle, key, NULL));
     c->set_value(c, &__wt_tombstone);
     WT_RET(c->update(c));
     clayered->current_cursor = c;
