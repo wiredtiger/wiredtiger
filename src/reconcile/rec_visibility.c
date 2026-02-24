@@ -1164,7 +1164,8 @@ __rec_upd_select_inmem(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_CELL_UNPAC
 
                 /*
                  * If garbage collection is enabled, continue traversing the update chain. There may
-                 * be an aborted prepared update that cannot be discarded.
+                 * be an aborted prepared update that cannot be discarded if the oldest timestamp
+                 * has moved beyond the prune timestamp.
                  */
                 if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
                     break;

@@ -403,6 +403,10 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
          * this point.
          */
         if ((txnid = __wt_atomic_load_uint64_v_relaxed(&upd->txnid)) == WT_TXN_ABORTED) {
+            /*
+             * We only need to focus on prepared updates in the ingest table, as it is the only type
+             * of btree that requires draining during the step-up process.
+             */
             if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
                 continue;
 
