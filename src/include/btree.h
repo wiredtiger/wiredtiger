@@ -119,8 +119,15 @@ typedef enum { /* Start position for eviction walk */
  *
  * Should always belong to the special namespace to avoid conflicts with the local metadata ID.
  */
-#define WT_SHARED_METADATA_FILE_ID 0
-#define WT_SHARED_HS_FILE_ID 1
+#define WT_SHARED_METADATA_FILE_ID 0 /* Table ID for shared metadata */
+#define WT_SHARED_HS_FILE_ID 1       /* Table ID for shared history store */
+/*
+ * The turtle and key provider tables are not WT tables in the usual sense and exist only at the
+ * PALI level. However, they are part of the special namespace, and we should avoid creating any
+ * tables with the same IDs to prevent conflicts in PALI.
+ */
+#define WT_SHARED_TURTLE_FILE_ID 2       /* Table ID for metadata strings */
+#define WT_SHARED_KEY_PROVIDER_FILE_ID 3 /* Table ID for encryption key data */
 
 /*
  * WT_BTREE --

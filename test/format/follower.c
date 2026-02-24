@@ -57,7 +57,8 @@ follower_fetch_full_metadata(WT_SESSION *session, WT_PAGE_LOG *page_log,
     metadata_lsn = (uint64_t)cval.val;
 
     /* Open a handle for the metadata table. */
-    WT_ERR(page_log->pl_open_handle(page_log, session, WT_DISAGG_METADATA_TABLE_ID, &plh));
+    WT_ERR(page_log->pl_open_handle(page_log, session,
+      WT_BTREE_ID_NAMESPACED(WT_SHARED_TURTLE_FILE_ID, WT_BTREE_ID_NAMESPACE_SPECIAL), &plh));
 
     /* Read the metadata page at the specified LSN. */
     memset(&get_args, 0, sizeof(get_args));
