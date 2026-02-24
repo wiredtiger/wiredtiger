@@ -1226,6 +1226,7 @@ struct __wt_connection_stats {
     int64_t rec_free_page_id_due_to_failed_replacement_reconciliation;
     int64_t rec_page_full_image_internal;
     int64_t rec_page_full_image_leaf;
+    int64_t rec_ingest_keep_prepare_rollback;
     int64_t rec_page_delta_internal_key_deleted;
     int64_t rec_page_delta_internal_key_updated;
     int64_t rec_page_delta_internal;
@@ -1734,6 +1735,7 @@ struct __wt_dsrc_stats {
     int64_t rec_free_page_id_due_to_failed_replacement_reconciliation;
     int64_t rec_page_full_image_internal;
     int64_t rec_page_full_image_leaf;
+    int64_t rec_ingest_keep_prepare_rollback;
     int64_t rec_page_delta_internal_key_deleted;
     int64_t rec_page_delta_internal_key_updated;
     int64_t rec_page_delta_internal;
