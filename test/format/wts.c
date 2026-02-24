@@ -319,7 +319,6 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
     }
 
     memset(&opts, 0, sizeof(opts));
-    opts.disagg.is_enabled = true;
 
     /*
      * We need to cast these values. Normally, testutil allocates and fills these strings based on
@@ -327,19 +326,19 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
      * line parser and doesn't rely on testutil to free anything in this struct. We're only using
      * the options struct on a temporary basis to help create the disagg configuration.
      */
-    opts.disagg.page_log = (char *)GVS(DISAGG_PAGE_LOG);
-    opts.disagg.page_log_home = disagg_is_multi_node() ? g.home_page_log : (char *)home;
-    opts.disagg.mode = (char *)(g.disagg_leader ? "leader" : "follower");
-    opts.disagg.key_provider = GV(DISAGG_KEY_PROVIDER);
-    opts.disagg.drain_threads = GV(DISAGG_DRAIN_THREADS);
     opts.home = (char *)home;
     opts.build_dir = (char *)BUILDDIR;
-    opts.disagg.page_log_map_size_mb = 2048; /* 2 Gigabytes for PALM map */
-    opts.disagg.page_log_verbose = GV(DISAGG_PAGE_LOG_VERBOSE);
-
-    /* Set page deltas. */
-    opts.disagg.internal_page_delta = (bool)GV(DISAGG_INTERNAL_PAGE_DELTA);
-    opts.disagg.leaf_page_delta = (bool)GV(DISAGG_LEAF_PAGE_DELTA);
+    TESTUTIL_DISAGG_INIT(&opts,
+      /* is_enabled           */ true,
+      /* key_provider         */ GV(DISAGG_KEY_PROVIDER),
+      /* internal_page_delta  */ (bool)GV(DISAGG_INTERNAL_PAGE_DELTA),
+      /* leaf_page_delta      */ (bool)GV(DISAGG_LEAF_PAGE_DELTA),
+      /* mode                 */ (char *)(g.disagg_leader ? "leader" : "follower"),
+      /* page_log             */ (char *)GVS(DISAGG_PAGE_LOG),
+      /* page_log_home        */ disagg_is_multi_node() ? g.home_page_log : (char *)home,
+      /* drain_threads        */ GV(DISAGG_DRAIN_THREADS),
+      /* page_log_map_size_mb */ 2048, /* 2 Gigabytes for PALM map */
+      /* page_log_verbose     */ GV(DISAGG_PAGE_LOG_VERBOSE));
 
     testutil_disagg_storage_configuration(
       &opts, home, disagg_cfg, sizeof(disagg_cfg), ext_cfg, ext_cfg_size);

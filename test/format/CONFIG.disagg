@@ -5,6 +5,8 @@
 backup=0
 background_compact=0
 block_cache=0
+# FIXME-WT-14738: Enable reverse collator once it is available for layered tables.
+btree.reverse=0
 checkpoint=on
 precise_checkpoint=1
 disagg.page_log=palite

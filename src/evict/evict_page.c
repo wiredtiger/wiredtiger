@@ -51,6 +51,174 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
 #define WT_EVICT_STATS_URGENT 0x08
 
 /*
+ * Victim Cache Overview
+ * ---------------------
+ * The Victim Cache is an LRU cache designed to avoid data duplication with WiredTiger's
+ * in-memory page cache. Unlike a traditional transparent read-write cache, data enters the
+ * Victim Cache only when pages are evicted from WiredTiger's cache. Conversely, when a page
+ * is read into or written from WiredTiger's cache, it is removed from the Victim Cache, since
+ * it is already present in the main cache.
+ *
+ * WiredTiger only evicts clean pages from memory. If a page has unwritten data (dirty),
+ * it must first be reconciled to produce a clean version before it can be evicted.
+ *
+ * Only leaf pages are cached; internal pages are not stored in the Victim Cache.
+ *
+ * Pages are not cached during shutdown, since they will not be needed again.
+ *
+ * Pages are compressed before being stored in the Victim Cache to reduce memory usage,
+ * though this incurs CPU cost.
+ *
+ * Implementation Note:
+ * A page's in-memory representation may differ from its on-disk format. To handle this, we
+ * store additional metadata alongside each cached page:
+ *   - The original delta length.
+ *   - A flag indicating whether to skip address cookie checksum validation when the page is
+ *     retrieved from the cache (since the checksum may no longer match the in-memory state).
+ */
+
+/*
+ * __evict_page_victim_cache --
+ *     Check eligibility and put page in victim cache if applicable.
+ */
+static void
+__evict_page_victim_cache(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+        return;
+
+    WT_BM *bm = S2BT(session)->bm;
+    if (bm == NULL)
+        return;
+
+    WT_BLOCK_DISAGG *block_disagg = (WT_BLOCK_DISAGG *)bm->block;
+    if (block_disagg == NULL)
+        return;
+
+    WT_PAGE_LOG_HANDLE *plh = block_disagg->plhandle;
+    if (plh == NULL)
+        return;
+
+    if (plh->plh_cache_put == NULL || plh->plh_cache_available == NULL ||
+      !plh->plh_cache_available(plh, &session->iface))
+        return;
+
+    WT_PAGE *page = ref->page;
+
+    /* Only cache clean pages without modify. */
+    if (__wt_page_is_modified(page))
+        return;
+
+    /* Must be a leaf page with disagg info and disk image. */
+    if (!F_ISSET(ref, WT_REF_FLAG_LEAF) || page->disagg_info == NULL || page->dsk == NULL)
+        return;
+
+    if (page->disagg_info->block_meta.page_id == WT_BLOCK_INVALID_PAGE_ID)
+        return;
+
+    /* Cannot cache root pages. */
+    if (__wt_ref_is_root(ref))
+        return;
+
+    /*
+     * Victim cache: store evicted pages in disagg cache. The format must match what disagg read
+     * path expects: WT_PAGE_HEADER + WT_BLOCK_DISAGG_HEADER + data
+     */
+    WT_ITEM buf_orig = {
+      .data = page->dsk,
+      .size = page->dsk->mem_size,
+      .mem = (void *)page->dsk,
+      .memsize = page->dsk->mem_size,
+      .flags = 0,
+    };
+    WT_ITEM *cache_buf = &buf_orig;
+    WT_ITEM *compressed_buf = NULL;
+    WT_PAGE_HEADER *dsk;
+    bool compressed = false;
+    bool data_checksum = true;
+
+    /* Optionally compress the data before caching. */
+    WT_IGNORE_RET(
+      __wt_blkcache_compress(session, &buf_orig, false, &compressed_buf, NULL, &compressed));
+    if (compressed_buf != NULL)
+        cache_buf = compressed_buf;
+
+    /* Point dsk to the cache buffer's page header. */
+    dsk = (WT_PAGE_HEADER *)cache_buf->mem;
+
+    /*
+     * Determine if full data checksum is needed based on btree config. This follows the same logic
+     * as __wt_blkcache_write.
+     */
+    switch (S2BT(session)->checksum) {
+    case CKSUM_ON:
+        break;
+    case CKSUM_OFF:
+        data_checksum = false;
+        break;
+    case CKSUM_UNCOMPRESSED:
+        data_checksum = !compressed;
+        break;
+    case CKSUM_UNENCRYPTED:
+        /* Not encrypted in this path. */
+        break;
+    }
+
+    /*
+     * Fill in the disagg block header following the pattern from
+     * __wti_block_disagg_write_internal. The disagg block header
+     * is at WT_BLOCK_HEADER_REF (after the page header).
+     */
+    WT_BLOCK_DISAGG_HEADER *blk = WT_BLOCK_HEADER_REF(cache_buf->data);
+    memset(blk, 0, sizeof(*blk));
+
+    /* Set disagg header fields. */
+    blk->magic = WT_BLOCK_DISAGG_MAGIC_BASE;
+    blk->version = WT_BLOCK_DISAGG_VERSION;
+    blk->compatible_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
+    blk->header_size = WT_BLOCK_DISAGG_HEADER_BYTE_SIZE;
+    blk->previous_checksum = page->disagg_info->block_meta.checksum;
+    blk->flags = 0;
+    if (data_checksum)
+        F_SET(blk, WT_BLOCK_DISAGG_DATA_CKSUM);
+    if (compressed)
+        F_SET(blk, WT_BLOCK_DISAGG_COMPRESSED);
+    /* Mark as cached so read path skips address cookie checksum match. */
+    F_SET(blk, WT_BLOCK_DISAGG_MODIFIED);
+    /* Not encrypted in this path. */
+
+    /* Calculate checksum following __wti_block_disagg_write_internal. */
+    blk->checksum = 0;
+    blk->checksum = __wt_checksum(cache_buf->data,
+      data_checksum ? cache_buf->size : WT_MIN(cache_buf->size, WT_BLOCK_COMPRESS_SKIP));
+
+    /*
+     * Swap page header to little-endian for on-disk format.
+     */
+    __wt_page_header_byteswap(dsk);
+
+    WT_PAGE_LOG_PUT_ARGS args = {
+      .backlink_lsn = page->disagg_info->block_meta.backlink_lsn,
+      .base_lsn = page->disagg_info->block_meta.base_lsn,
+      .backlink_checkpoint_id = 0,
+      .base_checkpoint_id = 0,
+      .delta_count = page->disagg_info->block_meta.delta_count,
+      .image_size = page->dsk->mem_size,
+      .flags = compressed ? WT_PAGE_LOG_COMPRESSED : 0,
+      .lsn = page->disagg_info->block_meta.disagg_lsn,
+    };
+
+    WT_IGNORE_RET(plh->plh_cache_put(
+      plh, &session->iface, page->disagg_info->block_meta.page_id, 0, &args, cache_buf));
+
+    if (compressed_buf != NULL)
+        __wt_scr_free(session, &compressed_buf);
+    else
+        /* Swap page header back to native order. */
+        __wt_page_header_byteswap(dsk);
+}
+
+/*
  * __evict_stats_update --
  *     Update the stats of eviction.
  *
@@ -399,7 +567,10 @@ static int
 __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_DECL_RET;
-    bool instantiated;
+    bool closing, instantiated, tree_dead;
+
+    closing = FLD_ISSET(flags, WT_EVICT_CALL_CLOSING);
+    tree_dead = F_ISSET(session->dhandle, WT_DHANDLE_DEAD);
 
     /*
      * We might discard an instantiated deleted page, because instantiated pages are not marked
@@ -411,6 +582,10 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         WT_ASSERT(session, ref->page_del == NULL);
         instantiated = false;
     }
+
+    if (!instantiated && !tree_dead && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
+      !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) && !closing)
+        __evict_page_victim_cache(session, ref);
 
     /*
      * Discard the page and update the reference structure. A leaf page without a disk address is a
@@ -847,8 +1022,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     modified = __wt_page_is_modified(page);
 
     /*
-     * Clean pages can't be evicted when running in memory only. This should be uncommon - we don't
-     * add clean pages to the queue.
+     * Clean pages can't be evicted from in memory btrees. This should be uncommon - we don't add
+     * clean pages to the queue.
      */
     if (F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified && !closing)
         return (__wt_set_return(session, EBUSY));
@@ -955,7 +1130,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      */
     else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree->dhandle))
         ;
-    /* Always do update restore for in-memory database. */
+    /* Always do update restore for in-memory btrees. */
     else if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
         LF_SET(WT_REC_IN_MEMORY | WT_REC_SCRUB);
     /* For data store leaf pages, write the history to history store except for metadata. */

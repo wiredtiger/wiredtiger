@@ -28,7 +28,7 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
      *
      * The WT_REF cannot be the eviction thread's location.
      */
-    WT_ASSERT(session, S2BT(session)->evict_ref != ref);
+    WT_ASSERT(session, __wt_atomic_load_ptr_relaxed(&S2BT(session)->evict_ref) != ref);
 
     /*
      * Make sure no other thread has a hazard pointer on the page we are about to discard. This is

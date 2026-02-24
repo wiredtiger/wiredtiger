@@ -8,10 +8,6 @@
 
 #include "wt_internal.h"
 
-#define WT_CONFIG_DEBUG(session, fmt, ...)                                 \
-    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CONFIGURATION)) \
-        __wt_verbose_warning(session, WT_VERB_CONFIGURATION, fmt, __VA_ARGS__);
-
 /*
  * __evict_config_abs_to_pct --
  *     Evict configuration values can be either a percentage or an absolute size, this function
