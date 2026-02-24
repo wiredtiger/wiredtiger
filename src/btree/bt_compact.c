@@ -244,9 +244,9 @@ __compact_walk_internal(WT_SESSION_IMPL *session, WT_REF *parent)
 
     /*
      * Add timing stress to extend the time we hold split generation. This function is called within
-     * WT_WITH_PAGE_INDEX, so we are already holding split generation. Use a very long delay (10
-     * seconds) to ensure we hold split generation for the entire duration of ALTER operations on
-     * other btrees, guaranteeing reliable reproduction of the race condition.
+     * WT_WITH_PAGE_INDEX, so we are already holding split generation. Use a delay (5 seconds) to
+     * ensure we hold split generation for the entire duration of ALTER operations on other btrees,
+     * guaranteeing reliable reproduction of the race condition.
      *
      * Only apply the timing stress once per process to avoid excessive delays when walking multiple
      * internal pages. The static variable ensures this delay is applied only on the first call to
@@ -254,7 +254,7 @@ __compact_walk_internal(WT_SESSION_IMPL *session, WT_REF *parent)
      */
     if (!timing_stress_applied) {
         timing_stress_applied = true;
-        sleep_time.tv_sec = 10; /* 10 seconds */
+        sleep_time.tv_sec = 5; /* 5 seconds */
         sleep_time.tv_nsec = 0;
         __wt_timing_stress(session, WT_TIMING_STRESS_COMPACT_SLOW, &sleep_time);
     }
