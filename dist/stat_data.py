@@ -177,6 +177,7 @@ conn_stats = [
     ##########################################
     # System statistics
     ##########################################
+    ConnStat('btree_open', 'btrees currently open', 'no_clear,no_scale'),
     ConnStat('buckets', 'hash bucket array size general', 'no_clear,no_scale,size'),
     ConnStat('buckets_dh', 'hash bucket array size for data handles', 'no_clear,no_scale,size'),
     ConnStat('cond_auto_wait', 'auto adjusting condition wait calls'),
@@ -298,7 +299,6 @@ conn_stats = [
     ##########################################
     # Cache statistics
     ##########################################
-    CacheStat('cache_bytes_delta_updates', 'bytes allocated for delta updates', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_dirty_ingest', 'tracked dirty bytes in the cache from the ingest btrees', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_dirty_internal_ingest', 'tracked dirty internal page bytes in the cache from the ingest btrees', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_dirty_internal_stable', 'tracked dirty internal page bytes in the cache from the stable btrees', 'no_clear,no_scale,size'),
@@ -336,6 +336,7 @@ conn_stats = [
     CacheStat('cache_pages_inuse_stable', 'pages currently held in the cache from the stable btrees', 'no_clear,no_scale'),
     CacheStat('cache_read_app_count', 'application threads page read from disk to cache count'),
     CacheStat('cache_read_app_time', 'application threads page read from disk to cache time (usecs)'),
+    CacheStat('cache_tolerance_level', 'cache tolerance configured', 'no_clear,no_scale,size'),
     CacheStat('cache_updates_txn_uncommitted_bytes', 'updates in uncommitted txn - bytes', 'no_clear,no_scale,size'),
     CacheStat('cache_updates_txn_uncommitted_count', 'updates in uncommitted txn - count', 'no_clear,no_scale,size'),
     CacheStat('cache_write_app_count', 'application threads page write from cache to disk count'),
@@ -355,6 +356,7 @@ conn_stats = [
     EvictStat('eviction_app_time', 'application thread time evicting (usecs)'),
     EvictStat('eviction_clear_ordinary', 'pages removed from the ordinary queue to be queued for urgent eviction'),
     EvictStat('eviction_consider_prefetch', 'pages considered for eviction that were brought in by pre-fetch', 'no_clear,no_scale'),
+    EvictStat('eviction_dhandle_complete_walk', 'eviction server completed walks of all dhandles', 'no_clear,no_scale'),
     EvictStat('eviction_empty_score', 'eviction empty score', 'no_clear,no_scale'),
     EvictStat('eviction_fail', 'pages selected for eviction unable to be evicted'),
     EvictStat('eviction_fail_active_children_on_an_internal_page', 'pages selected for eviction unable to be evicted because of active children on an internal page'),
@@ -382,7 +384,6 @@ conn_stats = [
     EvictStat('eviction_maximum_dirty_page_size_per_checkpoint', 'maximum dirty page size seen at eviction per checkpoint', 'no_clear,no_scale,size'),
     EvictStat('eviction_maximum_milliseconds', 'maximum milliseconds spent at a single eviction', 'no_clear,no_scale,size'),
     EvictStat('eviction_maximum_milliseconds_per_checkpoint', 'maximum milliseconds spent at a single eviction per checkpoint', 'no_clear,no_scale,size'),
-    EvictStat('eviction_maximum_page_size', 'maximum page size seen at eviction', 'no_clear,no_scale,size'),
     EvictStat('eviction_maximum_unvisited_gen_gap', 'maximum gap between unvisited page and connection evict pass generation seen at eviction', 'no_clear,no_scale,size'),
     EvictStat('eviction_maximum_unvisited_gen_gap_per_checkpoint', 'maximum gap between unvisited page and connection evict pass generation seen at eviction per checkpoint', 'no_clear,no_scale,size'),
     EvictStat('eviction_maximum_updates_page_size_per_checkpoint', 'maximum updates page size seen at eviction per checkpoint', 'no_clear,no_scale,size'),
@@ -395,6 +396,7 @@ conn_stats = [
     EvictStat('eviction_pages_queued_post_lru', 'pages queued for eviction post lru sorting'),
     EvictStat('eviction_pages_queued_urgent', 'pages queued for urgent eviction'),
     EvictStat('eviction_pages_queued_urgent_hs_dirty', 'pages queued for urgent eviction from history store due to high dirty content'),
+    EvictStat('eviction_pages_remaining_in_queue', 'pages already in queue when topping up'),
     EvictStat('eviction_queue_empty', 'eviction server candidate queue empty when topping up'),
     EvictStat('eviction_queue_not_empty', 'eviction server candidate queue not empty when topping up'),
     EvictStat('eviction_reentry_hs_eviction_milliseconds', 'total milliseconds spent inside reentrant history store evictions in a reconciliation', 'no_clear,no_scale,size'),
@@ -408,9 +410,10 @@ conn_stats = [
     # Note eviction_server_evict_attempt - eviction_server_evict_fail = evict page successes by eviction server.
     EvictStat('eviction_server_skip_checkpointing_trees', 'eviction server skips trees that are being checkpointed'),
     EvictStat('eviction_server_skip_dirty_pages_during_checkpoint', 'eviction server skips dirty pages during a running checkpoint'),
+    EvictStat('eviction_server_skip_history_store_pages_with_updates_during_checkpoint', 'eviction server skips clean history store pages with updates when a precise checkpoint is in progress'),
     EvictStat('eviction_server_skip_ingest_trees', 'eviction server skips ingest btrees in disagg'),
-    EvictStat('eviction_server_skip_intl_page_non_aggressive', 'eviction server skipped the internal pages if eviction is not in aggressive mode.'),
-    EvictStat('eviction_server_skip_intl_page_with_active_child', 'eviction server skips internal pages as it has an active child.'),
+    EvictStat('eviction_server_skip_intl_page_non_aggressive', 'eviction server skipped the internal pages if eviction is not in aggressive mode'),
+    EvictStat('eviction_server_skip_intl_page_with_active_child', 'eviction server skips internal pages as it has an active child'),
     EvictStat('eviction_server_skip_metatdata_with_history', 'eviction server skips metadata pages with history'),
     EvictStat('eviction_server_skip_pages_already_in_urgent_queue', 'eviction server skipped the pages already in the urgent queue'),
     EvictStat('eviction_server_skip_pages_checkpoint_timestamp', 'eviction server skips pages that are written with transactions greater than the checkpoint timestamp'),
@@ -432,6 +435,12 @@ conn_stats = [
     EvictStat('eviction_target_strategy_clean', 'eviction walk target strategy clean pages'),
     EvictStat('eviction_target_strategy_dirty', 'eviction walk target strategy dirty pages'),
     EvictStat('eviction_target_strategy_updates', 'eviction walk target strategy pages with updates'),
+    EvictStat('eviction_threshold_cache_full_target', 'eviction threshold cache full target multiplied by 100 for precision'),
+    EvictStat('eviction_threshold_cache_full_trigger', 'eviction threshold cache full trigger multiplied by 100 for precision'),
+    EvictStat('eviction_threshold_dirty_target', 'eviction threshold dirty target multiplied by 100 for precision'),
+    EvictStat('eviction_threshold_dirty_trigger', 'eviction threshold dirty trigger multiplied by 100 for precision'),
+    EvictStat('eviction_threshold_updates_target', 'eviction threshold updates target multiplied by 100 for precision'),
+    EvictStat('eviction_threshold_updates_trigger', 'eviction threshold updates trigger multiplied by 100 for precision'),
     EvictStat('eviction_timed_out_ops', 'operations timed out waiting for space in cache'),
     EvictStat('eviction_walk', 'pages walked for eviction'),
     EvictStat('eviction_walk_from_root', 'eviction walks started from root of tree'),
@@ -533,7 +542,7 @@ conn_stats = [
     ChunkCacheStat('chunkcache_chunks_inuse', 'total chunks held by the chunk cache'),
     ChunkCacheStat('chunkcache_chunks_loaded_from_flushed_tables', 'number of chunks loaded from flushed tables in chunk cache'),
     ChunkCacheStat('chunkcache_chunks_pinned', 'total pinned chunks held by the chunk cache'),
-    ChunkCacheStat('chunkcache_created_from_metadata', 'total number of chunks inserted on startup from persisted metadata.'),
+    ChunkCacheStat('chunkcache_created_from_metadata', 'total number of chunks inserted on startup from persisted metadata'),
     ChunkCacheStat('chunkcache_exceeded_bitmap_capacity', 'could not allocate due to exceeding bitmap capacity'),
     ChunkCacheStat('chunkcache_exceeded_capacity', 'could not allocate due to exceeding capacity'),
     ChunkCacheStat('chunkcache_io_failed', 'number of times a read from storage failed'),
@@ -590,6 +599,7 @@ conn_stats = [
     ##########################################
     # Disagg statistics
     ##########################################
+    DisaggStat('disagg_database_size', 'database size', 'size'),
     DisaggStat('disagg_role_leader', 'role leader'),
     DisaggStat('disagg_step_down_time', 'step down most recent time (msecs)'),
     DisaggStat('disagg_step_up_time', 'step up most recent time (msecs)'),
@@ -601,6 +611,7 @@ conn_stats = [
     DhandleStat('dh_conn_handle_checkpoint_count', 'checkpoint connection data handles currently active', 'no_clear,no_scale'),
     # dh_conn_handle_count = The sum of dh_conn_handle_{btree,table,tiered,tiered_tree}_count.
     DhandleStat('dh_conn_handle_count', 'connection data handles currently active', 'no_clear,no_scale'),
+    DhandleStat('dh_conn_handle_layered_count', 'Layered connection data handles currently active', 'no_clear,no_scale'),
     DhandleStat('dh_conn_handle_size', 'connection data handle size', 'no_clear,no_scale,size'),
     DhandleStat('dh_conn_handle_table_count', 'Table connection data handles currently active', 'no_clear,no_scale'),
     DhandleStat('dh_conn_handle_tiered_count', 'Tiered connection data handles currently active', 'no_clear,no_scale'),
@@ -906,13 +917,22 @@ conn_stats = [
     ##########################################
     TxnStat('txn_begin', 'transaction begins'),
     TxnStat('txn_commit', 'transactions committed'),
+    TxnStat('txn_global_checkpoint_timestamp', ' transaction global checkpoint timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_durable_timestamp', ' transaction global durable timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_last_running_timestamp', 'transaction global last running timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_newest_timestamp', 'transaction global newest timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_oldest_timestamp', 'transaction global oldest timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_pinned_timestamp', 'transaction global pinned timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_stable_timestamp', 'transaction global stable timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_version_cursor_timestamp', 'transaction global version cursor timestamp', 'no_clear,no_scale'),
     TxnStat('txn_hs_ckpt_duration', 'transaction checkpoint history store file duration (usecs)'),
     TxnStat('txn_pinned_checkpoint_range', 'transaction range of IDs currently pinned by a checkpoint', 'no_clear,no_scale'),
     TxnStat('txn_pinned_range', 'transaction range of IDs currently pinned', 'no_clear,no_scale'),
-    TxnStat('txn_pinned_timestamp', 'transaction range of timestamps currently pinned', 'no_clear,no_scale'),
-    TxnStat('txn_pinned_timestamp_checkpoint', 'transaction range of timestamps pinned by a checkpoint', 'no_clear,no_scale'),
+    TxnStat('txn_pinned_readers', 'transaction number of older readers older than oldest timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_pinned_timestamp_checkpoint_lag', 'transaction range of timestamps pinned by a checkpoint', 'no_clear,no_scale'),
+    TxnStat('txn_pinned_timestamp_lag', 'transaction range of timestamps currently pinned', 'no_clear,no_scale'),
     TxnStat('txn_pinned_timestamp_oldest', 'transaction range of timestamps pinned by the oldest timestamp', 'no_clear,no_scale'),
-    TxnStat('txn_pinned_timestamp_reader', 'transaction range of timestamps pinned by the oldest active read timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_pinned_timestamp_reader_lag', 'transaction range of timestamps pinned by the oldest active read timestamp', 'no_clear,no_scale'),
     TxnStat('txn_prepare', 'prepared transactions'),
     TxnStat('txn_prepare_active', 'prepared transactions currently active'),
     TxnStat('txn_prepare_commit', 'prepared transactions committed'),
@@ -1141,6 +1161,7 @@ conn_dsrc_stats = [
     CacheStat('cache_bytes_inuse', 'bytes currently in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_read', 'bytes read into cache', 'size'),
     CacheStat('cache_bytes_write', 'bytes written from cache', 'size'),
+    CacheStat('cache_cas_btree_max_lsn_race', 'number of times when cas update the btree max_lsn failed'),
     CacheStat('cache_evict_split_failed_lock', 'realizing in-memory split after reconciliation failed due to internal lock busy'),
     CacheStat('cache_eviction_ahead_of_last_materialized_lsn', 'pages evicted ahead of the page materialization frontier'),
     CacheStat('cache_eviction_app_threads_fill_ratio_25_50', 'application threads eviction requested with cache fill ratio >= 25% and < 50%'),
@@ -1227,8 +1248,6 @@ conn_dsrc_stats = [
     CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
     CacheStat('cache_read_deleted_prepared', 'pages read into cache after truncate in prepare state'),
     CacheStat('cache_read_delta_updates', 'size of delta updates reconstructed on the base page'),
-    CacheStat('cache_read_flatten_leaf_delta', 'number of leaf pages flattened that had deltas attached'),
-    CacheStat('cache_read_flatten_leaf_delta_fail', 'number of leaf pages not flattened that had deltas attached due to failure'),
     CacheStat('cache_read_internal_delta', 'number of internal pages read that had deltas attached'),
     CacheStat('cache_read_leaf_delta', 'number of leaf pages read that had deltas attached'),
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
@@ -1313,18 +1332,21 @@ conn_dsrc_stats = [
     # Disaggregated block manager statistics
     ##########################################
     BlockDisaggStat('disagg_block_get', 'Disaggregated block manager get'),
+    BlockDisaggStat('disagg_block_get_cold', 'Disaggregated block manager get cold page'),
     BlockDisaggStat('disagg_block_hs_byte_read', 'Bytes read from the shared history store in SLS', 'size'),
     BlockDisaggStat('disagg_block_hs_byte_write', 'Bytes written to the shared history store in SLS', 'size'),
     BlockDisaggStat('disagg_block_hs_get', 'Disaggregated block manager get from the shared history store in SLS'),
     BlockDisaggStat('disagg_block_hs_put', 'Disaggregated block manager put to the shared history store in SLS'),
     BlockDisaggStat('disagg_block_page_discard', 'Disaggregated block manager page discard calls'),
     BlockDisaggStat('disagg_block_put', 'Disaggregated block manager put '),
+    BlockDisaggStat('disagg_block_put_cold', 'Disaggregated block manager put cold page'),
     BlockDisaggStat('disagg_block_read_ahead_frontier', 'Disaggregated block manager read ahead of materialization frontier'),
 
     ##########################################
     # Layered table statistics
     ##########################################
     LayeredStat('layered_curs_insert', 'Layered table cursor insert operations'),
+    LayeredStat('layered_curs_modify', 'Layered table cursor modify operations'),
     LayeredStat('layered_curs_next', 'Layered table cursor next operations'),
     LayeredStat('layered_curs_next_ingest', 'Layered table cursor next operations from the ingest btrees'),
     LayeredStat('layered_curs_next_stable', 'Layered table cursor next operations from the stable btrees'),
@@ -1354,6 +1376,7 @@ conn_dsrc_stats = [
     ##########################################
     RecStat('rec_average_internal_page_delta_chain_length', 'average length of delta chain on internal page with deltas'),
     RecStat('rec_average_leaf_page_delta_chain_length', 'average length of delta chain on leaf page with deltas'),
+    RecStat('rec_free_page_id_due_to_failed_replacement_reconciliation', 'free page ID due to failed page replacement reconciliation in disagg'),
     RecStat('rec_hs_wrapup_next_prev_calls', 'cursor next/prev calls during HS wrapup search_near'),
     RecStat('rec_ingest_garbage_collection_keys_disk_image', 'number of keys that are garbage collected form the disk images in the ingest btrees for disaggregated storage'),
     RecStat('rec_ingest_garbage_collection_keys_update_chain', 'number of keys that are garbage collected form the update chains in the ingest btrees for disaggregated storage'),
@@ -1387,7 +1410,7 @@ conn_dsrc_stats = [
     RecStat('rec_pages_size_1MB_to_10MB', 'page reconciliation calls for pages between 1 and 10MB'),
     RecStat('rec_pages_with_internal_deltas', 'pages written with at least one internal page delta'),
     RecStat('rec_pages_with_leaf_deltas', 'pages written with at least one leaf page delta'),
-    RecStat('rec_skip_empty_deltas', 'empty deltas skipped in disaggregated storage'),
+    RecStat('rec_skip_write', 'writes skipped in disaggregated storage'),
     RecStat('rec_time_aggr_newest_start_durable_ts', 'pages written including an aggregated newest start durable timestamp '),
     RecStat('rec_time_aggr_newest_stop_durable_ts', 'pages written including an aggregated newest stop durable timestamp '),
     RecStat('rec_time_aggr_newest_stop_ts', 'pages written including an aggregated newest stop timestamp '),

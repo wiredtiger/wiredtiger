@@ -319,7 +319,6 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
     }
 
     memset(&opts, 0, sizeof(opts));
-    opts.disagg_storage = true;
 
     /*
      * We need to cast these values. Normally, testutil allocates and fills these strings based on
@@ -327,17 +326,19 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
      * line parser and doesn't rely on testutil to free anything in this struct. We're only using
      * the options struct on a temporary basis to help create the disagg configuration.
      */
-    opts.disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
-    opts.disagg_page_log_home = disagg_is_multi_node() ? g.home_page_log : (char *)home;
-    opts.disagg_mode = (char *)(g.disagg_leader ? "leader" : "follower");
     opts.home = (char *)home;
     opts.build_dir = (char *)BUILDDIR;
-    opts.palm_map_size_mb = 2048; /* 2 Gigabytes for PALM map */
-    opts.page_log_verbose = GV(DISAGG_PAGE_LOG_VERBOSE);
-
-    /* Set page deltas. */
-    opts.internal_page_delta = (bool)GV(DISAGG_INTERNAL_PAGE_DELTA);
-    opts.leaf_page_delta = (bool)GV(DISAGG_LEAF_PAGE_DELTA);
+    TESTUTIL_DISAGG_INIT(&opts,
+      /* is_enabled           */ true,
+      /* key_provider         */ GV(DISAGG_KEY_PROVIDER),
+      /* internal_page_delta  */ (bool)GV(DISAGG_INTERNAL_PAGE_DELTA),
+      /* leaf_page_delta      */ (bool)GV(DISAGG_LEAF_PAGE_DELTA),
+      /* mode                 */ (char *)(g.disagg_leader ? "leader" : "follower"),
+      /* page_log             */ (char *)GVS(DISAGG_PAGE_LOG),
+      /* page_log_home        */ disagg_is_multi_node() ? g.home_page_log : (char *)home,
+      /* drain_threads        */ GV(DISAGG_DRAIN_THREADS),
+      /* page_log_map_size_mb */ 2048, /* 2 Gigabytes for PALM map */
+      /* page_log_verbose     */ GV(DISAGG_PAGE_LOG_VERBOSE));
 
     testutil_disagg_storage_configuration(
       &opts, home, disagg_cfg, sizeof(disagg_cfg), ext_cfg, ext_cfg_size);
@@ -705,14 +706,21 @@ create_object(TABLE *table, void *arg)
  *     If precise checkpoint is enabled, do some extra initialization of a connection.
  */
 static void
-precise_checkpoint_init(WT_CONNECTION *conn)
+precise_checkpoint_init(void)
 {
+    if (!GV(PRECISE_CHECKPOINT))
+        return;
+
+    WT_SESSION *session;
+    testutil_check(g.wts_conn->open_session(g.wts_conn, NULL, NULL, &session));
+    g.timestamp = MIN_TIMESTAMP;
     /*
      * We do a separate wiredtiger_open call to create the database and tables, and when we close
      * that connection, a checkpoint is done. Precise checkpoints requires the stable timestamp to
      * be set. Set it to the minimum value, which should not interfere with any later operations.
      */
-    testutil_check(conn->set_timestamp(conn, "stable_timestamp=1"));
+    timestamp_once(session, false, false);
+    testutil_check(session->close(session, NULL));
 }
 
 /*
@@ -742,10 +750,11 @@ wts_create_database(void)
     WT_CONNECTION *conn;
 
     create_database(g.home, &conn);
-    if (GV(PRECISE_CHECKPOINT))
-        precise_checkpoint_init(conn);
-
     g.wts_conn = conn;
+
+    locks_init(g.wts_conn);
+    precise_checkpoint_init();
+
     tables_apply(create_object, g.wts_conn);
     if (GV(RUNS_IN_MEMORY) != 0)
         g.wts_conn_inmemory = g.wts_conn;

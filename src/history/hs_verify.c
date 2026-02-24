@@ -110,7 +110,7 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session, uint32_t btree_id)
 
     hs_cursor = NULL;
 
-    WT_ERR(__wt_curhs_open(session, btree_id, NULL, &hs_cursor));
+    WT_ERR(__wt_curhs_open(session, btree_id, NULL, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /* Position the hs cursor on the requested btree id, there could be nothing in the HS yet. */
@@ -165,7 +165,7 @@ __hs_verify(WT_SESSION_IMPL *session, uint32_t hs_id)
     uri_data = NULL;
 
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
-    WT_ERR(__wt_curhs_open_ext(session, hs_id, 0, NULL, &hs_cursor));
+    WT_ERR(__wt_curhs_open_ext(session, hs_id, 0, NULL, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /* Position the hs cursor on the first record. */
@@ -177,6 +177,7 @@ __hs_verify(WT_SESSION_IMPL *session, uint32_t hs_id)
 
     /* Go through the history store and validate each btree. */
     while (ret == 0) {
+        __wt_free(session, uri_data);
         /*
          * The cursor is positioned either from above or left over from the internal call on the
          * first key of a new btree id.

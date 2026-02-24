@@ -24,9 +24,6 @@ fi
 backup=$home.backup
 recovery=$home.recovery
 
-# Extract the disagg config if any.
-disagg_config=$(echo $config | sed -n -r 's/.*(-d \w+).*/\1/p')
-
 # Extract the -e flag if present.
 precise_checkpoint=$(echo $config | grep -o '\-e')
 
@@ -49,11 +46,7 @@ while kill -STOP $pid ; do
 	kill -CONT $pid
 	cp $backup/* $recovery
 
-	# Timestamp must be set for disaggregate configuration.
 	recovery_flags=""
-	if [ -n "$disagg_config" ]; then
-		recovery_flags="$disagg_config -e -x"
-	fi
 
 	# Include -e and -x flags if -e is present in original config.
 	if [ -n "$precise_checkpoint" ]; then

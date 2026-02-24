@@ -81,8 +81,8 @@ struct __wt_page_header {
 #define WT_PAGE_FT_UPDATE 0x20u    /* Page contains updated fast-truncate information */
     uint8_t flags;                 /* 25: flags */
 
-    /* A byte of padding, positioned to be added to the flags. */
-    uint8_t unused; /* 26: unused padding */
+    /* FIXME-WT-16512: A byte of padding, reserved to make the header extensible in the future. */
+    uint8_t reserved; /* 26: padding, used for future use (until then, please always set to 0) */
 
 #define WT_PAGE_VERSION_ORIG 0 /* Original version */
 #define WT_PAGE_VERSION_TS 1   /* Timestamps added */
@@ -265,9 +265,8 @@ struct __wt_page_block_meta {
 
     uint32_t checksum;
 
-    size_t image_size; /* The in-memory size of the fully constructed page image. */
-
-    WT_PAGE_LOG_ENCRYPTION encryption;
+    /* The cumulative size of the page + delta chain. */
+    uint32_t cumulative_size;
 
     uint8_t delta_count;
 };
@@ -313,10 +312,14 @@ struct __wt_multi {
      * image.
      */
     WT_SAVE_UPD *supd;
-    uint32_t supd_entries;
-    bool supd_restore; /* Whether to restore saved update chains to this page */
-
     WT_ADDR addr; /* Disk image written address */
+    uint32_t supd_entries;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_MULTI_SKIP_WRITE 0x1u
+#define WT_MULTI_SUPD_RESTORE 0x2u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
 };
 
 /*
@@ -346,7 +349,7 @@ struct __wt_ovfl_track {
  */
 struct __wt_page_modify {
     /* The first unwritten transaction ID (approximate). */
-    uint64_t first_dirty_txn;
+    wt_shared uint64_t first_dirty_txn;
 
     /* The transaction state last time eviction was attempted. */
     uint64_t last_evict_pass_gen;
@@ -382,7 +385,6 @@ struct __wt_page_modify {
     /* Dirty bytes added to the cache. */
     wt_shared uint64_t bytes_dirty;
     wt_shared uint64_t bytes_updates;
-    wt_shared uint64_t bytes_delta_updates;
 
     /*
      * When pages are reconciled, the result is one or more replacement blocks. A replacement block
@@ -1542,20 +1544,19 @@ struct __wt_update {
 
 /* When introducing a new flag, consider adding it to WT_UPDATE_SELECT_FOR_DS. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_UPDATE_DELETE_DURABLE 0x0001u  /* Key has been removed from disk image. */
-#define WT_UPDATE_DS 0x0002u              /* Update has been chosen to the data store. */
-#define WT_UPDATE_DURABLE 0x0004u         /* Update has been durable. */
-#define WT_UPDATE_HS 0x0008u              /* Update has been written to hs. */
-#define WT_UPDATE_HS_MAX_STOP 0x0010u     /* Update has been written to hs with a max stop. */
-#define WT_UPDATE_PREPARE_DURABLE 0x0020u /* Prepared update has been durable. */
-#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x0040u /* Prepared update restored from data store. */
-#define WT_UPDATE_PREPARE_ROLLBACK 0x0080u /* Tombstone that rolled back by a prepared update.*/
-#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x0100u /* Fast truncate instantiation. */
-#define WT_UPDATE_RESTORED_FROM_DELTA 0x0200u    /* Update restored from delta. */
-#define WT_UPDATE_RESTORED_FROM_DS 0x0400u       /* Update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_HS 0x0800u       /* Update restored from history store. */
-#define WT_UPDATE_RTS_DRYRUN_ABORT 0x1000u       /* Used by dry run to mark a would-be abort. */
-                                                 /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+#define WT_UPDATE_DELETE_DURABLE 0x001u  /* Key has been removed from disk image. */
+#define WT_UPDATE_DS 0x002u              /* Update has been chosen to the data store. */
+#define WT_UPDATE_DURABLE 0x004u         /* Update has been durable. */
+#define WT_UPDATE_HS 0x008u              /* Update has been written to hs. */
+#define WT_UPDATE_HS_MAX_STOP 0x010u     /* Update has been written to hs with a max stop. */
+#define WT_UPDATE_PREPARE_DURABLE 0x020u /* Prepared update has been durable. */
+#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x040u /* Prepared update restored from data store. */
+#define WT_UPDATE_PREPARE_ROLLBACK 0x080u /* Tombstone that rolled back by a prepared update.*/
+#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x100u /* Fast truncate instantiation. */
+#define WT_UPDATE_RESTORED_FROM_DS 0x200u       /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x400u       /* Update restored from history store. */
+#define WT_UPDATE_RTS_DRYRUN_ABORT 0x800u       /* Used by dry run to mark a would-be abort. */
+                                                /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t flags;
 
 /* There are several cases we should select the update irrespective of visibility to write to the
@@ -1581,7 +1582,7 @@ struct __wt_update {
  */
 #define WT_UPDATE_SELECT_FOR_DS                                                      \
     WT_UPDATE_DS | WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DS | \
-      WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_RESTORED_FROM_DELTA
+      WT_UPDATE_RESTORED_FROM_HS
     /*
      * Zero or more bytes of value (the payload) immediately follows the WT_UPDATE structure. We use
      * a C99 flexible array member which has the semantics we want.

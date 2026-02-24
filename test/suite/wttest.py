@@ -150,6 +150,24 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     #                       'test/fail_fs={allow_writes=100}')
     conn_extensions = ()
 
+    # FIXME-WT-16369: Consider printing error dumps for self.conn_follow in DisAgg tests
+    @staticmethod
+    def dumpErrorLogOnWtError(func):
+        """
+        Decorator that catches WiredTigerError exceptions, dumps the error log, and re-raises.
+        """
+        def wrapper(self, *args, **kwargs):
+            try:
+                return func(self, *args, **kwargs)
+            except wiredtiger.WiredTigerError as e:
+                if self.conn is not None and self.conn.is_open():
+                    self.conn.dump_error_log()
+                else:
+                    sys.stderr.write('Error log after WiredTigerError exception, connection is closed:\n')
+                    wiredtiger.wiredtiger_dump_error_log(lambda e: sys.stderr.write(e))
+                raise
+        return wrapper
+
     @staticmethod
     def globalSetup(command_line_vars, preserveFiles = False, removeAtStart = True, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
@@ -280,6 +298,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     # Note that this method first appears in Python 3.7.  When running with an older Python,
     # this method does not override anything.  The test method is called a different way,
     # and we will not get any retry behavior.
+    @dumpErrorLogOnWtError
     def _callTestMethod(self, method):
         rollbacksAllowed = self.rollbacks_allowed
         finished = False
@@ -304,11 +323,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     rollbacksAllowed -= 1
             except wiredtiger.WiredTigerError as err:
                 self.prexception(sys.exc_info())
-                if self.conn is not None and self.conn.is_open():
-                    self.conn.dump_error_log()
-                else:
-                    sys.stderr.write('Error log after WiredTigerError exception, connection is closed:\n')
-                    wiredtiger.wiredtiger_dump_error_log(lambda e: sys.stderr.write(e))
                 # Prevent an unnecessary "unexpected output" error.
                 self.ignoreTearDownLogs = True
                 raise
@@ -598,10 +612,12 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                 try:
                     self.verifyUntilSuccess(sess, uri)
                 except wiredtiger.WiredTigerError as e:
-                    raise Exception(f'Layered verification failed for {uri}: {str(e)}')
+                    print(f'Layered verification failed for {uri}: {str(e)}')
+                    raise e
 
         sess.close()
 
+    @dumpErrorLogOnWtError
     def tearDown(self, dueToRetry=False):
         dumped_error_log = False
         teardown_failed = False
@@ -625,17 +641,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         passed = not (self.failed() or teardown_failed)
 
         if passed and self.__module__.startswith("test_layered"):
-            # FIXME-WT-16211: We can run verify on layered tables when deltas are
-            # written as a full image. Once resolved we can immediately run verify on all layered tests.
-            config = self.conn_config
-            if hasattr(config, '__call__'):
-                config = self.conn_config()
-
-            # Deltas are enabled by default so we must ensure they're explicitly disabled.
-            if 'internal_page_delta=false' in config and 'leaf_page_delta=false' in config:
-                self.verifyLayered()
-            else:
-                self.pr('skipping verify due to delta pages being enabled')
+            self.verifyLayered()
 
         try:
             self.platform_api.tearDown(self)
@@ -990,6 +996,37 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
             yield path
         finally:
             shutil.rmtree(path, ignore_errors=True)
+
+    def get_stats(self, stats, uri, session):
+        """Get the current values of multiple statistics."""
+        stat_cursor = session.open_cursor('statistics:' + uri)
+        results = {}
+        for stat in stats:
+            results[stat] = stat_cursor[stat][2]
+        stat_cursor.close()
+        return results
+
+    def checkpoint_and_verify_stats(self, expected_changes, uri, session = None):
+        if session is None:
+            session = self.session
+
+        stats_to_check = list(expected_changes.keys())
+        old_stats = self.get_stats(stats_to_check, uri, session)
+
+        session.checkpoint()
+
+        new_stats = self.get_stats(stats_to_check, uri, session)
+
+        for stat, expect_increase in expected_changes.items():
+            diff = new_stats[stat] - old_stats[stat]
+            if expect_increase:
+                self.assertGreater(diff, 0,
+                    f"Stat {stat}: expected increase, got diff {diff}")
+            else:
+                self.assertEqual(diff, 0,
+                    f"Stat {stat}: expected no change, got diff {diff}")
+
+        return new_stats
 
 @contextmanager
 def open_cursor(session, uri: str, **kwargs):

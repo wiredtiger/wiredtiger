@@ -76,14 +76,18 @@ extern "C" {
 #define DIR_STORE "dir_store"
 #define S3_STORE "s3_store"
 
-#define TESTUTIL_ENV_CONFIG_DISAGG         \
-    ",disaggregated=(role=%s,page_log=%s)" \
-    ",precise_checkpoint=true"             \
+#define TESTUTIL_ENV_CONFIG_DISAGG                               \
+    ",disaggregated=(role=%s,page_log=%s,drain_threads=%" PRIu64 \
+    ")"                                                          \
+    ",precise_checkpoint=true"                                   \
     ",page_delta=(internal_page_delta=%s,leaf_page_delta=%s)"
 #define TESTUTIL_ENV_CONFIG_DISAGG_EXT                                                   \
     "\"%s/ext/page_log/%s/libwiredtiger_%s.so\"=("                                       \
     "config=(home=\"%s\",delay_ms=%" PRIu64 ",error_ms=%" PRIu64 ",force_delay=%" PRIu64 \
     ",force_error=%" PRIu64 ",cache_size_mb=%" PRIu64 ",verbose=%" PRIu32 "))"
+#define TESTUTIL_ENV_CONFIG_KEY_PROVIDER_EXT                        \
+    ",\"%s/ext/test/key_provider/libwiredtiger_key_provider.so\"=(" \
+    "early_load=true,config=(key_expires=60,verbose=-1))"
 #define TESTUTIL_ENV_CONFIG_TIERED               \
     ",tiered_storage=(bucket=%s"                 \
     ",bucket_prefix=%s,local_retention=%" PRIu32 \
@@ -99,18 +103,31 @@ extern "C" {
 
 #define TESTUTIL_SEED_FORMAT "-PSD%" PRIu64 ",E%" PRIu64
 
+#define TESTUTIL_DISAGG_INIT(_opts, _is_enabled, _key_provider, _internal_page_delta,        \
+  _leaf_page_delta, _mode, _page_log, _page_log_home, _drain_threads, _page_log_map_size_mb, \
+  _page_log_verbose)                                                                         \
+    do {                                                                                     \
+        (_opts)->disagg.is_enabled = (_is_enabled);                                          \
+        (_opts)->disagg.key_provider = (_key_provider);                                      \
+        (_opts)->disagg.internal_page_delta = (_internal_page_delta);                        \
+        (_opts)->disagg.leaf_page_delta = (_leaf_page_delta);                                \
+        (_opts)->disagg.mode = (_mode);                                                      \
+        (_opts)->disagg.page_log = (_page_log);                                              \
+        (_opts)->disagg.page_log_home = (_page_log_home);                                    \
+        (_opts)->disagg.drain_threads = (_drain_threads);                                    \
+        (_opts)->disagg.page_log_map_size_mb = (_page_log_map_size_mb);                      \
+        (_opts)->disagg.page_log_verbose = (_page_log_verbose);                              \
+    } while (0)
+
 /* Generic option parsing structure shared by all test cases. */
 typedef struct {
     char *home;
     const char *argv0; /* Exec name */
     char usage[512];   /* Usage string for this parser */
 
-    const char *progname;             /* Truncated program name */
-    char *build_dir;                  /* Build directory path */
-    const char *disagg_mode;          /* Disaggregated storage mode */
-    const char *disagg_page_log;      /* Page and log service for disaggregated storage */
-    const char *disagg_page_log_home; /* Page and log service home dir for disaggregated storage */
-    char *tiered_storage_source;      /* Tiered storage source */
+    const char *progname;        /* Truncated program name */
+    char *build_dir;             /* Build directory path */
+    char *tiered_storage_source; /* Tiered storage source */
 
     enum {
         TABLE_NOT_SET = 0, /* Not explicitly set */
@@ -126,21 +143,14 @@ typedef struct {
     uint64_t data_seed;      /* Random seed for data ops */
     uint64_t extra_seed;     /* Random seed for extra ops */
 
-    uint64_t delay_ms;         /* Average length of delay when simulated */
-    uint64_t error_ms;         /* Average length of delay when simulated */
-    uint64_t force_delay;      /* Force a simulated network delay every N operations */
-    uint64_t force_error;      /* Force a simulated network error every N operations */
-    uint32_t local_retention;  /* Local retention for tiered storage */
-    uint64_t palm_map_size_mb; /* Megabytes of map size for PALM database */
-    uint32_t page_log_verbose; /* Page log verbosity; see WT_VERBOSE_LEVEL */
-
-    bool internal_page_delta; /* Use internal page deltas */
-    bool leaf_page_delta;     /* Use leaf page deltas */
+    uint64_t delay_ms;        /* Average length of delay when simulated */
+    uint64_t error_ms;        /* Average length of delay when simulated */
+    uint64_t force_delay;     /* Force a simulated network delay every N operations */
+    uint64_t force_error;     /* Force a simulated network error every N operations */
+    uint32_t local_retention; /* Local retention for tiered storage */
 
     bool absolute_bucket_dir;  /* Use an absolute bucket path when it is a directory */
     bool compat;               /* Compatibility */
-    bool disagg_storage;       /* Uses disaggregated storage */
-    bool disagg_switch_mode;   /* Switching disaggregated storage mode during the test */
     bool do_data_ops;          /* Have schema ops use data */
     bool inmem;                /* In-memory */
     bool make_bucket_dir;      /* Create bucket when it is a directory */
@@ -157,6 +167,28 @@ typedef struct {
 
     uint64_t tiered_flush_interval_us; /* Microseconds between flush_tier calls */
     uint64_t tiered_flush_next_us;     /* Next tiered flush in epoch microseconds */
+
+    /* Fields used for testing disaggregated storage. */
+    struct {
+        /*
+         * These fields must be explicitly initialized in `TESTUTIL_DISAGG_INIT()`.
+         *
+         * If you add a new field, update the constructor and all relevant tests to avoid incomplete
+         * setup.
+         */
+        bool is_enabled;          /* Uses disaggregated storage */
+        bool key_provider;        /* Uses key provider testing module for disaggregated storage */
+        bool internal_page_delta; /* Use internal page deltas */
+        bool leaf_page_delta;     /* Use leaf page deltas */
+
+        const char *mode;          /* Disaggregated storage mode */
+        const char *page_log;      /* Page and log service for disaggregated storage */
+        const char *page_log_home; /* Page and log service home dir for disaggregated storage */
+
+        uint64_t drain_threads;        /* Number of drain threads for disaggregated storage*/
+        uint64_t page_log_map_size_mb; /* Megabytes of map size for PALM database */
+        uint32_t page_log_verbose;     /* Page log verbosity; see WT_VERBOSE_LEVEL */
+    } disagg;
 
     /*
      * Fields commonly shared within a test program. The test cleanup function will attempt to
@@ -563,6 +595,7 @@ void testutil_copy(const char *, const char *);
 void testutil_copy_data(void);
 void testutil_copy_data_opt(const char *);
 void testutil_copy_ext(const char *, const char *, const WT_FILE_COPY_OPTS *opts);
+void testutil_copy_fast(const char *, const char *);
 void testutil_copy_file(WT_SESSION *, const char *);
 void testutil_copy_if_exists(WT_SESSION *, const char *);
 void testutil_create_backup_directory(const char *, uint64_t, bool);

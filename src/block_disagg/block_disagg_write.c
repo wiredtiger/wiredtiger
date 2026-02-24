@@ -74,10 +74,11 @@ __block_disagg_addr_flags(const WT_PAGE_BLOCK_META *block_meta)
  */
 int
 __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
-  WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta, uint32_t *sizep, uint32_t *checksump,
-  bool data_checksum, bool checkpoint_io)
+  WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta, size_t page_image_size, uint32_t *sizep,
+  uint32_t *checksump, bool data_checksum, bool checkpoint_io)
 {
     WT_BLOCK_DISAGG_HEADER *blk;
+    WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_PAGE_HEADER *header;
     WT_PAGE_LOG_HANDLE *plhandle;
@@ -86,6 +87,7 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     uint32_t checksum;
 
     time_start = __wt_clock(session);
+    btree = S2BT(session);
 
     WT_ASSERT(session, block_meta != NULL);
     WT_ASSERT(session, block_meta->page_id >= WT_BLOCK_MIN_PAGE_ID);
@@ -138,7 +140,6 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
         F_SET(blk, WT_BLOCK_DISAGG_DATA_CKSUM);
 
     /*
-     * FIXME-WT-14613: temporary measure until we put the block header at the beginning of the data.
      * We have two sets of flags for encrypt/compress! Set the block manager encrypt/compress flags
      * - the block manager/block cache layer will eventually do all encrypt/compress and it will use
      * a unified set of flags for encrypt/compress, (only in the block header). But we can only do
@@ -172,13 +173,14 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
 
     put_args.backlink_lsn = block_meta->backlink_lsn;
     put_args.base_lsn = block_meta->base_lsn;
-    put_args.encryption = block_meta->encryption;
-    put_args.image_size = block_meta->image_size;
+    put_args.image_size = page_image_size;
 
     if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED))
         F_SET(&put_args, WT_PAGE_LOG_COMPRESSED);
     if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED))
         F_SET(&put_args, WT_PAGE_LOG_ENCRYPTED);
+    if (btree->storage_tier == WT_BTREE_STORAGE_TIER_COLD)
+        F_SET(&put_args, WT_PAGE_LOG_COLD);
 
     /* Write the block. */
     WT_RET(plhandle->plh_put(plhandle, &session->iface, page_id, 0, &put_args, buf));
@@ -190,16 +192,17 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
         WT_STAT_CONN_INCR(session, disagg_block_hs_put);
         WT_STAT_CONN_INCRV(session, disagg_block_hs_byte_write, buf->size);
     }
+    if (F_ISSET(&put_args, WT_PAGE_LOG_COLD))
+        WT_STAT_CONN_INCR(session, disagg_block_put_cold);
     if (checkpoint_io)
         WT_STAT_CONN_INCRV(session, block_byte_write_checkpoint, buf->size);
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_disaggbmwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
     __wt_verbose(session, WT_VERB_WRITE,
-      "page_id %" PRIuMAX ", size %" PRIuMAX ", checksum %" PRIx32 ", lsn %" PRIu64
-      ", page_image_size %" PRIuMAX,
-      (uintmax_t)page_id, (uintmax_t)buf->size, checksum, put_args.lsn,
-      (uintmax_t)block_meta->image_size);
+      "page_id %" PRIu64 ", size %" WT_SIZET_FMT ", checksum %" PRIx32 ", lsn %" PRIu64
+      ", page_image_size %" WT_SIZET_FMT,
+      page_id, buf->size, checksum, put_args.lsn, page_image_size);
 
     /* Some extra data is set by the put interface, and must be returned up the chain. */
     block_meta->disagg_lsn = put_args.lsn;
@@ -208,6 +211,9 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
 
     *sizep = WT_STORE_SIZE(buf->size);
     *checksump = checksum;
+
+    /* Update the btree's running total of bytes. */
+    __wt_btree_increase_size(session, *sizep);
 
     return (0);
 }
@@ -218,8 +224,8 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
  */
 int
 __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
-  WT_PAGE_BLOCK_META *block_meta, uint8_t *addr, size_t *addr_sizep, bool data_checksum,
-  bool checkpoint_io)
+  WT_PAGE_BLOCK_META *block_meta, size_t page_image_size, uint8_t *addr, size_t *addr_sizep,
+  bool data_checksum, bool checkpoint_io)
 {
     WT_BLOCK_DISAGG *block_disagg;
     WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
@@ -240,8 +246,8 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
      */
     __wt_page_header_byteswap(buf->mem);
 
-    WT_RET(__wti_block_disagg_write_internal(
-      session, block_disagg, buf, block_meta, &size, &checksum, data_checksum, checkpoint_io));
+    WT_RET(__wti_block_disagg_write_internal(session, block_disagg, buf, block_meta,
+      page_image_size, &size, &checksum, data_checksum, checkpoint_io));
 
     __wt_page_header_byteswap(buf->mem);
 
@@ -250,8 +256,16 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
     cookie.flags = __block_disagg_addr_flags(block_meta);
     cookie.lsn = block_meta->disagg_lsn;
     cookie.base_lsn = block_meta->base_lsn;
-    cookie.size = size;
     cookie.checksum = checksum;
+
+    /* Calculate the cumulative size and store it in cookie.size. */
+    if (block_meta->delta_count == 0)
+        cookie.size = size;
+    else
+        cookie.size = block_meta->cumulative_size + size;
+
+    /* Update the block_meta for future delta writes. */
+    block_meta->cumulative_size = cookie.size;
 
     endp = addr;
     WT_RET(__wti_block_disagg_addr_pack(session, &endp, &cookie));
@@ -270,7 +284,7 @@ __wti_block_disagg_page_discard(
 {
     /* Crack the cookie. */
     WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
-    WT_RET(__wti_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
+    WT_RET(__wt_block_disagg_addr_unpack(session, &addr, addr_size, &cookie));
 
     __wt_verbose(session, WT_VERB_BLOCK,
       "block free: page_id %" PRIu64 ", flags %" PRIx64 ", lsn %" PRIu64 ", base_lsn %" PRIu64
@@ -279,6 +293,12 @@ __wti_block_disagg_page_discard(
 
     /* Create the discard request. */
     WT_PAGE_LOG_HANDLE *plhandle = block_disagg->plhandle;
+
+    /*
+     * Decrement the btree's running total of bytes. The cookie.size field represents the cumulative
+     * size of the block chain (base + deltas).
+     */
+    __wt_btree_decrease_size(session, cookie.size);
 
     /* Ignore the call if the function is not implemented. */
     if (plhandle->plh_discard == NULL) {

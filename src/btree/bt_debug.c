@@ -272,7 +272,7 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile, uint32_t
     if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !WT_IS_HS(session->dhandle) &&
       !(WT_READING_CHECKPOINT(session) && session->hs_checkpoint == NULL)) {
         WT_ASSERT(session, session->dhandle != NULL);
-        WT_ERR(__wt_curhs_open(session, S2BT(session)->id, NULL, &ds->hs_cursor));
+        WT_ERR(__wt_curhs_open(session, S2BT(session)->id, NULL, NULL, &ds->hs_cursor));
     }
 
     if (ds->hs_cursor != NULL) {
@@ -998,11 +998,11 @@ err:
 }
 
 /*
- * __wt_debug_cursor_page --
+ * __wt_debug_btree_cursor_page --
  *     Dump the in-memory information for a cursor-referenced page.
  */
 int
-__wt_debug_cursor_page(void *cursor_arg, const char *ofile)
+__wt_debug_btree_cursor_page(void *cursor_arg, const char *ofile)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     WT_CURSOR_BTREE *cbt;
@@ -1034,11 +1034,11 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
 }
 
 /*
- * __wt_debug_cursor_tree_hs --
+ * __wt_debug_btree_cursor_tree_hs --
  *     Dump the history store tree given a user cursor.
  */
 int
-__wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
+__wt_debug_btree_cursor_tree_hs(void *cursor_arg, const char *ofile)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     WT_BTREE *hs_btree;
@@ -1056,7 +1056,7 @@ __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
         if (ret == WT_NOTFOUND)
             return (0);
 
-        WT_RET(__wt_curhs_open_ext(session, hs_id, 0, NULL, &hs_cursor));
+        WT_RET(__wt_curhs_open_ext(session, hs_id, 0, NULL, NULL, &hs_cursor));
         hs_btree = __wt_curhs_get_btree(hs_cursor);
         WT_WITH_BTREE(session, hs_btree, ret = __wt_debug_tree_all(session, NULL, NULL, ofile));
         WT_TRET(hs_cursor->close(hs_cursor));
@@ -1618,11 +1618,6 @@ __debug_update_dump_flags(WT_DBG *ds, WT_UPDATE *upd)
         }
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FAST_TRUNCATE)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "fast-truncate") : ds->f(ds, ", fast-truncate"));
-            ++flag_num;
-        }
-        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA)) {
-            WT_RET(flag_num == 0 ? ds->f(ds, "restored-from-delta") :
-                                   ds->f(ds, ", restored-from-delta"));
             ++flag_num;
         }
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS)) {

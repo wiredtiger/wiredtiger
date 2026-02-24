@@ -64,7 +64,6 @@ class test_prepare_discover07(wttest.WiredTigerTestCase):
         # Set initial timestamps
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(50))
-        self.skipTest('FIXME-WT-15465 Fix throwing a prepare conflict when encountering prepared update on stable table')
 
         # Create the layered table
         self.session.create(self.uri, 'key_format=i,value_format=S')
@@ -199,7 +198,7 @@ class test_prepare_discover07(wttest.WiredTigerTestCase):
                 self.assertEqual(wiredtiger.WT_NOTFOUND, read_cursor.search())
             else:
                 self.assertEqual(0, read_cursor.search())
-                self.assertEqual(f'prepared_value_{i}', read_cursor.get_value())
+                self.assertEqual(f'committed_value_{i}', read_cursor.get_value())
         read_session.rollback_transaction()
 
         read_cursor.close()

@@ -42,7 +42,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
     /* The checkpoint's snapshot includes the first dirty update on the page. */
     txn = session->txn;
     mod = ref->page->modify;
-    if (txn->snapshot_data.snap_max >= mod->first_dirty_txn)
+    if (txn->snapshot_data.snap_max >= __wt_tsan_suppress_load_uint64(&mod->first_dirty_txn))
         return (false);
 
     /*
@@ -263,7 +263,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         /* Add in history store reconciliation for standard files. */
         rec_flags = WT_REC_CHECKPOINT;
-        if (!is_hs && !WT_IS_METADATA(btree->dhandle))
+        if (!is_hs && !WT_IS_METADATA(btree->dhandle) && !WT_IS_DISAGG_META(btree->dhandle))
             rec_flags |= WT_REC_HS;
 
         /* Write all dirty in-cache pages. */
@@ -361,7 +361,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
             WT_STAT_CONN_INCR(session, checkpoint_pages_reconciled);
             WT_STAT_CONN_INCRV(session, checkpoint_pages_reconciled_bytes,
-              __wt_tsan_suppress_load_size(&page->memory_footprint));
+              __wt_atomic_load_size_relaxed(&page->memory_footprint));
             WT_STATP_DSRC_INCR(session, btree->dhandle->stats, btree_checkpoint_pages_reconciled);
             if (WT_IS_HS(btree->dhandle))
                 WT_STAT_CONN_INCR(session, checkpoint_hs_pages_reconciled);

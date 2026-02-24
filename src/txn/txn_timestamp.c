@@ -70,13 +70,15 @@ __wti_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, ui
     WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
-    wt_timestamp_t tmp_read_ts, tmp_ts;
-    uint32_t i, session_cnt;
+    wt_timestamp_t old_ts, tmp_read_ts, tmp_ts;
+    uint32_t i, older_reader_cnt, session_cnt;
     bool include_oldest, txn_has_write_lock;
 
     conn = S2C(session);
-    txn_global = &conn->txn_global;
+    older_reader_cnt = 0;
+    old_ts = WT_TS_NONE;
     include_oldest = LF_ISSET(WT_TXN_TS_INCLUDE_OLDEST);
+    txn_global = &conn->txn_global;
     txn_has_write_lock = LF_ISSET(WT_TXN_TS_ALREADY_LOCKED);
 
     /* If including oldest and there's none set, we're done, nothing else matters. */
@@ -88,7 +90,10 @@ __wti_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, ui
     if (!txn_has_write_lock)
         __wt_readlock(session, &txn_global->rwlock);
 
-    tmp_ts = include_oldest ? txn_global->oldest_timestamp : WT_TS_NONE;
+    if (__wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp))
+        old_ts = txn_global->oldest_timestamp;
+
+    tmp_ts = include_oldest ? old_ts : WT_TS_NONE;
 
     /* Check for a running checkpoint */
     if (LF_ISSET(WT_TXN_TS_INCLUDE_CKPT) && txn_global->checkpoint_timestamp != WT_TS_NONE &&
@@ -99,11 +104,19 @@ __wti_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, ui
     WT_ACQUIRE_READ_WITH_BARRIER(session_cnt, conn->session_array.cnt);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         __txn_get_read_timestamp(s, &tmp_read_ts);
+
+        /* Don't consider the sessions without a read timestamp. */
+        if (tmp_read_ts == WT_TS_NONE)
+            continue;
+
         /*
          * A zero timestamp is possible here only when the oldest timestamp is not accounted for.
          */
-        if (tmp_ts == WT_TS_NONE || (tmp_read_ts != WT_TS_NONE && tmp_read_ts < tmp_ts))
+        if (tmp_ts == WT_TS_NONE || tmp_read_ts < tmp_ts)
             tmp_ts = tmp_read_ts;
+
+        if (tmp_read_ts < old_ts)
+            ++older_reader_cnt;
     }
 
     if (!txn_has_write_lock)
@@ -111,6 +124,7 @@ __wti_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, ui
 
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     WT_STAT_CONN_INCRV(session, txn_sessions_walked, i);
+    WT_STAT_CONN_SET(session, txn_pinned_readers, older_reader_cnt);
 
     *tsp = tmp_ts;
 }
@@ -538,12 +552,13 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
      * Compare against the oldest and the stable timestamp. Return an error if the given timestamp
      * is less than oldest and/or stable timestamp.
      */
+    /* FIXME-WT-16310: Check synchronization around `oldest_timestamp` and `stable_timestamp`. */
     has_oldest_ts = __wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp);
     if (has_oldest_ts)
-        oldest_ts = txn_global->oldest_timestamp;
-    has_stable_ts = txn_global->has_stable_timestamp;
+        oldest_ts = __wt_tsan_suppress_load_uint64(&txn_global->oldest_timestamp);
+    has_stable_ts = __wt_tsan_suppress_load_bool(&txn_global->has_stable_timestamp);
     if (has_stable_ts)
-        stable_ts = txn_global->stable_timestamp;
+        stable_ts = __wt_tsan_suppress_load_uint64(&txn_global->stable_timestamp);
 
     if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE)) {
         /* Compare against the first commit timestamp of the current transaction. */
@@ -795,8 +810,10 @@ __txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
 
     /*
      * Check whether the prepare timestamp is less than the stable timestamp.
+     *
+     * FIXME-WT-16306: Ensure correct synchronization around `stable_timestamp`.
      */
-    stable_ts = txn_global->stable_timestamp;
+    stable_ts = __wt_tsan_suppress_load_uint64(&txn_global->stable_timestamp);
     if (prepare_ts <= stable_ts) {
         /*
          * Check whether the application is using the "prepared" roundup mode. This rounds up to
@@ -893,7 +910,7 @@ __wti_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
      */
     __wt_readlock(session, &txn_global->rwlock);
 
-    ts_oldest = txn_global->oldest_timestamp;
+    ts_oldest = __wt_tsan_suppress_load_uint64(&txn_global->oldest_timestamp);
     did_roundup_to_oldest = false;
     if (read_ts < ts_oldest) {
         /*
@@ -980,7 +997,8 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
     __txn_assert_after_reads(session, "rollback", rollback_ts);
 
     /* Check whether the rollback timestamp is less than the stable timestamp. */
-    stable_ts = txn_global->stable_timestamp;
+    /* FIXME-WT-16717: Fix the race. */
+    stable_ts = __wt_tsan_suppress_load_uint64(&txn_global->stable_timestamp);
     if (rollback_ts <= stable_ts) {
         WT_RET_MSG(session, EINVAL,
           "rollback timestamp %s is not newer than the stable timestamp %s",

@@ -47,7 +47,9 @@
 #define WT_DISAGG_METADATA_MAIN_PAGE_ID 1                        /* Page ID for the main metadata */
 #define WT_DISAGG_METADATA_MAX_PAGE_ID 1                         /* Max page ID in the metadata */
 
-#define WT_DISAGG_KEY_PROVIDER_TABLE_ID 2 /* Table ID for key encryption keys */
+#define WT_DISAGG_KEY_PROVIDER_TABLE_ID 2     /* Table ID for encryption key data */
+#define WT_DISAGG_KEY_PROVIDER_MAIN_PAGE_ID 1 /* Page ID for the main key provider table */
+#define WT_DISAGG_KEY_PROVIDER_MAX_PAGE_ID 1  /* Max page ID in the key provider table */
 
 #define WT_SYSTEM_PREFIX "system:"                               /* System URI prefix */
 #define WT_SYSTEM_CKPT_TS "checkpoint_timestamp"                 /* Checkpoint timestamp name */
@@ -83,7 +85,9 @@
 /*
  * Other useful comparisons.
  */
-#define WT_IS_URI_HS(uri) (strcmp(uri, WT_HS_URI) == 0 || strcmp(uri, WT_HS_URI_SHARED) == 0)
+#define WT_IS_URI_HS(uri)                                 \
+    (strncmp((uri), WT_HS_URI, strlen(WT_HS_URI)) == 0 || \
+      (strncmp((uri), WT_HS_URI_SHARED, strlen(WT_HS_URI_SHARED)) == 0))
 
 #define WT_HS_ID_TO_URI(session, hs_id, uri)                                                   \
     do {                                                                                       \
@@ -100,7 +104,7 @@
     } while (0)
 
 #define WT_IS_URI_METADATA(uri) \
-    (strcmp(uri, WT_METAFILE_URI) == 0 || strcmp(uri, WT_DISAGG_METADATA_URI) == 0)
+    (strcmp((uri), WT_METAFILE_URI) == 0 || strcmp((uri), WT_DISAGG_METADATA_URI) == 0)
 
 /*
  * As a result of a data format change WiredTiger is not able to start on versions below 3.2.0, as
@@ -132,3 +136,18 @@ struct __wt_blkincr {
                               /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
+
+/*
+ * WT_DISAGG_METADATA --
+ *     Disaggregated storage metadata structure.
+ *     Note: The strings are not null-terminated.
+ */
+typedef struct __wt_disagg_metadata {
+    const char *checkpoint;        /* Checkpoint metadata string */
+    size_t checkpoint_len;         /* Length of checkpoint metadata string */
+    uint64_t checkpoint_timestamp; /* Checkpoint timestamp */
+    uint64_t oldest_timestamp;     /* Oldest timestamp */
+
+    const char *key_provider; /* Key provider metadata string */
+    size_t key_provider_len;  /* Length of key provider metadata string */
+} WT_DISAGG_METADATA;

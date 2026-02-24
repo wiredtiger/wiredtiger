@@ -635,6 +635,26 @@ __wti_conn_remove_page_log(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wti_conn_remove_key_provider --
+ *     Remove key_provider added by WT_CONNECTION->set_key_provider.
+ */
+int
+__wti_conn_remove_key_provider(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+    /* Terminate the key provider. */
+    if (conn->key_provider != NULL) {
+        if (conn->key_provider->terminate != NULL)
+            WT_TRET(conn->key_provider->terminate(conn->key_provider, (WT_SESSION *)session));
+        conn->key_provider = NULL;
+    }
+    return (ret);
+}
+
+/*
  * __conn_add_storage_source --
  *     WT_CONNECTION->add_storage_source method.
  */
@@ -2725,6 +2745,10 @@ __conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_provider, c
     if (config != NULL)
         WT_ERR_MSG(session, EINVAL, "key provider configuration currently not supported.");
 
+    /* You can only enable the key provider system in disaggregated mode. */
+    if (__wt_conn_is_disagg(session))
+        WT_ERR_MSG(session, EINVAL, "key provider system is only supported in disaggregated mode");
+
     /*
      * You can only configure the key provider system with early-load set.
      */
@@ -3322,11 +3346,17 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     WT_ERR(__wt_config_gets(session, cfg, "prefetch.available", &cval));
     conn->prefetch_available = cval.val != 0;
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY) && conn->prefetch_available)
-        WT_ERR_MSG(
-          session, EINVAL, "prefetch configuration is incompatible with in-memory configuration");
     WT_ERR(__wt_config_gets(session, cfg, "prefetch.default", &cval));
     conn->prefetch_auto_on = cval.val != 0;
+
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY) && (conn->prefetch_available || conn->prefetch_auto_on)) {
+        __wt_verbose(session, WT_VERB_PREFETCH, "%s",
+          "prefetch configuration is incompatible with in-memory configuration");
+        WT_CONFIG_DEBUG(session, "%s", "setting prefetch.available and prefetch.default to false");
+        conn->prefetch_auto_on = false;
+        conn->prefetch_available = false;
+    }
+
     if (conn->prefetch_auto_on && !conn->prefetch_available)
         WT_ERR_MSG(session, EINVAL,
           "pre-fetching cannot be enabled if pre-fetching is configured as unavailable");

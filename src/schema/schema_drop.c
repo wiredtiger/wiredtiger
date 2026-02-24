@@ -20,11 +20,14 @@ __drop_file(
   WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
 {
     WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     const char *filename;
     char *metadata_cfg = NULL;
     bool id_found, remove_files;
     uint32_t id = 0;
+
+    conn = S2C(session);
 
     WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
     remove_files = cval.val != 0;
@@ -61,11 +64,13 @@ __drop_file(
      * Truncate history store for the dropped file if we can find its id from the metadata, this is
      * a best-effort operation, as we don't fail drop if truncate returns an error. There is no
      * history store to truncate for in-memory database, and we should not call truncate if
-     * connection is not ready for history store operations.
+     * connection is not ready for history store operations, or if we're truncating a disaggregated
+     * btree on a follower.
      */
     WT_ERR(ret);
-    if (id_found && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_READY))
+    if (id_found && !F_ISSET(conn, WT_CONN_IN_MEMORY) && F_ISSET_ATOMIC_32(conn, WT_CONN_READY) &&
+      (!__wt_conn_is_disagg(session) || conn->layered_table_manager.leader ||
+        !WT_BTREE_ID_SHARED(id)))
         if (__wt_hs_btree_truncate(session, id) != 0)
             __wt_verbose_warning(
               session, WT_VERB_HS, "Failed to truncate history store for the file: %s", uri);
@@ -119,6 +124,47 @@ __drop_index(
 }
 
 /*
+ * __drop_issue_trim --
+ *     WT_SESSION::drop for a layered table.
+ */
+static int
+__drop_issue_trim(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_BTREE *btree;
+    WT_DECL_RET;
+
+    btree = NULL;
+
+    /* Get the layered data handle. */
+    ret = __wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE);
+    btree = S2BT(session);
+    if (ret == EBUSY)
+        WT_RET_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
+    WT_RET(ret);
+
+    if (btree->page_log == NULL)
+        WT_ERR(ENOTSUP);
+
+    if (btree->page_log->pl_trim_table == NULL) {
+        __wt_verbose_warning(session, WT_VERB_DISAGGREGATED_STORAGE, "%s",
+          "Trim table is not supported by the current PALI implementation");
+        ret = 0;
+        goto err;
+    }
+
+    /*
+     * The trim request must be performed before removing entries from metadata table. Otherwise
+     * there may be orphaned tables.
+     *
+     * FIXME-WT-16527: Set start LSN once implemented.
+     */
+    WT_ERR(btree->page_log->pl_trim_table(btree->page_log, &session->iface, btree->id, 0, NULL));
+
+err:
+    WT_TRET(__wt_session_release_dhandle(session));
+    return (ret);
+}
+/*
  * __drop_layered --
  *     WT_SESSION::drop for a layered table.
  */
@@ -130,6 +176,7 @@ __drop_layered(
     WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
     const char *ingest_uri, *stable_uri, *tablename;
+
     WT_UNUSED(force);
 
     WT_ASSERT(session, WT_PREFIX_MATCH(uri, "layered:"));
@@ -144,13 +191,24 @@ __drop_layered(
     WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "file:%s.wt_stable", tablename));
     stable_uri = stable_uri_buf->data;
 
-    WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility));
-
-    /*
-     * FIXME-WT-14503: as part of the bigger garbage-collection picture, we should eventually find a
-     * way to tell PALI that this was dropped.
+    /* Only the leader can remove the metadata from shared metadata table and issue a trim command.
      */
+    if (S2C(session)->layered_table_manager.leader) {
+        WT_ERR(__drop_issue_trim(session, stable_uri));
+
+        /*
+         * Remove the all associated metadata from shared metadata table.
+         *
+         * FIXME-WT-16565: Refactor to use the shared metadata queue.
+         */
+        WT_SAVE_DHANDLE(
+          session, ret = __wt_disagg_remove_shared_metadata_layered(session, tablename));
+        WT_ERR(ret);
+    }
+
     WT_ERR(__wt_schema_drop(session, stable_uri, cfg, check_visibility));
+
+    WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility));
 
     /* Now drop the top-level table. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
@@ -158,7 +216,8 @@ __drop_layered(
     WT_ERR(ret);
     WT_ERR(__wt_metadata_remove(session, uri));
 
-    /* No need for a meta track drop, since the top-level table has no underlying files to remove.
+    /*
+     * No need for a meta track drop, since the top-level table has no underlying files to remove.
      */
 
 err:

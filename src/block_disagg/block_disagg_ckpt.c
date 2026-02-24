@@ -16,7 +16,7 @@
  */
 static int
 __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *session,
-  WT_ITEM *root_image, WT_PAGE_BLOCK_META *block_meta, WT_CKPT *ckpt)
+  WT_ITEM *root_image, WT_PAGE_BLOCK_META *block_meta, size_t page_image_size, WT_CKPT *ckpt)
 {
     WT_BLOCK_DISAGG_ADDRESS_COOKIE root_cookie;
     uint32_t checksum, size;
@@ -24,15 +24,6 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
 
     WT_ASSERT(session, block_meta != NULL);
     WT_ASSERT(session, block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID);
-
-    /*
-     * !!!
-     * Our caller wants the final checkpoint size. Setting the size here violates layering,
-     * but the alternative is a call for the btree layer to crack the checkpoint cookie into
-     * its components, and that's a fair amount of work.
-     */
-    ckpt->size = block_meta->page_id;
-    /* FIXME-WT-14610: What should be the checkpoint size? Do we need it? */
 
     /*
      * Write the root page out, and get back the address information for that page which will be
@@ -51,8 +42,8 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
          * page, and currently we rely on this assumption to discard older checkpoint root page when
          * the checkpoint becomes redundant.
          */
-        WT_RET(__wti_block_disagg_write_internal(
-          session, block_disagg, root_image, block_meta, &size, &checksum, true, true));
+        WT_RET(__wti_block_disagg_write_internal(session, block_disagg, root_image, block_meta,
+          page_image_size, &size, &checksum, true, true));
         __wt_page_header_byteswap((void *)root_image->data);
 
         /* Initialize and pack the address cookie for the root page. */
@@ -71,6 +62,12 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
           " root_size=%" PRIu32 " root_checksum=%" PRIx32,
           block_meta->page_id, block_meta->disagg_lsn, block_meta->base_lsn, size, checksum);
     }
+    /*
+     * Set the checkpoint size here after all writes are complete. We set it at this point because
+     * we don't expect the size to change until it gets written to metadata, allowing us to validate
+     * consistency.
+     */
+    ckpt->size = __wt_atomic_load_uint64(&S2BT(session)->bytes_total);
 
     return (0);
 }
@@ -99,7 +96,8 @@ __wti_block_disagg_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root
      */
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_ADD))
-            WT_RET(__bmd_checkpoint_pack_raw(block_disagg, session, root_image, block_meta, ckpt));
+            WT_RET(__bmd_checkpoint_pack_raw(block_disagg, session, root_image, block_meta,
+              root_image == NULL ? 0 : root_image->size, ckpt));
 
     return (0);
 }
@@ -118,14 +116,15 @@ __block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool fail
     WT_DECL_RET;
     size_t len;
     uint64_t checkpoint_timestamp;
-    char *md_key;
+    char *stable_uri, *table_name;
     const char *md_value;
 
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
     conn = S2C(session);
 
     md_cursor = NULL;
-    md_key = NULL;
+    stable_uri = NULL;
+    table_name = NULL;
 
     /*
      * This requires schema lock to ensure that we capture a consistent snapshot of metadata entries
@@ -137,55 +136,58 @@ __block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool fail
     if (failed)
         return (0);
 
-    /* Allocate a buffer for metadata keys. */
+    /* Allocate a buffer for the metadata key and for the table name. */
     len = strlen("file:") + strlen(block_disagg->name) + 4;
-    WT_ERR(__wt_calloc_def(session, len, &md_key));
+    WT_ERR(__wt_calloc_def(session, len, &stable_uri));
+    WT_ERR(__wt_calloc_def(session, len, &table_name));
 
-    /* Get a metadata cursor pointing to this table */
-    WT_ERR(__wt_metadata_cursor(session, &md_cursor));
-    WT_ERR(__wt_snprintf(md_key, len, "file:%s", block_disagg->name));
-    md_cursor->set_key(md_cursor, md_key);
-    WT_ERR(md_cursor->search(md_cursor));
-    WT_ERR(md_cursor->get_value(md_cursor, &md_value));
+    /* Construct the URI of the stable/shared table. */
+    WT_ERR(__wt_snprintf(stable_uri, len, "file:%s", block_disagg->name));
 
     /*
      * Store the metadata of regular shared tables in the shared metadata table. Store the metadata
      * of the shared metadata table in the system-level metadata (similar to the turtle file).
      */
     if (strcmp(block_disagg->name, WT_DISAGG_METADATA_FILE) == 0) {
+        /* Get the metadata of the stable/shared table. */
+        WT_ERR(__wt_metadata_cursor(session, &md_cursor));
+        md_cursor->set_key(md_cursor, stable_uri);
+        WT_ERR(md_cursor->search(md_cursor));
+        WT_ERR(md_cursor->get_value(md_cursor, &md_value));
+
+        /*
+         * Gather any updated key encryption information so it can be written into the shared
+         * metadata table.
+         */
+        if (conn->key_provider != NULL)
+            WT_ERR(__wt_disagg_put_crypt_helper(session));
+
         /* Get the config we want to print to the metadata file */
         WT_ERR(__wt_config_getones(session, md_value, "checkpoint", &cval));
         checkpoint_timestamp = conn->disaggregated_storage.cur_checkpoint_timestamp;
         WT_ERR(__wt_disagg_put_checkpoint_meta(session, cval.str, cval.len, checkpoint_timestamp));
     } else {
-        /* Keep all metadata for regular tables. */
-        WT_SAVE_DHANDLE(
-          session, ret = __wt_disagg_update_shared_metadata(session, md_key, md_value));
-        WT_ERR(ret);
-
-        /*
-         * Release the metadata cursor early, so that the subsequent functions can reuse the cached
-         * metadata cursor in the session.
-         */
-        WT_ERR(__wt_metadata_cursor_release(session, &md_cursor));
-
-        /* Check if we need to include any other metadata keys. */
+        /* Extract the table/layered component name, if applicable. */
         if (WT_SUFFIX_MATCH(block_disagg->name, ".wt")) {
-            WT_ERR(__wt_snprintf(md_key, len, "%s", block_disagg->name));
-            md_key[strlen(md_key) - 3] = '\0'; /* Remove the .wt suffix */
-            WT_ERR_NOTFOUND_OK(__wt_disagg_copy_shared_metadata_layered(session, md_key), false);
-        }
+            WT_ERR(__wt_snprintf(table_name, len, "%s", block_disagg->name));
+            table_name[strlen(table_name) - 3] = '\0'; /* Remove the .wt suffix */
+        } else if (WT_SUFFIX_MATCH(block_disagg->name, ".wt_stable")) {
+            WT_ERR(__wt_snprintf(table_name, len, "%s", block_disagg->name));
+            table_name[strlen(table_name) - 10] = '\0'; /* Remove the .wt_stable suffix */
+        } else
+            /* This can happen if the "file:" is created without a suffix in our tests. */
+            WT_ERR(__wt_snprintf(table_name, len, "%s", block_disagg->name));
 
-        /* Check if we need to include any other metadata keys for layered tables. */
-        if (WT_SUFFIX_MATCH(block_disagg->name, ".wt_stable")) {
-            WT_ERR(__wt_snprintf(md_key, len, "%s", block_disagg->name));
-            md_key[strlen(md_key) - 10] = '\0'; /* Remove the .wt_stable suffix */
-            WT_ERR_NOTFOUND_OK(__wt_disagg_copy_shared_metadata_layered(session, md_key), false);
-        }
+        /* Remember the metadata of the stable/shared table. */
+        WT_SAVE_DHANDLE(
+          session, ret = __wt_disagg_update_metadata_later(session, stable_uri, table_name));
+        WT_ERR(ret);
     }
 
 err:
-    __wt_free(session, md_key);
+    __wt_free(session, stable_uri);
+    __wt_free(session, table_name);
+
     if (md_cursor != NULL)
         WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
 

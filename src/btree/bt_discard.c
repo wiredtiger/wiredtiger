@@ -28,7 +28,7 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
      *
      * The WT_REF cannot be the eviction thread's location.
      */
-    WT_ASSERT(session, S2BT(session)->evict_ref != ref);
+    WT_ASSERT(session, __wt_atomic_load_ptr_relaxed(&S2BT(session)->evict_ref) != ref);
 
     /*
      * Make sure no other thread has a hazard pointer on the page we are about to discard. This is
@@ -79,7 +79,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     if (page->disagg_info != NULL &&
       !(F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
         F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING)))
-        if (!__wt_page_materialization_check(session, page->disagg_info->old_rec_lsn_max))
+        if (!__wt_materialization_check(session, page->disagg_info->old_rec_lsn_max))
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_ahead_of_last_materialized_lsn);
 
     /*
@@ -549,9 +549,9 @@ void
 __wt_free_obsolete_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *visible_all_upd)
 {
     WT_UPDATE *next, *upd;
-    size_t delta_upd_size, size;
+    size_t size;
 
-    delta_upd_size = size = 0;
+    size = 0;
 
     next = visible_all_upd->next;
 
@@ -569,13 +569,9 @@ __wt_free_obsolete_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *v
     for (upd = next; upd != NULL; upd = next) {
         next = upd->next;
         size += WT_UPDATE_MEMSIZE(upd);
-        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA))
-            delta_upd_size += WT_UPDATE_MEMSIZE(upd);
         __wt_free(session, upd);
     }
 
     WT_ASSERT(session, size != 0);
     __wt_cache_page_inmem_decr(session, page, size);
-    if (delta_upd_size != 0)
-        __wt_cache_page_inmem_decr_delta_updates(session, page, delta_upd_size);
 }

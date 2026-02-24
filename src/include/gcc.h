@@ -303,6 +303,14 @@
     {                                                                                      \
         RELEASE_WRITE(*(vp), v);                                                           \
     }                                                                                      \
+    static inline _type __wt_atomic_load_##suffix(_type *vp)                               \
+    {                                                                                      \
+        return (__atomic_load_n(vp, __ATOMIC_SEQ_CST));                                    \
+    }                                                                                      \
+    static inline void __wt_atomic_store_##suffix(_type *vp, _type v)                      \
+    {                                                                                      \
+        __atomic_store_n(vp, v, __ATOMIC_SEQ_CST);                                         \
+    }                                                                                      \
     static inline _type __wt_atomic_load_##suffix##_v_relaxed(volatile _type *vp)          \
     {                                                                                      \
         return (__atomic_load_n(vp, __ATOMIC_RELAXED));                                    \
@@ -320,6 +328,14 @@
     static inline void __wt_atomic_store_##suffix##_v_release(volatile _type *vp, _type v) \
     {                                                                                      \
         RELEASE_WRITE(*(vp), v);                                                           \
+    }                                                                                      \
+    static inline _type __wt_atomic_load_##suffix##_v(volatile _type *vp)                  \
+    {                                                                                      \
+        return (__atomic_load_n(vp, __ATOMIC_SEQ_CST));                                    \
+    }                                                                                      \
+    static inline void __wt_atomic_store_##suffix##_v(volatile _type *vp, _type v)         \
+    {                                                                                      \
+        __atomic_store_n(vp, v, __ATOMIC_SEQ_CST);                                         \
     }
 
 #define WT_ATOMIC_CAS_FUNC(suffix, _type)                                                      \
@@ -332,40 +348,48 @@
         return (ATOMIC_CAS(vp, &old, newv));                                                   \
     }
 
-#define WT_ATOMIC_FUNC(suffix, _type)                                                   \
-    static inline _type __wt_atomic_add_##suffix(_type *vp, _type v)                    \
-    {                                                                                   \
-        return (__atomic_add_fetch(vp, v, __ATOMIC_SEQ_CST));                           \
-    }                                                                                   \
-    static inline _type __wt_atomic_add_##suffix##_relaxed(_type *vp, _type v)          \
-    {                                                                                   \
-        return (__atomic_add_fetch(vp, v, __ATOMIC_RELAXED));                           \
-    }                                                                                   \
-    static inline _type __wt_atomic_fetch_add_##suffix(_type *vp, _type v)              \
-    {                                                                                   \
-        return (__atomic_fetch_add(vp, v, __ATOMIC_SEQ_CST));                           \
-    }                                                                                   \
-    static inline _type __wt_atomic_sub_##suffix(_type *vp, _type v)                    \
-    {                                                                                   \
-        return (__atomic_sub_fetch(vp, v, __ATOMIC_SEQ_CST));                           \
-    }                                                                                   \
-    static inline _type __wt_atomic_sub_##suffix##_relaxed(_type *vp, _type v)          \
-    {                                                                                   \
-        return (__atomic_sub_fetch(vp, v, __ATOMIC_RELAXED));                           \
-    }                                                                                   \
-    static inline _type __wt_atomic_add_##suffix##_v(volatile _type *vp, _type v)       \
-    {                                                                                   \
-        return (__atomic_add_fetch(vp, v, __ATOMIC_SEQ_CST));                           \
-    }                                                                                   \
-    static inline _type __wt_atomic_fetch_add_##suffix##_v(volatile _type *vp, _type v) \
-    {                                                                                   \
-        return (__atomic_fetch_add(vp, v, __ATOMIC_SEQ_CST));                           \
-    }                                                                                   \
-    static inline _type __wt_atomic_sub_##suffix##_v(volatile _type *vp, _type v)       \
-    {                                                                                   \
-        return (__atomic_sub_fetch(vp, v, __ATOMIC_SEQ_CST));                           \
-    }                                                                                   \
-    WT_ATOMIC_CAS_FUNC(suffix, _type)                                                   \
+#define WT_ATOMIC_FUNC(suffix, _type)                                                     \
+    static inline _type __wt_atomic_add_##suffix(_type *vp, _type v)                      \
+    {                                                                                     \
+        return (__atomic_add_fetch(vp, v, __ATOMIC_SEQ_CST));                             \
+    }                                                                                     \
+    static inline _type __wt_atomic_add_##suffix##_relaxed(_type *vp, _type v)            \
+    {                                                                                     \
+        return (__atomic_add_fetch(vp, v, __ATOMIC_RELAXED));                             \
+    }                                                                                     \
+    static inline _type __wt_atomic_fetch_add_##suffix(_type *vp, _type v)                \
+    {                                                                                     \
+        return (__atomic_fetch_add(vp, v, __ATOMIC_SEQ_CST));                             \
+    }                                                                                     \
+    static inline _type __wt_atomic_sub_##suffix(_type *vp, _type v)                      \
+    {                                                                                     \
+        return (__atomic_sub_fetch(vp, v, __ATOMIC_SEQ_CST));                             \
+    }                                                                                     \
+    static inline _type __wt_atomic_sub_##suffix##_relaxed(_type *vp, _type v)            \
+    {                                                                                     \
+        return (__atomic_sub_fetch(vp, v, __ATOMIC_RELAXED));                             \
+    }                                                                                     \
+    static inline _type __wt_atomic_add_##suffix##_v(volatile _type *vp, _type v)         \
+    {                                                                                     \
+        return (__atomic_add_fetch(vp, v, __ATOMIC_SEQ_CST));                             \
+    }                                                                                     \
+    static inline _type __wt_atomic_add_##suffix##_v_relaxed(volatile _type *vp, _type v) \
+    {                                                                                     \
+        return (__atomic_add_fetch(vp, v, __ATOMIC_RELAXED));                             \
+    }                                                                                     \
+    static inline _type __wt_atomic_fetch_add_##suffix##_v(volatile _type *vp, _type v)   \
+    {                                                                                     \
+        return (__atomic_fetch_add(vp, v, __ATOMIC_SEQ_CST));                             \
+    }                                                                                     \
+    static inline _type __wt_atomic_sub_##suffix##_v(volatile _type *vp, _type v)         \
+    {                                                                                     \
+        return (__atomic_sub_fetch(vp, v, __ATOMIC_SEQ_CST));                             \
+    }                                                                                     \
+    static inline _type __wt_atomic_sub_##suffix##_v_relaxed(volatile _type *vp, _type v) \
+    {                                                                                     \
+        return (__atomic_sub_fetch(vp, v, __ATOMIC_RELAXED));                             \
+    }                                                                                     \
+    WT_ATOMIC_CAS_FUNC(suffix, _type)                                                     \
     WT_ATOMIC_FUNC_STORE_LOAD(suffix, _type)
 
 WT_ATOMIC_FUNC(uint8, uint8_t)

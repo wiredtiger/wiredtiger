@@ -123,6 +123,8 @@ struct __wt_layered_table_manager_entry {
     const char *layered_uri;
     const char *ingest_uri;
     const char *stable_uri;
+
+    WT_DATA_HANDLE *pinned_dhandle; /* data handle held open during drain */
 };
 
 /*
@@ -148,11 +150,30 @@ struct __wt_layered_table_manager {
     bool leader;
 };
 
-struct __wt_disagg_copy_metadata {
-    char *stable_uri;                         /* The full URI of the stable component. */
-    char *table_name;                         /* The table name without prefix or suffix. */
-    int retries_left;                         /* The number of retries left. */
-    TAILQ_ENTRY(__wt_disagg_copy_metadata) q; /* Linked list of entries. */
+/*
+ * Checkpoint metadata version constants:
+ * - DEFAULT: Version defaulted to for old checkpoints without version fields (backward compatible).
+ * - VERSION: The version this code writes and the maximum version it can read.
+ * - COMPATIBLE_VERSION: The minimum reader version required to read what this code writes.
+ */
+#define WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT 1
+#define WT_DISAGG_CHECKPOINT_META_VERSION 1
+#define WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION 1
+
+/*
+ * WT_DISAGG_UPDATE_METADATA --
+ *      Metadata about an object to be updated during the next checkpoint.
+ */
+struct __wt_disagg_update_metadata {
+    char *stable_uri; /* The full URI of the stable component. */
+    char *table_name; /* The table name without prefix or suffix. */
+
+    char *colgroup_value; /* The value for the colgroup component. */
+    char *layered_value;  /* The value for the layered component. */
+    char *stable_value;   /* The value for the stable component. */
+    char *table_value;    /* The value for the table component. */
+
+    TAILQ_ENTRY(__wt_disagg_update_metadata) q; /* Linked list of entries. */
 };
 
 #define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
@@ -177,12 +198,13 @@ struct __wt_page_delta_config {
     u_int delta_pct;             /* Delta page percent (of full page size) */
     u_int max_consecutive_delta; /* Max number of consecutive deltas */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_FLATTEN_LEAF_PAGE_DELTA 0x1u
-#define WT_INTERNAL_PAGE_DELTA 0x2u
-#define WT_LEAF_PAGE_DELTA 0x4u
+#define WT_INTERNAL_PAGE_DELTA 0x1u
+#define WT_LEAF_PAGE_DELTA 0x2u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
+
+#define WT_DISAGG_CHECKPOINT_SIZE_BUFFER WT_MEGABYTE
 
 /*
  * WT_DISAGGREGATED_STORAGE --
@@ -201,25 +223,38 @@ struct __wt_disaggregated_storage {
 
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
     wt_shared wt_timestamp_t last_checkpoint_timestamp; /* The timestamp of the last checkpoint. */
+    wt_shared wt_timestamp_t last_checkpoint_oldest_timestamp; /* The oldest timestamp. */
 
     /*
-     * The LSN of the last metadata page written in the global metadata "table," which we use to
+     * The LSN of the last metadata page written in the global metadata "table" which we use to
      * track back links between the subsequent versions of the metadata pages. Protected by the
      * checkpoint lock.
      */
     uint64_t last_metadata_page_lsn[WT_DISAGG_METADATA_MAX_PAGE_ID + 1];
 
+    /*
+     * The LSN of the last encryption key page written in the global key provider "table". Any
+     * access to the table should be protected by the checkpoint lock.
+     */
+    uint64_t last_key_provider_page_lsn[WT_DISAGG_METADATA_MAX_PAGE_ID + 1];
+
     WT_NAMED_PAGE_LOG *npage_log;
     WT_PAGE_LOG_HANDLE *page_log_meta;         /* The page log for the metadata. */
     WT_PAGE_LOG_HANDLE *page_log_key_provider; /* The page log for the key provider. */
 
-    wt_shared uint64_t num_meta_put;     /* The number metadata puts since connection open. */
+    uint64_t num_meta_put;               /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
                                          /* Updates are protected by the checkpoint lock. */
 
+    /*
+     * Total size of all stable tables in the database, along with other components such as the KEK
+     * table. Saved via the checkpoint completion record and loaded via connection reconfigure.
+     */
+    wt_shared uint64_t database_size;
+
     /* To copy at the next checkpoint. */
-    TAILQ_HEAD(__wt_disagg_copy_metadata_qh, __wt_disagg_copy_metadata) copy_metadata_qh;
-    WT_SPINLOCK copy_metadata_lock;
+    TAILQ_HEAD(__wt_disagg_update_metadata_qh, __wt_disagg_update_metadata) update_metadata_qh;
+    WT_SPINLOCK update_metadata_lock;
 
     /*
      * Ideally we'd have flags passed to the IO system, which could make it all the way to the
@@ -444,6 +479,15 @@ struct __wt_named_storage_source {
 struct __wt_name_flag {
     const char *name;
     uint64_t flag;
+};
+
+/*
+ * WT_LAYERED_DRAIN_ENTRY --
+ *	Queue entry for layered table drain threads.
+ */
+struct __wt_layered_drain_entry {
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    TAILQ_ENTRY(__wt_layered_drain_entry) q;
 };
 
 /*
@@ -772,6 +816,15 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_pf_qh, __wt_prefetch_queue_entry) pfqh; /* Locked: prefetch_lock */
     bool prefetch_auto_on;
     bool prefetch_available;
+
+    /* Data pertaining to disaggregated storage step up. */
+    struct __wt_layered_drain_data {
+        WT_THREAD_GROUP threads;
+        WT_SPINLOCK queue_lock;
+        TAILQ_HEAD(__wt_layered_drain_qh, __wt_layered_drain_entry) work_queue;
+        bool running;
+        uint32_t thread_count;
+    } layered_drain_data;
 
     WT_DISAGGREGATED_STORAGE disaggregated_storage;
     WT_PAGE_DELTA_CONFIG page_delta; /* Page delta configuration */

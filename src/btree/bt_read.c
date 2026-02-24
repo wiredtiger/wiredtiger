@@ -149,46 +149,55 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
  *     Build a full disk image of the page after reading from disk.
  */
 static int
-__page_read_build_full_disk_image(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas,
-  size_t delta_size, WT_ITEM *new_image, const void *base_image_addr)
+__page_read_build_full_disk_image(WT_SESSION_IMPL *session, WT_ITEM *deltas, size_t delta_size,
+  WT_ITEM *new_image, const void *base_image_addr
+#ifdef HAVE_DIAGNOSTIC
+  ,
+  WT_TIME_AGGREGATE *ta
+#endif
+)
 {
     WT_DECL_RET;
-    WT_REF **refs;
-    size_t refs_entries, incr, i;
+    WT_PAGE_HEADER *base_dsk;
     uint64_t time_start, time_stop;
-    WT_PAGE_HEADER *base_dsk = (WT_PAGE_HEADER *)base_image_addr;
 
-    refs = NULL;
-    refs_entries = 0;
-    incr = 0;
+    base_dsk = (WT_PAGE_HEADER *)base_image_addr;
+    WT_ASSERT(session, base_dsk != NULL);
 
-    /* Merge deltas directly with the base image to build refs in a single pass. */
+    /*
+     * Merge deltas directly with the base image to build the new disk image in a single pass. The
+     * merge helpers will also update ta (if non-NULL) as they emit cells.
+     */
     if (base_dsk->type == WT_PAGE_ROW_LEAF) {
         time_start = __wt_clock(session);
-        WT_ERR(__wti_page_merge_deltas_with_base_image_leaf(
-          session, deltas, delta_size, new_image, base_dsk));
+        ret = __wti_page_merge_deltas_with_base_image_leaf(
+          session, deltas, delta_size, new_image, base_dsk
+#ifdef HAVE_DIAGNOSTIC
+          ,
+          ta
+#endif
+        );
+        WT_ERR(ret);
         time_stop = __wt_clock(session);
         __wt_stat_usecs_hist_incr_leaf_reconstruct(session, WT_CLOCKDIFF_US(time_stop, time_start));
         WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf_delta);
     } else {
         time_start = __wt_clock(session);
-        WT_ERR(__wti_page_merge_deltas_with_base_image_int(session, ref, deltas, delta_size, &refs,
-          &refs_entries, &incr, new_image, base_image_addr));
+        ret = __wti_page_merge_deltas_with_base_image_int(
+          session, deltas, delta_size, new_image, base_image_addr
+#ifdef HAVE_DIAGNOSTIC
+          ,
+          ta
+#endif
+        );
+        WT_ERR(ret);
         time_stop = __wt_clock(session);
         __wt_stat_usecs_hist_incr_internal_reconstruct(
           session, WT_CLOCKDIFF_US(time_stop, time_start));
         WT_STAT_CONN_DSRC_INCR(session, cache_read_internal_delta);
     }
 
-    /* Merge deltas directly with the base image in a single pass. */
-
 err:
-    /* COMMON CLEANUP PATH (both success and error). */
-    if (refs != NULL) {
-        for (i = 0; i < refs_entries; ++i)
-            __wt_free(session, refs[i]);
-        __wt_free(session, refs);
-    }
 
     return (ret);
 }
@@ -271,10 +280,13 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * it gets discarded before something else modifies it, eviction will see the instantiated flag
      * and set the ref state back to WT_REF_DELETED.
      *
-     * Skip this optimization in cases that need the obsolete values. To minimize the number of
-     * special cases, use the same test as for skipping instantiation below.
+     * Skip this optimization in cases that need the obsolete values. For disaggregated storage,
+     * this optimization results in the loss of page ID information, which can lead to a leaked
+     * block. To minimize the number of special cases, use the same test as for skipping
+     * instantiation below.
      */
-    if (previous_state == WT_REF_DELETED && !F_ISSET(btree, WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
+    if (previous_state == WT_REF_DELETED && !F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+      !F_ISSET(btree, WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
         /*
          * If the deletion has not yet been found to be globally visible (page_del isn't NULL),
          * check if it is now, in case we can in fact avoid reading the page. Hide prepared deletes
@@ -327,9 +339,30 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         new_image_buf_size = 2 * WT_ALIGN(WT_MAX(btree->maxleafpage, split_size), btree->allocsize);
 
         WT_ERR(__wt_buf_init(session, &new_image, new_image_buf_size));
+#ifdef HAVE_DIAGNOSTIC
+        WT_TIME_AGGREGATE full_image_ta;
+#endif
+        ret = __page_read_build_full_disk_image(session, deltas, count - 1, &new_image, tmp[0].data
+#ifdef HAVE_DIAGNOSTIC
+          ,
+          &full_image_ta
+#endif
+        );
+        WT_ERR(ret);
 
-        WT_ERR(__page_read_build_full_disk_image(
-          session, ref, deltas, count - 1, &new_image, tmp[0].data));
+#ifdef HAVE_DIAGNOSTIC
+        WT_ADDR addr_tmp;
+        addr_tmp.block_cookie = addr.addr;
+        addr_tmp.block_cookie_size = addr.size;
+        addr_tmp.type = addr.type;
+        WT_TIME_AGGREGATE_COPY(&addr_tmp.ta, &full_image_ta);
+
+        int verify_ret =
+          __wt_verify_dsk_image(session, "[verify the newly built full disk image from deltas]",
+            new_image.data, new_image.size, &addr_tmp, WT_VRFY_DISK_EMPTY_PAGE_OK);
+        WT_ASSERT_ALWAYS(session, verify_ret == 0,
+          "verification failed for the newly built full disk image from deltas!");
+#endif
 
         build_full_disk_image_from_deltas = true;
         WT_PAGE_HEADER *tmp_header = (WT_PAGE_HEADER *)new_image.data;
@@ -369,19 +402,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         page->disagg_info->block_meta = block_meta;
         page->disagg_info->old_rec_lsn_max = block_meta.disagg_lsn;
         page->disagg_info->rec_lsn_max = block_meta.disagg_lsn;
-    }
-
-    /* Reconstruct deltas*/
-    if (count > 1 && !build_full_disk_image_from_deltas) {
-        ret = __wti_page_reconstruct_deltas(session, ref, deltas, count - 1);
-        for (i = 0; i < count - 1; ++i)
-            __wt_buf_free(session, &deltas[i]);
-        WT_ERR(ret);
-        /* The page may be changed if we consolidate the deltas to a new page. */
-        if (page != ref->page) {
-            page = ref->page;
-            page_change = true;
-        }
     }
 
     __wt_free(session, tmp);
@@ -438,16 +458,10 @@ err:
         __wt_ref_out(session, ref);
     }
 
+    /* Free any disk images or delta buffers we allocated or read. */
     if (tmp != NULL) {
-        size_t start = disk_image_freed ? 1 : 0;
-
-        for (i = start; i < count; ++i)
+        for (i = 0; i < count; ++i)
             __wt_buf_free(session, &tmp[i]);
-
-        /* Free the base image memory when a full disk image is constructed from deltas. */
-        if (build_full_disk_image_from_deltas)
-            __wt_buf_free(session, &tmp[0]);
-
         __wt_free(session, tmp);
     }
 
@@ -600,7 +614,7 @@ read:
                 break;
             }
 
-            WT_ASSERT(session, ref->page != NULL);
+            WT_ASSERT(session, __wt_tsan_suppress_load_wt_page_ptr(&ref->page) != NULL);
             /*
              * If a page has grown too large, we'll try and forcibly evict it before making it
              * available to the caller. There are a variety of cases where that's not possible.

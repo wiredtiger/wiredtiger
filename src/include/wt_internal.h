@@ -185,6 +185,8 @@ struct __wt_connection_impl;
 typedef struct __wt_connection_impl WT_CONNECTION_IMPL;
 struct __wt_connection_stats;
 typedef struct __wt_connection_stats WT_CONNECTION_STATS;
+struct __wt_crypt_header;
+typedef struct __wt_crypt_header WT_CRYPT_HEADER;
 struct __wt_cursor_backup;
 typedef struct __wt_cursor_backup WT_CURSOR_BACKUP;
 struct __wt_cursor_bounds_state;
@@ -223,8 +225,8 @@ struct __wt_dhandle_clear_event;
 typedef struct __wt_dhandle_clear_event WT_DHANDLE_CLEAR_EVENT;
 struct __wt_dhandle_clear_log;
 typedef struct __wt_dhandle_clear_log WT_DHANDLE_CLEAR_LOG;
-struct __wt_disagg_copy_metadata;
-typedef struct __wt_disagg_copy_metadata WT_DISAGG_COPY_METADATA;
+struct __wt_disagg_update_metadata;
+typedef struct __wt_disagg_update_metadata WT_DISAGG_UPDATE_METADATA;
 struct __wt_disaggregated_checkpoint_track;
 typedef struct __wt_disaggregated_checkpoint_track WT_DISAGGREGATED_CHECKPOINT_TRACK;
 struct __wt_disaggregated_storage;
@@ -285,6 +287,10 @@ struct __wt_json;
 typedef struct __wt_json WT_JSON;
 struct __wt_keyed_encryptor;
 typedef struct __wt_keyed_encryptor WT_KEYED_ENCRYPTOR;
+struct __wt_layered_drain_data;
+typedef struct __wt_layered_drain_data WT_LAYERED_DRAIN_DATA;
+struct __wt_layered_drain_entry;
+typedef struct __wt_layered_drain_entry WT_LAYERED_DRAIN_ENTRY;
 struct __wt_layered_table;
 typedef struct __wt_layered_table WT_LAYERED_TABLE;
 struct __wt_layered_table_manager;
@@ -589,6 +595,7 @@ typedef uint64_t wt_timestamp_t;
 #include "conf_keys.h" /* required by conf.h */
 #include "conf.h"
 #include "config.h"
+#include "crypt_header.h"
 #include "dlh.h"
 #include "futex.h"
 #include "generation.h"

@@ -57,7 +57,7 @@ create_table(WT_SESSION *session, COOKIE *cookie)
           "leaf_page_max=1KB,internal_page_max=1KB,"
           "memory_page_max=64KB,log=(enabled=false)",
           kf, vf);
-        if (g.opts.disagg_storage)
+        if (g.opts.disagg.is_enabled)
             testutil_strcat(config, sizeof(config), ",type=layered,block_manager=disagg");
     } else
         testutil_snprintf(config, sizeof(config), "key_format=%s,value_format=%s", kf, vf);
@@ -249,8 +249,8 @@ worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
         if (g.sweep_stress)
             testutil_check(cursor->reset(cursor));
     } else {
-        /* FIXME-WT-14467 should fix cursor->modify for layered tables. */
-        if (new_val % 39 < 30 && !g.opts.disagg_storage) {
+        /* FIXME-WT-16479 Extend testing for layered cursor->modify. */
+        if (new_val % 39 < 30 && !g.opts.disagg.is_enabled) {
             /* Do modify. */
             ret = cursor->search(cursor);
             if (ret == 0) {
@@ -262,7 +262,7 @@ worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
                     return (log_print_err("cursor.modify", ret, 1));
                 }
                 return (0);
-            } else if (ret != 0 && ret != WT_NOTFOUND) {
+            } else if (ret != WT_NOTFOUND) {
                 if (ret == WT_ROLLBACK || ret == WT_PREPARE_CONFLICT)
                     return (WT_ROLLBACK);
                 return (log_print_err("cursor.search", ret, 1));

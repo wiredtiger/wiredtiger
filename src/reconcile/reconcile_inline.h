@@ -178,10 +178,6 @@ __wti_rec_need_split(WTI_RECONCILE *r, size_t len)
 {
     uint32_t page_items;
 
-    /* We cannot split a page that is restored from deltas. */
-    if (F_ISSET(r, WT_REC_REWRITE_DELTA))
-        return (false);
-
     page_items = r->entries + r->supd_onpage_or_restore;
 
     /*
@@ -450,12 +446,17 @@ __wti_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WTI_UPDATE_SELECT
         return;
 
     /*
-     * In memory database don't need to avoid writing values to the cell. If we remove this check we
-     * create an extra update on the end of the chain later in reconciliation as we'll re-append the
-     * disk image value to the update chain.
+     * Previously, we didn't clear the time points for in-memory btrees because doing so could risk
+     * adding an extra update to the end of the update chain during reconciliation. This happened
+     * when the disk image value was re-appended to the update chain. However, with the new
+     * algorithm that selects the final update required for writing to the disk image, this issue is
+     * resolved. As a result, we can now safely clear the time points for in-memory btrees to avoid
+     * including unnecessary time points in the cell. That said, for in-memory btrees that don't use
+     * timestamps, clearing time points is unnecessary. It would lead to wasted effort with minimal
+     * or no benefit.
      */
-    if (!WT_TIME_WINDOW_HAS_PREPARE(tw) && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-      !F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
+    if (!WT_TIME_WINDOW_HAS_PREPARE(tw) &&
+      (!F_ISSET(btree, WT_BTREE_IN_MEMORY) || !F_ISSET(btree, WT_BTREE_LOGGED))) {
         /*
          * Check if the start of the time window is globally visible, and if so remove unnecessary
          * values.
@@ -493,4 +494,41 @@ __wti_rec_get_row_leaf_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONC
     }
 
     return (0);
+}
+
+/*
+ * __rec_selected_key_changed --
+ *     Check whether the selected update is different from the previous successful reconciliation.
+ */
+static WT_INLINE bool
+__rec_selected_key_changed(WT_SESSION_IMPL *session, WT_SAVE_UPD *supd)
+{
+    if (supd->onpage_tombstone == NULL && supd->onpage_upd == NULL)
+        return (false);
+
+    if (supd->onpage_upd == NULL) {
+        if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_DELETE_DURABLE))
+            return (false);
+    } else {
+        WT_ASSERT(session, supd->onpage_upd->type != WT_UPDATE_TOMBSTONE);
+        if (supd->onpage_tombstone != NULL) {
+            if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_DURABLE))
+                return (false);
+
+            /* Skip writing the prepared update that has already been written. */
+            if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_PREPARE_DURABLE) &&
+              WT_TIME_WINDOW_HAS_STOP_PREPARE(&supd->tw))
+                return (false);
+        } else {
+            if (F_ISSET(supd->onpage_upd, WT_UPDATE_DURABLE))
+                return (false);
+
+            /* Skip writing the prepared update that has already been written. */
+            if (F_ISSET(supd->onpage_upd, WT_UPDATE_PREPARE_DURABLE) &&
+              WT_TIME_WINDOW_HAS_START_PREPARE(&supd->tw))
+                return (false);
+        }
+    }
+
+    return (true);
 }

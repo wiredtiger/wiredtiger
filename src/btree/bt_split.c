@@ -1478,8 +1478,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * garbage collect the history store pages at the page level since all its content has a stop
      * timestamp.
      */
-    if (instantiate_upd && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-      !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) && !WT_IS_HS(session->dhandle))
+    if (instantiate_upd && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) &&
+      !WT_IS_HS(session->dhandle))
         WT_RET(__wti_page_inmem_updates(session, ref));
 
     __wt_evict_inherit_page_state(orig, page);
@@ -1497,7 +1497,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * If there are no updates to apply to the page, we're done. Otherwise, there are updates we
      * need to restore.
      */
-    if (!multi->supd_restore)
+    if (!F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
         return (0);
 
     free_size = 0;
@@ -1572,6 +1572,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                     if (WT_UPDATE_DATA_VALUE(tmp))
                         break;
                 }
+
                 if (tmp != NULL) {
                     supd->free_upds = tmp->next;
                     tmp->next = NULL;
@@ -1728,12 +1729,13 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
 
     /*
      * If we have saved updates, we must have decided to restore them to the new page except for
-     * btrees with delta enabled.
+     * disaggregated btrees.
      */
-    WT_ASSERT(
-      session, WT_DELTA_LEAF_ENABLED(session) || multi->supd_entries == 0 || multi->supd_restore);
+    WT_ASSERT(session,
+      F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) || multi->supd_entries == 0 ||
+        F_ISSET(multi, WT_MULTI_SUPD_RESTORE));
 
-    if (!multi->supd_restore)
+    if (!F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
         return;
 
     /*
@@ -1772,31 +1774,30 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mult
     WT_UPDATE *upd;
     uint32_t i, slot;
 
-    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
-        /* Append the onpage values back to the original update chains. */
-        for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
-            /*
-             * We don't need to do anything for update chains that are not restored, or restored
-             * without an onpage value.
-             */
-            if (!supd->restore || supd->onpage_upd == NULL)
-                continue;
+    /* Append the onpage values back to the original update chains. */
+    for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
+        /*
+         * We don't need to do anything for update chains that are not restored, or restored without
+         * an onpage value.
+         */
+        if (!supd->restore || supd->onpage_upd == NULL)
+            continue;
 
-            if (supd->free_upds == NULL)
-                continue;
+        if (supd->free_upds == NULL)
+            continue;
 
-            if (supd->ins == NULL) {
-                /* Note: supd->ins is never null for column-store. */
-                slot = WT_ROW_SLOT(orig, supd->rip);
-                upd = orig->modify->mod_row_update[slot];
-            } else
-                upd = supd->ins->upd;
+        if (supd->ins == NULL) {
+            /* Note: supd->ins is never null for column-store. */
+            slot = WT_ROW_SLOT(orig, supd->rip);
+            upd = orig->modify->mod_row_update[slot];
+        } else
+            upd = supd->ins->upd;
 
-            WT_ASSERT(session, upd != NULL);
-            for (; upd->next != NULL; upd = upd->next)
-                ;
-            upd->next = supd->free_upds;
-        }
+        WT_ASSERT(session, upd != NULL);
+        for (; upd->next != NULL; upd = upd->next)
+            ;
+        upd->next = supd->free_upds;
+    }
 
     /*
      * We failed creating new in-memory pages. For error-handling reasons, we've left the update
@@ -1835,10 +1836,10 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
     WT_ASSERT(session, !closing || multi->addr.block_cookie != NULL);
 
     /* If closing the file, there better not be any updates to restore. */
-    WT_ASSERT(session, !closing || !multi->supd_restore);
+    WT_ASSERT(session, !closing || !F_ISSET(multi, WT_MULTI_SUPD_RESTORE));
 
     /* If we don't have a disk image, we can't restore the saved updates. */
-    WT_ASSERT(session, multi->disk_image != NULL || !multi->supd_restore);
+    WT_ASSERT(session, multi->disk_image != NULL || !F_ISSET(multi, WT_MULTI_SUPD_RESTORE));
 
     /* Verify any disk image we have. */
     WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_DISK_VALIDATE,
@@ -1899,8 +1900,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
      * freeing the reference array would have to avoid freeing the memory, and it's not worth the
      * confusion.
      *
-     * If it is a one to one page rewrite and we skipped writing the empty delta, copy the previous
-     * address from the old ref to the new ref. Otherwise, we will lose the disk address.
+     * If it is a one to one page rewrite and we skipped writing the page, copy the previous address
+     * from the old ref to the new ref. Otherwise, we will lose the disk address.
      */
     if (multi->addr.block_cookie != NULL) {
         WT_RET(__wt_calloc_one(session, &addr));
@@ -2471,12 +2472,12 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool 
      * page doesn't have any skipped updates.
      */
     __wt_page_modify_clear(session, page);
-    if (!F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_SCRUB) || multi->supd_restore)
+    if (!F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_SCRUB) ||
+      F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
         F_SET_ATOMIC_16(page, WT_PAGE_EVICT_NO_PROGRESS);
 
     /* If there's an address, copy it. */
     if (multi->addr.block_cookie != NULL) {
-        WT_ASSERT(session, page->disagg_info != NULL);
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &multi->addr.ta);
         WT_ERR(__wt_memdup(

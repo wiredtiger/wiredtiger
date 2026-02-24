@@ -185,9 +185,9 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
          */
         if (__wt_atomic_load_uint32_relaxed(&btree->eviction_obsolete_tw_pages) == 0 &&
           __wt_atomic_load_uint32_relaxed(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0)
-            __wt_atomic_add_uint32_v(&conn->heuristic_controls.obsolete_tw_btree_count, 1);
+            __wt_atomic_add_uint32_relaxed(&conn->heuristic_controls.obsolete_tw_btree_count, 1);
 
-        __wt_atomic_add_uint32_v(&btree->checkpoint_cleanup_obsolete_tw_pages, 1);
+        __wt_atomic_add_uint32_relaxed(&btree->checkpoint_cleanup_obsolete_tw_pages, 1);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_obsolete_tw);
     }
 
@@ -327,7 +327,7 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
                 new_state = WT_REF_DELETED;
         }
         /*
-         * For deleted and on-disk pages, increment ref_changes if there has been a change in the
+         * For deleted and on-disk pages, mark the ref as dirty if there has been a change in the
          * ref's state. There's nothing to do for in-memory pages as we don't change those.
          */
         if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)) && previous_state != new_state)

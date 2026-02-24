@@ -189,6 +189,8 @@ CONFIG configuration_list[] = {
 
 {"disagg.multi", "configure multiple nodes (leader & followers) for disaggregated storage", C_IGNORE | C_BOOL , 0, 0, 0}
 
+{"disagg.multi_validation", "have multiple nodes compare database content for equality", C_IGNORE | C_BOOL , 0, 0, 0}
+
 {"disagg.enabled", "configure disaggregated storage", C_IGNORE | C_BOOL | C_TABLE | C_TYPE_ROW, 0, 0, 0}
 
 {"disagg.layered", "use layered URI for any disaggregated tables", C_BOOL, 100, 1, 0}
@@ -197,7 +199,11 @@ CONFIG configuration_list[] = {
 
 {"disagg.page_log", "configure page log for disaggregated storage (off | palm | palite)", C_IGNORE | C_STRING, 0, 0, 0}
 
+{"disagg.key_provider", "configure a key provider for disaggregated storage", C_BOOL, 20, 0, 0}
+
 {"disagg.page_log.verbose", "set page log verbosity (default=WT_VERBOSE_INFO)", C_IGNORE, 0, 0, WT_VERBOSE_DEBUG_5}
+
+{"disagg.drain_threads", "set number of drain threads for disaggregated storage", 0x0, 1, 16, 256}
 
 {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
@@ -294,6 +300,8 @@ CONFIG configuration_list[] = {
 {"random.data_seed", "set random seed for data operations", 0x0, 0, 0, UINT_MAX}
 
 {"random.extra_seed", "set random seed for extra operations", 0x0, 0, 0, UINT_MAX}
+
+{"rollback_to_stable_threads", "maximum number of threads to use for RTS. A value of RTS_THREADS_MAX translates to the default rollback_to_stable configuration", 0x0, 0, RTS_THREADS_MAX, RTS_THREADS_MAX}
 
 {"runs.in_memory", "configure in-memory", C_BOOL | C_IGNORE, 0, 0, 1}
 

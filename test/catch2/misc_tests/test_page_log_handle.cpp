@@ -70,8 +70,8 @@ TEST_CASE("Test disaggregated configuration logic", "[disagg_config]")
 
     const char *disagg_cfg[] = {"disaggregated=(role=follower,page_log=mock)", NULL};
 
-    REQUIRE(__wt_spin_init(session, &conn_impl->disaggregated_storage.copy_metadata_lock,
-              "copy shared metadata") == 0);
+    REQUIRE(__wt_spin_init(session, &conn_impl->disaggregated_storage.update_metadata_lock,
+              "update shared metadata") == 0);
     REQUIRE(__wt_spin_init(session, &conn_impl->api_lock, "api") == 0);
 
     /* Setup the page log queue. */
@@ -79,7 +79,7 @@ TEST_CASE("Test disaggregated configuration logic", "[disagg_config]")
 
     SECTION("Test page log handle is constructed")
     {
-        REQUIRE(__wti_disagg_conn_config(session, disagg_cfg, false) == WT_ERROR);
+        REQUIRE(__wti_disagg_conn_config(session, disagg_cfg, false) == EINVAL);
         REQUIRE(conn_impl->disaggregated_storage.page_log != nullptr);
         REQUIRE(conn_impl->disaggregated_storage.npage_log != nullptr);
         REQUIRE(conn_impl->disaggregated_storage.page_log_meta != nullptr);
@@ -99,7 +99,7 @@ TEST_CASE("Test disaggregated configuration logic", "[disagg_config]")
         WT_KEY_PROVIDER kp;
         conn_impl->key_provider = &kp; /* Dummy non-nullptr value. */
 
-        REQUIRE(__wti_disagg_conn_config(session, disagg_cfg, false) == WT_ERROR);
+        REQUIRE(__wti_disagg_conn_config(session, disagg_cfg, false) == EINVAL);
         REQUIRE(conn_impl->disaggregated_storage.page_log != nullptr);
         REQUIRE(conn_impl->disaggregated_storage.npage_log != nullptr);
         REQUIRE(conn_impl->disaggregated_storage.page_log_meta != nullptr);
@@ -124,6 +124,6 @@ TEST_CASE("Test disaggregated configuration logic", "[disagg_config]")
     REQUIRE(__wti_conn_remove_page_log(session) == 0);
     REQUIRE(__wti_layered_table_manager_destroy(session) == 0);
 
-    __wt_spin_destroy(session, &conn_impl->disaggregated_storage.copy_metadata_lock);
+    __wt_spin_destroy(session, &conn_impl->disaggregated_storage.update_metadata_lock);
     __wt_spin_destroy(session, &conn_impl->api_lock);
 }
