@@ -766,12 +766,9 @@ __wt_txn_truncate(WT_SESSION_IMPL *session, WT_TRUNCATE *t)
 
     txn = session->txn;
 
-    if (F_ISSET(txn, WT_TXN_READONLY)) {
-        if (F_ISSET(txn, WT_TXN_IGNORE_PREPARE))
-            WT_RET_MSG(
-              session, ENOTSUP, "Transactions with ignore_prepare=true cannot perform updates");
+    if (F_ISSET(txn, WT_TXN_READONLY))
         WT_RET_MSG(session, WT_ROLLBACK, "Attempt to update in a read-only transaction");
-    }
+
     WT_RET(__txn_next_op(session, &op));
     op->type = WT_TXN_OP_FOLLOWER_TRUNCATE;
     t->txn_id = session->txn->id;

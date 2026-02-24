@@ -710,11 +710,11 @@ err:
 }
 
 /*
- * __clayered_position_stable --
- *     Position an cursor to the right position according to the current one.
+ * __clayered_position_truncate --
+ *     Detect if stable position has been truncated. If so position to next visible position.
  */
 static int
-__clayered_position_stable(WT_CURSOR_LAYERED *clayered, WT_CURSOR *stable, bool forward)
+__clayered_position_truncate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *stable, bool forward)
 {
     WT_COLLATOR *collator;
     WT_DECL_RET;
@@ -857,7 +857,7 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
      */
     if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) && !deleted) {
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_stable, forward));
-        WT_RET_NOTFOUND_OK(__clayered_position_stable(clayered, c_stable, forward));
+        WT_RET_NOTFOUND_OK(__clayered_position_truncate(clayered, c_stable, forward));
 
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_ingest, forward));
         goto done;
@@ -885,14 +885,14 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
         if (cmp == 0) {
             WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_alternate, forward));
             if (c_alternate == c_stable)
-                WT_RET_NOTFOUND_OK(__clayered_position_stable(clayered, c_stable, forward));
+                WT_RET_NOTFOUND_OK(__clayered_position_truncate(clayered, c_stable, forward));
         }
     }
 
     /* Move the current cursor. */
     WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_current, forward));
     if (c_current == c_stable)
-        WT_RET_NOTFOUND_OK(__clayered_position_stable(clayered, c_stable, forward));
+        WT_RET_NOTFOUND_OK(__clayered_position_truncate(clayered, c_stable, forward));
 
 done:
     if (!F_ISSET(clayered, iter_flag)) {
@@ -1650,8 +1650,8 @@ __clayered_remove_follower(
         WT_RET(__clayered_reset_cursors(clayered, true));
         c->set_key(c, key);
     }
-    WT_RET(
-      __wt_layered_table_truncate_detect_write_conflict(session, (WT_LAYERED_TABLE *) clayered->dhandle, key, NULL));
+    WT_RET(__wt_layered_table_truncate_detect_write_conflict(
+      session, (WT_LAYERED_TABLE *)clayered->dhandle, key, NULL));
     c->set_value(c, &__wt_tombstone);
     WT_RET(c->update(c));
     clayered->current_cursor = c;

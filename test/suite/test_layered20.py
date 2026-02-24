@@ -212,12 +212,12 @@ class test_layered20(wttest.WiredTigerTestCase):
         self.session.truncate(None, c1, c2, None)
         # The second session.
         session2 = self.conn.open_session()
-        
+
         session2.begin_transaction()
         cursor2 = session2.open_cursor(self.uri)
         cursor2.set_key(str(150))
         cursor2.set_value("hi")
-        
+
         msg1 = '/conflict between concurrent operations/'
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor2.update(), msg1)
         session2.commit_transaction()
@@ -250,7 +250,7 @@ class test_layered20(wttest.WiredTigerTestCase):
         # The second session.
         session2 = self.conn.open_session()
         session2.begin_transaction()
-        
+
         cursor2 = session2.open_cursor(self.uri)
         cursor2.set_key(str(100))
         cursor2.set_value("hi")
