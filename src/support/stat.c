@@ -2193,6 +2193,7 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: fsync calls after allocating the transaction ID",
   "checkpoint: fsync duration after allocating the transaction ID (usecs)",
   "checkpoint: generation",
+  "checkpoint: in-memory pages visited during checkpoint cleanup",
   "checkpoint: max time (msecs)",
   "checkpoint: min time (msecs)",
   "checkpoint: most recent checkpoint cleanup duration on all eligible files (usecs)",
@@ -3234,6 +3235,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_fsync_post = 0;
     /* not clearing checkpoint_fsync_post_duration */
     /* not clearing checkpoint_generation */
+    stats->checkpoint_cleanup_inmem_pages_visited = 0;
     /* not clearing checkpoint_time_max */
     /* not clearing checkpoint_time_min */
     /* not clearing checkpoint_cleanup_duration */
@@ -4363,6 +4365,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_fsync_post += WT_STAT_CONN_READ(from, checkpoint_fsync_post);
     to->checkpoint_fsync_post_duration += WT_STAT_CONN_READ(from, checkpoint_fsync_post_duration);
     to->checkpoint_generation += WT_STAT_CONN_READ(from, checkpoint_generation);
+    to->checkpoint_cleanup_inmem_pages_visited +=
+      WT_STAT_CONN_READ(from, checkpoint_cleanup_inmem_pages_visited);
     to->checkpoint_time_max += WT_STAT_CONN_READ(from, checkpoint_time_max);
     to->checkpoint_time_min += WT_STAT_CONN_READ(from, checkpoint_time_min);
     to->checkpoint_cleanup_duration += WT_STAT_CONN_READ(from, checkpoint_cleanup_duration);
