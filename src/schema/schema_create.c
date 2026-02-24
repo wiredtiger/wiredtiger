@@ -120,7 +120,7 @@ __create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const cha
 
 /*
  * __validate_file_id --
- *     alidates all possible cases to detect unexpected or unsafe table ID generation.
+ *     Validates all possible cases to detect unexpected or unsafe table ID generation.
  */
 static void
 __validate_file_id(WT_SESSION_IMPL *session, uint32_t namespaced_id)
