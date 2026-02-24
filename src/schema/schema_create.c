@@ -135,7 +135,7 @@ __validate_file_id(WT_SESSION_IMPL *session, uint32_t namespaced_id)
         namespace == WT_BTREE_ID_NAMESPACE_SPECIAL);
 
     /* Check that generated IDs do not contain values reserved elsewhere. */
-    WT_ASSERT(session, namespaced_id != 0); /* Local metadata ID */
+    WT_ASSERT(session, namespaced_id != WT_METAFILE_ID); /* Local metadata ID */
     WT_ASSERT(session,
       namespaced_id !=
         WT_BTREE_ID_NAMESPACED(
