@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -40,7 +40,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
      * We need exclusive access to the file, we're about to discard the root page. Assert eviction
      * has been locked out.
      */
-    WT_ASSERT(session, btree->evict_disabled > 0 || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
+    WT_ASSERT(session, WT_EVICT_DISABLED(btree) || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
 
     /*
      * We do discard objects without pages in memory. If that's the case, we're done.
@@ -87,7 +87,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * history.
              */
             rec_flags = WT_REC_EVICT | WT_REC_EVICT_CALL_CLOSING | WT_REC_CLEAN_AFTER_REC |
-              WT_REC_VISIBLE_NO_SNAPSHOT;
+                WT_REC_VISIBLE_NO_SNAPSHOT;
             if (!WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(dhandle))
                 rec_flags |= WT_REC_HS;
             WT_ERR(__wt_reconcile(session, ref, NULL, rec_flags));
@@ -116,11 +116,6 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * cases, return an error to ensure the pages remain readable later. Otherwise, you risk
              * losing access to those pages upon attempting retrieval.
              */
-            WT_ASSERT_ALWAYS(session,
-              F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
-                F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING) ||
-                __wt_page_can_evict(session, ref, NULL),
-              "Page should be evictable during discard");
             __wt_ref_out(session, ref);
             break;
         case WT_SYNC_CHECKPOINT:
@@ -136,8 +131,6 @@ err:
         if (next_ref != NULL)
             WT_TRET(__wt_page_release(session, next_ref, walk_flags));
     }
-#ifdef HAVE_DIAGNOSTIC
-    WT_CONN_CLOSE_ABORT(session, ret);
-#endif
+
     return (ret);
 }

@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -258,14 +258,9 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_RET(__wt_config_gets(session, cfg, "eviction.evict_sample_inmem", &cval));
     conn->evict_sample_inmem = cval.val != 0;
 
-    WT_RET(__wt_config_gets(session, cfg, "eviction.evict_use_softptr", &cval));
-    __wt_atomic_store_bool_relaxed(&conn->evict_use_npos, cval.val != 0);
-
-    WT_RET(__wt_config_gets(session, cfg, "eviction.legacy_page_visit_strategy", &cval));
-    conn->evict_legacy_page_visit_strategy = cval.val != 0;
-
     /* Retrieve the wait time and convert from milliseconds */
     WT_RET(__wt_config_gets(session, cfg, "cache_max_wait_ms", &cval));
+    evict->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
     if (cval.val > 1)
         evict->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
     else if (cval.val == 1)
@@ -277,25 +272,6 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_RET(__wt_config_gets(session, cfg, "cache_stuck_timeout_ms", &cval));
     evict->cache_stuck_timeout_ms = (uint64_t)cval.val;
 
-    /*
-     * The cache tolerance is a percentage value with range 0 - 100, inclusive.
-     * Given input percentage is considered in multiples of 10 only, by applying floor().
-     * 00 < value < 10  -> 00
-     * 10 < value < 20  -> 10
-     * 20 < value < 30  -> 20
-     * ...
-     * 90 < value < 100 -> 90
-     * value is 100     -> 100
-     */
-    WT_RET(__wt_config_gets(session, cfg, "eviction.cache_tolerance_for_app_eviction", &cval));
-    __wt_atomic_store_uint8_relaxed(
-      &cache->cache_eviction_controls.cache_tolerance_for_app_eviction,
-      (((uint8_t)cval.val / 10) * 10));
-
-    WT_RET(__wt_config_gets(session, cfg, "eviction.incremental_app_eviction", &cval));
-    if (cval.val != 0)
-        F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_EVICT_INCREMENTAL_APP);
-
     WT_RET(__wt_config_gets(session, cfg, "eviction.prefer_scrub_eviction", &cval));
     if (cval.val != 0)
         F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_PREFER_SCRUB_EVICTION);
@@ -304,9 +280,9 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     if (cval.val != 0)
         F_SET_ATOMIC_32(&(cache->cache_eviction_controls), WT_CACHE_SKIP_UPDATE_OBSOLETE_CHECK);
 
-    WT_RET(__wt_config_gets(session, cfg, "eviction.app_eviction_min_cache_fill_ratio", &cval));
-    __wt_atomic_store_uint8_relaxed(
-      &cache->cache_eviction_controls.app_eviction_min_cache_fill_ratio, (uint8_t)cval.val);
+    /* Retrieve the number of buckets in each bucketset */
+    WT_RET(__wt_config_gets(session, cfg, "eviction.evict_num_buckets", &cval));
+    evict->evict_num_buckets = (uint32_t)cval.val;
 
     /*
      * Resize the thread group if reconfiguring, otherwise the thread group will be initialized as
@@ -337,9 +313,10 @@ int
 __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
     WT_EVICT *evict;
-    int i;
+    WT_EVICT_BUCKET *bucket;
+    WT_EVICT_BUCKETSET *bucketset;
+    int i, j;
 
     conn = S2C(session);
 
@@ -359,26 +336,34 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_atomic_store_uint64_relaxed(&evict->read_gen, WT_READGEN_START_VALUE);
 
     WT_RET(__wt_cond_auto_alloc(
-      session, "evict server", 10 * WT_THOUSAND, WT_MILLION, &evict->evict_cond));
-    WT_RET(__wt_spin_init(session, &evict->evict_pass_lock, "evict pass"));
-    WT_RET(__wt_spin_init(session, &evict->evict_queue_lock, "evict queues"));
-    WT_RET(__wt_spin_init(session, &evict->evict_walk_lock, "evict walk"));
-    if ((ret = __wt_open_internal_session(
-           conn, "evict pass", false, WT_SESSION_NO_DATA_HANDLES, 0, &evict->walk_session)) != 0)
-        WT_RET_MSG(NULL, ret, "Failed to create session for eviction walks");
+      session, "evict server", 10 * WT_THOUSAND, WT_MILLION, &evict->evict_server_cond));
+    WT_RET(__wt_spin_init(session, &conn->evict->evict_exclusive_lock, "evict-exclusive"));
+    WT_RET(__wt_spin_init(session, &conn->evict->evict_housekeeping_lock, "evict-housekeeping"));
 
-    /* Allocate the LRU eviction queue. */
-    evict->evict_slots = WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR;
-    for (i = 0; i < WTI_EVICT_QUEUE_MAX; ++i) {
-        WT_RET(__wt_calloc_def(session, evict->evict_slots, &evict->evict_queues[i].evict_queue));
-        WT_RET(__wt_spin_init(session, &evict->evict_queues[i].evict_lock, "evict queue"));
+    /*
+     * Allocate the eviction buckets.
+     *
+     * Lower numbered bucket sets have a higher eviction priority.
+     */
+    for (i = 0; i < WT_EVICT_LEVELS; i++) {
+        bucketset = &evict->evict_bucketset[i];
+        bucketset->level = i;
+
+        bucketset->num_buckets = evict->evict_num_buckets;
+
+        printf("allocating %d buckets at level %d \n", (int)bucketset->num_buckets, i);
+
+        WT_RET(__wt_calloc(session, bucketset->num_buckets, sizeof(WT_EVICT_BUCKET),
+                           &bucketset->buckets));
+
+        for (j = 0; j <  (int)bucketset->num_buckets; j++) {
+            bucket = &bucketset->buckets[j];
+            bucket->bucketset = bucketset;
+            bucket->id = (uint64_t)j;
+            WT_RET(__wt_spin_init(session, &bucket->evict_queue_lock, "evict bucket queue lock"));
+            TAILQ_INIT(&bucket->evict_queue);
+        }
     }
-
-    /* Ensure there are always non-NULL queues. */
-    evict->evict_current_queue = evict->evict_fill_queue = &evict->evict_queues[0];
-    evict->evict_other_queue = &evict->evict_queues[1];
-    evict->evict_urgent_queue = &evict->evict_queues[WTI_EVICT_URGENT_QUEUE];
-    evict->evict_lock_wait_time = 0;
 
     /*
      * We get/set some values in the evict statistics (rather than have two copies), configure them.
@@ -392,16 +377,12 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
  *     Release all memory and locks related to eviction, ensuring the eviction system is properly
  *     destroyed. It must be called exactly once during `WT_CONNECTION::close`, and must be called
  *     after all the eviction threads are destroyed (via `__wt_evict_threads_destroy`).
- *
- *     Return an error code if the internal eviction session cannot be closed.
  */
 int
 __wt_evict_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
     WT_EVICT *evict;
-    int i;
 
     conn = S2C(session);
     evict = conn->evict;
@@ -409,19 +390,9 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
     if (evict == NULL)
         return (0);
 
-    __wt_cond_destroy(session, &evict->evict_cond);
-    __wt_spin_destroy(session, &evict->evict_pass_lock);
-    __wt_spin_destroy(session, &evict->evict_queue_lock);
-    __wt_spin_destroy(session, &evict->evict_walk_lock);
-    if (evict->walk_session != NULL)
-        WT_TRET(__wt_session_close_internal(evict->walk_session));
-
-    for (i = 0; i < WTI_EVICT_QUEUE_MAX; ++i) {
-        __wt_spin_destroy(session, &evict->evict_queues[i].evict_lock);
-        __wt_free(session, evict->evict_queues[i].evict_queue);
-    }
+    __wt_spin_destroy(session, &evict->evict_exclusive_lock);
     __wt_free(session, conn->evict);
-    return (ret);
+    return (0);
 }
 
 /*
@@ -492,7 +463,7 @@ __wt_evict_stats_init(WT_SESSION_IMPL *session)
     evict = conn->evict;
     stats = conn->stats;
 
-    WT_STATP_CONN_SET(session, stats, eviction_maximum_clean_page_size_per_checkpoint,
+       WT_STATP_CONN_SET(session, stats, eviction_maximum_clean_page_size_per_checkpoint,
       __wt_atomic_load_uint64_relaxed(&evict->evict_max_clean_page_size_per_checkpoint));
     WT_STATP_CONN_SET(session, stats, eviction_maximum_dirty_page_size_per_checkpoint,
       __wt_atomic_load_uint64_relaxed(&evict->evict_max_dirty_page_size_per_checkpoint));
@@ -504,14 +475,6 @@ __wt_evict_stats_init(WT_SESSION_IMPL *session)
       __wt_atomic_load_uint64_relaxed(&evict->evict_max_ms_per_checkpoint));
     WT_STATP_CONN_SET(session, stats, eviction_reentry_hs_eviction_milliseconds,
       __wt_atomic_load_uint64_relaxed(&evict->reentry_hs_eviction_ms));
-    WT_STATP_CONN_SET(session, stats, eviction_maximum_unvisited_gen_gap,
-      __wt_atomic_load_uint64_relaxed(&evict->evict_max_unvisited_gen_gap));
-    WT_STATP_CONN_SET(session, stats, eviction_maximum_unvisited_gen_gap_per_checkpoint,
-      __wt_atomic_load_uint64_relaxed(&evict->evict_max_unvisited_gen_gap_per_checkpoint));
-    WT_STATP_CONN_SET(session, stats, eviction_maximum_visited_gen_gap,
-      __wt_atomic_load_uint64_relaxed(&evict->evict_max_visited_gen_gap));
-    WT_STATP_CONN_SET(session, stats, eviction_maximum_visited_gen_gap_per_checkpoint,
-      __wt_atomic_load_uint64_relaxed(&evict->evict_max_visited_gen_gap_per_checkpoint));
     WT_STATP_CONN_SET(
       session, stats, eviction_state, __wt_atomic_load_uint32_relaxed(&evict->flags));
     WT_STATP_CONN_SET(session, stats, eviction_aggressive_set,
@@ -522,21 +485,11 @@ __wt_evict_stats_init(WT_SESSION_IMPL *session)
       __wt_atomic_load_uint32_relaxed(&conn->evict_threads.current_threads));
     WT_STATP_CONN_SET(session, stats, eviction_stable_state_workers,
       __wt_atomic_load_uint32_relaxed(&evict->evict_tune_workers_best));
-    WT_STATP_CONN_SET(session, stats, eviction_maximum_attempts_to_queue_page,
-      __wt_atomic_load_uint16_relaxed(&evict->evict_max_eviction_queue_attempts));
     WT_STATP_CONN_SET(session, stats, eviction_maximum_attempts_to_evict_page,
       __wt_atomic_load_uint16_relaxed(&evict->evict_max_evict_page_attempts));
 
     WT_STATP_CONN_SET(session, stats, eviction_worker_lock_wait_time,
       __wt_atomic_load_uint64_relaxed(&evict->evict_lock_wait_time));
-
-    /*
-     * The number of files with active walks ~= number of hazard pointers in the walk session. Note:
-     * reading without locking.
-     */
-    if (__wt_atomic_load_bool_relaxed(&conn->evict_server_running))
-        WT_STATP_CONN_SET(
-          session, stats, eviction_walks_active, evict->walk_session->hazards.num_active);
 
     /* Update eviction threshold stats. */
     __wt_evict_stats_update(session);

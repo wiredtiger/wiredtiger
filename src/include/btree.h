@@ -88,13 +88,6 @@ typedef enum {
     CKSUM_UNENCRYPTED = 4   /* Unencrypted blocks only */
 } WT_BTREE_CHECKSUM;
 
-typedef enum { /* Start position for eviction walk */
-    WT_EVICT_WALK_PREV,
-    WT_EVICT_WALK_NEXT,
-    WT_EVICT_WALK_RAND_NEXT,
-    WT_EVICT_WALK_RAND_PREV
-} WT_EVICT_WALK_TYPE;
-
 /* An invalid btree file ID value. ID 0 is reserved for the metadata file. */
 #define WT_BTREE_ID_INVALID UINT32_MAX
 
@@ -273,7 +266,7 @@ struct __wt_btree {
  * All of the following fields live at the end of the structure so it's easier to clear everything
  * but the fields that persist.
  */
-#define WT_BTREE_CLEAR_SIZE (offsetof(WT_BTREE, evict_ref))
+#define WT_BTREE_CLEAR_SIZE (offsetof(WT_BTREE, next_page_id))
 
     /* The next page ID available for allocation in disaggregated storage for this tree. */
     wt_shared uint64_t next_page_id;
