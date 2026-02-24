@@ -39,7 +39,8 @@ namespace model {
  */
 kv_workload_generator_spec::kv_workload_generator_spec()
 {
-    disaggregated = 0; /* FIXME-WT-15042 Enable this when ready. */
+    /* Disagg may be enabled by adding -G disaggregated=1 as a command line argument. */
+    disaggregated = 0;
 
     min_tables = 3;
     max_tables = 10;
