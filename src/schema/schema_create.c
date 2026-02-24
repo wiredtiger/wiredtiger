@@ -120,7 +120,7 @@ __create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const cha
 
 /*
  * __validate_file_id --
- *     Validate the possible case to detect unexpected and dangerous tables IDs generation.
+ *     alidates all possible cases to detect unexpected or unsafe table ID generation.
  */
 static void
 __validate_file_id(WT_SESSION_IMPL *session, uint32_t namespaced_id)
@@ -129,12 +129,12 @@ __validate_file_id(WT_SESSION_IMPL *session, uint32_t namespaced_id)
 
     WT_UNUSED(namespace);
 
-    /* Assert that only existing namespaces are getting used. */
+    /* Assert that only valid namespaces are used. */
     WT_ASSERT(session,
       namespace == WT_BTREE_ID_NAMESPACE_LOCAL || namespace == WT_BTREE_ID_NAMESPACE_SHARED ||
         namespace == WT_BTREE_ID_NAMESPACE_SPECIAL);
 
-    /* Check that generated IDs doesn't contain values reserved in other places. */
+    /* Check that generated IDs do not contain values reserved elsewhere. */
     WT_ASSERT(session, namespaced_id != 0); /* Local metadata ID */
     WT_ASSERT(session,
       namespaced_id !=
