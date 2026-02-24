@@ -19,6 +19,45 @@ if not [f for f in filter_if_fast([
         ], prefix="../")]:
     sys.exit(0)
 
+##########################################
+# Check if line is a stat and extract the stat name.
+##########################################
+def parse_stat_line(line):
+    match = re.match(r'^\s*[A-Za-z_][A-Za-z0-9_]*\(\s*\'(.*?)\'', line)
+    if not match:
+        return None
+    return match.group(1)
+
+##########################################
+# Format the description of stats.
+##########################################
+def sanitize_description(desc):
+    desc = desc.strip()
+    desc = re.sub(r'[.,;:!?]+$', '', desc)
+
+    return desc
+
+##########################################
+# Format the constructor line for stats.
+##########################################
+def format_stat_line(line):
+    match = re.search(r"'(.*?)',\s*'(.*?)'", line)
+    if not match:
+        return line
+    desc = match.group(2)
+    return line[:match.start(2)] + sanitize_description(desc) + line[match.end(2):]
+
+# Update stat constructor lines in stat_data.py
+tmp_file = '__tmp_stat_data' + str(os.getpid())
+f = open(tmp_file, 'w')
+for line in open("stat_data.py", "r"):
+    if parse_stat_line(line):
+        f.write(format_stat_line(line))
+    else:
+        f.write(line)
+f.close()
+compare_srcfile(tmp_file, "stat_data.py")
+
 # Read the source files.
 from stat_data import dsrc_stats, conn_stats, conn_dsrc_stats, session_stats
 
@@ -33,15 +72,6 @@ def check_unique_description(sorted_list):
         if temp == i.desc:
             print("ERROR: repeated stat description in - '%s'" % (i.desc))
         temp = i.desc
-
-##########################################
-# Format the description of stats.
-##########################################
-def sanitize_description(desc):
-    desc = desc.strip()
-    desc = re.sub(r'[.,;:!?]+$', '', desc)
-
-    return desc
 
 ##########################################
 # Remove trailing digits for a string.
@@ -69,8 +99,6 @@ def check_name_sorted(stat_list):
 
 all_stat_list = [conn_dsrc_stats, conn_stats, dsrc_stats, session_stats]
 for stat_list in all_stat_list:
-    for stat in stat_list:
-        stat.desc = sanitize_description(stat.desc)
     check_name_sorted(stat_list)
 
 conn_dsrc_stats.sort(key=attrgetter('desc'))

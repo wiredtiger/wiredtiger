@@ -917,8 +917,8 @@ conn_stats = [
     ##########################################
     TxnStat('txn_begin', 'transaction begins'),
     TxnStat('txn_commit', 'transactions committed'),
-    TxnStat('txn_global_checkpoint_timestamp', ' transaction global checkpoint timestamp', 'no_clear,no_scale'),
-    TxnStat('txn_global_durable_timestamp', ' transaction global durable timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_checkpoint_timestamp', 'transaction global checkpoint timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_global_durable_timestamp', 'transaction global durable timestamp', 'no_clear,no_scale'),
     TxnStat('txn_global_last_running_timestamp', 'transaction global last running timestamp', 'no_clear,no_scale'),
     TxnStat('txn_global_newest_timestamp', 'transaction global newest timestamp', 'no_clear,no_scale'),
     TxnStat('txn_global_oldest_timestamp', 'transaction global oldest timestamp', 'no_clear,no_scale'),
@@ -1070,7 +1070,7 @@ dsrc_stats = [
     # Compression statistics
     ##########################################
     CompressStat('compress_precomp_intl_max_page_size', 'compressed page maximum internal page size prior to compression', 'no_clear,no_scale,size'),
-    CompressStat('compress_precomp_leaf_max_page_size', 'compressed page maximum leaf page size prior to compression ', 'no_clear,no_scale,size'),
+    CompressStat('compress_precomp_leaf_max_page_size', 'compressed page maximum leaf page size prior to compression', 'no_clear,no_scale,size'),
     CompressStat('compress_read', 'pages read from disk'),
     # dist/stat.py sorts stats by their descriptions and not their names. The following stat descriptions insert an extra
     # space before the single digit numbers (2, 4, 8) so stats will be sorted numerically (2, 4, 8, 16, 32) instead of
@@ -1338,7 +1338,7 @@ conn_dsrc_stats = [
     BlockDisaggStat('disagg_block_hs_get', 'Disaggregated block manager get from the shared history store in SLS'),
     BlockDisaggStat('disagg_block_hs_put', 'Disaggregated block manager put to the shared history store in SLS'),
     BlockDisaggStat('disagg_block_page_discard', 'Disaggregated block manager page discard calls'),
-    BlockDisaggStat('disagg_block_put', 'Disaggregated block manager put '),
+    BlockDisaggStat('disagg_block_put', 'Disaggregated block manager put'),
     BlockDisaggStat('disagg_block_put_cold', 'Disaggregated block manager put cold page'),
     BlockDisaggStat('disagg_block_read_ahead_frontier', 'Disaggregated block manager read ahead of materialization frontier'),
 
@@ -1411,12 +1411,12 @@ conn_dsrc_stats = [
     RecStat('rec_pages_with_internal_deltas', 'pages written with at least one internal page delta'),
     RecStat('rec_pages_with_leaf_deltas', 'pages written with at least one leaf page delta'),
     RecStat('rec_skip_write', 'writes skipped in disaggregated storage'),
-    RecStat('rec_time_aggr_newest_start_durable_ts', 'pages written including an aggregated newest start durable timestamp '),
-    RecStat('rec_time_aggr_newest_stop_durable_ts', 'pages written including an aggregated newest stop durable timestamp '),
-    RecStat('rec_time_aggr_newest_stop_ts', 'pages written including an aggregated newest stop timestamp '),
+    RecStat('rec_time_aggr_newest_start_durable_ts', 'pages written including an aggregated newest start durable timestamp'),
+    RecStat('rec_time_aggr_newest_stop_durable_ts', 'pages written including an aggregated newest stop durable timestamp'),
+    RecStat('rec_time_aggr_newest_stop_ts', 'pages written including an aggregated newest stop timestamp'),
     RecStat('rec_time_aggr_newest_stop_txn', 'pages written including an aggregated newest stop transaction ID'),
-    RecStat('rec_time_aggr_newest_txn', 'pages written including an aggregated newest transaction ID '),
-    RecStat('rec_time_aggr_oldest_start_ts', 'pages written including an aggregated oldest start timestamp '),
+    RecStat('rec_time_aggr_newest_txn', 'pages written including an aggregated newest transaction ID'),
+    RecStat('rec_time_aggr_oldest_start_ts', 'pages written including an aggregated oldest start timestamp'),
     RecStat('rec_time_aggr_prepared', 'pages written including an aggregated prepare'),
     RecStat('rec_time_window_bytes_ts', 'approximate byte size of timestamps in pages written'),
     RecStat('rec_time_window_bytes_txn', 'approximate byte size of transaction IDs in pages written'),
