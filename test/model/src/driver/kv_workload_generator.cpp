@@ -39,6 +39,7 @@ namespace model {
  */
 kv_workload_generator_spec::kv_workload_generator_spec()
 {
+    /* Disagg may be enabled by adding -G disaggregated=1 as a command line argument. */
     disaggregated = 0;
 
     min_tables = 3;
