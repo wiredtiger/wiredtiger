@@ -72,8 +72,8 @@ class test_layered75(wttest.WiredTigerTestCase):
         # and don't have corresponding metadata entries so we shouldn't have metadata entries with
         # these IDs to avoid conflicts on the PALI level.
         prohibited_ids = (
-            (2 << TEST_NAMESPACE_BITS) | TEST_NAMESPACE_SPECIAL, # WT_SHARED_TURTLE_FILE_ID
-            (3 << TEST_NAMESPACE_BITS) | TEST_NAMESPACE_SPECIAL, # WT_SHARED_KEY_PROVIDER_FILE_ID
+            (0 << TEST_NAMESPACE_BITS) | TEST_NAMESPACE_SPECIAL, # WT_SPECIAL_PALI_TURTLE_FILE_ID
+            (3 << TEST_NAMESPACE_BITS) | TEST_NAMESPACE_SPECIAL, # WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID
         )
 
         self.assertFalse(file_id in prohibited_ids, f"Prohibited id {file_id} detected")
@@ -88,8 +88,8 @@ class test_layered75(wttest.WiredTigerTestCase):
         # BE CAREFUL!!! CHANGING THESE IDS WILL PROBABLY CAUSE A BACKWARD COMPATIBILITY BREAK!!!
         # Calculate namespaced IDs: (ID << 3) | namespaces
         expected_fixed_id_tables = {
-            'file:WiredTigerShared.wt_stable': (0 << TEST_NAMESPACE_BITS) | TEST_NAMESPACE_SPECIAL, # 2
-            'file:WiredTigerSharedHS.wt_stable': (1 << TEST_NAMESPACE_BITS) | TEST_NAMESPACE_SPECIAL, # 10
+            'file:WiredTigerShared.wt_stable': (1 << TEST_NAMESPACE_BITS) | TEST_NAMESPACE_SPECIAL, # 10
+            'file:WiredTigerSharedHS.wt_stable': (2 << TEST_NAMESPACE_BITS) | TEST_NAMESPACE_SPECIAL, # 18
             'metadata:': 0
         }
 

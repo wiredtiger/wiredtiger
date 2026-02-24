@@ -135,15 +135,9 @@ __validate_file_id(WT_SESSION_IMPL *session, uint32_t namespaced_id)
         namespace == WT_BTREE_ID_NAMESPACE_SPECIAL);
 
     /* Check that generated IDs do not contain values reserved elsewhere. */
-    WT_ASSERT(session, namespaced_id != WT_METAFILE_ID); /* Local metadata ID */
-    WT_ASSERT(session,
-      namespaced_id !=
-        WT_BTREE_ID_NAMESPACED(
-          WT_SHARED_TURTLE_FILE_ID, WT_BTREE_ID_NAMESPACE_SPECIAL)); /* PALI turtle table ID */
-    WT_ASSERT(session,
-      namespaced_id !=
-        WT_BTREE_ID_NAMESPACED(WT_SHARED_KEY_PROVIDER_FILE_ID,
-          WT_BTREE_ID_NAMESPACE_SPECIAL)); /* PALI key provider table ID */
+    WT_ASSERT(session, namespaced_id != WT_METAFILE_ID);
+    WT_ASSERT(session, namespaced_id != WT_SPECIAL_PALI_TURTLE_FILE_ID);
+    WT_ASSERT(session, namespaced_id != WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID);
 }
 
 /*
@@ -159,12 +153,11 @@ __wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
     } FILE_ID_TO_URI;
 
     static const FILE_ID_TO_URI special_file_map[] = {
-      {WT_SHARED_METADATA_FILE_ID, WT_DISAGG_METADATA_URI},
-      {WT_SHARED_HS_FILE_ID, WT_HS_URI_SHARED}, {0, NULL} /* sentinel */
+      {WT_SPECIAL_SHARED_METADATA_FILE_ID, WT_DISAGG_METADATA_URI},
+      {WT_SPECIAL_SHARED_HS_FILE_ID, WT_HS_URI_SHARED}, {0, NULL} /* sentinel */
     };
 
-    uint32_t fileid = UINT32_MAX;
-    uint32_t namespace = UINT32_MAX;
+    uint32_t id = UINT32_MAX;
 
     /* Metadata ID is predefined but should be defined in a different place. */
     WT_ASSERT(session, uri != NULL);
@@ -173,25 +166,20 @@ __wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
     /* Check whether we should use a predefined ID for the provided URI. */
     for (const FILE_ID_TO_URI *entry = special_file_map; entry->uri != NULL; ++entry) {
         if (strcmp(uri, entry->uri) == 0) {
-            fileid = entry->id;
-            namespace = WT_BTREE_ID_NAMESPACE_SPECIAL;
-            break;
+            id = entry->id;
+
+            /* Entry should be already in the namespace here. */
+            WT_ASSERT(session, WT_BTREE_ID_NAMESPACE_ID(id) == WT_BTREE_ID_NAMESPACE_SPECIAL);
+            __validate_file_id(session, id);
+            return (id);
         }
     }
 
-    /* Use the predefined ID if the URI matches; otherwise, use the counter. */
-    if (namespace != WT_BTREE_ID_NAMESPACE_SPECIAL) {
-        fileid = ++S2C(session)->next_file_id;
-        namespace = is_shared ? WT_BTREE_ID_NAMESPACE_SHARED : WT_BTREE_ID_NAMESPACE_LOCAL;
-    }
-
-    /* Assert that the ID and the namespace were defined earlier. */
-    WT_ASSERT(session, fileid != UINT32_MAX);
-    WT_ASSERT(session, namespace != UINT32_MAX);
-
-    uint32_t namespaced_id = WT_BTREE_ID_NAMESPACED(fileid, namespace);
-    __validate_file_id(session, namespaced_id);
-    return (namespaced_id);
+    /* Use the counter if there is no predefined ID for the table. */
+    uint32_t ns = is_shared ? WT_BTREE_ID_NAMESPACE_SHARED : WT_BTREE_ID_NAMESPACE_LOCAL;
+    id = WT_BTREE_ID_NAMESPACED(++S2C(session)->next_file_id, ns);
+    __validate_file_id(session, id);
+    return (id);
 }
 
 /*

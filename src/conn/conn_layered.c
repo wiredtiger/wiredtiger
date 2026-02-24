@@ -2274,13 +2274,12 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     if (npage_log != NULL) {
         /* Set up a handle for accessing shared metadata. */
         WT_ERR(npage_log->page_log->pl_open_handle(npage_log->page_log, &session->iface,
-          WT_BTREE_ID_NAMESPACED(WT_SHARED_TURTLE_FILE_ID, WT_BTREE_ID_NAMESPACE_SPECIAL),
-          &conn->disaggregated_storage.page_log_meta));
+          WT_SPECIAL_PALI_TURTLE_FILE_ID, &conn->disaggregated_storage.page_log_meta));
 
         /* Set up a handle for accessing the key provider table if configured. */
         if (conn->key_provider != NULL)
             WT_ERR(npage_log->page_log->pl_open_handle(npage_log->page_log, &session->iface,
-              WT_BTREE_ID_NAMESPACED(WT_SHARED_KEY_PROVIDER_FILE_ID, WT_BTREE_ID_NAMESPACE_SPECIAL),
+              WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID,
               &conn->disaggregated_storage.page_log_key_provider));
     }
 

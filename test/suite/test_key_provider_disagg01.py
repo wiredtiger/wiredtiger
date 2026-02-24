@@ -56,8 +56,8 @@ class test_key_provider_disagg01(wttest.WiredTigerTestCase):
     MAIN_KEK_PAGE_ID = 1
     EXPECTED_KEK_VERSION = 1
 
-    turtle_table = "pages_000018.db" # table for WT_SHARED_TURTLE_FILE_ID
-    key_provider_table = "pages_000026.db" # table for WT_SHARED_KEY_PROVIDER_FILE_ID
+    turtle_table = "pages_000002.db" # table for WT_SPECIAL_PALI_TURTLE_FILE_ID
+    key_provider_table = "pages_000026.db" # table for WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID
 
     uri = "layered:test_key_provider_disagg01"
 
