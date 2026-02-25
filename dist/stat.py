@@ -35,7 +35,7 @@ def check_unique_description(sorted_list):
         temp = i.desc
 
 ##########################################
-# Format the description of stats.
+# Format the description of a stat.
 # Trims leading and trailing whitespace.
 # Removes trailing punctuation.
 ##########################################
@@ -43,6 +43,22 @@ def sanitize_description(desc):
     trimmed_desc = desc.strip()
     desc_punctation_removed = re.sub(r'[.,;:!?]+$', '', trimmed_desc)
     return desc_punctation_removed
+
+##########################################
+# Format the descriptions of stats in stat_data.py.
+##########################################
+def sanitize_descriptions(all_stat_list):
+    tmp_file = f"__tmp_stat_data{os.getpid()}"
+    with open("stat_data.py", "r") as src, open(tmp_file, "w") as dst:
+        text = src.read()
+        for stat_list in all_stat_list:
+            for stat in stat_list:
+                prefix, desc = stat.desc.split(': ', 1)
+                sanitized_desc = sanitize_description(desc)
+                stat.desc = prefix + ': ' + sanitized_desc
+                text = text.replace(desc, sanitized_desc)
+        dst.write(text)
+    compare_srcfile(tmp_file, "stat_data.py")
 
 ##########################################
 # Remove trailing digits for a string.
@@ -82,17 +98,7 @@ check_unique_description(conn_stats)
 check_unique_description(dsrc_stats)
 check_unique_description(session_stats)
 
-tmp_file = f"__tmp_stat_data{os.getpid()}"
-with open("stat_data.py", "r") as src, open(tmp_file, "w") as dst:
-    text = src.read()
-    for stat_list in all_stat_list:
-        for stat in stat_list:
-            prefix, desc = stat.desc.split(': ', 1)
-            sanitized_desc = sanitize_description(desc)
-            stat.desc = prefix + ': ' + sanitized_desc
-            text = text.replace(desc, sanitized_desc)
-    dst.write(text)
-compare_srcfile(tmp_file, "stat_data.py")
+sanitize_descriptions(all_stat_list)
 
 # Statistic categories need to be sorted in order to generate a valid statistics JSON file.
 sorted_conn_stats = conn_stats
