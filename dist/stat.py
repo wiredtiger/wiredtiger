@@ -19,45 +19,6 @@ if not [f for f in filter_if_fast([
         ], prefix="../")]:
     sys.exit(0)
 
-##########################################
-# Check if line is a stat and extract the stat name.
-##########################################
-def parse_stat_line(line):
-    match = re.match(r'^\s*[A-Za-z_][A-Za-z0-9_]*\(\s*\'(.*?)\'', line)
-    if not match:
-        return None
-    return match.group(1)
-
-##########################################
-# Format the description of stats.
-##########################################
-def sanitize_description(desc):
-    desc = desc.strip()
-    desc = re.sub(r'[.,;:!?]+$', '', desc)
-
-    return desc
-
-##########################################
-# Format the constructor line for stats.
-##########################################
-def format_stat_line(line):
-    match = re.search(r"'(.*?)',\s*'(.*?)'", line)
-    if not match:
-        return line
-    desc = match.group(2)
-    return line[:match.start(2)] + sanitize_description(desc) + line[match.end(2):]
-
-# Update stat constructor lines in stat_data.py
-tmp_file = '__tmp_stat_data' + str(os.getpid())
-f = open(tmp_file, 'w')
-for line in open("stat_data.py", "r"):
-    if parse_stat_line(line):
-        f.write(format_stat_line(line))
-    else:
-        f.write(line)
-f.close()
-compare_srcfile(tmp_file, "stat_data.py")
-
 # Read the source files.
 from stat_data import dsrc_stats, conn_stats, conn_dsrc_stats, session_stats
 
@@ -72,6 +33,16 @@ def check_unique_description(sorted_list):
         if temp == i.desc:
             print("ERROR: repeated stat description in - '%s'" % (i.desc))
         temp = i.desc
+
+##########################################
+# Format the description of stats.
+# Trims leading and trailing whitespace.
+# Removes trailing punctuation.
+##########################################
+def sanitize_description(desc):
+    trimmed_desc = desc.strip()
+    desc_punctation_removed = re.sub(r'[.,;:!?]+$', '', trimmed_desc)
+    return desc_punctation_removed
 
 ##########################################
 # Remove trailing digits for a string.
@@ -110,6 +81,18 @@ check_unique_description(conn_dsrc_stats)
 check_unique_description(conn_stats)
 check_unique_description(dsrc_stats)
 check_unique_description(session_stats)
+
+tmp_file = f"__tmp_stat_data{os.getpid()}"
+with open("stat_data.py", "r") as src, open(tmp_file, "w") as dst:
+    text = src.read()
+    for stat_list in all_stat_list:
+        for stat in stat_list:
+            prefix, desc = stat.desc.split(': ', 1)
+            sanitized_desc = sanitize_description(desc)
+            stat.desc = prefix + ': ' + sanitized_desc
+            text = text.replace(desc, sanitized_desc)
+    dst.write(text)
+compare_srcfile(tmp_file, "stat_data.py")
 
 # Statistic categories need to be sorted in order to generate a valid statistics JSON file.
 sorted_conn_stats = conn_stats
