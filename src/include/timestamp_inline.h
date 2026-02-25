@@ -304,7 +304,7 @@ __wt_get_stable_timestamp_relaxed(WT_SESSION_IMPL *session)
     txn_global = &S2C(session)->txn_global;
     return (__wt_atomic_load_bool_relaxed(&txn_global->has_stable_timestamp) ?
         __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp) :
-        __wt_atomic_load_uint64_relaxed(&txn_global->recovery_timestamp));
+        txn_global->recovery_timestamp);
 }
 
 /*
@@ -321,5 +321,5 @@ __wt_get_stable_timestamp_acquire(WT_SESSION_IMPL *session)
     txn_global = &S2C(session)->txn_global;
     return (__wt_atomic_load_bool_acquire(&txn_global->has_stable_timestamp) ?
         __wt_atomic_load_uint64_acquire(&txn_global->stable_timestamp) :
-        __wt_atomic_load_uint64_relaxed(&txn_global->recovery_timestamp));
+        txn_global->recovery_timestamp);
 }

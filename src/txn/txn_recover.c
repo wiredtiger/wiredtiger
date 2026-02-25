@@ -695,8 +695,7 @@ __recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
       !__wt_atomic_load_bool_relaxed(&conn->txn_global.has_stable_timestamp) &&
         __wt_atomic_load_uint64_relaxed(&conn->txn_global.stable_timestamp) == WT_TS_NONE);
 
-    wt_timestamp_t stable_ts =
-      __wt_atomic_load_uint64_relaxed(&conn->txn_global.recovery_timestamp);
+    wt_timestamp_t stable_ts = conn->txn_global.recovery_timestamp;
     /* Set the stable timestamp from recovery timestamp. */
     __wt_atomic_store_uint64_relaxed(&conn->txn_global.stable_timestamp, stable_ts);
     if (stable_ts != WT_TS_NONE)
