@@ -127,7 +127,7 @@ typedef enum { /* Start position for eviction walk */
  * same IDs to prevent conflicts in PALI.
  */
 #define WT_SPECIAL_PALI_TURTLE_FILE_ID \
-    BTREE_ID_SPECIAL_NAMESPACED(0) /* Table ID for metadata strings */
+    BTREE_ID_SPECIAL_NAMESPACED(0) /* Table ID for shared turtle data */
 #define WT_SPECIAL_SHARED_METADATA_FILE_ID \
     BTREE_ID_SPECIAL_NAMESPACED(1) /* Table ID for shared metadata */
 #define WT_SPECIAL_SHARED_HS_FILE_ID \

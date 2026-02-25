@@ -122,17 +122,26 @@ __create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const cha
  * __validate_file_id --
  *     Validates all possible cases to detect unexpected or unsafe table ID generation.
  */
-static void
+static WT_INLINE void
 __validate_file_id(WT_SESSION_IMPL *session, uint32_t namespaced_id)
 {
     uint32_t namespace = WT_BTREE_ID_NAMESPACE_ID(namespaced_id);
+    uint32_t unnamespaced_id = WT_BTREE_ID_UNNAMESPACED(namespaced_id);
 
     WT_UNUSED(namespace);
+    WT_UNUSED(unnamespaced_id);
 
     /* Assert that only valid namespaces are used. */
     WT_ASSERT(session,
       namespace == WT_BTREE_ID_NAMESPACE_LOCAL || namespace == WT_BTREE_ID_NAMESPACE_SHARED ||
         namespace == WT_BTREE_ID_NAMESPACE_SPECIAL);
+
+    /*
+     * Currently, local and shared namespaces start their IDs from 1, and the 0 ID for the special
+     * namespace is used for the PALI turtle table. Therefore, we can safely assume that any ID
+     * without a namespace is a positive integer.
+     */
+    WT_ASSERT(session, unnamespaced_id > 0);
 
     /* Check that generated IDs do not contain values reserved elsewhere. */
     WT_ASSERT(session, namespaced_id != WT_METAFILE_ID);
