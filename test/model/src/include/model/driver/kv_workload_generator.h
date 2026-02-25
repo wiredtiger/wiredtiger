@@ -47,7 +47,7 @@ namespace model {
  */
 struct kv_workload_generator_spec {
 
-    /* Top-level database configuration. */
+    /* Probability of running with disagg mode enabled*/
     float disaggregated;
 
     /* The minimum and maximum number of tables. */

@@ -1151,6 +1151,11 @@ __wti_rec_row_leaf(
          * the table, and the value has become obsolete.
          */
         if (upd == NULL) {
+            /*
+             * Prepared updates are never written to the disk image for the ingest btree. Therefore,
+             * we can safely discard the key if the delete operation is globally visible, even if it
+             * hasn't been included in the oldest checkpoint currently in use.
+             */
             if (__wt_txn_tw_stop_visible_all(session, twp)) {
                 upd = &upd_tombstone;
                 r->key_removed_from_disk_image = true;
@@ -1211,17 +1216,10 @@ __wti_rec_row_leaf(
             }
         } else {
             /*
-             * If we've selected an update, it should be flagged as being destined for the data
-             * store.
-             *
-             * If not, it's either because we're not doing a history store reconciliation or because
-             * the update is globally visible (in which case, subsequent updates become irrelevant
-             * for reconciliation).
+             * If an update has been selected, it must be marked as intended for the disk image.
+             * Otherwise, it must be a tombstone that is intended for deleting the key entirely.
              */
-            WT_ASSERT(session,
-              F_ISSET(upd, WT_UPDATE_DS) || !F_ISSET(r, WT_REC_HS) ||
-                __wt_txn_tw_start_visible_all(session, twp) ||
-                WT_REC_CAN_PRUNE_UPD(twp->start_txn, twp->durable_start_ts, r));
+            WT_ASSERT(session, F_ISSET(upd, WT_UPDATE_DS) || upd == &upd_tombstone);
 
             /* The first time we find an overflow record, discard the underlying blocks. */
             if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)

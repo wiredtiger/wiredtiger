@@ -409,3 +409,113 @@ class test_layered65(wttest.WiredTigerTestCase):
         stat_cursor.close()
 
         self.conn.set_timestamp(f"stable_timestamp={self.timestamp_str(40)}")
+
+    def test_prepared_insert_rollback_obsolete(self):
+        uri = self.prefix + self.table_name
+        self.create_follower()
+        self.session.create(uri, self.create_session_config)
+        self.session_follow.create(uri, self.create_session_config)
+
+        # Insert a prepared update.
+        self.session.begin_transaction()
+        cursor = self.session.open_cursor(uri)
+        cursor[1] = "value1"
+        self.session.prepare_transaction(f"prepare_timestamp={self.timestamp_str(20)},prepared_id={self.prepared_id_str(1)}")
+
+        # Rollback the prepared update.
+        self.session.rollback_transaction(f"rollback_timestamp={self.timestamp_str(30)}")
+
+        # Insert a prepared update on follower.
+        self.session_follow.begin_transaction()
+        cursor_follow = self.session_follow.open_cursor(uri)
+        cursor_follow[1] = "value1"
+        self.session_follow.prepare_transaction(f"prepare_timestamp={self.timestamp_str(20)},prepared_id={self.prepared_id_str(1)}")
+
+        # Rollback the prepared update on follower.
+        self.session_follow.rollback_transaction(f"rollback_timestamp={self.timestamp_str(30)}")
+        cursor_follow.close()
+
+        # Insert a committed update.
+        self.session.begin_transaction()
+        cursor = self.session.open_cursor(uri)
+        cursor[1] = "value2"
+        self.session.commit_transaction(f"commit_timestamp={self.timestamp_str(40)}")
+
+        # Insert the committed update on follower.
+        self.session_follow.begin_transaction()
+        cursor_follow = self.session_follow.open_cursor(uri)
+        cursor_follow[1] = "value2"
+        self.session_follow.commit_transaction(f"commit_timestamp={self.timestamp_str(40)}")
+
+        # Make the prepred update stable on primary.
+        self.conn.set_timestamp(f"stable_timestamp={self.timestamp_str(20)}")
+        # Mark the committed update globally visible on standby.
+        self.conn_follow.set_timestamp(f"stable_timestamp={self.timestamp_str(40)},oldest_timestamp={self.timestamp_str(40)}")
+
+        self.session.checkpoint()
+
+        # Advance the checkpoint on the follower.
+        self.disagg_advance_checkpoint(self.conn_follow)
+
+        # Evict the data.
+        session_follow2 = self.conn_follow.open_session("debug=(release_evict_page)")
+        evict_cursor = session_follow2.open_cursor(uri)
+        evict_cursor.set_key(1)
+        evict_cursor.search()
+        evict_cursor.close()
+
+        stat_cursor = self.session_follow.open_cursor('statistics:' + uri)
+        garbage_collected = stat_cursor[stat.dsrc.rec_ingest_garbage_collection_keys_update_chain][2]
+        aborted_prepare_kept = stat_cursor[stat.dsrc.rec_ingest_keep_prepare_rollback][2]
+        # Nothing is garbage collected.
+        self.assertEqual(garbage_collected, 0)
+        # The aborted prepared update is kept.
+        self.assertEqual(aborted_prepare_kept, 1)
+        stat_cursor.close()
+
+        # Make the rollback stable.
+        self.conn.set_timestamp(f"stable_timestamp={self.timestamp_str(30)}")
+
+        self.session.checkpoint()
+
+        # Advance the checkpoint on the follower.
+        self.disagg_advance_checkpoint(self.conn_follow)
+
+        # Evict the data.
+        session_follow2 = self.conn_follow.open_session("debug=(release_evict_page)")
+        evict_cursor = session_follow2.open_cursor(uri)
+        evict_cursor.set_key(1)
+        evict_cursor.search()
+        evict_cursor.close()
+
+        stat_cursor = self.session_follow.open_cursor('statistics:' + uri)
+        garbage_collected = stat_cursor[stat.dsrc.rec_ingest_garbage_collection_keys_update_chain][2]
+        aborted_prepare_kept = stat_cursor[stat.dsrc.rec_ingest_keep_prepare_rollback][2]
+        # Nothing is garbage collected because the committed update is not yet stable.
+        self.assertEqual(garbage_collected, 0)
+        # No need to keep the aborted prepare update.
+        self.assertEqual(aborted_prepare_kept, 1)
+        stat_cursor.close()
+
+        self.conn.set_timestamp(f"stable_timestamp={self.timestamp_str(40)}")
+
+        self.session.checkpoint()
+
+        # Advance the checkpoint on the follower.
+        self.disagg_advance_checkpoint(self.conn_follow)
+
+         # Evict the data.
+        session_follow2 = self.conn_follow.open_session("debug=(release_evict_page)")
+        evict_cursor = session_follow2.open_cursor(uri)
+        evict_cursor.set_key(1)
+        evict_cursor.search()
+        evict_cursor.close()
+
+        stat_cursor = self.session_follow.open_cursor('statistics:' + uri)
+        garbage_collected = stat_cursor[stat.dsrc.rec_ingest_garbage_collection_keys_disk_image][2]
+        aborted_prepare_kept = stat_cursor[stat.dsrc.rec_ingest_keep_prepare_rollback][2]
+        # The key is garbage collected because the committed update is stable.
+        self.assertEqual(garbage_collected, 1)
+        # No need to keep the aborted prepare update.
+        self.assertEqual(aborted_prepare_kept, 1)
+        stat_cursor.close()

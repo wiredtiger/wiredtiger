@@ -5016,7 +5016,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "model test"
         vars:
-          model_test_args: -D -l 2000-3000 -t 3600
+          model_test_args: -G disaggregated=1 -l 2000-3000 -t 3600
 
   - name: model-test-long-random-config
     tags: ["model_checking"]
@@ -5034,7 +5034,7 @@ tasks:
       - func: "compile wiredtiger"
       - func: "model test"
         vars:
-          model_test_args: -D -l 100-200 -g -t 3600
+          model_test_args: -G disaggregated=1 -l 100-200 -g -t 3600
 
   - name: model-test-long-with-coverage
     tags: ["model_checking"]
