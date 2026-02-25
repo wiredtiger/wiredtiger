@@ -42,7 +42,8 @@ def check_unique_description(sorted_list):
 def check_description_format(stat):
     desc = stat.desc.split(': ', 1)[1]
     if desc != desc.strip():
-        raise Exception(f"ERROR: {stat.name} description has leading or trailing whitespace - '{desc}'")
+        raise Exception(
+            f"ERROR: {stat.name} description has leading or trailing whitespace - '{desc}'")
     if '\n' in desc:
         raise Exception(f"ERROR: {stat.name} description contains newline - '{desc}'")
     if desc.endswith(('.', ',', ';', ':', '!', '?')):
@@ -68,8 +69,8 @@ def check_name_sorted(stat_list):
         sorted_stats = sorted(stats, key=lambda stat: remove_suffix_digits(stat.name))
         for sorted_stat, stat in zip(sorted_stats, stats):
             if sorted_stat.name != stat.name:
-                raise Exception(f"ERROR: {stat_type.__name__} not sorted alphabetically by name, expected " \
-                      f"'{sorted_stat.name}' but found '{stat.name}'")
+                raise Exception(f"ERROR: {stat_type.__name__} not sorted alphabetically by name, " \
+                      f"expected '{sorted_stat.name}' but found '{stat.name}'")
 
 all_stat_list = [conn_dsrc_stats, conn_stats, dsrc_stats, session_stats]
 for stat_list in all_stat_list:
