@@ -2841,8 +2841,10 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
       session, "has_pinned_timestamp: %s", txn_global->has_pinned_timestamp ? "yes" : "no"));
     WT_RET(__wt_msg(session, "has_stable_timestamp: %s",
       __wt_atomic_load_bool_relaxed(&txn_global->has_stable_timestamp) ? "yes" : "no"));
-    WT_RET(__wt_msg(session, "oldest_is_pinned: %s", txn_global->oldest_is_pinned ? "yes" : "no"));
-    WT_RET(__wt_msg(session, "stable_is_pinned: %s", txn_global->stable_is_pinned ? "yes" : "no"));
+    WT_RET(__wt_msg(session, "oldest_is_pinned: %s",
+      __wt_atomic_load_bool_relaxed(&txn_global->oldest_is_pinned) ? "yes" : "no"));
+    WT_RET(__wt_msg(session, "stable_is_pinned: %s",
+      __wt_atomic_load_bool_relaxed(&txn_global->stable_is_pinned) ? "yes" : "no"));
 
     WT_RET(__wt_msg(session, "checkpoint running: %s",
       __wt_atomic_load_bool_v_relaxed(&txn_global->checkpoint_running) ? "yes" : "no"));

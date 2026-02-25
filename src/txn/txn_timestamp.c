@@ -273,7 +273,7 @@ __wti_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
     txn_global = &S2C(session)->txn_global;
 
     /* Skip locking and scanning when the oldest timestamp is pinned. */
-    if (txn_global->oldest_is_pinned)
+    if (__wt_atomic_load_bool_relaxed(&txn_global->oldest_is_pinned))
         return;
 
     /* Scan to find the global pinned timestamp. */
@@ -300,16 +300,16 @@ __wti_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
       (!txn_global->has_pinned_timestamp || force ||
         txn_global->pinned_timestamp < pinned_timestamp)) {
         __wt_atomic_store_uint64_release(&txn_global->pinned_timestamp, pinned_timestamp);
+        __wt_atomic_store_bool_relaxed(&txn_global->oldest_is_pinned,
+          pinned_timestamp == __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp));
+        __wt_atomic_store_bool_relaxed(&txn_global->stable_is_pinned,
+          pinned_timestamp == __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp));
         /*
          * Release write requires the data and destination have exactly the same size. stdbool.h
          * only defines true as `#define true 1` so we need a bool cast to provide proper type
          * information.
          */
         __wt_atomic_store_bool_release(&txn_global->has_pinned_timestamp, true);
-        txn_global->oldest_is_pinned = txn_global->pinned_timestamp ==
-          __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp);
-        txn_global->stable_is_pinned = txn_global->pinned_timestamp ==
-          __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp);
         __wt_verbose_timestamp(session, pinned_timestamp, "Updated pinned timestamp");
     }
     __wt_writeunlock(session, &txn_global->rwlock);
@@ -441,9 +441,9 @@ set:
       (!__wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp) || force ||
         oldest_ts > txn_global->oldest_timestamp)) {
         __wt_atomic_store_uint64_relaxed(&txn_global->oldest_timestamp, oldest_ts);
-        WT_STAT_CONN_INCR(session, txn_set_ts_oldest_upd);
+        __wt_atomic_store_bool_relaxed(&txn_global->oldest_is_pinned, false);
         __wt_atomic_store_bool_release(&txn_global->has_oldest_timestamp, true);
-        txn_global->oldest_is_pinned = false;
+        WT_STAT_CONN_INCR(session, txn_set_ts_oldest_upd);
         __wt_verbose_timestamp(session, oldest_ts, "Updated global oldest timestamp");
     }
 
@@ -451,9 +451,9 @@ set:
       (!__wt_atomic_load_bool_relaxed(&txn_global->has_stable_timestamp) || force ||
         stable_ts > __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp))) {
         __wt_atomic_store_uint64_relaxed(&txn_global->stable_timestamp, stable_ts);
-        WT_STAT_CONN_INCR(session, txn_set_ts_stable_upd);
+        __wt_atomic_store_bool_relaxed(&txn_global->stable_is_pinned, false);
         __wt_atomic_store_bool_release(&txn_global->has_stable_timestamp, true);
-        txn_global->stable_is_pinned = false;
+        WT_STAT_CONN_INCR(session, txn_set_ts_stable_upd);
         __wt_verbose_timestamp(session, stable_ts, "Updated global stable timestamp");
     }
 
