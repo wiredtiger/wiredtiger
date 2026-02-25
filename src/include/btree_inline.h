@@ -2405,10 +2405,24 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * an internal page discards its WT_REF array, and a thread traversing the original parent page
      * index might see a freed WT_REF.
      *
-     * One special case where we know this is safe is if the handle is dead, that is, no readers can
-     * be looking at an old index.
+     * There are two special cases where we know this is safe:
+     *
+     * 1. WT_DHANDLE_DEAD: The handle is dead, so no readers can be looking at an old index.
+     *
+     * 2. WT_DHANDLE_EXCLUSIVE: The session has exclusive access to the dhandle. This means no other
+     *    sessions can access this btree, so there cannot be any concurrent traversals using old
+     * page indexes. This is critical for operations (e.g., ALTER) that need to evict internal pages
+     *    while holding exclusive access.
+     *
+     *    This check is necessary because __wt_gen_active() checks split generation across all
+     *    sessions globally, without distinguishing which btree each session is operating on.
+     * Without the WT_DHANDLE_EXCLUSIVE check, a session traversing btree A could incorrectly block
+     *    eviction of internal pages in btree B during an exclusive operation. The exclusive access
+     *    guarantee ensures that no other sessions can be traversing this specific btree, making it
+     *    safe to skip the split generation check.
      */
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && !F_ISSET(session->dhandle, WT_DHANDLE_DEAD) &&
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) &&
+      !F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) &&
       __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_internal_page_split);
         return (false);

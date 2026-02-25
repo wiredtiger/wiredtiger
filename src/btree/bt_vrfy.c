@@ -20,6 +20,9 @@ typedef struct {
 
     uint64_t fcnt; /* Progress counter */
 
+    /* Accumulated size of all blocks in this btree. */
+    uint64_t total_block_size;
+
     /* Configuration options passed in. */
     wt_timestamp_t stable_timestamp; /* Stable timestamp to verify against if desired */
 #define WT_VRFY_DUMP(vs) \
@@ -43,6 +46,7 @@ typedef struct {
 
 static void __verify_checkpoint_reset(WT_VSTUFF *);
 static int __verify_compare_page_id(const void *, const void *);
+static int __verify_disagg_accumulate_size(WT_SESSION_IMPL *, WT_VSTUFF *, const void *, size_t);
 static int __verify_page_content_int(
   WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
 static int __verify_page_content_leaf(
@@ -190,6 +194,30 @@ __dump_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
 }
 
 /*
+ * __verify_disagg_accumulate_size --
+ *     Accumulate the block size from the disagg cookie.
+ */
+static int
+__verify_disagg_accumulate_size(
+  WT_SESSION_IMPL *session, WT_VSTUFF *vs, const void *cookie_data, size_t cookie_size)
+{
+    WT_BLOCK_DISAGG_ADDRESS_COOKIE cookie;
+    WT_BTREE *btree;
+    const uint8_t *buf;
+
+    btree = S2BT(session);
+
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        return (0);
+
+    buf = cookie_data;
+    WT_RET(__wt_block_disagg_addr_unpack(session, &buf, cookie_size, &cookie));
+
+    vs->total_block_size += cookie.size;
+    return (0);
+}
+
+/*
  * __wt_verify --
  *     Verify a file.
  */
@@ -310,6 +338,21 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             WT_WITH_PAGE_INDEX(
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
 
+            /* Account for the root page in the accumulated total block size. */
+            WT_TRET(__verify_disagg_accumulate_size(session, vs, ckpt->raw.data, ckpt->raw.size));
+
+            /* Validate the size of the btree */
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ckpt->size != vs->total_block_size) {
+                /*
+                 * FIXME-WT-16738: verify currently encounters checkpoint size mismatches. Re-enable
+                 * this check once this is resolved.
+                 */
+                if (false)
+                    WT_ERR_MSG(session, WT_ERROR,
+                      "checkpoint size %" PRIu64 " does not match accumulated block size %" PRIu64,
+                      ckpt->size, vs->total_block_size);
+            }
+
             /*
              * The checkpoints are in time-order, so the last one in the list is the most recent. If
              * this is the most recent checkpoint, verify the history store against it, also verify
@@ -419,6 +462,9 @@ __verify_checkpoint_reset(WT_VSTUFF *vs)
 
     /* Tree depth. */
     vs->depth = 1;
+
+    /* Accumulated size of all blocks in the btree. */
+    vs->total_block_size = 0;
 }
 
 /*
@@ -775,6 +821,12 @@ celltype_err:
             __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
+            /*
+             * Accumulate the block size from the disagg cookie. This is used to validate the
+             * checkpoint size at the end of the checkpoint verification.
+             */
+            WT_RET(__verify_disagg_accumulate_size(session, vs, unpack->data, unpack->size));
+
             /* Verify the subtree. */
             ++vs->depth;
             ret = __wt_page_in(session, child_ref, 0);
@@ -836,6 +888,12 @@ celltype_err:
             /* Unpack the address block and check timestamps */
             __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
+
+            /*
+             * Accumulate the block size from the disagg cookie. This is used to validate the
+             * checkpoint size at the end of the checkpoint verification.
+             */
+            WT_RET(__verify_disagg_accumulate_size(session, vs, unpack->data, unpack->size));
 
             /* Verify the subtree. */
             ++vs->depth;
