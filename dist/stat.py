@@ -37,7 +37,7 @@ def check_unique_description(sorted_list):
 ##########################################
 # Check the description format.
 # Removes prefix from description before checking.
-# Checks for leading/trailing whitespace, newlines, and trailing punctation.
+# Checks for leading/trailing whitespace, newlines, and leading/trailing punctation.
 ##########################################
 def check_description_format(stat):
     desc = stat.desc.split(': ', 1)[1]
@@ -46,8 +46,10 @@ def check_description_format(stat):
             f"ERROR: {stat.name} description has leading or trailing whitespace - '{desc}'")
     if '\n' in desc:
         raise Exception(f"ERROR: {stat.name} description contains newline - '{desc}'")
-    if desc.endswith(('.', ',', ';', ':', '!', '?')):
-        raise Exception(f"ERROR: {stat.name} description ends with punctuation - '{desc}'")
+    punctuation = ('.', ',', ';', ':', '!', '?')
+    if desc.startswith(punctuation) or desc.endswith(punctuation):
+        raise Exception(
+            f"ERROR: {stat.name} description has leading or trailing punctuation - '{desc}'")
 
 ##########################################
 # Remove trailing digits for a string.
