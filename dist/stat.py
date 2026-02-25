@@ -72,24 +72,20 @@ def check_name_sorted(stat_list):
                       f"'{sorted_stat.name}' but found '{stat.name}'")
 
 all_stat_list = [conn_dsrc_stats, conn_stats, dsrc_stats, session_stats]
-try:
-    for stat_list in all_stat_list:
-        for stat in stat_list:
-            check_description_format(stat)
-        check_name_sorted(stat_list)
+for stat_list in all_stat_list:
+    for stat in stat_list:
+        check_description_format(stat)
+    check_name_sorted(stat_list)
 
-    conn_dsrc_stats.sort(key=attrgetter('desc'))
-    conn_stats.sort(key=attrgetter('desc'))
-    dsrc_stats.sort(key=attrgetter('desc'))
-    session_stats.sort(key=attrgetter('desc'))
+conn_dsrc_stats.sort(key=attrgetter('desc'))
+conn_stats.sort(key=attrgetter('desc'))
+dsrc_stats.sort(key=attrgetter('desc'))
+session_stats.sort(key=attrgetter('desc'))
 
-    check_unique_description(conn_dsrc_stats)
-    check_unique_description(conn_stats)
-    check_unique_description(dsrc_stats)
-    check_unique_description(session_stats)
-except Exception as e:
-    print(e)
-    sys.exit(1)
+check_unique_description(conn_dsrc_stats)
+check_unique_description(conn_stats)
+check_unique_description(dsrc_stats)
+check_unique_description(session_stats)
 
 # Statistic categories need to be sorted in order to generate a valid statistics JSON file.
 sorted_conn_stats = conn_stats
