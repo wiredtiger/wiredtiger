@@ -146,6 +146,8 @@ __validate_file_id(WT_SESSION_IMPL *session, uint32_t namespaced_id)
     /* Check that generated IDs do not contain values reserved elsewhere. */
     WT_ASSERT(session, namespaced_id != WT_METAFILE_ID);
     WT_ASSERT(session, namespaced_id != WT_SPECIAL_PALI_TURTLE_FILE_ID);
+    WT_ASSERT(session, namespaced_id != WT_SPECIAL_SHARED_METADATA_FILE_ID);
+    WT_ASSERT(session, namespaced_id != WT_SPECIAL_SHARED_HS_FILE_ID);
     WT_ASSERT(session, namespaced_id != WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID);
 }
 
@@ -166,8 +168,6 @@ __wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
       {WT_SPECIAL_SHARED_HS_FILE_ID, WT_HS_URI_SHARED}, {0, NULL} /* sentinel */
     };
 
-    uint32_t id = UINT32_MAX;
-
     /* Metadata ID is predefined but should be defined in a different place. */
     WT_ASSERT(session, uri != NULL);
     WT_ASSERT(session, 0 != strcmp((uri), WT_METAFILE_URI));
@@ -175,20 +175,18 @@ __wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
     /* Check whether we should use a predefined ID for the provided URI. */
     for (const FILE_ID_TO_URI *entry = special_file_map; entry->uri != NULL; ++entry) {
         if (strcmp(uri, entry->uri) == 0) {
-            id = entry->id;
-
             /* Entry should be already in the namespace here. */
-            WT_ASSERT(session, WT_BTREE_ID_NAMESPACE_ID(id) == WT_BTREE_ID_NAMESPACE_SPECIAL);
-            __validate_file_id(session, id);
-            return (id);
+            WT_ASSERT(
+              session, WT_BTREE_ID_NAMESPACE_ID(entry->id) == WT_BTREE_ID_NAMESPACE_SPECIAL);
+            return (entry->id);
         }
     }
 
     /* Use the counter if there is no predefined ID for the table. */
     uint32_t ns = is_shared ? WT_BTREE_ID_NAMESPACE_SHARED : WT_BTREE_ID_NAMESPACE_LOCAL;
-    id = WT_BTREE_ID_NAMESPACED(++S2C(session)->next_file_id, ns);
-    __validate_file_id(session, id);
-    return (id);
+    uint32_t namespaced_id = WT_BTREE_ID_NAMESPACED(++S2C(session)->next_file_id, ns);
+    __validate_file_id(session, namespaced_id);
+    return (namespaced_id);
 }
 
 /*
