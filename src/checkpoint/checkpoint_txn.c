@@ -1181,11 +1181,8 @@ __checkpoint_can_skip(
      * file has been modified, as such if the connection has been modified it is currently unsafe to
      * skip checkpoints.
      */
-    if (!conn->modified && use_timestamp &&
-      __wt_atomic_load_bool_acquire(&txn_global->has_stable_timestamp) &&
-      txn_global->last_ckpt_timestamp != WT_TS_NONE &&
-      txn_global->last_ckpt_timestamp ==
-        __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp)) {
+    if (!conn->modified && use_timestamp && txn_global->last_ckpt_timestamp != WT_TS_NONE &&
+      txn_global->last_ckpt_timestamp == __wt_get_stable_timestamp_acquire(session)) {
         *can_skipp = true;
         return (0);
     }

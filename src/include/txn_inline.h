@@ -878,20 +878,13 @@ __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session)
     WT_TXN_GLOBAL *txn_global = &conn->txn_global;
 
     /*
-     * There is no need to go further if no stable timestamp has been set yet.
-     */
-    if (!__wt_atomic_load_bool_acquire(&txn_global->has_stable_timestamp))
-        return (WT_TS_NONE);
-
-    /*
      * It is important to ensure we only read the global stable timestamp once. Otherwise, we may
      * return a stable timestamp that is larger than the checkpoint timestamp. For example, the
      * first time we read the global stable timestamp as 100 and set it to the local variable
      * disaggregated_stable_ts. If the checkpoint timestamp is 110 and the second time we read the
      * global stable timestamp as 120, we will return 120 instead of the checkpoint timestamp 110.
      */
-    wt_timestamp_t pinned_stable_ts =
-      __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp);
+    wt_timestamp_t pinned_stable_ts = __wt_get_stable_timestamp_acquire(session);
     if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
         return (pinned_stable_ts);
 

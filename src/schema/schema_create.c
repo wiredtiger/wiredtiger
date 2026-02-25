@@ -33,12 +33,11 @@ __check_imported_ts(
 
     if (against_stable) {
         ts_name = "stable";
-        if (__wt_atomic_load_bool_acquire(&txn_global->has_stable_timestamp))
-            ts = __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp);
-        else
-            ts = WT_TS_NONE;
+        ts = __wt_get_stable_timestamp_acquire(session);
     } else {
         ts_name = "oldest";
+        /* FIXME-WT-16776: use an atomic read operation similar to the stable timestamp
+         * implementation. */
         ts = txn_global->oldest_timestamp;
     }
 

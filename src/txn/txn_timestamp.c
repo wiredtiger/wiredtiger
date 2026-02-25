@@ -201,9 +201,7 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
         /* Read-only value forever. No lock needed. */
         ts = txn_global->recovery_timestamp;
     else if (WT_CONFIG_LIT_MATCH("stable_timestamp", cval) || WT_CONFIG_LIT_MATCH("stable", cval))
-        ts = __wt_atomic_load_bool_relaxed(&txn_global->has_stable_timestamp) ?
-          __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp) :
-          WT_TS_NONE;
+        ts = __wt_get_stable_timestamp_relaxed(session);
     else
         WT_RET_MSG(session, EINVAL, "unknown timestamp query %.*s", (int)cval.len, cval.str);
 
@@ -539,14 +537,14 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t commit_ts, oldest_ts, stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool has_oldest_ts, has_stable_ts;
+    bool has_oldest_ts;
 
     txn = session->txn;
     txn_global = &S2C(session)->txn_global;
     commit_ts = *commit_tsp;
 
     /* Added this redundant initialization to circumvent build failure. */
-    oldest_ts = stable_ts = WT_TS_NONE;
+    oldest_ts = WT_TS_NONE;
 
     /*
      * Compare against the oldest and the stable timestamp. Return an error if the given timestamp
@@ -556,10 +554,7 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
     has_oldest_ts = __wt_atomic_load_bool_acquire(&txn_global->has_oldest_timestamp);
     if (has_oldest_ts)
         oldest_ts = __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp);
-    has_stable_ts = __wt_atomic_load_bool_acquire(&txn_global->has_stable_timestamp);
-    if (has_stable_ts)
-        stable_ts = __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp);
-
+    stable_ts = __wt_get_stable_timestamp_acquire(session);
     if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE)) {
         /* Compare against the first commit timestamp of the current transaction. */
         if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
@@ -581,7 +576,7 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
               __wt_timestamp_to_string(commit_ts, ts_string[0]),
               __wt_timestamp_to_string(oldest_ts, ts_string[1]));
 
-        if (has_stable_ts && commit_ts <= stable_ts)
+        if (stable_ts != WT_TS_NONE && commit_ts <= stable_ts)
             WT_RET_MSG(session, EINVAL, "commit timestamp %s must be after the stable timestamp %s",
               __wt_timestamp_to_string(commit_ts, ts_string[0]),
               __wt_timestamp_to_string(stable_ts, ts_string[1]));
@@ -681,13 +676,13 @@ __txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durabl
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t oldest_ts, stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool has_oldest_ts, has_stable_ts;
+    bool has_oldest_ts;
 
     txn = session->txn;
     txn_global = &S2C(session)->txn_global;
 
     /* Added this redundant initialization to circumvent build failure. */
-    oldest_ts = stable_ts = WT_TS_NONE;
+    oldest_ts = WT_TS_NONE;
 
     /*
      * Compare against the oldest and the stable timestamp. Return an error if the given timestamp
@@ -696,16 +691,14 @@ __txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durabl
     has_oldest_ts = __wt_atomic_load_bool_acquire(&txn_global->has_oldest_timestamp);
     if (has_oldest_ts)
         oldest_ts = __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp);
-    has_stable_ts = __wt_atomic_load_bool_acquire(&txn_global->has_stable_timestamp);
-    if (has_stable_ts)
-        stable_ts = __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp);
+    stable_ts = __wt_get_stable_timestamp_acquire(session);
 
     if (has_oldest_ts && durable_ts < oldest_ts)
         WT_RET_MSG(session, EINVAL, "durable timestamp %s is less than the oldest timestamp %s",
           __wt_timestamp_to_string(durable_ts, ts_string[0]),
           __wt_timestamp_to_string(oldest_ts, ts_string[1]));
 
-    if (has_stable_ts && durable_ts <= stable_ts)
+    if (stable_ts != WT_TS_NONE && durable_ts <= stable_ts)
         WT_RET_MSG(session, EINVAL, "durable timestamp %s must be after the stable timestamp %s",
           __wt_timestamp_to_string(durable_ts, ts_string[0]),
           __wt_timestamp_to_string(stable_ts, ts_string[1]));
@@ -809,10 +802,7 @@ __txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
     __txn_assert_after_reads(session, "prepare", prepare_ts);
 
     /* Check whether the prepare timestamp is less than the stable timestamp. */
-    if (__wt_atomic_load_bool_acquire(&txn_global->has_stable_timestamp))
-        stable_ts = __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp);
-    else
-        stable_ts = WT_TS_NONE;
+    stable_ts = __wt_get_stable_timestamp_acquire(session);
     if (prepare_ts <= stable_ts) {
         /*
          * Check whether the application is using the "prepared" roundup mode. This rounds up to
@@ -972,12 +962,10 @@ static int
 __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_ts)
 {
     WT_TXN *txn;
-    WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     txn = session->txn;
-    txn_global = &S2C(session)->txn_global;
 
     if (!F_ISSET(txn, WT_TXN_PREPARE))
         WT_RET_MSG(session, EINVAL, "rollback timestamp is set for an non-prepared transaction");
@@ -996,10 +984,7 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
     __txn_assert_after_reads(session, "rollback", rollback_ts);
 
     /* Check whether the rollback timestamp is less than the stable timestamp. */
-    if (__wt_atomic_load_bool_acquire(&txn_global->has_stable_timestamp))
-        stable_ts = __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp);
-    else
-        stable_ts = WT_TS_NONE;
+    stable_ts = __wt_get_stable_timestamp_acquire(session);
     if (rollback_ts <= stable_ts) {
         WT_RET_MSG(session, EINVAL,
           "rollback timestamp %s is not newer than the stable timestamp %s",
