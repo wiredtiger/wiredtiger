@@ -1,0 +1,16 @@
+{
+  "name": "wiredtiger",
+  "version": "1.0.0",
+  "description": "Node.js bindings for WiredTiger",
+  "main": "lib/index.js",
+  "scripts": {
+    "install": "node-gyp rebuild",
+    "test": "node test/test.js"
+  },
+  "dependencies": {
+    "node-addon-api": "^7.1.0"
+  },
+  "devDependencies": {
+    "node-gyp": "^10.0.0"
+  }
+}

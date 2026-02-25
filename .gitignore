@@ -25,3 +25,6 @@ TCMALLOC_LIB/
 .idea
 cmake-build-release
 cmake-build-debug
+
+# Node.js artifacts
+node_modules/
