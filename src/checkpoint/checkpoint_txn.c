@@ -1435,17 +1435,21 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      *
      * This is particularly important for compact, so that all dirty pages can be fully written.
      */
+    __checkpoint_verbose_track(session, "updating oldest transaction");
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_UPDATE_OLDEST);
     WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
     /* Flush data-sources before we start the checkpoint. */
+    __checkpoint_verbose_track(session, "flushing data sources");
     WT_ERR(__checkpoint_data_source(session, cfg));
 
     /*
      * Try to reduce the amount of dirty data in cache so there is less work do during the critical
      * section of the checkpoint.
      */
+    __checkpoint_verbose_track(session, "reducing dirty cache");
     __checkpoint_wait_reduce_dirty_cache(session);
+    __checkpoint_verbose_track(session, "dirty cache reduction complete");
 
     /* Tell logging that we are about to start a full database checkpoint. */
     if (logging)
@@ -1492,6 +1496,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_WITH_SCHEMA_LOCK(session, ret = __checkpoint_prepare(session, &tracking, cfg));
     WT_ERR(ret);
+    __checkpoint_verbose_track(session, "checkpoint prepare complete");
 
     WT_ERR(__checkpoint_db_debug_crash_points(session, cfg));
 
@@ -1542,6 +1547,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     time_stop_ckpt_tree = __wt_clock(session);
     ckpt_tree_duration_usecs = WT_CLOCKDIFF_US(time_stop_ckpt_tree, time_start_ckpt_tree);
     WT_STAT_CONN_SET(session, checkpoint_tree_duration, ckpt_tree_duration_usecs);
+    __checkpoint_verbose_track(session, "trees checkpointed");
 
     /* Wait prior to checkpointing the history store to simulate checkpoint slowness. */
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, &tsp);
@@ -1585,6 +1591,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         time_stop_hs = __wt_clock(session);
         hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
         WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
+        __checkpoint_verbose_track(session, "history store checkpointed");
     }
 
     /*
@@ -1602,6 +1609,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (F_ISSET(conn, WT_CONN_RECOVERING))
         WT_ERR(__wt_meta_correct_base_write_gen(session));
+
+    __checkpoint_verbose_track(session, "metadata operations complete");
 
     /*
      * Clear the dhandle so the visibility check doesn't get confused about the snap min. Don't
@@ -1627,8 +1636,9 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Mark all trees as open for business (particularly eviction). */
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_presync));
+    __checkpoint_verbose_track(session, "presync complete");
 
-    __checkpoint_verbose_track(session, "committing transaction");
+    __checkpoint_verbose_track(session, "starting sync and commit");
 
     /*
      * Checkpoints have to hit disk (it would be reasonable to configure for lazy checkpoints, but
@@ -1671,6 +1681,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_COMMIT);
     WT_ERR(__wt_txn_commit(session, NULL));
+    __checkpoint_verbose_track(session, "transaction committed");
 
     /* Crash before updating the metadata if checkpoint crash point is configured. */
     if (session->ckpt.crash_trigger_point == CKPT_CRASH_BEFORE_METADATA_UPDATE)
@@ -1694,6 +1705,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
             __wt_debug_crash(session);
 
         WT_ERR(__wt_log_flush(session, WT_LOG_FSYNC));
+        __checkpoint_verbose_track(session, "log flushed");
     }
 
     /* Crash before metadata sync if checkpoint crash point is configured. */
@@ -1749,7 +1761,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
       session, WT_SESSION_META_DHANDLE(session), ret = __wt_checkpoint_sync(session, NULL));
     WT_ERR(ret);
 
-    __checkpoint_verbose_track(session, "metadata sync completed");
+    __checkpoint_verbose_track(session, "metadata checkpoint and sync completed");
 
     /*
      * Now that the metadata is stable, re-open the metadata file for regular eviction by clearing
@@ -1788,11 +1800,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
 err:
     /* Now that checkpoint is finished, wind the eviction triggers back to their default values. */
+    __checkpoint_verbose_track(session, "entering cleanup/error handling");
     __checkpoint_update_evict_triggers_end(session, &precise_ckpt_saved_triggers);
-    /*
-     * Reset the timer so that next checkpoint tracks the progress only if configured.
-     */
-    conn->ckpt.ckpt_api.timer_start.tv_sec = 0;
 
     /*
      * XXX Rolling back the changes here is problematic.
@@ -1808,12 +1817,15 @@ err:
     if (failed) {
         conn->modified = true;
         WT_STAT_CONN_INCR(session, checkpoints_total_failed);
+        __checkpoint_verbose_track(session, "checkpoint failed, starting cleanup");
     }
 
     session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
     if (tracking) {
+        __checkpoint_verbose_track(session, "turning off metadata tracking");
         if (__wt_meta_track_off(session, false, failed) != 0)
             return (__wt_panic(session, WT_PANIC, "Failed to turn off metadata tracking."));
+        __checkpoint_verbose_track(session, "metadata tracking off complete");
     }
 
     __checkpoint_set_scrub_target(session, 0.0);
@@ -1825,8 +1837,10 @@ err:
          * checkpoint.
          */
         WT_DHANDLE_CLEAR(session);
+        __checkpoint_verbose_track(session, "rolling back transaction");
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_ROLLBACK);
         WT_TRET(__wt_txn_rollback(session, NULL, false));
+        __checkpoint_verbose_track(session, "transaction rollback complete");
     }
 
     /*
@@ -1834,11 +1848,13 @@ err:
      * database was idle.
      */
     if (logging) {
+        __checkpoint_verbose_track(session, "finalizing checkpoint log");
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_LOG);
         if (ret == 0 && F_ISSET(CUR2BT(session->meta_cursor), WT_BTREE_SKIP_CKPT))
             idle = true;
         WT_TRET(__wt_checkpoint_log(session, true,
           (ret == 0 && !idle) ? WT_TXN_LOG_CKPT_STOP : WT_TXN_LOG_CKPT_CLEANUP, NULL));
+        __checkpoint_verbose_track(session, "checkpoint log finalized");
     }
 
     /*
@@ -1850,6 +1866,7 @@ err:
       conn->disaggregated_storage.num_meta_put_at_ckpt_begin ==
         conn->disaggregated_storage.num_meta_put &&
       ckpt_tmp_ts != conn->disaggregated_storage.last_checkpoint_timestamp) {
+        __checkpoint_verbose_track(session, "updating disaggregated storage metadata");
         if (conn->key_provider != NULL)
             WT_TRET(__wt_disagg_put_crypt_helper(session));
         WT_TRET(__wt_disagg_put_checkpoint_meta(
@@ -1868,11 +1885,14 @@ err:
      */
     if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin <
       conn->disaggregated_storage.num_meta_put) {
+        __checkpoint_verbose_track(session, "advancing disaggregated storage checkpoint");
         WT_ASSERT(session, ckpt_tmp_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
         if (__wt_disagg_advance_checkpoint(session, !failed && ret == 0) != 0)
             return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));
+        __checkpoint_verbose_track(session, "disaggregated storage checkpoint advanced");
     }
 
+    __checkpoint_verbose_track(session, "releasing checkpoint handles");
     for (i = 0; i < session->ckpt.handle_next; ++i) {
         if (session->ckpt.handle[i] == NULL)
             continue;
@@ -1885,6 +1905,7 @@ err:
         WT_WITH_DHANDLE(
           session, session->ckpt.handle[i], WT_TRET(__wt_session_release_dhandle(session)));
     }
+    __checkpoint_verbose_track(session, "checkpoint handles released");
 
     if (session->ckpt.drop_list != NULL)
         __wt_scr_free(session, &session->ckpt.drop_list);
@@ -1903,6 +1924,11 @@ err:
 
     session->isolation = txn->isolation = saved_isolation;
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_INACTIVE);
+
+    __checkpoint_verbose_track(session, "checkpoint finished");
+
+    /* Reset the timer so that next checkpoint tracks the progress only if configured. */
+    conn->ckpt.ckpt_api.timer_start.tv_sec = 0;
 
     return (ret);
 }
