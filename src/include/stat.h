@@ -802,8 +802,11 @@ struct __wt_connection_stats {
     int64_t checkpoint_fsync_post;
     int64_t checkpoint_fsync_post_duration;
     int64_t checkpoint_generation;
+    int64_t checkpoint_cleanup_inmem_pages_visited;
     int64_t checkpoint_time_max;
     int64_t checkpoint_time_min;
+    int64_t checkpoint_cleanup_duration;
+    int64_t checkpoint_cleanup_handle_processed;
     int64_t checkpoint_handle_drop_duration;
     int64_t checkpoint_handle_duration;
     int64_t checkpoint_handle_apply_duration;
