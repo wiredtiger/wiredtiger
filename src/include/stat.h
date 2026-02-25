@@ -1249,6 +1249,9 @@ struct __wt_connection_stats {
     int64_t rec_ingest_garbage_collection_keys_disk_image;
     int64_t rec_ingest_garbage_collection_keys_update_chain;
     int64_t rec_overflow_value;
+    int64_t rec_page_delta_rejected_invalid_page_id;
+    int64_t rec_page_delta_rejected_multiblock;
+    int64_t rec_page_delta_rejected_non_single_page;
     int64_t rec_pages;
     int64_t rec_pages_eviction;
     int64_t rec_pages_size_1MB_to_10MB;
@@ -1764,6 +1767,9 @@ struct __wt_dsrc_stats {
     int64_t rec_ingest_garbage_collection_keys_disk_image;
     int64_t rec_ingest_garbage_collection_keys_update_chain;
     int64_t rec_overflow_value;
+    int64_t rec_page_delta_rejected_invalid_page_id;
+    int64_t rec_page_delta_rejected_multiblock;
+    int64_t rec_page_delta_rejected_non_single_page;
     int64_t rec_pages;
     int64_t rec_pages_eviction;
     int64_t rec_pages_size_1MB_to_10MB;

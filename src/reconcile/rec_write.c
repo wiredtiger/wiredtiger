@@ -2476,17 +2476,18 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         WT_ASSERT_ALWAYS(session, chunk->entries > 0, "Trying to write an empty chunk");
     }
 
+    bool delta_enabled = WT_DELTA_ENABLED_FOR_PAGE(session, r->page->type);
+    if (delta_enabled)
+        WT_STAT_CONN_INCR(session, rec_page_delta_eligible);
+
     if (page->disagg_info != NULL) {
         block_meta = &page->disagg_info->block_meta;
-        // stat for multi_next => rejected due to multiblock reconciliation. 
         if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
           WT_REC_RESULT_SINGLE_PAGE((session), (r))) {
             if (!r->newer_updates_than_last_rec_used && !WT_PAGE_IS_INTERNAL(page) &&
               !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT))
                 skip_write = true;
-            else if (WT_DELTA_ENABLED_FOR_PAGE(session, r->page->type)) {
-                WT_STAT_CONN_INCR(session, rec_page_delta_eligible);
-
+            else if (delta_enabled) {
                 if (block_meta->delta_count >= conn->page_delta.max_consecutive_delta)
                     WT_STAT_CONN_INCR(session, rec_page_delta_max_consecutive_exceeded);
                 else {
@@ -2512,6 +2513,14 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                         WT_STAT_CONN_INCR(session, rec_page_delta_rejected);
                 }
             }
+        } else if (delta_enabled) {
+            // track stats for why we can't write deltas for this page
+            if (r->multi_next > 1)
+                WT_STAT_CONN_INCR(session, rec_page_delta_rejected_multiblock);
+            else if (block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID)
+                WT_STAT_CONN_INCR(session, rec_page_delta_rejected_invalid_page_id);
+            else if (!WT_REC_RESULT_SINGLE_PAGE((session), (r)))
+                WT_STAT_CONN_INCR(session, rec_page_delta_rejected_non_single_page);
         }
     }
 
