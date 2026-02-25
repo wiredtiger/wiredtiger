@@ -2518,43 +2518,6 @@ err:
     return (ret);
 }
 
-/*
- * __wt_disagg_remove_shared_metadata_layered --
- *     Remove all metadata relevant to the table_name from the shared metadata table.
- *
- * Note: If the table was created and dropped before a checkpoint has occurred, it is expected to
- *     have no metadata entries on the shared metadata table.
- */
-int
-__wt_disagg_remove_shared_metadata_layered(WT_SESSION_IMPL *session, const char *table_name)
-{
-    WT_DECL_ITEM(uri_buf);
-    WT_DECL_RET;
-
-    WT_RET(__wt_scr_alloc(session, 0, &uri_buf));
-
-    /* Remove all relevant metadata entries from shared metadata table (if exists). */
-    WT_ERR(__wt_buf_fmt(session, uri_buf, "file:%s.wt_stable", table_name));
-    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf->data));
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-    WT_ERR(__wt_buf_fmt(session, uri_buf, "layered:%s", table_name));
-    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf->data));
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-    WT_ERR(__wt_buf_fmt(session, uri_buf, "colgroup:%s", table_name));
-    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf->data));
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-    WT_ERR(__wt_buf_fmt(session, uri_buf, "table:%s", table_name));
-    WT_SAVE_DHANDLE(session, ret = __disagg_remove_shared_metadata(session, uri_buf->data));
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-err:
-    __wt_scr_free(session, &uri_buf);
-    return (ret);
-}
-
 #ifdef HAVE_UNITTEST
 void
 __ut_disagg_set_crypt_header(WT_SESSION_IMPL *session, WT_CRYPT_KEYS *crypt)
