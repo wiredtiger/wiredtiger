@@ -1735,7 +1735,7 @@ __shared_metadata_op_to_string(WT_SHARED_METADATA_OP op)
     case WT_SHARED_METADATA_REMOVE:
         return ("REMOVE");
     }
-    return ("");
+    return ("UNKNOWN");
 }
 
 /*

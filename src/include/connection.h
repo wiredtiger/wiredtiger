@@ -164,7 +164,7 @@ struct __wt_layered_table_manager {
  * Identify the shared metadata operations inside the shared metadata queue.
  */
 typedef enum {
-    WT_SHARED_METADATA_UPDATE = 0,
+    WT_SHARED_METADATA_UPDATE,
     WT_SHARED_METADATA_CREATE,
     WT_SHARED_METADATA_REMOVE
 } WT_SHARED_METADATA_OP;
