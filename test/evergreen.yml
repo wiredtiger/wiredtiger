@@ -5149,10 +5149,7 @@ tasks:
     name: format-stress-asan-test-4
     tags: ["stress-test-asan"]
   - <<: *format-stress-asan-realloc-exact-test
-    name: format-stress-asan-realloc-exact-test-1
-    tags: ["stress-test-asan"]
-  - <<: *format-stress-asan-realloc-exact-test
-    name: format-stress-asan-realloc-exact-test-2
+    name: format-stress-asan-realloc-exact-test
     tags: ["stress-test-asan"]
   - <<: *race-condition-stress-asan-test
     name: race-condition-stress-asan-test-1
