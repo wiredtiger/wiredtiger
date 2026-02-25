@@ -31,7 +31,7 @@ def check_unique_description(sorted_list):
     temp = ""
     for i in sorted_list:
         if temp == i.desc:
-            print("ERROR: repeated stat description in - '%s'" % (i.desc))
+            raise Exception(f"ERROR: repeated stat description in - '{i.desc}'")
         temp = i.desc
 
 ##########################################
@@ -42,11 +42,11 @@ def check_unique_description(sorted_list):
 def check_description_format(stat):
     desc = stat.desc.split(': ', 1)[1]
     if desc != desc.strip():
-        print(f"ERROR: {stat.name} description has leading or trailing whitespace - '{desc}'")
+        raise Exception(f"ERROR: {stat.name} description has leading or trailing whitespace - '{desc}'")
     if '\n' in desc:
-        print(f"ERROR: {stat.name} description contains newline - '{desc}'")
+        raise Exception(f"ERROR: {stat.name} description contains newline - '{desc}'")
     if desc.endswith(('.', ',', ';', ':', '!', '?')):
-        print(f"ERROR: {stat.name} description ends with punctuation - '{desc}'")
+        raise Exception(f"ERROR: {stat.name} description ends with punctuation - '{desc}'")
 
 ##########################################
 # Remove trailing digits for a string.
@@ -68,25 +68,28 @@ def check_name_sorted(stat_list):
         sorted_stats = sorted(stats, key=lambda stat: remove_suffix_digits(stat.name))
         for sorted_stat, stat in zip(sorted_stats, stats):
             if sorted_stat.name != stat.name:
-                print(f"ERROR: {stat_type.__name__} not sorted alphabetically by name, expected " \
+                raise Exception(f"ERROR: {stat_type.__name__} not sorted alphabetically by name, expected " \
                       f"'{sorted_stat.name}' but found '{stat.name}'")
-                return
 
 all_stat_list = [conn_dsrc_stats, conn_stats, dsrc_stats, session_stats]
-for stat_list in all_stat_list:
-    for stat in stat_list:
-        check_description_format(stat)
-    check_name_sorted(stat_list)
+try:
+    for stat_list in all_stat_list:
+        for stat in stat_list:
+            check_description_format(stat)
+        check_name_sorted(stat_list)
 
-conn_dsrc_stats.sort(key=attrgetter('desc'))
-conn_stats.sort(key=attrgetter('desc'))
-dsrc_stats.sort(key=attrgetter('desc'))
-session_stats.sort(key=attrgetter('desc'))
+    conn_dsrc_stats.sort(key=attrgetter('desc'))
+    conn_stats.sort(key=attrgetter('desc'))
+    dsrc_stats.sort(key=attrgetter('desc'))
+    session_stats.sort(key=attrgetter('desc'))
 
-check_unique_description(conn_dsrc_stats)
-check_unique_description(conn_stats)
-check_unique_description(dsrc_stats)
-check_unique_description(session_stats)
+    check_unique_description(conn_dsrc_stats)
+    check_unique_description(conn_stats)
+    check_unique_description(dsrc_stats)
+    check_unique_description(session_stats)
+except Exception as e:
+    print(e)
+    sys.exit(1)
 
 # Statistic categories need to be sorted in order to generate a valid statistics JSON file.
 sorted_conn_stats = conn_stats
