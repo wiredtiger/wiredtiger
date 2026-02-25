@@ -96,7 +96,7 @@ __evict_destination_bucket(WT_SESSION_IMPL *session, WT_EVICT_BUCKETSET *buckets
     uint64_t base_bucket, read_gen;
 
     num_buckets = bucketset->num_buckets;
-    read_gen = __wt_atomic_load64(&page->evict_data.read_gen);
+    read_gen = __wt_atomic_load_uint64_relaxed(&page->evict_data.read_gen);
 
     /*
      * If this is a page we won't need, it goes into a distinct bucketset. In that bucketset
@@ -131,7 +131,7 @@ static WT_INLINE int
 __evict_target_bucketset_level(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     uint64_t read_gen;
-    if ((read_gen = __wt_atomic_load64(&page->evict_data.read_gen)) == WT_READGEN_WONT_NEED
+    if ((read_gen = __wt_atomic_load_uint64_relaxed(&page->evict_data.read_gen)) == WT_READGEN_WONT_NEED
         || read_gen == WT_READGEN_EVICT_SOON) {
         if (!WT_PAGE_IS_INTERNAL(page))
             return WT_EVICT_LEVEL_WONT_NEED_LEAF;
@@ -516,7 +516,7 @@ __wti_evict_exceeded_clean_target(WT_SESSION_IMPL *session)
     /*
      * Avoid division by zero if the cache size has not yet been set in a shared cache.
      */
-    bytes_max = S2C(session)->cache_size + 1;
+    bytes_max = __wt_tsan_suppress_load_uint64_v(&conn->cache_size) + 1;
     bytes_inuse = __wt_cache_bytes_inuse(S2C(session)->cache);
 
     return (bytes_inuse > (S2C(session)->evict->eviction_target * bytes_max) / 100);
