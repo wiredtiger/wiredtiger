@@ -190,12 +190,12 @@ struct __wt_txn_global {
     wt_shared wt_timestamp_t stable_timestamp;
     wt_shared wt_timestamp_t newest_seen_timestamp; /* Used by eviction to make guesses */
     wt_timestamp_t version_cursor_pinned_timestamp;
-    bool has_durable_timestamp;
+    wt_shared bool has_durable_timestamp;
     wt_shared bool has_oldest_timestamp;
-    bool has_pinned_timestamp;
-    bool has_stable_timestamp;
-    bool oldest_is_pinned;
-    bool stable_is_pinned;
+    wt_shared bool has_pinned_timestamp;
+    wt_shared bool has_stable_timestamp;
+    wt_shared bool oldest_is_pinned;
+    wt_shared bool stable_is_pinned;
 
     /* Protects the active transaction states. */
     WT_RWLOCK rwlock;
