@@ -125,6 +125,8 @@ typedef enum { /* Start position for eviction walk */
  * Tables marked as PALI are not WT tables in the usual sense and exist only at the PALI level.
  * However, they are part of the special namespace, and we should avoid creating any tables with the
  * same IDs to prevent conflicts in PALI.
+ *
+ * BE CAREFUL!!! CHANGING THE EXISTING IDS WILL PROBABLY CAUSE A BACKWARD COMPATIBILITY BREAK!!!
  */
 #define WT_SPECIAL_PALI_TURTLE_FILE_ID \
     BTREE_ID_SPECIAL_NAMESPACED(0) /* Table ID for shared turtle data */
