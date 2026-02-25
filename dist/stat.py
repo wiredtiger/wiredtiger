@@ -29,10 +29,14 @@ from stat_data import dsrc_stats, conn_stats, conn_dsrc_stats, session_stats
 ##########################################
 def check_unique_description(sorted_list):
     temp = ""
-    for i in sorted_list:
-        if temp == i.desc:
-            raise Exception(f"ERROR: repeated stat description in - '{i.desc}'")
-        temp = i.desc
+    try:
+        for i in sorted_list:
+            if temp == i.desc:
+                raise Exception(f"ERROR: repeated stat description in - '{i.desc}'")
+            temp = i.desc
+    except Exception as e:
+        print(e)
+        sys.exit(1)
 
 ##########################################
 # Check the description format.
@@ -41,12 +45,16 @@ def check_unique_description(sorted_list):
 ##########################################
 def check_description_format(stat):
     desc = stat.desc.split(': ', 1)[1]
-    if desc != desc.strip():
-        raise Exception(f"ERROR: {stat.name} description has leading or trailing whitespace - '{desc}'")
-    if '\n' in desc:
-        raise Exception(f"ERROR: {stat.name} description contains newline - '{desc}'")
-    if desc.endswith(('.', ',', ';', ':', '!', '?')):
-        raise Exception(f"ERROR: {stat.name} description ends with punctuation - '{desc}'")
+    try:
+        if desc != desc.strip():
+            raise Exception(f"ERROR: {stat.name} description has leading or trailing whitespace - '{desc}'")
+        if '\n' in desc:
+            raise Exception(f"ERROR: {stat.name} description contains newline - '{desc}'")
+        if desc.endswith(('.', ',', ';', ':', '!', '?')):
+            raise Exception(f"ERROR: {stat.name} description ends with punctuation - '{desc}'")
+    except Exception as e:
+        print(e)
+        sys.exit(1)
 
 ##########################################
 # Remove trailing digits for a string.
@@ -66,10 +74,14 @@ def check_name_sorted(stat_list):
         # For this reason, remove any numerical suffix before sorting the stats. 
         # Print an error if the stats are not sorted correctly.
         sorted_stats = sorted(stats, key=lambda stat: remove_suffix_digits(stat.name))
-        for sorted_stat, stat in zip(sorted_stats, stats):
-            if sorted_stat.name != stat.name:
-                raise Exception(f"ERROR: {stat_type.__name__} not sorted alphabetically by name, expected " \
-                      f"'{sorted_stat.name}' but found '{stat.name}'")
+        try:
+            for sorted_stat, stat in zip(sorted_stats, stats):
+                if sorted_stat.name != stat.name:
+                    raise Exception(f"ERROR: {stat_type.__name__} not sorted alphabetically by name, expected " \
+                        f"'{sorted_stat.name}' but found '{stat.name}'")
+        except Exception as e:
+            print(e)
+            sys.exit(1)
 
 all_stat_list = [conn_dsrc_stats, conn_stats, dsrc_stats, session_stats]
 for stat_list in all_stat_list:
