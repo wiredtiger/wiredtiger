@@ -944,8 +944,8 @@ done:
  *     Search for an operation's prepared update.
  */
 static int
-__txn_search_prepared_op(
-  WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR **cursorp, WT_UPDATE **updp)
+__txn_search_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_ITEM *key, uint64_t recno,
+  WT_CURSOR **cursorp, WT_UPDATE **updp)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -958,11 +958,11 @@ __txn_search_prepared_op(
     txn = session->txn;
 
     cursor = *cursorp;
-    if (cursor == NULL || CUR2BT(cursor)->id != op->btree->id) {
+    if (cursor == NULL || CUR2BT(cursor)->id != btree->id) {
         *cursorp = NULL;
         if (cursor != NULL)
             WT_RET(cursor->close(cursor));
-        WT_RET(__wt_open_cursor(session, op->btree->dhandle->name, NULL, open_cursor_cfg, &cursor));
+        WT_RET(__wt_open_cursor(session, btree->dhandle->name, NULL, open_cursor_cfg, &cursor));
         *cursorp = cursor;
     }
 
@@ -980,28 +980,15 @@ __txn_search_prepared_op(
      */
     F_SET(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
 
-    switch (op->type) {
-    case WT_TXN_OP_BASIC_COL:
-    case WT_TXN_OP_INMEM_COL:
-        ((WT_CURSOR_BTREE *)cursor)->iface.recno = op->u.op_col.recno;
-        break;
-    case WT_TXN_OP_BASIC_ROW:
-    case WT_TXN_OP_INMEM_ROW:
+    if (btree->type == BTREE_ROW) {
         F_CLR(txn, txn_flags);
-        __wt_cursor_set_raw_key(cursor, &op->u.op_row.key);
+        __wt_cursor_set_raw_key(cursor, key);
         F_SET(txn, txn_flags);
-        break;
-    case WT_TXN_OP_NONE:
-    case WT_TXN_OP_REF_DELETE:
-    case WT_TXN_OP_TRUNCATE_COL:
-    case WT_TXN_OP_TRUNCATE_ROW:
-        WT_RET_PANIC_ASSERT(session, WT_DIAGNOSTIC_PREPARED, false, WT_PANIC,
-          "invalid prepared operation update type");
-        break;
-    }
+    } else
+        ((WT_CURSOR_BTREE *)cursor)->iface.recno = recno;
 
     F_CLR(txn, txn_flags);
-    WT_WITH_BTREE(session, op->btree, ret = __wt_btcur_search_prepared(cursor, updp));
+    WT_WITH_BTREE(session, btree, ret = __wt_btcur_search_prepared(cursor, updp));
     F_SET(txn, txn_flags);
     F_CLR(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
     WT_RET(ret);
@@ -1018,19 +1005,17 @@ __txn_search_prepared_op(
  *     prepare rollback.
  */
 static int
-__txn_prepare_rollback_delete_key(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR_BTREE *cbt)
+__txn_prepare_rollback_delete_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BTREE *cbt)
 {
-    WT_BTREE *btree;
     WT_DECL_RET;
     WT_UPDATE *tombstone;
     size_t not_used;
 
     tombstone = NULL;
-    btree = S2BT(session);
 
     WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &not_used));
     F_SET(tombstone, WT_UPDATE_PREPARE_ROLLBACK);
-    WT_WITH_BTREE(session, op->btree,
+    WT_WITH_BTREE(session, btree,
       ret = btree->type == BTREE_ROW ?
         __wt_row_modify(cbt, &cbt->iface.key, NULL, &tombstone, WT_UPDATE_INVALID, false, false) :
         __wt_col_modify(cbt, cbt->recno, NULL, &tombstone, WT_UPDATE_INVALID, false, false));
@@ -1116,9 +1101,9 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
  *     Resolve a transaction's operations indirect references.
  */
 static int
-__txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, WT_CURSOR **cursorp)
+__txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_ITEM *key, uint64_t recno,
+  bool commit, WT_CURSOR **cursorp)
 {
-    WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -1139,7 +1124,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 #define RESOLVE_IN_MEMORY 2
     WT_NOT_READ(resolve_case, RESOLVE_UPDATE_CHAIN);
 
-    WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
+    WT_RET(__txn_search_prepared_op(session, btree, key, recno, cursorp, &upd));
 
     if (commit)
         __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
@@ -1173,8 +1158,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
     /* A prepared operation that is rolled back will not have a timestamp worth asserting on. */
     if (commit)
-        WT_RET(
-          __wt_txn_timestamp_usage_check(session, op, txn->commit_timestamp, upd->prev_durable_ts));
+        WT_RET(__wt_txn_timestamp_usage_check(
+          session, btree, txn->commit_timestamp, upd->prev_durable_ts));
 
     for (first_committed_upd = upd; first_committed_upd != NULL &&
          (first_committed_upd->txnid == WT_TXN_ABORTED ||
@@ -1217,7 +1202,6 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      *     commit: resolve the prepared updates in memory.
      *     rollback: if the prepared update is written to the disk image, delete the whole key.
      */
-    btree = S2BT(session);
 
     /*
      * We also need to handle the on disk prepared updates if we have a prepared delete and a
@@ -1240,7 +1224,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         if (!commit && first_committed_upd == NULL) {
             tw_found = __wt_read_cell_time_window(cbt, &tw);
             if (!tw_found)
-                WT_ERR(__txn_prepare_rollback_delete_key(session, op, cbt));
+                WT_ERR(__txn_prepare_rollback_delete_key(session, btree, cbt));
             else
                 WT_ASSERT_ALWAYS(
                   session, !WT_TIME_WINDOW_HAS_PREPARE(&tw), "no committed update to fallback to.");
@@ -1284,7 +1268,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
              * and instead write nothing.
              */
             if (!commit)
-                WT_ERR(__txn_prepare_rollback_delete_key(session, op, cbt));
+                WT_ERR(__txn_prepare_rollback_delete_key(session, btree, cbt));
         }
         break;
     case RESOLVE_IN_MEMORY:
@@ -1488,12 +1472,14 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_ITEM *key;
     WT_REF_STATE previous_state;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_OP *op;
     WT_UPDATE *upd;
     wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp;
+    uint64_t recno;
 #ifdef HAVE_DIAGNOSTIC
     uint32_t prepare_count;
 #endif
@@ -1503,12 +1489,14 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
     cache = conn->cache;
     cursor = NULL;
+    key = NULL;
     txn = session->txn;
     txn_global = &conn->txn_global;
 #ifdef HAVE_DIAGNOSTIC
     prepare_count = 0;
 #endif
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
+    recno = WT_RECNO_OOB;
     readonly = txn->mod_count == 0;
     cannot_fail = locked = false;
 
@@ -1601,8 +1589,14 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * If an operation has the key repeated flag set, skip resolving prepared updates as
                  * the work will happen on a different modification in this txn.
                  */
-                if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
-                    WT_ERR(__txn_resolve_prepared_op(session, op, true, &cursor));
+                if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED)) {
+                    if (op->btree->type == BTREE_ROW)
+                        key = &op->u.op_row.key;
+                    else
+                        recno = op->u.op_col.recno;
+                    WT_ERR(
+                      __txn_resolve_prepared_op(session, op->btree, key, recno, true, &cursor));
+                }
 
                 /*
                  * Sleep for some number of updates between resolving prepared operations when
@@ -2027,9 +2021,11 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_ITEM *key;
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *upd;
+    uint64_t recno;
     u_int i;
 #ifdef HAVE_DIAGNOSTIC
     u_int prepare_count;
@@ -2037,6 +2033,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
     bool prepare, readonly;
 
     cursor = NULL;
+    key = NULL;
+    recno = WT_RECNO_OOB;
     txn = session->txn;
 #ifdef HAVE_DIAGNOSTIC
     prepare_count = 0;
@@ -2086,8 +2084,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
         case WT_TXN_OP_NONE:
             break;
         case WT_TXN_OP_BASIC_COL:
-        case WT_TXN_OP_BASIC_ROW:
         case WT_TXN_OP_INMEM_COL:
+        case WT_TXN_OP_BASIC_ROW:
         case WT_TXN_OP_INMEM_ROW:
             upd = op->u.op_upd;
 
@@ -2102,8 +2100,14 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
                  * If an operation has the key repeated flag set, skip resolving prepared updates as
                  * the work will happen on a different modification in this txn.
                  */
-                if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
-                    WT_TRET(__txn_resolve_prepared_op(session, op, false, &cursor));
+                if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED)) {
+                    if (op->btree->type == BTREE_ROW)
+                        key = &op->u.op_row.key;
+                    else
+                        recno = op->u.op_col.recno;
+                    WT_TRET(
+                      __txn_resolve_prepared_op(session, op->btree, key, recno, false, &cursor));
+                }
 #ifdef HAVE_DIAGNOSTIC
                 ++prepare_count;
 #endif

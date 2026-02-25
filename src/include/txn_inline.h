@@ -517,7 +517,7 @@ __wt_txn_op_delete_commit(
             if (*updp != NULL) {
                 do {
                     if (validate)
-                        WT_ERR(__wt_txn_timestamp_usage_check(session, op,
+                        WT_ERR(__wt_txn_timestamp_usage_check(session, op->btree,
                           (*updp)->upd_start_ts != WT_TS_NONE ? (*updp)->upd_start_ts :
                                                                 txn->commit_timestamp,
                           (*updp)->prev_durable_ts));
@@ -543,7 +543,7 @@ __wt_txn_op_delete_commit(
         WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
         WT_WITH_BTREE(session, op->btree, addr_found = __wt_ref_addr_copy(session, ref, &addr));
         if (addr_found)
-            ret = __wt_txn_timestamp_usage_check(session, op,
+            ret = __wt_txn_timestamp_usage_check(session, op->btree,
               page_del->pg_del_start_ts != WT_TS_NONE ? page_del->pg_del_start_ts :
                                                         txn->commit_timestamp,
               WT_MAX(addr.ta.newest_start_durable_ts, addr.ta.newest_stop_durable_ts));
@@ -586,17 +586,15 @@ __txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
  *     Check if a commit will violate timestamp rules.
  */
 static WT_INLINE int
-__wt_txn_timestamp_usage_check(
-  WT_SESSION_IMPL *session, WT_TXN_OP *op, wt_timestamp_t op_ts, wt_timestamp_t prev_op_durable_ts)
+__wt_txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_BTREE *btree, wt_timestamp_t op_ts,
+  wt_timestamp_t prev_op_durable_ts)
 {
-    WT_BTREE *btree;
     WT_TXN *txn;
     uint16_t flags;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     const char *name;
     bool no_ts_ok, txn_has_ts;
 
-    btree = op->btree;
     txn = session->txn;
     flags = btree->dhandle->ts_flags;
     name = btree->dhandle->name;
@@ -683,7 +681,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
                 WT_RET(__wt_txn_op_delete_commit(session, op, validate, false));
             else
                 WT_RET(__wt_txn_timestamp_usage_check(
-                  session, op, txn->commit_timestamp, op->u.op_upd->prev_durable_ts));
+                  session, op->btree, txn->commit_timestamp, op->u.op_upd->prev_durable_ts));
         }
         return (0);
     }
@@ -710,7 +708,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
              */
             upd = op->u.op_upd;
             if (validate)
-                WT_RET(__wt_txn_timestamp_usage_check(session, op,
+                WT_RET(__wt_txn_timestamp_usage_check(session, op->btree,
                   upd->upd_start_ts != WT_TS_NONE ? upd->upd_start_ts : txn->commit_timestamp,
                   upd->prev_durable_ts));
             if (upd->upd_start_ts == WT_TS_NONE) {
