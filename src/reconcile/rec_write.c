@@ -2514,7 +2514,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                 }
             }
         } else if (delta_enabled) {
-            // track stats for why we can't write deltas for this page
+            /* Track stats for why we can't write deltas for this page */
             if (r->multi_next > 1)
                 WT_STAT_CONN_INCR(session, rec_page_delta_rejected_multiblock);
             else if (block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID)
