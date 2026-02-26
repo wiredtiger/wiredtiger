@@ -9,13 +9,17 @@
 #include "wt_internal.h"
 
 static int __checkpoint_drop_list_execute(WT_SESSION_IMPL *session, WT_ITEM *drop_list);
+static int __checkpoint_hs(WT_SESSION_IMPL *, WT_DATA_HANDLE *, WT_DATA_HANDLE *, const char *[]);
 static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
+static int __checkpoint_sync(WT_SESSION_IMPL *, WT_DATA_HANDLE *, WT_DATA_HANDLE *, const char *[]);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
+static int __checkpoint_trees(WT_SESSION_IMPL *, const char *[]);
 static void __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final);
 static void __checkpoint_progress_clear(WT_SESSION_IMPL *);
 static void __checkpoint_progress(WT_SESSION_IMPL *, bool);
+static void __checkpoint_reset_stats(WT_SESSION_IMPL *);
 static void __checkpoint_timing_stress(WT_SESSION_IMPL *, uint64_t, struct timespec *);
 
 typedef struct {
@@ -2037,6 +2041,71 @@ err:
 }
 
 /*
+ * __checkpoint_hs --
+ *     Checkpoint both the history store and the shared history store files.
+ */
+static int
+__checkpoint_hs(WT_SESSION_IMPL *session, WT_DATA_HANDLE *hs_dhandle,
+  WT_DATA_HANDLE *hs_dhandle_shared, const char *cfg[])
+{
+    struct timespec tsp;
+    WT_DECL_RET;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    /*
+     * Wait prior to checkpointing the history store to simulate checkpoint slowness.
+     * Add a ten second wait to simulate checkpoint slowness.
+     */
+    tsp.tv_sec = 10;
+    tsp.tv_nsec = 0;
+    __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, &tsp);
+
+    /* Get the handle to the shared history store. */
+    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
+        WT_ERR_ERROR_OK(
+          __wt_session_get_dhandle(session, WT_HS_URI_SHARED, NULL, NULL, 0), ENOENT, false);
+        hs_dhandle_shared = session->dhandle;
+    }
+
+    /*
+     * Get a history store dhandle. If the history store file is opened for a special operation this
+     * will return EBUSY which we treat as an error. In scenarios where the history store is not
+     * part of the metadata file (performing recovery on backup folder where no checkpoint
+     * occurred), this will return ENOENT which we ignore and continue.
+     */
+    WT_ERR_ERROR_OK(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0), ENOENT, false);
+    hs_dhandle = session->dhandle;
+
+    /*
+     * It is possible that we don't have a history store file in certain recovery scenarios. As such
+     * we could get a dhandle that is not opened.
+     */
+    if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
+        uint64_t time_start_hs = __wt_clock(session);
+        __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, true);
+        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS);
+
+        WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_file(session, cfg));
+        WT_ERR(ret);
+
+        if (hs_dhandle_shared != NULL) {
+            WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint_file(session, cfg));
+            WT_ERR(ret);
+        }
+
+        uint64_t time_stop_hs = __wt_clock(session);
+        uint64_t hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
+        WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
+    }
+
+err:
+    __wt_tsan_suppress_store_bool_v(&conn->txn_global.checkpoint_running_hs, false);
+    return (ret);
+}
+
+/*
  * __checkpoint_drop_list_execute --
  *     Clear the system info (snapshot and timestamp info) for the named checkpoints on the drop
  *     list.
@@ -2944,6 +3013,31 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __checkpoint_trees --
+ *     Checkpoint all trees.
+ */
+static int
+__checkpoint_trees(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    /* Add a ten second wait to simulate checkpoint slowness. */
+    struct timespec tsp;
+    tsp.tv_sec = 10;
+    tsp.tv_nsec = 0;
+    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_SLOW, &tsp);
+
+    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_CKPT_TREE);
+    __checkpoint_verbose_track(session, "checkpointing individual trees");
+
+    uint64_t time_start_ckpt_tree = __wt_clock(session);
+    WT_RET(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
+    uint64_t time_stop_ckpt_tree = __wt_clock(session);
+    uint64_t ckpt_tree_duration_usecs = WT_CLOCKDIFF_US(time_stop_ckpt_tree, time_start_ckpt_tree);
+    WT_STAT_CONN_SET(session, checkpoint_tree_duration, ckpt_tree_duration_usecs);
+
+    return (0);
+}
+
+/*
  * __wt_checkpoint_file --
  *     Checkpoint a file.
  */
@@ -3087,6 +3181,73 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 #endif
     return (ret);
 }
+
+/*
+ * __checkpoint_reset_stats --
+ *     Reset the statistics tracked per checkpoint.
+ */
+static void
+__checkpoint_reset_stats(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_EVICT *evict;
+
+    conn = S2C(session);
+    evict = conn->evict;
+
+    __wt_atomic_store_uint64_relaxed(&evict->evict_max_unvisited_gen_gap_per_checkpoint, 0);
+    __wt_atomic_store_uint64_relaxed(&evict->evict_max_visited_gen_gap_per_checkpoint, 0);
+    __wt_atomic_store_uint64_relaxed(&evict->evict_max_clean_page_size_per_checkpoint, 0);
+    __wt_atomic_store_uint64_relaxed(&evict->evict_max_dirty_page_size_per_checkpoint, 0);
+    __wt_atomic_store_uint64_relaxed(&evict->evict_max_updates_page_size_per_checkpoint, 0);
+    __wt_atomic_store_uint64_relaxed(&evict->evict_max_ms_per_checkpoint, 0);
+    __wt_atomic_store_uint16_relaxed(&evict->evict_max_eviction_queue_attempts, 0);
+    __wt_atomic_store_uint16_relaxed(&evict->evict_max_evict_page_attempts, 0);
+    __wt_atomic_store_uint64_relaxed(&evict->reentry_hs_eviction_ms, 0);
+    __wt_atomic_store_uint32_relaxed(&conn->heuristic_controls.obsolete_tw_btree_count, 0);
+    __wt_atomic_store_uint64_relaxed(&conn->rec_maximum_hs_wrapup_milliseconds, 0);
+    __wt_atomic_store_uint64_relaxed(&conn->rec_maximum_image_build_milliseconds, 0);
+    __wt_atomic_store_uint64_relaxed(&conn->rec_maximum_milliseconds, 0);
+    __wt_atomic_store_uint64_relaxed(&conn->page_delta.max_internal_delta_count, 0);
+    __wt_atomic_store_uint64_relaxed(&conn->page_delta.max_leaf_delta_count, 0);
+}
+
+/*
+ * __checkpoint_sync --
+ *     Sync the checkpoint to disk.
+ */
+int __checkpoint_sync(WT_SESSION_IMPL *session, WT_DATA_HANDLE *hs_dhandle, WT_DATA_HANDLE *hs_dhandle_shared, const char *cfg[]) {
+    WT_DECL_RET;
+    /*
+     * Checkpoints have to hit disk (it would be reasonable to configure for lazy checkpoints, but
+     * we don't support them yet).
+     */
+    uint64_t time_start_fsync = __wt_clock(session);
+
+    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_BM_SYNC);
+    WT_RET(__checkpoint_apply_to_dhandles(session, cfg, __wt_checkpoint_sync));
+
+    /* Sync the history store file. */
+    if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
+        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS_SYNC);
+        WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_sync(session, NULL));
+        WT_RET(ret);
+    }
+    if (hs_dhandle_shared != NULL && F_ISSET(hs_dhandle_shared, WT_DHANDLE_OPEN)) {
+        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS_SYNC);
+        WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint_sync(session, NULL));
+        WT_RET(ret);
+    }
+
+    uint64_t time_stop_fsync = __wt_clock(session);
+    uint64_t fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop_fsync, time_start_fsync);
+    WT_STAT_CONN_INCR(session, checkpoint_fsync_post);
+    WT_STAT_CONN_SET(session, checkpoint_fsync_post_duration, fsync_duration_usecs);
+
+    __checkpoint_verbose_track(session, "sync completed");
+    return (ret);
+}
+
 
 /*
  * __checkpoint_timing_stress --
