@@ -50,6 +50,7 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
 void
 __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 {
+    WT_BM *bm;
     WT_PAGE *page;
     WT_PAGE_HEADER *dsk;
     WT_PAGE_MODIFY *mod;
@@ -121,9 +122,10 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
         __wt_cache_page_image_decr(session, page);
 
     /* Discard any mapped image. */
-    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_MAPPED))
-        (void)S2BT(session)->bm->map_discard(
-          S2BT(session)->bm, session, dsk, (size_t)dsk->mem_size);
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_MAPPED)) {
+        if ((bm = S2BT(session)->bm) != NULL)
+            (void)bm->map_discard(bm, session, dsk, (size_t)dsk->mem_size);
+    }
 
     /*
      * If discarding the page as part of process exit, the application may configure to leak the
