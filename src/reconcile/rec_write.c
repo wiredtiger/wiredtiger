@@ -2334,7 +2334,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_PAGE_BLOCK_META *block_meta;
     size_t addr_size, compressed_size;
     uint8_t addr[WT_ADDR_MAX_COOKIE];
-    bool build_delta, skip_write;
+    bool build_delta, delta_enabled, skip_write;
 #ifdef HAVE_DIAGNOSTIC
     WT_ADDR *verify_addr, __verify_addr;
     bool verify_image;
@@ -2476,7 +2476,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         WT_ASSERT_ALWAYS(session, chunk->entries > 0, "Trying to write an empty chunk");
     }
 
-    bool delta_enabled = WT_DELTA_ENABLED_FOR_PAGE(session, r->page->type);
+    delta_enabled = WT_DELTA_ENABLED_FOR_PAGE(session, r->page->type);
     if (delta_enabled)
         WT_STAT_CONN_INCR(session, rec_page_delta_eligible);
 
