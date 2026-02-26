@@ -8659,141 +8659,141 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_PAGE_SPLIT_RESTART			1927
 /*! thread-yield: pages skipped during read due to deleted state */
 #define	WT_STAT_CONN_PAGE_READ_SKIP_DELETED		1928
-/*! transaction:  transaction global checkpoint timestamp */
-#define	WT_STAT_CONN_TXN_GLOBAL_CHECKPOINT_TIMESTAMP	1929
-/*! transaction:  transaction global durable timestamp */
-#define	WT_STAT_CONN_TXN_GLOBAL_DURABLE_TIMESTAMP	1930
 /*! transaction: Number of prepared updates */
-#define	WT_STAT_CONN_TXN_PREPARED_UPDATES		1931
+#define	WT_STAT_CONN_TXN_PREPARED_UPDATES		1929
 /*! transaction: Number of prepared updates committed */
-#define	WT_STAT_CONN_TXN_PREPARED_UPDATES_COMMITTED	1932
+#define	WT_STAT_CONN_TXN_PREPARED_UPDATES_COMMITTED	1930
 /*! transaction: Number of prepared updates repeated on the same key */
-#define	WT_STAT_CONN_TXN_PREPARED_UPDATES_KEY_REPEATED	1933
+#define	WT_STAT_CONN_TXN_PREPARED_UPDATES_KEY_REPEATED	1931
 /*! transaction: Number of prepared updates rolled back */
-#define	WT_STAT_CONN_TXN_PREPARED_UPDATES_ROLLEDBACK	1934
+#define	WT_STAT_CONN_TXN_PREPARED_UPDATES_ROLLEDBACK	1932
 /*!
  * transaction: a reader raced with a prepared transaction commit and
  * skipped an update or updates
  */
-#define	WT_STAT_CONN_TXN_READ_RACE_PREPARE_COMMIT	1935
+#define	WT_STAT_CONN_TXN_READ_RACE_PREPARE_COMMIT	1933
 /*! transaction: number of times overflow removed value is read */
-#define	WT_STAT_CONN_TXN_READ_OVERFLOW_REMOVE		1936
+#define	WT_STAT_CONN_TXN_READ_OVERFLOW_REMOVE		1934
 /*! transaction: oldest pinned transaction ID rolled back for eviction */
-#define	WT_STAT_CONN_TXN_ROLLBACK_OLDEST_PINNED		1937
+#define	WT_STAT_CONN_TXN_ROLLBACK_OLDEST_PINNED		1935
 /*! transaction: oldest transaction ID rolled back for eviction */
-#define	WT_STAT_CONN_TXN_ROLLBACK_OLDEST_ID		1938
+#define	WT_STAT_CONN_TXN_ROLLBACK_OLDEST_ID		1936
 /*! transaction: prepared transactions */
-#define	WT_STAT_CONN_TXN_PREPARE			1939
+#define	WT_STAT_CONN_TXN_PREPARE			1937
 /*! transaction: prepared transactions committed */
-#define	WT_STAT_CONN_TXN_PREPARE_COMMIT			1940
+#define	WT_STAT_CONN_TXN_PREPARE_COMMIT			1938
 /*! transaction: prepared transactions currently active */
-#define	WT_STAT_CONN_TXN_PREPARE_ACTIVE			1941
+#define	WT_STAT_CONN_TXN_PREPARE_ACTIVE			1939
 /*! transaction: prepared transactions rolled back */
-#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK		1942
+#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK		1940
 /*! transaction: query timestamp calls */
-#define	WT_STAT_CONN_TXN_QUERY_TS			1943
+#define	WT_STAT_CONN_TXN_QUERY_TS			1941
 /*! transaction: race to read prepared update retry */
-#define	WT_STAT_CONN_TXN_READ_RACE_PREPARE_UPDATE	1944
+#define	WT_STAT_CONN_TXN_READ_RACE_PREPARE_UPDATE	1942
 /*! transaction: rollback to stable applied btrees */
-#define	WT_STAT_CONN_TXN_RTS_BTREES_APPLIED		1945
+#define	WT_STAT_CONN_TXN_RTS_BTREES_APPLIED		1943
 /*! transaction: rollback to stable calls */
-#define	WT_STAT_CONN_TXN_RTS				1946
+#define	WT_STAT_CONN_TXN_RTS				1944
 /*!
  * transaction: rollback to stable history store keys that would have
  * been swept in non-dryrun mode
  */
-#define	WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS_DRYRUN	1947
+#define	WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS_DRYRUN	1945
 /*!
  * transaction: rollback to stable history store records with stop
  * timestamps older than newer records
  */
-#define	WT_STAT_CONN_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	1948
+#define	WT_STAT_CONN_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	1946
 /*! transaction: rollback to stable inconsistent checkpoint */
-#define	WT_STAT_CONN_TXN_RTS_INCONSISTENT_CKPT		1949
+#define	WT_STAT_CONN_TXN_RTS_INCONSISTENT_CKPT		1947
 /*! transaction: rollback to stable keys removed */
-#define	WT_STAT_CONN_TXN_RTS_KEYS_REMOVED		1950
+#define	WT_STAT_CONN_TXN_RTS_KEYS_REMOVED		1948
 /*! transaction: rollback to stable keys restored */
-#define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED		1951
+#define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED		1949
 /*!
  * transaction: rollback to stable keys that would have been removed in
  * non-dryrun mode
  */
-#define	WT_STAT_CONN_TXN_RTS_KEYS_REMOVED_DRYRUN	1952
+#define	WT_STAT_CONN_TXN_RTS_KEYS_REMOVED_DRYRUN	1950
 /*!
  * transaction: rollback to stable keys that would have been restored in
  * non-dryrun mode
  */
-#define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED_DRYRUN	1953
+#define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED_DRYRUN	1951
 /*! transaction: rollback to stable pages visited */
-#define	WT_STAT_CONN_TXN_RTS_PAGES_VISITED		1954
+#define	WT_STAT_CONN_TXN_RTS_PAGES_VISITED		1952
 /*! transaction: rollback to stable restored tombstones from history store */
-#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES	1955
+#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES	1953
 /*! transaction: rollback to stable restored updates from history store */
-#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_UPDATES		1956
+#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_UPDATES		1954
 /*! transaction: rollback to stable skipped btrees */
-#define	WT_STAT_CONN_TXN_RTS_BTREES_SKIPPED		1957
+#define	WT_STAT_CONN_TXN_RTS_BTREES_SKIPPED		1955
 /*! transaction: rollback to stable skipping delete rle */
-#define	WT_STAT_CONN_TXN_RTS_DELETE_RLE_SKIPPED		1958
+#define	WT_STAT_CONN_TXN_RTS_DELETE_RLE_SKIPPED		1956
 /*! transaction: rollback to stable skipping stable rle */
-#define	WT_STAT_CONN_TXN_RTS_STABLE_RLE_SKIPPED		1959
+#define	WT_STAT_CONN_TXN_RTS_STABLE_RLE_SKIPPED		1957
 /*! transaction: rollback to stable sweeping history store keys */
-#define	WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS		1960
+#define	WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS		1958
 /*!
  * transaction: rollback to stable tombstones from history store that
  * would have been restored in non-dryrun mode
  */
-#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES_DRYRUN	1961
+#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES_DRYRUN	1959
 /*! transaction: rollback to stable tree walk skipping pages */
-#define	WT_STAT_CONN_TXN_RTS_TREE_WALK_SKIP_PAGES	1962
+#define	WT_STAT_CONN_TXN_RTS_TREE_WALK_SKIP_PAGES	1960
 /*! transaction: rollback to stable updates aborted */
-#define	WT_STAT_CONN_TXN_RTS_UPD_ABORTED		1963
+#define	WT_STAT_CONN_TXN_RTS_UPD_ABORTED		1961
 /*!
  * transaction: rollback to stable updates from history store that would
  * have been restored in non-dryrun mode
  */
-#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_UPDATES_DRYRUN	1964
+#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_UPDATES_DRYRUN	1962
 /*! transaction: rollback to stable updates removed from history store */
-#define	WT_STAT_CONN_TXN_RTS_HS_REMOVED			1965
+#define	WT_STAT_CONN_TXN_RTS_HS_REMOVED			1963
 /*!
  * transaction: rollback to stable updates that would have been aborted
  * in non-dryrun mode
  */
-#define	WT_STAT_CONN_TXN_RTS_UPD_ABORTED_DRYRUN		1966
+#define	WT_STAT_CONN_TXN_RTS_UPD_ABORTED_DRYRUN		1964
 /*!
  * transaction: rollback to stable updates that would have been removed
  * from history store in non-dryrun mode
  */
-#define	WT_STAT_CONN_TXN_RTS_HS_REMOVED_DRYRUN		1967
+#define	WT_STAT_CONN_TXN_RTS_HS_REMOVED_DRYRUN		1965
 /*! transaction: sessions scanned in each walk of concurrent sessions */
-#define	WT_STAT_CONN_TXN_SESSIONS_WALKED		1968
+#define	WT_STAT_CONN_TXN_SESSIONS_WALKED		1966
 /*! transaction: set timestamp calls */
-#define	WT_STAT_CONN_TXN_SET_TS				1969
+#define	WT_STAT_CONN_TXN_SET_TS				1967
 /*! transaction: set timestamp durable calls */
-#define	WT_STAT_CONN_TXN_SET_TS_DURABLE			1970
+#define	WT_STAT_CONN_TXN_SET_TS_DURABLE			1968
 /*! transaction: set timestamp durable updates */
-#define	WT_STAT_CONN_TXN_SET_TS_DURABLE_UPD		1971
+#define	WT_STAT_CONN_TXN_SET_TS_DURABLE_UPD		1969
 /*! transaction: set timestamp force calls */
-#define	WT_STAT_CONN_TXN_SET_TS_FORCE			1972
+#define	WT_STAT_CONN_TXN_SET_TS_FORCE			1970
 /*!
  * transaction: set timestamp global oldest timestamp set to be more
  * recent than the global stable timestamp
  */
-#define	WT_STAT_CONN_TXN_SET_TS_OUT_OF_ORDER		1973
+#define	WT_STAT_CONN_TXN_SET_TS_OUT_OF_ORDER		1971
 /*! transaction: set timestamp oldest calls */
-#define	WT_STAT_CONN_TXN_SET_TS_OLDEST			1974
+#define	WT_STAT_CONN_TXN_SET_TS_OLDEST			1972
 /*! transaction: set timestamp oldest updates */
-#define	WT_STAT_CONN_TXN_SET_TS_OLDEST_UPD		1975
+#define	WT_STAT_CONN_TXN_SET_TS_OLDEST_UPD		1973
 /*! transaction: set timestamp stable calls */
-#define	WT_STAT_CONN_TXN_SET_TS_STABLE			1976
+#define	WT_STAT_CONN_TXN_SET_TS_STABLE			1974
 /*! transaction: set timestamp stable updates */
-#define	WT_STAT_CONN_TXN_SET_TS_STABLE_UPD		1977
+#define	WT_STAT_CONN_TXN_SET_TS_STABLE_UPD		1975
 /*! transaction: transaction begins */
-#define	WT_STAT_CONN_TXN_BEGIN				1978
+#define	WT_STAT_CONN_TXN_BEGIN				1976
 /*!
  * transaction: transaction checkpoint history store file duration
  * (usecs)
  */
-#define	WT_STAT_CONN_TXN_HS_CKPT_DURATION		1979
+#define	WT_STAT_CONN_TXN_HS_CKPT_DURATION		1977
+/*! transaction: transaction global checkpoint timestamp */
+#define	WT_STAT_CONN_TXN_GLOBAL_CHECKPOINT_TIMESTAMP	1978
+/*! transaction: transaction global durable timestamp */
+#define	WT_STAT_CONN_TXN_GLOBAL_DURABLE_TIMESTAMP	1979
 /*! transaction: transaction global last running timestamp */
 #define	WT_STAT_CONN_TXN_GLOBAL_LAST_RUNNING_TIMESTAMP	1980
 /*! transaction: transaction global newest timestamp */
