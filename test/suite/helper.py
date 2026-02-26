@@ -153,6 +153,9 @@ def simulate_crash_restart(testcase, olddir, newdir):
     testcase.conn = testcase.setUpConnectionOpen(newdir)
     testcase.session = testcase.setUpSessionOpen(testcase.conn)
 
+def statistic_uri(uri = ''):
+    return 'statistics:' + uri
+
 class WiredTigerCursor:
     def __init__(self, session, uri, *args, **kwargs):
         self.session = session
@@ -170,17 +173,3 @@ class WiredTigerCursor:
         # TODO: do something here to handle exceptions
         if self.cursor is not None:
             self.cursor.close()
-class WiredTigerStat:
-
-    def __init__(self, session, uri = None):
-        self.uri = "statistics:"
-        self.cursor_wrapper = WiredTigerCursor(session, self.uri + uri if uri else self.uri)
-
-    def __enter__(self):
-        # Get a statistics cursor
-        return self.cursor_wrapper.__enter__()
-
-    def __exit__(self, exception_type, exception_value, exception_traceback):
-        # Close the statistics cursor
-        self.cursor_wrapper.__exit__(exception_type, exception_value, exception_traceback)
-
