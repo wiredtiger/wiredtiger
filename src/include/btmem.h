@@ -344,17 +344,24 @@ struct __wt_ovfl_track {
 };
 
 /*
+ * WT_PAGE_MODIFY_RANDLRU_DATA --
+ *     Per-page-modify eviction data for the randomized-LRU algorithm.
+ *     Tail-allocated after WT_PAGE_MODIFY.
+ */
+struct __wt_page_modify_randlru_data {
+    /* The transaction state last time eviction was attempted. */
+    uint64_t last_evict_pass_gen;
+    uint64_t last_eviction_id;
+    wt_timestamp_t last_eviction_timestamp;
+};
+
+/*
  * WT_PAGE_MODIFY --
  *	When a page is modified, there's additional information to maintain.
  */
 struct __wt_page_modify {
     /* The first unwritten transaction ID (approximate). */
     wt_shared uint64_t first_dirty_txn;
-
-    /* The transaction state last time eviction was attempted. */
-    uint64_t last_evict_pass_gen;
-    uint64_t last_eviction_id;
-    wt_timestamp_t last_eviction_timestamp;
 
 #ifdef HAVE_DIAGNOSTIC
     /* Check that transaction time moves forward. */
@@ -587,6 +594,16 @@ struct __wt_split_page_hist {
 #endif
 
 /*
+ * WT_PAGE_RANDLRU_DATA --
+ *     Per-page eviction data for the randomized-LRU algorithm.
+ *     Tail-allocated after WT_PAGE.
+ */
+struct __wt_page_randlru_data {
+    uint64_t cache_create_gen; /* Page create timestamp */
+    uint64_t evict_pass_gen;   /* Eviction pass generation */
+};
+
+/*
  * WT_PAGE --
  *	The WT_PAGE structure describes the in-memory page information.
  */
@@ -797,9 +814,6 @@ struct __wt_page {
 #define WT_READGEN_START_VALUE 100
 #define WT_READGEN_STEP 100
     uint64_t read_gen;
-
-    uint64_t cache_create_gen; /* Page create timestamp */
-    uint64_t evict_pass_gen;   /* Eviction pass generation */
 
     uint16_t evict_queue_attempts; /* Number of times eviction tries to queue a page for eviction
                                       but fails */

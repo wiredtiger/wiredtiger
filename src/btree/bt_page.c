@@ -819,7 +819,7 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
     WT_DECL_RET;
     WT_PAGE *page;
     WT_PAGE_INDEX *pindex;
-    size_t size;
+    size_t evict_extra, size;
     uint32_t i;
     void *p;
 
@@ -831,7 +831,8 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
     *pagep = NULL;
     page = NULL;
 
-    size = sizeof(WT_PAGE);
+    evict_extra = __wt_evict_page_extra_size(session);
+    size = sizeof(WT_PAGE) + evict_extra;
     switch (type) {
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
@@ -864,7 +865,7 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
         WT_RET(__wt_calloc(session, 1, size, &page));
 
     page->type = type;
-    __wt_evict_page_init(page);
+    __wt_evict_page_init(session, page);
 
     switch (type) {
     case WT_PAGE_COL_INT:
@@ -893,11 +894,11 @@ err:
         }
         break;
     case WT_PAGE_COL_VAR:
-        page->pg_var = alloc_entries == 0 ? NULL : (WT_COL *)((uint8_t *)page + sizeof(WT_PAGE));
+        page->pg_var = alloc_entries == 0 ? NULL : (WT_COL *)((uint8_t *)page + sizeof(WT_PAGE) + evict_extra);
         page->entries = alloc_entries;
         break;
     case WT_PAGE_ROW_LEAF:
-        page->pg_row = alloc_entries == 0 ? NULL : (WT_ROW *)((uint8_t *)page + sizeof(WT_PAGE));
+        page->pg_row = alloc_entries == 0 ? NULL : (WT_ROW *)((uint8_t *)page + sizeof(WT_PAGE) + evict_extra);
         page->entries = alloc_entries;
         break;
     default:
@@ -913,7 +914,7 @@ err:
         else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
             (void)__wt_atomic_add_uint64_relaxed(&cache->pages_inmem_stable, 1);
     }
-    page->cache_create_gen = __wt_atomic_load_uint64_relaxed(&conn->evict->evict_pass_gen);
+    __wt_evict_page_set_cache_create_gen(session, page);
 
     *pagep = page;
     return (0);

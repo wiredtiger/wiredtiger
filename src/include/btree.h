@@ -138,6 +138,30 @@ typedef enum { /* Start position for eviction walk */
     BTREE_ID_SPECIAL_NAMESPACED(3) /* Table ID for encryption key data */
 
 /*
+ * WT_BTREE_RANDLRU_DATA --
+ *     Per-btree eviction data for the randomized-LRU algorithm.
+ *     Tail-allocated after WT_BTREE.
+ */
+struct __wt_btree_randlru_data {
+    wt_shared WT_REF *evict_ref;               /* Eviction thread's location */
+    uint64_t evict_saved_ref_check;            /* Eviction saved thread's location as ID */
+    double evict_pos;                          /* Eviction thread's soft location */
+    uint32_t linear_walk_restarts;             /* next/prev walk restarts */
+    uint64_t evict_priority;                   /* Relative priority of cached pages */
+    uint32_t evict_walk_progress;              /* Eviction walk progress */
+    uint32_t evict_walk_target;                /* Eviction walk target */
+    wt_shared u_int evict_walk_period;         /* Skip this many LRU walks */
+    u_int evict_walk_saved;                    /* Saved walk skips for checkpoints */
+    u_int evict_walk_skips;                    /* Number of walks skipped */
+    wt_shared int32_t evict_disabled;          /* Eviction disabled count */
+    bool evict_disabled_open;                  /* Eviction disabled on open */
+    wt_shared volatile uint32_t evict_busy;    /* Count of threads in eviction */
+    wt_shared volatile uint32_t prefetch_busy; /* Count of threads in prefetch */
+    WT_EVICT_WALK_TYPE evict_start_type;
+    uint32_t last_evict_walk_flags; /* Cache flags from the prior walk */
+};
+
+/*
  * WT_BTREE --
  *	A btree handle.
  */
@@ -304,28 +328,7 @@ struct __wt_btree {
  * All of the following fields live at the end of the structure so it's easier to clear everything
  * but the fields that persist.
  */
-#define WT_BTREE_CLEAR_SIZE (offsetof(WT_BTREE, evict_ref))
-
-    /*
-     * Eviction information is maintained in the btree handle, but owned by eviction, not the btree
-     * code.
-     */
-    wt_shared WT_REF *evict_ref;               /* Eviction thread's location */
-    uint64_t evict_saved_ref_check;            /* Eviction saved thread's location as an ID */
-    double evict_pos;                          /* Eviction thread's soft location */
-    uint32_t linear_walk_restarts;             /* next/prev walk restarts */
-    uint64_t evict_priority;                   /* Relative priority of cached pages */
-    uint32_t evict_walk_progress;              /* Eviction walk progress */
-    uint32_t evict_walk_target;                /* Eviction walk target */
-    wt_shared u_int evict_walk_period;         /* Skip this many LRU walks */
-    u_int evict_walk_saved;                    /* Saved walk skips for checkpoints */
-    u_int evict_walk_skips;                    /* Number of walks skipped */
-    wt_shared int32_t evict_disabled;          /* Eviction disabled count */
-    bool evict_disabled_open;                  /* Eviction disabled on open */
-    wt_shared volatile uint32_t evict_busy;    /* Count of threads in eviction */
-    wt_shared volatile uint32_t prefetch_busy; /* Count of threads in prefetch */
-    WT_EVICT_WALK_TYPE evict_start_type;
-    uint32_t last_evict_walk_flags; /* A copy of the cache flags from the prior walk */
+#define WT_BTREE_CLEAR_SIZE (offsetof(WT_BTREE, next_page_id))
 
     /* The next page ID available for allocation in disaggregated storage for this tree. */
     wt_shared uint64_t next_page_id;

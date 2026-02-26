@@ -294,7 +294,7 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
 }
 
 /* !!!
- * __wt_evict --
+ * __wt_evict_randlru_page --
  *     Evict a page from memory by taking exclusive access to the page.
  *
  *     Based on the page's state, the function either reconciles and writes the page to disk or
@@ -312,7 +312,8 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
  *     reconciliation, or certain conditions preventing the page's eviction.
  */
 int
-__wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, uint32_t flags)
+__wt_evict_randlru_page(
+  WT_EVICT *evict, WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, uint32_t flags)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -320,6 +321,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     uint64_t page_size;
     uint8_t stats_flags;
     bool clean_page, closing, ebusy_only, inmem_split, is_dirty, tree_dead;
+
+    WT_UNUSED(evict);
 
     conn = S2C(session);
     page = ref->page;
@@ -477,7 +480,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
 err:
         ++page->evict_page_attempts;
         __wt_atomic_stats_max_uint16(
-          &conn->evict->evict_max_evict_page_attempts, page->evict_page_attempts);
+          &WT_EVICT_RANDLRU(conn->evict)->evict_max_evict_page_attempts, page->evict_page_attempts);
 
         if (!closing)
             __evict_exclusive_clear(session, ref, previous_state);
@@ -1271,4 +1274,226 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
         WT_IS_METADATA(btree->dhandle) || WT_IS_DISAGG_META(btree->dhandle));
 
     return (0);
+}
+
+/*
+ * __wt_evict_randlru_page_init --
+ *     Initialize a newly created page's eviction state for LRU.
+ */
+void
+__wt_evict_randlru_page_init(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    WT_UNUSED(evict);
+    WT_UNUSED(session);
+    __wt_atomic_store_uint64_relaxed(&page->read_gen, WT_READGEN_NOTSET);
+}
+
+/*
+ * __wt_evict_randlru_touch_page --
+ *     Mark a page as accessed for LRU eviction purposes.
+ */
+void
+__wt_evict_randlru_touch_page(
+  WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_only, bool wont_need)
+{
+    WT_UNUSED(evict);
+    if (__wt_atomic_load_uint64_relaxed(&page->read_gen) == WT_READGEN_NOTSET) {
+        if (wont_need)
+            __wt_atomic_store_uint64_relaxed(&page->read_gen, WT_READGEN_WONT_NEED);
+        else
+            __wti_evict_read_gen_new(session, page);
+    } else if (!internal_only)
+        __wti_evict_read_gen_bump(session, page);
+}
+
+/*
+ * __wt_evict_randlru_page_soon --
+ *     Mark a page to be evicted as soon as possible for LRU.
+ */
+void
+__wt_evict_randlru_page_soon(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_UNUSED(evict);
+    WT_UNUSED(session);
+    __wt_atomic_store_uint64_relaxed(&ref->page->read_gen, WT_READGEN_EVICT_SOON);
+}
+
+/*
+ * __wt_evict_randlru_page_is_soon --
+ *     Check if a page is marked for imminent eviction.
+ */
+bool
+__wt_evict_randlru_page_is_soon(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    WT_UNUSED(evict);
+    WT_UNUSED(session);
+    return (__wt_atomic_load_uint64_relaxed(&page->read_gen) == WT_READGEN_EVICT_SOON);
+}
+
+/*
+ * __wt_evict_randlru_page_is_soon_or_wont_need --
+ *     Check if a page is marked for imminent eviction or won't be needed.
+ */
+bool
+__wt_evict_randlru_page_is_soon_or_wont_need(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    WT_UNUSED(evict);
+    WT_UNUSED(session);
+    return (__wti_evict_readgen_is_soon_or_wont_need(&page->read_gen));
+}
+
+/*
+ * __wt_evict_randlru_page_first_dirty --
+ *     Update a page's read generation when it first becomes dirty under LRU.
+ */
+void
+__wt_evict_randlru_page_first_dirty(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    WT_UNUSED(evict);
+    if (__wt_atomic_load_uint64_relaxed(&page->read_gen) == WT_READGEN_WONT_NEED)
+        __wti_evict_read_gen_new(session, page);
+}
+
+/*
+ * __wt_evict_randlru_inherit_page_state --
+ *     Inherit eviction state from an original page to a new page under LRU.
+ */
+void
+__wt_evict_randlru_inherit_page_state(
+  WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *orig_page, WT_PAGE *new_page)
+{
+    uint64_t orig_read_gen;
+
+    WT_UNUSED(evict);
+    WT_UNUSED(session);
+
+    WT_READ_ONCE(orig_read_gen, orig_page->read_gen);
+
+    if (!__wti_evict_readgen_is_soon_or_wont_need(&orig_read_gen))
+        __wt_atomic_store_uint64_relaxed(&new_page->read_gen, orig_read_gen);
+}
+
+/*
+ * __wt_evict_randlru_page_cache_bytes_decr --
+ *     Decrement cache byte counters when a page is evicted under LRU.
+ */
+void
+__wt_evict_randlru_page_cache_bytes_decr(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    WT_BTREE *btree;
+    WT_CACHE *cache;
+    WT_PAGE_MODIFY *modify;
+    uint64_t memory_footprint;
+    bool is_disagg;
+
+    WT_UNUSED(evict);
+
+    btree = S2BT(session);
+    cache = S2C(session)->cache;
+    modify = page->modify;
+    memory_footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
+    is_disagg = __wt_conn_is_disagg(session);
+
+    /* Update the bytes in-memory to reflect the eviction. */
+    __wt_cache_decr_check_uint64(
+      session, &btree->bytes_inmem, memory_footprint, "WT_BTREE.bytes_inmem");
+    __wt_cache_decr_check_uint64(
+      session, &cache->bytes_inmem, memory_footprint, "WT_CACHE.bytes_inmem");
+    if (is_disagg) {
+        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+            __wt_cache_decr_check_uint64(
+              session, &cache->bytes_inmem_ingest, memory_footprint, "WT_CACHE.bytes_inmem_ingest");
+        else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            __wt_cache_decr_check_uint64(
+              session, &cache->bytes_inmem_stable, memory_footprint, "WT_CACHE.bytes_inmem_stable");
+    }
+
+    /* Update the bytes_internal value to reflect the eviction */
+    if (WT_PAGE_IS_INTERNAL(page)) {
+        __wt_cache_decr_check_uint64(
+          session, &btree->bytes_internal, memory_footprint, "WT_BTREE.bytes_internal");
+        __wt_cache_decr_check_uint64(
+          session, &cache->bytes_internal, memory_footprint, "WT_CACHE.bytes_internal");
+        if (is_disagg) {
+            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+                __wt_cache_decr_check_uint64(session, &cache->bytes_internal_ingest,
+                  memory_footprint, "WT_CACHE.bytes_internal_ingest");
+            else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                __wt_cache_decr_check_uint64(session, &cache->bytes_internal_stable,
+                  memory_footprint, "WT_CACHE.bytes_internal_stable");
+        }
+    }
+
+    /* Update the cache's dirty-byte count. */
+    if (modify != NULL && modify->bytes_dirty != 0) {
+        if (WT_PAGE_IS_INTERNAL(page)) {
+            __wt_cache_decr_check_uint64(
+              session, &btree->bytes_dirty_intl, modify->bytes_dirty, "WT_BTREE.bytes_dirty_intl");
+            __wt_cache_decr_check_uint64(
+              session, &cache->bytes_dirty_intl, modify->bytes_dirty, "WT_CACHE.bytes_dirty_intl");
+            if (is_disagg) {
+                if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+                    __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_intl_ingest,
+                      modify->bytes_dirty, "WT_CACHE.bytes_dirty_intl_ingest");
+                else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                    __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_intl_stable,
+                      modify->bytes_dirty, "WT_CACHE.bytes_dirty_intl_stable");
+            }
+        } else {
+            __wt_cache_decr_check_uint64(
+              session, &btree->bytes_dirty_leaf, modify->bytes_dirty, "WT_BTREE.bytes_dirty_leaf");
+            __wt_cache_decr_check_uint64(
+              session, &cache->bytes_dirty_leaf, modify->bytes_dirty, "WT_CACHE.bytes_dirty_leaf");
+            if (is_disagg) {
+                if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+                    __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_leaf_ingest,
+                      modify->bytes_dirty, "WT_CACHE.bytes_dirty_leaf_ingest");
+                else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                    __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_leaf_stable,
+                      modify->bytes_dirty, "WT_CACHE.bytes_dirty_leaf_stable");
+            }
+        }
+    }
+
+    /* Update the cache's updates-byte count. */
+    if (modify != NULL) {
+        __wt_cache_decr_check_uint64(
+          session, &btree->bytes_updates, modify->bytes_updates, "WT_BTREE.bytes_updates");
+        __wt_cache_decr_check_uint64(
+          session, &cache->bytes_updates, modify->bytes_updates, "WT_CACHE.bytes_updates");
+        if (is_disagg) {
+            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+                __wt_cache_decr_check_uint64(session, &cache->bytes_updates_ingest,
+                  modify->bytes_updates, "WT_CACHE.bytes_updates_ingest");
+            else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                __wt_cache_decr_check_uint64(session, &cache->bytes_updates_stable,
+                  modify->bytes_updates, "WT_CACHE.bytes_updates_stable");
+        }
+    }
+
+    /* Update bytes and pages evicted. */
+    (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_evict, memory_footprint);
+    (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted, 1);
+    if (is_disagg) {
+        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+            (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted_ingest, 1);
+        else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted_stable, 1);
+    }
+
+    if (!F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_NO_PROGRESS))
+        (void)__wt_atomic_add_uint64_v(&WT_EVICT_RANDLRU(S2C(session)->evict)->eviction_progress, 1);
+}
+
+/*
+ * __wt_evict_randlru_clear_npos --
+ *     Clear a btree's eviction position for LRU.
+ */
+void
+__wt_evict_randlru_clear_npos(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    WT_UNUSED(evict);
+    WT_UNUSED(session);
+    WT_BTREE_EVICT_RANDLRU(btree)->evict_pos = WT_NPOS_INVALID;
+    WT_BTREE_EVICT_RANDLRU(btree)->evict_saved_ref_check = 0;
 }
