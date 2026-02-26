@@ -171,6 +171,7 @@ class WiredTigerCursor:
         # Close the cursor
         if self.cursor is not None:
             self.cursor.close()
+
 class WiredTigerStat:
     def __init__(self, session, uri = None):
         self.uri = 'statistics:'
@@ -178,8 +179,7 @@ class WiredTigerStat:
 
     def __enter__(self):
         # Get a statistics cursor
-        self.stat_cursor = self.cursor_wrapper.__enter__()
-        return self.stat_cursor
+        return self.cursor_wrapper.__enter__()
 
     def __exit__(self, exception_type, exception_value, exception_traceback):
         # Close the statistics cursor
