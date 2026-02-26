@@ -483,7 +483,7 @@ __checkpoint_reconcile_thread_commit(WT_SESSION_IMPL *session, WT_THREAD *thread
 }
 
 /*
- * __checkpoint_reconcile_commit --
+ * __wti_checkpoint_reconcile_commit --
  *     Commit all transactions for the checkpoint page reconciliation workers.
  */
 int
