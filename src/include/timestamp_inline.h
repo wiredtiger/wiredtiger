@@ -292,7 +292,8 @@
 
 /*
  * __wt_get_stable_timestamp --
- *     Return the stable timestamp with acquire memory ordering guarantees.
+ *     Return the stable timestamp with acquire memory ordering guarantees. This function is also
+ *     used in contexts where the synchronization is not required, for simplicity.
  */
 static WT_INLINE wt_timestamp_t
 __wt_get_stable_timestamp(WT_SESSION_IMPL *session)
@@ -301,6 +302,6 @@ __wt_get_stable_timestamp(WT_SESSION_IMPL *session)
 
     txn_global = &S2C(session)->txn_global;
     return (__wt_atomic_load_bool_acquire(&txn_global->has_stable_timestamp) ?
-        __wt_atomic_load_uint64_acquire(&txn_global->stable_timestamp) :
+        __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp) :
         txn_global->recovery_timestamp);
 }
