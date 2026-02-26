@@ -1502,6 +1502,11 @@ extern int __wti_disagg_debug_mode_config(WT_SESSION_IMPL *session, const char *
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_disagg_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_disagg_fetch_shared_meta(
+  WT_SESSION_IMPL *session, const WT_DISAGG_CHECKPOINT_META *ckpt_meta, WT_ITEM *item)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_disagg_load_crypt_key(WT_SESSION_IMPL *session, WT_DISAGG_METADATA *metadata)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_disagg_parse_crypt_meta(
   WT_SESSION_IMPL *session, const WT_DISAGG_METADATA *metadata, uint64_t *page_idp, uint64_t *lsnp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1522,6 +1527,9 @@ extern int __wti_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool r
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_layered_drain_ingest_tables(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_layered_get_disagg_checkpoint(WT_SESSION_IMPL *session, const char **cfg,
+  uint64_t *complete_checkpoint_lsn, uint64_t *complete_checkpoint_timestamp,
+  WT_ITEM *complete_checkpoint_metadata) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_layered_iterate_ingest_tables_for_gc_pruning(WT_SESSION_IMPL *session,
   wt_timestamp_t checkpoint_timestamp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_layered_table_manager_destroy(WT_SESSION_IMPL *session)
