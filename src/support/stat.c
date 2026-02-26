@@ -13,7 +13,7 @@ static const char *const __stats_dsrc_desc[] = {
   "block-disagg: Disaggregated block manager get cold page",
   "block-disagg: Disaggregated block manager get from the shared history store in SLS",
   "block-disagg: Disaggregated block manager page discard calls",
-  "block-disagg: Disaggregated block manager put ",
+  "block-disagg: Disaggregated block manager put",
   "block-disagg: Disaggregated block manager put cold page",
   "block-disagg: Disaggregated block manager put to the shared history store in SLS",
   "block-disagg: Disaggregated block manager read ahead of materialization frontier",
@@ -203,7 +203,7 @@ static const char *const __stats_dsrc_desc[] = {
   "checkpoint: pages skipped during checkpoint cleanup tree walk",
   "checkpoint: pages visited during checkpoint cleanup",
   "compression: compressed page maximum internal page size prior to compression",
-  "compression: compressed page maximum leaf page size prior to compression ",
+  "compression: compressed page maximum leaf page size prior to compression",
   "compression: page written to disk failed to compress",
   "compression: page written to disk was too small to compress",
   "compression: pages read from disk",
@@ -364,12 +364,12 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: page reconciliation calls for pages between 100MB and 1GB",
   "reconciliation: page reconciliation calls for pages over 1GB",
   "reconciliation: pages deleted",
-  "reconciliation: pages written including an aggregated newest start durable timestamp ",
-  "reconciliation: pages written including an aggregated newest stop durable timestamp ",
-  "reconciliation: pages written including an aggregated newest stop timestamp ",
+  "reconciliation: pages written including an aggregated newest start durable timestamp",
+  "reconciliation: pages written including an aggregated newest stop durable timestamp",
+  "reconciliation: pages written including an aggregated newest stop timestamp",
   "reconciliation: pages written including an aggregated newest stop transaction ID",
-  "reconciliation: pages written including an aggregated newest transaction ID ",
-  "reconciliation: pages written including an aggregated oldest start timestamp ",
+  "reconciliation: pages written including an aggregated newest transaction ID",
+  "reconciliation: pages written including an aggregated oldest start timestamp",
   "reconciliation: pages written including an aggregated prepare",
   "reconciliation: pages written including at least one prepare state",
   "reconciliation: pages written including at least one start durable timestamp",
@@ -1834,7 +1834,7 @@ static const char *const __stats_connection_desc[] = {
   "block-disagg: Disaggregated block manager get cold page",
   "block-disagg: Disaggregated block manager get from the shared history store in SLS",
   "block-disagg: Disaggregated block manager page discard calls",
-  "block-disagg: Disaggregated block manager put ",
+  "block-disagg: Disaggregated block manager put",
   "block-disagg: Disaggregated block manager put cold page",
   "block-disagg: Disaggregated block manager put to the shared history store in SLS",
   "block-disagg: Disaggregated block manager read ahead of materialization frontier",
@@ -2657,12 +2657,12 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: page reconciliation calls that resulted in values with timestamps",
   "reconciliation: page reconciliation calls that resulted in values with transaction ids",
   "reconciliation: pages deleted",
-  "reconciliation: pages written including an aggregated newest start durable timestamp ",
-  "reconciliation: pages written including an aggregated newest stop durable timestamp ",
-  "reconciliation: pages written including an aggregated newest stop timestamp ",
+  "reconciliation: pages written including an aggregated newest start durable timestamp",
+  "reconciliation: pages written including an aggregated newest stop durable timestamp",
+  "reconciliation: pages written including an aggregated newest stop timestamp",
   "reconciliation: pages written including an aggregated newest stop transaction ID",
-  "reconciliation: pages written including an aggregated newest transaction ID ",
-  "reconciliation: pages written including an aggregated oldest start timestamp ",
+  "reconciliation: pages written including an aggregated newest transaction ID",
+  "reconciliation: pages written including an aggregated oldest start timestamp",
   "reconciliation: pages written including an aggregated prepare",
   "reconciliation: pages written including at least one prepare state",
   "reconciliation: pages written including at least one start durable timestamp",
@@ -2745,8 +2745,6 @@ static const char *const __stats_connection_desc[] = {
   "thread-yield: page reconciliation yielded due to child modification",
   "thread-yield: page split and restart read",
   "thread-yield: pages skipped during read due to deleted state",
-  "transaction:  transaction global checkpoint timestamp",
-  "transaction:  transaction global durable timestamp",
   "transaction: Number of prepared updates",
   "transaction: Number of prepared updates committed",
   "transaction: Number of prepared updates repeated on the same key",
@@ -2802,6 +2800,8 @@ static const char *const __stats_connection_desc[] = {
   "transaction: set timestamp stable updates",
   "transaction: transaction begins",
   "transaction: transaction checkpoint history store file duration (usecs)",
+  "transaction: transaction global checkpoint timestamp",
+  "transaction: transaction global durable timestamp",
   "transaction: transaction global last running timestamp",
   "transaction: transaction global newest timestamp",
   "transaction: transaction global oldest timestamp",
@@ -3782,8 +3782,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->child_modify_blocked_page = 0;
     stats->page_split_restart = 0;
     stats->page_read_skip_deleted = 0;
-    /* not clearing txn_global_checkpoint_timestamp */
-    /* not clearing txn_global_durable_timestamp */
     stats->txn_prepared_updates = 0;
     stats->txn_prepared_updates_committed = 0;
     stats->txn_prepared_updates_key_repeated = 0;
@@ -3833,6 +3831,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_set_ts_stable_upd = 0;
     stats->txn_begin = 0;
     stats->txn_hs_ckpt_duration = 0;
+    /* not clearing txn_global_checkpoint_timestamp */
+    /* not clearing txn_global_durable_timestamp */
     /* not clearing txn_global_last_running_timestamp */
     /* not clearing txn_global_newest_timestamp */
     /* not clearing txn_global_oldest_timestamp */
@@ -5040,8 +5040,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->child_modify_blocked_page += WT_STAT_CONN_READ(from, child_modify_blocked_page);
     to->page_split_restart += WT_STAT_CONN_READ(from, page_split_restart);
     to->page_read_skip_deleted += WT_STAT_CONN_READ(from, page_read_skip_deleted);
-    to->txn_global_checkpoint_timestamp += WT_STAT_CONN_READ(from, txn_global_checkpoint_timestamp);
-    to->txn_global_durable_timestamp += WT_STAT_CONN_READ(from, txn_global_durable_timestamp);
     to->txn_prepared_updates += WT_STAT_CONN_READ(from, txn_prepared_updates);
     to->txn_prepared_updates_committed += WT_STAT_CONN_READ(from, txn_prepared_updates_committed);
     to->txn_prepared_updates_key_repeated +=
@@ -5095,6 +5093,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_set_ts_stable_upd += WT_STAT_CONN_READ(from, txn_set_ts_stable_upd);
     to->txn_begin += WT_STAT_CONN_READ(from, txn_begin);
     to->txn_hs_ckpt_duration += WT_STAT_CONN_READ(from, txn_hs_ckpt_duration);
+    to->txn_global_checkpoint_timestamp += WT_STAT_CONN_READ(from, txn_global_checkpoint_timestamp);
+    to->txn_global_durable_timestamp += WT_STAT_CONN_READ(from, txn_global_durable_timestamp);
     to->txn_global_last_running_timestamp +=
       WT_STAT_CONN_READ(from, txn_global_last_running_timestamp);
     to->txn_global_newest_timestamp += WT_STAT_CONN_READ(from, txn_global_newest_timestamp);
