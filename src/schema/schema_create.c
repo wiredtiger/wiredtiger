@@ -668,9 +668,10 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
         WT_ERR(__wt_config_collapse(session, cfg, &cgconf));
 
         /* FIXME-WT-12021 Replace this with a proper failpoint once the framework is available. */
-        if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CRASH_POINT_COLGROUP)) {
+        if (FLD_ISSET(
+              S2C(session)->debug_flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP)) {
             __wt_verbose_warning(session, WT_VERB_DEFAULT,
-              "Simulating a crash before inserting column group metadata entry '%s'", name);
+              "Simulating a crash before inserting the column group metadata entry '%s'", name);
             /* Wait for the file metadata entry to be persisted. */
             __wt_sleep(2, 0);
             __wt_abort(session);
@@ -1018,6 +1019,16 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
         WT_ERR(__wt_metadata_insert(session, uri, tmp->mem));
     } else
         WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
+
+    /* FIXME-WT-12021 Replace this with a proper failpoint once the framework is available. */
+    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE)) {
+        __wt_verbose_warning(session, WT_VERB_DEFAULT,
+          "Simulating a crash before inserting the file and colgroup metadata entries for '%s'",
+          uri);
+        /* Wait for the table metadata entry to be persisted. */
+        __wt_sleep(2, 0);
+        __wt_abort(session);
+    }
 
     if (ncolgroups == 0) {
         len = strlen("colgroup:") + strlen(tablename) + 1;

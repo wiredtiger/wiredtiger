@@ -847,15 +847,17 @@ static int
 __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *config)
 {
     WT_DECL_RET;
-    char *cg_meta_value;
+    char *cg_meta_value, *file_meta_value;
     const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
     const char *metadata_cfg[] = {config, NULL};
     const char *name;
     WT_CONFIG_ITEM cval;
-    WT_ITEM *colgroup;
+    WT_ITEM *colgroup_buf, *file_uri_buf;
+    bool colgroup_exists, file_exists;
 
-    cg_meta_value = NULL;
-    WT_ERR(__wt_scr_alloc(r->session, 0, &colgroup));
+    cg_meta_value = file_meta_value = NULL;
+    WT_ERR(__wt_scr_alloc(r->session, 0, &colgroup_buf));
+    WT_ERR(__wt_scr_alloc(r->session, 0, &file_uri_buf));
     /*
      * FIXME-WT-16146: Add capability for cleaning up incomplete complex tables and skip checking
      * tiered shared tables.
@@ -867,26 +869,36 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
         goto done;
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    /* Check whether the colgroup exists. */
     name = uri;
     WT_PREFIX_SKIP_REQUIRED(r->session, name, "table:");
-    WT_ERR(__wt_buf_fmt(r->session, colgroup, "colgroup:%s", name));
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(r->session, colgroup->data, &cg_meta_value), true);
-    if (ret == 0)
-        goto done;
 
-    __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING, "%s %s",
-      "removing incomplete table", uri);
+    /* Check whether the colgroup exists. */
+    WT_ERR(__wt_buf_fmt(r->session, colgroup_buf, "colgroup:%s", name));
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(r->session, colgroup_buf->data, &cg_meta_value), true);
+    colgroup_exists = ret == 0;
 
-    WT_WITH_SCHEMA_LOCK(r->session,
-      WT_WITH_TABLE_WRITE_LOCK(
-        r->session, ret = __wt_schema_drop(r->session, uri, drop_cfg, false)));
-    WT_ERR(ret);
+    /* Check whether the file exists. */
+    WT_ERR(__wt_buf_fmt(r->session, file_uri_buf, "file:%s.wt", name));
+    WT_ERR_NOTFOUND_OK(
+      __wt_metadata_search(r->session, file_uri_buf->data, &file_meta_value), true);
+    file_exists = ret == 0;
+
+    if (!colgroup_exists || !file_exists) {
+        __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING, "%s %s",
+          "removing incomplete table", uri);
+
+        WT_WITH_SCHEMA_LOCK(r->session,
+          WT_WITH_TABLE_WRITE_LOCK(
+            r->session, ret = __wt_schema_drop(r->session, uri, drop_cfg, false)));
+        WT_ERR(ret);
+    }
 
 err:
 done:
     __wt_free(r->session, cg_meta_value);
-    __wt_scr_free(r->session, &colgroup);
+    __wt_free(r->session, file_meta_value);
+    __wt_scr_free(r->session, &colgroup_buf);
+    __wt_scr_free(r->session, &file_uri_buf);
     return (ret);
 }
 
