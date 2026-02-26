@@ -6867,7 +6867,6 @@ buildvariants:
     #   distros: ubuntu2004-large
     - name: generate-tsan-metric
     - name: generate-tsan-metric-disagg
-      distros: ubuntu2004-large
     - name: generate-tsan-metric-timestamp
     - name: generate-tsan-metric-disagg-timestamp
     - name: tsan-playground-test
