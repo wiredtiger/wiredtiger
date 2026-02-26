@@ -8323,78 +8323,81 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_PAGE_MODS_GT500		1801
 /*! reconciliation: cursor next/prev calls during HS wrapup search_near */
 #define	WT_STAT_CONN_REC_HS_WRAPUP_NEXT_PREV_CALLS	1802
-/*! reconciliation: delta generation rejected by build_delta */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED		1803
-/*! reconciliation: delta generation rejected due to size threshold */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_SIZE_THRESHOLD	1804
-/*! reconciliation: delta generation rejected due to zero entries */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_ZERO_ENTRIES	1805
-/*! reconciliation: delta generation skipped due to max consecutive limit */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_MAX_CONSECUTIVE_EXCEEDED	1806
 /*! reconciliation: fast-path pages deleted */
-#define	WT_STAT_CONN_REC_PAGE_DELETE_FAST		1807
+#define	WT_STAT_CONN_REC_PAGE_DELETE_FAST		1803
 /*!
  * reconciliation: free page ID due to failed page replacement
  * reconciliation in disagg
  */
-#define	WT_STAT_CONN_REC_FREE_PAGE_ID_DUE_TO_FAILED_REPLACEMENT_RECONCILIATION	1808
+#define	WT_STAT_CONN_REC_FREE_PAGE_ID_DUE_TO_FAILED_REPLACEMENT_RECONCILIATION	1804
 /*! reconciliation: full internal pages written instead of a page delta */
-#define	WT_STAT_CONN_REC_PAGE_FULL_IMAGE_INTERNAL	1809
+#define	WT_STAT_CONN_REC_PAGE_FULL_IMAGE_INTERNAL	1805
 /*! reconciliation: full leaf pages written instead of a page delta */
-#define	WT_STAT_CONN_REC_PAGE_FULL_IMAGE_LEAF		1810
+#define	WT_STAT_CONN_REC_PAGE_FULL_IMAGE_LEAF		1806
 /*!
  * reconciliation: ingest btree reconciliation keeps the aborted prepare
  * updates
  */
-#define	WT_STAT_CONN_REC_INGEST_KEEP_PREPARE_ROLLBACK	1811
+#define	WT_STAT_CONN_REC_INGEST_KEEP_PREPARE_ROLLBACK	1807
 /*! reconciliation: internal page delta keys deleted */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_INTERNAL_KEY_DELETED	1812
+#define	WT_STAT_CONN_REC_PAGE_DELTA_INTERNAL_KEY_DELETED	1808
 /*! reconciliation: internal page delta keys updated/inserted */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_INTERNAL_KEY_UPDATED	1813
+#define	WT_STAT_CONN_REC_PAGE_DELTA_INTERNAL_KEY_UPDATED	1809
 /*! reconciliation: internal page deltas written */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_INTERNAL		1814
+#define	WT_STAT_CONN_REC_PAGE_DELTA_INTERNAL		1810
 /*! reconciliation: internal page multi-block writes */
-#define	WT_STAT_CONN_REC_MULTIBLOCK_INTERNAL		1815
+#define	WT_STAT_CONN_REC_MULTIBLOCK_INTERNAL		1811
 /*! reconciliation: leaf page deltas written */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_LEAF		1816
+#define	WT_STAT_CONN_REC_PAGE_DELTA_LEAF		1812
 /*! reconciliation: leaf page multi-block writes */
-#define	WT_STAT_CONN_REC_MULTIBLOCK_LEAF		1817
+#define	WT_STAT_CONN_REC_MULTIBLOCK_LEAF		1813
 /*! reconciliation: leaf-page overflow keys */
-#define	WT_STAT_CONN_REC_OVERFLOW_KEY_LEAF		1818
+#define	WT_STAT_CONN_REC_OVERFLOW_KEY_LEAF		1814
 /*! reconciliation: max deltas seen on internal page during reconciliation */
-#define	WT_STAT_CONN_REC_MAX_INTERNAL_PAGE_DELTAS	1819
+#define	WT_STAT_CONN_REC_MAX_INTERNAL_PAGE_DELTAS	1815
 /*! reconciliation: max deltas seen on leaf page during reconciliation */
-#define	WT_STAT_CONN_REC_MAX_LEAF_PAGE_DELTAS		1820
+#define	WT_STAT_CONN_REC_MAX_LEAF_PAGE_DELTAS		1816
 /*! reconciliation: maximum milliseconds spent in a reconciliation call */
-#define	WT_STAT_CONN_REC_MAXIMUM_MILLISECONDS		1821
+#define	WT_STAT_CONN_REC_MAXIMUM_MILLISECONDS		1817
 /*!
  * reconciliation: maximum milliseconds spent in building a disk image in
  * a reconciliation
  */
-#define	WT_STAT_CONN_REC_MAXIMUM_IMAGE_BUILD_MILLISECONDS	1822
+#define	WT_STAT_CONN_REC_MAXIMUM_IMAGE_BUILD_MILLISECONDS	1818
 /*!
  * reconciliation: maximum milliseconds spent in moving updates to the
  * history store in a reconciliation
  */
-#define	WT_STAT_CONN_REC_MAXIMUM_HS_WRAPUP_MILLISECONDS	1823
+#define	WT_STAT_CONN_REC_MAXIMUM_HS_WRAPUP_MILLISECONDS	1819
 /*!
  * reconciliation: number of keys that are garbage collected form the
  * disk images in the ingest btrees for disaggregated storage
  */
-#define	WT_STAT_CONN_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE	1824
+#define	WT_STAT_CONN_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE	1820
 /*!
  * reconciliation: number of keys that are garbage collected form the
  * update chains in the ingest btrees for disaggregated storage
  */
-#define	WT_STAT_CONN_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN	1825
+#define	WT_STAT_CONN_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN	1821
 /*! reconciliation: overflow values written */
-#define	WT_STAT_CONN_REC_OVERFLOW_VALUE			1826
+#define	WT_STAT_CONN_REC_OVERFLOW_VALUE			1822
 /*! reconciliation: page deltas rejected due to invalid page ID */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID	1827
+#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID	1823
+/*! reconciliation: page deltas rejected due to max consecutive limit */
+#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED	1824
 /*! reconciliation: page deltas rejected due to multiblock reconciliation */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_MULTIBLOCK	1828
+#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_MULTIBLOCK	1825
 /*! reconciliation: page deltas rejected due to non-single page result */
-#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_NON_SINGLE_PAGE	1829
+#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_NON_SINGLE_PAGE	1826
+/*! reconciliation: page deltas rejected due to size threshold */
+#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_SIZE_THRESHOLD	1827
+/*! reconciliation: page deltas rejected due to zero entries */
+#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_ZERO_ENTRIES	1828
+/*!
+ * reconciliation: page deltas rejected: build function returned false
+ * (disabled, in-memory split, or internal page constraints not met)
+ */
+#define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_BUILD_FAILED	1829
 /*! reconciliation: page reconciliation calls */
 #define	WT_STAT_CONN_REC_PAGES				1830
 /*! reconciliation: page reconciliation calls for eviction */
@@ -9803,85 +9806,88 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_PAGE_MODS_GT500		2311
 /*! reconciliation: cursor next/prev calls during HS wrapup search_near */
 #define	WT_STAT_DSRC_REC_HS_WRAPUP_NEXT_PREV_CALLS	2312
-/*! reconciliation: delta generation rejected by build_delta */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED		2313
-/*! reconciliation: delta generation rejected due to size threshold */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_SIZE_THRESHOLD	2314
-/*! reconciliation: delta generation rejected due to zero entries */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_ZERO_ENTRIES	2315
-/*! reconciliation: delta generation skipped due to max consecutive limit */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_MAX_CONSECUTIVE_EXCEEDED	2316
 /*! reconciliation: dictionary matches */
-#define	WT_STAT_DSRC_REC_DICTIONARY			2317
+#define	WT_STAT_DSRC_REC_DICTIONARY			2313
 /*! reconciliation: fast-path pages deleted */
-#define	WT_STAT_DSRC_REC_PAGE_DELETE_FAST		2318
+#define	WT_STAT_DSRC_REC_PAGE_DELETE_FAST		2314
 /*!
  * reconciliation: free page ID due to failed page replacement
  * reconciliation in disagg
  */
-#define	WT_STAT_DSRC_REC_FREE_PAGE_ID_DUE_TO_FAILED_REPLACEMENT_RECONCILIATION	2319
+#define	WT_STAT_DSRC_REC_FREE_PAGE_ID_DUE_TO_FAILED_REPLACEMENT_RECONCILIATION	2315
 /*! reconciliation: full internal pages written instead of a page delta */
-#define	WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_INTERNAL	2320
+#define	WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_INTERNAL	2316
 /*! reconciliation: full leaf pages written instead of a page delta */
-#define	WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_LEAF		2321
+#define	WT_STAT_DSRC_REC_PAGE_FULL_IMAGE_LEAF		2317
 /*!
  * reconciliation: ingest btree reconciliation keeps the aborted prepare
  * updates
  */
-#define	WT_STAT_DSRC_REC_INGEST_KEEP_PREPARE_ROLLBACK	2322
+#define	WT_STAT_DSRC_REC_INGEST_KEEP_PREPARE_ROLLBACK	2318
 /*! reconciliation: internal page delta keys deleted */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL_KEY_DELETED	2323
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL_KEY_DELETED	2319
 /*! reconciliation: internal page delta keys updated/inserted */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL_KEY_UPDATED	2324
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL_KEY_UPDATED	2320
 /*! reconciliation: internal page deltas written */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL		2325
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_INTERNAL		2321
 /*!
  * reconciliation: internal page key bytes discarded using suffix
  * compression
  */
-#define	WT_STAT_DSRC_REC_SUFFIX_COMPRESSION		2326
+#define	WT_STAT_DSRC_REC_SUFFIX_COMPRESSION		2322
 /*! reconciliation: internal page multi-block writes */
-#define	WT_STAT_DSRC_REC_MULTIBLOCK_INTERNAL		2327
+#define	WT_STAT_DSRC_REC_MULTIBLOCK_INTERNAL		2323
 /*!
  * reconciliation: leaf delta page key bytes discarded using prefix
  * compression
  */
-#define	WT_STAT_DSRC_REC_PREFIX_COMPRESSION_DELTA	2328
+#define	WT_STAT_DSRC_REC_PREFIX_COMPRESSION_DELTA	2324
 /*!
  * reconciliation: leaf full page key bytes discarded using prefix
  * compression
  */
-#define	WT_STAT_DSRC_REC_PREFIX_COMPRESSION_FULL	2329
+#define	WT_STAT_DSRC_REC_PREFIX_COMPRESSION_FULL	2325
 /*! reconciliation: leaf page deltas written */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_LEAF		2330
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_LEAF		2326
 /*! reconciliation: leaf page multi-block writes */
-#define	WT_STAT_DSRC_REC_MULTIBLOCK_LEAF		2331
+#define	WT_STAT_DSRC_REC_MULTIBLOCK_LEAF		2327
 /*! reconciliation: leaf-page overflow keys */
-#define	WT_STAT_DSRC_REC_OVERFLOW_KEY_LEAF		2332
+#define	WT_STAT_DSRC_REC_OVERFLOW_KEY_LEAF		2328
 /*! reconciliation: max deltas seen on internal page during reconciliation */
-#define	WT_STAT_DSRC_REC_MAX_INTERNAL_PAGE_DELTAS	2333
+#define	WT_STAT_DSRC_REC_MAX_INTERNAL_PAGE_DELTAS	2329
 /*! reconciliation: max deltas seen on leaf page during reconciliation */
-#define	WT_STAT_DSRC_REC_MAX_LEAF_PAGE_DELTAS		2334
+#define	WT_STAT_DSRC_REC_MAX_LEAF_PAGE_DELTAS		2330
 /*! reconciliation: maximum blocks required for a page */
-#define	WT_STAT_DSRC_REC_MULTIBLOCK_MAX			2335
+#define	WT_STAT_DSRC_REC_MULTIBLOCK_MAX			2331
 /*!
  * reconciliation: number of keys that are garbage collected form the
  * disk images in the ingest btrees for disaggregated storage
  */
-#define	WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE	2336
+#define	WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_DISK_IMAGE	2332
 /*!
  * reconciliation: number of keys that are garbage collected form the
  * update chains in the ingest btrees for disaggregated storage
  */
-#define	WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN	2337
+#define	WT_STAT_DSRC_REC_INGEST_GARBAGE_COLLECTION_KEYS_UPDATE_CHAIN	2333
 /*! reconciliation: overflow values written */
-#define	WT_STAT_DSRC_REC_OVERFLOW_VALUE			2338
+#define	WT_STAT_DSRC_REC_OVERFLOW_VALUE			2334
 /*! reconciliation: page deltas rejected due to invalid page ID */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID	2339
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_INVALID_PAGE_ID	2335
+/*! reconciliation: page deltas rejected due to max consecutive limit */
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED	2336
 /*! reconciliation: page deltas rejected due to multiblock reconciliation */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MULTIBLOCK	2340
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MULTIBLOCK	2337
 /*! reconciliation: page deltas rejected due to non-single page result */
-#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_NON_SINGLE_PAGE	2341
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_NON_SINGLE_PAGE	2338
+/*! reconciliation: page deltas rejected due to size threshold */
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_SIZE_THRESHOLD	2339
+/*! reconciliation: page deltas rejected due to zero entries */
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_ZERO_ENTRIES	2340
+/*!
+ * reconciliation: page deltas rejected: build function returned false
+ * (disabled, in-memory split, or internal page constraints not met)
+ */
+#define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_BUILD_FAILED	2341
 /*! reconciliation: page reconciliation calls */
 #define	WT_STAT_DSRC_REC_PAGES				2342
 /*! reconciliation: page reconciliation calls for eviction */

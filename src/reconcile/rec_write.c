@@ -2488,9 +2488,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
               !F_ISSET_ATOMIC_16(r->page, WT_PAGE_INMEM_SPLIT))
                 skip_write = true;
             else if (delta_enabled) {
-                if (block_meta->delta_count >= conn->page_delta.max_consecutive_delta)
-                    WT_STAT_CONN_INCR(session, rec_page_delta_max_consecutive_exceeded);
-                else {
+                if (block_meta->delta_count < conn->page_delta.max_consecutive_delta) {
                     WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
                     /*
                      * Discard the delta if it is larger than the configured percentage of the size
@@ -2510,8 +2508,9 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                             build_delta = false;
                         }
                     } else
-                        WT_STAT_CONN_INCR(session, rec_page_delta_rejected);
-                }
+                        WT_STAT_CONN_INCR(session, rec_page_delta_rejected_build_failed);
+                } else
+                    WT_STAT_CONN_INCR(session, rec_page_delta_rejected_max_consecutive_exceeded);
             }
         } else if (delta_enabled) {
             /* Track stats for why we can't write deltas for this page */

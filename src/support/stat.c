@@ -333,10 +333,6 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: changes since prior reconciliation (bucket 7) between 201 and 500",
   "reconciliation: changes since prior reconciliation (bucket 8) greater than 500",
   "reconciliation: cursor next/prev calls during HS wrapup search_near",
-  "reconciliation: delta generation rejected by build_delta",
-  "reconciliation: delta generation rejected due to size threshold",
-  "reconciliation: delta generation rejected due to zero entries",
-  "reconciliation: delta generation skipped due to max consecutive limit",
   "reconciliation: dictionary matches",
   "reconciliation: fast-path pages deleted",
   "reconciliation: free page ID due to failed page replacement reconciliation in disagg",
@@ -362,8 +358,13 @@ static const char *const __stats_dsrc_desc[] = {
   "btrees for disaggregated storage",
   "reconciliation: overflow values written",
   "reconciliation: page deltas rejected due to invalid page ID",
+  "reconciliation: page deltas rejected due to max consecutive limit",
   "reconciliation: page deltas rejected due to multiblock reconciliation",
   "reconciliation: page deltas rejected due to non-single page result",
+  "reconciliation: page deltas rejected due to size threshold",
+  "reconciliation: page deltas rejected due to zero entries",
+  "reconciliation: page deltas rejected: build function returned false (disabled, in-memory split, "
+  "or internal page constraints not met)",
   "reconciliation: page reconciliation calls",
   "reconciliation: page reconciliation calls for eviction",
   "reconciliation: page reconciliation calls for pages between 1 and 10MB",
@@ -777,10 +778,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_page_mods_le500 = 0;
     stats->rec_page_mods_gt500 = 0;
     stats->rec_hs_wrapup_next_prev_calls = 0;
-    stats->rec_page_delta_rejected = 0;
-    stats->rec_page_delta_rejected_size_threshold = 0;
-    stats->rec_page_delta_rejected_zero_entries = 0;
-    stats->rec_page_delta_max_consecutive_exceeded = 0;
     stats->rec_dictionary = 0;
     stats->rec_page_delete_fast = 0;
     stats->rec_free_page_id_due_to_failed_replacement_reconciliation = 0;
@@ -804,8 +801,12 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_ingest_garbage_collection_keys_update_chain = 0;
     stats->rec_overflow_value = 0;
     stats->rec_page_delta_rejected_invalid_page_id = 0;
+    stats->rec_page_delta_rejected_max_consecutive_exceeded = 0;
     stats->rec_page_delta_rejected_multiblock = 0;
     stats->rec_page_delta_rejected_non_single_page = 0;
+    stats->rec_page_delta_rejected_size_threshold = 0;
+    stats->rec_page_delta_rejected_zero_entries = 0;
+    stats->rec_page_delta_rejected_build_failed = 0;
     stats->rec_pages = 0;
     stats->rec_pages_eviction = 0;
     stats->rec_pages_size_1MB_to_10MB = 0;
@@ -1223,10 +1224,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_page_mods_le500 += from->rec_page_mods_le500;
     to->rec_page_mods_gt500 += from->rec_page_mods_gt500;
     to->rec_hs_wrapup_next_prev_calls += from->rec_hs_wrapup_next_prev_calls;
-    to->rec_page_delta_rejected += from->rec_page_delta_rejected;
-    to->rec_page_delta_rejected_size_threshold += from->rec_page_delta_rejected_size_threshold;
-    to->rec_page_delta_rejected_zero_entries += from->rec_page_delta_rejected_zero_entries;
-    to->rec_page_delta_max_consecutive_exceeded += from->rec_page_delta_max_consecutive_exceeded;
     to->rec_dictionary += from->rec_dictionary;
     to->rec_page_delete_fast += from->rec_page_delete_fast;
     to->rec_free_page_id_due_to_failed_replacement_reconciliation +=
@@ -1254,8 +1251,13 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->rec_ingest_garbage_collection_keys_update_chain;
     to->rec_overflow_value += from->rec_overflow_value;
     to->rec_page_delta_rejected_invalid_page_id += from->rec_page_delta_rejected_invalid_page_id;
+    to->rec_page_delta_rejected_max_consecutive_exceeded +=
+      from->rec_page_delta_rejected_max_consecutive_exceeded;
     to->rec_page_delta_rejected_multiblock += from->rec_page_delta_rejected_multiblock;
     to->rec_page_delta_rejected_non_single_page += from->rec_page_delta_rejected_non_single_page;
+    to->rec_page_delta_rejected_size_threshold += from->rec_page_delta_rejected_size_threshold;
+    to->rec_page_delta_rejected_zero_entries += from->rec_page_delta_rejected_zero_entries;
+    to->rec_page_delta_rejected_build_failed += from->rec_page_delta_rejected_build_failed;
     to->rec_pages += from->rec_pages;
     to->rec_pages_eviction += from->rec_pages_eviction;
     to->rec_pages_size_1MB_to_10MB += from->rec_pages_size_1MB_to_10MB;
@@ -1708,13 +1710,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_page_mods_le500 += WT_STAT_DSRC_READ(from, rec_page_mods_le500);
     to->rec_page_mods_gt500 += WT_STAT_DSRC_READ(from, rec_page_mods_gt500);
     to->rec_hs_wrapup_next_prev_calls += WT_STAT_DSRC_READ(from, rec_hs_wrapup_next_prev_calls);
-    to->rec_page_delta_rejected += WT_STAT_DSRC_READ(from, rec_page_delta_rejected);
-    to->rec_page_delta_rejected_size_threshold +=
-      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_size_threshold);
-    to->rec_page_delta_rejected_zero_entries +=
-      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_zero_entries);
-    to->rec_page_delta_max_consecutive_exceeded +=
-      WT_STAT_DSRC_READ(from, rec_page_delta_max_consecutive_exceeded);
     to->rec_dictionary += WT_STAT_DSRC_READ(from, rec_dictionary);
     to->rec_page_delete_fast += WT_STAT_DSRC_READ(from, rec_page_delete_fast);
     to->rec_free_page_id_due_to_failed_replacement_reconciliation +=
@@ -1746,10 +1741,18 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_overflow_value += WT_STAT_DSRC_READ(from, rec_overflow_value);
     to->rec_page_delta_rejected_invalid_page_id +=
       WT_STAT_DSRC_READ(from, rec_page_delta_rejected_invalid_page_id);
+    to->rec_page_delta_rejected_max_consecutive_exceeded +=
+      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_max_consecutive_exceeded);
     to->rec_page_delta_rejected_multiblock +=
       WT_STAT_DSRC_READ(from, rec_page_delta_rejected_multiblock);
     to->rec_page_delta_rejected_non_single_page +=
       WT_STAT_DSRC_READ(from, rec_page_delta_rejected_non_single_page);
+    to->rec_page_delta_rejected_size_threshold +=
+      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_size_threshold);
+    to->rec_page_delta_rejected_zero_entries +=
+      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_zero_entries);
+    to->rec_page_delta_rejected_build_failed +=
+      WT_STAT_DSRC_READ(from, rec_page_delta_rejected_build_failed);
     to->rec_pages += WT_STAT_DSRC_READ(from, rec_pages);
     to->rec_pages_eviction += WT_STAT_DSRC_READ(from, rec_pages_eviction);
     to->rec_pages_size_1MB_to_10MB += WT_STAT_DSRC_READ(from, rec_pages_size_1MB_to_10MB);
@@ -2661,10 +2664,6 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: changes since prior reconciliation (bucket 7) between 201 and 500",
   "reconciliation: changes since prior reconciliation (bucket 8) greater than 500",
   "reconciliation: cursor next/prev calls during HS wrapup search_near",
-  "reconciliation: delta generation rejected by build_delta",
-  "reconciliation: delta generation rejected due to size threshold",
-  "reconciliation: delta generation rejected due to zero entries",
-  "reconciliation: delta generation skipped due to max consecutive limit",
   "reconciliation: fast-path pages deleted",
   "reconciliation: free page ID due to failed page replacement reconciliation in disagg",
   "reconciliation: full internal pages written instead of a page delta",
@@ -2689,8 +2688,13 @@ static const char *const __stats_connection_desc[] = {
   "btrees for disaggregated storage",
   "reconciliation: overflow values written",
   "reconciliation: page deltas rejected due to invalid page ID",
+  "reconciliation: page deltas rejected due to max consecutive limit",
   "reconciliation: page deltas rejected due to multiblock reconciliation",
   "reconciliation: page deltas rejected due to non-single page result",
+  "reconciliation: page deltas rejected due to size threshold",
+  "reconciliation: page deltas rejected due to zero entries",
+  "reconciliation: page deltas rejected: build function returned false (disabled, in-memory split, "
+  "or internal page constraints not met)",
   "reconciliation: page reconciliation calls",
   "reconciliation: page reconciliation calls for eviction",
   "reconciliation: page reconciliation calls for pages between 1 and 10MB",
@@ -3710,10 +3714,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_page_mods_le500 = 0;
     stats->rec_page_mods_gt500 = 0;
     stats->rec_hs_wrapup_next_prev_calls = 0;
-    stats->rec_page_delta_rejected = 0;
-    stats->rec_page_delta_rejected_size_threshold = 0;
-    stats->rec_page_delta_rejected_zero_entries = 0;
-    stats->rec_page_delta_max_consecutive_exceeded = 0;
     stats->rec_page_delete_fast = 0;
     stats->rec_free_page_id_due_to_failed_replacement_reconciliation = 0;
     stats->rec_page_full_image_internal = 0;
@@ -3735,8 +3735,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_ingest_garbage_collection_keys_update_chain = 0;
     stats->rec_overflow_value = 0;
     stats->rec_page_delta_rejected_invalid_page_id = 0;
+    stats->rec_page_delta_rejected_max_consecutive_exceeded = 0;
     stats->rec_page_delta_rejected_multiblock = 0;
     stats->rec_page_delta_rejected_non_single_page = 0;
+    stats->rec_page_delta_rejected_size_threshold = 0;
+    stats->rec_page_delta_rejected_zero_entries = 0;
+    stats->rec_page_delta_rejected_build_failed = 0;
     stats->rec_pages = 0;
     stats->rec_pages_eviction = 0;
     stats->rec_pages_size_1MB_to_10MB = 0;
@@ -4950,13 +4954,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_page_mods_le500 += WT_STAT_CONN_READ(from, rec_page_mods_le500);
     to->rec_page_mods_gt500 += WT_STAT_CONN_READ(from, rec_page_mods_gt500);
     to->rec_hs_wrapup_next_prev_calls += WT_STAT_CONN_READ(from, rec_hs_wrapup_next_prev_calls);
-    to->rec_page_delta_rejected += WT_STAT_CONN_READ(from, rec_page_delta_rejected);
-    to->rec_page_delta_rejected_size_threshold +=
-      WT_STAT_CONN_READ(from, rec_page_delta_rejected_size_threshold);
-    to->rec_page_delta_rejected_zero_entries +=
-      WT_STAT_CONN_READ(from, rec_page_delta_rejected_zero_entries);
-    to->rec_page_delta_max_consecutive_exceeded +=
-      WT_STAT_CONN_READ(from, rec_page_delta_max_consecutive_exceeded);
     to->rec_page_delete_fast += WT_STAT_CONN_READ(from, rec_page_delete_fast);
     to->rec_free_page_id_due_to_failed_replacement_reconciliation +=
       WT_STAT_CONN_READ(from, rec_free_page_id_due_to_failed_replacement_reconciliation);
@@ -4987,10 +4984,18 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_overflow_value += WT_STAT_CONN_READ(from, rec_overflow_value);
     to->rec_page_delta_rejected_invalid_page_id +=
       WT_STAT_CONN_READ(from, rec_page_delta_rejected_invalid_page_id);
+    to->rec_page_delta_rejected_max_consecutive_exceeded +=
+      WT_STAT_CONN_READ(from, rec_page_delta_rejected_max_consecutive_exceeded);
     to->rec_page_delta_rejected_multiblock +=
       WT_STAT_CONN_READ(from, rec_page_delta_rejected_multiblock);
     to->rec_page_delta_rejected_non_single_page +=
       WT_STAT_CONN_READ(from, rec_page_delta_rejected_non_single_page);
+    to->rec_page_delta_rejected_size_threshold +=
+      WT_STAT_CONN_READ(from, rec_page_delta_rejected_size_threshold);
+    to->rec_page_delta_rejected_zero_entries +=
+      WT_STAT_CONN_READ(from, rec_page_delta_rejected_zero_entries);
+    to->rec_page_delta_rejected_build_failed +=
+      WT_STAT_CONN_READ(from, rec_page_delta_rejected_build_failed);
     to->rec_pages += WT_STAT_CONN_READ(from, rec_pages);
     to->rec_pages_eviction += WT_STAT_CONN_READ(from, rec_pages_eviction);
     to->rec_pages_size_1MB_to_10MB += WT_STAT_CONN_READ(from, rec_pages_size_1MB_to_10MB);
