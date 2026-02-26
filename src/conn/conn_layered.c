@@ -1987,6 +1987,53 @@ err:
 }
 
 /*
+ * __disagg_mark_disagg_btrees_readonly --
+ *     Mark all open disaggregated btrees as readonly. This must be called during leader step-down
+ *     BEFORE setting leader=false to close the race window where eviction threads could attempt to
+ *     dirty pages on shared btrees after we transition to follower mode (WT-16571).
+ *
+ *     Without this, the following race is possible:
+ *       1. Leader checkpoints, producing pages with rec_result=WT_PM_REC_MULTIBLOCK.
+ *       2. Step-down sets leader=false.
+ *       3. Eviction encounters a checkpoint-split page and routes it to
+ *          __evict_page_dirty_update → __wt_split_multi → __split_parent →
+ *          __wt_page_modify_set(session, parent).
+ *       4. __wt_page_modify_set asserts !WT_BTREE_DISAGGREGATED || leader → CRASH.
+ *
+ *     By setting WT_BTREE_READONLY on all disaggregated btrees first, the readonly
+ *     guard in __wt_page_modify_set (and in __evict_review_obsolete_time_window)
+ *     causes an early return before any assertion or dirty operation.
+ */
+static void
+__disagg_mark_disagg_btrees_readonly(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+
+    conn = S2C(session);
+
+    for (dhandle = NULL;;) {
+        WT_WITH_HANDLE_LIST_READ_LOCK(session, WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
+        if (dhandle == NULL)
+            break;
+
+        /* Only care about open btree dhandles. */
+        if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
+            continue;
+
+        btree = (WT_BTREE *)dhandle->handle;
+
+        /*
+         * Mark any disaggregated btree as readonly. This prevents eviction and other threads from
+         * dirtying pages on shared (stable) btrees after we become a follower.
+         */
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            F_SET(btree, WT_BTREE_READONLY);
+    }
+}
+
+/*
  * __disagg_step_down --
  *     Step down to the follower mode.
  */
@@ -2001,6 +2048,13 @@ __disagg_step_down(WT_SESSION_IMPL *session)
 
     __wt_verbose_debug1(
       session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "Stepping down to the follower mode");
+
+    /*
+     * Mark all disaggregated btrees as readonly before setting leader=false. This closes the race
+     * window where eviction threads could encounter checkpoint-split pages on shared btrees after
+     * leader=false is set but before the connection is fully closed (WT-16571).
+     */
+    __disagg_mark_disagg_btrees_readonly(session);
 
     conn->layered_table_manager.leader = false;
     WT_STAT_CONN_SET(session, disagg_role_leader, 0);
