@@ -167,7 +167,6 @@ class WiredTigerCursor:
         return self.cursor
 
     def __exit__(self, exception_type, exception_value, exception_traceback):
-        # TODO: do something here to handle exceptions
         # Close the cursor
         if self.cursor is not None:
             self.cursor.close()
