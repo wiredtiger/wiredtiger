@@ -802,8 +802,11 @@ struct __wt_connection_stats {
     int64_t checkpoint_fsync_post;
     int64_t checkpoint_fsync_post_duration;
     int64_t checkpoint_generation;
+    int64_t checkpoint_cleanup_inmem_pages_visited;
     int64_t checkpoint_time_max;
     int64_t checkpoint_time_min;
+    int64_t checkpoint_cleanup_duration;
+    int64_t checkpoint_cleanup_handle_processed;
     int64_t checkpoint_handle_drop_duration;
     int64_t checkpoint_handle_duration;
     int64_t checkpoint_handle_apply_duration;
@@ -1226,6 +1229,7 @@ struct __wt_connection_stats {
     int64_t rec_free_page_id_due_to_failed_replacement_reconciliation;
     int64_t rec_page_full_image_internal;
     int64_t rec_page_full_image_leaf;
+    int64_t rec_ingest_keep_prepare_rollback;
     int64_t rec_page_delta_internal_key_deleted;
     int64_t rec_page_delta_internal_key_updated;
     int64_t rec_page_delta_internal;
@@ -1339,8 +1343,6 @@ struct __wt_connection_stats {
     int64_t child_modify_blocked_page;
     int64_t page_split_restart;
     int64_t page_read_skip_deleted;
-    int64_t txn_global_checkpoint_timestamp;
-    int64_t txn_global_durable_timestamp;
     int64_t txn_prepared_updates;
     int64_t txn_prepared_updates_committed;
     int64_t txn_prepared_updates_key_repeated;
@@ -1390,6 +1392,8 @@ struct __wt_connection_stats {
     int64_t txn_set_ts_stable_upd;
     int64_t txn_begin;
     int64_t txn_hs_ckpt_duration;
+    int64_t txn_global_checkpoint_timestamp;
+    int64_t txn_global_durable_timestamp;
     int64_t txn_global_last_running_timestamp;
     int64_t txn_global_newest_timestamp;
     int64_t txn_global_oldest_timestamp;
@@ -1734,6 +1738,7 @@ struct __wt_dsrc_stats {
     int64_t rec_free_page_id_due_to_failed_replacement_reconciliation;
     int64_t rec_page_full_image_internal;
     int64_t rec_page_full_image_leaf;
+    int64_t rec_ingest_keep_prepare_rollback;
     int64_t rec_page_delta_internal_key_deleted;
     int64_t rec_page_delta_internal_key_updated;
     int64_t rec_page_delta_internal;
