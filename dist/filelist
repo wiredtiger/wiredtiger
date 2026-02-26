@@ -116,10 +116,11 @@ src/cursor/cur_std.c
 src/cursor/cur_table.c
 src/cursor/cur_version.c
 src/evict/evict_conn.c
-src/evict/evict_file.c
-src/evict/evict_lru.c
-src/evict/evict_page.c
-src/evict/evict_stat.c
+src/evict/evict_randlru.c
+src/evict/evict_randlru_conn.c
+src/evict/evict_randlru_file.c
+src/evict/evict_randlru_page.c
+src/evict/evict_randlru_stat.c
 src/history/hs_conn.c
 src/history/hs_cursor.c
 src/history/hs_verify.c

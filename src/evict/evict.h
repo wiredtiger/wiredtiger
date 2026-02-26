@@ -445,6 +445,8 @@ extern int __wt_evict_randlru_threads_destroy(WT_EVICT *evict, WT_SESSION_IMPL *
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_evict_randlru_verbose_dump_cache(WT_EVICT *evict, WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint64_t __wt_evict_randlru_btree_get_priority(WT_EVICT *evict, WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint64_t __wt_evict_randlru_get_evict_pass_gen(WT_EVICT *evict, WT_SESSION_IMPL *session)
@@ -476,6 +478,7 @@ extern void __wt_evict_randlru_favor_clearing_dirty(WT_EVICT *evict, WT_SESSION_
 extern void __wt_evict_randlru_file_exclusive_off(WT_EVICT *evict, WT_SESSION_IMPL *session);
 extern void __wt_evict_randlru_inherit_page_state(
   WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *orig_page, WT_PAGE *new_page);
+extern void __wt_evict_randlru_method_set(WT_EVICT *evict);
 extern void __wt_evict_randlru_page_cache_bytes_decr(
   WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *page);
 extern void __wt_evict_randlru_page_first_dirty(
@@ -496,6 +499,7 @@ extern void __wt_evict_randlru_stats_init(WT_EVICT *evict, WT_SESSION_IMPL *sess
 extern void __wt_evict_randlru_stats_update(WT_EVICT *evict, WT_SESSION_IMPL *session);
 extern void __wt_evict_randlru_touch_page(
   WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *page, bool internal_only, bool wont_need);
+extern void __wt_evict_set_cache_threshold_stats(WT_SESSION_IMPL *session);
 
 #ifdef HAVE_UNITTEST
 
