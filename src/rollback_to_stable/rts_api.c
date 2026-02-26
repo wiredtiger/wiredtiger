@@ -227,11 +227,7 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
     __wt_verbose_multi(
       session, WT_VERB_RECOVERY_RTS(session), "starting rollback to stable on uri %s", uri);
 
-    /*
-     * Read the stable timestamp once, when we first start up. Rollback to stable have exclusive
-     * access to the database. The stable timestamp should not be updated during the rollback to
-     * stable. Therefore, no synchronization is needed to read the stable timestamp here.
-     */
+    /* Read the stable timestamp once, when we first start up. */
     stable_timestamp = __wt_get_stable_timestamp(session);
     WT_ACQUIRE_READ_WITH_BARRIER(pinned_timestamp, conn->txn_global.pinned_timestamp);
 
