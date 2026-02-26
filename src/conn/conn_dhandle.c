@@ -230,7 +230,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
 
     /* Btree handles keep their data separate from the interface. */
     if (WT_DHANDLE_BTREE(dhandle)) {
-        WT_ERR(__wt_calloc_one(session, &btree));
+        WT_ERR(__wt_calloc(session, 1, sizeof(WT_BTREE) + __wt_evict_btree_extra_size(session), &btree));
         dhandle->handle = btree;
         btree->dhandle = dhandle;
     }

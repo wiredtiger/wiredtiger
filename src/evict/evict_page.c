@@ -480,7 +480,7 @@ __wt_evict_randlru_page(
 err:
         ++page->evict_page_attempts;
         __wt_atomic_stats_max_uint16(
-          &conn->evict->impl.randlru.evict_max_evict_page_attempts, page->evict_page_attempts);
+          &WT_EVICT_RANDLRU(conn->evict)->evict_max_evict_page_attempts, page->evict_page_attempts);
 
         if (!closing)
             __evict_exclusive_clear(session, ref, previous_state);
@@ -1482,7 +1482,7 @@ __wt_evict_randlru_page_cache_bytes_decr(WT_EVICT *evict, WT_SESSION_IMPL *sessi
     }
 
     if (!F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_NO_PROGRESS))
-        (void)__wt_atomic_add_uint64_v(&S2C(session)->evict->impl.randlru.eviction_progress, 1);
+        (void)__wt_atomic_add_uint64_v(&WT_EVICT_RANDLRU(S2C(session)->evict)->eviction_progress, 1);
 }
 
 /*
@@ -1494,6 +1494,6 @@ __wt_evict_randlru_clear_npos(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_BTRE
 {
     WT_UNUSED(evict);
     WT_UNUSED(session);
-    btree->evict_impl.randlru.evict_pos = WT_NPOS_INVALID;
-    btree->evict_impl.randlru.evict_saved_ref_check = 0;
+    WT_BTREE_EVICT_RANDLRU(btree)->evict_pos = WT_NPOS_INVALID;
+    WT_BTREE_EVICT_RANDLRU(btree)->evict_saved_ref_check = 0;
 }

@@ -42,7 +42,7 @@ __wt_evict_randlru_file(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_CACHE_OP s
      * We need exclusive access to the file, we're about to discard the root page. Assert eviction
      * has been locked out.
      */
-    WT_ASSERT(session, btree->evict_impl.randlru.evict_disabled > 0 || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
+    WT_ASSERT(session, WT_BTREE_EVICT_RANDLRU(btree)->evict_disabled > 0 || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
 
     /*
      * We do discard objects without pages in memory. If that's the case, we're done.

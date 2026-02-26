@@ -10,6 +10,104 @@
 
 #include "evict_private.h"
 
+/*
+ * WT_EVICT_RANDLRU_DATA --
+ *     Connection-level eviction data for the randomized-LRU algorithm.
+ *     Tail-allocated after WT_EVICT.
+ */
+struct __wt_evict_randlru_data {
+    wt_shared volatile uint64_t eviction_progress; /* Eviction progress count */
+    uint64_t last_eviction_progress;               /* Tracked eviction progress */
+
+    uint64_t evict_pass_gen; /* Number of eviction passes */
+
+    /*
+     * Score of how aggressive eviction should be about selecting eviction candidates. If eviction
+     * is struggling to make progress, this score rises (up to a maximum of WT_EVICT_SCORE_MAX), at
+     * which point the cache is "stuck" and transactions will be rolled back.
+     */
+    wt_shared uint32_t evict_aggressive_score;
+
+    /*
+     * Read information.
+     */
+    uint64_t read_gen;                              /* Current page read generation */
+    uint64_t read_gen_oldest;                       /* Oldest read generation the eviction
+                                                     * server saw in its last queue load */
+    wt_shared uint64_t evict_max_unvisited_gen_gap; /* Maximum gap between page and connection evict
+                                                      pass generation of unvisited pages */
+    wt_shared uint64_t
+      evict_max_unvisited_gen_gap_per_checkpoint; /* Maximum gap between page and
+                                     connection evict pass generation of unvisited pages */
+    wt_shared uint64_t evict_max_visited_gen_gap; /* Maximum gap between page and connection evict
+                                                      pass generation of visited pages */
+    wt_shared uint64_t
+      evict_max_visited_gen_gap_per_checkpoint; /* Maximum gap between page and
+                                     connection evict pass generation of visited pages */
+
+    /*
+     * Eviction thread information.
+     */
+    WT_CONDVAR *evict_cond;      /* Eviction server condition */
+    WT_SPINLOCK evict_walk_lock; /* Eviction walk location */
+
+    /*
+     * Eviction thread tuning information.
+     */
+    uint32_t evict_tune_datapts_needed;                   /* Data needed to tune */
+    wt_shared uint16_t evict_max_eviction_queue_attempts; /* Maximum number of attempts to
+                                                             add a page to eviction queue */
+    wt_shared uint16_t evict_max_evict_page_attempts;     /* Maximum number of attempts
+                                                             to evict a page */
+
+    struct timespec evict_tune_last_action_time; /* Time of last action */
+    struct timespec evict_tune_last_time;        /* Time of last check */
+    uint64_t evict_tune_progress_last;           /* Progress counter */
+    uint64_t evict_tune_progress_rate_max;       /* Max progress rate */
+    uint32_t evict_tune_workers_best;            /* Best performing value */
+    uint32_t evict_tune_num_points;              /* Number of values tried */
+
+    /*
+     * LRU eviction list information.
+     */
+    WT_SPINLOCK evict_pass_lock;   /* Eviction pass lock */
+    WT_SESSION_IMPL *walk_session; /* Eviction pass session */
+    WT_DATA_HANDLE *walk_tree;     /* LRU walk current tree */
+
+    WT_SPINLOCK evict_queue_lock; /* Eviction current queue lock */
+    WTI_EVICT_QUEUE evict_queues[WTI_EVICT_QUEUE_MAX];
+    WTI_EVICT_QUEUE *evict_current_queue; /* LRU current queue in use */
+    WTI_EVICT_QUEUE *evict_fill_queue;    /* LRU next queue to fill.
+                                            This is usually the same as the
+                                            "other" queue but under heavy
+                                            load the eviction server will
+                                            start filling the current queue
+                                            before it switches. */
+    WTI_EVICT_QUEUE *evict_other_queue;   /* LRU queue not in use */
+    WTI_EVICT_QUEUE *evict_urgent_queue;  /* LRU urgent queue */
+
+    /*
+     * Pass interrupt counter.
+     */
+    wt_shared volatile uint32_t pass_intr; /* Interrupt eviction pass. */
+    uint32_t evict_slots;                  /* LRU list eviction slots */
+
+#define WT_EVICT_PRESSURE_THRESHOLD 0.95
+#define WT_EVICT_SCORE_BUMP 10
+#define WT_EVICT_SCORE_CUTOFF 10
+#define WT_EVICT_SCORE_MAX 100
+    /*
+     * Score of how often LRU queues are empty on refill. This score varies between 0 (if the queue
+     * hasn't been empty for a long time) and 100 (if the queue has been empty the last 10 times we
+     * filled up.
+     */
+    uint32_t evict_empty_score;
+
+    bool evict_tune_stable; /* Are we stable? */
+    bool use_npos_in_pass;  /* Cached value of conn->evict_use_npos for the run of eviction
+                               server */
+};
+
 struct __wt_evict {
     /* Methods -- function pointer vtable for eviction dispatch. */
     int (*evict_page)(WT_EVICT *, WT_SESSION_IMPL *, WT_REF *, WT_REF_STATE, uint32_t);
@@ -52,7 +150,8 @@ struct __wt_evict {
     uint64_t (*get_evict_pass_gen)(WT_EVICT *, WT_SESSION_IMPL *);
     uint64_t (*get_page_evict_pass_gen)(WT_EVICT *, WT_SESSION_IMPL *, WT_PAGE *);
     void (*save_evict_state)(WT_EVICT *, WT_SESSION_IMPL *, WT_PAGE_MODIFY *);
-    void (*copy_evict_state_to_mod)(WT_EVICT *, WT_SESSION_IMPL *, WT_PAGE_MODIFY *, WT_PAGE_MODIFY *);
+    void (*copy_evict_state_to_mod)(
+      WT_EVICT *, WT_SESSION_IMPL *, WT_PAGE_MODIFY *, WT_PAGE_MODIFY *);
     bool (*page_evict_retry)(WT_EVICT *, WT_SESSION_IMPL *, WT_PAGE *);
     void (*page_set_cache_create_gen)(WT_EVICT *, WT_SESSION_IMPL *, WT_PAGE *);
     uint64_t (*page_get_cache_create_gen)(WT_EVICT *, WT_SESSION_IMPL *, WT_PAGE *);
@@ -69,6 +168,12 @@ struct __wt_evict {
     void (*btree_prefetch_busy_dec)(WT_EVICT *, WT_SESSION_IMPL *, WT_BTREE *);
     void (*btree_prefetch_busy_wait)(WT_EVICT *, WT_SESSION_IMPL *, WT_BTREE *);
     WT_REF *(*btree_get_evict_ref)(WT_EVICT *, WT_SESSION_IMPL *);
+
+    /* Extra allocation sizes for tail-allocated eviction data. */
+    size_t (*evict_extra_size)(void);
+    size_t (*btree_extra_size)(void);
+    size_t (*page_extra_size)(void);
+    size_t (*page_modify_extra_size)(void);
 
     /* Common data -- used by all eviction implementations. */
     uint64_t app_waits;  /* User threads waited for eviction */
@@ -128,105 +233,6 @@ struct __wt_evict {
     /* Algorithm identifier for the active eviction implementation. */
 #define WT_EVICT_ALGO_RANDLRU 1
     uint32_t algo_id;
-
-    /* Implementation-specific data. */
-    union {
-        struct {
-            wt_shared volatile uint64_t eviction_progress; /* Eviction progress count */
-            uint64_t last_eviction_progress;               /* Tracked eviction progress */
-
-            uint64_t evict_pass_gen; /* Number of eviction passes */
-
-            /*
-             * Score of how aggressive eviction should be about selecting eviction candidates. If
-             * eviction is struggling to make progress, this score rises (up to a maximum of
-             * WT_EVICT_SCORE_MAX), at which point the cache is "stuck" and transactions will be
-             * rolled back.
-             */
-            wt_shared uint32_t evict_aggressive_score;
-
-            /*
-             * Read information.
-             */
-            uint64_t read_gen;        /* Current page read generation */
-            uint64_t read_gen_oldest; /* Oldest read generation the eviction
-                                       * server saw in its last queue load */
-            wt_shared uint64_t
-              evict_max_unvisited_gen_gap; /* Maximum gap between page and connection evict
-                                             pass generation of unvisited pages */
-            wt_shared uint64_t
-              evict_max_unvisited_gen_gap_per_checkpoint; /* Maximum gap between page and
-                                             connection evict pass generation of unvisited pages */
-            wt_shared uint64_t
-              evict_max_visited_gen_gap; /* Maximum gap between page and connection evict
-                                             pass generation of visited pages */
-            wt_shared uint64_t
-              evict_max_visited_gen_gap_per_checkpoint; /* Maximum gap between page and
-                                             connection evict pass generation of visited pages */
-
-            /*
-             * Eviction thread information.
-             */
-            WT_CONDVAR *evict_cond;      /* Eviction server condition */
-            WT_SPINLOCK evict_walk_lock; /* Eviction walk location */
-
-            /*
-             * Eviction thread tuning information.
-             */
-            uint32_t evict_tune_datapts_needed;                   /* Data needed to tune */
-            wt_shared uint16_t evict_max_eviction_queue_attempts; /* Maximum number of attempts to
-                                                                     add a page to eviction queue */
-            wt_shared uint16_t evict_max_evict_page_attempts;     /* Maximum number of attempts
-                                                                     to evict a page */
-
-            struct timespec evict_tune_last_action_time; /* Time of last action */
-            struct timespec evict_tune_last_time;        /* Time of last check */
-            uint64_t evict_tune_progress_last;           /* Progress counter */
-            uint64_t evict_tune_progress_rate_max;       /* Max progress rate */
-            uint32_t evict_tune_workers_best;            /* Best performing value */
-            uint32_t evict_tune_num_points;              /* Number of values tried */
-
-            /*
-             * LRU eviction list information.
-             */
-            WT_SPINLOCK evict_pass_lock;   /* Eviction pass lock */
-            WT_SESSION_IMPL *walk_session; /* Eviction pass session */
-            WT_DATA_HANDLE *walk_tree;     /* LRU walk current tree */
-
-            WT_SPINLOCK evict_queue_lock; /* Eviction current queue lock */
-            WTI_EVICT_QUEUE evict_queues[WTI_EVICT_QUEUE_MAX];
-            WTI_EVICT_QUEUE *evict_current_queue; /* LRU current queue in use */
-            WTI_EVICT_QUEUE *evict_fill_queue;    /* LRU next queue to fill.
-                                                    This is usually the same as the
-                                                    "other" queue but under heavy
-                                                    load the eviction server will
-                                                    start filling the current queue
-                                                    before it switches. */
-            WTI_EVICT_QUEUE *evict_other_queue;   /* LRU queue not in use */
-            WTI_EVICT_QUEUE *evict_urgent_queue;  /* LRU urgent queue */
-
-            /*
-             * Pass interrupt counter.
-             */
-            wt_shared volatile uint32_t pass_intr; /* Interrupt eviction pass. */
-            uint32_t evict_slots;                  /* LRU list eviction slots */
-
-#define WT_EVICT_PRESSURE_THRESHOLD 0.95
-#define WT_EVICT_SCORE_BUMP 10
-#define WT_EVICT_SCORE_CUTOFF 10
-#define WT_EVICT_SCORE_MAX 100
-            /*
-             * Score of how often LRU queues are empty on refill. This score varies between 0 (if
-             * the queue hasn't been empty for a long time) and 100 (if the queue has been empty the
-             * last 10 times we filled up.
-             */
-            uint32_t evict_empty_score;
-
-            bool evict_tune_stable; /* Are we stable? */
-            bool use_npos_in_pass;  /* Cached value of conn->evict_use_npos for the run of eviction
-                                       server */
-        } randlru;
-    } impl;
 };
 
 /* Flags used with __wt_evict */
@@ -358,6 +364,33 @@ struct __wt_evict {
 #define __wt_evict_btree_get_evict_ref(s) \
     (S2C(s)->evict->btree_get_evict_ref(S2C(s)->evict, (s)))
 /* clang-format on */
+
+/*
+ * Tail-allocation access macros. Eviction-specific data is allocated immediately after the base
+ * struct. Generic macros take a type; specific macros hardcode the current algorithm's type. Use
+ * (void *) intermediate cast to avoid -Wcast-align warnings; alignment is guaranteed because the
+ * base struct is allocated with sufficient size and natural alignment.
+ */
+#define WT_EVICT_IMPL(evict, type) ((type *)(void *)((uint8_t *)(evict) + sizeof(WT_EVICT)))
+#define WT_EVICT_RANDLRU(evict) WT_EVICT_IMPL(evict, WT_EVICT_RANDLRU_DATA)
+
+#define WT_BTREE_EVICT_IMPL(btree, type) ((type *)(void *)((uint8_t *)(btree) + sizeof(WT_BTREE)))
+#define WT_BTREE_EVICT_RANDLRU(btree) WT_BTREE_EVICT_IMPL(btree, WT_BTREE_RANDLRU_DATA)
+
+#define WT_PAGE_EVICT_IMPL(page, type) ((type *)(void *)((uint8_t *)(page) + sizeof(WT_PAGE)))
+#define WT_PAGE_EVICT_RANDLRU(page) WT_PAGE_EVICT_IMPL(page, WT_PAGE_RANDLRU_DATA)
+
+#define WT_PAGE_MODIFY_EVICT_IMPL(mod, type) \
+    ((type *)(void *)((uint8_t *)(mod) + sizeof(WT_PAGE_MODIFY)))
+#define WT_PAGE_MODIFY_EVICT_RANDLRU(mod) \
+    WT_PAGE_MODIFY_EVICT_IMPL(mod, WT_PAGE_MODIFY_RANDLRU_DATA)
+
+/*
+ * Dispatch macros for vtable size functions.
+ */
+#define __wt_evict_btree_extra_size(s) (S2C(s)->evict->btree_extra_size())
+#define __wt_evict_page_extra_size(s) (S2C(s)->evict->page_extra_size())
+#define __wt_evict_page_modify_extra_size(s) (S2C(s)->evict->page_modify_extra_size())
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 

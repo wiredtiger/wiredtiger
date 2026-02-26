@@ -46,7 +46,7 @@ __evict_lock_handle_list(WT_SESSION_IMPL *session)
      * quickly.
      */
     for (spins = 0; (ret = __wt_try_readlock(session, dh_lock)) == EBUSY &&
-         __wt_atomic_load_uint32_v_relaxed(&evict->impl.randlru.pass_intr) == 0;
+         __wt_atomic_load_uint32_v_relaxed(&WT_EVICT_RANDLRU(evict)->pass_intr) == 0;
          spins++) {
         if (spins < WT_THOUSAND)
             __wt_yield();
@@ -96,7 +96,7 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
     else
         read_gen = __wt_atomic_load_uint64_relaxed(&page->read_gen);
 
-    read_gen += btree->evict_impl.randlru.evict_priority;
+    read_gen += WT_BTREE_EVICT_RANDLRU(btree)->evict_priority;
 
 #define WT_EVICT_INTL_SKEW WT_THOUSAND
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
@@ -174,18 +174,18 @@ __evict_list_clear_page_locked(WT_SESSION_IMPL *session, WT_REF *ref, bool exclu
     evict = S2C(session)->evict;
     found = false;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &evict->impl.randlru.evict_queue_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &WT_EVICT_RANDLRU(evict)->evict_queue_lock);
 
     for (q = 0; q < last_queue_idx && !found; q++) {
-        __wt_spin_lock(session, &evict->impl.randlru.evict_queues[q].evict_lock);
-        elem = evict->impl.randlru.evict_queues[q].evict_max;
-        for (i = 0, evict_entry = evict->impl.randlru.evict_queues[q].evict_queue; i < elem; i++, evict_entry++)
+        __wt_spin_lock(session, &WT_EVICT_RANDLRU(evict)->evict_queues[q].evict_lock);
+        elem = WT_EVICT_RANDLRU(evict)->evict_queues[q].evict_max;
+        for (i = 0, evict_entry = WT_EVICT_RANDLRU(evict)->evict_queues[q].evict_queue; i < elem; i++, evict_entry++)
             if (evict_entry->ref == ref) {
                 found = true;
                 __evict_list_clear(session, evict_entry);
                 break;
             }
-        __wt_spin_unlock(session, &evict->impl.randlru.evict_queues[q].evict_lock);
+        __wt_spin_unlock(session, &WT_EVICT_RANDLRU(evict)->evict_queues[q].evict_lock);
     }
     WT_ASSERT(session, !F_ISSET_ATOMIC_16(ref->page, WT_PAGE_EVICT_LRU));
 }
@@ -208,12 +208,12 @@ __wti_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref)
         return;
     evict = S2C(session)->evict;
 
-    __wt_spin_lock(session, &evict->impl.randlru.evict_queue_lock);
+    __wt_spin_lock(session, &WT_EVICT_RANDLRU(evict)->evict_queue_lock);
 
     /* Remove the reference from the eviction queues. */
     __evict_list_clear_page_locked(session, ref, false);
 
-    __wt_spin_unlock(session, &evict->impl.randlru.evict_queue_lock);
+    __wt_spin_unlock(session, &WT_EVICT_RANDLRU(evict)->evict_queue_lock);
 }
 
 /*
@@ -281,7 +281,7 @@ __wt_evict_randlru_server_wake(WT_EVICT *evict, WT_SESSION_IMPL *session)
           bytes_updates);
     }
 
-    __wt_cond_signal(session, evict->impl.randlru.evict_cond);
+    __wt_cond_signal(session, WT_EVICT_RANDLRU(evict)->evict_cond);
 }
 
 /*
@@ -320,19 +320,19 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
      */
     WT_ERR(__wt_curhs_cache(session));
     if (__wt_atomic_load_bool_relaxed(&conn->evict_server_running) &&
-      __wt_spin_trylock(session, &evict->impl.randlru.evict_pass_lock) == 0) {
+      __wt_spin_trylock(session, &WT_EVICT_RANDLRU(evict)->evict_pass_lock) == 0) {
         /*
          * Cannot use WTI_WITH_PASS_LOCK because this is a try lock. Fix when that is supported. We
          * set the flag on both sessions because we may call clear_walk when we are walking with the
          * walk session, locked.
          */
         FLD_SET(session->lock_flags, WT_SESSION_LOCKED_PASS);
-        FLD_SET(evict->impl.randlru.walk_session->lock_flags, WT_SESSION_LOCKED_PASS);
+        FLD_SET(WT_EVICT_RANDLRU(evict)->walk_session->lock_flags, WT_SESSION_LOCKED_PASS);
         ret = __evict_server(session, &did_work);
-        FLD_CLR(evict->impl.randlru.walk_session->lock_flags, WT_SESSION_LOCKED_PASS);
+        FLD_CLR(WT_EVICT_RANDLRU(evict)->walk_session->lock_flags, WT_SESSION_LOCKED_PASS);
         FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_PASS);
-        was_intr = __wt_atomic_load_uint32_v_relaxed(&evict->impl.randlru.pass_intr) != 0;
-        __wt_spin_unlock(session, &evict->impl.randlru.evict_pass_lock);
+        was_intr = __wt_atomic_load_uint32_v_relaxed(&WT_EVICT_RANDLRU(evict)->pass_intr) != 0;
+        __wt_spin_unlock(session, &WT_EVICT_RANDLRU(evict)->evict_pass_lock);
         WT_ERR(ret);
 
         /*
@@ -340,7 +340,7 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          * system may otherwise be busy so don't go to sleep.
          */
         if (was_intr)
-            while (__wt_atomic_load_uint32_v_relaxed(&evict->impl.randlru.pass_intr) != 0 &&
+            while (__wt_atomic_load_uint32_v_relaxed(&WT_EVICT_RANDLRU(evict)->pass_intr) != 0 &&
               FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION) &&
               F_ISSET(thread, WT_THREAD_RUN))
                 __wt_yield();
@@ -348,7 +348,7 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
             __wt_verbose_debug2(session, WT_VERB_EVICTION, "%s", "sleeping");
 
             /* Don't rely on signals: check periodically. */
-            __wt_cond_auto_wait(session, evict->impl.randlru.evict_cond, did_work, NULL);
+            __wt_cond_auto_wait(session, WT_EVICT_RANDLRU(evict)->evict_cond, did_work, NULL);
             __wt_verbose_debug2(session, WT_VERB_EVICTION, "%s", "waking");
         }
     } else
@@ -372,7 +372,7 @@ __evict_set_saved_walk_tree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *new_dhandl
     WT_EVICT *evict;
 
     evict = S2C(session)->evict;
-    old_dhandle = evict->impl.randlru.walk_tree;
+    old_dhandle = WT_EVICT_RANDLRU(evict)->walk_tree;
 
     if (old_dhandle == new_dhandle)
         return;
@@ -380,7 +380,7 @@ __evict_set_saved_walk_tree(WT_SESSION_IMPL *session, WT_DATA_HANDLE *new_dhandl
     if (new_dhandle != NULL)
         (void)__wt_atomic_add_int32(&new_dhandle->session_inuse, 1);
 
-    evict->impl.randlru.walk_tree = new_dhandle;
+    WT_EVICT_RANDLRU(evict)->walk_tree = new_dhandle;
 
     if (old_dhandle != NULL) {
         WT_ASSERT(session, __wt_atomic_load_int32_relaxed(&old_dhandle->session_inuse) > 0);
@@ -450,24 +450,24 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     conn = S2C(session);
     evict = conn->evict;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &evict->impl.randlru.evict_pass_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &WT_EVICT_RANDLRU(evict)->evict_pass_lock);
 
     /*
      * Copy the connection setting for use in the current run of Eviction Server. This ensures that
      * no hazard pointers are leaked in case the setting is reconfigured while eviction pass is
      * running.
      */
-    evict->impl.randlru.use_npos_in_pass = __wt_atomic_load_bool_relaxed(&conn->evict_use_npos);
+    WT_EVICT_RANDLRU(evict)->use_npos_in_pass = __wt_atomic_load_bool_relaxed(&conn->evict_use_npos);
 
     /* Evict pages from the cache as needed. */
     WT_RET(__evict_pass(session));
 
     if (!FLD_ISSET(conn->server_flags, WT_CONN_SERVER_EVICTION) ||
-      __wt_atomic_load_uint32_v_relaxed(&evict->impl.randlru.pass_intr) != 0)
+      __wt_atomic_load_uint32_v_relaxed(&WT_EVICT_RANDLRU(evict)->pass_intr) != 0)
         return (0);
 
     if (!__wt_evict_cache_stuck(session)) {
-        if (evict->impl.randlru.use_npos_in_pass)
+        if (WT_EVICT_RANDLRU(evict)->use_npos_in_pass)
             __evict_set_saved_walk_tree(session, NULL);
         else {
             /*
@@ -489,14 +489,14 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
             WT_RET(ret);
         }
         /* Make sure we'll notice next time we're stuck. */
-        evict->impl.randlru.last_eviction_progress = 0;
+        WT_EVICT_RANDLRU(evict)->last_eviction_progress = 0;
         return (0);
     }
 
     /* Track if work was done. */
     *did_work =
-      __wt_atomic_load_uint64_v_relaxed(&evict->impl.randlru.eviction_progress) != evict->impl.randlru.last_eviction_progress;
-    evict->impl.randlru.last_eviction_progress = __wt_atomic_load_uint64_v_relaxed(&evict->impl.randlru.eviction_progress);
+      __wt_atomic_load_uint64_v_relaxed(&WT_EVICT_RANDLRU(evict)->eviction_progress) != WT_EVICT_RANDLRU(evict)->last_eviction_progress;
+    WT_EVICT_RANDLRU(evict)->last_eviction_progress = __wt_atomic_load_uint64_v_relaxed(&WT_EVICT_RANDLRU(evict)->eviction_progress);
 
     /* Eviction is stuck, check if we have made progress. */
     if (*did_work) {
@@ -695,7 +695,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
         return (0);
     }
 
-    if (!__evict_queue_empty(evict->impl.randlru.evict_urgent_queue, false))
+    if (!__evict_queue_empty(WT_EVICT_RANDLRU(evict)->evict_urgent_queue, false))
         LF_SET(WT_EVICT_CACHE_URGENT);
 
     /*
@@ -791,7 +791,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
      * enough pages to evict, try dirty pages as well.
      */
     if (LF_ISSET(WT_EVICT_CACHE_CLEAN_HARD) &&
-      (__wt_evict_aggressive(session) || evict->impl.randlru.evict_empty_score > WT_EVICT_SCORE_CUTOFF))
+      (__wt_evict_aggressive(session) || WT_EVICT_RANDLRU(evict)->evict_empty_score > WT_EVICT_SCORE_CUTOFF))
         LF_SET(WT_EVICT_CACHE_DIRTY);
 
     /*
@@ -866,11 +866,11 @@ __evict_pass(WT_SESSION_IMPL *session)
     time_prev = 0; /* [-Wconditional-uninitialized] */
 
     /* Track whether pages are being evicted and progress is made. */
-    eviction_progress = __wt_atomic_load_uint64_v_relaxed(&evict->impl.randlru.eviction_progress);
+    eviction_progress = __wt_atomic_load_uint64_v_relaxed(&WT_EVICT_RANDLRU(evict)->eviction_progress);
     prev_oldest_id = __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id);
 
     /* Evict pages from the cache. */
-    for (loop = 0; __wt_atomic_load_uint32_v_relaxed(&evict->impl.randlru.pass_intr) == 0; loop++) {
+    for (loop = 0; __wt_atomic_load_uint32_v_relaxed(&WT_EVICT_RANDLRU(evict)->pass_intr) == 0; loop++) {
         time_now = __wt_clock(session);
         if (loop == 0)
             time_prev = time_now;
@@ -881,8 +881,8 @@ __evict_pass(WT_SESSION_IMPL *session)
          * currently required, so that pages have some relative read generation when the eviction
          * server does need to do some work.
          */
-        __wt_atomic_add_uint64(&evict->impl.randlru.read_gen, 1);
-        __wt_atomic_add_uint64(&evict->impl.randlru.evict_pass_gen, 1);
+        __wt_atomic_add_uint64(&WT_EVICT_RANDLRU(evict)->read_gen, 1);
+        __wt_atomic_add_uint64(&WT_EVICT_RANDLRU(evict)->evict_pass_gen, 1);
 
         /*
          * Update the oldest ID: we use it to decide whether pages are candidates for eviction.
@@ -919,11 +919,11 @@ __evict_pass(WT_SESSION_IMPL *session)
          * urgent queue in case all application threads are busy.
          */
         if (!WT_EVICT_HAS_WORKERS(session) &&
-          (evict->impl.randlru.evict_empty_score < WT_EVICT_SCORE_CUTOFF ||
-            !__evict_queue_empty(evict->impl.randlru.evict_urgent_queue, false)))
+          (WT_EVICT_RANDLRU(evict)->evict_empty_score < WT_EVICT_SCORE_CUTOFF ||
+            !__evict_queue_empty(WT_EVICT_RANDLRU(evict)->evict_urgent_queue, false)))
             WT_RET(__evict_randlru_pages(session, true));
 
-        if (__wt_atomic_load_uint32_v_relaxed(&evict->impl.randlru.pass_intr) != 0)
+        if (__wt_atomic_load_uint32_v_relaxed(&WT_EVICT_RANDLRU(evict)->pass_intr) != 0)
             break;
 
         /*
@@ -935,17 +935,17 @@ __evict_pass(WT_SESSION_IMPL *session)
          * If there is still no progress after 2s, we will treat the cache as stuck and start
          * rolling back transactions and writing updates to the history store table.
          */
-        if (eviction_progress == __wt_atomic_load_uint64_v_relaxed(&evict->impl.randlru.eviction_progress)) {
+        if (eviction_progress == __wt_atomic_load_uint64_v_relaxed(&WT_EVICT_RANDLRU(evict)->eviction_progress)) {
             if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 && F_ISSET(evict, WT_EVICT_CACHE_HARD)) {
-                if (__wt_atomic_load_uint32_relaxed(&evict->impl.randlru.evict_aggressive_score) <
+                if (__wt_atomic_load_uint32_relaxed(&WT_EVICT_RANDLRU(evict)->evict_aggressive_score) <
                   WT_EVICT_SCORE_MAX)
-                    (void)__wt_atomic_add_uint32_v(&evict->impl.randlru.evict_aggressive_score, 1);
+                    (void)__wt_atomic_add_uint32_v(&WT_EVICT_RANDLRU(evict)->evict_aggressive_score, 1);
                 oldest_id = __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id);
                 if (prev_oldest_id == oldest_id &&
                   __wt_atomic_load_uint64_v_relaxed(&txn_global->current) != oldest_id &&
-                  __wt_atomic_load_uint32_relaxed(&evict->impl.randlru.evict_aggressive_score) <
+                  __wt_atomic_load_uint32_relaxed(&WT_EVICT_RANDLRU(evict)->evict_aggressive_score) <
                     WT_EVICT_SCORE_MAX)
-                    (void)__wt_atomic_add_uint32_v(&evict->impl.randlru.evict_aggressive_score, 1);
+                    (void)__wt_atomic_add_uint32_v(&WT_EVICT_RANDLRU(evict)->evict_aggressive_score, 1);
                 time_prev = time_now;
                 prev_oldest_id = oldest_id;
             }
@@ -955,7 +955,7 @@ __evict_pass(WT_SESSION_IMPL *session)
              * isn't interfering.
              */
             if (loop < 100 ||
-              __wt_atomic_load_uint32_relaxed(&evict->impl.randlru.evict_aggressive_score) <
+              __wt_atomic_load_uint32_relaxed(&WT_EVICT_RANDLRU(evict)->evict_aggressive_score) <
                 WT_EVICT_SCORE_MAX) {
                 /*
                  * Back off if we aren't making progress: walks hold the handle list lock, blocking
@@ -965,7 +965,7 @@ __evict_pass(WT_SESSION_IMPL *session)
                  * wait for a non-zero number of microseconds).
                  */
                 WT_STAT_CONN_INCR(session, eviction_server_slept);
-                __wt_cond_wait(session, evict->impl.randlru.evict_cond, WT_THOUSAND, NULL);
+                __wt_cond_wait(session, WT_EVICT_RANDLRU(evict)->evict_cond, WT_THOUSAND, NULL);
                 continue;
             }
 
@@ -973,9 +973,9 @@ __evict_pass(WT_SESSION_IMPL *session)
             __wt_verbose_debug1(session, WT_VERB_EVICTION, "%s", "unable to reach eviction goal");
             break;
         }
-        __wt_atomic_decrement_if_positive(&evict->impl.randlru.evict_aggressive_score);
+        __wt_atomic_decrement_if_positive(&WT_EVICT_RANDLRU(evict)->evict_aggressive_score);
         loop = 0;
-        eviction_progress = __wt_atomic_load_uint64_v_relaxed(&evict->impl.randlru.eviction_progress);
+        eviction_progress = __wt_atomic_load_uint64_v_relaxed(&WT_EVICT_RANDLRU(evict)->eviction_progress);
     }
     return (0);
 }
@@ -1002,19 +1002,19 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_PASS));
 
-    if ((ref = __wt_atomic_load_ptr_relaxed(&btree->evict_impl.randlru.evict_ref)) == NULL)
+    if ((ref = __wt_atomic_load_ptr_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_ref)) == NULL)
         return (0);
 
-    if (!evict->impl.randlru.use_npos_in_pass || clear_pos)
+    if (!WT_EVICT_RANDLRU(evict)->use_npos_in_pass || clear_pos)
         WT_STAT_CONN_INCR(session, eviction_walks_abandoned);
 
     /*
      * Clear evict_ref before releasing it in case that forces eviction (we assert that we never try
      * to evict the current eviction walk point).
      */
-    __wt_atomic_store_ptr_relaxed(&btree->evict_impl.randlru.evict_ref, NULL);
+    __wt_atomic_store_ptr_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_ref, NULL);
 
-    if (evict->impl.randlru.use_npos_in_pass) {
+    if (WT_EVICT_RANDLRU(evict)->use_npos_in_pass) {
         /* If soft pointers are in use, remember the page's position unless clear_pos is set. */
         if (clear_pos)
             __wt_evict_randlru_clear_npos(evict, session, btree);
@@ -1024,7 +1024,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
              * same point later. evict_saved_ref_check is used as an opaque page id to compare with
              * it upon restoration for the purpose of stats.
              */
-            btree->evict_impl.randlru.evict_saved_ref_check = (uint64_t)ref;
+            WT_BTREE_EVICT_RANDLRU(btree)->evict_saved_ref_check = (uint64_t)ref;
 
             if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
                 /* If we're at a leaf page, use the middle of the page. */
@@ -1036,8 +1036,8 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
                  * position of the very beginning or the very end of it depending on the direction
                  * of walk.
                  */
-                if (btree->evict_impl.randlru.evict_start_type == WT_EVICT_WALK_NEXT ||
-                  btree->evict_impl.randlru.evict_start_type == WT_EVICT_WALK_RAND_NEXT) {
+                if (WT_BTREE_EVICT_RANDLRU(btree)->evict_start_type == WT_EVICT_WALK_NEXT ||
+                  WT_BTREE_EVICT_RANDLRU(btree)->evict_start_type == WT_EVICT_WALK_RAND_NEXT) {
                     pos = WT_NPOS_RIGHT;
                     where = "RIGHT";
                 } else {
@@ -1046,20 +1046,20 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
                 }
             }
             if (!WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_1))
-                btree->evict_impl.randlru.evict_pos = __wt_page_npos(session, ref, pos, NULL, NULL, 0);
+                WT_BTREE_EVICT_RANDLRU(btree)->evict_pos = __wt_page_npos(session, ref, pos, NULL, NULL, 0);
             else {
-                btree->evict_impl.randlru.evict_pos =
+                WT_BTREE_EVICT_RANDLRU(btree)->evict_pos =
                   __wt_page_npos(session, ref, pos, path_str, &path_str_offset, PATH_STR_MAX);
                 __wt_verbose_debug1(session, WT_VERB_EVICTION,
                   "Evict walk point memorized at position %lf %s of %s page %s ref %p",
-                  btree->evict_impl.randlru.evict_pos, where, F_ISSET(ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF",
+                  WT_BTREE_EVICT_RANDLRU(btree)->evict_pos, where, F_ISSET(ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF",
                   path_str, (void *)ref);
             }
         }
     }
 
-    WT_WITH_DHANDLE(evict->impl.randlru.walk_session, session->dhandle,
-      (ret = __wt_page_release(evict->impl.randlru.walk_session, ref, WT_READ_NO_EVICT)));
+    WT_WITH_DHANDLE(WT_EVICT_RANDLRU(evict)->walk_session, session->dhandle,
+      (ret = __wt_page_release(WT_EVICT_RANDLRU(evict)->walk_session, ref, WT_READ_NO_EVICT)));
     return (ret);
 #undef PATH_STR_MAX
 }
@@ -1091,8 +1091,8 @@ __evict_clear_all_walks_and_saved_tree(WT_SESSION_IMPL *session)
 static int
 __evict_clear_walk_and_saved_tree_if_current_locked(WT_SESSION_IMPL *session)
 {
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->evict->impl.randlru.evict_pass_lock);
-    if (session->dhandle == S2C(session)->evict->impl.randlru.walk_tree)
+    WT_ASSERT_SPINLOCK_OWNED(session, &WT_EVICT_RANDLRU(S2C(session)->evict)->evict_pass_lock);
+    if (session->dhandle == WT_EVICT_RANDLRU(S2C(session)->evict)->walk_tree)
         __evict_set_saved_walk_tree(session, NULL);
     return (__evict_clear_walk(session, false));
 }
@@ -1122,9 +1122,9 @@ __wt_evict_randlru_file_exclusive_on(WT_EVICT *evict, WT_SESSION_IMPL *session)
     btree = S2BT(session);
 
     /* Hold the walk lock to turn off eviction. */
-    __wt_spin_lock(session, &evict->impl.randlru.evict_walk_lock);
-    if (++btree->evict_impl.randlru.evict_disabled > 1) {
-        __wt_spin_unlock(session, &evict->impl.randlru.evict_walk_lock);
+    __wt_spin_lock(session, &WT_EVICT_RANDLRU(evict)->evict_walk_lock);
+    if (++WT_BTREE_EVICT_RANDLRU(btree)->evict_disabled > 1) {
+        __wt_spin_unlock(session, &WT_EVICT_RANDLRU(evict)->evict_walk_lock);
         return (0);
     }
 
@@ -1145,39 +1145,39 @@ __wt_evict_randlru_file_exclusive_on(WT_EVICT *evict, WT_SESSION_IMPL *session)
      * Ensure no new pages from the file will be queued for eviction after this point, then clear
      * any existing LRU eviction walk for the file.
      */
-    (void)__wt_atomic_add_uint32_v(&evict->impl.randlru.pass_intr, 1);
+    (void)__wt_atomic_add_uint32_v(&WT_EVICT_RANDLRU(evict)->pass_intr, 1);
     WTI_WITH_PASS_LOCK(session, ret = __evict_clear_walk_and_saved_tree_if_current_locked(session));
-    (void)__wt_atomic_sub_uint32_v(&evict->impl.randlru.pass_intr, 1);
+    (void)__wt_atomic_sub_uint32_v(&WT_EVICT_RANDLRU(evict)->pass_intr, 1);
     WT_ERR(ret);
 
     /*
      * The eviction candidate list might reference pages from the file, clear it. Hold the evict
      * lock to remove queued pages from a file.
      */
-    __wt_spin_lock(session, &evict->impl.randlru.evict_queue_lock);
+    __wt_spin_lock(session, &WT_EVICT_RANDLRU(evict)->evict_queue_lock);
 
     for (q = 0; q < WTI_EVICT_QUEUE_MAX; q++) {
-        __wt_spin_lock(session, &evict->impl.randlru.evict_queues[q].evict_lock);
-        elem = evict->impl.randlru.evict_queues[q].evict_max;
-        for (i = 0, evict_entry = evict->impl.randlru.evict_queues[q].evict_queue; i < elem; i++, evict_entry++)
+        __wt_spin_lock(session, &WT_EVICT_RANDLRU(evict)->evict_queues[q].evict_lock);
+        elem = WT_EVICT_RANDLRU(evict)->evict_queues[q].evict_max;
+        for (i = 0, evict_entry = WT_EVICT_RANDLRU(evict)->evict_queues[q].evict_queue; i < elem; i++, evict_entry++)
             if (evict_entry->btree == btree)
                 __evict_list_clear(session, evict_entry);
-        __wt_spin_unlock(session, &evict->impl.randlru.evict_queues[q].evict_lock);
+        __wt_spin_unlock(session, &WT_EVICT_RANDLRU(evict)->evict_queues[q].evict_lock);
     }
 
-    __wt_spin_unlock(session, &evict->impl.randlru.evict_queue_lock);
+    __wt_spin_unlock(session, &WT_EVICT_RANDLRU(evict)->evict_queue_lock);
 
     /*
      * We have disabled further eviction: wait for concurrent LRU eviction activity to drain.
      */
-    while (__wt_tsan_suppress_load_uint32_v(&btree->evict_impl.randlru.evict_busy) > 0)
+    while (__wt_tsan_suppress_load_uint32_v(&WT_BTREE_EVICT_RANDLRU(btree)->evict_busy) > 0)
         __wt_yield();
 
     if (0) {
 err:
-        --btree->evict_impl.randlru.evict_disabled;
+        --WT_BTREE_EVICT_RANDLRU(btree)->evict_disabled;
     }
-    __wt_spin_unlock(session, &evict->impl.randlru.evict_walk_lock);
+    __wt_spin_unlock(session, &WT_EVICT_RANDLRU(evict)->evict_walk_lock);
     return (ret);
 }
 
@@ -1214,12 +1214,12 @@ __wt_evict_randlru_file_exclusive_off(WT_EVICT *evict, WT_SESSION_IMPL *session)
     {
         int32_t v;
 
-        WT_ASSERT(session, __wt_atomic_load_ptr_relaxed(&btree->evict_impl.randlru.evict_ref) == NULL);
-        v = __wt_atomic_sub_int32(&btree->evict_impl.randlru.evict_disabled, 1);
+        WT_ASSERT(session, __wt_atomic_load_ptr_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_ref) == NULL);
+        v = __wt_atomic_sub_int32(&WT_BTREE_EVICT_RANDLRU(btree)->evict_disabled, 1);
         WT_ASSERT(session, v >= 0);
     }
 #else
-    (void)__wt_atomic_sub_int32(&btree->evict_impl.randlru.evict_disabled, 1);
+    (void)__wt_atomic_sub_int32(&WT_BTREE_EVICT_RANDLRU(btree)->evict_disabled, 1);
 #endif
     __wt_verbose_debug1(session, WT_VERB_EVICTION, "released exclusive eviction lock on btree %s",
       btree->dhandle->name);
@@ -1271,24 +1271,24 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
         return;
 
     __wt_epoch(session, &current_time);
-    time_diff = WT_TIMEDIFF_MS(current_time, evict->impl.randlru.evict_tune_last_time);
+    time_diff = WT_TIMEDIFF_MS(current_time, WT_EVICT_RANDLRU(evict)->evict_tune_last_time);
 
     /*
      * If we have reached the stable state and have not run long enough to surpass the forced
      * re-tuning threshold, return.
      */
-    if (evict->impl.randlru.evict_tune_stable) {
+    if (WT_EVICT_RANDLRU(evict)->evict_tune_stable) {
         if (time_diff < EVICT_FORCE_RETUNE)
             return;
 
         /*
          * Stable state was reached a long time ago. Let's re-tune. Reset all the state.
          */
-        evict->impl.randlru.evict_tune_stable = false;
-        evict->impl.randlru.evict_tune_last_action_time.tv_sec = 0;
-        evict->impl.randlru.evict_tune_progress_last = 0;
-        evict->impl.randlru.evict_tune_num_points = 0;
-        evict->impl.randlru.evict_tune_progress_rate_max = 0;
+        WT_EVICT_RANDLRU(evict)->evict_tune_stable = false;
+        WT_EVICT_RANDLRU(evict)->evict_tune_last_action_time.tv_sec = 0;
+        WT_EVICT_RANDLRU(evict)->evict_tune_progress_last = 0;
+        WT_EVICT_RANDLRU(evict)->evict_tune_num_points = 0;
+        WT_EVICT_RANDLRU(evict)->evict_tune_progress_rate_max = 0;
 
         /* Reduce the number of eviction workers by one */
         thread_surplus =
@@ -1309,7 +1309,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
      * Measure the evicted progress so far. Eviction rate correlates to performance, so this is our
      * metric of success.
      */
-    eviction_progress = __wt_atomic_load_uint64_v_relaxed(&evict->impl.randlru.eviction_progress);
+    eviction_progress = __wt_atomic_load_uint64_v_relaxed(&WT_EVICT_RANDLRU(evict)->eviction_progress);
 
     /*
      * If we have recorded the number of pages evicted at the end of the previous measurement
@@ -1317,22 +1317,22 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
      * current measurement interval. Otherwise, we just record the number of evicted pages and
      * return.
      */
-    if (evict->impl.randlru.evict_tune_progress_last == 0)
+    if (WT_EVICT_RANDLRU(evict)->evict_tune_progress_last == 0)
         goto done;
 
-    delta_msec = WT_TIMEDIFF_MS(current_time, evict->impl.randlru.evict_tune_last_time);
-    delta_pages = eviction_progress - evict->impl.randlru.evict_tune_progress_last;
+    delta_msec = WT_TIMEDIFF_MS(current_time, WT_EVICT_RANDLRU(evict)->evict_tune_last_time);
+    delta_pages = eviction_progress - WT_EVICT_RANDLRU(evict)->evict_tune_progress_last;
     eviction_progress_rate = (delta_pages * WT_THOUSAND) / delta_msec;
-    evict->impl.randlru.evict_tune_num_points++;
+    WT_EVICT_RANDLRU(evict)->evict_tune_num_points++;
 
     /*
      * Keep track of the maximum eviction throughput seen and the number of workers corresponding to
      * that throughput.
      */
-    if (eviction_progress_rate > evict->impl.randlru.evict_tune_progress_rate_max) {
-        evict->impl.randlru.evict_tune_progress_rate_max = eviction_progress_rate;
+    if (eviction_progress_rate > WT_EVICT_RANDLRU(evict)->evict_tune_progress_rate_max) {
+        WT_EVICT_RANDLRU(evict)->evict_tune_progress_rate_max = eviction_progress_rate;
         current_threads = __wt_atomic_load_uint32_relaxed(&conn->evict_threads.current_threads);
-        __wt_atomic_store_uint32_relaxed(&evict->impl.randlru.evict_tune_workers_best, current_threads);
+        __wt_atomic_store_uint32_relaxed(&WT_EVICT_RANDLRU(evict)->evict_tune_workers_best, current_threads);
     }
 
     /*
@@ -1342,14 +1342,14 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
      * number of workers. Or we are past the inflection point on the curve, in which case we will go
      * back to the best observed number of workers and settle into a stable state.
      */
-    if (evict->impl.randlru.evict_tune_num_points >= evict->impl.randlru.evict_tune_datapts_needed) {
+    if (WT_EVICT_RANDLRU(evict)->evict_tune_num_points >= WT_EVICT_RANDLRU(evict)->evict_tune_datapts_needed) {
         current_threads = __wt_atomic_load_uint32_relaxed(&conn->evict_threads.current_threads);
-        if (evict->impl.randlru.evict_tune_workers_best == current_threads &&
+        if (WT_EVICT_RANDLRU(evict)->evict_tune_workers_best == current_threads &&
           current_threads < conn->evict_threads_max) {
             /*
              * Keep adding workers. We will check again at the next check point.
              */
-            evict->impl.randlru.evict_tune_datapts_needed += WT_MIN(EVICT_TUNE_DATAPT_MIN,
+            WT_EVICT_RANDLRU(evict)->evict_tune_datapts_needed += WT_MIN(EVICT_TUNE_DATAPT_MIN,
               (conn->evict_threads_max - current_threads) / EVICT_TUNE_BATCH);
         } else {
             /*
@@ -1358,12 +1358,12 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
              */
             thread_surplus =
               (int32_t)__wt_atomic_load_uint32_relaxed(&conn->evict_threads.current_threads) -
-              (int32_t)evict->impl.randlru.evict_tune_workers_best;
+              (int32_t)WT_EVICT_RANDLRU(evict)->evict_tune_workers_best;
 
             for (i = 0; i < thread_surplus; i++)
                 __wt_thread_group_stop_one(session, &conn->evict_threads);
 
-            evict->impl.randlru.evict_tune_stable = true;
+            WT_EVICT_RANDLRU(evict)->evict_tune_stable = true;
             goto done;
         }
     }
@@ -1373,8 +1373,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
      * equal to the number of data points that we must accumulate before deciding if we should keep
      * adding workers or settle on a previously tried stable number of workers.
      */
-    if (evict->impl.randlru.evict_tune_last_action_time.tv_sec == 0)
-        evict->impl.randlru.evict_tune_datapts_needed = EVICT_TUNE_DATAPT_MIN;
+    if (WT_EVICT_RANDLRU(evict)->evict_tune_last_action_time.tv_sec == 0)
+        WT_EVICT_RANDLRU(evict)->evict_tune_datapts_needed = EVICT_TUNE_DATAPT_MIN;
 
     if (F_ISSET(evict, WT_EVICT_CACHE_ALL)) {
         cur_threads =
@@ -1387,12 +1387,12 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
             __wt_thread_group_start_one(session, &conn->evict_threads, false);
             __wt_verbose_debug1(session, WT_VERB_EVICTION, "%s", "added worker thread");
         }
-        evict->impl.randlru.evict_tune_last_action_time = current_time;
+        WT_EVICT_RANDLRU(evict)->evict_tune_last_action_time = current_time;
     }
 
 done:
-    evict->impl.randlru.evict_tune_last_time = current_time;
-    evict->impl.randlru.evict_tune_progress_last = eviction_progress;
+    WT_EVICT_RANDLRU(evict)->evict_tune_last_time = current_time;
+    WT_EVICT_RANDLRU(evict)->evict_tune_progress_last = eviction_progress;
 }
 
 /*
@@ -1448,20 +1448,20 @@ __evict_randlru_walk(WT_SESSION_IMPL *session)
     evict = conn->evict;
 
     /* Age out the score of how much the queue has been empty recently. */
-    if (evict->impl.randlru.evict_empty_score > 0)
-        --evict->impl.randlru.evict_empty_score;
+    if (WT_EVICT_RANDLRU(evict)->evict_empty_score > 0)
+        --WT_EVICT_RANDLRU(evict)->evict_empty_score;
 
     /* Fill the next queue (that isn't the urgent queue). */
-    queue = evict->impl.randlru.evict_fill_queue;
-    other_queue = evict->impl.randlru.evict_queues + (1 - (queue - evict->impl.randlru.evict_queues));
-    evict->impl.randlru.evict_fill_queue = other_queue;
+    queue = WT_EVICT_RANDLRU(evict)->evict_fill_queue;
+    other_queue = WT_EVICT_RANDLRU(evict)->evict_queues + (1 - (queue - WT_EVICT_RANDLRU(evict)->evict_queues));
+    WT_EVICT_RANDLRU(evict)->evict_fill_queue = other_queue;
 
     /* If this queue is full, try the other one. */
     if (__evict_queue_full(queue) && !__evict_queue_full(other_queue))
         queue = other_queue;
 
     /* If both queues are full and haven't been empty on recent refills, we're done. */
-    if (__evict_queue_full(queue) && evict->impl.randlru.evict_empty_score < WT_EVICT_SCORE_CUTOFF) {
+    if (__evict_queue_full(queue) && WT_EVICT_RANDLRU(evict)->evict_empty_score < WT_EVICT_SCORE_CUTOFF) {
         WT_STAT_CONN_INCR(session, eviction_queue_not_empty);
         goto err;
     }
@@ -1471,8 +1471,8 @@ __evict_randlru_walk(WT_SESSION_IMPL *session)
      */
     if (__evict_queue_empty(queue, false)) {
         if (F_ISSET(evict, WT_EVICT_CACHE_HARD))
-            evict->impl.randlru.evict_empty_score =
-              WT_MIN(evict->impl.randlru.evict_empty_score + WT_EVICT_SCORE_BUMP, WT_EVICT_SCORE_MAX);
+            WT_EVICT_RANDLRU(evict)->evict_empty_score =
+              WT_MIN(WT_EVICT_RANDLRU(evict)->evict_empty_score + WT_EVICT_SCORE_BUMP, WT_EVICT_SCORE_MAX);
         WT_STAT_CONN_INCR(session, eviction_queue_empty);
     } else {
         WT_STAT_CONN_INCR(session, eviction_queue_not_empty);
@@ -1485,7 +1485,7 @@ __evict_randlru_walk(WT_SESSION_IMPL *session)
      * If the walk is interrupted, we still need to sort the queue: the next walk assumes there are
      * no entries beyond WTI_EVICT_WALK_BASE.
      */
-    if ((ret = __evict_walk(evict->impl.randlru.walk_session, queue)) == EBUSY)
+    if ((ret = __evict_walk(WT_EVICT_RANDLRU(evict)->walk_session, queue)) == EBUSY)
         ret = 0;
     WT_ERR_NOTFOUND_OK(ret, false);
 
@@ -1496,7 +1496,7 @@ __evict_randlru_walk(WT_SESSION_IMPL *session)
      * We have locked the queue: in the (unusual) case where we are filling the current queue, mark
      * it empty so that subsequent requests switch to the other queue.
      */
-    if (queue == evict->impl.randlru.evict_current_queue)
+    if (queue == WT_EVICT_RANDLRU(evict)->evict_current_queue)
         queue->evict_current = NULL;
 
     entries = queue->evict_entries;
@@ -1576,7 +1576,7 @@ __evict_randlru_walk(WT_SESSION_IMPL *session)
             if (queue->evict_candidates > entries / 2)
                 queue->evict_candidates = entries / 2;
 
-            evict->impl.randlru.read_gen_oldest = read_gen_oldest;
+            WT_EVICT_RANDLRU(evict)->read_gen_oldest = read_gen_oldest;
         }
     }
 
@@ -1752,7 +1752,7 @@ __evict_walk(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue)
      * Set the starting slot in the queue and the maximum pages added per walk.
      */
     start_slot = slot = queue->evict_entries;
-    max_entries = WT_MIN(slot + WTI_EVICT_WALK_INCR, evict->impl.randlru.evict_slots);
+    max_entries = WT_MIN(slot + WTI_EVICT_WALK_INCR, WT_EVICT_RANDLRU(evict)->evict_slots);
 
     /*
      * Another pathological case: if there are only a tiny number of candidate pages in cache, don't
@@ -1786,7 +1786,7 @@ retry:
          * If another thread is waiting on the eviction server to clear the walk point in a tree,
          * give up.
          */
-        if (__wt_atomic_load_uint32_v_relaxed(&evict->impl.randlru.pass_intr) != 0)
+        if (__wt_atomic_load_uint32_v_relaxed(&WT_EVICT_RANDLRU(evict)->pass_intr) != 0)
             WT_ERR(EBUSY);
 
         /*
@@ -1803,7 +1803,7 @@ retry:
              * On entry, continue from wherever we got to in the scan last time through. If we don't
              * have a saved handle, pick one randomly from the list.
              */
-            if ((dhandle = evict->impl.randlru.walk_tree) != NULL)
+            if ((dhandle = WT_EVICT_RANDLRU(evict)->walk_tree) != NULL)
                 __evict_set_saved_walk_tree(session, NULL);
             else
                 __evict_walk_choose_dhandle(session, &dhandle);
@@ -1822,7 +1822,7 @@ retry:
 
         /* Skip files that don't allow eviction. */
         btree = dhandle->handle;
-        if (btree->evict_impl.randlru.evict_disabled > 0) {
+        if (WT_BTREE_EVICT_RANDLRU(btree)->evict_disabled > 0) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_eviction_disabled);
             __evict_disagg_btree_skip_count(session, btree);
             continue;
@@ -1849,14 +1849,14 @@ retry:
          * If the file is contributing heavily to our cache usage then ignore the "stickiness" of
          * its pages.
          */
-        if (btree->evict_impl.randlru.evict_priority != 0 && !__wt_evict_aggressive(session) &&
+        if (WT_BTREE_EVICT_RANDLRU(btree)->evict_priority != 0 && !__wt_evict_aggressive(session) &&
           !__evict_btree_dominating_cache(session, btree)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_stick_in_cache);
             __evict_disagg_btree_skip_count(session, btree);
             continue;
         }
 
-        if (!evict->impl.randlru.use_npos_in_pass) {
+        if (!WT_EVICT_RANDLRU(evict)->use_npos_in_pass) {
             /*
              * Skip files if we have too many active walks.
              *
@@ -1865,7 +1865,7 @@ retry:
              * huge numbers of active trees before allowing larger numbers of hazard pointers in the
              * walk session.
              */
-            if (__wt_atomic_load_ptr_relaxed(&btree->evict_impl.randlru.evict_ref) == NULL &&
+            if (__wt_atomic_load_ptr_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_ref) == NULL &&
               session->hazards.num_active > WTI_EVICT_MAX_TREES) {
                 WT_STAT_CONN_INCR(session, eviction_server_skip_trees_too_many_active_walks);
                 __evict_disagg_btree_skip_count(session, btree);
@@ -1881,16 +1881,16 @@ retry:
          * Specific for disaggregated connections, where we are using WT_EVICT_MODIFY_COUNT_MIN and
          * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD values to change the priority for this heuristic.
          */
-        if (__wt_conn_is_disagg(session) && btree->evict_impl.randlru.last_evict_walk_flags != evict->flags) {
-            __wt_atomic_store_uint32_relaxed(&btree->evict_impl.randlru.evict_walk_period, 0);
-            btree->evict_impl.randlru.last_evict_walk_flags = evict->flags;
+        if (__wt_conn_is_disagg(session) && WT_BTREE_EVICT_RANDLRU(btree)->last_evict_walk_flags != evict->flags) {
+            __wt_atomic_store_uint32_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_period, 0);
+            WT_BTREE_EVICT_RANDLRU(btree)->last_evict_walk_flags = evict->flags;
         }
 
         /*
          * If we are filling the queue, skip files that haven't been useful in the past.
          */
-        evict_walk_period = __wt_atomic_load_uint32_relaxed(&btree->evict_impl.randlru.evict_walk_period);
-        if (evict_walk_period != 0 && btree->evict_impl.randlru.evict_walk_skips++ < evict_walk_period) {
+        evict_walk_period = __wt_atomic_load_uint32_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_period);
+        if (evict_walk_period != 0 && WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_skips++ < evict_walk_period) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_not_useful_before);
             __evict_disagg_btree_skip_count(session, btree);
             continue;
@@ -1907,7 +1907,7 @@ retry:
             continue;
         }
 
-        btree->evict_impl.randlru.evict_walk_skips = 0;
+        WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_skips = 0;
 
         __evict_set_saved_walk_tree(session, dhandle);
         __wt_readunlock(session, &conn->dhandle_lock);
@@ -1923,14 +1923,14 @@ retry:
          *
          * If a handle is being discarded, it will still be marked open, but won't have a root page.
          */
-        if (btree->evict_impl.randlru.evict_disabled == 0 && !__wt_spin_trylock(session, &evict->impl.randlru.evict_walk_lock)) {
-            if (btree->evict_impl.randlru.evict_disabled == 0 && btree->root.page != NULL) {
+        if (WT_BTREE_EVICT_RANDLRU(btree)->evict_disabled == 0 && !__wt_spin_trylock(session, &WT_EVICT_RANDLRU(evict)->evict_walk_lock)) {
+            if (WT_BTREE_EVICT_RANDLRU(btree)->evict_disabled == 0 && btree->root.page != NULL) {
                 WT_WITH_DHANDLE(
                   session, dhandle, ret = __evict_walk_tree(session, queue, max_entries, &slot));
 
                 WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) == 0);
             }
-            __wt_spin_unlock(session, &evict->impl.randlru.evict_walk_lock);
+            __wt_spin_unlock(session, &WT_EVICT_RANDLRU(evict)->evict_walk_lock);
             WT_ERR(ret);
             /*
              * If there is a checkpoint thread gathering handles, which means it is holding the
@@ -1964,7 +1964,7 @@ err:
     /*
      * If we didn't find any entries on a walk when we weren't interrupted, let our caller know.
      */
-    if (queue->evict_entries == slot && __wt_atomic_load_uint32_v_relaxed(&evict->impl.randlru.pass_intr) == 0)
+    if (queue->evict_entries == slot && __wt_atomic_load_uint32_v_relaxed(&WT_EVICT_RANDLRU(evict)->pass_intr) == 0)
         ret = WT_NOTFOUND;
 
     queue->evict_entries = slot;
@@ -2048,21 +2048,21 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
         btree_clean_inuse = __wt_btree_bytes_evictable(session);
         cache_inuse = __wt_cache_bytes_inuse(cache);
-        bytes_per_slot = 1 + cache_inuse / evict->impl.randlru.evict_slots;
+        bytes_per_slot = 1 + cache_inuse / WT_EVICT_RANDLRU(evict)->evict_slots;
         target_pages_clean = (uint32_t)((btree_clean_inuse + bytes_per_slot / 2) / bytes_per_slot);
     }
 
     if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY)) {
         btree_dirty_inuse = __wt_btree_dirty_leaf_inuse(session);
         cache_inuse = __wt_cache_dirty_leaf_inuse(cache);
-        bytes_per_slot = 1 + cache_inuse / evict->impl.randlru.evict_slots;
+        bytes_per_slot = 1 + cache_inuse / WT_EVICT_RANDLRU(evict)->evict_slots;
         target_pages_dirty = (uint32_t)((btree_dirty_inuse + bytes_per_slot / 2) / bytes_per_slot);
     }
 
     if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES)) {
         btree_updates_inuse = __wt_btree_bytes_updates(session);
         cache_inuse = __wt_cache_bytes_updates(cache);
-        bytes_per_slot = 1 + cache_inuse / evict->impl.randlru.evict_slots;
+        bytes_per_slot = 1 + cache_inuse / WT_EVICT_RANDLRU(evict)->evict_slots;
         target_pages_updates =
           (uint32_t)((btree_updates_inuse + bytes_per_slot / 2) / bytes_per_slot);
     }
@@ -2217,11 +2217,11 @@ __evict_get_target_pages(WT_SESSION_IMPL *session, u_int max_entries, uint32_t s
      */
     target_pages = __evict_walk_target(session);
 
-    if ((target_pages == 0) || btree->evict_impl.randlru.evict_walk_progress >= btree->evict_impl.randlru.evict_walk_target) {
-        btree->evict_impl.randlru.evict_walk_target = target_pages;
-        btree->evict_impl.randlru.evict_walk_progress = 0;
+    if ((target_pages == 0) || WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_progress >= WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_target) {
+        WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_target = target_pages;
+        WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_progress = 0;
     }
-    target_pages = btree->evict_impl.randlru.evict_walk_target - btree->evict_impl.randlru.evict_walk_progress;
+    target_pages = WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_target - WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_progress;
 
     if (target_pages > remaining_slots)
         target_pages = remaining_slots;
@@ -2312,27 +2312,27 @@ __evict_try_restore_walk_position(WT_SESSION_IMPL *session, WT_BTREE *btree, uin
     size_t path_str_offset;
     double unused; /* GCC fails to WT_UNUSED() :( */
 
-    if ((evict_ref = __wt_atomic_load_ptr_relaxed(&btree->evict_impl.randlru.evict_ref)) != NULL)
+    if ((evict_ref = __wt_atomic_load_ptr_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_ref)) != NULL)
         return (0); /* We've got a pointer already */
-    if (WT_NPOS_IS_INVALID(btree->evict_impl.randlru.evict_pos))
+    if (WT_NPOS_IS_INVALID(WT_BTREE_EVICT_RANDLRU(btree)->evict_pos))
         return (0); /* No restore point */
     WT_RET_ONLY(
-      __wt_page_from_npos_for_eviction(session, &evict_ref, btree->evict_impl.randlru.evict_pos, 0, walk_flags),
+      __wt_page_from_npos_for_eviction(session, &evict_ref, WT_BTREE_EVICT_RANDLRU(btree)->evict_pos, 0, walk_flags),
       WT_PANIC);
-    __wt_atomic_store_ptr_relaxed(&btree->evict_impl.randlru.evict_ref, evict_ref);
+    __wt_atomic_store_ptr_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_ref, evict_ref);
 
     if (evict_ref != NULL &&
       WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_1)) {
         WT_UNUSED(unused = __wt_page_npos(
                     session, evict_ref, WT_NPOS_MID, path_str, &path_str_offset, PATH_STR_MAX));
         __wt_verbose_debug1(session, WT_VERB_EVICTION,
-          "Evict walk point recalled from position %lf %s page %s ref %p", btree->evict_impl.randlru.evict_pos,
+          "Evict walk point recalled from position %lf %s page %s ref %p", WT_BTREE_EVICT_RANDLRU(btree)->evict_pos,
           F_ISSET(evict_ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF", path_str,
           (void *)evict_ref);
     }
 
     WT_STAT_CONN_INCR(session, eviction_restored_pos);
-    if (btree->evict_impl.randlru.evict_saved_ref_check != 0 && btree->evict_impl.randlru.evict_saved_ref_check != (uint64_t)evict_ref)
+    if (WT_BTREE_EVICT_RANDLRU(btree)->evict_saved_ref_check != 0 && WT_BTREE_EVICT_RANDLRU(btree)->evict_saved_ref_check != (uint64_t)evict_ref)
         WT_STAT_CONN_INCR(session, eviction_restored_pos_differ);
 
     return (0);
@@ -2358,7 +2358,7 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
 
     WT_RET(__evict_try_restore_walk_position(session, btree, *walk_flagsp));
 
-    evict_ref = __wt_atomic_load_ptr_relaxed(&btree->evict_impl.randlru.evict_ref);
+    evict_ref = __wt_atomic_load_ptr_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_ref);
     if (evict_ref != NULL)
         WT_STAT_CONN_INCR(session, eviction_walk_saved_pos);
     else
@@ -2369,12 +2369,12 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
      * set. This is mostly aimed at ensuring eviction fairly visits all pages in trees with a lot of
      * in-cache content.
      */
-    switch (btree->evict_impl.randlru.evict_start_type) {
+    switch (WT_BTREE_EVICT_RANDLRU(btree)->evict_start_type) {
     case WT_EVICT_WALK_NEXT:
         /* Each time when evict_ref is null, alternate between linear and random walk */
         if (!S2C(session)->evict_legacy_page_visit_strategy && evict_ref == NULL &&
-          (++btree->evict_impl.randlru.linear_walk_restarts) & 1) {
-            if (S2C(session)->evict->impl.randlru.use_npos_in_pass)
+          (++WT_BTREE_EVICT_RANDLRU(btree)->linear_walk_restarts) & 1) {
+            if (WT_EVICT_RANDLRU(S2C(session)->evict)->use_npos_in_pass)
                 /* Alternate with rand_prev so that the start of the tree is visited more often */
                 goto rand_prev;
             else
@@ -2384,8 +2384,8 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
     case WT_EVICT_WALK_PREV:
         /* Each time when evict_ref is null, alternate between linear and random walk */
         if (!S2C(session)->evict_legacy_page_visit_strategy && evict_ref == NULL &&
-          (++btree->evict_impl.randlru.linear_walk_restarts) & 1) {
-            if (S2C(session)->evict->impl.randlru.use_npos_in_pass)
+          (++WT_BTREE_EVICT_RANDLRU(btree)->linear_walk_restarts) & 1) {
+            if (WT_EVICT_RANDLRU(S2C(session)->evict)->use_npos_in_pass)
                 /* Alternate with rand_next so that the end of the tree is visited more often */
                 goto rand_next;
             else
@@ -2410,7 +2410,7 @@ rand_next:
                 WT_STAT_CONN_INCR(session, eviction_walk_restart);
             }
             WT_RET_NOTFOUND_OK(ret);
-            __wt_atomic_store_ptr_relaxed(&btree->evict_impl.randlru.evict_ref, evict_ref);
+            __wt_atomic_store_ptr_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_ref, evict_ref);
 
             if (evict_ref == NULL)
                 WT_STAT_CONN_INCR(session, eviction_walk_random_returns_null_position);
@@ -2446,18 +2446,18 @@ __evict_should_give_up_walk(WT_SESSION_IMPL *session, uint64_t pages_seen, uint6
         /*
          * Try a different walk start point next time if a walk gave up.
          */
-        switch (btree->evict_impl.randlru.evict_start_type) {
+        switch (WT_BTREE_EVICT_RANDLRU(btree)->evict_start_type) {
         case WT_EVICT_WALK_NEXT:
-            btree->evict_impl.randlru.evict_start_type = WT_EVICT_WALK_PREV;
+            WT_BTREE_EVICT_RANDLRU(btree)->evict_start_type = WT_EVICT_WALK_PREV;
             break;
         case WT_EVICT_WALK_PREV:
-            btree->evict_impl.randlru.evict_start_type = WT_EVICT_WALK_RAND_PREV;
+            WT_BTREE_EVICT_RANDLRU(btree)->evict_start_type = WT_EVICT_WALK_RAND_PREV;
             break;
         case WT_EVICT_WALK_RAND_PREV:
-            btree->evict_impl.randlru.evict_start_type = WT_EVICT_WALK_RAND_NEXT;
+            WT_BTREE_EVICT_RANDLRU(btree)->evict_start_type = WT_EVICT_WALK_RAND_NEXT;
             break;
         case WT_EVICT_WALK_RAND_NEXT:
-            btree->evict_impl.randlru.evict_start_type = WT_EVICT_WALK_NEXT;
+            WT_BTREE_EVICT_RANDLRU(btree)->evict_start_type = WT_EVICT_WALK_NEXT;
             break;
         }
 
@@ -2586,7 +2586,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
             WT_STAT_CONN_INCR(session, eviction_server_skip_intl_page_with_active_child);
             return;
         }
-        if (__wt_atomic_load_uint32_relaxed(&btree->evict_impl.randlru.evict_walk_period) == 0 &&
+        if (__wt_atomic_load_uint32_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_period) == 0 &&
           !__wt_evict_aggressive(session)) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_intl_page_non_aggressive);
             return;
@@ -2644,7 +2644,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
     give_up = urgent_queued = false;
     txn = session->txn;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &evict->impl.randlru.evict_walk_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &WT_EVICT_RANDLRU(evict)->evict_walk_lock);
 
     start = queue->evict_queue + *slotp;
     target_pages = __evict_get_target_pages(session, max_entries, *slotp);
@@ -2664,8 +2664,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
      * point immediately, we assert when discarding pages we're not discarding an eviction point, so
      * this clear must be complete before the page is released.
      */
-    ref = __wt_atomic_load_ptr_relaxed(&btree->evict_impl.randlru.evict_ref);
-    __wt_atomic_store_ptr_relaxed(&btree->evict_impl.randlru.evict_ref, NULL);
+    ref = __wt_atomic_load_ptr_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_ref);
+    __wt_atomic_store_ptr_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_ref, NULL);
     /* Clear the saved position just in case we never put it back. */
     __wt_evict_randlru_clear_npos(evict, session, btree);
 
@@ -2726,20 +2726,20 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
          * statistic here during the walk and not at __evict_page because the evict_pass_gen is
          * reset here.
          */
-        if (page->evict_impl.randlru.evict_pass_gen == 0) {
+        if (WT_PAGE_EVICT_RANDLRU(page)->evict_pass_gen == 0) {
             const uint64_t gen_gap =
-              __wt_atomic_load_uint64_relaxed(&evict->impl.randlru.evict_pass_gen) - page->evict_impl.randlru.cache_create_gen;
-            __wt_atomic_stats_max_uint64(&evict->impl.randlru.evict_max_unvisited_gen_gap, gen_gap);
+              __wt_atomic_load_uint64_relaxed(&WT_EVICT_RANDLRU(evict)->evict_pass_gen) - WT_PAGE_EVICT_RANDLRU(page)->cache_create_gen;
+            __wt_atomic_stats_max_uint64(&WT_EVICT_RANDLRU(evict)->evict_max_unvisited_gen_gap, gen_gap);
             __wt_atomic_stats_max_uint64(
-              &evict->impl.randlru.evict_max_unvisited_gen_gap_per_checkpoint, gen_gap);
+              &WT_EVICT_RANDLRU(evict)->evict_max_unvisited_gen_gap_per_checkpoint, gen_gap);
         } else {
             const uint64_t gen_gap =
-              __wt_atomic_load_uint64_relaxed(&evict->impl.randlru.evict_pass_gen) - page->evict_impl.randlru.evict_pass_gen;
-            __wt_atomic_stats_max_uint64(&evict->impl.randlru.evict_max_visited_gen_gap, gen_gap);
-            __wt_atomic_stats_max_uint64(&evict->impl.randlru.evict_max_visited_gen_gap_per_checkpoint, gen_gap);
+              __wt_atomic_load_uint64_relaxed(&WT_EVICT_RANDLRU(evict)->evict_pass_gen) - WT_PAGE_EVICT_RANDLRU(page)->evict_pass_gen;
+            __wt_atomic_stats_max_uint64(&WT_EVICT_RANDLRU(evict)->evict_max_visited_gen_gap, gen_gap);
+            __wt_atomic_stats_max_uint64(&WT_EVICT_RANDLRU(evict)->evict_max_visited_gen_gap_per_checkpoint, gen_gap);
         }
 
-        page->evict_impl.randlru.evict_pass_gen = __wt_atomic_load_uint64_relaxed(&evict->impl.randlru.evict_pass_gen);
+        WT_PAGE_EVICT_RANDLRU(page)->evict_pass_gen = __wt_atomic_load_uint64_relaxed(&WT_EVICT_RANDLRU(evict)->evict_pass_gen);
 
         if (__wt_page_is_modified(page))
             ++pages_seen_dirty;
@@ -2764,14 +2764,14 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         /* update number of attempts this page has been evicted */
         ++page->evict_queue_attempts;
         __wt_atomic_stats_max_uint16(
-          &evict->impl.randlru.evict_max_eviction_queue_attempts, page->evict_queue_attempts);
+          &WT_EVICT_RANDLRU(evict)->evict_max_eviction_queue_attempts, page->evict_queue_attempts);
 
         __evict_try_queue_page(
           session, queue, ref, last_parent, evict_entry, &urgent_queued, &queued);
         if (queued) {
             ++evict_entry;
             ++pages_queued;
-            ++btree->evict_impl.randlru.evict_walk_progress;
+            ++WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_progress;
 
             /* Count internal pages queued. */
             if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
@@ -2790,19 +2790,19 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
       target_pages, pages_seen, pages_queued);
 
     /* If we couldn't find the number of pages we were looking for, skip the tree next time. */
-    evict_walk_period = __wt_atomic_load_uint32_relaxed(&btree->evict_impl.randlru.evict_walk_period);
+    evict_walk_period = __wt_atomic_load_uint32_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_period);
     if (pages_queued < target_pages / 2 && !urgent_queued)
         __wt_atomic_store_uint32_relaxed(
-          &btree->evict_impl.randlru.evict_walk_period, WT_MIN(WT_MAX(1, 2 * evict_walk_period), 100));
+          &WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_period, WT_MIN(WT_MAX(1, 2 * evict_walk_period), 100));
     else if (pages_queued == target_pages) {
-        __wt_atomic_store_uint32_relaxed(&btree->evict_impl.randlru.evict_walk_period, 0);
+        __wt_atomic_store_uint32_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_period, 0);
         /*
          * If there's a chance the Btree was fully evicted, update the evicted flag in the handle.
          */
         if (__wt_btree_bytes_evictable(session) == 0)
             FLD_SET(session->dhandle->advisory_flags, WT_DHANDLE_ADVISORY_EVICTED);
     } else if (evict_walk_period > 0)
-        __wt_atomic_store_uint32_relaxed(&btree->evict_impl.randlru.evict_walk_period, evict_walk_period / 2);
+        __wt_atomic_store_uint32_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_period, evict_walk_period / 2);
 
     /*
      * Give up the walk occasionally.
@@ -2822,7 +2822,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
           __wt_atomic_load_size_relaxed(&ref->page->memory_footprint) >= btree->splitmempage) {
             if (restarts == 0)
                 WT_STAT_CONN_INCR(session, eviction_walks_abandoned);
-            WT_RET(__wt_page_release(evict->impl.randlru.walk_session, ref, walk_flags));
+            WT_RET(__wt_page_release(WT_EVICT_RANDLRU(evict)->walk_session, ref, walk_flags));
             ref = NULL;
         } else {
             while (ref != NULL &&
@@ -2833,10 +2833,10 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         /*
          * The current ref is obtained from tree walk and is protected by a hazard pointer, so there
          * is no concurrency conflict with __wt_ref_out reading evict_ref in the eviction process.
-         * Using atomic store here is for code consistency with other accesses to btree->evict_impl.randlru.evict_ref.
+         * Using atomic store here is for code consistency with other accesses to WT_BTREE_EVICT_RANDLRU(btree)->evict_ref.
          */
-        __wt_atomic_store_ptr_relaxed(&btree->evict_impl.randlru.evict_ref, ref);
-        if (evict->impl.randlru.use_npos_in_pass)
+        __wt_atomic_store_ptr_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_ref, ref);
+        if (WT_EVICT_RANDLRU(evict)->use_npos_in_pass)
             __evict_clear_walk(session, false);
     }
 
@@ -2884,11 +2884,11 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
     /* Application threads do eviction when cache is full of dirty data */
     urgent_ok = (!is_app && !is_server) || !WT_EVICT_HAS_WORKERS(session) ||
       (is_app && F_ISSET(evict, WT_EVICT_CACHE_DIRTY_HARD));
-    urgent_queue = evict->impl.randlru.evict_urgent_queue;
+    urgent_queue = WT_EVICT_RANDLRU(evict)->evict_urgent_queue;
 
     /* Avoid the LRU lock if no pages are available. */
-    if (__evict_queue_empty(evict->impl.randlru.evict_current_queue, is_server) &&
-      __evict_queue_empty(evict->impl.randlru.evict_other_queue, is_server) &&
+    if (__evict_queue_empty(WT_EVICT_RANDLRU(evict)->evict_current_queue, is_server) &&
+      __evict_queue_empty(WT_EVICT_RANDLRU(evict)->evict_other_queue, is_server) &&
       (!urgent_ok || __evict_queue_empty(urgent_queue, false))) {
         WT_STAT_CONN_INCR(session, eviction_get_ref_empty);
         return (WT_NOTFOUND);
@@ -2903,16 +2903,16 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
      * refill the queues. Such cases are extremely rare in real applications.
      */
     if (is_server && (!urgent_ok || __evict_queue_empty(urgent_queue, false)) &&
-      !__evict_queue_full(evict->impl.randlru.evict_current_queue) &&
-      !__evict_queue_full(evict->impl.randlru.evict_fill_queue) &&
-      (evict->impl.randlru.evict_empty_score > WT_EVICT_SCORE_CUTOFF ||
-        __evict_queue_empty(evict->impl.randlru.evict_fill_queue, false)))
+      !__evict_queue_full(WT_EVICT_RANDLRU(evict)->evict_current_queue) &&
+      !__evict_queue_full(WT_EVICT_RANDLRU(evict)->evict_fill_queue) &&
+      (WT_EVICT_RANDLRU(evict)->evict_empty_score > WT_EVICT_SCORE_CUTOFF ||
+        __evict_queue_empty(WT_EVICT_RANDLRU(evict)->evict_fill_queue, false)))
         return (WT_NOTFOUND);
 
     uint64_t lock_wait_start, lock_wait_end;
     /* Track time spent waiting for the evict queue lock */
     lock_wait_start = __wt_clock(session);
-    __wt_spin_lock(session, &evict->impl.randlru.evict_queue_lock);
+    __wt_spin_lock(session, &WT_EVICT_RANDLRU(evict)->evict_queue_lock);
     lock_wait_end = __wt_clock(session);
 
     /* Only track lock wait time for eviction worker threads */
@@ -2930,16 +2930,16 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
          * The server will only evict half of the pages before looking for more, but should only
          * switch queues if there are no other eviction workers.
          */
-        queue = evict->impl.randlru.evict_current_queue;
-        other_queue = evict->impl.randlru.evict_other_queue;
+        queue = WT_EVICT_RANDLRU(evict)->evict_current_queue;
+        other_queue = WT_EVICT_RANDLRU(evict)->evict_other_queue;
         if (__evict_queue_empty(queue, server_only) &&
           !__evict_queue_empty(other_queue, server_only)) {
-            evict->impl.randlru.evict_current_queue = other_queue;
-            evict->impl.randlru.evict_other_queue = queue;
+            WT_EVICT_RANDLRU(evict)->evict_current_queue = other_queue;
+            WT_EVICT_RANDLRU(evict)->evict_other_queue = queue;
         }
     }
 
-    __wt_spin_unlock(session, &evict->impl.randlru.evict_queue_lock);
+    __wt_spin_unlock(session, &WT_EVICT_RANDLRU(evict)->evict_queue_lock);
 
     /*
      * We got the queue lock, which should be fast, and chose a queue. Now we want to get the lock
@@ -3008,7 +3008,7 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
         /*
          * Increment the busy count in the btree handle to prevent it from being closed under us.
          */
-        (void)__wt_atomic_add_uint32_v(&evict_entry->btree->evict_impl.randlru.evict_busy, 1);
+        (void)__wt_atomic_add_uint32_v(&WT_BTREE_EVICT_RANDLRU(evict_entry->btree)->evict_busy, 1);
 
         *btreep = evict_entry->btree;
         *refp = evict_entry->ref;
@@ -3086,7 +3086,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 
     WT_WITH_BTREE(session, btree, ret = __wt_evict_page(session, ref, previous_state, flags));
 
-    (void)__wt_atomic_sub_uint32_v(&btree->evict_impl.randlru.evict_busy, 1);
+    (void)__wt_atomic_sub_uint32_v(&WT_BTREE_EVICT_RANDLRU(btree)->evict_busy, 1);
 
     if (time_start != 0) {
         time_stop = __wt_clock(session);
@@ -3177,7 +3177,7 @@ __wti_evict_app_assist_worker(
      * namely, the busy return and empty eviction queue. We do not need the calling functions to
      * have to deal with internal eviction return codes.
      */
-    for (uint64_t initial_progress = __wt_atomic_load_uint64_v_relaxed(&evict->impl.randlru.eviction_progress);;
+    for (uint64_t initial_progress = __wt_atomic_load_uint64_v_relaxed(&WT_EVICT_RANDLRU(evict)->eviction_progress);;
          ret = 0) {
         /*
          * If eviction is stuck, check if this thread is likely causing problems and should be
@@ -3186,7 +3186,7 @@ __wti_evict_app_assist_worker(
         if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_evict_cache_stuck(session)) {
             ret = __wt_txn_is_blocking(session);
             if (ret == WT_ROLLBACK) {
-                __wt_atomic_decrement_if_positive(&evict->impl.randlru.evict_aggressive_score);
+                __wt_atomic_decrement_if_positive(&WT_EVICT_RANDLRU(evict)->evict_aggressive_score);
                 if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
                     __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
                       session->err_info.err_msg);
@@ -3229,7 +3229,7 @@ __wti_evict_app_assist_worker(
         double pct_full;
         if (!__wt_evict_needed(session, busy, readonly, true, &pct_full) ||
           (pct_full < 100.0 &&
-            (__wt_atomic_load_uint64_v_relaxed(&evict->impl.randlru.eviction_progress) >
+            (__wt_atomic_load_uint64_v_relaxed(&WT_EVICT_RANDLRU(evict)->eviction_progress) >
               initial_progress + max_progress)))
             break;
 
@@ -3291,7 +3291,7 @@ err:
             ret = WT_ROLLBACK;
             __wt_session_set_last_error(
               session, ret, WT_CACHE_OVERFLOW, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW);
-            __wt_atomic_decrement_if_positive(&evict->impl.randlru.evict_aggressive_score);
+            __wt_atomic_decrement_if_positive(&WT_EVICT_RANDLRU(evict)->evict_aggressive_score);
 
             WT_STAT_CONN_INCR(session, eviction_timed_out_ops);
             if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
@@ -3330,7 +3330,7 @@ __wt_evict_randlru_page_urgent(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_REF
     WT_ASSERT(session, !__wt_ref_is_root(ref));
 
     page = ref->page;
-    if (S2BT(session)->evict_impl.randlru.evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU_URGENT)) {
+    if (WT_BTREE_EVICT_RANDLRU(S2BT(session))->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU_URGENT)) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_pages_already_in_urgent_queue);
         return (false);
     }
@@ -3339,13 +3339,13 @@ __wt_evict_randlru_page_urgent(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_REF
         return (false);
 
     /* Append to the urgent queue if we can. */
-    urgent_queue = &evict->impl.randlru.evict_queues[WTI_EVICT_URGENT_QUEUE];
+    urgent_queue = &WT_EVICT_RANDLRU(evict)->evict_queues[WTI_EVICT_URGENT_QUEUE];
     queued = false;
 
-    __wt_spin_lock(session, &evict->impl.randlru.evict_queue_lock);
+    __wt_spin_lock(session, &WT_EVICT_RANDLRU(evict)->evict_queue_lock);
 
     /* Check again, in case we raced with another thread. */
-    if (S2BT(session)->evict_impl.randlru.evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU_URGENT))
+    if (WT_BTREE_EVICT_RANDLRU(S2BT(session))->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU_URGENT))
         goto done;
 
     /*
@@ -3366,7 +3366,7 @@ __wt_evict_randlru_page_urgent(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_REF
         urgent_queue->evict_candidates = 0;
     }
     evict_entry = urgent_queue->evict_queue + urgent_queue->evict_candidates;
-    if (evict_entry < urgent_queue->evict_queue + evict->impl.randlru.evict_slots &&
+    if (evict_entry < urgent_queue->evict_queue + WT_EVICT_RANDLRU(evict)->evict_slots &&
       __evict_push_candidate(session, urgent_queue, evict_entry, ref)) {
         ++urgent_queue->evict_candidates;
         queued = true;
@@ -3375,7 +3375,7 @@ __wt_evict_randlru_page_urgent(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_REF
     __wt_spin_unlock(session, &urgent_queue->evict_lock);
 
 done:
-    __wt_spin_unlock(session, &evict->impl.randlru.evict_queue_lock);
+    __wt_spin_unlock(session, &WT_EVICT_RANDLRU(evict)->evict_queue_lock);
     if (queued) {
         WT_STAT_CONN_INCR(session, eviction_pages_queued_urgent);
         if (WT_EVICT_HAS_WORKERS(session))
@@ -3404,7 +3404,7 @@ void
 __wt_evict_randlru_priority_set(WT_EVICT *evict, WT_SESSION_IMPL *session, uint64_t v)
 {
     WT_UNUSED(evict);
-    S2BT(session)->evict_impl.randlru.evict_priority = v;
+    WT_BTREE_EVICT_RANDLRU(S2BT(session))->evict_priority = v;
 }
 
 /*
@@ -3416,7 +3416,7 @@ void
 __wt_evict_randlru_priority_clear(WT_EVICT *evict, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(evict);
-    S2BT(session)->evict_impl.randlru.evict_priority = 0;
+    WT_BTREE_EVICT_RANDLRU(S2BT(session))->evict_priority = 0;
 }
 
 /*
@@ -3448,8 +3448,8 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session, uint64_t *total_bytesp,
     WT_RET(__wt_msg(session, "%s(%s%s)%s%s:", dhandle->name,
       WT_DHANDLE_IS_CHECKPOINT(dhandle) ? "checkpoint=" : "",
       WT_DHANDLE_IS_CHECKPOINT(dhandle) ? dhandle->checkpoint : "<live>",
-      btree->evict_impl.randlru.evict_disabled != 0 ? " eviction disabled" : "",
-      btree->evict_impl.randlru.evict_disabled_open ? " at open" : ""));
+      WT_BTREE_EVICT_RANDLRU(btree)->evict_disabled != 0 ? " eviction disabled" : "",
+      WT_BTREE_EVICT_RANDLRU(btree)->evict_disabled_open ? " at open" : ""));
 
     /*
      * We cannot walk the tree of a dhandle held exclusively because the owning thread could be
@@ -3832,7 +3832,7 @@ __wt_evict_randlru_app_assist_worker_check(WT_EVICT *evict, WT_SESSION_IMPL *ses
           &(conn->cache->cache_eviction_controls), WT_CACHE_EVICT_INCREMENTAL_APP) &&
       !__wt_evict_randlru_clean_needed(evict, session, &pct_full)) {
         if (pct_full <= evict->eviction_target &&
-          ((__wt_atomic_load_uint32_relaxed(&evict->impl.randlru.evict_aggressive_score)) <= (session->id % 20)))
+          ((__wt_atomic_load_uint32_relaxed(&WT_EVICT_RANDLRU(evict)->evict_aggressive_score)) <= (session->id % 20)))
             return (0);
     }
 
@@ -3858,7 +3858,7 @@ WT_DATA_HANDLE *
 __wt_evict_randlru_get_walk_tree(WT_EVICT *evict, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(session);
-    return (evict->impl.randlru.walk_tree);
+    return (WT_EVICT_RANDLRU(evict)->walk_tree);
 }
 
 /*
@@ -3869,7 +3869,7 @@ void
 __wt_evict_randlru_pass_interrupt_inc(WT_EVICT *evict, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(session);
-    (void)__wt_atomic_add_uint32_v(&evict->impl.randlru.pass_intr, 1);
+    (void)__wt_atomic_add_uint32_v(&WT_EVICT_RANDLRU(evict)->pass_intr, 1);
 }
 
 /*
@@ -3880,7 +3880,7 @@ void
 __wt_evict_randlru_pass_interrupt_dec(WT_EVICT *evict, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(session);
-    (void)__wt_atomic_sub_uint32_v(&evict->impl.randlru.pass_intr, 1);
+    (void)__wt_atomic_sub_uint32_v(&WT_EVICT_RANDLRU(evict)->pass_intr, 1);
 }
 
 /*
@@ -3891,7 +3891,7 @@ uint64_t
 __wt_evict_randlru_get_evict_pass_gen(WT_EVICT *evict, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(session);
-    return (__wt_atomic_load_uint64_relaxed(&evict->impl.randlru.evict_pass_gen));
+    return (__wt_atomic_load_uint64_relaxed(&WT_EVICT_RANDLRU(evict)->evict_pass_gen));
 }
 
 /*
@@ -3903,7 +3903,7 @@ __wt_evict_randlru_get_page_evict_pass_gen(WT_EVICT *evict, WT_SESSION_IMPL *ses
 {
     WT_UNUSED(evict);
     WT_UNUSED(session);
-    return (page->evict_impl.randlru.evict_pass_gen);
+    return (WT_PAGE_EVICT_RANDLRU(page)->evict_pass_gen);
 }
 
 /*
@@ -3915,10 +3915,10 @@ void
 __wt_evict_randlru_save_evict_state(
   WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE_MODIFY *mod)
 {
-    mod->evict_impl.randlru.last_eviction_id = __wt_txn_oldest_id(session);
-    __wt_txn_pinned_timestamp(session, &mod->evict_impl.randlru.last_eviction_timestamp);
-    mod->evict_impl.randlru.last_evict_pass_gen =
-      __wt_atomic_load_uint64_relaxed(&evict->impl.randlru.evict_pass_gen);
+    WT_PAGE_MODIFY_EVICT_RANDLRU(mod)->last_eviction_id = __wt_txn_oldest_id(session);
+    __wt_txn_pinned_timestamp(session, &WT_PAGE_MODIFY_EVICT_RANDLRU(mod)->last_eviction_timestamp);
+    WT_PAGE_MODIFY_EVICT_RANDLRU(mod)->last_evict_pass_gen =
+      __wt_atomic_load_uint64_relaxed(&WT_EVICT_RANDLRU(evict)->evict_pass_gen);
 }
 
 /*
@@ -3931,10 +3931,10 @@ __wt_evict_randlru_copy_evict_state(
 {
     WT_UNUSED(evict);
     WT_UNUSED(session);
-    dst->evict_impl.randlru.last_evict_pass_gen = src->evict_impl.randlru.last_evict_pass_gen;
-    dst->evict_impl.randlru.last_eviction_id = src->evict_impl.randlru.last_eviction_id;
-    dst->evict_impl.randlru.last_eviction_timestamp =
-      src->evict_impl.randlru.last_eviction_timestamp;
+    WT_PAGE_MODIFY_EVICT_RANDLRU(dst)->last_evict_pass_gen = WT_PAGE_MODIFY_EVICT_RANDLRU(src)->last_evict_pass_gen;
+    WT_PAGE_MODIFY_EVICT_RANDLRU(dst)->last_eviction_id = WT_PAGE_MODIFY_EVICT_RANDLRU(src)->last_eviction_id;
+    WT_PAGE_MODIFY_EVICT_RANDLRU(dst)->last_eviction_timestamp =
+      WT_PAGE_MODIFY_EVICT_RANDLRU(src)->last_eviction_timestamp;
 }
 
 /*
@@ -3961,23 +3961,23 @@ __wt_evict_randlru_page_evict_retry(WT_EVICT *evict, WT_SESSION_IMPL *session, W
      * a reasonable amount of time is currently pretty arbitrary.
      */
     if (__wt_evict_randlru_aggressive(evict, session) ||
-      mod->evict_impl.randlru.last_evict_pass_gen + 5 <
-        __wt_atomic_load_uint64_relaxed(&evict->impl.randlru.evict_pass_gen))
+      WT_PAGE_MODIFY_EVICT_RANDLRU(mod)->last_evict_pass_gen + 5 <
+        __wt_atomic_load_uint64_relaxed(&WT_EVICT_RANDLRU(evict)->evict_pass_gen))
         return (true);
 
     /* Retry if the global transaction state has moved forward. */
     if (__wt_atomic_load_uint64_v_relaxed(&txn_global->current) ==
         __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id) ||
-      mod->evict_impl.randlru.last_eviction_id != __wt_txn_oldest_id(session))
+      WT_PAGE_MODIFY_EVICT_RANDLRU(mod)->last_eviction_id != __wt_txn_oldest_id(session))
         return (true);
 
     /*
      * It is possible that we have not started using the timestamps just yet. So, check for the last
      * time we evicted only if there is a timestamp set.
      */
-    if (mod->evict_impl.randlru.last_eviction_timestamp != WT_TS_NONE) {
+    if (WT_PAGE_MODIFY_EVICT_RANDLRU(mod)->last_eviction_timestamp != WT_TS_NONE) {
         __wt_txn_pinned_timestamp(session, &pinned_ts);
-        if (pinned_ts > mod->evict_impl.randlru.last_eviction_timestamp)
+        if (pinned_ts > WT_PAGE_MODIFY_EVICT_RANDLRU(mod)->last_eviction_timestamp)
             return (true);
     }
 
@@ -3993,8 +3993,8 @@ __wt_evict_randlru_page_set_cache_create_gen(
   WT_EVICT *evict, WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_UNUSED(session);
-    page->evict_impl.randlru.cache_create_gen =
-      __wt_atomic_load_uint64_relaxed(&evict->impl.randlru.evict_pass_gen);
+    WT_PAGE_EVICT_RANDLRU(page)->cache_create_gen =
+      __wt_atomic_load_uint64_relaxed(&WT_EVICT_RANDLRU(evict)->evict_pass_gen);
 }
 
 /*
@@ -4007,7 +4007,7 @@ __wt_evict_randlru_page_get_cache_create_gen(
 {
     WT_UNUSED(evict);
     WT_UNUSED(session);
-    return (page->evict_impl.randlru.cache_create_gen);
+    return (WT_PAGE_EVICT_RANDLRU(page)->cache_create_gen);
 }
 
 /*
@@ -4018,7 +4018,7 @@ uint64_t
 __wt_evict_randlru_btree_get_priority(WT_EVICT *evict, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(evict);
-    return (S2BT(session)->evict_impl.randlru.evict_priority);
+    return (WT_BTREE_EVICT_RANDLRU(S2BT(session))->evict_priority);
 }
 
 /*
@@ -4032,8 +4032,8 @@ __wt_evict_randlru_btree_save_walk_period(WT_EVICT *evict, WT_SESSION_IMPL *sess
 
     WT_UNUSED(evict);
     btree = S2BT(session);
-    btree->evict_impl.randlru.evict_walk_saved =
-      __wt_atomic_load_uint32_relaxed(&btree->evict_impl.randlru.evict_walk_period);
+    WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_saved =
+      __wt_atomic_load_uint32_relaxed(&WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_period);
 }
 
 /*
@@ -4048,7 +4048,7 @@ __wt_evict_randlru_btree_restore_walk_period(WT_EVICT *evict, WT_SESSION_IMPL *s
     WT_UNUSED(evict);
     btree = S2BT(session);
     __wt_atomic_store_uint32_relaxed(
-      &btree->evict_impl.randlru.evict_walk_period, btree->evict_impl.randlru.evict_walk_saved);
+      &WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_period, WT_BTREE_EVICT_RANDLRU(btree)->evict_walk_saved);
 }
 
 /*
@@ -4059,7 +4059,7 @@ bool
 __wt_evict_randlru_btree_is_eviction_disabled(WT_EVICT *evict, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(evict);
-    return (S2BT(session)->evict_impl.randlru.evict_disabled > 0);
+    return (WT_BTREE_EVICT_RANDLRU(S2BT(session))->evict_disabled > 0);
 }
 
 /*
@@ -4070,7 +4070,7 @@ void
 __wt_evict_randlru_btree_set_disabled_open(WT_EVICT *evict, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(evict);
-    S2BT(session)->evict_impl.randlru.evict_disabled_open = true;
+    WT_BTREE_EVICT_RANDLRU(S2BT(session))->evict_disabled_open = true;
 }
 
 /*
@@ -4081,7 +4081,7 @@ bool
 __wt_evict_randlru_btree_is_disabled_open(WT_EVICT *evict, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(evict);
-    return (S2BT(session)->evict_impl.randlru.evict_disabled_open);
+    return (WT_BTREE_EVICT_RANDLRU(S2BT(session))->evict_disabled_open);
 }
 
 /*
@@ -4092,7 +4092,7 @@ void
 __wt_evict_randlru_btree_clear_disabled_open(WT_EVICT *evict, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(evict);
-    S2BT(session)->evict_impl.randlru.evict_disabled_open = false;
+    WT_BTREE_EVICT_RANDLRU(S2BT(session))->evict_disabled_open = false;
 }
 
 /*
@@ -4104,7 +4104,7 @@ __wt_evict_randlru_btree_busy_inc(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_
 {
     WT_UNUSED(evict);
     WT_UNUSED(session);
-    (void)__wt_atomic_add_uint32_v(&btree->evict_impl.randlru.evict_busy, 1);
+    (void)__wt_atomic_add_uint32_v(&WT_BTREE_EVICT_RANDLRU(btree)->evict_busy, 1);
 }
 
 /*
@@ -4116,7 +4116,7 @@ __wt_evict_randlru_btree_busy_dec(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_
 {
     WT_UNUSED(evict);
     WT_UNUSED(session);
-    (void)__wt_atomic_sub_uint32_v(&btree->evict_impl.randlru.evict_busy, 1);
+    (void)__wt_atomic_sub_uint32_v(&WT_BTREE_EVICT_RANDLRU(btree)->evict_busy, 1);
 }
 
 /*
@@ -4129,7 +4129,7 @@ __wt_evict_randlru_btree_prefetch_busy_inc(
 {
     WT_UNUSED(evict);
     WT_UNUSED(session);
-    (void)__wt_atomic_add_uint32_v(&btree->evict_impl.randlru.prefetch_busy, 1);
+    (void)__wt_atomic_add_uint32_v(&WT_BTREE_EVICT_RANDLRU(btree)->prefetch_busy, 1);
 }
 
 /*
@@ -4142,7 +4142,7 @@ __wt_evict_randlru_btree_prefetch_busy_dec(
 {
     WT_UNUSED(evict);
     WT_UNUSED(session);
-    (void)__wt_atomic_sub_uint32_v(&btree->evict_impl.randlru.prefetch_busy, 1);
+    (void)__wt_atomic_sub_uint32_v(&WT_BTREE_EVICT_RANDLRU(btree)->prefetch_busy, 1);
 }
 
 /*
@@ -4155,7 +4155,7 @@ __wt_evict_randlru_btree_prefetch_busy_wait(
 {
     WT_UNUSED(evict);
     WT_UNUSED(session);
-    while (__wt_tsan_suppress_load_uint32_v(&btree->evict_impl.randlru.prefetch_busy) > 0)
+    while (__wt_tsan_suppress_load_uint32_v(&WT_BTREE_EVICT_RANDLRU(btree)->prefetch_busy) > 0)
         __wt_yield();
 }
 
@@ -4167,5 +4167,5 @@ WT_REF *
 __wt_evict_randlru_btree_get_evict_ref(WT_EVICT *evict, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(evict);
-    return (__wt_atomic_load_ptr_relaxed(&S2BT(session)->evict_impl.randlru.evict_ref));
+    return (__wt_atomic_load_ptr_relaxed(&WT_BTREE_EVICT_RANDLRU(S2BT(session))->evict_ref));
 }
