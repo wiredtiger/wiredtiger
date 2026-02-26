@@ -328,6 +328,11 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"random.extra_seed", "set random seed for extra operations", 0x0, 0, 0, UINT_MAX,
     V_GLOBAL_RANDOM_EXTRA_SEED},
 
+  {"rollback_to_stable_threads",
+    "maximum number of threads to use for RTS. A value of RTS_THREADS_MAX translates to the "
+    "default rollback_to_stable configuration",
+    0x0, 0, RTS_THREADS_MAX, RTS_THREADS_MAX, V_GLOBAL_ROLLBACK_TO_STABLE_THREADS},
+
   {"runs.in_memory", "configure in-memory", C_BOOL | C_IGNORE, 0, 0, 1, V_GLOBAL_RUNS_IN_MEMORY},
 
   {"runs.mirror", "mirror tables", C_BOOL | C_IGNORE | C_TABLE, 0, 0, 0, V_TABLE_RUNS_MIRROR},

@@ -485,6 +485,9 @@ conn_stats = [
     ##########################################
     # Checkpoint statistics
     ##########################################
+    CheckpointStat('checkpoint_cleanup_duration', 'most recent checkpoint cleanup duration on all eligible files (usecs)', 'no_clear,no_scale'),
+    CheckpointStat('checkpoint_cleanup_handle_processed', 'most recent checkpoint cleanup handles processed'),
+    CheckpointStat('checkpoint_cleanup_inmem_pages_visited', 'in-memory pages visited during checkpoint cleanup'),
     CheckpointStat('checkpoint_cleanup_success', 'checkpoint cleanup successful calls'),
     CheckpointStat('checkpoint_fsync_post', 'fsync calls after allocating the transaction ID'),
     CheckpointStat('checkpoint_fsync_post_duration', 'fsync duration after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
@@ -1380,6 +1383,7 @@ conn_dsrc_stats = [
     RecStat('rec_hs_wrapup_next_prev_calls', 'cursor next/prev calls during HS wrapup search_near'),
     RecStat('rec_ingest_garbage_collection_keys_disk_image', 'number of keys that are garbage collected form the disk images in the ingest btrees for disaggregated storage'),
     RecStat('rec_ingest_garbage_collection_keys_update_chain', 'number of keys that are garbage collected form the update chains in the ingest btrees for disaggregated storage'),
+    RecStat('rec_ingest_keep_prepare_rollback', 'ingest btree reconciliation keeps the aborted prepare updates'),
     RecStat('rec_max_internal_page_deltas', 'max deltas seen on internal page during reconciliation'),
     RecStat('rec_max_leaf_page_deltas', 'max deltas seen on leaf page during reconciliation'),
     RecStat('rec_multiblock_internal', 'internal page multi-block writes'),

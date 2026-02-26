@@ -96,7 +96,7 @@ class test_key_provider_disagg02(wttest.WiredTigerTestCase, suite_subprocess):
     # match Palites SQLite version; some system SQLite builds are too old and may fail.
     def sqlite_fetch_shared_meta(self, write):
         sqlite_exe = os.path.join(wt_builddir, "sqlite3")
-        database_home = os.path.join(self.dir, 'kv_home', 'pages_000001.db')
+        database_home = os.path.join(self.dir, 'kv_home', "pages_000002.db") # table for WT_SPECIAL_PALI_TURTLE_FILE_ID
         result = subprocess.run(
             [sqlite_exe, "-json", database_home, "SELECT * FROM pages ORDER BY lsn DESC LIMIT 1;"],
             capture_output=True,
