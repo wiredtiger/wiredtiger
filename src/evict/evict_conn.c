@@ -323,16 +323,40 @@ __wt_evict_randlru_reset_checkpoint_stats(WT_EVICT *evict, WT_SESSION_IMPL *sess
     WT_UNUSED(session);
 
     __wt_atomic_store_uint64_relaxed(
-      &evict->impl.randlru.evict_max_unvisited_gen_gap_per_checkpoint, 0);
+      &WT_EVICT_RANDLRU(evict)->evict_max_unvisited_gen_gap_per_checkpoint, 0);
     __wt_atomic_store_uint64_relaxed(
-      &evict->impl.randlru.evict_max_visited_gen_gap_per_checkpoint, 0);
+      &WT_EVICT_RANDLRU(evict)->evict_max_visited_gen_gap_per_checkpoint, 0);
     __wt_atomic_store_uint64_relaxed(&evict->evict_max_clean_page_size_per_checkpoint, 0);
     __wt_atomic_store_uint64_relaxed(&evict->evict_max_dirty_page_size_per_checkpoint, 0);
     __wt_atomic_store_uint64_relaxed(&evict->evict_max_updates_page_size_per_checkpoint, 0);
     __wt_atomic_store_uint64_relaxed(&evict->evict_max_ms_per_checkpoint, 0);
-    __wt_atomic_store_uint16_relaxed(&evict->impl.randlru.evict_max_eviction_queue_attempts, 0);
-    __wt_atomic_store_uint16_relaxed(&evict->impl.randlru.evict_max_evict_page_attempts, 0);
+    __wt_atomic_store_uint16_relaxed(&WT_EVICT_RANDLRU(evict)->evict_max_eviction_queue_attempts, 0);
+    __wt_atomic_store_uint16_relaxed(&WT_EVICT_RANDLRU(evict)->evict_max_evict_page_attempts, 0);
     __wt_atomic_store_uint64_relaxed(&evict->reentry_hs_eviction_ms, 0);
+}
+
+static size_t
+__evict_randlru_evict_extra_size(void)
+{
+    return (sizeof(WT_EVICT_RANDLRU_DATA));
+}
+
+static size_t
+__evict_randlru_btree_extra_size(void)
+{
+    return (sizeof(WT_BTREE_RANDLRU_DATA));
+}
+
+static size_t
+__evict_randlru_page_extra_size(void)
+{
+    return (sizeof(WT_PAGE_RANDLRU_DATA));
+}
+
+static size_t
+__evict_randlru_page_modify_extra_size(void)
+{
+    return (sizeof(WT_PAGE_MODIFY_RANDLRU_DATA));
 }
 
 /*
@@ -400,6 +424,10 @@ __evict_randlru_method_set(WT_EVICT *evict)
     evict->btree_prefetch_busy_dec = __wt_evict_randlru_btree_prefetch_busy_dec;
     evict->btree_prefetch_busy_wait = __wt_evict_randlru_btree_prefetch_busy_wait;
     evict->btree_get_evict_ref = __wt_evict_randlru_btree_get_evict_ref;
+    evict->evict_extra_size = __evict_randlru_evict_extra_size;
+    evict->btree_extra_size = __evict_randlru_btree_extra_size;
+    evict->page_extra_size = __evict_randlru_page_extra_size;
+    evict->page_modify_extra_size = __evict_randlru_page_modify_extra_size;
 }
 
 /* !!!
@@ -427,7 +455,7 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
 
     WT_ASSERT(session, conn->evict == NULL);
-    WT_RET(__wt_calloc_one(session, &conn->evict));
+    WT_RET(__wt_calloc(session, 1, sizeof(WT_EVICT) + sizeof(WT_EVICT_RANDLRU_DATA), &conn->evict));
 
     evict = conn->evict;
     __evict_randlru_method_set(evict);
@@ -439,32 +467,32 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
      * The lowest possible page read-generation has a special meaning, it marks a page for forcible
      * eviction; don't let it happen by accident.
      */
-    evict->impl.randlru.read_gen_oldest = WT_READGEN_START_VALUE;
-    __wt_atomic_store_uint64_relaxed(&evict->impl.randlru.read_gen, WT_READGEN_START_VALUE);
+    WT_EVICT_RANDLRU(evict)->read_gen_oldest = WT_READGEN_START_VALUE;
+    __wt_atomic_store_uint64_relaxed(&WT_EVICT_RANDLRU(evict)->read_gen, WT_READGEN_START_VALUE);
 
     WT_RET(__wt_cond_auto_alloc(
-      session, "evict server", 10 * WT_THOUSAND, WT_MILLION, &evict->impl.randlru.evict_cond));
-    WT_RET(__wt_spin_init(session, &evict->impl.randlru.evict_pass_lock, "evict pass"));
-    WT_RET(__wt_spin_init(session, &evict->impl.randlru.evict_queue_lock, "evict queues"));
-    WT_RET(__wt_spin_init(session, &evict->impl.randlru.evict_walk_lock, "evict walk"));
+      session, "evict server", 10 * WT_THOUSAND, WT_MILLION, &WT_EVICT_RANDLRU(evict)->evict_cond));
+    WT_RET(__wt_spin_init(session, &WT_EVICT_RANDLRU(evict)->evict_pass_lock, "evict pass"));
+    WT_RET(__wt_spin_init(session, &WT_EVICT_RANDLRU(evict)->evict_queue_lock, "evict queues"));
+    WT_RET(__wt_spin_init(session, &WT_EVICT_RANDLRU(evict)->evict_walk_lock, "evict walk"));
     if ((ret = __wt_open_internal_session(conn, "evict pass", false, WT_SESSION_NO_DATA_HANDLES, 0,
-           &evict->impl.randlru.walk_session)) != 0)
+           &WT_EVICT_RANDLRU(evict)->walk_session)) != 0)
         WT_RET_MSG(NULL, ret, "Failed to create session for eviction walks");
 
     /* Allocate the LRU eviction queue. */
-    evict->impl.randlru.evict_slots = WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR;
+    WT_EVICT_RANDLRU(evict)->evict_slots = WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR;
     for (i = 0; i < WTI_EVICT_QUEUE_MAX; ++i) {
         WT_RET(__wt_calloc_def(
-          session, evict->impl.randlru.evict_slots, &evict->impl.randlru.evict_queues[i].evict_queue));
+          session, WT_EVICT_RANDLRU(evict)->evict_slots, &WT_EVICT_RANDLRU(evict)->evict_queues[i].evict_queue));
         WT_RET(
-          __wt_spin_init(session, &evict->impl.randlru.evict_queues[i].evict_lock, "evict queue"));
+          __wt_spin_init(session, &WT_EVICT_RANDLRU(evict)->evict_queues[i].evict_lock, "evict queue"));
     }
 
     /* Ensure there are always non-NULL queues. */
-    evict->impl.randlru.evict_current_queue = evict->impl.randlru.evict_fill_queue =
-      &evict->impl.randlru.evict_queues[0];
-    evict->impl.randlru.evict_other_queue = &evict->impl.randlru.evict_queues[1];
-    evict->impl.randlru.evict_urgent_queue = &evict->impl.randlru.evict_queues[WTI_EVICT_URGENT_QUEUE];
+    WT_EVICT_RANDLRU(evict)->evict_current_queue = WT_EVICT_RANDLRU(evict)->evict_fill_queue =
+      &WT_EVICT_RANDLRU(evict)->evict_queues[0];
+    WT_EVICT_RANDLRU(evict)->evict_other_queue = &WT_EVICT_RANDLRU(evict)->evict_queues[1];
+    WT_EVICT_RANDLRU(evict)->evict_urgent_queue = &WT_EVICT_RANDLRU(evict)->evict_queues[WTI_EVICT_URGENT_QUEUE];
     evict->evict_lock_wait_time = 0;
 
     /*
@@ -494,16 +522,16 @@ __wt_evict_randlru_destroy(WT_EVICT *evict, WT_SESSION_IMPL *session)
     if (evict == NULL)
         return (0);
 
-    __wt_cond_destroy(session, &evict->impl.randlru.evict_cond);
-    __wt_spin_destroy(session, &evict->impl.randlru.evict_pass_lock);
-    __wt_spin_destroy(session, &evict->impl.randlru.evict_queue_lock);
-    __wt_spin_destroy(session, &evict->impl.randlru.evict_walk_lock);
-    if (evict->impl.randlru.walk_session != NULL)
-        WT_TRET(__wt_session_close_internal(evict->impl.randlru.walk_session));
+    __wt_cond_destroy(session, &WT_EVICT_RANDLRU(evict)->evict_cond);
+    __wt_spin_destroy(session, &WT_EVICT_RANDLRU(evict)->evict_pass_lock);
+    __wt_spin_destroy(session, &WT_EVICT_RANDLRU(evict)->evict_queue_lock);
+    __wt_spin_destroy(session, &WT_EVICT_RANDLRU(evict)->evict_walk_lock);
+    if (WT_EVICT_RANDLRU(evict)->walk_session != NULL)
+        WT_TRET(__wt_session_close_internal(WT_EVICT_RANDLRU(evict)->walk_session));
 
     for (i = 0; i < WTI_EVICT_QUEUE_MAX; ++i) {
-        __wt_spin_destroy(session, &evict->impl.randlru.evict_queues[i].evict_lock);
-        __wt_free(session, evict->impl.randlru.evict_queues[i].evict_queue);
+        __wt_spin_destroy(session, &WT_EVICT_RANDLRU(evict)->evict_queues[i].evict_lock);
+        __wt_free(session, WT_EVICT_RANDLRU(evict)->evict_queues[i].evict_queue);
     }
     __wt_free(session, conn->evict);
     return (ret);
@@ -589,30 +617,30 @@ __wt_evict_randlru_stats_init(WT_EVICT *evict, WT_SESSION_IMPL *session)
     WT_STATP_CONN_SET(session, stats, eviction_reentry_hs_eviction_milliseconds,
       __wt_atomic_load_uint64_relaxed(&evict->reentry_hs_eviction_ms));
     WT_STATP_CONN_SET(session, stats, eviction_maximum_unvisited_gen_gap,
-      __wt_atomic_load_uint64_relaxed(&evict->impl.randlru.evict_max_unvisited_gen_gap));
+      __wt_atomic_load_uint64_relaxed(&WT_EVICT_RANDLRU(evict)->evict_max_unvisited_gen_gap));
     WT_STATP_CONN_SET(session, stats, eviction_maximum_unvisited_gen_gap_per_checkpoint,
       __wt_atomic_load_uint64_relaxed(
-        &evict->impl.randlru.evict_max_unvisited_gen_gap_per_checkpoint));
+        &WT_EVICT_RANDLRU(evict)->evict_max_unvisited_gen_gap_per_checkpoint));
     WT_STATP_CONN_SET(session, stats, eviction_maximum_visited_gen_gap,
-      __wt_atomic_load_uint64_relaxed(&evict->impl.randlru.evict_max_visited_gen_gap));
+      __wt_atomic_load_uint64_relaxed(&WT_EVICT_RANDLRU(evict)->evict_max_visited_gen_gap));
     WT_STATP_CONN_SET(session, stats, eviction_maximum_visited_gen_gap_per_checkpoint,
       __wt_atomic_load_uint64_relaxed(
-        &evict->impl.randlru.evict_max_visited_gen_gap_per_checkpoint));
+        &WT_EVICT_RANDLRU(evict)->evict_max_visited_gen_gap_per_checkpoint));
     WT_STATP_CONN_SET(
       session, stats, eviction_state, __wt_atomic_load_uint32_relaxed(&evict->flags));
     WT_STATP_CONN_SET(session, stats, eviction_aggressive_set,
-      __wt_atomic_load_uint32_relaxed(&evict->impl.randlru.evict_aggressive_score));
+      __wt_atomic_load_uint32_relaxed(&WT_EVICT_RANDLRU(evict)->evict_aggressive_score));
     WT_STATP_CONN_SET(
-      session, stats, eviction_empty_score, evict->impl.randlru.evict_empty_score);
+      session, stats, eviction_empty_score, WT_EVICT_RANDLRU(evict)->evict_empty_score);
 
     WT_STATP_CONN_SET(session, stats, eviction_active_workers,
       __wt_atomic_load_uint32_relaxed(&conn->evict_threads.current_threads));
     WT_STATP_CONN_SET(session, stats, eviction_stable_state_workers,
-      __wt_atomic_load_uint32_relaxed(&evict->impl.randlru.evict_tune_workers_best));
+      __wt_atomic_load_uint32_relaxed(&WT_EVICT_RANDLRU(evict)->evict_tune_workers_best));
     WT_STATP_CONN_SET(session, stats, eviction_maximum_attempts_to_queue_page,
-      __wt_atomic_load_uint16_relaxed(&evict->impl.randlru.evict_max_eviction_queue_attempts));
+      __wt_atomic_load_uint16_relaxed(&WT_EVICT_RANDLRU(evict)->evict_max_eviction_queue_attempts));
     WT_STATP_CONN_SET(session, stats, eviction_maximum_attempts_to_evict_page,
-      __wt_atomic_load_uint16_relaxed(&evict->impl.randlru.evict_max_evict_page_attempts));
+      __wt_atomic_load_uint16_relaxed(&WT_EVICT_RANDLRU(evict)->evict_max_evict_page_attempts));
 
     WT_STATP_CONN_SET(session, stats, eviction_worker_lock_wait_time,
       __wt_atomic_load_uint64_relaxed(&evict->evict_lock_wait_time));
@@ -623,7 +651,7 @@ __wt_evict_randlru_stats_init(WT_EVICT *evict, WT_SESSION_IMPL *session)
      */
     if (__wt_atomic_load_bool_relaxed(&conn->evict_server_running))
         WT_STATP_CONN_SET(session, stats, eviction_walks_active,
-          evict->impl.randlru.walk_session->hazards.num_active);
+          WT_EVICT_RANDLRU(evict)->walk_session->hazards.num_active);
 
     /* Update eviction threshold stats. */
     __wt_evict_randlru_stats_update(evict, session);
@@ -637,7 +665,7 @@ bool
 __wt_evict_randlru_aggressive(WT_EVICT *evict, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(evict);
-    return (__wt_atomic_load_uint32_relaxed(&S2C(session)->evict->impl.randlru.evict_aggressive_score) >=
+    return (__wt_atomic_load_uint32_relaxed(&WT_EVICT_RANDLRU(S2C(session)->evict)->evict_aggressive_score) >=
       WT_EVICT_SCORE_CUTOFF);
 }
 
@@ -650,7 +678,7 @@ __wt_evict_randlru_cache_stuck(WT_EVICT *evict, WT_SESSION_IMPL *session)
 {
     uint32_t tmp_evict_aggressive_score;
 
-    tmp_evict_aggressive_score = __wt_atomic_load_uint32_relaxed(&evict->impl.randlru.evict_aggressive_score);
+    tmp_evict_aggressive_score = __wt_atomic_load_uint32_relaxed(&WT_EVICT_RANDLRU(evict)->evict_aggressive_score);
     WT_ASSERT(session, tmp_evict_aggressive_score <= WT_EVICT_SCORE_MAX);
     return (
       tmp_evict_aggressive_score == WT_EVICT_SCORE_MAX && F_ISSET(evict, WT_EVICT_CACHE_HARD));

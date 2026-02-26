@@ -15,7 +15,7 @@
 static WT_INLINE uint64_t
 __evict_read_gen(WT_SESSION_IMPL *session)
 {
-    return (__wt_atomic_load_uint64_relaxed(&S2C(session)->evict->impl.randlru.read_gen));
+    return (__wt_atomic_load_uint64_relaxed(&WT_EVICT_RANDLRU(S2C(session)->evict)->read_gen));
 }
 
 /*
@@ -51,7 +51,7 @@ static WT_INLINE void
 __wti_evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     __wt_atomic_store_uint64_relaxed(
-      &page->read_gen, (__evict_read_gen(session) + S2C(session)->evict->impl.randlru.read_gen_oldest) / 2);
+      &page->read_gen, (__evict_read_gen(session) + WT_EVICT_RANDLRU(S2C(session)->evict)->read_gen_oldest) / 2);
 }
 
 /*
