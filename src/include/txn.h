@@ -323,26 +323,10 @@ struct __wt_txn_log {
     WT_ITEM *logrec;
 };
 
-/*
- * WT_TXN --
- *	Per-session transaction context.
- */
-struct __wt_txn {
+struct __wt_txn_time_point {
     uint64_t id;
 
     uint64_t prepared_id;
-
-    WT_TXN_ISOLATION isolation;
-
-    uint32_t forced_iso; /* Isolation is currently forced. */
-
-    WT_TXN_LOG txn_log;
-
-    /* Snapshot data. */
-    WT_TXN_SNAPSHOT snapshot_data;
-
-    /* Backup snapshot data. */
-    WT_TXN_SNAPSHOT *backup_snapshot_data;
 
     /*
      * Timestamp copied into updates created by this transaction.
@@ -358,12 +342,6 @@ struct __wt_txn {
     wt_timestamp_t durable_timestamp;
 
     /*
-     * Set to the first commit timestamp used in the transaction and fixed while the transaction is
-     * on the public list of committed timestamps.
-     */
-    wt_timestamp_t first_commit_timestamp;
-
-    /*
      * Timestamp copied into updates created by this transaction, when this transaction is prepared.
      */
     wt_timestamp_t prepare_timestamp;
@@ -373,6 +351,32 @@ struct __wt_txn {
      * back. Only valid for prepared transactions under the preserve_prepared config.
      */
     wt_timestamp_t rollback_timestamp;
+};
+
+/*
+ * WT_TXN --
+ *	Per-session transaction context.
+ */
+struct __wt_txn {
+    WT_TXN_TIME_POINT time_point;
+
+    WT_TXN_ISOLATION isolation;
+
+    uint32_t forced_iso; /* Isolation is currently forced. */
+
+    WT_TXN_LOG txn_log;
+
+    /* Snapshot data. */
+    WT_TXN_SNAPSHOT snapshot_data;
+
+    /* Backup snapshot data. */
+    WT_TXN_SNAPSHOT *backup_snapshot_data;
+
+    /*
+     * Set to the first commit timestamp used in the transaction and fixed while the transaction is
+     * on the public list of committed timestamps.
+     */
+    wt_timestamp_t first_commit_timestamp;
 
     /*
      * Timestamps used for reading via a checkpoint cursor instead of txn_shared->read_timestamp and

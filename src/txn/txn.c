@@ -220,7 +220,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool update_shared_state)
      */
     if ((id = __wt_atomic_load_uint64_v_relaxed(&txn_global->checkpoint_txn_shared.id)) !=
       WT_TXN_NONE) {
-        if (txn->id != id)
+        if (txn->time_point.id != id)
             txn->snapshot_data.snapshot[n++] = id;
         if (update_shared_state)
             __wt_atomic_store_uint64_v_relaxed(&txn_shared->metadata_pinned, id);
@@ -779,7 +779,7 @@ __txn_release(WT_SESSION_IMPL *session)
     if (WT_SESSION_IS_CHECKPOINT(session)) {
         WT_ASSERT(session,
           __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->id) == WT_TXN_NONE);
-        txn->id = WT_TXN_NONE;
+        txn->time_point.id = WT_TXN_NONE;
         __wt_atomic_store_uint64_v_relaxed(&txn_global->checkpoint_txn_shared.id, WT_TXN_NONE);
 
         /*
@@ -797,7 +797,7 @@ __txn_release(WT_SESSION_IMPL *session)
             WT_ASSERT(session,
               __wt_atomic_load_uint64_v_relaxed(&WT_SESSION_TXN_SHARED(session)->id) ==
                 WT_TXN_NONE);
-        txn->id = WT_TXN_NONE;
+        txn->time_point.id = WT_TXN_NONE;
     }
 
     __wti_txn_clear_durable_timestamp(session);
@@ -824,7 +824,7 @@ __txn_release(WT_SESSION_IMPL *session)
      * find these transactions in the durable queue and will need to see those timestamps.
      */
     txn->flags = 0;
-    txn->prepare_timestamp = WT_TS_NONE;
+    txn->time_point.prepare_timestamp = WT_TS_NONE;
 
     /* Clear operation timer. */
     txn->operation_timeout_us = 0;
@@ -1053,14 +1053,15 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
      * different or update's state is not in progress, we know we've reached the end of our update
      * chain and don't need to look deeper.
      */
-    if (upd == NULL || (upd->txnid != WT_TXN_NONE && upd->txnid != session->txn->id))
+    if (upd == NULL || (upd->txnid != WT_TXN_NONE && upd->txnid != session->txn->time_point.id))
         return;
 
     if (upd->prepare_state != WT_PREPARE_INPROGRESS)
         return;
 
     WT_ASSERT(session,
-      !F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) || upd->prepared_id == txn->prepared_id);
+      !F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) ||
+        upd->prepared_id == txn->time_point.prepared_id);
 
     /* Go down the chain. Do the resolves on the way back up. */
     __txn_resolve_prepared_update_chain(session, upd->next, commit);
@@ -1070,7 +1071,8 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
         __wt_atomic_store_uint8_v_relaxed(&upd->prepare_state, WT_PREPARE_LOCKED);
         WT_RELEASE_BARRIER();
         if (F_ISSET(txn, WT_TXN_HAS_TS_ROLLBACK))
-            __wt_atomic_store_uint64_relaxed(&upd->upd_rollback_ts, txn->rollback_timestamp);
+            __wt_atomic_store_uint64_relaxed(
+              &upd->upd_rollback_ts, txn->time_point.rollback_timestamp);
         __wt_atomic_store_uint64_relaxed(&upd->upd_saved_txnid, upd->txnid);
         __wt_atomic_store_uint64_v_release(&upd->txnid, WT_TXN_ABORTED);
         __wt_atomic_store_uint8_v_release(&upd->prepare_state, WT_PREPARE_INPROGRESS);
@@ -1130,15 +1132,17 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_ITEM *ke
         __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
           "commit resolving prepared transaction with txnid: %" PRIu64
           " and timestamp: %s to commit and durable timestamps: %s, %s",
-          txn->id, __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[0]),
-          __wt_timestamp_to_string(txn->commit_timestamp, ts_string[1]),
-          __wt_timestamp_to_string(txn->durable_timestamp, ts_string[2]));
+          txn->time_point.id,
+          __wt_timestamp_to_string(txn->time_point.prepare_timestamp, ts_string[0]),
+          __wt_timestamp_to_string(txn->time_point.commit_timestamp, ts_string[1]),
+          __wt_timestamp_to_string(txn->time_point.durable_timestamp, ts_string[2]));
     else
         __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
           "rollback resolving prepared transaction with txnid: %" PRIu64
           " and prepared timestamp: %s and rollback timestamp: %s",
-          txn->id, __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[0]),
-          __wt_timestamp_to_string(txn->rollback_timestamp, ts_string[1]));
+          txn->time_point.id,
+          __wt_timestamp_to_string(txn->time_point.prepare_timestamp, ts_string[0]),
+          __wt_timestamp_to_string(txn->time_point.rollback_timestamp, ts_string[1]));
 
     /*
      * Aborted updates can exist in the update chain of our transaction due to reserved update. Skip
@@ -1159,7 +1163,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_ITEM *ke
     /* A prepared operation that is rolled back will not have a timestamp worth asserting on. */
     if (commit)
         WT_RET(__wt_txn_timestamp_usage_check(
-          session, btree, txn->commit_timestamp, upd->prev_durable_ts));
+          session, btree, txn->time_point.commit_timestamp, upd->prev_durable_ts));
 
     for (first_committed_upd = upd; first_committed_upd != NULL &&
          (first_committed_upd->txnid == WT_TXN_ABORTED ||
@@ -1332,7 +1336,8 @@ prepare_verify:
              * different txn id (fuzzy checkpoint), or see a different prepared id (precise
              * checkpoint)
              */
-            if (head_upd->txnid != txn->id || head_upd->prepared_id != txn->prepared_id)
+            if (head_upd->txnid != txn->time_point.id ||
+              head_upd->prepared_id != txn->time_point.prepared_id)
                 break;
             /* Any update we find should be resolved. */
             WT_ASSERT_ALWAYS(session, head_upd->prepare_state == WT_PREPARE_RESOLVED,
@@ -1524,7 +1529,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         if (!F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
             WT_ERR_MSG(session, EINVAL, "durable_timestamp is required for a prepared transaction");
 
-        WT_ASSERT(session, txn->prepare_timestamp <= txn->commit_timestamp);
+        WT_ASSERT(session, txn->time_point.prepare_timestamp <= txn->time_point.commit_timestamp);
     } else {
         if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
             WT_ERR_MSG(session, EINVAL, "prepare timestamp is set for non-prepared transaction");
@@ -1762,9 +1767,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     candidate_durable_timestamp = WT_TS_NONE;
     if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
-        candidate_durable_timestamp = txn->durable_timestamp;
+        candidate_durable_timestamp = txn->time_point.durable_timestamp;
     else if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
-        candidate_durable_timestamp = txn->commit_timestamp;
+        candidate_durable_timestamp = txn->time_point.commit_timestamp;
 
     __txn_release(session);
 
@@ -1809,7 +1814,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      * transaction's durable timestamp. Otherwise, checkpoint may only write partial updates of the
      * transaction.
      */
-    if (prepare && txn->durable_timestamp <= txn_global->stable_timestamp) {
+    if (prepare && txn->time_point.durable_timestamp <= txn_global->stable_timestamp) {
         WT_ERR(__wt_verbose_dump_sessions(session, true));
         WT_ERR_PANIC(session, WT_PANIC,
           "stable timestamp is larger than or equal to the committing prepared transaction's "
@@ -2093,7 +2098,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
                 if (S2C(session)->cache->hs_fileid != 0 &&
                   op->btree->id == S2C(session)->cache->hs_fileid)
                     break;
-                WT_ASSERT(session, upd->txnid == txn->id || upd->txnid == WT_TXN_ABORTED);
+                WT_ASSERT(
+                  session, upd->txnid == txn->time_point.id || upd->txnid == WT_TXN_ABORTED);
                 __wt_tsan_suppress_store_uint64_v(&upd->txnid, WT_TXN_ABORTED);
             } else {
                 /*
@@ -2189,7 +2195,7 @@ __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
       &session_ret->txn));
     txn = session_ret->txn;
     txn->snapshot_data.snapshot = txn->__snapshot;
-    txn->id = WT_TXN_NONE;
+    txn->time_point.id = WT_TXN_NONE;
 
     WT_ASSERT(session,
       S2C(session_ret)->txn_global.txn_shared_list == NULL ||
@@ -2231,7 +2237,7 @@ __wt_txn_init_checkpoint_cursor(
     WT_RET(__wt_calloc(session, 1, sizeof(WT_TXN) + 1, &txn));
 
     /* We have no transaction ID and won't gain one, being read-only. */
-    txn->id = WT_TXN_NONE;
+    txn->time_point.id = WT_TXN_NONE;
 
     /* Use snapshot isolation. */
     txn->isolation = WT_ISO_SNAPSHOT;
@@ -2773,12 +2779,13 @@ __wt_verbose_dump_txn_one(
         ", last saved error code: %d"
         ", last saved sub-level error code: %d"
         ", last saved error message: %s",
-        txn->id, txn->mod_count, txn->snapshot_data.snap_min, txn->snapshot_data.snap_max,
-        txn->snapshot_data.snapshot_count, (char *)snapshot_buf->data,
-        __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
-        __wt_timestamp_to_string(txn->durable_timestamp, ts_string[1]),
+        txn->time_point.id, txn->mod_count, txn->snapshot_data.snap_min,
+        txn->snapshot_data.snap_max, txn->snapshot_data.snapshot_count, (char *)snapshot_buf->data,
+        __wt_timestamp_to_string(txn->time_point.commit_timestamp, ts_string[0]),
+        __wt_timestamp_to_string(txn->time_point.durable_timestamp, ts_string[1]),
         __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
-        __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[3]), txn->prepared_id,
+        __wt_timestamp_to_string(txn->time_point.prepare_timestamp, ts_string[3]),
+        txn->time_point.prepared_id,
         __wt_timestamp_to_string(txn_shared->pinned_durable_timestamp, ts_string[4]),
         __wt_timestamp_to_string(txn_shared->read_timestamp, ts_string[5]), ckpt_lsn_str,
         txn->full_ckpt ? "true" : "false", txn->flags, iso_tag, txn_err_info->err,
