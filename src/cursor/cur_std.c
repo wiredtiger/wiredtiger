@@ -757,7 +757,7 @@ __wti_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
     TAILQ_REMOVE(&session->cursors, cursor, q);
     TAILQ_INSERT_HEAD(&session->cursor_cache[bucket], cursor, q);
 
-    (void)__wt_atomic_sub_uint32(&S2C(session)->open_cursor_count, 1);
+    (void)__wt_atomic_sub_uint32_relaxed(&S2C(session)->open_cursor_count, 1);
     WT_STAT_CONN_INCR_ATOMIC(session, cursor_cached_count);
     WT_STAT_DSRC_DECR(session, cursor_open_count);
     F_SET(cursor, WT_CURSTD_CACHED);
@@ -787,7 +787,7 @@ __wti_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
     __wt_cursor_dhandle_incr_use(session);
     WT_DHANDLE_RELEASE(dhandle);
 
-    (void)__wt_atomic_add_uint32(&S2C(session)->open_cursor_count, 1);
+    (void)__wt_atomic_add_uint32_relaxed(&S2C(session)->open_cursor_count, 1);
     WT_STAT_CONN_DECR_ATOMIC(session, cursor_cached_count);
     WT_STAT_DSRC_INCR(session, cursor_open_count);
 
@@ -1079,7 +1079,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
         if (cursor->uri_hash == hash_value && strcmp(cursor->uri, uri) == 0) {
             if ((ret = cursor->reopen(cursor, false)) != 0) {
                 F_CLR(cursor, WT_CURSTD_CACHEABLE);
-                session->dhandle = NULL;
+                WT_DHANDLE_CLEAR(session);
                 (void)cursor->close(cursor);
                 return (ret);
             }
@@ -1140,7 +1140,7 @@ __wt_cursor_close(WT_CURSOR *cursor)
     if (F_ISSET(cursor, WT_CURSTD_OPEN)) {
         TAILQ_REMOVE(&session->cursors, cursor, q);
 
-        (void)__wt_atomic_sub_uint32(&S2C(session)->open_cursor_count, 1);
+        (void)__wt_atomic_sub_uint32_relaxed(&S2C(session)->open_cursor_count, 1);
         WT_STAT_DSRC_DECR(session, cursor_open_count);
     }
     __wt_buf_free(session, &cursor->key);
@@ -1463,7 +1463,6 @@ __wt_cursor_dup_position(WT_CURSOR *to_dup, WT_CURSOR *cursor)
      */
     WT_RET(__wt_cursor_get_raw_key(to_dup, &key));
     __wt_cursor_set_raw_key(cursor, &key);
-    WT_RET(__wt_cursor_localkey(cursor));
 
     /*
      * We now have a reference to the raw key, but we don't know anything about the memory in which
@@ -1544,7 +1543,7 @@ __wt_cursor_init(
 
     /* WT_CURSTD_OPEN */
     F_SET(cursor, WT_CURSTD_OPEN);
-    (void)__wt_atomic_add_uint32(&S2C(session)->open_cursor_count, 1);
+    (void)__wt_atomic_add_uint32_relaxed(&S2C(session)->open_cursor_count, 1);
     WT_STAT_DSRC_INCR(session, cursor_open_count);
 
     *cursorp = (cdump != NULL) ? cdump : cursor;
@@ -1557,3 +1556,54 @@ err:
     }
     return (ret);
 }
+
+#ifdef HAVE_DIAGNOSTIC
+
+typedef int (*fn_debug_cursor)(void *, const char *);
+
+/*
+ * __cursor_debug_dispatch --
+ *     Dispatch a debug operation based on the cursor type.
+ */
+static int
+__cursor_debug_dispatch(void *cursor_arg, const char *ofile, fn_debug_cursor fn_btree,
+  fn_debug_cursor fn_layered) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+{
+    const WT_CURSOR *cursor = (const WT_CURSOR *)cursor_arg;
+
+    if (WT_PREFIX_MATCH(cursor->uri, "file:"))
+        WT_RET(fn_btree(cursor_arg, ofile));
+    else if (WT_PREFIX_MATCH(cursor->uri, "table:"))
+        WT_RET(fn_layered(cursor_arg, ofile));
+    else
+        __wt_verbose_debug1(CUR2S(cursor), WT_VERB_DEFAULT,
+          "%s: unsupported cursor type for debug dump", cursor->uri);
+
+    return (0);
+}
+
+/*
+ * __wt_debug_cursor_page --
+ *     Dump the in-memory information for a cursor-referenced page.
+ */
+int
+__wt_debug_cursor_page(void *cursor_arg, const char *ofile)
+  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+{
+    return (__cursor_debug_dispatch(
+      cursor_arg, ofile, __wt_debug_btree_cursor_page, __wt_debug_layered_cursor_page));
+}
+
+/*
+ * __wt_debug_cursor_tree_hs --
+ *     Dump the history store tree given a user cursor.
+ */
+int
+__wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
+  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+{
+    return (__cursor_debug_dispatch(
+      cursor_arg, ofile, __wt_debug_btree_cursor_tree_hs, __wt_debug_layered_cursor_tree_hs));
+}
+
+#endif /* HAVE_DIAGNOSTIC */

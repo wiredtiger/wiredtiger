@@ -123,6 +123,8 @@ struct __wt_layered_table_manager_entry {
     const char *layered_uri;
     const char *ingest_uri;
     const char *stable_uri;
+
+    WT_DATA_HANDLE *pinned_dhandle; /* data handle held open during drain */
 };
 
 /*
@@ -148,11 +150,43 @@ struct __wt_layered_table_manager {
     bool leader;
 };
 
-struct __wt_disagg_copy_metadata {
-    char *stable_uri;                         /* The full URI of the stable component. */
-    char *table_name;                         /* The table name without prefix or suffix. */
-    int retries_left;                         /* The number of retries left. */
-    TAILQ_ENTRY(__wt_disagg_copy_metadata) q; /* Linked list of entries. */
+/*
+ * Checkpoint metadata version constants:
+ * - DEFAULT: Version defaulted to for old checkpoints without version fields (backward compatible).
+ * - VERSION: The version this code writes and the maximum version it can read.
+ * - COMPATIBLE_VERSION: The minimum reader version required to read what this code writes.
+ */
+#define WT_DISAGG_CHECKPOINT_META_VERSION_DEFAULT 1
+#define WT_DISAGG_CHECKPOINT_META_VERSION 1
+#define WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION 1
+
+/*
+ * Identify the shared metadata operations inside the shared metadata queue.
+ */
+typedef enum {
+    WT_SHARED_METADATA_UPDATE,
+    WT_SHARED_METADATA_CREATE,
+    WT_SHARED_METADATA_REMOVE
+} WT_SHARED_METADATA_OP;
+
+/*
+ * WT_DISAGG_METADATA_OP --
+ *      Metadata about an object to be updated during the next checkpoint.
+ */
+struct __wt_disagg_metadata_op {
+    char *stable_uri; /* The full URI of the stable component. */
+    char *table_name; /* The table name without prefix or suffix. */
+
+    char *colgroup_value; /* The value for the colgroup component. */
+    char *layered_value;  /* The value for the layered component. */
+    char *stable_value;   /* The value for the stable component. */
+    char *table_value;    /* The value for the table component. */
+
+    /* Metadata type operation. */
+    WT_SHARED_METADATA_OP metadata_op;
+    /* Skip the drop operation in the next checkpoint and defer it to the one after. */
+    bool deferred;
+    TAILQ_ENTRY(__wt_disagg_metadata_op) q; /* Linked list of entries. */
 };
 
 #define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
@@ -177,12 +211,13 @@ struct __wt_page_delta_config {
     u_int delta_pct;             /* Delta page percent (of full page size) */
     u_int max_consecutive_delta; /* Max number of consecutive deltas */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_FLATTEN_LEAF_PAGE_DELTA 0x1u
-#define WT_INTERNAL_PAGE_DELTA 0x2u
-#define WT_LEAF_PAGE_DELTA 0x4u
+#define WT_INTERNAL_PAGE_DELTA 0x1u
+#define WT_LEAF_PAGE_DELTA 0x2u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
+
+#define WT_DISAGG_CHECKPOINT_SIZE_BUFFER WT_MEGABYTE
 
 /*
  * WT_DISAGGREGATED_STORAGE --
@@ -193,30 +228,46 @@ struct __wt_disaggregated_storage {
     char *page_log;
 
     /* Updates are protected by the checkpoint lock. */
+    char *last_checkpoint_root;             /* The root config of the last checkpoint. */
+    uint32_t last_checkpoint_meta_checksum; /* The checksum of the last checkpoint metadata page. */
+
     wt_shared uint64_t last_checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata. */
     wt_shared uint64_t last_materialized_lsn;    /* The LSN of the last materialized page. */
-    char *last_checkpoint_root;                  /* The root config of the last checkpoint. */
 
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
     wt_shared wt_timestamp_t last_checkpoint_timestamp; /* The timestamp of the last checkpoint. */
+    wt_shared wt_timestamp_t last_checkpoint_oldest_timestamp; /* The oldest timestamp. */
 
     /*
-     * The LSN of the last metadata page written in the global metadata "table," which we use to
+     * The LSN of the last metadata page written in the global metadata "table" which we use to
      * track back links between the subsequent versions of the metadata pages. Protected by the
      * checkpoint lock.
      */
     uint64_t last_metadata_page_lsn[WT_DISAGG_METADATA_MAX_PAGE_ID + 1];
 
-    WT_NAMED_PAGE_LOG *npage_log;
-    WT_PAGE_LOG_HANDLE *page_log_meta; /* The page log for the metadata. */
+    /*
+     * The LSN of the last encryption key page written in the global key provider "table". Any
+     * access to the table should be protected by the checkpoint lock.
+     */
+    uint64_t last_key_provider_page_lsn[WT_DISAGG_METADATA_MAX_PAGE_ID + 1];
 
-    wt_shared uint64_t num_meta_put;     /* The number metadata puts since connection open. */
+    WT_NAMED_PAGE_LOG *npage_log;
+    WT_PAGE_LOG_HANDLE *page_log_meta;         /* The page log for the metadata. */
+    WT_PAGE_LOG_HANDLE *page_log_key_provider; /* The page log for the key provider. */
+
+    uint64_t num_meta_put;               /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
                                          /* Updates are protected by the checkpoint lock. */
 
+    /*
+     * Total size of all stable tables in the database, along with other components such as the KEK
+     * table. Saved via the checkpoint completion record and loaded via connection reconfigure.
+     */
+    wt_shared uint64_t database_size;
+
     /* To copy at the next checkpoint. */
-    TAILQ_HEAD(__wt_disagg_copy_metadata_qh, __wt_disagg_copy_metadata) copy_metadata_qh;
-    WT_SPINLOCK copy_metadata_lock;
+    TAILQ_HEAD(__wt_disagg_shared_metadata_qh, __wt_disagg_metadata_op) shared_metadata_qh;
+    WT_SPINLOCK shared_metadata_queue_lock;
 
     /*
      * Ideally we'd have flags passed to the IO system, which could make it all the way to the
@@ -444,6 +495,15 @@ struct __wt_name_flag {
 };
 
 /*
+ * WT_LAYERED_DRAIN_ENTRY --
+ *	Queue entry for layered table drain threads.
+ */
+struct __wt_layered_drain_entry {
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    TAILQ_ENTRY(__wt_layered_drain_entry) q;
+};
+
+/*
  * WT_CONN_CHECK_PANIC --
  *	Check if we've panicked and return the appropriate error.
  */
@@ -460,11 +520,11 @@ struct __wt_name_flag {
         TAILQ_INSERT_HEAD(&(conn)->dhqh, dhandle, q);                                            \
         TAILQ_INSERT_HEAD(&(conn)->dhhash[bucket], dhandle, hashq);                              \
         ++(conn)->dh_bucket_count[bucket];                                                       \
-        ++(conn)->dhandle_count;                                                                 \
+        (void)__wt_atomic_add_uint64_relaxed(&(conn)->dhandle_count, 1);                         \
         if (WT_DHANDLE_IS_CHECKPOINT(dhandle))                                                   \
-            ++(conn)->dhandle_checkpoint_count;                                                  \
+            (void)__wt_atomic_add_uint64_relaxed(&(conn)->dhandle_checkpoint_count, 1);          \
         WT_ASSERT(session, (dhandle)->type < WT_DHANDLE_TYPE_NUM);                               \
-        ++(conn)->dhandle_types_count[(dhandle)->type];                                          \
+        (void)__wt_atomic_add_uint64_relaxed(&(conn)->dhandle_types_count[(dhandle)->type], 1);  \
     } while (0)
 
 #define WT_CONN_DHANDLE_REMOVE(conn, dhandle, bucket)                                            \
@@ -473,11 +533,11 @@ struct __wt_name_flag {
         TAILQ_REMOVE(&(conn)->dhqh, dhandle, q);                                                 \
         TAILQ_REMOVE(&(conn)->dhhash[bucket], dhandle, hashq);                                   \
         --(conn)->dh_bucket_count[bucket];                                                       \
-        --(conn)->dhandle_count;                                                                 \
+        (void)__wt_atomic_sub_uint64_relaxed(&(conn)->dhandle_count, 1);                         \
         if (WT_DHANDLE_IS_CHECKPOINT(dhandle))                                                   \
-            --(conn)->dhandle_checkpoint_count;                                                  \
+            (void)__wt_atomic_sub_uint64_relaxed(&(conn)->dhandle_checkpoint_count, 1);          \
         WT_ASSERT(session, (dhandle)->type < WT_DHANDLE_TYPE_NUM);                               \
-        --(conn)->dhandle_types_count[(dhandle)->type];                                          \
+        (void)__wt_atomic_sub_uint64_relaxed(&(conn)->dhandle_types_count[(dhandle)->type], 1);  \
     } while (0)
 
 /*
@@ -539,6 +599,16 @@ extern const WT_NAME_FLAG __wt_stress_types[];
  * on this usage pattern see the architecture guide.
  */
 #define WT_CONN_SESSIONS_GET(conn) ((conn)->session_array.__array)
+
+/*
+ * WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE --
+ *     The debug mode for upgrade/downgrade of the disaggregated storage address cookies.
+ */
+typedef enum __wt_conn_debug_disagg_address_cookie_upgrade {
+    WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_NONE = 0,
+    WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_COMPATIBLE,
+    WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_INCOMPATIBLE
+} WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE;
 
 /*
  * WT_CONNECTION_IMPL --
@@ -646,11 +716,11 @@ struct __wt_connection_impl {
     WT_CHECKPOINT_CLEANUP cc_cleanup; /* Checkpoint cleanup */
     WT_CHUNKCACHE chunkcache;         /* Chunk cache */
 
-    uint64_t *dh_bucket_count;         /* Locked: handles in each bucket */
-    uint64_t dhandle_count;            /* Locked: handles in the queue */
-    uint64_t dhandle_checkpoint_count; /* Locked: checkpoint handles in the queue */
+    uint64_t *dh_bucket_count;                   /* Locked: handles in each bucket */
+    wt_shared uint64_t dhandle_count;            /* Locked: handles in the queue */
+    wt_shared uint64_t dhandle_checkpoint_count; /* Locked: checkpoint handles in the queue */
     /* Locked: handles by type in the queue */
-    uint64_t dhandle_types_count[WT_DHANDLE_TYPE_NUM];
+    wt_shared uint64_t dhandle_types_count[WT_DHANDLE_TYPE_NUM];
     wt_shared u_int open_btree_count;        /* Locked: open writable btree count */
     uint32_t next_file_id;                   /* Locked: file ID counter */
     wt_shared uint32_t open_file_count;      /* Atomic: open file handle count */
@@ -759,6 +829,15 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_pf_qh, __wt_prefetch_queue_entry) pfqh; /* Locked: prefetch_lock */
     bool prefetch_auto_on;
     bool prefetch_available;
+
+    /* Data pertaining to disaggregated storage step up. */
+    struct __wt_layered_drain_data {
+        WT_THREAD_GROUP threads;
+        WT_SPINLOCK queue_lock;
+        TAILQ_HEAD(__wt_layered_drain_qh, __wt_layered_drain_entry) work_queue;
+        bool running;
+        uint32_t thread_count;
+    } layered_drain_data;
 
     WT_DISAGGREGATED_STORAGE disaggregated_storage;
     WT_PAGE_DELTA_CONFIG page_delta; /* Page delta configuration */
@@ -876,17 +955,18 @@ struct __wt_connection_impl {
 #define WT_CONN_DEBUG_CKPT_RETAIN 0x0001u
 #define WT_CONN_DEBUG_CONFIGURATION 0x0002u
 #define WT_CONN_DEBUG_CORRUPTION_ABORT 0x0004u
-#define WT_CONN_DEBUG_CURSOR_COPY 0x0008u
-#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x0010u
-#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x0020u
-#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x0040u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0x0080u
-#define WT_CONN_DEBUG_REALLOC_MALLOC 0x0100u
-#define WT_CONN_DEBUG_SLOW_CKPT 0x0200u
-#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x0400u
-#define WT_CONN_DEBUG_TABLE_LOGGING 0x0800u
-#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x1000u
-#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x2000u
+#define WT_CONN_DEBUG_CRASH_POINT_COLGROUP 0x0008u
+#define WT_CONN_DEBUG_CURSOR_COPY 0x0010u
+#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x0020u
+#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x0040u
+#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x0080u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x0100u
+#define WT_CONN_DEBUG_REALLOC_MALLOC 0x0200u
+#define WT_CONN_DEBUG_SLOW_CKPT 0x0400u
+#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x0800u
+#define WT_CONN_DEBUG_TABLE_LOGGING 0x1000u
+#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x2000u
+#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x4000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t debug_flags;
 
@@ -905,6 +985,10 @@ struct __wt_connection_impl {
     /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     /* Categories of assertions that can be runtime enabled. */
     uint64_t extra_diagnostics_flags;
+
+    /* The debug mode for upgrade/downgrade of the disaggregated storage address cookies. */
+    WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE debug_disagg_address_cookie_upgrade;
+    bool debug_disagg_address_cookie_optional_field;
 
     /* Verbose settings for our various categories. */
     WT_VERBOSE_LEVEL verbose[WT_VERB_NUM_CATEGORIES];
@@ -968,6 +1052,11 @@ struct __wt_connection_impl {
      * File system interface abstracted to support alternative file system implementations.
      */
     WT_FILE_SYSTEM *file_system;
+
+    /*
+     * Key management interface abstracted to support pluggable key management implementations.
+     */
+    WT_KEY_PROVIDER *key_provider;
 
 /*
  * Server subsystem flags.

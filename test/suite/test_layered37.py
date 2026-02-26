@@ -27,8 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from helper_disagg import disagg_test_class, gen_disagg_storages
-from test_layered23 import Oplog
+from helper_disagg import disagg_test_class, gen_disagg_storages, Oplog
 from wtscenario import make_scenarios
 
 # test_layered37.py
@@ -107,7 +106,7 @@ class test_layered37(wttest.WiredTigerTestCase):
 
         # Trigger eviction on the ingest table
         evict_cursor = session_follow.open_cursor("file:test_layered37.wt_ingest", None, "debug=(release_evict)")
-        for i in (1, self.nitems):
+        for i in range(1, self.nitems):
             session_follow.begin_transaction(f'read_timestamp={self.timestamp_str(ts)}')
             evict_cursor.set_key(str(i))
             self.assertEqual(evict_cursor.search(), 0)

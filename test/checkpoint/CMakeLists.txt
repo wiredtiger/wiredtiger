@@ -7,6 +7,13 @@ create_test_executable(test_checkpoint
         ${CMAKE_CURRENT_SOURCE_DIR}/recovery-test.sh
 )
 
+# Use C++ linker for building this target.
+# When building sanitized builds (ASan, UBSan, etc) the C++ linker is required
+# to link against the C++ sanitizer runtimes.
+# Some extensions (PALite, tiered storage) require C++ runtime to be linked
+# for sanitizers to work correctly.
+set_target_properties(test_checkpoint PROPERTIES LINKER_LANGUAGE CXX)
+
 # Define test variants for the checkpoint test
 define_test_variants(test_checkpoint
     VARIANTS
@@ -20,15 +27,7 @@ define_test_variants(test_checkpoint
         "4_runs_sweep|-t m -T 4 -W 3 -r 20 -n 1000 -s 1"
         "4_runs_timestamps|-t m -T 4 -W 3 -r 20 -x -n 1000"
 
-        # 2. FLCS cases.
-        "6_fixed|-t f -T 6"
-        "6_fixed_named|-t f -T 6 -c TeSt"
-        "6_fixed_prepare|-t f -T 6 -p"
-        "6_fixed_named_prepare|-t f -T 6 -c TeSt -p"
-        "fixed_stress_sweep_timestamps|-t f -W 3 -r 2 -s 1 -x -n 100000 -k 100000 -D"
-        "fixed_sweep_timestamps|-t f -W 3 -r 2 -s 1 -x -n 100000 -k 100000"
-
-        # 3. VLCS cases.
+        # 2. VLCS cases.
         "6_column|-t c -T 6"
         "6_column_named|-t c -T 6 -c TeSt"
         "6_column_prepare|-t c -T 6 -p"
@@ -36,7 +35,7 @@ define_test_variants(test_checkpoint
         "column_stress_sweep_timestamps|-t c -W 3 -r 2 -s 1 -x -n 100000 -k 100000 -D"
         "column_sweep_timestamps|-t c -W 3 -r 2 -s 1 -x -n 100000 -k 100000"
 
-        # 4. Row-store cases.
+        # 3. Row-store cases.
         "6_row|-t r -T 6"
         "6_row_named|-t r -T 6 -c TeSt"
         "6_row_prepare|-t r -T 6 -p"
@@ -45,20 +44,6 @@ define_test_variants(test_checkpoint
         "row_sweep_timestamps|-t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000"
     LABELS
         check
-        test_checkpoint
-)
-
-# Define test variants for the disagg test
-define_test_variants(test_checkpoint
-    VARIANTS
-        "disagg_6_row|-d leader -t r -T 6 -x"
-        # Prepare operations is not supported on Disagg yet.
-        #"disagg_6_row_prepare|-d leader -t r -T 6 -p -x"
-        "disagg_leader_row_stress_sweep_timestamps|-d leader -t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000 -D"
-        "disagg_leader_row_sweep_timestamps|-d leader -t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000"
-    LABELS
-        check
-        disagg
         test_checkpoint
 )
 
@@ -74,14 +59,26 @@ define_test_variants(test_checkpoint
         long_running
 )
 
-# Define long running test variants for the disagg test
+# Define test variants for the disagg test
 define_test_variants(test_checkpoint
     VARIANTS
-        # FIXME-WT-15723: Re-evaluate whether setting large cache size is need after cache stuck issue is solved.
-        "disagg_leader_row_server_93028|-d leader -t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=1500MB"
+        "disagg_leader_6_row|-G -e -t r -T 6 -x"
+        # FIXME-WT-16228: Re-evaluate whether setting large cache size is needed after PALI.
+        "disagg_leader_6_row_long_running|-G -e -t r -W 3 -x -n 1000000 -k 1000000 -C cache_size=4000MB"
+        # Prepare operations is not supported on Disagg yet.
+        #"disagg_6_row_prepare|-G -e -t r -T 6 -p -x"
+        "disagg_leader_row_stress_sweep|-G -e -t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000 -D"
+        "disagg_leader_row_sweep|-G -e -t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000"
+        "disagg_leader_row_failpoint_hs_delete_key_from_ts|-G -e -t r -W 3 -r 2 -s 2 -x -n 100000 -k 100000"
+        "disagg_leader_row_hs_checkpoint_timing_stress|-G -e -t r -W 3 -r 2 -s 3 -x -n 100000 -k 100000"
+        "disagg_leader_row_checkpoint_slow_timing_stress|-G -e -t r -W 3 -r 2 -s 5 -x -n 100000 -k 100000"
+        "disagg_leader_row_evict_reposition_timing_stress|-G -e -t r -W 3 -r 2 -s 6 -x -n 100000 -k 100000"
+        "disagg_leader_row_failpoint_eviction_split|-G -e -t r -W 3 -r 2 -s 7 -x -n 100000 -k 100000"
+        "disagg_leader_row_failpoint_rec_before_wrapup|-G -e -t r -W 3 -r 2 -s 8 -x -n 100000 -k 100000"
+
+        # FIXME-WT-16228: Re-evaluate whether setting large cache size is needed after PALI.
+        "disagg_leader_row_server_93028|-G -e -t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=1500MB"
     LABELS
-        check
-        disagg
+        check_disagg
         test_checkpoint
-        long_running
 )

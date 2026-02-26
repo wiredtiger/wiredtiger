@@ -27,6 +27,7 @@
  */
 
 #include "format.h"
+#include <sys/mman.h>
 
 /*
  * disagg_redirect_output --
@@ -64,9 +65,13 @@ disagg_teardown_multi_node(void)
 
     if (g.follower_pid > 0) { /* Parent: leader */
         /* Wait for the follower process to exit. */
+        track("Waiting for follower to finish execution.", 0ULL);
         testutil_timeout_wait(120, g.follower_pid);
         g.follower_pid = 0;
     }
+    close(g.disagg_multi_sync_socket);
+    testutil_check(munmap(g.disagg_multi_db_hash, sizeof(DISAGG_MULTI_DB_HASH)));
+    g.disagg_multi_db_hash = NULL;
 }
 
 /*
@@ -77,12 +82,14 @@ void
 disagg_setup_multi_node(void)
 {
     pid_t pid;
+    int sv[2];
     char follower_home[256];
 
     if (!disagg_is_multi_node())
         return;
 
     testutil_snprintf(follower_home, sizeof(follower_home), "%s/follower", g.home);
+    memset(&g.checkpoint_metadata, 0, sizeof(g.checkpoint_metadata));
 
     /*
      * Create required dir before forking to avoid parent/child races. Skip on reopen, since the run
@@ -95,6 +102,17 @@ disagg_setup_multi_node(void)
 
     /* Initialize a shared page log directory path for all nodes. */
     testutil_snprintf(g.home_page_log, sizeof(g.home_page_log), "%s", g.home);
+    /*
+     * Allocate a shared memory region to hold hash values shared between leader and follower
+     * processes, used by disagg multi node tests to validate data consistency.
+     */
+    g.disagg_multi_db_hash = mmap(NULL, sizeof(DISAGG_MULTI_DB_HASH), PROT_READ | PROT_WRITE,
+      MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    testutil_assert_errno(g.disagg_multi_db_hash != MAP_FAILED);
+
+    /* Create a socket pair for leader-follower synchronization.*/
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == -1)
+        testutil_die(errno, "Failed to create socket pair for leader-follower sync");
 
     fflush(NULL);
     pid = fork();
@@ -104,13 +122,71 @@ disagg_setup_multi_node(void)
         config_single(NULL, "disagg.mode=follower", true);
         path_setup(follower_home);
         disagg_redirect_output("follower.out");
+        close(sv[0]);
+        g.disagg_multi_sync_socket = sv[1];
     } else { /* Parent: leader */
         progname = "t[leader]";
         config_single(NULL, "disagg.mode=leader", true);
         disagg_redirect_output("leader.out");
+        close(sv[1]);
+        g.disagg_multi_sync_socket = sv[0];
     }
 
     g.follower_pid = pid;
+}
+
+/*
+ * disagg_multi_sync_point --
+ *     Synchronization point in disagg multi-node setup for leader-follower.
+ */
+static void
+disagg_multi_sync_point(void)
+{
+    char send = 'S'; /* S for sync */
+    char recv;
+
+    /* Signal from leader or follower to synchronize. */
+    if (write(g.disagg_multi_sync_socket, &send, 1) != 1)
+        testutil_die(errno, "disagg_multi_sync_point: write");
+
+    track("Reached sync point. Waiting for other process...", 0ULL);
+
+    /* Wait for synchronization signal from the other process. */
+    if (read(g.disagg_multi_sync_socket, &recv, 1) != 1)
+        testutil_die(errno, "disagg_multi_sync_point: read");
+}
+
+/*
+ * disagg_sync_multi_node --
+ *     Synchronization point in disagg multi-node setup for leader-follower data validation.
+ */
+void
+disagg_sync_multi_node(WT_SESSION *session)
+{
+    uint64_t hash = 0;
+    if (!disagg_is_multi_node())
+        return;
+
+    if (GV(DISAGG_MULTI_VALIDATION)) {
+        hash = checksum_database(session);
+        if (g.disagg_leader)
+            g.disagg_multi_db_hash->leader_hash = hash;
+        else
+            g.disagg_multi_db_hash->follower_hash = hash;
+    }
+
+    /* Initial synchronization between leader and follower processes. */
+    disagg_multi_sync_point();
+
+    if (GV(DISAGG_MULTI_VALIDATION)) {
+        if (g.disagg_leader)
+            testutil_assert(hash == g.disagg_multi_db_hash->follower_hash);
+        else
+            testutil_assert(hash == g.disagg_multi_db_hash->leader_hash);
+
+        /* Exit synchronization between leader and follower processes. */
+        disagg_multi_sync_point();
+    }
 }
 
 /*
@@ -143,21 +219,30 @@ disagg_is_mode_switch(void)
  * disagg_switch_roles --
  *     Toggle the current disagg role between "leader" and "follower",
  */
-int
+void
 disagg_switch_roles(void)
 {
-    char disagg_cfg[64];
-
+    /* Perform step-up or step-down. */
     g.disagg_leader = !g.disagg_leader;
+
     /*
      * FIXME-WT-15763: WT does not yet support graceful step-downs. Simply reconfiguring WT to step
      * down may cause issues, so we reopen the connection when switching to follower mode.
      */
-    if (!g.disagg_leader)
+    if (!g.disagg_leader) {
+        /*
+         * Stepping down: [leader -> follower]. As part of reopening WT, we will reconfigure the
+         * database as a follower based on the value of g.disagg_leader.
+         */
+        track("[role change] leader -> follower", 0ULL);
         wts_reopen();
+        follower_read_latest_checkpoint();
+    } else {
+        /* Stepping up: [follower -> leader] */
+        track("[role change] follower -> leader", 0ULL);
+        testutil_check(g.wts_conn->reconfigure(g.wts_conn, "disaggregated=(role=leader)"));
+    }
 
-    testutil_snprintf(disagg_cfg, sizeof(disagg_cfg), "disaggregated=(role=\"%s\")",
-      g.disagg_leader ? "leader" : "follower");
-
-    return (g.wts_conn->reconfigure(g.wts_conn, disagg_cfg));
+    /* After every switch, verify the contents of each table */
+    wts_verify_mirrors(g.wts_conn, NULL, NULL);
 }

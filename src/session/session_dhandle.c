@@ -9,6 +9,26 @@
 #include "wt_internal.h"
 
 /*
+ * __wt_dhandle_clear_add --
+ *     Add an entry to the session's log of dhandle clear operations.
+ */
+void
+__wt_dhandle_clear_add(WT_DHANDLE_CLEAR_LOG *log, const char *file, const char *func, int line)
+{
+    WT_DHANDLE_CLEAR_EVENT *entry;
+
+    entry = &log->log[log->tail];
+    entry->file = file;
+    entry->func = func;
+    entry->line = line;
+
+    log->count++;
+    log->tail = (log->tail + 1) % WT_CLEAR_EVENT_MAX;
+    if (log->head == log->tail)
+        log->head = (log->head + 1) % WT_CLEAR_EVENT_MAX;
+}
+
+/*
  * __session_dhandle_readlock --
  *     Acquire read lock for the session's current dhandle.
  */
@@ -174,7 +194,7 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
      * operation, or the handle is already open without any special flags. In particular, it must
      * fail if attempting to checkpoint a handle opened for a bulk load, even in the same session.
      */
-    if (dhandle->excl_session == session) {
+    if (__wt_tsan_suppress_load_wt_session_impl_ptr(&dhandle->excl_session) == session) {
         if (!LF_ISSET(WT_DHANDLE_LOCK_ONLY) &&
           (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
             (btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))))
@@ -264,8 +284,12 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
         /* Give other threads a chance to make progress. */
         WT_STAT_CONN_INCR(session, dhandle_lock_blocked);
 
+#ifdef _WIN32
         /* FIXME-WT-12037 Use a sleep to work around a Windows-specific scheduling issue. */
         __wt_sleep(0, 1);
+#else
+        __wt_yield();
+#endif
     }
 }
 
@@ -323,7 +347,7 @@ __wt_session_release_dhandle_v2(WT_SESSION_IMPL *session, bool check_visibility)
 
     if (session == dhandle->excl_session) {
         if (--dhandle->excl_ref == 0)
-            dhandle->excl_session = NULL;
+            __wt_tsan_suppress_store_wt_session_impl_ptr(&dhandle->excl_session, NULL);
         else
             locked = false;
     }
@@ -335,7 +359,7 @@ __wt_session_release_dhandle_v2(WT_SESSION_IMPL *session, bool check_visibility)
             WT_WITH_DHANDLE(session, dhandle, __session_dhandle_readunlock(session));
     }
 
-    session->dhandle = NULL;
+    WT_DHANDLE_CLEAR(session);
     return (ret);
 }
 
@@ -405,7 +429,8 @@ static int
 __session_open_hs_ckpt(WT_SESSION_IMPL *session, const char *checkpoint, const char *cfg[],
   uint32_t flags, int64_t order_expected, WT_DATA_HANDLE **hs_dhandlep)
 {
-    WT_RET(__wt_session_get_dhandle(session, WT_HS_URI, checkpoint, cfg, flags));
+    WT_RET(__wt_session_get_dhandle(session,
+      __wt_conn_is_disagg(session) ? WT_HS_URI_SHARED : WT_HS_URI, checkpoint, cfg, flags));
 
     if (session->dhandle->checkpoint_order != order_expected) {
         /* Not what we were expecting; treat as EBUSY and let the caller retry. */
@@ -464,10 +489,9 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * call the underlying function directly.
      */
     WT_RET_NOTFOUND_OK(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
-    if (cval.len == 0) {
+    if (cval.len == 0)
         /* We are not opening a checkpoint. This is the simple case; retire it immediately. */
         return (__wt_session_get_dhandle(session, uri, NULL, cfg, flags));
-    }
 
     /*
      * Here and below is only for checkpoints.
@@ -630,11 +654,13 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
         /* Look up the history store checkpoint. */
         if (hs_dhandlep != NULL) {
             if (is_unnamed_ckpt)
-                WT_RET_NOTFOUND_OK(__wt_meta_checkpoint_last_name(
-                  session, WT_HS_URI, &hs_checkpoint, &hs_order, &hs_time));
+                WT_RET_NOTFOUND_OK(__wt_meta_checkpoint_last_name(session,
+                  __wt_conn_is_disagg(session) ? WT_HS_URI_SHARED : WT_HS_URI, &hs_checkpoint,
+                  &hs_order, &hs_time));
             else {
-                ret =
-                  __wt_meta_checkpoint_by_name(session, WT_HS_URI, checkpoint, &hs_order, &hs_time);
+                ret = __wt_meta_checkpoint_by_name(session,
+                  __wt_conn_is_disagg(session) ? WT_HS_URI_SHARED : WT_HS_URI, checkpoint,
+                  &hs_order, &hs_time);
                 WT_RET_NOTFOUND_OK(ret);
                 if (ret == WT_NOTFOUND)
                     ret = 0;
@@ -884,7 +910,7 @@ __session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *che
      */
     if ((ret = __session_add_dhandle(session)) != 0) {
         WT_DHANDLE_RELEASE(session->dhandle);
-        session->dhandle = NULL;
+        WT_DHANDLE_CLEAR(session);
     }
 
     return (ret);
@@ -935,13 +961,28 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
             F_CLR(dhandle, WT_DHANDLE_EXCLUSIVE);
             WT_WITH_DHANDLE(session, dhandle, __wt_session_dhandle_writeunlock(session));
 
-            WT_WITH_SCHEMA_LOCK(
-              session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
+            /*
+             * FIXME-WT-16477: work around to ensure we always acquire the checkpoint lock before
+             * the schema lock.
+             */
+            bool checkpoint_lock_needed = false;
+            if (__wt_conn_is_disagg(session) && !S2C(session)->layered_table_manager.leader) {
+                const char *suffix = strstr(uri, ".wt_stable/");
+                if (suffix != NULL)
+                    checkpoint_lock_needed = true;
+            }
+
+            if (checkpoint_lock_needed) {
+                WT_WITH_CHECKPOINT_LOCK(session,
+                  WT_WITH_SCHEMA_LOCK(
+                    session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags)));
+            } else
+                WT_WITH_SCHEMA_LOCK(
+                  session, ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags));
 
             return (ret);
         }
 
-        /* Open the handle. */
         if ((ret = __wt_conn_dhandle_open(session, cfg, flags)) == 0 &&
           LF_ISSET(WT_DHANDLE_EXCLUSIVE))
             break;

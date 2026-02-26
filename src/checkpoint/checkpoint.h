@@ -21,12 +21,19 @@ struct __wt_ckpt_session {
     u_int handle_next;       /* Next empty slot */
     size_t handle_allocated; /* Bytes allocated */
 
-    /* Checkpoint crash. */
-    u_int crash_point; /* Crash point in the middle of checkpoint process */
+    /* Crash at a progress point in checkpoint. */
+    u_int crash_point;
+    /* Crash at a specific point in checkpoint. */
+    u_int crash_trigger_point;
     enum {
-        CKPT_CRASH_BEFORE_METADATA_SYNC = 0,
+        CKPT_CRASH_NONE = 0,
+        CKPT_CRASH_BEFORE_METADATA_SYNC,
         CKPT_CRASH_BEFORE_METADATA_UPDATE,
-        CKPT_CRASH_ENUM_END
+        CKPT_CRASH_PROGRESS_ENUM_END,
+        KEY_PROVIDER_CRASH_BEFORE_KEY_ROTATION,
+        KEY_PROVIDER_CRASH_DURING_KEY_ROTATION,
+        KEY_PROVIDER_CRASH_AFTER_KEY_ROTATION,
+        CKPT_CRASH_ENUM_END,
     } ckpt_crash_state;
 
     /* Named checkpoint drop list, during a checkpoint */
@@ -34,6 +41,12 @@ struct __wt_ckpt_session {
 
     /* Checkpoint time of current checkpoint, during a checkpoint */
     uint64_t current_sec;
+
+    /*
+     * Accumulated change in database size during this checkpoint. Applied to the connection-level
+     * database_size only after the checkpoint succeeds.
+     */
+    int64_t ckpt_size_delta;
 };
 
 /*
@@ -188,6 +201,7 @@ extern void __wt_checkpoint_snapshot_clear(WT_CKPT_SNAPSHOT *snapshot);
 extern void __wt_checkpoint_timer_stats(WT_SESSION_IMPL *session);
 extern void __wt_checkpoint_timer_stats_clear(WT_SESSION_IMPL *session);
 extern void __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta);
+extern void __wt_checkpoint_update_generation(WT_SESSION_IMPL *session, WT_BTREE *btree);
 extern void __wt_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep);
 extern void __wt_ckptlist_saved_free(WT_SESSION_IMPL *session);
 

@@ -84,9 +84,7 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session, WTI_RECONCILE *r, const void
 {
     WT_BTREE *btree;
     WTI_REC_KV *key;
-    size_t pfx_max;
     uint8_t pfx;
-    const uint8_t *a, *b;
 
     *is_ovflp = false;
 
@@ -111,34 +109,11 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session, WTI_RECONCILE *r, const void
         /*
          * Do prefix compression on the key. We know by definition the previous key sorts before the
          * current key, which means the keys must differ and we just need to compare up to the
-         * shorter of the two keys.
+         * shorter one of the two keys.
          */
         if (r->key_pfx_compress) {
-            /*
-             * We can't compress out more than 256 bytes, limit the comparison to that.
-             */
-            pfx_max = UINT8_MAX;
-            if (size < pfx_max)
-                pfx_max = size;
-            if (r->last->size < pfx_max)
-                pfx_max = r->last->size;
-            for (a = data, b = r->last->data; pfx < pfx_max; ++pfx)
-                if (*a++ != *b++)
-                    break;
-
-            /*
-             * Prefix compression costs CPU and memory when the page is re-loaded, skip unless
-             * there's a reasonable gain. Also, if the previous key was prefix compressed, don't
-             * increase the prefix compression if we aren't getting a reasonable gain. (Groups of
-             * keys with the same prefix can be quickly built without needing to roll forward
-             * through intermediate keys or allocating memory so they can be built faster in the
-             * future, for that reason try and create big groups of keys with the same prefix.)
-             */
-            if (pfx < btree->prefix_compression_min)
-                pfx = 0;
-            else if (r->key_pfx_last != 0 && pfx > r->key_pfx_last &&
-              pfx < r->key_pfx_last + WTI_KEY_PREFIX_PREVIOUS_MINIMUM)
-                pfx = r->key_pfx_last;
+            __wt_cell_compress_prefix_key(
+              r->last, data, size, r->key_pfx_last, btree->prefix_compression_min, &pfx);
 
             if (pfx != 0) {
                 if (is_delta)
@@ -345,6 +320,7 @@ __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAV
     WT_DECL_ITEM(custom_value);
     WT_DECL_RET;
     WT_ITEM *key, value;
+    WT_TIME_WINDOW *twp, tw;
     size_t custom_value_size, new_size;
     uint8_t flags, *p;
     bool ovfl_key;
@@ -379,6 +355,8 @@ __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAV
             value.data = supd->onpage_upd->data;
             value.size = supd->onpage_upd->size;
         }
+
+        twp = &supd->tw;
     } else {
         WT_ASSERT(session,
           supd->onpage_tombstone != NULL &&
@@ -387,19 +365,22 @@ __wti_rec_pack_delta_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAV
         LF_SET(WT_DELTA_LEAF_IS_DELETE);
         value.data = NULL;
         value.size = 0;
+
+        WT_TIME_WINDOW_INIT(&tw);
+        twp = &tw;
     }
 
     /* Pack the flags and delta value into a custom value. */
     WT_ERR(
-      __wt_struct_size(session, &custom_value_size, WT_DELTA_LEAF_VALUE_FORMAT, &value, flags));
+      __wt_struct_size(session, &custom_value_size, WT_DELTA_LEAF_VALUE_FORMAT, flags, &value));
     WT_ERR(__wt_scr_alloc(session, custom_value_size, &custom_value));
     custom_value->size = custom_value_size;
     WT_ERR(__wt_struct_pack(session, (void *)custom_value->data, custom_value_size,
-      WT_DELTA_LEAF_VALUE_FORMAT, &value, flags));
+      WT_DELTA_LEAF_VALUE_FORMAT, flags, &value));
 
     /* Pack the custom value into a standard cell structure. */
-    WT_ERR(__wti_rec_cell_build_val(
-      session, r, custom_value->data, custom_value_size, &supd->tw, 0, NULL));
+    WT_ERR(
+      __wti_rec_cell_build_val(session, r, custom_value->data, custom_value_size, twp, 0, NULL));
 
     new_size = r->delta.size + r->k.len + r->v.len;
     if (new_size > r->delta.memsize)
@@ -569,7 +550,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     cell = NULL;
     build_delta = WT_BUILD_DELTA_INT(session, r);
 
-    WT_RET(__wti_rec_split_init(session, r, page, 0, btree->maxintlpage_precomp, 0));
+    WT_RET(__wti_rec_split_init(session, r, 0, btree->maxintlpage_precomp));
     WT_RET(__rec_build_delta_int(session, r, build_delta));
 
     /*
@@ -704,7 +685,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             case WT_PM_REC_REPLACE:
                 /*
                  * If the page is replaced, the page's modify structure has the page's address. If
-                 * we skipped writing an empty delta, we write the current address.
+                 * we skipped writing the page, we write the current address.
                  */
                 if (child->modify->mod_replace.block_cookie != NULL)
                     addr = &child->modify->mod_replace;
@@ -740,11 +721,11 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             retain_onpage = true;
 
             /*
-             * We may see a changed state here if the child reconciliation skipped writing an empty
-             * delta.
+             * We may see a changed state here if the child reconciliation skipped writing a child
+             * page.
              */
             WT_ASSERT_ALWAYS(session,
-              cms.state == WTI_CHILD_ORIGINAL || WT_DELTA_ENABLED_FOR_PAGE(session, child->type),
+              cms.state == WTI_CHILD_ORIGINAL || F_ISSET(btree, WT_BTREE_DISAGGREGATED),
               "Not propagating the original fast-truncate information");
             /*
              * The transaction ids are cleared after restart. Repack the cell with new validity
@@ -860,93 +841,19 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 }
 
 /*
- * __rec_row_garbage_collect_fixup_update_list --
- *     Insert a tombstone at the start of an update list if all entries are eligible for garbage
- *     collection. There is duplication between the update list and insert list versions of these
- *     functions but my head explodes trying to keep the data structures involved mapped in my head,
- *     so the duplication feels warranted. Don't bother tracking the additional memory associated
- *     with these tombstones - it is about to be freed anyway.
+ * __rec_row_garbage_collect_tw_eligible --
+ *     Check if the time window is eligible for garbage collection.
  */
-static int
-__rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ROW *rip)
+static WT_INLINE bool
+__rec_row_garbage_collect_tw_eligible(WTI_RECONCILE *r, WT_TIME_WINDOW *twp)
 {
-    WT_BTREE *btree;
-    WT_PAGE *page;
-    WT_PAGE_MODIFY *mod;
-    WT_UPDATE *first_upd, *tombstone, *upd, **upd_entry;
+    if (WT_TIME_WINDOW_HAS_STOP(twp)) {
+        if (WT_REC_CAN_PRUNE_UPD(twp->stop_txn, twp->durable_stop_ts, r))
+            return (true);
+    } else if (WT_REC_CAN_PRUNE_UPD(twp->start_txn, twp->durable_start_ts, r))
+        return (true);
 
-    btree = S2BT(session);
-    page = r->page;
-    mod = page->modify;
-
-    if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || !F_ISSET(r, WT_REC_EVICT))
-        return (0);
-
-    if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
-        return (0);
-
-    for (upd = first_upd; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
-        ;
-
-    if (upd == NULL)
-        return (0);
-
-    if (upd->type == WT_UPDATE_TOMBSTONE)
-        return (0);
-
-    if (upd->txnid < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
-      upd->upd_durable_ts <= r->rec_prune_timestamp) {
-        WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
-        tombstone->next = first_upd;
-        upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
-        *upd_entry = tombstone;
-
-        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
-    }
-
-    return (0);
-}
-
-/*
- * __rec_row_garbage_collect_fixup_insert_list --
- *     Insert a tombstone at the start of an insert list if all entries are eligible for garbage
- *     collection.
- */
-static int
-__rec_row_garbage_collect_fixup_insert_list(
-  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins)
-{
-    WT_BTREE *btree;
-    WT_UPDATE *first_upd, *tombstone, *upd;
-
-    btree = S2BT(session);
-
-    if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || !F_ISSET(r, WT_REC_EVICT))
-        return (0);
-
-    /* The insert list should have an update, but be paranoid */
-    if ((first_upd = ins->upd) == NULL)
-        return (0);
-
-    for (upd = first_upd; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
-        ;
-
-    if (upd == NULL)
-        return (0);
-
-    if (upd->type == WT_UPDATE_TOMBSTONE)
-        return (0);
-
-    if (upd->txnid < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
-      upd->upd_durable_ts <= r->rec_prune_timestamp) {
-        WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
-        tombstone->next = first_upd;
-        ins->upd = tombstone;
-
-        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
-    }
-
-    return (0);
+    return (false);
 }
 
 /*
@@ -980,7 +887,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
     WT_RET(__wt_scr_alloc(session, 0, &tmpkey));
 
     for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
-        WT_ERR(__rec_row_garbage_collect_fixup_insert_list(session, r, ins));
         WT_ERR(__wti_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
         if ((upd = upd_select.upd) == NULL) {
             /*
@@ -1169,7 +1075,7 @@ __wti_rec_row_leaf(
     cbt = &r->update_modify_cbt;
     cbt->iface.session = (WT_SESSION *)session;
 
-    WT_RET(__wti_rec_split_init(session, r, page, 0, btree->maxleafpage_precomp, 0));
+    WT_RET(__wti_rec_split_init(session, r, 0, btree->maxleafpage_precomp));
 
     /*
      * Write any K/V pairs inserted into the page before the first from-disk key on the page.
@@ -1221,9 +1127,6 @@ __wti_rec_row_leaf(
         /* Unpack the on-page value cell. */
         __wt_row_leaf_value_cell(session, page, rip, vpack);
 
-        /* Give garbage collected tables a change to mark obsolete content for cleanup */
-        WT_ERR(__rec_row_garbage_collect_fixup_update_list(session, r, rip));
-
         /* Look for an update. */
         WT_ERR(__wti_rec_upd_select(session, r, NULL, rip, vpack, &upd_select));
         upd = upd_select.upd;
@@ -1236,7 +1139,8 @@ __wti_rec_row_leaf(
              * onpage prepared update. Otherwise, we leak the prepared update.
              */
             WT_ASSERT_ALWAYS(session,
-              !F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || !WT_TIME_WINDOW_HAS_PREPARE(twp),
+              !F_ISSET(conn, WT_CONN_PRESERVE_PREPARED) || F_ISSET(btree, WT_BTREE_IN_MEMORY) ||
+                !WT_TIME_WINDOW_HAS_PREPARE(twp),
               "leaked prepared update.");
         } else
             twp = &upd_select.tw;
@@ -1247,27 +1151,19 @@ __wti_rec_row_leaf(
          * the table, and the value has become obsolete.
          */
         if (upd == NULL) {
+            /*
+             * Prepared updates are never written to the disk image for the ingest btree. Therefore,
+             * we can safely discard the key if the delete operation is globally visible, even if it
+             * hasn't been included in the oldest checkpoint currently in use.
+             */
             if (__wt_txn_tw_stop_visible_all(session, twp)) {
                 upd = &upd_tombstone;
                 r->key_removed_from_disk_image = true;
-            } else if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
-                if (WT_TIME_WINDOW_HAS_STOP(twp)) {
-                    if (twp->stop_txn < r->rec_start_oldest_id &&
-                      r->rec_prune_timestamp != WT_TS_NONE &&
-                      twp->durable_stop_ts <= r->rec_prune_timestamp) {
-                        upd = &upd_tombstone;
-                        r->key_removed_from_disk_image = true;
-                        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
-                    }
-                } else {
-                    if (twp->start_txn < r->rec_start_oldest_id &&
-                      r->rec_prune_timestamp != WT_TS_NONE &&
-                      twp->durable_start_ts <= r->rec_prune_timestamp) {
-                        upd = &upd_tombstone;
-                        r->key_removed_from_disk_image = true;
-                        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
-                    }
-                }
+            } else if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
+              __rec_row_garbage_collect_tw_eligible(r, twp)) {
+                upd = &upd_tombstone;
+                r->key_removed_from_disk_image = true;
+                WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys_disk_image);
             }
         }
 
@@ -1320,19 +1216,10 @@ __wti_rec_row_leaf(
             }
         } else {
             /*
-             * If we've selected an update, it should be flagged as being destined for the data
-             * store.
-             *
-             * If not, it's either because we're not doing a history store reconciliation or because
-             * the update is globally visible (in which case, subsequent updates become irrelevant
-             * for reconciliation).
+             * If an update has been selected, it must be marked as intended for the disk image.
+             * Otherwise, it must be a tombstone that is intended for deleting the key entirely.
              */
-            WT_ASSERT(session,
-              F_ISSET(upd, WT_UPDATE_DS) || !F_ISSET(r, WT_REC_HS) ||
-                __wt_txn_tw_start_visible_all(session, twp) ||
-                (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
-                  twp->start_txn < r->rec_start_oldest_id && r->rec_prune_timestamp != WT_TS_NONE &&
-                  twp->durable_start_ts <= r->rec_prune_timestamp));
+            WT_ASSERT(session, F_ISSET(upd, WT_UPDATE_DS) || upd == &upd_tombstone);
 
             /* The first time we find an overflow record, discard the underlying blocks. */
             if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)

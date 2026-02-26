@@ -119,28 +119,16 @@ if(ENABLE_STRICT)
 endif()
 
 if(HAVE_UNITTEST)
-    Include(FetchContent)
+    include(FetchContent)
 
     FetchContent_Declare(
         Catch2
         GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-        GIT_TAG        v2.13.8
+        GIT_TAG        v2.13.10
+        GIT_SHALLOW    TRUE
     )
 
-    # Note, the preferred solution of using FetchContent_MakeAvailable()
-    # is not available in 3.11.0 (it arrived in 3.11.4), so we do some extra steps to achieve the same result.
-    #
-    # See https://cmake.org/cmake/help/v3.23/module/FetchContent.html
-    #
-    # Once we can rely on having 3.11.4 or greater, then the following call can be restored, and the
-    # code between the Start and End comments below can be removed.
-
-    # FetchContent_MakeAvailable(Catch2)
-
-    # Start of code that achieves what FetchContent_MakeAvailable(Catch2) would do.
-    FetchContent_Populate(Catch2)
-    add_subdirectory(${catch2_SOURCE_DIR} ${catch2_BINARY_DIR})
-    # End of code that achieves what FetchContent_MakeAvailable(Catch2) would do.
+    FetchContent_MakeAvailable(Catch2)
 endif()
 
 # Enable CTest. Subsequent targets may additionally define their own ctest definitions.
@@ -182,6 +170,10 @@ endif()
 
 if(HAVE_BUILTIN_EXTENSION_IAA)
     list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_iaa>)
+endif()
+
+if(HAVE_BUILTIN_EXTENSION_KEY_PROVIDER)
+    list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_key_provider>)
 endif()
 
 # Generate wiredtiger.h include file.

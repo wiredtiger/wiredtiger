@@ -178,10 +178,6 @@ __wti_rec_need_split(WTI_RECONCILE *r, size_t len)
 {
     uint32_t page_items;
 
-    /* We cannot split a page that is restored from deltas. */
-    if (F_ISSET(r, WT_REC_REWRITE_DELTA))
-        return (false);
-
     page_items = r->entries + r->supd_onpage_or_restore;
 
     /*
@@ -205,11 +201,11 @@ __wti_rec_need_split(WTI_RECONCILE *r, size_t len)
 }
 
 /*
- * __wti_rec_incr --
+ * __rec_incr --
  *     Update the memory tracking structure for a set of new entries.
  */
 static WT_INLINE void
-__wti_rec_incr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint32_t v, size_t size)
+__rec_incr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint32_t v, size_t size)
 {
     /*
      * The buffer code is fragile and prone to off-by-one errors -- check for overflow in diagnostic
@@ -270,60 +266,7 @@ static WT_INLINE void
 __wti_rec_image_copy(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *kv)
 {
     __wti_rec_kv_copy(session, r->first_free, kv);
-    __wti_rec_incr(session, r, 1, kv->len);
-}
-
-/*
- * __rec_auxincr --
- *     Update the memory tracking structure for a set of new entries in the auxiliary image.
- */
-static WT_INLINE void
-__rec_auxincr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint32_t v, size_t size)
-{
-    /*
-     * The buffer code is fragile and prone to off-by-one errors -- check for overflow in diagnostic
-     * mode.
-     */
-    WT_ASSERT(session, r->aux_space_avail >= size);
-    WT_ASSERT(session,
-      WT_BLOCK_FITS(r->aux_first_free, size, r->cur_ptr->image.mem, r->cur_ptr->image.memsize));
-
-    r->aux_entries += v;
-    r->aux_space_avail -= size;
-    r->aux_first_free += size;
-}
-
-/*
- * __wti_rec_auximage_copy --
- *     Copy a key/value cell and buffer pair into the new auxiliary image.
- */
-static WT_INLINE void
-__wti_rec_auximage_copy(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint32_t count, WTI_REC_KV *kv)
-{
-    size_t len;
-    uint8_t *p;
-    const uint8_t *t;
-
-    /* Make sure we didn't run out of space. */
-    WT_ASSERT(session, kv->len <= r->aux_space_avail);
-
-    /*
-     * If there's only one chunk of data to copy (because the cell and data are being copied from
-     * the original disk page), the cell length won't be set, the WT_ITEM data/length will reference
-     * the data to be copied.
-     *
-     * WT_CELLs are typically small, 1 or 2 bytes -- don't call memcpy, do the copy in-line.
-     */
-    for (p = r->aux_first_free, t = (const uint8_t *)&kv->cell, len = kv->cell_len; len > 0; --len)
-        *p++ = *t++;
-
-    /* Here the data is also small, when not entirely empty. */
-    if (kv->buf.size != 0)
-        for (t = (const uint8_t *)kv->buf.data, len = kv->buf.size; len > 0; --len)
-            *p++ = *t++;
-
-    WT_ASSERT(session, kv->len == kv->cell_len + kv->buf.size);
-    __rec_auxincr(session, r, count, kv->len);
+    __rec_incr(session, r, 1, kv->len);
 }
 
 /*
@@ -334,11 +277,11 @@ static WT_INLINE void
 __wti_rec_cell_build_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ADDR *addr,
   WT_CELL_UNPACK_ADDR *vpack, uint64_t recno, WT_PAGE_DELETED *page_del)
 {
-    WTI_REC_KV *val;
+    WTI_REC_KV *val = &r->v;
     WT_TIME_AGGREGATE *ta;
-    u_int cell_type;
-
-    val = &r->v;
+    uint8_t cell_type;
+    const void *data;
+    size_t data_size;
 
     /*
      * Caller includes fast-delete information in the case of fast-delete proxy cells, which both
@@ -346,6 +289,7 @@ __wti_rec_cell_build_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ADDR *a
      * address cell.
      */
     if (vpack == NULL) {
+        /* Determine the cell type from the WT_ADDR structure */
         switch (addr->type) {
         case WT_ADDR_INT:
             cell_type = WT_CELL_ADDR_INT;
@@ -358,51 +302,30 @@ __wti_rec_cell_build_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ADDR *a
             cell_type = WT_CELL_ADDR_LEAF_NO;
             break;
         }
+
         WT_ASSERT(session, addr->block_cookie_size != 0);
         ta = &addr->ta;
+        data = addr->block_cookie;
+        data_size = addr->block_cookie_size;
     } else {
+        /* Use the unpacked reference instead of WT_ADDR. */
         cell_type = vpack->type;
         ta = &vpack->ta;
+        data = vpack->data;
+        data_size = vpack->size;
     }
+
     __rec_cell_addr_stats(r, ta);
 
     /*
-     * If passed fast-delete information, override the cell type. We should never see fast-truncate
-     * cell types without fast-truncate information.
+     * Use the shared cell builder from the cell module. We assign both the packed cell length and
+     * total length, and re-point the buffer to the caller-provided data.
      */
-    WT_ASSERT(session, page_del != NULL || cell_type != WT_CELL_ADDR_DEL);
-    if (page_del != NULL) {
-        /*
-         * We only fast-truncate leaf pages without overflow items, however, we can write a proxy
-         * cell for a page, evict and then read the internal page, and then checkpoint is writing it
-         * again.
-         */
-        WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL || cell_type == WT_CELL_ADDR_LEAF_NO);
-        cell_type = WT_CELL_ADDR_DEL;
-
-        /* We should never be in an in-progress prepared state. */
-        WT_ASSERT(session,
-          page_del->prepare_state == WT_PREPARE_INIT ||
-            page_del->prepare_state == WT_PREPARE_RESOLVED);
-    }
-
-    /*
-     * We don't copy the data into the buffer, it's not necessary; just re-point the buffer's
-     * data/length fields.
-     */
-    if (vpack == NULL) {
-        WT_ASSERT(session, addr != NULL);
-        val->buf.data = addr->block_cookie;
-        val->buf.size = addr->block_cookie_size;
-    } else {
-        WT_ASSERT(session, addr == NULL);
-        val->buf.data = vpack->data;
-        val->buf.size = vpack->size;
-    }
-
-    val->cell_len =
-      __wt_cell_pack_addr(session, &val->cell, cell_type, recno, page_del, ta, val->buf.size);
-    val->len = val->cell_len + val->buf.size;
+    val->buf.data = data;
+    val->buf.size = data_size;
+    val->cell_len = (uint16_t)__wt_cell_build_addr(
+      session, &val->cell, cell_type, recno, page_del, ta, data_size);
+    val->len = val->cell_len + data_size;
 }
 
 /*
@@ -504,8 +427,9 @@ __wti_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WTI_UPDATE_SELECT
     WT_BTREE *btree;
     WT_TIME_WINDOW *tw;
 
-    WT_ASSERT(
-      session, (upd_select != NULL && vpack == NULL) || (upd_select == NULL && vpack != NULL));
+    WT_ASSERT(session,
+      (upd_select != NULL && !WT_REC_HAS_ON_DISK(vpack)) ||
+        (upd_select == NULL && WT_REC_HAS_ON_DISK(vpack)));
     tw = upd_select != NULL ? &upd_select->tw : &vpack->tw;
 
     btree = S2BT(session);
@@ -522,12 +446,17 @@ __wti_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WTI_UPDATE_SELECT
         return;
 
     /*
-     * In memory database don't need to avoid writing values to the cell. If we remove this check we
-     * create an extra update on the end of the chain later in reconciliation as we'll re-append the
-     * disk image value to the update chain.
+     * Previously, we didn't clear the time points for in-memory btrees because doing so could risk
+     * adding an extra update to the end of the update chain during reconciliation. This happened
+     * when the disk image value was re-appended to the update chain. However, with the new
+     * algorithm that selects the final update required for writing to the disk image, this issue is
+     * resolved. As a result, we can now safely clear the time points for in-memory btrees to avoid
+     * including unnecessary time points in the cell. That said, for in-memory btrees that don't use
+     * timestamps, clearing time points is unnecessary. It would lead to wasted effort with minimal
+     * or no benefit.
      */
-    if (!WT_TIME_WINDOW_HAS_PREPARE(tw) && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-      !F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
+    if (!WT_TIME_WINDOW_HAS_PREPARE(tw) &&
+      (!F_ISSET(btree, WT_BTREE_IN_MEMORY) || !F_ISSET(btree, WT_BTREE_LOGGED))) {
         /*
          * Check if the start of the time window is globally visible, and if so remove unnecessary
          * values.
@@ -565,4 +494,41 @@ __wti_rec_get_row_leaf_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONC
     }
 
     return (0);
+}
+
+/*
+ * __rec_selected_key_changed --
+ *     Check whether the selected update is different from the previous successful reconciliation.
+ */
+static WT_INLINE bool
+__rec_selected_key_changed(WT_SESSION_IMPL *session, WT_SAVE_UPD *supd)
+{
+    if (supd->onpage_tombstone == NULL && supd->onpage_upd == NULL)
+        return (false);
+
+    if (supd->onpage_upd == NULL) {
+        if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_DELETE_DURABLE))
+            return (false);
+    } else {
+        WT_ASSERT(session, supd->onpage_upd->type != WT_UPDATE_TOMBSTONE);
+        if (supd->onpage_tombstone != NULL) {
+            if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_DURABLE))
+                return (false);
+
+            /* Skip writing the prepared update that has already been written. */
+            if (F_ISSET(supd->onpage_tombstone, WT_UPDATE_PREPARE_DURABLE) &&
+              WT_TIME_WINDOW_HAS_STOP_PREPARE(&supd->tw))
+                return (false);
+        } else {
+            if (F_ISSET(supd->onpage_upd, WT_UPDATE_DURABLE))
+                return (false);
+
+            /* Skip writing the prepared update that has already been written. */
+            if (F_ISSET(supd->onpage_upd, WT_UPDATE_PREPARE_DURABLE) &&
+              WT_TIME_WINDOW_HAS_START_PREPARE(&supd->tw))
+                return (false);
+        }
+    }
+
+    return (true);
 }

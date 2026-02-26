@@ -314,3 +314,14 @@ struct __wt_verbose_multi_category {
             }                                                                                     \
         }                                                                                         \
     } while (0)
+
+/*
+ * WT_CONFIG_DEBUG --
+ *     Emit a verbose warning message when debug_mode.configuration is enabled. This macro is used
+ *     to warn users when configuration values are adjusted automatically to valid/safe values.
+ */
+#define WT_CONFIG_DEBUG(session, fmt, ...)                                          \
+    do {                                                                            \
+        if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CONFIGURATION))      \
+            __wt_verbose_warning(session, WT_VERB_CONFIGURATION, fmt, __VA_ARGS__); \
+    } while (0)

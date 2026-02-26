@@ -286,23 +286,43 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_BTREE *btree;
     WT_CACHE *cache;
     WT_PAGE_MODIFY *modify;
+    uint64_t memory_footprint;
+    bool is_disagg;
 
     btree = S2BT(session);
     cache = S2C(session)->cache;
     modify = page->modify;
+    memory_footprint = __wt_atomic_load_size_relaxed(&page->memory_footprint);
+    is_disagg = __wt_conn_is_disagg(session);
 
     /* Update the bytes in-memory to reflect the eviction. */
-    __wt_cache_decr_check_uint64(session, &btree->bytes_inmem,
-      __wt_atomic_load_size_relaxed(&page->memory_footprint), "WT_BTREE.bytes_inmem");
-    __wt_cache_decr_check_uint64(session, &cache->bytes_inmem,
-      __wt_atomic_load_size_relaxed(&page->memory_footprint), "WT_CACHE.bytes_inmem");
+    __wt_cache_decr_check_uint64(
+      session, &btree->bytes_inmem, memory_footprint, "WT_BTREE.bytes_inmem");
+    __wt_cache_decr_check_uint64(
+      session, &cache->bytes_inmem, memory_footprint, "WT_CACHE.bytes_inmem");
+    if (is_disagg) {
+        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+            __wt_cache_decr_check_uint64(
+              session, &cache->bytes_inmem_ingest, memory_footprint, "WT_CACHE.bytes_inmem_ingest");
+        else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            __wt_cache_decr_check_uint64(
+              session, &cache->bytes_inmem_stable, memory_footprint, "WT_CACHE.bytes_inmem_stable");
+    }
 
     /* Update the bytes_internal value to reflect the eviction */
     if (WT_PAGE_IS_INTERNAL(page)) {
-        __wt_cache_decr_check_uint64(session, &btree->bytes_internal,
-          __wt_atomic_load_size_relaxed(&page->memory_footprint), "WT_BTREE.bytes_internal");
-        __wt_cache_decr_check_uint64(session, &cache->bytes_internal,
-          __wt_atomic_load_size_relaxed(&page->memory_footprint), "WT_CACHE.bytes_internal");
+        __wt_cache_decr_check_uint64(
+          session, &btree->bytes_internal, memory_footprint, "WT_BTREE.bytes_internal");
+        __wt_cache_decr_check_uint64(
+          session, &cache->bytes_internal, memory_footprint, "WT_CACHE.bytes_internal");
+        if (is_disagg) {
+            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+                __wt_cache_decr_check_uint64(session, &cache->bytes_internal_ingest,
+                  memory_footprint, "WT_CACHE.bytes_internal_ingest");
+            else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                __wt_cache_decr_check_uint64(session, &cache->bytes_internal_stable,
+                  memory_footprint, "WT_CACHE.bytes_internal_stable");
+        }
     }
 
     /* Update the cache's dirty-byte count. */
@@ -312,15 +332,27 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
               session, &btree->bytes_dirty_intl, modify->bytes_dirty, "WT_BTREE.bytes_dirty_intl");
             __wt_cache_decr_check_uint64(
               session, &cache->bytes_dirty_intl, modify->bytes_dirty, "WT_CACHE.bytes_dirty_intl");
+            if (is_disagg) {
+                if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+                    __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_intl_ingest,
+                      modify->bytes_dirty, "WT_CACHE.bytes_dirty_intl_ingest");
+                else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                    __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_intl_stable,
+                      modify->bytes_dirty, "WT_CACHE.bytes_dirty_intl_stable");
+            }
         } else {
             __wt_cache_decr_check_uint64(
               session, &btree->bytes_dirty_leaf, modify->bytes_dirty, "WT_BTREE.bytes_dirty_leaf");
             __wt_cache_decr_check_uint64(
               session, &cache->bytes_dirty_leaf, modify->bytes_dirty, "WT_CACHE.bytes_dirty_leaf");
-            __wt_cache_decr_check_uint64(session, &btree->bytes_delta_updates,
-              modify->bytes_delta_updates, "WT_BTREE.bytes_delta_updates");
-            __wt_cache_decr_check_uint64(session, &cache->bytes_delta_updates,
-              modify->bytes_delta_updates, "WT_CACHE.bytes_delta_updates");
+            if (is_disagg) {
+                if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+                    __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_leaf_ingest,
+                      modify->bytes_dirty, "WT_CACHE.bytes_dirty_leaf_ingest");
+                else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                    __wt_cache_decr_check_uint64(session, &cache->bytes_dirty_leaf_stable,
+                      modify->bytes_dirty, "WT_CACHE.bytes_dirty_leaf_stable");
+            }
         }
     }
 
@@ -330,12 +362,25 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
           session, &btree->bytes_updates, modify->bytes_updates, "WT_BTREE.bytes_updates");
         __wt_cache_decr_check_uint64(
           session, &cache->bytes_updates, modify->bytes_updates, "WT_CACHE.bytes_updates");
+        if (is_disagg) {
+            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+                __wt_cache_decr_check_uint64(session, &cache->bytes_updates_ingest,
+                  modify->bytes_updates, "WT_CACHE.bytes_updates_ingest");
+            else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                __wt_cache_decr_check_uint64(session, &cache->bytes_updates_stable,
+                  modify->bytes_updates, "WT_CACHE.bytes_updates_stable");
+        }
     }
 
     /* Update bytes and pages evicted. */
-    (void)__wt_atomic_add_uint64(
-      &cache->bytes_evict, __wt_atomic_load_size_relaxed(&page->memory_footprint));
-    (void)__wt_atomic_add_uint64_v(&cache->pages_evicted, 1);
+    (void)__wt_atomic_add_uint64_relaxed(&cache->bytes_evict, memory_footprint);
+    (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted, 1);
+    if (is_disagg) {
+        if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+            (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted_ingest, 1);
+        else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            (void)__wt_atomic_add_uint64_v_relaxed(&cache->pages_evicted_stable, 1);
+    }
 
     /*
      * Track if eviction makes progress. This is used in various places to determine whether
@@ -483,8 +528,10 @@ __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
     if (pct_fullp != NULL)
         *pct_fullp = (100.0 * bytes_updates) / bytes_max;
 
-    return (
-      bytes_updates > (uint64_t)(S2C(session)->evict->eviction_updates_trigger * bytes_max) / 100);
+    return (bytes_updates >
+      (uint64_t)(__wt_atomic_load_double_relaxed(&S2C(session)->evict->eviction_updates_trigger) *
+        bytes_max) /
+        100);
 }
 
 /* !!!
@@ -581,7 +628,7 @@ __wt_evict_needed(
         *pct_fullp = WT_MAX(0.0,
           100.0 -
             WT_MIN(WT_MIN(evict->eviction_trigger - pct_full, dirty_trigger - pct_dirty),
-              evict->eviction_updates_trigger - pct_updates));
+              __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger) - pct_updates));
 
     /*
      * Only check the dirty trigger when the session is not busy.
@@ -740,7 +787,7 @@ __evict_is_session_cache_trigger_tolerant(WT_SESSION_IMPL *session, uint8_t cach
 
     if (bytes_updates > bytes_updates_trigger) {
         /* Updates content is more than update trigger. */
-        bytes_over_updates_trigger = bytes_dirty - bytes_dirty_trigger;
+        bytes_over_updates_trigger = bytes_updates - bytes_updates_trigger;
 
         if (bytes_over_updates_trigger > bytes_updates_tolerance) {
             /* More than 100% of tolerance level. 100% of the app threads are non-tolerant. */

@@ -1045,8 +1045,9 @@ err:
 /*
  * __txn_resolve_prepared_update_chain --
  *     Helper for resolving updates. Recursively visit the update chain and resolve the updates on
- *     the way back out, so older updates are resolved first; this avoids a race with reconciliation
- *     (see WT-6778).
+ *     the way back out, so older updates are resolved first. This ensures that a reconciliation
+ *     racing with us will always see the newest update from the prepared transaction if any updates
+ *     are still unresolved.
  */
 static void
 __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool commit)
@@ -1081,11 +1082,11 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
 
     if (!commit) {
         /* As updating timestamp might not be an atomic operation, we will manage using state. */
-        upd->prepare_state = WT_PREPARE_LOCKED;
+        __wt_atomic_store_uint8_v_relaxed(&upd->prepare_state, WT_PREPARE_LOCKED);
         WT_RELEASE_BARRIER();
         if (F_ISSET(txn, WT_TXN_HAS_TS_ROLLBACK))
-            upd->upd_rollback_ts = txn->rollback_timestamp;
-        upd->upd_saved_txnid = upd->txnid;
+            __wt_atomic_store_uint64_relaxed(&upd->upd_rollback_ts, txn->rollback_timestamp);
+        __wt_atomic_store_uint64_relaxed(&upd->upd_saved_txnid, upd->txnid);
         __wt_atomic_store_uint64_v_release(&upd->txnid, WT_TXN_ABORTED);
         __wt_atomic_store_uint8_v_release(&upd->prepare_state, WT_PREPARE_INPROGRESS);
         WT_STAT_CONN_INCR(session, txn_prepared_updates_rolledback);
@@ -1225,7 +1226,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     if (F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS) &&
       (upd->type != WT_UPDATE_TOMBSTONE || (upd->next != NULL && upd->txnid == upd->next->txnid)))
         resolve_case = RESOLVE_PREPARE_ON_DISK;
-    else if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY))
+    else if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
         resolve_case = RESOLVE_IN_MEMORY;
     else
         resolve_case = RESOLVE_UPDATE_CHAIN;
@@ -1250,7 +1251,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * Open a history store table cursor and scan the history store for the given btree and key
          * with maximum start timestamp to let the search point to the last version of the key.
          */
-        WT_ERR(__wt_curhs_open(session, btree->id, NULL, &hs_cursor));
+        WT_ERR(__wt_curhs_open(session, btree->id, NULL, NULL, &hs_cursor));
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
         if (btree->type == BTREE_ROW)
             hs_cursor->set_key(hs_cursor, 4, btree->id, &cbt->iface.key, WT_TS_MAX, UINT64_MAX);
@@ -1287,20 +1288,6 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         }
         break;
     case RESOLVE_IN_MEMORY:
-        /*
-         * For in-memory configurations of WiredTiger if a prepared update is reconciled and then
-         * rolled back, the on-page value will not be marked as aborted until the next eviction. In
-         * the special case where this rollback operation results in the update chain being entirely
-         * comprised of aborted updates, other transactions attempting to write to the same key will
-         * look at the on-page value, think the prepared transaction is still active, and falsely
-         * report a write conflict. To prevent this scenario, prepend a tombstone to the update
-         * chain.
-         */
-        if (!commit && first_committed_upd == NULL) {
-            tw_found = __wt_read_cell_time_window(cbt, &tw);
-            if (tw_found && WT_TIME_WINDOW_HAS_PREPARE(&tw))
-                WT_ERR(__txn_prepare_rollback_delete_key(session, op, cbt));
-        }
         break;
     default:
         WT_ERR_PANIC(
@@ -1596,7 +1583,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * Switch reserved operations to abort to simplify obsolete update list truncation.
                  */
                 if (upd->type == WT_UPDATE_RESERVE) {
-                    upd->txnid = WT_TXN_ABORTED;
+                    __wt_tsan_suppress_store_uint64_v(&upd->txnid, WT_TXN_ABORTED);
                     break;
                 }
 
@@ -1805,7 +1792,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     update_durable_ts = false;
     prev_durable_timestamp = WT_TS_NONE;
     if (candidate_durable_timestamp != WT_TS_NONE) {
-        prev_durable_timestamp = txn_global->durable_timestamp;
+        prev_durable_timestamp = __wt_tsan_suppress_load_uint64(&txn_global->durable_timestamp);
         update_durable_ts = candidate_durable_timestamp > prev_durable_timestamp;
     }
 
@@ -1817,10 +1804,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         while (candidate_durable_timestamp > prev_durable_timestamp) {
             if (__wt_atomic_cas_uint64(&txn_global->durable_timestamp, prev_durable_timestamp,
                   candidate_durable_timestamp)) {
-                txn_global->has_durable_timestamp = true;
+                __wt_tsan_suppress_store_bool(&txn_global->has_durable_timestamp, true);
                 break;
             }
-            prev_durable_timestamp = txn_global->durable_timestamp;
+            prev_durable_timestamp = __wt_tsan_suppress_load_uint64(&txn_global->durable_timestamp);
         }
 
     /*
@@ -2109,7 +2096,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
                   op->btree->id == S2C(session)->cache->hs_fileid)
                     break;
                 WT_ASSERT(session, upd->txnid == txn->id || upd->txnid == WT_TXN_ABORTED);
-                upd->txnid = WT_TXN_ABORTED;
+                __wt_tsan_suppress_store_uint64_v(&upd->txnid, WT_TXN_ABORTED);
             } else {
                 /*
                  * If an operation has the key repeated flag set, skip resolving prepared updates as
@@ -2322,43 +2309,78 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_CONNECTION_STATS **stats;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t checkpoint_timestamp;
+    wt_timestamp_t checkpoint_timestamp, checkpoint_pinned_ts_lag;
     wt_timestamp_t durable_timestamp;
-    wt_timestamp_t oldest_active_read_timestamp;
+    wt_timestamp_t oldest_active_read_timestamp, oldest_reader_lag;
+    wt_timestamp_t oldest_timestamp;
     wt_timestamp_t pinned_timestamp;
     uint64_t checkpoint_pinned;
 
     conn = S2C(session);
+    checkpoint_pinned = WT_TXN_NONE;
+    checkpoint_pinned_ts_lag = oldest_reader_lag = WT_TS_NONE;
+    checkpoint_timestamp = WT_TS_NONE;
     txn_global = &conn->txn_global;
     stats = conn->stats;
-    checkpoint_pinned =
-      __wt_atomic_load_uint64_v_relaxed(&txn_global->checkpoint_txn_shared.pinned_id);
 
     WT_STATP_CONN_SET(session, stats, txn_pinned_range,
       __wt_atomic_load_uint64_v_relaxed(&txn_global->current) -
         __wt_atomic_load_uint64_v_relaxed(&txn_global->oldest_id));
 
-    checkpoint_timestamp = txn_global->checkpoint_timestamp;
-    durable_timestamp = txn_global->durable_timestamp;
-    pinned_timestamp = txn_global->pinned_timestamp;
+    if (__wt_atomic_load_bool_v_relaxed(&txn_global->checkpoint_running)) {
+        checkpoint_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->checkpoint_timestamp);
+        checkpoint_pinned =
+          __wt_atomic_load_uint64_v_relaxed(&txn_global->checkpoint_txn_shared.pinned_id);
+    }
+
+    durable_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->durable_timestamp);
+    oldest_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp);
+    pinned_timestamp = __wt_atomic_load_uint64_relaxed(&txn_global->pinned_timestamp);
+
     if (checkpoint_timestamp != WT_TS_NONE && checkpoint_timestamp < pinned_timestamp)
         pinned_timestamp = checkpoint_timestamp;
-    WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp, durable_timestamp - pinned_timestamp);
+
+    /* Represents the lag of the pinned timestamp with respect to the oldest timestamp.*/
     WT_STATP_CONN_SET(
-      session, stats, txn_pinned_timestamp_checkpoint, durable_timestamp - checkpoint_timestamp);
-    WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_oldest,
-      durable_timestamp - txn_global->oldest_timestamp);
+      session, stats, txn_pinned_timestamp_lag, oldest_timestamp - pinned_timestamp);
+
+    /* Represents the lag of the checkpoint timestamp with respect to the oldest timestamp.*/
+    if (checkpoint_timestamp != WT_TS_NONE && checkpoint_timestamp < oldest_timestamp)
+        checkpoint_pinned_ts_lag = oldest_timestamp - checkpoint_timestamp;
+
+    WT_STATP_CONN_SET(
+      session, stats, txn_pinned_timestamp_checkpoint_lag, checkpoint_pinned_ts_lag);
+
+    WT_STATP_CONN_SET(
+      session, stats, txn_pinned_timestamp_oldest, durable_timestamp - oldest_timestamp);
 
     __wti_txn_get_pinned_timestamp(session, &oldest_active_read_timestamp, 0);
-    if (oldest_active_read_timestamp == 0) {
-        WT_STATP_CONN_SET(session, stats, txn_timestamp_oldest_active_read, 0);
-        WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_reader, 0);
-    } else {
-        WT_STATP_CONN_SET(
-          session, stats, txn_timestamp_oldest_active_read, oldest_active_read_timestamp);
-        WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_reader,
-          durable_timestamp - oldest_active_read_timestamp);
-    }
+    if (oldest_active_read_timestamp != WT_TS_NONE &&
+      oldest_active_read_timestamp < oldest_timestamp)
+        oldest_reader_lag = oldest_timestamp - oldest_active_read_timestamp;
+
+    /* Represents the read timestamp of the oldest active reader.*/
+    WT_STATP_CONN_SET(
+      session, stats, txn_timestamp_oldest_active_read, oldest_active_read_timestamp);
+    /* Represents the lag of the oldest reader  with respect to the oldest timestamp, if any. */
+    WT_STATP_CONN_SET(session, stats, txn_pinned_timestamp_reader_lag, oldest_reader_lag);
+
+    /* Fetch the global timestamp values for debugging purposes.*/
+    WT_STAT_CONN_SET(session, txn_global_checkpoint_timestamp, checkpoint_timestamp);
+    WT_STAT_CONN_SET(session, txn_global_durable_timestamp, durable_timestamp);
+    WT_STAT_CONN_SET(session, txn_global_last_running_timestamp, oldest_active_read_timestamp);
+    WT_STAT_CONN_SET(session, txn_global_newest_timestamp,
+      __wt_atomic_load_uint64_relaxed(&txn_global->newest_seen_timestamp));
+    WT_STAT_CONN_SET(session, txn_global_oldest_timestamp, oldest_timestamp);
+    WT_STAT_CONN_SET(session, txn_global_pinned_timestamp, pinned_timestamp);
+    WT_STAT_CONN_SET(session, txn_global_stable_timestamp,
+      __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp));
+
+    if (conn->version_cursor_count == 0)
+        WT_STAT_CONN_SET(session, txn_global_version_cursor_timestamp, WT_TS_NONE);
+    else
+        WT_STAT_CONN_SET(session, txn_global_version_cursor_timestamp,
+          __wt_atomic_load_uint64_relaxed(&txn_global->version_cursor_pinned_timestamp));
 
     WT_STATP_CONN_SET(session, stats, txn_pinned_checkpoint_range,
       checkpoint_pinned == WT_TXN_NONE ?
@@ -2612,7 +2634,7 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
 
 #ifndef WT_STANDALONE_BUILD
     /*
-     * FIXME: SERVER-44870
+     * FIXME-WT-15823
      *
      * MongoDB can't (yet) handle rolling back read only transactions. For this reason, don't check
      * unless there's at least one update or we're configured to time out thread operations (a way
@@ -2669,6 +2691,9 @@ __wt_verbose_dump_txn_one(
     txn = txn_session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(txn_session);
     WT_ERROR_INFO *txn_err_info = &(txn_session->err_info);
+
+    if (txn == NULL || txn_shared == NULL || txn_err_info == NULL)
+        return (0);
 
     /*
      * Unless an error occurs, there's no need to print transactions without a snapshot, as they are
@@ -2753,7 +2778,7 @@ __wt_verbose_dump_txn_one(
         __wt_timestamp_to_string(txn_shared->pinned_durable_timestamp, ts_string[4]),
         __wt_timestamp_to_string(txn_shared->read_timestamp, ts_string[5]), ckpt_lsn_str,
         txn->full_ckpt ? "true" : "false", txn->flags, iso_tag, txn_err_info->err,
-        txn_err_info->sub_level_err, txn_err_info->err_msg));
+        txn_err_info->sub_level_err, txn_err_info->err_msg == NULL ? "" : txn_err_info->err_msg));
 
     /*
      * Log a message and return an error if error code and an optional error string has been passed.

@@ -89,22 +89,14 @@ def confirm_does_not_exist(testcase, uri):
 def confirm_empty(testcase, uri):
     testcase.pr('confirm_empty: ' + uri)
     cursor = testcase.session.open_cursor(uri, None)
-    if cursor.value_format == '8t':
-        for key,val in cursor:
-            testcase.assertEqual(val, 0)
-    else:
-        testcase.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
+    testcase.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
     cursor.close()
 
 # Confirm a URI exists and is not empty.
 def confirm_nonempty(testcase, uri):
     testcase.pr('confirm_nonempty: ' + uri)
     cursor = testcase.session.open_cursor(uri, None)
-    if cursor.value_format == '8t':
-        for key,val in cursor:
-            testcase.assertNotEqual(val, 0)
-    else:
-        testcase.assertNotEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
+    testcase.assertNotEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
     cursor.close()
 
 # Copy a WT home directory.
@@ -163,12 +155,15 @@ def simulate_crash_restart(testcase, olddir, newdir):
 
 class WiredTigerStat:
 
-    def __init__(self, session):
+    def __init__(self, session, uri = None):
         self.session = session
+        self.uri = "statistics:"
+        if uri:
+            self.uri += uri
 
-    def __enter__(self, uri = 'statistics:'):
+    def __enter__(self):
         # Get a statistics cursor
-        self.stat_cursor = self.session.open_cursor(uri, None, None)
+        self.stat_cursor = self.session.open_cursor(self.uri, None, None)
         return self.stat_cursor
 
     def __exit__(self, exception_type, exception_value, exception_traceback):

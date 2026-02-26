@@ -185,9 +185,9 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
          */
         if (__wt_atomic_load_uint32_relaxed(&btree->eviction_obsolete_tw_pages) == 0 &&
           __wt_atomic_load_uint32_relaxed(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0)
-            __wt_atomic_add_uint32_v(&conn->heuristic_controls.obsolete_tw_btree_count, 1);
+            __wt_atomic_add_uint32_relaxed(&conn->heuristic_controls.obsolete_tw_btree_count, 1);
 
-        __wt_atomic_add_uint32_v(&btree->checkpoint_cleanup_obsolete_tw_pages, 1);
+        __wt_atomic_add_uint32_relaxed(&btree->checkpoint_cleanup_obsolete_tw_pages, 1);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_obsolete_tw);
     }
 
@@ -327,7 +327,7 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
                 new_state = WT_REF_DELETED;
         }
         /*
-         * For deleted and on-disk pages, increment ref_changes if there has been a change in the
+         * For deleted and on-disk pages, mark the ref as dirty if there has been a change in the
          * ref's state. There's nothing to do for in-memory pages as we don't change those.
          */
         if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)) && previous_state != new_state)
@@ -490,11 +490,10 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
-    WT_REF *ref;
-    uint32_t flags;
-
-    ref = NULL;
-    flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL;
+    WT_REF *ref = NULL;
+    uint32_t flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL;
+    uint32_t pages_visited = 0;
+    uint64_t elapsed_us, end_time, start_time = __wt_clock(session);
 
     /* Open a handle for processing. */
     ret = __wt_session_get_dhandle(session, uri->data, NULL, NULL, 0);
@@ -518,17 +517,12 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     /* Ignore tables that are empty or is currently in a bulk-load phase. */
     if (btree->original)
         goto err;
-    /*
-     * FLCS pages cannot be discarded and must be rewritten as implicitly filling in missing chunks
-     * of FLCS namespace is problematic.
-     */
-    if (btree->type == BTREE_COL_FIX)
-        goto err;
 
     /* Walk the tree. */
     while ((ret = __wt_tree_walk_custom_skip(
               session, &ref, __checkpoint_cleanup_page_skip, NULL, flags)) == 0 &&
       ref != NULL) {
+        ++pages_visited;
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
             WT_WITH_PAGE_INDEX(session, ret = __checkpoint_cleanup_obsolete_cleanup(session, ref));
         } else {
@@ -544,6 +538,14 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     }
 
 err:
+    end_time = __wt_clock(session);
+    elapsed_us = WT_CLOCKDIFF_US(end_time, start_time);
+    __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
+      "checkpoint cleanup btree walk completed (ret=%d), pages_visited=%" PRIu32
+      ", elapsed_us=%" PRIu64,
+      ret, pages_visited, elapsed_us);
+    WT_STAT_CONN_SET(session, checkpoint_cleanup_inmem_pages_visited, pages_visited);
+
     /* On error, clear any left-over tree walk. */
     WT_TRET(__wt_page_release(session, ref, flags));
     WT_TRET(__wt_session_release_dhandle(session));
@@ -721,6 +723,9 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
     WT_DECL_ITEM(uri);
     WT_DECL_RET;
 
+    uint32_t tables_processed = 0;
+    uint64_t elapsed_us, end_time, start_time = __wt_clock(session);
+
     WT_RET(__wt_scr_alloc(session, 1024, &uri));
     WT_ERR(__wt_buf_set(session, uri, WT_URI_FILE_PREFIX, strlen(WT_URI_FILE_PREFIX) + 1));
 
@@ -733,6 +738,7 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
             continue;
         }
         WT_ERR(ret);
+        ++tables_processed;
 
         /* Check if we need to wait before continuing with the next file to minimize impact. */
         if (S2C(session)->cc_cleanup.file_wait_ms > 0) {
@@ -752,6 +758,15 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
     WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
+    end_time = __wt_clock(session);
+    elapsed_us = WT_CLOCKDIFF_US(end_time, start_time);
+    __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
+      "checkpoint cleanup full iteration completed (ret=%d), tables_processed=%" PRIu32
+      " elapsed_us=%" PRIu64,
+      ret, tables_processed, elapsed_us);
+    WT_STAT_CONN_SET(session, checkpoint_cleanup_duration, elapsed_us);
+    WT_STAT_CONN_SET(session, checkpoint_cleanup_handle_processed, tables_processed);
+
     __wt_scr_free(session, &uri);
     return (ret);
 }

@@ -37,15 +37,12 @@
 #define ERR_KEY_MISMATCH 0x200001
 #define ERR_DATA_MISMATCH 0x200002
 
-/* Magic value to store in FLCS if we have lost track of the corresponding string value. */
-#define FLCS_UNKNOWN 255
-
 /*
- * There are three different table types in the test, and a 'special' type of mixed (i.e a mixture
- * of the other three types.
+ * There are two different table types in the test, and a 'special' type of mixed (i.e a mixture of
+ * the other two types.
  */
-#define MAX_TABLE_TYPE 3
-typedef enum { MIX = 0, COL, FIX, ROW } table_type; /* File type */
+#define MAX_TABLE_TYPE 2
+typedef enum { MIX = 0, ROW, COL } table_type; /* File type */
 
 /*
  * For a predictable run we reserve timestamps for each thread for the entire run. The timestamp for
@@ -94,6 +91,7 @@ typedef struct {
     bool checkpoint_slow_timing_stress;  /* Checkpoint slow timing stress */
     bool evict_reposition_timing_stress; /* Reposition the cursor for read operations */
     bool hs_checkpoint_timing_stress;    /* History store checkpoint timing stress */
+    bool precise_checkpoint;             /* Use precise checkpoint */
     bool sweep_stress;                   /* Sweep stress test */
 
     uint64_t ts_oldest;                   /* Current oldest timestamp */
@@ -121,13 +119,13 @@ extern GLOBAL g;
 
 #define log_print_err(m, e, fatal) log_print_err_worker(__func__, __LINE__, m, e, fatal)
 
+#define WARN(fmt, ...) fprintf(stderr, "%s: WARNING: " fmt "\n", progname, __VA_ARGS__)
+
 void end_threads(void);
-uint8_t flcs_encode(const char *);
-uint8_t flcs_modify(WT_MODIFY *, int, uint8_t);
-int disagg_switch_roles(void);
 int log_print_err_worker(const char *, int, const char *, int, int);
 void set_flush_tier_delay(WT_RAND_STATE *);
 void start_threads(void);
 int start_workers(void);
 const char *type_to_string(table_type);
 int verify_consistency(WT_SESSION *, wt_timestamp_t, bool);
+void prepare_discover(WT_CONNECTION *conn, THREAD_DATA *td);

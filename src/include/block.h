@@ -19,6 +19,12 @@
 #define WT_BLOCK_INVALID_OFFSET 0
 
 /*
+ * The max corrupt block size that we'll attempt to detect bitflips for. Essentially default
+ * leaf_page_max with a buffer.
+ */
+#define WT_BITFLIP_MAX_SIZE (WT_KILOBYTE * 33) /* 33KB */
+
+/*
  * The block manager maintains three per-checkpoint extent lists:
  *	alloc:	 the extents allocated in this checkpoint
  *	avail:	 the extents available for allocation
@@ -50,8 +56,8 @@
 struct __wt_extlist {
     char *name; /* Name */
 
-    uint64_t bytes;   /* Byte count */
-    uint32_t entries; /* Entry count */
+    wt_shared uint64_t bytes; /* Byte count */
+    uint32_t entries;         /* Entry count */
 
     uint32_t objectid; /* Written object ID */
     wt_off_t offset;   /* Written extent offset */
@@ -234,8 +240,8 @@ struct __wt_bm {
     int (*verify_addr)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*verify_end)(WT_BM *, WT_SESSION_IMPL *, bool verify_success);
     int (*verify_start)(WT_BM *, WT_SESSION_IMPL *, WT_CKPT *, const char *[]);
-    int (*write)(
-      WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_PAGE_BLOCK_META *, uint8_t *, size_t *, bool, bool);
+    int (*write)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_PAGE_BLOCK_META *, size_t, uint8_t *,
+      size_t *, bool, bool);
     int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
 
     WT_BLOCK *block; /* Underlying file. For a multi-handle tree this will be the writable file. */
@@ -512,6 +518,7 @@ struct __wt_block_disagg_header {
 #define WT_BLOCK_DISAGG_DATA_CKSUM 0x1u /* Block data is part of the checksum */
 #define WT_BLOCK_DISAGG_ENCRYPTED 0x2u  /* Data following header is encrypted */
 #define WT_BLOCK_DISAGG_COMPRESSED 0x4u /* Data following header is compressed */
+#define WT_BLOCK_DISAGG_MODIFIED 0x08u  /* The page is modified "offline" */
     uint8_t flags;                      /* 12: flags */
 
     /*
@@ -551,6 +558,6 @@ struct __wt_block_disagg_address_cookie {
     uint64_t lsn;      /* Log sequence number */
     uint64_t base_lsn; /* Base log sequence number */
 
-    uint32_t size;     /* Size of the data */
+    uint32_t size;     /* Cumulative size (base + deltas) */
     uint32_t checksum; /* Checksum of the data */
 };

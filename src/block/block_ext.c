@@ -225,7 +225,7 @@ __block_ext_insert(WT_SESSION_IMPL *session, WT_EXTLIST *el, WT_EXT *ext)
     }
 
     ++el->entries;
-    el->bytes += (uint64_t)ext->size;
+    __wt_atomic_add_uint64_relaxed(&el->bytes, (uint64_t)ext->size);
 
     /* Update the cached end-of-list. */
     if (ext->next[0] == NULL)
@@ -390,7 +390,7 @@ __block_off_remove(
 #endif
 
     --el->entries;
-    el->bytes -= (uint64_t)ext->size;
+    __wt_atomic_sub_uint64_relaxed(&el->bytes, (uint64_t)ext->size);
 
     /* Return the record if our caller wants it, otherwise free it. */
     if (extp == NULL) {
@@ -975,7 +975,8 @@ __wti_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST 
     if (a->track_size == b->track_size && a->entries > b->entries) {
         tmp = *a;
         a->bytes = b->bytes;
-        b->bytes = tmp.bytes;
+        /* This assignment can run concurrently with `block_reuse_bytes` stats collection. */
+        __wt_atomic_store_uint64_relaxed(&b->bytes, tmp.bytes);
         a->entries = b->entries;
         b->entries = tmp.entries;
         for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {

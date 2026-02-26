@@ -372,8 +372,8 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
      * hits this logic if the relevant data handle isn't already open). However this code gets run
      * in rollback to stable as part of recovery where we want to skip any corrupted data files
      * temporarily to allow MongoDB to initiate salvage. This is why we've been forced into this
-     * situation. We should address this as part of WT-5832 and clarify what error codes we expect
-     * to be returning across the API boundary.
+     * situation. We should address this and clarify what error codes we expect to return across the
+     * API boundary.
      */
     if (block->size < allocsize) {
         if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
@@ -467,7 +467,8 @@ __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_STATS *stats)
     WT_STAT_WRITE(session, stats, block_magic, WT_BLOCK_MAGIC);
     WT_STAT_WRITE(session, stats, block_major, WT_BLOCK_MAJOR_VERSION);
     WT_STAT_WRITE(session, stats, block_minor, WT_BLOCK_MINOR_VERSION);
-    WT_STAT_WRITE(session, stats, block_reuse_bytes, (int64_t)block->live.avail.bytes);
+    WT_STAT_WRITE(session, stats, block_reuse_bytes,
+      (int64_t)(__wt_atomic_load_uint64_relaxed(&block->live.avail.bytes)));
     WT_STAT_WRITE(session, stats, block_size, block->size);
 }
 

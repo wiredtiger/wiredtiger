@@ -28,14 +28,13 @@
 
 #include "test_checkpoint.h"
 
-#define SHARED_PARSE_OPTIONS "b:P:h:"
+#define SHARED_PARSE_OPTIONS "b:GP:h:"
 
 GLOBAL g;
 
 static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
 static int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
 static void onint(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
-static int enable_disagg(const char *);
 static void cleanup(bool);
 static int usage(void);
 static void wt_connect(const char *);
@@ -108,6 +107,7 @@ main(int argc, char *argv[])
     g.hs_checkpoint_timing_stress = false;
     g.checkpoint_slow_timing_stress = false;
     g.no_ts_deletes = false;
+    g.precise_checkpoint = false;
     g.predictable_replay = false;
     runs = 1;
     verify_only = false;
@@ -115,17 +115,13 @@ main(int argc, char *argv[])
     testutil_parse_begin_opt(argc, argv, SHARED_PARSE_OPTIONS, &g.opts);
 
     while ((ch = __wt_getopt(
-              progname, argc, argv, "C:c:d:Dk:l:mn:pr:Rs:S:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
+              progname, argc, argv, "C:c:Dk:l:mn:per:Rs:S:T:t:vW:xX" SHARED_PARSE_OPTIONS)) != EOF)
         switch (ch) {
         case 'c':
             g.checkpoint_name = __wt_optarg;
             break;
         case 'C': /* wiredtiger_open config */
             strncpy(config_open, __wt_optarg, sizeof(config_open) - 1);
-            break;
-        case 'd': /* disaggregated storage options */
-            g.opts.disagg_storage = true;
-            g.opts.disagg_mode = __wt_optarg;
             break;
         case 'D':
             g.debug_mode = true;
@@ -147,6 +143,9 @@ main(int argc, char *argv[])
             break;
         case 'p': /* prepare */
             g.prepare = true;
+            break;
+        case 'e': /* precise checkpoint */
+            g.precise_checkpoint = true;
             break;
         case 'r': /* runs */
             runs = atoi(__wt_optarg);
@@ -197,9 +196,6 @@ main(int argc, char *argv[])
             case 'c':
                 ttype = COL;
                 break;
-            case 'f':
-                ttype = FIX;
-                break;
             case 'm':
                 ttype = MIX;
                 break;
@@ -239,6 +235,10 @@ main(int argc, char *argv[])
         fprintf(stderr, "-S is only valid if specified along with -X and -R.\n");
         return (EXIT_FAILURE);
     }
+    if (g.precise_checkpoint && !g.use_timestamps) {
+        WARN("%s", "Timestamps automatically enabled for precise checkpoint (-e).");
+        g.use_timestamps = true;
+    }
 
     /*
      * Among other things, this initializes the random number generators in the option structure.
@@ -249,13 +249,15 @@ main(int argc, char *argv[])
 
     testutil_work_dir_from_path(g.home, 512, (&g.opts)->home);
 
-    if (g.opts.disagg_storage) {
-        if (enable_disagg(g.opts.disagg_mode) != 0)
-            return (usage());
-
+    if (g.opts.disagg.is_enabled) {
         if (!g.use_timestamps) {
-            fprintf(stderr, "disaggregated storage feature requires usage of timestamps (-x/-X)");
-            return (EXIT_FAILURE);
+            WARN("%s", "Timestamps automatically enabled for disaggregated storage (-x/-X).");
+            g.use_timestamps = true;
+        }
+
+        if (!g.precise_checkpoint) {
+            WARN("%s", "Precise checkpoint automatically enabled for disaggregated storage (-e).");
+            g.precise_checkpoint = true;
         }
         if (ttype != ROW) {
             fprintf(
@@ -267,12 +269,13 @@ main(int argc, char *argv[])
               stderr, "disaggregated storage feature doesn't supports named checkpoints (-c)");
             return (EXIT_FAILURE);
         }
-        /* FIXME-WT-15051 Disagg is not support prepared operations yet. */
+        /* FIXME-WT-15795 Disagg is not support prepared operations yet. */
         if (g.prepare == true) {
             fprintf(
               stderr, "disaggregated storage feature doesn't supports prepare operations (-p)");
             return (EXIT_FAILURE);
         }
+        g.opts.disagg.page_log_home = g.home;
     }
 
     /*
@@ -305,6 +308,7 @@ main(int argc, char *argv[])
         for (i = 0; i < g.ntables; ++i) {
             g.cookies[i].id = i;
             if (ttype == MIX) {
+                /* Alternate between row-store and variable-length column-store table type. */
                 g.cookies[i].type = (table_type)((i % MAX_TABLE_TYPE) + 1);
             } else
                 g.cookies[i].type = ttype;
@@ -338,6 +342,7 @@ main(int argc, char *argv[])
                 (void)log_print_err("conn.open_session", ret, 1);
                 break;
             }
+            prepare_discover(g.conn, NULL);
 
             verify_consistency(session, WT_TS_NONE, false);
             goto run_complete;
@@ -374,39 +379,6 @@ run_complete:
     return (g.status);
 }
 
-/*
- * enable_disagg --
- *     Enable disaggregated storage with given mode.
- */
-static int
-enable_disagg(const char *mode)
-{
-    if (strcmp(mode, "leader") == 0) {
-        g.opts.disagg_switch_mode = false;
-        g.opts.disagg_mode = "leader";
-        g.opts.disagg_page_log = "palite";
-    } else if (strcmp(mode, "follower") == 0) {
-        g.opts.disagg_mode = "follower";
-        g.opts.disagg_switch_mode = false;
-        g.opts.disagg_page_log = "palite";
-    } else if (strcmp(mode, "switch") == 0) {
-        g.opts.disagg_switch_mode = true;
-        /* For switch mode, randomly pick initial role */
-        bool disagg_leader = (__wt_random(&g.opts.extra_rnd) % 2) == 0;
-        g.opts.disagg_mode = disagg_leader ? "leader" : "follower";
-        g.opts.disagg_page_log = "palite";
-        printf("Switch mode: starting as %s\n", g.opts.disagg_mode);
-    } else {
-        fprintf(stderr, "Invalid disaggregated mode: %s\n", mode);
-        return EINVAL;
-    }
-
-    g.opts.palm_map_size_mb = 2048;               /* Set 2GB map size for palm by default. */
-    g.opts.disagg_page_log_home = (char *)g.home; /* Set home directory for page log. */
-
-    return 0;
-}
-
 #define DEBUG_MODE_CFG ",debug_mode=(eviction=true,table_logging=true),verbose=(recovery)"
 #define SWEEP_CFG ",file_manager=(close_handle_minimum=1,close_idle_time=1,close_scan_interval=1)"
 
@@ -427,7 +399,7 @@ wt_connect(const char *config_open)
      * Randomly decide on the eviction rate (fast or default). For disagg, skip fast eviction, as it
      * can cause cache-stuck scenarios.
      */
-    if ((__wt_random(&g.opts.extra_rnd) % 15) % 2 == 0 && !g.opts.disagg_storage)
+    if ((__wt_random(&g.opts.extra_rnd) % 15) % 2 == 0 && !g.opts.disagg.is_enabled)
         fast_eviction = true;
 
     /* Set up the basic configuration string first. */
@@ -458,7 +430,12 @@ wt_connect(const char *config_open)
      */
     if (g.sweep_stress)
         strcat(config, SWEEP_CFG);
-
+    /* Add config for preserve prepared and precise config */
+    if (g.precise_checkpoint) {
+        strcat(config, ",precise_checkpoint=true");
+        if (g.prepare)
+            strcat(config, ",preserve_prepared=true");
+    }
     /*
      * If we are using tiered add in the extension and tiered storage configuration.
      */
@@ -591,153 +568,6 @@ log_print_err_worker(const char *func, int line, const char *m, int e, int fatal
 }
 
 /*
- * Value encoding for FLCS tables.
- *
- * The string value is a large number of digits pushed around arbitrarily with modify. This is
- * difficult to track incrementally in any useful way with just 8 bits. We try to track the offset
- * of the first digit that's a prime (2, 3, 5, or 7), and which prime it is. We encode this as
- * digit-number * 4 + [2 -> 0; 3 -> 1; 5 -> 2; 7 -> 3], plus 1 overall so as to never store zero.
- * (That allows assuming any zero read back is a deleted value.) If there is no such digit, we
- * return FLCS_NONE. If we lose track, we return FLCS_UNKNOWN. This allows remembering offsets up to
- * 62 before we lose track.
- */
-
-#define FLCS_OFFSET 1 /* avoid storing zero */
-
-/* The magic values are to be tested _before_ subtracting off FLCS_OFFSET. */
-#define FLCS_NONE 254
-/* FLCS_UNKNOWN lives in test_checkpoint.h so it can be used in compare_cursors(). */
-
-#define FLCS_TRACKED_DIGIT(c) ((c) == '2' || (c) == '3' || (c) == '5' || (c) == '7')
-
-/*
- * flcs_encode_value --
- *     Store an offset and digit in an 8-bit value.
- */
-static uint8_t
-flcs_encode_value(size_t offset, char digit)
-{
-    uint8_t digitx;
-
-    if (offset > 62)
-        return FLCS_UNKNOWN;
-
-    if (digit == '2')
-        digitx = 0;
-    else if (digit == '3')
-        digitx = 1;
-    else if (digit == '5')
-        digitx = 2;
-    else
-        digitx = 3;
-
-    return (FLCS_OFFSET + (uint8_t)(offset * 4 + digitx));
-}
-
-/*
- * flcs_decode_value --
- *     Unpack flcs_encode_value results.
- */
-static void
-flcs_decode_value(uint8_t value, size_t *offsetp, char *digitp)
-{
-    static const char digits[] = "2357";
-
-    value -= FLCS_OFFSET;
-
-    *offsetp = value >> 2;
-    *digitp = digits[value & 3];
-}
-
-/*
- * flcs_encode --
- *     Extract the corresponding 8-bit FLCS value from a string value.
- */
-uint8_t
-flcs_encode(const char *s)
-{
-    u_int i;
-
-    for (i = 0; s[i] != '\0'; i++) {
-        if (FLCS_TRACKED_DIGIT(s[i]))
-            return (flcs_encode_value(i, s[i]));
-    }
-    return (FLCS_NONE);
-}
-
-/*
- * flcs_modify --
- *     Update the corresponding 8-bit FLCS value given a modify applied to its string.
- */
-uint8_t
-flcs_modify(WT_MODIFY *entries, int nentries, uint8_t oldval)
-{
-    size_t j, offset;
-    int i;
-    char digit, newdigit;
-
-    newdigit = 0; /* clang -Wconditional-uninitialized */
-
-    /* If we've lost track, we've lost track. */
-    if (oldval == FLCS_UNKNOWN)
-        return (FLCS_UNKNOWN);
-
-    if (oldval == FLCS_NONE) {
-        offset = 0;
-        digit = '\0';
-    } else
-        flcs_decode_value(oldval, &offset, &digit);
-
-    for (i = 0; i < nentries; i++) {
-        /* If it starts after us, never mind. */
-        if (digit != 0 && entries[i].offset > offset)
-            continue;
-        /* Find the first appropriate digit. */
-        for (j = 0; j < entries[i].data.size; j++) {
-            newdigit = ((const char *)entries[i].data.data)[j];
-            if (FLCS_TRACKED_DIGIT(newdigit))
-                break;
-        }
-        if (j < entries[i].data.size) {
-            /* Found a suitable digit. Remember it. */
-            offset = entries[i].offset + j;
-            digit = newdigit;
-            continue;
-        }
-
-        /* If at this point we had no position before, we still don't. */
-        if (digit == 0)
-            continue;
-
-        /* If this modify overwrote us, we lost track. */
-        if (entries[i].offset + entries[i].size > offset)
-            return (FLCS_UNKNOWN);
-
-        /* Otherwise, it is fully in front of us, so update our offset and keep going. */
-        offset = offset - entries[i].size + entries[i].data.size;
-    }
-
-    return (digit == 0 ? FLCS_NONE : flcs_encode_value(offset, digit));
-}
-
-/*
- * disagg_switch_roles --
- *     Toggle the current disagg role between "leader" and "follower".
- */
-int
-disagg_switch_roles(void)
-{
-    testutil_assert(g.opts.disagg_storage);
-    testutil_assert(g.opts.disagg_switch_mode);
-
-    const char *disagg_role = strcmp(g.opts.disagg_mode, "leader") == 0 ? "follower" : "leader";
-    char disagg_cfg[64];
-    testutil_snprintf(disagg_cfg, sizeof(disagg_cfg), "disaggregated=(role=\"%s\")", disagg_role);
-
-    return (g.conn->reconfigure(g.conn, disagg_cfg));
-}
-
-/*
  * type_to_string --
  *     Return the string name of a table type.
  */
@@ -746,8 +576,6 @@ type_to_string(table_type type)
 {
     if (type == COL)
         return ("COL");
-    if (type == FIX)
-        return ("FIX");
     if (type == ROW)
         return ("ROW");
     if (type == MIX)
@@ -763,16 +591,16 @@ static int
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s\n"
-      "    [-DmpRvXx] [-C wiredtiger-config] [-c checkpoint] [-d disagg-mode] [-h home] [-k keys] "
+      "usage: %s%s\n"
+      "    [-DmpeRkvXx] [-C wiredtiger-config] [-c checkpoint] [-h home] [-k "
+      "keys] "
       "[-l log]\n"
-      "    [-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t f|r|v]\n"
+      "    [-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t r|v]\n"
       "    [-W workers]\n",
-      progname);
+      progname, g.opts.usage);
     fprintf(stderr, "%s",
       "\t-C specify wiredtiger_open configuration arguments\n"
       "\t-c checkpoint name to used named checkpoints\n"
-      "\t-d disaggregated storage mode (leader | follower | switch)\n"
       "\t-D debug mode\n"
       "\t-h set a database home directory\n"
       "\t-k set number of keys to load\n"
@@ -780,6 +608,7 @@ usage(void)
       "\t-m perform delete operations without timestamps\n"
       "\t-n set number of operations each thread does\n"
       "\t-p use prepare\n"
+      "\t-e use precise checkpoint\n"
       "\t-r set number of runs (0 for continuous)\n"
       "\t-R configure predictable replay\n"
       "\t-s specify which timing stress configuration to use ( 1 | 2 | 3 | 4 | 5 )\n"

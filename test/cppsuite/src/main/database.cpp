@@ -41,11 +41,9 @@ database::build_collection_name(const uint64_t id)
 }
 
 void
-database::add_collection(uint64_t key_count)
+database::add_collection(scoped_session &session, uint64_t key_count)
 {
     std::lock_guard<std::mutex> lg(_mtx);
-    if (_session.get() == nullptr)
-        _session = connection_manager::instance().create_session();
     if (_collection_create_config.empty())
         testutil_die(EINVAL, "database: no collection create config specified!");
     uint64_t next_id = _next_collection_id++;
@@ -54,9 +52,25 @@ database::add_collection(uint64_t key_count)
     _collections.emplace(std::piecewise_construct, std::forward_as_tuple(next_id),
       std::forward_as_tuple(next_id, key_count, collection_name));
     testutil_check(
-      _session->create(_session.get(), collection_name.c_str(), _collection_create_config.c_str()));
-    _operation_tracker->save_schema_operation(
-      tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
+      session->create(session.get(), collection_name.c_str(), _collection_create_config.c_str()));
+    if (_operation_tracker != nullptr)
+        _operation_tracker->save_schema_operation(
+          tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
+}
+
+void
+database::add_existing_collections(int count, int key_count)
+{
+    std::lock_guard<std::mutex> lg(_mtx);
+    testutil_assert(_next_collection_id == 0);
+    /* We don't support operation tracking across database reopen. */
+    testutil_assert(_operation_tracker == nullptr || _operation_tracker->enabled() == false);
+    for (int i = 0; i < count; i++) {
+        uint64_t next_id = _next_collection_id++;
+        std::string collection_name = build_collection_name(next_id);
+        _collections.emplace(std::piecewise_construct, std::forward_as_tuple(next_id),
+          std::forward_as_tuple(next_id, key_count, collection_name));
+    }
 }
 
 collection &
@@ -125,10 +139,11 @@ database::set_operation_tracker(operation_tracker *op_tracker)
 }
 
 void
-database::set_create_config(bool use_compression, bool use_reverse_collator)
+database::set_create_config(bool use_compression, bool use_reverse_collator, bool disagg)
 {
     _collection_create_config = DEFAULT_FRAMEWORK_SCHEMA;
     _collection_create_config += use_compression ? std::string(SNAPPY_BLK) + "," : "";
     _collection_create_config += use_reverse_collator ? std::string(REVERSE_COL_CFG) + "," : "";
+    _collection_create_config += disagg ? "type=layered," : "";
 }
 } // namespace test_harness

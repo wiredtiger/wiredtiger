@@ -105,10 +105,11 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     WT_BTREE *btree;
     WT_COMPRESSOR *compressor;
     WT_DECL_ITEM(etmp);
+    WT_DECL_ITEM(ip);
+    WT_DECL_ITEM(ip_orig);
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_ENCRYPTOR *encryptor;
-    WT_ITEM *ip, *ip_orig;
     WT_ITEM results[WT_DELTA_LIMIT + 1];
     WT_PAGE_BLOCK_META block_meta_tmp;
     const WT_PAGE_HEADER *dsk;
@@ -125,6 +126,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     encryptor = btree->kencryptor == NULL ? NULL : btree->kencryptor->encryptor;
     blkcache_found = found = false;
     skip_cache_put = (blkcache->type == WT_BLKCACHE_UNCONFIGURED);
+    memset(results, 0, sizeof(results));
     results_count = 0;
 
     WT_ASSERT_ALWAYS(session, session->dhandle != NULL, "The block cache requires a dhandle");
@@ -225,7 +227,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
             WT_STAT_DSRC_INCR(session, compress_read);
         WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_read, dsk->mem_size);
         WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
-        (void)__wt_atomic_add_uint64(&S2C(session)->cache->bytes_read, dsk->mem_size);
+        (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_read, dsk->mem_size);
     }
 
     /*
@@ -431,7 +433,6 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     /* Skip block cache for M2, just read the base + delta pack. */
     count = WT_ELEMENTS(results);
 
-    /* TODO clean up tmp usage? */
     if (bm->read_multiple == NULL) {
         WT_RET(__wt_calloc_def(session, 1, &tmp));
         WT_CLEAR(tmp[0]);
@@ -515,7 +516,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
 
         WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_read, dsk->mem_size);
         WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
-        (void)__wt_atomic_add_uint64(&S2C(session)->cache->bytes_read, dsk->mem_size);
+        (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_read, dsk->mem_size);
     }
 
     /* Decrypt. */
@@ -622,6 +623,14 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
 
     if (0) {
 err:
+        /* Single read path: tmp points to a single WT_ITEM with a buffer. */
+        if (bm->read_multiple == NULL)
+            __wt_buf_free(session, tmp);
+
+        /* Multi-read path: results array is the current owner of any buffer we've allocated. */
+        for (i = 0; i < WT_ELEMENTS(results); ++i)
+            __wt_buf_free(session, &results[i]);
+
         __wt_free(session, tmp);
         __wt_scr_free(session, &etmp);
         __wt_scr_free(session, &ctmp);
@@ -635,111 +644,146 @@ err:
 }
 
 /*
- * __wt_blkcache_write --
- *     Write a buffer into a block, returning the block's address cookie.
+ * __wt_blkcache_compress --
+ *     Optionally compress a buffer for writing.
+ *
+ * If compression is performed, the compressed buffer is returned via the output parameter. If
+ *     compression is not performed (not configured, block too small, or compression didn't help),
+ *     the output parameter is set to NULL. The caller is responsible for freeing the output buffer.
  */
 int
-__wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
-  uint8_t *addr, size_t *addr_sizep, size_t *compressed_sizep, bool checkpoint, bool checkpoint_io,
-  bool compressed)
+__wt_blkcache_compress(WT_SESSION_IMPL *session, WT_ITEM *buf, bool already_compressed,
+  WT_ITEM **compressed_bufp, size_t *compressed_sizep, bool *compressedp)
 {
-    WT_BLKCACHE *blkcache;
     WT_BM *bm;
     WT_BTREE *btree;
     WT_DECL_ITEM(ctmp);
-    WT_DECL_ITEM(etmp);
     WT_DECL_RET;
-    WT_ITEM *ip;
-    WT_KEYED_ENCRYPTOR *kencryptor;
     WT_PAGE_HEADER *dsk;
     size_t compression_ratio, dst_len, len, result_len, size, src_len;
-    uint64_t time_diff, time_start, time_stop;
-    uint32_t delta_count, mem_size;
     uint8_t *dst, *src;
     int compression_failed; /* Extension API, so not a bool. */
-    bool data_checksum, encrypted, timer;
 
-    if (compressed_sizep != NULL)
-        *compressed_sizep = 0;
-
-    blkcache = &S2C(session)->blkcache;
     btree = S2BT(session);
     bm = btree->bm;
-    delta_count = (block_meta == NULL) ? 0 : block_meta->delta_count;
-    dsk = NULL;
-    encrypted = false;
+
+    *compressed_bufp = NULL;
+    if (compressed_sizep != NULL)
+        *compressed_sizep = 0;
+    *compressedp = already_compressed;
 
     /*
      * Optionally stream-compress the data, but don't compress blocks that are already as small as
      * they're going to get.
      */
-    if (btree->compressor == NULL || btree->compressor->compress == NULL || compressed)
-        ip = buf;
-    else if (buf->size <= btree->allocsize) {
-        ip = buf;
+    if (btree->compressor == NULL || btree->compressor->compress == NULL || already_compressed)
+        return (0);
+
+    if (buf->size <= btree->allocsize) {
         WT_STAT_DSRC_INCR(session, compress_write_too_small);
-    } else {
-        /* Skip the header bytes of the source data. */
-        src = (uint8_t *)buf->mem + WT_BLOCK_COMPRESS_SKIP;
-        src_len = buf->size - WT_BLOCK_COMPRESS_SKIP;
-
-        /*
-         * Compute the size needed for the destination buffer. We only allocate enough memory for a
-         * copy of the original by default, if any compressed version is bigger than the original,
-         * we won't use it. However, some compression engines (snappy is one example), may need more
-         * memory because they don't stop just because there's no more memory into which to
-         * compress.
-         */
-        if (btree->compressor->pre_size == NULL)
-            len = src_len;
-        else
-            WT_ERR(
-              btree->compressor->pre_size(btree->compressor, &session->iface, src, src_len, &len));
-
-        size = len + WT_BLOCK_COMPRESS_SKIP;
-        WT_ERR(bm->write_size(bm, session, &size));
-        WT_ERR(__wt_scr_alloc(session, size, &ctmp));
-
-        /* Skip the header bytes of the destination data. */
-        dst = (uint8_t *)ctmp->mem + WT_BLOCK_COMPRESS_SKIP;
-        dst_len = len;
-
-        compression_failed = 0;
-        WT_ERR(btree->compressor->compress(btree->compressor, &session->iface, src, src_len, dst,
-          dst_len, &result_len, &compression_failed));
-        result_len += WT_BLOCK_COMPRESS_SKIP;
-
-        /*
-         * If compression fails, or doesn't gain us at least one unit of allocation, fallback to the
-         * original version. This isn't unexpected: if compression doesn't work for some chunk of
-         * data for some reason (noting likely additional format/header information which compressed
-         * output requires), it just means the uncompressed version is as good as it gets, and
-         * that's what we use.
-         */
-        if (compression_failed || buf->size / btree->allocsize <= result_len / btree->allocsize) {
-            ip = buf;
-            WT_STAT_DSRC_INCR(session, compress_write_fail);
-        } else {
-            compressed = true;
-            WT_STAT_DSRC_INCR(session, compress_write);
-
-            compression_ratio = src_len / (result_len - WT_BLOCK_COMPRESS_SKIP);
-            __wt_stat_compr_ratio_write_hist_incr(session, compression_ratio);
-
-            /* Copy in the skipped header bytes and set the final data size. */
-            memcpy(ctmp->mem, buf->mem, WT_BLOCK_COMPRESS_SKIP);
-            ctmp->size = result_len;
-            ip = ctmp;
-
-            /* Set the disk header flags. */
-            dsk = ip->mem;
-            F_SET(dsk, WT_PAGE_COMPRESSED);
-
-            /* Optionally return the compressed size. */
-            if (compressed_sizep != NULL)
-                *compressed_sizep = result_len;
-        }
+        return (0);
     }
+
+    /* Skip the header bytes of the source data. */
+    src = (uint8_t *)buf->mem + WT_BLOCK_COMPRESS_SKIP;
+    src_len = buf->size - WT_BLOCK_COMPRESS_SKIP;
+
+    /*
+     * Compute the size needed for the destination buffer. We only allocate enough memory for a copy
+     * of the original by default, if any compressed version is bigger than the original, we won't
+     * use it. However, some compression engines (snappy is one example), may need more memory
+     * because they don't stop just because there's no more memory into which to compress.
+     */
+    if (btree->compressor->pre_size == NULL)
+        len = src_len;
+    else
+        WT_RET(btree->compressor->pre_size(btree->compressor, &session->iface, src, src_len, &len));
+
+    size = len + WT_BLOCK_COMPRESS_SKIP;
+    WT_RET(bm->write_size(bm, session, &size));
+    WT_RET(__wt_scr_alloc(session, size, &ctmp));
+
+    /* Skip the header bytes of the destination data. */
+    dst = (uint8_t *)ctmp->mem + WT_BLOCK_COMPRESS_SKIP;
+    dst_len = len;
+
+    compression_failed = 0;
+    WT_ERR(btree->compressor->compress(btree->compressor, &session->iface, src, src_len, dst,
+      dst_len, &result_len, &compression_failed));
+    result_len += WT_BLOCK_COMPRESS_SKIP;
+
+    /*
+     * If compression fails, or doesn't gain us at least one unit of allocation, fallback to the
+     * original version. This isn't unexpected: if compression doesn't work for some chunk of data
+     * for some reason (noting likely additional format/header information which compressed output
+     * requires), it just means the uncompressed version is as good as it gets, and that's what we
+     * use.
+     */
+    if (compression_failed || buf->size / btree->allocsize <= result_len / btree->allocsize) {
+        __wt_scr_free(session, &ctmp);
+        WT_STAT_DSRC_INCR(session, compress_write_fail);
+        return (0);
+    }
+
+    *compressedp = true;
+    WT_STAT_DSRC_INCR(session, compress_write);
+
+    compression_ratio = src_len / (result_len - WT_BLOCK_COMPRESS_SKIP);
+    __wt_stat_compr_ratio_write_hist_incr(session, compression_ratio);
+
+    /* Copy in the skipped header bytes and set the final data size. */
+    memcpy(ctmp->mem, buf->mem, WT_BLOCK_COMPRESS_SKIP);
+    ctmp->size = result_len;
+
+    /* Set the disk header flags. */
+    dsk = ctmp->mem;
+    F_SET(dsk, WT_PAGE_COMPRESSED);
+
+    /* Return the compressed buffer and optionally the compressed size. */
+    *compressed_bufp = ctmp;
+    if (compressed_sizep != NULL)
+        *compressed_sizep = result_len;
+
+    return (0);
+
+err:
+    __wt_scr_free(session, &ctmp);
+    return (ret);
+}
+
+/*
+ * __wt_blkcache_write --
+ *     Write a buffer into a block, returning the block's address cookie.
+ */
+int
+__wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
+  size_t page_image_size, uint8_t *addr, size_t *addr_sizep, size_t *compressed_sizep,
+  bool checkpoint, bool checkpoint_io, bool compressed)
+{
+    WT_BLKCACHE *blkcache;
+    WT_BM *bm;
+    WT_BTREE *btree;
+    WT_DECL_ITEM(etmp);
+    WT_DECL_RET;
+    WT_ITEM *ctmp, *ip;
+    WT_KEYED_ENCRYPTOR *kencryptor;
+    WT_PAGE_HEADER *dsk;
+    size_t size;
+    uint64_t time_diff, time_start, time_stop;
+    uint32_t delta_count, mem_size;
+    bool data_checksum, encrypted, timer;
+
+    blkcache = &S2C(session)->blkcache;
+    btree = S2BT(session);
+    bm = btree->bm;
+    ctmp = NULL;
+    delta_count = (block_meta == NULL) ? 0 : block_meta->delta_count;
+    dsk = NULL;
+    encrypted = false;
+
+    /* Optionally compress the data. */
+    WT_ERR(__wt_blkcache_compress(session, buf, compressed, &ctmp, compressed_sizep, &compressed));
+    ip = (ctmp != NULL) ? ctmp : buf;
 
     /*
      * Optionally encrypt the data. We need to add in the original length, in case both compression
@@ -786,9 +830,9 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     /* Call the block manager to write the block. */
     timer = WT_STAT_ENABLED(session) && !F_ISSET(session, WT_SESSION_INTERNAL);
     time_start = timer ? __wt_clock(session) : 0;
-    WT_ERR(checkpoint ?
-        bm->checkpoint(bm, session, ip, block_meta, btree->ckpt, data_checksum) :
-        bm->write(bm, session, ip, block_meta, addr, addr_sizep, data_checksum, checkpoint_io));
+    WT_ERR(checkpoint ? bm->checkpoint(bm, session, ip, block_meta, btree->ckpt, data_checksum) :
+                        bm->write(bm, session, ip, block_meta, page_image_size, addr, addr_sizep,
+                          data_checksum, checkpoint_io));
     if (timer) {
         time_stop = __wt_clock(session);
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
@@ -809,7 +853,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     WT_STAT_CONN_DSRC_INCR(session, cache_write);
     WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_write, mem_size);
     WT_STAT_SESSION_INCRV(session, bytes_write, mem_size);
-    (void)__wt_atomic_add_uint64(&S2C(session)->cache->bytes_written, mem_size);
+    (void)__wt_atomic_add_uint64_relaxed(&S2C(session)->cache->bytes_written, mem_size);
 
     if (dsk != NULL) {
         if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT) {

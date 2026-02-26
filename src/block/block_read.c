@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+static void __fs_free_space_dump(WT_SESSION_IMPL *session, WT_BLOCK *block);
 /*
  * __wt_bm_read --
  *     Map or read address cookie referenced block into a buffer.
@@ -124,6 +125,47 @@ __wt_bm_corrupt(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t
 err:
     __wt_scr_free(session, &tmp);
     return (ret);
+}
+
+/*
+ * __block_bitflip_detect --
+ *     Check if flipping a single bit in the data would match the expected checksum. This helps
+ *     diagnose single-bit memory corruption. Skip check for blocks larger than a defined size to
+ *     avoid excessive CPU usage.
+ */
+static bool
+__block_bitflip_detect(
+  void *data, size_t check_size, uint32_t expected_checksum, size_t *bit_position)
+{
+    size_t byte_index, bit_index;
+    uint8_t *bytes;
+
+    if (check_size > WT_BITFLIP_MAX_SIZE)
+        return (false);
+
+    bytes = (uint8_t *)data;
+
+    /* Try flipping each bit in the data. */
+    for (byte_index = 0; byte_index < check_size; ++byte_index) {
+        for (bit_index = 0; bit_index < 8; ++bit_index) {
+            /* Flip the bit. */
+            bytes[byte_index] ^= (1U << bit_index);
+
+            /* Check if it matches the expected checksum. */
+            if (__wt_checksum_match(data, check_size, expected_checksum)) {
+                /* Found a single bit flip that would produce the expected checksum. */
+                *bit_position = byte_index * 8 + bit_index;
+                /* Flip the bit back before returning. */
+                bytes[byte_index] ^= (1U << bit_index);
+                return (true);
+            }
+
+            /* Flip the bit back. */
+            bytes[byte_index] ^= (1U << bit_index);
+        }
+    }
+
+    return (false);
 }
 
 #ifdef HAVE_DIAGNOSTIC
@@ -282,7 +324,32 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
               "B block at offset %" PRIuMAX ": block header checksum of %#" PRIx32
               " doesn't match expected checksum of %#" PRIx32,
               block->name, size, (uintmax_t)offset, swap.checksum, checksum);
+
+        /*
+         * Dump the corrupted block for analysis prior to bitflip detection in case detection takes
+         * too long.
+         */
         WT_IGNORE_RET(__wt_bm_corrupt_dump(session, buf, objectid, offset, size, checksum));
+
+        /* Dump the free disk space. */
+        __fs_free_space_dump(session, block);
+
+        /*
+         * Attempt to detect single-bit flips in the data. This can help diagnose memory corruption
+         * issues.
+         */
+        if (full_checksum_mismatch) {
+            size_t bit_position = 0;
+            if (__block_bitflip_detect(buf->mem, check_size, checksum, &bit_position))
+                __wt_errx(session,
+                  "%s: single-bit flip detected at bit position %" WT_SIZET_FMT
+                  " (byte %" WT_SIZET_FMT ", bit %" WT_SIZET_FMT
+                  ") would produce the expected checksum",
+                  block->name, bit_position, bit_position / 8, bit_position % 8);
+            else
+                __wt_errx(session, "%s: bitflip detection performed but no single-bit flip found",
+                  block->name);
+        }
     }
 
     /* Panic if a checksum fails during an ordinary read. */
@@ -295,3 +362,66 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
 
     WT_RET_PANIC(session, WT_ERROR, "%s: fatal read error", block->name);
 }
+
+/*
+ * __fs_free_space_dump --
+ *     Dump the free disk space on the main database directory and on the journal directory for both
+ *     full or partial checksum mismatch.
+ */
+static void
+__fs_free_space_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
+{
+    WT_DECL_RET;
+    WT_FILE_SYSTEM *fs;
+    WT_LOG_MANAGER *log_mgr;
+    wt_off_t db_dir_free_space, journal_dir_free_space;
+    const char *db_dir, *journal_dir;
+
+    db_dir_free_space = journal_dir_free_space = 0;
+    db_dir = S2C(session)->home;
+    journal_dir = NULL;
+    log_mgr = &S2C(session)->log_mgr;
+    fs = __wt_fs_file_system(session);
+
+    if (log_mgr->log_path != NULL && strlen(log_mgr->log_path) > 0)
+        /*
+         * If the journal directory is not the same as the main database directory path, set it.
+         */
+        journal_dir = !WT_STREQ(db_dir, log_mgr->log_path) ? log_mgr->log_path : NULL;
+
+    /* Log free space on the main database directory, and the journal directory if different. */
+    ret = fs->fs_free_space(fs, (WT_SESSION *)session, db_dir, &db_dir_free_space);
+    /*
+     * Using __wt_errx here is intentional: we're already in a corruption path (checksum mismatch).
+     * We're being consistent with other corruption logs so free-space details are always recorded.
+     */
+    if (ret == 0) {
+        __wt_errx(session,
+          "%s: free disk space on main database directory (%s) is %" PRIdMAX " bytes", block->name,
+          db_dir, (intmax_t)db_dir_free_space);
+    } else
+        __wt_err(session, ret,
+          "%s: unable to determine free disk space on main database directory (%s)", block->name,
+          db_dir);
+
+    if (journal_dir != NULL) {
+        ret = fs->fs_free_space(fs, (WT_SESSION *)session, journal_dir, &journal_dir_free_space);
+        if (ret == 0) {
+            __wt_errx(session,
+              "%s: free disk space on journal directory (%s) is %" PRIdMAX " bytes", block->name,
+              journal_dir, (intmax_t)journal_dir_free_space);
+        } else
+            __wt_err(session, ret,
+              "%s: unable to determine free disk space on journal directory (%s)", block->name,
+              journal_dir);
+    }
+}
+
+#ifdef HAVE_UNITTEST
+bool
+__ut_block_bitflip_detect(
+  void *data, size_t check_size, uint32_t expected_checksum, size_t *bit_position)
+{
+    return (__block_bitflip_detect(data, check_size, expected_checksum, bit_position));
+}
+#endif

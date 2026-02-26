@@ -123,7 +123,7 @@ track_ops(TINFO *tinfo)
           track_ts_dots(cur_dot_cnt));
     }
     testutil_snprintf_len_set(msg, sizeof(msg), &len,
-      "ops: "
+      "ops%s: "
       "S %" PRIu64
       "%s, "
       "I %" PRIu64
@@ -135,6 +135,7 @@ track_ops(TINFO *tinfo)
       "M %" PRIu64
       "%s, "
       "T %" PRIu64 "%s%s",
+      g.disagg_storage_config ? g.disagg_leader ? "[Leader]" : "[Follower]" : "",
       tinfo->search > M(9) ? tinfo->search / M(1) : tinfo->search, tinfo->search > M(9) ? "M" : "",
       tinfo->insert > M(9) ? tinfo->insert / M(1) : tinfo->insert, tinfo->insert > M(9) ? "M" : "",
       tinfo->update > M(9) ? tinfo->update / M(1) : tinfo->update, tinfo->update > M(9) ? "M" : "",
@@ -292,7 +293,6 @@ table_dump_page(
     wt_wrap_open_cursor(session, tbl->uri, checkpoint == NULL ? NULL : cfg, &cursor);
 
     switch (tbl->type) {
-    case FIX:
     case VAR:
         cursor->set_key(cursor, keyno);
         break;
@@ -310,7 +310,6 @@ table_dump_page(
         fprintf(stderr, "%s: Not dumping (error %d from search_near)\n", tag, ret);
 
     switch (tbl->type) {
-    case FIX:
     case VAR:
         break;
     case ROW:

@@ -25,7 +25,6 @@ src/block_disagg/block_disagg_open.c
 src/block_disagg/block_disagg_read.c
 src/block_disagg/block_disagg_unsup.c
 src/block_disagg/block_disagg_write.c
-src/bloom/bloom.c
 src/btree/bt_compact.c
 src/btree/bt_curnext.c
 src/btree/bt_curprev.c
@@ -92,6 +91,8 @@ src/conn/conn_chunkcache.c
 src/conn/conn_compact.c
 src/conn/conn_dhandle.c
 src/conn/conn_handle.c
+src/conn/conn_layered_ingest.c
+src/conn/conn_layered_table_manager.c
 src/conn/conn_layered.c
 src/conn/conn_open.c
 src/conn/conn_page_history.c
@@ -229,7 +230,6 @@ src/support/err.c
 src/support/generation.c
 src/support/global.c
 src/support/hash_city.c
-src/support/hash_fnv.c
 src/support/hash_map.c
 src/support/hazard.c
 src/support/hex.c

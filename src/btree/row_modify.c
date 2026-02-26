@@ -182,15 +182,14 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
 
             /*
              * If we restore an update chain in update restore eviction, there should be no update
-             * or a restored tombstone on the existing update chain except for btrees with leaf
-             * delta enabled or a prepared update if the preserve prepared config is enabled. FIXME-
-             * WT-15619 and WT-15618: No need to consider the delta case if we have implemented
-             * delta consolidation.
+             * or a restored tombstone on the existing update chain except for disaggregated btrees
+             * or a prepared update if the preserve prepared config is enabled.
              */
             WT_ASSERT_ALWAYS(session,
               !restore ||
                 (*upd_entry == NULL ||
-                  (WT_DELTA_LEAF_ENABLED(session) && (*upd_entry)->type == WT_UPDATE_TOMBSTONE &&
+                  (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+                    (*upd_entry)->type == WT_UPDATE_TOMBSTONE &&
                     F_ISSET(*upd_entry, WT_UPDATE_RESTORED_FROM_DS)) ||
                   (F_ISSET(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
                     F_ISSET(*upd_entry, WT_UPDATE_PREPARE_RESTORED_FROM_DS))),
@@ -253,12 +252,12 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
             __wt_upd_value_assign(cbt->modify_update, upd);
         } else {
             /*
-             * If this refers to the delta-enabled case, we can skip the following checks. We either
+             * If this refers to the disaggregated case, we can skip the following checks. We either
              * insert a tombstone with a standard update or only a standard update to the history
              * store if we write a prepared update to the data store.
              */
             WT_ASSERT(session,
-              WT_DELTA_LEAF_ENABLED(session) || !WT_IS_HS(S2BT(session)->dhandle) ||
+              F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) || !WT_IS_HS(S2BT(session)->dhandle) ||
                 (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->next != NULL &&
                   upd_arg->next->type == WT_UPDATE_STANDARD && upd_arg->next->next == NULL) ||
                 (upd_arg->type == WT_UPDATE_STANDARD && upd_arg->next == NULL));
@@ -366,6 +365,7 @@ err:
 void
 __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
+    WT_BTREE *btree;
     WT_PAGE *page;
     WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *first;
@@ -373,6 +373,7 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
     uint64_t oldest_id;
     u_int count;
 
+    btree = S2BT(session);
     page = cbt->ref->page;
     txn_global = &S2C(session)->txn_global;
 
@@ -381,7 +382,7 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
     if (WT_PAGE_TRYLOCK(session, page) != 0)
         return;
 
-    prune_timestamp = __wt_atomic_load_uint64_acquire(&CUR2BT(cbt)->prune_timestamp);
+    prune_timestamp = __wt_atomic_load_uint64_relaxed(&CUR2BT(cbt)->prune_timestamp);
 
     oldest_id = __wt_txn_oldest_id(session);
 
@@ -395,8 +396,34 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
      * Only updates with globally visible, self-contained data can terminate update chains.
      */
     for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++) {
-        if (upd->txnid == WT_TXN_ABORTED)
+        uint64_t txnid;
+        /*
+         * This function is only invoked when a new write is made. As a result, there is no risk of
+         * racing with prepared rollback, since no updates should exist in the prepared state at
+         * this point.
+         */
+        if ((txnid = __wt_atomic_load_uint64_v_relaxed(&upd->txnid)) == WT_TXN_ABORTED) {
+            /*
+             * We only need to focus on prepared updates in the ingest table, as it is the only type
+             * of btree that requires draining during the step-up process.
+             */
+            if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+                continue;
+
+            if (upd->prepare_state != WT_PREPARE_INPROGRESS)
+                continue;
+
+            /*
+             * In disaggregated storage, we cannot garbage collect an aborted prepared update with a
+             * rollback timestamp greater than the prune timestamp. This is because the update
+             * information is required to roll back the prepared update on the stable table in case
+             * of a step-up.
+             */
+            if (upd->upd_rollback_ts > prune_timestamp)
+                first = NULL;
+
             continue;
+        }
 
         /*
          * Prepare transaction rollback adds a globally visible tombstone to the update chain to
@@ -414,7 +441,7 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
          */
         if (__wt_txn_upd_visible_all(session, upd) ||
           (F_ISSET(CUR2BT(cbt), WT_BTREE_GARBAGE_COLLECT) &&
-            (upd->txnid < oldest_id && prune_timestamp != WT_TS_NONE &&
+            (txnid < oldest_id && prune_timestamp != WT_TS_NONE &&
               upd->upd_durable_ts <= prune_timestamp))) {
             if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
                 first = upd;

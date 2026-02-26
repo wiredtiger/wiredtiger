@@ -460,49 +460,47 @@ __schema_open_table(WT_SESSION_IMPL *session)
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE));
 
-    WT_RET(__wt_config_gets(session, table_cfg, "columns", &cval));
-    WT_RET(__wt_config_gets(session, table_cfg, "key_format", &cval));
-    WT_RET(__wt_strndup(session, cval.str, cval.len, &table->key_format));
-    WT_RET(__wt_config_gets(session, table_cfg, "value_format", &cval));
-    WT_RET(__wt_strndup(session, cval.str, cval.len, &table->value_format));
+    WT_ERR(__wt_config_gets(session, table_cfg, "columns", &cval));
+    WT_ERR(__wt_config_gets(session, table_cfg, "key_format", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &table->key_format));
+    WT_ERR(__wt_config_gets(session, table_cfg, "value_format", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &table->value_format));
 
     /* Point to some items in the copy to save re-parsing. */
-    WT_RET(__wt_config_gets(session, table_cfg, "columns", &table->colconf));
+    WT_ERR(__wt_config_gets(session, table_cfg, "columns", &table->colconf));
 
-    /*
-     * Count the number of columns: tables are "simple" if the columns are not named.
-     */
-    __wt_config_subinit(session, &cparser, &table->colconf);
-    table->is_simple = true;
-    while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
-        table->is_simple = false;
-    WT_RET_NOTFOUND_OK(ret);
+    WT_ERR(__wt_is_simple_table(session, &table->colconf, &table->is_simple));
 
     /* Check that the columns match the key and value formats. */
     if (!table->is_simple)
-        WT_RET(__wti_schema_colcheck(session, table->key_format, table->value_format,
+        WT_ERR(__wti_schema_colcheck(session, table->key_format, table->value_format,
           &table->colconf, &table->nkey_columns, NULL));
 
-    WT_RET(__wt_config_gets(session, table_cfg, "colgroups", &table->cgconf));
+    WT_ERR(__wt_config_gets(session, table_cfg, "colgroups", &table->cgconf));
 
     /* Count the number of column groups. */
     __wt_config_subinit(session, &cparser, &table->cgconf);
     table->ncolgroups = 0;
     while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
         ++table->ncolgroups;
-    WT_RET_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     if (table->ncolgroups > 0 && table->is_simple)
-        WT_RET_MSG(session, EINVAL, "%s requires a table with named columns", tablename);
+        WT_ERR_MSG(session, EINVAL, "%s requires a table with named columns", tablename);
 
     if ((ret = __wt_config_gets(session, table_cfg, "shared", &cval)) == 0)
         table->is_tiered_shared = true;
-    WT_RET_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
-    WT_RET(__wt_calloc_def(session, WT_COLGROUPS(table), &table->cgroups));
-    WT_RET(__wti_schema_open_colgroups(session, table));
+    WT_ERR(__wt_calloc_def(session, WT_COLGROUPS(table), &table->cgroups));
+    WT_ERR(__wti_schema_open_colgroups(session, table));
 
-    return (0);
+    if (0) {
+err:
+        WT_TRET(__wt_schema_close_table(session, table));
+    }
+
+    return (ret);
 }
 
 /*
@@ -636,9 +634,6 @@ __schema_open_layered_ingest(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered
     ingest_btree = (WT_BTREE *)session->dhandle->handle;
     layered->ingest_btree_id = ingest_btree->id;
 
-    /* Flag the ingest btree as participating in automatic garbage collection */
-    F_SET(ingest_btree, WT_BTREE_GARBAGE_COLLECT);
-
     WT_RET(__wt_session_release_dhandle(session));
     return (0);
 }
@@ -711,5 +706,33 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
 
     WT_RET(__wt_layered_table_manager_add_table(session, layered->ingest_btree_id));
 
+    return (0);
+}
+
+/*
+ * __wt_schema_unsupported_format --
+ *     Check for removed format specifiers in a format string and throw an error if detected.
+ */
+int
+__wt_schema_unsupported_format(WT_SESSION_IMPL *session, const char *config, bool create)
+{
+    /* The WiredTiger turtle file is created without a config string. */
+    if (config == NULL)
+        return (0);
+
+    WT_CONFIG_ITEM cval;
+    WT_CLEAR(cval);
+    WT_RET_NOTFOUND_OK(__wt_config_getones(session, config, "key_format", &cval));
+    /* Check for column-store. */
+    if (cval.len == 1 && cval.str[0] == 'r') {
+        /* Check for FLCS format. Anything between 1t and 8t is acceptable. */
+        WT_RET_NOTFOUND_OK(__wt_config_getones(session, config, "value_format", &cval));
+        if (cval.len == 2 && cval.str[1] == 't' && cval.str[0] <= '8' && cval.str[0] >= '1')
+            WT_RET_MSG(session, ENOTSUP,
+              "Fixed-length column-stores are no longer supported in WiredTiger%s",
+              create ? "" :
+                       ". Convert any fixed-length column-store tables to a different format type "
+                       "prior to upgrade");
+    }
     return (0);
 }

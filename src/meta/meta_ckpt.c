@@ -9,7 +9,6 @@
 #include "wt_internal.h"
 
 static int __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
-static int __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **, int64_t *, uint64_t *);
 static int __ckpt_load(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT_CKPT *);
 static int __ckpt_named(WT_SESSION_IMPL *, const char *, const char *, WT_CKPT *);
 static int __ckpt_parse_time(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, uint64_t *);
@@ -185,7 +184,7 @@ __wt_meta_checkpoint_last_name(
     WT_ERR(__ckpt_version_chk(session, fname, config));
 
     /* Retrieve the name of the last unnamed checkpoint. */
-    WT_ERR(__ckpt_last_name(session, config, namep, orderp, timep));
+    WT_ERR(__wt_ckpt_last_name(session, config, namep, orderp, timep));
 
 err:
     __wt_free(session, config);
@@ -401,15 +400,15 @@ __ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
 }
 
 /*
- * __ckpt_last_name --
+ * __wt_ckpt_last_name --
  *     Return the name associated with the file's last unnamed checkpoint. Except: in keeping with
  *     global snapshot/timestamp metadata being about the most recent checkpoint (named or unnamed),
  *     we return the most recent checkpoint (named or unnamed), since all callers need a checkpoint
  *     that matches the snapshot info they're using.
  */
-static int
-__ckpt_last_name(WT_SESSION_IMPL *session, const char *config, const char **namep, int64_t *orderp,
-  uint64_t *timep)
+int
+__wt_ckpt_last_name(WT_SESSION_IMPL *session, const char *config, const char **namep,
+  int64_t *orderp, uint64_t *timep)
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM a, k, v;
@@ -714,8 +713,8 @@ __meta_ckptlist_allocate_new_ckpt(
      *
      * Second, a single-tree checkpoint can occur while a global checkpoint is in progress. In that
      * case the global checkpoint will have an earlier time, but might get to the tree in question
-     * later. With WT-8695 this should only be possible with the metadata, so we could rule it out
-     * by only checking non-metadata files.
+     * later. This should only be possible with the metadata, so we could rule it out by only
+     * checking non-metadata files.
      *
      * Third, it appears to be possible for a close checkpoint to occur while a global checkpoint is
      * in progress, with the same consequences. There doesn't seem to be any obvious way to detect
@@ -1320,20 +1319,39 @@ int
 __wt_meta_ckptlist_set(
   WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_CKPT *ckptbase, const char *ckptlsn_str)
 {
+    WT_BTREE *btree;
     WT_CKPT *ckpt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
+    uint64_t prev_ckpt_size;
     const char *fname;
     bool has_lsn;
 
+    btree = S2BT(session);
     fname = dhandle->name;
+    prev_ckpt_size = 0;
 
     WT_ERR(__wt_scr_alloc(session, 1024, &buf));
 
-    /* Add B-tree metadata to any added checkpoint. */
-    WT_CKPT_FOREACH (ckptbase, ckpt)
-        if (F_ISSET(ckpt, WT_CKPT_ADD))
-            ckpt->next_page_id = S2BT(session)->next_page_id;
+    /*
+     * Add B-tree metadata to any added checkpoint. Track the previous checkpoint's size as we
+     * iterate so we can compute the delta for disaggregated storage.
+     */
+    WT_CKPT_FOREACH (ckptbase, ckpt) {
+        if (F_ISSET(ckpt, WT_CKPT_ADD)) {
+            ckpt->next_page_id = btree->next_page_id;
+            /*
+             * For disaggregated storage, save the total bytes to the checkpoint size field. Track
+             * the delta between this checkpoint and the previous one, this delta will be applied to
+             * the database level size once the checkpoint succeeds.
+             */
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+                WT_ASSERT(session, ckpt->size == __wt_atomic_load_uint64(&btree->bytes_total));
+                session->ckpt.ckpt_size_delta += (int64_t)ckpt->size - (int64_t)prev_ckpt_size;
+            }
+        } else
+            prev_ckpt_size = ckpt->size;
+    }
 
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
 
@@ -1511,7 +1529,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, const char *name, size_t namelen
      * different values of the oldest timestamp.
      */
 
-    oldest_timestamp = txn_global->oldest_timestamp;
+    oldest_timestamp = __wt_tsan_suppress_load_uint64(&txn_global->oldest_timestamp);
     WT_ACQUIRE_BARRIER();
     __wt_timestamp_to_hex_string(
       WT_MIN(oldest_timestamp, txn_global->meta_ckpt_timestamp), hex_timestamp);
@@ -1613,11 +1631,11 @@ __wt_meta_read_checkpoint_snapshot(WT_SESSION_IMPL *session, const char *ckpt_na
     sys_config = NULL;
 
     /*
-     * There's an issue with checkpoints produced by some old versions having bad snapshot data.
-     * (See WT-8395.) We should ignore those snapshots when we can identify them. This only applies
-     * to reading the last checkpoint during recovery, however, so it is done in our caller. (In
-     * other cases, for WiredTigerCheckpoint the checkpoint taken after recovery will have replaced
-     * any old and broken snapshot; and for named checkpoints, the broken versions didn't write out
+     * There was an issue with checkpoints produced by certain old versions having bad snapshot
+     * data. We should ignore those snapshots when we can identify them. This only applies to
+     * reading the last checkpoint during recovery, however, so it is done in our caller. (In other
+     * cases, for WiredTigerCheckpoint the checkpoint taken after recovery will have replaced any
+     * old and broken snapshot; and for named checkpoints, the broken versions didn't write out
      * snapshot information at all anyway.)
      */
 

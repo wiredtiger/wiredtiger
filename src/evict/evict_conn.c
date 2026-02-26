@@ -8,10 +8,6 @@
 
 #include "wt_internal.h"
 
-#define WT_CONFIG_DEBUG(session, fmt, ...)                                 \
-    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CONFIGURATION)) \
-        __wt_verbose_warning(session, WT_VERB_CONFIGURATION, fmt, __VA_ARGS__);
-
 /*
  * __evict_config_abs_to_pct --
  *     Evict configuration values can be either a percentage or an absolute size, this function
@@ -98,9 +94,10 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
       "eviction updates target", conn->cache_size, shared));
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_updates_trigger", &cval));
-    evict->eviction_updates_trigger = (double)cval.val;
-    WT_RET(__evict_config_abs_to_pct(session, &(evict->eviction_updates_trigger),
-      "eviction updates trigger", conn->cache_size, shared));
+    double updates_trigger_val = (double)cval.val;
+    WT_RET(__evict_config_abs_to_pct(
+      session, &updates_trigger_val, "eviction updates trigger", conn->cache_size, shared));
+    __wt_atomic_store_double_relaxed(&evict->eviction_updates_trigger, updates_trigger_val);
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_checkpoint_target", &cval));
     evict->eviction_checkpoint_target = (double)cval.val;
@@ -135,34 +132,63 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
         evict->eviction_dirty_trigger = evict->eviction_trigger;
     }
 
+    bool precise_checkpoint = F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT);
     if (evict->eviction_updates_target < DBL_EPSILON) {
-        WT_CONFIG_DEBUG(session,
-          "config eviction_updates_target (%f) cannot be zero. Setting "
-          "to 50%% of eviction_dirty_target (%f).",
-          evict->eviction_updates_target, evict->eviction_dirty_target / 2);
-        evict->eviction_updates_target = evict->eviction_dirty_target / 2;
+        if (precise_checkpoint) {
+            /*
+             * If we are running with precise checkpoint enabled we want to discourage update based
+             * eviction. To do this we set the updates target to the dirty target by default. This
+             * change improves performance with regards to history store eviction as previously we
+             * were evicting history store pages ahead of the checkpoint as they would have updates
+             * on them. These pages would then be read back in due to checkpoint moving updates to
+             * the history store.
+             */
+            WT_CONFIG_DEBUG(session,
+              "config eviction_updates_target (%f) cannot be zero. Setting "
+              "to eviction_dirty_target (%f) for precise checkpoint.",
+              evict->eviction_updates_target, evict->eviction_dirty_target);
+            evict->eviction_updates_target = evict->eviction_dirty_target;
+        } else {
+            WT_CONFIG_DEBUG(session,
+              "config eviction_updates_target (%f) cannot be zero. Setting "
+              "to 50%% of eviction_dirty_target (%f).",
+              evict->eviction_updates_target, evict->eviction_dirty_target / 2);
+            evict->eviction_updates_target = evict->eviction_dirty_target / 2;
+        }
     }
 
-    if (evict->eviction_updates_trigger < DBL_EPSILON) {
-        WT_CONFIG_DEBUG(session,
-          "config eviction_updates_trigger (%f) cannot be zero. Setting "
-          "to 50%% (attached) or 100%% (disagg) of eviction_dirty_trigger (%f).",
-          evict->eviction_updates_trigger, evict->eviction_dirty_trigger);
-
-        if (__wt_conn_is_disagg(session)) {
-            evict->eviction_updates_trigger = evict->eviction_dirty_trigger;
+    double updates_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger);
+    if (updates_trigger < DBL_EPSILON) {
+        /*
+         * Generally we want to allow a reasonable amount of updates content, the default dirty
+         * targets of 5% target and 20% dirty would result in a 2.5% dirty target which is lower
+         * than ideal when precise checkpoints are configured. Allow more updates content to remain
+         * in cache, but handle cases where non-default dirty configurations would cause updates
+         * target to exceed the trigger value with an asymmetric formula.
+         */
+        if (precise_checkpoint &&
+          evict->eviction_dirty_trigger / 2 < evict->eviction_updates_target) {
+            WT_CONFIG_DEBUG(session,
+              "config eviction_updates_trigger (%f) cannot be zero. Setting "
+              "to eviction_dirty_trigger (%f) for precise checkpoint.",
+              updates_trigger, evict->eviction_dirty_trigger);
+            updates_trigger = evict->eviction_dirty_trigger;
         } else {
-            evict->eviction_updates_trigger = evict->eviction_dirty_trigger / 2;
+            WT_CONFIG_DEBUG(session,
+              "config eviction_updates_trigger (%f) cannot be zero. Setting "
+              "to 50%% of eviction_dirty_trigger (%f).",
+              updates_trigger, evict->eviction_dirty_trigger / 2);
+            updates_trigger = evict->eviction_dirty_trigger / 2;
         }
     }
 
     /* Don't allow the trigger to be larger than the overall trigger. */
-    if (evict->eviction_updates_trigger > evict->eviction_trigger) {
+    if (updates_trigger > evict->eviction_trigger) {
         WT_CONFIG_DEBUG(session,
           "config eviction_updates_trigger=%f cannot exceed eviction_trigger=%f. Setting "
           "eviction_updates_trigger to %f.",
-          evict->eviction_updates_trigger, evict->eviction_trigger, evict->eviction_trigger);
-        evict->eviction_updates_trigger = evict->eviction_trigger;
+          updates_trigger, evict->eviction_trigger, evict->eviction_trigger);
+        updates_trigger = evict->eviction_trigger;
     }
 
     /* The target size must be lower than the trigger size or we will never get any work done. */
@@ -171,10 +197,12 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
     if (evict->eviction_dirty_target >= evict->eviction_dirty_trigger)
         WT_RET_MSG(
           session, EINVAL, "eviction dirty target must be lower than the eviction dirty trigger");
-    if (evict->eviction_updates_target >= evict->eviction_updates_trigger)
+    if (evict->eviction_updates_target >= updates_trigger)
         WT_RET_MSG(session, EINVAL,
           "eviction updates target must be lower than the eviction updates trigger");
 
+    /* Store the value back to eviction updates trigger after we have validated it. */
+    __wt_atomic_store_double_relaxed(&evict->eviction_updates_trigger, updates_trigger);
     return (0);
 }
 
@@ -346,11 +374,12 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
     evict->evict_current_queue = evict->evict_fill_queue = &evict->evict_queues[0];
     evict->evict_other_queue = &evict->evict_queues[1];
     evict->evict_urgent_queue = &evict->evict_queues[WTI_EVICT_URGENT_QUEUE];
+    evict->evict_lock_wait_time = 0;
 
     /*
      * We get/set some values in the evict statistics (rather than have two copies), configure them.
      */
-    __wt_evict_stats_update(session);
+    __wt_evict_stats_init(session);
     return (0);
 }
 
@@ -391,8 +420,56 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
     return (ret);
 }
 
-/* !!!
+/*
+ * __evict_set_cache_threshold_stats --
+ *     Set the cache threshold stats.
+ */
+static void
+__evict_set_cache_threshold_stats(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+
+    /*
+     * It is possible for this function to be called before the eviction system is created, so we
+     * need to check for that.
+     */
+    if (conn->evict == NULL)
+        return;
+
+    WT_EVICT *evict = conn->evict;
+    WT_CONNECTION_STATS **stats = conn->stats;
+
+    /*
+     * WiredTiger's cache thresholds are percentages but the stats are integers, so we convert to
+     * integers by multiplying by 100. This gives us 2 decimal places of precision. The expectation
+     * is that tooling will display this as a percentage.
+     */
+    WT_STATP_CONN_SET(session, stats, eviction_threshold_cache_full_target,
+      (int64_t)(WT_HUNDRED * __wt_atomic_load_double_relaxed(&evict->eviction_target)));
+    WT_STATP_CONN_SET(session, stats, eviction_threshold_cache_full_trigger,
+      (int64_t)(WT_HUNDRED * __wt_atomic_load_double_relaxed(&evict->eviction_trigger)));
+    WT_STATP_CONN_SET(session, stats, eviction_threshold_dirty_target,
+      (int64_t)(WT_HUNDRED * __wt_atomic_load_double_relaxed(&evict->eviction_dirty_target)));
+    WT_STATP_CONN_SET(session, stats, eviction_threshold_dirty_trigger,
+      (int64_t)(WT_HUNDRED * __wt_atomic_load_double_relaxed(&evict->eviction_dirty_trigger)));
+    WT_STATP_CONN_SET(session, stats, eviction_threshold_updates_target,
+      (int64_t)(WT_HUNDRED * __wt_atomic_load_double_relaxed(&evict->eviction_updates_target)));
+    WT_STATP_CONN_SET(session, stats, eviction_threshold_updates_trigger,
+      (int64_t)(WT_HUNDRED * __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger)));
+}
+
+/*
  * __wt_evict_stats_update --
+ *     Update eviction stats.
+ */
+void
+__wt_evict_stats_update(WT_SESSION_IMPL *session)
+{
+    __evict_set_cache_threshold_stats(session);
+}
+
+/* !!!
+ * __wt_evict_stats_init --
  *     Initialize eviction stats, ensuring they start with initial values during the startup
  *     process. It should be called exactly once when initializing eviction. Running it outside
  *     of startup will not cause functional failures, but it will reset eviction-related stats.
@@ -401,7 +478,7 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
  *     stat resets.
  */
 void
-__wt_evict_stats_update(WT_SESSION_IMPL *session)
+__wt_evict_stats_init(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CONNECTION_STATS **stats;
@@ -411,8 +488,6 @@ __wt_evict_stats_update(WT_SESSION_IMPL *session)
     evict = conn->evict;
     stats = conn->stats;
 
-    WT_STATP_CONN_SET(session, stats, eviction_maximum_page_size,
-      __wt_atomic_load_uint64_relaxed(&evict->evict_max_page_size));
     WT_STATP_CONN_SET(session, stats, eviction_maximum_clean_page_size_per_checkpoint,
       __wt_atomic_load_uint64_relaxed(&evict->evict_max_clean_page_size_per_checkpoint));
     WT_STATP_CONN_SET(session, stats, eviction_maximum_dirty_page_size_per_checkpoint,
@@ -423,8 +498,8 @@ __wt_evict_stats_update(WT_SESSION_IMPL *session)
       __wt_atomic_load_uint64_relaxed(&evict->evict_max_ms));
     WT_STATP_CONN_SET(session, stats, eviction_maximum_milliseconds_per_checkpoint,
       __wt_atomic_load_uint64_relaxed(&evict->evict_max_ms_per_checkpoint));
-    WT_STATP_CONN_SET(
-      session, stats, eviction_reentry_hs_eviction_milliseconds, evict->reentry_hs_eviction_ms);
+    WT_STATP_CONN_SET(session, stats, eviction_reentry_hs_eviction_milliseconds,
+      __wt_atomic_load_uint64_relaxed(&evict->reentry_hs_eviction_ms));
     WT_STATP_CONN_SET(session, stats, eviction_maximum_unvisited_gen_gap,
       __wt_atomic_load_uint64_relaxed(&evict->evict_max_unvisited_gen_gap));
     WT_STATP_CONN_SET(session, stats, eviction_maximum_unvisited_gen_gap_per_checkpoint,
@@ -435,13 +510,21 @@ __wt_evict_stats_update(WT_SESSION_IMPL *session)
       __wt_atomic_load_uint64_relaxed(&evict->evict_max_visited_gen_gap_per_checkpoint));
     WT_STATP_CONN_SET(
       session, stats, eviction_state, __wt_atomic_load_uint32_relaxed(&evict->flags));
-    WT_STATP_CONN_SET(session, stats, eviction_aggressive_set, evict->evict_aggressive_score);
+    WT_STATP_CONN_SET(session, stats, eviction_aggressive_set,
+      __wt_atomic_load_uint32_relaxed(&evict->evict_aggressive_score));
     WT_STATP_CONN_SET(session, stats, eviction_empty_score, evict->evict_empty_score);
 
     WT_STATP_CONN_SET(session, stats, eviction_active_workers,
       __wt_atomic_load_uint32_relaxed(&conn->evict_threads.current_threads));
-    WT_STATP_CONN_SET(
-      session, stats, eviction_stable_state_workers, evict->evict_tune_workers_best);
+    WT_STATP_CONN_SET(session, stats, eviction_stable_state_workers,
+      __wt_atomic_load_uint32_relaxed(&evict->evict_tune_workers_best));
+    WT_STATP_CONN_SET(session, stats, eviction_maximum_attempts_to_queue_page,
+      __wt_atomic_load_uint16_relaxed(&evict->evict_max_eviction_queue_attempts));
+    WT_STATP_CONN_SET(session, stats, eviction_maximum_attempts_to_evict_page,
+      __wt_atomic_load_uint16_relaxed(&evict->evict_max_evict_page_attempts));
+
+    WT_STATP_CONN_SET(session, stats, eviction_worker_lock_wait_time,
+      __wt_atomic_load_uint64_relaxed(&evict->evict_lock_wait_time));
 
     /*
      * The number of files with active walks ~= number of hazard pointers in the walk session. Note:
@@ -450,4 +533,7 @@ __wt_evict_stats_update(WT_SESSION_IMPL *session)
     if (__wt_atomic_load_bool_relaxed(&conn->evict_server_running))
         WT_STATP_CONN_SET(
           session, stats, eviction_walks_active, evict->walk_session->hazards.num_active);
+
+    /* Update eviction threshold stats. */
+    __wt_evict_stats_update(session);
 }

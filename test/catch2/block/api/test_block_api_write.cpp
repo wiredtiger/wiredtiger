@@ -38,7 +38,7 @@ struct addr_cookie {
  * performing a bm->read and a file read and making sure that the read() matches the original write
  * buffer.
  */
-void
+static void
 validate_block_contents(WT_BM *bm, const std::shared_ptr<mock_session> &session, WT_ITEM *write_buf,
   addr_cookie cookie, wt_off_t offset, uint32_t size)
 {
@@ -85,7 +85,7 @@ validate_block_contents(WT_BM *bm, const std::shared_ptr<mock_session> &session,
 /*
  * Validate that the bm->write() performed correctly.
  */
-void
+static void
 validate_write_block(WT_BM *bm, const std::shared_ptr<mock_session> &session, WT_ITEM *write_buf,
   addr_cookie cookie, const std::string &expected_str, bool data_checksum)
 {
@@ -119,7 +119,7 @@ validate_write_block(WT_BM *bm, const std::shared_ptr<mock_session> &session, WT
 }
 
 // Test that all previous write performed are still present in the block and file.
-void
+static void
 test_validate_cookies(WT_BM *bm, const std::shared_ptr<mock_session> &session,
   const std::vector<addr_cookie> &cookies, const std::vector<std::string> &expected_strings)
 {
@@ -147,8 +147,7 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
     // Build Mock session, this will automatically create a mock connection.
     std::shared_ptr<mock_session> session = mock_session::build_test_mock_session();
 
-    WT_BM bm;
-    WT_CLEAR(bm);
+    WT_BM bm = {};
     size_t allocation_size = std::stoi(ALLOCATION_SIZE);
     auto path = std::filesystem::current_path();
     std::string file_path(path.string() + "/test.wt");
@@ -178,13 +177,13 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
 
         addr_cookie cookie;
         // Perform a write.
-        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, cookie.addr.data(),
-                  &cookie.size, false, false) == 0);
+        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, buf.size,
+                  cookie.addr.data(), &cookie.size, false, false) == 0);
         validate_write_block(&bm, session, &buf, cookie, test_string, false);
 
         // Validate data checksum.
-        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, cookie.addr.data(),
-                  &cookie.size, true, false) == 0);
+        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, buf.size,
+                  cookie.addr.data(), &cookie.size, true, false) == 0);
         validate_write_block(&bm, session, &buf, cookie, test_string, true);
 
         __wt_buf_free(nullptr, &buf);
@@ -202,8 +201,8 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
             create_write_buffer(&bm, session, str, &buf, 0, allocation_size);
 
             addr_cookie cookie;
-            REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, cookie.addr.data(),
-                      &cookie.size, false, false) == 0);
+            REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, buf.size,
+                      cookie.addr.data(), &cookie.size, false, false) == 0);
 
             validate_write_block(&bm, session, &buf, cookie, str, false);
             // Keep track of all the cookies, so that we can validate it again later.
@@ -226,8 +225,8 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
             create_write_buffer(&bm, session, str, &buf, str.length(), allocation_size);
 
             addr_cookie cookie;
-            REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, cookie.addr.data(),
-                      &cookie.size, false, false) == 0);
+            REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, buf.size,
+                      cookie.addr.data(), &cookie.size, false, false) == 0);
 
             validate_write_block(&bm, session, &buf, cookie, str, false);
             // Keep track of all the cookies, so that we can validate it again later.
@@ -250,22 +249,22 @@ TEST_CASE("Block manager: file operation read, write and write_size functions", 
 
         // The first block write should succeed.
         addr_cookie cookie;
-        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, cookie.addr.data(),
-                  &cookie.size, false, false) == 0);
+        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, buf.size,
+                  cookie.addr.data(), &cookie.size, false, false) == 0);
         validate_write_block(&bm, session, &buf, cookie, test_string, false);
         REQUIRE(bm.block->fh->written == std::stoi(ALLOCATION_SIZE));
 
         // At this point the file written is greater than os_cache_dirty_max, make sure that
         // the session flag must be set before the fh->written is cleared.
-        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, cookie.addr.data(),
-                  &cookie.size, false, false) == 0);
+        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, buf.size,
+                  cookie.addr.data(), &cookie.size, false, false) == 0);
         validate_write_block(&bm, session, &buf, cookie, test_string, false);
         REQUIRE(bm.block->fh->written == std::stoi(ALLOCATION_SIZE) * 2);
 
         // Flag is now set, the block write should be flushed with fsync.
         F_SET(session->get_wt_session_impl(), WT_SESSION_CAN_WAIT);
-        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, cookie.addr.data(),
-                  &cookie.size, false, false) == 0);
+        REQUIRE(bm.write(&bm, session->get_wt_session_impl(), &buf, NULL, buf.size,
+                  cookie.addr.data(), &cookie.size, false, false) == 0);
         validate_write_block(&bm, session, &buf, cookie, test_string, false);
         REQUIRE(bm.block->fh->written == 0);
         __wt_buf_free(nullptr, &buf);

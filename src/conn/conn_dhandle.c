@@ -288,8 +288,22 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
     bucket = __wt_hash_city64(uri, strlen(uri)) & (conn->dh_hash_size - 1);
     if (checkpoint == NULL) {
         TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
-            if (F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED))
+            if (F_ISSET(dhandle, WT_DHANDLE_DEAD))
                 continue;
+            if (F_ISSET(dhandle, WT_DHANDLE_OUTDATED)) {
+                /*
+                 * For read-only stable table checkpoints, they are really outdated when they are
+                 * not in use any more. The pinned shared history store checkpoints may be still
+                 * needed by the readers while the stable table checkpoints may still be needed by
+                 * the checkpoint tracking logic.
+                 */
+                if (WT_DHANDLE_BTREE(dhandle) &&
+                  F_ISSET((WT_BTREE *)dhandle->handle, WT_BTREE_READONLY)) {
+                    if (__wt_atomic_load_int32_acquire(&dhandle->session_inuse) == 0)
+                        continue;
+                } else
+                    continue;
+            }
             if (dhandle->checkpoint == NULL && strcmp(uri, dhandle->name) == 0) {
                 session->dhandle = dhandle;
                 return (0);
@@ -390,6 +404,16 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
 
         /* Mark the advisory bit that the tree has been evicted. */
         FLD_SET(dhandle->advisory_flags, WT_DHANDLE_ADVISORY_EVICTED);
+
+        /*
+         * Release the history store checkpoint handle, if it exists, before setting the no schema
+         * lock flag. Failing to do so could result in a deadlock if a schema lock is required while
+         * releasing the history store dhandle.
+         */
+        if (btree->hs_checkpoint_name != NULL) {
+            WT_SAVE_DHANDLE(session, ret = __wt_btree_release_hs_dhandle(session, btree));
+            WT_TRET(ret);
+        }
     }
 
     /*
@@ -441,8 +465,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
          *
          */
         if (!discard && !marked_dead) {
-            if (F_ISSET(conn, WT_CONN_IN_MEMORY) ||
-              F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY))
+            if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY))
                 discard = true;
             else {
                 WT_TRET(__wt_checkpoint_close(session, final));
@@ -654,7 +677,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
      * allowed to be relocked by the same session.
      */
     if (F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) && !LF_ISSET(WT_BTREE_BULK)) {
-        dhandle->excl_session = session;
+        __wt_tsan_suppress_store_pointer((void *)&dhandle->excl_session, (void *)session);
         dhandle->excl_ref = 1;
     }
     F_SET(dhandle, WT_DHANDLE_OPEN);
@@ -883,7 +906,7 @@ __wt_conn_dhandle_close_all(
     }
 
 err:
-    session->dhandle = NULL;
+    WT_DHANDLE_CLEAR(session);
     return (ret);
 }
 
@@ -958,7 +981,7 @@ __wti_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mar
      */
     if (ret == 0 || final) {
         WT_TRET(__conn_dhandle_destroy(session, dhandle, final));
-        session->dhandle = NULL;
+        WT_DHANDLE_CLEAR(session);
     }
 #ifdef HAVE_DIAGNOSTIC
     WT_CONN_CLOSE_ABORT(session, ret);

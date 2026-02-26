@@ -42,7 +42,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
     /* The checkpoint's snapshot includes the first dirty update on the page. */
     txn = session->txn;
     mod = ref->page->modify;
-    if (txn->snapshot_data.snap_max >= mod->first_dirty_txn)
+    if (txn->snapshot_data.snap_max >= __wt_tsan_suppress_load_uint64(&mod->first_dirty_txn))
         return (false);
 
     /*
@@ -243,10 +243,14 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
           __wt_atomic_load_enum_relaxed(&btree->syncing) == WT_BTREE_SYNC_OFF &&
             __wt_atomic_load_ptr_relaxed(&btree->sync_session) == NULL);
 
-        __wt_atomic_store_ptr_relaxed(&btree->sync_session, session);
-        __wt_atomic_store_enum_relaxed(&btree->syncing, WT_BTREE_SYNC_WAIT);
+        /*
+         * FIXME-WT-16110: Investigate what should be the correct memory ordering for these
+         * variables.
+         */
+        __wt_atomic_store_ptr_release(&btree->sync_session, session);
+        __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_WAIT);
         __wt_gen_next_drain(session, WT_GEN_EVICT);
-        __wt_atomic_store_enum_relaxed(&btree->syncing, WT_BTREE_SYNC_RUNNING);
+        __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_RUNNING);
 
         /*
          * Reset the number of obsolete time window pages to let the eviction threads and checkpoint
@@ -259,7 +263,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         /* Add in history store reconciliation for standard files. */
         rec_flags = WT_REC_CHECKPOINT;
-        if (!is_hs && !WT_IS_METADATA(btree->dhandle))
+        if (!is_hs && !WT_IS_METADATA(btree->dhandle) && !WT_IS_DISAGG_META(btree->dhandle))
             rec_flags |= WT_REC_HS;
 
         /* Write all dirty in-cache pages. */
@@ -357,7 +361,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
             WT_STAT_CONN_INCR(session, checkpoint_pages_reconciled);
             WT_STAT_CONN_INCRV(session, checkpoint_pages_reconciled_bytes,
-              __wt_tsan_suppress_load_size(&page->memory_footprint));
+              __wt_atomic_load_size_relaxed(&page->memory_footprint));
             WT_STATP_DSRC_INCR(session, btree->dhandle->stats, btree_checkpoint_pages_reconciled);
             if (WT_IS_HS(btree->dhandle))
                 WT_STAT_CONN_INCR(session, checkpoint_hs_pages_reconciled);
@@ -414,9 +418,24 @@ err:
     if (txn->isolation == WT_ISO_READ_COMMITTED && saved_pinned_id == WT_TXN_NONE)
         __wt_txn_release_snapshot(session);
 
-    /* Clear the checkpoint flag. */
-    __wt_atomic_store_enum_relaxed(&btree->syncing, WT_BTREE_SYNC_OFF);
-    __wt_atomic_store_ptr_relaxed(&btree->sync_session, NULL);
+    if (syncop == WT_SYNC_CHECKPOINT) {
+        /*
+         * Ensure the checkpoint generation is updated before clearing the sync flag. Otherwise,
+         * eviction could evict a page from the btree after the flag is cleared but before the
+         * checkpoint generation is updated. This would violate the constraints of disaggregated
+         * storage, as eviction would write a page that should not be part of the current
+         * checkpoint.
+         */
+        __wt_checkpoint_update_generation(session, btree);
+
+        /* Clear the checkpoint flag. */
+        /*
+         * FIXME-WT-16110: Investigate what should be the correct memory ordering for these
+         * variables.
+         */
+        __wt_atomic_store_enum_release(&btree->syncing, WT_BTREE_SYNC_OFF);
+        __wt_atomic_store_ptr_release(&btree->sync_session, NULL);
+    }
 
     __wt_spin_unlock(session, &btree->flush_lock);
 

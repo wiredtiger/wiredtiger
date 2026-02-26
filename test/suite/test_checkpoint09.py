@@ -36,7 +36,6 @@ from wtscenario import make_scenarios
 
 class test_checkpoint09(wttest.WiredTigerTestCase):
     format_values = [
-        ('column-fix', dict(key_format='r', value_format='8t')),
         ('column', dict(key_format='r', value_format='u')),
         ('row_string', dict(key_format='S', value_format='u')),
     ]
@@ -49,7 +48,12 @@ class test_checkpoint09(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(format_values, ckpt_precision)
 
     def conn_config(self):
-        return 'cache_size=50MB,statistics=(all),' + self.ckpt_config
+        config = 'cache_size=50MB,statistics=(all),' + self.ckpt_config
+        if self.runningHook('disagg'):
+            # Disable leaf page deltas for disaggregated testing as the test expects we write full pages.
+            return config + ',page_delta=(leaf_page_delta=false)'
+        else:
+            return config
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
@@ -105,14 +109,9 @@ class test_checkpoint09(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
             ',stable_timestamp=' + self.timestamp_str(1))
 
-        if self.value_format == '8t':
-            value1 = 86
-            value2 = 87
-            value3 = 88
-        else:
-            value1 = b"aaaaa" * 100
-            value2 = b"bbbbb" * 100
-            value3 = b"ccccc" * 100
+        value1 = b"aaaaa" * 100
+        value2 = b"bbbbb" * 100
+        value3 = b"ccccc" * 100
 
         self.large_updates(uri, value1, ds, nrows, 1, 10)
         self.check(value1, uri, nrows)
@@ -129,7 +128,7 @@ class test_checkpoint09(wttest.WiredTigerTestCase):
         # Pin oldest timestamp to 10 and stable timestamp to 20.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
             ',stable_timestamp=' + self.timestamp_str(20))
-        self.session.checkpoint(None)
+        self.session.checkpoint()
 
         val = self.get_stat(stat.conn.rec_time_window_start_ts)
         self.assertEqual(val, nrows + nrows/10)

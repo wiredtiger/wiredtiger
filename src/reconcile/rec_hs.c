@@ -168,7 +168,7 @@ __rec_hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor
              * case, we'll never get here.
              */
             if (hs_insert_cursor == NULL)
-                WT_ERR(__wt_curhs_open(session, btree_id, NULL, &hs_insert_cursor));
+                WT_ERR(__wt_curhs_open(session, btree_id, NULL, NULL, &hs_insert_cursor));
 
             /*
              * If these history store records are resolved prepared updates, their durable
@@ -613,7 +613,6 @@ __rec_hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r, W
     page = r->page;
 
     switch (page->type) {
-    case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_VAR:
         p = key->mem;
         WT_RET(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(ins)));
@@ -665,10 +664,10 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     uint32_t i;
     int nentries;
     bool check_prepared, enable_reverse_modify, error_on_ts_ordering, hs_inserted, squashed,
-      hs_flag_set;
+      hs_flag_set, hs_stats_updated;
 
     conn = S2C(session);
-    hs_flag_set = false;
+    hs_flag_set = hs_stats_updated = false;
     r->cache_write_hs = false;
     btree = S2BT(session);
     ref = r->ref;
@@ -680,7 +679,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     cache_hs_insert_full_update = cache_hs_insert_reverse_modify = cache_hs_write_squash = 0;
     cache_hs_key_processed = cache_hs_update_processed = 0;
 
-    WT_RET(__wt_curhs_open(session, btree->id, NULL, &hs_cursor));
+    WT_RET(__wt_curhs_open(session, btree->id, NULL, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     __wt_update_vector_init(session, &updates);
@@ -905,7 +904,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              * No need to insert any data that is older than the update restored from delta. They
              * are already in the history store.
              */
-            if (F_ISSET(upd, WT_UPDATE_HS | WT_UPDATE_RESTORED_FROM_DELTA)) {
+            if (F_ISSET(upd, WT_UPDATE_HS)) {
                 if (upd->type == WT_UPDATE_STANDARD)
                     break;
 
@@ -1141,6 +1140,27 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
 
             if (upd == newest_hs)
                 break;
+
+            /* Periodically flush the hs stats in case there is a long reconciliation to check
+             * progress. */
+            if (insert_cnt >= 1000) {
+                WT_STAT_CONN_DSRC_INCRV(session, cache_hs_insert, insert_cnt);
+                WT_STAT_CONN_DSRC_INCRV(
+                  session, cache_hs_insert_full_update, cache_hs_insert_full_update);
+                WT_STAT_CONN_DSRC_INCRV(
+                  session, cache_hs_insert_reverse_modify, cache_hs_insert_reverse_modify);
+                WT_STAT_CONN_DSRC_INCRV(session, cache_hs_write_squash, cache_hs_write_squash);
+                WT_STAT_CONN_DSRC_INCRV(session, cache_hs_key_processed, cache_hs_key_processed);
+                WT_STAT_CONN_DSRC_INCRV(
+                  session, cache_hs_update_processed, cache_hs_update_processed);
+                insert_cnt = 0;
+                cache_hs_insert_full_update = 0;
+                cache_hs_insert_reverse_modify = 0;
+                cache_hs_write_squash = 0;
+                cache_hs_key_processed = 0;
+                cache_hs_update_processed = 0;
+                hs_stats_updated = true;
+            }
         }
     }
 
@@ -1156,11 +1176,11 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     }
 
 err:
-    if (ret == 0 && insert_cnt > 0)
+    if (ret == 0 && (insert_cnt > 0 || hs_stats_updated))
         __rec_hs_verbose_cache_stats(session, btree);
 
     /* cache_write_hs is set to true as there was at least one successful write to history. */
-    if (insert_cnt > 0)
+    if (insert_cnt > 0 || hs_stats_updated)
         r->cache_write_hs = true;
 
     __wt_scr_free(session, &key);
@@ -1269,13 +1289,13 @@ __rec_hs_delete_record(
      * matches the current btree and attempt to reuse it if it does not.
      */
     if (r->hs_cursor == NULL)
-        WT_RET(__wt_curhs_open(session, btree->id, NULL, &r->hs_cursor));
+        WT_RET(__wt_curhs_open(session, btree->id, NULL, NULL, &r->hs_cursor));
     else if (__wt_curhs_get_btree_id(session, r->hs_cursor) != btree->id) {
         WT_RET_ERROR_OK(ret = __wt_curhs_set_btree_id(session, r->hs_cursor, btree->id), EINVAL);
         if (ret == EINVAL) {
             WT_RET(r->hs_cursor->close(r->hs_cursor));
             r->hs_cursor = NULL;
-            WT_RET(__wt_curhs_open(session, btree->id, NULL, &r->hs_cursor));
+            WT_RET(__wt_curhs_open(session, btree->id, NULL, NULL, &r->hs_cursor));
         }
     }
 

@@ -316,7 +316,7 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     /*
      * Cache a history store cursor to avoid deadlock: if an eviction thread marks a file busy and
      * then opens a different file (in this case, the HS file), it can deadlock with a thread
-     * waiting for the first file to drain from the eviction queue. See WT-5946 for details.
+     * waiting for the first file to drain from the eviction queue.
      */
     WT_ERR(__wt_curhs_cache(session));
     if (__wt_atomic_load_bool_relaxed(&conn->evict_server_running) &&
@@ -684,7 +684,7 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     target = evict->eviction_target;
     trigger = evict->eviction_trigger;
     updates_target = evict->eviction_updates_target;
-    updates_trigger = evict->eviction_updates_trigger;
+    updates_trigger = __wt_atomic_load_double_relaxed(&evict->eviction_updates_trigger);
 
     /* Build up the new state. */
     flags = 0;
@@ -797,12 +797,17 @@ __evict_update_work(WT_SESSION_IMPL *session, bool *eviction_needed)
     /*
      * Configure scrub - which reinstates clean equivalents of reconciled dirty pages. This is
      * useful because an evicted dirty page isn't necessarily a good proxy for knowing if the page
-     * will be accessed again soon.
+     * will be accessed again soon. Be more aggressive about scrubbing in disaggregated storage
+     * because the cost of retrieving a recently reconciled page is higher in that configuration. In
+     * the local storage case scrub dirty pages and keep them in cache if we are less than half way
+     * to the clean, dirty and updates triggers.
      *
      * There's an experimental flag WT_CACHE_PREFER_SCRUB_EVICTION that can be turned on to enable
      * scrub eviction as long as cache usage overall is under half way to the trigger limit.
      */
-    if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200) {
+    if (__wt_conn_is_disagg(session) && bytes_inuse < (uint64_t)(trigger * bytes_max) / 100)
+        LF_SET(WT_EVICT_CACHE_SCRUB);
+    else if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200) {
         if (F_ISSET_ATOMIC_32(
               &(conn->cache->cache_eviction_controls), WT_CACHE_PREFER_SCRUB_EVICTION)) {
             LF_SET(WT_EVICT_CACHE_SCRUB);
@@ -997,7 +1002,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_PASS));
 
-    if ((ref = btree->evict_ref) == NULL)
+    if ((ref = __wt_atomic_load_ptr_relaxed(&btree->evict_ref)) == NULL)
         return (0);
 
     if (!evict->use_npos_in_pass || clear_pos)
@@ -1007,7 +1012,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
      * Clear evict_ref before releasing it in case that forces eviction (we assert that we never try
      * to evict the current eviction walk point).
      */
-    btree->evict_ref = NULL;
+    __wt_atomic_store_ptr_relaxed(&btree->evict_ref, NULL);
 
     if (evict->use_npos_in_pass) {
         /* If soft pointers are in use, remember the page's position unless clear_pos is set. */
@@ -1202,15 +1207,15 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 /*
  * Atomically decrement the evict-disabled count, without acquiring the eviction walk-lock. We can't
  * acquire that lock here because there's a potential deadlock. When acquiring exclusive eviction
- * access, we acquire the eviction walk-lock and then the eviction's pass-intr lock. The current
- * eviction implementation can hold the pass-intr lock and call into this function (see WT-3303 for
- * the details), which might deadlock with another thread trying to get exclusive eviction access.
+ * access, we acquire the eviction walk-lock and then the eviction's pass-intr lock. The eviction
+ * server can hold the pass-intr lock and call into this function, which might deadlock with another
+ * thread trying to get exclusive eviction access.
  */
 #if defined(HAVE_DIAGNOSTIC)
     {
         int32_t v;
 
-        WT_ASSERT(session, btree->evict_ref == NULL);
+        WT_ASSERT(session, __wt_atomic_load_ptr_relaxed(&btree->evict_ref) == NULL);
         v = __wt_atomic_sub_int32(&btree->evict_disabled, 1);
         WT_ASSERT(session, v >= 0);
     }
@@ -1327,8 +1332,8 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
      */
     if (eviction_progress_rate > evict->evict_tune_progress_rate_max) {
         evict->evict_tune_progress_rate_max = eviction_progress_rate;
-        evict->evict_tune_workers_best =
-          __wt_atomic_load_uint32_relaxed(&conn->evict_threads.current_threads);
+        current_threads = __wt_atomic_load_uint32_relaxed(&conn->evict_threads.current_threads);
+        __wt_atomic_store_uint32_relaxed(&evict->evict_tune_workers_best, current_threads);
     }
 
     /*
@@ -1456,9 +1461,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     if (__evict_queue_full(queue) && !__evict_queue_full(other_queue))
         queue = other_queue;
 
-    /*
-     * If both queues are full and haven't been empty on recent refills, we're done.
-     */
+    /* If both queues are full and haven't been empty on recent refills, we're done. */
     if (__evict_queue_full(queue) && evict->evict_empty_score < WT_EVICT_SCORE_CUTOFF) {
         WT_STAT_CONN_INCR(session, eviction_queue_not_empty);
         goto err;
@@ -1472,8 +1475,10 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
             evict->evict_empty_score =
               WT_MIN(evict->evict_empty_score + WT_EVICT_SCORE_BUMP, WT_EVICT_SCORE_MAX);
         WT_STAT_CONN_INCR(session, eviction_queue_empty);
-    } else
+    } else {
         WT_STAT_CONN_INCR(session, eviction_queue_not_empty);
+        WT_STAT_CONN_INCRV(session, eviction_pages_remaining_in_queue, queue->evict_candidates);
+    }
 
     /*
      * Get some more pages to consider for eviction.
@@ -1577,24 +1582,22 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
     }
 
     WT_STAT_CONN_INCRV(session, eviction_pages_queued_post_lru, queue->evict_candidates);
-    /*
-     * Add stats about pages that have been queued.
-     */
+
+    /* Add stats about pages that have been queued. */
     for (candidates = 0; candidates < queue->evict_candidates; ++candidates) {
         WT_PAGE *page = queue->evict_queue[candidates].ref->page;
         if (__wt_page_is_modified(page))
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_dirty);
-        else if (page->modify != NULL)
-            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_updates);
         else
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_clean);
+
+        if (page->modify != NULL)
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_updates);
     }
     queue->evict_current = queue->evict_queue;
     __wt_spin_unlock(session, &queue->evict_lock);
 
-    /*
-     * Signal any application or helper threads that may be waiting to help with eviction.
-     */
+    /* Signal any application or helper threads that may be waiting to help with eviction. */
     __wt_cond_signal(session, conn->evict_threads.wait_cond);
 
 err:
@@ -1655,8 +1658,10 @@ __evict_walk_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p
     dhandle = *dhandle_p;
     if (dhandle != NULL)
         dhandle = TAILQ_NEXT(dhandle, q);
-    if (dhandle == NULL)
+    if (dhandle == NULL) {
         dhandle = TAILQ_FIRST(&conn->dhqh);
+        WT_STAT_CONN_INCR(session, eviction_dhandle_complete_walk);
+    }
 
     WT_UNUSED(dh_bucket_count);
     WT_UNUSED(rnd_bucket);
@@ -1861,7 +1866,8 @@ retry:
              * huge numbers of active trees before allowing larger numbers of hazard pointers in the
              * walk session.
              */
-            if (btree->evict_ref == NULL && session->hazards.num_active > WTI_EVICT_MAX_TREES) {
+            if (__wt_atomic_load_ptr_relaxed(&btree->evict_ref) == NULL &&
+              session->hazards.num_active > WTI_EVICT_MAX_TREES) {
                 WT_STAT_CONN_INCR(session, eviction_server_skip_trees_too_many_active_walks);
                 __evict_disagg_btree_skip_count(session, btree);
                 continue;
@@ -1891,7 +1897,13 @@ retry:
             continue;
         }
 
-        if (F_ISSET(btree, WT_BTREE_IN_MEMORY) && !F_ISSET(evict, WT_EVICT_CACHE_DIRTY)) {
+        /*
+         * For in-memory btrees, if we are not evicting dirty pages or pages with active updates,
+         * walking them serves no purpose. Such pages are not eligible for clean eviction, making
+         * the operation unnecessary.
+         */
+        if (F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
+          !F_ISSET(evict, WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES)) {
             __evict_disagg_btree_skip_count(session, btree);
             continue;
         }
@@ -1979,8 +1991,10 @@ __evict_push_candidate(
     orig_flags = new_flags = ref->page->flags_atomic;
     FLD_SET(new_flags, WT_PAGE_EVICT_LRU);
     if (orig_flags == new_flags ||
-      !__wt_atomic_cas_uint16(&ref->page->flags_atomic, orig_flags, new_flags))
+      !__wt_atomic_cas_uint16(&ref->page->flags_atomic, orig_flags, new_flags)) {
+        WT_STAT_CONN_INCR(session, eviction_server_push_pages_failed_when_flaging);
         return (false);
+    }
 
     /* Keep track of the maximum slot we are using. */
     slot = (u_int)(evict_entry - queue->evict_queue);
@@ -2134,9 +2148,7 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
                 return (true);
             }
         } else {
-            wt_timestamp_t pinned_stable_ts;
-            __wt_txn_pinned_stable_timestamp(session, &pinned_stable_ts);
-            if (newest_commit_timestamp > pinned_stable_ts) {
+            if (newest_commit_timestamp > __wt_txn_pinned_stable_timestamp(session)) {
                 WT_STAT_CONN_INCR(session, eviction_server_skip_pages_checkpoint_timestamp);
                 return (true);
             }
@@ -2170,7 +2182,8 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (!high_pressure && F_ISSET(conn->evict, WT_EVICT_CACHE_UPDATES)) {
             WT_IGNORE_RET(__wti_evict_updates_needed(session, &pct_updates));
             high_pressure = (pct_updates >
-              (conn->evict->eviction_updates_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
+              (__wt_atomic_load_double_relaxed(&conn->evict->eviction_updates_trigger) *
+                WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
         }
 
         if (!high_pressure)
@@ -2288,38 +2301,39 @@ __evict_get_min_pages(WT_SESSION_IMPL *session, uint32_t target_pages)
 
 /*
  * __evict_try_restore_walk_position --
- *     Try to restore the walk position from saved soft pos. Returns true if the walk position is
- *     restored.
+ *     Try to restore the eviction walk position from saved soft pos. If we can't restore a saved
+ *     position, clear the eviction walk position instead.
  */
 static WT_INLINE int
 __evict_try_restore_walk_position(WT_SESSION_IMPL *session, WT_BTREE *btree, uint32_t walk_flags)
 {
 #define PATH_STR_MAX 1024
+    WT_REF *evict_ref;
     char path_str[PATH_STR_MAX];
     size_t path_str_offset;
     double unused; /* GCC fails to WT_UNUSED() :( */
 
-    if (btree->evict_ref != NULL)
+    if ((evict_ref = __wt_atomic_load_ptr_relaxed(&btree->evict_ref)) != NULL)
         return (0); /* We've got a pointer already */
     if (WT_NPOS_IS_INVALID(btree->evict_pos))
         return (0); /* No restore point */
     WT_RET_ONLY(
-      __wt_page_from_npos_for_eviction(session, &btree->evict_ref, btree->evict_pos, 0, walk_flags),
+      __wt_page_from_npos_for_eviction(session, &evict_ref, btree->evict_pos, 0, walk_flags),
       WT_PANIC);
+    __wt_atomic_store_ptr_relaxed(&btree->evict_ref, evict_ref);
 
-    if (btree->evict_ref != NULL &&
+    if (evict_ref != NULL &&
       WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_1)) {
-        WT_UNUSED(unused = __wt_page_npos(session, btree->evict_ref, WT_NPOS_MID, path_str,
-                    &path_str_offset, PATH_STR_MAX));
+        WT_UNUSED(unused = __wt_page_npos(
+                    session, evict_ref, WT_NPOS_MID, path_str, &path_str_offset, PATH_STR_MAX));
         __wt_verbose_debug1(session, WT_VERB_EVICTION,
           "Evict walk point recalled from position %lf %s page %s ref %p", btree->evict_pos,
-          F_ISSET(btree->evict_ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF", path_str,
-          (void *)btree->evict_ref);
+          F_ISSET(evict_ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF", path_str,
+          (void *)evict_ref);
     }
 
     WT_STAT_CONN_INCR(session, eviction_restored_pos);
-    if (btree->evict_saved_ref_check != 0 &&
-      btree->evict_saved_ref_check != (uint64_t)btree->evict_ref)
+    if (btree->evict_saved_ref_check != 0 && btree->evict_saved_ref_check != (uint64_t)evict_ref)
         WT_STAT_CONN_INCR(session, eviction_restored_pos_differ);
 
     return (0);
@@ -2335,6 +2349,7 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
+    WT_REF *evict_ref;
 
     btree = S2BT(session);
 
@@ -2344,7 +2359,8 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
 
     WT_RET(__evict_try_restore_walk_position(session, btree, *walk_flagsp));
 
-    if (btree->evict_ref != NULL)
+    evict_ref = __wt_atomic_load_ptr_relaxed(&btree->evict_ref);
+    if (evict_ref != NULL)
         WT_STAT_CONN_INCR(session, eviction_walk_saved_pos);
     else
         WT_STAT_CONN_INCR(session, eviction_walk_from_root);
@@ -2357,7 +2373,7 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
     switch (btree->evict_start_type) {
     case WT_EVICT_WALK_NEXT:
         /* Each time when evict_ref is null, alternate between linear and random walk */
-        if (!S2C(session)->evict_legacy_page_visit_strategy && btree->evict_ref == NULL &&
+        if (!S2C(session)->evict_legacy_page_visit_strategy && evict_ref == NULL &&
           (++btree->linear_walk_restarts) & 1) {
             if (S2C(session)->evict->use_npos_in_pass)
                 /* Alternate with rand_prev so that the start of the tree is visited more often */
@@ -2368,7 +2384,7 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
         break;
     case WT_EVICT_WALK_PREV:
         /* Each time when evict_ref is null, alternate between linear and random walk */
-        if (!S2C(session)->evict_legacy_page_visit_strategy && btree->evict_ref == NULL &&
+        if (!S2C(session)->evict_legacy_page_visit_strategy && evict_ref == NULL &&
           (++btree->linear_walk_restarts) & 1) {
             if (S2C(session)->evict->use_npos_in_pass)
                 /* Alternate with rand_next so that the end of the tree is visited more often */
@@ -2384,19 +2400,20 @@ rand_prev:
     /* FALLTHROUGH */
     case WT_EVICT_WALK_RAND_NEXT:
 rand_next:
-        if (btree->evict_ref == NULL) {
+        if (evict_ref == NULL) {
             for (;;) {
                 /* Ensure internal pages indexes remain valid */
                 WT_WITH_PAGE_INDEX(session,
                   ret = __wt_random_descent(
-                    session, &btree->evict_ref, WT_READ_EVICT_READ_FLAGS, &session->rnd_random));
+                    session, &evict_ref, WT_READ_EVICT_READ_FLAGS, &session->rnd_random));
                 if (ret != WT_RESTART)
                     break;
                 WT_STAT_CONN_INCR(session, eviction_walk_restart);
             }
             WT_RET_NOTFOUND_OK(ret);
+            __wt_atomic_store_ptr_relaxed(&btree->evict_ref, evict_ref);
 
-            if (btree->evict_ref == NULL)
+            if (evict_ref == NULL)
                 WT_STAT_CONN_INCR(session, eviction_walk_random_returns_null_position);
         }
         break;
@@ -2493,6 +2510,20 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     if (__wt_atomic_load_uint64_relaxed(&page->read_gen) == WT_READGEN_NOTSET)
         __wti_evict_read_gen_new(session, page);
 
+    /*
+     * Don't queue clean history store pages for updates eviction targets while a precise checkpoint
+     * is running, it tends to evict history pages that are needed soon.
+     */
+    if (WT_IS_HS(btree->dhandle) && F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+        if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) &&
+          !F_ISSET(evict, WT_EVICT_CACHE_UPDATES_HARD) && !F_ISSET(evict, WT_EVICT_CACHE_CLEAN) &&
+          !modified && __wt_atomic_load_bool_v_relaxed(&conn->txn_global.checkpoint_running)) {
+            WT_STAT_CONN_INCR(
+              session, eviction_server_skip_history_store_pages_with_updates_during_checkpoint);
+            return;
+        }
+    }
+
     /* Pages being forcibly evicted go on the urgent queue. */
     if (modified &&
       (__wt_atomic_load_uint64_relaxed(&page->read_gen) == WT_READGEN_EVICT_SOON ||
@@ -2524,8 +2555,7 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     want_page =
       (F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified) ||
       (F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified) ||
-      (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
-        page->modify != NULL);
+      (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && page->modify != NULL);
     if (!want_page) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_pages);
         return;
@@ -2558,8 +2588,10 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
             return;
         }
         if (__wt_atomic_load_uint32_relaxed(&btree->evict_walk_period) == 0 &&
-          !__wt_evict_aggressive(session))
+          !__wt_evict_aggressive(session)) {
+            WT_STAT_CONN_INCR(session, eviction_server_skip_intl_page_non_aggressive);
             return;
+        }
     }
 
     /* Evaluate dirty page candidacy, when eviction is not aggressive. */
@@ -2600,6 +2632,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
     uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
     uint64_t min_pages, pages_already_queued, pages_queued, pages_seen, refs_walked;
     uint64_t pages_seen_clean, pages_seen_dirty, pages_seen_updates;
+    uint64_t root_pages_skipped;
     uint32_t evict_walk_period, target_pages, walk_flags;
     int restarts;
     bool give_up, queued, urgent_queued;
@@ -2632,8 +2665,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
      * point immediately, we assert when discarding pages we're not discarding an eviction point, so
      * this clear must be complete before the page is released.
      */
-    ref = btree->evict_ref;
-    btree->evict_ref = NULL;
+    ref = __wt_atomic_load_ptr_relaxed(&btree->evict_ref);
+    __wt_atomic_store_ptr_relaxed(&btree->evict_ref, NULL);
     /* Clear the saved position just in case we never put it back. */
     __wt_evict_clear_npos(btree);
 
@@ -2657,6 +2690,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
      */
     internal_pages_already_queued = internal_pages_queued = internal_pages_seen = 0;
     pages_seen_clean = pages_seen_dirty = pages_seen_updates = 0;
+    root_pages_skipped = 0;
     for (evict_entry = start, pages_already_queued = pages_queued = pages_seen = refs_walked = 0;
          evict_entry < end && (ret == 0 || ret == WT_NOTFOUND);
          last_parent = ref == NULL ? NULL : ref->home,
@@ -2680,8 +2714,10 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         ++pages_seen;
 
         /* Ignore root pages entirely. */
-        if (__wt_ref_is_root(ref))
+        if (__wt_ref_is_root(ref)) {
+            ++root_pages_skipped;
             continue;
+        }
 
         page = ref->page;
 
@@ -2694,23 +2730,25 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         if (page->evict_pass_gen == 0) {
             const uint64_t gen_gap =
               __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen) - page->cache_create_gen;
-            __wt_atomic_stats_max(&evict->evict_max_unvisited_gen_gap, gen_gap);
-            __wt_atomic_stats_max(&evict->evict_max_unvisited_gen_gap_per_checkpoint, gen_gap);
+            __wt_atomic_stats_max_uint64(&evict->evict_max_unvisited_gen_gap, gen_gap);
+            __wt_atomic_stats_max_uint64(
+              &evict->evict_max_unvisited_gen_gap_per_checkpoint, gen_gap);
         } else {
             const uint64_t gen_gap =
               __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen) - page->evict_pass_gen;
-            __wt_atomic_stats_max(&evict->evict_max_visited_gen_gap, gen_gap);
-            __wt_atomic_stats_max(&evict->evict_max_visited_gen_gap_per_checkpoint, gen_gap);
+            __wt_atomic_stats_max_uint64(&evict->evict_max_visited_gen_gap, gen_gap);
+            __wt_atomic_stats_max_uint64(&evict->evict_max_visited_gen_gap_per_checkpoint, gen_gap);
         }
 
         page->evict_pass_gen = __wt_atomic_load_uint64_relaxed(&evict->evict_pass_gen);
 
         if (__wt_page_is_modified(page))
             ++pages_seen_dirty;
-        else if (page->modify != NULL)
-            ++pages_seen_updates;
         else
             ++pages_seen_clean;
+
+        if (page->modify != NULL)
+            ++pages_seen_updates;
 
         /* Count internal pages seen. */
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
@@ -2724,9 +2762,13 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
             continue;
         }
 
+        /* update number of attempts this page has been evicted */
+        ++page->evict_queue_attempts;
+        __wt_atomic_stats_max_uint16(
+          &evict->evict_max_eviction_queue_attempts, page->evict_queue_attempts);
+
         __evict_try_queue_page(
           session, queue, ref, last_parent, evict_entry, &urgent_queued, &queued);
-
         if (queued) {
             ++evict_entry;
             ++pages_queued;
@@ -2789,7 +2831,12 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
                 __wti_evict_readgen_is_soon_or_wont_need(&ref->page->read_gen)))
                 WT_RET_NOTFOUND_OK(__wt_tree_walk_count(session, &ref, &refs_walked, walk_flags));
         }
-        btree->evict_ref = ref;
+        /*
+         * The current ref is obtained from tree walk and is protected by a hazard pointer, so there
+         * is no concurrency conflict with __wt_ref_out reading evict_ref in the eviction process.
+         * Using atomic store here is for code consistency with other accesses to btree->evict_ref.
+         */
+        __wt_atomic_store_ptr_relaxed(&btree->evict_ref, ref);
         if (evict->use_npos_in_pass)
             __evict_clear_walk(session, false);
     }
@@ -2802,6 +2849,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
       session, eviction_internal_pages_already_queued, internal_pages_already_queued);
     WT_STAT_CONN_INCRV(session, eviction_internal_pages_queued, internal_pages_queued);
     WT_STAT_CONN_DSRC_INCR(session, eviction_walk_passes);
+    WT_STAT_CONN_INCRV(session, eviction_root_pages_skipped, root_pages_skipped);
     WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_clean, pages_seen_clean);
     WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_dirty, pages_seen_dirty);
     WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_updates, pages_seen_updates);
@@ -2862,7 +2910,16 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
         __evict_queue_empty(evict->evict_fill_queue, false)))
         return (WT_NOTFOUND);
 
+    uint64_t lock_wait_start, lock_wait_end;
+    /* Track time spent waiting for the evict queue lock */
+    lock_wait_start = __wt_clock(session);
     __wt_spin_lock(session, &evict->evict_queue_lock);
+    lock_wait_end = __wt_clock(session);
+
+    /* Only track lock wait time for eviction worker threads */
+    if (F_ISSET(session, WT_SESSION_INTERNAL))
+        __wt_atomic_add_uint64_v(
+          &evict->evict_lock_wait_time, WT_CLOCKDIFF_US(lock_wait_end, lock_wait_start));
 
     /* Check the urgent queue first. */
     if (urgent_ok && !__evict_queue_empty(urgent_queue, false))
@@ -2895,9 +2952,14 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
             WT_STAT_CONN_INCR(session, eviction_get_ref_empty2);
             return (WT_NOTFOUND);
         }
-        if (!is_server)
+        if (!is_server) {
+            lock_wait_start = __wt_clock(session);
             __wt_spin_lock(session, &queue->evict_lock);
-        else if (__wt_spin_trylock(session, &queue->evict_lock) != 0)
+            lock_wait_end = __wt_clock(session);
+            if (F_ISSET(session, WT_SESSION_INTERNAL))
+                __wt_atomic_add_uint64_v(
+                  &evict->evict_lock_wait_time, WT_CLOCKDIFF_US(lock_wait_end, lock_wait_start));
+        } else if (__wt_spin_trylock(session, &queue->evict_lock) != 0)
             continue;
         break;
     }
@@ -3010,7 +3072,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
             WT_STAT_CONN_INCR(session, eviction_app_dirty_attempt);
         }
         WT_STAT_CONN_INCR(session, eviction_app_attempt);
-        S2C(session)->evict->app_evicts++;
+        __wt_tsan_suppress_add_uint64(&S2C(session)->evict->app_evicts, 1);
         time_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
     }
 
@@ -3162,7 +3224,7 @@ __wti_evict_app_assist_worker(
         } else if (ret == WT_NOTFOUND) {
             /* Allow the queue to re-populate before retrying. */
             __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
-            evict->app_waits++;
+            __wt_tsan_suppress_add_uint64(&evict->app_waits, 1);
         } else if (ret != EBUSY)
             WT_ERR(ret);
 
@@ -3248,8 +3310,10 @@ __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session, !__wt_ref_is_root(ref));
 
     page = ref->page;
-    if (S2BT(session)->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU_URGENT))
+    if (S2BT(session)->evict_disabled > 0 || F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU_URGENT)) {
+        WT_STAT_CONN_INCR(session, eviction_server_skip_pages_already_in_urgent_queue);
         return (false);
+    }
 
     evict = S2C(session)->evict;
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU) && F_ISSET(evict, WT_EVICT_CACHE_ALL))
@@ -3311,8 +3375,8 @@ done:
  *     priority unless eviction is in an aggressive state and the Btree is significantly utilizing
  *     the cache.
  *
- *     At present, it is exclusively called for metadata and bloom filter files, as these are meant
- *     to be retained in the cache.
+ *     At present, it is exclusively called for metadata file as this is meant to be retained in the
+ *     cache.
  *
  *     Input parameter:
  *       `v`: An integer that denotes the priority level.

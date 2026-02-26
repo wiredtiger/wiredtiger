@@ -282,7 +282,7 @@ __wt_thread_group_create(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, const
 
     __wt_verbose(session, WT_VERB_THREAD_GROUP, "Creating thread group: %s", name);
 
-    WT_RET(__wt_rwlock_init(session, &group->lock));
+    WT_ERR(__wt_rwlock_init(session, &group->lock));
     WT_ERR(__wt_cond_alloc(session, "thread group cond", &group->wait_cond));
     cond_alloced = true;
 
@@ -331,8 +331,11 @@ __wt_thread_group_destroy(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
     /*
      * Clear out any settings from the group, some structures are reused for different thread groups
      * - in particular the eviction thread group for recovery and then normal runtime.
+     *
+     * TSAN suppression function is used here since the group.current_threads field could be
+     * accessed in parallel by __statlog_server.
      */
-    memset(group, 0, sizeof(*group));
+    __wt_tsan_suppress_memset(group, 0, sizeof(*group));
 
     return (ret);
 }

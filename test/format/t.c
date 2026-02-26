@@ -126,7 +126,7 @@ format_process_env(void)
  * locks_init --
  *     Initialize locks to single-thread backups and timestamps.
  */
-static void
+void
 locks_init(WT_CONNECTION *conn)
 {
     WT_SESSION *session;
@@ -343,12 +343,16 @@ main(int argc, char *argv[])
         if (access(g.home_backup, F_OK) == 0)
             is_backup = true;
         wts_open(g.home, &g.wts_conn, !is_backup);
+        /* For disagg follower node pick up the latest checkpoint. */
+        if (g.disagg_storage_config && !g.disagg_leader)
+            follower_read_latest_checkpoint();
         timestamp_init();
         /* Update the oldest and stable timestamps if they have been previously set. */
         ret = timestamp_query("get=oldest_timestamp", &g.oldest_timestamp);
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
         ret = timestamp_query("get=stable_timestamp", &g.stable_timestamp);
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+        locks_init(g.wts_conn);
     } else {
         wts_create_home();
         config_print(false);
@@ -357,9 +361,7 @@ main(int argc, char *argv[])
         wts_open(g.home, &g.wts_conn, true);
         timestamp_init();
     }
-
     wts_prepare_discover(g.wts_conn);
-    locks_init(g.wts_conn);
 
     /*
      * Initialize key/value information. Load and verify initial records (at least a brief scan if
@@ -405,7 +407,7 @@ main(int argc, char *argv[])
         for (reps = 1; reps <= (FORMAT_OPERATION_REPS * 2); ++reps) {
             ops_seconds = g.disagg_leader ? leader_ops_seconds : DISAGG_SWITCH_FOLLOWER_OPS_SEC;
             operations(ops_seconds, reps, (FORMAT_OPERATION_REPS * 2));
-            testutil_check(disagg_switch_roles());
+            disagg_switch_roles();
         }
     }
 
@@ -432,14 +434,14 @@ skip_operations:
 
     trace_teardown();
 
+    disagg_teardown_multi_node();
+
     /* Overwrite the progress line with a completion line. */
     if (!GV(QUIET))
         printf("\r%78s\r", " ");
     __wt_seconds(NULL, &now);
     printf("%s: successful run completed (%" PRIu64 " seconds)\n ", progname, now - start);
     fflush(stdout);
-
-    disagg_teardown_multi_node();
 
     config_clear();
 

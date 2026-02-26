@@ -635,6 +635,26 @@ __wti_conn_remove_page_log(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wti_conn_remove_key_provider --
+ *     Remove key_provider added by WT_CONNECTION->set_key_provider.
+ */
+int
+__wti_conn_remove_key_provider(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+    /* Terminate the key provider. */
+    if (conn->key_provider != NULL) {
+        if (conn->key_provider->terminate != NULL)
+            WT_TRET(conn->key_provider->terminate(conn->key_provider, (WT_SESSION *)session));
+        conn->key_provider = NULL;
+    }
+    return (ret);
+}
+
+/*
  * __conn_add_storage_source --
  *     WT_CONNECTION->add_storage_source method.
  */
@@ -2205,6 +2225,12 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT);
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point_colgroup", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_COLGROUP);
+    else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_COLGROUP);
+
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.cursor_copy", &cval));
     if (cval.val)
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CURSOR_COPY);
@@ -2342,11 +2368,11 @@ __wti_json_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 }
 
 /*
- * __wt_verbose_config --
- *     Set verbose configuration.
+ * __wt_get_verbose_categories --
+ *     Get predefined verbose categories and their names.
  */
-int
-__wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
+void
+__wt_get_verbose_categories(const WT_NAME_FLAG **catp, size_t *countp)
 {
     static const WT_NAME_FLAG verbtypes[] = {{"all", WT_VERB_ALL}, {"api", WT_VERB_API},
       {"backup", WT_VERB_BACKUP}, {"block", WT_VERB_BLOCK}, {"block_cache", WT_VERB_BLKCACHE},
@@ -2356,10 +2382,10 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"configuration", WT_VERB_CONFIGURATION},
       {"disaggregated_storage", WT_VERB_DISAGGREGATED_STORAGE},
       {"error_returns", WT_VERB_ERROR_RETURNS}, {"eviction", WT_VERB_EVICTION},
-      {"fileops", WT_VERB_FILEOPS}, {"generation", WT_VERB_GENERATION},
-      {"handleops", WT_VERB_HANDLEOPS}, {"history_store", WT_VERB_HS},
-      {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"layered", WT_VERB_LAYERED},
-      {"live_restore", WT_VERB_LIVE_RESTORE},
+      {"extension", WT_VERB_EXTENSION}, {"fileops", WT_VERB_FILEOPS},
+      {"generation", WT_VERB_GENERATION}, {"handleops", WT_VERB_HANDLEOPS},
+      {"history_store", WT_VERB_HS}, {"history_store_activity", WT_VERB_HS_ACTIVITY},
+      {"layered", WT_VERB_LAYERED}, {"live_restore", WT_VERB_LIVE_RESTORE},
       {"live_restore_progress", WT_VERB_LIVE_RESTORE_PROGRESS}, {"log", WT_VERB_LOG},
       {"metadata", WT_VERB_METADATA}, {"mutex", WT_VERB_MUTEX}, {"prefetch", WT_VERB_PREFETCH},
       {"out_of_order", WT_VERB_OUT_OF_ORDER}, {"overflow", WT_VERB_OVERFLOW},
@@ -2371,10 +2397,25 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"tiered", WT_VERB_TIERED}, {"transaction", WT_VERB_TRANSACTION}, {"verify", WT_VERB_VERIFY},
       {"version", WT_VERB_VERSION}, {"write", WT_VERB_WRITE}, {NULL, 0}};
 
+    WT_ASSERT(NULL, catp != NULL);
+    *catp = verbtypes;
+
+    if (countp != NULL)
+        *countp = (sizeof(verbtypes) / sizeof(verbtypes[0])) - 1;
+}
+
+/*
+ * __wt_verbose_config --
+ *     Set verbose configuration.
+ */
+int
+__wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
+{
     WT_CONFIG_ITEM cval, sval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     const WT_NAME_FLAG *ft;
+    const WT_NAME_FLAG *verbtypes;
     WT_VERBOSE_LEVEL verbosity_all;
 
     conn = S2C(session);
@@ -2388,6 +2429,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_RET(ret);
 
     WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
+    __wt_get_verbose_categories(&verbtypes, NULL);
 
     /*
      * Special handling for "all". This determines the verbosity for any categories not explicitly
@@ -2540,6 +2582,40 @@ __wti_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __wti_disagg_debug_mode_config --
+ *     Set the connection-wide disaggregated storage debug mode configuration.
+ */
+int
+__wti_disagg_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE address_cookie_upgrade;
+
+    conn = S2C(session);
+
+    /* Parse the address cookie upgrade mode, which is an enumeration. */
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.disagg_address_cookie_upgrade", &cval));
+    if (cval.len == 0 || WT_CONFIG_LIT_MATCH("none", cval))
+        address_cookie_upgrade = WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_NONE;
+    else if (WT_CONFIG_LIT_MATCH("compatible", cval))
+        address_cookie_upgrade = WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_COMPATIBLE;
+    else if (WT_CONFIG_LIT_MATCH("incompatible", cval))
+        address_cookie_upgrade = WT_CONN_DEBUG_DISAGG_ADDRESS_COOKIE_UPGRADE_INCOMPATIBLE;
+    else
+        WT_RET_MSG(session, EINVAL, "Invalid value for debug.disagg_address_cookie_upgrade: '%.*s'",
+          (int)cval.len, cval.str);
+    conn->debug_disagg_address_cookie_upgrade = address_cookie_upgrade;
+
+    /* Check whether we are pretending to have an optional field. */
+    WT_RET(
+      __wt_config_gets(session, cfg, "debug_mode.disagg_address_cookie_optional_field", &cval));
+    conn->debug_disagg_address_cookie_optional_field = cval.val != 0;
+
+    return (0);
+}
+
+/*
  * __conn_write_base_config --
  *     Save the base configuration used to create a database.
  */
@@ -2649,6 +2725,40 @@ err:
     __wt_free(session, base_config);
 
     return (ret);
+}
+
+/*
+ * __conn_set_key_provider --
+ *     Configure a custom key provider implementation on database open.
+ */
+static int
+__conn_set_key_provider(WT_CONNECTION *wt_conn, WT_KEY_PROVIDER *key_provider, const char *config)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    CONNECTION_API_CALL_NOCONF(conn, session, set_key_provider);
+
+    /* The configuration string has no use but may be useful at a later time. */
+    if (config != NULL)
+        WT_ERR_MSG(session, EINVAL, "key provider configuration currently not supported.");
+
+    /* You can only enable the key provider system in disaggregated mode. */
+    if (__wt_conn_is_disagg(session))
+        WT_ERR_MSG(session, EINVAL, "key provider system is only supported in disaggregated mode");
+
+    /*
+     * You can only configure the key provider system with early-load set.
+     */
+    if (conn->key_provider != NULL)
+        WT_ERR_MSG(session, EINVAL, "key provider system must be configured with early_load set");
+
+    conn->key_provider = key_provider;
+
+err:
+    API_END_RET(session, ret);
 }
 
 /*
@@ -2957,7 +3067,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
       __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
       __conn_add_encryptor, __conn_set_file_system, __conn_add_page_log, __conn_add_storage_source,
       __conn_get_page_log, __conn_get_storage_source, __conn_set_context_uint,
-      __conn_dump_error_log, __conn_get_extension_api};
+      __conn_dump_error_log, __conn_set_key_provider, __conn_get_extension_api};
     static const WT_NAME_FLAG file_types[] = {
       {"data", WT_FILE_TYPE_DATA}, {"log", WT_FILE_TYPE_LOG}, {NULL, 0}};
 
@@ -3169,6 +3279,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wti_json_config(session, cfg, false));
     WT_ERR(__wt_verbose_config(session, cfg, false));
     WT_ERR(__wti_timing_stress_config(session, cfg));
+    WT_ERR(__wti_disagg_debug_mode_config(session, cfg));
     WT_ERR(__wt_blkcache_setup(session, cfg, false));
     WT_ERR(__wti_extra_diagnostics_config(session, cfg));
     WT_ERR(__wti_conn_optrack_setup(session, cfg, false));
@@ -3235,11 +3346,17 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     WT_ERR(__wt_config_gets(session, cfg, "prefetch.available", &cval));
     conn->prefetch_available = cval.val != 0;
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY) && conn->prefetch_available)
-        WT_ERR_MSG(
-          session, EINVAL, "prefetch configuration is incompatible with in-memory configuration");
     WT_ERR(__wt_config_gets(session, cfg, "prefetch.default", &cval));
     conn->prefetch_auto_on = cval.val != 0;
+
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY) && (conn->prefetch_available || conn->prefetch_auto_on)) {
+        __wt_verbose(session, WT_VERB_PREFETCH, "%s",
+          "prefetch configuration is incompatible with in-memory configuration");
+        WT_CONFIG_DEBUG(session, "%s", "setting prefetch.available and prefetch.default to false");
+        conn->prefetch_auto_on = false;
+        conn->prefetch_available = false;
+    }
+
     if (conn->prefetch_auto_on && !conn->prefetch_available)
         WT_ERR_MSG(session, EINVAL,
           "pre-fetching cannot be enabled if pre-fetching is configured as unavailable");

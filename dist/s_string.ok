@@ -54,8 +54,10 @@ CAS
 CBT
 CCCCCCCCCCCCCCCCCC
 CELLs
+CGmP
 CHUNKCACHE
 CKPT
+CLAYERED
 CLOEXEC
 CMP
 CONF
@@ -76,7 +78,6 @@ Checksums
 CityHash
 ClmSvxz
 CloseHandle
-CmP
 Codec
 Comparator
 Config
@@ -104,7 +105,7 @@ Deterministically
 Disagg
 Disaggregated
 Dk
-DmpRvXx
+DmpeRkvXx
 Dxxx
 EACCES
 EB
@@ -114,7 +115,6 @@ EEXIST
 EFAULT
 EINTR
 EINVAL
-EMail
 ENCRYPTOR
 ENDIAN
 ENOENT
@@ -129,6 +129,7 @@ ETIMEDOUT
 EXTLIST
 EXTLIST's
 EXTSUBPATH
+Emplace
 Encryptor
 Encryptors
 Enqueue
@@ -137,6 +138,7 @@ Exxx
 FALLTHROUGH
 FH
 FILEOPS
+FILETIME
 FIXME
 FLCS
 FLD
@@ -145,8 +147,8 @@ FLv
 FNV
 FOREACH
 FS
+FTDC
 FULLFSYNC
-FUNC
 FUNCSIG
 Failpoint
 FindClose
@@ -168,6 +170,7 @@ GF
 GIDs
 GLIBC
 Geoff
+GetDiskFreeSpaceExA
 GetEnvironmentVariableA
 GetFileAttributesEx
 GetFileSizeEx
@@ -181,7 +184,6 @@ HFS
 HOTBACKUP
 Hendrik
 IAA
-IC
 IEC
 IKEY
 IMPL
@@ -205,13 +207,13 @@ Iu
 JIRA
 JSON
 Jyrki
+KEK
 KV
 Kanowski's
 Keyedness
 Kounavis
 LANGID
 LF
-LLVM
 LLVMFuzzerTestOneInput
 LMDB
 LOGOP
@@ -254,10 +256,8 @@ MSan
 MUTEX
 MacOS
 MapViewOfFile
-Marsaglia
 Marsaglia's
 Mellor
-Mitzenmacher
 MongoDB
 MoveFileExW
 MultiByteToWideChar
@@ -265,10 +265,10 @@ Multithreaded
 Mutex
 Mutexes
 MySecret
+NAMESPACE
 NNN
 NOLINT
 NOLINTNEXTLINE
-NOLL
 NONINFRINGEMENT
 NOOP
 NOP
@@ -279,9 +279,9 @@ NUL
 NUM
 NVRAM
 NZD
+Namespace
 NetBSD
 NoAddr
-Noll
 Nul
 OBJECTID
 ONDISK
@@ -296,7 +296,6 @@ PALI
 PDEATHSIG
 PFX
 PID
-PINDEX
 POS
 POSIX
 PPC
@@ -304,13 +303,11 @@ PREFETCH
 PREV
 PRId
 PRIu
-PRIx
 PRNG
 PSD
 PSE
 PTR
 Pe
-Phong
 PlatformSDK
 Podir
 Posix
@@ -329,7 +326,6 @@ QQQS
 QSQ
 Qsort
 RCPC
-RCS
 RCpc
 RDNOLOCK
 READGEN
@@ -343,7 +339,6 @@ RETRYABLE
 RHEL
 RLE
 RLEs
-RMW
 RNG
 RNGs
 RPC
@@ -391,13 +386,13 @@ Strobed
 Su
 Subdirectory
 Subprocess
+Synchronize
 TAILQ
 TCMalloc
 TESTUTIL
 TID
 TMP
 TODO
-TORTIOUS
 TRET
 TRYLOCK
 TSAN
@@ -425,6 +420,7 @@ UNSKIPPED
 UPD
 URI
 URIs
+USECS
 UTF
 UltraSparc
 Unbuffered
@@ -447,8 +443,6 @@ VX
 Vc
 Vigenere
 Vixie
-VloaY
-Vo
 VxWorks
 WCHAR
 WILLNEED
@@ -481,7 +475,6 @@ WiredTigerShared
 WiredTigerSharedHS
 WiredTigerTmplog
 WithSeeds
-Wl
 Wmissing
 WriteFile
 Wundef
@@ -489,7 +482,6 @@ Wuninitialized
 Wunused
 XP
 XXXXXX
-Xorshift
 YCSB
 ZSTD
 Zlib
@@ -497,13 +489,13 @@ Zstd
 Zstd's
 aa
 aaa
+abc
 abcdef
 abcdefghijklmnopqrstuvwxyz
 ackSstu
 acqrel
 addr
 addrs
-addtw
 agc
 ajn
 alloc
@@ -518,7 +510,6 @@ arg
 argc
 args
 argv
-asdf
 assertfmt
 atomicity
 atomics
@@ -526,9 +517,6 @@ atou
 auth
 autocommit
 autoconf
-auxheader
-auximage
-auxincr
 aws
 bInheritHandle
 backlink
@@ -548,6 +536,7 @@ bitcnt
 bitfield
 bitfields
 bitflip
+bitflips
 bitpack
 bitstr
 bitstring
@@ -565,7 +554,6 @@ bool
 boolean
 booleans
 boption
-bpack
 br
 breakpoint
 bs
@@ -602,7 +590,6 @@ celsius
 centric
 cerr
 cfg
-cfko
 chacha
 charset
 chdir
@@ -615,7 +602,6 @@ checksums
 checkvalue
 chk
 chmod
-chongo
 chunkcache
 cip
 ciphertext
@@ -626,7 +612,6 @@ cksum
 clayered
 cloexec
 closedir
-cmd
 cmp
 cntvct
 colcheck
@@ -679,13 +664,13 @@ curlog
 curmetadata
 cursoring
 cursorp
-curstartrecno
 curstat
 curtable
 curversion
 cust
 customizable
 customp
+cutlim
 cv
 cval
 cx
@@ -702,6 +687,7 @@ dbar
 dbs
 dcalloc
 ddd
+dec
 decile
 deciles
 decl
@@ -770,7 +756,9 @@ encodings
 encryptor
 encryptors
 endian
+endptr
 enomem
+enqueue
 enum
 env
 eof
@@ -790,6 +778,7 @@ extern
 extlist
 fadvise
 fahrenheit
+failover
 failpoint
 fallocate
 fallthrough
@@ -800,6 +789,7 @@ fd
 fdatasync
 fextend
 ffc
+ffee
 fff
 ffffffffffffffff
 fflush
@@ -817,7 +807,6 @@ filesystem
 filesystems
 firstfit
 fixup
-flcs
 floatnum
 fmt
 fmterr
@@ -829,6 +818,7 @@ foward
 fprintf
 fread
 free'd
+freep
 freopen
 fs
 fscanf
@@ -860,7 +850,6 @@ getter
 getters
 gettime
 gettimeofday
-getv
 ggg
 gid
 github
@@ -880,15 +869,14 @@ hardcoded
 hashmap
 hashsize
 hashtable
-hashval
 havesize
 hdr
+hhhh
 hijinx
 hpp
 hs
 html
 huffman
-hval
 hw
 iS
 iSh
@@ -925,6 +913,7 @@ inmemory
 inserters
 instantiation
 interruptible
+intialized
 intl
 intnum
 intpack
@@ -946,12 +935,12 @@ islocked
 ispo
 isprint
 isspace
+iter
 jjj
 js
 json
 kB
 kbits
-kepQFQ
 key'd
 keycmp
 keyedness
@@ -959,6 +948,7 @@ keyid
 keyids
 keylen
 keyv
+kp
 kv
 kvraw
 kvs
@@ -967,6 +957,7 @@ las
 lazyfs
 lbrace
 lbracket
+lc
 ld
 ldapr
 ldaprb
@@ -990,9 +981,7 @@ linux
 llll
 llu
 llvm
-loadbool
 loadtext
-loadvbool
 loc
 localTime
 localkey
@@ -1034,7 +1023,6 @@ maxv
 mb
 mbll
 mbss
-md
 mem
 membar
 memcmp
@@ -1044,7 +1032,6 @@ memkind
 memmove
 memset
 memsize
-mergeable
 metaconf
 metadata's
 metafile
@@ -1059,7 +1046,6 @@ mn
 mnt
 mongod
 mrs
-msan
 msecs
 msg
 msvc
@@ -1105,18 +1091,15 @@ nolock
 nonces
 nonliteral
 nonoverlapping
-nontransactionally
 noop
 nop
 noraw
 noreturn
-notfound
 notsup
 novalue
 nowait
 np
 npos
-nrecs
 nsec
 nsecs
 nset
@@ -1134,7 +1117,6 @@ ondisk
 onint
 onpage
 onsig
-oo
 openat
 opendir
 openfile
@@ -1144,7 +1126,6 @@ optrack
 optwt
 optype
 ori
-origstartrecno
 os
 ostream
 overcount
@@ -1154,7 +1135,6 @@ ownp
 pR
 pT
 packv
-pageref
 pagesize
 palite
 param
@@ -1169,6 +1149,7 @@ pid
 pindexp
 plh
 plhandle
+pluggable
 pmem
 poptable
 popthreads
@@ -1290,7 +1271,6 @@ sessionp
 setkv
 setname
 setstr
-setv
 setvbuf
 sfast
 shareability
@@ -1321,6 +1301,7 @@ srch
 ss
 ssize
 statlog
+statvfs
 stb
 stdbool
 stderr
@@ -1330,8 +1311,6 @@ stepp
 stlr
 stlrb
 stlrh
-storebool
-storevbool
 str
 strace
 strcat
@@ -1392,6 +1371,7 @@ timespec
 tinfo
 tlb
 tmp
+tmstmp
 tod
 tokenizer
 toklen
@@ -1416,7 +1396,6 @@ tryrdlock
 trywrlock
 tsan
 tsc
-tupdate
 tw
 txn
 txnid
@@ -1480,13 +1459,12 @@ vPodir
 vW
 va
 validator
-vals
 valuep
 valuev
-vanishingly
 variadic
 vd
 vdata
+ve
 vec
 vectorized
 verifier
@@ -1508,6 +1486,7 @@ waker
 wakeup
 wakeups
 warmup
+wc
 whitespace
 wiredTiger
 wiredTigerTables
@@ -1519,6 +1498,7 @@ writelock
 writeunlock
 wrlock
 wrlsn
+wtch
 wthread
 wti
 wtobj
@@ -1546,3 +1526,4 @@ zu
 zyxwvutsrqponmlkjihgfedcba
 zz
 zzz
+zzzz

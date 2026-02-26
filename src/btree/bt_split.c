@@ -594,7 +594,7 @@ err:
  */
 static int
 __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *parent, size_t *decrp,
-  uint64_t split_gen, bool exclusive, bool page_replacement)
+  uint64_t split_gen, bool exclusive)
 {
     WT_DECL_RET;
     WT_IKEY *ikey;
@@ -622,7 +622,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     __wt_free(session, ref->page_del);
 
     /* Free the backing block and address. */
-    WT_TRET(__wt_ref_block_free(session, ref, page_replacement));
+    WT_TRET(__wt_ref_block_free(session, ref, true));
 
     /*
      * We cannot discard any ref in the prefetch queue, otherwise, the prefetch thread would read
@@ -814,12 +814,21 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     split_gen = __wt_gen(session, WT_GEN_SPLIT);
     parent->pg_intl_split_gen = split_gen;
 
+    /*
+     * Mark the page ref's rec_state as dirty. We cannot race with checkpoint as internal page
+     * cannot split during checkpoint.
+     */
+    if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
+        __wt_atomic_store_uint8_v_release(&ref->rec_state, WT_REF_REC_DIRTY);
+
+    /* Disable building delta for the parent page if we split. */
+    F_SET_ATOMIC_16(parent, WT_PAGE_INTL_PINDEX_UPDATE);
+
     if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_KEY_OUT_OF_ORDER))
         WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, parent));
 
     /* The split is complete and verified, ignore benign errors. */
     complete = WT_ERR_IGNORE;
-    F_SET_ATOMIC_16(parent, WT_PAGE_INTL_PINDEX_UPDATE);
 
     /*
      * The new page index is in place. Threads cursoring in the tree are blocked because the WT_REF
@@ -832,14 +841,14 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
      */
     if (discard) {
         WT_ASSERT(session, exclusive || WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
-        WT_TRET(__split_parent_discard_ref(
-          session, ref, parent, &parent_decr, split_gen, exclusive, new_entries == 1));
+        WT_TRET(
+          __split_parent_discard_ref(session, ref, parent, &parent_decr, split_gen, exclusive));
     }
     for (i = 0; i < deleted_entries; ++i) {
         next_ref = pindex->index[deleted_refs[i]];
         WT_ASSERT(session, WT_REF_GET_STATE(next_ref) == WT_REF_LOCKED);
         WT_TRET(__split_parent_discard_ref(
-          session, next_ref, parent, &parent_decr, split_gen, exclusive, false));
+          session, next_ref, parent, &parent_decr, split_gen, exclusive));
     }
 
     /*
@@ -1026,6 +1035,10 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
         } else
             ref->ref_recno = (*page_refp)->ref_recno;
         F_SET(ref, WT_REF_FLAG_INTERNAL);
+
+        if (WT_DELTA_INT_ENABLED(btree, S2C(session)))
+            __wt_atomic_store_uint8_v_relaxed(&ref->rec_state, WT_REF_REC_DIRTY);
+
         WT_REF_SET_STATE(ref, WT_REF_MEM);
 
         /*
@@ -1432,7 +1445,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     size_t free_size;
     uint64_t recno, txnid;
     uint32_t i, slot;
-    bool free_updates, instantiate_upd;
+    bool instantiate_upd;
 
     /*
      * This code re-creates an in-memory page from a disk image, and adds references to any
@@ -1465,8 +1478,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * garbage collect the history store pages at the page level since all its content has a stop
      * timestamp.
      */
-    if (instantiate_upd && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-      !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) && !WT_IS_HS(session->dhandle))
+    if (instantiate_upd && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) &&
+      !WT_IS_HS(session->dhandle))
         WT_RET(__wti_page_inmem_updates(session, ref));
 
     __wt_evict_inherit_page_state(orig, page);
@@ -1484,16 +1497,10 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * If there are no updates to apply to the page, we're done. Otherwise, there are updates we
      * need to restore.
      */
-    if (!multi->supd_restore)
+    if (!F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
         return (0);
 
     free_size = 0;
-    /*
-     * We can't truncate the updates for an in-memory database or an in-memory btree as we cannot
-     * insert the older updates to the history store.
-     */
-    free_updates =
-      !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY);
 
     if (orig->type == WT_PAGE_ROW_LEAF)
         WT_RET(__wt_scr_alloc(session, 0, &key));
@@ -1522,7 +1529,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
          * we may still fail. If we fail, we will append them back to their original update chains.
          * Truncate before we restore them to ensure the size of the page is correct.
          */
-        if (free_updates && supd->onpage_upd != NULL) {
+        if (supd->onpage_upd != NULL) {
             /*
              * If we have written a prepared update, we need to retain the next update that is not a
              * tombstone. Otherwise, we don't have anything to write in the next reconciliation if
@@ -1565,6 +1572,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                     if (WT_UPDATE_DATA_VALUE(tmp))
                         break;
                 }
+
                 if (tmp != NULL) {
                     supd->free_upds = tmp->next;
                     tmp->next = NULL;
@@ -1612,7 +1620,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
         last_upd = NULL;
 
         switch (orig->type) {
-        case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
             /* Build a key. */
             recno = WT_INSERT_RECNO(supd->ins);
@@ -1722,12 +1729,13 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
 
     /*
      * If we have saved updates, we must have decided to restore them to the new page except for
-     * btrees with delta enabled.
+     * disaggregated btrees.
      */
-    WT_ASSERT(
-      session, WT_DELTA_LEAF_ENABLED(session) || multi->supd_entries == 0 || multi->supd_restore);
+    WT_ASSERT(session,
+      F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) || multi->supd_entries == 0 ||
+        F_ISSET(multi, WT_MULTI_SUPD_RESTORE));
 
-    if (!multi->supd_restore)
+    if (!F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
         return;
 
     /*
@@ -1766,31 +1774,30 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mult
     WT_UPDATE *upd;
     uint32_t i, slot;
 
-    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
-        /* Append the onpage values back to the original update chains. */
-        for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
-            /*
-             * We don't need to do anything for update chains that are not restored, or restored
-             * without an onpage value.
-             */
-            if (!supd->restore || supd->onpage_upd == NULL)
-                continue;
+    /* Append the onpage values back to the original update chains. */
+    for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
+        /*
+         * We don't need to do anything for update chains that are not restored, or restored without
+         * an onpage value.
+         */
+        if (!supd->restore || supd->onpage_upd == NULL)
+            continue;
 
-            if (supd->free_upds == NULL)
-                continue;
+        if (supd->free_upds == NULL)
+            continue;
 
-            if (supd->ins == NULL) {
-                /* Note: supd->ins is never null for column-store. */
-                slot = WT_ROW_SLOT(orig, supd->rip);
-                upd = orig->modify->mod_row_update[slot];
-            } else
-                upd = supd->ins->upd;
+        if (supd->ins == NULL) {
+            /* Note: supd->ins is never null for column-store. */
+            slot = WT_ROW_SLOT(orig, supd->rip);
+            upd = orig->modify->mod_row_update[slot];
+        } else
+            upd = supd->ins->upd;
 
-            WT_ASSERT(session, upd != NULL);
-            for (; upd->next != NULL; upd = upd->next)
-                ;
-            upd->next = supd->free_upds;
-        }
+        WT_ASSERT(session, upd != NULL);
+        for (; upd->next != NULL; upd = upd->next)
+            ;
+        upd->next = supd->free_upds;
+    }
 
     /*
      * We failed creating new in-memory pages. For error-handling reasons, we've left the update
@@ -1829,10 +1836,10 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
     WT_ASSERT(session, !closing || multi->addr.block_cookie != NULL);
 
     /* If closing the file, there better not be any updates to restore. */
-    WT_ASSERT(session, !closing || !multi->supd_restore);
+    WT_ASSERT(session, !closing || !F_ISSET(multi, WT_MULTI_SUPD_RESTORE));
 
     /* If we don't have a disk image, we can't restore the saved updates. */
-    WT_ASSERT(session, multi->disk_image != NULL || !multi->supd_restore);
+    WT_ASSERT(session, multi->disk_image != NULL || !F_ISSET(multi, WT_MULTI_SUPD_RESTORE));
 
     /* Verify any disk image we have. */
     WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_DISK_VALIDATE,
@@ -1893,8 +1900,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
      * freeing the reference array would have to avoid freeing the memory, and it's not worth the
      * confusion.
      *
-     * If it is a one to one page rewrite and we skipped writing the empty delta, copy the previous
-     * address from the old ref to the new ref. Otherwise, we will lose the disk address.
+     * If it is a one to one page rewrite and we skipped writing the page, copy the previous address
+     * from the old ref to the new ref. Otherwise, we will lose the disk address.
      */
     if (multi->addr.block_cookie != NULL) {
         WT_RET(__wt_calloc_one(session, &addr));
@@ -1920,6 +1927,9 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
             addr->type = old_addr->type;
         }
     }
+
+    if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
+        __wt_atomic_store_uint8_v_relaxed(&ref->rec_state, WT_REF_REC_DIRTY);
 
     /*
      * If we have a disk image and we're not closing the file, re-instantiate the page.
@@ -2027,6 +2037,10 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child = split_ref[1];
     child->page = right;
     F_SET(child, WT_REF_FLAG_LEAF);
+
+    if (WT_DELTA_INT_ENABLED(S2BT(session), S2C(session)))
+        __wt_atomic_store_uint8_v_relaxed(&child->rec_state, WT_REF_REC_DIRTY);
+
     WT_REF_SET_STATE(child, WT_REF_MEM); /* Visible as soon as the split completes. */
     if (type == WT_PAGE_ROW_LEAF) {
         WT_ERR(__wti_row_ikey(
@@ -2034,16 +2048,6 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
         parent_incr += sizeof(WT_IKEY) + WT_INSERT_KEY_SIZE(moved_ins);
     } else
         child->ref_recno = WT_INSERT_RECNO(moved_ins);
-
-    /*
-     * Allocation operations completed, we're going to split.
-     *
-     * Record the fixed-length column-store split page record, used in reconciliation.
-     */
-    if (type == WT_PAGE_COL_FIX) {
-        WT_ASSERT(session, page->modify->mod_col_split_recno == WT_RECNO_OOB);
-        page->modify->mod_col_split_recno = child->ref_recno;
-    }
 
     /*
      * Calculate how much memory we're moving: figure out how deep the skip list stack is for the
@@ -2168,14 +2172,6 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_STAT_CONN_DSRC_INCR(session, cache_inmem_split);
         return (0);
     }
-
-    /*
-     * Failure.
-     *
-     * Reset the fixed-length column-store split page record.
-     */
-    if (type == WT_PAGE_COL_FIX)
-        page->modify->mod_col_split_recno = WT_RECNO_OOB;
 
     /*
      * Clear the allocated page's reference to the moved insert list element so it's not freed when
@@ -2476,12 +2472,12 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool 
      * page doesn't have any skipped updates.
      */
     __wt_page_modify_clear(session, page);
-    if (!F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_SCRUB) || multi->supd_restore)
+    if (!F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_SCRUB) ||
+      F_ISSET(multi, WT_MULTI_SUPD_RESTORE))
         F_SET_ATOMIC_16(page, WT_PAGE_EVICT_NO_PROGRESS);
 
     /* If there's an address, copy it. */
     if (multi->addr.block_cookie != NULL) {
-        WT_ASSERT(session, WT_DELTA_LEAF_ENABLED(session));
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &multi->addr.ta);
         WT_ERR(__wt_memdup(

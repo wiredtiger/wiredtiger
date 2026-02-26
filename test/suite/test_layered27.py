@@ -27,13 +27,11 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import platform, wttest
-from helper_disagg import disagg_test_class, gen_disagg_storages
-from test_layered23 import Oplog
+from helper_disagg import disagg_test_class, gen_disagg_storages, Oplog
 from wtscenario import make_scenarios
 
 # test_layered27.py
 # Test draining the ingest table
-@wttest.skip_for_hook("tiered", "FIXME-WT-14938: crashing with tiered hook.")
 @disagg_test_class
 class test_layered27(wttest.WiredTigerTestCase):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
@@ -50,8 +48,16 @@ class test_layered27(wttest.WiredTigerTestCase):
 
     uri = 'layered:test_layered27'
 
+    @property
+    def base_config(self):
+        return self.extensionsConfig() + self.conn_base_config
+
     def conn_config(self):
-        return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
+        return self.base_config + 'disaggregated=(role="leader")'
+
+    @property
+    def conn_follower_config(self):
+        return self.base_config + 'disaggregated=(role="follower")'
 
     def test_drain_insert_update(self):
         # Create the oplog
@@ -63,7 +69,7 @@ class test_layered27(wttest.WiredTigerTestCase):
 
         # Create the follower and create its table
         # To keep this test relatively easy, we're only using a single URI.
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
+        conn_follow = self.wiredtiger_open('follower', self.conn_follower_config)
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, "key_format=S,value_format=S")
 
@@ -82,7 +88,7 @@ class test_layered27(wttest.WiredTigerTestCase):
         oplog.insert(t, 100 * self.multiplier)
         oplog.update(t, 200 * self.multiplier)
 
-        # FIXME-WT-15388: Re-enable once we can abandon changes after stepping down.
+        # FIXME-WT-15763: Re-enable once we can abandon changes after stepping down.
         # oplog.apply(self, self.session, 100 * self.multiplier, 300 * self.multiplier)
         # oplog.check(self, self.session, 0, 400 * self.multiplier)
 
@@ -108,7 +114,7 @@ class test_layered27(wttest.WiredTigerTestCase):
 
         # Reopen the new leader as follower to get rid of the content in the ingest table
         conn_follow.close()
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
+        conn_follow = self.wiredtiger_open('follower', self.conn_follower_config)
         session_follow = conn_follow.open_session('')
 
         # Ensure everything is in the new checkpoint
@@ -124,7 +130,7 @@ class test_layered27(wttest.WiredTigerTestCase):
 
         # Create the follower and create its table
         # To keep this test relatively easy, we're only using a single URI.
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
+        conn_follow = self.wiredtiger_open('follower', self.conn_follower_config)
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, "key_format=S,value_format=S")
 
@@ -142,7 +148,7 @@ class test_layered27(wttest.WiredTigerTestCase):
         # Delete some updates
         oplog.remove(t, 100 * self.multiplier)
 
-        # FIXME-WT-15388: Re-enable once we can abandon changes after stepping down.
+        # FIXME-WT-15763: Re-enable once we can abandon changes after stepping down.
         # oplog.apply(self, self.session, 100 * self.multiplier, 100 * self.multiplier)
         # oplog.check(self, self.session, 0, 200 * self.multiplier)
 
@@ -168,11 +174,71 @@ class test_layered27(wttest.WiredTigerTestCase):
 
         # Reopen the new leader as follower to get rid of the content in the ingest table
         conn_follow.close()
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
+        conn_follow = self.wiredtiger_open('follower', self.conn_follower_config)
         session_follow = conn_follow.open_session('')
 
         # Ensure everything is in the new checkpoint
         oplog.check(self, session_follow, 0, 200 * self.multiplier)
+
+    # This test ensures there are no consecutive tombstones in the update chain
+    # when draining the ingest table.
+    # See also: WT-15721, WT-16085.
+    def test_drain_insert_remove_within_same_transaction(self):
+        key = 'key1'
+        ts1, ts2, ts3, ts4, ts5 = 10, 20, 30, 40, 50
+
+        # Create the layered table on both leader and follower.
+        self.session.create(self.uri, "key_format=S,value_format=S")
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.session = self.conn.open_session('')
+        cursor = self.session.open_cursor(self.uri)
+
+        # 1. Insert the key at T1.
+        self.session.begin_transaction()
+        cursor[key] = str(ts1)
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(ts1)}')
+
+        # 2. Delete the key at T2.
+        self.session.begin_transaction()
+        cursor.set_key(key)
+        cursor.remove()
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(ts2)}')
+
+        # 3. Start inserting the key again.
+        self.session.begin_transaction()
+        cursor[key] = str(ts3)
+
+        # 4. Delete the key inside the same transaction.
+        cursor.set_key(key)
+        cursor.remove()
+
+        # 5. Commit that transaction at T3.
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(ts3)}')
+
+        # 6. Insert the key at T4.
+        self.session.begin_transaction()
+        cursor[key] = str(ts4)
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(ts4)}')
+
+        # 7. Insert the key again at T5.
+        self.session.begin_transaction()
+        cursor[key] = str(ts5)
+        self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(ts5)}')
+
+        cursor.close()
+
+        # 8. Step up: promote the follower connection to leader so ingest state drains.
+        self.conn.reconfigure('disaggregated=(role="leader")')
+
+        # 9. Make T5 stable on the stepped-up connection.
+        ts5_str = self.timestamp_str(ts5)
+        self.conn.set_timestamp(f'stable_timestamp={ts5_str}')
+
+        # 10. Checkpoint to drain the ingest table into the base table.
+        self.session.checkpoint()
+
+        # End of test.
+        self.conn.close()
 
     def test_drain_remove_insert(self):
         # Create the oplog
@@ -184,7 +250,7 @@ class test_layered27(wttest.WiredTigerTestCase):
 
         # Create the follower and create its table
         # To keep this test relatively easy, we're only using a single URI.
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
+        conn_follow = self.wiredtiger_open('follower', self.conn_follower_config)
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, "key_format=S,value_format=S")
 
@@ -203,7 +269,7 @@ class test_layered27(wttest.WiredTigerTestCase):
         oplog.remove(t, 100 * self.multiplier)
         oplog.insert(t, 100 * self.multiplier, 0)
 
-        # FIXME-WT-15388: Re-enable once we can abandon changes after stepping down.
+        # FIXME-WT-15763: Re-enable once we can abandon changes after stepping down.
         # oplog.apply(self, self.session, 100 * self.multiplier, 200 * self.multiplier)
         # oplog.check(self, self.session, 0, 300 * self.multiplier)
 
@@ -229,7 +295,7 @@ class test_layered27(wttest.WiredTigerTestCase):
 
         # Reopen the new leader as follower to get rid of the content in the ingest table
         conn_follow.close()
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
+        conn_follow = self.wiredtiger_open('follower', self.conn_follower_config)
         session_follow = conn_follow.open_session('')
 
         # Ensure everything is in the new checkpoint

@@ -49,10 +49,6 @@
  *	Data cells (a WT_CELL_{VALUE,VALUE_COPY,VALUE_OVFL} cell), or deleted
  * cells (a WT_CELL_DEL cell).
  *
- * WT_PAGE_COL_FIX (Column-store leaf page storing fixed-length data):
- *      Pairs of WT_CELL_KEY and WT_CELL_VALUE, where the key is always a recno,
- * and the value is empty but contains a non-empty time window.
- *
  * Each cell starts with a descriptor byte:
  *
  * Bits 1 and 2 are reserved for "short" key and value cells (that is, a cell
@@ -131,6 +127,9 @@
  * smaller size will pack into a single byte instead of two.
  */
 #define WT_CELL_SIZE_ADJUST (WT_CELL_SHORT_MAX + 1)
+
+/* Don't increase key prefix-compression unless there's a significant gain. */
+#define WTI_CELL_KEY_PREFIX_PREVIOUS_MINIMUM 10
 
 /*
  * WT_CELL --
@@ -228,7 +227,7 @@ struct __wt_cell_unpack_delta_int {
     WT_CELL_UNPACK_ADDR value;
 };
 
-#define WT_DELTA_LEAF_VALUE_FORMAT WT_UNCHECKED_STRING(uB)
+#define WT_DELTA_LEAF_VALUE_FORMAT WT_UNCHECKED_STRING(Bu)
 
 /*
  * WT_CELL_UNPACK_DELTA_LEAF_KV --
@@ -242,4 +241,15 @@ struct __wt_cell_unpack_delta_leaf_kv {
 
 #define WT_DELTA_LEAF_IS_DELETE 0x1u
     uint8_t flags;
+};
+
+/*
+ * WT_REC_KV--
+ *	An on-page key/value item we're building.
+ */
+struct __wt_cell_kv {
+    WT_ITEM buf;  /* Data */
+    WT_CELL cell; /* Cell and cell's length */
+    size_t cell_len;
+    size_t len; /* Total length of cell + data */
 };

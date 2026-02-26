@@ -282,9 +282,6 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
 
     # Our current tiered storage implementation has a slow version of truncate, and
     # some tests are sensitive to that.
-    #
-    # FIXME-WT-11023: when we implement a fast truncate for tiered storage, we might remove
-    # this, and visit tests that are marked with @wttest.prevent(..."slow_truncate"...)
     def uses(self, use_list):
         if "slow_truncate" in use_list:
             return True
@@ -296,7 +293,9 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
     def should_skip(self, test) -> (bool, str):
         skip_categories = [
             ("backup",               "Can't backup a tiered table"),
+            ("disagg",               "Disagg tests are not supported with tiered storage"),
             ("inmem",                "In memory tests don't make sense with tiered storage"),
+            ("layered",              "Layered tests are not supported with tiered storage"),
             ("live_restore",         "Live restore is not supported with tiered storage"),
             ("modify_smoke_recover", "Copying WT dir doesn't copy the bucket directory"),
             ("test_config_json",     "Tiered hook's create function can't handle a json config string"),

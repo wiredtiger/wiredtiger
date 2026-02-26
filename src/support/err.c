@@ -788,6 +788,26 @@ __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
 }
 
 /*
+ * __wt_progress_backoff --
+ *     Emit progress messages only when the leading two digits of 'v' change, so the reporting
+ *     interval grows with 'v' and avoids excessive logging.
+ */
+int
+__wt_progress_backoff(WT_SESSION_IMPL *session, const char *s, uint64_t v)
+{
+    WT_DECL_RET;
+    /*
+     * Using v - 1 is safe even when v == 0 because the check is edge-triggered.
+     */
+    uint64_t base, v_last = v - 1;
+    for (base = 1; v / base > 100; base *= 10)
+        ;
+    if (v / base != v_last / base)
+        ret = __wt_progress(session, s, v);
+    return (ret);
+}
+
+/*
  * __wt_inmem_unsupported_op --
  *     Print a standard error message for an operation that's not supported for in-memory
  *     configurations.
@@ -984,4 +1004,16 @@ __wt_error_log_to_handler(WT_SESSION_IMPL *session)
     }
 
     __wt_error_log_clear(); /* Avoid double reporting the same errors. */
+}
+
+/*
+ * __wt_verbose_category_string --
+ *     Return a string representation for a verbose category.
+ */
+const char *
+__wt_verbose_category_string(WT_VERBOSE_CATEGORY category)
+{
+    WT_ASSERT(NULL, category < WT_VERB_NUM_CATEGORIES);
+
+    return (category < WT_VERB_NUM_CATEGORIES) ? verbose_category_strings[category] : "unknown";
 }

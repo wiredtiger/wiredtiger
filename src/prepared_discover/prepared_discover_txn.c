@@ -39,6 +39,47 @@ __wt_prepared_discover_find_item(
 }
 
 /*
+ * __prepare_discover_alloc_upd --
+ *     Create the actual update for a pending prepared value.
+ */
+static int
+__prepare_discover_alloc_upd(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
+  WT_UPDATE **updp, size_t *sizep)
+{
+    WT_UPDATE *upd;
+
+    *sizep = 0;
+    upd = NULL;
+    if (WT_TIME_WINDOW_HAS_STOP_PREPARE(&(unpack->tw))) {
+        /*
+         * Usually we would allocate a tombstone update when seeing a stop timestamp. However in
+         * this code flow, we're restoring the update into ingest table with no tombstone allowed,
+         * create a standard update with a special tombstone value instead of a tombstone. In the
+         * case where the update has both start and stop prepared, no need to restore the start
+         * prepared.
+         */
+        WT_RET(__wt_upd_alloc(session, &__wt_tombstone, WT_UPDATE_STANDARD, &upd, sizep));
+        upd->txnid = unpack->tw.stop_txn;
+        upd->prepared_id = unpack->tw.stop_prepared_id;
+        upd->prepare_ts = unpack->tw.stop_prepare_ts;
+        upd->upd_durable_ts = WT_TS_NONE;
+        upd->upd_start_ts = unpack->tw.stop_prepare_ts;
+        upd->prepare_state = WT_PREPARE_INPROGRESS;
+    } else {
+        WT_ASSERT(session, WT_TIME_WINDOW_HAS_START_PREPARE(&(unpack->tw)));
+        WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, sizep));
+        upd->txnid = unpack->tw.start_txn;
+        upd->prepared_id = unpack->tw.start_prepared_id;
+        upd->prepare_ts = unpack->tw.start_prepare_ts;
+        upd->upd_durable_ts = WT_TS_NONE;
+        upd->upd_start_ts = unpack->tw.start_prepare_ts;
+        upd->prepare_state = WT_PREPARE_INPROGRESS;
+    }
+    *updp = upd;
+    return (0);
+}
+
+/*
  * __pending_prepare_items_init --
  *     Initialize pending prepared txn hash map.
  */
@@ -132,15 +173,16 @@ __wt_prepared_discover_remove_item(WT_SESSION_IMPL *session, uint64_t prepared_i
  *     Add an artifact to a pending prepared transaction.
  */
 int
-__wti_prepared_discover_add_artifact_upd(
-  WT_SESSION_IMPL *session, uint64_t prepared_id, WT_ITEM *key, WT_UPDATE *upd)
+__wti_prepared_discover_add_artifact_upd(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_ITEM *key)
 {
     WT_PENDING_PREPARED_ITEM *prepared_item;
     WT_TXN_OP *op;
-
     WT_RET(__prepared_discover_find_or_create_item(
-      session, prepared_id, upd->prepare_ts, &prepared_item));
-
+      session, upd->prepared_id, upd->prepare_ts, &prepared_item));
+    /*
+     * We need the key and btree information to help with the search of the update when resolving
+     * txn.
+     */
     WT_RET(__wt_pending_prepared_next_op(session, &op, prepared_item, key));
     WT_RET(__wt_op_modify(session, upd, op));
 
@@ -153,32 +195,57 @@ __wti_prepared_discover_add_artifact_upd(
 }
 
 /*
- * __wti_prepared_discover_add_artifact_ondisk_row --
- *     Add an artifact to a pending prepared transaction.
+ * __wti_prepared_discover_restore_and_add_artifact_upd --
+ *     In disaggregated storage, in follower mode, stable table cannot be modified, therefore a
+ *     prepared update needs to be restored onto ingest table so that the follower node can then
+ *     commit the prepared transaction. This function opens the ingest table and inserts the update
+ *     restored from disk onto the ingest table.
  */
 int
-__wti_prepared_discover_add_artifact_ondisk_row(
-  WT_SESSION_IMPL *session, uint64_t prepared_id, WT_TIME_WINDOW *tw, WT_ITEM *key)
+__wti_prepared_discover_restore_and_add_artifact_upd(WT_SESSION_IMPL *session,
+  const char *stable_uri, WT_ITEM *key, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack)
 {
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *cursor;
+    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
+    WT_LAYERED_TABLE_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     WT_UPDATE *upd;
+    uint32_t i, table_count;
 
-    /*
-     * Create an update structure with the time information and state populated - that allows this
-     * code to reuse existing machinery for installing transaction operations.
-     */
-    WT_RET(__wt_upd_alloc(session, NULL, WT_UPDATE_STANDARD, &upd, NULL));
-    upd->txnid = session->txn->id;
-    upd->upd_durable_ts = tw->durable_start_ts;
-    upd->prepare_state = WT_PREPARE_INPROGRESS;
-    upd->prepared_id = prepared_id;
-    upd->upd_start_ts = upd->prepare_ts = tw->start_prepare_ts;
-    WT_ERR(__wti_prepared_discover_add_artifact_upd(session, prepared_id, key, upd));
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL, NULL};
+
+    cursor = NULL;
+    entry = NULL;
+    conn = S2C(session);
+    manager = &conn->layered_table_manager;
+    table_count = manager->open_layered_table_count;
+    for (i = 0; i < table_count; i++) {
+        /* Find the entry with stable uri that matches the currently opened dhandle. */
+        if (manager->entries[i] != NULL) {
+            if (WT_PREFIX_MATCH(stable_uri, manager->entries[i]->stable_uri)) {
+                entry = manager->entries[i];
+                break;
+            }
+        }
+    }
+    WT_ASSERT_ALWAYS(
+      session, entry != NULL, "Unable to find matching ingest table to restore prepared update");
+    /* Open cursor on the ingest table */
+    WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &cursor));
+
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    size_t size;
+    WT_ERR(__prepare_discover_alloc_upd(session, value, unpack, &upd, &size));
+
+    /* Search the page and apply the modification. */
+    WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
+    WT_ERR(ret);
+    WT_ERR(__wt_row_modify(cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
+    WT_ERR(__wti_prepared_discover_add_artifact_upd(session, upd, key));
 err:
-    /*
-     * It's OK to free the update now, the transaction structure will lookup using the key since
-     * this is for a prepared transaction.
-     */
-    __wt_free_update_list(session, &upd);
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
     return (ret);
 }
