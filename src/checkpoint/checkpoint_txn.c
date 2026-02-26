@@ -1437,10 +1437,12 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      */
     __checkpoint_verbose_track(session, "updating oldest transaction");
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_UPDATE_OLDEST);
+
     WT_ERR(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
     /* Flush data-sources before we start the checkpoint. */
     __checkpoint_verbose_track(session, "flushing data sources");
+    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_FLUSH_DATASOURCES);
     WT_ERR(__checkpoint_data_source(session, cfg));
 
     /*
@@ -1448,6 +1450,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * section of the checkpoint.
      */
     __checkpoint_verbose_track(session, "reducing dirty cache");
+    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_SCRUB);
     __checkpoint_wait_reduce_dirty_cache(session);
     __checkpoint_verbose_track(session, "dirty cache reduction complete");
 
@@ -1494,6 +1497,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * Hold the schema lock while starting the transaction and gathering handles so the set we get
      * is complete and correct.
      */
+    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_PREPARE);
+
     WT_WITH_SCHEMA_LOCK(session, ret = __checkpoint_prepare(session, &tracking, cfg));
     WT_ERR(ret);
     __checkpoint_verbose_track(session, "checkpoint prepare complete");
@@ -1540,6 +1545,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_SLOW, &tsp);
 
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_CKPT_TREE);
+
     __checkpoint_verbose_track(session, "checkpointing individual trees");
 
     time_start_ckpt_tree = __wt_clock(session);
@@ -1623,6 +1629,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * We have to update the system information before we release the snapshot. Drop the system
      * information for checkpoints we're dropping first in case the names overlap.
      */
+    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_UPDATE_METADATA);
+
     if (session->ckpt.drop_list != NULL) {
         __checkpoint_drop_list_execute(session, session->ckpt.drop_list);
         __wt_scr_free(session, &session->ckpt.drop_list);
@@ -1635,6 +1643,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_STAT_CONN_SET(session, checkpoint_snapshot_acquired, 0);
 
     /* Mark all trees as open for business (particularly eviction). */
+    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_PRESYNC);
+
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_presync));
     __checkpoint_verbose_track(session, "presync complete");
 
@@ -1656,7 +1666,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(ret);
     }
     if (hs_dhandle_shared != NULL && F_ISSET(hs_dhandle_shared, WT_DHANDLE_OPEN)) {
-        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS_SYNC);
+        WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_HS_SHARED_SYNC);
         WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint_sync(session, NULL));
         WT_ERR(ret);
     }
@@ -1680,6 +1690,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * files in the checkpoint are now in a consistent state.
      */
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_COMMIT);
+
     WT_ERR(__wt_txn_commit(session, NULL));
     __checkpoint_verbose_track(session, "transaction committed");
 
@@ -1751,6 +1762,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     saved_meta_next = session->meta_track_next;
     session->meta_track_next = NULL;
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_META_CKPT);
+
     WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
       WT_WITH_METADATA_LOCK(session, ret = __wt_checkpoint_file(session, cfg)));
     session->meta_track_next = saved_meta_next;
@@ -1801,6 +1813,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 err:
     /* Now that checkpoint is finished, wind the eviction triggers back to their default values. */
     __checkpoint_verbose_track(session, "entering cleanup/error handling");
+    WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_CLEANUP);
+
     __checkpoint_update_evict_triggers_end(session, &precise_ckpt_saved_triggers);
 
     /*
@@ -1839,6 +1853,7 @@ err:
         WT_DHANDLE_CLEAR(session);
         __checkpoint_verbose_track(session, "rolling back transaction");
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_ROLLBACK);
+
         WT_TRET(__wt_txn_rollback(session, NULL, false));
         __checkpoint_verbose_track(session, "transaction rollback complete");
     }
