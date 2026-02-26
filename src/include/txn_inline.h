@@ -136,7 +136,7 @@ __txn_op_need_set_key(WT_TXN *txn, WT_TXN_OP *op)
      * We save the key for resolving the prepared updates. However, if we have already set the
      * commit timestamp, the transaction cannot be prepared. Therefore, no need to save the key.
      */
-    if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
         return (false);
 
     /* History store writes cannot be prepared. */
@@ -283,7 +283,7 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
      * We're about to perform an update. Make sure we have allocated a transaction ID.
      */
     WT_RET(__wt_txn_id_check(session));
-    WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_ID));
+    WT_ASSERT(session, F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID));
 
     WT_RET(__wt_realloc_def(session, &txn->mod_alloc, txn->mod_count + 1, &txn->mod));
 
@@ -374,7 +374,7 @@ __wt_txn_unmodify(WT_SESSION_IMPL *session)
     WT_TXN_OP *op;
 
     txn = session->txn;
-    if (F_ISSET(txn, WT_TXN_HAS_ID)) {
+    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID)) {
         WT_ASSERT(session, txn->mod_count > 0);
         --txn->mod_count;
         op = txn->mod + txn->mod_count;
@@ -573,7 +573,7 @@ err:
 static WT_INLINE bool
 __txn_should_assign_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
-    if (!F_ISSET(session->txn, WT_TXN_HAS_TS_COMMIT))
+    if (!F_ISSET(&session->txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT))
         return (false);
     if (F_ISSET(op->btree, WT_BTREE_LOGGED))
         return (false);
@@ -598,7 +598,8 @@ __wt_txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_BTREE *btree, wt_tim
     txn = session->txn;
     flags = btree->dhandle->ts_flags;
     name = btree->dhandle->name;
-    txn_has_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_DURABLE);
+    txn_has_ts =
+      F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT | WT_TXN_TIME_POINT_HAS_TS_DURABLE);
 
     /* Timestamps are ignored on logged files. */
     if (F_ISSET(btree, WT_BTREE_LOGGED))
@@ -1310,7 +1311,8 @@ __wt_txn_snap_min_visible(
         return (false);
 
     /* Transactions read their writes, regardless of timestamps. */
-    if (F_ISSET(session->txn, WT_TXN_HAS_ID) && id == session->txn->time_point.id)
+    if (F_ISSET(&session->txn->time_point, WT_TXN_TIME_POINT_HAS_ID) &&
+      id == session->txn->time_point.id)
         return (true);
 
     /* Timestamp check. */
@@ -1329,7 +1331,8 @@ __wt_txn_visible(
         return (false);
 
     /* Transactions read their writes, regardless of timestamps. */
-    if (F_ISSET(session->txn, WT_TXN_HAS_ID) && id == session->txn->time_point.id)
+    if (F_ISSET(&session->txn->time_point, WT_TXN_TIME_POINT_HAS_ID) &&
+      id == session->txn->time_point.id)
         return (true);
 
     /* Timestamp check. */
@@ -1792,7 +1795,7 @@ __txn_incr_bytes_dirty(WT_SESSION_IMPL *session, size_t size, bool new_update)
      * or changes that are the result of the application thread being co-opted into eviction work.
      */
     if (!new_update || F_ISSET(session, WT_SESSION_INTERNAL) ||
-      !F_ISSET(session->txn, WT_TXN_RUNNING | WT_TXN_HAS_ID) ||
+      !F_ISSET(&session->txn->time_point, WT_TXN_RUNNING | WT_TXN_TIME_POINT_HAS_ID) ||
       __wt_session_gen(session, WT_GEN_EVICT) != 0)
         return;
 
@@ -1868,7 +1871,8 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
     WT_RET(__wt_prepared_discover_find_item(session, prepared_id, &prepared_item));
     txn->time_point.prepared_id = prepared_id;
     txn->time_point.prepare_timestamp = prepared_item->prepare_timestamp;
-    F_SET(txn, WT_TXN_PREPARE | WT_TXN_HAS_PREPARED_ID | WT_TXN_HAS_TS_PREPARE | WT_TXN_RUNNING);
+    F_SET(&txn->time_point, WT_TXN_TIME_POINT_HAS_PREPARED_ID | WT_TXN_TIME_POINT_HAS_TS_PREPARE);
+    F_SET(txn, WT_TXN_PREPARE | WT_TXN_RUNNING);
     /*
      * Swap mod array with prepared_item to avoid double-free on cursor close and when
      * commit/rollback.
@@ -1889,7 +1893,7 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, uint64_t prepared_id)
     WT_RET(__wt_prepared_discover_remove_item(session, prepared_id));
 
     /* There's no txn id since claimed prepared txn is from recovery */
-    WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_HAS_ID));
+    WT_ASSERT(session, !F_ISSET(&session->txn->time_point, WT_TXN_TIME_POINT_HAS_ID));
     return (ret);
 }
 
@@ -1994,7 +1998,7 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
      * read-only. The dirty cache check will be performed when the transaction completes, if
      * necessary.
      */
-    if (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_HAS_ID) &&
+    if (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID) &&
       __wt_atomic_load_uint64_v_relaxed(&txn_shared->pinned_id) == WT_TXN_NONE)
         WT_RET(__wt_evict_app_assist_worker_check(session, false, true, true, NULL));
 
@@ -2060,7 +2064,7 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
 
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
-    if (F_ISSET(txn, WT_TXN_HAS_ID))
+    if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID))
         return (0);
 
     /*
@@ -2086,7 +2090,7 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
      */
     if (txn->time_point.id == WT_TXN_ABORTED)
         WT_RET_MSG(session, WT_ERROR, "out of transaction IDs");
-    F_SET(txn, WT_TXN_HAS_ID);
+    F_SET(&txn->time_point, WT_TXN_TIME_POINT_HAS_ID);
 
     return (0);
 }

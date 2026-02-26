@@ -351,6 +351,23 @@ struct __wt_txn_time_point {
      * back. Only valid for prepared transactions under the preserve_prepared config.
      */
     wt_timestamp_t rollback_timestamp;
+
+    /*
+     * WT_TXN_TIME_POINT_HAS_TS_COMMIT --
+     *	The transaction time point has a set commit timestamp.
+     * WT_TXN_TIME_POINT_HAS_TS_DURABLE --
+     *	The transaction time point has an explicitly set durable timestamp (that is, it
+     *	hasn't been mirrored from its commit timestamp value).
+     */
+    /* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_TXN_TIME_POINT_HAS_ID 0x01u
+#define WT_TXN_TIME_POINT_HAS_PREPARED_ID 0x02u
+#define WT_TXN_TIME_POINT_HAS_TS_COMMIT 0x04u
+#define WT_TXN_TIME_POINT_HAS_TS_DURABLE 0x08u
+#define WT_TXN_TIME_POINT_HAS_TS_PREPARE 0x10u
+#define WT_TXN_TIME_POINT_HAS_TS_ROLLBACK 0x20u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    uint8_t flags;
 };
 
 /*
@@ -404,11 +421,6 @@ struct __wt_txn {
     uint64_t operation_timeout_us;
 
 /*
- * WT_TXN_HAS_TS_COMMIT --
- *	The transaction has a set commit timestamp.
- * WT_TXN_HAS_TS_DURABLE --
- *	The transaction has an explicitly set durable timestamp (that is, it
- *	hasn't been mirrored from its commit timestamp value).
  * WT_TXN_SHARED_TS_DURABLE --
  *	The transaction has been published to the durable queue. Setting this
  *	flag lets us know that, on release, we need to mark the transaction for
@@ -416,29 +428,23 @@ struct __wt_txn {
  */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_TXN_AUTOCOMMIT 0x000001u
-#define WT_TXN_ERROR 0x000002u
-#define WT_TXN_HAS_ID 0x000004u
-#define WT_TXN_HAS_PREPARED_ID 0x000008u
-#define WT_TXN_HAS_SNAPSHOT 0x000010u
-#define WT_TXN_HAS_TS_COMMIT 0x000020u
-#define WT_TXN_HAS_TS_DURABLE 0x000040u
-#define WT_TXN_HAS_TS_PREPARE 0x000080u
-#define WT_TXN_HAS_TS_ROLLBACK 0x000100u
-#define WT_TXN_IGNORE_PREPARE 0x000200u
-#define WT_TXN_IS_CHECKPOINT 0x000400u
-#define WT_TXN_PREPARE 0x000800u
-#define WT_TXN_PREPARE_IGNORE_API_CHECK 0x001000u
-#define WT_TXN_READONLY 0x002000u
-#define WT_TXN_REFRESH_SNAPSHOT 0x004000u
-#define WT_TXN_RUNNING 0x008000u
-#define WT_TXN_SHARED_TS_DURABLE 0x010000u
-#define WT_TXN_SHARED_TS_READ 0x020000u
-#define WT_TXN_SYNC_SET 0x040000u
-#define WT_TXN_TS_NOT_SET 0x080000u
-#define WT_TXN_TS_ROUND_PREPARED 0x100000u
-#define WT_TXN_TS_ROUND_READ 0x200000u
-#define WT_TXN_UPDATE 0x400000u
+#define WT_TXN_AUTOCOMMIT 0x00001u
+#define WT_TXN_ERROR 0x00002u
+#define WT_TXN_HAS_SNAPSHOT 0x00004u
+#define WT_TXN_IGNORE_PREPARE 0x00008u
+#define WT_TXN_IS_CHECKPOINT 0x00010u
+#define WT_TXN_PREPARE 0x00020u
+#define WT_TXN_PREPARE_IGNORE_API_CHECK 0x00040u
+#define WT_TXN_READONLY 0x00080u
+#define WT_TXN_REFRESH_SNAPSHOT 0x00100u
+#define WT_TXN_RUNNING 0x00200u
+#define WT_TXN_SHARED_TS_DURABLE 0x00400u
+#define WT_TXN_SHARED_TS_READ 0x00800u
+#define WT_TXN_SYNC_SET 0x01000u
+#define WT_TXN_TS_NOT_SET 0x02000u
+#define WT_TXN_TS_ROUND_PREPARED 0x04000u
+#define WT_TXN_TS_ROUND_READ 0x08000u
+#define WT_TXN_UPDATE 0x10000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags;
 
