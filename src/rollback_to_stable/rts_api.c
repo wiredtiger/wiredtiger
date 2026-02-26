@@ -150,7 +150,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
      * updated during the rollback to stable. Therefore, no synchronization is needed to read the
      * stable timestamp here.
      */
-    stable_timestamp = __wt_get_stable_timestamp_relaxed(session);
+    stable_timestamp = __wt_get_stable_timestamp(session);
     WT_ACQUIRE_READ_WITH_BARRIER(pinned_timestamp, txn_global->pinned_timestamp);
     __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
       WT_RTS_VERB_TAG_INIT
@@ -236,7 +236,7 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
      * access to the database. The stable timestamp should not be updated during the rollback to
      * stable. Therefore, no synchronization is needed to read the stable timestamp here.
      */
-    stable_timestamp = __wt_get_stable_timestamp_relaxed(session);
+    stable_timestamp = __wt_get_stable_timestamp(session);
     WT_ACQUIRE_READ_WITH_BARRIER(pinned_timestamp, conn->txn_global.pinned_timestamp);
 
     /* If the stable timestamp is not set, do not roll back based on it. */

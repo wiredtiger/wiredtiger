@@ -148,7 +148,7 @@ __time_aggregate_validate_parent_stable(
     wt_timestamp_t stable;
     char time_string[WT_TIME_STRING_SIZE], ts_string[WT_TS_INT_STRING_SIZE];
 
-    stable = __wt_get_stable_timestamp_acquire(session);
+    stable = __wt_get_stable_timestamp(session);
 
     if (ta->newest_start_durable_ts > stable)
         WT_TIME_ERROR("a newest start durable time after");
@@ -373,7 +373,7 @@ __time_value_validate_parent_stable(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw
     wt_timestamp_t stable;
     char time_string[WT_TIME_STRING_SIZE], ts_string[WT_TS_INT_STRING_SIZE];
 
-    stable = __wt_get_stable_timestamp_acquire(session);
+    stable = __wt_get_stable_timestamp(session);
 
     if (tw->durable_start_ts > stable)
         WT_TIME_ERROR("a durable start time after");

@@ -206,7 +206,7 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
         /* Read-only value forever. No lock needed. */
         ts = txn_global->recovery_timestamp;
     else if (WT_CONFIG_LIT_MATCH("stable_timestamp", cval) || WT_CONFIG_LIT_MATCH("stable", cval))
-        ts = __wt_get_stable_timestamp_relaxed(session);
+        ts = __wt_get_stable_timestamp(session);
     else
         WT_RET_MSG(session, EINVAL, "unknown timestamp query %.*s", (int)cval.len, cval.str);
 
@@ -559,7 +559,7 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
     has_oldest_ts = __wt_atomic_load_bool_acquire(&txn_global->has_oldest_timestamp);
     if (has_oldest_ts)
         oldest_ts = __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp);
-    stable_ts = __wt_get_stable_timestamp_acquire(session);
+    stable_ts = __wt_get_stable_timestamp(session);
     if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE)) {
         /* Compare against the first commit timestamp of the current transaction. */
         if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
@@ -696,7 +696,7 @@ __txn_validate_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durabl
     has_oldest_ts = __wt_atomic_load_bool_acquire(&txn_global->has_oldest_timestamp);
     if (has_oldest_ts)
         oldest_ts = __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp);
-    stable_ts = __wt_get_stable_timestamp_acquire(session);
+    stable_ts = __wt_get_stable_timestamp(session);
 
     if (has_oldest_ts && durable_ts < oldest_ts)
         WT_RET_MSG(session, EINVAL, "durable timestamp %s is less than the oldest timestamp %s",
@@ -807,7 +807,7 @@ __txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
     __txn_assert_after_reads(session, "prepare", prepare_ts);
 
     /* Check whether the prepare timestamp is less than the stable timestamp. */
-    stable_ts = __wt_get_stable_timestamp_acquire(session);
+    stable_ts = __wt_get_stable_timestamp(session);
     if (prepare_ts <= stable_ts) {
         /*
          * Check whether the application is using the "prepared" roundup mode. This rounds up to
@@ -989,7 +989,7 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
     __txn_assert_after_reads(session, "rollback", rollback_ts);
 
     /* Check whether the rollback timestamp is less than the stable timestamp. */
-    stable_ts = __wt_get_stable_timestamp_acquire(session);
+    stable_ts = __wt_get_stable_timestamp(session);
     if (rollback_ts <= stable_ts) {
         WT_RET_MSG(session, EINVAL,
           "rollback timestamp %s is not newer than the stable timestamp %s",

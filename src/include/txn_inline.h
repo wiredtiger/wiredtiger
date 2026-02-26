@@ -884,7 +884,7 @@ __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session)
      * disaggregated_stable_ts. If the checkpoint timestamp is 110 and the second time we read the
      * global stable timestamp as 120, we will return 120 instead of the checkpoint timestamp 110.
      */
-    wt_timestamp_t pinned_stable_ts = __wt_get_stable_timestamp_acquire(session);
+    wt_timestamp_t pinned_stable_ts = __wt_get_stable_timestamp(session);
     if (!F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
         return (pinned_stable_ts);
 

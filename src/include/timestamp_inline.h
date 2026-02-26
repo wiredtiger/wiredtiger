@@ -291,30 +291,11 @@
     ((ta)->newest_stop_txn != WT_TXN_MAX || (ta)->newest_stop_ts != WT_TS_MAX)
 
 /*
- * __wt_get_stable_timestamp_relaxed --
- *     Return the stable timestamp without any memory ordering guarantees. This is only appropriate
- *     for use in contexts where the caller already has a lock that prevents concurrent updates to
- *     the stable timestamp.
+ * __wt_get_stable_timestamp --
+ *     Return the stable timestamp with acquire memory ordering guarantees.
  */
 static WT_INLINE wt_timestamp_t
-__wt_get_stable_timestamp_relaxed(WT_SESSION_IMPL *session)
-{
-    WT_TXN_GLOBAL *txn_global;
-
-    txn_global = &S2C(session)->txn_global;
-    return (__wt_atomic_load_bool_relaxed(&txn_global->has_stable_timestamp) ?
-        __wt_atomic_load_uint64_relaxed(&txn_global->stable_timestamp) :
-        txn_global->recovery_timestamp);
-}
-
-/*
- * __wt_get_stable_timestamp_acquire --
- *     Return the stable timestamp with acquire memory ordering guarantees. This should be used in
- *     contexts where the caller does not have a lock that prevents concurrent updates to the stable
- *     timestamp.
- */
-static WT_INLINE wt_timestamp_t
-__wt_get_stable_timestamp_acquire(WT_SESSION_IMPL *session)
+__wt_get_stable_timestamp(WT_SESSION_IMPL *session)
 {
     WT_TXN_GLOBAL *txn_global;
 

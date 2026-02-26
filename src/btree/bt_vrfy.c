@@ -100,7 +100,7 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
     WT_RET(__wt_config_gets(session, cfg, "stable_timestamp", &cval));
     vs->stable_timestamp = WT_TS_NONE; /* Ignored unless a value has been set */
     if (cval.val != 0) {
-        vs->stable_timestamp = __wt_get_stable_timestamp_relaxed(session);
+        vs->stable_timestamp = __wt_get_stable_timestamp(session);
         if (vs->stable_timestamp == WT_TS_NONE)
             WT_RET_MSG(session, ENOTSUP,
               "cannot verify against the stable timestamp if it has not been set");

@@ -1463,7 +1463,7 @@ __txn_check_if_stable_has_moved_ahead_commit_ts(WT_SESSION_IMPL *session)
     txn = session->txn;
 
     if (txn->first_commit_timestamp != WT_TS_NONE &&
-      __wt_get_stable_timestamp_acquire(session) >= txn->first_commit_timestamp)
+      __wt_get_stable_timestamp(session) >= txn->first_commit_timestamp)
         WT_RET_MSG(session, EINVAL,
           "Rollback the transaction because the stable timestamp has moved ahead of the commit "
           "timestamp.");
@@ -1811,7 +1811,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      * transaction's durable timestamp. Otherwise, checkpoint may only write partial updates of the
      * transaction.
      */
-    stable_timestamp = __wt_get_stable_timestamp_acquire(session);
+    stable_timestamp = __wt_get_stable_timestamp(session);
     if (prepare && txn->durable_timestamp <= stable_timestamp) {
         WT_ERR(__wt_verbose_dump_sessions(session, true));
         WT_ERR_PANIC(session, WT_PANIC,

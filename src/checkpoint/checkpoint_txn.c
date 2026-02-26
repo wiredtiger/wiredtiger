@@ -960,8 +960,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
             WT_ERR(EINVAL);
 
         /* Precise checkpoint needs the stable timestamp. */
-        wt_timestamp_t stable_timestamp = __wt_get_stable_timestamp_acquire(session);
-        if (stable_timestamp == WT_TS_NONE)
+        if (__wt_get_stable_timestamp(session) == WT_TS_NONE)
             WT_ERR_MSG(session, EINVAL, "Precise checkpoint requires a stable timestamp");
     }
 
@@ -1051,7 +1050,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
          * or not a stable timestamp is actually in use. Only set it when we're not running recovery
          * because recovery doesn't set the recovery timestamp until its checkpoint is complete.
          */
-        wt_timestamp_t stable_timestamp = __wt_get_stable_timestamp_relaxed(session);
+        wt_timestamp_t stable_timestamp = __wt_get_stable_timestamp(session);
         if (stable_timestamp != WT_TS_NONE) {
             /* A checkpoint should never proceed when timestamps are out of order. */
             if (__wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp) &&
@@ -1179,7 +1178,7 @@ __checkpoint_can_skip(
      * skip checkpoints.
      */
     if (!conn->modified && use_timestamp && txn_global->last_ckpt_timestamp != WT_TS_NONE &&
-      txn_global->last_ckpt_timestamp == __wt_get_stable_timestamp_acquire(session)) {
+      txn_global->last_ckpt_timestamp == __wt_get_stable_timestamp(session)) {
         *can_skipp = true;
         return (0);
     }
