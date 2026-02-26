@@ -145,10 +145,6 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
      * Copy the stable timestamp, otherwise we'd need to lock it each time it's accessed. Even
      * though the stable timestamp isn't supposed to be updated while rolling back, accessing it
      * without a lock would violate protocol.
-     *
-     * Rollback to stable have exclusive access to the database. The stable timestamp should not be
-     * updated during the rollback to stable. Therefore, no synchronization is needed to read the
-     * stable timestamp here.
      */
     stable_timestamp = __wt_get_stable_timestamp(session);
     WT_ACQUIRE_READ_WITH_BARRIER(pinned_timestamp, txn_global->pinned_timestamp);
