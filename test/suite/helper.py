@@ -153,31 +153,34 @@ def simulate_crash_restart(testcase, olddir, newdir):
     testcase.conn = testcase.setUpConnectionOpen(newdir)
     testcase.session = testcase.setUpSessionOpen(testcase.conn)
 
-class WiredTigerStat:
-
-    def __init__(self, session, uri = None):
+class WiredTigerCursor:
+    def __init__(self, session, uri, *args, **kwargs):
         self.session = session
-        self.uri = "statistics:"
-        if uri:
-            self.uri += uri
+        self.uri = uri
+        self.args = args
+        self.kwargs = kwargs
+        self.cursor = None
+
+    def __enter__(self):
+        # Get a cursor
+        self.cursor = self.session.open_cursor(self.uri, *self.args, **self.kwargs)
+        return self.cursor
+
+    def __exit__(self, exception_type, exception_value, exception_traceback):
+        # TODO: do something here to handle exceptions
+        # Close the cursor
+        if self.cursor is not None:
+            self.cursor.close()
+class WiredTigerStat:
+    def __init__(self, session, uri = None):
+        self.uri = 'statistics:'
+        self.cursor_wrapper = WiredTigerCursor(session, self.uri + uri if uri else self.uri)
 
     def __enter__(self):
         # Get a statistics cursor
-        self.stat_cursor = self.session.open_cursor(self.uri, None, None)
+        self.stat_cursor = self.cursor_wrapper.__enter__()
         return self.stat_cursor
 
     def __exit__(self, exception_type, exception_value, exception_traceback):
         # Close the statistics cursor
-        self.stat_cursor.close()
-
-class WiredTigerCursor:
-    def __init__(self, session, uri = 'statistics:', *args, **kwargs):
-        self.cursor = session.open_cursor(uri, *args, **kwargs)
-
-    def __enter__(self):
-        # Get the opened cursor
-        return self.cursor
-
-    def __exit__(self, exception_type, exception_value, exception_traceback):
-        # Close the cursor
-        self.cursor.close()
+        self.cursor_wrapper.__exit__(exception_type, exception_value, exception_traceback)
