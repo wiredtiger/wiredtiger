@@ -301,6 +301,8 @@ CONFIG configuration_list[] = {
 
 {"random.extra_seed", "set random seed for extra operations", 0x0, 0, 0, UINT_MAX}
 
+{"rollback_to_stable_threads", "maximum number of threads to use for RTS. A value of RTS_THREADS_MAX translates to the default rollback_to_stable configuration", 0x0, 0, RTS_THREADS_MAX, RTS_THREADS_MAX}
+
 {"runs.in_memory", "configure in-memory", C_BOOL | C_IGNORE, 0, 0, 1}
 
 {"runs.mirror", "mirror tables", C_BOOL | C_IGNORE | C_TABLE, 0, 0, 0}

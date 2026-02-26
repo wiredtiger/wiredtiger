@@ -38,6 +38,7 @@ from wiredtiger import stat
 #   This test is to run checkpoint and eviction in parallel with timing
 #   stress for checkpoint and let eviction write more data than checkpoint.
 #
+@wttest.skip_for_hook("disagg", "Disagg requires precise checkpoint which does not work well with small cache size.")
 class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
     # Create a table.
@@ -116,12 +117,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         session.commit_transaction()
         targetCount = nrows
         if count != targetCount and count != 2*targetCount: print(f"Counted {count} out of {nrows} rows. Last key: {k}.")
-        if not self.runningHook('disagg'):
-            self.assertEqual(count, targetCount)
-        else:
-            # If Disag, it's ok to get the double count since transaction could make it through.
-            # TODO: Make sure it's ok as part of FIXME-WT-15429.
-            self.assertTrue(count == targetCount or count == targetCount * 2)
+        self.assertEqual(count, targetCount)
 
     def perform_backup_or_crash_restart(self, fromdir, todir):
         if self.restart == True:
@@ -154,7 +150,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
             ckpt.join()
 
 
-    @wttest.skip_for_hook("disagg", "Fails in Disagg with error: Gap in keys. FIXME-WT-15429.")
+
     def test_checkpoint_snapshot(self):
         self.moresetup()
 
@@ -188,10 +184,8 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         stat_cursor.close()
 
         self.assertGreaterEqual(keys_removed, 0)
-        if not self.runningHook('disagg'): # Disagg doesn't have inconsistent checkpoints or RTS.
-            self.assertGreater(inconsistent_ckpt, 0)
+        self.assertGreater(inconsistent_ckpt, 0)
 
-    @wttest.skip_for_hook("disagg", "Fails in Disagg with error: Gap in keys. FIXME-WT-15429.")
     def test_checkpoint_snapshot_with_timestamp(self):
         self.moresetup()
 
@@ -236,7 +230,6 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         self.assertGreaterEqual(keys_removed, 0)
 
     @wttest.skip_for_hook("tiered", "Fails with tiered storage")
-    @wttest.skip_for_hook("disagg", "Fails in Disagg with error: Gap in keys. FIXME-WT-15429.")
     def test_checkpoint_snapshot_with_txnid_and_timestamp(self):
         self.moresetup()
 
@@ -282,8 +275,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
         stat_cursor.close()
 
-        if not self.runningHook('disagg'): # Disagg doesn't have inconsistent checkpoints or RTS.
-            self.assertGreater(inconsistent_ckpt, 0)
+        self.assertGreater(inconsistent_ckpt, 0)
         self.assertGreaterEqual(keys_removed, 0)
 
         self.perform_backup_or_crash_restart(self.backup_dir, self.backup_dir2)
@@ -296,6 +288,5 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
         stat_cursor.close()
 
-        if not self.runningHook('disagg'): # Disagg doesn't have inconsistent checkpoints or RTS.
-            self.assertGreaterEqual(inconsistent_ckpt, 0)
+        self.assertGreaterEqual(inconsistent_ckpt, 0)
         self.assertEqual(keys_removed, 0)
