@@ -9,6 +9,7 @@
 #pragma once
 
 #include "evict_private.h"
+#include "evict_randlru_private.h"
 
 /*
  * WT_EVICT_RANDLRU_DATA --
