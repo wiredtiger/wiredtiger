@@ -719,9 +719,12 @@ __clayered_position_truncate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *stable, boo
     WT_COLLATOR *collator;
     WT_DECL_RET;
     int cmp;
-
     WT_SESSION_IMPL *session = CUR2S(clayered);
     WT_TRUNCATE *t;
+
+    if (__wt_process.disagg_fast_truncate_2026)
+        return (0);
+
     __clayered_get_collator(clayered, &collator);
 
     ret = __wt_truncate_delete_visible_check(

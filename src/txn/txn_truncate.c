@@ -15,6 +15,8 @@
 static void
 __disagg_truncate_free(WT_SESSION_IMPL *session, WT_TRUNCATE **entry)
 {
+    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+
     if (entry == NULL)
         return;
 
@@ -27,7 +29,7 @@ __disagg_truncate_free(WT_SESSION_IMPL *session, WT_TRUNCATE **entry)
 
 /*
  * __wt_insert_truncate_entry --
- *     Insert a truncate entry into the session's truncate list.
+ *     Insert a truncate entry into the layered dhandle truncate list.
  */
 int
 __wt_insert_truncate_entry(
@@ -36,6 +38,8 @@ __wt_insert_truncate_entry(
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered_table;
     WT_TRUNCATE *t;
+
+    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
 
     /*
      * Get the layered table from the provided URI. We don't hold any global locks so that's
@@ -85,6 +89,8 @@ __wt_layered_table_truncate_detect_write_conflict(
     WT_TRUNCATE *entry;
     int start_cmp, stop_cmp;
 
+    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
     WT_COLLATOR *collator = ((WT_LAYERED_TABLE *)layered_table)->collator;
 
@@ -109,16 +115,18 @@ __wt_layered_table_truncate_detect_write_conflict(
 }
 
 /*
- * __search_layered_table_truncate_list --
+ * __wt_truncate_delete_visible_check --
  *     Search for a truncate entry in the session's truncate list. Must use WT_SAVE_DHANDLE to get
  *     the layered table handle before calling this function, and hold the layered table lock.
  */
 static int
-__search_layered_table_truncate_list(
+__wt_truncate_delete_visible_check(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_ITEM *key, WT_TRUNCATE **tp)
 {
     WT_TRUNCATE *entry;
     int start_cmp, stop_cmp;
+
+    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
 
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
     WT_COLLATOR *collator = ((WT_LAYERED_TABLE *)layered_table)->collator;
@@ -157,6 +165,8 @@ __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     layered_table = NULL;
     entry = op->u.follower_truncate.t;
 
+    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+
     /*
      * Get the layered table from the provided URI. We don't hold any global locks so that's
      * possible that it was already removed.
@@ -179,17 +189,6 @@ __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 }
 
 /*
- * __wt_truncate_delete_visible_check --
- *     Search for a truncate entry in the session's truncate list.
- */
-int
-__wt_truncate_delete_visible_check(
-  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_ITEM *key, WT_TRUNCATE **tp)
-{
-    return (__search_layered_table_truncate_list(session, layered_table, key, tp));
-}
-
-/*
  * __wt_layered_table_truncate_clear --
  *     Search for a truncate entry in the session's truncate list.
  */
@@ -199,6 +198,8 @@ __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *la
     WT_TRUNCATE *entry;
 
     entry = NULL;
+
+    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
 
     __wt_spin_lock(session, &layered_table->truncate_lock);
     while ((entry = TAILQ_FIRST(&layered_table->truncateqh)) != NULL) {
@@ -221,6 +222,8 @@ __wti_layered_table_truncate_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 
     layered_table = NULL;
     entry = op->u.follower_truncate.t;
+
+    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
 
     /*
      * Get the layered table from the provided URI. We don't hold any global locks so that's

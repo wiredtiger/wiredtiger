@@ -32,6 +32,7 @@ struct __wt_process {
     bool use_epochtime;    /* use expensive time */
 
     bool tiered_shared_2023; /* tiered shared run-time configuration */
+    bool disagg_fast_truncate_2026; /* disagg fast truncate run-time configuration */
 
     WT_CACHE_POOL *cache_pool; /* shared cache information */
 
