@@ -270,9 +270,6 @@ __global_calibrate_ticks(void)
     uint64_t epoch_ticks_min, epoch_ticks_avg, tsc_start, tsc_stop;
     struct timespec clock_start, clock_stop;
 
-    clock_start.tv_sec = clock_stop.tv_sec = 0;
-    tsc_start = tsc_stop = 0;
-
     __get_epoch_call_ticks(&epoch_ticks_min, &epoch_ticks_avg);
 
     if (!__get_epoch_and_ticks(&clock_start, &tsc_start, epoch_ticks_min, epoch_ticks_avg))

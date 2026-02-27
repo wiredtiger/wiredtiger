@@ -132,7 +132,10 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
     F_CLR(txn, WT_TXN_REFRESH_SNAPSHOT);
     F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
 
-    /* Clear a checkpoint's pinned ID and timestamp. */
+    /*
+     * Clear a checkpoint's pinned ID and timestamp, only do this if we are the original checkpoint
+     * thread and not a worker.
+     */
     if (WT_SESSION_IS_CHECKPOINT(session) && !F_ISSET(session, WT_SESSION_CHECKPOINT_WORKER)) {
         __wt_atomic_store_uint64_v_relaxed(
           &txn_global->checkpoint_txn_shared.pinned_id, WT_TXN_NONE);
