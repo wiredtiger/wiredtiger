@@ -35,7 +35,7 @@ func_ok()
         -e '/int __bm_stat$/d' \
         -e '/int __bmd_stat$/d' \
         -e '/int __checkpoint_presync$/d' \
-        -e '/int __checkpoint_reconcile_thread_release_snapshot$/d' \
+        -e '/int __checkpoint_parallel_thread_release_snapshot$/d' \
         -e '/int __compact_uri_analyze$/d' \
         -e '/int __compact_walk_page_skip$/d' \
         -e '/int __config_parser_close$/d' \

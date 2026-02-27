@@ -1623,7 +1623,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_meta_sysinfo_set(session, name, namelen));
 
     /* Release the snapshot so we aren't pinning updates in cache. */
-    WT_ERR(__wti_checkpoint_reconcile_release_snapshot(session));
+    WT_ERR(__wti_checkpoint_parallel_release_snapshot(session));
     __wt_txn_release_snapshot(session);
 
     WT_STAT_CONN_SET(session, checkpoint_snapshot_acquired, 0);
@@ -1676,7 +1676,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * either one transaction or all of them together, so panic if we can't actually do that.
      */
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_COMMIT);
-    if ((ret = __wti_checkpoint_reconcile_commit(session)) != 0)
+    if ((ret = __wti_checkpoint_parallel_commit(session)) != 0)
         WT_ERR_PANIC(session, ret, "Checkpoint worker transaction commit failed");
     if ((ret = __wt_txn_commit(session, NULL)) != 0)
         WT_ERR_PANIC(session, ret, "Checkpoint transaction commit failed");

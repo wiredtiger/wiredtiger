@@ -294,7 +294,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              */
             if (WT_PARALLEL_CHECKPOINTS_ENABLED(session))
                 if (WT_SESSION_IS_CHECKPOINT(session) && is_internal)
-                    WT_ERR(__wt_checkpoint_reconcile_finish(session));
+                    WT_ERR(__wt_checkpoint_parallel_finish(session));
 
             /*
              * Check if the page is dirty. Add a barrier between the check and taking a reference to
@@ -381,7 +381,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             /* Reconcile leaf pages in parallel, waiting at each internal page. */
             if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session) &&
               !is_internal)
-                WT_ERR(__wt_checkpoint_reconcile_push_page(session, walk, rec_flags, flags));
+                WT_ERR(__wt_checkpoint_parallel_push_work(session, walk, rec_flags, flags));
             else {
                 /* It's not an error if we make no progress. */
                 WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
@@ -397,7 +397,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         /* Wait for the workers to finish; we need this if the root page is also a leaf page. */
         if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session))
-            WT_ERR(__wt_checkpoint_reconcile_finish(session));
+            WT_ERR(__wt_checkpoint_parallel_finish(session));
 
         /*
          * During normal checkpoints, mark the tree dirty if the btree has modifications that are
