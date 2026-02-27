@@ -1646,7 +1646,7 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
     else {
         if (__wt_process.disagg_fast_truncate_2026)
             WT_RET(__wt_layered_table_truncate_detect_write_conflict(
-          session, (WT_LAYERED_TABLE *)clayered->dhandle, key));
+              session, (WT_LAYERED_TABLE *)clayered->dhandle, key));
         c = clayered->ingest_cursor;
     }
 
@@ -1703,7 +1703,7 @@ __clayered_remove_follower(
 
     if (__wt_process.disagg_fast_truncate_2026)
         WT_RET(__wt_layered_table_truncate_detect_write_conflict(
-            session, (WT_LAYERED_TABLE *)clayered->dhandle, key));
+          session, (WT_LAYERED_TABLE *)clayered->dhandle, key));
     c->set_value(c, &__wt_tombstone);
     WT_RET(c->update(c));
     clayered->current_cursor = c;
