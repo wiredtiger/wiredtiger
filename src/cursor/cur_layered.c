@@ -711,7 +711,8 @@ err:
 
 /*
  * __clayered_position_truncate --
- *     Detect if stable position has been truncated. If so position to next visible position.
+ *     Detect if the stable cursor position has been truncated. If so, we need to position to next
+ *     visible position.
  */
 static int
 __clayered_position_truncate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *stable, bool forward)
@@ -725,39 +726,40 @@ __clayered_position_truncate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *stable, boo
     if (__wt_process.disagg_fast_truncate_2026)
         return (0);
 
+    /*
+     * Performing truncate should only work with snapshot isolation.
+     */
+    WT_ASSERT(session, session->txn->isolation == WT_ISO_READ_UNCOMMITTED);
     __clayered_get_collator(clayered, &collator);
 
-    ret = __wt_truncate_delete_visible_check(
-      session, (WT_LAYERED_TABLE *)clayered->dhandle, &stable->key, &t);
-    if (ret == WT_NOTFOUND)
-        return (0);
+    /*
+     * There could be overlapping truncates in the layered table truncate list. So we need to loop
+     * until we find a non-truncated key or reach the end of the range.
+     */
+    for (;;) {
+        ret = __wt_truncate_delete_visible_check(
+          session, (WT_LAYERED_TABLE *)clayered->dhandle, &stable->key, &t);
+        if (ret == WT_NOTFOUND)
+            break;
 
-    stable->set_key(stable, forward ? &t->stop_key : &t->start_key);
-    WT_RET(stable->search_near(stable, &cmp));
+        stable->set_key(stable, forward ? &t->stop_key : &t->start_key);
+        WT_RET(stable->search_near(stable, &cmp));
 
-    while (forward ? cmp < 0 : cmp > 0) {
-        WT_RET(forward ? stable->next(stable) : stable->prev(stable));
+        while (forward ? cmp < 0 : cmp > 0) {
+            /* The cursor next()/prev() could return back WT_NOTFOUND, meaning we have reached the
+             * end of the table. */
+            WT_RET(forward ? stable->next(stable) : stable->prev(stable));
 
-        /*
-         * With higher isolation levels, where we have stable reads, we're done: the cursor is now
-         * positioned as expected.
-         *
-         * With read-uncommitted isolation, a new record could have appeared in between the search
-         * and stepping forward / back. In that case, keep going until we see a key in the expected
-         * range.
-         */
-        if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED)
-            return (0);
-
-        WT_RET(__wt_compare(
-          session, collator, &stable->key, forward ? &t->stop_key : &t->start_key, &cmp));
+            WT_RET(__wt_compare(
+              session, collator, &stable->key, forward ? &t->stop_key : &t->start_key, &cmp));
+        }
     }
     return (0);
 }
 
 /*
  * __wt_layered_truncate --
- *     WT_SESSION::truncate with a range.
+ *     Discard a cursor range from the layered table.
  */
 int
 __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
@@ -774,6 +776,11 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
     WT_CURSOR_LAYERED *clayered_start = (WT_CURSOR_LAYERED *)trunc_info->start;
     WT_CURSOR_LAYERED *clayered_stop = (WT_CURSOR_LAYERED *)trunc_info->stop;
 
+    /*
+     * On leader mode, we can directly perform truncate operation on the stable table. On follower
+     * mode, we need to perform truncate on the ingest table and add an entry inside the truncate
+     * list.
+     */
     if (S2C(session)->layered_table_manager.leader) {
         trunc_info->start = clayered_start->stable_cursor;
         if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP))
@@ -788,7 +795,7 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
         /* Perform truncate on ingest table. */
         WT_RET_NOTFOUND_OK(__wt_range_truncate(trunc_info->start, trunc_info->stop));
 
-        /* Add entry inside truncate list. */
+        /* Add a truncate entry inside layered table truncate list. */
         WT_RET(__wt_insert_truncate_entry(
           session, uri, &trunc_info->start->key, &trunc_info->stop->key));
     }
@@ -899,8 +906,8 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
      */
     if (!F_ISSET(&clayered->iface, WT_CURSTD_KEY_INT) && !deleted) {
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_stable, forward));
-        WT_RET_NOTFOUND_OK(__clayered_position_truncate(clayered, c_stable, forward));
-
+        if (__wt_process.disagg_fast_truncate_2026)
+            WT_RET_NOTFOUND_OK(__clayered_position_truncate(clayered, c_stable, forward));
         WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_ingest, forward));
         goto done;
     }
@@ -926,14 +933,14 @@ __clayered_iterate_constituents(WT_CURSOR_LAYERED *clayered, uint32_t iter_flag,
         WT_RET(__clayered_cursor_compare(clayered, c_alternate, c_current, &cmp));
         if (cmp == 0) {
             WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_alternate, forward));
-            if (c_alternate == c_stable)
+            if (c_alternate == c_stable && __wt_process.disagg_fast_truncate_2026)
                 WT_RET_NOTFOUND_OK(__clayered_position_truncate(clayered, c_stable, forward));
         }
     }
 
     /* Move the current cursor. */
     WT_RET_NOTFOUND_OK(__clayered_constituent_iter(c_current, forward));
-    if (c_current == c_stable)
+    if (c_current == c_stable && __wt_process.disagg_fast_truncate_2026)
         WT_RET_NOTFOUND_OK(__clayered_position_truncate(clayered, c_stable, forward));
 
 done:
@@ -1374,7 +1381,7 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
             found = true;
             if (__clayered_deleted(clayered, value))
                 ret = WT_NOTFOUND;
-        } else {
+        } else if (__wt_process.disagg_fast_truncate_2026) {
             ret = __wt_truncate_delete_visible_check(
               session, (WT_LAYERED_TABLE *)clayered->dhandle, &cursor->key, NULL);
             if (ret == 0) {
@@ -1637,8 +1644,9 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
     if (S2C(session)->layered_table_manager.leader)
         c = clayered->stable_cursor;
     else {
-        WT_RET(__wt_layered_table_truncate_detect_write_conflict(
-          session, (WT_LAYERED_TABLE *)clayered->dhandle, key, NULL));
+        if (__wt_process.disagg_fast_truncate_2026)
+            WT_RET(__wt_layered_table_truncate_detect_write_conflict(
+          session, (WT_LAYERED_TABLE *)clayered->dhandle, key));
         c = clayered->ingest_cursor;
     }
 
@@ -1692,8 +1700,10 @@ __clayered_remove_follower(
         WT_RET(__clayered_reset_cursors(clayered, true));
         c->set_key(c, key);
     }
-    WT_RET(__wt_layered_table_truncate_detect_write_conflict(
-      session, (WT_LAYERED_TABLE *)clayered->dhandle, key, NULL));
+
+    if (__wt_process.disagg_fast_truncate_2026)
+        WT_RET(__wt_layered_table_truncate_detect_write_conflict(
+            session, (WT_LAYERED_TABLE *)clayered->dhandle, key));
     c->set_value(c, &__wt_tombstone);
     WT_RET(c->update(c));
     clayered->current_cursor = c;
