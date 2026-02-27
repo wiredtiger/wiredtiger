@@ -531,7 +531,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     WT_PAGE_DELETED *page_del;
     WTI_REC_KV *key, *val;
     WT_REF *ref;
-    WT_TIME_AGGREGATE ft_ta, *source_ta;
+    WT_TIME_AGGREGATE ft_ta, *source_ta, ta;
     size_t size;
     bool build_delta, cell_zero_tmp, prev_dirty, retain_onpage;
     const void *p;
@@ -766,6 +766,11 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         }
 
         /*
+         * Ensure to copy the time aggregate before releasing the ref; otherwise, there's a risk of
+         * encountering heap use-after-free issues.
+         */
+        WT_TIME_AGGREGATE_COPY(&ta, source_ta);
+        /*
          * Track the time window. The fast-truncate is a stop time window and has to be considered
          * in the internal page's aggregate information for RTS to find it.
          */
@@ -790,13 +795,13 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         __wti_rec_image_copy(session, r, val);
         if (page_del != NULL)
             WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, &ft_ta);
-        WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, source_ta);
+        WTI_REC_CHUNK_TA_MERGE(session, r->cur_ptr, ta);
 
         /* Update compression state. */
         __rec_key_state_update(r, false);
 
         if (build_delta && prev_dirty && !retain_onpage)
-            WT_ERR(__rec_pack_delta_row_int(session, r, key, val, source_ta));
+            WT_ERR(__rec_pack_delta_row_int(session, r, key, val, ta));
 
         /*
          * Set the ref_changes state to zero if there were no concurrent changes while reconciling
