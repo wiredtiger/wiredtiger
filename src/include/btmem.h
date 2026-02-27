@@ -15,9 +15,9 @@
 #define WT_READ_IGNORE_CACHE_SIZE 0x0002u
 #define WT_READ_INTERNAL_OP 0x0004u /* Internal operations don't bump a page's readgen */
 #define WT_READ_NOTFOUND_OK 0x0008u
-#define WT_READ_NO_PAGE_RELEASE 0x0010u
-#define WT_READ_NO_SPLIT 0x0020u
-#define WT_READ_NO_WAIT 0x0040u
+#define WT_READ_NO_SPLIT 0x0010u
+#define WT_READ_NO_WAIT 0x0020u
+#define WT_READ_PARALLEL_CKPT_PAGE_QUEUED 0x0040u
 #define WT_READ_PREFETCH 0x0080u
 #define WT_READ_PREV 0x0100u
 #define WT_READ_RESTART_OK 0x0200u

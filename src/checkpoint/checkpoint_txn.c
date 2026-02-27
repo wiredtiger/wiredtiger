@@ -1903,6 +1903,10 @@ err:
 
     __checkpoint_clear_time(session);
 
+    /*
+     * Clear the flag before we exit the function, this only matters in the error path as we clear
+     * it earlier too.
+     */
     F_CLR(session, WT_SESSION_CHECKPOINT);
 
     /* Clear the timestamp of the in-progress checkpoint now that we are done. */

@@ -269,13 +269,11 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         if (!F_ISSET(txn, WT_READ_VISIBLE_ALL))
             LF_SET(WT_READ_VISIBLE_ALL);
 
-        /* If parallel checkpoints are enabled, do not automatically release pages. */
-        if (WT_PARALLEL_CHECKPOINTS_ENABLED(session))
-            LF_SET(WT_READ_NO_PAGE_RELEASE);
-
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
             WT_ERR(__wt_tree_walk_custom_skip(session, &walk, NULL, NULL, flags));
+            /* Clear the parallel checkpoint page queued flag it is reset every page we visit. */
+            LF_CLR(WT_READ_PARALLEL_CKPT_PAGE_QUEUED);
 
             if (walk == NULL)
                 break;
@@ -311,9 +309,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                     btree->rec_max_txn = mod->rec_max_txn;
                 if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
                     btree->rec_max_timestamp = mod->rec_max_timestamp;
-
-                if (LF_ISSET(WT_READ_NO_PAGE_RELEASE))
-                    WT_ERR(__wt_page_release(session, walk, flags));
                 continue;
             }
 
@@ -324,8 +319,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              */
             if (__sync_checkpoint_can_skip(session, walk)) {
                 __wt_tree_modify_set(session);
-                if (LF_ISSET(WT_READ_NO_PAGE_RELEASE))
-                    WT_ERR(__wt_page_release(session, walk, flags));
                 continue;
             }
 
@@ -365,8 +358,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 walk = prev;
                 prev = NULL;
                 tried_eviction = true;
-                if (LF_ISSET(WT_READ_NO_PAGE_RELEASE))
-                    WT_ERR(__wt_page_release(session, walk, flags));
                 continue;
             }
             tried_eviction = false;
@@ -380,14 +371,16 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
             /* Reconcile leaf pages in parallel, waiting at each internal page. */
             if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session) &&
-              !is_internal)
+              !is_internal) {
                 WT_ERR(__wt_checkpoint_parallel_push_work(session, walk, rec_flags, flags));
-            else {
+                /*
+                 * We've queued this page for parallel checkpointing, don't let the tree walk
+                 * release it.
+                 */
+                LF_SET(WT_READ_PARALLEL_CKPT_PAGE_QUEUED);
+            } else
                 /* It's not an error if we make no progress. */
                 WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
-                if (LF_ISSET(WT_READ_NO_PAGE_RELEASE))
-                    WT_ERR(__wt_page_release(session, walk, flags));
-            }
 
             /* Update checkpoint IO tracking data. */
             if (__wt_checkpoint_verbose_timer_started(session))
