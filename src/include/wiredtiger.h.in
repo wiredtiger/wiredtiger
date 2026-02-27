@@ -8387,7 +8387,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED	1824
 /*! reconciliation: page deltas rejected due to multiblock reconciliation */
 #define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_MULTIBLOCK	1825
-/*! reconciliation: page deltas rejected due to non-single page result */
+/*!
+ * reconciliation: page deltas rejected due to non-single page in
+ * previous reconciliation
+ */
 #define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_NON_SINGLE_PAGE	1826
 /*! reconciliation: page deltas rejected due to size threshold */
 #define	WT_STAT_CONN_REC_PAGE_DELTA_REJECTED_SIZE_THRESHOLD	1827
@@ -9877,7 +9880,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MAX_CONSECUTIVE_EXCEEDED	2336
 /*! reconciliation: page deltas rejected due to multiblock reconciliation */
 #define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_MULTIBLOCK	2337
-/*! reconciliation: page deltas rejected due to non-single page result */
+/*!
+ * reconciliation: page deltas rejected due to non-single page in
+ * previous reconciliation
+ */
 #define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_NON_SINGLE_PAGE	2338
 /*! reconciliation: page deltas rejected due to size threshold */
 #define	WT_STAT_DSRC_REC_PAGE_DELTA_REJECTED_SIZE_THRESHOLD	2339

@@ -360,7 +360,7 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: page deltas rejected due to invalid page ID",
   "reconciliation: page deltas rejected due to max consecutive limit",
   "reconciliation: page deltas rejected due to multiblock reconciliation",
-  "reconciliation: page deltas rejected due to non-single page result",
+  "reconciliation: page deltas rejected due to non-single page in previous reconciliation",
   "reconciliation: page deltas rejected due to size threshold",
   "reconciliation: page deltas rejected due to zero entries",
   "reconciliation: page deltas rejected: build function returned false (disabled, in-memory split, "
@@ -2690,7 +2690,7 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: page deltas rejected due to invalid page ID",
   "reconciliation: page deltas rejected due to max consecutive limit",
   "reconciliation: page deltas rejected due to multiblock reconciliation",
-  "reconciliation: page deltas rejected due to non-single page result",
+  "reconciliation: page deltas rejected due to non-single page in previous reconciliation",
   "reconciliation: page deltas rejected due to size threshold",
   "reconciliation: page deltas rejected due to zero entries",
   "reconciliation: page deltas rejected: build function returned false (disabled, in-memory split, "

@@ -1401,7 +1401,7 @@ conn_dsrc_stats = [
     RecStat('rec_page_delta_rejected_invalid_page_id', 'page deltas rejected due to invalid page ID'),
     RecStat('rec_page_delta_rejected_max_consecutive_exceeded', 'page deltas rejected due to max consecutive limit'),
     RecStat('rec_page_delta_rejected_multiblock', 'page deltas rejected due to multiblock reconciliation'),
-    RecStat('rec_page_delta_rejected_non_single_page', 'page deltas rejected due to non-single page result'),
+    RecStat('rec_page_delta_rejected_non_single_page', 'page deltas rejected due to non-single page in previous reconciliation'),
     RecStat('rec_page_delta_rejected_size_threshold', 'page deltas rejected due to size threshold'),
     RecStat('rec_page_delta_rejected_zero_entries', 'page deltas rejected due to zero entries'),
     RecStat('rec_page_full_image_internal', 'full internal pages written instead of a page delta'),
