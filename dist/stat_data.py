@@ -509,6 +509,7 @@ conn_stats = [
     CheckpointStat('checkpoint_pages_reconciled_bytes', 'number of bytes caused to be reconciled'),
     CheckpointStat('checkpoint_pages_visited_internal', 'number of internal pages visited'),
     CheckpointStat('checkpoint_pages_visited_leaf', 'number of leaf pages visited'),
+    CheckpointStat('checkpoint_parallel_pages_reconciled', 'number of pages reconciled by checkpoint parallel worker threads'),
     CheckpointStat('checkpoint_prep_max', 'prepare max time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_prep_min', 'prepare min time (msecs)', 'no_clear,no_scale'),
     CheckpointStat('checkpoint_prep_recent', 'prepare most recent time (msecs)', 'no_clear,no_scale'),

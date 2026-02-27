@@ -208,6 +208,7 @@ __checkpoint_reconcile_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         /* It's not an error if we make no progress. */
         WT_WITH_DHANDLE(session, entry->dhandle,
           ret = __wt_reconcile(session, entry->ref, NULL, entry->reconcile_flags));
+        WT_STAT_CONN_INCR(session, checkpoint_parallel_pages_reconciled);
         WT_ERR(ret);
 
         entry->result = ret;
