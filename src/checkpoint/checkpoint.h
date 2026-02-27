@@ -215,7 +215,7 @@ struct __wt_checkpoint_reconcile_threads {
  * WT_PARALLEL_CHECKPOINTS_ENABLED --
  *     Check whether parallel checkpoints are enabled.
  */
-#define WT_PARALLEL_CHECKPOINTS_ENABLED(session)                                            \
+#define WT_PARALLEL_CHECKPOINTS_ENABLED(session)                                           \
     (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_CHECKPOINT_RECONCILE_THREADS) && \
       (S2C(session))->ckpt_reconcile_threads->num_threads > 1)
 
