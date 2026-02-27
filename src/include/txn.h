@@ -339,7 +339,7 @@ struct __wt_truncate {
     wt_timestamp_t start_ts;
     wt_timestamp_t durable_ts;
     wt_timestamp_t prepare_ts; /* Not currently supported. */
-    uint64_t prepare_id; /* Not currently supported. */
+    uint64_t prepare_id;       /* Not currently supported. */
 
     WT_ITEM start_key;
     WT_ITEM stop_key;

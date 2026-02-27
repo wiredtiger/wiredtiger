@@ -79,7 +79,6 @@ __truncate_layered(WT_SESSION_IMPL *session, const char *uri)
         ret = 0;
         goto done;
     }
-
     WT_WITHOUT_DHANDLE(session, ret = __wt_session_range_truncate(session, NULL, start, NULL));
     WT_ERR(ret);
 
@@ -214,33 +213,12 @@ __wt_schema_range_truncate(WT_TRUNCATE_INFO *trunc_info)
         if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP))
             WT_ERR(__cursor_needkey(trunc_info->stop));
 
-        WT_CURSOR_LAYERED *clayered_start = (WT_CURSOR_LAYERED *)trunc_info->start;
-        WT_CURSOR_LAYERED *clayered_stop = (WT_CURSOR_LAYERED *)trunc_info->stop;
-
-        if (S2C(session)->layered_table_manager.leader) {
-            trunc_info->start = clayered_start->stable_cursor;
-            if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP))
-                trunc_info->stop = clayered_stop->stable_cursor;
-            WT_WITH_BTREE(
-              session, CUR2BT(trunc_info->start), ret = __wt_btcur_range_truncate(trunc_info));
-        } else {
-            trunc_info->start = clayered_start->ingest_cursor;
-            trunc_info->stop = clayered_stop->ingest_cursor;
-
-            /* Perform truncate on ingest table. */
-            ret = __wt_range_truncate(trunc_info->start, trunc_info->stop);
-            WT_ERR_NOTFOUND_OK(ret, false);
-
-            /* Add entry inside truncate list. */
-            ret = __wt_insert_truncate_entry(
-              session, uri, &trunc_info->start->key, &trunc_info->stop->key);
-        }
+        ret = __wt_layered_truncate(trunc_info);
     } else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL &&
       dsrc->range_truncate != NULL)
         ret = dsrc->range_truncate(dsrc, &session->iface, trunc_info->start, trunc_info->stop);
     else
         ret = __wt_range_truncate(trunc_info->start, trunc_info->stop);
-
 err:
     return (ret);
 }

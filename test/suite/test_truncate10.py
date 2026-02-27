@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 #
 # Check that nothing comes unstuck if we commit a truncate with durable > commit.
 # FIXME-WT-15430: Re-enable once disaggregated storage works with fast truncate tests.
-
+@wttest.skip_for_hook("disagg", "fast truncate is not supported yet")
 class test_truncate10(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
     session_config = 'isolation=snapshot'

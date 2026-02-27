@@ -752,8 +752,47 @@ __clayered_position_truncate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *stable, boo
         WT_RET(__wt_compare(
           session, collator, &stable->key, forward ? &t->stop_key : &t->start_key, &cmp));
     }
-
     return (0);
+}
+
+/*
+ * __wt_layered_truncate --
+ *     WT_SESSION::truncate with a range.
+ */
+int
+__wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    const char *uri;
+
+    session = trunc_info->session;
+    uri = trunc_info->uri;
+
+    WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
+
+    WT_CURSOR_LAYERED *clayered_start = (WT_CURSOR_LAYERED *)trunc_info->start;
+    WT_CURSOR_LAYERED *clayered_stop = (WT_CURSOR_LAYERED *)trunc_info->stop;
+
+    if (S2C(session)->layered_table_manager.leader) {
+        trunc_info->start = clayered_start->stable_cursor;
+        if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP))
+            trunc_info->stop = clayered_stop->stable_cursor;
+        WT_WITH_BTREE(
+          session, CUR2BT(trunc_info->start), ret = __wt_btcur_range_truncate(trunc_info));
+    } else {
+        trunc_info->start = clayered_start->ingest_cursor;
+        trunc_info->stop = clayered_stop->ingest_cursor;
+
+        /* Perform truncate on ingest table. */
+        ret = __wt_range_truncate(trunc_info->start, trunc_info->stop);
+        WT_ERR_NOTFOUND_OK(ret, false);
+
+        /* Add entry inside truncate list. */
+        ret =
+          __wt_insert_truncate_entry(session, uri, &trunc_info->start->key, &trunc_info->stop->key);
+    }
+    return (ret);
 }
 
 /*
