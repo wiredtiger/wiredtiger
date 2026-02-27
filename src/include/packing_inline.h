@@ -680,7 +680,6 @@ __wt_struct_sizev(WT_SESSION_IMPL *session, size_t *sizep, const char *fmt, va_l
     size_t v;
 
     *sizep = 0;
-    v = 0;
 
     if (fmt[0] != '\0' && fmt[1] == '\0') {
         pv.type = fmt[0];

@@ -273,7 +273,7 @@ struct __wt_session_impl {
     void *salvage_track;
 
     /* Sync support. */
-    bool syncing; /* Sync support */
+    bool syncing;
 
     /* Sessions have an associated statistics bucket based on its ID. */
     u_int stat_conn_bucket;     /* Statistics connection bucket offset */
