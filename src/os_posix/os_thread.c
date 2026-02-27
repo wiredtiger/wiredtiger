@@ -53,9 +53,8 @@ __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret,
 {
     WT_DECL_RET;
     /*
-     * The created thread may change the session name, and we call __thread_set_name
-     * after the thread has started, so we must capture the session name before
-     * creating the thread.
+     * The created thread may change the session name, and we call __thread_set_name after the
+     * thread has started, so we must capture the session name before creating the thread.
      */
     const char *session_name = (session != NULL) ? session->name : NULL;
 
