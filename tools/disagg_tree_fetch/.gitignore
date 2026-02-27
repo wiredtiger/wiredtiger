@@ -1,0 +1,11 @@
+# uv virtual environment
+.venv/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Generated gRPC stubs (regenerate with ./generate_proto.sh)
+ds/
+pageservice/
