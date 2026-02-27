@@ -119,7 +119,7 @@ __wt_layered_table_truncate_detect_write_conflict(
  *     Search for a truncate entry in the session's truncate list. Must use WT_SAVE_DHANDLE to get
  *     the layered table handle before calling this function, and hold the layered table lock.
  */
-static int
+int
 __wt_truncate_delete_visible_check(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered_table, WT_ITEM *key, WT_TRUNCATE **tp)
 {

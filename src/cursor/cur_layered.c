@@ -780,19 +780,19 @@ __wt_layered_truncate(WT_TRUNCATE_INFO *trunc_info)
             trunc_info->stop = clayered_stop->stable_cursor;
         WT_WITH_BTREE(
           session, CUR2BT(trunc_info->start), ret = __wt_btcur_range_truncate(trunc_info));
+        WT_RET(ret);
     } else {
         trunc_info->start = clayered_start->ingest_cursor;
         trunc_info->stop = clayered_stop->ingest_cursor;
 
         /* Perform truncate on ingest table. */
-        ret = __wt_range_truncate(trunc_info->start, trunc_info->stop);
-        WT_ERR_NOTFOUND_OK(ret, false);
+        WT_RET_NOTFOUND_OK(__wt_range_truncate(trunc_info->start, trunc_info->stop));
 
         /* Add entry inside truncate list. */
-        ret =
-          __wt_insert_truncate_entry(session, uri, &trunc_info->start->key, &trunc_info->stop->key);
+        WT_RET(__wt_insert_truncate_entry(
+          session, uri, &trunc_info->start->key, &trunc_info->stop->key));
     }
-    return (ret);
+    return (0);
 }
 
 /*
