@@ -235,9 +235,11 @@ __checkpoint_reconcile_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
     /* We should never shrink the thread group while a transaction is running. */
     WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_RUNNING));
-    WT_RET_PANIC(session, WT_VERB_CHECKPOINT,
-      "Checkpoint page reconciliation thread %u stopping while a transaction is running",
-      thread->id);
+
+    if (F_ISSET(session->txn, WT_TXN_RUNNING))
+        WT_RET_PANIC(session, WT_VERB_CHECKPOINT,
+          "Checkpoint page reconciliation thread %u stopping while a transaction is running",
+          thread->id);
     return (0);
 }
 
