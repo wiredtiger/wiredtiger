@@ -853,7 +853,7 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
     const char *name;
     WT_CONFIG_ITEM cval;
     WT_ITEM *colgroup_buf, *file_uri_buf;
-    bool colgroup_exists, file_exists;
+    bool colgroup_exists, file_exists, is_tiered;
 
     cg_meta_value = file_meta_value = NULL;
     WT_ERR(__wt_scr_alloc(r->session, 0, &colgroup_buf));
@@ -877,13 +877,18 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
     WT_ERR_NOTFOUND_OK(__wt_metadata_search(r->session, colgroup_buf->data, &cg_meta_value), true);
     colgroup_exists = ret == 0;
 
-    /* Check whether the file exists. */
+    /* Check whether the file exists (only applicable for non-tiered tables). */
     WT_ERR(__wt_buf_fmt(r->session, file_uri_buf, "file:%s.wt", name));
     WT_ERR_NOTFOUND_OK(
       __wt_metadata_search(r->session, file_uri_buf->data, &file_meta_value), true);
     file_exists = ret == 0;
 
-    if (!colgroup_exists || !file_exists) {
+    /* Check if the table is using tiered storage. */
+    if (__wt_config_getones(r->session, config, "tiered_storage.name", &cval) == 0 &&
+      cval.len != 0 && !WT_CONFIG_LIT_MATCH("none", cval))
+        is_tiered = true;
+
+    if (!colgroup_exists || (!file_exists && !is_tiered)) {
         __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING, "%s %s",
           "removing incomplete table", uri);
 
@@ -910,11 +915,13 @@ done:
 static int
 __recovery_file_scan(WT_RECOVERY *r)
 {
-    __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
-      "scanning metadata to remove all incomplete tables");
+    if (!F_ISSET(S2C(r->session), WT_CONN_READONLY)) {
+        __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
+          "scanning metadata to remove all incomplete tables");
 
-    /* Scan through all table entries in the metadata and clean up incomplete tables. */
-    __recovery_metadata_scan_prefix(r, "table:", NULL, __metadata_clean_incomplete_table);
+        /* Scan through all table entries in the metadata and clean up incomplete tables. */
+        __recovery_metadata_scan_prefix(r, "table:", NULL, __metadata_clean_incomplete_table);
+    }
 
     __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
       "scanning metadata to find the largest file ID");
