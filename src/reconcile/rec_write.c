@@ -2535,7 +2535,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
           session, btree->maxleafpage, compressed_size, last_block, &btree->maxleafpage_precomp);
 
     /* Update the per-page reconciliation time statistics now that we've written something. */
-    __rec_page_time_stats(session, r);
+    __rec_page_time_stats(session, r, build_delta);
 
 copy_image:
 #ifdef HAVE_DIAGNOSTIC
