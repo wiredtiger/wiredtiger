@@ -850,14 +850,17 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
     char *cg_meta_value, *file_meta_value;
     const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
     const char *metadata_cfg[] = {config, NULL};
-    const char *name;
+    const char *name, *tiered_uri;
     WT_CONFIG_ITEM cval;
-    WT_ITEM *colgroup_buf, *file_uri_buf;
+    WT_ITEM *colgroup_buf, *file_uri_buf, *tiered_prefix_buf;
+    WT_CURSOR *c = NULL;
     bool colgroup_exists, file_exists, is_tiered;
+    int cmp;
 
     cg_meta_value = file_meta_value = NULL;
     WT_ERR(__wt_scr_alloc(r->session, 0, &colgroup_buf));
     WT_ERR(__wt_scr_alloc(r->session, 0, &file_uri_buf));
+    WT_ERR(__wt_scr_alloc(r->session, 0, &tiered_prefix_buf));
     /*
      * FIXME-WT-16146: Add capability for cleaning up incomplete complex tables and skip checking
      * tiered shared tables.
@@ -884,9 +887,25 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
     file_exists = ret == 0;
 
     /* Check if the table is using tiered storage. */
-    if (__wt_config_getones(r->session, config, "tiered_storage.name", &cval) == 0 &&
-      cval.len != 0 && !WT_CONFIG_LIT_MATCH("none", cval))
-        is_tiered = true;
+    WT_ERR(__wt_buf_fmt(r->session, tiered_prefix_buf, "tiered:%s", name));
+    WT_ERR(__wt_metadata_cursor(r->session, &c));
+    c->set_key(c, tiered_prefix_buf->data);
+    if ((ret = c->search_near(c, &cmp)) != 0) {
+        is_tiered = false;
+    } else {
+        if (cmp < 0 && (ret = c->next(c)) != 0) {
+            is_tiered = false;
+        } else {
+            for (; ret == 0; ret = c->next(c)) {
+                WT_ERR(c->get_key(c, &tiered_uri));
+                if (WT_PREFIX_MATCH(tiered_uri, tiered_prefix_buf->data)) {
+                    is_tiered = true;
+                    break;
+                }
+            }
+        }
+    }
+    WT_ERR(__wt_metadata_cursor_release(r->session, &c));
 
     if (!colgroup_exists || (!file_exists && !is_tiered)) {
         __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING, "%s %s",
@@ -904,6 +923,7 @@ done:
     __wt_free(r->session, file_meta_value);
     __wt_scr_free(r->session, &colgroup_buf);
     __wt_scr_free(r->session, &file_uri_buf);
+    __wt_scr_free(r->session, &tiered_prefix_buf);
     return (ret);
 }
 
