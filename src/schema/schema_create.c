@@ -184,7 +184,8 @@ __wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
 
     /* Use the counter if there is no predefined ID for the table. */
     uint32_t ns = is_shared ? WT_BTREE_ID_NAMESPACE_SHARED : WT_BTREE_ID_NAMESPACE_LOCAL;
-    uint32_t namespaced_id = WT_BTREE_ID_NAMESPACED(++S2C(session)->next_file_id, ns);
+    uint32_t file_id = __wt_atomic_add_uint32(&S2C(session)->next_file_id, 1);
+    uint32_t namespaced_id = WT_BTREE_ID_NAMESPACED(file_id, ns);
     __validate_file_id(session, namespaced_id);
     return (namespaced_id);
 }
@@ -1340,11 +1341,13 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
              * By default use the connection level bucket and prefix. Then we add in any user
              * configuration that may override the system one.
              */
+            uint32_t incr_file_id = __wt_atomic_add_uint32(&conn->next_file_id, 1);
+
             WT_ERR(__wt_buf_fmt(session, tmp,
               ",tiered_storage=(bucket=%s,bucket_prefix=%s)"
               ",id=%" PRIu32 ",version=(major=%" PRIu16 ",minor=%" PRIu16 "),checkpoint_lsn=",
               conn->bstorage->bucket, conn->bstorage->bucket_prefix,
-              WT_BTREE_ID_NAMESPACED(++conn->next_file_id, WT_BTREE_ID_NAMESPACE_LOCAL),
+              WT_BTREE_ID_NAMESPACED(incr_file_id, WT_BTREE_ID_NAMESPACE_LOCAL),
               WT_BTREE_VERSION_MAX.major, WT_BTREE_VERSION_MAX.minor));
             cfg[1] = tmp->data;
             cfg[2] = config;
@@ -1494,7 +1497,8 @@ __create_fix_file_ids(WT_SESSION_IMPL *session, WT_IMPORT_LIST *import_list)
             if (WT_BTREE_ID_SHARED(prev_file_id))
                 WT_RET_MSG(session, EINVAL, "TODO cannot import a shared table");
 
-            new_file_id = WT_BTREE_ID_NAMESPACED(++conn->next_file_id, WT_BTREE_ID_NAMESPACE_LOCAL);
+            uint32_t next_raw_id = __wt_atomic_add_uint32(&conn->next_file_id, 1);
+            new_file_id = WT_BTREE_ID_NAMESPACED(next_raw_id, WT_BTREE_ID_NAMESPACE_LOCAL);
         }
 
         /* Update config with the new file ID. */
