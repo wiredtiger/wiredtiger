@@ -560,7 +560,7 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
     if (has_oldest_ts)
         oldest_ts = __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp);
     stable_ts = __wt_get_stable_timestamp(session);
-    if (!F_ISSET(&txn->time_point, WT_TXN_HAS_TS_PREPARE)) {
+    if (!F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_PREPARE)) {
         /* Compare against the first commit timestamp of the current transaction. */
         if (F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT)) {
             if (commit_ts < txn->first_commit_timestamp)

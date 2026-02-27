@@ -1479,7 +1479,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_UPDATE *upd;
     wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp, stable_timestamp;
     uint64_t recno;
-#ifdef HAVE_DIAGNOSTIC uint32_t prepare_count;
+#ifdef HAVE_DIAGNOSTIC
+    uint32_t prepare_count;
 #endif
     u_int i;
     bool cannot_fail, locked, prepare, readonly, update_durable_ts;
