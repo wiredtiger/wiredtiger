@@ -230,54 +230,15 @@ err:
 static int
 __checkpoint_reconcile_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_TXN_GLOBAL *txn_global;
-    bool checkpoint_running;
-
-    conn = S2C(session);
-    txn_global = &conn->txn_global;
-
-    checkpoint_running = __wt_atomic_load_bool_v_relaxed(&txn_global->checkpoint_running);
-
-    /*
-     * If we are shrinking the thread group during a running checkpoint, commit what we have so far.
-     */
-    if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
-        if (checkpoint_running) {
-            /*
-             * This would commit the changes to the history store. Ideally, we would never take this
-             * code path.
-             *
-             * TODO: We should figure out if there is a way to delay committing the transaction
-             * until the very end of the checkpoint, unless we can establish that this is safe to do
-             * regardless of whether the checkpoint succeeds.
-             */
-            __wt_verbose_warning(session, WT_VERB_CHECKPOINT,
-              "Checkpoint page reconciliation thread %u stopping during checkpoint, committing "
-              "the transaction",
-              thread->id);
-            WT_ERR(__wt_txn_commit(session, NULL));
-        } else {
-            /*
-             * There should not be a transaction running outside of a checkpoint.
-             */
-            WT_ERR_PANIC(session, WT_VERB_CHECKPOINT,
-              "Checkpoint page reconciliation thread %u stopping outside of checkpoint, but "
-              "the transaction is still running",
-              thread->id);
-        }
-    }
-
-    if (0) {
-err:
-        WT_RET_PANIC(
-          session, ret, "Checkpoint page reconciliation thread %u error during stop", thread->id);
-    }
-
     __wt_verbose(
       session, WT_VERB_CHECKPOINT, "Checkpoint page reconciliation thread %u exiting", thread->id);
-    return (ret);
+
+    /* We should never shrink the thread group while a transaction is running. */
+    WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_RUNNING));
+    WT_RET_PANIC(session, WT_VERB_CHECKPOINT,
+      "Checkpoint page reconciliation thread %u stopping while a transaction is running",
+      thread->id);
+    return (0);
 }
 
 /*
