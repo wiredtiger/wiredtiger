@@ -402,9 +402,10 @@ __wt_checkpoint_parallel_finish(WT_SESSION_IMPL *session)
         __checkpoint_parallel_free(session, entry);
     }
 
-    WT_ASSERT(session,
+    WT_ASSERT_ALWAYS(session,
       __checkpoint_parallel_done_queue_empty(session) &&
-        __checkpoint_parallel_work_queue_empty(session));
+        __checkpoint_parallel_work_queue_empty(session),
+      "Checkpoint page reconciliation work queue corrupted");
 
     __wt_atomic_store_uint64_release(&ckpt_threads->work_pushed, 0);
     return (ret);
