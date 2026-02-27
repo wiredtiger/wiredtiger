@@ -2478,7 +2478,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 
     delta_enabled = WT_DELTA_ENABLED_FOR_PAGE(session, r->page->type);
     if (delta_enabled)
-        WT_STAT_CONN_INCR(session, rec_page_delta_eligible);
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_eligible);
 
     if (page->disagg_info != NULL) {
         block_meta = &page->disagg_info->block_meta;
@@ -2500,26 +2500,27 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
                           header->u.entries > 0 || WT_PAGE_IS_INTERNAL(page),
                           "build empty leaf page delta");
                         if (header->u.entries == 0) {
-                            WT_STAT_CONN_INCR(session, rec_page_delta_rejected_zero_entries);
+                            WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_zero_entries);
                             skip_write = true;
                         } else if (r->delta.size * 100 / chunk->image.size >
                           conn->page_delta.delta_pct) {
-                            WT_STAT_CONN_INCR(session, rec_page_delta_rejected_size_threshold);
+                            WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_size_threshold);
                             build_delta = false;
                         }
                     } else
-                        WT_STAT_CONN_INCR(session, rec_page_delta_rejected_build_failed);
+                        WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_build_failed);
                 } else
-                    WT_STAT_CONN_INCR(session, rec_page_delta_rejected_max_consecutive_exceeded);
+                    WT_STAT_CONN_DSRC_INCR(
+                      session, rec_page_delta_rejected_max_consecutive_exceeded);
             }
         } else if (delta_enabled) {
             /* Track stats for why we can't write deltas for this page */
             if (r->multi_next > 1)
-                WT_STAT_CONN_INCR(session, rec_page_delta_rejected_multiblock);
+                WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_multiblock);
             else if (block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID)
-                WT_STAT_CONN_INCR(session, rec_page_delta_rejected_invalid_page_id);
+                WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_invalid_page_id);
             else if (!WT_REC_RESULT_SINGLE_PAGE((session), (r)))
-                WT_STAT_CONN_INCR(session, rec_page_delta_rejected_non_single_page);
+                WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_rejected_non_single_page);
         }
     }
 
