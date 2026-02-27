@@ -1477,12 +1477,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_OP *op;
     WT_UPDATE *upd;
-<<<<<<< HEAD
-    wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp;
-    uint64_t recno;
-=======
     wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp, stable_timestamp;
->>>>>>> develop
+    uint64_t recno;
 #ifdef HAVE_DIAGNOSTIC uint32_t prepare_count;
 #endif
     u_int i;
