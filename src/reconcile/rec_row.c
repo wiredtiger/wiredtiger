@@ -766,7 +766,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         }
 
         /*
-         * Ensure to copy the time aggregate before releasing the ref; otherwise, there's a risk of
+         * Copy the time aggregate before releasing the ref; otherwise, there's a risk of
          * encountering heap use-after-free issues.
          */
         WT_TIME_AGGREGATE_COPY(&ta, source_ta);
