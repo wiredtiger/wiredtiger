@@ -38,11 +38,14 @@ __key_within_truncate_range(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
     int start_cmp, stop_cmp;
 
     WT_RET(__wt_compare(session, collator, key, start_key, &start_cmp));
-    WT_RET(__wt_compare(session, collator, key, stop_key, &stop_cmp));
+    if (start_cmp < 0)
+        return (false);
 
-    if (start_cmp >= 0 && stop_cmp <= 0)
-        return (true);
-    return (false);
+    WT_RET(__wt_compare(session, collator, key, stop_key, &stop_cmp));
+    if (stop_cmp > 0)
+        return (false);
+
+    return (true);
 }
 
 /*
@@ -62,6 +65,9 @@ __wt_insert_truncate_entry(
     /*
      * Get the layered table from the provided URI. We don't hold any global locks so that's
      * possible that it was already removed.
+     * 
+     * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle
+     * from the dhandle list, if there are entries in the truncate list. 
      */
     WT_RET_NOTFOUND_OK(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
     if (ret == WT_NOTFOUND) {
@@ -190,6 +196,9 @@ __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     /*
      * Get the layered table from the provided URI. We don't hold any global locks so that's
      * possible that it was already removed.
+     * 
+     * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle
+     * from the dhandle list, if there are entries in the truncate list. 
      */
     WT_RET_NOTFOUND_OK(__wt_session_get_dhandle(session, entry->uri, NULL, NULL, 0));
     if (ret == WT_NOTFOUND) {
@@ -228,6 +237,9 @@ __wti_layered_table_truncate_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     /*
      * Get the layered table from the provided URI. We don't hold any global locks so that's
      * possible that it was already removed.
+     * 
+     * FIXME-WT-16789: Disallow sweep server or follower mode to clean up the dhandle
+     * from the dhandle list, if there are entries in the truncate list. 
      */
     WT_RET_NOTFOUND_OK(__wt_session_get_dhandle(session, entry->uri, NULL, NULL, 0));
     if (ret == WT_NOTFOUND) {
