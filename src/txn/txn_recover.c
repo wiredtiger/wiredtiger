@@ -847,7 +847,7 @@ static int
 __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *config)
 {
     WT_DECL_RET;
-    char *cg_meta_value, *file_meta_value;
+    char *cg_meta_value;
     const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
     const char *metadata_cfg[] = {config, NULL};
     const char *name, *file_uri;
@@ -857,7 +857,7 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
     bool colgroup_exists, file_exists;
     int cmp;
 
-    cg_meta_value = file_meta_value = NULL;
+    cg_meta_value = NULL;
     WT_ERR(__wt_scr_alloc(r->session, 0, &colgroup_buf));
     WT_ERR(__wt_scr_alloc(r->session, 0, &file_prefix_buf));
     /*
@@ -908,7 +908,6 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
 err:
 done:
     __wt_free(r->session, cg_meta_value);
-    __wt_free(r->session, file_meta_value);
     __wt_scr_free(r->session, &colgroup_buf);
     __wt_scr_free(r->session, &file_prefix_buf);
     return (ret);
