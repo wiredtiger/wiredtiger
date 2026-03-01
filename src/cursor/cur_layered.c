@@ -726,10 +726,8 @@ __clayered_position_truncate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *stable, boo
     if (__wt_process.disagg_fast_truncate_2026)
         return (0);
 
-    /*
-     * Performing truncate should only work with snapshot isolation.
-     */
-    WT_ASSERT(session, session->txn->isolation == WT_ISO_READ_UNCOMMITTED);
+    /* Fast truncate only works under snapshot isolation. */
+    WT_ASSERT(session, session->txn->isolation == WT_ISO_SNAPSHOT);
     __clayered_get_collator(clayered, &collator);
 
     /*
@@ -746,8 +744,10 @@ __clayered_position_truncate(WT_CURSOR_LAYERED *clayered, WT_CURSOR *stable, boo
         WT_RET(stable->search_near(stable, &cmp));
 
         while (forward ? cmp < 0 : cmp > 0) {
-            /* The cursor next()/prev() could return back WT_NOTFOUND, meaning we have reached the
-             * end of the table. */
+            /*
+             * The cursor next()/prev() could return back WT_NOTFOUND, meaning we have reached the
+             * end of the table.
+             */
             WT_RET(forward ? stable->next(stable) : stable->prev(stable));
 
             WT_RET(__wt_compare(
