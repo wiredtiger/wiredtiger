@@ -1042,7 +1042,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * the stable timestamp.
      */
     WT_ASSERT(session,
-      !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_SHARED_TS_DURABLE | WT_TXN_SHARED_TS_READ));
+      !F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT) &&
+        !F_ISSET(txn, WT_TXN_SHARED_TS_DURABLE | WT_TXN_SHARED_TS_READ));
 
     if (use_timestamp) {
         /*
