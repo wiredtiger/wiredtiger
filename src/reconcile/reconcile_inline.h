@@ -160,15 +160,6 @@ __rec_page_time_stats(WT_SESSION_IMPL *session, WTI_RECONCILE *r, bool is_delta)
       count_stop_ts, count_stop_txn, count_prepare;
     uint16_t ts_usage_flags;
     if (is_delta) {
-        count_durable_start_ts = r->count_durable_start_ts;
-        count_start_ts = r->count_start_ts;
-        count_start_txn = r->count_start_txn;
-        count_durable_stop_ts = r->count_durable_stop_ts;
-        count_stop_ts = r->count_stop_ts;
-        count_stop_txn = r->count_stop_txn;
-        count_prepare = r->count_prepare;
-        ts_usage_flags = r->ts_usage_flags;
-    } else {
         count_durable_start_ts = r->count_delta_durable_start_ts;
         count_start_ts = r->count_delta_start_ts;
         count_start_txn = r->count_delta_start_txn;
@@ -177,6 +168,15 @@ __rec_page_time_stats(WT_SESSION_IMPL *session, WTI_RECONCILE *r, bool is_delta)
         count_stop_txn = r->count_delta_stop_txn;
         count_prepare = r->count_delta_prepare;
         ts_usage_flags = r->delta_ts_usage_flags;
+    } else {
+        count_durable_start_ts = r->count_durable_start_ts;
+        count_start_ts = r->count_start_ts;
+        count_start_txn = r->count_start_txn;
+        count_durable_stop_ts = r->count_durable_stop_ts;
+        count_stop_ts = r->count_stop_ts;
+        count_stop_txn = r->count_stop_txn;
+        count_prepare = r->count_prepare;
+        ts_usage_flags = r->ts_usage_flags;
     }
 
     if (WT_PAGE_IS_INTERNAL(r->page)) {
