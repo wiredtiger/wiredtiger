@@ -214,11 +214,11 @@ __wt_is_simple_table(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *colconf, bool *is
  *     Crash during schema operations for debugging purposes.
  */
 void
-__wti_debug_crash_if_flag_set(WT_SESSION_IMPL *session, uint32_t flag, const char *uri)
+__wti_debug_crash_if_flag_set(
+  WT_SESSION_IMPL *session, uint32_t flag, const char *msg, const char *uri)
 {
     if (FLD_ISSET(S2C(session)->debug_flags, flag)) {
-        __wt_verbose_warning(session, WT_VERB_DEFAULT,
-          "Simulating a crash while performing schema operations on '%s'", uri);
+        __wt_verbose_warning(session, WT_VERB_DEFAULT, "Simulating a crash %s '%s'", msg, uri);
         /* Wait for the previous metadata change to be persisted. */
         __wt_sleep(2, 0);
         __wt_abort(session);

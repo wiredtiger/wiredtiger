@@ -849,19 +849,19 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
 {
     WT_DECL_ITEM(colgroup_buf);
     WT_DECL_ITEM(file_prefix_buf);
-    WT_DECL_ITEM(tiered_buf);
     WT_DECL_RET;
-    char *cg_meta_value, *file_meta_value, *tiered_meta_value;
+    char *cg_meta_value, *file_meta_value;
     const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
     const char *metadata_cfg[] = {config, NULL};
     const char *name;
     WT_CONFIG_ITEM cval;
+    WT_CURSOR *c = NULL;
     bool is_simple, colgroup_exists, file_exists;
+    int cmp;
 
-    cg_meta_value = file_meta_value = tiered_meta_value = NULL;
+    cg_meta_value = file_meta_value = NULL;
     WT_ERR(__wt_scr_alloc(r->session, 0, &colgroup_buf));
     WT_ERR(__wt_scr_alloc(r->session, 0, &file_prefix_buf));
-    WT_ERR(__wt_scr_alloc(r->session, 0, &tiered_buf));
 
     /*
      * FIXME-WT-16146: Add capability for cleaning up incomplete complex tables and skip checking
@@ -876,23 +876,34 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
     name = uri;
     WT_PREFIX_SKIP_REQUIRED(r->session, name, "table:");
 
-    /* Skip if the table uses tiered storage. */
-    WT_ERR(__wt_buf_fmt(r->session, tiered_buf, "tiered:%s", name));
-    WT_ERR_NOTFOUND_OK(
-      __wt_metadata_search(r->session, tiered_buf->data, &tiered_meta_value), true);
-    if (ret == 0)
-        goto done;
-
     /* Check whether the colgroup exists. */
     WT_ERR(__wt_buf_fmt(r->session, colgroup_buf, "colgroup:%s", name));
     WT_ERR_NOTFOUND_OK(__wt_metadata_search(r->session, colgroup_buf->data, &cg_meta_value), true);
     colgroup_exists = ret == 0;
 
     /* Check whether the file exists. */
-    WT_ERR(__wt_buf_fmt(r->session, file_prefix_buf, "file:%s.wt", name));
-    WT_ERR_NOTFOUND_OK(
-      __wt_metadata_search(r->session, file_prefix_buf->data, &file_meta_value), true);
-    file_exists = ret == 0;
+    WT_ERR(__wt_buf_fmt(r->session, file_prefix_buf, "file:%s", name));
+    WT_ERR(__wt_metadata_cursor(r->session, &c));
+    c->set_key(c, file_prefix_buf->data);
+    file_exists = false;
+    if ((ret = c->search_near(c, &cmp)) == 0 && !(cmp < 0 && (ret = c->next(c)) != 0)) {
+        for (; ret == 0; ret = c->next(c)) {
+            WT_ERR(c->get_key(c, &file_meta_value));
+            if (WT_PREFIX_MATCH(file_meta_value, file_prefix_buf->data)) {
+                file_exists = true;
+                break;
+            }
+        }
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+    WT_ERR(__wt_metadata_cursor_release(r->session, &c));
+
+    /* Skip if the table is tiered or layered. */
+    if (file_exists &&
+      (WT_SUFFIX_MATCH(file_meta_value, ".wtobj") ||
+        WT_SUFFIX_MATCH(file_meta_value, ".wt_ingest") ||
+        WT_SUFFIX_MATCH(file_meta_value, ".wt_stable")))
+        goto done;
 
     /* Force drop if the table is incomplete. */
     if (!colgroup_exists || !file_exists) {
@@ -911,7 +922,6 @@ done:
     __wt_free(r->session, cg_meta_value);
     __wt_scr_free(r->session, &colgroup_buf);
     __wt_scr_free(r->session, &file_prefix_buf);
-    __wt_scr_free(r->session, &tiered_buf);
     return (ret);
 }
 

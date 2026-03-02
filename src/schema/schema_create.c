@@ -711,8 +711,8 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
         WT_ERR(__wt_config_collapse(session, cfg, &cgconf));
 
         /* FIXME-WT-12021 Replace this with a proper failpoint once the framework is available. */
-        __wti_debug_crash_if_flag_set(
-          session, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP, name);
+        __wti_debug_crash_if_flag_set(session, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP,
+          "before inserting a colgroup", name);
 
         if (!exists) {
             WT_ERR(__wt_metadata_insert(session, name, cgconf));
@@ -1058,7 +1058,8 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
         WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
     /* FIXME-WT-12021 Replace this with a proper failpoint once the framework is available. */
-    __wti_debug_crash_if_flag_set(session, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE, uri);
+    __wti_debug_crash_if_flag_set(session, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE,
+      "before inserting a file entry for table", uri);
 
     if (ncolgroups == 0) {
         len = strlen("colgroup:") + strlen(tablename) + 1;

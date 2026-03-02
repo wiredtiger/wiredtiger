@@ -61,7 +61,8 @@ __drop_file(
         WT_TRET(__wt_meta_track_drop(session, filename));
 
     /* FIXME-WT-12021 Replace this with a proper failpoint once the framework is available. */
-    __wti_debug_crash_if_flag_set(session, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE, uri);
+    __wti_debug_crash_if_flag_set(
+      session, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE, "after dropping file entry", uri);
 
     /*
      * Truncate history store for the dropped file if we can find its id from the metadata, this is
@@ -299,7 +300,8 @@ __drop_table(
     }
 
     /* FIXME-WT-12021 Replace this with a proper failpoint once the framework is available. */
-    __wti_debug_crash_if_flag_set(session, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP, uri);
+    __wti_debug_crash_if_flag_set(session, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP,
+      "after dropping a colgroup entry from table", uri);
 
     /* Drop the indices. */
     WT_ERR(__wt_schema_open_indices(session, table));
