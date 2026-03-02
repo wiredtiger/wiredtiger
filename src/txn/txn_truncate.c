@@ -154,7 +154,6 @@ __wt_truncate_delete_visible_check(
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
     WT_COLLATOR *collator = ((WT_LAYERED_TABLE *)layered_table)->collator;
 
-    
     __wt_readlock(session, &layered_table->truncate_lock);
     TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
         /*
