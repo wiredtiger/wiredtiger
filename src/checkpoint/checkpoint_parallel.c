@@ -420,7 +420,13 @@ __checkpoint_parallel_thread_release_snapshot(WT_SESSION_IMPL *session, WT_THREA
 {
     WT_UNUSED(thread);
 
-    WT_ASSERT(session, F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
+    /*
+     * It is reasonable to get here without having a snapshot if the thread never dequeued a work
+     * item.
+     */
+    if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
+        return (0);
+
     __wt_verbose(session, WT_VERB_CHECKPOINT,
       "Checkpoint page reconciliation thread %u releasing the snapshot", thread->id);
     __wt_txn_release_snapshot(session);

@@ -272,8 +272,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
             WT_ERR(__wt_tree_walk_custom_skip(session, &walk, NULL, NULL, flags));
-            /* Clear the parallel checkpoint page queued flag it is reset every page we visit. */
-            LF_CLR(WT_READ_PARALLEL_CKPT_PAGE_QUEUED);
 
             if (walk == NULL)
                 break;
@@ -372,12 +370,13 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             /* Reconcile leaf pages in parallel, waiting at each internal page. */
             if (WT_PARALLEL_CHECKPOINTS_ENABLED(session) && WT_SESSION_IS_CHECKPOINT(session) &&
               !is_internal) {
-                WT_ERR(__wt_checkpoint_parallel_push_work(session, walk, rec_flags, flags));
                 /*
-                 * We've queued this page for parallel checkpointing, don't let the tree walk
-                 * release it.
+                 * Duplicate the position, and give it to the parallel checkpoint worker. The
+                 * existing walk position will be release by the walk code.
                  */
-                LF_SET(WT_READ_PARALLEL_CKPT_PAGE_QUEUED);
+                WT_REF *walk_dup = NULL;
+                __sync_dup_walk(session, walk, 0, &walk_dup);
+                WT_ERR(__wt_checkpoint_parallel_push_work(session, walk_dup, rec_flags, flags));
             } else
                 /* It's not an error if we make no progress. */
                 WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));

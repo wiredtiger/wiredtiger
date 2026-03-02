@@ -393,12 +393,7 @@ done:
           "tree walk took more than 10 seconds (%" PRIu64 "ms)", time_diff_ms);
 err:
     WT_TRET(__wt_page_release(session, couple, flags));
-    /*
-     * Release the callers previous page, as we advance to the next page. If parallel checkpoints
-     * have taken ownership of the page we cannot release it as it would invalidate the work queue.
-     */
-    if (!LF_ISSET(WT_READ_PARALLEL_CKPT_PAGE_QUEUED))
-        WT_TRET(__wt_page_release(session, ref_orig, flags));
+    WT_TRET(__wt_page_release(session, ref_orig, flags));
     WT_LEAVE_PAGE_INDEX(session);
     return (ret);
 }
