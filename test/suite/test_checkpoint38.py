@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import os
 import wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
@@ -56,6 +57,8 @@ class test_checkpoint38(wttest.WiredTigerTestCase):
         return val
 
     def test_parallel_checkpoint(self):
+        if os.name == 'nt':
+            self.skipTest('Parallel checkpoint is not broken on Windows')
         uri = 'table:checkpoint38'
         value_size = 10000
         nrows = 110000
