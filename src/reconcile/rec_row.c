@@ -770,6 +770,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          * encountering heap use-after-free issues.
          */
         WT_TIME_AGGREGATE_COPY(&ta, source_ta);
+
         /*
          * Track the time window. The fast-truncate is a stop time window and has to be considered
          * in the internal page's aggregate information for RTS to find it.
