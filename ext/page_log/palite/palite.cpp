@@ -1865,9 +1865,6 @@ private:
             }
 
             if (page.flags & WT_PAGE_LOG_DISCARDED) {
-                if (discarded.lsn != 0) {
-                    LOG_AND_THROW("Multiple discarded pages in chain: {}, {}", discarded, page);
-                }
                 discarded = page;
             } else if (discarded.lsn != 0) {
                 LOG_AND_THROW(

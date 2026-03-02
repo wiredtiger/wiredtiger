@@ -28,6 +28,7 @@
 
 import re
 import wttest
+from metadata_helper import extract_id
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -54,15 +55,6 @@ class test_layered75(wttest.WiredTigerTestCase):
         self.conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' +
                                                 self.conn_config_follower)
         self.session_follow = self.conn_follow.open_session('')
-
-    def find_id(self, metadata_value):
-        """
-        Parse the file ID from the configuration string.
-        """
-
-        match = re.search(r',id=(\d+)', metadata_value)
-        self.assertTrue(match, "All `file:` or `metadata:` prefixed metadata entries are expected to have IDs")
-        return int(match.group(1))
 
     def check_prohibited_ids(self, file_id):
         """
@@ -110,7 +102,7 @@ class test_layered75(wttest.WiredTigerTestCase):
             if not key.startswith('file:') and not key == 'metadata:':
                 continue
 
-            file_id = self.find_id(value)
+            file_id = extract_id(value)
             self.check_prohibited_ids(file_id)
 
             self.assertTrue(key not in found_files, f"Duplicated table {key}")
