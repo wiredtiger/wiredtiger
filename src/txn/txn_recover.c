@@ -887,7 +887,9 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
     c->set_key(c, file_prefix_buf->data);
     file_exists = false;
     if ((ret = c->search_near(c, &cmp)) == 0 && !(cmp < 0 && (ret = c->next(c)) != 0)) {
+        WT_ERR_NOTFOUND_OK(ret, false);
         for (; ret == 0; ret = c->next(c)) {
+            WT_ERR_NOTFOUND_OK(ret, false);
             WT_ERR(c->get_key(c, &file_meta_value));
             if (WT_PREFIX_MATCH(file_meta_value, file_prefix_buf->data)) {
                 file_exists = true;
