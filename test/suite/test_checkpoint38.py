@@ -68,22 +68,16 @@ class test_checkpoint38(wttest.WiredTigerTestCase):
             cursor[i] = value
         cursor.close()
 
-        self.pr(f'Inserted {nrows} rows, ~{(nrows * value_size) // (1024 * 1024)}MB of data')
-
         pages_reconciled_before = self.get_stat(stat.conn.checkpoint_pages_reconciled)
         parallel_pages_before = self.get_stat(stat.conn.checkpoint_parallel_pages_reconciled)
 
         self.session.checkpoint()
 
         pages_reconciled = self.get_stat(stat.conn.checkpoint_pages_reconciled) - pages_reconciled_before
-        parallel_pages = self.get_stat(stat.conn.checkpoint_parallel_pages_reconciled) - parallel_pages_before
-
-        self.pr(f'Pages reconciled by checkpoint: {pages_reconciled}')
-        self.pr(f'Pages reconciled by parallel workers: {parallel_pages}')
+        parallel_pages_reconciled = self.get_stat(stat.conn.checkpoint_parallel_pages_reconciled) - parallel_pages_before
 
         self.assertGreater(pages_reconciled, 0)
-        self.assertGreater(parallel_pages, 0,
-            'Expected parallel checkpoint threads to reconcile pages, but none were reconciled')
+        self.assertGreater(parallel_pages_reconciled, 0, 'Parallel checkpoint threads were expected to reconcile pages')
 
 if __name__ == '__main__':
     wttest.run()
