@@ -56,20 +56,20 @@ class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
     scenarios = make_scenarios(crash_point_values)
 
     def subprocess_crash_point_before_insert_file(self):
-        self.conn.reconfigure("debug_mode=(crash_point_before_insert_file=true)")
+        self.conn.reconfigure("debug_mode=(crash_point=(before_insert_file=true))")
         self.create_table() # Expected to fail
 
     def subprocess_crash_point_before_insert_colgroup(self):
-        self.conn.reconfigure("debug_mode=(crash_point_before_insert_colgroup=true)")
+        self.conn.reconfigure("debug_mode=(crash_point=(before_insert_colgroup=true))")
         self.create_table() # Expected to fail
 
     def subprocess_crash_point_after_drop_file(self):
-        self.conn.reconfigure("debug_mode=(crash_point_after_drop_file=true)")
+        self.conn.reconfigure("debug_mode=(crash_point=(after_drop_file=true))")
         self.create_table()
         self.session.drop(self.tablename, None) # Expected to fail
 
     def subprocess_crash_point_after_drop_colgroup(self):
-        self.conn.reconfigure("debug_mode=(crash_point_after_drop_colgroup=true)")
+        self.conn.reconfigure("debug_mode=(crash_point=(after_drop_colgroup=true))")
         self.create_table()
         self.session.drop(self.tablename, None) # Expected to fail
 
@@ -96,7 +96,7 @@ class test_schema09(wttest.WiredTigerTestCase, suite_subprocess):
             self.conn = self.setUpConnectionOpen(new_home_dir)
         self.session = self.setUpSessionOpen(self.conn)
 
-        self.conn.reconfigure(f"debug_mode=(crash_point_{self.crash_point}=false)")
+        self.conn.reconfigure(f"debug_mode=(crash_point=({self.crash_point}=false))")
         self.check_metadata_entry(False)
 
         # Test that we can't open a cursor on the table.

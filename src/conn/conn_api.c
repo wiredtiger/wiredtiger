@@ -2219,25 +2219,25 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT);
 
-    WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point_before_insert_colgroup", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point.before_insert_colgroup", &cval));
     if (cval.val)
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP);
     else
         FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP);
 
-    WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point_before_insert_file", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point.before_insert_file", &cval));
     if (cval.val)
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE);
     else
         FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE);
 
-    WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point_after_drop_colgroup", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point.after_drop_colgroup", &cval));
     if (cval.val)
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP);
     else
         FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP);
 
-    WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point_after_drop_file", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.crash_point.after_drop_file", &cval));
     if (cval.val)
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE);
     else
