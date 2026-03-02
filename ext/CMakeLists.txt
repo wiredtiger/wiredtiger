@@ -21,7 +21,6 @@ if(WT_POSIX)
     add_subdirectory(encryptors/sodium)
 
     # Build the page log extensions.
-    add_subdirectory(page_log/palm)
     if(ENABLE_PALITE)
         add_subdirectory(page_log/palite)
     endif()

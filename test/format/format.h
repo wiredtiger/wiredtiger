@@ -95,6 +95,9 @@
 /* Duration of the follower run in disagg switch mode. */
 #define DISAGG_SWITCH_FOLLOWER_OPS_SEC 10
 
+/* Number of RTS threads to use up to 10 (11 is for NULL config). */
+#define RTS_THREADS_MAX 11
+
 /* Session configuration to enable prefetch. */
 #define SESSION_PREFETCH_CFG_ON "prefetch=(enabled=true)"
 
