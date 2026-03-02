@@ -120,12 +120,7 @@ struct __wt_layered_table {
      */
     TAILQ_HEAD(__truncate_table_list_qh, __wt_truncate) truncateqh;
 
-    /*
-     * Lock used for managing changes to truncate list.
-     *
-     * FIXME-WT-16789: Convert spin lock into R/W lock.
-     */
-    WT_SPINLOCK truncate_lock; /* Lock used for managing changes to truncate list.*/
+    WT_RWLOCK truncate_lock; /* R/W Lock used for managing changes to truncate list.*/
 };
 
 /* Holds metadata entry name and the associated config string. */

@@ -238,8 +238,10 @@ __wt_schema_close_layered(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered)
     __wt_layered_table_manager_remove_table(session, layered->ingest_btree_id);
 
     /* Clear truncate list. */
-    if (__wt_process.disagg_fast_truncate_2026)
+    if (__wt_process.disagg_fast_truncate_2026) {
         __wt_layered_table_truncate_clear(session, layered);
+        __wt_rwlock_destroy(session, &layered->truncate_lock);
+    }
 
     /* Free copies of copied configuration items. */
     __wt_free(session, layered->key_format);

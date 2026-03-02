@@ -91,9 +91,9 @@ __wt_insert_truncate_entry(
     WT_ERR(__wt_session_release_dhandle(session));
 
     session->dhandle = (WT_DATA_HANDLE *)layered_table;
-    __wt_spin_lock(session, &layered_table->truncate_lock);
+    __wt_writelock(session, &layered_table->truncate_lock);
     TAILQ_INSERT_TAIL(&layered_table->truncateqh, t, q);
-    __wt_spin_unlock(session, &layered_table->truncate_lock);
+    __wt_writeunlock(session, &layered_table->truncate_lock);
 
     if (0) {
 err:
@@ -120,7 +120,7 @@ __wt_layered_table_truncate_detect_write_conflict(
 
     WT_COLLATOR *collator = ((WT_LAYERED_TABLE *)layered_table)->collator;
 
-    __wt_spin_lock(session, &layered_table->truncate_lock);
+    __wt_readlock(session, &layered_table->truncate_lock);
     TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
         /*
          * If the truncate entry has already been committed if it is visible to this transaction. We
@@ -131,12 +131,11 @@ __wt_layered_table_truncate_detect_write_conflict(
 
         if (__key_within_truncate_range(
               session, collator, &entry->start_key, &entry->stop_key, key)) {
-            __wt_spin_unlock(session, &layered_table->truncate_lock);
+            __wt_readunlock(session, &layered_table->truncate_lock);
             return (WT_WRITE_CONFLICT);
         }
     }
-
-    __wt_spin_unlock(session, &layered_table->truncate_lock);
+    __wt_readunlock(session, &layered_table->truncate_lock);
     return (0);
 }
 
@@ -155,7 +154,8 @@ __wt_truncate_delete_visible_check(
     WT_ASSERT(session, WT_PREFIX_MATCH(layered_table->iface.name, "layered:"));
     WT_COLLATOR *collator = ((WT_LAYERED_TABLE *)layered_table)->collator;
 
-    __wt_spin_lock(session, &layered_table->truncate_lock);
+    
+    __wt_readlock(session, &layered_table->truncate_lock);
     TAILQ_FOREACH (entry, &layered_table->truncateqh, q) {
         /*
          * Ignore all truncate entries that hasn't been committed. They won't be visible to this
@@ -168,12 +168,11 @@ __wt_truncate_delete_visible_check(
               session, collator, &entry->start_key, &entry->stop_key, key)) {
             if (tp != NULL)
                 *tp = entry;
-            __wt_spin_unlock(session, &layered_table->truncate_lock);
+            __wt_readunlock(session, &layered_table->truncate_lock);
             return (0);
         }
     }
-
-    __wt_spin_unlock(session, &layered_table->truncate_lock);
+    __wt_readunlock(session, &layered_table->truncate_lock);
     return (WT_NOTFOUND);
 }
 
@@ -208,11 +207,11 @@ __wti_mark_committed_truncate_table(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     }
     layered_table = (WT_LAYERED_TABLE *)session->dhandle;
 
-    __wt_spin_lock(session, &layered_table->truncate_lock);
+    __wt_writelock(session, &layered_table->truncate_lock);
     entry->txn_id = session->txn->id;
     entry->start_ts = session->txn->commit_timestamp;
     entry->durable_ts = session->txn->durable_timestamp;
-    __wt_spin_unlock(session, &layered_table->truncate_lock);
+    __wt_writeunlock(session, &layered_table->truncate_lock);
     WT_TRET(__wt_session_release_dhandle(session));
     return (0);
 }
@@ -249,9 +248,9 @@ __wti_layered_table_truncate_rollback(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     }
     layered_table = (WT_LAYERED_TABLE *)session->dhandle;
 
-    __wt_spin_lock(session, &layered_table->truncate_lock);
+    __wt_writelock(session, &layered_table->truncate_lock);
     TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
-    __wt_spin_unlock(session, &layered_table->truncate_lock);
+    __wt_writelock(session, &layered_table->truncate_lock);
 
     WT_TRET(__wt_session_release_dhandle(session));
     return (0);
@@ -270,10 +269,10 @@ __wt_layered_table_truncate_clear(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *la
 
     WT_ASSERT(session, __wt_process.disagg_fast_truncate_2026 == true);
 
-    __wt_spin_lock(session, &layered_table->truncate_lock);
+    __wt_writelock(session, &layered_table->truncate_lock);
     while ((entry = TAILQ_FIRST(&layered_table->truncateqh)) != NULL) {
         TAILQ_REMOVE(&layered_table->truncateqh, entry, q);
         __disagg_truncate_free(session, &entry);
     }
-    __wt_spin_unlock(session, &layered_table->truncate_lock);
+    __wt_writeunlock(session, &layered_table->truncate_lock);
 }
