@@ -6553,99 +6553,87 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CAPACITY_TIME_READ			1293
 /*! capacity: time waiting for chunk cache IO bandwidth (usecs) */
 #define	WT_STAT_CONN_CAPACITY_TIME_CHUNKCACHE		1294
-/*! checkpoint: checkpoint cleanup successful calls */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_SUCCESS		1295
+/*! checkpoint-cleanup: most recent duration on all eligible files (usecs) */
+#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_DURATION	1295
+/*! checkpoint-cleanup: most recent handles processed */
+#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_HANDLE_PROCESSED	1296
+/*! checkpoint-cleanup: most recent in-memory pages visited */
+#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_INMEM_PAGES_VISITED	1297
+/*! checkpoint-cleanup: pages added for eviction */
+#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_EVICT	1298
+/*! checkpoint-cleanup: pages dirtied due to obsolete time window */
+#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_OBSOLETE_TW	1299
+/*! checkpoint-cleanup: pages read into cache (reclaim_space) */
+#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_READ_RECLAIM_SPACE	1300
+/*! checkpoint-cleanup: pages read into cache due to obsolete time window */
+#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_READ_OBSOLETE_TW	1301
+/*! checkpoint-cleanup: pages removed */
+#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_REMOVED	1302
+/*! checkpoint-cleanup: pages skipped during tree walk */
+#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_WALK_SKIPPED	1303
+/*! checkpoint-cleanup: pages visited */
+#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_VISITED	1304
+/*! checkpoint-cleanup: successful calls */
+#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_SUCCESS		1305
 /*! checkpoint: checkpoint has acquired a snapshot for its transaction */
-#define	WT_STAT_CONN_CHECKPOINT_SNAPSHOT_ACQUIRED	1296
+#define	WT_STAT_CONN_CHECKPOINT_SNAPSHOT_ACQUIRED	1306
 /*! checkpoint: checkpoints skipped because database was clean */
-#define	WT_STAT_CONN_CHECKPOINT_SKIPPED			1297
+#define	WT_STAT_CONN_CHECKPOINT_SKIPPED			1307
 /*! checkpoint: fsync calls after allocating the transaction ID */
-#define	WT_STAT_CONN_CHECKPOINT_FSYNC_POST		1298
+#define	WT_STAT_CONN_CHECKPOINT_FSYNC_POST		1308
 /*! checkpoint: fsync duration after allocating the transaction ID (usecs) */
-#define	WT_STAT_CONN_CHECKPOINT_FSYNC_POST_DURATION	1299
+#define	WT_STAT_CONN_CHECKPOINT_FSYNC_POST_DURATION	1309
 /*! checkpoint: generation */
-#define	WT_STAT_CONN_CHECKPOINT_GENERATION		1300
-/*! checkpoint: in-memory pages visited during checkpoint cleanup */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_INMEM_PAGES_VISITED	1301
+#define	WT_STAT_CONN_CHECKPOINT_GENERATION		1310
 /*! checkpoint: max time (msecs) */
-#define	WT_STAT_CONN_CHECKPOINT_TIME_MAX		1302
+#define	WT_STAT_CONN_CHECKPOINT_TIME_MAX		1311
 /*! checkpoint: min time (msecs) */
-#define	WT_STAT_CONN_CHECKPOINT_TIME_MIN		1303
-/*!
- * checkpoint: most recent checkpoint cleanup duration on all eligible
- * files (usecs)
- */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_DURATION	1304
-/*! checkpoint: most recent checkpoint cleanup handles processed */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_HANDLE_PROCESSED	1305
+#define	WT_STAT_CONN_CHECKPOINT_TIME_MIN		1312
 /*!
  * checkpoint: most recent duration for checkpoint dropping all handles
  * (usecs)
  */
-#define	WT_STAT_CONN_CHECKPOINT_HANDLE_DROP_DURATION	1306
+#define	WT_STAT_CONN_CHECKPOINT_HANDLE_DROP_DURATION	1313
 /*! checkpoint: most recent duration for gathering all handles (usecs) */
-#define	WT_STAT_CONN_CHECKPOINT_HANDLE_DURATION		1307
+#define	WT_STAT_CONN_CHECKPOINT_HANDLE_DURATION		1314
 /*! checkpoint: most recent duration for gathering applied handles (usecs) */
-#define	WT_STAT_CONN_CHECKPOINT_HANDLE_APPLY_DURATION	1308
+#define	WT_STAT_CONN_CHECKPOINT_HANDLE_APPLY_DURATION	1315
 /*! checkpoint: most recent duration for gathering skipped handles (usecs) */
-#define	WT_STAT_CONN_CHECKPOINT_HANDLE_SKIP_DURATION	1309
+#define	WT_STAT_CONN_CHECKPOINT_HANDLE_SKIP_DURATION	1316
 /*! checkpoint: most recent duration for handles metadata checked (usecs) */
-#define	WT_STAT_CONN_CHECKPOINT_HANDLE_META_CHECK_DURATION	1310
+#define	WT_STAT_CONN_CHECKPOINT_HANDLE_META_CHECK_DURATION	1317
 /*! checkpoint: most recent duration for locking the handles (usecs) */
-#define	WT_STAT_CONN_CHECKPOINT_HANDLE_LOCK_DURATION	1311
+#define	WT_STAT_CONN_CHECKPOINT_HANDLE_LOCK_DURATION	1318
 /*! checkpoint: most recent handles applied */
-#define	WT_STAT_CONN_CHECKPOINT_HANDLE_APPLIED		1312
+#define	WT_STAT_CONN_CHECKPOINT_HANDLE_APPLIED		1319
 /*! checkpoint: most recent handles checkpoint dropped */
-#define	WT_STAT_CONN_CHECKPOINT_HANDLE_DROPPED		1313
+#define	WT_STAT_CONN_CHECKPOINT_HANDLE_DROPPED		1320
 /*! checkpoint: most recent handles metadata checked */
-#define	WT_STAT_CONN_CHECKPOINT_HANDLE_META_CHECKED	1314
+#define	WT_STAT_CONN_CHECKPOINT_HANDLE_META_CHECKED	1321
 /*! checkpoint: most recent handles metadata locked */
-#define	WT_STAT_CONN_CHECKPOINT_HANDLE_LOCKED		1315
+#define	WT_STAT_CONN_CHECKPOINT_HANDLE_LOCKED		1322
 /*! checkpoint: most recent handles skipped */
-#define	WT_STAT_CONN_CHECKPOINT_HANDLE_SKIPPED		1316
+#define	WT_STAT_CONN_CHECKPOINT_HANDLE_SKIPPED		1323
 /*! checkpoint: most recent handles walked */
-#define	WT_STAT_CONN_CHECKPOINT_HANDLE_WALKED		1317
+#define	WT_STAT_CONN_CHECKPOINT_HANDLE_WALKED		1324
 /*! checkpoint: most recent time (msecs) */
-#define	WT_STAT_CONN_CHECKPOINT_TIME_RECENT		1318
+#define	WT_STAT_CONN_CHECKPOINT_TIME_RECENT		1325
 /*! checkpoint: number of checkpoints started by api */
-#define	WT_STAT_CONN_CHECKPOINTS_API			1319
+#define	WT_STAT_CONN_CHECKPOINTS_API			1326
 /*! checkpoint: number of checkpoints started by compaction */
-#define	WT_STAT_CONN_CHECKPOINTS_COMPACT		1320
+#define	WT_STAT_CONN_CHECKPOINTS_COMPACT		1327
 /*! checkpoint: number of files synced */
-#define	WT_STAT_CONN_CHECKPOINT_SYNC			1321
+#define	WT_STAT_CONN_CHECKPOINT_SYNC			1328
 /*! checkpoint: number of handles visited after writes complete */
-#define	WT_STAT_CONN_CHECKPOINT_PRESYNC			1322
+#define	WT_STAT_CONN_CHECKPOINT_PRESYNC			1329
 /*! checkpoint: number of history store pages caused to be reconciled */
-#define	WT_STAT_CONN_CHECKPOINT_HS_PAGES_RECONCILED	1323
+#define	WT_STAT_CONN_CHECKPOINT_HS_PAGES_RECONCILED	1330
 /*! checkpoint: number of internal pages visited */
-#define	WT_STAT_CONN_CHECKPOINT_PAGES_VISITED_INTERNAL	1324
+#define	WT_STAT_CONN_CHECKPOINT_PAGES_VISITED_INTERNAL	1331
 /*! checkpoint: number of leaf pages visited */
-#define	WT_STAT_CONN_CHECKPOINT_PAGES_VISITED_LEAF	1325
+#define	WT_STAT_CONN_CHECKPOINT_PAGES_VISITED_LEAF	1332
 /*! checkpoint: number of pages caused to be reconciled */
-#define	WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILED	1326
-/*! checkpoint: pages added for eviction during checkpoint cleanup */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_EVICT	1327
-/*!
- * checkpoint: pages dirtied due to obsolete time window by checkpoint
- * cleanup
- */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_OBSOLETE_TW	1328
-/*!
- * checkpoint: pages read into cache during checkpoint cleanup
- * (reclaim_space)
- */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_READ_RECLAIM_SPACE	1329
-/*!
- * checkpoint: pages read into cache during checkpoint cleanup due to
- * obsolete time window
- */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_READ_OBSOLETE_TW	1330
-/*! checkpoint: pages removed during checkpoint cleanup */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_REMOVED	1331
-/*! checkpoint: pages skipped during checkpoint cleanup tree walk */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_WALK_SKIPPED	1332
-/*! checkpoint: pages visited during checkpoint cleanup */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_PAGES_VISITED	1333
+#define	WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILED	1333
 /*! checkpoint: prepare currently running */
 #define	WT_STAT_CONN_CHECKPOINT_PREP_RUNNING		1334
 /*! checkpoint: prepare max time (msecs) */
@@ -8286,31 +8274,22 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cache_walk or all statistics are enabled
  */
 #define	WT_STAT_DSRC_CACHE_STATE_PAGES			2156
+/*! checkpoint-cleanup: pages added for eviction */
+#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_EVICT	2157
+/*! checkpoint-cleanup: pages dirtied due to obsolete time window */
+#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_OBSOLETE_TW	2158
+/*! checkpoint-cleanup: pages read into cache (reclaim_space) */
+#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_READ_RECLAIM_SPACE	2159
+/*! checkpoint-cleanup: pages read into cache due to obsolete time window */
+#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_READ_OBSOLETE_TW	2160
+/*! checkpoint-cleanup: pages removed */
+#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_REMOVED	2161
+/*! checkpoint-cleanup: pages skipped during tree walk */
+#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_WALK_SKIPPED	2162
+/*! checkpoint-cleanup: pages visited */
+#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_VISITED	2163
 /*! checkpoint: checkpoint has acquired a snapshot for its transaction */
-#define	WT_STAT_DSRC_CHECKPOINT_SNAPSHOT_ACQUIRED	2157
-/*! checkpoint: pages added for eviction during checkpoint cleanup */
-#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_EVICT	2158
-/*!
- * checkpoint: pages dirtied due to obsolete time window by checkpoint
- * cleanup
- */
-#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_OBSOLETE_TW	2159
-/*!
- * checkpoint: pages read into cache during checkpoint cleanup
- * (reclaim_space)
- */
-#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_READ_RECLAIM_SPACE	2160
-/*!
- * checkpoint: pages read into cache during checkpoint cleanup due to
- * obsolete time window
- */
-#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_READ_OBSOLETE_TW	2161
-/*! checkpoint: pages removed during checkpoint cleanup */
-#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_REMOVED	2162
-/*! checkpoint: pages skipped during checkpoint cleanup tree walk */
-#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_WALK_SKIPPED	2163
-/*! checkpoint: pages visited during checkpoint cleanup */
-#define	WT_STAT_DSRC_CHECKPOINT_CLEANUP_PAGES_VISITED	2164
+#define	WT_STAT_DSRC_CHECKPOINT_SNAPSHOT_ACQUIRED	2164
 /*!
  * compression: compressed page maximum internal page size prior to
  * compression
