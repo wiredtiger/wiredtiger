@@ -487,11 +487,15 @@ conn_stats = [
     CapacityStat('fsync_all_time', 'background fsync time (msecs)', 'no_clear,no_scale'),
 
     ##########################################
+    # Checkpoint Cleanup statistics
+    ##########################################
+    CheckpointCleanupStat('checkpoint_cleanup_duration', 'most recent duration on all eligible files (usecs)', 'no_clear,no_scale'),
+    CheckpointCleanupStat('checkpoint_cleanup_handle_processed', 'most recent handles processed'),
+    CheckpointCleanupStat('checkpoint_cleanup_inmem_pages_visited', 'most recent in-memory pages visited'),
+
+    ##########################################
     # Checkpoint statistics
     ##########################################
-    CheckpointStat('checkpoint_cleanup_duration', 'most recent checkpoint cleanup duration on all eligible files (usecs)', 'no_clear,no_scale'),
-    CheckpointStat('checkpoint_cleanup_handle_processed', 'most recent checkpoint cleanup handles processed'),
-    CheckpointStat('checkpoint_cleanup_inmem_pages_visited', 'in-memory pages visited during checkpoint cleanup'),
     CheckpointStat('checkpoint_cleanup_success', 'checkpoint cleanup successful calls'),
     CheckpointStat('checkpoint_fsync_post', 'fsync calls after allocating the transaction ID'),
     CheckpointStat('checkpoint_fsync_post_duration', 'fsync duration after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
