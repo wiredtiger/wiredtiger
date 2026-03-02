@@ -1792,7 +1792,8 @@ __txn_incr_bytes_dirty(WT_SESSION_IMPL *session, size_t size, bool new_update)
      * or changes that are the result of the application thread being co-opted into eviction work.
      */
     if (!new_update || F_ISSET(session, WT_SESSION_INTERNAL) ||
-      !F_ISSET(&session->txn->time_point, WT_TXN_RUNNING | WT_TXN_TIME_POINT_HAS_ID) ||
+      (!F_ISSET(session->txn, WT_TXN_RUNNING) &&
+        !F_ISSET(&session->txn->time_point, WT_TXN_TIME_POINT_HAS_ID)) ||
       __wt_session_gen(session, WT_GEN_EVICT) != 0)
         return;
 

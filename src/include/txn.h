@@ -323,6 +323,10 @@ struct __wt_txn_log {
     WT_ITEM *logrec;
 };
 
+/*
+ * WT_TXN_TIME_POINT --
+ *	Time point information of the running transaction.
+ */
 struct __wt_txn_time_point {
     uint64_t id;
 
