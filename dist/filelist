@@ -121,6 +121,7 @@ src/cursor/cur_version.c
 src/evict/evict_conn.c
 src/evict/evict_file.c
 src/evict/evict_lru.c
+src/evict/evict_noop.c
 src/evict/evict_page.c
 src/evict/evict_stat.c
 src/history/hs_conn.c

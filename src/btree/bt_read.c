@@ -137,9 +137,9 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             return (ret);
         }
     }
-    (void)__wt_atomic_add_uint32_v(&btree->evict_busy, 1);
-    ret = __wt_evict(session, ref, previous_state, evict_flags);
-    (void)__wt_atomic_sub_uint32_v(&btree->evict_busy, 1);
+    __wt_evict_btree_busy_inc(session, btree);
+    ret = __wt_evict_page(session, ref, previous_state, evict_flags);
+    __wt_evict_btree_busy_dec(session, btree);
 
     return (ret);
 }
@@ -622,7 +622,7 @@ read:
              * making the problem better.
              */
             if (evict_skip || F_ISSET(session, WT_SESSION_RESOLVING_TXN) ||
-              LF_ISSET(WT_READ_NO_SPLIT) || btree->evict_disabled > 0)
+              LF_ISSET(WT_READ_NO_SPLIT) || __wt_evict_btree_is_eviction_disabled(session))
                 goto skip_evict;
 
             /*

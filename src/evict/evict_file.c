@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 /* !!!
- * __wt_evict_file --
+ * __wt_evict_randlru_file --
  *     Evict all pages for a specific tree/file. Traverse through the tree and either evict or
  *     discard pages based on the specified sync operation. Before calling this function, ensure
  *     exclusive access to the tree by using `__wt_evict_file_exclusive_on`.
@@ -24,7 +24,7 @@
  *     encountered during this process.
  */
 int
-__wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
+__wt_evict_randlru_file(WT_EVICT *evict, WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 {
     WT_BTREE *btree;
     WT_DATA_HANDLE *dhandle;
@@ -33,6 +33,8 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_REF *next_ref, *ref;
     uint32_t rec_flags, walk_flags;
 
+    WT_UNUSED(evict);
+
     dhandle = session->dhandle;
     btree = dhandle->handle;
 
@@ -40,7 +42,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
      * We need exclusive access to the file, we're about to discard the root page. Assert eviction
      * has been locked out.
      */
-    WT_ASSERT(session, btree->evict_disabled > 0 || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
+    WT_ASSERT(session, btree->evict_impl.randlru.evict_disabled > 0 || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
 
     /*
      * We do discard objects without pages in memory. If that's the case, we're done.
@@ -105,7 +107,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         switch (syncop) {
         case WT_SYNC_CLOSE:
             /* Evict the page. */
-            WT_ERR(__wt_evict(session, ref, WT_REF_GET_STATE(ref), WT_EVICT_CALL_CLOSING));
+            WT_ERR(__wt_evict_page(session, ref, WT_REF_GET_STATE(ref), WT_EVICT_CALL_CLOSING));
             break;
         case WT_SYNC_DISCARD:
             /*

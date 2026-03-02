@@ -864,7 +864,7 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
         WT_RET(__wt_calloc(session, 1, size, &page));
 
     page->type = type;
-    __wt_evict_page_init(page);
+    __wt_evict_page_init(session, page);
 
     switch (type) {
     case WT_PAGE_COL_INT:
@@ -913,7 +913,7 @@ err:
         else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
             (void)__wt_atomic_add_uint64_relaxed(&cache->pages_inmem_stable, 1);
     }
-    page->cache_create_gen = __wt_atomic_load_uint64_relaxed(&conn->evict->evict_pass_gen);
+    __wt_evict_page_set_cache_create_gen(session, page);
 
     *pagep = page;
     return (0);

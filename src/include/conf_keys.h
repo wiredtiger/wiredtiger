@@ -483,6 +483,7 @@ static const struct {
         uint64_t skip_update_obsolete_check;
         uint64_t threads_max;
         uint64_t threads_min;
+        uint64_t type;
     } Eviction;
     struct {
         uint64_t close_handle_minimum;
@@ -894,6 +895,7 @@ static const struct {
     WT_CONF_ID_Eviction | (WT_CONF_ID_skip_update_obsolete_check << 16),
     WT_CONF_ID_Eviction | (WT_CONF_ID_threads_max << 16),
     WT_CONF_ID_Eviction | (WT_CONF_ID_threads_min << 16),
+    WT_CONF_ID_Eviction | (WT_CONF_ID_type << 16),
   },
   {
     WT_CONF_ID_File_manager | (WT_CONF_ID_close_handle_minimum << 16),

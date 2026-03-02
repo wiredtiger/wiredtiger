@@ -2300,6 +2300,10 @@ struct __wt_connection {
      * threads WiredTiger will start to help evict pages from cache.  The number of threads
      * currently running will vary depending on the current eviction load., an integer between \c 1
      * and \c 64; default \c 1.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;type, eviction implementation to
+     * use.  "randlru" is the default randomized LRU eviction.  "none" disables eviction entirely
+     * (for testing purposes only)., a string\, chosen from the following options: \c "randlru"\, \c
+     * "none"; default \c randlru.}
      * @config{ ),,}
      * @config{eviction_checkpoint_target, perform eviction at the beginning of checkpoints to bring
      * the dirty content in cache to this level.  It is a percentage of the cache size if the value
@@ -3238,6 +3242,10 @@ struct __wt_connection {
  * threads_min, minimum number of threads WiredTiger will start to help evict pages from cache.  The
  * number of threads currently running will vary depending on the current eviction load., an integer
  * between \c 1 and \c 64; default \c 1.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;type, eviction
+ * implementation to use.  "randlru" is the default randomized LRU eviction.  "none" disables
+ * eviction entirely (for testing purposes only)., a string\, chosen from the following options: \c
+ * "randlru"\, \c "none"; default \c randlru.}
  * @config{ ),,}
  * @config{eviction_checkpoint_target, perform eviction at the beginning of checkpoints to bring the
  * dirty content in cache to this level.  It is a percentage of the cache size if the value is
