@@ -1,0 +1,13 @@
+[project]
+name = "py-common"
+version = "0.1.0"
+description = "Shared WiredTiger Python utilities"
+dependencies = []
+
+[tool.setuptools]
+packages = ["py_common"]
+package-dir = {"py_common" = "."}
+
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools"]

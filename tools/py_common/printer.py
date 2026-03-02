@@ -113,10 +113,14 @@ def raw_bytes(b):
     result = ''
     s = b
     while len(s) > 0 and s[0] >= 0x7f:
-        val, s = binary_data.unpack_int(s)
-        if result != '':
-            result += ' '
-        result += f'<packed {binary_data.d_and_h(val)}>'
+        try:
+            val, next_s = binary_data.unpack_int(s)
+            if result != '':
+                result += ' '
+            result += f'<packed {binary_data.d_and_h(val)}>'
+            s = next_s
+        except (ValueError, IndexError):
+            break
     if len(s) == 0:
         return result
 

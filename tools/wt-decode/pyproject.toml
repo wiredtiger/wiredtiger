@@ -1,0 +1,27 @@
+[project]
+name = "wt-decode"
+version = "0.1.0"
+description = "WiredTiger Disaggregated Storage Decode Tool"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "py-common",
+    "crc32c>=2.8",
+    "grpcio==1.78.1",
+    "grpcio-tools==1.78.1",
+    "protobuf>=6.33.5",
+    "pymongo>=4.16.0",
+    "python-snappy>=0.7.3",
+    "questionary>=2.1.1",
+    "rich>=14.3.3",
+    "typer>=0.24.1",
+]
+
+[tool.uv.sources]
+py-common = { path = "../py_common", editable = true }
+
+[project.scripts]
+wtd = "wt_decode.main:app"
+
+[tool.uv]
+package = true
