@@ -459,18 +459,20 @@ __verify_disagg_string(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ITEM *buf)
 {
     WT_DECL_RET;
     WT_PAGE_BLOCK_META *block_meta;
+    WT_PAGE_DISAGG_INFO *disagg_info;
 
     if (page == NULL || page->disagg_info == NULL) {
         WT_ERR(__wt_buf_fmt(session, buf, "Disagg metadata not available"));
         return (buf->data);
     }
 
-    block_meta = &page->disagg_info->block_meta;
+    disagg_info = page->disagg_info;
+    block_meta = &disagg_info->block_meta;
     WT_ERR(__wt_buf_fmt(session, buf,
       "page_id: %" PRIu64 ", disagg_lsn: %" PRIu64 ", backlink_lsn: %" PRIu64 ", base_lsn: %" PRIu64
-      ", delta_count: %" PRIu8,
+      ", delta_count: %" PRIu8 ", old_rec_lsn_max: %" PRIu64 ", rec_lsn_max: %" PRIu64,
       block_meta->page_id, block_meta->disagg_lsn, block_meta->backlink_lsn, block_meta->base_lsn,
-      block_meta->delta_count));
+      block_meta->delta_count, disagg_info->old_rec_lsn_max, disagg_info->rec_lsn_max));
 
 err:
     return (buf->data);
@@ -483,14 +485,26 @@ err:
 static const char *
 __verify_block_meta_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
 {
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
     WT_PAGE *page;
 
     page = ref->page;
 
-    if (page->disagg_info != NULL)
-        return (__verify_disagg_string(session, page, buf));
-    else
-        return (__verify_addr_string(session, ref, buf));
+    if (page->disagg_info != NULL) {
+        WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+        WT_ERR(__wt_buf_fmt(session, buf, "%s", __verify_disagg_string(session, page, tmp)));
+        WT_ERR(__wt_buf_catfmt(
+          session, buf, ", local_addr: %s", __verify_addr_string(session, ref, tmp)));
+        __wt_scr_free(session, &tmp);
+        return (buf->data);
+    }
+
+    return (__verify_addr_string(session, ref, buf));
+
+err:
+    __wt_scr_free(session, &tmp);
+    return (buf->data);
 }
 
 /*
