@@ -30,17 +30,19 @@ import wttest, wiredtiger
 from helper_disagg import disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered20.py
-#   Test basic fast truncate functioanlity.
+# test_layered76.py
+#   Test basic fast truncate functionality.
 @disagg_test_class
-class test_layered20(wttest.WiredTigerTestCase):
+class test_layered76(wttest.WiredTigerTestCase):
+
+    conn_config = 'disaggregated=(role="leader"),'
 
     uris = [
-        ('layered', dict(uri='layered:test_layered20')),
-        ('table', dict(uri='table:test_layered20')),
+        ('layered', dict(uri='layered:test_layered76')),
+        ('table', dict(uri='table:test_layered76')),
     ]
 
-    disagg_storages = gen_disagg_storages('test_layered20', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered76', disagg_only = True)
 
     scenarios = make_scenarios(disagg_storages, uris)
 
@@ -49,10 +51,12 @@ class test_layered20(wttest.WiredTigerTestCase):
     def session_create_config(self):
         cfg = 'key_format=S,value_format=S'
         if self.uri.startswith('table'):
-            cfg += ',block_manager=disagg'
+            cfg += ',block_manager=disagg,type=layered'
         return cfg
 
     def test_truncate_basic(self):
+        if (wiredtiger.disagg_fast_truncate_build() == 0):
+            self.skipTest("fast truncate is not supported with disaggregated storage yet.")
         self.session.create(self.uri, self.session_create_config())
 
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -67,7 +71,7 @@ class test_layered20(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Switch to follower.
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
+        follower_config = 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
 
@@ -106,6 +110,8 @@ class test_layered20(wttest.WiredTigerTestCase):
 
 
     def test_truncate_rollback(self):
+        if (wiredtiger.disagg_fast_truncate_build() == 0):
+            self.skipTest("fast truncate is not supported with disaggregated storage yet.")
         self.session.create(self.uri, self.session_create_config())
 
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -120,7 +126,7 @@ class test_layered20(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Switch to follower.
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
+        follower_config = 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
 
@@ -145,6 +151,8 @@ class test_layered20(wttest.WiredTigerTestCase):
         c2.close()
 
     def test_truncate_write_conflict_1(self):
+        if (wiredtiger.disagg_fast_truncate_build() == 0):
+            self.skipTest("fast truncate is not supported with disaggregated storage yet.")
         self.session.create(self.uri, self.session_create_config())
 
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -159,7 +167,7 @@ class test_layered20(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Switch to follower.
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
+        follower_config = 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
 
@@ -187,6 +195,8 @@ class test_layered20(wttest.WiredTigerTestCase):
         c2.close()
 
     def test_truncate_write_conflict_2(self):
+        if (wiredtiger.disagg_fast_truncate_build() == 0):
+            self.skipTest("fast truncate is not supported with disaggregated storage yet.")
         self.session.create(self.uri, self.session_create_config())
 
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -201,7 +211,7 @@ class test_layered20(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Switch to follower.
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
+        follower_config = 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
 
