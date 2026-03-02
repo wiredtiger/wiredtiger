@@ -847,15 +847,16 @@ __recovery_metadata_scan_prefix(WT_RECOVERY *r, const char *prefix, const char *
 static int
 __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *config)
 {
+    WT_DECL_ITEM(colgroup_buf);
+    WT_DECL_ITEM(file_prefix_buf);
     WT_DECL_RET;
     char *cg_meta_value;
     const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
     const char *metadata_cfg[] = {config, NULL};
     const char *name, *file_uri;
     WT_CONFIG_ITEM cval;
-    WT_ITEM *colgroup_buf, *file_prefix_buf;
     WT_CURSOR *c = NULL;
-    bool colgroup_exists, file_exists;
+    bool is_simple, colgroup_exists, file_exists;
     int cmp;
 
     cg_meta_value = NULL;
@@ -865,7 +866,6 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
      * FIXME-WT-16146: Add capability for cleaning up incomplete complex tables and skip checking
      * tiered shared tables.
      */
-    bool is_simple;
     WT_ERR(__wt_config_gets(r->session, metadata_cfg, "columns", &cval));
     WT_ERR(__wt_is_simple_table(r->session, &cval, &is_simple));
     if (!is_simple || ((ret = __wt_config_gets(r->session, metadata_cfg, "shared", &cval)) == 0))
@@ -897,8 +897,9 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
     WT_ERR(__wt_metadata_cursor_release(r->session, &c));
 
     if (!colgroup_exists || !file_exists) {
-        __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING, "%s %s",
-          "removing incomplete table", uri);
+        __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING,
+          "%s %s, colgroup_exists=%d, file_exists=%d", "removing incomplete table", uri,
+          colgroup_exists, file_exists);
 
         WT_WITH_SCHEMA_LOCK(r->session,
           WT_WITH_TABLE_WRITE_LOCK(

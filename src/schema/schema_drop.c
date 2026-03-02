@@ -61,13 +61,7 @@ __drop_file(
         WT_TRET(__wt_meta_track_drop(session, filename));
 
     /* FIXME-WT-12021 Replace this with a proper failpoint once the framework is available. */
-    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE)) {
-        __wt_verbose_warning(session, WT_VERB_DEFAULT,
-          "Simulating a crash after dropping the file metadata entry for '%s'", uri);
-        /* Wait for the file metadata drop to be persisted. */
-        __wt_sleep(2, 0);
-        __wt_abort(session);
-    }
+    __wti_debug_crash_if_flag_set(session, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE, uri);
 
     /*
      * Truncate history store for the dropped file if we can find its id from the metadata, this is
@@ -305,13 +299,7 @@ __drop_table(
     }
 
     /* FIXME-WT-12021 Replace this with a proper failpoint once the framework is available. */
-    if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP)) {
-        __wt_verbose_warning(session, WT_VERB_DEFAULT,
-          "Simulating a crash after dropping the colgroup metadata entry for '%s'", uri);
-        /* Wait for the colgroup metadata drop to be persisted. */
-        __wt_sleep(2, 0);
-        __wt_abort(session);
-    }
+    __wti_debug_crash_if_flag_set(session, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP, uri);
 
     /* Drop the indices. */
     WT_ERR(__wt_schema_open_indices(session, table));
