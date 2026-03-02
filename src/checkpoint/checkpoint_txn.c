@@ -1989,7 +1989,7 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     orig_flags = F_MASK(session, WTI_CHECKPOINT_SESSION_FLAGS);
     F_SET(session, WTI_CHECKPOINT_SESSION_FLAGS);
 
-    WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_cleanup", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "debug.checkpoint_cleanup", &cval));
     checkpoint_cleanup = cval.val;
 
     /*
@@ -1997,9 +1997,9 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
      * flush_tier to have completed all of its copying of objects. This happens if the user chose to
      * not wait for sync on the previous call.
      */
-    WT_RET(__wt_config_gets(session, cfg, "flush_tier.enabled", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "flush_tier.enabled", &cval));
     flush = cval.val;
-    WT_RET(__wt_config_gets(session, cfg, "flush_tier.sync", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "flush_tier.sync", &cval));
     flush_sync = cval.val;
     if (flush)
         WT_ERR(__checkpoint_flush_tier_wait(session, cfg));
