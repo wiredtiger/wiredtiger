@@ -7246,31 +7246,28 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CAPACITY_TIME_READ			1372
 /*! capacity: time waiting for chunk cache IO bandwidth (usecs) */
 #define	WT_STAT_CONN_CAPACITY_TIME_CHUNKCACHE		1373
+/*! checkpoint-cleanup: most recent duration on all eligible files (usecs) */
+#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_DURATION	1374
+/*! checkpoint-cleanup: most recent handles processed */
+#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_HANDLE_PROCESSED	1375
+/*! checkpoint-cleanup: most recent in-memory pages visited */
+#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_INMEM_PAGES_VISITED	1376
 /*! checkpoint: checkpoint cleanup successful calls */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_SUCCESS		1374
+#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_SUCCESS		1377
 /*! checkpoint: checkpoint has acquired a snapshot for its transaction */
-#define	WT_STAT_CONN_CHECKPOINT_SNAPSHOT_ACQUIRED	1375
+#define	WT_STAT_CONN_CHECKPOINT_SNAPSHOT_ACQUIRED	1378
 /*! checkpoint: checkpoints skipped because database was clean */
-#define	WT_STAT_CONN_CHECKPOINT_SKIPPED			1376
+#define	WT_STAT_CONN_CHECKPOINT_SKIPPED			1379
 /*! checkpoint: fsync calls after allocating the transaction ID */
-#define	WT_STAT_CONN_CHECKPOINT_FSYNC_POST		1377
+#define	WT_STAT_CONN_CHECKPOINT_FSYNC_POST		1380
 /*! checkpoint: fsync duration after allocating the transaction ID (usecs) */
-#define	WT_STAT_CONN_CHECKPOINT_FSYNC_POST_DURATION	1378
+#define	WT_STAT_CONN_CHECKPOINT_FSYNC_POST_DURATION	1381
 /*! checkpoint: generation */
-#define	WT_STAT_CONN_CHECKPOINT_GENERATION		1379
-/*! checkpoint: in-memory pages visited during checkpoint cleanup */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_INMEM_PAGES_VISITED	1380
+#define	WT_STAT_CONN_CHECKPOINT_GENERATION		1382
 /*! checkpoint: max time (msecs) */
-#define	WT_STAT_CONN_CHECKPOINT_TIME_MAX		1381
+#define	WT_STAT_CONN_CHECKPOINT_TIME_MAX		1383
 /*! checkpoint: min time (msecs) */
-#define	WT_STAT_CONN_CHECKPOINT_TIME_MIN		1382
-/*!
- * checkpoint: most recent checkpoint cleanup duration on all eligible
- * files (usecs)
- */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_DURATION	1383
-/*! checkpoint: most recent checkpoint cleanup handles processed */
-#define	WT_STAT_CONN_CHECKPOINT_CLEANUP_HANDLE_PROCESSED	1384
+#define	WT_STAT_CONN_CHECKPOINT_TIME_MIN		1384
 /*!
  * checkpoint: most recent duration for checkpoint dropping all handles
  * (usecs)

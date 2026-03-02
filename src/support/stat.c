@@ -2233,17 +2233,17 @@ static const char *const __stats_connection_desc[] = {
   "capacity: time waiting during logging (usecs)",
   "capacity: time waiting during read (usecs)",
   "capacity: time waiting for chunk cache IO bandwidth (usecs)",
+  "checkpoint-cleanup: most recent duration on all eligible files (usecs)",
+  "checkpoint-cleanup: most recent handles processed",
+  "checkpoint-cleanup: most recent in-memory pages visited",
   "checkpoint: checkpoint cleanup successful calls",
   "checkpoint: checkpoint has acquired a snapshot for its transaction",
   "checkpoint: checkpoints skipped because database was clean",
   "checkpoint: fsync calls after allocating the transaction ID",
   "checkpoint: fsync duration after allocating the transaction ID (usecs)",
   "checkpoint: generation",
-  "checkpoint: in-memory pages visited during checkpoint cleanup",
   "checkpoint: max time (msecs)",
   "checkpoint: min time (msecs)",
-  "checkpoint: most recent checkpoint cleanup duration on all eligible files (usecs)",
-  "checkpoint: most recent checkpoint cleanup handles processed",
   "checkpoint: most recent duration for checkpoint dropping all handles (usecs)",
   "checkpoint: most recent duration for gathering all handles (usecs)",
   "checkpoint: most recent duration for gathering applied handles (usecs)",
@@ -3285,17 +3285,17 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->capacity_time_log = 0;
     stats->capacity_time_read = 0;
     stats->capacity_time_chunkcache = 0;
+    /* not clearing checkpoint_cleanup_duration */
+    stats->checkpoint_cleanup_handle_processed = 0;
+    stats->checkpoint_cleanup_inmem_pages_visited = 0;
     stats->checkpoint_cleanup_success = 0;
     stats->checkpoint_snapshot_acquired = 0;
     stats->checkpoint_skipped = 0;
     stats->checkpoint_fsync_post = 0;
     /* not clearing checkpoint_fsync_post_duration */
     /* not clearing checkpoint_generation */
-    stats->checkpoint_cleanup_inmem_pages_visited = 0;
     /* not clearing checkpoint_time_max */
     /* not clearing checkpoint_time_min */
-    /* not clearing checkpoint_cleanup_duration */
-    stats->checkpoint_cleanup_handle_processed = 0;
     /* not clearing checkpoint_handle_drop_duration */
     /* not clearing checkpoint_handle_duration */
     /* not clearing checkpoint_handle_apply_duration */
@@ -4424,19 +4424,19 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->capacity_time_log += WT_STAT_CONN_READ(from, capacity_time_log);
     to->capacity_time_read += WT_STAT_CONN_READ(from, capacity_time_read);
     to->capacity_time_chunkcache += WT_STAT_CONN_READ(from, capacity_time_chunkcache);
+    to->checkpoint_cleanup_duration += WT_STAT_CONN_READ(from, checkpoint_cleanup_duration);
+    to->checkpoint_cleanup_handle_processed +=
+      WT_STAT_CONN_READ(from, checkpoint_cleanup_handle_processed);
+    to->checkpoint_cleanup_inmem_pages_visited +=
+      WT_STAT_CONN_READ(from, checkpoint_cleanup_inmem_pages_visited);
     to->checkpoint_cleanup_success += WT_STAT_CONN_READ(from, checkpoint_cleanup_success);
     to->checkpoint_snapshot_acquired += WT_STAT_CONN_READ(from, checkpoint_snapshot_acquired);
     to->checkpoint_skipped += WT_STAT_CONN_READ(from, checkpoint_skipped);
     to->checkpoint_fsync_post += WT_STAT_CONN_READ(from, checkpoint_fsync_post);
     to->checkpoint_fsync_post_duration += WT_STAT_CONN_READ(from, checkpoint_fsync_post_duration);
     to->checkpoint_generation += WT_STAT_CONN_READ(from, checkpoint_generation);
-    to->checkpoint_cleanup_inmem_pages_visited +=
-      WT_STAT_CONN_READ(from, checkpoint_cleanup_inmem_pages_visited);
     to->checkpoint_time_max += WT_STAT_CONN_READ(from, checkpoint_time_max);
     to->checkpoint_time_min += WT_STAT_CONN_READ(from, checkpoint_time_min);
-    to->checkpoint_cleanup_duration += WT_STAT_CONN_READ(from, checkpoint_cleanup_duration);
-    to->checkpoint_cleanup_handle_processed +=
-      WT_STAT_CONN_READ(from, checkpoint_cleanup_handle_processed);
     to->checkpoint_handle_drop_duration += WT_STAT_CONN_READ(from, checkpoint_handle_drop_duration);
     to->checkpoint_handle_duration += WT_STAT_CONN_READ(from, checkpoint_handle_duration);
     to->checkpoint_handle_apply_duration +=
