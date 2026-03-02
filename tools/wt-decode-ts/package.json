@@ -1,0 +1,44 @@
+{
+  "name": "wt-decode-ts",
+  "version": "1.0.0",
+  "description": "WiredTiger Page Decoder in TypeScript",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "wt": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node dist/test_decode_page.test.js && node dist/all_files.test.js && node dist/analyze.test.js"
+  },
+  "keywords": [
+    "wiredtiger",
+    "decoder",
+    "database"
+  ],
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bson": "^6.10.2",
+    "chalk": "^5.4.1",
+    "cli-progress": "^3.12.0",
+    "commander": "^13.1.0",
+    "inquirer": "^9.3.8",
+    "snappy": "^7.2.2",
+    "sse4_crc32": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/cli-progress": "^3.11.6",
+    "@types/commander": "^2.12.5",
+    "@types/inquirer": "^9.0.9",
+    "@types/node": "^22.13.5",
+    "@types/snappy": "^6.3.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  }
+}
