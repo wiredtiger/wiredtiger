@@ -381,3 +381,9 @@ define_c_test(
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )
+
+define_c_test(
+    TARGET test_wt16695_truncate_leader_promotion
+    SOURCES wt16695_truncate_leader_promotion/main.c
+    DIR_NAME wt16695_truncate_leader_promotion
+)
