@@ -479,7 +479,6 @@ __wt_evict_stats_init(WT_SESSION_IMPL *session)
       session, stats, eviction_state, __wt_atomic_load_uint32_relaxed(&evict->flags));
     WT_STATP_CONN_SET(session, stats, eviction_aggressive_set,
       __wt_atomic_load_uint32_relaxed(&evict->evict_aggressive_score));
-    WT_STATP_CONN_SET(session, stats, eviction_empty_score, evict->evict_empty_score);
 
     WT_STATP_CONN_SET(session, stats, eviction_active_workers,
       __wt_atomic_load_uint32_relaxed(&conn->evict_threads.current_threads));
