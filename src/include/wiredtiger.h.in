@@ -5620,7 +5620,7 @@ struct __wt_page_log {
      *        checkpoint_id used with this call.
      * @param checkpoint_timestamp the stable timestamp associated with the checkpoint
      * @param checkpoint_metadata the buffer with checkpoint metadata
-     * @param ext_args an optional version based argument for extended checkpoint completion
+     * @param ext_args an optional version based argument for extended arguments
      */
     int (*pl_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session,
         uint64_t checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata,
@@ -5639,7 +5639,7 @@ struct __wt_page_log {
      *        checkpoint_id used with this call.
      * @param checkpoint_timestamp the stable timestamp associated with the checkpoint
      * @param checkpoint_metadata the buffer with checkpoint metadata
-     * @param ext_args an optional version based argument for extended checkpoint completion
+     * @param ext_args an optional version based argument for extended arguments
      */
     int (*pl_complete_checkpoint_ext)(WT_PAGE_LOG *page_log, WT_SESSION *session,
         uint64_t checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata,
@@ -5869,7 +5869,7 @@ struct __wt_page_log_complete_checkpoint_args {
     /* version 1 */
     uint64_t *lsnp;
     uint64_t oldest_timestamp;
-    /* For version increasing, only append new parameters is allowed. */
+    /* For any new version, add new parameter at the end. */
 };
 
 /*!
