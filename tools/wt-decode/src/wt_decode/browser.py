@@ -1,7 +1,10 @@
 import argparse
+import base64
 import io
+import json
 import logging
 import re
+from pathlib import Path
 from typing import Any, Optional, Dict
 
 import questionary
@@ -20,10 +23,11 @@ from .constants import METADATA_TABLE_ID, TURTLE_TABLE_ID, TURTLE_PAGE_ID
 logger = logging.getLogger(__name__)
 
 class DisaggBrowser:
-    def __init__(self, client: DisaggClient, key_file: str, log_id: int):
+    def __init__(self, client: DisaggClient, key_file: str, log_id: int, debug: bool = False):
         self.client = client
         self.key_file = key_file
         self.log_id = log_id
+        self.debug = debug
         self.tables: Dict[str, Dict[str, Any]] = {}
         self.use_rich = True
 
@@ -67,6 +71,10 @@ class DisaggBrowser:
 
     def get_metadata_root(self, lsn: int) -> Optional[Dict[str, int]]:
         rprint(f"[blue][*] Fetching turtle page (table_id={TURTLE_TABLE_ID}, page_id={TURTLE_PAGE_ID}, lsn={lsn})...[/blue]")
+        logger.debug(
+            "get_metadata_root: fetching turtle page table_id=%d page_id=%d lsn=%d",
+            TURTLE_TABLE_ID, TURTLE_PAGE_ID, lsn,
+        )
         try:
             resp = self.client.get_page_at_lsn(self.log_id, TURTLE_TABLE_ID, TURTLE_PAGE_ID, lsn)
             decrypted = self.client.decrypt_full_response(self.key_file, resp, lsn, TURTLE_TABLE_ID, TURTLE_PAGE_ID)
@@ -75,18 +83,25 @@ class DisaggBrowser:
             match = re.search(r'addr="([0-9a-fA-F]+)"', content)
             if not match:
                 rprint("[red][!] Could not find root address in turtle page.[/red]")
+                logger.debug("get_metadata_root: no addr field in turtle page content")
                 return None
 
             addr_hex = match.group(1)
             addr = btree_format.DisaggAddr.parse(bytes.fromhex(addr_hex))
             rprint(f"[green][*] Metadata table root found: page_id={addr.page_id}, lsn={addr.lsn}[/green]")
+            logger.debug("get_metadata_root: root page_id=%d lsn=%d", addr.page_id, addr.lsn)
             return {"page_id": addr.page_id, "lsn": addr.lsn}
         except Exception as e:
             rprint(f"[red][!] Failed to fetch/decrypt turtle page: {e}[/red]")
+            logger.debug("get_metadata_root: exception: %s", e, exc_info=True)
             return None
 
     def load_tables_from_metadata(self, root: Dict[str, int]):
         rprint("[blue][*] Fetching metadata table...[/blue]")
+        logger.debug(
+            "load_tables_from_metadata: starting from page_id=%d lsn=%d",
+            root['page_id'], root['lsn'],
+        )
         
         metadata_table_id = METADATA_TABLE_ID
         queue = [root]
@@ -108,6 +123,10 @@ class DisaggBrowser:
                 try:
                     resp = self.client.get_page_at_lsn(self.log_id, metadata_table_id, current['page_id'], current['lsn'])
                     decrypted = self.client.decrypt_full_response(self.key_file, resp, current['lsn'], metadata_table_id, current['page_id'])
+                    logger.debug(
+                        "load_tables_from_metadata: decoded page_id=%d lsn=%d (%d bytes)",
+                        current['page_id'], current['lsn'], len(decrypted),
+                    )
                     
                     b = binary_data.BinaryFile(io.BytesIO(decrypted))
                     decode_opts = make_decode_opts()
@@ -168,6 +187,7 @@ class DisaggBrowser:
                 choices=[
                     {"name": "Interactive Tree Traversal", "value": "TRAVERSE"},
                     {"name": "Fetch whole table recursively", "value": "FETCH"},
+                    {"name": "Fetch all pages associated with table (ListPages)", "value": "FETCH_ALL_LIST"},
                     {"name": "Dump contents", "value": "DUMP"},
                     questionary.Separator(),
                     {"name": "Back to table list", "value": "BACK"}
@@ -179,6 +199,8 @@ class DisaggBrowser:
                 self.traverse_tree(info['table_id'], addr.page_id, addr.lsn)
             elif action == "FETCH":
                 self.fetch_table_interactive(table_name, info['table_id'], addr.page_id, addr.lsn)
+            elif action == "FETCH_ALL_LIST":
+                self.fetch_all_pages_list_pages(table_name, info['table_id'])
             elif action == "DUMP":
                 bson = questionary.confirm("Decode values as BSON?", default=False).ask()
                 values_only = questionary.confirm("Values only (omit keys)?", default=False).ask()
@@ -230,6 +252,7 @@ class DisaggBrowser:
             rprint(f"[red][!] Dump failed: {e}[/red]")
 
     def fetch_and_decode(self, table_id: int, page_id: int, lsn: int) -> Optional[btree_format.WTPage]:
+        logger.debug("fetch_and_decode: table_id=%d page_id=%d lsn=%d", table_id, page_id, lsn)
         try:
             resp = self.client.get_page_at_lsn(self.log_id, table_id, page_id, lsn)
             decrypted = self.client.decrypt_full_response(self.key_file, resp, lsn, table_id, page_id)
@@ -237,14 +260,20 @@ class DisaggBrowser:
             decode_opts = make_decode_opts()
             page = btree_format.WTPage()
             page = page.parse(b, len(decrypted), decode_opts)
+            logger.debug(
+                "fetch_and_decode: page_id=%d lsn=%d type=%s",
+                page_id, lsn, getattr(page.page_header, 'type', 'unknown'),
+            )
             return page
         except Exception as e:
             rprint(f"[red][!] Error: {e}[/red]")
+            logger.debug("fetch_and_decode: failed page_id=%d lsn=%d: %s", page_id, lsn, e, exc_info=True)
             return None
 
     def traverse_tree(self, table_id: int, root_page_id: int, root_lsn: int):
         current = {"page_id": root_page_id, "lsn": root_lsn}
         stack = [] # Navigation stack: list of {page_id, lsn, siblings, sibling_index}
+        logger.debug("traverse_tree: starting at table_id=%d page_id=%d lsn=%d", table_id, root_page_id, root_lsn)
 
         while True:
             page = self.fetch_and_decode(table_id, current['page_id'], current['lsn'])
@@ -300,6 +329,8 @@ class DisaggBrowser:
                 use_shortcuts=True
             ).ask()
 
+            logger.debug("traverse_tree: user action at page_id=%d lsn=%d: %s", current['page_id'], current['lsn'], action)
+
             if action is None or action['type'] == "EXIT": break
             if action['type'] == "TOGGLE_MODE":
                 self.use_rich = not self.use_rich
@@ -307,12 +338,15 @@ class DisaggBrowser:
             if action['type'] == "UP":
                 last = stack.pop()
                 current = {"page_id": last['page_id'], "lsn": last['lsn']}
+                logger.debug("traverse_tree: UP -> page_id=%d lsn=%d", current['page_id'], current['lsn'])
             elif action['type'] == "PREV":
                 stack[-1]['sibling_index'] -= 1
                 current = stack[-1]['siblings'][stack[-1]['sibling_index']]
+                logger.debug("traverse_tree: PREV -> page_id=%d lsn=%d", current['page_id'], current['lsn'])
             elif action['type'] == "NEXT":
                 stack[-1]['sibling_index'] += 1
                 current = stack[-1]['siblings'][stack[-1]['sibling_index']]
+                logger.debug("traverse_tree: NEXT -> page_id=%d lsn=%d", current['page_id'], current['lsn'])
             elif action['type'] == "CHILD":
                 stack.append({
                     "page_id": current['page_id'],
@@ -321,6 +355,7 @@ class DisaggBrowser:
                     "sibling_index": action['index']
                 })
                 current = children[action['index']]
+                logger.debug("traverse_tree: CHILD[%d] -> page_id=%d lsn=%d", action['index'], current['page_id'], current['lsn'])
 
     def fetch_table_interactive(self, table_name: str, table_id: int, root_page_id: int, root_lsn: int):
         default_dir = f"./fetch_{table_name.replace('file:', '').replace('.wt_stable', '')}"
@@ -344,3 +379,100 @@ class DisaggBrowser:
         )
         
         disagg_fetch_full_tree.traverse_tree(args)
+
+    def fetch_all_pages_list_pages(self, table_name: str, table_id: int):
+        clean_name = table_name.replace("file:", "").replace(".wt", "")
+        default_dir = f"./fetch_{clean_name}_all"
+        output_dir_str = questionary.text("Output directory:", default=default_dir).ask()
+        if output_dir_str is None: return
+        output_dir = Path(output_dir_str)
+        
+        pages_dir = output_dir / "pages"
+        pages_dir.mkdir(parents=True, exist_ok=True)
+
+        rprint(f"[blue][*] Listing all pages for table_id {table_id}...[/blue]")
+        
+        offset_table_id = table_id
+        offset_page_id = 0
+        offset_lsn = 0
+        limit = 100
+        
+        all_summaries = []
+        stop = False
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+        ) as progress:
+            task = progress.add_task("Listing pages...", total=None)
+            
+            while not stop:
+                try:
+                    resp = self.client.list_pages(
+                        self.log_id, 
+                        table_id=offset_table_id, 
+                        page_id=offset_page_id, 
+                        lsn=offset_lsn, 
+                        limit=limit
+                    )
+                except Exception as e:
+                    rprint(f"[red][!] ListPages failed: {e}[/red]")
+                    break
+                
+                if not resp.page_summaries:
+                    break
+                
+                new_summaries = []
+                for summary in resp.page_summaries:
+                    if summary.table_id != table_id:
+                        stop = True
+                        break
+                    
+                    # Avoid duplicates if the API is inclusive
+                    if all_summaries and (summary.page_id == all_summaries[-1].page_id and summary.lsn == all_summaries[-1].lsn):
+                        continue
+
+                    new_summaries.append(summary)
+                
+                all_summaries.extend(new_summaries)
+                progress.update(task, description=f"Found {len(all_summaries)} pages...")
+                
+                if not stop:
+                    last = resp.page_summaries[-1]
+                    offset_table_id = last.table_id
+                    offset_page_id = last.page_id
+                    offset_lsn = last.lsn
+                    
+                    if len(resp.page_summaries) < limit:
+                        stop = True
+
+        rprint(f"[green][*] Found {len(all_summaries)} pages for table_id {table_id}.[/green]")
+        
+        if not all_summaries:
+            return
+
+        # Now fetch each page
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            "[progress.percentage]{task.percentage:>3.01f}%",
+        ) as progress:
+            task = progress.add_task("Fetching pages...", total=len(all_summaries))
+            
+            for summary in all_summaries:
+                try:
+                    resp = self.client.get_page_at_lsn(self.log_id, summary.table_id, summary.page_id, summary.lsn)
+                    page_proto = resp.page
+                    
+                    # Save to file
+                    page_json_path = pages_dir / f"page_{summary.page_id}_lsn_{summary.lsn}.json"
+                    
+                    page_data = disagg_fetch_full_tree.page_to_json_dict(page_proto)
+                    page_json_path.write_text(json.dumps(page_data, indent=2))
+                except Exception as e:
+                    logger.error("Failed to fetch page_id=%d lsn=%d: %s", summary.page_id, summary.lsn, e)
+                
+                progress.update(task, advance=1)
+        
+        rprint(f"[green][*] Successfully fetched and saved {len(all_summaries)} pages to {pages_dir}[/green]")

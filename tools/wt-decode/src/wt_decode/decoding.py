@@ -13,8 +13,16 @@ def make_decode_opts(
     bson: bool = False,
     disagg: bool = True,
     debug: bool = False,
+    is_delta: bool = False,
 ) -> argparse.Namespace:
-    """Build a minimal argparse.Namespace matching what WTPage.parse and print_page expect."""
+    """Build a minimal argparse.Namespace matching what WTPage.parse and print_page expect.
+
+    Args:
+        is_delta: When True, signals that the bytes being decoded are a disaggregated
+                  storage delta page (WT_BLOCK_DISAGG_MAGIC_DELTA) rather than a full
+                  base image.  Pass is_delta=True when decoding individual delta pages
+                  so that call-sites can distinguish the two decoding contexts.
+    """
     return argparse.Namespace(
         verbose=verbose,
         split=False,
@@ -28,6 +36,7 @@ def make_decode_opts(
         skip_data=False,
         offset=0,
         pages=0,
+        is_delta=is_delta,
     )
 
 def decode_page_bytes(page_bytes: bytes, opts: argparse.Namespace) -> btree_format.WTPage:

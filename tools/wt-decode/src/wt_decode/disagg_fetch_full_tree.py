@@ -9,7 +9,7 @@ from typing import Any
 import grpc
 
 from .models import PageTuple, DecodedPageInfo
-from .client import create_page_service_stub, fetch_page, decrypt_full_response_json
+from .client import create_page_service_stub, fetch_page, decrypt_full_response_json, decrypt_response_deltas
 from .decoding import make_decode_opts, decode_page_bytes, get_page_type_name, extract_children, capture_page_text
 from .ui import rich_print_page
 
@@ -36,11 +36,24 @@ def page_to_json_dict(page: Any) -> dict[str, Any]:
 
 def traverse_tree(args: argparse.Namespace) -> int:
     """Main traversal loop: fetch → decrypt → decode → find children → repeat."""
+    # decode_opts targets the base (full) image – is_delta=False ensures cell parsing
+    # uses the standard (non-delta) format even when the underlying response contains
+    # delta blobs.  decrypt_full_response_json always returns the decrypted base image
+    # bytes, so this pairing is always correct.
     decode_opts = make_decode_opts(
         verbose=args.verbose,
         bson=args.bson,
         disagg=True,
         debug=args.debug,
+        is_delta=False,
+    )
+    # Separate opts for decoding individual disagg delta pages.
+    delta_decode_opts = make_decode_opts(
+        verbose=args.verbose,
+        bson=args.bson,
+        disagg=True,
+        debug=args.debug,
+        is_delta=True,
     )
 
     output_dir = (
@@ -88,14 +101,19 @@ def traverse_tree(args: argparse.Namespace) -> int:
         page_json_path.write_text(json.dumps(page_to_json_dict(page_proto), indent=2))
 
         decrypted_path = decrypted_dir / f"decrypted_{args.log_id}_{args.table_id}_{current.page_id}_{current.lsn}.bin"
-        page_bytes = decrypt_full_response_json(
+        # decrypt_full_response_json returns the decrypted base image bytes. When the
+        # response contains deltas the decryptor overwrites --outputPath for each call,
+        # so the artifact file ends up holding the last delta; base_bytes is captured
+        # before that overwrite and is the correct input for page decoding / child
+        # extraction.
+        base_bytes = decrypt_full_response_json(
             args.decryptor_path, args.key_file,
             response,
             current.lsn, args.table_id, current.page_id,
             output_path=decrypted_path,
             debug=args.debug,
         )
-        decoded_page = decode_page_bytes(page_bytes, decode_opts)
+        decoded_page = decode_page_bytes(base_bytes, decode_opts)
         decoded_text = capture_page_text(decoded_page, decode_opts)
 
         decoded_path = decoded_dir / f"decoded_page_{current.page_id}_lsn_{current.lsn}.txt"
@@ -113,6 +131,33 @@ def traverse_tree(args: argparse.Namespace) -> int:
             if child_tuple not in visited:
                 queue.append(child_tuple)
 
+        # Decode each delta page individually with is_delta=True decode opts.
+        decoded_delta_paths: list[str] = []
+        if page_proto.deltas:
+            delta_pairs = decrypt_response_deltas(
+                args.decryptor_path, args.key_file,
+                response,
+                current.lsn, args.table_id, current.page_id,
+                debug=args.debug,
+            )
+            for d_lsn, d_bytes in delta_pairs:
+                try:
+                    delta_page = decode_page_bytes(d_bytes, delta_decode_opts)
+                    delta_text = capture_page_text(delta_page, delta_decode_opts)
+                    delta_path = decoded_dir / f"decoded_delta_{current.page_id}_lsn_{d_lsn}.txt"
+                    delta_path.write_text(delta_text)
+                    decoded_delta_paths.append(str(delta_path))
+                    if getattr(args, "rich", False):
+                        rich_print_page(args.table_id, current.page_id, d_lsn, args.log_id, delta_page)
+                    else:
+                        print(f"  [delta] lsn={d_lsn} type={get_page_type_name(delta_page)}")
+                        delta_page.print_page(delta_decode_opts)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to decode delta page_id=%d lsn=%d: %s",
+                        current.page_id, d_lsn, exc,
+                    )
+
         info = DecodedPageInfo(
             page_id=current.page_id,
             lsn=current.lsn,
@@ -126,6 +171,7 @@ def traverse_tree(args: argparse.Namespace) -> int:
             decoded_path=str(decoded_path),
             has_deltas=bool(page_proto.deltas),
             num_deltas=len(page_proto.deltas),
+            decoded_delta_paths=decoded_delta_paths,
         )
         manifest_pages.append(asdict(info))
 

@@ -1,8 +1,10 @@
 import argparse
 import csv
+import datetime
 import io
 import json
 import logging
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -38,6 +40,42 @@ console = Console()
 
 logger = logging.getLogger(__name__)
 
+
+def setup_debug_logging(log_path: Optional[str] = None) -> str:
+    """Configure root logger for debug mode.
+
+    Attaches a StreamHandler at DEBUG level so every log record is printed to
+    stderr, and a FileHandler that writes the full trace to *log_path* (auto-
+    generated when *log_path* is None).
+
+    Returns the resolved log file path.
+    """
+    if log_path is None:
+        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        log_path = f"wtd-debug-{timestamp}.log"
+
+    fmt = logging.Formatter(
+        "%(asctime)s [%(levelname)-8s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+    )
+
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+
+    # -- stderr stream handler (shows debug output live) ---------------------
+    stream_handler = logging.StreamHandler(sys.stderr)
+    stream_handler.setLevel(logging.DEBUG)
+    stream_handler.setFormatter(fmt)
+    root.addHandler(stream_handler)
+
+    # -- file handler (persists the full trace) -------------------------------
+    file_handler = logging.FileHandler(log_path, encoding="utf-8")
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(fmt)
+    root.addHandler(file_handler)
+
+    return log_path
+
 # ---------------------------------------------------------------------------
 # Config-aware default factories for CLI options
 # ---------------------------------------------------------------------------
@@ -62,12 +100,22 @@ def disagg_browser(
     decryptor_path: str = typer.Option(default_factory=_cfg_decryptor, help="Path to the pagedecryptor binary"),
     key_file: str = typer.Option(default_factory=_cfg_key_file, help="Path to the encryption key file"),
     lsn: Optional[int] = typer.Option(None, help="Initial LSN to start from (optional)"),
+    debug: bool = typer.Option(False, "--debug", help="Enable debug mode: print every command and log everything to a file"),
+    debug_log: Optional[str] = typer.Option(None, "--debug-log", help="Path for the debug log file (default: wtd-debug-<timestamp>.log)"),
 ):
     """
     Interactive browser for WiredTiger disaggregated storage.
     """
-    with DisaggClient(page_server, decryptor_path) as client:
-        browser = DisaggBrowser(client, key_file, log_id)
+    if debug:
+        log_path = setup_debug_logging(debug_log)
+        rprint(f"[yellow][debug] Debug mode enabled. Logging to: {log_path}[/yellow]")
+        logger.debug(
+            "disagg_browser started: log_id=%d page_server=%s decryptor=%s key_file=%s lsn=%s",
+            log_id, page_server, decryptor_path, key_file, lsn,
+        )
+
+    with DisaggClient(page_server, decryptor_path, debug=debug) as client:
+        browser = DisaggBrowser(client, key_file, log_id, debug=debug)
         browser.run(lsn)
 
 @app.command()
