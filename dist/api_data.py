@@ -740,6 +740,11 @@ connection_runtime_config = [
     Config('eviction', '', r'''
         eviction configuration options''',
         type='category', subconfig=[
+            Config('evict_num_buckets', '9200', r'''
+                The number of buckets in each bucketset. If the ratio of tree size to cache size
+                is below 100, set to 9200. If the ratio is in the range 100-1000, set to 230.
+                If the ratio is 1000 or above set to 23.''',
+                min=23, max=9200),
             Config('threads_max', '8', r'''
                 maximum number of threads WiredTiger will start to help evict pages from cache. The
                 number of threads started will vary depending on the current eviction load. Each
