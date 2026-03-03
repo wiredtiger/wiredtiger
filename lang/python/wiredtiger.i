@@ -1234,7 +1234,7 @@ SIDESTEP_METHOD(__wt_page_log, pl_begin_checkpoint,
   (WT_SESSION *session, int checkpoint_id),
   (self, session, checkpoint_id))
 
-/* FIXME-WT-16821: Remeber to refresh the uint64_t type. */
+/* FIXME-WT-16821: Remember to refresh the uint64_t type. */
 SIDESTEP_METHOD(__wt_page_log, pl_complete_checkpoint,
   (WT_SESSION *session, int checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata, uint64_t *ext_arg),
   (self, session, checkpoint_id, checkpoint_timestamp, checkpoint_metadata, ext_arg))
