@@ -211,7 +211,8 @@ __wt_is_simple_table(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *colconf, bool *is
 
 /*
  * __wti_debug_crash_if_flag_set --
- *     Crash during schema operations for debugging purposes.
+ *     Crash during schema operations for debugging purposes. FIXME-WT-12021 Replace this with a
+ *     proper failpoint once the framework is available.
  */
 void
 __wti_debug_crash_if_flag_set(

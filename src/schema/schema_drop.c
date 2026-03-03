@@ -60,7 +60,6 @@ __drop_file(
          */
         WT_TRET(__wt_meta_track_drop(session, filename));
 
-    /* FIXME-WT-12021 Replace this with a proper failpoint once the framework is available. */
     __wti_debug_crash_if_flag_set(
       session, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE, "after dropping file entry", uri);
 
@@ -299,7 +298,6 @@ __drop_table(
         WT_ERR(__wt_metadata_remove(session, colgroup->name));
     }
 
-    /* FIXME-WT-12021 Replace this with a proper failpoint once the framework is available. */
     __wti_debug_crash_if_flag_set(session, WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP,
       "after dropping a colgroup entry from table", uri);
 

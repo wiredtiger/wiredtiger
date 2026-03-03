@@ -849,32 +849,52 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
 {
     WT_DECL_ITEM(colgroup_buf);
     WT_DECL_ITEM(file_prefix_buf);
+    WT_DECL_ITEM(layered_buf);
+    WT_DECL_ITEM(tiered_buf);
     WT_DECL_RET;
-    char *cg_meta_value, *file_meta_value;
+    char *cg_meta_value, *file_meta_value, *tiered_meta_value, *layered_meta_value;
     const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
     const char *metadata_cfg[] = {config, NULL};
     const char *name;
     WT_CONFIG_ITEM cval;
-    WT_CURSOR *c = NULL;
-    bool is_simple, colgroup_exists, file_exists;
-    int cmp;
+    bool is_simple, is_tiered, is_layered, colgroup_exists, file_exists;
 
-    cg_meta_value = file_meta_value = NULL;
+    cg_meta_value = file_meta_value = tiered_meta_value = layered_meta_value = NULL;
     WT_ERR(__wt_scr_alloc(r->session, 0, &colgroup_buf));
     WT_ERR(__wt_scr_alloc(r->session, 0, &file_prefix_buf));
+    WT_ERR(__wt_scr_alloc(r->session, 0, &tiered_buf));
+    WT_ERR(__wt_scr_alloc(r->session, 0, &layered_buf));
+
+    name = uri;
+    WT_PREFIX_SKIP_REQUIRED(r->session, name, "table:");
+
+    /* Check whether the table is simple. */
+    WT_ERR(__wt_config_gets(r->session, metadata_cfg, "columns", &cval));
+    WT_ERR(__wt_is_simple_table(r->session, &cval, &is_simple));
+
+    /* Check whether the table is tiered. */
+    WT_ERR(__wt_buf_fmt(r->session, tiered_buf, "tiered:%s", name));
+    WT_ERR_NOTFOUND_OK(
+      __wt_metadata_search(r->session, tiered_buf->data, &tiered_meta_value), true);
+    is_tiered = ret == 0;
+
+    /* Check whether the table is layered. */
+    WT_ERR(__wt_buf_fmt(r->session, layered_buf, "layered:%s", name));
+    WT_ERR_NOTFOUND_OK(
+      __wt_metadata_search(r->session, layered_buf->data, &layered_meta_value), true);
+    is_layered = ret == 0;
 
     /*
      * FIXME-WT-16146: Add capability for cleaning up incomplete complex tables and skip checking
      * tiered shared tables.
      */
-    WT_ERR(__wt_config_gets(r->session, metadata_cfg, "columns", &cval));
-    WT_ERR(__wt_is_simple_table(r->session, &cval, &is_simple));
-    if (!is_simple || ((ret = __wt_config_gets(r->session, metadata_cfg, "shared", &cval)) == 0))
+    /*
+     * FIXME-WT-16823: Investigate whether it is possible for there to be incomplete layered table
+     * metadata after recovery.
+     */
+    if (!is_simple || is_tiered || is_layered)
         goto done;
     WT_ERR_NOTFOUND_OK(ret, false);
-
-    name = uri;
-    WT_PREFIX_SKIP_REQUIRED(r->session, name, "table:");
 
     /* Check whether the colgroup exists. */
     WT_ERR(__wt_buf_fmt(r->session, colgroup_buf, "colgroup:%s", name));
@@ -882,36 +902,26 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
     colgroup_exists = ret == 0;
 
     /* Check whether the file exists. */
-    WT_ERR(__wt_buf_fmt(r->session, file_prefix_buf, "file:%s", name));
-    WT_ERR(__wt_metadata_cursor(r->session, &c));
-    c->set_key(c, file_prefix_buf->data);
-    file_exists = false;
-    if ((ret = c->search_near(c, &cmp)) == 0 && !(cmp < 0 && (ret = c->next(c)) != 0)) {
-        WT_ERR_NOTFOUND_OK(ret, false);
-        for (; ret == 0; ret = c->next(c)) {
-            WT_ERR_NOTFOUND_OK(ret, false);
-            WT_ERR(c->get_key(c, &file_meta_value));
-            if (WT_PREFIX_MATCH(file_meta_value, file_prefix_buf->data)) {
-                file_exists = true;
-                break;
-            }
-        }
-    }
-    WT_ERR_NOTFOUND_OK(ret, false);
-    WT_ERR(__wt_metadata_cursor_release(r->session, &c));
-
-    /* Skip if the table is tiered or layered. */
-    if (file_exists &&
-      (WT_SUFFIX_MATCH(file_meta_value, ".wtobj") ||
-        WT_SUFFIX_MATCH(file_meta_value, ".wt_ingest") ||
-        WT_SUFFIX_MATCH(file_meta_value, ".wt_stable")))
-        goto done;
+    WT_ERR(__wt_buf_fmt(r->session, file_prefix_buf, "file:%s.wt", name));
+    WT_ERR_NOTFOUND_OK(
+      __wt_metadata_search(r->session, file_prefix_buf->data, &file_meta_value), true);
+    file_exists = ret == 0;
 
     /* Force drop if the table is incomplete. */
     if (!colgroup_exists || !file_exists) {
+        const char *colgroup_msg = colgroup_exists ? "colgroup exists" : "colgroup missing";
+        const char *file_msg = file_exists ? "file exists" : "file missing";
+
+        /* Cannot drop tables in readonly mode, so log a warning instead. */
+        if (F_ISSET(S2C(r->session), WT_CONN_READONLY)) {
+            __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING,
+              "cannot remove incomplete table '%s' (%s, %s) in readonly mode", uri, colgroup_msg,
+              file_msg);
+            goto done;
+        }
+
         __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_WARNING,
-          "%s %s, colgroup_exists=%d, file_exists=%d", "removing incomplete table", uri,
-          colgroup_exists, file_exists);
+          "removing incomplete table '%s' (%s, %s)", uri, colgroup_msg, file_msg);
 
         WT_WITH_SCHEMA_LOCK(r->session,
           WT_WITH_TABLE_WRITE_LOCK(
@@ -924,6 +934,8 @@ done:
     __wt_free(r->session, cg_meta_value);
     __wt_scr_free(r->session, &colgroup_buf);
     __wt_scr_free(r->session, &file_prefix_buf);
+    __wt_scr_free(r->session, &tiered_buf);
+    __wt_scr_free(r->session, &layered_buf);
     return (ret);
 }
 
@@ -935,13 +947,11 @@ done:
 static int
 __recovery_file_scan(WT_RECOVERY *r)
 {
-    if (!F_ISSET(S2C(r->session), WT_CONN_READONLY)) {
-        __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
-          "scanning metadata to remove all incomplete tables");
+    __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
+      "scanning metadata to remove all incomplete tables");
 
-        /* Scan through all table entries in the metadata and clean up incomplete tables. */
-        __recovery_metadata_scan_prefix(r, "table:", NULL, __metadata_clean_incomplete_table);
-    }
+    /* Scan through all table entries in the metadata and clean up incomplete tables. */
+    __recovery_metadata_scan_prefix(r, "table:", NULL, __metadata_clean_incomplete_table);
 
     __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
       "scanning metadata to find the largest file ID");
