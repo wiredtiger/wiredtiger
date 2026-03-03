@@ -159,6 +159,10 @@ struct __wt_btree {
     /* Total size of all blocks in this btree. Tracked for disaggregated storage. */
     wt_shared uint64_t bytes_total;
 
+    /* Root page size tracking for checkpoint size accounting */
+    wt_shared uint64_t current_root_size;  /* Size of current root page */
+    wt_shared uint64_t previous_root_size; /* Size of previous root page */
+
     /*
      * Reconciliation...
      */
@@ -217,6 +221,7 @@ struct __wt_btree {
     wt_timestamp_t rec_max_timestamp; /* Maximum timestamp seen by reconciliation (clean trees). */
 
     wt_shared uint64_t checkpoint_gen;       /* Checkpoint generation */
+    wt_shared uint64_t root_write_size_gen; /* Generation of the last root write size update */
     wt_shared WT_SESSION_IMPL *sync_session; /* Syncing session */
     wt_shared WT_BTREE_SYNC syncing;         /* Sync status */
 
