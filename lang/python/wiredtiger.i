@@ -724,6 +724,7 @@ NOTFOUND_OK(__wt_cursor::largest_key)
 ANY_OK(__wt_modify::__wt_modify)
 ANY_OK(__wt_modify::~__wt_modify)
 ANY_OK(__wt_page_log_discard_args::__wt_page_log_discard_args)
+ANY_OK(__wt_page_log_complete_checkpoint_args::__wt_page_log_complete_checkpoint_args)
 ANY_OK(__wt_page_log_get_args::__wt_page_log_get_args)
 ANY_OK(__wt_page_log_put_args::__wt_page_log_put_args)
 
@@ -775,6 +776,9 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_page_log_discard_args::backlink_checkpoint_id;
 %ignore __wt_page_log_discard_args::base_checkpoint_id;
 %ignore __wt_page_log_discard_args::lsn_frontier;
+%ignore __wt_page_log_complete_checkpoint_args::version;
+%ignore __wt_page_log_complete_checkpoint_args::lsnp;
+%ignore __wt_page_log_complete_checkpoint_args::oldest_timestamp;
 %ignore __wt_page_log_put_args::backlink_lsn;
 %ignore __wt_page_log_put_args::base_lsn;
 %ignore __wt_page_log_put_args::backlink_checkpoint_id;

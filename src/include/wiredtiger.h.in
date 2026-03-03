@@ -5624,8 +5624,7 @@ struct __wt_page_log {
      */
     int (*pl_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session,
         uint64_t checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata,
-        /* FIXME-WT-16821: Replace uint64_t to WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS. */
-        uint64_t *ext_args);
+        WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *ext_args);
 
     /*!
      * Complete checkpointing using the given checkpoint_id. This implies that other
@@ -5861,15 +5860,15 @@ typedef enum {
  * Version based parameters given to
  */
 struct __wt_page_log_complete_checkpoint_args {
-    /*
-     * The version starts from zero, consistent with existing NULL pointer value.
-     */
-    uint64_t version;
+        /*
+         * The version starts from zero, consistent with existing NULL pointer value.
+         */
+        uint64_t version;
 
-    /* version 1 */
-    uint64_t *lsnp;
-    uint64_t oldest_timestamp;
-    /* For version increasing, only append new parameters is allowed. */
+        /* version 1 */
+        uint64_t *lsnp;
+        uint64_t oldest_timestamp;
+        /* For version increasing, only append new parameters is allowed. */
 };
 
 /*!
