@@ -1610,6 +1610,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
     WT_DECL_ITEM(meta);
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg;
+    WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS complete_args;
     wt_timestamp_t checkpoint_timestamp;
     uint64_t meta_lsn;
     uint32_t meta_checksum;
@@ -1617,6 +1618,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
 
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
+    WT_CLEAR(complete_args);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -1646,8 +1648,15 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
           ",version=%d,compatible_version=%d",
           meta_lsn, meta_checksum, conn->disaggregated_storage.database_size,
           WT_DISAGG_CHECKPOINT_META_VERSION, WT_DISAGG_CHECKPOINT_META_COMPATIBLE_VERSION));
+        /* This is hardcoded, code based version. */
+        complete_args.version = 1;
+        complete_args.lsnp = NULL;
+        complete_args.oldest_timestamp =
+          conn->disaggregated_storage.last_checkpoint_oldest_timestamp;
+        /* FIXME-WT-16821: Using pl_complete_checkpoint once it's available, remove force type
+         * convert uint64_t. */
         WT_ERR(disagg->npage_log->page_log->pl_complete_checkpoint_ext(disagg->npage_log->page_log,
-          &session->iface, 0, (uint64_t)checkpoint_timestamp, meta, NULL));
+          &session->iface, 0, (uint64_t)checkpoint_timestamp, meta, (uint64_t *)&complete_args));
         __wt_atomic_store_uint64_release(
           &conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);
 

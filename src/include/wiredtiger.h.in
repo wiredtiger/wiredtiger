@@ -83,6 +83,8 @@ struct __wt_modify;     typedef struct __wt_modify WT_MODIFY;
 struct __wt_page_log; typedef struct __wt_page_log WT_PAGE_LOG;
 struct __wt_page_log_discard_args;
 typedef struct __wt_page_log_discard_args WT_PAGE_LOG_DISCARD_ARGS;
+struct __wt_page_log_complete_checkpoint_args;
+typedef struct __wt_page_log_complete_checkpoint_args WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS;
 struct __wt_page_log_get_args; typedef struct __wt_page_log_get_args WT_PAGE_LOG_GET_ARGS;
 struct __wt_page_log_put_args; typedef struct __wt_page_log_put_args WT_PAGE_LOG_PUT_ARGS;
 struct __wt_key_provider;    typedef struct __wt_key_provider WT_KEY_PROVIDER;
@@ -5616,9 +5618,14 @@ struct __wt_page_log {
      * @param session the current WiredTiger session
      * @param checkpoint_id the checkpoint id to use. Must be greater than any other
      *        checkpoint_id used with this call.
+     * @param checkpoint_timestamp the stable timestamp associated with the checkpoint
+     * @param checkpoint_metadata the buffer with checkpoint metadata
+     * @param ext_args an optional version based argument for extended checkpoint completion
      */
     int (*pl_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session,
-        uint64_t checkpoint_id);
+        uint64_t checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata,
+        /* FIXME-WT-16821: Replace uint64_t to WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS. */
+        uint64_t *ext_args);
 
     /*!
      * Complete checkpointing using the given checkpoint_id. This implies that other
@@ -5632,11 +5639,12 @@ struct __wt_page_log {
      *        checkpoint_id used with this call.
      * @param checkpoint_timestamp the stable timestamp associated with the checkpoint
      * @param checkpoint_metadata the buffer with checkpoint metadata
-     * @param lsnp an optional output argument for the checkpoint completion record's LSN
+     * @param ext_args an optional version based argument for extended checkpoint completion
      */
     int (*pl_complete_checkpoint_ext)(WT_PAGE_LOG *page_log, WT_SESSION *session,
         uint64_t checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata,
-        uint64_t *lsnp);
+        /* FIXME-WT-16821: Replace uint64_t to WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS. */
+        uint64_t *ext_args);
 
     /*!
      * Get the most recent completed checkpoint number.
@@ -5848,6 +5856,21 @@ typedef enum {
 #define WT_PAGE_LOG_ENCRYPTED 0x4u
 /*! page is cold tier */
 #define WT_PAGE_LOG_COLD 0x8u
+
+/*!
+ * Version based parameters given to
+ */
+struct __wt_page_log_complete_checkpoint_args {
+    /*
+     * The version starts from zero, consistent with existing NULL pointer value.
+     */
+    uint64_t version;
+
+    /* version 1 */
+    uint64_t *lsnp;
+    uint64_t oldest_timestamp;
+    /* For version increasing, only append new parameters is allowed. */
+};
 
 /*!
  * Values given to, or returned by the WT_PAGE_LOG_HANDLE::plh_put interface.
