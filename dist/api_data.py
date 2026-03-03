@@ -754,38 +754,6 @@ connection_runtime_config = [
                 If no in-memory ref is found on the root page, attempt to locate a random
                 in-memory page by examining all entries on the root page.''',
                 type='boolean'),
-            Config('evict_use_softptr', 'false', r'''
-                Experimental: Use "soft pointers" instead of hard hazard
-                pointers in eviction server to remember its walking position in the tree. This might
-                be preferable to set to "true" if there are many collections. It can improve or
-                degrade performance depending on the workload.''',
-                type='boolean', undoc=True),
-            Config('legacy_page_visit_strategy', 'false', r'''
-                Use legacy page visit strategy for eviction. Using this option is highly discouraged
-                as it will re-introduce a bug where eviction can fail to find older cache
-                content.''',
-                type='boolean'),
-            Config('app_eviction_min_cache_fill_ratio', '0', r'''
-                This setting establishes a minimum cache fill ratio that must be met before
-                application threads can start assisting with eviction. The value is a percentage
-                between 0 and 50, with 0 disabling the feature. For it to have any effect, this
-                minimum ratio must be higher than the existing \c eviction_dirty_trigger or
-                \c eviction_update_trigger and less than \c eviction_trigger. Essentially, the
-                standard dirty or update triggers won't become active until the cache fill ratio
-                first reaches this new, higher threshold.''',
-                min='0', max='50'),
-            Config('cache_tolerance_for_app_eviction', '0', r'''
-                This setting establishes a tolerance level for the configured
-                \c eviction_dirty_trigger and \c eviction_update_trigger.
-                The value is a percentage between 0 and 100, with 0 treating
-                \c eviction_dirty_trigger and \c eviction_update_trigger as hard limit.
-                The configured percentage will be taken in increments of 10 only,
-                by applying the floor to the given percentage value. ''',
-                min='0', max='100'),
-            Config('incremental_app_eviction', 'false', r'''
-                Only a part of application threads will participate in cache management
-                when a cache threshold reaches its trigger limit.''',
-                type='boolean'),
             Config('prefer_scrub_eviction', 'false',
                 r'''Change the eviction strategy to scrub eviction when the cache usage is under
                 half way between the target limit to the trigger limit.''',

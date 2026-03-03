@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -2925,17 +2925,12 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
         F_SET(txn, WT_TXN_SHARED_TS_READ);
 
     /*
-     * In case this tree was being skipped by the eviction server during the checkpoint, restore the
-     * previous state.
-     */
-    __wt_atomic_store_uint32_relaxed(&btree->evict_walk_period, btree->evict_walk_saved);
-
-    /*
      * Wake the eviction server, in case application threads have stalled while the eviction server
      * decided it couldn't make progress. Without this, application threads will be stalled until
      * the eviction server next wakes.
      */
-    __wt_evict_server_wake(session);
+    if (S2C(session)->evict_threads.wait_cond != NULL)
+        __wt_cond_signal(session, S2C(session)->evict_threads.wait_cond);
 
     return (ret);
 }

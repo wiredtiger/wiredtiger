@@ -116,6 +116,11 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * cases, return an error to ensure the pages remain readable later. Otherwise, you risk
              * losing access to those pages upon attempting retrieval.
              */
+            WT_ASSERT_ALWAYS(session,
+                             F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+                             F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING) ||
+                             __wt_page_can_evict(session, ref, NULL),
+                             "Page should be evictable during discard");
             __wt_ref_out(session, ref);
             break;
         case WT_SYNC_CHECKPOINT:
@@ -131,6 +136,10 @@ err:
         if (next_ref != NULL)
             WT_TRET(__wt_page_release(session, next_ref, walk_flags));
     }
+
+#ifdef HAVE_DIAGNOSTIC
+    WT_CONN_CLOSE_ABORT(session, ret);
+#endif
 
     return (ret);
 }

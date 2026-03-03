@@ -986,9 +986,9 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
     if (F_ISSET(btree, WT_BTREE_BULK)) {
         WT_ERR(__wti_btree_new_leaf_page(session, ref));
         F_SET(ref, WT_REF_FLAG_LEAF);
-        WT_REF_SET_STATE(ref, WT_REF_MEM);
         WT_ERR(__wt_page_modify_init(session, ref->page));
         __wt_page_only_modify_set(session, ref->page);
+        __wt_ref_make_visible(session, ref, true);
     }
 
     /* Finish initializing the root, root reference links. */

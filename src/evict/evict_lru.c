@@ -652,7 +652,6 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
     {
         int32_t v;
 
-        WT_ASSERT(session, __wt_atomic_load_ptr_relaxed(&btree->evict_ref) == NULL);
         v = __wt_atomic_sub_int32(&btree->evict_disabled, 1);
         WT_ASSERT(session, v >= 0);
     }
@@ -1063,13 +1062,13 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
         bool high_pressure = false;
 
         if (F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY)) {
-            WT_IGNORE_RET(__wt_evict_dirty_needed(session, &pct_dirty));
+            WT_IGNORE_RET(__wti_evict_exceeded_dirty_trigger(session, &pct_dirty));
             high_pressure = (pct_dirty >
               (conn->evict->eviction_dirty_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
         }
 
         if (!high_pressure && F_ISSET(conn->evict, WT_EVICT_CACHE_UPDATES)) {
-            WT_IGNORE_RET(__wti_evict_updates_needed(session, &pct_updates));
+            WT_IGNORE_RET(__wti_evict_exceeded_updates_trigger(session, &pct_updates));
             high_pressure = (pct_updates >
               (__wt_atomic_load_double_relaxed(&conn->evict->eviction_updates_trigger) *
                 WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
@@ -1891,8 +1890,6 @@ static bool
 __evict_skip_tree(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_EVICT *evict;
-    uint64_t btree_clean_inuse, btree_dirty_inuse, btree_updates_inuse;
-    bool want_tree;
 
     evict = S2C(session)->evict;
     btree_clean_inuse = btree_dirty_inuse = btree_updates_inuse = 0;
@@ -1934,23 +1931,7 @@ __evict_skip_tree(WT_SESSION_IMPL *session, WT_BTREE *btree)
         return true;
     }
 
-    if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
-        btree_clean_inuse = __wt_btree_bytes_evictable(session);
-
-    if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY))
-        btree_dirty_inuse = __wt_btree_dirty_leaf_inuse(session);
-
-    if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES))
-        btree_updates_inuse = __wt_btree_bytes_updates(session);
-
-    want_tree = (F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && (btree_clean_inuse > 0)) ||
-      (F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && (btree_dirty_inuse > 0)) ||
-      (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && (btree_updates_inuse > 0));
-
-    if (!want_tree)
-        WT_STAT_CONN_INCR(session, eviction_skip_unwanted_tree);
-
-    return (!want_tree);
+    return (false);
 }
 
 /*
