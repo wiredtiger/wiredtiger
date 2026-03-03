@@ -53,6 +53,7 @@ try:
     import bson
     HAVE_BSON = True
 except ImportError:
+    bson = None
     HAVE_BSON = False
 
 #
@@ -920,12 +921,15 @@ class WTPage:
                     p.rint(json.dumps(addr.__dict__))
                 else:
                     p.rint_v(raw_bytes(cell.data))
-            except bson.InvalidBSON as e:
-                p.rint_v(f"cannot decode cell as BSON: {e}")
-                p.rint_v(raw_bytes(cell.data))
             except (IndexError, ValueError):
                 # FIXME-WT-13000 theres a bug in raw_bytes
                 pass
+            except Exception as e:
+                if HAVE_BSON and isinstance(e, bson.InvalidBSON):
+                    p.rint_v(f"cannot decode cell as BSON: {e}")
+                    p.rint_v(raw_bytes(cell.data))
+                else:
+                    raise
 
             p.end_cell()
 
