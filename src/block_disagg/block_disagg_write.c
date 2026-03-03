@@ -212,9 +212,6 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     *sizep = WT_STORE_SIZE(buf->size);
     *checksump = checksum;
 
-    /* Update the btree's running total of bytes. */
-    __wt_btree_increase_size(session, *sizep);
-
     return (0);
 }
 
@@ -248,6 +245,9 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
 
     WT_RET(__wti_block_disagg_write_internal(session, block_disagg, buf, block_meta,
       page_image_size, &size, &checksum, data_checksum, checkpoint_io));
+
+    /* Update the btree's running total of bytes. */
+    __wt_btree_increase_size(session, size);
 
     __wt_page_header_byteswap(buf->mem);
 
@@ -293,12 +293,6 @@ __wti_block_disagg_page_discard(
 
     /* Create the discard request. */
     WT_PAGE_LOG_HANDLE *plhandle = block_disagg->plhandle;
-
-    /*
-     * Decrement the btree's running total of bytes. The cookie.size field represents the cumulative
-     * size of the block chain (base + deltas).
-     */
-    __wt_btree_decrease_size(session, cookie.size);
 
     /* Ignore the call if the function is not implemented. */
     if (plhandle->plh_discard == NULL) {
