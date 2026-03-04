@@ -847,17 +847,17 @@ __recovery_metadata_scan_prefix(WT_RECOVERY *r, const char *prefix, const char *
 static int
 __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *config)
 {
-    WT_DECL_ITEM(buf);
+    WT_DECL_ITEM(meta_key_buf);
     WT_DECL_RET;
-    char *value;
+    char *cg_meta_value, *file_meta_value, *tiered_meta_value, *layered_meta_value;
     const char *drop_cfg[] = {WT_CONFIG_BASE(r->session, WT_SESSION_drop), "force=true", NULL};
     const char *metadata_cfg[] = {config, NULL};
     const char *name, *colgroup_msg, *file_msg;
     WT_CONFIG_ITEM cval;
     bool is_simple, colgroup_exists, file_exists;
 
-    value = NULL;
-    WT_ERR(__wt_scr_alloc(r->session, 0, &buf));
+    cg_meta_value = file_meta_value = tiered_meta_value = layered_meta_value = NULL;
+    WT_ERR(__wt_scr_alloc(r->session, 0, &meta_key_buf));
 
     name = uri;
     WT_PREFIX_SKIP_REQUIRED(r->session, name, "table:");
@@ -870,26 +870,29 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
         goto done;
 
     /* Skip if the table is tiered. */
-    WT_ERR(__wt_buf_fmt(r->session, buf, "tiered:%s", name));
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(r->session, buf->data, &value), true);
+    WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "tiered:%s", name));
+    WT_ERR_NOTFOUND_OK(
+      __wt_metadata_search(r->session, meta_key_buf->data, &tiered_meta_value), true);
     if (ret == 0)
         goto done;
 
     /* FIXME-WT-16823: Add an assertion to check that we never see an incomplete layered table. */
     /* Skip if the table is layered. */
-    WT_ERR(__wt_buf_fmt(r->session, buf, "layered:%s", name));
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(r->session, buf->data, &value), true);
+    WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "layered:%s", name));
+    WT_ERR_NOTFOUND_OK(
+      __wt_metadata_search(r->session, meta_key_buf->data, &layered_meta_value), true);
     if (ret == 0)
         goto done;
 
     /* Check whether the colgroup exists. */
-    WT_ERR(__wt_buf_fmt(r->session, buf, "colgroup:%s", name));
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(r->session, buf->data, &value), true);
+    WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "colgroup:%s", name));
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(r->session, meta_key_buf->data, &cg_meta_value), true);
     colgroup_exists = ret == 0;
 
     /* Check whether the file exists. */
-    WT_ERR(__wt_buf_fmt(r->session, buf, "file:%s.wt", name));
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(r->session, buf->data, &value), true);
+    WT_ERR(__wt_buf_fmt(r->session, meta_key_buf, "file:%s.wt", name));
+    WT_ERR_NOTFOUND_OK(
+      __wt_metadata_search(r->session, meta_key_buf->data, &file_meta_value), true);
     file_exists = ret == 0;
 
     /* If all metadata entries are present we are done, otherwise the metadata is incomplete and we
@@ -918,8 +921,11 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
 
 err:
 done:
-    __wt_free(r->session, value);
-    __wt_scr_free(r->session, &buf);
+    __wt_free(r->session, cg_meta_value);
+    __wt_free(r->session, file_meta_value);
+    __wt_free(r->session, tiered_meta_value);
+    __wt_free(r->session, layered_meta_value);
+    __wt_scr_free(r->session, &meta_key_buf);
     return (ret);
 }
 
