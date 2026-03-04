@@ -2848,7 +2848,8 @@ err:
                  */
                 if (F_ISSET(ckpt_temp, WT_CKPT_DELETE) && ckpt_temp->raw.data) {
                     bool is_root = true;
-                    WT_TRET(bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size, &is_root));
+                    WT_TRET(
+                      bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size, &is_root));
                 }
             }
         }
