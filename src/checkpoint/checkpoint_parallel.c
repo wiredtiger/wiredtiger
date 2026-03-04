@@ -172,7 +172,7 @@ __checkpoint_parallel_pop_done(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_R
     conn = S2C(session);
     ckpt_threads = conn->ckpt_reconcile_threads;
 
-    if (TAILQ_EMPTY(&ckpt_threads->done_qh))
+    if (WT_TAILQ_EMPTY_TSAN_SUPPRESS(&ckpt_threads->done_qh))
         return;
 
     __wt_spin_lock(session, &ckpt_threads->done_lock);
