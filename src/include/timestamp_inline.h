@@ -208,6 +208,7 @@
             (ta)->newest_txn = WT_MAX((tw)->stop_txn, (ta)->newest_txn);                       \
             (ta)->newest_durable_ts = WT_MAX((tw)->durable_stop_ts, (ta)->newest_durable_ts);  \
         }                                                                                      \
+        (ta)->newest_stop_txn = WT_MAX((tw)->stop_txn, (ta)->newest_stop_txn);                 \
         if ((tw)->stop_prepare_ts == WT_TS_NONE) {                                             \
             (ta)->newest_stop_ts = WT_MAX((tw)->stop_ts, (ta)->newest_stop_ts);                \
             if (WT_TIME_AGGREGATE_HAS_STOP((ta)))                                              \
@@ -223,7 +224,6 @@
             else                                                                               \
                 (ta)->newest_page_stop_durable_ts = WT_TS_NONE;                                \
         }                                                                                      \
-        (ta)->newest_stop_txn = WT_MAX((tw)->stop_txn, (ta)->newest_stop_txn);                 \
         if (WT_TIME_WINDOW_HAS_PREPARE(tw))                                                    \
             (ta)->prepare = 1;                                                                 \
     } while (0)
