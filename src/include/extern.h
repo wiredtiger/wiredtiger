@@ -1094,6 +1094,9 @@ extern int __wt_thread_group_create(WT_SESSION_IMPL *session, WT_THREAD_GROUP *g
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_thread_group_destroy(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_thread_group_foreach(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group,
+  int (*func)(WT_SESSION_IMPL *session, WT_THREAD *context))
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group,
   uint32_t new_min, uint32_t new_max, uint32_t flags)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1837,6 +1840,7 @@ extern void __wt_txn_close_checkpoint_cursor(WT_SESSION_IMPL *session, WT_TXN **
 extern void __wt_txn_destroy(WT_SESSION_IMPL *session);
 extern void __wt_txn_get_snapshot(WT_SESSION_IMPL *session);
 extern void __wt_txn_global_destroy(WT_SESSION_IMPL *session);
+extern void __wt_txn_import_snapshot(WT_SESSION_IMPL *session, const WT_TXN_SNAPSHOT *snapshot);
 extern void __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op);
 extern void __wt_txn_release_resources(WT_SESSION_IMPL *session);
 extern void __wt_txn_release_snapshot(WT_SESSION_IMPL *session);
