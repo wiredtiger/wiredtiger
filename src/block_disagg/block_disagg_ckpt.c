@@ -69,7 +69,7 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
           "Checkpoint root page: root_id=%" PRIu64 " lsn=%" PRIu64 " base_lsn=%" PRIu64
           " root_size=%" PRIu32 " root_checksum=%" PRIx32,
           block_meta->page_id, block_meta->disagg_lsn, block_meta->base_lsn, size, checksum);
-  
+
         btree->previous_root_size = btree->current_root_size;
         btree->current_root_size = size;
     }
@@ -79,7 +79,8 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
      * whether to roll this back later.
      */
     btree->root_write_size_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
-    // TODO:: Is this saved to the relevant btree by this stage? Unknown. btree->checkpoint_generation?
+    // TODO:: Is this saved to the relevant btree by this stage? Unknown.
+    // btree->checkpoint_generation?
     __wt_btree_decrease_size(session, btree->previous_root_size);
     __wt_btree_increase_size(session, btree->current_root_size);
 

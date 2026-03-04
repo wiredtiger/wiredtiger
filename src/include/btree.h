@@ -221,7 +221,7 @@ struct __wt_btree {
     wt_timestamp_t rec_max_timestamp; /* Maximum timestamp seen by reconciliation (clean trees). */
 
     wt_shared uint64_t checkpoint_gen;       /* Checkpoint generation */
-    wt_shared uint64_t root_write_size_gen; /* Generation of the last root write size update */
+    wt_shared uint64_t root_write_size_gen;  /* Generation of the last root write size update */
     wt_shared WT_SESSION_IMPL *sync_session; /* Syncing session */
     wt_shared WT_BTREE_SYNC syncing;         /* Sync status */
 

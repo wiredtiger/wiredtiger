@@ -514,7 +514,8 @@ __bm_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
  *     Free a block of space to the underlying file; readonly version.
  */
 static int
-__bm_free_readonly(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool *is_root)
+__bm_free_readonly(
+  WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool *is_root)
 {
     WT_UNUSED(addr);
     WT_UNUSED(addr_size);

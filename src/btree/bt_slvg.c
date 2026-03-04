@@ -2014,7 +2014,8 @@ __slvg_row_ovfl(
  *     Block manager replacement to update blocks reconciliation wants removed.
  */
 static int
-__slvg_reconcile_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool *is_root)
+__slvg_reconcile_free(
+  WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool *is_root)
 {
     WT_TRACK *ovfl, *trk;
     uint32_t i;
