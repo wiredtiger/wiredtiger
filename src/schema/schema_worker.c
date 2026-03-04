@@ -78,6 +78,7 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_CURSOR *ingest_cursor = NULL;
     WT_DECL_RET;
+    int ingest_ret, stable_ret;
 
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags));
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)session->dhandle;
@@ -91,36 +92,45 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
 
     /* Verify the stable table of the layered table. */
     WT_WITHOUT_DHANDLE(session,
-      ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
+      stable_ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
 
     /* On followers, it is possible not to have any stable table. This is a transient state. */
-    if (!conn->layered_table_manager.leader && ret == ENOENT) {
+    if (!conn->layered_table_manager.leader && stable_ret == ENOENT) {
         __wt_verbose_level(session, WT_VERB_VERIFY, WT_VERBOSE_DEBUG_2,
           "Verify (layered): %s stable table not found on follower, it can be a transient state.",
           stable_uri);
-        ret = 0;
+        stable_ret = 0;
     }
 
-    if (ret != 0 && ret != EBUSY)
+    if (stable_ret != 0 && stable_ret != EBUSY)
         WT_ERR_MSG(
-          session, ret, "Verify (layered): %s stable table verification failed", stable_uri);
+          session, stable_ret, "Verify (layered): %s stable table verification failed", stable_uri);
 
     /* The ingest table on a leader has to be empty. Use a standard cursor to verify this. */
+    ingest_ret = 0;
     if (conn->layered_table_manager.leader) {
-        int ingest_ret;
         const char *cursor_config[] = {
           WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "readonly", NULL, NULL};
         WT_ERR(__wt_open_cursor(session, ingest_uri, NULL, cursor_config, &ingest_cursor));
 
         ingest_ret = ingest_cursor->next(ingest_cursor);
-        if (ingest_ret != 0 && ingest_ret != WT_NOTFOUND) {
-            ret = ingest_ret;
-            WT_ERR_MSG(session, ret,
+        if (ingest_ret != WT_NOTFOUND) {
+            WT_ERR_MSG(session, ingest_ret,
               "Verify (layered): %s ingest table verification failed. Ingest on leader must be "
               "empty.",
               ingest_uri);
         }
+        ingest_ret = 0;
     }
+
+    /*
+     * At this point, the stable table verification was either successful or returned EBUSY. The
+     * ingest table verification is skipped on followers but has to be successful on leaders.
+     */
+    WT_ASSERT(session, stable_ret == 0 || stable_ret == EBUSY);
+    WT_ASSERT(session, ingest_ret == 0);
+
+    ret = stable_ret;
 
 err:
     if (ingest_cursor != NULL)
