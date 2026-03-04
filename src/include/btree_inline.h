@@ -156,7 +156,9 @@ __wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
     btree = S2BT(session);
     bm = btree->bm;
 
-    return (bm->free(bm, session, addr, addr_size));
+    bool is_root = false;
+
+    return (bm->free(bm, session, addr, addr_size, &is_root));
 }
 
 /*

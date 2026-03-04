@@ -2847,8 +2847,10 @@ err:
                  * here is appropriate. If the logic for writing checkpoint root pages ever change,
                  * the discard logic would also need to be reconsidered.
                  */
-                if (F_ISSET(ckpt_temp, WT_CKPT_DELETE) && ckpt_temp->raw.data)
-                    WT_TRET(bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size));
+                if (F_ISSET(ckpt_temp, WT_CKPT_DELETE) && ckpt_temp->raw.data) {
+                    bool is_root = true;
+                    WT_TRET(bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size, &is_root));
+                }
             }
         }
     }
