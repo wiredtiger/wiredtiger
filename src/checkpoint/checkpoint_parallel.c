@@ -76,10 +76,7 @@ __checkpoint_parallel_pop_work(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_R
     conn = S2C(session);
     ckpt_threads = conn->ckpt_reconcile_threads;
 
-    /*
-     * I'm not sure why this is needed, I wouldn't check the work queue for emptiness outside of a
-     * lock. We could use a reader write lock potentially?
-     */
+    /* FIXME-WT-16480: Do we need this? If so rename it. */
     if (WT_TAILQ_EMPTY_TSAN_SUPPRESS(&ckpt_threads->work_qh))
         return;
 
@@ -172,6 +169,7 @@ __checkpoint_parallel_pop_done(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_R
     conn = S2C(session);
     ckpt_threads = conn->ckpt_reconcile_threads;
 
+    /* FIXME-WT-16480: Do we need this? If so rename it. */
     if (WT_TAILQ_EMPTY_TSAN_SUPPRESS(&ckpt_threads->done_qh))
         return;
 
