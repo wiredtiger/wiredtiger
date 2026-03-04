@@ -894,7 +894,6 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
      */
     if (!is_simple || is_tiered || is_layered)
         goto done;
-    WT_ERR_NOTFOUND_OK(ret, false);
 
     /* Check whether the colgroup exists. */
     WT_ERR(__wt_buf_fmt(r->session, colgroup_buf, "colgroup:%s", name));
@@ -932,6 +931,9 @@ __metadata_clean_incomplete_table(WT_RECOVERY *r, const char *uri, const char *c
 err:
 done:
     __wt_free(r->session, cg_meta_value);
+    __wt_free(r->session, file_meta_value);
+    __wt_free(r->session, tiered_meta_value);
+    __wt_free(r->session, layered_meta_value);
     __wt_scr_free(r->session, &colgroup_buf);
     __wt_scr_free(r->session, &file_prefix_buf);
     __wt_scr_free(r->session, &tiered_buf);
