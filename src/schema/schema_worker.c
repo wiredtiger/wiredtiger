@@ -107,16 +107,19 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
 
     /* The ingest table on a leader has to be empty. Use a standard cursor to verify this. */
     if (conn->layered_table_manager.leader) {
+        int ingest_ret;
         const char *cursor_config[] = {
           WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "readonly", NULL, NULL};
         WT_ERR(__wt_open_cursor(session, ingest_uri, NULL, cursor_config, &ingest_cursor));
 
-        ret = ingest_cursor->next(ingest_cursor);
-        if (ret != 0 && ret != WT_NOTFOUND)
+        ingest_ret = ingest_cursor->next(ingest_cursor);
+        if (ingest_ret != 0 && ingest_ret != WT_NOTFOUND) {
+            ret = ingest_ret;
             WT_ERR_MSG(session, ret,
               "Verify (layered): %s ingest table verification failed. Ingest on leader must be "
               "empty.",
               ingest_uri);
+        }
     }
 
 err:
