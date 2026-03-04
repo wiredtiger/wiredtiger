@@ -294,7 +294,7 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
     /* Create the discard request. */
     WT_PAGE_LOG_HANDLE *plhandle = block_disagg->plhandle;
 
-    if (!is_root)
+    if (!*is_root)
         __wt_btree_decrease_size(session, cookie.size);
 
     /* Ignore the call if the function is not implemented. */
