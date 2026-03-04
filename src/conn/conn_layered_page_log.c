@@ -807,19 +807,27 @@ __disagg_parse_version_and_check(
             WT_ASSERT_ALWAYS(session, metadata->version == 0,
               "Duplicate version entry in disaggregated storage metadata");
             metadata->version = cfg_value.val;
-        } else if (WT_CONFIG_LIT_MATCH("compatible", cfg_key)) {
+        } else if (WT_CONFIG_LIT_MATCH("compatible_version", cfg_key)) {
             WT_ASSERT_ALWAYS(session, metadata->compatible_version == 0,
-              "Duplicate compatible entry in disaggregated storage metadata");
+              "Duplicate compatible_version entry in disaggregated storage metadata");
             metadata->compatible_version = cfg_value.val;
         }
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
     /* Apply defaults if not set */
-    if (metadata->version == 0)
+    if (metadata->version == 0 && metadata->compatible_version == 0) {
         metadata->version = WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT;
-    if (metadata->compatible_version == 0)
         metadata->compatible_version = WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT;
+    } else if (metadata->version != 0 && metadata->compatible_version == 0) {
+        WT_ERR_MSG(session, EINVAL,
+          "Disaggregated checkpoint metadata with version %d missing compatible version",
+          metadata->version);
+    } else if (metadata->version == 0 && metadata->compatible_version != 0) {
+        WT_ERR_MSG(session, EINVAL,
+          "Disaggregated checkpoint metadata with compatible version %d missing version",
+          metadata->compatible_version);
+    }
 
     if (metadata->compatible_version > WT_DISAGG_CHECKPOINT_TURTLE_VERSION)
         WT_ERR_MSG(session, ENOTSUP,
@@ -897,5 +905,12 @@ void
 __ut_disagg_get_crypt_header(WT_ITEM *key_item, WT_CRYPT_HEADER **header)
 {
     __disagg_get_crypt_header(key_item, header);
+}
+
+int
+__ut_disagg_parse_version_and_check(
+  WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG_METADATA *metadata)
+{
+    return __disagg_parse_version_and_check(session, meta_buf, metadata);
 }
 #endif

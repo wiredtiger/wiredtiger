@@ -307,3 +307,64 @@ TEST_CASE_METHOD(disagg_fixture, "Legacy metadata format", "[disagg]")
         }
     }
 }
+
+TEST_CASE_METHOD(disagg_fixture, "Parse metadata with version", "[disagg]")
+{
+    SECTION("Valid version")
+    {
+        const std::string metadata_str =
+          "version=1,compatible_version=1,checkpoint=(),timestamp=c0ffee12,";
+
+        WT_ITEM metadata_buf{};
+        metadata_buf.data = (const void *)metadata_str.data();
+        metadata_buf.size = metadata_str.length();
+        WT_DISAGG_METADATA metadata{};
+
+        const auto ret = __ut_disagg_parse_version_and_check(session, &metadata_buf, &metadata);
+        REQUIRE(ret == 0);
+        REQUIRE(metadata.version == 1);
+        REQUIRE(metadata.compatible_version == 1);
+    }
+
+    SECTION("Incompatible version")
+    {
+        const std::string metadata_str =
+          "version=1,compatible_version=999,checkpoint=(),timestamp=c0ffee12,";
+
+        WT_ITEM metadata_buf{};
+        metadata_buf.data = (const void *)metadata_str.data();
+        metadata_buf.size = metadata_str.length();
+        WT_DISAGG_METADATA metadata{};
+
+        const auto ret = __ut_disagg_parse_version_and_check(session, &metadata_buf, &metadata);
+        REQUIRE(ret == ENOTSUP);
+    }
+
+    SECTION("Missing compatible_version")
+    {
+        const std::string metadata_str = "version=1,checkpoint=(),timestamp=c0ffee12,";
+
+        WT_ITEM metadata_buf{};
+        metadata_buf.data = (const void *)metadata_str.data();
+        metadata_buf.size = metadata_str.length();
+        WT_DISAGG_METADATA metadata{};
+
+        const auto ret = __ut_disagg_parse_version_and_check(session, &metadata_buf, &metadata);
+        REQUIRE(ret == EINVAL);
+    }
+
+    SECTION("Default version when omitted")
+    {
+        const std::string metadata_str = "checkpoint=(),timestamp=c0ffee12,";
+
+        WT_ITEM metadata_buf{};
+        metadata_buf.data = (const void *)metadata_str.data();
+        metadata_buf.size = metadata_str.length();
+        WT_DISAGG_METADATA metadata{};
+
+        const auto ret = __ut_disagg_parse_version_and_check(session, &metadata_buf, &metadata);
+        REQUIRE(ret == 0);
+        REQUIRE(metadata.version == WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT);
+        REQUIRE(metadata.compatible_version == WT_DISAGG_CHECKPOINT_TURTLE_VERSION_DEFAULT);
+    }
+}

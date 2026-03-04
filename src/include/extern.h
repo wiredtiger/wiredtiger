@@ -2578,6 +2578,8 @@ extern int __ut_chunkcache_bitmap_alloc(WT_SESSION_IMPL *session, size_t *bit_in
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_ckpt_mod_blkmod_entry(WT_SESSION_IMPL *session, WT_CKPT_BLOCK_MODS *blk_mod,
   wt_off_t offset, wt_off_t len) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_disagg_parse_version_and_check(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf,
+  WT_DISAGG_METADATA *metadata) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_disagg_validate_checkpoint_meta_version(WT_SESSION_IMPL *session,
   const char *meta_str, uint32_t *out_version, uint32_t *out_compatible_version)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
