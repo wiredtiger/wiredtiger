@@ -123,7 +123,8 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     }
 
 err:
-    WT_TRET(ingest_cursor->close(ingest_cursor));
+    if (ingest_cursor != NULL)
+        WT_TRET(ingest_cursor->close(ingest_cursor));
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
 }
