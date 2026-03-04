@@ -68,19 +68,16 @@ err:
 
 /*
  * __schema_layered_worker_verify --
- *     Run a schema worker operation (which is verification) on the layered table.
+ *     Run the verify operation on the layered table.
  */
 static int
 __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
   int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], uint32_t open_flags)
 {
-    WT_CONNECTION_IMPL *conn;
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_CURSOR *ingest_cursor = NULL;
     WT_DECL_RET;
-    int ingest_ret, stable_ret;
-
-    conn = S2C(session);
-    ingest_ret = 0;
 
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags));
     WT_LAYERED_TABLE *layered = (WT_LAYERED_TABLE *)session->dhandle;
@@ -92,60 +89,39 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     WT_ASSERT(session, ingest_uri != NULL);
     WT_ASSERT(session, file_func == __wt_verify);
 
-    /*
-     * Verifying stable tables of layered tables uses the existing verify logic. The same applies to
-     * ingest tables of leaders. However, on followers ingest tables must be empty.
-     */
-
     /* Verify the stable table of the layered table. */
     WT_WITHOUT_DHANDLE(session,
-      stable_ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
+      ret = __wt_schema_worker(session, stable_uri, file_func, name_func, cfg, open_flags));
 
     /* On followers, it is possible not to have any stable table. This is a transient state. */
-    if (!conn->layered_table_manager.leader && stable_ret == ENOENT) {
+    if (!conn->layered_table_manager.leader && ret == ENOENT) {
         __wt_verbose_level(session, WT_VERB_VERIFY, WT_VERBOSE_DEBUG_2,
           "Verify (layered): %s stable table not found on follower, it can be a transient state.",
           stable_uri);
-        stable_ret = 0;
+        ret = 0;
     }
 
-    if (stable_ret != 0 && stable_ret != EBUSY)
-        WT_ERR_MSG(session, stable_ret, "Verify (layered): %s stable table verification failed ",
-          stable_uri);
+    if (ret != 0 && ret != EBUSY)
+        WT_ERR_MSG(
+          session, ret, "Verify (layered): %s stable table verification failed", stable_uri);
 
-    /*
-     * Verify the ingest table of the layered table on leader.
-     */
+    /* The ingest table on a leader has to be empty. Use a standard cursor to verify this. */
     if (conn->layered_table_manager.leader) {
-        /*
-         * On leader, if verifying ingest returns EBUSY, it means ingest is not empty (dirty
-         * content, or open cursors), which is an invalid state.
-         */
-        WT_WITHOUT_DHANDLE(session,
-          ingest_ret =
-            __wt_schema_worker(session, ingest_uri, file_func, name_func, cfg, open_flags));
+        const char *cursor_config[] = {
+          WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "readonly", NULL, NULL};
+        WT_ERR(__wt_open_cursor(session, ingest_uri, NULL, cursor_config, &ingest_cursor));
 
-        WT_ASSERT_ALWAYS(session, ingest_ret != EBUSY,
-          "Verify: %s ingest table on leader cannot be verified. "
-          "Ingest contains dirty content or open cursors, which is an invalid "
-          "state.",
-          ingest_uri);
-
-        WT_ERR_MSG_CHK(session, ingest_ret,
-          "Verify (layered): %s ingest table verification failed. Ingest on leader must be empty.",
-          ingest_uri);
+        ret = ingest_cursor->next(ingest_cursor);
+        if (ret != 0 && ret != WT_NOTFOUND)
+            WT_ERR_MSG(session, ret,
+              "Verify (layered): %s ingest table verification failed. Ingest on leader must be "
+              "empty.",
+              ingest_uri);
     }
 
 err:
-    __wt_verbose_level(session, WT_VERB_VERIFY, WT_VERBOSE_DEBUG_2,
-      "Verify (layered): stable table %s returned %s, ingest table %s returned %s", stable_uri,
-      __wt_wiredtiger_error(stable_ret), ingest_uri, __wt_wiredtiger_error(ingest_ret));
-
+    WT_TRET(ingest_cursor->close(ingest_cursor));
     WT_TRET(__wt_session_release_dhandle(session));
-
-    /* Ingest is expected to never return EBUSY so it's enough to check it for 0 only */
-    ret = ingest_ret != 0 ? ingest_ret : stable_ret;
-
     return (ret);
 }
 
