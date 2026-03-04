@@ -778,7 +778,7 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_page_log_discard_args::lsn_frontier;
 %ignore __wt_page_log_complete_checkpoint_args::version;
 %ignore __wt_page_log_complete_checkpoint_args::lsnp;
-%ignore __wt_page_log_complete_checkpoint_args::oldest_timestamp;
+%ignore __wt_page_log_complete_checkpoint_args::checkpoint_oldest_timestamp;
 %ignore __wt_page_log_put_args::backlink_lsn;
 %ignore __wt_page_log_put_args::base_lsn;
 %ignore __wt_page_log_put_args::backlink_checkpoint_id;
@@ -1236,12 +1236,12 @@ SIDESTEP_METHOD(__wt_page_log, pl_begin_checkpoint,
 
 /* FIXME-WT-16821: Remember to refresh the uint64_t type. */
 SIDESTEP_METHOD(__wt_page_log, pl_complete_checkpoint,
-  (WT_SESSION *session, int checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata, uint64_t *ext_arg),
-  (self, session, checkpoint_id, checkpoint_timestamp, checkpoint_metadata, ext_arg))
+  (WT_SESSION *session, int checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata, uint64_t *ext_args),
+  (self, session, checkpoint_id, checkpoint_timestamp, checkpoint_metadata, ext_args))
 
 SIDESTEP_METHOD(__wt_page_log, pl_complete_checkpoint_ext,
-  (WT_SESSION *session, int checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata, uint64_t *ext_arg),
-  (self, session, checkpoint_id, checkpoint_timestamp, checkpoint_metadata, ext_arg))
+  (WT_SESSION *session, int checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata, uint64_t *ext_args),
+  (self, session, checkpoint_id, checkpoint_timestamp, checkpoint_metadata, ext_args))
 
 SIDESTEP_METHOD(__wt_page_log, pl_get_complete_checkpoint,
   (WT_SESSION *session, int *checkpoint_id),

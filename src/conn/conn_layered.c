@@ -1651,7 +1651,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
         /* This is hardcoded, code based version. */
         complete_args.version = 1;
         complete_args.lsnp = NULL;
-        complete_args.oldest_timestamp =
+        complete_args.checkpoint_oldest_timestamp =
           conn->disaggregated_storage.last_checkpoint_oldest_timestamp;
         /* FIXME-WT-16821: Using pl_complete_checkpoint once it's available, remove force type
          * convert uint64_t. */

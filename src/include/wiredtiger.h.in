@@ -5620,7 +5620,7 @@ struct __wt_page_log {
      *        checkpoint_id used with this call.
      * @param checkpoint_timestamp the stable timestamp associated with the checkpoint
      * @param checkpoint_metadata the buffer with checkpoint metadata
-     * @param ext_args an optional version based argument for extended arguments
+     * @param ext_args optional version based extended arguments
      */
     int (*pl_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session,
         uint64_t checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata,
@@ -5638,7 +5638,7 @@ struct __wt_page_log {
      *        checkpoint_id used with this call.
      * @param checkpoint_timestamp the stable timestamp associated with the checkpoint
      * @param checkpoint_metadata the buffer with checkpoint metadata
-     * @param ext_args an optional version based argument for extended arguments
+     * @param ext_args optional version based extended arguments
      */
     int (*pl_complete_checkpoint_ext)(WT_PAGE_LOG *page_log, WT_SESSION *session,
         uint64_t checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata,
@@ -5857,7 +5857,9 @@ typedef enum {
 #define WT_PAGE_LOG_COLD 0x8u
 
 /*!
- * Version based parameters given to
+ * FIXME-WT-16821: Remove (_ext) in the comment.
+ * Version based parameters given to, or returned by
+ * WT_PAGE_LOG::pl_complete_checkpoint(_ext) interface.
  */
 struct __wt_page_log_complete_checkpoint_args {
         /*
@@ -5867,7 +5869,7 @@ struct __wt_page_log_complete_checkpoint_args {
 
         /* version 1 */
         uint64_t *lsnp;
-        uint64_t oldest_timestamp;
+        uint64_t checkpoint_oldest_timestamp;
         /* For any new version, add new parameter at the end. */
 };
 
