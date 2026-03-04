@@ -111,7 +111,8 @@ __schema_layered_worker_verify(WT_SESSION_IMPL *session, const char *uri,
     if (conn->layered_table_manager.leader) {
         const char *cursor_config[] = {
           WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "readonly", NULL, NULL};
-        WT_WITHOUT_DHANDLE(session, ingest_ret = __wt_open_cursor(session, ingest_uri, NULL, cursor_config, &ingest_cursor));
+        WT_WITHOUT_DHANDLE(session,
+          ingest_ret = __wt_open_cursor(session, ingest_uri, NULL, cursor_config, &ingest_cursor));
         WT_ERR(ingest_ret);
 
         ingest_ret = ingest_cursor->next(ingest_cursor);
