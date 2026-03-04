@@ -381,3 +381,11 @@ define_c_test(
     ARGUMENTS
     DEPENDS "WT_POSIX"
 )
+
+define_c_test(
+    TARGET test_wt16803_version_based_args
+    SOURCES wt16803_version_based_args/main.c
+    DIR_NAME wt16803_version_based_args
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
