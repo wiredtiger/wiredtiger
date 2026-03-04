@@ -70,7 +70,7 @@ class test_layered76(wttest.WiredTigerTestCase):
 
         self.verifyUntilSuccess()
 
-    def test_ckpt_size_verify_large_dataset(self): # FAILS!
+    def test_ckpt_size_verify_large_dataset(self):
         self.session.create(self.uri, self.create_session_config)
 
         # Insert data.
@@ -86,7 +86,7 @@ class test_layered76(wttest.WiredTigerTestCase):
 
     def test_ckpt_size_verify_many_ckpt(self):
         session_config = 'key_format=S,value_format=S'
-        nitems = 100
+        nitems = 10000
         # TODO INVESTIGATE THIS CHECKPOINT SIZE MISMATCH DISCREPANCY:
         # "Checkpoint size 525862 does not match accumulated block size 183954"
         # FAILS WHEN NITEMS = 10000, but passes when NITEMS = 1000 and less.
