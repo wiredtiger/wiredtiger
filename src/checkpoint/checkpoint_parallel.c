@@ -194,7 +194,9 @@ __checkpoint_parallel_pop_done(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_R
 /*
  * __checkpoint_parallel_thread_run --
  *     Entry function for a checkpoint page reconciliation thread. This is called repeatedly from
- *     the thread group code so it does not need to loop itself.
+ *     the thread group code, with that in mind the internal loop may seem redundant but working on
+ *     the assumption that the queue is likely to have more entries we loop internally to skip
+ *     expensive checks.
  */
 static int
 __checkpoint_parallel_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)

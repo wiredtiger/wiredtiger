@@ -378,7 +378,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 WT_ERR(__sync_dup_walk(session, walk, 0, &walk_dup));
                 WT_ERR(__wt_checkpoint_parallel_push_work(session, walk_dup, rec_flags, flags));
             } else
-                /* It's not an error if we make no progress. */
                 WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
 
             /* Update checkpoint IO tracking data. */
