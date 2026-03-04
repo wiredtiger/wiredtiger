@@ -108,6 +108,9 @@ typedef enum { /* Start position for eviction walk */
 #define WT_BTREE_ID_UNNAMESPACED(x) ((x) >> WT_BTREE_ID_NAMESPACE_BITS)
 #define WT_BTREE_ID_NAMESPACE_ID(x) ((x) & ((1 << WT_BTREE_ID_NAMESPACE_BITS) - 1))
 
+#define BTREE_ID_SPECIAL_NAMESPACED(base_id) \
+    (WT_BTREE_ID_NAMESPACED(base_id, WT_BTREE_ID_NAMESPACE_SPECIAL))
+
 /* Special tables are currently always shared, so we check for both. */
 #define WT_BTREE_ID_SHARED(x)                                         \
     ((WT_BTREE_ID_NAMESPACE_ID(x) == WT_BTREE_ID_NAMESPACE_SHARED) || \
@@ -118,9 +121,21 @@ typedef enum { /* Start position for eviction walk */
  * on every node and should have identical IDs to avoid conflicts at the storage layer.
  *
  * Should always belong to the special namespace to avoid conflicts with the local metadata ID.
+ *
+ * Tables marked as PALI are not WT tables in the usual sense and exist only at the PALI level.
+ * However, they are part of the special namespace, and we should avoid creating any tables with the
+ * same IDs to prevent conflicts in PALI.
+ *
+ * BE CAREFUL!!! CHANGING THE EXISTING IDS WILL PROBABLY CAUSE A BACKWARD COMPATIBILITY BREAK!!!
  */
-#define WT_SHARED_METADATA_FILE_ID 0
-#define WT_SHARED_HS_FILE_ID 1
+#define WT_SPECIAL_PALI_TURTLE_FILE_ID \
+    BTREE_ID_SPECIAL_NAMESPACED(0) /* Table ID for shared turtle data */
+#define WT_SPECIAL_SHARED_METADATA_FILE_ID \
+    BTREE_ID_SPECIAL_NAMESPACED(1) /* Table ID for shared metadata */
+#define WT_SPECIAL_SHARED_HS_FILE_ID \
+    BTREE_ID_SPECIAL_NAMESPACED(2) /* Table ID for shared history store */
+#define WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID \
+    BTREE_ID_SPECIAL_NAMESPACED(3) /* Table ID for encryption key data */
 
 /*
  * WT_BTREE --
@@ -216,9 +231,8 @@ struct __wt_btree {
     uint64_t rec_max_txn;    /* Maximum transaction seen by reconciliation (clean trees). */
     wt_timestamp_t rec_max_timestamp; /* Maximum timestamp seen by reconciliation (clean trees). */
 
-    wt_shared uint64_t checkpoint_gen;       /* Checkpoint generation */
-    wt_shared WT_SESSION_IMPL *sync_session; /* Syncing session */
-    wt_shared WT_BTREE_SYNC syncing;         /* Sync status */
+    wt_shared uint64_t checkpoint_gen; /* Checkpoint generation */
+    wt_shared WT_BTREE_SYNC syncing;   /* Sync status */
 
 /*
  * Helper macros: WT_BTREE_SYNCING indicates if a sync is active (either waiting to start or already
@@ -229,11 +243,10 @@ struct __wt_btree {
  */
 #define WT_BTREE_SYNCING(btree) \
     (__wt_atomic_load_enum_acquire(&(btree)->syncing) != WT_BTREE_SYNC_OFF)
-#define WT_SESSION_BTREE_SYNC(session) \
-    (__wt_atomic_load_ptr_acquire(&S2BT(session)->sync_session) == (session))
-#define WT_SESSION_BTREE_SYNC_SAFE(session, btree)                                \
-    (__wt_atomic_load_enum_acquire(&(btree)->syncing) != WT_BTREE_SYNC_RUNNING || \
-      __wt_atomic_load_ptr_acquire(&(btree)->sync_session) == (session))
+#define WT_SESSION_BTREE_SYNC(session) ((session)->syncing && WT_BTREE_SYNCING(S2BT(session)))
+#define WT_SESSION_BTREE_SYNC_SAFE(session) \
+    ((session)->syncing ||                  \
+      __wt_atomic_load_enum_acquire(&S2BT(session)->syncing) != WT_BTREE_SYNC_RUNNING)
 
     wt_shared uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
     wt_shared uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */

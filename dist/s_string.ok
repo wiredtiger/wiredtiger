@@ -84,6 +84,7 @@ Config
 Coverity
 CreateFileMappingW
 CreateFileW
+CreateSemaphore
 Crt
 Crummey
 CustomersPhone
@@ -354,6 +355,7 @@ RedHat
 Redistributions
 Reentrancy
 Reify
+ReleaseSemaphore
 Rogerio
 Runtime
 SDK
@@ -758,6 +760,7 @@ encryptors
 endian
 endptr
 enomem
+enqueue
 enum
 env
 eof
@@ -812,6 +815,7 @@ fmterr
 fnv
 foc
 fopen
+foreach
 formatmessage
 foward
 fprintf

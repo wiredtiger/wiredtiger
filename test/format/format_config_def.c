@@ -189,7 +189,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"disagg.mode", "configure mode for disaggregated storage (follower | leader | switch)",
     C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_DISAGG_MODE},
 
-  {"disagg.page_log", "configure page log for disaggregated storage (off | palm | palite)",
+  {"disagg.page_log", "configure page log for disaggregated storage (off | palite)",
     C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_DISAGG_PAGE_LOG},
 
   {"disagg.key_provider", "configure a key provider for disaggregated storage", C_BOOL, 20, 0, 0,
@@ -327,6 +327,11 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"random.extra_seed", "set random seed for extra operations", 0x0, 0, 0, UINT_MAX,
     V_GLOBAL_RANDOM_EXTRA_SEED},
+
+  {"rollback_to_stable_threads",
+    "maximum number of threads to use for RTS. A value of RTS_THREADS_MAX translates to the "
+    "default rollback_to_stable configuration",
+    0x0, 0, RTS_THREADS_MAX, RTS_THREADS_MAX, V_GLOBAL_ROLLBACK_TO_STABLE_THREADS},
 
   {"runs.in_memory", "configure in-memory", C_BOOL | C_IGNORE, 0, 0, 1, V_GLOBAL_RUNS_IN_MEMORY},
 
