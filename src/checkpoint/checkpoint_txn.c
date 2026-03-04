@@ -399,11 +399,9 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 
     btree = S2BT(session);
 
-    /*
-     * Skip files that are never involved in a checkpoint. Skip the history store file as it is,
-     * checkpointed manually later.
-     */
-    if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY) || WT_IS_HS(btree->dhandle))
+    /* Skip the history store file as it is checkpointed manually later. */
+    if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT | WT_BTREE_IN_MEMORY | WT_BTREE_READONLY) ||
+      WT_IS_HS(btree->dhandle))
         return (0);
 
     if (__wt_conn_is_disagg(session)) {
@@ -970,7 +968,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
             WT_ERR(EINVAL);
 
         /* Precise checkpoint needs the stable timestamp. */
-        if (__wt_tsan_suppress_load_uint64(&txn_global->stable_timestamp) == WT_TS_NONE)
+        if (__wt_get_stable_timestamp(session) == WT_TS_NONE)
             WT_ERR_MSG(session, EINVAL, "Precise checkpoint requires a stable timestamp");
     }
 
@@ -1052,7 +1050,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * the stable timestamp.
      */
     WT_ASSERT(session,
-      !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_SHARED_TS_DURABLE | WT_TXN_SHARED_TS_READ));
+      !F_ISSET(&txn->time_point, WT_TXN_TIME_POINT_HAS_TS_COMMIT) &&
+        !F_ISSET(txn, WT_TXN_SHARED_TS_DURABLE | WT_TXN_SHARED_TS_READ));
 
     if (use_timestamp) {
         /*
@@ -1060,19 +1059,20 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
          * or not a stable timestamp is actually in use. Only set it when we're not running recovery
          * because recovery doesn't set the recovery timestamp until its checkpoint is complete.
          */
-        if (txn_global->has_stable_timestamp) {
+        wt_timestamp_t stable_timestamp = __wt_get_stable_timestamp(session);
+        if (stable_timestamp != WT_TS_NONE) {
             /* A checkpoint should never proceed when timestamps are out of order. */
             if (__wt_atomic_load_bool_relaxed(&txn_global->has_oldest_timestamp) &&
-              txn_global->oldest_timestamp > txn_global->stable_timestamp) {
+              __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp) > stable_timestamp) {
                 __wt_writeunlock(session, &txn_global->rwlock);
                 WT_ASSERT_ALWAYS(session, false,
                   "oldest timestamp %s must not be later than stable timestamp %s when taking a "
                   "checkpoint",
-                  __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[0]),
-                  __wt_timestamp_to_string(txn_global->stable_timestamp, ts_string[1]));
+                  __wt_timestamp_to_string(
+                    __wt_atomic_load_uint64_relaxed(&txn_global->oldest_timestamp), ts_string[0]),
+                  __wt_timestamp_to_string(stable_timestamp, ts_string[1]));
             }
-            __wt_tsan_suppress_store_uint64(
-              &txn_global->checkpoint_timestamp, txn_global->stable_timestamp);
+            __wt_tsan_suppress_store_uint64(&txn_global->checkpoint_timestamp, stable_timestamp);
             if (!F_ISSET(conn, WT_CONN_RECOVERING))
                 txn_global->meta_ckpt_timestamp = txn_global->checkpoint_timestamp;
         } else if (!F_ISSET(conn, WT_CONN_RECOVERING))
@@ -1186,9 +1186,8 @@ __checkpoint_can_skip(
      * file has been modified, as such if the connection has been modified it is currently unsafe to
      * skip checkpoints.
      */
-    if (!conn->modified && use_timestamp && txn_global->has_stable_timestamp &&
-      txn_global->last_ckpt_timestamp != WT_TS_NONE &&
-      txn_global->last_ckpt_timestamp == txn_global->stable_timestamp) {
+    if (!conn->modified && use_timestamp && txn_global->last_ckpt_timestamp != WT_TS_NONE &&
+      txn_global->last_ckpt_timestamp == __wt_get_stable_timestamp(session)) {
         *can_skipp = true;
         return (0);
     }
@@ -1601,7 +1600,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * Copy any updated metadata to the shared metadata table.
      */
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
-        WT_WITH_SCHEMA_LOCK(session, ret = __wt_disagg_update_metadata_process(session));
+        WT_WITH_SCHEMA_LOCK(session, ret = __wt_disagg_shared_metadata_queue_process(session));
         WT_ERR(ret);
     }
 
@@ -1999,7 +1998,7 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     orig_flags = F_MASK(session, WTI_CHECKPOINT_SESSION_FLAGS);
     F_SET(session, WTI_CHECKPOINT_SESSION_FLAGS);
 
-    WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_cleanup", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "debug.checkpoint_cleanup", &cval));
     checkpoint_cleanup = cval.val;
 
     /*
@@ -2007,9 +2006,9 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
      * flush_tier to have completed all of its copying of objects. This happens if the user chose to
      * not wait for sync on the previous call.
      */
-    WT_RET(__wt_config_gets(session, cfg, "flush_tier.enabled", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "flush_tier.enabled", &cval));
     flush = cval.val;
-    WT_RET(__wt_config_gets(session, cfg, "flush_tier.sync", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "flush_tier.sync", &cval));
     flush_sync = cval.val;
     if (flush)
         WT_ERR(__checkpoint_flush_tier_wait(session, cfg));

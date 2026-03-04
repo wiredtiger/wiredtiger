@@ -30,8 +30,16 @@ __check_imported_ts(
 
     ckptbase = NULL;
     txn_global = &S2C(session)->txn_global;
-    ts = against_stable ? txn_global->stable_timestamp : txn_global->oldest_timestamp;
-    ts_name = against_stable ? "stable" : "oldest";
+
+    if (against_stable) {
+        ts_name = "stable";
+        ts = __wt_get_stable_timestamp(session);
+    } else {
+        ts_name = "oldest";
+        /* FIXME-WT-16776: use an atomic read operation similar to the stable timestamp
+         * implementation. */
+        ts = txn_global->oldest_timestamp;
+    }
 
     WT_ERR_NOTFOUND_OK(
       __wt_meta_ckptlist_get_from_config(session, false, &ckptbase, NULL, config), true);
@@ -119,6 +127,39 @@ __create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const cha
 }
 
 /*
+ * __validate_file_id --
+ *     Validates all possible cases to detect unexpected or unsafe table ID generation.
+ */
+static WT_INLINE void
+__validate_file_id(WT_SESSION_IMPL *session, uint32_t namespaced_id)
+{
+    uint32_t namespace = WT_BTREE_ID_NAMESPACE_ID(namespaced_id);
+    uint32_t unnamespaced_id = WT_BTREE_ID_UNNAMESPACED(namespaced_id);
+
+    WT_UNUSED(namespace);
+    WT_UNUSED(unnamespaced_id);
+
+    /* Assert that only valid namespaces are used. */
+    WT_ASSERT(session,
+      namespace == WT_BTREE_ID_NAMESPACE_LOCAL || namespace == WT_BTREE_ID_NAMESPACE_SHARED ||
+        namespace == WT_BTREE_ID_NAMESPACE_SPECIAL);
+
+    /*
+     * Currently, local and shared namespaces start their IDs from 1, and the 0 ID for the special
+     * namespace is used for the PALI turtle table. Therefore, we can safely assume that any ID
+     * without a namespace is a positive integer.
+     */
+    WT_ASSERT(session, unnamespaced_id > 0);
+
+    /* Check that generated IDs do not contain values reserved elsewhere. */
+    WT_ASSERT(session, namespaced_id != WT_METAFILE_ID);
+    WT_ASSERT(session, namespaced_id != WT_SPECIAL_PALI_TURTLE_FILE_ID);
+    WT_ASSERT(session, namespaced_id != WT_SPECIAL_SHARED_METADATA_FILE_ID);
+    WT_ASSERT(session, namespaced_id != WT_SPECIAL_SHARED_HS_FILE_ID);
+    WT_ASSERT(session, namespaced_id != WT_SPECIAL_PALI_KEY_PROVIDER_FILE_ID);
+}
+
+/*
  * __wt_generate_file_id --
  *     Generate a unique file ID for the provided URI and assign it to all required namespaces.
  */
@@ -131,8 +172,8 @@ __wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
     } FILE_ID_TO_URI;
 
     static const FILE_ID_TO_URI special_file_map[] = {
-      {WT_SHARED_METADATA_FILE_ID, WT_DISAGG_METADATA_URI},
-      {WT_SHARED_HS_FILE_ID, WT_HS_URI_SHARED}, {0, NULL} /* sentinel */
+      {WT_SPECIAL_SHARED_METADATA_FILE_ID, WT_DISAGG_METADATA_URI},
+      {WT_SPECIAL_SHARED_HS_FILE_ID, WT_HS_URI_SHARED}, {0, NULL} /* sentinel */
     };
 
     /* Metadata ID is predefined but should be defined in a different place. */
@@ -142,16 +183,18 @@ __wt_generate_file_id(WT_SESSION_IMPL *session, const char *uri, bool is_shared)
     /* Check whether we should use a predefined ID for the provided URI. */
     for (const FILE_ID_TO_URI *entry = special_file_map; entry->uri != NULL; ++entry) {
         if (strcmp(uri, entry->uri) == 0) {
-            return (WT_BTREE_ID_NAMESPACED(entry->id, WT_BTREE_ID_NAMESPACE_SPECIAL));
+            /* Entry should be already in the namespace here. */
+            WT_ASSERT(
+              session, WT_BTREE_ID_NAMESPACE_ID(entry->id) == WT_BTREE_ID_NAMESPACE_SPECIAL);
+            return (entry->id);
         }
     }
 
-    /* Use the predefined ID if the URI matches; otherwise, use the counter. */
-    uint32_t fileid = ++S2C(session)->next_file_id;
-    if (is_shared)
-        return (WT_BTREE_ID_NAMESPACED(fileid, WT_BTREE_ID_NAMESPACE_SHARED));
-
-    return (WT_BTREE_ID_NAMESPACED(fileid, WT_BTREE_ID_NAMESPACE_LOCAL));
+    /* Use the counter if there is no predefined ID for the table. */
+    uint32_t ns = is_shared ? WT_BTREE_ID_NAMESPACE_SHARED : WT_BTREE_ID_NAMESPACE_LOCAL;
+    uint32_t namespaced_id = WT_BTREE_ID_NAMESPACED(++S2C(session)->next_file_id, ns);
+    __validate_file_id(session, namespaced_id);
+    return (namespaced_id);
 }
 
 /*
@@ -1061,7 +1104,8 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
             __wt_scr_free(session, &tmp);
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
             WT_ERR(__wt_buf_fmt(session, tmp, "file:%s.wt_stable", tablename));
-            WT_ERR(__wt_disagg_update_metadata_later(session, tmp->data, tablename));
+            WT_ERR(__wt_disagg_enqueue_metadata_operation(
+              session, tmp->data, tablename, WT_SHARED_METADATA_CREATE));
         }
 
 err:
@@ -1179,7 +1223,8 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
          * FIXME-WT-14725: We should make this more efficient in the future. If this creation is a
          * part of a table creation, it would result in doing extra work.
          */
-        WT_ERR(__wt_disagg_update_metadata_later(session, stable_uri, tablename));
+        WT_ERR(__wt_disagg_enqueue_metadata_operation(
+          session, stable_uri, tablename, WT_SHARED_METADATA_CREATE));
     }
 
 err:
