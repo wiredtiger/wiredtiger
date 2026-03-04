@@ -217,6 +217,23 @@ struct __wt_page_delta_config {
     uint8_t flags;
 };
 
+/*
+ * WT_DISAGG_CHECKPOINT_META --
+ *     Checkpoint metadata structure for disaggregated storage.
+ */
+typedef struct __wt_disagg_checkpoint_meta {
+    uint64_t metadata_lsn; /* The LSN of the metadata page. */
+
+    bool has_metadata_checksum; /* Whether the metadata page checksum is present. */
+    uint32_t metadata_checksum; /* The checksum of the metadata page. */
+
+    uint64_t database_size; /* The total database size. */
+    bool has_database_size; /* Whether the database size is present. */
+    uint32_t version;       /* The version of the checkpoint_meta. */
+    uint32_t
+      compatible_version; /* The minimum version of the reader that can use this checkpoint_meta. */
+} WT_DISAGG_CHECKPOINT_META;
+
 #define WT_DISAGG_CHECKPOINT_SIZE_BUFFER WT_MEGABYTE
 
 /*
@@ -952,23 +969,26 @@ struct __wt_connection_impl {
     wt_shared uint32_t debug_log_cnt;  /* Log file retention count */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_DEBUG_CKPT_RETAIN 0x0001u
-#define WT_CONN_DEBUG_CONFIGURATION 0x0002u
-#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x0004u
-#define WT_CONN_DEBUG_CRASH_POINT_COLGROUP 0x0008u
-#define WT_CONN_DEBUG_CURSOR_COPY 0x0010u
-#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x0020u
-#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x0040u
-#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x0080u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0x0100u
-#define WT_CONN_DEBUG_REALLOC_MALLOC 0x0200u
-#define WT_CONN_DEBUG_SLOW_CKPT 0x0400u
-#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x0800u
-#define WT_CONN_DEBUG_TABLE_LOGGING 0x1000u
-#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x2000u
-#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x4000u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
-    uint16_t debug_flags;
+#define WT_CONN_DEBUG_CKPT_RETAIN 0x00001u
+#define WT_CONN_DEBUG_CONFIGURATION 0x00002u
+#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x00004u
+#define WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_COLGROUP 0x00008u
+#define WT_CONN_DEBUG_CRASH_POINT_AFTER_DROP_FILE 0x00010u
+#define WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_COLGROUP 0x00020u
+#define WT_CONN_DEBUG_CRASH_POINT_BEFORE_INSERT_FILE 0x00040u
+#define WT_CONN_DEBUG_CURSOR_COPY 0x00080u
+#define WT_CONN_DEBUG_CURSOR_REPOSITION 0x00100u
+#define WT_CONN_DEBUG_EVICTION_CKPT_TS_ORDERING 0x00200u
+#define WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE 0x00400u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x00800u
+#define WT_CONN_DEBUG_REALLOC_MALLOC 0x01000u
+#define WT_CONN_DEBUG_SLOW_CKPT 0x02000u
+#define WT_CONN_DEBUG_STRESS_SKIPLIST 0x04000u
+#define WT_CONN_DEBUG_TABLE_LOGGING 0x08000u
+#define WT_CONN_DEBUG_TIERED_FLUSH_ERROR_CONTINUE 0x10000u
+#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x20000u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    uint32_t debug_flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DIAGNOSTIC_ALL 0x001ull
