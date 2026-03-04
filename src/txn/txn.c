@@ -95,7 +95,7 @@ __wt_txn_import_snapshot(WT_SESSION_IMPL *session, const WT_TXN_SNAPSHOT *snapsh
 
     txn = session->txn;
 
-    /* TODO: Check that the array capacity is sufficient. */
+    /* FIXME-WT-16842: Check that the array capacity is sufficient. */
 
     txn->snapshot_data.snapshot_count = snapshot->snapshot_count;
     txn->snapshot_data.snap_max = snapshot->snap_max;
