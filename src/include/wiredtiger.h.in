@@ -5877,7 +5877,7 @@ typedef enum {
 #define WT_PAGE_LOG_COLD 0x8u
 
 /*!
- * FIXME-WT-16821: Remove _ext. 
+ * FIXME-WT-16821: Remove _ext.
  * WT_PAGE_LOG::pl_complete_checkpoint(_ext) interface.
  */
 struct __wt_page_log_complete_checkpoint_args {
