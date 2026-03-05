@@ -205,14 +205,6 @@ from packing import pack, unpack
 	$1 = &val;
 }
 
-/* Why do we need an explicit conversion for plh_put - doesn't the previous typemap cover this? */
-%typemap(in) struct __wt_item *buf (WT_ITEM item) {
-	if (unpackBytesOrString($input, &item.data, &item.size) != 0)
-		SWIG_exception_fail(SWIG_AttributeError,
-		  "bad string value for WT_ITEM");
-	$1 = &item;
-}
-
 /*
  * This typemap removes the three last arguments for plh_get, and uses local variables for them instead.
  * The local variables will be used in the matching argout typemap.
@@ -1255,7 +1247,7 @@ SIDESTEP_METHOD(__wt_page_log, terminate,
   (self, session))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_put,
-  (WT_SESSION *session, int page_id, int checkpoint_id, WT_PAGE_LOG_PUT_ARGS *put_args, WT_ITEM *buf),
+  (WT_SESSION *session, int page_id, int checkpoint_id, WT_PAGE_LOG_PUT_ARGS *put_args, const WT_ITEM *buf),
   (self, session, page_id, checkpoint_id, put_args, buf))
 
 SIDESTEP_METHOD(__wt_page_log_handle, plh_get,
