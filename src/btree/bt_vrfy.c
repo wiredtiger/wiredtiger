@@ -495,7 +495,7 @@ __verify_block_meta_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         WT_ERR(__wt_buf_fmt(session, buf, "%s", __verify_disagg_string(session, page, tmp)));
         WT_ERR(__wt_buf_catfmt(
-          session, buf, ", local_addr: %s", __verify_addr_string(session, ref, tmp)));
+          session, buf, ", addr_cookie: %s", __verify_addr_string(session, ref, tmp)));
         __wt_scr_free(session, &tmp);
         return (buf->data);
     }
