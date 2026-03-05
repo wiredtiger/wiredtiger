@@ -5641,10 +5641,10 @@ struct __wt_page_log {
      *
      * @param page_log the WT_PAGE_LOG
      * @param session the current WiredTiger session
-     * @param ext_args extended arguments
+     * @param args extended arguments
      */
     int (*pl_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session,
-        WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *ext_args);
+        WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *args);
 
     /*!
      * FIXME-WT-16821: Remove pl_complete_checkpoint_ext.

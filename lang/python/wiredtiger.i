@@ -1215,8 +1215,8 @@ SIDESTEP_METHOD(__wt_page_log, pl_begin_checkpoint,
   (self, session, checkpoint_id))
 
 SIDESTEP_METHOD(__wt_page_log, pl_complete_checkpoint,
-  (WT_SESSION *session, WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *ext_args),
-  (self, session, ext_args))
+  (WT_SESSION *session, WT_PAGE_LOG_COMPLETE_CHECKPOINT_ARGS *args),
+  (self, session, args))
 
 /* FIXME-WT-16821: Remember to remove ext. */
 SIDESTEP_METHOD(__wt_page_log, pl_complete_checkpoint_ext,
