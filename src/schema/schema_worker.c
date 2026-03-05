@@ -100,7 +100,7 @@ __schema_layered_stable_worker_verify(WT_SESSION_IMPL *session, const char *stab
 
 /*
  * __schema_layered_ingest_worker_verify --
- *     Run the verify operation on the layered ingest table.
+ *     Verify the layered ingest table.
  */
 static int
 __schema_layered_ingest_worker_verify(WT_SESSION_IMPL *session, const char *ingest_uri)
@@ -111,7 +111,8 @@ __schema_layered_ingest_worker_verify(WT_SESSION_IMPL *session, const char *inge
 
     WT_ASSERT(session, ingest_uri != NULL);
 
-    if (conn->layered_table_manager.leader)
+    /* We don't verify the ingest table on a follower. */
+    if (!conn->layered_table_manager.leader)
         return (0);
 
     /* The ingest table on a leader has to be empty. Use a standard cursor to verify this. */
