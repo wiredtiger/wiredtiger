@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sys/statvfs.h>
-#include <semaphore.h>
 
 /* Some systems don't configure 64-bit MIN/MAX by default. */
 #ifndef ULLONG_MAX
@@ -30,7 +29,7 @@
  */
 typedef pthread_cond_t wt_cond_t;
 typedef pthread_mutex_t wt_mutex_t;
-typedef sem_t wt_sem_t;
+
 typedef struct {
     bool created;
     uint16_t name_index;
