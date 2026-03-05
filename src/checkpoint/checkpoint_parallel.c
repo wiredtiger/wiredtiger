@@ -24,8 +24,7 @@ __checkpoint_parallel_thread_chk(WT_SESSION_IMPL *session)
  *     pointer on the ref and the per-item work fields have been copied to the output parameters.
  */
 static int
-__checkpoint_parallel_take_work(
-  WT_SESSION_IMPL *session, WT_REF **refp, uint32_t *reconcile_flagsp)
+__checkpoint_parallel_take_work(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t *reconcile_flagsp)
 {
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
     WT_DECL_RET;
@@ -44,16 +43,16 @@ __checkpoint_parallel_take_work(
     }
 
     /*
-     * Set the session's dhandle so __wt_hazard_set can find the btree. The acquire-load of
-     * work_ref above guarantees we see the checkpoint's store to work_dhandle.
+     * Set the session's dhandle so __wt_hazard_set can find the btree. The acquire-load of work_ref
+     * above guarantees we see the checkpoint's store to work_dhandle.
      */
     session->dhandle = ckpt_threads->work_dhandle;
 
     /*
      * Take our own hazard pointer on the ref before clearing the shared pointer. The checkpoint
      * session also holds a hazard pointer; once we clear work_ref it will release its copy, so we
-     * must establish ours first. We already know the page is valid (checkpoint holds it), so a
-     * busy return is transient.
+     * must establish ours first. We already know the page is valid (checkpoint holds it), so a busy
+     * return is transient.
      */
     for (;;) {
         ret = __wt_hazard_set(session, ref, &busy);
@@ -71,10 +70,10 @@ __checkpoint_parallel_take_work(
     *reconcile_flagsp = ckpt_threads->work_reconcile_flags;
 
     /*
-     * Increment workers_active before clearing work_ref. The checkpoint session uses
-     * workers_active in drain to know when all reconciliations are complete; if we cleared
-     * work_ref first, the checkpoint could observe the clear and call drain before we increment,
-     * seeing zero active workers while we're about to start reconciling.
+     * Increment workers_active before clearing work_ref. The checkpoint session uses workers_active
+     * in drain to know when all reconciliations are complete; if we cleared work_ref first, the
+     * checkpoint could observe the clear and call drain before we increment, seeing zero active
+     * workers while we're about to start reconciling.
      */
     (void)__wt_atomic_add_uint64(&ckpt_threads->workers_active, 1);
 
@@ -87,8 +86,8 @@ __checkpoint_parallel_take_work(
 
 /*
  * __checkpoint_parallel_thread_run --
- *     Entry function for a checkpoint page reconciliation thread. This is called repeatedly from the
- *     thread group code so we loop internally while work is available.
+ *     Entry function for a checkpoint page reconciliation thread. This is called repeatedly from
+ *     the thread group code so we loop internally while work is available.
  */
 static int
 __checkpoint_parallel_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
@@ -133,9 +132,9 @@ __checkpoint_parallel_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         WT_TRET(__wt_page_release(session, ref, 0));
 
         /*
-         * Set the error before decrementing workers_active. Drain waits for workers_active to
-         * reach zero; if we decremented first, drain could see zero active workers and return
-         * success before the error is visible.
+         * Set the error before decrementing workers_active. Drain waits for workers_active to reach
+         * zero; if we decremented first, drain could see zero active workers and return success
+         * before the error is visible.
          */
         if (ret != 0)
             (void)__wt_atomic_cas_int32(&ckpt_threads->error, 0, ret);
@@ -157,12 +156,11 @@ err:
 /*
  * __wt_checkpoint_parallel_push_work --
  *     Post a leaf page for parallel reconciliation. This function blocks until a worker takes the
- *     item (acquires its own hazard pointer). The caller retains its hazard pointer on the ref;
- *     the walk code releases it when advancing to the next page.
+ *     item (acquires its own hazard pointer). The caller retains its hazard pointer on the ref; the
+ *     walk code releases it when advancing to the next page.
  */
 int
-__wt_checkpoint_parallel_push_work(
-  WT_SESSION_IMPL *session, WT_REF *ref, uint32_t reconcile_flags)
+__wt_checkpoint_parallel_push_work(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t reconcile_flags)
 {
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
     int32_t err;
@@ -200,8 +198,8 @@ __wt_checkpoint_parallel_push_work(
     while (__wt_atomic_load_ptr_relaxed(&ckpt_threads->work_ref) != NULL) {
         if ((err = __wt_atomic_load_int32_relaxed(&ckpt_threads->error)) != 0) {
             /*
-             * A worker failed. Clear the work pointer under the lock so we don't race with a
-             * worker mid-handoff.
+             * A worker failed. Clear the work pointer under the lock so we don't race with a worker
+             * mid-handoff.
              */
             __wt_spin_lock(session, &ckpt_threads->work_lock);
             __wt_atomic_store_ptr_release(&ckpt_threads->work_ref, NULL);
@@ -216,8 +214,8 @@ __wt_checkpoint_parallel_push_work(
 
 /*
  * __wt_checkpoint_parallel_drain --
- *     Wait for all in-flight parallel reconciliations to complete. Called at internal page boundaries
- *     and at the end of the tree walk.
+ *     Wait for all in-flight parallel reconciliations to complete. Called at internal page
+ *     boundaries and at the end of the tree walk.
  */
 int
 __wt_checkpoint_parallel_drain(WT_SESSION_IMPL *session)
@@ -275,9 +273,8 @@ __wt_checkpoint_parallel_thread_create(WT_SESSION_IMPL *session, const char *cfg
 
     WT_RET(__wt_spin_init(
       session, &ckpt_threads->work_lock, "checkpoint page reconciliation threads - work"));
-    WT_RET(
-      __wt_cond_auto_alloc(session, "checkpoint page reconciliation threads - work (signal)",
-        10 * WT_THOUSAND, WT_MILLION, &ckpt_threads->work_cond));
+    WT_RET(__wt_cond_auto_alloc(session, "checkpoint page reconciliation threads - work (signal)",
+      10 * WT_THOUSAND, WT_MILLION, &ckpt_threads->work_cond));
 
     /* Create the checkpoint thread group. */
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;

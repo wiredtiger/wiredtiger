@@ -204,7 +204,7 @@ struct __wt_checkpoint_reconcile_threads {
     WT_CONDVAR *work_cond;
 
     wt_shared uint64_t workers_active; /* Count of workers currently reconciling. */
-    wt_shared int32_t error;            /* First error encountered by any worker. */
+    wt_shared int32_t error;           /* First error encountered by any worker. */
 };
 
 /*
@@ -227,11 +227,10 @@ extern int __wt_checkpoint_file(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_checkpoint_parallel_push_work(
-  WT_SESSION_IMPL *session, WT_REF *ref, uint32_t reconcile_flags)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_parallel_drain(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_checkpoint_parallel_push_work(WT_SESSION_IMPL *session, WT_REF *ref,
+  uint32_t reconcile_flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_parallel_thread_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_parallel_thread_destroy(WT_SESSION_IMPL *session)
