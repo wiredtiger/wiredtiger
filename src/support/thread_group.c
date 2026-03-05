@@ -393,36 +393,3 @@ __wt_thread_group_stop_one(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
     }
     __wt_writeunlock(session, &group->lock);
 }
-
-/*
- * __wt_thread_group_foreach --
- *     Perform an action for each thread in the group. It must be called while the threads are not
- *     doing any work. If any threads are running, the behavior is undefined.
- */
-int
-__wt_thread_group_foreach(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group,
-  int (*func)(WT_SESSION_IMPL *session, WT_THREAD *context))
-{
-    WT_DECL_RET;
-    uint32_t i;
-
-    __wt_verbose(
-      session, WT_VERB_THREAD_GROUP, "Performing action for each thread in group: %s", group->name);
-
-    __wt_readlock(session, &group->lock);
-
-    for (i = 0; i < group->max; i++) {
-        WT_THREAD *thread = group->threads[i];
-        if (thread == NULL)
-            continue;
-
-        /*
-         * TODO: Enforce that the threads are not running. This may be hard, as the checkpoint
-         * reconciliation threads do their own locking.
-         */
-        WT_TRET(func(thread->session, thread));
-    }
-
-    __wt_readunlock(session, &group->lock);
-    return (ret);
-}
