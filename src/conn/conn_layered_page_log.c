@@ -806,11 +806,16 @@ __disagg_parse_version_and_check(
         if (WT_CONFIG_LIT_MATCH("version", cfg_key)) {
             WT_ASSERT_ALWAYS(session, metadata->version == 0,
               "Duplicate version entry in disaggregated storage metadata");
-            metadata->version = cfg_value.val;
+            if (cfg_value.val < 0 || cfg_value.val > INT_MAX)
+                WT_ERR_MSG(session, EINVAL, "Invalid version value: %" PRId64, cfg_value.val);
+            metadata->version = (int)cfg_value.val;
         } else if (WT_CONFIG_LIT_MATCH("compatible_version", cfg_key)) {
             WT_ASSERT_ALWAYS(session, metadata->compatible_version == 0,
               "Duplicate compatible_version entry in disaggregated storage metadata");
-            metadata->compatible_version = cfg_value.val;
+            if (cfg_value.val < 0 || cfg_value.val > INT_MAX)
+                WT_ERR_MSG(
+                  session, EINVAL, "Invalid compatible_version value: %" PRId64, cfg_value.val);
+            metadata->compatible_version = (int)cfg_value.val;
         }
     }
     WT_ERR_NOTFOUND_OK(ret, false);
